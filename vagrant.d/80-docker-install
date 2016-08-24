@@ -1,0 +1,9 @@
+#!/bin/bash -x
+
+if [ "$VAGRANT_INSTALL" == "1" ]; then
+    # FIXME(lenny) TK-216 Switch to a home-rolled version of docker for
+    # consistency.
+    curl -fsSL https://get.docker.com/ | sh
+    sudo usermod -aG docker vagrant
+fi
+

@@ -1,0 +1,30 @@
+#!/bin/bash -x
+
+DIR=$(realpath $(dirname $0))
+PROJ_DIR=$(dirname ${DIR})
+
+# If this is a vagrant build, we'll copy the repo first
+if [ "${VAGRANT_INSTALL}" == "1" ]
+then
+    # Extract the repository name from git.
+    # (depending on how the repository was cloned, there may
+    # be an optional .git extension which needs to be removed)
+    REPO_NAME=`git -C ${PROJ_DIR} remote show -n origin | grep "Fetch URL:" |\
+               sed -e 's#\(.*\)\.git$#\1#' -e 's#^.*/\(.*\)#\1#'`
+    REPO_DIR=${HOME}/${REPO_NAME}
+
+    # Perform a wholesale copy of /vagrant to ${REPO_DIR} if it is not already there.
+    if [ ! -d ${REPO_DIR} ]
+    then
+        # Create a new working directory from the original .git. This allows
+        # branches, commits, and tags to work seamlessly without losing data
+        # when the vagrant instance is inevitably destroyed.
+        /bin/bash /usr/share/doc/git/contrib/workdir/git-new-workdir ${PROJ_DIR} ${REPO_DIR}
+    fi
+
+    # Update PROJ_DIR to point to new repo
+    PROJ_DIR=${REPO_DIR}
+fi
+
+# Since there are often submodules, make sure they are up-to-date.
+git -C ${PROJ_DIR} submodule update --init

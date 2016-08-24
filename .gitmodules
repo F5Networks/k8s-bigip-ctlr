@@ -1,0 +1,3 @@
+[submodule "gb-pkgs/vlogger"]
+	path = gb-pkgs/vlogger
+	url = git@bldr-git.int.lineratesystems.com:velcro/vlogger.git

@@ -1,0 +1,16 @@
+# Dockerfile for ubuntu wily debian packaging image
+FROM f5lenny/ubuntu-wily-golang:latest
+
+# Use apt-cache
+RUN echo "Setup apt-cache..."
+RUN echo 'Acquire::HTTP::Proxy "http://apt-cache.pdbld.f5net.com:3142";' \
+    > /etc/apt/apt.conf.d/01proxy
+RUN echo 'Acquire::HTTPS::Proxy "false";' >> /etc/apt/apt.conf.d/01proxy
+
+# FIXME(garyr): TK-234 Install gb manually until a proper package exists
+ENV GOPATH=/go
+RUN git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git $GOPATH/src/github.com/constabulary/gb
+RUN git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
+RUN go install -v github.com/constabulary/gb/...
+ENV PATH=$PATH:$GOPATH/bin
+

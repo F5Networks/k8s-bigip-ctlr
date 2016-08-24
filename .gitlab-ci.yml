@@ -1,0 +1,112 @@
+before_script:
+  - if [ "$CI_BUILD_STAGE" != "deploy" ]; then
+  # Use apt-cache server to speed things up
+  - echo -e "Acquire::HTTP::Proxy \"http://apt-cache.pdbld.f5net.com:3142\";\nAcquire::HTTPS::Proxy \"false\";" > /etc/apt/apt.conf.d/01proxy
+
+  # Install ssh-agent if not already installed, it is required by Docker.
+  # (change apt-get to yum if you use a CentOS-based image)
+  - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+  - fi
+  # Run ssh-agent (inside the build environment)
+  - eval $(ssh-agent -s)
+  # Add the SSH key stored in TESTLAB_CI_SSH_PRIVATE_KEY variable to the agent store
+  - ssh-add <(echo "$TESTLAB_CI_SSH_PRIVATE_KEY")
+  - echo 'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $*' > /tmp/ssh
+  - chmod a+x /tmp/ssh
+  - export GIT_SSH=/tmp/ssh
+
+  - if [ "$CI_BUILD_STAGE" != "deploy" ]; then
+  # git and golang are not in ubuntu:wily by default
+  - '(which git && which go) || (apt-get update -y && apt-get install -y git golang)'
+  - if [ -z "$GOPATH" ]; then export GOPATH=/go; fi
+
+  - echo "Installing GB..."
+  - git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git $GOPATH/src/github.com/constabulary/gb
+  - git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
+  - go install -v github.com/constabulary/gb/...
+  - fi
+
+  - echo "Obtaining git submodules..."
+  - git submodule update --init --force
+
+stages:
+  - sanity
+  - build
+  - test
+  - deploy
+
+release build and unit test:
+  image: "golang:latest"
+  stage: build
+  script:
+    - make release
+  tags:
+    - docker
+  artifacts:
+    untracked: true
+    paths:
+      - coverage.out
+      - coverage.html
+
+debug build and unit test:
+  image: "golang:latest"
+  stage: build
+  script:
+    - make debug
+  tags:
+    - docker
+  artifacts:
+    untracked: true
+    paths:
+      - coverage.out
+      - coverage.html
+
+sanity verification:
+  image: "golang:latest"
+  stage: sanity
+  script:
+    - make verify
+  tags:
+    - docker
+
+# Create the docker container and upload it to the internal docker registry with the tags
+#   <PROJ_NAMESPACE>/f5-k8s-controller:<COMMIT_ID>
+#   <PROJ_NAMESPACE>/f5-k8s-controller:<BRANCH>
+#   <PROJ_NAMESPACE>/f5-k8s-controller:<BRANCH>-<BUILD_ID>
+# If this branch is the master, then also tag:
+#   <PROJ_NAMESPACE>/f5-k8s-controller:latest
+dockerize:
+  script:
+    - PROJ_NAMESPACE=$(basename $(dirname "$CI_BUILD_REPO"))
+    - BUILD_TAG="bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller:$CI_BUILD_REF"
+    - docker build --no-cache -t $BUILD_TAG .
+    - docker tag $BUILD_TAG bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller:$CI_BUILD_REF_NAME
+    - docker tag $BUILD_TAG docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller:$CI_BUILD_REF_NAME
+    - docker tag $BUILD_TAG bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller:$CI_BUILD_REF_NAME-$CI_BUILD_ID
+    - docker tag $BUILD_TAG docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller:$CI_BUILD_REF_NAME-$CI_BUILD_ID
+    - if [ -v CI_BUILD_TAG ]; then
+    -   latest=`git tag -l | sort -V | tail -n1`
+    -   if [ "$latest" == "$CI_BUILD_TAG" ]; then
+    -     docker tag $BUILD_TAG bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller:latest
+    -     docker tag $BUILD_TAG docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller:latest
+    -   fi
+    -   docker tag $BUILD_TAG bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller:$CI_BUILD_TAG
+    -   docker tag $BUILD_TAG docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller:$CI_BUILD_TAG
+    -   RE='[^0-9]*\([0-9]*\)[.]\([0-9]*\)[.]\([0-9]*\)\([0-9A-Za-z-]*\)'
+    -   major=`echo $CI_BUILD_TAG | sed -e "s#$RE#\1#"`
+    -   minor=`echo $CI_BUILD_TAG | sed -e "s#$RE#\2#"`
+    -   docker tag $BUILD_TAG bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller:v$major.$minor
+    -   docker tag $BUILD_TAG docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller:v$major.$minor
+    -   docker tag $BUILD_TAG bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller:v$major
+    -   docker tag $BUILD_TAG docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller:v$major
+    - fi
+    - if [ "$CI_BUILD_REF_NAME" == "master" ]; then
+    -   docker tag $BUILD_TAG bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller:devel
+    -   docker tag $BUILD_TAG docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller:devel
+    - fi
+    - docker push bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller
+    - docker push docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller
+  stage: deploy
+  tags:
+    - docker-build
+

@@ -1,0 +1,4 @@
+# Files to include in the binary package
+# FORMAT: <path to copy> [destination path]
+bin/f5-k8s-controller* usr/bin/
+

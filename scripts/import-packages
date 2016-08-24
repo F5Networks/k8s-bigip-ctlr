@@ -1,0 +1,160 @@
+#!/usr/bin/env python
+
+import subprocess, os, sys
+import gitlab, argparse
+
+def getImportPaths( config ):
+  gopath = subprocess.check_output('pwd').strip('\n')
+  goListCmd = ['go', 'list', '-f']
+  importPaths = []
+  def findDependencies( importPaths, cmd ):
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+          env = dict(os.environ, GOPATH=gopath))
+    output,error = p.communicate()
+    output = output.strip("\n'[]")
+    pkgList = output.split(' ')
+    for pkg in pkgList:
+      if (pkg.find('.com') != -1) and (pkg not in importPaths):
+        importPaths.append(pkg)
+  findDependencies(importPaths, goListCmd + ["'{{.Deps}}'",
+                   config.package_name])
+  if config.test_dependencies == True:
+    findDependencies(importPaths, goListCmd + ["'{{.TestImports}}'",
+                     config.package_name])
+  print 'Vendor Import paths:', importPaths
+  return importPaths
+
+def convertImportPathsToRepos( config, importPaths ):
+  vendorPkg = []
+  for pkg in importPaths:
+    if (pkg.find('https://') == -1):
+      vendorPkg.append('https://' + pkg)
+    else:
+      vendorPkg.append(pkg)
+  vendorPkgDict = {}
+  DEVNULL = open(os.devnull, 'wb')
+  for pkg in vendorPkg:
+    repoName = pkg
+    retCode = 1
+    while (retCode):
+      retCode = subprocess.call(['git', 'ls-remote', '-h', repoName],
+                  stdout=DEVNULL, stderr=subprocess.STDOUT)
+      if (retCode == 0):
+        break
+      index  = repoName.rfind('/')
+      if (index == -1):
+        break
+      else:
+        repoName = repoName[:index]
+    if (retCode > 0):
+      print 'Cannot find repository for ' + pkg
+      continue
+    paths = repoName.split('/')
+    pkgName = paths[len(paths)-1]
+    vendorPkgDict[pkgName] = repoName
+  if config.verbose == True:
+    print 'Vendor Repositories based on import paths are:', vendorPkgDict
+  return vendorPkgDict
+
+def create_mirrors( config, vendorDict ):
+  gl = gitlab.Gitlab(config.gitlab_url, config.private_token)
+  gl.auth()
+
+  projects = gl.projects.list(all=True)
+  mirrorGroup = config.mirror
+  mirrorGroupObjList = gl.groups.search(mirrorGroup)
+  foundMirrorGroupObj = False
+  for key in mirrorGroupObjList:
+    if key.name == mirrorGroup:
+      mirrorGroupObj = key
+      foundMirrorGroupObj = True
+      break
+  if foundMirrorGroupObj == False:
+    raise Exception('Could not find mirror group with name ' + mirrorGroup)
+
+  mirrorGroupProjectDict = {}
+  for project in projects:
+    if project.namespace.id == mirrorGroupObj.id:
+      mirrorGroupProjectDict[project.name] = project
+
+  mirrorRepoUrl = {}
+  for key in vendorDict:
+    if key in mirrorGroupProjectDict:
+      mirrorRepoUrl[key] = str(mirrorGroupProjectDict[key].ssh_url_to_repo)
+      print 'Skipping adding project ' + key + ' as it already exists in ' \
+            'mirror at ' + mirrorRepoUrl[key]
+    else:
+      projectData = {
+        'name': key,
+        'description': 'Mirrored from ' + vendorDict[key],
+        'visibility_level': 20, # Public visibility
+        'import_url': vendorDict[key],
+        'namespace_id': mirrorGroupObj.id
+      }
+      if config.dry_run == True:
+        print 'New project will be created with following data:', projectData
+        mirrorRepoUrl[key] = config.gitlab_url + '/' + config.mirror + \
+                             '/' + projectData['name'] + '.git'
+      else:
+        newProject = gl.projects.create(projectData)
+        print 'New project created:', newProject.name, 'at', newProject.ssh_url_to_repo
+        mirrorRepoUrl[key] = str(newProject.ssh_url_to_repo)
+  return mirrorRepoUrl
+
+def createSubmodules( config, vendorDict, subModuleRepoDict ):
+  DEVNULL = open(os.devnull, 'wb')
+  output = (subprocess.check_output(['git', 'submodule'],
+            stderr=subprocess.STDOUT)).strip()
+  existingSubmodules = {}
+  if output != '':
+    submoduleList = output.split('\n')
+    for submodule in submoduleList:
+      statusList = submodule.strip().split(' ')
+      existingSubmodules[statusList[1]] = statusList[0]
+  for key in subModuleRepoDict:
+    path = 'vendor/src/' + vendorDict[key].lstrip('https://')
+    if path in existingSubmodules:
+      print 'Submodule', path, 'already exists at SHA:', existingSubmodules[path]
+      continue
+    if config.dry_run == True:
+      print 'Git submodule will be added at:', path, 'from:', subModuleRepoDict[key]
+    else:
+      gitSubmoduleCmd = ['git', 'submodule', 'add', '-f', subModuleRepoDict[key], path]
+      retCode = subprocess.call(gitSubmoduleCmd,
+                  stderr=subprocess.STDOUT)
+      if (retCode):
+        print 'Adding git submodule failed for:', path, 'from:', subModuleRepoDict[key]
+      else:
+        print 'Successfully added submodule at:', path, 'from:', subModuleRepoDict[key]
+
+def main(argv):
+  parser = argparse.ArgumentParser(description='Script for importing '\
+           'vendor packages')
+  parser.add_argument('private_token', help='Private user token for ' \
+    'communicating with Gitlab')
+  parser.add_argument('package_name', help='Package name whose dependencies' \
+    ' have to imported')
+  parser.add_argument('-g', '--gitlab_url', help='Gitlab URL. Default ' \
+    '"https://bldr-git.int.lineratesystems.com"', dest='gitlab_url',
+    default='https://bldr-git.int.lineratesystems.com')
+  parser.add_argument('-d', '--dry-run', help='Display all changes that would be ' \
+    'made without making them', dest='dry_run', action='store_true')
+  parser.add_argument('-t', '--test-dependencies', help='Flag to include dependencies of test files' \
+    ' in package', action='store_true', dest='test_dependencies')
+  parser.add_argument('-m', '--mirror', help='Mirror group in Gitlab which will be used ' \
+    ' for cloning projects. Default group "mirror"', dest='mirror',
+    default='mirror')
+  parser.add_argument('-v', '--verbose', help='Verbose output', dest='verbose',
+    action='store_true')
+  config = parser.parse_args()
+  if config.verbose == True:
+    print config
+  importPaths = getImportPaths(config)
+  vendorDict = convertImportPathsToRepos(config, importPaths)
+  subModuleRepoDict = create_mirrors(config, vendorDict)
+  if config.verbose == True:
+    print 'Repositories to create submodules from:', subModuleRepoDict
+  createSubmodules(config, vendorDict, subModuleRepoDict)
+
+if __name__ == "__main__":
+  main(sys.argv)

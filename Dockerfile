@@ -1,4 +1,4 @@
-FROM golang:alpine
+FROM golang:1.6
 
 ENV APPPATH /app
 
@@ -8,14 +8,15 @@ WORKDIR $APPPATH
 COPY . $APPPATH
 
 # Install dependencies, build, and remove the dependencies.
-RUN apk add --update git && \
+RUN apt-get install -y git && \
     go get github.com/constabulary/gb/... && \
     go install github.com/constabulary/gb && \
     gb build -f && \
     find . -not -name "*bin*" -not -name "*f5-k8s-controller" -not -name ".." -not -name "." | xargs rm -rf && \
     rm -rf $GOPATH/* && \
-    apk del git && \
-    rm -rf /var/cache/apk/*
+    apt-get remove -y git && \
+    apt-get autoremove -y && \
+    apt-get clean -y
 
 # Run the run application in the projects bin directory.
 CMD [ "/app/bin/f5-k8s-controller" ]

@@ -118,3 +118,6 @@
 [submodule "vendor/src/gopkg.in/inf.v0"]
 	path = vendor/src/gopkg.in/inf.v0
 	url = https://gopkg.in/inf.v0.git
+[submodule "vendor/src/github.com/scottdware/go-bigip"]
+	path = vendor/src/github.com/scottdware/go-bigip
+	url = https://github.com/scottdware/go-bigip.git

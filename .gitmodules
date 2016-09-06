@@ -1,123 +1,63 @@
 [submodule "gb-pkgs/vlogger"]
 	path = gb-pkgs/vlogger
 	url = git@bldr-git.int.lineratesystems.com:velcro/vlogger.git
-[submodule "vendor/src/k8s.io/kubernetes"]
-	path = vendor/src/k8s.io/kubernetes
-	url = git@bldr-git.int.lineratesystems.com:mirror/kubernetes.git
 [submodule "vendor/src/github.com/spf13/cobra"]
 	path = vendor/src/github.com/spf13/cobra
 	url = git@bldr-git.int.lineratesystems.com:mirror/cobra.git
 [submodule "vendor/src/github.com/spf13/pflag"]
 	path = vendor/src/github.com/spf13/pflag
 	url = git@bldr-git.int.lineratesystems.com:mirror/pflag.git
-[submodule "vendor/src/github.com/davecgh/go-spew"]
-	path = vendor/src/github.com/davecgh/go-spew
-	url = https://github.com/davecgh/go-spew.git
-[submodule "vendor/src/github.com/ugorji/go"]
-	path = vendor/src/github.com/ugorji/go
-	url = https://github.com/ugorji/go.git
-[submodule "vendor/src/golang.org/x/net"]
-	path = vendor/src/golang.org/x/net
-	url = https://go.googlesource.com/net
-[submodule "vendor/src/github.com/golang/glog"]
-	path = vendor/src/github.com/golang/glog
-	url = https://github.com/golang/glog.git
-[submodule "vendor/src/github.com/gogo/protobuf"]
-	path = vendor/src/github.com/gogo/protobuf
-	url = https://github.com/gogo/protobuf.git
-[submodule "vendor/src/github.com/google/gofuzz"]
-	path = vendor/src/github.com/google/gofuzz
-	url = https://github.com/google/gofuzz.git
-[submodule "vendor/src/github.com/ghodss/yaml"]
-	path = vendor/src/github.com/ghodss/yaml
-	url = https://github.com/ghodss/yaml.git
-[submodule "vendor/src/github.com/cloudfoundry-incubator/candiedyaml"]
-	path = vendor/src/github.com/cloudfoundry-incubator/candiedyaml
-	url = https://github.com/cloudfoundry-incubator/candiedyaml.git
-[submodule "vendor/src/github.com/opencontainers/runc"]
-	path = vendor/src/github.com/opencontainers/runc
-	url = https://github.com/opencontainers/runc.git
-[submodule "vendor/src/github.com/docker/go-units"]
-	path = vendor/src/github.com/docker/go-units
-	url = https://github.com/docker/go-units.git
-[submodule "vendor/src/github.com/Sirupsen/logrus"]
-	path = vendor/src/github.com/Sirupsen/logrus
-	url = https://github.com/Sirupsen/logrus.git
-[submodule "vendor/src/github.com/pborman/uuid"]
-	path = vendor/src/github.com/pborman/uuid
-	url = https://github.com/pborman/uuid.git
-[submodule "vendor/src/github.com/google/cadvisor"]
-	path = vendor/src/github.com/google/cadvisor
-	url = https://github.com/google/cadvisor.git
-[submodule "vendor/src/github.com/docker/distribution"]
-	path = vendor/src/github.com/docker/distribution
-	url = https://github.com/docker/distribution.git
-[submodule "vendor/src/github.com/emicklei/go-restful"]
-	path = vendor/src/github.com/emicklei/go-restful
-	url = https://github.com/emicklei/go-restful.git
-[submodule "vendor/src/github.com/prometheus/client_golang"]
-	path = vendor/src/github.com/prometheus/client_golang
-	url = https://github.com/prometheus/client_golang.git
-[submodule "vendor/src/github.com/beorn7/perks"]
-	path = vendor/src/github.com/beorn7/perks
-	url = https://github.com/beorn7/perks.git
-[submodule "vendor/src/github.com/golang/protobuf"]
-	path = vendor/src/github.com/golang/protobuf
-	url = https://github.com/golang/protobuf.git
-[submodule "vendor/src/github.com/prometheus/client_model"]
-	path = vendor/src/github.com/prometheus/client_model
-	url = https://github.com/prometheus/client_model.git
-[submodule "vendor/src/github.com/prometheus/common"]
-	path = vendor/src/github.com/prometheus/common
-	url = https://github.com/prometheus/common.git
-[submodule "vendor/src/github.com/matttproud/golang_protobuf_extensions"]
-	path = vendor/src/github.com/matttproud/golang_protobuf_extensions
-	url = https://github.com/matttproud/golang_protobuf_extensions.git
-[submodule "vendor/src/github.com/prometheus/procfs"]
-	path = vendor/src/github.com/prometheus/procfs
-	url = https://github.com/prometheus/procfs.git
-[submodule "vendor/src/github.com/juju/ratelimit"]
-	path = vendor/src/github.com/juju/ratelimit
-	url = https://github.com/juju/ratelimit.git
 [submodule "vendor/src/github.com/blang/semver"]
 	path = vendor/src/github.com/blang/semver
-	url = https://github.com/blang/semver.git
-[submodule "vendor/src/golang.org/x/oauth2"]
-	path = vendor/src/golang.org/x/oauth2
-	url = https://github.com/golang/oauth2.git
-[submodule "vendor/src/cloud.google.com/go"]
-	path = vendor/src/cloud.google.com/go
-	url = https://code.googlesource.com/gocloud.git
-[submodule "vendor/src/github.com/coreos/go-oidc"]
-	path = vendor/src/github.com/coreos/go-oidc
-	url = https://github.com/coreos/go-oidc.git
-[submodule "vendor/src/github.com/coreos/pkg"]
-	path = vendor/src/github.com/coreos/pkg
-	url = https://github.com/coreos/pkg.git
-[submodule "vendor/src/github.com/jonboulle/clockwork"]
-	path = vendor/src/github.com/jonboulle/clockwork
-	url = https://github.com/jonboulle/clockwork.git
-[submodule "vendor/src/github.com/evanphx/json-patch"]
-	path = vendor/src/github.com/evanphx/json-patch
-	url = https://github.com/evanphx/json-patch.git
-[submodule "vendor/src/github.com/imdario/mergo"]
-	path = vendor/src/github.com/imdario/mergo
-	url = https://github.com/imdario/mergo.git
+	url = git@bldr-git.int.lineratesystems.com:mirror/semver.git
+[submodule "vendor/src/github.com/davecgh/go-spew"]
+	path = vendor/src/github.com/davecgh/go-spew
+	url = git@bldr-git.int.lineratesystems.com:mirror/go-spew.git
+[submodule "vendor/src/github.com/emicklei/go-restful"]
+	path = vendor/src/github.com/emicklei/go-restful
+	url = git@bldr-git.int.lineratesystems.com:mirror/emicklei-go-restful.git
+[submodule "vendor/src/github.com/ghodss/yaml"]
+	path = vendor/src/github.com/ghodss/yaml
+	url = git@bldr-git.int.lineratesystems.com:mirror/ghodss-yaml.git
+[submodule "vendor/src/github.com/gogo/protobuf"]
+	path = vendor/src/github.com/gogo/protobuf
+	url = git@bldr-git.int.lineratesystems.com:mirror/gogo-protobuf.git
+[submodule "vendor/src/github.com/golang/glog"]
+	path = vendor/src/github.com/golang/glog
+	url = git@bldr-git.int.lineratesystems.com:mirror/golang-glog.git
 [submodule "vendor/src/github.com/golang/groupcache"]
 	path = vendor/src/github.com/golang/groupcache
-	url = https://github.com/golang/groupcache.git
-[submodule "vendor/src/github.com/docker/engine-api"]
-	path = vendor/src/github.com/docker/engine-api
-	url = https://github.com/docker/engine-api.git
-[submodule "vendor/src/github.com/docker/go-connections"]
-	path = vendor/src/github.com/docker/go-connections
-	url = https://github.com/docker/go-connections.git
-[submodule "vendor/src/github.com/docker/docker"]
-	path = vendor/src/github.com/docker/docker
-	url = https://github.com/docker/docker.git
+	url = git@bldr-git.int.lineratesystems.com:mirror/golang-groupcache.git
+[submodule "vendor/src/github.com/google/gofuzz"]
+	path = vendor/src/github.com/google/gofuzz
+	url = git@bldr-git.int.lineratesystems.com:mirror/google-gofuzz.git
+[submodule "vendor/src/github.com/imdario/mergo"]
+	path = vendor/src/github.com/imdario/mergo
+	url = git@bldr-git.int.lineratesystems.com:mirror/imdario-mergo.git
+[submodule "vendor/src/github.com/pborman/uuid"]
+	path = vendor/src/github.com/pborman/uuid
+	url = git@bldr-git.int.lineratesystems.com:mirror/pborman-uuid.git
+[submodule "vendor/src/github.com/ugorji/go"]
+	path = vendor/src/github.com/ugorji/go
+	url = git@bldr-git.int.lineratesystems.com:mirror/ugorji-go.git
 [submodule "vendor/src/gopkg.in/inf.v0"]
 	path = vendor/src/gopkg.in/inf.v0
-	url = https://gopkg.in/inf.v0.git
+	url = git@bldr-git.int.lineratesystems.com:mirror/gopkg.in-inf.v0.git
+[submodule "vendor/src/gopkg.in/yaml.v2"]
+	path = vendor/src/gopkg.in/yaml.v2
+	url = git@bldr-git.int.lineratesystems.com:mirror/gopkg.in-yaml.v2.git
+[submodule "vendor/src/k8s.io/client-go"]
+	path = vendor/src/k8s.io/client-go
+	url = git@bldr-git.int.lineratesystems.com:mirror/client-go.git
+[submodule "vendor/src/github.com/juju/ratelimit"]
+	path = vendor/src/github.com/juju/ratelimit
+	url = git@bldr-git.int.lineratesystems.com:mirror-nonfree/juju-ratelimit.git
+[submodule "vendor/src/github.com/docker/distribution"]
+	path = vendor/src/github.com/docker/distribution
+	url = git@bldr-git.int.lineratesystems.com:mirror/docker-distribution.git
+[submodule "vendor/src/golang.org/x/net"]
+	path = vendor/src/golang.org/x/net
+	url = git@bldr-git.int.lineratesystems.com:mirror/golang-x-net.git
 [submodule "vendor/src/github.com/scottdware/go-bigip"]
 	path = vendor/src/github.com/scottdware/go-bigip
-	url = https://github.com/scottdware/go-bigip.git
+	url = git@bldr-git.int.lineratesystems.com:mirror/scottdware-go-bigip.git

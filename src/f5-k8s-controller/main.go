@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"os"
 	"time"
 
@@ -11,9 +10,10 @@ import (
 	f5 "github.com/scottdware/go-bigip"
 	"github.com/spf13/pflag"
 
-	"k8s.io/kubernetes/pkg/api"
-	"k8s.io/kubernetes/pkg/client/unversioned"
-	"k8s.io/kubernetes/pkg/kubectl/cmd/util"
+	"k8s.io/client-go/1.4/kubernetes"
+	"k8s.io/client-go/1.4/pkg/api"
+	"k8s.io/client-go/1.4/rest"
+	"k8s.io/client-go/1.4/tools/clientcmd"
 )
 
 var (
@@ -21,6 +21,8 @@ var (
 	inCluster = flags.Bool("running-in-cluster", true,
 		`Optional, if this controller is running in a kubernetes cluster, use the
 		 pod secrets for creating a Kubernetes client.`)
+	kubeConfig = flags.String("kubeconfig", "./config",
+		"Optional, absolute path to the kubeconfig file")
 	bigipUrl = flags.String("bigip-url", "",
 		`URL for the Big-IP`)
 	bigipUsername = flags.String("bigip-username", "",
@@ -35,12 +37,10 @@ func initLogger() {
 	log.SetLogLevel(log.LL_DEBUG)
 }
 
-func showPods(kubeClient *unversioned.Client) bool {
-	pods := &api.PodList{}
-	var opts api.ListOptions
-	err := kubeClient.Get().Namespace("default").Resource("pods").VersionedParams(&opts, api.ParameterCodec).Do().Into(pods)
+func showPods(kubeClient *kubernetes.Clientset) bool {
+	pods, err := kubeClient.Core().Pods("").List(api.ListOptions{})
 	if err != nil {
-		log.Errorf("err=%+v", err)
+		log.Errorf("Unable to get list of pods, err=%+v", err)
 		return false
 	}
 
@@ -94,9 +94,7 @@ func showVirtualServers(bigip *f5.BigIP) bool {
 
 func main() {
 	initLogger()
-	flags.AddGoFlagSet(flag.CommandLine)
 	flags.Parse(os.Args)
-	clientConfig := util.DefaultClientConfig(flags)
 	if len(*bigipUrl) == 0 {
 		log.Fatalf("The Big-IP URL is required")
 	}
@@ -107,16 +105,21 @@ func main() {
 		log.Fatalf("The Big-IP password is required")
 	}
 
-	var kubeClient *unversioned.Client
+	var kubeClient *kubernetes.Clientset
+	var config *rest.Config
 	var err error
 	if *inCluster {
-		kubeClient, err = unversioned.NewInCluster()
+		config, err = rest.InClusterConfig()
 	} else {
-		config, connErr := clientConfig.ClientConfig()
-		if connErr != nil {
-			log.Fatalf("error connecting to the client: %v", err)
-		}
-		kubeClient, err = unversioned.New(config)
+		config, err = clientcmd.BuildConfigFromFlags("", *kubeConfig)
+	}
+	if err != nil {
+		log.Fatalf("error creating configuration: %v", err)
+	}
+	// creates the clientset
+	kubeClient, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("error connecting to the client: %v", err)
 	}
 
 	if err != nil {

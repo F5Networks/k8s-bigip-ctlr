@@ -47,8 +47,7 @@ rel-unit-test: rel-build
 		-test.blockprofile profile.block.rel \
 		-test.memprofile profile.mem.rel
 	@echo "Gathering unit test code coverage for 'release' build..."
-	# FIXME(garyr) coverage fails in the k8s code, disable for now.
-	#${PROJ_DIR}/scripts/coverage.sh
+	${PROJ_DIR}/scripts/coverage.sh
 
 dbg-unit-test: dbg-build
 	@echo "Running unit tests on 'debug' build..."
@@ -58,8 +57,7 @@ dbg-unit-test: dbg-build
 		-test.blockprofile profile.block.dbg \
 		-test.memprofile profile.mem.dbg
 	@echo "Gathering unit test code coverage for 'debug' build..."
-	# FIXME(garyr) coverage fails in the k8s code, disable for now.
-	#${PROJ_DIR}/scripts/coverage.sh
+	${PROJ_DIR}/scripts/coverage.sh
 
 fmt:
 	@echo "Enforcing code formatting using 'go fmt'..."

@@ -4,6 +4,8 @@ import (
 	"os"
 	"time"
 
+	"eventStream"
+
 	log "velcro/vlogger"
 	clog "velcro/vlogger/console"
 
@@ -23,6 +25,8 @@ var (
 		 pod secrets for creating a Kubernetes client.`)
 	kubeConfig = flags.String("kubeconfig", "./config",
 		"Optional, absolute path to the kubeconfig file")
+	namespace = flags.String("namespace", "default",
+		"Optional, Kubernetes namespace to watch")
 	bigipUrl = flags.String("bigip-url", "",
 		`URL for the Big-IP`)
 	bigipUsername = flags.String("bigip-username", "",
@@ -127,6 +131,13 @@ func main() {
 	}
 
 	bigip := f5.NewSession(*bigipUrl, *bigipUsername, *bigipPassword)
+	serviceEventStream := eventStream.NewServiceEventStream(kubeClient.Core(), *namespace, 5)
+	serviceEventStream.Run()
+	defer serviceEventStream.Stop()
+
+	configMapEventStream := eventStream.NewConfigMapEventStream(kubeClient.Core(), *namespace, 5)
+	configMapEventStream.Run()
+	defer configMapEventStream.Stop()
 
 	errCt := 0
 	for {

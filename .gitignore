@@ -32,3 +32,4 @@ vendor/manifest
 *.rel
 coverage.out
 coverage.html
+python/.cache

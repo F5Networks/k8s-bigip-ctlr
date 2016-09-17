@@ -15,6 +15,7 @@ before_script:
   - chmod a+x /tmp/ssh
   - export GIT_SSH=/tmp/ssh
 
+  - if [ "$CI_BUILD_STAGE" != "test" ]; then
   - if [ "$CI_BUILD_STAGE" != "deploy" ]; then
   # git and golang are not in ubuntu:wily by default
   - '(which git && which go) || (apt-get update -y && apt-get install -y git golang)'
@@ -28,12 +29,21 @@ before_script:
 
   - echo "Obtaining git submodules..."
   - git submodule update --init --force
+  - fi
 
 stages:
   - sanity
-  - build
   - test
+  - build
   - deploy
+
+python utility unit test:
+  stage: test
+  script:
+    - pip install -r python/requirements.txt
+    - cd python; PYTHONPATH=$PYTHONPATH:$PWD pytest -slvv
+  tags:
+    - docker
 
 release build and unit test:
   image: "golang:latest"

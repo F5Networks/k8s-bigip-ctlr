@@ -28,3 +28,6 @@ fi
 
 # Since there are often submodules, make sure they are up-to-date.
 git -C ${PROJ_DIR} submodule update --init
+
+# Install required python dependencies
+sudo pip install -r python/requirements.txt

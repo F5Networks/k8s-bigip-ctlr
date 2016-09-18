@@ -163,6 +163,10 @@ func TestRunnerEndToEnd(t *testing.T) {
 	if !ok {
 		t.Errorf("did not enter watch phase after %v seconds", timeoutSecs)
 	}
+	ok = timedChanWait(inChangeChan, timeoutSecs)
+	if !ok {
+		t.Errorf("did not enter watch phase after %v seconds", timeoutSecs)
+	}
 	goRoutinesAfter := goruntime.NumGoroutine()
 	if goRoutinesBefore >= goRoutinesAfter {
 		t.Errorf("expected # of goroutines to increase after calling eventStream.Run(), before %v, after %v", goRoutinesBefore, goRoutinesAfter)
@@ -263,7 +267,7 @@ func TestRunnerResourceVersionHandling(t *testing.T) {
 
 func TestNewConfigMapEventStream(t *testing.T) {
 	namespace := "testns"
-	eventStream := NewConfigMapEventStream(&fake.FakeCore{}, namespace, 0)
+	eventStream := NewConfigMapEventStream(&fake.FakeCore{}, namespace, 0, nil, nil, nil)
 	if eventStream == nil {
 		t.Errorf("unexpected nil eventStream")
 	}
@@ -292,7 +296,7 @@ func TestNewConfigMapEventStream(t *testing.T) {
 
 func TestNewServiceEventStream(t *testing.T) {
 	namespace := "testns"
-	eventStream := NewServiceEventStream(&fake.FakeCore{}, namespace, 0)
+	eventStream := NewServiceEventStream(&fake.FakeCore{}, namespace, 0, nil, nil, nil)
 	if eventStream == nil {
 		t.Errorf("unexpected nil eventStream")
 	}

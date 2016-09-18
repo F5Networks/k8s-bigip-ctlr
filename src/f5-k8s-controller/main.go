@@ -131,11 +131,23 @@ func main() {
 	}
 
 	bigip := f5.NewSession(*bigipUrl, *bigipUsername, *bigipPassword)
-	serviceEventStream := eventStream.NewServiceEventStream(kubeClient.Core(), *namespace, 5)
+	onServiceChange := func(changeType eventStream.ChangeType, obj interface{}) {
+		// TODO(garyr): Handle service changes here
+		// service := obj.(*v1.Service)
+		// log.Infof("service=%+v", service)
+		log.Infof("onServiceChange(%v, %+v)", changeType, obj)
+	}
+	serviceEventStream := eventStream.NewServiceEventStream(kubeClient.Core(), *namespace, 5, onServiceChange, nil, nil)
 	serviceEventStream.Run()
 	defer serviceEventStream.Stop()
 
-	configMapEventStream := eventStream.NewConfigMapEventStream(kubeClient.Core(), *namespace, 5)
+	onConfigMapChange := func(changeType eventStream.ChangeType, obj interface{}) {
+		// TODO(garyr): Handle ConfigMap changes here
+		// configMap := obj.(*v1.ConfigMap)
+		// log.Infof("configMap=%+v", configMap)
+		log.Infof("onConfigMapChange(%v, %+v)", changeType, obj)
+	}
+	configMapEventStream := eventStream.NewConfigMapEventStream(kubeClient.Core(), *namespace, 5, onConfigMapChange, nil, nil)
 	configMapEventStream.Run()
 	defer configMapEventStream.Stop()
 

@@ -150,9 +150,10 @@ func TestCache(t *testing.T) {
 
 func TestCacheListeners(t *testing.T) {
 	expected := map[ChangeType]int{
-		Added:   4,
-		Updated: 1,
-		Deleted: 1,
+		Added:    4,
+		Updated:  1,
+		Deleted:  1,
+		Replaced: 1,
 	}
 	changes := map[ChangeType]int{
 		Added:   0,

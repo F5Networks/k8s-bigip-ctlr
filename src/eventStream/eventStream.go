@@ -3,11 +3,11 @@ package eventStream
 import (
 	"time"
 
-	log "velcro/vlogger"
-
 	v1core "k8s.io/client-go/1.4/kubernetes/typed/core/v1"
 	"k8s.io/client-go/1.4/pkg/api"
 	"k8s.io/client-go/1.4/pkg/api/v1"
+	"k8s.io/client-go/1.4/pkg/fields"
+	"k8s.io/client-go/1.4/pkg/labels"
 	"k8s.io/client-go/1.4/pkg/runtime"
 	"k8s.io/client-go/1.4/pkg/watch"
 	"k8s.io/client-go/1.4/tools/cache"
@@ -74,7 +74,7 @@ func NewEventStream(eventListWatch *EventListWatch, dataType interface{}, resync
 }
 
 // Creates a new EventStream for *v1.Service
-func NewServiceEventStream(core v1core.CoreInterface, namespace string, resyncPeriod time.Duration) *EventStream {
+func NewServiceEventStream(core v1core.CoreInterface, namespace string, resyncPeriod time.Duration, onChangeFunc OnChangeFunc, labelSelector labels.Selector, fieldSelector fields.Selector) *EventStream {
 	return NewEventStream(
 		&EventListWatch{
 			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
@@ -83,33 +83,31 @@ func NewServiceEventStream(core v1core.CoreInterface, namespace string, resyncPe
 			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
 				return core.Services(namespace).Watch(options)
 			},
-			OnChangeFunc: func(changeType ChangeType, obj interface{}) {
-				// TODO(garyr): Handle service changes here
-				// service := obj.(*v1.Service)
-				// log.Infof("service=%+v", service)
-				log.Infof("onServiceChange(%v, %+v)", changeType, obj)
-			},
+			OnChangeFunc: onChangeFunc,
 		},
 		&v1.Service{},
 		resyncPeriod)
 }
 
 // Creates a new EventStream for *v1.ConfigMap
-func NewConfigMapEventStream(core v1core.CoreInterface, namespace string, resyncPeriod time.Duration) *EventStream {
+func NewConfigMapEventStream(core v1core.CoreInterface, namespace string, resyncPeriod time.Duration, onChangeFunc OnChangeFunc, labelSelector labels.Selector, fieldSelector fields.Selector) *EventStream {
 	return NewEventStream(
 		&EventListWatch{
 			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
-				return core.ConfigMaps(namespace).List(options)
+				// add the specified labelSelector and fieldSelector object to the options list
+				opts := options
+				opts.LabelSelector = labelSelector
+				opts.FieldSelector = fieldSelector
+				return core.ConfigMaps(namespace).List(opts)
 			},
 			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
-				return core.ConfigMaps(namespace).Watch(options)
+				// add the specified labelSelector and fieldSelector object to the options list
+				opts := options
+				opts.LabelSelector = labelSelector
+				opts.FieldSelector = fieldSelector
+				return core.ConfigMaps(namespace).Watch(opts)
 			},
-			OnChangeFunc: func(changeType ChangeType, obj interface{}) {
-				// TODO(garyr): Handle ConfigMap changes here
-				// configMap := obj.(*v1.ConfigMap)
-				// log.Infof("configMap=%+v", configMap)
-				log.Infof("onConfigMapChange(%v, %+v)", changeType, obj)
-			},
+			OnChangeFunc: onChangeFunc,
 		},
 		&v1.ConfigMap{},
 		resyncPeriod)

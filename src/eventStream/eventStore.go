@@ -8,9 +8,10 @@ import (
 type ChangeType string
 
 const (
-	Added   ChangeType = "ADDED"
-	Updated ChangeType = "UPDATED"
-	Deleted ChangeType = "DELETED"
+	Added    ChangeType = "ADDED"
+	Updated  ChangeType = "UPDATED"
+	Deleted  ChangeType = "DELETED"
+	Replaced ChangeType = "REPLACED"
 )
 
 // Function used to handle stream update events after the store is updated.
@@ -96,6 +97,9 @@ func (es *EventStore) Replace(list []interface{}, resourceVersion string) error 
 		items[key] = item
 	}
 	es.storage.Replace(items, resourceVersion)
+	if es.onChangeFunc != nil {
+		es.onChangeFunc(Replaced, list)
+	}
 	return nil
 }
 func (es *EventStore) Resync() error {

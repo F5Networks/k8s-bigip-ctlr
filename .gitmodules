@@ -64,3 +64,9 @@
 [submodule "vendor/src/velcro/f5-marathon-lb"]
 	path = vendor/src/velcro/f5-marathon-lb
 	url = git@bldr-git.int.lineratesystems.com:velcro/f5-marathon-lb.git
+[submodule "vendor/src/github.com/stretchr/testify"]
+	path = vendor/src/github.com/stretchr/testify
+	url = git@bldr-git.int.lineratesystems.com:mirror/testify.git
+[submodule "vendor/src/github.com/pmezard/go-difflib"]
+	path = vendor/src/github.com/pmezard/go-difflib
+	url = git@bldr-git.int.lineratesystems.com:mirror/go-difflib.git

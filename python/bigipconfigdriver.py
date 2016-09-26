@@ -24,8 +24,8 @@ import time
 
 import pyinotify
 
-#FIXME(yacobucci) add bigip module when available
-#import bigip configurator module
+# FIXME(yacobucci) add bigip module when available
+# import bigip configurator module
 
 log = logging.getLogger('bigipconfigdriver')
 console = logging.StreamHandler()
@@ -69,7 +69,7 @@ class ConfigWatcher(pyinotify.ProcessEvent):
 
     def loop(self):
         self._running = True
-        if False == os.path.exists(self._config_dir):
+        if not os.path.exists(self._config_dir):
             log.info(
                 'configured directory doesn\'t exist {}, entering poll loop'.
                 format(self._config_dir))
@@ -107,7 +107,7 @@ class ConfigWatcher(pyinotify.ProcessEvent):
                         self._config_file))
                     _notifier.loop(callback=self._loop_check)
 
-                    if (self._polling == False and _notifier._fd == None):
+                    if (not self._polling and _notifier._fd is None):
                         log.info('terminating')
                         self._running = False
 
@@ -156,11 +156,11 @@ class ConfigWatcher(pyinotify.ProcessEvent):
         if (pyinotify.IN_DELETE_SELF == event.mask or
                 pyinotify.IN_MOVE_SELF == event.mask):
             log.warn(
-                'watchpoint {} has been moved or destroyed, entering poll loop'.
+                'watchpoint {} has been moved or destroyed, using poll loop'.
                 format(self._config_dir))
             self._polling = True
 
-            if self._config_stats != None:
+            if self._config_stats is not None:
                 # FIXME(yacobucci) changed
                 log.debug('config file {} changed, parent gone'.format(
                     self._config_file))
@@ -170,7 +170,7 @@ class ConfigWatcher(pyinotify.ProcessEvent):
             (changed, md5) = self._is_changed()
 
             if changed:
-                # FIXME(yacobucci) if we've changed then notify the BigIp module
+                # FIXME(yacobucci) if we've changed notify the BigIp module
                 log.debug('config file {0} changed - signalling bigip'.format(
                     self._config_file, self._config_stats, md5))
                 self._config_stats = md5
@@ -191,8 +191,8 @@ def _handle_args():
         help='BigIp configuration file')
     args = parser.parse_args()
 
-    #FIXME(yacobucci) additional arguments required for connecting to
-    #BigIp
+    # FIXME(yacobucci) additional arguments required for connecting to
+    # BigIp
 
     basename = os.path.basename(args.config_file)
     if not basename or 0 == len(basename):
@@ -210,7 +210,7 @@ def main():
         if verbose:
             log.setLevel(logging.DEBUG)
 
-        #FIXME(yacobucci) initialize the world if config file exists
+        # FIXME(yacobucci) initialize the world if config file exists
 
         watcher = ConfigWatcher(realpath)
         watcher.loop()

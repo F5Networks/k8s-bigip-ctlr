@@ -40,7 +40,9 @@ stages:
 python utility unit test:
   stage: test
   script:
+    - pip install flake8
     - pip install -r python/requirements.txt
+    - flake8 ./python/
     - cd python; PYTHONPATH=$PYTHONPATH:$PWD pytest -slvv
   tags:
     - docker

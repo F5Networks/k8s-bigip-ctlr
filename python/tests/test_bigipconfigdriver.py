@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import os
 import shutil
 import sys
@@ -29,8 +28,7 @@ _args_too_many = ['1', '2', '3']
 
 
 def test_handleargs_noargs(capsys):
-    expected = \
-"""usage: bigipconfigdriver.py [-h] [-v] config-file
+    expected = """usage: bigipconfigdriver.py [-h] [-v] config-file
 bigipconfigdriver.py: error: too few arguments
 """
 
@@ -45,8 +43,7 @@ bigipconfigdriver.py: error: too few arguments
 
 
 def test_handleargs_toomany(capsys):
-    expected = \
-"""usage: bigipconfigdriver.py [-h] [-v] config-file
+    expected = """usage: bigipconfigdriver.py [-h] [-v] config-file
 bigipconfigdriver.py: error: unrecognized arguments: 2 3
 """
 
@@ -74,7 +71,7 @@ def test_handleargs_realpath():
     (realpath, verbose) = bigipconfigdriver._handle_args()
 
     assert realpath == '/tmp/file'
-    assert verbose == False
+    assert verbose is False
 
 
 def test_handleargs_expected():
@@ -83,7 +80,7 @@ def test_handleargs_expected():
     (realpath, verbose) = bigipconfigdriver._handle_args()
 
     assert realpath == '/tmp/file'
-    assert verbose == False
+    assert verbose is False
 
 
 def test_handleargs_verbose():
@@ -92,7 +89,7 @@ def test_handleargs_verbose():
     (realpath, verbose) = bigipconfigdriver._handle_args()
 
     assert realpath == '/tmp/file'
-    assert verbose == True
+    assert verbose is True
 
 
 # ConfigWatcher tests
@@ -110,12 +107,13 @@ def test_configwatcher_init(request):
 
     assert watcher._config_file == expected_file
     assert watcher._config_dir == expected_dir
-    assert watcher._config_stats == None
-    assert watcher._polling == False
-    assert watcher._running == False
+    assert watcher._config_stats is None
+    assert watcher._polling is False
+    assert watcher._running is False
 
     # Test with file on created
-    expected_digest = '\xd4\x1d\x8c\xd9\x8f\x00\xb2\x04\xe9\x80\t\x98\xec\xf8B~'
+    expected_digest = '\xd4\x1d\x8c\xd9\x8f\x00\xb2\x04' + \
+        '\xe9\x80\t\x98\xec\xf8B~'
 
     os.mkdir(expected_dir)
     with open(expected_file, 'w+'):
@@ -126,8 +124,8 @@ def test_configwatcher_init(request):
     assert watcherExist._config_file == expected_file
     assert watcherExist._config_dir == expected_dir
     assert watcherExist._config_stats == expected_digest
-    assert watcher._polling == False
-    assert watcher._running == False
+    assert watcher._polling is False
+    assert watcher._running is False
 
 
 def test_configwatcher_shouldwatch():
@@ -136,9 +134,9 @@ def test_configwatcher_shouldwatch():
 
     watcher = bigipconfigdriver.ConfigWatcher(watch_file)
 
-    assert watcher._should_watch(watch_file) == True
+    assert watcher._should_watch(watch_file) is True
 
-    assert watcher._should_watch('/tmp/not-config-file') == False
+    assert watcher._should_watch('/tmp/not-config-file') is False
 
 
 def test_configwatcher_loop(request):
@@ -164,7 +162,7 @@ def test_configwatcher_loop(request):
     # loop will block and threading will introduce synchronization complexities
     # assuming pyinotify signals properly and only testing the _is_changed
     # function
-    assert watcher._config_stats == None
+    assert watcher._config_stats is None
 
     # IN_CREATE event
     os.mkdir(watch_dir)

@@ -12,6 +12,7 @@ RUN apt-get update -y && \
     apt-get install -y git python python-dev python-pip && \
     PYINOTIFY=$(grep pyinotify python/requirements.txt); \
     pip install $PYINOTIFY && \
+    pip install -r vendor/src/velcro/f5-marathon-lb/requirements.txt && \
     go get github.com/constabulary/gb/... && \
     go install github.com/constabulary/gb && \
     gb build -f && \

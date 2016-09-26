@@ -42,8 +42,9 @@ python utility unit test:
   script:
     - pip install flake8
     - pip install -r python/requirements.txt
+    - pip install -r vendor/src/velcro/f5-marathon-lb/requirements.txt
     - flake8 ./python/
-    - cd python; PYTHONPATH=$PYTHONPATH:$PWD pytest -slvv
+    - cd python; PYTHONPATH=$PYTHONPATH:$PWD:$PWD/../vendor/src/velcro/f5-marathon-lb pytest -slvv
   tags:
     - docker
 

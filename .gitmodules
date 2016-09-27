@@ -61,3 +61,6 @@
 [submodule "vendor/src/github.com/scottdware/go-bigip"]
 	path = vendor/src/github.com/scottdware/go-bigip
 	url = git@bldr-git.int.lineratesystems.com:mirror/scottdware-go-bigip.git
+[submodule "vendor/src/velcro/f5-marathon-lb"]
+	path = vendor/src/velcro/f5-marathon-lb
+	url = git@bldr-git.int.lineratesystems.com:velcro/f5-marathon-lb.git

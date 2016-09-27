@@ -24,8 +24,11 @@ import time
 
 import pyinotify
 
-# FIXME(yacobucci) add bigip module when available
-# import bigip configurator module
+# FIXME(yacobucci) this line can be uncommented to verify the submodule
+# is init'd correctly and can import f5-marathon-lb utilities. It is not
+# currently used and flake8 will fail builds.
+# Uncomment and implement regenerate behavior.
+# import _f5
 
 log = logging.getLogger('bigipconfigdriver')
 console = logging.StreamHandler()

@@ -16,7 +16,9 @@ RUN apt-get update -y && \
     go get github.com/constabulary/gb/... && \
     go install github.com/constabulary/gb && \
     gb build -f && \
-    find . -not -name "*bin*" -not -name "*f5-k8s-controller" -not -name ".." -not -name "." | xargs rm -rf && \
+    (cd python; cp --remove-destination $(readlink _f5.py) _f5.py) && \
+    (cd python; cp --remove-destination $(readlink common.py) common.py) && \
+    find . -not -name "*bin*" -not -name "*f5-k8s-controller" -not -name ".." -not -name "." -not -path "*python*" | xargs rm -rf && \
     rm -rf $GOPATH/* && \
     apt-get remove -y git python-dev python-pip && \
     apt-get autoremove -y && \

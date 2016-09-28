@@ -16,19 +16,17 @@
 
 import argparse
 import hashlib
+import json
 import logging
 import os
 import os.path
 import sys
 import time
+import threading
 
 import pyinotify
 
-# FIXME(yacobucci) this line can be uncommented to verify the submodule
-# is init'd correctly and can import f5-marathon-lb utilities. It is not
-# currently used and flake8 will fail builds.
-# Uncomment and implement regenerate behavior.
-# import _f5
+from _f5 import CloudBigIP
 
 log = logging.getLogger('bigipconfigdriver')
 console = logging.StreamHandler()
@@ -48,13 +46,94 @@ class BigipWatcherError(Exception):
         Exception.__init__(self, msg)
 
 
+class ConfigHandler():
+    def __init__(self, config_file, bigip):
+        self._config_file = config_file
+        self._bigip = bigip
+
+        self._condition = threading.Condition()
+        self._thread = threading.Thread(target=self._do_reset)
+        self._pending_reset = False
+        self._stop = False
+        self._thread.start()
+
+    def stop(self):
+        self._condition.acquire()
+        self._stop = True
+        self._condition.notify()
+        self._condition.release()
+
+    def _parse_config(self):
+        if os.path.exists(self._config_file):
+            with open(self._config_file) as config:
+                config_json = json.load(config)
+                log.debug('loaded configuration file successfully')
+                return config_json
+        else:
+            return None
+
+    def notify_reset(self):
+        self._condition.acquire()
+        self._pending_reset = True
+        self._condition.notify()
+        self._condition.release()
+
+    def _do_reset(self):
+        log.debug('config handler thread start')
+
+        with self._condition:
+            while True:
+                self._condition.acquire()
+                if not self._pending_reset:
+                    self._condition.wait()
+                log.debug('config handler woken for reset')
+
+                if self._stop:
+                    log.info('stopping config handler')
+                    return
+
+                self._pending_reset = False
+                self._condition.release()
+
+                try:
+                    start_time = time.time()
+
+                    config = self._parse_config()
+
+                    # FIXME(yacobucci) update regenerate_config_f5 to take
+                    # the full config blob
+                    services = None
+                    try:
+                        services = config['services']
+                    except (TypeError, KeyError):
+                        services = []
+
+                    if self._bigip.regenerate_config_f5(services):
+                        # Timeout occurred, do a reset so that we try again
+                        log.warning(
+                            'regenerate operation timed out, resetting')
+                        self.notify_reset()
+
+                    log.debug('updating tasks finished, took %s seconds',
+                              time.time() - start_time)
+                except IOError as e:
+                    log.warning(e)
+                except ValueError as e:
+                    log.warning(e)
+                except:
+                    log.exception('Unexpected error, exitting')
+
+
 class ConfigWatcher(pyinotify.ProcessEvent):
-    def __init__(self, config_file):
+    def __init__(self, config_file, bigip, on_change):
         basename = os.path.basename(config_file)
         if not basename or 0 == len(basename):
             raise BigipWatcherError('config_file must be a file path')
 
         self._config_file = config_file
+        self._bigip = bigip
+        self._on_change = on_change
+
         self._config_dir = os.path.dirname(self._config_file)
         self._config_stats = None
         if os.path.exists(self._config_file):
@@ -164,19 +243,19 @@ class ConfigWatcher(pyinotify.ProcessEvent):
             self._polling = True
 
             if self._config_stats is not None:
-                # FIXME(yacobucci) changed
                 log.debug('config file {} changed, parent gone'.format(
                     self._config_file))
                 self._config_stats = None
+                self._on_change()
 
         if self._should_watch(event.pathname):
             (changed, md5) = self._is_changed()
 
             if changed:
-                # FIXME(yacobucci) if we've changed notify the BigIp module
                 log.debug('config file {0} changed - signalling bigip'.format(
                     self._config_file, self._config_stats, md5))
                 self._config_stats = md5
+                self._on_change()
 
 
 def _handle_args():
@@ -188,35 +267,56 @@ def _handle_args():
         action="store_true",
         help='Output verbose debug message')
     parser.add_argument(
-        'config_file',
-        metavar='config-file',
-        type=str,
-        help='BigIp configuration file')
+            '--username',
+            type=str,
+            required=True,
+            help='BigIp username')
+    parser.add_argument(
+            '--password',
+            type=str,
+            required=True,
+            help='BigIp password')
+    parser.add_argument(
+            '--hostname',
+            type=str,
+            required=True,
+            help='IP address of BigIp')
+    parser.add_argument(
+            '--config-file',
+            type=str,
+            required=True,
+            help='BigIp configuration file')
+    parser.add_argument(
+            'partitions', metavar='partition', type=str, nargs='+',
+            help='List of BigIp partitions available to the controller')
     args = parser.parse_args()
-
-    # FIXME(yacobucci) additional arguments required for connecting to
-    # BigIp
 
     basename = os.path.basename(args.config_file)
     if not basename or 0 == len(basename):
         raise ConfigError('must provide a file path')
 
-    realpath = os.path.realpath(args.config_file)
+    args.config_file = os.path.realpath(args.config_file)
 
-    return (realpath, args.verbose)
+    return args
 
 
 def main():
     try:
-        (realpath, verbose) = _handle_args()
+        args = _handle_args()
 
-        if verbose:
+        if args.verbose:
             log.setLevel(logging.DEBUG)
 
-        # FIXME(yacobucci) initialize the world if config file exists
+        bigip = CloudBigIP('kubernetes', args.hostname, args.username,
+                           args.password, args.partitions)
 
-        watcher = ConfigWatcher(realpath)
+        handler = ConfigHandler(args.config_file, bigip)
+        if os.path.exists(args.config_file):
+            handler.notify_reset()
+
+        watcher = ConfigWatcher(args.config_file, bigip, handler.notify_reset)
         watcher.loop()
+        handler.stop()
     except BigipWatcherError, err:
         log.error(err)
         sys.exit(1)

@@ -8,15 +8,16 @@ import (
 	"time"
 
 	"eventStream"
+	"virtualServer"
 
 	log "velcro/vlogger"
 	clog "velcro/vlogger/console"
 
-	f5 "github.com/scottdware/go-bigip"
+	// FIXME: Put this back when we actually use the BIG-IP Go API
+	// f5 "github.com/scottdware/go-bigip"
 	"github.com/spf13/pflag"
 
 	"k8s.io/client-go/1.4/kubernetes"
-	"k8s.io/client-go/1.4/pkg/api"
 	"k8s.io/client-go/1.4/rest"
 	"k8s.io/client-go/1.4/tools/clientcmd"
 )
@@ -46,61 +47,6 @@ func initLogger() {
 	log.RegisterLogger(
 		log.LL_MIN_LEVEL, log.LL_MAX_LEVEL, clog.NewConsoleLogger())
 	log.SetLogLevel(log.LL_DEBUG)
-}
-
-func showPods(kubeClient *kubernetes.Clientset) bool {
-	pods, err := kubeClient.Core().Pods("").List(api.ListOptions{})
-	if err != nil {
-		log.Errorf("Unable to get list of pods, err=%+v", err)
-		return false
-	}
-
-	log.Infof("========================================")
-	for _, pod := range pods.Items {
-		log.Infof("pod: %v", pod.Name)
-		log.Infof("  namespace=%v", pod.Namespace)
-		log.Infof("  resourceVersion=%v", pod.ResourceVersion)
-		log.Infof("  generation=%v", pod.Generation)
-		log.Infof("  creationTimestamp=%v", pod.CreationTimestamp)
-		log.Infof("  labels:")
-		for k, v := range pod.Labels {
-			log.Infof("    %v=%v", k, v)
-		}
-		log.Infof("  annotations:")
-		for k, v := range pod.Annotations {
-			log.Infof("    %v=%v", k, v)
-		}
-		log.Infof("  containers:")
-		for _, v := range pod.Spec.Containers {
-			log.Infof("    name=%v", v.Name)
-			log.Infof("    image=%v", v.Image)
-		}
-	}
-	return true
-}
-
-func showVirtualServers(bigip *f5.BigIP) bool {
-	vs, err := bigip.VirtualServers()
-	if err != nil {
-		log.Errorf("failed to get virtual servers: %v", err)
-		return false
-	}
-	log.Infof("----------------------------------------")
-	if len(vs.VirtualServers) == 0 {
-		log.Infof("No virtual servers are configured")
-	} else {
-		for _, v := range vs.VirtualServers {
-			log.Infof("virtual server: %v", v.Name)
-			log.Infof("  enabled=%v", v.Enabled)
-			log.Infof("  partition=%v", v.Partition)
-			log.Infof("  fullPath=%v", v.FullPath)
-			log.Infof("  ipProtocol=%v", v.IPProtocol)
-			log.Infof("  destination=%v", v.Destination)
-			log.Infof("  netmask=%v", v.Mask)
-			log.Infof("  source=%v", v.Source)
-		}
-	}
-	return true
 }
 
 func runBigIpDriver(pid chan<- int, bigipUsername *string, bigipPassword *string,
@@ -202,42 +148,27 @@ func main() {
 		log.Fatalf("failed to create client: %v", err)
 	}
 
-	bigip := f5.NewSession(*bigipUrl, *bigipUsername, *bigipPassword)
+	// Initialize the Node cache
+	virtualServer.ProcessNodeUpdate(kubeClient)
+
 	onServiceChange := func(changeType eventStream.ChangeType, obj interface{}) {
-		// TODO(garyr): Handle service changes here
-		// service := obj.(*v1.Service)
-		// log.Infof("service=%+v", service)
-		log.Infof("onServiceChange(%v, %+v)", changeType, obj)
+		virtualServer.ProcessServiceUpdate(kubeClient, changeType, obj)
 	}
 	serviceEventStream := eventStream.NewServiceEventStream(kubeClient.Core(), *namespace, 5, onServiceChange, nil, nil)
 	serviceEventStream.Run()
 	defer serviceEventStream.Stop()
 
 	onConfigMapChange := func(changeType eventStream.ChangeType, obj interface{}) {
-		// TODO(garyr): Handle ConfigMap changes here
-		// configMap := obj.(*v1.ConfigMap)
-		// log.Infof("configMap=%+v", configMap)
-		log.Infof("onConfigMapChange(%v, %+v)", changeType, obj)
+		virtualServer.ProcessConfigMapUpdate(kubeClient, changeType, obj)
 	}
 	configMapEventStream := eventStream.NewConfigMapEventStream(kubeClient.Core(), *namespace, 5, onConfigMapChange, nil, nil)
 	configMapEventStream.Run()
 	defer configMapEventStream.Stop()
 
-	errCt := 0
 	for {
-		ok := showPods(kubeClient)
-		if !ok {
-			errCt += 1
-		}
-
-		ok = showVirtualServers(bigip)
-		if !ok {
-			errCt += 1
-		}
-
-		if errCt >= 10 {
-			log.Fatalf("Too many errors, exiting")
-		}
 		time.Sleep(30 * time.Second)
+
+		// Poll for node changes
+		virtualServer.ProcessNodeUpdate(kubeClient)
 	}
 }

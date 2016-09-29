@@ -280,7 +280,7 @@ def _handle_args():
             '--hostname',
             type=str,
             required=True,
-            help='IP address of BigIp')
+            help='Hostname / IP address of BigIp')
     parser.add_argument(
             '--config-file',
             type=str,

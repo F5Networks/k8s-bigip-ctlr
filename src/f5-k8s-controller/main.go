@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	"os"
+	"os/exec"
 	"time"
 
 	"eventStream"
@@ -33,6 +36,10 @@ var (
 		`Required, user name for the Big-IP user account.`)
 	bigipPassword = flags.String("bigip-password", "",
 		`Required, password for the Big-IP user account.`)
+	bigipPartition = flags.String("bigip-partition", "velcro",
+		`Optional, partition for the Big-IP velcro objects.`)
+	pythonBaseDir = flags.String("python-basedir", "/app/python",
+		`Optional, directory location of python utilities`)
 )
 
 func initLogger() {
@@ -96,6 +103,54 @@ func showVirtualServers(bigip *f5.BigIP) bool {
 	return true
 }
 
+func runBigIpDriver(pid chan<- int, bigipUsername *string, bigipPassword *string,
+	bigipUrl *string, bigipPartition *string, pythonBaseDir *string) {
+	defer close(pid)
+
+	cmdName := "python"
+	bigipDriver := "bigipconfigdriver.py"
+
+	drvName := fmt.Sprintf("%s/%s", *pythonBaseDir, bigipDriver)
+
+	confName := fmt.Sprintf("/tmp/f5-k8s-controller.config.%d.json", os.Getpid())
+
+	cmdArgs := []string{
+		drvName,
+		"--username", *bigipUsername,
+		"--password", *bigipPassword,
+		"--hostname", *bigipUrl,
+		"--config-file", confName,
+		*bigipPartition}
+
+	cmd := exec.Command(cmdName, cmdArgs...)
+
+	// the config driver python logging goes to stderr by default
+	cmdOut, err := cmd.StderrPipe()
+	scanOut := bufio.NewScanner(cmdOut)
+	go func() {
+		for true {
+			if scanOut.Scan() {
+				log.Info(scanOut.Text())
+			} else {
+				break
+			}
+		}
+	}()
+
+	err = cmd.Start()
+	if nil != err {
+		log.Fatalf("Internal error: failed to start config driver: %v", err)
+	}
+	log.Infof("Started config driver sub-process at pid: %d", cmd.Process.Pid)
+
+	pid <- cmd.Process.Pid
+
+	err = cmd.Wait()
+	if nil != err {
+		log.Fatalf("Config driver exited unexpectedly: %v", err)
+	}
+}
+
 func main() {
 	initLogger()
 	flags.Parse(os.Args)
@@ -108,6 +163,23 @@ func main() {
 	if len(*bigipPassword) == 0 {
 		log.Fatalf("The Big-IP password is required")
 	}
+
+	subPidCh := make(chan int)
+	go runBigIpDriver(subPidCh, bigipUsername, bigipPassword, bigipUrl,
+		bigipPartition, pythonBaseDir)
+	subPid := <-subPidCh
+	defer func(pid int) {
+		if 0 != pid {
+			proc, err := os.FindProcess(pid)
+			if nil != err {
+				log.Warningf("Failed to find sub-process on exit: %v", err)
+			}
+			err = proc.Signal(os.Interrupt)
+			if nil != err {
+				log.Warningf("Could not stop sub-process on exit: %d - %v", pid, err)
+			}
+		}
+	}(subPid)
 
 	var kubeClient *kubernetes.Clientset
 	var config *rest.Config

@@ -67,7 +67,7 @@ func init() {
 
 // Process Service objects from the eventStream
 func ProcessServiceUpdate(
-	kubeClient *kubernetes.Clientset,
+	kubeClient kubernetes.Interface,
 	changeType eventStream.ChangeType,
 	obj interface{}) {
 
@@ -92,7 +92,7 @@ func ProcessServiceUpdate(
 
 // Process ConfigMap objects from the eventStream
 func ProcessConfigMapUpdate(
-	kubeClient *kubernetes.Clientset,
+	kubeClient kubernetes.Interface,
 	changeType eventStream.ChangeType,
 	obj interface{}) {
 
@@ -117,7 +117,7 @@ func ProcessConfigMapUpdate(
 
 // Process a change in Service state
 func processService(
-	kubeClient *kubernetes.Clientset,
+	kubeClient kubernetes.Interface,
 	changeType eventStream.ChangeType,
 	svc *v1.Service) bool {
 
@@ -146,7 +146,7 @@ func processService(
 
 // Process a change in ConfigMap state
 func processConfigMap(
-	kubeClient *kubernetes.Clientset,
+	kubeClient kubernetes.Interface,
 	changeType eventStream.ChangeType,
 	cm *v1.ConfigMap) bool {
 
@@ -193,8 +193,12 @@ func processConfigMap(
 }
 
 // Check for a change in Node state
-func ProcessNodeUpdate(kubeClient *kubernetes.Clientset) {
-	newNodes := getNodeAddresses(kubeClient)
+func ProcessNodeUpdate(kubeClient kubernetes.Interface) {
+	newNodes, err := getNodeAddresses(kubeClient)
+	if nil != err {
+		log.Warningf("Unable to get list of nodes, err=%+v", err)
+		return
+	}
 	sort.Strings(newNodes)
 
 	mutex.Lock()
@@ -243,7 +247,8 @@ func outputConfig() {
 }
 
 // Get a Service by name
-func getService(kubeClient *kubernetes.Clientset, serviceName string) *v1.ServiceList {
+func getService(kubeClient kubernetes.Interface,
+	serviceName string) *v1.ServiceList {
 	selector := fields.OneTermEqualSelector("metadata.name", serviceName)
 	options := api.ListOptions{FieldSelector: selector}
 	svcs, err := kubeClient.Core().Services("").List(options)
@@ -264,12 +269,12 @@ func getNodesFromCache() []string {
 }
 
 // Get a list of Node addresses
-func getNodeAddresses(kubeClient *kubernetes.Clientset) []string {
-	var addrs []string
+func getNodeAddresses(kubeClient kubernetes.Interface) ([]string, error) {
+	addrs := []string{}
 
 	nodes, err := kubeClient.Core().Nodes().List(api.ListOptions{})
 	if err != nil {
-		log.Warningf("Unable to get list of nodes, err=%+v", err)
+		return nil, err
 	}
 	for _, node := range nodes.Items {
 		if node.Spec.Unschedulable {
@@ -278,12 +283,12 @@ func getNodeAddresses(kubeClient *kubernetes.Clientset) []string {
 		} else {
 			nodeAddrs := node.Status.Addresses
 			for _, addr := range nodeAddrs {
-				if addr.Type == v1.NodeInternalIP {
+				if addr.Type == v1.NodeExternalIP {
 					addrs = append(addrs, addr.Address)
 				}
 			}
 		}
 	}
 
-	return addrs
+	return addrs, nil
 }

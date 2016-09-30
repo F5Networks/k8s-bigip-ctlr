@@ -218,6 +218,11 @@ func ProcessNodeUpdate(kubeClient *kubernetes.Clientset) {
 func outputConfig() {
 	var outputs outputConfigs
 
+	// Initialize the Services array as empty; json.Marshal() writes
+	// an uninitialized array as 'null', but we want an empty array
+	// written as '[]' instead
+	outputs.Services = []VirtualServerConfig{}
+
 	// Filter the configs to only those that have active services
 	for _, vs := range virtualServers {
 		if vs.VirtualServer.Backend.NodePort != 0 {

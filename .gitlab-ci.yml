@@ -15,8 +15,7 @@ before_script:
   - chmod a+x /tmp/ssh
   - export GIT_SSH=/tmp/ssh
 
-  - if [ "$CI_BUILD_STAGE" != "test" ]; then
-  - if [ "$CI_BUILD_STAGE" != "deploy" ]; then
+  - if [ "$CI_BUILD_STAGE" != "deploy" -a "$CI_BUILD_STAGE" != "test" ]; then
   # git and golang are not in ubuntu:wily by default
   - '(which git && which go) || (apt-get update -y && apt-get install -y git golang)'
   - if [ -z "$GOPATH" ]; then export GOPATH=/go; fi
@@ -29,7 +28,6 @@ before_script:
 
   - echo "Obtaining git submodules..."
   - git submodule update --init --force
-  - fi
 
 stages:
   - sanity

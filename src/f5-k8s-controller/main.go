@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 
 	"eventStream"
@@ -49,24 +50,25 @@ func initLogger() {
 	log.SetLogLevel(log.LL_DEBUG)
 }
 
-func runBigIpDriver(pid chan<- int, bigipUsername *string, bigipPassword *string,
-	bigipUrl *string, bigipPartition *string, pythonBaseDir *string) {
-	defer close(pid)
-
+func createDriverCmd(bigipUsername string, bigipPassword string,
+	bigipUrl string, bigipPartition string, pyCmd string) *exec.Cmd {
 	cmdName := "python"
-	bigipDriver := "bigipconfigdriver.py"
-
-	drvName := fmt.Sprintf("%s/%s", *pythonBaseDir, bigipDriver)
 
 	cmdArgs := []string{
-		drvName,
-		"--username", *bigipUsername,
-		"--password", *bigipPassword,
-		"--hostname", *bigipUrl,
+		pyCmd,
+		"--username", bigipUsername,
+		"--password", bigipPassword,
+		"--hostname", bigipUrl,
 		"--config-file", virtualServer.OutputFilename,
-		*bigipPartition}
+		bigipPartition}
 
 	cmd := exec.Command(cmdName, cmdArgs...)
+
+	return cmd
+}
+
+func runBigIpDriver(pid chan<- int, cmd *exec.Cmd) {
+	defer close(pid)
 
 	// the config driver python logging goes to stderr by default
 	cmdOut, err := cmd.StderrPipe()
@@ -90,8 +92,20 @@ func runBigIpDriver(pid chan<- int, bigipUsername *string, bigipPassword *string
 	pid <- cmd.Process.Pid
 
 	err = cmd.Wait()
-	if nil != err {
-		log.Fatalf("Config driver exited unexpectedly: %v", err)
+	var waitStatus syscall.WaitStatus
+	if exitError, ok := err.(*exec.ExitError); ok {
+		waitStatus = exitError.Sys().(syscall.WaitStatus)
+		if waitStatus.Signaled() {
+			log.Fatalf("Config driver signaled to stop: %d - %s",
+				waitStatus.Signal(), waitStatus.Signal())
+		} else {
+			log.Fatalf("Config driver exited: %d", waitStatus.ExitStatus())
+		}
+	} else if nil != err {
+		log.Fatalf("Config driver exited with error: %v", err)
+	} else {
+		waitStatus = cmd.ProcessState.Sys().(syscall.WaitStatus)
+		log.Warningf("Config driver exited normally: %d", waitStatus.ExitStatus())
 	}
 }
 
@@ -109,8 +123,10 @@ func main() {
 	}
 
 	subPidCh := make(chan int)
-	go runBigIpDriver(subPidCh, bigipUsername, bigipPassword, bigipUrl,
-		bigipPartition, pythonBaseDir)
+	pyCmd := fmt.Sprintf("%s/bigipconfigdriver.py", *pythonBaseDir)
+	cmd := createDriverCmd(*bigipUsername, *bigipPassword, *bigipUrl,
+		*bigipPartition, pyCmd)
+	go runBigIpDriver(subPidCh, cmd)
 	subPid := <-subPidCh
 	defer func(pid int) {
 		if 0 != pid {

@@ -58,14 +58,12 @@ func runBigIpDriver(pid chan<- int, bigipUsername *string, bigipPassword *string
 
 	drvName := fmt.Sprintf("%s/%s", *pythonBaseDir, bigipDriver)
 
-	confName := fmt.Sprintf("/tmp/f5-k8s-controller.config.%d.json", os.Getpid())
-
 	cmdArgs := []string{
 		drvName,
 		"--username", *bigipUsername,
 		"--password", *bigipPassword,
 		"--hostname", *bigipUrl,
-		"--config-file", confName,
+		"--config-file", virtualServer.OutputFilename,
 		*bigipPartition}
 
 	cmd := exec.Command(cmdName, cmdArgs...)

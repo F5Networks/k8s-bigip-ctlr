@@ -101,6 +101,8 @@ func runBigIpDriver(pid chan<- int, cmd *exec.Cmd) {
 		} else {
 			log.Fatalf("Config driver exited: %d", waitStatus.ExitStatus())
 		}
+	} else if nil != err {
+		log.Fatalf("Config driver exited with error: %v", err)
 	} else {
 		waitStatus = cmd.ProcessState.Sys().(syscall.WaitStatus)
 		log.Warningf("Config driver exited normally: %d", waitStatus.ExitStatus())

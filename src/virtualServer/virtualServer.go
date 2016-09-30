@@ -41,9 +41,24 @@ type VirtualServerConfig struct {
 	} `json:"virtualServer"`
 }
 
+type VirtualServerConfigs []VirtualServerConfig
+
+func (slice VirtualServerConfigs) Len() int {
+	return len(slice)
+}
+
+func (slice VirtualServerConfigs) Less(i, j int) bool {
+	return slice[i].VirtualServer.Backend.ServiceName <
+		slice[j].VirtualServer.Backend.ServiceName
+}
+
+func (slice VirtualServerConfigs) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
 // Output file as an JSON array of Virtual Server configs
 type outputConfigs struct {
-	Services []VirtualServerConfig `json:"services"`
+	Services VirtualServerConfigs `json:"services"`
 }
 
 // Output file of Big-IP Virtual Server configs

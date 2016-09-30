@@ -3,8 +3,11 @@ package virtualServer
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"strconv"
 	"testing"
+
+	"eventStream"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,6 +17,50 @@ import (
 	"k8s.io/client-go/1.4/pkg/api/v1"
 )
 
+var configmapFoo string = string(`{
+  "virtualServer": {
+    "backend": {
+      "serviceName": "foo",
+      "servicePort": 80
+    },
+    "frontend": {
+      "balance": "round-robin",
+      "mode": "http",
+      "partition": "velcro",
+      "virtualAddress": {
+        "bindAddr": "10.128.10.240",
+        "port": 5051
+      }
+    }
+  }
+}`)
+
+var configmapBar string = string(`{
+  "virtualServer": {
+    "backend": {
+      "serviceName": "bar",
+      "servicePort": 80
+    },
+    "frontend": {
+      "balance": "round-robin",
+      "mode": "http",
+      "partition": "velcro",
+      "virtualAddress": {
+        "bindAddr": "10.128.10.260",
+        "port": 6051
+      }
+    }
+  }
+}`)
+
+var emptyConfig string = string(`{"services":[]}`)
+
+var twoSvcsThreeNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}}]}`)
+
+var twoSvcsOneNodeConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}}]}`)
+
+var oneSvcOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}}]}`)
+
 func TestConfigFilename(t *testing.T) {
 	assert := assert.New(t)
 
@@ -21,6 +68,41 @@ func TestConfigFilename(t *testing.T) {
 	expectedFilename := "/tmp/f5-k8s-controller.config." + strconv.Itoa(pid) + ".json"
 
 	assert.Equal(expectedFilename, OutputFilename)
+}
+
+func newConfigMap(id, rv, namespace, key, value string) *v1.ConfigMap {
+	return &v1.ConfigMap{
+		TypeMeta: unversioned.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name:            id,
+			ResourceVersion: rv,
+			Namespace:       namespace,
+		},
+		Data: map[string]string{
+			key: value,
+		},
+	}
+}
+
+func newService(id, rv, namespace string, serviceType v1.ServiceType, nodePort int32) *v1.Service {
+	return &v1.Service{
+		TypeMeta: unversioned.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name:            id,
+			ResourceVersion: rv,
+			Namespace:       namespace,
+		},
+		Spec: v1.ServiceSpec{
+			Type:  serviceType,
+			Ports: []v1.ServicePort{{NodePort: nodePort}},
+		},
+	}
 }
 
 func newNode(id, rv string, unsched bool,
@@ -92,7 +174,7 @@ func TestGetAddresses(t *testing.T) {
 	assert.EqualValues(t, expectedReturn, addresses, "Should get no addresses")
 }
 
-func validateFile(t *testing.T) {
+func validateFile(t *testing.T, expected string) {
 	configFile, err := os.Open(OutputFilename)
 	if nil != err {
 		assert.Nil(t, err)
@@ -108,8 +190,19 @@ func validateFile(t *testing.T) {
 		return
 	}
 
-	require.EqualValues(t, outputConfigs{[]VirtualServerConfig{}}, services,
-		"Should be empty config output")
+	// Sort virtual-servers configs for comparison
+	sort.Sort(services.Services)
+
+	// Read JSON from exepectedOutput into array of structs
+	expectedOutput := outputConfigs{[]VirtualServerConfig{}}
+	err = json.Unmarshal([]byte(expected), &expectedOutput)
+	if nil != err {
+		assert.Nil(t, err)
+		return
+	}
+
+	require.True(t, assert.ObjectsAreEqualValues(expectedOutput, services),
+		"Config output does not match expected")
 }
 
 func TestProcessNodeUpdate(t *testing.T) {
@@ -140,7 +233,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	assert.NotNil(t, fake, "Mock client should not be nil")
 
 	ProcessNodeUpdate(fake)
-	validateFile(t)
+	validateFile(t, emptyConfig)
 	require.EqualValues(t, expectedOgSet, oldNodes,
 		"Should have cached correct node set")
 
@@ -159,7 +252,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 		true, []v1.NodeAddress{{"InternalIP", "127.0.0.7"}}))
 
 	ProcessNodeUpdate(fake)
-	validateFile(t)
+	validateFile(t, emptyConfig)
 	expectedAddSet := append(expectedOgSet, "127.0.0.6")
 
 	require.EqualValues(t, expectedAddSet, oldNodes)
@@ -172,7 +265,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 
 	// make no changes and re-run process
 	ProcessNodeUpdate(fake)
-	validateFile(t)
+	validateFile(t, emptyConfig)
 	expectedAddSet = append(expectedOgSet, "127.0.0.6")
 
 	require.EqualValues(t, expectedAddSet, oldNodes)
@@ -194,7 +287,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	expectedDelSet := []string{"127.0.0.6"}
 
 	ProcessNodeUpdate(fake)
-	validateFile(t)
+	validateFile(t, emptyConfig)
 
 	require.EqualValues(t, expectedDelSet, oldNodes)
 
@@ -203,4 +296,142 @@ func TestProcessNodeUpdate(t *testing.T) {
 		"Cached nodes should be oldNodes")
 	require.EqualValues(t, expectedDelSet, cachedNodes,
 		"Cached nodes should be expected set")
+}
+
+func TestProcessUpdates(t *testing.T) {
+	defer os.Remove(OutputFilename)
+
+	assert := assert.New(t)
+	require := require.New(t)
+
+	// Create a test env with two ConfigMaps, two Services, and three Nodes
+	cfgFoo := newConfigMap("foomap", "1", "default", "foomap.json", configmapFoo)
+	cfgBar := newConfigMap("barmap", "1", "default", "barmap.json", configmapBar)
+	foo := newService("foo", "1", "default", "NodePort", 30001)
+	bar := newService("bar", "1", "default", "NodePort", 37001)
+	nodes := []v1.Node{
+		*newNode("node0", "0", true, []v1.NodeAddress{
+			{"ExternalIP", "127.0.0.0"}}),
+		*newNode("node1", "1", false, []v1.NodeAddress{
+			{"ExternalIP", "127.0.0.1"}}),
+		*newNode("node2", "2", false, []v1.NodeAddress{
+			{"ExternalIP", "127.0.0.2"}}),
+	}
+	extraNode := newNode("node3", "3", false, []v1.NodeAddress{{"ExternalIP", "127.0.0.3"}})
+
+	addrs := []string{"127.0.0.1", "127.0.0.2"}
+
+	fake := fake.NewSimpleClientset(
+		&v1.ConfigMapList{Items: []v1.ConfigMap{*cfgFoo, *cfgBar}},
+		&v1.ServiceList{Items: []v1.Service{*foo, *bar}},
+		&v1.NodeList{Items: nodes})
+	require.NotNil(fake, "Mock client cannot be nil")
+
+	m, err := fake.Core().ConfigMaps("").List(api.ListOptions{})
+	require.Nil(err)
+	s, err := fake.Core().Services("").List(api.ListOptions{})
+	require.Nil(err)
+	n, err := fake.Core().Nodes().List(api.ListOptions{})
+	require.Nil(err)
+
+	assert.Equal(2, len(m.Items))
+	assert.Equal(2, len(s.Items))
+	assert.Equal(3, len(n.Items))
+
+	ProcessNodeUpdate(fake)
+
+	// ConfigMap ADDED
+	ProcessConfigMapUpdate(fake, eventStream.Added, cfgFoo)
+	assert.Equal(1, len(virtualServers))
+	assert.EqualValues(addrs, virtualServers["foo"].VirtualServer.Backend.Nodes)
+
+	// Second ConfigMap ADDED
+	ProcessConfigMapUpdate(fake, eventStream.Added, cfgBar)
+	assert.Equal(2, len(virtualServers))
+	assert.EqualValues(addrs, virtualServers["foo"].VirtualServer.Backend.Nodes)
+	assert.EqualValues(addrs, virtualServers["bar"].VirtualServer.Backend.Nodes)
+
+	// Service ADDED
+	ProcessServiceUpdate(fake, eventStream.Added, foo)
+	assert.Equal(2, len(virtualServers))
+
+	// Second Service ADDED
+	ProcessServiceUpdate(fake, eventStream.Added, bar)
+	assert.Equal(2, len(virtualServers))
+
+	// ConfigMap REPLACED
+	cfgs := []interface{}{cfgFoo}
+	ProcessConfigMapUpdate(fake, eventStream.Replaced, cfgs)
+	assert.Equal(2, len(virtualServers))
+
+	// Service REPLACED
+	svcs := []interface{}{foo}
+	ProcessServiceUpdate(fake, eventStream.Replaced, svcs)
+	assert.Equal(2, len(virtualServers))
+
+	// Nodes ADDED
+	_, err = fake.Core().Nodes().Create(extraNode)
+	require.Nil(err)
+	ProcessNodeUpdate(fake)
+	ProcessConfigMapUpdate(fake, eventStream.Added, cfgFoo)
+	assert.Equal(2, len(virtualServers))
+	assert.EqualValues(append(addrs, "127.0.0.3"), virtualServers["foo"].VirtualServer.Backend.Nodes)
+	assert.EqualValues(append(addrs, "127.0.0.3"), virtualServers["bar"].VirtualServer.Backend.Nodes)
+	validateFile(t, twoSvcsThreeNodesConfig)
+
+	// Nodes DELETES
+	err = fake.Core().Nodes().Delete("node1", &api.DeleteOptions{})
+	require.Nil(err)
+	err = fake.Core().Nodes().Delete("node2", &api.DeleteOptions{})
+	require.Nil(err)
+	ProcessNodeUpdate(fake)
+	ProcessConfigMapUpdate(fake, eventStream.Added, cfgFoo)
+	assert.Equal(2, len(virtualServers))
+	assert.EqualValues([]string{"127.0.0.3"}, virtualServers["foo"].VirtualServer.Backend.Nodes)
+	assert.EqualValues([]string{"127.0.0.3"}, virtualServers["bar"].VirtualServer.Backend.Nodes)
+	validateFile(t, twoSvcsOneNodeConfig)
+
+	// ConfigMap DELETED
+	err = fake.Core().ConfigMaps("default").Delete("foomap", &api.DeleteOptions{})
+	m, err = fake.Core().ConfigMaps("").List(api.ListOptions{})
+	assert.Equal(1, len(m.Items))
+	ProcessConfigMapUpdate(fake, eventStream.Deleted, cfgFoo)
+	assert.Equal(1, len(virtualServers))
+	assert.EqualValues([]string(nil), virtualServers["foo"].VirtualServer.Backend.Nodes)
+	validateFile(t, oneSvcOneNodeConfig)
+
+	// Service DELETED
+	err = fake.Core().Services("default").Delete("bar", &api.DeleteOptions{})
+	require.Nil(err)
+	s, err = fake.Core().Services("").List(api.ListOptions{})
+	assert.Equal(1, len(s.Items))
+	ProcessServiceUpdate(fake, eventStream.Deleted, bar)
+	assert.Equal(1, len(virtualServers))
+	validateFile(t, emptyConfig)
+}
+
+func TestDontCareConfigMap(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+	virtualServers = make(map[string]VirtualServerConfig)
+
+	cfg := newConfigMap("foomap", "1", "default", "foo", "bar")
+	svc := newService("foo", "1", "default", "NodePort", 30001)
+
+	fake := fake.NewSimpleClientset(&v1.ConfigMapList{Items: []v1.ConfigMap{*cfg}},
+		&v1.ServiceList{Items: []v1.Service{*svc}})
+	require.NotNil(fake, "Mock client cannot be nil")
+
+	m, err := fake.Core().ConfigMaps("").List(api.ListOptions{})
+	require.Nil(err)
+	s, err := fake.Core().Services("").List(api.ListOptions{})
+	require.Nil(err)
+
+	assert.Equal(1, len(m.Items))
+	assert.Equal(1, len(s.Items))
+
+	// ConfigMap ADDED
+	assert.Equal(0, len(virtualServers))
+	ProcessConfigMapUpdate(fake, eventStream.Added, cfg)
+	assert.Equal(0, len(virtualServers))
 }

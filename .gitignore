@@ -33,3 +33,7 @@ vendor/manifest
 coverage.out
 coverage.html
 python/.cache
+
+# Docs
+docs/_build*
+docs/errors.txt

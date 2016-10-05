@@ -36,6 +36,10 @@ Configure the controller using the parameters shown in the table.
 +----------------------------+----------------------------------------------------------+------------------+
 
 
+Using Kubernetes Secrets
+------------------------
+The Big-IP parameters can be stored in a Kubernetes secret. The scripts/sample-bigip-credentials.yaml file has an example configuration for this purpose. When used in combination with the scripts/sample-f5-k8s-controller.yaml configuration file, the command line options to the controller for the Big-IP are auto-populated from the secret.
+
 Example
 ~~~~~~~
 

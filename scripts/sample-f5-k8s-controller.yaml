@@ -1,0 +1,35 @@
+# Sample configuration for f5-k8s-controller. Big-IP configuration is pulled
+# from the secret store and passed to the controller.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: f5-k8s-controller
+spec:
+  restartPolicy: Never
+  containers:
+  - name: f5-k8s-controller
+    # Specify the path to your image here
+    image: "docker-registry/username/f5-k8s-controller:latest"
+    env:
+    # Pull BIG-IP username, password, and url out of the secret store and put in environment
+    - name: BIGIP_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: bigip-credentials
+          key: username
+    - name: BIGIP_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: bigip-credentials
+          key: password
+    - name: BIGIP_URL
+      valueFrom:
+        secretKeyRef:
+          name: bigip-credentials
+          key: url
+    command: ["/app/bin/f5-k8s-controller"]
+    args: ["--running-in-cluster=true",
+      "--bigip-url=$(BIGIP_URL)",
+      "--bigip-username=$(BIGIP_USERNAME)",
+      "--bigip-password=$(BIGIP_PASSWORD)"
+    ]

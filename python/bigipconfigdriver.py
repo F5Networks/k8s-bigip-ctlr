@@ -28,12 +28,13 @@ import pyinotify
 
 from _f5 import CloudBigIP
 
-log = logging.getLogger('bigipconfigdriver')
+log = logging.getLogger(__name__)
 console = logging.StreamHandler()
 console.setFormatter(
     logging.Formatter("[%(asctime)s %(name)s %(levelname)s] %(message)s"))
-log.addHandler(console)
-log.setLevel(logging.INFO)
+root_logger = logging.getLogger()
+root_logger.addHandler(console)
+root_logger.setLevel(logging.INFO)
 
 
 class ConfigError(Exception):
@@ -121,7 +122,7 @@ class ConfigHandler():
                 except ValueError as e:
                     log.warning(e)
                 except:
-                    log.exception('Unexpected error, exitting')
+                    log.exception('Unexpected error')
 
 
 class ConfigWatcher(pyinotify.ProcessEvent):
@@ -305,7 +306,7 @@ def main():
         args = _handle_args()
 
         if args.verbose:
-            log.setLevel(logging.DEBUG)
+            root_logger.setLevel(logging.DEBUG)
 
         bigip = CloudBigIP('kubernetes', args.hostname, args.username,
                            args.password, args.partitions)

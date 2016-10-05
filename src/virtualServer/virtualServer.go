@@ -21,6 +21,8 @@ import (
 // Definition of a Big-IP Virtual Server config
 // Most of this comes directly from a ConfigMap, with the exception
 // of NodePort and Nodes, which are dynamic
+// For more information regarding this structure and data model:
+//  velcro/schemas/bigip-virtual-server_[version].json
 type VirtualServerConfig struct {
 	VirtualServer struct {
 		Backend struct {
@@ -30,13 +32,22 @@ type VirtualServerConfig struct {
 			Nodes       []string `json:"nodes"`
 		} `json:"backend"`
 		Frontend struct {
-			Balance        string `json:"balance"`
-			Mode           string `json:"mode"`
-			Partition      string `json:"partition"`
-			VirtualAddress struct {
-				BindAddr string `json:"bindAddr"`
-				Port     int    `json:"port"`
-			} `json:"virtualAddress"`
+			// Mutual parameter, partition
+			Partition string `json:"partition"`
+
+			// VirtualServer parameters
+			Balance        string `json:"balance,omitempty"`
+			Mode           string `json:"mode,omitempty"`
+			VirtualAddress *struct {
+				BindAddr string `json:"bindAddr,omitempty"`
+				Port     int    `json:"port,omitempty"`
+			} `json:"virtualAddress,omitempty"`
+
+			// iApp parameters
+			IApp          string            `json:"iapp,omitempty"`
+			IAppTableName string            `json:"iappTableName,omitempty"`
+			IAppOptions   map[string]string `json:"iappOptions,omitempty"`
+			IAppVariables map[string]string `json:"iappVariables,omitempty"`
 		} `json:"frontend"`
 	} `json:"virtualServer"`
 }
@@ -208,8 +219,8 @@ func processConfigMap(
 }
 
 // Check for a change in Node state
-func ProcessNodeUpdate(kubeClient kubernetes.Interface) {
-	newNodes, err := getNodeAddresses(kubeClient)
+func ProcessNodeUpdate(kubeClient kubernetes.Interface, internal bool) {
+	newNodes, err := getNodeAddresses(kubeClient, internal)
 	if nil != err {
 		log.Warningf("Unable to get list of nodes, err=%+v", err)
 		return
@@ -255,6 +266,7 @@ func outputConfig() {
 
 		if err == nil {
 			log.Infof("Wrote %v Virtual Server configs to file %v", len(outputs.Services), OutputFilename)
+			log.Debugf("Output: %s", string(output))
 		} else {
 			log.Errorf("Failed to write Big-IP config data: %v", err)
 		}
@@ -284,13 +296,22 @@ func getNodesFromCache() []string {
 }
 
 // Get a list of Node addresses
-func getNodeAddresses(kubeClient kubernetes.Interface) ([]string, error) {
+func getNodeAddresses(kubeClient kubernetes.Interface,
+	internal bool) ([]string, error) {
 	addrs := []string{}
 
 	nodes, err := kubeClient.Core().Nodes().List(api.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
+
+	var addrType v1.NodeAddressType
+	if internal {
+		addrType = v1.NodeInternalIP
+	} else {
+		addrType = v1.NodeExternalIP
+	}
+
 	for _, node := range nodes.Items {
 		if node.Spec.Unschedulable {
 			// Skip master node
@@ -298,7 +319,7 @@ func getNodeAddresses(kubeClient kubernetes.Interface) ([]string, error) {
 		} else {
 			nodeAddrs := node.Status.Addresses
 			for _, addr := range nodeAddrs {
-				if addr.Type == v1.NodeExternalIP {
+				if addr.Type == addrType {
 					addrs = append(addrs, addr.Address)
 				}
 			}

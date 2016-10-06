@@ -1,66 +1,94 @@
-Status: |build status|
+.. raw:: html
 
-Lightweight Proxy Controller for Kubernetes
-===========================================
+   <!--
+   Copyright 2015-2016 F5 Networks Inc.
 
-.. toctree::
-    :hidden:
-    :glob:
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-    self
-    Helper Scripts <scripts/README>
+      http://www.apache.org/licenses/LICENSE-2.0
 
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+   -->
+
+F5 FlowPoint Proxy Controller for Kubernetes
+============================================
+
+|build status|
 
 Introduction
 ------------
 
-The lightweight proxy controller for Kubernetes (f5-k8s-controller) is designed to run as a docker container in Kubernetes. It watches applications being created and destroyed. When an application with the proper labels is created, a new LWP for that application is created and scaled to have the requested number of tasks.
+The F5® FlowPoint™ proxy controller for `Kubernetes <http://kubernetes.io/>`_ enables the use of FlowPoint to provide load balancing, and other local traffic management, services in Kubernetes.
 
-Configuration
+Documentation
 -------------
 
-Configure the controller using the parameters shown in the table.
+Documentation is published on Read the Docs, at http://<project_name>.readthedocs.io.
 
-+----------------------------+----------------------------------------------------------+------------------+
-| Name                       | Description                                              | Default          |
-+============================+==========================================================+==================+
-| --running-in-cluster       | flag indicating if the controller was started by k8s     | true             |
-+----------------------------+----------------------------------------------------------+------------------+
-| --kubeconfig               | path to the kubeconfig file                              |                  |
-+----------------------------+----------------------------------------------------------+------------------+
-| --bigip-url                | URL to the Big-IP                                        |                  |
-+----------------------------+----------------------------------------------------------+------------------+
-| --bigip-username           | User name for logging into the Big-IP                    |                  |
-+----------------------------+----------------------------------------------------------+------------------+
-| --bigip-password           | Password for logging into the Big-IP                     |                  |
-+----------------------------+----------------------------------------------------------+------------------+
+Compatibility
+-------------
+
+See the <project name> `Releases and Support Matrix <#>`_ for more information.
+
+Installation
+------------
+
+Please see the `documentation <http://<project_name.readthedocs.io>`_ for installation instructions.
+
+For Developers
+--------------
+
+Filing Issues
+`````````````
+
+If you find an issue, we would love to hear about it. Please open a new `issue <repo_github_url/issues>`_ for each bug you'd like to report or feature you'd like to request. Please be specific, and include as much information about your environment and the issue as possible.
+
+Contributing
+````````````
+See `Contributing <CONTRIBUTING.md>`_.
+
+Test
+````
+Provide relevant testing requirements for this project.
+
+Unit Tests
+~~~~~~~~~~
+
+steps for running unit tests
+
+Style Checks
+````````````
+
+appropriate style checks
 
 
-Using Kubernetes Secrets
-------------------------
-The Big-IP parameters can be stored in a Kubernetes secret. The scripts/sample-bigip-credentials.yaml file has an example configuration for this purpose. When used in combination with the scripts/sample-f5-k8s-controller.yaml configuration file, the command line options to the controller for the Big-IP are auto-populated from the secret.
+Copyright
+---------
 
-Example
-~~~~~~~
+Copyright 2016 F5 Networks Inc.
 
-Usually, the controller is deployed by Kubernetes. The example below shows how it can be run from the command-line. **This example is provided for enhanced understanding, not as a recommendation.**
+Support
+-------
 
-.. topic:: Example
+See `Support <SUPPORT.md>`_.
 
-    .. code-block:: shell
+License
+-------
+appropriate license
 
-        docker run -it -d f5networks/lwp f5velcro/f5-k8s-controller --kubeconfig=./kubeconfig
+Contributor License Agreement
+`````````````````````````````
 
-    The controller will create a new application in your Kubernetes cluster to be the LWP for your application.
-
-Configuring the LWP
--------------------
-
-**not yet implemented**
+information about and link to the F5 CLA for the project
 
 
-Known Limitations
------------------
+
 
 .. |build status| image:: https://bldr-git.int.lineratesystems.com/velcro/f5-k8s-controller/badges/master/build.svg
    :target: https://bldr-git.int.lineratesystems.com/velcro/f5-k8s-controller/commits/master

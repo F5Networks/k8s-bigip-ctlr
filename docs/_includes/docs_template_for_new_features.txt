@@ -1,0 +1,65 @@
+:orphan: true
+
+.. comment:: For internal use only. Use this template to create new feature documentation.
+
+title
+=====
+
+Overview
+--------
+
+
+Use Case
+--------
+
+
+
+Prerequisites
+-------------
+
+-
+-
+-
+
+
+Caveats
+-------
+
+-
+-
+-
+
+
+Configuration
+-------------
+.. comment:: list configuration steps below
+
+#.
+#.
+#.
+
+.. comment:: use the following template to create a table using the list-table format
+
+.. list-table:: Configuration Parameters
+    header-rows: 1
+
+    * - row 1, column 1
+      - row 1, column 2
+        etc.
+    * - row 2, column 1
+      - row 2, column 2
+    etc.
+
+
+Further Reading
+---------------
+.. comment:: provide links to relevant documentation (BIG-IP, other velcro projects, other docs in this project) here
+
+.. seealso::
+
+    * x
+    * y
+    * z
+
+
+

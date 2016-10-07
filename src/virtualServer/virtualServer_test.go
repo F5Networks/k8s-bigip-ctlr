@@ -30,6 +30,9 @@ var configmapFoo string = string(`{
       "virtualAddress": {
         "bindAddr": "10.128.10.240",
         "port": 5051
+      },
+      "sslProfile": {
+        "f5ProfileName": "velcro/testcert"
       }
     }
   }
@@ -109,9 +112,9 @@ var configmapIApp2 string = string(`{
 
 var emptyConfig string = string(`{"services":[]}`)
 
-var twoSvcsThreeNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}}]}`)
+var twoSvcsThreeNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
 
-var twoSvcsOneNodeConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}}]}`)
+var twoSvcsOneNodeConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
 
 var oneSvcOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}}]}`)
 

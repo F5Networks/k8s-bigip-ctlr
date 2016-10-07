@@ -42,6 +42,9 @@ type VirtualServerConfig struct {
 				BindAddr string `json:"bindAddr,omitempty"`
 				Port     int    `json:"port,omitempty"`
 			} `json:"virtualAddress,omitempty"`
+			SslProfile *struct {
+				F5ProfileName string `json:"f5ProfileName,omitempty"`
+			} `json:"sslProfile,omitempty"`
 
 			// iApp parameters
 			IApp          string            `json:"iapp,omitempty"`

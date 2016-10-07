@@ -69,7 +69,7 @@ var configmapIApp1 string = string(`{
       "iappVariables": {
         "monitor__monitor": "/#create_new#",
         "monitor__resposne": "none",
-        "monotor__uri": "/",
+        "monitor__uri": "/",
         "net__client_mode": "wan",
         "net__server_mode": "lan",
         "pool__addr": "127.0.0.1",
@@ -96,7 +96,7 @@ var configmapIApp2 string = string(`{
       "iappVariables": {
         "monitor__monitor": "/#create_new#",
         "monitor__resposne": "none",
-        "monotor__uri": "/",
+        "monitor__uri": "/",
         "net__client_mode": "wan",
         "net__server_mode": "lan",
         "pool__addr": "127.0.0.2",
@@ -115,11 +115,11 @@ var twoSvcsOneNodeConfig string = string(`{"services":[ {"virtualServer":{"backe
 
 var oneSvcOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}}]}`)
 
-var twoIappsThreeNodesConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp1","servicePort":80,"nodePort":10101,"nodes":["192.168.0.1","192.168.0.2","192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 1"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monotor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}}}},{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"nodePort":20202,"nodes":["192.168.0.1","192.168.0.2","192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 2"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monotor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
+var twoIappsThreeNodesConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp1","servicePort":80,"nodePort":10101,"nodes":["192.168.0.1","192.168.0.2","192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 1"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}}}},{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"nodePort":20202,"nodes":["192.168.0.1","192.168.0.2","192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 2"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
 
-var twoIappsOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp1","servicePort":80,"nodePort":10101,"nodes":["192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 1"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monotor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}}}},{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"nodePort":20202,"nodes":["192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 2"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monotor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
+var twoIappsOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp1","servicePort":80,"nodePort":10101,"nodes":["192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 1"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}}}},{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"nodePort":20202,"nodes":["192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 2"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
 
-var oneIappOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"nodePort":20202,"nodes":["192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 2"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monotor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
+var oneIappOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"nodePort":20202,"nodes":["192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 2"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
 
 func TestConfigFilename(t *testing.T) {
 	assert := assert.New(t)
@@ -523,7 +523,7 @@ func TestDontCareConfigMap(t *testing.T) {
 }
 
 func TestProcessUpdatesIApp(t *testing.T) {
-	//	defer os.Remove(OutputFilename)
+	defer os.Remove(OutputFilename)
 
 	assert := assert.New(t)
 	require := require.New(t)

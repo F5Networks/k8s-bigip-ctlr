@@ -42,6 +42,8 @@ var (
 		`Optional, partition for the Big-IP velcro objects.`)
 	pythonBaseDir = flags.String("python-basedir", "/app/python",
 		`Optional, directory location of python utilities`)
+	useNodeInternal = flags.Bool("use-node-internal", true,
+		`Optional, provide kubernetes InternalIP addresses to pool`)
 )
 
 func initLogger() {
@@ -163,7 +165,7 @@ func main() {
 	}
 
 	// Initialize the Node cache
-	virtualServer.ProcessNodeUpdate(kubeClient)
+	virtualServer.ProcessNodeUpdate(kubeClient, *useNodeInternal)
 
 	onServiceChange := func(changeType eventStream.ChangeType, obj interface{}) {
 		virtualServer.ProcessServiceUpdate(kubeClient, changeType, obj)
@@ -183,6 +185,6 @@ func main() {
 		time.Sleep(30 * time.Second)
 
 		// Poll for node changes
-		virtualServer.ProcessNodeUpdate(kubeClient)
+		virtualServer.ProcessNodeUpdate(kubeClient, *useNodeInternal)
 	}
 }

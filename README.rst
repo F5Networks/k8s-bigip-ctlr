@@ -24,7 +24,7 @@ F5 FlowPoint Proxy Controller for Kubernetes
 Introduction
 ------------
 
-The F5® FlowPoint™ proxy controller for `Kubernetes <http://kubernetes.io/>`_ enables the use of FlowPoint to provide load balancing, and other local traffic management, services in Kubernetes.
+The F5® Container Service Integrator for `Kubernetes <http://kubernetes.io/>`_ allows you to provision BIG-IP® Local Traffic Manager™ (LTM®) services using Kubernetes. It works in conjunction with the F5® FlowPoint™ proxy to provide a multi-directional traffic management solution for containerized applications.
 
 Documentation
 -------------

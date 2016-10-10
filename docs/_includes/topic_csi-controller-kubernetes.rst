@@ -1,12 +1,12 @@
-title
-=====
+F5 |csi_k|
+==========
 
 Overview
 --------
 
-The F5® FlowPoint™ Proxy controller for `Kubernetes <http://kubernetes.io/>`_ enables the use of the |fpp| in Kubernetes.
+The F5® |csi| (CSI) for `Kubernetes <http://kubernetes.io/>`_ allows you to provision BIG-IP® Local Traffic Manager™ (LTM®) services using Kubernetes. It works in conjunction with the F5 |fp| ™ proxy to provide North-South and East-West traffic management for containerized applications.
 
-The |fppc| runs as a Docker container in Kubernetes. It watches applications being created and destroyed; when an application with the proper labels is created, a new |fpp| for that application is created and scaled to have the requested number of tasks.
+The |csi| runs as a Docker container in Kubernetes. It watches applications being created and destroyed. When an application with the proper labels is created, the |csi| creates a new |fpp| for that application and scales it to have the requested number of tasks.
 
 .. todo:: add how it works (high level)
 

@@ -15,7 +15,6 @@ import (
 	"k8s.io/client-go/1.4/kubernetes"
 	"k8s.io/client-go/1.4/pkg/api"
 	"k8s.io/client-go/1.4/pkg/api/v1"
-	"k8s.io/client-go/1.4/pkg/fields"
 )
 
 // Definition of a Big-IP Virtual Server config
@@ -27,7 +26,7 @@ type VirtualServerConfig struct {
 	VirtualServer struct {
 		Backend struct {
 			ServiceName string   `json:"serviceName"`
-			ServicePort int      `json:"servicePort"`
+			ServicePort int32    `json:"servicePort"`
 			NodePort    int32    `json:"nodePort"`
 			Nodes       []string `json:"nodes"`
 		} `json:"backend"`
@@ -40,7 +39,7 @@ type VirtualServerConfig struct {
 			Mode           string `json:"mode,omitempty"`
 			VirtualAddress *struct {
 				BindAddr string `json:"bindAddr,omitempty"`
-				Port     int    `json:"port,omitempty"`
+				Port     int32  `json:"port,omitempty"`
 			} `json:"virtualAddress,omitempty"`
 			SslProfile *struct {
 				F5ProfileName string `json:"f5ProfileName,omitempty"`
@@ -55,7 +54,7 @@ type VirtualServerConfig struct {
 	} `json:"virtualServer"`
 }
 
-type VirtualServerConfigs []VirtualServerConfig
+type VirtualServerConfigs []*VirtualServerConfig
 
 func (slice VirtualServerConfigs) Len() int {
 	return len(slice)
@@ -63,7 +62,9 @@ func (slice VirtualServerConfigs) Len() int {
 
 func (slice VirtualServerConfigs) Less(i, j int) bool {
 	return slice[i].VirtualServer.Backend.ServiceName <
-		slice[j].VirtualServer.Backend.ServiceName
+		slice[j].VirtualServer.Backend.ServiceName ||
+		slice[i].VirtualServer.Backend.ServicePort <
+			slice[j].VirtualServer.Backend.ServicePort
 }
 
 func (slice VirtualServerConfigs) Swap(i, j int) {
@@ -78,8 +79,17 @@ type outputConfigs struct {
 // Output file of Big-IP Virtual Server configs
 var OutputFilename string = "/tmp/f5-k8s-controller.config." + strconv.Itoa(os.Getpid()) + ".json"
 
+// Virtual Server Key - unique server is Name + Port
+type serviceKey struct {
+	ServiceName string
+	ServicePort int32
+}
+
 // Map of Virtual Server configs
-var virtualServers map[string]VirtualServerConfig
+var virtualServers struct {
+	sync.RWMutex
+	m map[serviceKey]*VirtualServerConfig
+}
 
 // Nodes from previous iteration of node polling
 var oldNodes []string
@@ -91,7 +101,23 @@ var mutex = &sync.Mutex{}
 
 // Package init
 func init() {
-	virtualServers = make(map[string]VirtualServerConfig)
+	virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+}
+
+// Unmarshal an expected VirtualServerConfig object
+func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
+	var cfg VirtualServerConfig
+
+	// FIXME(yacobucci) Issue #9 this should be more predictable, the two fields
+	// should be shema and data
+	for _, value := range cm.Data {
+		err := json.Unmarshal([]byte(value), &cfg)
+		if nil != err {
+			return nil, err
+		}
+	}
+
+	return &cfg, nil
 }
 
 // Process Service objects from the eventStream
@@ -106,11 +132,11 @@ func ProcessServiceUpdate(
 		v := obj.([]interface{})
 		log.Debugf("ProcessServiceUpdate (%v) for %v Services", changeType, len(v))
 		for _, item := range v {
-			updated = processService(kubeClient, changeType, item.(*v1.Service)) || updated
+			updated = processService(kubeClient, changeType, item) || updated
 		}
 	} else {
 		log.Debugf("ProcessServiceUpdate (%v) for 1 Service", changeType)
-		updated = processService(kubeClient, changeType, obj.(*v1.Service)) || updated
+		updated = processService(kubeClient, changeType, obj) || updated
 	}
 
 	if updated {
@@ -131,11 +157,11 @@ func ProcessConfigMapUpdate(
 		v := obj.([]interface{})
 		for _, item := range v {
 			log.Debugf("ProcessConfigMapUpdate (%v) for %v ConfigMaps", changeType, len(v))
-			updated = processConfigMap(kubeClient, changeType, item.(*v1.ConfigMap)) || updated
+			updated = processConfigMap(kubeClient, changeType, item) || updated
 		}
 	} else {
 		log.Debugf("ProcessConfigMapUpdate (%v) for 1 ConfigMap", changeType)
-		updated = processConfigMap(kubeClient, changeType, obj.(*v1.ConfigMap)) || updated
+		updated = processConfigMap(kubeClient, changeType, obj) || updated
 	}
 
 	if updated {
@@ -148,27 +174,58 @@ func ProcessConfigMapUpdate(
 func processService(
 	kubeClient kubernetes.Interface,
 	changeType eventStream.ChangeType,
-	svc *v1.Service) bool {
+	obj interface{}) bool {
+
+	var svc *v1.Service
+	rmvdPortsMap := make(map[int32]*struct{})
+	o, ok := obj.(eventStream.ChangedObject)
+	if !ok {
+		svc = obj.(*v1.Service)
+	} else {
+		switch changeType {
+		case eventStream.Added:
+			svc = o.New.(*v1.Service)
+		case eventStream.Updated:
+			svc = o.New.(*v1.Service)
+			oldSvc := o.Old.(*v1.Service)
+
+			for _, o := range oldSvc.Spec.Ports {
+				rmvdPortsMap[o.Port] = nil
+			}
+		case eventStream.Deleted:
+			svc = o.Old.(*v1.Service)
+		}
+	}
 
 	serviceName := svc.ObjectMeta.Name
 	updateConfig := false
 
 	// Check if the service that changed is associated with a ConfigMap
-	if vs, ok := virtualServers[serviceName]; ok {
-		switch changeType {
-		case eventStream.Added, eventStream.Replaced, eventStream.Updated:
-			if svc.Spec.Type == v1.ServiceTypeNodePort {
-				vs.VirtualServer.Backend.NodePort = svc.Spec.Ports[0].NodePort
-				vs.VirtualServer.Backend.Nodes = getNodesFromCache()
-				virtualServers[serviceName] = vs
+	virtualServers.Lock()
+	for _, portSpec := range svc.Spec.Ports {
+		if vs, ok := virtualServers.m[serviceKey{serviceName, portSpec.Port}]; ok {
+			delete(rmvdPortsMap, portSpec.Port)
+			switch changeType {
+			case eventStream.Added, eventStream.Replaced, eventStream.Updated:
+				if svc.Spec.Type == v1.ServiceTypeNodePort {
+					vs.VirtualServer.Backend.NodePort = portSpec.NodePort
+					vs.VirtualServer.Backend.Nodes = getNodesFromCache()
+				}
+			case eventStream.Deleted:
+				vs.VirtualServer.Backend.NodePort = 0
+				vs.VirtualServer.Backend.Nodes = nil
 			}
-		case eventStream.Deleted:
+			updateConfig = true
+		}
+	}
+	for p, _ := range rmvdPortsMap {
+		if vs, ok := virtualServers.m[serviceKey{serviceName, p}]; ok {
 			vs.VirtualServer.Backend.NodePort = 0
 			vs.VirtualServer.Backend.Nodes = nil
-			virtualServers[serviceName] = vs
+			updateConfig = true
 		}
-		updateConfig = true
 	}
+	virtualServers.Unlock()
 
 	return updateConfig
 }
@@ -177,40 +234,100 @@ func processService(
 func processConfigMap(
 	kubeClient kubernetes.Interface,
 	changeType eventStream.ChangeType,
-	cm *v1.ConfigMap) bool {
+	obj interface{}) bool {
 
-	var cfg VirtualServerConfig
+	var cfg *VirtualServerConfig
 
-	// Initialize node info. This isn't present in the ConfigMap,
-	// so initialize with defaults
-	cfg.VirtualServer.Backend.NodePort = 0
-	cfg.VirtualServer.Backend.Nodes = make([]string, 1)
 	verified := false
 
-	// Decode the JSON data in the ConfigMap
-	for _, value := range cm.Data {
-		err := json.Unmarshal([]byte(value), &cfg)
-		if err == nil {
-			switch changeType {
-			case eventStream.Added, eventStream.Replaced, eventStream.Updated:
-				verified = true
-				serviceName := cfg.VirtualServer.Backend.ServiceName
+	var cm *v1.ConfigMap
+	var oldCm *v1.ConfigMap
+	o, ok := obj.(eventStream.ChangedObject)
+	if !ok {
+		cm = obj.(*v1.ConfigMap)
+	} else {
+		switch changeType {
+		case eventStream.Added:
+			cm = o.New.(*v1.ConfigMap)
+		case eventStream.Updated:
+			cm = o.New.(*v1.ConfigMap)
+			oldCm = o.Old.(*v1.ConfigMap)
+		case eventStream.Deleted:
+			cm = o.Old.(*v1.ConfigMap)
+		}
+	}
 
-				svcs := getService(kubeClient, serviceName)
-				if len(svcs.Items) != 0 {
-					svc := svcs.Items[0]
-					// Check if service is of type NodePort
-					if svc.Spec.Type == v1.ServiceTypeNodePort {
-						cfg.VirtualServer.Backend.NodePort = svc.Spec.Ports[0].NodePort
+	// Decode the JSON data in the ConfigMap
+	cfg, err := parseVirtualServerConfig(cm)
+	if nil != err {
+		log.Warningf("Could not get config for ConfigMap: %v - %v",
+			cm.ObjectMeta.Name, err)
+		return false
+	}
+
+	serviceName := cfg.VirtualServer.Backend.ServiceName
+	servicePort := cfg.VirtualServer.Backend.ServicePort
+
+	switch changeType {
+	case eventStream.Added, eventStream.Replaced, eventStream.Updated:
+		// FIXME(yacobucci) Issue #13 this shouldn't go to the API server but
+		// use the eventStream and eventStore functionality
+		svc, err := kubeClient.Core().Services("default").Get(serviceName)
+
+		if nil == err {
+			// Check if service is of type NodePort
+			if svc.Spec.Type == v1.ServiceTypeNodePort {
+				for _, portSpec := range svc.Spec.Ports {
+					if portSpec.Port == servicePort {
+						cfg.VirtualServer.Backend.NodePort = portSpec.NodePort
 						cfg.VirtualServer.Backend.Nodes = getNodesFromCache()
 					}
 				}
-				virtualServers[serviceName] = cfg
-			case eventStream.Deleted:
-				verified = true
-				delete(virtualServers, cfg.VirtualServer.Backend.ServiceName)
 			}
 		}
+
+		var oldCfg *VirtualServerConfig
+		backendChange := false
+		if eventStream.Updated == changeType {
+			oldCfg, err = parseVirtualServerConfig(oldCm)
+			if nil != err {
+				log.Warningf("Cannot parse previous value for ConfigMap %s",
+					oldCm.ObjectMeta.Name)
+			} else {
+				oldName := oldCfg.VirtualServer.Backend.ServiceName
+				oldPort := oldCfg.VirtualServer.Backend.ServicePort
+				if oldName != cfg.VirtualServer.Backend.ServiceName ||
+					oldPort != cfg.VirtualServer.Backend.ServicePort {
+					backendChange = true
+				}
+			}
+		}
+
+		virtualServers.Lock()
+		if eventStream.Added == changeType {
+			if _, ok := virtualServers.m[serviceKey{serviceName, servicePort}]; ok {
+				log.Warningf(
+					"Overwriting existing entry for backend %+v - change type: %v",
+					serviceKey{serviceName, servicePort}, changeType)
+			}
+		} else if eventStream.Updated == changeType && true == backendChange {
+			if _, ok := virtualServers.m[serviceKey{serviceName, servicePort}]; ok {
+				log.Warningf(
+					"Overwriting existing entry for backend %+v - change type: %v",
+					serviceKey{serviceName, servicePort}, changeType)
+			}
+			delete(virtualServers.m,
+				serviceKey{oldCfg.VirtualServer.Backend.ServiceName,
+					oldCfg.VirtualServer.Backend.ServicePort})
+		}
+		virtualServers.m[serviceKey{serviceName, servicePort}] = cfg
+		virtualServers.Unlock()
+		verified = true
+	case eventStream.Deleted:
+		virtualServers.Lock()
+		delete(virtualServers.m, serviceKey{serviceName, servicePort})
+		virtualServers.Unlock()
+		verified = true
 	}
 
 	if !verified {
@@ -234,10 +351,11 @@ func ProcessNodeUpdate(kubeClient kubernetes.Interface, internal bool) {
 	// Compare last set of nodes with new one
 	if !reflect.DeepEqual(newNodes, oldNodes) {
 		log.Infof("ProcessNodeUpdate: Change in Node state detected")
-		for serviceName, vs := range virtualServers {
+		virtualServers.Lock()
+		for _, vs := range virtualServers.m {
 			vs.VirtualServer.Backend.Nodes = newNodes
-			virtualServers[serviceName] = vs
 		}
+		virtualServers.Unlock()
 		// Output the Big-IP config
 		outputConfig()
 
@@ -254,14 +372,16 @@ func outputConfig() {
 	// Initialize the Services array as empty; json.Marshal() writes
 	// an uninitialized array as 'null', but we want an empty array
 	// written as '[]' instead
-	outputs.Services = []VirtualServerConfig{}
+	outputs.Services = []*VirtualServerConfig{}
 
 	// Filter the configs to only those that have active services
-	for _, vs := range virtualServers {
+	virtualServers.RLock()
+	for _, vs := range virtualServers.m {
 		if vs.VirtualServer.Backend.NodePort != 0 {
 			outputs.Services = append(outputs.Services, vs)
 		}
 	}
+	virtualServers.RUnlock()
 	output, err := json.Marshal(outputs)
 
 	if err == nil {
@@ -274,19 +394,6 @@ func outputConfig() {
 			log.Errorf("Failed to write Big-IP config data: %v", err)
 		}
 	}
-}
-
-// Get a Service by name
-func getService(kubeClient kubernetes.Interface,
-	serviceName string) *v1.ServiceList {
-	selector := fields.OneTermEqualSelector("metadata.name", serviceName)
-	options := api.ListOptions{FieldSelector: selector}
-	svcs, err := kubeClient.Core().Services("").List(options)
-
-	if err != nil {
-		log.Warningf("Failed to get services: %v", err)
-	}
-	return svcs
 }
 
 // Return a copy of the node cache

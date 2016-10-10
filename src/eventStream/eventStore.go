@@ -14,6 +14,11 @@ const (
 	Replaced ChangeType = "REPLACED"
 )
 
+type ChangedObject struct {
+	Old interface{}
+	New interface{}
+}
+
 // Function used to handle stream update events after the store is updated.
 type OnChangeFunc func(changeType ChangeType, obj interface{})
 
@@ -44,7 +49,10 @@ func (es *EventStore) Add(obj interface{}) error {
 	}
 	es.storage.Add(key, obj)
 	if es.onChangeFunc != nil {
-		es.onChangeFunc(Added, obj)
+		es.onChangeFunc(Added, ChangedObject{
+			nil,
+			obj,
+		})
 	}
 	return nil
 }
@@ -53,9 +61,13 @@ func (es *EventStore) Update(obj interface{}) error {
 	if err != nil {
 		return cache.KeyError{obj, err}
 	}
+	oldObj, _ := es.storage.Get(key)
 	es.storage.Update(key, obj)
 	if es.onChangeFunc != nil {
-		es.onChangeFunc(Updated, obj)
+		es.onChangeFunc(Updated, ChangedObject{
+			oldObj,
+			obj,
+		})
 	}
 	return nil
 }
@@ -66,7 +78,10 @@ func (es *EventStore) Delete(obj interface{}) error {
 	}
 	es.storage.Delete(key)
 	if es.onChangeFunc != nil {
-		es.onChangeFunc(Deleted, obj)
+		es.onChangeFunc(Deleted, ChangedObject{
+			obj,
+			nil,
+		})
 	}
 	return nil
 }

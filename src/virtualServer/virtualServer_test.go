@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"testing"
+	"time"
 
 	"eventStream"
 
@@ -33,6 +34,60 @@ var configmapFoo string = string(`{
       },
       "sslProfile": {
         "f5ProfileName": "velcro/testcert"
+      }
+    }
+  }
+}`)
+
+var configmapFoo8080 string = string(`{
+  "virtualServer": {
+    "backend": {
+      "serviceName": "foo",
+      "servicePort": 8080
+    },
+    "frontend": {
+      "balance": "round-robin",
+      "mode": "http",
+      "partition": "velcro",
+      "virtualAddress": {
+        "bindAddr": "10.128.10.240",
+        "port": 5051
+      }
+    }
+  }
+}`)
+
+var configmapFoo9090 string = string(`{
+	"virtualServer": {
+		"backend": {
+			"serviceName": "foo",
+			"servicePort": 9090
+		},
+		"frontend": {
+			"balance": "round-robin",
+			"mode": "tcp",
+			"partition": "velcro",
+			"virtualAddress": {
+				"bindAddr": "10.128.10.200",
+				"port": 4041
+			}
+		}
+	}
+}`)
+
+var configmapFooTcp string = string(`{
+  "virtualServer": {
+    "backend": {
+      "serviceName": "foo",
+      "servicePort": 80
+    },
+    "frontend": {
+      "balance": "round-robin",
+      "mode": "tcp",
+      "partition": "velcro",
+      "virtualAddress": {
+        "bindAddr": "10.128.10.240",
+        "port": 5051
       }
     }
   }
@@ -112,9 +167,15 @@ var configmapIApp2 string = string(`{
 
 var emptyConfig string = string(`{"services":[]}`)
 
+var twoSvcsFourPortsThreeNodesConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":8080,"nodePort":38001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":9090,"nodePort":39001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"tcp","virtualAddress":{"bindAddr":"10.128.10.200","port":4041}}}}]}`)
+
 var twoSvcsThreeNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
 
+var twoSvcsTwoNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
+
 var twoSvcsOneNodeConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
+
+var oneSvcTwoNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}}]}`)
 
 var oneSvcOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}}]}`)
 
@@ -150,7 +211,8 @@ func newConfigMap(id, rv, namespace, key, value string) *v1.ConfigMap {
 	}
 }
 
-func newService(id, rv, namespace string, serviceType v1.ServiceType, nodePort int32) *v1.Service {
+func newService(id, rv, namespace string, serviceType v1.ServiceType,
+	portSpecList []v1.ServicePort) *v1.Service {
 	return &v1.Service{
 		TypeMeta: unversioned.TypeMeta{
 			Kind:       "Service",
@@ -163,7 +225,7 @@ func newService(id, rv, namespace string, serviceType v1.ServiceType, nodePort i
 		},
 		Spec: v1.ServiceSpec{
 			Type:  serviceType,
-			Ports: []v1.ServicePort{{NodePort: nodePort}},
+			Ports: portSpecList,
 		},
 	}
 }
@@ -267,7 +329,7 @@ func validateFile(t *testing.T, expected string) {
 	sort.Sort(services.Services)
 
 	// Read JSON from exepectedOutput into array of structs
-	expectedOutput := outputConfigs{[]VirtualServerConfig{}}
+	expectedOutput := outputConfigs{[]*VirtualServerConfig{}}
 	err = json.Unmarshal([]byte(expected), &expectedOutput)
 	if nil != err {
 		assert.Nil(t, err)
@@ -387,17 +449,352 @@ func TestProcessNodeUpdate(t *testing.T) {
 		"Cached nodes should be expected set")
 }
 
+func TestOverwriteAdd(t *testing.T) {
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
+
+	require := require.New(t)
+
+	cfgFoo := newConfigMap("foomap", "1", "default", "foomap.json", configmapFoo)
+
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client cannot be nil")
+
+	r := processConfigMap(fake, eventStream.Added,
+		eventStream.ChangedObject{nil, cfgFoo})
+	require.True(r, "Config map should be processed")
+
+	require.Equal(1, len(virtualServers.m))
+	require.Contains(virtualServers.m, serviceKey{"foo", 80},
+		"Virtual servers should have entry")
+	require.Equal("http",
+		virtualServers.m[serviceKey{"foo", 80}].VirtualServer.Frontend.Mode,
+		"Mode should be http")
+
+	cfgFoo = newConfigMap("foomap", "1", "default", "foomap.json",
+		configmapFooTcp)
+
+	r = processConfigMap(fake, eventStream.Added,
+		eventStream.ChangedObject{nil, cfgFoo})
+	require.True(r, "Config map should be processed")
+
+	require.Equal(1, len(virtualServers.m))
+	require.Contains(virtualServers.m, serviceKey{"foo", 80},
+		"Virtual servers should have new entry")
+	require.Equal("tcp",
+		virtualServers.m[serviceKey{"foo", 80}].VirtualServer.Frontend.Mode,
+		"Mode should be tcp after overwrite")
+}
+
+func TestServiceChangeUpdate(t *testing.T) {
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
+
+	require := require.New(t)
+
+	cfgFoo := newConfigMap("foomap", "1", "default", "foomap.json", configmapFoo)
+
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client cannot be nil")
+
+	r := processConfigMap(fake, eventStream.Added,
+		eventStream.ChangedObject{nil, cfgFoo})
+	require.True(r, "Config map should be processed")
+
+	require.Equal(1, len(virtualServers.m))
+	require.Contains(virtualServers.m, serviceKey{"foo", 80},
+		"Virtual servers should have an entry")
+
+	cfgFoo8080 := newConfigMap("foomap", "1", "default", "foomap.json",
+		configmapFoo8080)
+
+	r = processConfigMap(fake, eventStream.Updated,
+		eventStream.ChangedObject{cfgFoo, cfgFoo8080})
+	require.True(r, "Config map should be processed")
+	require.Contains(virtualServers.m, serviceKey{"foo", 8080},
+		"Virtual servers should have new entry")
+	require.NotContains(virtualServers.m, serviceKey{"foo", 80},
+		"Virtual servers should have old config removed")
+}
+
+func TestServicePortsRemoved(t *testing.T) {
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
+
+	require := require.New(t)
+
+	cfgFoo := newConfigMap("foomap", "1", "default", "foomap.json", configmapFoo)
+	cfgFoo8080 := newConfigMap("foomap8080", "1", "default", "foomap8080.json",
+		configmapFoo8080)
+	cfgFoo9090 := newConfigMap("foomap9090", "1", "default", "foomap9090.json",
+		configmapFoo9090)
+
+	foo := newService("foo", "1", "default", "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 30001},
+			{Port: 8080, NodePort: 38001},
+			{Port: 9090, NodePort: 39001}})
+
+	fake := fake.NewSimpleClientset(&v1.ServiceList{Items: []v1.Service{*foo}})
+
+	r := processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		cfgFoo})
+	require.True(r, "Config map should be processed")
+
+	r = processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		cfgFoo8080})
+	require.True(r, "Config map should be processed")
+
+	r = processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		cfgFoo9090})
+	require.True(r, "Config map should be processed")
+
+	require.Equal(3, len(virtualServers.m))
+	require.Contains(virtualServers.m, serviceKey{"foo", 80})
+	require.Contains(virtualServers.m, serviceKey{"foo", 8080})
+	require.Contains(virtualServers.m, serviceKey{"foo", 9090})
+
+	// Create a new service with less ports and update
+	newFoo := newService("foo", "1", "default", "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
+
+	r = processService(fake, eventStream.Updated, eventStream.ChangedObject{
+		foo,
+		newFoo})
+	require.True(r, "Service should be processed")
+
+	require.Equal(3, len(virtualServers.m))
+	require.Contains(virtualServers.m, serviceKey{"foo", 80})
+	require.Contains(virtualServers.m, serviceKey{"foo", 8080})
+	require.Contains(virtualServers.m, serviceKey{"foo", 9090})
+
+	require.Equal(int32(30001),
+		virtualServers.m[serviceKey{"foo", 80}].VirtualServer.Backend.NodePort,
+		"Existing NodePort should be set")
+	require.Equal(int32(0),
+		virtualServers.m[serviceKey{"foo", 8080}].VirtualServer.Backend.NodePort,
+		"Removed NodePort should be unset")
+	require.Equal(int32(0),
+		virtualServers.m[serviceKey{"foo", 9090}].VirtualServer.Backend.NodePort,
+		"Removed NodePort should be unset")
+
+	// Re-add port in new service
+	newFoo2 := newService("foo", "1", "default", "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 20001},
+			{Port: 8080, NodePort: 45454}})
+
+	r = processService(fake, eventStream.Updated, eventStream.ChangedObject{
+		newFoo,
+		newFoo2})
+	require.True(r, "Service should be processed")
+
+	require.Equal(3, len(virtualServers.m))
+	require.Contains(virtualServers.m, serviceKey{"foo", 80})
+	require.Contains(virtualServers.m, serviceKey{"foo", 8080})
+	require.Contains(virtualServers.m, serviceKey{"foo", 9090})
+
+	require.Equal(int32(20001),
+		virtualServers.m[serviceKey{"foo", 80}].VirtualServer.Backend.NodePort,
+		"Existing NodePort should be set")
+	require.Equal(int32(45454),
+		virtualServers.m[serviceKey{"foo", 8080}].VirtualServer.Backend.NodePort,
+		"Removed NodePort should be unset")
+	require.Equal(int32(0),
+		virtualServers.m[serviceKey{"foo", 9090}].VirtualServer.Backend.NodePort,
+		"Removed NodePort should be unset")
+}
+
+func TestUpdatesConcurrent(t *testing.T) {
+	defer os.Remove(OutputFilename)
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
+
+	assert := assert.New(t)
+	require := require.New(t)
+
+	cfgFoo := newConfigMap("foomap", "1", "default", "foomap.json", configmapFoo)
+	cfgBar := newConfigMap("barmap", "1", "default", "barmap.json", configmapBar)
+	foo := newService("foo", "1", "default", "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
+	bar := newService("bar", "1", "default", "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+	nodes := []*v1.Node{
+		newNode("node0", "0", true, []v1.NodeAddress{
+			{"ExternalIP", "127.0.0.0"}}),
+		newNode("node1", "1", false, []v1.NodeAddress{
+			{"ExternalIP", "127.0.0.1"}}),
+		newNode("node2", "2", false, []v1.NodeAddress{
+			{"ExternalIP", "127.0.0.2"}}),
+	}
+	extraNode := newNode("node3", "3", false,
+		[]v1.NodeAddress{{"ExternalIP", "127.0.0.3"}})
+
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client cannot be nil")
+
+	nodeCh := make(chan struct{})
+	mapCh := make(chan struct{})
+	serviceCh := make(chan struct{})
+
+	go func() {
+		for _, node := range nodes {
+			n, err := fake.Core().Nodes().Create(node)
+			require.Nil(err, "Should not fail creating node")
+			require.EqualValues(node, n, "Nodes should be equal")
+
+			ProcessNodeUpdate(fake, false)
+		}
+
+		nodeCh <- struct{}{}
+	}()
+
+	go func() {
+		f, err := fake.Core().ConfigMaps("default").Create(cfgFoo)
+		require.Nil(err, "Should not fail creating configmap")
+		require.EqualValues(f, cfgFoo, "Maps should be equal")
+
+		ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+			nil,
+			cfgFoo,
+		})
+
+		b, err := fake.Core().ConfigMaps("default").Create(cfgBar)
+		require.Nil(err, "Should not fail creating configmap")
+		require.EqualValues(b, cfgBar, "Maps should be equal")
+
+		ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+			nil,
+			cfgBar,
+		})
+
+		mapCh <- struct{}{}
+	}()
+
+	go func() {
+		fSvc, err := fake.Core().Services("default").Create(foo)
+		require.Nil(err, "Should not fail creating service")
+		require.EqualValues(fSvc, foo, "Service should be equal")
+
+		ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+			nil,
+			foo})
+
+		bSvc, err := fake.Core().Services("default").Create(bar)
+		require.Nil(err, "Should not fail creating service")
+		require.EqualValues(bSvc, bar, "Maps should be equal")
+
+		ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+			nil,
+			bar})
+
+		serviceCh <- struct{}{}
+	}()
+
+	select {
+	case <-nodeCh:
+	case <-time.After(time.Second * 30):
+		assert.FailNow("Timed out expecting node channel notification")
+	}
+	select {
+	case <-mapCh:
+	case <-time.After(time.Second * 30):
+		assert.FailNow("Timed out expecting configmap channel notification")
+	}
+	select {
+	case <-serviceCh:
+	case <-time.After(time.Second * 30):
+		assert.FailNow("Timed out excpecting service channel notification")
+	}
+
+	validateFile(t, twoSvcsTwoNodesConfig)
+
+	go func() {
+		err := fake.Core().Nodes().Delete("node1", &api.DeleteOptions{})
+		require.Nil(err)
+		err = fake.Core().Nodes().Delete("node2", &api.DeleteOptions{})
+		require.Nil(err)
+		_, err = fake.Core().Nodes().Create(extraNode)
+		require.Nil(err)
+		ProcessNodeUpdate(fake, false)
+
+		nodeCh <- struct{}{}
+	}()
+
+	go func() {
+		err := fake.Core().ConfigMaps("default").Delete("foomap",
+			&api.DeleteOptions{})
+		require.Nil(err, "Should not error deleting map")
+		m, _ := fake.Core().ConfigMaps("").List(api.ListOptions{})
+		assert.Equal(1, len(m.Items))
+		ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+			cfgFoo,
+			nil,
+		})
+		assert.Equal(1, len(virtualServers.m))
+
+		mapCh <- struct{}{}
+	}()
+
+	go func() {
+		err := fake.Core().Services("default").Delete("foo",
+			&api.DeleteOptions{})
+		require.Nil(err, "Should not error deleting service")
+		s, _ := fake.Core().Services("").List(api.ListOptions{})
+		assert.Equal(1, len(s.Items))
+		ProcessServiceUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+			foo,
+			nil})
+
+		serviceCh <- struct{}{}
+	}()
+
+	select {
+	case <-nodeCh:
+	case <-time.After(time.Second * 30):
+		assert.FailNow("Timed out expecting node channel notification")
+	}
+	select {
+	case <-mapCh:
+	case <-time.After(time.Second * 30):
+		assert.FailNow("Timed out expecting configmap channel notification")
+	}
+	select {
+	case <-serviceCh:
+	case <-time.After(time.Second * 30):
+		assert.FailNow("Timed out excpecting service channel notification")
+	}
+
+	validateFile(t, oneSvcTwoNodesConfig)
+}
+
 func TestProcessUpdates(t *testing.T) {
 	defer os.Remove(OutputFilename)
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
 
 	assert := assert.New(t)
 	require := require.New(t)
 
 	// Create a test env with two ConfigMaps, two Services, and three Nodes
 	cfgFoo := newConfigMap("foomap", "1", "default", "foomap.json", configmapFoo)
+	cfgFoo8080 := newConfigMap("foomap8080", "1", "default", "foomap8080.json",
+		configmapFoo8080)
+	cfgFoo9090 := newConfigMap("foomap9090", "1", "default", "foomap9090.json",
+		configmapFoo9090)
 	cfgBar := newConfigMap("barmap", "1", "default", "barmap.json", configmapBar)
-	foo := newService("foo", "1", "default", "NodePort", 30001)
-	bar := newService("bar", "1", "default", "NodePort", 37001)
+	foo := newService("foo", "1", "default", "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 30001},
+			{Port: 8080, NodePort: 38001},
+			{Port: 9090, NodePort: 39001}})
+	bar := newService("bar", "1", "default", "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
 	nodes := []v1.Node{
 		*newNode("node0", "0", true, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.0"}}),
@@ -406,7 +803,8 @@ func TestProcessUpdates(t *testing.T) {
 		*newNode("node2", "2", false, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.2"}}),
 	}
-	extraNode := newNode("node3", "3", false, []v1.NodeAddress{{"ExternalIP", "127.0.0.3"}})
+	extraNode := newNode("node3", "3", false,
+		[]v1.NodeAddress{{"ExternalIP", "127.0.0.3"}})
 
 	addrs := []string{"127.0.0.1", "127.0.0.2"}
 
@@ -430,43 +828,126 @@ func TestProcessUpdates(t *testing.T) {
 	ProcessNodeUpdate(fake, false)
 
 	// ConfigMap ADDED
-	ProcessConfigMapUpdate(fake, eventStream.Added, cfgFoo)
-	assert.Equal(1, len(virtualServers))
-	assert.EqualValues(addrs, virtualServers["foo"].VirtualServer.Backend.Nodes)
+	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		cfgFoo,
+	})
+	assert.Equal(1, len(virtualServers.m))
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"foo", 80}].VirtualServer.Backend.Nodes)
 
 	// Second ConfigMap ADDED
-	ProcessConfigMapUpdate(fake, eventStream.Added, cfgBar)
-	assert.Equal(2, len(virtualServers))
-	assert.EqualValues(addrs, virtualServers["foo"].VirtualServer.Backend.Nodes)
-	assert.EqualValues(addrs, virtualServers["bar"].VirtualServer.Backend.Nodes)
+	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		cfgBar,
+	})
+	assert.Equal(2, len(virtualServers.m))
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"foo", 80}].VirtualServer.Backend.Nodes)
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"bar", 80}].VirtualServer.Backend.Nodes)
 
 	// Service ADDED
-	ProcessServiceUpdate(fake, eventStream.Added, foo)
-	assert.Equal(2, len(virtualServers))
+	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		foo})
+	assert.Equal(2, len(virtualServers.m))
 
 	// Second Service ADDED
-	ProcessServiceUpdate(fake, eventStream.Added, bar)
-	assert.Equal(2, len(virtualServers))
+	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		bar})
+	assert.Equal(2, len(virtualServers.m))
 
-	// ConfigMap REPLACED
-	cfgs := []interface{}{cfgFoo}
-	ProcessConfigMapUpdate(fake, eventStream.Replaced, cfgs)
-	assert.Equal(2, len(virtualServers))
+	// ConfigMap UPDATED
+	ProcessConfigMapUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+		cfgFoo,
+		cfgFoo,
+	})
+	assert.Equal(2, len(virtualServers.m))
 
-	// Service REPLACED
-	svcs := []interface{}{foo}
-	ProcessServiceUpdate(fake, eventStream.Replaced, svcs)
-	assert.Equal(2, len(virtualServers))
+	// Service UPDATED
+	ProcessServiceUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+		foo,
+		foo})
+	assert.Equal(2, len(virtualServers.m))
+
+	// ConfigMap ADDED second foo port
+	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		cfgFoo8080})
+	assert.Equal(3, len(virtualServers.m))
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"foo", 8080}].VirtualServer.Backend.Nodes)
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"foo", 80}].VirtualServer.Backend.Nodes)
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"bar", 80}].VirtualServer.Backend.Nodes)
+
+	// ConfigMap ADDED third foo port
+	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		cfgFoo9090})
+	assert.Equal(4, len(virtualServers.m))
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"foo", 9090}].VirtualServer.Backend.Nodes)
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"foo", 8080}].VirtualServer.Backend.Nodes)
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"foo", 80}].VirtualServer.Backend.Nodes)
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"bar", 80}].VirtualServer.Backend.Nodes)
 
 	// Nodes ADDED
 	_, err = fake.Core().Nodes().Create(extraNode)
 	require.Nil(err)
 	ProcessNodeUpdate(fake, false)
-	ProcessConfigMapUpdate(fake, eventStream.Added, cfgFoo)
-	assert.Equal(2, len(virtualServers))
-	assert.EqualValues(append(addrs, "127.0.0.3"), virtualServers["foo"].VirtualServer.Backend.Nodes)
-	assert.EqualValues(append(addrs, "127.0.0.3"), virtualServers["bar"].VirtualServer.Backend.Nodes)
-	validateFile(t, twoSvcsThreeNodesConfig)
+	assert.Equal(4, len(virtualServers.m))
+	assert.EqualValues(append(addrs, "127.0.0.3"),
+		virtualServers.m[serviceKey{"foo", 80}].VirtualServer.Backend.Nodes)
+	assert.EqualValues(append(addrs, "127.0.0.3"),
+		virtualServers.m[serviceKey{"bar", 80}].VirtualServer.Backend.Nodes)
+	assert.EqualValues(append(addrs, "127.0.0.3"),
+		virtualServers.m[serviceKey{"foo", 8080}].VirtualServer.Backend.Nodes)
+	assert.EqualValues(append(addrs, "127.0.0.3"),
+		virtualServers.m[serviceKey{"foo", 9090}].VirtualServer.Backend.Nodes)
+	validateFile(t, twoSvcsFourPortsThreeNodesConfig)
+
+	// ConfigMap DELETED third foo port
+	ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+		cfgFoo9090,
+		nil})
+	assert.Equal(3, len(virtualServers.m))
+	assert.NotContains(virtualServers.m, serviceKey{"foo", 9090},
+		"Virtual servers should no contain removed port")
+	assert.Contains(virtualServers.m, serviceKey{"foo", 8080},
+		"Virtual servers should contain remaining ports")
+	assert.Contains(virtualServers.m, serviceKey{"foo", 80},
+		"Virtual servers should contain remaining ports")
+	assert.Contains(virtualServers.m, serviceKey{"bar", 80},
+		"Virtual servers should contain remaining ports")
+
+	// ConfigMap UPDATED second foo port
+	ProcessConfigMapUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+		cfgFoo8080,
+		cfgFoo8080})
+	assert.Equal(3, len(virtualServers.m))
+	assert.Contains(virtualServers.m, serviceKey{"foo", 8080},
+		"Virtual servers should contain remaining ports")
+	assert.Contains(virtualServers.m, serviceKey{"foo", 80},
+		"Virtual servers should contain remaining ports")
+	assert.Contains(virtualServers.m, serviceKey{"bar", 80},
+		"Virtual servers should contain remaining ports")
+
+	// ConfigMap DELETED second foo port
+	ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+		cfgFoo8080,
+		nil})
+	assert.Equal(2, len(virtualServers.m))
+	assert.Contains(virtualServers.m, serviceKey{"foo", 80},
+		"Virtual servers should contain remaining ports")
+	assert.Contains(virtualServers.m, serviceKey{"bar", 80},
+		"Virtual servers should contain remaining ports")
 
 	// Nodes DELETES
 	err = fake.Core().Nodes().Delete("node1", &api.DeleteOptions{})
@@ -474,19 +955,24 @@ func TestProcessUpdates(t *testing.T) {
 	err = fake.Core().Nodes().Delete("node2", &api.DeleteOptions{})
 	require.Nil(err)
 	ProcessNodeUpdate(fake, false)
-	ProcessConfigMapUpdate(fake, eventStream.Added, cfgFoo)
-	assert.Equal(2, len(virtualServers))
-	assert.EqualValues([]string{"127.0.0.3"}, virtualServers["foo"].VirtualServer.Backend.Nodes)
-	assert.EqualValues([]string{"127.0.0.3"}, virtualServers["bar"].VirtualServer.Backend.Nodes)
+	assert.Equal(2, len(virtualServers.m))
+	assert.EqualValues([]string{"127.0.0.3"},
+		virtualServers.m[serviceKey{"foo", 80}].VirtualServer.Backend.Nodes)
+	assert.EqualValues([]string{"127.0.0.3"},
+		virtualServers.m[serviceKey{"bar", 80}].VirtualServer.Backend.Nodes)
 	validateFile(t, twoSvcsOneNodeConfig)
 
 	// ConfigMap DELETED
 	err = fake.Core().ConfigMaps("default").Delete("foomap", &api.DeleteOptions{})
 	m, err = fake.Core().ConfigMaps("").List(api.ListOptions{})
 	assert.Equal(1, len(m.Items))
-	ProcessConfigMapUpdate(fake, eventStream.Deleted, cfgFoo)
-	assert.Equal(1, len(virtualServers))
-	assert.EqualValues([]string(nil), virtualServers["foo"].VirtualServer.Backend.Nodes)
+	ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+		cfgFoo,
+		nil,
+	})
+	assert.Equal(1, len(virtualServers.m))
+	assert.NotContains(virtualServers.m, serviceKey{"foo", 80},
+		"Config map should be removed after delete")
 	validateFile(t, oneSvcOneNodeConfig)
 
 	// Service DELETED
@@ -494,18 +980,25 @@ func TestProcessUpdates(t *testing.T) {
 	require.Nil(err)
 	s, err = fake.Core().Services("").List(api.ListOptions{})
 	assert.Equal(1, len(s.Items))
-	ProcessServiceUpdate(fake, eventStream.Deleted, bar)
-	assert.Equal(1, len(virtualServers))
+	ProcessServiceUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+		bar,
+		nil})
+	assert.Equal(1, len(virtualServers.m))
 	validateFile(t, emptyConfig)
 }
 
 func TestDontCareConfigMap(t *testing.T) {
+	defer os.Remove(OutputFilename)
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
+
 	assert := assert.New(t)
 	require := require.New(t)
-	virtualServers = make(map[string]VirtualServerConfig)
 
 	cfg := newConfigMap("foomap", "1", "default", "foo", "bar")
-	svc := newService("foo", "1", "default", "NodePort", 30001)
+	svc := newService("foo", "1", "default", "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
 
 	fake := fake.NewSimpleClientset(&v1.ConfigMapList{Items: []v1.ConfigMap{*cfg}},
 		&v1.ServiceList{Items: []v1.Service{*svc}})
@@ -520,13 +1013,19 @@ func TestDontCareConfigMap(t *testing.T) {
 	assert.Equal(1, len(s.Items))
 
 	// ConfigMap ADDED
-	assert.Equal(0, len(virtualServers))
-	ProcessConfigMapUpdate(fake, eventStream.Added, cfg)
-	assert.Equal(0, len(virtualServers))
+	assert.Equal(0, len(virtualServers.m))
+	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		cfg,
+	})
+	assert.Equal(0, len(virtualServers.m))
 }
 
 func TestProcessUpdatesIApp(t *testing.T) {
 	defer os.Remove(OutputFilename)
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
 
 	assert := assert.New(t)
 	require := require.New(t)
@@ -536,8 +1035,10 @@ func TestProcessUpdatesIApp(t *testing.T) {
 		configmapIApp1)
 	cfgIapp2 := newConfigMap("iapp2map", "1", "default", "iapp2map.json",
 		configmapIApp2)
-	iapp1 := newService("iapp1", "1", "default", "NodePort", 10101)
-	iapp2 := newService("iapp2", "1", "default", "NodePort", 20202)
+	iapp1 := newService("iapp1", "1", "default", "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 10101}})
+	iapp2 := newService("iapp2", "1", "default", "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 20202}})
 	nodes := []v1.Node{
 		*newNode("node0", "0", true, []v1.NodeAddress{
 			{"InternalIP", "192.168.0.0"}}),
@@ -573,44 +1074,59 @@ func TestProcessUpdatesIApp(t *testing.T) {
 	ProcessNodeUpdate(fake, true)
 
 	// ConfigMap ADDED
-	ProcessConfigMapUpdate(fake, eventStream.Added, cfgIapp1)
-	assert.Equal(1, len(virtualServers))
-	assert.EqualValues(addrs, virtualServers["iapp1"].VirtualServer.Backend.Nodes)
+	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		cfgIapp1,
+	})
+	assert.Equal(1, len(virtualServers.m))
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"iapp1", 80}].VirtualServer.Backend.Nodes)
 
 	// Second ConfigMap ADDED
-	ProcessConfigMapUpdate(fake, eventStream.Added, cfgIapp2)
-	assert.Equal(2, len(virtualServers))
-	assert.EqualValues(addrs, virtualServers["iapp1"].VirtualServer.Backend.Nodes)
-	assert.EqualValues(addrs, virtualServers["iapp2"].VirtualServer.Backend.Nodes)
+	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		cfgIapp2,
+	})
+	assert.Equal(2, len(virtualServers.m))
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"iapp1", 80}].VirtualServer.Backend.Nodes)
+	assert.EqualValues(addrs,
+		virtualServers.m[serviceKey{"iapp2", 80}].VirtualServer.Backend.Nodes)
 
 	// Service ADDED
-	ProcessServiceUpdate(fake, eventStream.Added, iapp1)
-	assert.Equal(2, len(virtualServers))
+	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		iapp1})
+	assert.Equal(2, len(virtualServers.m))
 
 	// Second Service ADDED
-	ProcessServiceUpdate(fake, eventStream.Added, iapp2)
-	assert.Equal(2, len(virtualServers))
+	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		iapp2})
+	assert.Equal(2, len(virtualServers.m))
 
-	// ConfigMap REPLACED
-	cfgs := []interface{}{cfgIapp1}
-	ProcessConfigMapUpdate(fake, eventStream.Replaced, cfgs)
-	assert.Equal(2, len(virtualServers))
+	// ConfigMap UPDATED
+	ProcessConfigMapUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+		cfgIapp1,
+		cfgIapp1,
+	})
+	assert.Equal(2, len(virtualServers.m))
 
-	// Service REPLACED
-	svcs := []interface{}{iapp1}
-	ProcessServiceUpdate(fake, eventStream.Replaced, svcs)
-	assert.Equal(2, len(virtualServers))
+	// Service UPDATED
+	ProcessServiceUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+		iapp1,
+		iapp1})
+	assert.Equal(2, len(virtualServers.m))
 
 	// Nodes ADDED
 	_, err = fake.Core().Nodes().Create(extraNode)
 	require.Nil(err)
 	ProcessNodeUpdate(fake, true)
-	ProcessConfigMapUpdate(fake, eventStream.Added, cfgIapp1)
-	assert.Equal(2, len(virtualServers))
+	assert.Equal(2, len(virtualServers.m))
 	assert.EqualValues(append(addrs, "192.168.0.4"),
-		virtualServers["iapp1"].VirtualServer.Backend.Nodes)
+		virtualServers.m[serviceKey{"iapp1", 80}].VirtualServer.Backend.Nodes)
 	assert.EqualValues(append(addrs, "192.168.0.4"),
-		virtualServers["iapp2"].VirtualServer.Backend.Nodes)
+		virtualServers.m[serviceKey{"iapp2", 80}].VirtualServer.Backend.Nodes)
 	validateFile(t, twoIappsThreeNodesConfig)
 
 	// Nodes DELETES
@@ -619,12 +1135,11 @@ func TestProcessUpdatesIApp(t *testing.T) {
 	err = fake.Core().Nodes().Delete("node2", &api.DeleteOptions{})
 	require.Nil(err)
 	ProcessNodeUpdate(fake, true)
-	ProcessConfigMapUpdate(fake, eventStream.Added, cfgIapp1)
-	assert.Equal(2, len(virtualServers))
+	assert.Equal(2, len(virtualServers.m))
 	assert.EqualValues([]string{"192.168.0.4"},
-		virtualServers["iapp1"].VirtualServer.Backend.Nodes)
+		virtualServers.m[serviceKey{"iapp1", 80}].VirtualServer.Backend.Nodes)
 	assert.EqualValues([]string{"192.168.0.4"},
-		virtualServers["iapp2"].VirtualServer.Backend.Nodes)
+		virtualServers.m[serviceKey{"iapp2", 80}].VirtualServer.Backend.Nodes)
 	validateFile(t, twoIappsOneNodeConfig)
 
 	// ConfigMap DELETED
@@ -632,10 +1147,13 @@ func TestProcessUpdatesIApp(t *testing.T) {
 		&api.DeleteOptions{})
 	m, err = fake.Core().ConfigMaps("").List(api.ListOptions{})
 	assert.Equal(1, len(m.Items))
-	ProcessConfigMapUpdate(fake, eventStream.Deleted, cfgIapp1)
-	assert.Equal(1, len(virtualServers))
-	assert.EqualValues([]string(nil),
-		virtualServers["iapp1"].VirtualServer.Backend.Nodes)
+	ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+		cfgIapp1,
+		nil,
+	})
+	assert.Equal(1, len(virtualServers.m))
+	assert.NotContains(virtualServers.m, serviceKey{"iapp1", 80},
+		"Config map should be removed after delete")
 	validateFile(t, oneIappOneNodeConfig)
 
 	// Service DELETED
@@ -643,7 +1161,9 @@ func TestProcessUpdatesIApp(t *testing.T) {
 	require.Nil(err)
 	s, err = fake.Core().Services("").List(api.ListOptions{})
 	assert.Equal(1, len(s.Items))
-	ProcessServiceUpdate(fake, eventStream.Deleted, iapp2)
-	assert.Equal(1, len(virtualServers))
+	ProcessServiceUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+		iapp2,
+		nil})
+	assert.Equal(1, len(virtualServers.m))
 	validateFile(t, emptyConfig)
 }

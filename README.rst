@@ -24,7 +24,8 @@ F5 FlowPoint Proxy Controller for Kubernetes
 Introduction
 ------------
 
-The F5® FlowPoint™ proxy controller for `Kubernetes <http://kubernetes.io/>`_ enables the use of FlowPoint to provide load balancing, and other local traffic management, services in Kubernetes.
+The F5® |csi| (CSI) provides an integration for the `Kubernetes <http://kubernetes.io/>`_ orchestration environment that makes L4-L7 services available to users deploying miscroservices-based applications in a containerized infrastructure. [#]_
+
 
 Documentation
 -------------

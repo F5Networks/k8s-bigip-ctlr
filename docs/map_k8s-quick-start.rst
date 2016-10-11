@@ -1,8 +1,9 @@
-Quick Start Guide
-=================
+Quick Reference Guide
+=====================
 
 Before You Begin
 ----------------
+
 
 Installation
 ------------

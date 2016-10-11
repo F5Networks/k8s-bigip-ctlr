@@ -40,9 +40,12 @@ Contact
 coming soon!
 
 
+.. [#] See `Using Docker Container Technology with F5 Products and Services <https://f5.com/resources/white-papers/using-docker-container-technology-with-f5-products-and-services>`_
+
 .. |Build Status| image:: <build_badge_URL>
     :target: <build_URL>
     :alt: Build Status
 .. |Docs Build Status| image:: <build_badge_URL>
     :target: <build_URL>
     :alt: Documentation Status
+

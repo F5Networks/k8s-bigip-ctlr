@@ -24,7 +24,8 @@ F5 FlowPoint Proxy Controller for Kubernetes
 Introduction
 ------------
 
-The F5® Container Service Integrator for `Kubernetes <http://kubernetes.io/>`_ allows you to provision BIG-IP® Local Traffic Manager™ (LTM®) services using Kubernetes. It works in conjunction with the F5® FlowPoint™ proxy to provide a multi-directional traffic management solution for containerized applications.
+The F5® |csi| (CSI) provides an integration for the `Kubernetes <http://kubernetes.io/>`_ orchestration environment that makes L4-L7 services available to users deploying miscroservices-based applications in a containerized infrastructure. [#]_
+
 
 Documentation
 -------------

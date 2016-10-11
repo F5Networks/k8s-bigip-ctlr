@@ -4,11 +4,11 @@ F5 |csi_k|
 Overview
 --------
 
-The F5® |csi| (CSI) for `Kubernetes <http://kubernetes.io/>`_ allows you to provision BIG-IP® Local Traffic Manager™ (LTM®) services using Kubernetes. It works in conjunction with the F5 |fp| ™ proxy to provide North-South and East-West traffic management for containerized applications.
+The F5® |csi| (CSI) provides an integration for the `Kubernetes <http://kubernetes.io/>`_ orchestration environment that makes L4-L7 services available to users deploying miscroservices-based applications in a containerized infrastructure. [#]_
 
-The |csi| runs as a Docker container in Kubernetes. It watches applications being created and destroyed. When an application with the proper labels is created, the |csi| creates a new |fpp| for that application and scales it to have the requested number of tasks.
+The CSI makes it possible to manage BIG-IP® with Kubernetes, providing networking services for North-South traffic. It can be used in conjunction with the :ref:`F5 FlowPoint Proxy`, which provides services for East-West traffic.
 
-.. todo:: add how it works (high level)
+The CSI watches for Services being created and destroyed in Kubernetes. When a Service is created and associated with an F5-formatted ConfigMap_, the |csi| creates a new virtual server for that Service on the BIG-IP, scaling the pool members to each node in the cluster.
 
 Use Case
 --------
@@ -86,3 +86,7 @@ Further Reading
     * x
     * y
     * z
+
+.. [#] See `Using Docker Container Technology with F5 Products and Services <https://f5.com/resources/white-papers/using-docker-container-technology-with-f5-products-and-services>`_
+
+.. _ConfigMap: http://kubernetes.io/docs/user-guide/configmap/

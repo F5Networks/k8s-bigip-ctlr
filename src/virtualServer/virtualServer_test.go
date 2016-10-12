@@ -250,6 +250,79 @@ func newNode(id, rv string, unsched bool,
 	}
 }
 
+func TestVirtualServerSort(t *testing.T) {
+	virtualServers := VirtualServerConfigs{}
+
+	expectedList := make(VirtualServerConfigs, 10)
+
+	vs := VirtualServerConfig{}
+	vs.VirtualServer.Backend.ServiceName = "bar"
+	vs.VirtualServer.Backend.ServicePort = 80
+	virtualServers = append(virtualServers, &vs)
+	expectedList[1] = &vs
+
+	vs = VirtualServerConfig{}
+	vs.VirtualServer.Backend.ServiceName = "foo"
+	vs.VirtualServer.Backend.ServicePort = 2
+	virtualServers = append(virtualServers, &vs)
+	expectedList[5] = &vs
+
+	vs = VirtualServerConfig{}
+	vs.VirtualServer.Backend.ServiceName = "foo"
+	vs.VirtualServer.Backend.ServicePort = 8080
+	virtualServers = append(virtualServers, &vs)
+	expectedList[7] = &vs
+
+	vs = VirtualServerConfig{}
+	vs.VirtualServer.Backend.ServiceName = "baz"
+	vs.VirtualServer.Backend.ServicePort = 1
+	virtualServers = append(virtualServers, &vs)
+	expectedList[2] = &vs
+
+	vs = VirtualServerConfig{}
+	vs.VirtualServer.Backend.ServiceName = "foo"
+	vs.VirtualServer.Backend.ServicePort = 80
+	virtualServers = append(virtualServers, &vs)
+	expectedList[6] = &vs
+
+	vs = VirtualServerConfig{}
+	vs.VirtualServer.Backend.ServiceName = "foo"
+	vs.VirtualServer.Backend.ServicePort = 9090
+	virtualServers = append(virtualServers, &vs)
+	expectedList[9] = &vs
+
+	vs = VirtualServerConfig{}
+	vs.VirtualServer.Backend.ServiceName = "baz"
+	vs.VirtualServer.Backend.ServicePort = 1000
+	virtualServers = append(virtualServers, &vs)
+	expectedList[3] = &vs
+
+	vs = VirtualServerConfig{}
+	vs.VirtualServer.Backend.ServiceName = "foo"
+	vs.VirtualServer.Backend.ServicePort = 8080
+	virtualServers = append(virtualServers, &vs)
+	expectedList[8] = &vs
+
+	vs = VirtualServerConfig{}
+	vs.VirtualServer.Backend.ServiceName = "foo"
+	vs.VirtualServer.Backend.ServicePort = 1
+	virtualServers = append(virtualServers, &vs)
+	expectedList[4] = &vs
+
+	vs = VirtualServerConfig{}
+	vs.VirtualServer.Backend.ServiceName = "bar"
+	vs.VirtualServer.Backend.ServicePort = 1
+	virtualServers = append(virtualServers, &vs)
+	expectedList[0] = &vs
+
+	sort.Sort(virtualServers)
+
+	for i, _ := range expectedList {
+		require.EqualValues(t, expectedList[i], virtualServers[i],
+			"Sorted list elements should be equal")
+	}
+}
+
 func TestGetAddresses(t *testing.T) {
 	// Existing Node data
 	expectedNodes := []*v1.Node{

@@ -63,8 +63,10 @@ func (slice VirtualServerConfigs) Len() int {
 func (slice VirtualServerConfigs) Less(i, j int) bool {
 	return slice[i].VirtualServer.Backend.ServiceName <
 		slice[j].VirtualServer.Backend.ServiceName ||
-		slice[i].VirtualServer.Backend.ServicePort <
-			slice[j].VirtualServer.Backend.ServicePort
+		(slice[i].VirtualServer.Backend.ServiceName ==
+			slice[j].VirtualServer.Backend.ServiceName &&
+			slice[i].VirtualServer.Backend.ServicePort <
+				slice[j].VirtualServer.Backend.ServicePort)
 }
 
 func (slice VirtualServerConfigs) Swap(i, j int) {
@@ -109,7 +111,7 @@ func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 	var cfg VirtualServerConfig
 
 	// FIXME(yacobucci) Issue #9 this should be more predictable, the two fields
-	// should be shema and data
+	// should be schema and data
 	for _, value := range cm.Data {
 		err := json.Unmarshal([]byte(value), &cfg)
 		if nil != err {
@@ -202,6 +204,7 @@ func processService(
 
 	// Check if the service that changed is associated with a ConfigMap
 	virtualServers.Lock()
+	defer virtualServers.Unlock()
 	for _, portSpec := range svc.Spec.Ports {
 		if vs, ok := virtualServers.m[serviceKey{serviceName, portSpec.Port}]; ok {
 			delete(rmvdPortsMap, portSpec.Port)
@@ -225,7 +228,6 @@ func processService(
 			updateConfig = true
 		}
 	}
-	virtualServers.Unlock()
 
 	return updateConfig
 }
@@ -304,6 +306,7 @@ func processConfigMap(
 		}
 
 		virtualServers.Lock()
+		defer virtualServers.Unlock()
 		if eventStream.Added == changeType {
 			if _, ok := virtualServers.m[serviceKey{serviceName, servicePort}]; ok {
 				log.Warningf(
@@ -321,21 +324,15 @@ func processConfigMap(
 					oldCfg.VirtualServer.Backend.ServicePort})
 		}
 		virtualServers.m[serviceKey{serviceName, servicePort}] = cfg
-		virtualServers.Unlock()
 		verified = true
 	case eventStream.Deleted:
 		virtualServers.Lock()
+		defer virtualServers.Unlock()
 		delete(virtualServers.m, serviceKey{serviceName, servicePort})
-		virtualServers.Unlock()
 		verified = true
 	}
 
-	if !verified {
-		// Wasn't a ConfigMap we care about
-		return false
-	}
-
-	return true
+	return verified
 }
 
 // Check for a change in Node state
@@ -348,6 +345,7 @@ func ProcessNodeUpdate(kubeClient kubernetes.Interface, internal bool) {
 	sort.Strings(newNodes)
 
 	mutex.Lock()
+	defer mutex.Unlock()
 	// Compare last set of nodes with new one
 	if !reflect.DeepEqual(newNodes, oldNodes) {
 		log.Infof("ProcessNodeUpdate: Change in Node state detected")
@@ -362,7 +360,6 @@ func ProcessNodeUpdate(kubeClient kubernetes.Interface, internal bool) {
 		// Update node cache
 		oldNodes = newNodes
 	}
-	mutex.Unlock()
 }
 
 // Dump out the Virtual Server configs to a file
@@ -399,8 +396,8 @@ func outputConfig() {
 // Return a copy of the node cache
 func getNodesFromCache() []string {
 	mutex.Lock()
+	defer mutex.Unlock()
 	nodes := oldNodes
-	mutex.Unlock()
 
 	return nodes
 }

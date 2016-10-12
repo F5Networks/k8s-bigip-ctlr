@@ -161,6 +161,12 @@ func TestCacheListeners(t *testing.T) {
 		Deleted: 0,
 	}
 	onChange := func(changeType ChangeType, obj interface{}) {
+		if Replaced != changeType {
+			_, ok := obj.(ChangedObject)
+			if !ok {
+				t.Error("updates should callback with old and new objects")
+			}
+		}
 		changes[changeType] += 1
 	}
 	doTestStore(t, NewEventStore(testStoreKeyFunc, onChange))

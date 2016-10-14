@@ -4,8 +4,9 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: f5-k8s-controller
+  namesapce: kube-system
 spec:
-  restartPolicy: Never
+  restartPolicy: Always
   containers:
   - name: f5-k8s-controller
     # Specify the path to your image here

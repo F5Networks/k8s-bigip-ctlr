@@ -69,6 +69,9 @@ pkg-deb-wily:
 # Depend on rules for all supported distros
 pkg-deb: pkg-deb-wily
 
-build-deps: 
+build-deps:
 	@echo "Installing build dependencies"
 	@VAGRANT_INSTALL=${VAGRANT_INSTALL} ./scripts/build-deps.sh
+
+devel-image:
+	cd scripts/devel-image && docker build -t f5-k8s-ctrl-devel .

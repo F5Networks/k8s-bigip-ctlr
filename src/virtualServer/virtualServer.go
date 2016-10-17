@@ -2,6 +2,7 @@ package virtualServer
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -110,13 +111,21 @@ func init() {
 func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 	var cfg VirtualServerConfig
 
-	// FIXME(yacobucci) Issue #9 this should be more predictable, the two fields
-	// should be schema and data
-	for _, value := range cm.Data {
-		err := json.Unmarshal([]byte(value), &cfg)
-		if nil != err {
-			return nil, err
+	// FIXME(yacobucci) Issue #9 the two fields should be schema and data and we
+	//should validate data against schema
+	if _, ok := cm.Data["schema"]; ok {
+		if data, ok := cm.Data["data"]; ok {
+			err := json.Unmarshal([]byte(data), &cfg)
+			if nil != err {
+				return nil, err
+			}
+		} else {
+			return nil, fmt.Errorf("configmap %s does not contain data key",
+				cm.ObjectMeta.Name)
 		}
+	} else {
+		return nil, fmt.Errorf("configmap %s does not contain schema key",
+			cm.ObjectMeta.Name)
 	}
 
 	return &cfg, nil

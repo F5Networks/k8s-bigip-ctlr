@@ -1,15 +1,15 @@
-F5 Container Service Integrator (CSI)
-=====================================
+F5 Container Service Connector for Kubernetes
+=============================================
 
 Introduction
 ------------
 
-The F5® CSI provides an integration for the `Kubernetes <http://kubernett es.io/>`_ orchestration environment that makes L4-L7 services available to userss deploying miscroservices-based applications in a containerized infrastructure.
+The F5® Container Service Connector (CSC) provides an integration for the `Kubernetes <http://kubernett es.io/>`_ orchestration environment that makes L4-L7 services available to userss deploying miscroservices-based applications in a containerized infrastructure.
 
 Releases and Compatibility
 --------------------------
 
-See the F5 Container Service Integrator `Releases, Versioning, and Support Matrix <#>`_.
+See the F5 Container Service Connector `Releases, Versioning, and Support Matrix <#>`_.
 
 Documentation
 -------------
@@ -23,7 +23,7 @@ For Developers
 Project Setup
 `````````````
 
-Gitlab F5® CSI project:
+Gitlab F5® CSC project:
 git@bldr-git.int.lineratesystems.com:velcro/f5-k8s-controller.git
 
 Vagrant environment
@@ -52,7 +52,7 @@ Manual environment setup
         $GOPATH/src/github.com/constabulary/gb
     $ git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
     $ go install -v github.com/constabulary/gb/...
-    $ git clone [gitlab F5® CSI project]
+    $ git clone [gitlab F5® CSC project]
     $ cd f5-k8s-controller
     $ git submodule update --init --force
     # Install python requirements using sudo or create a virtualenv workspace.
@@ -91,6 +91,11 @@ Support
 -------
 
 See `Support <SUPPORT.md>`_.
+
+Contact
+-------
+
+coming soon!
 
 
 License

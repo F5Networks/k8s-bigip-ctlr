@@ -1,10 +1,10 @@
-F5 |csi_k|
-==========
+F5 Container Service Integrator (CSI)
+=====================================
 
 Introduction
 ------------
 
-The F5® |csi| (CSI) provides an integration for the `Kubernetes <http://kubernett es.io/>`_ orchestration environment that makes L4-L7 services available to userss deploying miscroservices-based applications in a containerized infrastructure.  [#]_
+The F5® CSI provides an integration for the `Kubernetes <http://kubernett es.io/>`_ orchestration environment that makes L4-L7 services available to userss deploying miscroservices-based applications in a containerized infrastructure.
 
 Releases and Compatibility
 --------------------------
@@ -23,7 +23,7 @@ For Developers
 Project Setup
 `````````````
 
-Gitlab LWP project:
+Gitlab F5® CSI project:
 git@bldr-git.int.lineratesystems.com:velcro/f5-k8s-controller.git
 
 Vagrant environment
@@ -41,26 +41,34 @@ Manual environment setup
 
 .. code-block:: bash
 
-    $ curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -
-    # CLANG_VERSION must be =3.7 currently
     $ sudo apt-get update
-    $ sudo apt-get install build-essential make git nodejs
-        clang-format-${CLANG_VERSION}
-    $ sudo ln -sf /usr/bin/clang-format-${CLANG_VERSION} /usr/bin/clang-format
-    $ git clone [gitlab LWP project]
+    $ sudo apt-get install devscripts equivs git golang golang-go.tools m4 \
+        make python python-dev python-pip
+    $ export GOPATH=$HOME/go
+    $ mkdir $GOPATH
+    $ export PATH=$PATH:$GOPATH/bin
+    $ sudo go install -v -race runtime/race
+    $ git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git \
+        $GOPATH/src/github.com/constabulary/gb
+    $ git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
+    $ go install -v github.com/constabulary/gb/...
+    $ git clone [gitlab F5® CSI project]
     $ cd f5-k8s-controller
-    $ npm install
-    $ make test
+    $ git submodule update --init --force
+    # Install python requirements using sudo or create a virtualenv workspace.
+    $ sudo pip install -r python/requirements.txt
+    $ sudo pip install -r vendor/src/velcro/f5-marathon-lb/requirements.txt
+    $ make release
 
 Docker environment setup
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 1. Install docker. For example, `Docker for Mac <https://docs.docker.com/engine/installation/mac/>`_
-2. Build the docker images used for development (lwp-devel):
+2. Build the docker images used for development (f5-k8s-ctrl-devel):
    ```make devel-image```
 3. The ``run-in-docker.sh`` script can be used to run any command in a devel
    container, almost as if you ran it locally. For example, to run tests:
-   ``./scripts/run-in-docker.sh make test``
+   ``./scripts/run-in-docker.sh make release``
 
 
 Issues

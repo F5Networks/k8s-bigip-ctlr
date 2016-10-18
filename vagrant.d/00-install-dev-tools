@@ -18,7 +18,7 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
      make \
      python \
      python-dev \
-     py-pip
+     python-pip
 
 # Install CLI for the Aptly Package Repo and create conf file to point to our repo server
 sudo gem install aptly_cli -v 0.2.5

@@ -194,7 +194,8 @@ func TestConfigFilename(t *testing.T) {
 	assert.Equal(expectedFilename, OutputFilename)
 }
 
-func newConfigMap(id, rv, namespace, key, value string) *v1.ConfigMap {
+func newConfigMap(id, rv, namespace string,
+	keys map[string]string) *v1.ConfigMap {
 	return &v1.ConfigMap{
 		TypeMeta: unversioned.TypeMeta{
 			Kind:       "ConfigMap",
@@ -205,9 +206,7 @@ func newConfigMap(id, rv, namespace, key, value string) *v1.ConfigMap {
 			ResourceVersion: rv,
 			Namespace:       namespace,
 		},
-		Data: map[string]string{
-			key: value,
-		},
+		Data: keys,
 	}
 }
 
@@ -529,7 +528,9 @@ func TestOverwriteAdd(t *testing.T) {
 
 	require := require.New(t)
 
-	cfgFoo := newConfigMap("foomap", "1", "default", "foomap.json", configmapFoo)
+	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFoo})
 
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client cannot be nil")
@@ -545,8 +546,9 @@ func TestOverwriteAdd(t *testing.T) {
 		virtualServers.m[serviceKey{"foo", 80}].VirtualServer.Frontend.Mode,
 		"Mode should be http")
 
-	cfgFoo = newConfigMap("foomap", "1", "default", "foomap.json",
-		configmapFooTcp)
+	cfgFoo = newConfigMap("foomap", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFooTcp})
 
 	r = processConfigMap(fake, eventStream.Added,
 		eventStream.ChangedObject{nil, cfgFoo})
@@ -567,7 +569,9 @@ func TestServiceChangeUpdate(t *testing.T) {
 
 	require := require.New(t)
 
-	cfgFoo := newConfigMap("foomap", "1", "default", "foomap.json", configmapFoo)
+	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFoo})
 
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client cannot be nil")
@@ -580,8 +584,9 @@ func TestServiceChangeUpdate(t *testing.T) {
 	require.Contains(virtualServers.m, serviceKey{"foo", 80},
 		"Virtual servers should have an entry")
 
-	cfgFoo8080 := newConfigMap("foomap", "1", "default", "foomap.json",
-		configmapFoo8080)
+	cfgFoo8080 := newConfigMap("foomap", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFoo8080})
 
 	r = processConfigMap(fake, eventStream.Updated,
 		eventStream.ChangedObject{cfgFoo, cfgFoo8080})
@@ -599,11 +604,15 @@ func TestServicePortsRemoved(t *testing.T) {
 
 	require := require.New(t)
 
-	cfgFoo := newConfigMap("foomap", "1", "default", "foomap.json", configmapFoo)
-	cfgFoo8080 := newConfigMap("foomap8080", "1", "default", "foomap8080.json",
-		configmapFoo8080)
-	cfgFoo9090 := newConfigMap("foomap9090", "1", "default", "foomap9090.json",
-		configmapFoo9090)
+	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFoo})
+	cfgFoo8080 := newConfigMap("foomap8080", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFoo8080})
+	cfgFoo9090 := newConfigMap("foomap9090", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFoo9090})
 
 	foo := newService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001},
@@ -691,8 +700,12 @@ func TestUpdatesConcurrent(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	cfgFoo := newConfigMap("foomap", "1", "default", "foomap.json", configmapFoo)
-	cfgBar := newConfigMap("barmap", "1", "default", "barmap.json", configmapBar)
+	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFoo})
+	cfgBar := newConfigMap("barmap", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapBar})
 	foo := newService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
 	bar := newService("bar", "1", "default", "NodePort",
@@ -856,12 +869,18 @@ func TestProcessUpdates(t *testing.T) {
 	require := require.New(t)
 
 	// Create a test env with two ConfigMaps, two Services, and three Nodes
-	cfgFoo := newConfigMap("foomap", "1", "default", "foomap.json", configmapFoo)
-	cfgFoo8080 := newConfigMap("foomap8080", "1", "default", "foomap8080.json",
-		configmapFoo8080)
-	cfgFoo9090 := newConfigMap("foomap9090", "1", "default", "foomap9090.json",
-		configmapFoo9090)
-	cfgBar := newConfigMap("barmap", "1", "default", "barmap.json", configmapBar)
+	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFoo})
+	cfgFoo8080 := newConfigMap("foomap8080", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFoo8080})
+	cfgFoo9090 := newConfigMap("foomap9090", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFoo9090})
+	cfgBar := newConfigMap("barmap", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapBar})
 	foo := newService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001},
 			{Port: 8080, NodePort: 38001},
@@ -1069,7 +1088,9 @@ func TestDontCareConfigMap(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	cfg := newConfigMap("foomap", "1", "default", "foo", "bar")
+	cfg := newConfigMap("foomap", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   "bar"})
 	svc := newService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
 
@@ -1094,6 +1115,84 @@ func TestDontCareConfigMap(t *testing.T) {
 	assert.Equal(0, len(virtualServers.m))
 }
 
+func TestConfigMapKeys(t *testing.T) {
+	defer os.Remove(OutputFilename)
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
+
+	require := require.New(t)
+	assert := assert.New(t)
+
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client should not be nil")
+
+	noschemakey := newConfigMap("noschema", "1", "default", map[string]string{
+		"data": "bar"})
+	cfg, err := parseVirtualServerConfig(noschemakey)
+	require.Nil(cfg, "Should not have parsed bad configmap")
+	require.EqualError(err, "configmap noschema does not contain schema key",
+		"Should receive no schema error")
+	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		noschemakey,
+	})
+	require.Equal(0, len(virtualServers.m))
+
+	nodatakey := newConfigMap("nodata", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+	})
+	cfg, err = parseVirtualServerConfig(nodatakey)
+	require.Nil(cfg, "Should not have parsed bad configmap")
+	require.EqualError(err, "configmap nodata does not contain data key",
+		"Should receive no data error")
+	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		nodatakey,
+	})
+	require.Equal(0, len(virtualServers.m))
+
+	badjson := newConfigMap("badjson", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   "///// **invalid json** /////",
+	})
+	cfg, err = parseVirtualServerConfig(badjson)
+	require.Nil(cfg, "Should not have parsed bad configmap")
+	require.EqualError(err,
+		"invalid character '/' looking for beginning of value")
+	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		badjson,
+	})
+	require.Equal(0, len(virtualServers.m))
+
+	extrakeys := newConfigMap("extrakeys", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapFoo,
+		"key1":   "value1",
+		"key2":   "value2",
+	})
+	cfg, err = parseVirtualServerConfig(extrakeys)
+	require.NotNil(cfg, "Config map should parse with extra keys")
+	require.Nil(err, "Should not receive errors")
+	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		nil,
+		extrakeys,
+	})
+	require.Equal(1, len(virtualServers.m))
+
+	vs, ok := virtualServers.m[serviceKey{"foo", 80}]
+	assert.True(ok, "Config map should be accessible")
+	assert.NotNil(vs, "Config map should be object")
+
+	require.Equal("round-robin", vs.VirtualServer.Frontend.Balance)
+	require.Equal("http", vs.VirtualServer.Frontend.Mode)
+	require.Equal("velcro", vs.VirtualServer.Frontend.Partition)
+	require.Equal("10.128.10.240",
+		vs.VirtualServer.Frontend.VirtualAddress.BindAddr)
+	require.Equal(int32(5051), vs.VirtualServer.Frontend.VirtualAddress.Port)
+}
+
 func TestProcessUpdatesIApp(t *testing.T) {
 	defer os.Remove(OutputFilename)
 	defer func() {
@@ -1104,10 +1203,12 @@ func TestProcessUpdatesIApp(t *testing.T) {
 	require := require.New(t)
 
 	// Create a test env with two ConfigMaps, two Services, and three Nodes
-	cfgIapp1 := newConfigMap("iapp1map", "1", "default", "iapp1map.json",
-		configmapIApp1)
-	cfgIapp2 := newConfigMap("iapp2map", "1", "default", "iapp2map.json",
-		configmapIApp2)
+	cfgIapp1 := newConfigMap("iapp1map", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapIApp1})
+	cfgIapp2 := newConfigMap("iapp2map", "1", "default", map[string]string{
+		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"data":   configmapIApp2})
 	iapp1 := newService("iapp1", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 10101}})
 	iapp2 := newService("iapp2", "1", "default", "NodePort",

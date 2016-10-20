@@ -37,6 +37,67 @@ root_logger.addHandler(console)
 root_logger.setLevel(logging.INFO)
 
 
+class IntervalTimerError(Exception):
+    def __init__(self, msg):
+        Exception.__init__(self, msg)
+
+
+class IntervalTimer(threading.Thread):
+
+    def __init__(self, interval, cb, args=[], kwargs={}):
+        float(interval)
+        if 0 >= interval:
+            raise IntervalTimerError("interval must be greater than 0")
+
+        if not cb or not callable(cb):
+            raise IntervalTimerError("cb must be callable object")
+
+        threading.Thread.__init__(self)
+        self._interval = interval
+        self._cb = cb
+        self._args = args
+        self._kwargs = kwargs
+        self._restart = threading.Event()
+        self._stop = threading.Event()
+        self._stop.set()
+        self._destroy = threading.Event()
+
+    def start(self):
+        self._start()
+
+        if self.is_alive() is False:
+            super(IntervalTimer, self).start()
+
+    def _start(self):
+        self._stop.clear()
+        self._restart.set()
+
+    def stop(self):
+        self._restart.clear()
+        self._stop.set()
+
+    def destroy(self):
+        self._destroy.set()
+        if not self._restart.is_set():
+            self._restart.set()
+        if not self._stop.is_set():
+            self._stop.set()
+
+    def is_running(self):
+        return not self._stop.is_set() and self._restart.is_set()
+
+    def run(self):
+        while True:
+            if not self._stop.wait(self._interval):
+                if not self._destroy.is_set():
+                    self._cb(*self._args, **self._kwargs)
+            else:
+                self._restart.wait()
+
+            if self._destroy.is_set():
+                break
+
+
 class ConfigError(Exception):
     def __init__(self, msg):
         Exception.__init__(self, msg)
@@ -48,14 +109,21 @@ class BigipWatcherError(Exception):
 
 
 class ConfigHandler():
-    def __init__(self, config_file, bigip):
+    def __init__(self, config_file, bigip, verify_interval):
         self._config_file = config_file
         self._bigip = bigip
+        self._verify_interval = verify_interval
 
         self._condition = threading.Condition()
         self._thread = threading.Thread(target=self._do_reset)
         self._pending_reset = False
         self._stop = False
+
+        if self._verify_interval > 0:
+            self._interval = IntervalTimer(self._verify_interval,
+                                           self.notify_reset)
+        else:
+            self._interval = None
         self._thread.start()
 
     def stop(self):
@@ -91,7 +159,7 @@ class ConfigHandler():
 
                 if self._stop:
                     log.info('stopping config handler')
-                    return
+                    break
 
                 self._pending_reset = False
                 self._condition.release()
@@ -113,7 +181,15 @@ class ConfigHandler():
                         # Timeout occurred, do a reset so that we try again
                         log.warning(
                             'regenerate operation timed out, resetting')
+
+                        if (self._interval and self._interval.is_running() is
+                                True):
+                            self._interval.stop()
                         self.notify_reset()
+                    else:
+                        if (self._interval and self._interval.is_running() is
+                                False):
+                            self._interval.start()
 
                     log.debug('updating tasks finished, took %s seconds',
                               time.time() - start_time)
@@ -123,6 +199,9 @@ class ConfigHandler():
                     log.warning(e)
                 except:
                     log.exception('Unexpected error')
+
+        if self._interval:
+            self._interval.destroy()
 
 
 class ConfigWatcher(pyinotify.ProcessEvent):
@@ -288,6 +367,11 @@ def _handle_args():
             required=True,
             help='BigIp configuration file')
     parser.add_argument(
+            '--verify-interval',
+            type=int,
+            default=30,
+            help='Interval to checkpoint BigIp configuration')
+    parser.add_argument(
             'partitions', metavar='partition', type=str, nargs='+',
             help='List of BigIp partitions available to the controller')
     args = parser.parse_args()
@@ -311,7 +395,7 @@ def main():
         bigip = CloudBigIP('kubernetes', args.hostname, args.username,
                            args.password, args.partitions)
 
-        handler = ConfigHandler(args.config_file, bigip)
+        handler = ConfigHandler(args.config_file, bigip, args.verify_interval)
         if os.path.exists(args.config_file):
             handler.notify_reset()
 

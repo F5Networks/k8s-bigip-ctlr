@@ -20,7 +20,7 @@ The current release is v |csi_k_version|.
 Overview
 --------
 
-.. include:: _includes/topic_csi-controller-kubernetes.rst
+.. include:: /includes/f5-csi_k/topic_csi-controller-kubernetes.rst
     :start-line: 6
     :end-line: 8
 

@@ -143,7 +143,7 @@ line tools. The remaining steps use the CLI as an example method.
 Use Kubernetes Secrets to Import BIG-IP parameters
 --------------------------------------------------
 
-The BIG-IP parameters can be stored in a Kubernetes secret. The :file:`scripts/sample-bigip-credentials.yaml` file has an example configuration for this purpose. When used in combination with the :file:`scripts/sample-f5-k8s-controller.yaml` configuration file, the command line options to the controller for the BIG-IP are auto-populated from the secret.
+The BIG-IP parameters can be stored in a Kubernetes secret. The :file:`/static/f5-csi_k/sample-bigip-credentials.yaml` file has an example configuration for this purpose. When used in combination with the :file:`/static/f5-csi_k/sample-f5-k8s-controller.yaml` configuration file, the command line options to the controller for the BIG-IP are auto-populated from the secret.
 
 Example
 ~~~~~~~

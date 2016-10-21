@@ -37,3 +37,4 @@ python/.cache
 # Docs
 docs/_build*
 docs/errors.txt
+f5-ci-docs

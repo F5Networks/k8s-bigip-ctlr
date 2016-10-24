@@ -1,9 +1,9 @@
 User Guide
 ==========
 
-.. include:: _includes/concept_csi-k8s-overview.rst
+.. include:: /includes/f5-csi_k/concept_csi-k8s-overview.rst
 
-.. include:: _includes/ref_csi-k8s-compatibility.rst
+.. include:: /includes/f5-csi_k/ref_csi-k8s-compatibility.rst
 
 .. toctree::
     :maxdepth: 2

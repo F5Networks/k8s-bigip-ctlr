@@ -19,5 +19,11 @@ RUN git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git \
   git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134 && \
   go install -v github.com/constabulary/gb/...
 
+#
+# Add doc build requirements
+#
+COPY requirements.docs.txt /tmp/requirements.docs.txt
+RUN pip install -r /tmp/requirements.docs.txt
+
 WORKDIR /wkdir
 CMD [ "/bin/bash" ]

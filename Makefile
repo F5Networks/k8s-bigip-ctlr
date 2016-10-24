@@ -8,6 +8,9 @@ all:
 	@printf "  pkg-deb-'distro' - build Debian packages for the specified\n"
 	@printf "            distro. (ex: make pkg-deb-wily)\n"
 	@printf "  build-deps - install build dependencies\n"
+	@printf "  devel-image - build a local docker image 'k8s-ctrl-devel'\n"
+	@printf "                with all needed build tools\n"
+	@printf "  doc-preview - Use devel image to build local preview of docs\n"
 
 release: pre-build generate rel-build rel-unit-test
 
@@ -74,4 +77,21 @@ build-deps:
 	@VAGRANT_INSTALL=${VAGRANT_INSTALL} ./scripts/build-deps.sh
 
 devel-image:
+	cp requirements.docs.txt scripts/devel-image/
 	cd scripts/devel-image && docker build -t f5-k8s-ctrl-devel .
+
+doc-preview: doc-preview-standalone doc-preview-combined
+
+# Build docs standalone from this repo
+doc-preview-standalone:
+	./scripts/run-in-docker.sh make -C docs html
+	@echo "To view docs:"
+	@echo "open docs/_build/html/README.html"
+
+# Build docs from the top-level repo (github.com/f5-ci-docs)
+doc-preview-combined:
+	[ -d f5-ci-docs ] || git clone -b gitlab-ci git@github.com:F5Networks/f5-ci-docs.git
+	./scripts/merge-docs.sh f5-ci-docs
+	./scripts/run-in-docker.sh make -C f5-ci-docs/docs html
+	@echo "To view docs:"
+	@echo "open f5-ci-docs/docs/_build/html/index.html"

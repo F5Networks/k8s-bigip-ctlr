@@ -136,10 +136,10 @@ github_update:
  - export GIT_SSH=/tmp/ssh
  # Clone f5-ci-docs from GitHub and merge docs into it
  - git clone -b gitlab-ci git@github.com:F5Networks/f5-ci-docs.git
- - git config user.email "gitlab-runner@gitlab-shared-runner-01.com"
- - git config user.name "gitlab-runner"
  - ./scripts/merge-docs.sh f5-ci-docs
  - cd f5-ci-docs
+ - git config user.email "gitlab-runner@gitlab-shared-runner-01.com"
+ - git config user.name "gitlab-runner"
  - if git commit -m "changes pushed to GitHub by gitlab-ci for f5-k8s-controller, commit {$CI_BUILD_REF}, build ID {$CI_BUILD_ID}"; then
  -   git push origin gitlab-ci
  - else

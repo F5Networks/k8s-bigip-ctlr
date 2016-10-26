@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -44,6 +45,8 @@ var (
 		`Optional, directory location of python utilities`)
 	useNodeInternal = flags.Bool("use-node-internal", true,
 		`Optional, provide kubernetes InternalIP addresses to pool`)
+	verifyInterval = flags.Int("verify-interval", 30,
+		`Optional, interval at which to verify the BIG-IP configuration.`)
 )
 
 func initLogger() {
@@ -52,8 +55,8 @@ func initLogger() {
 	log.SetLogLevel(log.LL_DEBUG)
 }
 
-func createDriverCmd(bigipUsername string, bigipPassword string,
-	bigipUrl string, bigipPartition string, pyCmd string) *exec.Cmd {
+func createDriverCmd(bigipUsername, bigipPassword, bigipUrl, bigipPartition,
+	verifyInterval, pyCmd string) *exec.Cmd {
 	cmdName := "python"
 
 	cmdArgs := []string{
@@ -62,6 +65,7 @@ func createDriverCmd(bigipUsername string, bigipPassword string,
 		"--password", bigipPassword,
 		"--hostname", bigipUrl,
 		"--config-file", virtualServer.OutputFilename,
+		"--verify-interval", verifyInterval,
 		bigipPartition}
 
 	cmd := exec.Command(cmdName, cmdArgs...)
@@ -123,11 +127,12 @@ func main() {
 	if len(*bigipPassword) == 0 {
 		log.Fatalf("The Big-IP password is required")
 	}
+	verify := strconv.Itoa(*verifyInterval)
 
 	subPidCh := make(chan int)
 	pyCmd := fmt.Sprintf("%s/bigipconfigdriver.py", *pythonBaseDir)
 	cmd := createDriverCmd(*bigipUsername, *bigipPassword, *bigipUrl,
-		*bigipPartition, pyCmd)
+		*bigipPartition, verify, pyCmd)
 	go runBigIpDriver(subPidCh, cmd)
 	subPid := <-subPidCh
 	defer func(pid int) {

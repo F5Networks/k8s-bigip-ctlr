@@ -1,46 +1,31 @@
-F5 |csi| for Kubernetes
-=======================
+F5 |csi_k-long|
+===============
 
 |Build Status| |Docs Build Status|
 
-Contents
---------
-
 .. toctree::
-    :maxdepth: 2
+    :caption: Table of Contents
+    :name: csi_k_toc
     :glob:
 
-    *
+    map_*
 
-Release
--------
 
-The current release is v |csi_k_version|.
 
-Overview
---------
+.. rubric:: Release
+
+The current release is v |csi_k_v|.
+
 
 .. include:: /includes/f5-csi_k/topic_csi-controller-kubernetes.rst
-    :start-line: 6
-    :end-line: 8
-
-How it works
-------------
-
-coming soon!
-
-API Documentation
------------------
-
-coming soon!
-
-Contact
--------
-
-coming soon!
+    :start-line: 8
+    :end-before: Prerequisites
 
 
-.. [#] See `Using Docker Container Technology with F5 Products and Services <https://f5.com/resources/white-papers/using-docker-container-technology-with-f5-products-and-services>`_
+.. API Documentation
+    -----------------
+    coming soon!
+
 
 .. |Build Status| image:: <build_badge_URL>
     :target: <build_URL>

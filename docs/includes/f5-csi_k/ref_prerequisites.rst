@@ -5,3 +5,20 @@ Prerequisities
 
 .. comment:: This file is for internal use only. Use the prerequisites from this list in your feature topics; be sure to keep entries in your docs in the same order in which they're listed here. This helps to ensure consistency across our documentation set.
 
+- Licensed, operational BIG-IP :term:`device`.
+
+- Administrative access to the BIG-IP.
+
+- Basic understanding of `system configuration`_.
+
+- Basic understanding of BIG-IP `local traffic management`_
+
+- Knowledge of BIG-IP `system configuration`_ and `local traffic management`_.
+
+- A partition (other than Common) configured on the BIG-IP.
+
+- A running `Kubernetes`_ cluster.
+
+- ``curl`` and/or ``kubectl`` (the `Kubernetes`_ CLI) installed.
+
+- The official F5 ``k8s-controller`` image pulled from the `F5 Docker registry`_

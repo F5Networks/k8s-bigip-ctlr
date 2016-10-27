@@ -16,6 +16,7 @@ func TestDriverCmd(t *testing.T) {
 	password := "test"
 	partition := "velcro"
 	url := "bigip.example.com"
+	verify := "30"
 	pyDriver := "/tmp/some-dir/test-driver.py"
 
 	configFile := fmt.Sprintf("/tmp/f5-k8s-controller.config.%d.json",
@@ -24,7 +25,7 @@ func TestDriverCmd(t *testing.T) {
 	pythonPath, err := exec.LookPath("python")
 	assert.Nil(t, err, "We should find python")
 
-	cmd := createDriverCmd(username, password, url, partition, pyDriver)
+	cmd := createDriverCmd(username, password, url, partition, verify, pyDriver)
 
 	require.NotNil(t, cmd, "Command should not be nil")
 	require.NotNil(t, cmd.Path, "Path should not be nil")
@@ -37,6 +38,7 @@ func TestDriverCmd(t *testing.T) {
 		"--password", password,
 		"--hostname", url,
 		"--config-file", configFile,
+		"--verify-interval", "30",
 		partition}
 	require.EqualValues(t, cmd.Args, args, "We should get expected args list")
 }
@@ -48,9 +50,10 @@ func TestDriverSubProcess(t *testing.T) {
 	password := "test"
 	partition := "velcro"
 	url := "bigip.example.com"
+	verify := "30"
 	pyDriver := "./test/pyTest.py"
 
-	cmd := createDriverCmd(username, password, url, partition, pyDriver)
+	cmd := createDriverCmd(username, password, url, partition, verify, pyDriver)
 	go runBigIpDriver(subPidCh, cmd)
 	pid := <-subPidCh
 

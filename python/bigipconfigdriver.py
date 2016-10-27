@@ -153,7 +153,7 @@ class ConfigHandler():
         with self._condition:
             while True:
                 self._condition.acquire()
-                if not self._pending_reset:
+                if not self._pending_reset and not self._stop:
                     self._condition.wait()
                 log.debug('config handler woken for reset')
 

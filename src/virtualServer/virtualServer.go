@@ -90,7 +90,7 @@ type serviceKey struct {
 
 // Map of Virtual Server configs
 var virtualServers struct {
-	sync.RWMutex
+	sync.Mutex
 	m map[serviceKey]*VirtualServerConfig
 }
 
@@ -353,18 +353,18 @@ func ProcessNodeUpdate(kubeClient kubernetes.Interface, internal bool) {
 	}
 	sort.Strings(newNodes)
 
+	virtualServers.Lock()
+	defer virtualServers.Unlock()
 	mutex.Lock()
 	defer mutex.Unlock()
 	// Compare last set of nodes with new one
 	if !reflect.DeepEqual(newNodes, oldNodes) {
 		log.Infof("ProcessNodeUpdate: Change in Node state detected")
-		virtualServers.Lock()
 		for _, vs := range virtualServers.m {
 			vs.VirtualServer.Backend.Nodes = newNodes
 		}
-		virtualServers.Unlock()
 		// Output the Big-IP config
-		outputConfig()
+		outputConfigLocked()
 
 		// Update node cache
 		oldNodes = newNodes
@@ -373,6 +373,15 @@ func ProcessNodeUpdate(kubeClient kubernetes.Interface, internal bool) {
 
 // Dump out the Virtual Server configs to a file
 func outputConfig() {
+	virtualServers.Lock()
+	outputConfigLocked()
+	virtualServers.Unlock()
+}
+
+// Dump out the Virtual Server configs to a file
+// This function MUST be called with the virtualServers
+// lock held.
+func outputConfigLocked() {
 	var outputs outputConfigs
 
 	// Initialize the Services array as empty; json.Marshal() writes
@@ -381,13 +390,11 @@ func outputConfig() {
 	outputs.Services = []*VirtualServerConfig{}
 
 	// Filter the configs to only those that have active services
-	virtualServers.RLock()
 	for _, vs := range virtualServers.m {
 		if vs.VirtualServer.Backend.NodePort != 0 {
 			outputs.Services = append(outputs.Services, vs)
 		}
 	}
-	virtualServers.RUnlock()
 	output, err := json.Marshal(outputs)
 
 	if err == nil {

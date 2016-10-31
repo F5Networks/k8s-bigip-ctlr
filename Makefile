@@ -78,7 +78,12 @@ build-deps:
 
 devel-image:
 	cp requirements.docs.txt scripts/devel-image/
+	cp python/requirements.txt scripts/devel-image/k8s-requirements.txt
+	cp vendor/src/velcro/f5-marathon-lb/requirements.txt \
+		scripts/devel-image/f5mlb-requirements.txt
 	cd scripts/devel-image && docker build -t f5-k8s-ctrl-devel .
+	rm scripts/devel-image/k8s-requirements.txt
+	rm scripts/devel-image/f5mlb-requirements.txt
 
 doc-preview: doc-preview-standalone doc-preview-combined
 

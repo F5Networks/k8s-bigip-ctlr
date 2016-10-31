@@ -10,7 +10,8 @@ RUN set -x && \
     make \
     python \
     python-dev \
-    python-pip
+    python-setuptools && \
+  easy_install -U pip
 
 RUN go install -v -race runtime/race
 
@@ -19,6 +20,11 @@ RUN git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git \
   git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134 && \
   go install -v github.com/constabulary/gb/...
 
+COPY k8s-requirements.txt /tmp/k8s-requirements.txt
+COPY f5mlb-requirements.txt /tmp/f5mlb-requirements.txt
+RUN pip install flake8 && \
+  pip install -r /tmp/k8s-requirements.txt && \
+  pip install -r /tmp/f5mlb-requirements.txt
 #
 # Add doc build requirements
 #

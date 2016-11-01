@@ -31,3 +31,6 @@
     * - ``--use-node-internal``
       - flag to filter Kubernetes InternalIP addresses for pool members
       - true
+    * - ``--verify-interval``
+      - interval at which to verify the BIG-IP configuration
+      - 30 (seconds)

@@ -4,7 +4,7 @@ F5 Container Service Connector for Kubernetes
 Introduction
 ------------
 
-The F5® Container Service Connector (CSC) provides an integration for the `Kubernetes <http://kubernetes.io/>`_ orchestration environment that makes L4-L7 services available to users deploying miscroservices-based applications in a containerized infrastructure.
+The F5® Container Service Connector (csi) provides an integration for the `Kubernetes <http://kubernetes.io/>`_ orchestration environment that makes L4-L7 services available to users deploying miscroservices-based applications in a containerized infrastructure.
 
 Releases and Compatibility
 --------------------------
@@ -23,7 +23,7 @@ For Developers
 Project Setup
 `````````````
 
-Gitlab F5® CSC project:
+Gitlab F5® csi project:
 git@bldr-git.int.lineratesystems.com:velcro/f5-k8s-controller.git
 
 Vagrant environment
@@ -52,7 +52,7 @@ Manual environment setup
         $GOPATH/src/github.com/constabulary/gb
     $ git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
     $ go install -v github.com/constabulary/gb/...
-    $ git clone [gitlab F5® CSC project]
+    $ git clone [gitlab F5® csi project]
     $ cd f5-k8s-controller
     $ git submodule update --init --force
     # Install python requirements using sudo or create a virtualenv workspace.
@@ -74,12 +74,12 @@ Docker environment setup
 Issues
 ------
 
-To report an issue or suggest an enhancement, please open an `Issue <#>`_.
+To report an issue or suggest an enhancement, please open an `Issue <https://bldr-git.int.lineratesystems.com/velcro/f5-k8s-controller/issues>`_.
 
 Configuration
 -------------
 
-See the `Project documentation <docs/README.rst>`_.
+See the Project documentation on `Read the Docs <https://f5-networks-f5-ci-docs.readthedocs-hosted.com>`_.
 
 
 Copyright

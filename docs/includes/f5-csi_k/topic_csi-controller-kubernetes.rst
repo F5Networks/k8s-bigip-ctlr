@@ -11,7 +11,7 @@ The F5® |csi| (CSC) makes L4-L7 services available to users deploying miscroser
 Architecture
 ````````````
 
-The |csi_k| is a Docker container that can run in `Kubernetes`_. Once installed, it watches for the creation/destruction of `Kubernetes Service`_ objects with the F5 ``k8s-controller`` `ConfigMap`_ definitions applied. When it finds a properly-configured Service, the CSC creates a new virtual server, with pool members for each node in the cluster, for that service on the BIG-IP.
+The |csi_k| is a Docker container that can run in `Kubernetes`_. Once installed, it watches for the creation/destruction of `Kubernetes Service`_ objects and the creation/destruction of F5 Virtual Server Resources stored as `ConfigMap`_ definitions. When it finds a properly-configured Service that is identified for load balancing by a F5 Virtual Server Resource, the CSC creates a new virtual server, with pool members for each node in the cluster, for that service on the BIG-IP.
 
 .. [#] See `Using Docker Container Technology with F5 Products and Services <https://f5.com/resources/white-papers/using-docker-container-technology-with-f5-products-and-services>`_
 
@@ -32,8 +32,8 @@ In order to use the |csi_k-long|, you will need the following:
 - Administrative access to the BIG-IP.
 - A partition (other than Common) configured on the BIG-IP.
 - A running `Kubernetes`_ cluster.
-- ``curl`` and/or ``kubectl`` (the `Kubernetes`_ CLI) installed.
-- The official F5 ``k8s-controller`` image pulled from the `F5 Docker registry`_.
+- ``kubectl`` (the `Kubernetes`_ CLI) installed.
+- The official ``f5-k8s-controller`` image pulled from the `F5 Docker registry`_.
 
 Caveats
 -------
@@ -47,7 +47,7 @@ Install the |csi_k|
 Install |csi_k| using a Kubernetes Deployment
 `````````````````````````````````````````````
 
-Create a `Kubernetes Deployment`_ to launch a new Pod running the ``f5-k8s-controller`` container.
+Create a `Kubernetes Deployment`_ to launch a new ReplicaSet and Pod running the ``f5-k8s-controller`` container.
 
 .. tip::
 
@@ -57,13 +57,13 @@ Create a `Kubernetes Deployment`_ to launch a new Pod running the ``f5-k8s-contr
 
 #. Define the Deployment object.
 
-    * Provide the URL for the ``k8s-controller`` Docker image in the ``containers`` section.
+    * Provide the URL for the ``f5-k8s-controller`` Docker image in the ``containers`` section.
     * Provide your BIG-IP username, password, and management IP address in the ``env`` section.
     * You can :ref:`store your BIG-IP credentials in a Kubernetes Secret <kubernetes-secret-bigip-login>` to keep them secure.
 
 
     .. literalinclude:: /static/f5-csi_k/sample-f5-k8s-controller.yaml
-        :emphasize-lines: 6, 11, 13, 14-27
+        :emphasize-lines: 6, 17, 19, 20-33
 
 
 #. Upload the Deployment configuration to Kubernetes.
@@ -74,12 +74,6 @@ Create a `Kubernetes Deployment`_ to launch a new Pod running the ``f5-k8s-contr
 
         $ kubectl create -f f5-ctrl.json
 
-    Using ``curl``:
-
-    .. code-block:: bash
-
-        $ curl -X POST -H "Content-Type: application/json" --data @f5-ctrl.json http://[KUBE-API-SERVER]/apis/extensions/v1beta1/namespaces/kube-system/deployments/f5-k8s-controller
-
 #. Verify that your Deployment was created.
 
     Using ``kubectl``:
@@ -87,12 +81,6 @@ Create a `Kubernetes Deployment`_ to launch a new Pod running the ``f5-k8s-contr
     .. code-block:: bash
 
         $ kubectl get deployment f5-k8s-controller --namespace kube-system
-
-    Using ``curl``:
-
-    .. code-block:: bash
-
-        $ curl http://[KUBE-API-SERVER]/apis/extensions/v1beta1/namespaces/kube-system/deployments/f5-k8s-controller
 
 .. _configuration-section:
 
@@ -111,20 +99,20 @@ Configuration Parameters
 Usage
 -----
 
-The F5® |csi_k-long| uses `ConfigMap`_ objects to create and configure a virtual server on the BIG-IP for a `Kubernetes Service`_. The ConfigMap both applies configurations to the Service and directs the |csi_k| to apply configurations to the BIG-IP.
+The F5® |csi_k-long| uses `ConfigMap`_ objects to create and configure a virtual server on the BIG-IP for a `Kubernetes Service`_. The ConfigMap is used as an F5 Virtual Server Resource and both directs the |csi_k| to apply configurations to the BIG-IP and ties those configurations to the Service. Although `Kubernetes`_ views these objects as ConfigMaps, they are not intended to be used as such; i.e. they won't be attached to any Pods. The f5-k8s-controller watches for these special resources and manages BIG-IP accordingly. These ConfigMaps should be considered as F5 typed resources and may be represented as API extensions in future releases.
 
 .. warning::
 
     The |csi_k| creates objects on the BIG-IP in the partition specified in the ConfigMap. We strongly recommend that you only manage objects in this partition from Kubernetes.
 
-You can define the virtual server that will be created on the BIG-IP for a Service by :ref:`including the configurations in the ConfigMap <csi_k-f5-formatted-data-configmap>` as F5-formatted data, or by :ref:`calling a JSON file from the ConfigMap <csi_k-call-json-file-configmap>`.
+You can define the virtual server that will be created on the BIG-IP for a Service by :ref:`including the configurations in the ConfigMap <csi_k-f5-formatted-data-configmap>` as F5-formatted string data, or by :ref:`calling a JSON or YAML file from the ConfigMap <csi_k-call-json-file-configmap>`.
 
 .. _f5-formatted-data:
 
 F5-Formatted Data
 `````````````````
 
-If you choose to include your BIG-IP configurations in the `ConfigMap`_, you must use the appropriate formatting (f5-formatting).
+If you choose to include your BIG-IP configurations in the `ConfigMap`_, you must use the appropriate string formatting (f5-formatting).
 
 F5 provides a Json-Schema -- called in the ConfigMap as ``f5schemadb://bigip-virtual-server_v0.1.0.json`` -- to describe the required format and enable programmatic validation of configured data.
 
@@ -164,7 +152,7 @@ F5 provides a Json-Schema -- called in the ConfigMap as ``f5schemadb://bigip-vir
 Create a Virtual Server with the F5 |csi_k|
 ```````````````````````````````````````````
 
-All BIG-IP configurations are applied using Kubernetes ConfigMaps. You can either include the configurations in the `ConfigMap`_ directly, using the :ref:`F5-formatted data <f5-formatted-data>` section, or call a JSON file which contains the data from your ConfigMap.
+All BIG-IP configurations are applied using Kubernetes ConfigMaps. You can either include the configurations in the `ConfigMap`_ directly, using the :ref:`F5-formatted data <f5-formatted-data>` section, or call a JSON file which contains the data to be inserted as a key/value pair in your ConfigMap.
 
 .. important::
 
@@ -176,9 +164,7 @@ All BIG-IP configurations are applied using Kubernetes ConfigMaps. You can eithe
 Use F5-formatted data in a ConfigMap
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#. Create a new ConfigMap (e.g., "myconfigmap").
-
-#. Specify the `Kubernetes Service`_ in the ``metadata`` section.
+#. Create a new file for your ConfigMap (e.g., "myconfigmap").
 
 #. Define the ``"f5type": "virtual-server"`` in the ``labels`` section.
 
@@ -201,8 +187,9 @@ Use F5-formatted data in a ConfigMap
 #. Add the BIG-IP configurations to the ``data`` section.
 
     * Call the F5 schema as shown below.
-    * Use proper F5-formatting.
-    * Define the `Kubernetes Service`_ and port in the ``backend`` section.
+    * Use proper F5-formatting. The format is defined as Json-Schema, the data field must adhere to this formatting structure but included as a single string.
+    * Add the schema field with a value of "f5schemadb://bigip-virtual-server_v0.1.0.json".
+    * Define the `Kubernetes Service`_ name and port in the ``backend`` section.
     * Define the BIG-IP configurations in the ``frontend`` section.
 
     .. code-block:: javascript
@@ -214,7 +201,11 @@ Use F5-formatted data in a ConfigMap
           "data": "{\n  \"virtualServer\": {\n    \"backend\": {\n      \"serviceName\": \"demo-service\",\n      \"servicePort\": 10101\n    },\n    \"frontend\": {\n      \"partition\": \"kube-demo-service\",\n      \"mode\": \"tcp\",\n      \"balance\": \"round-robin\",\n      \"virtualAddress\": {\n        \"bindAddr\": \"172.16.2.3\",\n        \"port\": 5050\n      }\n    }\n  }\n}\n"
         }
 
-#. Use the ``kubectl create configmap`` command to create the `ConfigMap`_. [#]_
+#. Use the ``kubectl create`` command to create the `ConfigMap`_. [#]_
+
+   .. code-block:: bash
+
+       kubectl create -f myconfigmap
 
 
 
@@ -226,7 +217,7 @@ Use F5-formatted data in a ConfigMap
 Call a JSON file from a ConfigMap
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#. Create a valid JSON file (for example, 'data') that defines the `Kubernetes Service`_ to manage and the configurations to apply to the BIG-IP.
+#. Create a valid JSON file data that defines the `Kubernetes Service`_ to manage and the configurations to apply to the BIG-IP.
 
     * Identify the Service in the ``backend`` section:
 
@@ -260,22 +251,28 @@ Call a JSON file from a ConfigMap
                 }
               }
 
-#. Use the ``kubectl create configmap`` command to create the ConfigMap using the 'data' JSON file.
+#. Create a file schema and add "f5schemadb://bigip-virtual-server_v0.1.0.json"
+
+   .. code-block:: bash
+
+       echo "f5schemadb://bigip-virtual-server_v0.1.0.json" > schema
+
+#. Use the ``kubectl create configmap`` command to create the ConfigMap using the 'data' JSON file and schema file.
 
     .. code-block:: bash
 
-        $ kubectl create configmap demo-service --from-file data
+        $ kubectl create configmap demo-service --from-file data --from-file schema
 
 
 
 Configuration Examples
 ~~~~~~~~~~~~~~~~~~~~~~
 
-The exmaples below both apply the same configurations to the BIG-IP. First, we create a virtual server for our `Kubernetes Service`_ ("demo-service") that will receive traffic on port 10101. Because the Service ``type`` is ``NodePort``, this port will be exposed for communication on each Kubernetes node.
+The examples below both apply the same configurations to the BIG-IP. First, we create a virtual server for our `Kubernetes Service`_ ("demo-service"); the Service is uniquely defined by its name and port, in this example "demo-service" and 10101 respectively . Because the Service ``type`` is ``NodePort``, a port in the configured NodePort range will be exposed for communication on each Kubernetes node. This does not need to be known before hand, the ``f5-k8s-controller`` will automatically configure the BIG-IP with this information.
 
-Then, we create a virtual server on the BIG-IP in the "kube-demo-service" partition. It routes TCP traffic to the virtual IP address 172.16.2.3 at port 5050, using the "round-robin" load balancing algorithm.
+Once a `Kubernetes Service`_ is created and an F5 Virtual Server Resource (as a ConfigMap) is created with the proper backend field selector (Service's name and port). Then, the ``f5-k8s-controller`` automatically creates a virtual server on the BIG-IP in the "kube-demo-service" partition. It routes TCP traffic to the virtual IP address 172.16.2.3 at port 5050, using the "round-robin" load balancing algorithm.
 
-The BIG-IP will now load balance traffic on service port 10101 for all nodes in the Kubernetes cluster.
+The BIG-IP will now load balance traffic for all nodes in the Kubernetes cluster.
 
 
 .. rubric:: F5-formatted data:

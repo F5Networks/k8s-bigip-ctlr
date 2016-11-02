@@ -19,6 +19,6 @@ Prerequisities
 
 - A running `Kubernetes`_ cluster.
 
-- ``curl`` and/or ``kubectl`` (the `Kubernetes`_ CLI) installed.
+- ``kubectl`` (the `Kubernetes`_ CLI) installed.
 
-- The official F5 ``k8s-controller`` image pulled from the `F5 Docker registry`_
+- The official ``f5-k8s-controller`` image pulled from the `F5 Docker registry`_

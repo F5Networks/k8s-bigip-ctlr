@@ -4,7 +4,7 @@ F5 Container Service Connector for Kubernetes
 Introduction
 ------------
 
-The F5® Container Service Connector (CSC) provides an integration for the `Kubernetes <http://kubernett es.io/>`_ orchestration environment that makes L4-L7 services available to userss deploying miscroservices-based applications in a containerized infrastructure.
+The F5® Container Service Connector (CSC) provides an integration for the `Kubernetes <http://kubernetes.io/>`_ orchestration environment that makes L4-L7 services available to users deploying miscroservices-based applications in a containerized infrastructure.
 
 Releases and Compatibility
 --------------------------

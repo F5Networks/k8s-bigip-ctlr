@@ -5,23 +5,21 @@ Store BIG-IP Credentials in a Kubernetes Secret
 
 `Kubernetes`_ `Secrets <http://kubernetes.io/docs/user-guide/secrets/>`_ can be used to keep your BIG-IP admin credentials, and other sensitive information, secure. This information can be pulled into the Deployment configuration file via the Secret, as shown in the example.
 
-.. important:: Both the Secrets and Deployment configuration files can be either YAML or JSON.
-
-#. Create a new 'secrets' file (for example, :file:`bigip_credentials.YAML`).
-
-    example
-
-#. In a terminal, run the following commands:
+#. Create new 'secrets' files (for example, :file:`username.txt`):
 
     .. code-block:: bash
 
-        echo <YOUR-BIGIP-IPADDRESS> | base64
-        echo <YOUR-BIGIP-USERNAME> | base64
-        echo <YOUR-BIGIP-PASSWORD> | base64
+        echo <YOUR-BIGIP-IPADDRESS> >url.txt
+        echo <YOUR-BIGIP-USERNAME> >username.txt
+        echo <YOUR-BIGIP-PASSWORD> >password.txt
 
-#. Paste the resulting text into the secrets file in the ``url``, ``username``, and ``password`` fields, respectively.
+#. Keys can be named and specified via the `--from-file` option to `kubectl`:
 
-#. In the Deployment configuration file, add an ``env`` section to the ``container`` blob. Enter the name of your Secrets file as the ``secretKeyRef`` ``name`` parameter.
+   .. code-block:: bash
+
+        kubectl create secret generic bigip-credentials --from-file="username=./username.txt" --from-file="password=./password.txt" --from-file="url=./url.txt"
+
+#. In the Deployment configuration file, add an ``env`` section to the ``container`` blob. Enter the name of your Secret as the ``secretKeyRef`` ``name`` parameter. This step extracts the Secret keys into the container's environment:
 
     .. code-block:: yaml
         :emphasize-lines: 5-7

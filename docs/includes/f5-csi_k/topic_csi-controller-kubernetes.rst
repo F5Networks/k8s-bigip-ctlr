@@ -118,7 +118,7 @@ Usage
 
 The F5® |csi_k-long| uses Kubernetes `ConfigMap`_ objects to create and configure a virtual server on the BIG-IP for a `Kubernetes Service`_.
 The ConfigMap, which we treat as an F5 Virtual Server Resource, both directs the |csi_k| to apply configurations to the BIG-IP and ties those configurations to the Service.
-It's important to note that although we call these objects ConfigMaps, they're not *true* Kubernetes ConfigMaps because they aren't attached to any Pods. Instead, consider them 'F5 resources', as they only pertain to the F5 |csi|. These resources may be represented as API extensions in future releases.
+It's important to note that although we call these objects ConfigMaps, they're not *traditional* Kubernetes ConfigMaps because they aren't attached to any Pods. Instead, consider them 'F5 resources', as they only pertain to the F5 |csi|. These resources may be represented as API extensions in future releases.
 
 .. important::
 
@@ -141,7 +141,7 @@ When you add the F5 ConfigMap resource to Kubernetes, the |csi_k| does the follo
 
     - detects the port number allocated to the Service;
     - creates the virtual server on the BIG-IP in the specified partition,
-    - assigns the virtual servier to the port allocated to the Service by Kubernetes,
+    - assigns the virtual server to the port allocated to the Service by Kubernetes,
     - creates pool members for each node in the Kubernets cluster.
 
 The BIG-IP will then load balance traffic for all nodes in the cluster.

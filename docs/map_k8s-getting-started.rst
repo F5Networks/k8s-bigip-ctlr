@@ -16,7 +16,8 @@ Getting Started Guide
 Next Steps
 ----------
 
-* See the :ref:`Quick Start Guide <csik-quick-start>` to get our demo config up and running.
+.. See the :ref:`Quick Start Guide <csik-quick-start>` to get our demo config up and running.
+
 * See the :ref:`User Guide <csik-user-guide>` for more detailed information about the |csi_k-long|.
 
 

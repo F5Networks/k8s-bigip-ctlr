@@ -15,9 +15,9 @@ The F5® |csi| (CSI) makes L4-L7 services available to users deploying miscroser
 Architecture
 ````````````
 
-The |csi_k| -- also referred to as the ``f5-k8s-controller`` -- is a Docker container that can run in `Kubernetes`_. Once installed, it watches for the creation/destruction of `Kubernetes Service`_ objects and the creation/destruction of F5 Virtual Server Resources stored as `ConfigMap`_ definitions.
+The |csi_k| -- also referred to by its 'code-name', ``f5-k8s-controller`` -- is a Docker container that can run in `Kubernetes`_. Once installed, it watches for the creation/destruction of `Kubernetes Service`_ objects and the creation/destruction of F5 Virtual Server Resources stored as `ConfigMap`_ definitions.
 
-When the f5-k8s-controller discovers a Service that has the BIG-IP :ref:`configuration parameters <csik_configuration-parameters>` set, it creates a new virtual server for the service on the BIG-IP. The |csi_k| also creates pool members for each node in the cluster.
+When the |csi_k| discovers a Service that has the BIG-IP :ref:`configuration parameters <csik_configuration-parameters>` set, it creates a new virtual server for the service on the BIG-IP. The |csi_k| also creates pool members for each node in the cluster.
 
 .. [#] See `Using Docker Container Technology with F5 Products and Services <https://f5.com/resources/white-papers/using-docker-container-technology-with-f5-products-and-services>`_
 
@@ -56,7 +56,7 @@ Caveats
 Install the |csi_k|
 -------------------
 
-To install the |csi_k|, create a `Kubernetes Deployment`_. The deployment creates a `Pod <http://kubernetes.io/docs/user-guide/pods/>`_ that runs the ``f5-k8s-controller`` container and launches a `ReplicaSet <http://kubernetes.io/docs/user-guide/replicasets/>`_.
+To install the |csi_k|, create a `Kubernetes Deployment`_. The deployment launches a `ReplicaSet <http://kubernetes.io/docs/user-guide/replicasets/>`_, then creates a `Pod <http://kubernetes.io/docs/user-guide/pods/>`_ that runs the ``f5-k8s-controller`` container.
 
 .. tip::
 
@@ -118,6 +118,7 @@ Usage
 
 The F5® |csi_k-long| uses Kubernetes `ConfigMap`_ objects to create and configure a virtual server on the BIG-IP for a `Kubernetes Service`_.
 The ConfigMap, which we treat as an F5 Virtual Server Resource, both directs the |csi_k| to apply configurations to the BIG-IP and ties those configurations to the Service.
+
 It's important to note that although we call these objects ConfigMaps, they're not *traditional* Kubernetes ConfigMaps because they aren't attached to any Pods. Instead, consider them 'F5 resources', as they only pertain to the F5 |csi|. These resources may be represented as API extensions in future releases.
 
 .. important::
@@ -142,7 +143,7 @@ When you add the F5 ConfigMap resource to Kubernetes, the |csi_k| does the follo
     - detects the port number allocated to the Service;
     - creates the virtual server on the BIG-IP in the specified partition,
     - assigns the virtual server to the port allocated to the Service by Kubernetes,
-    - creates pool members for each node in the Kubernets cluster.
+    - creates pool members for each node in the Kubernetes cluster.
 
 The BIG-IP will then load balance traffic for all nodes in the cluster.
 
@@ -164,7 +165,9 @@ All BIG-IP configurations included in the F5 `ConfigMap`_ resource must use the 
 
 #. Create a new file for your F5 ConfigMap resource (e.g., "f5configmap").
 
-#. Add the label ``"f5type": "virtual-server"`` to the ``metadata`` section. This identifies the object you want to create on the BIG-IP.
+#. Add the label ``"f5type": "virtual-server"`` to the ``metadata`` section.
+
+     This label identifies the ConfigMap object as an F5 Virtual Server Resource. The CSI uses this label to identify ConfigMaps it should react to.
 
     .. code-block:: javascript
         :linenos:

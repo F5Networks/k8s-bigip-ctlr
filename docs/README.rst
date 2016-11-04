@@ -8,7 +8,8 @@ F5 |csi_k|
     :name: csik_toc
     :glob:
 
-    map_*
+    map_getting-started
+    map_user-guide
 
 ______________________
 

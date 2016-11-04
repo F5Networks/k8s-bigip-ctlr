@@ -1,0 +1,26 @@
+{
+  "virtualServer": {
+    "backend": {
+      "serviceName": "example-vs-iapp",
+      "servicePort": 80
+    },
+    "frontend": {
+      "partition": "velcro",
+      "iapp": "/Common/f5.http",
+      "iappTableName": "pool__members",
+      "iappOptions": {
+        "description": "Example iApp"
+      },
+      "iappVariables": {
+        "monitor__monitor": "/#create_new#",
+        "monitor__resposne": "none",
+        "monitor__uri": "/",
+        "net__client_mode": "wan",
+        "net__server_mode": "lan",
+        "pool__addr": "127.0.0.2",
+        "pool__pool_to_use": "/#create_new#",
+        "pool__port": "4430"
+      }
+    }
+  }
+}

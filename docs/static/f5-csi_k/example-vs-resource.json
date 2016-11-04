@@ -1,0 +1,20 @@
+{
+  "virtualServer": {
+    "frontend": {
+      "balance": "round-robin",
+      "mode": "http",
+      "partition": "velcro",
+      "virtualAddress": {
+        "bindAddr": "1.2.3.4",
+        "port": 80
+      },
+      "sslProfile": {
+        "f5ProfileName": "Common/testcert"
+      }
+    },
+    "backend": {
+      "serviceName": "example-service",
+      "servicePort": 80
+    }
+  }
+}

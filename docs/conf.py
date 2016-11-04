@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# F5 Container Service Connector documentation build configuration file,
+# F5 Container Service Integrator documentation build configuration file,
 # created by sphinx-quickstart on Wed Aug 10 14:05:28 2016.
 #
 # This file is execfile()d with the current directory set to its
@@ -68,7 +68,7 @@ source_encoding = 'utf-8-sig'
 master_doc = 'README'
 
 # General information about the project.
-project = u'F5 Container Service Connector - Kubernetes'
+project = u'F5 Container Service Integrator - Kubernetes'
 copyright = u'2016 F5 Networks Inc'
 author = u'F5 Networks'
 
@@ -86,10 +86,10 @@ release = u'0.1.0'
 rst_epilog = """
 .. |lwp| replace:: Lightweight Proxy
 .. |lwpc| replace:: Lightweight Proxy Controller
-.. |csi| replace:: Container Service Connector
-.. |csi_k| replace:: CSC - Kubernetes
+.. |csi| replace:: Container Service Integrator
+.. |csi_k| replace:: CSI - Kubernetes
 .. |csi_k-long| replace:: |csi| for Kubernetes
-.. |csi_k_v| replace:: |release|
+.. |csi_k-v| replace:: |release|
 .. |tm| unicode:: U+2122
     :ltrim:
 .. _system configuration: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/bigip-system-initial-configuration-12-0-0/2.html#conceptid
@@ -175,7 +175,7 @@ html_theme = 'sphinx_rtd_theme'
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
 #
-html_title = u'F5 Container Service Connector - Kubernetes'
+html_title = u'F5 Container Service Integrator - Kubernetes'
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
 #
@@ -184,7 +184,7 @@ html_short_title = u'F5 CSI - Kubernetes'
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
 #
-html_logo = '_static/f5_logo.jpg'
+html_logo = 'static/f5-csi_k/f5_logo.jpg'
 
 # The name of an image file (relative to this directory) to use as a favicon of
 # the docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -195,7 +195,7 @@ html_logo = '_static/f5_logo.jpg'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ['static.f5-csi_k']
 
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied
@@ -277,7 +277,7 @@ html_show_copyright = True
 # html_search_scorer = 'scorer.js'
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'F5_Container_Service_Connector-Kubernetes_doc'
+htmlhelp_basename = 'F5_Container_Service_Integrator-Kubernetes_doc'
 
 # -- Options for LaTeX output ---------------------------------------------
 
@@ -303,15 +303,15 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'F5_Container_Service_Connector-Kubernetes.tex',
-     u'F5_Container_Service_Connector for Kubernetes - Documentation',
+    (master_doc, 'F5_Container_Service_Integrator-Kubernetes.tex',
+     u'F5_Container_Service_Integrator for Kubernetes - Documentation',
      'F5 Networks', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
 # the title page.
 #
-latex_logo = '_static/f5_logo.jpg'
+latex_logo = 'static/f5-csi_k/f5_logo.jpg'
 
 # For "manual" documents, if this is true, then toplevel headings are parts,
 # not chapters.
@@ -354,8 +354,8 @@ latex_toplevel_sectioning = 'section'
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'F5_Container_Service_Connector-Kubernetes',
-     u'F5_Container_Service_Connector for Kubernetes - Documentation',
+    (master_doc, 'F5_Container_Service_Integrator-Kubernetes',
+     u'F5_Container_Service_Integrator for Kubernetes - Documentation',
      [author], 1)
 ]
 
@@ -370,9 +370,9 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'F5_Container_Service_Connector-Kubernetes',
-     u'F5 Container Service Connector - Kubernetes Documentation',
-     author, 'F5_Container_Service_Connector-Kubernetes', 'manual'),
+    (master_doc, 'F5_Container_Service_Integrator-Kubernetes',
+     u'F5 Container Service Integrator - Kubernetes Documentation',
+     author, 'F5_Container_Service_Integrator-Kubernetes', 'manual'),
 ]
 
 # Documents to append as an appendix to all manuals.

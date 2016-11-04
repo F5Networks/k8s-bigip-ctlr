@@ -1,12 +1,12 @@
-.. _getting-started:
+.. _csik-getting-started:
 
-Getting Started
----------------
 
 .. include:: /includes/f5-csi_k/topic_csi-controller-kubernetes.rst
-    :start-line: 24
-    :end-before: Install the
+    :start-after: csik-prereqs-start
+    :end-before: csik-prereqs-end
 
 .. include:: /includes/f5-csi_k/topic_csi-controller-kubernetes.rst
-    :start-line: 43
-    :end-before: _configuration-section
+    :start-after: csik-install-start
+    :end-before: csik-install-end
+
+.. include:: /includes/f5-csi_k/topic_secure-bigip-params-k8s-secret.rst

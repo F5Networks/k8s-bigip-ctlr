@@ -5,7 +5,7 @@
       - Description
       - Default Setting
     * - ``--bigip-partition``
-      - partition where BIG-IP objects will be configured
+      - partition to configure BIG-IP objects in
       - velcro
     * - ``--bigip-password``
       - admin password for the BIG-IP
@@ -26,7 +26,7 @@
       - directory location of python utilities
       - /app/python
     * - ``--running-in-cluster``
-      - flag indicating if the controller was started by k8s
+      - flag indicating if k8s started the controller
       - true
     * - ``--use-node-internal``
       - flag to filter Kubernetes InternalIP addresses for pool members

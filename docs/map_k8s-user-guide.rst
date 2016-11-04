@@ -1,4 +1,4 @@
-.. _user-guide:
+.. _csik-user-guide:
 
 User Guide for |csi_k-long|
 ===========================

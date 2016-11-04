@@ -3,25 +3,29 @@
 F5 |csi_k|
 ==========
 
-
-
 Overview
 --------
 
 .. csik-overview-body-start
 
-The F5® |csi| (CSI) makes L4-L7 services available to users deploying miscroservices-based applications in a containerized infrastructure. [#]_ The |csi_k| lets you configure load balancing on a BIG-IP® :term:`device` entirely through the `Kubernetes`_ API.
+The F5® |csi| (CSI) makes L4-L7 services available to users deploying miscroservices-based applications in a containerized infrastructure. [#f1]_ The |csi_k| lets you configure load balancing on a BIG-IP® :term:`device` entirely through the `Kubernetes`_ API.
+
+.. [#f1] See `Using Docker Container Technology with F5 Products and Services <https://f5.com/resources/white-papers/using-docker-container-technology-with-f5-products-and-services>`_
+
+.. csik-overview-body-end
 
 Architecture
-````````````
+------------
 
-The |csi_k| -- also referred to by its 'code-name', ``f5-k8s-controller`` -- is a Docker container that can run in `Kubernetes`_. Once installed, it watches for the creation/destruction of `Kubernetes Service`_ objects and the creation/destruction of F5 Virtual Server Resources stored as `ConfigMap`_ definitions.
+.. csik-architecture-body-start
+
+The |csi_k| is a Docker container that can run in `Kubernetes`_. Once installed, it watches for the creation/destruction of `Kubernetes Service`_ objects and the creation/destruction of F5 Virtual Server Resources stored as `ConfigMap`_ definitions.
 
 When the |csi_k| discovers a Service that has the BIG-IP :ref:`configuration parameters <csik_configuration-parameters>` set, it creates a new virtual server for the service on the BIG-IP. The |csi_k| also creates pool members for each node in the cluster.
 
-.. [#] See `Using Docker Container Technology with F5 Products and Services <https://f5.com/resources/white-papers/using-docker-container-technology-with-f5-products-and-services>`_
 
-.. csik-overview-body-end
+
+.. csik-architecture-body-end
 
 Use Case
 --------
@@ -29,10 +33,10 @@ Use Case
 The F5 |csi_k| makes it possible to provision BIG-IP Local Traffic Manager™ (LTM®) services for North-South traffic (i.e., traffic in and out of the data center) via the Kubernetes API. You can use the |csi_k| in conjunction with the F5 :ref:`Lightweight Proxy <lwp-home>`, which provides services for East-West traffic (i.e., traffic between services/apps in the data center).
 
 
-.. csik-prereqs-start
-
 Prerequisites
 -------------
+
+.. csik-prereqs-body-start
 
 - Licensed, operational `BIG-IP`_ :term:`device`.
 - Knowledge of BIG-IP `system configuration`_ and `local traffic management`_.
@@ -47,14 +51,14 @@ Caveats
 
 - You must create the partition you wish to manage from Kubernetes on the BIG-IP *before* configuring the CSI.
 
-.. csik-prereqs-end
-
-.. csik-install-start
+.. csik-prereqs-body-end
 
 .. _csik-install-section:
 
 Install the |csi_k|
 -------------------
+
+.. csik-install-body-start
 
 To install the |csi_k|, create a `Kubernetes Deployment`_. The deployment launches a `ReplicaSet <http://kubernetes.io/docs/user-guide/replicasets/>`_, then creates a `Pod <http://kubernetes.io/docs/user-guide/pods/>`_ that runs the ``f5-k8s-controller`` container.
 
@@ -88,7 +92,7 @@ To install the |csi_k|, create a `Kubernetes Deployment`_. The deployment launch
         $ kubectl get deployment f5-k8s-controller --namespace kube-system
 
 
-.. csik-install-end
+.. csik-install-body-end
 
 .. csik-config-start
 
@@ -201,7 +205,7 @@ All BIG-IP configurations included in the F5 `ConfigMap`_ resource must use the 
           "data": "{\n  \"virtualServer\": {\n    \"backend\": {\n      \"serviceName\": \"demo-service\",\n      \"servicePort\": 10101\n    },\n    \"frontend\": {\n      \"partition\": \"kube-demo-service\",\n      \"mode\": \"tcp\",\n      \"balance\": \"round-robin\",\n      \"virtualAddress\": {\n        \"bindAddr\": \"172.16.2.3\",\n        \"port\": 5050\n      }\n    }\n  }\n}\n"
         }
 
-#. Use the ``kubectl create`` command to create the F5 ConfigMap Resource. [#]_
+#. Use the ``kubectl create`` command to create the F5 ConfigMap Resource. [#f2]_
 
    .. code-block:: bash
 
@@ -209,7 +213,7 @@ All BIG-IP configurations included in the F5 `ConfigMap`_ resource must use the 
 
 
 
-.. [#] http://kubernetes.io/docs/user-guide/kubectl/kubectl_create_configmap/
+.. [#f2] http://kubernetes.io/docs/user-guide/kubectl/kubectl_create_configmap/
 
 
 .. _csi_k-call-json-file-configmap:

@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    lwp.f5.com/config.http: |-
+      {
+        "ip-protocol": "http",
+        "load-balancing-mode": "round-robin",
+        "flags" : {
+          "x-forwarded-for": false,
+          "x-served-by": true
+        }
+      }
+  labels:
+    name: my-service
+  name: my-service
+  namespace: default
+spec:
+  selector:
+    app: MyApp
+  ports:
+    - name: "http"
+      protocol: "TCP"
+      port: 80

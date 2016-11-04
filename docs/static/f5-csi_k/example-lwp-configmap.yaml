@@ -1,0 +1,18 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: lwp-config
+  namespace: kube-system
+data:
+  lightweight-proxy.config.json: |-
+    {
+      "global": {
+        "console-log-level": "info"
+      },
+      "orchestration": {
+        "kubernetes": {
+          "config-file": "/var/run/kubernetes/proxy-plugin/service-ports.json",
+          "poll-interval": 500
+        }
+      }
+    }

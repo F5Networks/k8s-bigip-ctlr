@@ -35,11 +35,11 @@ The :dfn:`ConfigMap` contains the configurations you want to apply to each LWP i
         The ``orchestration.kubernetes.config-file`` property in the ConfigMap points to a volume mounted by the |lwp| DaemonSet spec you'll set up in the next step.
 
 
-    .. literalinclude:: /static/f5-lwp/example-lwp-configmap.yaml
+    .. literalinclude:: /static/f5-csi_k/example-lwp-configmap.yaml
        :language: yaml
        :emphasize-lines: 12-15
 
-    :download:`example-lwp-configmap.yaml </static/f5-lwp/example-lwp-configmap.yaml>`
+    :download:`example-lwp-configmap.yaml </static/f5-csi_k/example-lwp-configmap.yaml>`
 
 
 #. Create a Kubernetes `DaemonSet <http://kubernetes.io/docs/admin/daemons/>`_ for the |lwp|.
@@ -54,10 +54,10 @@ The :dfn:`ConfigMap` contains the configurations you want to apply to each LWP i
             b. mount a volume that provides the :file:`service-ports.json` config file at the path provided in the ConfigMap.
 
 
-    .. literalinclude:: /static/f5-lwp/example-lwp-daemonset.yaml
+    .. literalinclude:: /static/f5-csi_k/example-lwp-daemonset.yaml
        :language: yaml
 
-    :download:`example-lwp-daemonset.yaml </static/f5-lwp/example-lwp-daemonset.yaml>`
+    :download:`example-lwp-daemonset.yaml </static/f5-csi_k/example-lwp-daemonset.yaml>`
 
 
 Edit Pod Manifest(s) to replace kube-proxy with f5-kube-proxy
@@ -71,12 +71,12 @@ For every node in your cluster, edit the static pod manifest file to ensure that
 
 #. Add the ``plugin-config`` volume in the **volumes section**.
 
-    .. literalinclude:: /static/f5-lwp/example-kube-proxy-manifest.yaml
+    .. literalinclude:: /static/f5-csi_k/example-kube-proxy-manifest.yaml
        :language: yaml
        :linenos:
        :emphasize-lines: 10,27-29,40-42
 
-    :download:`example-kube-proxy-manifest.yaml </static/f5-lwp/example-kube-proxy-manifest.yaml>`
+    :download:`example-kube-proxy-manifest.yaml </static/f5-csi_k/example-kube-proxy-manifest.yaml>`
 
 
 
@@ -112,9 +112,9 @@ The virtual server created in each LWP uses the configuration values defined in 
 
     .. rubric:: The example below shows the F5 annotation string incorporated into a sample Service definition.
 
-    .. literalinclude:: /static/f5-lwp/example-service-lwp.yaml
+    .. literalinclude:: /static/f5-csi_k/example-service-lwp.yaml
 
-    :download:`example-service-lwp.yaml </static/f5-lwp/example-service-lwp.yaml>`
+    :download:`example-service-lwp.yaml </static/f5-csi_k/example-service-lwp.yaml>`
 
 
 .. toctree::

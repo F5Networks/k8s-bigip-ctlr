@@ -23,12 +23,12 @@
       - String
       - Required
       - Valid values: "round-robin"
-    * - ``ssl-profile``
+    * - ``sslProfile``
       - Name of SSL Profile to use
       - :ref:`SSL Profile <csik_config-vs-frontend-vs-sslProfile>`
       - Optional
       - Must already exist on BIG-IP
-    * - ``virtual-address``
+    * - ``virtualAddress``
       - Virtual Address on BIG-IP 
       - :ref:`Virtual Address <csik_config-vs-frontend-vs-virtualAddress>`
       - Required

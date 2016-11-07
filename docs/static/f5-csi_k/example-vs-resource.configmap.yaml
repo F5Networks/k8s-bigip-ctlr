@@ -1,0 +1,30 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: example-vs
+  namespace: default
+  labels: 
+    f5type: virtual-server
+data:
+  schema: "f5schemadb://bigip-virtual-server_v0.1.0.json"
+  data: |-
+    {
+      "virtualServer": {
+        "frontend": {
+          "balance": "round-robin",
+          "mode": "http",
+          "partition": "velcro",
+          "virtualAddress": {
+            "bindAddr": "1.2.3.4",
+            "port": 80
+          },
+          "sslProfile": {
+            "f5ProfileName": "Common/testcert"
+          }
+        },
+        "backend": {
+          "serviceName": "example-service",
+          "servicePort": 80
+        }
+      }
+    }

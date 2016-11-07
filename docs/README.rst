@@ -28,7 +28,7 @@ ______________________
 
     map_k8s-getting-started
     map_k8s-user-guide
-    Deploy the F5 |lwp| in Kubernetes <minimaps/map_csik-lwp-deployment>
+    Deploy the F5 Lightweight Proxy in Kubernetes <minimaps/map_csik-lwp-deployment>
 
 
 

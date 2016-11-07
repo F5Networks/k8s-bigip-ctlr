@@ -1,7 +1,6 @@
-.. _csik_config-vs-frontend-iapp:
-
-.. list-table:: Frontend iApp Configuration
+.. list-table:: Frontend - iApp Options
     :header-rows: 1
+    :widths: 10, 10, 10, 10, 20
 
     * - Property
       - Description

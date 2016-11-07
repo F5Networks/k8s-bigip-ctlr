@@ -17,7 +17,6 @@ User Guide for |csi_k-long|
     :caption: Contents
     :maxdepth: 4
 
-    minimaps/map_csik-getting-started
     minimaps/map_csik-configuration
     minimaps/map_csik-usage
 

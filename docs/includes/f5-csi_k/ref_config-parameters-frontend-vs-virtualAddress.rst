@@ -1,5 +1,3 @@
-.. _csik_config-vs-frontend-vs-virtualAddress:
-
 .. list-table:: Frontend Virtual Address Object
     :header-rows: 1
 

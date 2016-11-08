@@ -5,7 +5,7 @@ F5 |csi_k|
 
 .. rubric:: Release
 
-The current release is v |csi_k-v|.
+The current release is |csi_k_v|.
 
 .. include:: /includes/ref_compatibility.rst
 

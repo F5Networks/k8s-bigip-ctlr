@@ -2,6 +2,7 @@
 
 .. list-table:: Backend Virtual Server Config Parameters
     :header-rows: 1
+    :widths: 10 10 10 10 20
 
     * - Property
       - Description

@@ -7,11 +7,7 @@ Getting Started Guide
     :hidden:
 
 
-
 .. include:: minimaps/map_csik-getting-started.rst
-
-.. include:: minimaps/map_csik-configuration.rst
-
 
 Next Steps
 ----------

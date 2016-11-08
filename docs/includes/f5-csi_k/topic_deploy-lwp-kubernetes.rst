@@ -14,6 +14,14 @@ The |lwp| should be deployed on every node in your Kubernetes cluster.
 The LWP on the same node as the client handles requests and load-balances to the backend pod.
 |lwp| creates a virtual server for every `Kubernetes Service`_ in the cluster that has the F5 annotation configured (see :ref:`Create a Virtual Server <add-lwp-kubernetes-services>`).
 
+Prerequisites
+`````````````
+
+- A running `Kubernetes`_ cluster.
+- ``kubectl`` (the `Kubernetes`_ CLI) installed, and configured with admin access to the cluster.
+- The official ``f5-k8s-controller`` and ``f5-kube-proxy`` images; contact your F5 Sales rep or go to `F5 DevCentral <https://devcentral.f5.com/welcome-to-the-f5-beta-program>`_ to request access to the beta program.
+
+
 .. _install-lwp-kubernetes:
 
 Install |lwp|

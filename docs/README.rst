@@ -7,6 +7,8 @@ F5 |csi_k|
 
 The current release is v |csi_k-v|.
 
+.. include:: /includes/ref_compatibility.rst
+
 .. rubric:: Overview
 
 .. include:: /includes/f5-csi_k/topic_csi-controller-kubernetes.rst

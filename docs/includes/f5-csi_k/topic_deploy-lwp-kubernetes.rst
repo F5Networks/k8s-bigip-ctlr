@@ -1,5 +1,6 @@
-Deploy the F5 |lwp| for Kubernetes
-----------------------------------
+Deploy the F5 |lwp| in Kubernetes
+---------------------------------
+
 .. lwp-deploy-guide
 
 Deploying the F5® |lwp| (LWP) in Kubernetes replaces `kube-proxy <http://kubernetes.io/docs/admin/kube-proxy/>`_.
@@ -24,8 +25,8 @@ Prerequisites
 
 .. _install-lwp-kubernetes:
 
-Install |lwp|
-`````````````
+Install the |lwp|
+`````````````````
 
 Add a |lwp| Instance to Every Node
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -88,8 +89,8 @@ For every node in your cluster, edit the static pod manifest file to ensure that
 
 
 
-Create a Virtual Server with |lwp|
-``````````````````````````````````
+Create a Virtual Server with the |lwp|
+``````````````````````````````````````
 
 .. _add-lwp-kubernetes-services:
 

@@ -1,21 +1,6 @@
-.. _csik_config-vs-backend:
+.. csv-table:: Backend options (scroll for more)
+    :header: Property, Type, Required, Default, Description, Allowed Values
 
-.. list-table:: Backend Virtual Server Config Parameters
-    :header-rows: 1
-    :widths: 10 10 10 10 20
+    ``serviceName``, string, Required, , Kubernetes service that represents the server pool,
+    ``servicePort``, integer, Required, , `Kubernetes Service`_ port number,
 
-    * - Property
-      - Description
-      - Type
-      - Required
-      - Notes
-    * - ``serviceName``
-      - Kubernetes service that represents the server pool
-      - String
-      - Required
-      - 
-    * - ``servicePort``
-      - Port number of service port
-      - Number
-      - Required
-      - Matches port in Kubernetes Service

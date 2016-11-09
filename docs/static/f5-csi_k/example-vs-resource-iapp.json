@@ -13,7 +13,7 @@
       },
       "iappVariables": {
         "monitor__monitor": "/#create_new#",
-        "monitor__resposne": "none",
+        "monitor__response": "none",
         "monitor__uri": "/",
         "net__client_mode": "wan",
         "net__server_mode": "lan",

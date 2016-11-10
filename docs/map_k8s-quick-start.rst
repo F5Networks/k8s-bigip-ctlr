@@ -3,10 +3,7 @@
 |csi_k| Quick Start Guide
 =========================
 
-Coming soon!
-
-
 .. toctree::
-    :caption: Contents
-    :maxdepth: 4
+    :hidden:
 
+.. include:: /includes/f5-csi_k/topic_kubernetes-quick-start.rst

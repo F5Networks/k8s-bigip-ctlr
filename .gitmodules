@@ -70,3 +70,15 @@
 [submodule "vendor/src/github.com/pmezard/go-difflib"]
 	path = vendor/src/github.com/pmezard/go-difflib
 	url = git@bldr-git.int.lineratesystems.com:mirror/go-difflib.git
+[submodule "vendor/src/github.com/xeipuuv/gojsonschema"]
+	path = vendor/src/github.com/xeipuuv/gojsonschema
+	url = git@bldr-git.int.lineratesystems.com:mirror/gojsonschema.git
+[submodule "vendor/src/github.com/xeipuuv/gojsonpointer"]
+	path = vendor/src/github.com/xeipuuv/gojsonpointer
+	url = git@bldr-git.int.lineratesystems.com:mirror/gojsonpointer.git
+[submodule "vendor/src/github.com/xeipuuv/gojsonreference"]
+	path = vendor/src/github.com/xeipuuv/gojsonreference
+	url = git@bldr-git.int.lineratesystems.com:mirror/gojsonreference.git
+[submodule "vendor/src/velcro/schemas"]
+	path = vendor/src/velcro/schemas
+	url = git@bldr-git.int.lineratesystems.com:velcro/schemas.git

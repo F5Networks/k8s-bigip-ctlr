@@ -18,6 +18,8 @@ import (
 	"k8s.io/client-go/1.4/pkg/api/v1"
 )
 
+var schemaUrl string = "https://bldr-git.int.lineratesystems.com/velcro/schemas/raw/master/bigip-virtual-server_v0.1.1.json"
+
 var configmapFoo string = string(`{
   "virtualServer": {
     "backend": {
@@ -104,7 +106,7 @@ var configmapBar string = string(`{
       "mode": "http",
       "partition": "velcro",
       "virtualAddress": {
-        "bindAddr": "10.128.10.260",
+        "bindAddr": "10.128.10.240",
         "port": 6051
       }
     }
@@ -167,17 +169,17 @@ var configmapIApp2 string = string(`{
 
 var emptyConfig string = string(`{"services":[]}`)
 
-var twoSvcsFourPortsThreeNodesConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":8080,"nodePort":38001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":9090,"nodePort":39001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"tcp","virtualAddress":{"bindAddr":"10.128.10.200","port":4041}}}}]}`)
+var twoSvcsFourPortsThreeNodesConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":8080,"nodePort":38001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":9090,"nodePort":39001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"tcp","virtualAddress":{"bindAddr":"10.128.10.200","port":4041}}}}]}`)
 
-var twoSvcsThreeNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
+var twoSvcsThreeNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
 
-var twoSvcsTwoNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
+var twoSvcsTwoNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.1","127.0.0.2"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.1","127.0.0.2"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
 
-var twoSvcsOneNodeConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
+var twoSvcsOneNodeConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":80,"nodePort":30001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
 
-var oneSvcTwoNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}}]}`)
+var oneSvcTwoNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}}]}`)
 
-var oneSvcOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.260","port":6051}}}}]}`)
+var oneSvcOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"nodePort":37001,"nodes":["127.0.0.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}}]}`)
 
 var twoIappsThreeNodesConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp1","servicePort":80,"nodePort":10101,"nodes":["192.168.0.1","192.168.0.2","192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 1"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}}}},{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"nodePort":20202,"nodes":["192.168.0.1","192.168.0.2","192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 2"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
 
@@ -529,7 +531,7 @@ func TestOverwriteAdd(t *testing.T) {
 	require := require.New(t)
 
 	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFoo})
 
 	fake := fake.NewSimpleClientset()
@@ -547,7 +549,7 @@ func TestOverwriteAdd(t *testing.T) {
 		"Mode should be http")
 
 	cfgFoo = newConfigMap("foomap", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFooTcp})
 
 	r = processConfigMap(fake, eventStream.Added,
@@ -570,7 +572,7 @@ func TestServiceChangeUpdate(t *testing.T) {
 	require := require.New(t)
 
 	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFoo})
 
 	fake := fake.NewSimpleClientset()
@@ -585,7 +587,7 @@ func TestServiceChangeUpdate(t *testing.T) {
 		"Virtual servers should have an entry")
 
 	cfgFoo8080 := newConfigMap("foomap", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFoo8080})
 
 	r = processConfigMap(fake, eventStream.Updated,
@@ -605,13 +607,13 @@ func TestServicePortsRemoved(t *testing.T) {
 	require := require.New(t)
 
 	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFoo})
 	cfgFoo8080 := newConfigMap("foomap8080", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFoo8080})
 	cfgFoo9090 := newConfigMap("foomap9090", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFoo9090})
 
 	foo := newService("foo", "1", "default", "NodePort",
@@ -701,10 +703,10 @@ func TestUpdatesConcurrent(t *testing.T) {
 	require := require.New(t)
 
 	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFoo})
 	cfgBar := newConfigMap("barmap", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapBar})
 	foo := newService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
@@ -870,16 +872,16 @@ func TestProcessUpdates(t *testing.T) {
 
 	// Create a test env with two ConfigMaps, two Services, and three Nodes
 	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFoo})
 	cfgFoo8080 := newConfigMap("foomap8080", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFoo8080})
 	cfgFoo9090 := newConfigMap("foomap9090", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFoo9090})
 	cfgBar := newConfigMap("barmap", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapBar})
 	foo := newService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001},
@@ -1089,7 +1091,7 @@ func TestDontCareConfigMap(t *testing.T) {
 	require := require.New(t)
 
 	cfg := newConfigMap("foomap", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   "bar"})
 	svc := newService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
@@ -1140,7 +1142,7 @@ func TestConfigMapKeys(t *testing.T) {
 	require.Equal(0, len(virtualServers.m))
 
 	nodatakey := newConfigMap("nodata", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 	})
 	cfg, err = parseVirtualServerConfig(nodatakey)
 	require.Nil(cfg, "Should not have parsed bad configmap")
@@ -1153,7 +1155,7 @@ func TestConfigMapKeys(t *testing.T) {
 	require.Equal(0, len(virtualServers.m))
 
 	badjson := newConfigMap("badjson", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   "///// **invalid json** /////",
 	})
 	cfg, err = parseVirtualServerConfig(badjson)
@@ -1167,7 +1169,7 @@ func TestConfigMapKeys(t *testing.T) {
 	require.Equal(0, len(virtualServers.m))
 
 	extrakeys := newConfigMap("extrakeys", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapFoo,
 		"key1":   "value1",
 		"key2":   "value2",
@@ -1204,10 +1206,10 @@ func TestProcessUpdatesIApp(t *testing.T) {
 
 	// Create a test env with two ConfigMaps, two Services, and three Nodes
 	cfgIapp1 := newConfigMap("iapp1map", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapIApp1})
 	cfgIapp2 := newConfigMap("iapp2map", "1", "default", map[string]string{
-		"schema": "f5schemadb://bigip-virtual-server_v0.1.0.json",
+		"schema": schemaUrl,
 		"data":   configmapIApp2})
 	iapp1 := newService("iapp1", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 10101}})
@@ -1340,4 +1342,62 @@ func TestProcessUpdatesIApp(t *testing.T) {
 		nil})
 	assert.Equal(1, len(virtualServers.m))
 	validateFile(t, emptyConfig)
+}
+
+func TestSchemaValidation(t *testing.T) {
+	defer os.Remove(OutputFilename)
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
+
+	require := require.New(t)
+	assert := assert.New(t)
+
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client should not be nil")
+
+	// JSON is valid, but values are invalid
+	var configmapFoo string = string(`{
+	  "virtualServer": {
+	    "backend": {
+	      "serviceName": "",
+	      "servicePort": 0
+	    },
+	    "frontend": {
+	      "balance": "super-duper-mojo",
+	      "mode": "udp",
+	      "partition": "",
+	      "virtualAddress": {
+	        "bindAddr": "10.128.10.260",
+	        "port": 500000
+	      },
+	      "sslProfile": {
+	        "f5ProfileName": ""
+	      }
+	    }
+	  }
+	}`)
+
+	badjson := newConfigMap("badjson", "1", "default", map[string]string{
+		"schema": schemaUrl,
+		"data":   configmapFoo,
+	})
+	cfg, err := parseVirtualServerConfig(badjson)
+	require.Nil(cfg, "Should not have parsed bad configmap")
+	assert.Contains(err.Error(),
+		"virtualServer.frontend.partition: String length must be greater than or equal to 1")
+	assert.Contains(err.Error(),
+		"virtualServer.frontend.mode: virtualServer.frontend.mode must be one of the following: \\\"http\\\", \\\"tcp\\\"")
+	assert.Contains(err.Error(),
+		"virtualServer.frontend.balance: virtualServer.frontend.balance must be one of the following:")
+	assert.Contains(err.Error(),
+		"virtualServer.frontend.sslProfile.f5ProfileName: String length must be greater than or equal to 1")
+	assert.Contains(err.Error(),
+		"virtualServer.frontend.virtualAddress.bindAddr: Does not match format 'ipv4'")
+	assert.Contains(err.Error(),
+		"virtualServer.frontend.virtualAddress.port: Must be less than or equal to 65535")
+	assert.Contains(err.Error(),
+		"virtualServer.backend.serviceName: String length must be greater than or equal to 1")
+	assert.Contains(err.Error(),
+		"virtualServer.backend.servicePort: Must be greater than or equal to 1")
 }

@@ -22,19 +22,19 @@ Architecture
 
 The |csi_k-long| comprises the ``f5-k8s-controller`` and user-defined "F5 resources".
 The ``f5-k8s-controller`` is a Docker container that can run in a `Kubernetes`_ Pod.
-The "F5 resources" are Kubernetes `ConfigMap`_ resources that pass encoded data to the ``f5-k8s-controller``. These resources tell the ``f5-k8s-controller`` a) what objects to configure on your BIG-IP and b) what `Kubernetes Service`_ the BIG-IP objects belong to (the :ref:`frontend <csi_k-config-vs-frontend>` and :ref:`backend <csi_k-config-vs-backend>` properties in the ConfigMap, respectively).
+The "F5 resources" are Kubernetes `ConfigMap`_ resources that pass encoded data to the ``f5-k8s-controller``. These resources tell the ``f5-k8s-controller`` a) what objects to configure on your BIG-IP and b) what `Kubernetes Service`_ the BIG-IP objects belong to (the :ref:`frontend <csik-config-vs-frontend>` and :ref:`backend <csik-config-vs-backend>` properties in the ConfigMap, respectively).
 
 The ``f5-k8s-controller`` watches for the creation and modification of F5 resources in Kubernetes.
 When it discovers changes, it modifies the BIG-IP accordingly.
 For example, for an F5 ``virtualServer`` resource, the |csi_k| does the following:
 
-    - create objects to represent the virtual server on the BIG-IP in the specified partition;
-    - create pool members for each node in the Kubernetes cluster, using the NodePort  assigned to the service port by Kubernetes; [#]_
-    - monitor the F5 resources and linked Kubernetes resources for changes and reconfigure the BIG-IP accordingly.
+    - creates objects to represent the virtual server on the BIG-IP in the specified partition;
+    - creates pool members for each node in the Kubernetes cluster, using the NodePort  assigned to the service port by Kubernetes; [#]_
+    - monitors the F5 resources and linked Kubernetes resources for changes and reconfigures the BIG-IP accordingly.
 
 The BIG-IP then handles traffic for the Service on the specified virtual address and load-balances to all nodes in the cluster. Within the cluster, the allocated NodePort is load-balanced to all pods for the Service.
 
-.. [#] See the Kubernetes `ServiceType <http://kubernetes.io/docs/user-guide/services/#publishing-services---service-types>`_ documentation for more information.
+.. [#] See the Kubernetes `ServiceType <http://kubernetes.io/docs/user-guide/services/#publishing-services---service-types>`_ documentation for more information about node ports.
 
 .. csik-architecture-body-end
 
@@ -50,16 +50,18 @@ Prerequisites
 
 - Licensed, operational `BIG-IP`_ :term:`device`.
 - Knowledge of BIG-IP `system configuration`_ and `local traffic management`_.
-- Administrative access to the BIG-IP.
-- A partition configured on the BIG-IP that will only be used by |csi_k|.
+- Administrative access to the BIG-IP. [#]_
+- A BIG-IP :term:`partition` that will only be used by |csi_k|.
 - A running `Kubernetes`_ cluster.
-- ``kubectl`` (the `Kubernetes`_ CLI) installed, and configured with admin access to the cluster.
+- ``kubectl`` (the `Kubernetes`_ CLI) installed and configured with admin access to the cluster.
 - The official ``f5-k8s-controller`` image; contact your F5 Sales rep or go to `F5 DevCentral <https://devcentral.f5.com/welcome-to-the-f5-beta-program>`_ to request access to the beta program.
 
-Caveats
--------
+.. [#] Admin access to the BIG-IP is required to create the :term:`partition` the CSI will manage; the BIG-IP user whose credentials you supply to the ``f5-k8s-controller`` only needs permission to configure objects in the partition.
 
-- You must create the partition on the BIG-IP that you wish to manage from Kubernetes *before* you install / configure the CSI.
+Caveats
+```````
+
+- The partition on the BIG-IP that you wish to manage from Kubernetes must exist *before* you install / configure the CSI.
 - *We strongly recommend that you do not manage objects in this partition outside of Kubernetes.*
 
 .. csik-prereqs-body-end
@@ -165,27 +167,45 @@ An F5 resource must be encoded as a Kubernetes  `ConfigMap`_ that includes the f
 Define an F5 Resource
 `````````````````````
 
-F5 resources are defined in JSON, then included as encoded data in YAML `ConfigMap`_ files. The data provided in the ConfigMap are used to apply configurations to the BIG-IP.
+F5 resources are defined as JSON blobs, which are included as encoded data in YAML `ConfigMap`_ files. The data provided in the ConfigMap apply configurations to the BIG-IP. The :ref:`Example F5 Resources <csik-example-f5-resources>` demonstrate how each property should be laid out and how they fit together.
 
-.. _csi_k-config-vs-frontend:
+.. _csik-config-vs-frontend:
 
-Frontend Properties
-~~~~~~~~~~~~~~~~~~~
+Frontend Property
+~~~~~~~~~~~~~~~~~
 
-The frontend configuration defines how a Service should be exposed on the BIG-IP.
-You can use either the :ref:`Standard <csik_config-vs-frontend-vs>` or :ref:`iApp <csik_config-vs-frontend-iapp>` options to define an F5 resource.
+The frontend property consists of a set of objects that define how to expose a Service on the BIG-IP.
+You can use either the :ref:`Standard <csik_config-vs-frontend-vs>` or :ref:`iApp <csik_config-vs-frontend-iapp>` options in this section of the `ConfigMap`_.
+
+.. _csik_config-vs-frontend-vs:
+
+Standard
+^^^^^^^^
+
+The standard options for the Frontend property are shown in the table below.
 
 .. include:: /includes/f5-csi_k/ref_config-parameters-frontend-vs-all.rst
 
+.. _csik_config-vs-frontend-iapp:
 
-.. _csi_k-config-vs-backend:
+iApp
+^^^^
 
-Backend Properties
-~~~~~~~~~~~~~~~~~~
+The iApp options are a completely custom set of parameters, which correspond to the fields in the iApp template you must complete in order to launch the iApp on a BIG-IP. For the ``iappVariables``, you can either name an object that already exists on the BIG-IP, or enter ``/#create_new#`` to have the iApp create a new object.
 
-The backend configuration identifies the `Kubernetes Service`_ that will make up the server pool.
+.. include:: /includes/f5-csi_k/ref_config-parameters-frontend-iapp.rst
+
+
+.. _csik_config-vs-backend:
+
+Backend Property
+~~~~~~~~~~~~~~~~
+
+The backend property identifies the `Kubernetes Service`_ that will make up the server pool.
 
 .. include:: /includes/f5-csi_k/ref_config-parameters-backend.rst
+
+.. _csik-example-f5-resources:
 
 Example F5 Resources
 ~~~~~~~~~~~~~~~~~~~~
@@ -200,7 +220,7 @@ Example F5 Resources
 
 
 
-.. _csi_k-config-vs:
+.. _csik-create-vs:
 
 Create a Virtual Server with the F5 |csi_k|
 ```````````````````````````````````````````
@@ -231,7 +251,7 @@ To remove a virtual server for a `Kubernetes Service`_, and all related objects,
 
     * If you temporarily take down a `Kubernetes Service`_, leave the F5 ConfigMap resource in place. This ensures connectivity to the BIG-IP remains in place when the Service comes back up.
 
-    * If you take down a Service and later deploy a new Service **with the same name**, the |csi_k| will apply the F5 ConfigMap resource to the new Service.
+    * If you take down a Service and later deploy a new Service **with the same name**, the |csi_k| will apply the F5 resource to the new Service.
 
 .. csik-usage-end
 

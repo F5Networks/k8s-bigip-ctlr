@@ -8,11 +8,13 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
 	"eventStream"
 	log "velcro/vlogger"
 
+	"github.com/xeipuuv/gojsonschema"
 	"k8s.io/client-go/1.4/kubernetes"
 	"k8s.io/client-go/1.4/pkg/api"
 	"k8s.io/client-go/1.4/pkg/api/v1"
@@ -82,6 +84,12 @@ type outputConfigs struct {
 // Output file of Big-IP Virtual Server configs
 var OutputFilename string = "/tmp/f5-k8s-controller.config." + strconv.Itoa(os.Getpid()) + ".json"
 
+// Indicator to use an F5 schema
+var schemaIndicator string = "f5schemadb://"
+
+// Where the schemas reside locally
+var schemaLocal string = "file:///app/vendor/src/velcro/schemas/"
+
 // Virtual Server Key - unique server is Name + Port
 type serviceKey struct {
 	ServiceName string
@@ -111,13 +119,39 @@ func init() {
 func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 	var cfg VirtualServerConfig
 
-	// FIXME(yacobucci) Issue #9 the two fields should be schema and data and we
-	//should validate data against schema
-	if _, ok := cm.Data["schema"]; ok {
+	if schemaName, ok := cm.Data["schema"]; ok {
 		if data, ok := cm.Data["data"]; ok {
-			err := json.Unmarshal([]byte(data), &cfg)
-			if nil != err {
+			// FIXME For now, "f5schemadb" means the schema is local
+			// Trim whitespace and embedded quotes
+			schemaName = strings.TrimSpace(schemaName)
+			schemaName = strings.Trim(schemaName, "\"")
+			if strings.HasPrefix(schemaName, schemaIndicator) {
+				schemaName = strings.Replace(schemaName, schemaIndicator, schemaLocal, 1)
+			}
+			// Load the schema
+			schemaLoader := gojsonschema.NewReferenceLoader(schemaName)
+			schema, err := gojsonschema.NewSchema(schemaLoader)
+			if err != nil {
 				return nil, err
+			}
+			// Load the ConfigMap data and validate
+			dataLoader := gojsonschema.NewStringLoader(data)
+			result, err := schema.Validate(dataLoader)
+			if err != nil {
+				return nil, err
+			}
+
+			if result.Valid() {
+				err := json.Unmarshal([]byte(data), &cfg)
+				if nil != err {
+					return nil, err
+				}
+			} else {
+				var errors []string
+				for _, desc := range result.Errors() {
+					errors = append(errors, desc.String())
+				}
+				return nil, fmt.Errorf("configMap is not valid, errors: %q", errors)
 			}
 		} else {
 			return nil, fmt.Errorf("configmap %s does not contain data key",

@@ -24,5 +24,8 @@ RUN apt-get update -y && \
     apt-get autoremove -y && \
     apt-get clean -y
 
+# Copy over schemas
+COPY vendor/src/velcro/schemas/bigip-virtual-server_v*.json $APPPATH/vendor/src/velcro/schemas/
+
 # Run the run application in the projects bin directory.
 CMD [ "/app/bin/f5-k8s-controller" ]

@@ -31,3 +31,5 @@ spec:
         - name: lwp-config
           configMap:
             name: lwp-config
+      imagePullSecrets:
+          - name: f5-docker-images

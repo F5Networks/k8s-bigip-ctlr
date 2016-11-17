@@ -16,13 +16,13 @@ spec:
       containers:
         - name: f5-k8s-controller
           # Specify the path to your image here
-          image: "docker-registry/username/f5-k8s-controller:latest"
+          image: "f5networks/f5-ci-beta:f5-k8s-controller-v0.1.0"
           env:
           # Pull BIG-IP username, password, and url out of the secret store and put in environment
             - name: BIGIP_USERNAME
               value: admin
             - name: BIGIP_PASSWORD
-              value: changeme
+              value: admin
             - name: BIGIP_URL
               value: <your_BIG-IP_admin_ip>
           command: ["/app/bin/f5-k8s-controller"]
@@ -31,5 +31,5 @@ spec:
             "--bigip-username=$(BIGIP_USERNAME)",
             "--bigip-password=$(BIGIP_PASSWORD)"
           ]
-    imagePullSecrets:
-        - name: f5-docker-images
+      imagePullSecrets:
+          - name: f5-docker-images

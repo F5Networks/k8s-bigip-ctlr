@@ -1,12 +1,3 @@
-Overview
---------
-
-The purpose of this Quick Start guide is to walk the reader through the steps necessary to get the `Kubernetes Guestbook demo`_ up and running with the F5® |csi_k| and |lwp|. This reader will be guided on the following:
-
-- Deploying the F5® |csi_k| Controller
-- Deploying the F5® |lwp|
-- Download, configuration and deployment of the `Kubernetes Guestbook demo`_
-
 Introduction
 ------------
 
@@ -16,7 +7,7 @@ Introduction
 
 .. include:: /includes/f5-lwp/concept_lwp-deploy-guide-overview.rst
 
-What You Need before Starting
+Prerequisites
 -----------------------------
 
 - Licensed, operational `BIG-IP`_ :term:`device`.
@@ -26,13 +17,14 @@ What You Need before Starting
 - A running `Kubernetes`_ cluster.
 - ``kubectl`` (the `Kubernetes`_ CLI) installed.
 - A `Git client <https://git-scm.com>`_ (CLI or GUI)
+- The official f5-k8s-controller and f5-kube-proxy images; contact your F5 Sales rep or go to F5 DevCentral to request access to the beta program.
 
-Step 1. Add a Kubernetes Image Secret
+Add a Kubernetes Image Secret
 ------------------------------------
 
-In order for the `Kubernetes`_ cluster to download and use the F5® |csi_k| and |lwp| images, we must first add a secret to the cluster. The `secret <http://kubernetes.io/docs/user-guide/secrets/>`_ provides the required credentials for the `Docker`_ daemon on each node to be able to download the required F5 container images.
+In order for the `Kubernetes`_ cluster to download and use the F5® |csi_k| and |lwp| images, we must first add a secret to the cluster. The `secret <http://kubernetes.io/docs/user-guide/secrets/>`_ provides the required credentials for the `Docker`_ daemon on each node to be able to download the required F5 container images. Both the |csi_k| and |lwp| images will live in the *kube-system* `namespace <http://kubernetes.io/docs/user-guide/namespaces/>`_.
 
-Both the |csi_k| and |lwp| images will live in the *kube-system* `namespace <http://kubernetes.io/docs/user-guide/namespaces/>`_. The following YAML file is used to create the secret:
+The following YAML file is used to create the secret:
 
 .. literalinclude:: /static/f5-csi_k/quickstart-k8s-docker-hub-secrets.yaml
 
@@ -44,7 +36,7 @@ Next, add the secret with the kubectl:
 
   $ kubectl create -f quickstart-k8s-docker-hub-secrets.yaml
 
-Step 2. Deploy F5 |csi_k-long|
+Deploy F5 |csi_k-long|
 ------------------------------
 
 The |csi_k| image is installed into a `Kubernetes`_ cluster with a `Kubernetes Deployment`_. The following deployment file will ensure that there is one Pod running the f5-k8s-controller image to integrate with your `BIG-IP`_.
@@ -73,54 +65,60 @@ You can verify the f5-k8s-controller has been deployed to a pod with the followi
   NAME                                   READY     STATUS         RESTARTS   AGE
   f5-k8s-controller-3184671219-s1ldo     0/1       Running        0          34s
 
-Step 3. Deploy the F5 |lwp|
+Deploy the F5 |lwp|
 ------------------------------
 
-The |lwp| runs on each node in a cluster by using a `DaemonSet <http://kubernetes.io/docs/admin/daemons/>`_ and the `ConfigMap`_ is what the |lwp| uses to obtain it's configuration information.
+The |lwp| runs on each node in a cluster and handles requests and load-balances to the correct pod for each `Kubernetes Service`_ configured to use it.
 
-The following YAML files provides the global configuration for the |lwp|
+A `DaemonSet <http://kubernetes.io/docs/admin/daemons/>`_  is used to ensure a copy of the |lwp| is running on each node and a `ConfigMap`_ is what the |lwp| uses to obtain it's configuration information.
 
-.. literalinclude:: /static/f5-csi_k/example-lwp-configmap.yaml
+#. Specify the global configuration for the |lwp|
 
-:download:`example-lwp-configmap.yaml </static/f5-csi_k/example-lwp-configmap.yaml>`
+    .. literalinclude:: /static/f5-csi_k/example-lwp-configmap.yaml
 
-.. literalinclude:: /static/f5-csi_k/quickstart-lwp-daemonset.yaml
+    :download:`example-lwp-configmap.yaml </static/f5-csi_k/example-lwp-configmap.yaml>`
 
-:download:`quickstart-lwp-daemonset.yaml </static/f5-csi_k/quickstart-lwp-daemonset.yaml>`
+#. Specify a `Kubernetes Daemonset`_
 
-The Configmap and Daemonset configurations can now be deployed using kubectl:
+    .. literalinclude:: /static/f5-csi_k/quickstart-lwp-daemonset.yaml
 
-.. code:: bash
+    :download:`quickstart-lwp-daemonset.yaml </static/f5-csi_k/quickstart-lwp-daemonset.yaml>`
 
-  $ kubectl create -f example-lwp-configmap.yaml
-  configmap "lwp-config" created
-  $ kubectl create -f quickstart-lwp-daemonset.yaml
-  daemonset "lightweight-proxy" created
+#. Use kubectl to deploy and configure the |lwp|
 
-Once created, we can verify that the |lwp| pods are running:
+    .. code:: bash
 
-.. code:: bash
+      $ kubectl create -f example-lwp-configmap.yaml
+      configmap "lwp-config" created
+      $ kubectl create -f quickstart-lwp-daemonset.yaml
+      daemonset "lightweight-proxy" created
 
-  kubectl get pods -l name=lightweight-proxy --namespace kube-system
-  NAME                      READY     STATUS    RESTARTS   AGE
-  lightweight-proxy-f0tt9   1/1       Running   0          5m
-  lightweight-proxy-gt0i2   1/1       Running   0          5m
-  lightweight-proxy-l4swr   1/1       Running   0          5m
-  lightweight-proxy-p5uit   1/1       Running   0          5m
+#. Verify that the |lwp| pods are running:
 
-Step 4. Replace kube-proxy with f5-kube-proxy
+    .. code:: bash
+
+      kubectl get pods -l name=lightweight-proxy --namespace kube-system
+      NAME                      READY     STATUS    RESTARTS   AGE
+      lightweight-proxy-f0tt9   1/1       Running   0          5m
+      lightweight-proxy-gt0i2   1/1       Running   0          5m
+      lightweight-proxy-l4swr   1/1       Running   0          5m
+      lightweight-proxy-p5uit   1/1       Running   0          5m
+
+Configure kubernetes pods to use the |lwp|
 ---------------------------------------------
 
-The f5-kube-proxy runs on each node in a `Kubernetes`_ cluster and replaces the default kube-proxy. The f5-kube-proxy will provide TCP and HTTP load balancing and forwarding on each node for any `Kubernetes`_ service annotated with the correct syntax, as we will see later.
+The f5-kube-proxy runs on each node in a `Kubernetes`_ cluster and replaces the default kube-proxy. The f5-kube-proxy handoff to LWP to provide TCP and HTTP load balancing and forwarding on each node for any `Kubernetes`_ service annotated with the correct syntax, as we will see later.
 
-The example below can be used to replace the default kube-proxy manifest file typically located at /etc/kubernetes/kube-proxy.yaml on each `Kubernetes`_ node.
+Edit Pod Manifest(s) to replace kube-proxy with f5-kube-proxy
+`````````````````````````````````````````````````````````````
+The following can be used to replace the default kube-proxy manifest file typically located at /etc/kubernetes/kube-proxy.yaml on each `Kubernetes`_ node.
 
 .. literalinclude:: /static/f5-csi_k/quickstart-kube-proxy.yaml
   :emphasize-lines: 13
 
 :download:`quickstart-kube-proxy.yaml </static/f5-csi_k/quickstart-kube-proxy.yaml>`
 
-Ensure that the pods are up and running after updating the manifest file on each node and looking for the *kube-proxy-node_ip* entries from the `Kubernetes`_ pod list:
+Ensure that kube-proxy pods are up and running after updating the manifest file on each node and looking for the kube-proxy-*<node_ip>* entries from the `Kubernetes`_ pod list:
 
 .. code:: bash
 
@@ -138,7 +136,7 @@ Ensure that the pods are up and running after updating the manifest file on each
 
 Now the F5® |csi_k-long| is configured and ready to use in our `Kubernetes`_ cluster.
 
-Step 6. Deploy the Kubernetes Guestbook Demo app
+Deploy the Kubernetes Guestbook Demo app
 ------------------------------------------------
 
 The `Guestbook example <https://github.com/kubernetes/kubernetes/tree/master/examples/guestbook-go>`_ application is a simple multi-tier web app we will use to test the |csi_k-long| intergration. The application front-end is build in Go and uses Redis for it's data storage backend.
@@ -146,25 +144,31 @@ The `Guestbook example <https://github.com/kubernetes/kubernetes/tree/master/exa
 |csi| will integrate with the web front-end and provide access to the Go app for clients external to the `Kubernetes`_ cluster. |lwp| will be configured to direct traffic to the Redis master and slaves.
 
 Download the Guestbook example
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+`````````````````````````````
 
-#. The example application lives within the `Kubernetes` Github repository, so we must first clone a copy to our local workstation:
+The example application lives within the `Kubernetes` Github repository, so we must first clone a copy to our local workstation:
 
     .. code:: bash
 
       $ git clone https://github.com/kubernetes/kubernetes.git
       $ cd kubernetes/
 
-#. The Guestbook app uses a `Kubernetes`_ service to expose the frontend application to external clients. It's current configuration JSON configuration needs to be modified to have it correctly integrate with the |csi|.
+Define the Guestbook service
+```````````````````````````
 
-    Edit the examples/guestbook-go/guestbook-service.json file the text "LoadBalancer" with "NodePort" highlighted in the following example as shown:
+The Guestbook app uses a `Kubernetes`_ service to expose the frontend application to external clients. It's current configuration JSON configuration needs to be modified to have it correctly integrate with the |csi|.
 
-    .. literalinclude:: /static/f5-csi_k/quickstart-guestbook-service.json
-        :emphasize-lines: 20
+Edit the examples/guestbook-go/guestbook-service.json file the text "LoadBalancer" with "NodePort" highlighted in the following example as shown:
 
-    :download:`quickstart-guestbook-service.json </static/f5-csi_k/quickstart-guestbook-service.json>`
+.. literalinclude:: /static/f5-csi_k/quickstart-guestbook-service.json
+    :emphasize-lines: 20
 
-#. The next step is to deploy the entire Guestbook application within the cluster:
+:download:`quickstart-guestbook-service.json </static/f5-csi_k/quickstart-guestbook-service.json>`
+
+Deploy the Guestbook Datastore service
+`````````````````````````````````````
+
+The next step is to deploy the entire Guestbook application within the cluster:
 
     .. code:: bash
 
@@ -178,43 +182,49 @@ Download the Guestbook example
 
       With the application deployed, the next steps are to enable the |lwp| and |csi| integrations.
 
-#. We will now annotate the 'redis-slave' service to enable the |lwp|. Once it has been enabled, |lwp| will control the virtual IP for the 'redis-slave' service.
+Configure Redis slave service to use |lwp|
+`````````````````````````````````````````
 
-    Seeing as Redis uses a TCP based protocol, will ensure the ip-protocol for the annotation is set to 'tcp':
+We will now annotate the 'redis-slave' service to enable the |lwp|. Once it has been enabled, |lwp| will control the virtual IP for the 'redis-slave' service.
 
-        .. code:: bash
-
-            $ kubectl annotate service redis-slave \
-              lwp.f5.com/config='{"ip-protocol":"tcp","load-balancing-mode":"round-robin"}'
-              service "redis-slave" annotated
-
-    Our redis-slave service will now be load balanced by the |lwp| within the `kubernetes`_ environment across all nodes.
-
-#. The final step is to have the |csi_k| integrate with the Guestbook front-end to provide North-South load balancing.
-
-    .. tip::
-
-        Make sure the highlighted lines are configuration for an IP address and port avilable on your BIG-IP.
-
-    .. literalinclude:: /static/f5-csi_k/quickstart-guestbook_f5_configmap.yaml
-      :emphasize-lines: 22-23
-
-    :download:`quickstart-guestbook_f5_configmap.yaml </static/f5-csi_k/quickstart-guestbook_f5_configmap.yaml>`
-
-    To verify that the |csi| is indeed working, let's get the name of our f5-k8s-controller pod:
+Seeing as Redis uses a TCP based protocol, will ensure the ip-protocol for the annotation is set to 'tcp':
 
     .. code:: bash
 
-         kubectl get po --namespace kube-system
-         NAME                                   READY     STATUS    RESTARTS   AGE
-         f5-k8s-controller-1659257167-ftfx9     1/1       Running   0          1h
+        $ kubectl annotate service redis-slave \
+          lwp.f5.com/config='{"ip-protocol":"tcp","load-balancing-mode":"round-robin"}'
+          service "redis-slave" annotated
 
-    Next, we can tail the logs for this pod to verify that the Configmap was picked up correctly and a configuraiton created and sent to our `BIG-IP`_:
+Our redis-slave service will now be load balanced by the |lwp| within the `kubernetes`_ environment across all nodes.
 
-    .. code:: bash
+Configure |csi_k| for the Guestbook front-end
+````````````````````````````````````````````
 
-        kubectl logs f5-k8s-controller-1659257167-ftfx9 --namespace kube-system --tail 10
-        2016/11/08 00:30:12 [INFO] [2016-11-08 00:30:12,869 marathon_lb INFO] Generating config for BIG-IP from Kubernetes state
-        2016/11/08 00:30:12 [INFO] Wrote 1 Virtual Server configs to file /tmp/f5-k8s-controller.config.1.json
+The final step is to have the |csi_k| integrate with the Guestbook front-end to provide North-South load balancing.
 
-#. The |csi_k| integration can be confirmed by logging into your `BIG-IP`_ and looking at the Virtual Server list under the *k8s* partition to see the newly configured virtual server.
+.. literalinclude:: /static/f5-csi_k/quickstart-guestbook_f5_configmap.yaml
+  :emphasize-lines: 22-23
+
+:download:`quickstart-guestbook_f5_configmap.yaml </static/f5-csi_k/quickstart-guestbook_f5_configmap.yaml>`
+
+.. tip::
+
+    Make sure the highlighted lines are configuration for an IP address and port available on your BIG-IP.
+
+To verify that the |csi| is indeed working, use kubectl to determin the name the of the f5-k8s-controller pod:
+
+.. code:: bash
+
+     kubectl get po --namespace kube-system
+     NAME                                   READY     STATUS    RESTARTS   AGE
+     f5-k8s-controller-1659257167-ftfx9     1/1       Running   0          1h
+
+Next, kubectl can be used tail the pod's logs to verify that the Configmap was picked up correctly and a configuraiton created and sent to the `BIG-IP`_:
+
+.. code:: bash
+
+    kubectl logs f5-k8s-controller-1659257167-ftfx9 --namespace kube-system --tail 10
+    2016/11/08 00:30:12 [INFO] [2016-11-08 00:30:12,869 marathon_lb INFO] Generating config for BIG-IP from Kubernetes state
+    2016/11/08 00:30:12 [INFO] Wrote 1 Virtual Server configs to file /tmp/f5-k8s-controller.config.1.json
+
+The |csi_k| integration can be confirmed by logging into your `BIG-IP`_ and looking at the Virtual Server list under the *k8s* partition to see the newly configured virtual server.

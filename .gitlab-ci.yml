@@ -84,8 +84,6 @@ sanity verification:
 #   <PROJ_NAMESPACE>/f5-k8s-controller:<COMMIT_ID>
 #   <PROJ_NAMESPACE>/f5-k8s-controller:<BRANCH>
 #   <PROJ_NAMESPACE>/f5-k8s-controller:<BRANCH>-<BUILD_ID>
-# If this branch is the master, then also tag:
-#   <PROJ_NAMESPACE>/f5-k8s-controller:latest
 dockerize:
   script:
     - PROJ_NAMESPACE=$(basename $(dirname "$CI_BUILD_REPO"))
@@ -110,10 +108,6 @@ dockerize:
     -   docker tag $BUILD_TAG docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller:v$major.$minor
     -   docker tag $BUILD_TAG bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller:v$major
     -   docker tag $BUILD_TAG docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller:v$major
-    - fi
-    - if [ "$CI_BUILD_REF_NAME" == "master" ]; then
-    -   docker tag $BUILD_TAG bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller:devel
-    -   docker tag $BUILD_TAG docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller:devel
     - fi
     - docker push bldr-docker-registry.lab.lineratesystems.com:5000/$PROJ_NAMESPACE/f5-k8s-controller
     - docker push docker-registry.pdbld.f5net.com/$PROJ_NAMESPACE/f5-k8s-controller

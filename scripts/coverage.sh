@@ -10,11 +10,21 @@ set -e
 PROJECT=$PWD
 profile="coverage.out"
 mode=count
+coverage=0
+
+do_sum() {
+  out=$1
+
+  cur=$(echo $out | sed -e 's/^ok.*coverage:\s*//' -e 's/%.*$//')
+  coverage=$(echo "$coverage $cur" | awk '{ SUM = $1 + $2 } END { print SUM }')
+}
 
 generate_cover_data() {
     for pkg in "$@"; do
         f="$(echo $pkg | tr / -).cover"
-        env GOPATH=$PROJECT:$PROJECT/vendor go test -covermode="$mode" -coverprofile="$f" "$pkg"
+        out=$(env GOPATH=$PROJECT:$PROJECT/vendor go test -covermode="$mode" -coverprofile="$f" "$pkg")
+        echo $out
+        echo $out | grep -q "no test files" || do_sum "$out"
     done
 
     echo "mode: $mode" > "$profile"
@@ -23,6 +33,8 @@ generate_cover_data() {
 	echo "No coverage analysis performed."
 	exit 0
     fi
+    coverage_mean=$(echo "$coverage $NUM_COVERAGE_FILES" | awk '{ MEAN = $1 / $2 } END { printf "%.2f", MEAN }')
+    echo "mean coverage: ${coverage_mean}% of statements"
     grep -h -v "^mode:" *.cover >> "$profile"
     env GOPATH=$PROJECT:$PROJECT/vendor go tool cover -html="$profile" -o coverage.html
     rm -f *.cover

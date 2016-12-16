@@ -51,17 +51,17 @@ Prerequisites
 - Licensed, operational `BIG-IP`_ :term:`device`.
 - Knowledge of BIG-IP `system configuration`_ and `local traffic management`_.
 - Administrative access to the BIG-IP. [#]_
-- A BIG-IP :term:`partition` that will only be used by |csi_k|.
+- A BIG-IP :term:`partition(s)` that will only be used by |csi_k|.
 - A running `Kubernetes`_ cluster.
 - ``kubectl`` (the `Kubernetes`_ CLI) installed and configured with admin access to the cluster.
 - The official ``f5-k8s-controller`` image; contact your F5 Sales rep or go to `F5 DevCentral <https://devcentral.f5.com/welcome-to-the-f5-beta-program>`_ to request access to the beta program.
 
-.. [#] Admin access to the BIG-IP is required to create the :term:`partition` the CSI will manage; the BIG-IP user whose credentials you supply to the ``f5-k8s-controller`` only needs permission to configure objects in the partition.
+.. [#] Admin access to the BIG-IP is required to create the :term:`partition(s)` the CSI will manage; the BIG-IP user whose credentials you supply to the ``f5-k8s-controller`` only needs permission to configure objects in the partition.
 
 Caveats
 ```````
 
-- The partition on the BIG-IP that you wish to manage from Kubernetes must exist *before* you install / configure the CSI.
+- The partition(s) on the BIG-IP that you wish to manage from Kubernetes must exist *before* you install / configure the CSI.
 - *We strongly recommend that you do not manage objects in this partition outside of Kubernetes.*
 
 .. csik-prereqs-body-end

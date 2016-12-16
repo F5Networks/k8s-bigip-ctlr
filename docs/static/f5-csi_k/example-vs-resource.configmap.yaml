@@ -13,7 +13,7 @@ data:
         "frontend": {
           "balance": "round-robin",
           "mode": "http",
-          "partition": "velcro",
+          "partition": "kubernetes",
           "virtualAddress": {
             "bindAddr": "1.2.3.4",
             "port": 443

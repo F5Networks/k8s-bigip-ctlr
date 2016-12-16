@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -14,7 +15,7 @@ import (
 func TestDriverCmd(t *testing.T) {
 	username := "admin"
 	password := "test"
-	partition := "velcro"
+	partitions := []string{"velcro1", "velcro2"}
 	url := "bigip.example.com"
 	verify := "30"
 	pyDriver := "/tmp/some-dir/test-driver.py"
@@ -25,7 +26,7 @@ func TestDriverCmd(t *testing.T) {
 	pythonPath, err := exec.LookPath("python")
 	assert.Nil(t, err, "We should find python")
 
-	cmd := createDriverCmd(username, password, url, partition, verify, pyDriver)
+	cmd := createDriverCmd(partitions, username, password, url, verify, pyDriver)
 
 	require.NotNil(t, cmd, "Command should not be nil")
 	require.NotNil(t, cmd.Path, "Path should not be nil")
@@ -39,7 +40,7 @@ func TestDriverCmd(t *testing.T) {
 		"--hostname", url,
 		"--config-file", configFile,
 		"--verify-interval", "30",
-		partition}
+		strings.Join(partitions, " ")}
 	require.EqualValues(t, cmd.Args, args, "We should get expected args list")
 }
 
@@ -48,12 +49,12 @@ func TestDriverSubProcess(t *testing.T) {
 
 	username := "admin"
 	password := "test"
-	partition := "velcro"
+	partitions := []string{"velcro1", "velcro2"}
 	url := "bigip.example.com"
 	verify := "30"
 	pyDriver := "./test/pyTest.py"
 
-	cmd := createDriverCmd(username, password, url, partition, verify, pyDriver)
+	cmd := createDriverCmd(partitions, username, password, url, verify, pyDriver)
 	go runBigIpDriver(subPidCh, cmd)
 	pid := <-subPidCh
 

@@ -31,7 +31,7 @@ Vagrant environment
 
 .. code-block:: bash
 
-    $ git clone git@bldr-git.int.lineratesystems.com:velcro/f5-k8s-controller.git
+    $ git clone [gitlab F5® CSI project]
     $ cd f5-k8s-controller
     $ vagrant up
     $ vagrant ssh
@@ -54,7 +54,7 @@ Manual environment setup
     $ go install -v github.com/constabulary/gb/...
     $ git clone [gitlab F5® CSI project]
     $ cd f5-k8s-controller
-    $ git submodule update --init --force
+    $ git submodule update --init
     # Install python requirements using sudo or create a virtualenv workspace.
     $ sudo pip install -r python/requirements.txt
     $ sudo pip install -r vendor/src/velcro/f5-marathon-lb/requirements.txt
@@ -62,6 +62,14 @@ Manual environment setup
 
 Docker environment setup
 ~~~~~~~~~~~~~~~~~~~~~~~~
+
+Note: if setting up a new workspace run these commands first:
+
+.. code-block:: bash
+
+    $ git clone [gitlab F5® CSI project]
+    $ cd f5-k8s-controller
+    $ git submodule update --init
 
 1. Install docker. For example, `Docker for Mac <https://docs.docker.com/engine/installation/mac/>`_
 2. Build the docker images used for development (f5-k8s-ctrl-devel):

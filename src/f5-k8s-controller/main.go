@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -34,13 +35,13 @@ var (
 	namespace = flags.String("namespace", "default",
 		"Optional, Kubernetes namespace to watch")
 	bigipUrl = flags.String("bigip-url", "",
-		`URL for the Big-IP`)
+		`Required, URL for the Big-IP`)
 	bigipUsername = flags.String("bigip-username", "",
 		`Required, user name for the Big-IP user account.`)
 	bigipPassword = flags.String("bigip-password", "",
 		`Required, password for the Big-IP user account.`)
-	bigipPartition = flags.String("bigip-partition", "velcro",
-		`Optional, partition for the Big-IP velcro objects.`)
+	bigipPartitions = flags.StringArray("bigip-partition", []string{},
+		`Required, partition(s) for the Big-IP kubernetes objects.`)
 	pythonBaseDir = flags.String("python-basedir", "/app/python",
 		`Optional, directory location of python utilities`)
 	useNodeInternal = flags.Bool("use-node-internal", true,
@@ -55,7 +56,7 @@ func initLogger() {
 	log.SetLogLevel(log.LL_DEBUG)
 }
 
-func createDriverCmd(bigipUsername, bigipPassword, bigipUrl, bigipPartition,
+func createDriverCmd(bigipPartitions []string, bigipUsername, bigipPassword, bigipUrl,
 	verifyInterval, pyCmd string) *exec.Cmd {
 	cmdName := "python"
 
@@ -66,7 +67,7 @@ func createDriverCmd(bigipUsername, bigipPassword, bigipUrl, bigipPartition,
 		"--hostname", bigipUrl,
 		"--config-file", virtualServer.OutputFilename,
 		"--verify-interval", verifyInterval,
-		bigipPartition}
+		strings.Join(bigipPartitions, " ")}
 
 	cmd := exec.Command(cmdName, cmdArgs...)
 
@@ -118,21 +119,16 @@ func runBigIpDriver(pid chan<- int, cmd *exec.Cmd) {
 func main() {
 	initLogger()
 	flags.Parse(os.Args)
-	if len(*bigipUrl) == 0 {
-		log.Fatalf("The Big-IP URL is required")
-	}
-	if len(*bigipUsername) == 0 {
-		log.Fatalf("The Big-IP user name is required")
-	}
-	if len(*bigipPassword) == 0 {
-		log.Fatalf("The Big-IP password is required")
+	if len(*bigipUrl) == 0 || len(*bigipUsername) == 0 ||
+		len(*bigipPassword) == 0 || len(*bigipPartitions) == 0 {
+		log.Fatalf("Usage of %s: \n%s", os.Args[0], flags.FlagUsages())
 	}
 	verify := strconv.Itoa(*verifyInterval)
 
 	subPidCh := make(chan int)
 	pyCmd := fmt.Sprintf("%s/bigipconfigdriver.py", *pythonBaseDir)
-	cmd := createDriverCmd(*bigipUsername, *bigipPassword, *bigipUrl,
-		*bigipPartition, verify, pyCmd)
+	cmd := createDriverCmd(*bigipPartitions, *bigipUsername, *bigipPassword, *bigipUrl,
+		verify, pyCmd)
 	go runBigIpDriver(subPidCh, cmd)
 	subPid := <-subPidCh
 	defer func(pid int) {

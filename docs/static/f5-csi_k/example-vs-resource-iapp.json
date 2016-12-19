@@ -5,7 +5,7 @@
       "servicePort": 80
     },
     "frontend": {
-      "partition": "velcro",
+      "partition": "kubernetes",
       "iapp": "/Common/f5.http",
       "iappTableName": "pool__members",
       "iappOptions": {

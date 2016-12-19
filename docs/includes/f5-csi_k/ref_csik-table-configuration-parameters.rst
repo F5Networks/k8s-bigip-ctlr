@@ -5,8 +5,8 @@
       - Description
       - Default Setting
     * - ``--bigip-partition``
-      - partition to configure BIG-IP objects in
-      - velcro
+      - partition(s) to configure BIG-IP objects in
+      - N/A
     * - ``--bigip-password``
       - admin password for the BIG-IP
       - N/A

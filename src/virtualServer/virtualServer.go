@@ -94,6 +94,7 @@ var schemaLocal string = "file:///app/vendor/src/velcro/schemas/"
 type serviceKey struct {
 	ServiceName string
 	ServicePort int32
+	Namespace   string
 }
 
 // Map of Virtual Server configs
@@ -109,6 +110,12 @@ var oldNodes []string
 // FIXME: Simple synchronization for now, it remains to be determined if we'll
 // need something more complicated (channels, etc?)
 var mutex = &sync.Mutex{}
+
+var namespace = ""
+
+func SetNamespace(ns string) {
+	namespace = ns
+}
 
 // Package init
 func init() {
@@ -245,11 +252,16 @@ func processService(
 	serviceName := svc.ObjectMeta.Name
 	updateConfig := false
 
+	if svc.ObjectMeta.Namespace != namespace {
+		log.Warningf("Recieving service updates for unwatched namespace %s", svc.ObjectMeta.Namespace)
+		return false
+	}
+
 	// Check if the service that changed is associated with a ConfigMap
 	virtualServers.Lock()
 	defer virtualServers.Unlock()
 	for _, portSpec := range svc.Spec.Ports {
-		if vs, ok := virtualServers.m[serviceKey{serviceName, portSpec.Port}]; ok {
+		if vs, ok := virtualServers.m[serviceKey{serviceName, portSpec.Port, namespace}]; ok {
 			delete(rmvdPortsMap, portSpec.Port)
 			switch changeType {
 			case eventStream.Added, eventStream.Replaced, eventStream.Updated:
@@ -265,7 +277,7 @@ func processService(
 		}
 	}
 	for p, _ := range rmvdPortsMap {
-		if vs, ok := virtualServers.m[serviceKey{serviceName, p}]; ok {
+		if vs, ok := virtualServers.m[serviceKey{serviceName, p, namespace}]; ok {
 			vs.VirtualServer.Backend.NodePort = 0
 			vs.VirtualServer.Backend.Nodes = nil
 			updateConfig = true
@@ -302,6 +314,11 @@ func processConfigMap(
 		}
 	}
 
+	if cm.ObjectMeta.Namespace != namespace {
+		log.Warningf("Recieving config map updates for unwatched namespace %s", cm.ObjectMeta.Namespace)
+		return false
+	}
+
 	// Decode the JSON data in the ConfigMap
 	cfg, err := parseVirtualServerConfig(cm)
 	if nil != err {
@@ -317,7 +334,7 @@ func processConfigMap(
 	case eventStream.Added, eventStream.Replaced, eventStream.Updated:
 		// FIXME(yacobucci) Issue #13 this shouldn't go to the API server but
 		// use the eventStream and eventStore functionality
-		svc, err := kubeClient.Core().Services("default").Get(serviceName)
+		svc, err := kubeClient.Core().Services(namespace).Get(serviceName)
 
 		if nil == err {
 			// Check if service is of type NodePort
@@ -351,27 +368,27 @@ func processConfigMap(
 		virtualServers.Lock()
 		defer virtualServers.Unlock()
 		if eventStream.Added == changeType {
-			if _, ok := virtualServers.m[serviceKey{serviceName, servicePort}]; ok {
+			if _, ok := virtualServers.m[serviceKey{serviceName, servicePort, namespace}]; ok {
 				log.Warningf(
 					"Overwriting existing entry for backend %+v - change type: %v",
-					serviceKey{serviceName, servicePort}, changeType)
+					serviceKey{serviceName, servicePort, namespace}, changeType)
 			}
 		} else if eventStream.Updated == changeType && true == backendChange {
-			if _, ok := virtualServers.m[serviceKey{serviceName, servicePort}]; ok {
+			if _, ok := virtualServers.m[serviceKey{serviceName, servicePort, namespace}]; ok {
 				log.Warningf(
 					"Overwriting existing entry for backend %+v - change type: %v",
-					serviceKey{serviceName, servicePort}, changeType)
+					serviceKey{serviceName, servicePort, namespace}, changeType)
 			}
 			delete(virtualServers.m,
 				serviceKey{oldCfg.VirtualServer.Backend.ServiceName,
-					oldCfg.VirtualServer.Backend.ServicePort})
+					oldCfg.VirtualServer.Backend.ServicePort, namespace})
 		}
-		virtualServers.m[serviceKey{serviceName, servicePort}] = cfg
+		virtualServers.m[serviceKey{serviceName, servicePort, namespace}] = cfg
 		verified = true
 	case eventStream.Deleted:
 		virtualServers.Lock()
 		defer virtualServers.Unlock()
-		delete(virtualServers.m, serviceKey{serviceName, servicePort})
+		delete(virtualServers.m, serviceKey{serviceName, servicePort, namespace})
 		verified = true
 	}
 

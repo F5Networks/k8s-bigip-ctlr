@@ -76,6 +76,18 @@ Note: if setting up a new workspace run these commands first:
    container, almost as if you ran it locally. For example, to run tests:
    ``./scripts/run-in-docker.sh make release``
 
+Running standalone
+~~~~~~~~~~~~~~~~~~
+
+Usually, the controller is deployed by Kubernetes. The example below shows how it can be run from the command-line. **This example is provided for enhanced understanding, not as a recommendation.**
+
+   .. code-block:: shell
+
+       docker run -it -d f5networks/lwp f5velcro/f5-k8s-controller --kubeconfig=./kubeconfig
+
+   The controller will create a new application in your Kubernetes cluster to be the LWP for your application.
+
+
 
 Issues
 ------
@@ -107,6 +119,3 @@ Contributor License Agreement
 `````````````````````````````
 
 Individuals or business entities who contribute to this project must have completed and submitted the `F5 Contributor License Agreement <#>`_ to <TBD>@f5.com prior to their code submission being included in this project.
-
-
-

@@ -3,13 +3,14 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDriverCmd(t *testing.T) {
@@ -104,4 +105,48 @@ func TestDriverSubProcess(t *testing.T) {
 
 	err = <-done
 	require.NoError(t, err)
+}
+
+func TestVerifyArgs(t *testing.T) {
+	os.Args = []string{
+		"./bin/f5-k8s-controller",
+		"--namespace=testing",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin"}
+
+	flags.Parse(os.Args)
+	argError := verifyArgs()
+	assert.Nil(t, argError, "there should not be an error")
+	assert.Equal(t, "testing", *namespace, "namespace flag not parsed correctly")
+	assert.Equal(t, "bigip.example.com", *bigipUrl, "bigipUrl flag not parsed correctly")
+	assert.Equal(t, "admin", *bigipUsername, "bigipUsername flag not parsed correctly")
+	assert.Equal(t, "admin", *bigipPassword, "bigipPassword flag not parsed correctly")
+	assert.Equal(t, []string{"velcro1", "velcro2"}, *bigipPartitions, "bigipPartitions flag not parsed correctly")
+	assert.Equal(t, "INFO", *logLevel, "logLevel flag not parsed correctly")
+
+	allArgs := map[string]*string{
+		"namespace":     namespace,
+		"bigipUrl":      bigipUrl,
+		"bigipUsername": bigipUsername,
+		"bigipPassword": bigipPassword,
+		"logLevel":      logLevel,
+	}
+
+	for argName, arg := range allArgs {
+		holder := *arg
+		*arg = ""
+		argError = verifyArgs()
+		assert.Error(t, argError, fmt.Sprintf("Argument %s is required, and should not allow an empty string", argName))
+		*arg = holder
+	}
+
+	// Test bigipPartitions seperatly as it's a string array
+	holder := *bigipPartitions
+	*bigipPartitions = []string{}
+	argError = verifyArgs()
+	assert.Error(t, argError, "Argument bigipPartitions is required, and should not allow an empty string")
+	*bigipPartitions = holder
 }

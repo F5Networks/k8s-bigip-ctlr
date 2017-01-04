@@ -17,7 +17,8 @@ limitations under the License.
 package eventStream
 
 import (
-	"reflect"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"k8s.io/client-go/1.4/pkg/util/sets"
@@ -35,25 +36,22 @@ func doTestStore(t *testing.T, store *EventStore) {
 	}
 
 	store.Add(mkObj("foo", "bar"))
-	if item, ok, _ := store.Get(mkObj("foo", "")); !ok {
-		t.Errorf("didn't find inserted item")
-	} else {
-		if e, a := "bar", item.(testStoreObject).val; e != a {
-			t.Errorf("expected %v, got %v", e, a)
-		}
-	}
+	item, ok, _ := store.Get(mkObj("foo", ""))
+	require.True(t, ok, "Didn't find inserted item")
+
+	e, a := "bar", item.(testStoreObject).val
+	assert.Equal(t, e, a, "Expected %v, got %v", e, a)
+
 	store.Update(mkObj("foo", "baz"))
-	if item, ok, _ := store.Get(mkObj("foo", "")); !ok {
-		t.Errorf("didn't find inserted item")
-	} else {
-		if e, a := "baz", item.(testStoreObject).val; e != a {
-			t.Errorf("expected %v, got %v", e, a)
-		}
-	}
+	item, ok, _ = store.Get(mkObj("foo", ""))
+	require.True(t, ok, "Didn't find inserted item")
+
+	e, a = "baz", item.(testStoreObject).val
+	assert.Equal(t, e, a, "Expected %v, got %v", e, a)
+
 	store.Delete(mkObj("foo", ""))
-	if _, ok, _ := store.Get(mkObj("foo", "")); ok {
-		t.Errorf("found deleted item??")
-	}
+	_, ok, _ = store.Get(mkObj("foo", ""))
+	require.False(t, ok, "Found deleted item??")
 
 	// Test List.
 	store.Add(mkObj("a", "b"))
@@ -64,12 +62,8 @@ func doTestStore(t *testing.T, store *EventStore) {
 		for _, item := range store.List() {
 			found.Insert(item.(testStoreObject).val)
 		}
-		if !found.HasAll("b", "d", "e") {
-			t.Errorf("missing items, found: %v", found)
-		}
-		if len(found) != 3 {
-			t.Errorf("extra items")
-		}
+		assert.True(t, found.HasAll("b", "d", "e"), "Missing items, found: %v", found)
+		assert.Equal(t, 3, len(found), "Extra items")
 	}
 
 	// Test Replace.
@@ -83,12 +77,8 @@ func doTestStore(t *testing.T, store *EventStore) {
 		for _, item := range store.List() {
 			found.Insert(item.(testStoreObject).val)
 		}
-		if !found.HasAll("foo", "bar") {
-			t.Errorf("missing items")
-		}
-		if len(found) != 2 {
-			t.Errorf("extra items")
-		}
+		assert.True(t, found.HasAll("foo", "bar"), "Missing items, found: %v", found)
+		assert.Equal(t, 2, len(found), "Extra items")
 	}
 }
 
@@ -111,16 +101,13 @@ func doTestIndex(t *testing.T, indexer cache.Indexer) {
 		for k, v := range expected {
 			found := sets.String{}
 			indexResults, err := indexer.Index("by_val", mkObj("", k))
-			if err != nil {
-				t.Errorf("Unexpected error %v", err)
-			}
+			assert.Nil(t, err, "Unexpected error %v", err)
 			for _, item := range indexResults {
 				found.Insert(item.(testStoreObject).id)
 			}
 			items := v.List()
-			if !found.HasAll(items...) {
-				t.Errorf("missing items, index %s, expected %v but found %v", k, items, found.List())
-			}
+			assert.True(t, found.HasAll(items...),
+				"Missing items, index %s, expected %v but found %v", k, items, found.List())
 		}
 	}
 }
@@ -163,16 +150,12 @@ func TestCacheListeners(t *testing.T) {
 	onChange := func(changeType ChangeType, obj interface{}) {
 		if Replaced != changeType {
 			_, ok := obj.(ChangedObject)
-			if !ok {
-				t.Error("updates should callback with old and new objects")
-			}
+			require.True(t, ok, "Updates should callback with old and new objects")
 		}
 		changes[changeType] += 1
 	}
 	doTestStore(t, NewEventStore(testStoreKeyFunc, onChange))
-	if !reflect.DeepEqual(expected, changes) {
-		t.Errorf("expected changes %v, but got %v", expected, changes)
-	}
+	assert.Equal(t, expected, changes, "Expected changes %v, but got %v", expected, changes)
 }
 func TestIndex(t *testing.T) {
 	doTestIndex(t, cache.NewIndexer(testStoreKeyFunc, testStoreIndexers()))

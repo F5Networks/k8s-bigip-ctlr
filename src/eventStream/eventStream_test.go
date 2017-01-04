@@ -2,6 +2,7 @@ package eventStream
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	goruntime "runtime"
 	"testing"
 	"time"
@@ -39,12 +40,8 @@ func timedChanWait(ch chan bool, timeoutSecs time.Duration) bool {
 
 func getConfigMap(t *testing.T, store *EventStore, cm *v1.ConfigMap) *v1.ConfigMap {
 	item, exists, err := store.Get(cm)
-	if err != nil {
-		t.Errorf("unable to find object in store, err=%v", err)
-	}
-	if !exists {
-		t.Errorf("expected object to exist in store")
-	}
+	require.Nil(t, err, "Unable to find object in store, err=%v", err)
+	require.True(t, exists, "Expected object to exist in store")
 	return item.(*v1.ConfigMap)
 }
 
@@ -109,14 +106,11 @@ func TestRunnerStartStop(t *testing.T) {
 	// If it is running its store will contain existingData
 	var timeoutSecs time.Duration = 3
 	ok := timedChanWait(inWatchChan, timeoutSecs)
-	if !ok {
-		t.Errorf("did not enter watch phase after %v seconds", timeoutSecs)
-	}
+	require.True(t, ok, "Did not enter watch phase after %v seconds", timeoutSecs)
+
 	// If it is running its store will contain existingData
 	cm := getConfigMap(t, eventStream.Store(), &existingData[0])
-	if cm == nil {
-		t.Errorf("unexpected nil ConfigMap from get of %+v", existingData[0])
-	}
+	require.NotNil(t, cm, "Unexpected nil ConfigMap from get of %+v", existingData[0])
 }
 
 func TestRunnerEndToEnd(t *testing.T) {
@@ -160,33 +154,27 @@ func TestRunnerEndToEnd(t *testing.T) {
 	// Make sure the goroutine is running
 	var timeoutSecs time.Duration = 3
 	ok := timedChanWait(inWatchChan, timeoutSecs)
-	if !ok {
-		t.Errorf("did not enter watch phase after %v seconds", timeoutSecs)
-	}
+	require.True(t, ok, "Did not enter watch phase after %v seconds", timeoutSecs)
 	ok = timedChanWait(inChangeChan, timeoutSecs)
-	if !ok {
-		t.Errorf("did not enter watch phase after %v seconds", timeoutSecs)
-	}
+	require.True(t, ok, "Did not enter watch phase after %v seconds", timeoutSecs)
+
 	goRoutinesAfter := goruntime.NumGoroutine()
-	if goRoutinesBefore >= goRoutinesAfter {
-		t.Errorf("expected # of goroutines to increase after calling eventStream.Run(), before %v, after %v", goRoutinesBefore, goRoutinesAfter)
-	}
+	require.Condition(t, func() bool { return goRoutinesBefore < goRoutinesAfter },
+		"Expected # of goroutines to increase after calling eventStream.Run(), before %v, after %v",
+		goRoutinesBefore, goRoutinesAfter)
 	items := eventStream.Store().List()
-	if len(existingData) != len(items) {
-		t.Errorf("expected %v items in store, but got %v", len(existingData), len(items))
-	}
+	require.Equal(t, len(existingData), len(items), "Expected %v items in store, but got %v",
+		len(existingData), len(items))
 
 	// Make sure we can add through the watcher and the store is updated
 	lenBefore := len(eventStream.Store().List())
 	fakeWatcher.Add(newConfigMap("added", "test", "24"))
 	ok = timedChanWait(inChangeChan, timeoutSecs)
-	if !ok {
-		t.Errorf("did not enter watch phase after %v seconds", timeoutSecs)
-	}
+	require.True(t, ok, "Did not enter watch phase after %v seconds", timeoutSecs)
+
 	lenAfter := len(eventStream.Store().List())
-	if lenBefore != (lenAfter - 1) {
-		t.Errorf("expected %v items in store, but got %v", lenBefore+1, lenAfter)
-	}
+	require.Equal(t, lenBefore, lenAfter-1, "Expected %v items in store, but got %v",
+		lenBefore+1, lenAfter)
 
 	// Make sure we can modify through the watcher and the store is updated
 	cm2 := getConfigMap(t, eventStream.Store(), &existingData[2])
@@ -194,26 +182,21 @@ func TestRunnerEndToEnd(t *testing.T) {
 	lenBefore = lenAfter
 	fakeWatcher.Modify(cm2)
 	ok = timedChanWait(inChangeChan, timeoutSecs)
-	if !ok {
-		t.Errorf("did not enter watch phase after %v seconds", timeoutSecs)
-	}
+	require.True(t, ok, "Did not enter watch phase after %v seconds", timeoutSecs)
+
 	lenAfter = len(eventStream.Store().List())
-	if lenBefore != lenAfter {
-		t.Errorf("expected %v items in store, but got %v", lenBefore, lenAfter)
-	}
+	require.Equal(t, lenBefore, lenAfter, "Expected %v items in store, but got %v", lenBefore, lenAfter)
 
 	// Make sure we can delete through the watcher and the store is updated
 	cm3 := getConfigMap(t, eventStream.Store(), &existingData[3])
 	fakeWatcher.Delete(cm3)
 	ok = timedChanWait(inChangeChan, timeoutSecs)
-	if !ok {
-		t.Errorf("did not enter watch phase after %v seconds", timeoutSecs)
-	}
+	require.True(t, ok, "Did not enter watch phase after %v seconds", timeoutSecs)
+
 	items = eventStream.Store().List()
 	lenAfter = len(items)
-	if lenBefore != (lenAfter + 1) {
-		t.Errorf("expected %v items in store, but got %v", lenBefore-1, lenAfter)
-	}
+	require.Equal(t, lenBefore, lenAfter+1, "Expected %v items in store, but got %v",
+		lenBefore-1, lenAfter)
 }
 
 func TestRunnerResourceVersionHandling(t *testing.T) {
@@ -250,31 +233,25 @@ func TestRunnerResourceVersionHandling(t *testing.T) {
 
 	var timeoutSecs time.Duration = 3
 	ok := timedChanWait(inWatchChan, timeoutSecs)
-	if !ok {
-		t.Errorf("did not enter watch phase after %v seconds", timeoutSecs)
-	}
+	require.True(t, ok, "Did not enter watch phase after %v seconds", timeoutSecs)
+
 	// The keys are all the same in existingData, make sure we have only one
 	// item in the eventStore and that it is the latest one (highest version)
 	items := eventStream.Store().List()
-	if len(items) != 1 {
-		t.Errorf("expected 1 item in store, but got %v", len(items))
-	}
+	require.Equal(t, 1, len(items), "Expected 1 item in store, but got %v", len(items))
+
 	cm := getConfigMap(t, eventStream.Store(), &existingData[4])
-	if cm == nil {
-		t.Errorf("unexpected nil ConfigMap from get of %+v", existingData[4])
-	}
+	require.NotNil(t, cm, "Unexpected nil ConfigMap from get of %+v", existingData[4])
 }
 
 func TestNewConfigMapEventStream(t *testing.T) {
 	namespace := "testns"
 	eventStream := NewConfigMapEventStream(&fake.FakeCore{}, namespace, 0, nil, nil, nil)
-	if eventStream == nil {
-		t.Errorf("unexpected nil eventStream")
-	}
+	require.NotNil(t, eventStream, "Unexpected nil eventStream")
+
 	eventStore := eventStream.Store()
-	if eventStore == nil {
-		t.Errorf("unexpected nil eventStore")
-	}
+	require.NotNil(t, eventStore, "Unexpected nil eventStore")
+
 	existingData := []v1.ConfigMap{
 		*newConfigMap("configmap0", namespace, "0"),
 		*newConfigMap("configmap1", namespace, "1"),
@@ -289,21 +266,18 @@ func TestNewConfigMapEventStream(t *testing.T) {
 		}
 	}
 	items := eventStore.List()
-	if len(existingData) != len(items) {
-		t.Errorf("expected %v items in store, but got %v", len(existingData), len(items))
-	}
+	require.Equal(t, len(existingData), len(items), "Expected %v items in store, but got %v",
+		len(existingData), len(items))
 }
 
 func TestNewServiceEventStream(t *testing.T) {
 	namespace := "testns"
 	eventStream := NewServiceEventStream(&fake.FakeCore{}, namespace, 0, nil, nil, nil)
-	if eventStream == nil {
-		t.Errorf("unexpected nil eventStream")
-	}
+	require.NotNil(t, eventStream, "Unexpected nil eventStream")
+
 	eventStore := eventStream.Store()
-	if eventStore == nil {
-		t.Errorf("unexpected nil eventStore")
-	}
+	require.NotNil(t, eventStore, "Unexpected nil eventStore")
+
 	existingData := []v1.Service{
 		*newService("service0", namespace, "0"),
 		*newService("service1", namespace, "1"),
@@ -313,12 +287,9 @@ func TestNewServiceEventStream(t *testing.T) {
 	}
 	for _, item := range existingData {
 		err := eventStore.Add(&item)
-		if err != nil {
-			t.Errorf("eventStore.Add() failed, err=%v", err)
-		}
+		require.Nil(t, err, "eventStore.Add() failed, err=%v", err)
 	}
 	items := eventStore.List()
-	if len(existingData) != len(items) {
-		t.Errorf("expected %v items in store, but got %v", len(existingData), len(items))
-	}
+	require.Equal(t, len(existingData), len(items), "Expected %v items in store, but got %v",
+		len(existingData), len(items))
 }

@@ -48,16 +48,25 @@ var (
 		`Optional, provide kubernetes InternalIP addresses to pool`)
 	verifyInterval = flags.Int("verify-interval", 30,
 		`Optional, interval at which to verify the BIG-IP configuration.`)
+	logLevel = flags.String("log-level", "INFO",
+		`Optional, logging level`)
 )
 
-func initLogger() {
+func initLogger(logLevel string) error {
 	log.RegisterLogger(
 		log.LL_MIN_LEVEL, log.LL_MAX_LEVEL, clog.NewConsoleLogger())
-	log.SetLogLevel(log.LL_DEBUG)
+
+	if ll := log.NewLogLevel(logLevel); nil != ll {
+		log.SetLogLevel(*ll)
+	} else {
+		return fmt.Errorf("Unknown log level requested: %s\n"+
+			"    Valid log levels are: DEBUG, INFO, WARNING, ERROR, CRITICAL", logLevel)
+	}
+	return nil
 }
 
 func createDriverCmd(bigipPartitions []string, bigipUsername, bigipPassword, bigipUrl,
-	verifyInterval, pyCmd string) *exec.Cmd {
+	verifyInterval, logLevel, pyCmd string) *exec.Cmd {
 	cmdName := "python"
 
 	cmdArgs := []string{
@@ -67,6 +76,7 @@ func createDriverCmd(bigipPartitions []string, bigipUsername, bigipPassword, big
 		"--hostname", bigipUrl,
 		"--config-file", virtualServer.OutputFilename,
 		"--verify-interval", verifyInterval,
+		"--log-level", logLevel,
 		strings.Join(bigipPartitions, " ")}
 
 	cmd := exec.Command(cmdName, cmdArgs...)
@@ -117,8 +127,12 @@ func runBigIpDriver(pid chan<- int, cmd *exec.Cmd) {
 }
 
 func main() {
-	initLogger()
 	flags.Parse(os.Args)
+	*logLevel = strings.ToUpper(*logLevel)
+	logErr := initLogger(*logLevel)
+	if nil != logErr {
+		log.Fatalf("%v", logErr)
+	}
 	if len(*bigipUrl) == 0 || len(*bigipUsername) == 0 ||
 		len(*bigipPassword) == 0 || len(*bigipPartitions) == 0 {
 		log.Fatalf("Usage of %s: \n%s", os.Args[0], flags.FlagUsages())
@@ -128,7 +142,7 @@ func main() {
 	subPidCh := make(chan int)
 	pyCmd := fmt.Sprintf("%s/bigipconfigdriver.py", *pythonBaseDir)
 	cmd := createDriverCmd(*bigipPartitions, *bigipUsername, *bigipPassword, *bigipUrl,
-		verify, pyCmd)
+		verify, *logLevel, pyCmd)
 	go runBigIpDriver(subPidCh, cmd)
 	subPid := <-subPidCh
 	defer func(pid int) {

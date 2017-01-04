@@ -34,7 +34,6 @@ console.setFormatter(
     logging.Formatter("[%(asctime)s %(name)s %(levelname)s] %(message)s"))
 root_logger = logging.getLogger()
 root_logger.addHandler(console)
-root_logger.setLevel(logging.INFO)
 
 
 class IntervalTimerError(Exception):
@@ -341,12 +340,6 @@ class ConfigWatcher(pyinotify.ProcessEvent):
 def _handle_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-v',
-        '--verbose',
-        default=False,
-        action="store_true",
-        help='Output verbose debug message')
-    parser.add_argument(
             '--username',
             type=str,
             required=True,
@@ -372,6 +365,11 @@ def _handle_args():
             default=30,
             help='Interval to checkpoint BigIp configuration')
     parser.add_argument(
+            '--log-level',
+            type=str,
+            default='INFO',
+            help='Logging level')
+    parser.add_argument(
             'partitions', metavar='partition', type=str, nargs='+',
             help='List of BigIp partitions available to the controller')
     args = parser.parse_args()
@@ -389,8 +387,8 @@ def main():
     try:
         args = _handle_args()
 
-        if args.verbose:
-            root_logger.setLevel(logging.DEBUG)
+        level = logging.getLevelName(args.log_level.upper())
+        root_logger.setLevel(level)
 
         bigip = CloudBigIP('kubernetes', args.hostname, args.username,
                            args.password, args.partitions)
@@ -402,7 +400,7 @@ def main():
         watcher = ConfigWatcher(args.config_file, bigip, handler.notify_reset)
         watcher.loop()
         handler.stop()
-    except BigipWatcherError, err:
+    except (ValueError, BigipWatcherError), err:
         log.error(err)
         sys.exit(1)
 

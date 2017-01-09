@@ -85,19 +85,9 @@ devel-image:
 	rm scripts/devel-image/k8s-requirements.txt
 	rm scripts/devel-image/f5mlb-requirements.txt
 
-doc-preview: doc-preview-standalone doc-preview-combined
 
 # Build docs standalone from this repo
-doc-preview-standalone:
+doc-preview:
 	./scripts/run-in-docker.sh make -C docs html
 	@echo "To view docs:"
 	@echo "open docs/_build/html/README.html"
-
-# Build docs from the top-level repo (github.com/f5-ci-docs)
-doc-preview-combined:
-	[ -d f5-ci-docs ] || git clone -b gitlab-ci git@github.com:F5Networks/f5-ci-docs.git
-	./scripts/merge-docs.sh f5-ci-docs
-	./scripts/run-in-docker.sh make -C f5-ci-docs/docs html
-	@echo "To view docs:"
-	@echo "open f5-ci-docs/docs/_build/html/index.html"
-

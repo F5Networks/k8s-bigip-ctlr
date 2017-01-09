@@ -34,3 +34,6 @@
     * - ``--verify-interval``
       - interval at which to verify the BIG-IP configuration
       - 30 (seconds)
+    * - ``--log-level``
+      - Logging level: INFO, DEBUG, CRITICAL, WARNING, or ERROR
+      - INFO

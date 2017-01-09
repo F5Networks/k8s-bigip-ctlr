@@ -71,12 +71,13 @@ class MockEventHandler():
 
 
 def test_handleargs_noargs(capsys):
-    expected = ("usage: bigipconfigdriver.py [-h] [-v] --username USERNAME "
+    expected = ("usage: bigipconfigdriver.py [-h] --username USERNAME "
                 "--password PASSWORD\n"
                 "                            --hostname HOSTNAME "
                 "--config-file CONFIG_FILE\n"
                 "                            [--verify-interval "
                 "VERIFY_INTERVAL]\n"
+                "                            [--log-level LOG_LEVEL]\n"
                 "                            partition [partition ...]\n"
                 "bigipconfigdriver.py: error: too few arguments\n")
 
@@ -109,23 +110,6 @@ def test_handleargs_expected():
     args = bigipconfigdriver._handle_args()
 
     assert args.config_file == '/tmp/file'
-    assert args.verbose is False
-    assert args.username == 'booch'
-    assert args.password == 'unbreakable'
-    assert args.hostname == 'bigip.example.com'
-    assert args.verify_interval == 30
-    assert args.partitions == _args_positional
-
-
-def test_handleargs_verbose():
-    sys.argv[0:] = _args_app_name
-    sys.argv.extend(['-v'])
-    sys.argv.extend(_args_full)
-
-    args = bigipconfigdriver._handle_args()
-
-    assert args.config_file == '/tmp/file'
-    assert args.verbose is True
     assert args.username == 'booch'
     assert args.password == 'unbreakable'
     assert args.hostname == 'bigip.example.com'
@@ -135,17 +119,17 @@ def test_handleargs_verbose():
 
 def test_handleargs_optional():
     sys.argv[0:] = _args_app_name
-    sys.argv.extend(['--verify-interval', '1'])
+    sys.argv.extend(['--verify-interval', '1', '--log-level', 'INFO'])
     sys.argv.extend(_args_full)
 
     args = bigipconfigdriver._handle_args()
 
     assert args.config_file == '/tmp/file'
-    assert args.verbose is False
     assert args.username == 'booch'
     assert args.password == 'unbreakable'
     assert args.hostname == 'bigip.example.com'
     assert args.verify_interval == 1
+    assert args.log_level == 'INFO'
     assert args.partitions == _args_positional
 
 

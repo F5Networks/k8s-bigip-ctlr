@@ -1,21 +1,19 @@
-F5 Container Service Integrator for Kubernetes
-==============================================
+f5-k8s-controller
+=================
 
-Introduction
-------------
 
-The F5® Container Service Integrator (CSI) provides an integration for the `Kubernetes <http://kubernetes.io/>`_ orchestration environment that makes L4-L7 services available to users deploying miscroservices-based applications in a containerized infrastructure.
+The F5 Container Connector (CC) for `Kubernetes <http://kubernetes.io/>`_ -- f5-k8s-controller -- makes F5 BIG-IP L4-L7 services available to microservices-based applications running in Kubernetes.
 
 Releases and Compatibility
 --------------------------
 
-See the F5 Container Service Integrator `Releases, Versioning, and Support Matrix <#>`_.
+See the `Releases, Versioning, and Support Matrix <#blah.f5.com/support-matrix>`_.
 
 Documentation
 -------------
 
-Please refer to the `project documentation <docs/README.rst>`_ for configuration instructions.
-
+- `Project documentation <docs/README.rst>`_.
+- User guides, demos, and more are available at `blah.f5.com <#>`_.
 
 For Developers
 --------------
@@ -23,7 +21,7 @@ For Developers
 Project Setup
 `````````````
 
-Gitlab F5® CSI project:
+Gitlab F5 CC project:
 git@bldr-git.int.lineratesystems.com:velcro/f5-k8s-controller.git
 
 Vagrant environment
@@ -31,7 +29,7 @@ Vagrant environment
 
 .. code-block:: bash
 
-    $ git clone [gitlab F5® CSI project]
+    $ git clone [gitlab F5 CC project]
     $ cd f5-k8s-controller
     $ vagrant up
     $ vagrant ssh
@@ -52,7 +50,7 @@ Manual environment setup
         $GOPATH/src/github.com/constabulary/gb
     $ git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
     $ go install -v github.com/constabulary/gb/...
-    $ git clone [gitlab F5® CSI project]
+    $ git clone [gitlab F5 CC project]
     $ cd f5-k8s-controller
     $ git submodule update --init
     # Install python requirements using sudo or create a virtualenv workspace.
@@ -67,7 +65,7 @@ Note: if setting up a new workspace run these commands first:
 
 .. code-block:: bash
 
-    $ git clone [gitlab F5® CSI project]
+    $ git clone [gitlab F5 CC project]
     $ cd f5-k8s-controller
     $ git submodule update --init
 
@@ -87,23 +85,18 @@ To report an issue or suggest an enhancement, please open an `Issue <https://bld
 Configuration
 -------------
 
-See the Project documentation on `Read the Docs <https://f5-networks-f5-ci-docs.readthedocs-hosted.com>`_.
+See `docs/README.rst`_.
 
 
 Copyright
 ---------
 
-Copyright 2015-2016, F5 Networks Inc.
+Copyright 2015-2017, F5 Networks Inc.
 
 Support
 -------
 
 See `Support <SUPPORT.md>`_.
-
-Contact
--------
-
-coming soon!
 
 
 License

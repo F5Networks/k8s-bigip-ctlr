@@ -115,28 +115,4 @@ dockerize:
   tags:
     - docker-build
 
-# Push changes to the f5-ci-docs GitHub repo on successful builds
-github_update:
- stage: deploy
- only:
- - master@velcro/f5-k8s-controller
- script:
- # Run ssh-agent (inside the build environment)
- - eval $(ssh-agent -s)
- # Add the SSH key stored in GITHUB_DOCS_SSH_PRIVATE_KEY variable to the agent store
- - ssh-add <(echo "$GITHUB_DOCS_SSH_PRIVATE_KEY")
- - echo 'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $*' > /tmp/ssh
- - chmod a+x /tmp/ssh
- - export GIT_SSH=/tmp/ssh
- # Clone f5-ci-docs from GitHub and merge docs into it
- - git clone -b gitlab-ci git@github.com:F5Networks/f5-ci-docs.git
- - ./scripts/merge-docs.sh f5-ci-docs
- - cd f5-ci-docs
- - git config user.email "gitlab-runner@gitlab-shared-runner-01.com"
- - git config user.name "gitlab-runner"
- - if git commit -m "changes pushed to GitHub by gitlab-ci for f5-k8s-controller, commit {$CI_BUILD_REF}, build ID {$CI_BUILD_ID}"; then
- -   git push origin gitlab-ci
- - else
- # Git commit will fail if there are no changes to commit
- -   echo "No doc changes to publish"
- - fi
+

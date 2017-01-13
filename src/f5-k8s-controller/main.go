@@ -31,9 +31,9 @@ var (
 		`Optional, if this controller is running in a kubernetes cluster, use the
 		 pod secrets for creating a Kubernetes client.`)
 	kubeConfig = flags.String("kubeconfig", "./config",
-		"Optional, absolute path to the kubeconfig file")
-	namespace = flags.String("namespace", "default",
-		"Optional, Kubernetes namespace to watch")
+		`Optional, absolute path to the kubeconfig file`)
+	namespace = flags.String("namespace", "",
+		`Required, Kubernetes namespace to watch`)
 	bigipUrl = flags.String("bigip-url", "",
 		`Required, URL for the Big-IP`)
 	bigipUsername = flags.String("bigip-username", "",
@@ -126,17 +126,29 @@ func runBigIpDriver(pid chan<- int, cmd *exec.Cmd) {
 	}
 }
 
-func main() {
-	flags.Parse(os.Args)
+func verifyArgs() error {
 	*logLevel = strings.ToUpper(*logLevel)
 	logErr := initLogger(*logLevel)
 	if nil != logErr {
-		log.Fatalf("%v", logErr)
+		return fmt.Errorf("%v", logErr)
 	}
-	if len(*bigipUrl) == 0 || len(*bigipUsername) == 0 ||
-		len(*bigipPassword) == 0 || len(*bigipPartitions) == 0 {
-		log.Fatalf("Usage of %s: \n%s", os.Args[0], flags.FlagUsages())
+
+	if len(*bigipUrl) == 0 || len(*bigipUsername) == 0 || len(*bigipPassword) == 0 ||
+		len(*bigipPartitions) == 0 || len(*namespace) == 0 {
+		return fmt.Errorf("Usage of %s: \n%s", os.Args[0], flags.FlagUsages())
 	}
+	return nil
+}
+
+func main() {
+	flags.Parse(os.Args)
+	argError := verifyArgs()
+	if nil != argError {
+		log.Fatalf("%v", argError)
+	}
+
+	virtualServer.SetNamespace(*namespace)
+
 	verify := strconv.Itoa(*verifyInterval)
 
 	subPidCh := make(chan int)

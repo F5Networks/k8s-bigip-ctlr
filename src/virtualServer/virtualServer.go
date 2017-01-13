@@ -176,7 +176,9 @@ func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 func ProcessServiceUpdate(
 	kubeClient kubernetes.Interface,
 	changeType eventStream.ChangeType,
-	obj interface{}) {
+	obj interface{},
+	isNodePort bool,
+	endptStore *eventStream.EventStore) {
 
 	updated := false
 
@@ -184,11 +186,11 @@ func ProcessServiceUpdate(
 		v := obj.([]interface{})
 		log.Debugf("ProcessServiceUpdate (%v) for %v Services", changeType, len(v))
 		for _, item := range v {
-			updated = processService(kubeClient, changeType, item) || updated
+			updated = processService(kubeClient, changeType, item, isNodePort, endptStore) || updated
 		}
 	} else {
 		log.Debugf("ProcessServiceUpdate (%v) for 1 Service", changeType)
-		updated = processService(kubeClient, changeType, obj) || updated
+		updated = processService(kubeClient, changeType, obj, isNodePort, endptStore) || updated
 	}
 
 	if updated {
@@ -201,7 +203,9 @@ func ProcessServiceUpdate(
 func ProcessConfigMapUpdate(
 	kubeClient kubernetes.Interface,
 	changeType eventStream.ChangeType,
-	obj interface{}) {
+	obj interface{},
+	isNodePort bool,
+	endptStore *eventStream.EventStore) {
 
 	updated := false
 
@@ -209,11 +213,11 @@ func ProcessConfigMapUpdate(
 		v := obj.([]interface{})
 		for _, item := range v {
 			log.Debugf("ProcessConfigMapUpdate (%v) for %v ConfigMaps", changeType, len(v))
-			updated = processConfigMap(kubeClient, changeType, item) || updated
+			updated = processConfigMap(kubeClient, changeType, item, isNodePort, endptStore) || updated
 		}
 	} else {
 		log.Debugf("ProcessConfigMapUpdate (%v) for 1 ConfigMap", changeType)
-		updated = processConfigMap(kubeClient, changeType, obj) || updated
+		updated = processConfigMap(kubeClient, changeType, obj, isNodePort, endptStore) || updated
 	}
 
 	if updated {
@@ -222,11 +226,60 @@ func ProcessConfigMapUpdate(
 	}
 }
 
+func ProcessEndpointsUpdate(
+	kubeClient kubernetes.Interface,
+	changeType eventStream.ChangeType,
+	obj interface{},
+	serviceStore *eventStream.EventStore) {
+
+	updated := false
+
+	if changeType == eventStream.Replaced {
+		v := obj.([]interface{})
+		log.Debugf("ProcessEndpointsUpdate (%v) for %v Pod", changeType, len(v))
+		for _, item := range v {
+			updated = processEndpoints(kubeClient, changeType, item, serviceStore) || updated
+		}
+	} else {
+		log.Debugf("ProcessEndpointsUpdate (%v) for 1 Pod", changeType)
+		updated = processEndpoints(kubeClient, changeType, obj, serviceStore) || updated
+	}
+
+	if updated {
+		// Output the Big-IP config
+		outputConfig()
+	}
+}
+
+func getEndpointsForService(
+	targetPort int32, eps *v1.Endpoints) (int32, []string) {
+	var ips []string
+	var port int32
+	for _, subset := range eps.Subsets {
+		for _, port := range subset.Ports {
+			if targetPort == port.Port {
+				for _, addr := range subset.Addresses {
+					ips = append(ips, addr.IP)
+				}
+			}
+		}
+	}
+	if 0 == len(ips) {
+		port = 0
+	} else {
+		port = targetPort
+		sort.Strings(ips)
+	}
+	return port, ips
+}
+
 // Process a change in Service state
 func processService(
 	kubeClient kubernetes.Interface,
 	changeType eventStream.ChangeType,
-	obj interface{}) bool {
+	obj interface{},
+	isNodePort bool,
+	endptStore *eventStream.EventStore) bool {
 
 	var svc *v1.Service
 	rmvdPortsMap := make(map[int32]*struct{})
@@ -265,9 +318,21 @@ func processService(
 			delete(rmvdPortsMap, portSpec.Port)
 			switch changeType {
 			case eventStream.Added, eventStream.Replaced, eventStream.Updated:
-				if svc.Spec.Type == v1.ServiceTypeNodePort {
-					vs.VirtualServer.Backend.NodePort = portSpec.NodePort
-					vs.VirtualServer.Backend.Nodes = getNodesFromCache()
+				if isNodePort {
+					if svc.Spec.Type == v1.ServiceTypeNodePort {
+						vs.VirtualServer.Backend.NodePort = portSpec.NodePort
+						vs.VirtualServer.Backend.Nodes = getNodesFromCache()
+					}
+				} else {
+					if svc.Spec.Type == v1.ServiceTypeClusterIP {
+						item, _, _ := endptStore.GetByKey(namespace + "/" + serviceName)
+						if nil != item {
+							eps := item.(*v1.Endpoints)
+							vs.VirtualServer.Backend.NodePort,
+								vs.VirtualServer.Backend.Nodes =
+								getEndpointsForService(vs.VirtualServer.Backend.ServicePort, eps)
+						}
+					}
 				}
 			case eventStream.Deleted:
 				vs.VirtualServer.Backend.NodePort = 0
@@ -291,7 +356,9 @@ func processService(
 func processConfigMap(
 	kubeClient kubernetes.Interface,
 	changeType eventStream.ChangeType,
-	obj interface{}) bool {
+	obj interface{},
+	isNodePort bool,
+	endptStore *eventStream.EventStore) bool {
 
 	var cfg *VirtualServerConfig
 
@@ -338,11 +405,23 @@ func processConfigMap(
 
 		if nil == err {
 			// Check if service is of type NodePort
-			if svc.Spec.Type == v1.ServiceTypeNodePort {
-				for _, portSpec := range svc.Spec.Ports {
-					if portSpec.Port == servicePort {
-						cfg.VirtualServer.Backend.NodePort = portSpec.NodePort
-						cfg.VirtualServer.Backend.Nodes = getNodesFromCache()
+			if isNodePort {
+				if svc.Spec.Type == v1.ServiceTypeNodePort {
+					for _, portSpec := range svc.Spec.Ports {
+						if portSpec.Port == servicePort {
+							cfg.VirtualServer.Backend.NodePort = portSpec.NodePort
+							cfg.VirtualServer.Backend.Nodes = getNodesFromCache()
+						}
+					}
+				}
+			} else {
+				if svc.Spec.Type == v1.ServiceTypeClusterIP {
+					item, _, _ := endptStore.GetByKey(namespace + "/" + serviceName)
+					if nil != item {
+						eps := item.(*v1.Endpoints)
+						cfg.VirtualServer.Backend.NodePort,
+							cfg.VirtualServer.Backend.Nodes =
+							getEndpointsForService(servicePort, eps)
 					}
 				}
 			}
@@ -393,6 +472,60 @@ func processConfigMap(
 	}
 
 	return verified
+}
+
+func processEndpoints(
+	kubeClient kubernetes.Interface,
+	changeType eventStream.ChangeType,
+	obj interface{},
+	serviceStore *eventStream.EventStore) bool {
+
+	var eps *v1.Endpoints
+	o, ok := obj.(eventStream.ChangedObject)
+	if !ok {
+		eps = obj.(*v1.Endpoints)
+	} else {
+		switch changeType {
+		case eventStream.Added, eventStream.Updated, eventStream.Replaced:
+			eps = o.New.(*v1.Endpoints)
+		case eventStream.Deleted:
+			eps = o.Old.(*v1.Endpoints)
+		}
+	}
+
+	serviceName := eps.ObjectMeta.Name
+	namespace := eps.ObjectMeta.Namespace
+	item, _, _ := serviceStore.GetByKey(namespace + "/" + serviceName)
+	if nil == item {
+		// Service not found
+		return false
+	}
+
+	virtualServers.Lock()
+	defer virtualServers.Unlock()
+
+	updateConfig := false
+	for key, vs := range virtualServers.m {
+		if key.ServiceName == serviceName && key.Namespace == namespace {
+			switch changeType {
+			case eventStream.Added, eventStream.Updated, eventStream.Replaced:
+				port, ips := getEndpointsForService(
+					vs.VirtualServer.Backend.ServicePort, eps)
+				if port != vs.VirtualServer.Backend.NodePort ||
+					!reflect.DeepEqual(ips, vs.VirtualServer.Backend.Nodes) {
+					vs.VirtualServer.Backend.Nodes = ips
+					vs.VirtualServer.Backend.NodePort = port
+					updateConfig = true
+				}
+			case eventStream.Deleted:
+				vs.VirtualServer.Backend.Nodes = nil
+				vs.VirtualServer.Backend.NodePort = 0
+				updateConfig = true
+			}
+		}
+	}
+
+	return updateConfig
 }
 
 // Check for a change in Node state

@@ -51,6 +51,9 @@ var (
 		`Optional, interval at which to verify the BIG-IP configuration.`)
 	logLevel = flags.String("log-level", "INFO",
 		`Optional, logging level`)
+	poolMemberType = flags.String("pool-member-type", "nodeport",
+		`Optional, type of k8s objects to add too pools, can be 'nodeport'
+		 or 'cluster'.`)
 )
 
 func initLogger(logLevel string) error {
@@ -135,7 +138,7 @@ func verifyArgs() error {
 	}
 
 	if len(*bigipUrl) == 0 || len(*bigipUsername) == 0 || len(*bigipPassword) == 0 ||
-		len(*bigipPartitions) == 0 || len(*namespace) == 0 {
+		len(*bigipPartitions) == 0 || len(*namespace) == 0 || len(*poolMemberType) == 0 {
 		return fmt.Errorf("Usage of %s: \n%s", os.Args[0], flags.FlagUsages())
 	}
 
@@ -170,6 +173,15 @@ func main() {
 	}
 
 	virtualServer.SetNamespace(*namespace)
+
+	var isNodePort bool
+	if *poolMemberType == "nodeport" {
+		isNodePort = true
+	} else if *poolMemberType == "cluster" {
+		isNodePort = false
+	} else {
+		log.Fatalf("'%v' is not a valid Pool Member Type", *poolMemberType)
+	}
 
 	verify := strconv.Itoa(*verifyInterval)
 
@@ -213,27 +225,43 @@ func main() {
 		log.Fatalf("failed to create client: %v", err)
 	}
 
-	// Initialize the Node cache
-	virtualServer.ProcessNodeUpdate(kubeClient, *useNodeInternal)
+	if isNodePort {
+		// Initialize the Node cache
+		virtualServer.ProcessNodeUpdate(kubeClient, *useNodeInternal)
+	}
+
+	var endptEventStream *eventStream.EventStream
 
 	onServiceChange := func(changeType eventStream.ChangeType, obj interface{}) {
-		virtualServer.ProcessServiceUpdate(kubeClient, changeType, obj)
+		virtualServer.ProcessServiceUpdate(kubeClient, changeType, obj, isNodePort, endptEventStream.Store())
 	}
 	serviceEventStream := eventStream.NewServiceEventStream(kubeClient.Core(), *namespace, 5, onServiceChange, nil, nil)
 	serviceEventStream.Run()
 	defer serviceEventStream.Stop()
 
 	onConfigMapChange := func(changeType eventStream.ChangeType, obj interface{}) {
-		virtualServer.ProcessConfigMapUpdate(kubeClient, changeType, obj)
+		virtualServer.ProcessConfigMapUpdate(kubeClient, changeType, obj, isNodePort, endptEventStream.Store())
 	}
 	configMapEventStream := eventStream.NewConfigMapEventStream(kubeClient.Core(), *namespace, 5, onConfigMapChange, nil, nil)
+
+	onEpChange := func(changeType eventStream.ChangeType, obj interface{}) {
+		if !isNodePort {
+			virtualServer.ProcessEndpointsUpdate(kubeClient, changeType, obj, serviceEventStream.Store())
+		}
+	}
+	endptEventStream = eventStream.NewEndpointsEventStream(kubeClient.Core(), *namespace, 5, onEpChange, nil, nil)
+	endptEventStream.Run()
+	defer endptEventStream.Stop()
+
 	configMapEventStream.Run()
 	defer configMapEventStream.Stop()
 
 	for {
 		time.Sleep(30 * time.Second)
 
-		// Poll for node changes
-		virtualServer.ProcessNodeUpdate(kubeClient, *useNodeInternal)
+		if isNodePort {
+			// Poll for node changes
+			virtualServer.ProcessNodeUpdate(kubeClient, *useNodeInternal)
+		}
 	}
 }

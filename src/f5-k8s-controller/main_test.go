@@ -17,7 +17,7 @@ func TestDriverCmd(t *testing.T) {
 	username := "admin"
 	password := "test"
 	partitions := []string{"velcro1", "velcro2"}
-	url := "bigip.example.com"
+	url := "https://bigip.example.com"
 	verify := "30"
 	log := "INFO"
 	pyDriver := "/tmp/some-dir/test-driver.py"
@@ -39,7 +39,7 @@ func TestDriverCmd(t *testing.T) {
 		pyDriver,
 		"--username", username,
 		"--password", password,
-		"--hostname", url,
+		"--url", url,
 		"--config-file", configFile,
 		"--verify-interval", "30",
 		"--log-level", log,
@@ -53,7 +53,7 @@ func TestDriverSubProcess(t *testing.T) {
 	username := "admin"
 	password := "test"
 	partitions := []string{"velcro1", "velcro2"}
-	url := "bigip.example.com"
+	url := "https://bigip.example.com"
 	verify := "30"
 	log := "INFO"
 	pyDriver := "./test/pyTest.py"
@@ -121,12 +121,24 @@ func TestVerifyArgs(t *testing.T) {
 	argError := verifyArgs()
 	assert.Nil(t, argError, "there should not be an error")
 	assert.Equal(t, "testing", *namespace, "namespace flag not parsed correctly")
-	assert.Equal(t, "bigip.example.com", *bigipUrl, "bigipUrl flag not parsed correctly")
+	assert.Equal(t, "https://bigip.example.com", *bigipUrl, "bigipUrl flag not parsed correctly")
 	assert.Equal(t, "admin", *bigipUsername, "bigipUsername flag not parsed correctly")
 	assert.Equal(t, "admin", *bigipPassword, "bigipPassword flag not parsed correctly")
 	assert.Equal(t, []string{"velcro1", "velcro2"}, *bigipPartitions, "bigipPartitions flag not parsed correctly")
 	assert.Equal(t, "INFO", *logLevel, "logLevel flag not parsed correctly")
 
+	// Test url variations
+	os.Args[5] = "--bigip-url=fail://bigip.example.com"
+	flags.Parse(os.Args)
+	argError = verifyArgs()
+	assert.Error(t, argError, fmt.Sprintf("BIGIP-URL should fail with incorrect scheme 'fail://'"))
+
+	os.Args[5] = "--bigip-url=https://bigip.example.com/some/path"
+	flags.Parse(os.Args)
+	argError = verifyArgs()
+	assert.Error(t, argError, fmt.Sprintf("BIGIP-URL should fail with invalid path'"))
+
+	// Test empty required args
 	allArgs := map[string]*string{
 		"namespace":     namespace,
 		"bigipUrl":      bigipUrl,

@@ -8,6 +8,8 @@ RUN set -x && \
     git \
     m4 \
     make \
+    libssl-dev \
+    libffi-dev \
     python \
     python-dev \
     python-setuptools && \

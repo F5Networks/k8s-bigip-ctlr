@@ -26,6 +26,7 @@ import threading
 
 import pyinotify
 
+from urlparse import urlparse
 from _f5 import CloudBigIP
 
 log = logging.getLogger(__name__)
@@ -350,10 +351,10 @@ def _handle_args():
             required=True,
             help='BigIp password')
     parser.add_argument(
-            '--hostname',
+            '--url',
             type=str,
             required=True,
-            help='Hostname / IP address of BigIp')
+            help='URL / IP address of BigIp')
     parser.add_argument(
             '--config-file',
             type=str,
@@ -380,6 +381,12 @@ def _handle_args():
 
     args.config_file = os.path.realpath(args.config_file)
 
+    url = urlparse(args.url)
+    args.host = url.hostname
+    args.port = url.port
+    if not args.port:
+        args.port = 443
+
     return args
 
 
@@ -390,7 +397,7 @@ def main():
         level = logging.getLevelName(args.log_level.upper())
         root_logger.setLevel(level)
 
-        bigip = CloudBigIP('kubernetes', args.hostname, args.username,
+        bigip = CloudBigIP('kubernetes', args.host, args.port, args.username,
                            args.password, args.partitions)
 
         handler = ConfigHandler(args.config_file, bigip, args.verify_interval)

@@ -30,7 +30,7 @@ _args_app_name = ['bigipconfigdriver.py']
 _args_base = [
     '--username', 'booch',
     '--password', 'unbreakable',
-    '--hostname', 'bigip.example.com'
+    '--url', 'https://bigip.example.com'
     ]
 _args_file = ['--config-file', '/tmp/file/../.././tmp/.//file']
 _args_positional = ['partition_a', 'partition_b', 'partition_c']
@@ -72,8 +72,8 @@ class MockEventHandler():
 
 def test_handleargs_noargs(capsys):
     expected = ("usage: bigipconfigdriver.py [-h] --username USERNAME "
-                "--password PASSWORD\n"
-                "                            --hostname HOSTNAME "
+                "--password PASSWORD --url\n"
+                "                            URL "
                 "--config-file CONFIG_FILE\n"
                 "                            [--verify-interval "
                 "VERIFY_INTERVAL]\n"
@@ -112,7 +112,7 @@ def test_handleargs_expected():
     assert args.config_file == '/tmp/file'
     assert args.username == 'booch'
     assert args.password == 'unbreakable'
-    assert args.hostname == 'bigip.example.com'
+    assert args.url == 'https://bigip.example.com'
     assert args.verify_interval == 30
     assert args.partitions == _args_positional
 
@@ -127,7 +127,7 @@ def test_handleargs_optional():
     assert args.config_file == '/tmp/file'
     assert args.username == 'booch'
     assert args.password == 'unbreakable'
-    assert args.hostname == 'bigip.example.com'
+    assert args.url == 'https://bigip.example.com'
     assert args.verify_interval == 1
     assert args.log_level == 'INFO'
     assert args.partitions == _args_positional

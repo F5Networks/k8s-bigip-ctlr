@@ -9,9 +9,10 @@ COPY . $APPPATH
 
 # Install dependencies, build, and remove the dependencies.
 RUN apt-get update -y && \
-    apt-get install -y git python python-dev python-pip && \
+    apt-get install -y git python python-dev python-pip libssl-dev libffi-dev && \
     PYINOTIFY=$(grep pyinotify python/requirements.txt); \
     pip install $PYINOTIFY && \
+    pip install -U setuptools && \
     pip install -r vendor/src/velcro/f5-marathon-lb/requirements.txt && \
     go get github.com/constabulary/gb/... && \
     go install github.com/constabulary/gb && \
@@ -20,7 +21,7 @@ RUN apt-get update -y && \
     (cd python; cp --remove-destination $(readlink common.py) common.py) && \
     find . -not -name "*bin*" -not -name "*f5-k8s-controller" -not -name ".." -not -name "." -not -path "*python*" | xargs rm -rf && \
     rm -rf $GOPATH/* && \
-    apt-get remove -y git python-dev python-pip && \
+    apt-get remove -y git python-dev python-pip libssl-dev libffi-dev && \
     apt-get autoremove -y && \
     apt-get clean -y
 

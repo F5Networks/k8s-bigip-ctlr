@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
@@ -73,7 +74,7 @@ func createDriverCmd(bigipPartitions []string, bigipUsername, bigipPassword, big
 		pyCmd,
 		"--username", bigipUsername,
 		"--password", bigipPassword,
-		"--hostname", bigipUrl,
+		"--url", bigipUrl,
 		"--config-file", virtualServer.OutputFilename,
 		"--verify-interval", verifyInterval,
 		"--log-level", logLevel,
@@ -137,6 +138,27 @@ func verifyArgs() error {
 		len(*bigipPartitions) == 0 || len(*namespace) == 0 {
 		return fmt.Errorf("Usage of %s: \n%s", os.Args[0], flags.FlagUsages())
 	}
+
+	u, err := url.Parse(*bigipUrl)
+	if nil != err {
+		return fmt.Errorf("Usage of %s: \n%s\n Error parsing url: %s\n", os.Args[0], flags.FlagUsages(), err)
+	}
+
+	if len(u.Scheme) == 0 {
+		*bigipUrl = "https://" + *bigipUrl
+		u, err = url.Parse(*bigipUrl)
+	}
+
+	if u.Scheme != "https" {
+		return fmt.Errorf("Usage of %s: \n%s\n Invalid BIGIP-URL protocol: '%s' - Must be 'https'",
+			os.Args[0], flags.FlagUsages(), u.Scheme)
+	}
+
+	if len(u.Path) > 0 && u.Path != "/" {
+		return fmt.Errorf("Usage of %s: \n%s\n BIGIP-URL path must be empty or '/'; check URL formatting and/or remove %s from path",
+			os.Args[0], flags.FlagUsages(), u.Path)
+	}
+
 	return nil
 }
 

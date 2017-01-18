@@ -28,10 +28,10 @@ import (
 type VirtualServerConfig struct {
 	VirtualServer struct {
 		Backend struct {
-			ServiceName string   `json:"serviceName"`
-			ServicePort int32    `json:"servicePort"`
-			NodePort    int32    `json:"nodePort"`
-			Nodes       []string `json:"nodes"`
+			ServiceName     string   `json:"serviceName"`
+			ServicePort     int32    `json:"servicePort"`
+			PoolMemberPort  int32    `json:"poolMemberPort"`
+			PoolMemberAddrs []string `json:"poolMemberAddrs"`
 		} `json:"backend"`
 		Frontend struct {
 			// Mutual parameter, partition
@@ -252,12 +252,13 @@ func ProcessEndpointsUpdate(
 }
 
 func getEndpointsForService(
-	targetPort int32, eps *v1.Endpoints) (int32, []string) {
+	portName string, eps *v1.Endpoints) (int32, []string) {
 	var ips []string
 	var port int32
 	for _, subset := range eps.Subsets {
-		for _, port := range subset.Ports {
-			if targetPort == port.Port {
+		for _, p := range subset.Ports {
+			if portName == p.Name {
+				port = p.Port
 				for _, addr := range subset.Addresses {
 					ips = append(ips, addr.IP)
 				}
@@ -267,7 +268,6 @@ func getEndpointsForService(
 	if 0 == len(ips) {
 		port = 0
 	} else {
-		port = targetPort
 		sort.Strings(ips)
 	}
 	return port, ips
@@ -320,31 +320,29 @@ func processService(
 			case eventStream.Added, eventStream.Replaced, eventStream.Updated:
 				if isNodePort {
 					if svc.Spec.Type == v1.ServiceTypeNodePort {
-						vs.VirtualServer.Backend.NodePort = portSpec.NodePort
-						vs.VirtualServer.Backend.Nodes = getNodesFromCache()
+						vs.VirtualServer.Backend.PoolMemberPort = portSpec.NodePort
+						vs.VirtualServer.Backend.PoolMemberAddrs = getNodesFromCache()
 					}
 				} else {
-					if svc.Spec.Type == v1.ServiceTypeClusterIP {
-						item, _, _ := endptStore.GetByKey(namespace + "/" + serviceName)
-						if nil != item {
-							eps := item.(*v1.Endpoints)
-							vs.VirtualServer.Backend.NodePort,
-								vs.VirtualServer.Backend.Nodes =
-								getEndpointsForService(vs.VirtualServer.Backend.ServicePort, eps)
-						}
+					item, _, _ := endptStore.GetByKey(namespace + "/" + serviceName)
+					if nil != item {
+						eps := item.(*v1.Endpoints)
+						vs.VirtualServer.Backend.PoolMemberPort,
+							vs.VirtualServer.Backend.PoolMemberAddrs =
+							getEndpointsForService(portSpec.Name, eps)
 					}
 				}
 			case eventStream.Deleted:
-				vs.VirtualServer.Backend.NodePort = 0
-				vs.VirtualServer.Backend.Nodes = nil
+				vs.VirtualServer.Backend.PoolMemberPort = 0
+				vs.VirtualServer.Backend.PoolMemberAddrs = nil
 			}
 			updateConfig = true
 		}
 	}
 	for p, _ := range rmvdPortsMap {
 		if vs, ok := virtualServers.m[serviceKey{serviceName, p, namespace}]; ok {
-			vs.VirtualServer.Backend.NodePort = 0
-			vs.VirtualServer.Backend.Nodes = nil
+			vs.VirtualServer.Backend.PoolMemberPort = 0
+			vs.VirtualServer.Backend.PoolMemberAddrs = nil
 			updateConfig = true
 		}
 	}
@@ -409,19 +407,21 @@ func processConfigMap(
 				if svc.Spec.Type == v1.ServiceTypeNodePort {
 					for _, portSpec := range svc.Spec.Ports {
 						if portSpec.Port == servicePort {
-							cfg.VirtualServer.Backend.NodePort = portSpec.NodePort
-							cfg.VirtualServer.Backend.Nodes = getNodesFromCache()
+							cfg.VirtualServer.Backend.PoolMemberPort = portSpec.NodePort
+							cfg.VirtualServer.Backend.PoolMemberAddrs = getNodesFromCache()
 						}
 					}
 				}
 			} else {
-				if svc.Spec.Type == v1.ServiceTypeClusterIP {
-					item, _, _ := endptStore.GetByKey(namespace + "/" + serviceName)
-					if nil != item {
-						eps := item.(*v1.Endpoints)
-						cfg.VirtualServer.Backend.NodePort,
-							cfg.VirtualServer.Backend.Nodes =
-							getEndpointsForService(servicePort, eps)
+				item, _, _ := endptStore.GetByKey(namespace + "/" + serviceName)
+				if nil != item {
+					eps := item.(*v1.Endpoints)
+					for _, portSpec := range svc.Spec.Ports {
+						if portSpec.Port == servicePort {
+							cfg.VirtualServer.Backend.PoolMemberPort,
+								cfg.VirtualServer.Backend.PoolMemberAddrs =
+								getEndpointsForService(portSpec.Name, eps)
+						}
 					}
 				}
 			}
@@ -500,26 +500,26 @@ func processEndpoints(
 		// Service not found
 		return false
 	}
+	svc := item.(*v1.Service)
 
 	virtualServers.Lock()
 	defer virtualServers.Unlock()
 
 	updateConfig := false
-	for key, vs := range virtualServers.m {
-		if key.ServiceName == serviceName && key.Namespace == namespace {
+	for _, portSpec := range svc.Spec.Ports {
+		if vs, ok := virtualServers.m[serviceKey{serviceName, portSpec.Port, namespace}]; ok {
 			switch changeType {
 			case eventStream.Added, eventStream.Updated, eventStream.Replaced:
-				port, ips := getEndpointsForService(
-					vs.VirtualServer.Backend.ServicePort, eps)
-				if port != vs.VirtualServer.Backend.NodePort ||
-					!reflect.DeepEqual(ips, vs.VirtualServer.Backend.Nodes) {
-					vs.VirtualServer.Backend.Nodes = ips
-					vs.VirtualServer.Backend.NodePort = port
+				port, ips := getEndpointsForService(portSpec.Name, eps)
+				if port != vs.VirtualServer.Backend.PoolMemberPort ||
+					!reflect.DeepEqual(ips, vs.VirtualServer.Backend.PoolMemberAddrs) {
+					vs.VirtualServer.Backend.PoolMemberAddrs = ips
+					vs.VirtualServer.Backend.PoolMemberPort = port
 					updateConfig = true
 				}
 			case eventStream.Deleted:
-				vs.VirtualServer.Backend.Nodes = nil
-				vs.VirtualServer.Backend.NodePort = 0
+				vs.VirtualServer.Backend.PoolMemberAddrs = nil
+				vs.VirtualServer.Backend.PoolMemberPort = 0
 				updateConfig = true
 			}
 		}
@@ -545,7 +545,7 @@ func ProcessNodeUpdate(kubeClient kubernetes.Interface, internal bool) {
 	if !reflect.DeepEqual(newNodes, oldNodes) {
 		log.Infof("ProcessNodeUpdate: Change in Node state detected")
 		for _, vs := range virtualServers.m {
-			vs.VirtualServer.Backend.Nodes = newNodes
+			vs.VirtualServer.Backend.PoolMemberAddrs = newNodes
 		}
 		// Output the Big-IP config
 		outputConfigLocked()
@@ -575,7 +575,7 @@ func outputConfigLocked() {
 
 	// Filter the configs to only those that have active services
 	for _, vs := range virtualServers.m {
-		if vs.VirtualServer.Backend.NodePort != 0 {
+		if vs.VirtualServer.Backend.PoolMemberPort != 0 {
 			outputs.Services = append(outputs.Services, vs)
 		}
 	}

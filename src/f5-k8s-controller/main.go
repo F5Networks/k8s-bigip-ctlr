@@ -230,28 +230,29 @@ func main() {
 		virtualServer.ProcessNodeUpdate(kubeClient, *useNodeInternal)
 	}
 
-	var endptEventStream *eventStream.EventStream
+	var endptEventStore *eventStream.EventStore
 
 	onServiceChange := func(changeType eventStream.ChangeType, obj interface{}) {
-		virtualServer.ProcessServiceUpdate(kubeClient, changeType, obj, isNodePort, endptEventStream.Store())
+		virtualServer.ProcessServiceUpdate(kubeClient, changeType, obj, isNodePort, endptEventStore)
 	}
 	serviceEventStream := eventStream.NewServiceEventStream(kubeClient.Core(), *namespace, 5, onServiceChange, nil, nil)
 	serviceEventStream.Run()
 	defer serviceEventStream.Stop()
 
 	onConfigMapChange := func(changeType eventStream.ChangeType, obj interface{}) {
-		virtualServer.ProcessConfigMapUpdate(kubeClient, changeType, obj, isNodePort, endptEventStream.Store())
+		virtualServer.ProcessConfigMapUpdate(kubeClient, changeType, obj, isNodePort, endptEventStore)
 	}
 	configMapEventStream := eventStream.NewConfigMapEventStream(kubeClient.Core(), *namespace, 5, onConfigMapChange, nil, nil)
 
-	onEpChange := func(changeType eventStream.ChangeType, obj interface{}) {
-		if !isNodePort {
+	if !isNodePort {
+		onEpChange := func(changeType eventStream.ChangeType, obj interface{}) {
 			virtualServer.ProcessEndpointsUpdate(kubeClient, changeType, obj, serviceEventStream.Store())
 		}
+		endptEventStream := eventStream.NewEndpointsEventStream(kubeClient.Core(), *namespace, 5, onEpChange, nil, nil)
+		endptEventStore = endptEventStream.Store()
+		endptEventStream.Run()
+		defer endptEventStream.Stop()
 	}
-	endptEventStream = eventStream.NewEndpointsEventStream(kubeClient.Core(), *namespace, 5, onEpChange, nil, nil)
-	endptEventStream.Run()
-	defer endptEventStream.Stop()
 
 	configMapEventStream.Run()
 	defer configMapEventStream.Stop()

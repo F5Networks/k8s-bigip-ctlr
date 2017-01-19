@@ -1,0 +1,6 @@
+f5-icontrol-rest==1.0.9
+f5-sdk==1.6.0
+pyinotify==0.9.6
+ipaddress==1.0.17
+PyJWT==1.4.0
+requests==2.9.1

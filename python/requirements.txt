@@ -1,3 +1,0 @@
-py==1.4.31
-pyinotify==0.9.6
-pytest==3.0.2

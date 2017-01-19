@@ -112,3 +112,26 @@ func NewConfigMapEventStream(core v1core.CoreInterface, namespace string, resync
 		&v1.ConfigMap{},
 		resyncPeriod)
 }
+
+func NewEndpointsEventStream(core v1core.CoreInterface, namespace string, resyncPeriod time.Duration, onChangeFunc OnChangeFunc, labelSelector labels.Selector, fieldSelector fields.Selector) *EventStream {
+	return NewEventStream(
+		&EventListWatch{
+			ListFunc: func(options api.ListOptions) (runtime.Object, error) {
+				// add the specified labelSelector and fieldSelector object to the options list
+				opts := options
+				opts.LabelSelector = labelSelector
+				opts.FieldSelector = fieldSelector
+				return core.Endpoints(namespace).List(opts)
+			},
+			WatchFunc: func(options api.ListOptions) (watch.Interface, error) {
+				// add the specified labelSelector and fieldSelector object to the options list
+				opts := options
+				opts.LabelSelector = labelSelector
+				opts.FieldSelector = fieldSelector
+				return core.Endpoints(namespace).Watch(opts)
+			},
+			OnChangeFunc: onChangeFunc,
+		},
+		&v1.Endpoints{},
+		resyncPeriod)
+}

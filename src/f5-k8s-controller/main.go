@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"k8s.io/client-go/1.4/kubernetes"
+	"k8s.io/client-go/1.4/pkg/labels"
 	"k8s.io/client-go/1.4/rest"
 	"k8s.io/client-go/1.4/tools/clientcmd"
 )
@@ -242,8 +243,12 @@ func main() {
 	onConfigMapChange := func(changeType eventStream.ChangeType, obj interface{}) {
 		virtualServer.ProcessConfigMapUpdate(kubeClient, changeType, obj, isNodePort, endptEventStore)
 	}
-	configMapEventStream := eventStream.NewConfigMapEventStream(kubeClient.Core(), *namespace, 5, onConfigMapChange, nil, nil)
-
+	f5ConfigMapSelector, err := labels.Parse("f5type in (virtual-server)")
+	if err != nil {
+		log.Warningf("failed to parse Label Selector string - controller will not filter for F5 specific objects - label: f5type : virtual-server, err %v", err)
+		f5ConfigMapSelector = nil
+	}
+	configMapEventStream := eventStream.NewConfigMapEventStream(kubeClient.Core(), *namespace, 5, onConfigMapChange, f5ConfigMapSelector, nil)
 	if !isNodePort {
 		onEpChange := func(changeType eventStream.ChangeType, obj interface{}) {
 			virtualServer.ProcessEndpointsUpdate(kubeClient, changeType, obj, serviceEventStream.Store())

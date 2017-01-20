@@ -24,16 +24,6 @@ Project Setup
 Gitlab F5 CC project:
 git@bldr-git.int.lineratesystems.com:velcro/f5-k8s-controller.git
 
-Vagrant environment
-~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-
-    $ git clone [gitlab F5 CC project]
-    $ cd f5-k8s-controller
-    $ vagrant up
-    $ vagrant ssh
-
 Manual environment setup
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -74,7 +64,7 @@ Note: if setting up a new workspace run these commands first:
    ```make devel-image```
 3. The ``run-in-docker.sh`` script can be used to run any command in a devel
    container, almost as if you ran it locally. For example, to run tests:
-   ``./scripts/run-in-docker.sh make release``
+   ``./build-tools/run-in-docker.sh make release``
 
 Running standalone
 ~~~~~~~~~~~~~~~~~~

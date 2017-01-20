@@ -1,7 +1,0 @@
-#!/bin/bash
-
-git config --global pull.ff only
-git config --global merge.conflictstyle diff3
-git config --global log.decorate true
-git config --global diff.submodule log
-git config --global status.submodulesummary 1

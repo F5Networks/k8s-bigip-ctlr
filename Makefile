@@ -78,10 +78,6 @@ pkg-deb-wily:
 # Depend on rules for all supported distros
 pkg-deb: pkg-deb-wily
 
-build-deps:
-	@echo "Installing build dependencies"
-	@VAGRANT_INSTALL=${VAGRANT_INSTALL} ./build-tools/build-deps.sh
-
 devel-image:
 	./build-tools/build-devel-image.sh
 

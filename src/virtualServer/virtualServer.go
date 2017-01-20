@@ -32,6 +32,12 @@ type VirtualServerConfig struct {
 			ServicePort     int32    `json:"servicePort"`
 			PoolMemberPort  int32    `json:"poolMemberPort"`
 			PoolMemberAddrs []string `json:"poolMemberAddrs"`
+			HealthMonitors  []struct {
+				Interval int    `json:"interval,omitempty"`
+				Protocol string `json:"protocol"`
+				Send     string `json:"send,omitempty"`
+				Timeout  int    `json:"timeout,omitempty"`
+			} `json:"healthMonitors,omitempty"`
 		} `json:"backend"`
 		Frontend struct {
 			// Mutual parameter, partition

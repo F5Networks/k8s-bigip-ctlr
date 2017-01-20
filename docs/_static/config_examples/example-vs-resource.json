@@ -15,6 +15,13 @@
     "backend": {
       "serviceName": "example-service",
       "servicePort": 443
+      "healthMonitors": [ {
+        "send": "GET / HTTP/1.0\\r\\n\\r\\n",
+        "interval": 30,
+        "timeout": 20,
+        "protocol": "http"
+        }
+      ]
     }
   }
 }

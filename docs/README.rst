@@ -171,6 +171,10 @@ Backend
 | servicePort   | integer   | Required  | none      | Kubernetes Service port       |                           |
 |               |           |           |           | number                        |                           |
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
+| healthMonitors| JSON      | Optional  | none      | Array of TCP or HTTP Health   |                           |
+|               | object    |           |           | Monitors.                     |                           |
+|               | array     |           |           |                               |                           |
++---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 
 Example Configuration Files
 ```````````````````````````

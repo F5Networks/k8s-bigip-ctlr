@@ -236,7 +236,13 @@ func main() {
 	onServiceChange := func(changeType eventStream.ChangeType, obj interface{}) {
 		virtualServer.ProcessServiceUpdate(kubeClient, changeType, obj, isNodePort, endptEventStore)
 	}
-	serviceEventStream := eventStream.NewServiceEventStream(kubeClient.Core(), *namespace, 5, onServiceChange, nil, nil)
+	serviceEventStream := eventStream.NewServiceEventStream(
+		kubeClient.Core(),
+		*namespace,
+		5*time.Second,
+		onServiceChange,
+		nil,
+		nil)
 	serviceEventStream.Run()
 	defer serviceEventStream.Stop()
 
@@ -248,12 +254,24 @@ func main() {
 		log.Warningf("failed to parse Label Selector string - controller will not filter for F5 specific objects - label: f5type : virtual-server, err %v", err)
 		f5ConfigMapSelector = nil
 	}
-	configMapEventStream := eventStream.NewConfigMapEventStream(kubeClient.Core(), *namespace, 5, onConfigMapChange, f5ConfigMapSelector, nil)
+	configMapEventStream := eventStream.NewConfigMapEventStream(
+		kubeClient.Core(),
+		*namespace,
+		5*time.Second,
+		onConfigMapChange,
+		f5ConfigMapSelector,
+		nil)
 	if !isNodePort {
 		onEpChange := func(changeType eventStream.ChangeType, obj interface{}) {
 			virtualServer.ProcessEndpointsUpdate(kubeClient, changeType, obj, serviceEventStream.Store())
 		}
-		endptEventStream := eventStream.NewEndpointsEventStream(kubeClient.Core(), *namespace, 5, onEpChange, nil, nil)
+		endptEventStream := eventStream.NewEndpointsEventStream(
+			kubeClient.Core(),
+			*namespace,
+			5*time.Second,
+			onEpChange,
+			nil,
+			nil)
 		endptEventStore = endptEventStream.Store()
 		endptEventStream.Run()
 		defer endptEventStream.Stop()

@@ -1,9 +1,0 @@
-#!/bin/bash -x
-
-# Get keys from local gitlab.
-ssh-keygen -R bldr-git.int.lineratesystems.com -f ~/.ssh/known_hosts
-ssh-keyscan -H bldr-git.int.lineratesystems.com >> ~/.ssh/known_hosts
-
-# Get keys from github.
-ssh-keygen -R github.com -f ~/.ssh/known_hosts
-ssh-keyscan -H github.com >> ~/.ssh/known_hosts

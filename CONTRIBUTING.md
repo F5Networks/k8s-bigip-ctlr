@@ -1,75 +1,66 @@
-# Booting a build environment
-If you do not already have [Vagrant](https://www.vagrantup.com) installed,
-install using homebrew (for Mac OSX):
-```shell
-brew install vagrant
-```
+# Build Dependencies
 
-Clone the project's repo and boot a build environment which can build:
-```shell
-git clone git@bldr-git.int.lineratesystems.com:velcro/PROJECTNAME.git
-cd PROJECTNAME
-vagrant up  # Downloads, boots, and provisions the box.
-vagrant ssh  # Log into the fresh build system.
-```
+It's assumed that you have:
+ - A working go environment
+ - Docker installed
 
-The project has already been cloned into the $GOPATH in the vagrant user's home
-directory.
+Go dependencies:
 
-
+ ```
+go install -v -race runtime/race
+go install -v github.com/constabulary/gb/...
+ ```
+ 
 # Building
-Use the 'gb' tools to build. Documentation for ```gb``` here:
+Use the 'gb' tools to build. Documentation for gb here:
 [gb docs](http://getgb.io/)
 
 ```shell
-cd PROJECTNAME
-git submodule update --init  # This fetches all submodules, if any.
+git clone <this project> && cd <this project>
+git submodule sync --recursive
+git submodule update --init --recursive # This fetches all submodules.
 gb build  # This builds the project and puts the results in $GB_PROJECT_DIR/bin.
 ```
 
 # Testing
-Use the 'gb' tools to build. The 'gb' tooling does not yet provide code coverage, so simply use the ```scripts/coverage.sh``` to generate coverage data.
+Use the 'gb' tools to build. The 'gb' tooling does not yet provide code coverage, so simply use the `build-tools/coverage.sh` to generate coverage data.
 
 ```shell
-cd PROJECTNAME
 gb test -v
-scripts/coverage.sh
+build-tools/coverage.sh
 ```
 
-Don't forget to configure the new project for "Test coverage parsing". Simply go to the project's Settings page in GitLab and set "Test coverage parsing" to ```coverage:\s+(.*)\%\s+of\s+statements$```.
-
-
 # Building a Debian package
-Before building a Debian package (.deb) for the first time, some manual configuration is necessary. The files for configuring a Debian package reside in the ```debian``` subdirectory.
+Before building a Debian package (.deb) for the first time, some manual configuration is necessary. The files for configuring a Debian package reside in the `debian` subdirectory.
 
 
 ## Pre-build configuration
 Before you build your first *deb*, you need to change the following files as appropriate for your project:
 1. control.m4
   1. Update the *Source* line:
-    1. Change ```go-project-template``` to the name of your project.
+    1. Change `go-project-template` to the name of your project.
   2. Update the *Maintainer* line:
-    1. Change ```YOURNAME``` to your Full name.
-    2. Change ```YOUREMAIL``` to your e-mail address.
+    1. Change `YOURNAME` to your Full name.
+    2. Change `YOUREMAIL` to your e-mail address.
   3. Update the *Vcs-Git* URL as appropriate.
   4. Update the *Vcs-Browser* URL as appropriate.
   5. Update the *Package* line:
-    1. Change ```go-project-template-bin``` to the name of your package.
+    1. Change `go-project-template-bin` to the name of your package.
   6. Update the *Provides* line:
-    1. Change ```go-project-template-bin``` to the name of your package.
+    1. Change `go-project-template-bin` to the name of your package.
   7. Update the *Conflicts* line:
-    1. Change ```go-project-template-bin``` to the name of your package.
+    1. Change `go-project-template-bin` to the name of your package.
   8. Update the *Description* line to provide a meaningful description for your package.
 2. copyright
   1. Update the *Upstream-Name* line:
-    1. Change ```go-project-template``` to the name of your project.
+    1. Change `go-project-template` to the name of your project.
   2. Make sure the rest of the information is correct.
 3. go-project-template-bin.install
-  1. Rename to ```PACKAGENAME```.install.
+  1. Rename to `PACKAGENAME`.install.
   2. Make sure to map all project files to be included in the deb to their proper installation directories.
 4. Generate your changelog file (NOTE: setting environment variables in your vagrant.d provisioning scripts will assure they are set in all your vagrant instances):
-  1. Set ```DEBFULLNAME``` in your environment to your full name.
-  2. Set ```DEBEMAIL``` in your environment to your e-mail address.
+  1. Set `DEBFULLNAME` in your environment to your full name.
+  2. Set `DEBEMAIL` in your environment to your e-mail address.
   3. Run this command to create the changelog file and add a meaningful description:
      ```shell
      dch --package PROJECTNAME --newversion 1.0.0
@@ -90,7 +81,7 @@ From your project directory, run the following command to create a release packa
 ```shell
 debian/package.sh -C debian <distro>
 ```
-Where ```<distro>``` is the distro to build a package for, such as *wily*, *jessie*, etc. Other options include *--debug* to do a debug build or *--help*. The resulting package will end up in ~/*distro*
+Where `<distro>` is the distro to build a package for, such as *wily*, *jessie*, etc. Other options include *--debug* to do a debug build or *--help*. The resulting package will end up in ~/*distro*
 
 You can also use the Makefile to build packages for all supported distros by running:
 ```shell
@@ -146,10 +137,10 @@ future.
 
 # Vendoring velcro packages
 Our internally developed packages are themselves complete gb-based projects
-and include their own directory structure. This includes both ```src``` and ```vendor```
+and include their own directory structure. This includes both `src` and `vendor`
 subdirectories.  To keep the import paths simple, these packages will be installed
-under the top-level directory ```gb-pkgs```.  The top-level source directory of the 
-installed velcro package will then be symbolicly linked under ```vendor/src/velcro```.
+under the top-level directory `gb-pkgs`.  The top-level source directory of the 
+installed velcro package will then be symbolicly linked under `vendor/src/velcro`.
 
 An example of adding the vlogger velcro package to PROJECTNAME is
 shown below:
@@ -174,7 +165,7 @@ import "velcro/vlogger"
 # Vendoring 3rd party packages
 All packages which are not part of velco repositories are considered "3rd party".
 Follow the subsequent instructions for including 3rd party code. Note: do not
-use ```go get```.
+use `go get`.
 
 
 ## Adding a vendor package
@@ -193,7 +184,7 @@ gb vendor fetch bldr-git.int.lineratesystems.com/velcro/toyreverser.git
     1. Press the '+' in the upper right.
     1. Set the location to mirror/project (i.e. gb) and import using "URL from any repo" with the URL associated (i.e. https://github.com/golang/example) unless the name is something generic (i.e. github.com/golang/example), in which case it should be username-project (i.e. golang-example).
     1. In the project settings, add and enable the gitlab-ci "Deploy Key".
-- Convert all of the packages fetched to git submodules. Remember that external packages that were imported into bldr-git/mirror need to reference the bldr-git repo, but the filesystem directory structure must be the external path. This is required so that import paths don't need to re-writing. Look at the ```submodule add``` command for "mirror/golang-example.git" as an example.
+- Convert all of the packages fetched to git submodules. Remember that external packages that were imported into bldr-git/mirror need to reference the bldr-git repo, but the filesystem directory structure must be the external path. This is required so that import paths don't need to re-writing. Look at the `submodule add` command for "mirror/golang-example.git" as an example.
 
 ```shell
 rm -rf vendor/src/bldr-git.int.lineratesystems.com/velcro/toyreverser
@@ -225,8 +216,8 @@ git submodule update --remote vendor/src/.../<SUBMODULE_NAME>
 
 ## Changing branches
 Submodules may exist in a branch and not in another branch. Be careful when switching branches to ensure you have the latest.
-- Use ```git status``` to show the status of the working directory.
-- Use ```git submodule update``` to update the registered submodules to match what the superproject expects
+- Use `git status` to show the status of the working directory.
+- Use `git submodule update` to update the registered submodules to match what the superproject expects
 
 When something is missing, a build will show errors like the following.
 
@@ -240,7 +231,7 @@ gb build
 # FATAL: command "build" failed: no packages supplied
 ```
 
-Fix these errors by either creating the new submodule (if you have imported a new package) or updating the submodule. The working directory has probably switched branches and needs to be completed. Use ```git submodule update``` to complete
+Fix these errors by either creating the new submodule (if you have imported a new package) or updating the submodule. The working directory has probably switched branches and needs to be completed. Use `git submodule update` to complete
 the directory structure.
 
 

@@ -1,8 +1,8 @@
-k8s-bigip-ctlr
-==============
+F5 Kubernetes BIG-IP Controller
+===============================
 
 
-The F5 Kubernetes BIG-IP Controller for `Kubernetes <http://kubernetes.io/>`_ -- k8s-bigip-ctlr -- makes F5 BIG-IP L4-L7 services available to microservices-based applications running in Kubernetes.
+The F5 Kubernetes BIG-IP Controller makes F5 BIG-IP L4-L7 services available to microservices-based applications running in `Kubernetes <https://kubernetes.io>`_.
 
 Releases and Compatibility
 --------------------------

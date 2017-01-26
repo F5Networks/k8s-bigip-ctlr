@@ -9,7 +9,8 @@ all:
 	@printf "            distro. (ex: make pkg-deb-wily)\n"
 	@printf "  devel-image - build a local docker image 'k8s-ctrl-devel'\n"
 	@printf "                with all needed build tools\n"
-	@printf "  doc-preview - Use devel image to build local preview of docs\n"
+	@printf "  doc-preview - Use docs image to build local preview of docs\n"
+	@printf "  test-docs   - Use docs image to build and test docs"
 
 release: pre-build generate rel-build rel-unit-test
 
@@ -83,6 +84,11 @@ devel-image:
 
 # Build docs standalone from this repo
 doc-preview:
-	./build-tools/run-in-docker.sh make -C docs html
+	rm -rf docs/_build
+	./build-tools/docker-docs.sh make -C docs html
 	@echo "To view docs:"
 	@echo "open docs/_build/html/README.html"
+
+test-docs:
+	rm -rf docs/_build
+	./build-tools/docker-docs.sh ./build-tools/test-docs.sh

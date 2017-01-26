@@ -1,21 +1,21 @@
-k8s-bigip-ctlr
-==============
+F5 Kubernetes BIG-IP Controller
+===============================
 
 .. toctree::
     :hidden:
     :maxdepth: 2
 
 
-F5-k8s-bigip-ctlr is a tool for managing F5 BIG-IP `Local Traffic Manager <https://f5.com/products/big-ip/local-traffic-manager-ltm>`_ (LTM) services from `Kubernetes`_. The f5-k8s-bigip-ctlr can be deployed in Kubernetes as described in the `documentation <#>`_.
+F5 Kubernetes BIG-IP Controller manages F5 BIG-IP `Local Traffic Manager <https://f5.com/products/big-ip/local-traffic-manager-ltm>`_ (LTM) objects from `Kubernetes`_.
+See the `F5 Kubernetes BIG-IP Controller documentation <#tbd>`_ for user guides, tutorials, and more.
+
 
 Features
 --------
-
 - Dynamically creates, manages, and destroys BIG-IP objects.
 - Forwards traffic from BIG-IP to `Kubernetes clusters`_ via `NodePorts`_.
 - Uses existing BIG-IP SSL profiles for authentication.
 - Support for F5 `iApps`_.
-
 
 Guides
 ------
@@ -39,25 +39,29 @@ Troubleshooting
 Architecture
 ------------
 
-The ``k8s-bigip-ctlr`` is a Docker container that can run in a `Kubernetes`_ Pod. A special type of Kubernetes ConfigMap resource, called an `F5 resource`_, passes encoded data to ``k8s-bigip-ctlr``, telling it:
+F5 Kubernetes BIG-IP Controller is a Docker container that runs in a `Kubernetes`_ Pod.
+It uses an `F5 Resource`_ to determine:
 
-1. what objects to configure on your BIG-IP, and
-2. to which `Kubernetes Service`_ the BIG-IP objects belong.
+- what objects to configure on your BIG-IP, and
+- to which `Kubernetes Service`_ the BIG-IP objects belong.
 
-The ``k8s-bigip-ctlr`` watches the Kubernetes API for the creation and modification of F5 resources.
-When it discovers changes, the ``k8s-bigip-ctlr`` modifies the BIG-IP accordingly.
+The F5 Kubernetes BIG-IP Controller watches the Kubernetes API for the creation and modification of F5 resources.
+When it discovers changes, the F5 Kubernetes BIG-IP Controller modifies the BIG-IP accordingly.
+
 
 For example:
 
-1. The controller detects creation of an F5 ``virtualServer`` resource.
-2. The controller creates a new virtual server object on the BIG-IP; [#objectpartition]_
-3. The controller creates pool members on the virtual server for each node in the Kubernetes cluster; [#nodeport]_
-4. The controller monitors the F5 resources and linked Kubernetes resources for changes and dynamically reconfigures the BIG-IP as needed.
+#. F5 Kubernetes BIG-IP Controller discovers a new F5 ``virtualServer`` resource.
+#. F5 Kubernetes BIG-IP Controller creates a new virtual server object on the BIG-IP; [#objectpartition]_
+#. F5 Kubernetes BIG-IP Controller creates a pool member on the virtual server for each node in the cluster; [#nodeport]_
+#. F5 Kubernetes BIG-IP Controller monitors F5 resources, and linked Kubernetes resources, for changes.
+#. F5 Kubernetes BIG-IP Controller reconfigures the BIG-IP when it discovers changes.
 
-The BIG-IP then handles traffic for the Service on the specified virtual address and load-balances to all nodes in the cluster. Within the cluster, the allocated NodePort is load-balanced to all pods for the Service.
+The BIG-IP handles traffic for the Service the specified virtual address and load-balances to all nodes in the cluster. Within the cluster, the allocated NodePort load balances traffic to all pods.
 
 Configuration Parameters
 ------------------------
+
 +--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
 | Parameter          | Type      | Required  | Default       | Description                   | Allowed Values    |
 +====================+===========+===========+===============+===============================+===================+
@@ -95,50 +99,73 @@ Configuration Parameters
 |                    |           |           |               |                               | WARNING,          |
 |                    |           |           |               |                               | ERROR             |
 +--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| pool-member-type   | string    | Optional  | nodeport      | Defines the `Kubernetes       | nodeport, cluster |
-|                    |           |           |               | Service Type`_ applied to the |                   |
-|                    |           |           |               | pool member (NodePort or      |                   |
-|                    |           |           |               | ClusterIP)                    |                   |
+| pool-member-type   | string    | Optional  | nodeport      | Defines the                   | nodeport, cluster |
+|                    |           |           |               | `Kubernetes Service Type`_    |                   |
+|                    |           |           |               | applied to the pool member    |                   |
+|                    |           |           |               | (NodePort or ClusterIP)       |                   |
 +--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
 | openshift-sdn-name | string    | Optional  | n/a           | BigIP configured VxLAN name   |                   |
 |                    |           |           |               | for access into the Openshift |                   |
 |                    |           |           |               | SDN and Pod network           |                   |
 +--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
 
+
+
 F5 Resource Properties
 ----------------------
 
-Front-end
-`````````
+F5 Resources are JSON blobs encoded within Kubernetes ConfigMaps. The ConfigMap must contain the following properties:
 
-Virtual Server
-~~~~~~~~~~~~~~
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| Property      | Type      | Required  | Default   | Description                   | Allowed Values            |
-+===============+===========+===========+===========+===============================+===========================+
-| partition     | string    | Required  |           | The BIG-IP partition in which |                           |
-|               |           |           |           | to create virtual server      |                           |
-|               |           |           |           | objects.                      |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| mode          | string    | Required  |           | Proxy mode                    | http, tcp                 |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| balance       | string    | Required  | round-    | Load-balancing mode           | round-robin               |
-|               |           |           | robin     |                               |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| virtualAddress| JSON      | Required  |           | Virtual address on the BIG-IP |                           |
-|               | object    |           |           |                               |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| bindAddr      | string    | Required  |           | Virtual IP address            |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| port          | integer   | Required  |           | Port number                   |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| sslProfile    | JSON      | Optional  |           | BIG-IP SSL profile to use to  |                           |
-|               | object    |           |           | access virtual server.        |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| f5ProfileName | string    | Optional  |           | Name of the BIG-IP SSL        | Uses format               |
-|               |           |           |           | profile.                      | 'partition_name/cert_name'|
-|               |           |           |           |                               | (e.g., 'Common/testcert') |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
++---------------+---------------------------------------------------+-----------------------------------------------+
+| Property      | Description                                       | Allowed Values                                |
++===============+===================================================+===============================================+
+| f5type        | Defines the type of object                        | virtual-server                                |
+|               | ``k8s-bigip-ctlr`` creates on the BIG-IP          |                                               |
++---------------+---------------------------------------------------+-----------------------------------------------+
+| schema        | Verifies the ``data`` blob                        | f5schemadb://bigip-virtual-server_v0.1.2.json |
++---------------+---------------------------------------------------+-----------------------------------------------+
+| data          | Defines the F5 resource                           |                                               |
++---------------+---------------------------------------------------+-----------------------------------------------+
+| frontend      | Defines object(s) created on the BIG-IP           | See `frontend <#frontend>`_                   |
++---------------+---------------------------------------------------+-----------------------------------------------+
+| backend       | Identifes the Kubernets Service acting as the     | See `backend <#backend>`_                     |
+|               | server pool                                       |                                               |
++---------------+---------------------------------------------------+-----------------------------------------------+
+
+Frontend
+````````
+
+virtualServer
+~~~~~~~~~~~~~
++-------------------+-----------+-----------+-----------+-------------------------------+---------------------------+
+| Property          | Type      | Required  | Default   | Description                   | Allowed Values            |
++===================+===========+===========+===========+===============================+===========================+
+| partition         | string    | Required  |           | Define the BIG-IP partition   |                           |
+|                   |           |           |           | to manage                     |                           |
++-------------------+-----------+-----------+-----------+-------------------------------+---------------------------+
+| mode              | string    | Required  |           | Set the proxy mode            | http, tcp                 |
++-------------------+-----------+-----------+-----------+-------------------------------+---------------------------+
+| balance           | string    | Required  | round-    | Set the load balancing mode   | round-robin               |
+|                   |           |           | robin     |                               |                           |
++-------------------+-----------+-----------+-----------+-------------------------------+---------------------------+
+| virtualAddress    | JSON      | Required  |           | Allocate a virtual address    |                           |
+|                   | object    |           |           | from the BIG-IP               |                           |
++---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
+|   | bindAddr      | string    | Required  |           | Virtual IP address            |                           |
++---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
+|   | port          | integer   | Required  |           | Port number                   |                           |
++---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
+| sslProfile        | JSON      | Optional  |           | BIG-IP SSL profile to use to  |                           |
+|                   | object    |           |           | access virtual server.        |                           |
++---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
+|   | f5ProfileName | string    | Optional  |           | Name of the BIG-IP SSL        |                           |
+|   |               |           |           |           | profile.                      |                           |
+|   |               |           |           |           |                               |                           |
+|   |               |           |           |           | Uses format 'partition_name/  |                           |
+|   |               |           |           |           | cert_name'                    |                           |
+|   |               |           |           |           |                               |                           |
+|   |               |           |           |           | Example: 'Common/testcert'    |                           |
++---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 
 iApps
 ~~~~~
@@ -146,9 +173,8 @@ iApps
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 | Property      | Type      | Required  | Default   | Description                   | Allowed Values            |
 +===============+===========+===========+===========+===============================+===========================+
-| partition     | string    | Required  |           | The BIG-IP partition in which |                           |
-|               |           |           |           | to create virtual server      |                           |
-|               |           |           |           | objects.                      |                           |
+| partition     | string    | Required  |           | Define the BIG-IP partition   |                           |
+|               |           |           |           | to manage.                    |                           |
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 | iapp          | string    | Required  |           | BIG-IP iApp template to use   | Any iApp template already |
 |               |           |           |           | to create the application     | configured on the BIG-IP. |
@@ -157,15 +183,12 @@ iApps
 | iappTableName | string    | Required  |           | `iApp table`_ entry specifying|                           |
 |               |           |           |           | pool members. [#dclogin]_     |                           |
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| iappOptions   | key-value | Required  |           | The configuration options you | See configuration         |
-|               | object    |           |           | want to apply to the          | parameters above.         |
-|               |           |           |           | application service.          |                           |
+| iappOptions   | key-value | Required  |           | Define the App configurations | See configuration         |
+|               | object    |           |           |                               | parameters above.         |
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| iappVariables | key-value | Required  |           | Definition of iApp variables  |                           |
-|               | object    |           |           | needed to create the service. |                           |
+| iappVariables | key-value | Required  |           | Define of iApp variables      |                           |
+|               | object    |           |           | needed for service creation.  |                           |
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-
-
 
 
 Backend
@@ -174,8 +197,8 @@ Backend
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 | Property      | Type      | Required  | Default   | Description                   | Allowed Values            |
 +===============+===========+===========+===========+===============================+===========================+
-| serviceName   | string    | Required  | none      | The Kubernetes Service that   |                           |
-|               |           |           |           | represents the server pool.   |                           |
+| serviceName   | string    | Required  | none      | The `Kubernetes Service`_     |                           |
+|               |           |           |           | representing the server pool. |                           |
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 | servicePort   | integer   | Required  | none      | Kubernetes Service port       |                           |
 |               |           |           |           | number                        |                           |
@@ -200,24 +223,24 @@ API Endpoints
 -------------
 - Coming soon!
 
------------------------------
 
-.. [#objectpartition]  The ``k8s-bigip-ctlr`` creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap.
-.. [#nodeport]  The ``k8s-bigip-ctlr`` forwards traffic to the NodePort assigned to the service by Kubernetes; see the Kubernetes `Services <http://kubernetes.io/docs/user-guide/services/>`_ documentation for more information.
-.. [#secrets]  Can be stored as a `Kubernetes Secret <http://kubernetes.io/docs/user-guide/secrets/>`_. See the `user documentation <#>`_ for instructions.
+.. [#objectpartition]  The F5 Kubernetes BIG-IP Controller creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap.
+.. [#nodeport]  The F5 Kubernetes BIG-IP Controller forwards traffic to the NodePort assigned to the service by Kubernetes; see the Kubernetes `Services <http://kubernetes.io/docs/user-guide/services/>`_ documentation for more information.
+.. [#secrets]  You can store sensitive information as a `Kubernetes Secret <http://kubernetes.io/docs/user-guide/secrets/>`_. See the `user documentation <#>`_ for instructions.
 .. [#dclogin]  Requires login to DevCentral.
 
 
 
 
 
-.. _Kubernetes: <http://kubernetes.io/>
-.. _Kubernetes Service:
-.. _Kubernetes clusters: http://kubernetes.io/docs/admin/
-.. _NodePorts: http://kubernetes.io/docs/user-guide/services/#type-nodeport
+.. _Kubernetes: https://kubernetes.io/
+.. _Kubernetes Service: https://kubernetes.io/docs/user-guide/services/
+.. _Kubernetes clusters: https://kubernetes.io/docs/admin/
+.. _NodePorts: https://kubernetes.io/docs/user-guide/services/#type-nodeport
 .. _iApps: https://devcentral.f5.com/iapps
-.. _Kubernetes pods: http://kubernetes.io/docs/user-guide/pods/
-.. _Kubernetes Ingress resources: http://kubernetes.io/docs/user-guide/ingress/
+.. _Kubernetes pods: https://kubernetes.io/docs/user-guide/pods/
+.. _Kubernetes Ingress resources: https://kubernetes.io/docs/user-guide/ingress/
 .. _iApp table: https://devcentral.f5.com/wiki/iApp.Working-with-Tables.ashx
 .. _F5 resource: <add link to F5 Resource doc>
 .. _Kubernetes Service Type: https://kubernetes.io/docs/user-guide/services/#publishing-services---service-types
+

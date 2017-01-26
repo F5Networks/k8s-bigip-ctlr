@@ -29,6 +29,14 @@ stages:
   - build
   - deploy
 
+docs_tests:
+  image: docker-registry.pdbld.f5net.com/tools/containthedocs-light
+  script:
+    - ./build-tools/test-docs.sh
+  tags:
+    - docker
+  stage: test
+
 python utility unit test:
   image: "python:2.7"
   stage: test

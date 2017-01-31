@@ -107,11 +107,11 @@ var oldNodes = []string{}
 // need something more complicated (channels, etc?)
 var mutex = &sync.Mutex{}
 
-var config *writer.ConfigWriter = nil
+var config writer.Writer
 var namespace = ""
 var useNodeInternal = false
 
-func SetConfigWriter(cw *writer.ConfigWriter) {
+func SetConfigWriter(cw writer.Writer) {
 	config = cw
 }
 

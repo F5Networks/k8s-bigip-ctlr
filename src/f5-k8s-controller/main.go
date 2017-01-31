@@ -6,12 +6,14 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"eventStream"
+	"tools/pollers"
 	"virtualServer"
 
 	log "velcro/vlogger"
@@ -173,6 +175,7 @@ func main() {
 		log.Fatalf("%v", argError)
 	}
 
+	virtualServer.SetUseNodeInternal(*useNodeInternal)
 	virtualServer.SetNamespace(*namespace)
 
 	var isNodePort bool
@@ -227,8 +230,15 @@ func main() {
 	}
 
 	if isNodePort {
-		// Initialize the Node cache
-		virtualServer.ProcessNodeUpdate(kubeClient, *useNodeInternal)
+		np := pollers.NewNodePoller(kubeClient, 30*time.Second)
+		err = np.RegisterListener(virtualServer.ProcessNodeUpdate)
+		if nil != err {
+			log.Fatalf("error registering node update listener in nodeport mode: %v\n",
+				err)
+		}
+
+		np.Run()
+		defer np.Stop()
 	}
 
 	var endptEventStore *eventStream.EventStore
@@ -280,12 +290,8 @@ func main() {
 	configMapEventStream.Run()
 	defer configMapEventStream.Stop()
 
-	for {
-		time.Sleep(30 * time.Second)
-
-		if isNodePort {
-			// Poll for node changes
-			virtualServer.ProcessNodeUpdate(kubeClient, *useNodeInternal)
-		}
-	}
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-sigs
+	log.Infof("Exiting - signal %v\n", sig)
 }

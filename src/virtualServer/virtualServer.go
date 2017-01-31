@@ -16,7 +16,6 @@ import (
 
 	"github.com/xeipuuv/gojsonschema"
 	"k8s.io/client-go/1.4/kubernetes"
-	"k8s.io/client-go/1.4/pkg/api"
 	"k8s.io/client-go/1.4/pkg/api/v1"
 )
 
@@ -118,9 +117,14 @@ var oldNodes []string
 var mutex = &sync.Mutex{}
 
 var namespace = ""
+var useNodeInternal = false
 
 func SetNamespace(ns string) {
 	namespace = ns
+}
+
+func SetUseNodeInternal(ni bool) {
+	useNodeInternal = ni
 }
 
 // Package init
@@ -535,8 +539,13 @@ func processEndpoints(
 }
 
 // Check for a change in Node state
-func ProcessNodeUpdate(kubeClient kubernetes.Interface, internal bool) {
-	newNodes, err := getNodeAddresses(kubeClient, internal)
+func ProcessNodeUpdate(obj interface{}, err error) {
+	if nil != err {
+		log.Warningf("Unable to get list of nodes, err=%+v", err)
+		return
+	}
+
+	newNodes, err := getNodeAddresses(obj)
 	if nil != err {
 		log.Warningf("Unable to get list of nodes, err=%+v", err)
 		return
@@ -609,23 +618,23 @@ func getNodesFromCache() []string {
 }
 
 // Get a list of Node addresses
-func getNodeAddresses(kubeClient kubernetes.Interface,
-	internal bool) ([]string, error) {
-	addrs := []string{}
-
-	nodes, err := kubeClient.Core().Nodes().List(api.ListOptions{})
-	if err != nil {
-		return nil, err
+func getNodeAddresses(obj interface{}) ([]string, error) {
+	nodes, ok := obj.([]v1.Node)
+	if false == ok {
+		return nil,
+			fmt.Errorf("poll update unexpected type, interface is not []v1.Node")
 	}
 
+	addrs := []string{}
+
 	var addrType v1.NodeAddressType
-	if internal {
+	if useNodeInternal {
 		addrType = v1.NodeInternalIP
 	} else {
 		addrType = v1.NodeExternalIP
 	}
 
-	for _, node := range nodes.Items {
+	for _, node := range nodes {
 		if node.Spec.Unschedulable {
 			// Skip master node
 			continue

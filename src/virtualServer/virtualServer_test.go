@@ -428,7 +428,10 @@ func TestGetAddresses(t *testing.T) {
 		require.EqualValues(t, expectedNode, node, "Nodes should be equal")
 	}
 
-	addresses, err := getNodeAddresses(fake, false)
+	useNodeInternal = false
+	nodes, err := fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(t, err, "Should not fail listing nodes")
+	addresses, err := getNodeAddresses(nodes.Items)
 	require.Nil(t, err, "Should not fail getting addresses")
 	assert.EqualValues(t, expectedReturn, addresses,
 		"Should receive the correct addresses")
@@ -438,7 +441,8 @@ func TestGetAddresses(t *testing.T) {
 		"127.0.0.4",
 	}
 
-	addresses, err = getNodeAddresses(fake, true)
+	useNodeInternal = true
+	addresses, err = getNodeAddresses(nodes.Items)
 	require.Nil(t, err, "Should not fail getting internal addresses")
 	assert.EqualValues(t, expectedInternal, addresses,
 		"Should receive the correct addresses")
@@ -450,7 +454,10 @@ func TestGetAddresses(t *testing.T) {
 	}
 
 	expectedReturn = []string{}
-	addresses, err = getNodeAddresses(fake, false)
+	useNodeInternal = false
+	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(t, err, "Should not fail listing nodes")
+	addresses, err = getNodeAddresses(nodes.Items)
 	require.Nil(t, err, "Should not fail getting empty addresses")
 	assert.EqualValues(t, expectedReturn, addresses, "Should get no addresses")
 }
@@ -513,7 +520,10 @@ func TestProcessNodeUpdate(t *testing.T) {
 	fake := fake.NewSimpleClientset(&v1.NodeList{Items: originalSet})
 	assert.NotNil(t, fake, "Mock client should not be nil")
 
-	ProcessNodeUpdate(fake, false)
+	useNodeInternal = false
+	nodes, err := fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(t, err, "Should not fail listing nodes")
+	ProcessNodeUpdate(nodes.Items, err)
 	validateFile(t, emptyConfig)
 	require.EqualValues(t, expectedOgSet, oldNodes,
 		"Should have cached correct node set")
@@ -529,7 +539,10 @@ func TestProcessNodeUpdate(t *testing.T) {
 		"127.0.0.4",
 	}
 
-	ProcessNodeUpdate(fake, true)
+	useNodeInternal = true
+	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(t, err, "Should not fail listing nodes")
+	ProcessNodeUpdate(nodes.Items, err)
 	validateFile(t, emptyConfig)
 	require.EqualValues(t, expectedInternal, oldNodes,
 		"Should have cached correct node set")
@@ -541,14 +554,17 @@ func TestProcessNodeUpdate(t *testing.T) {
 		"Cached nodes should be expected set")
 
 	// add some nodes
-	_, err := fake.Core().Nodes().Create(newNode("nodeAdd", "nodeAdd", false,
+	_, err = fake.Core().Nodes().Create(newNode("nodeAdd", "nodeAdd", false,
 		[]v1.NodeAddress{{"ExternalIP", "127.0.0.6"}}))
 	require.Nil(t, err, "Create should not return err")
 
 	_, err = fake.Core().Nodes().Create(newNode("nodeExclude", "nodeExclude",
 		true, []v1.NodeAddress{{"InternalIP", "127.0.0.7"}}))
 
-	ProcessNodeUpdate(fake, false)
+	useNodeInternal = false
+	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(t, err, "Should not fail listing nodes")
+	ProcessNodeUpdate(nodes.Items, err)
 	validateFile(t, emptyConfig)
 	expectedAddSet := append(expectedOgSet, "127.0.0.6")
 
@@ -561,7 +577,10 @@ func TestProcessNodeUpdate(t *testing.T) {
 		"Cached nodes should be expected set")
 
 	// make no changes and re-run process
-	ProcessNodeUpdate(fake, false)
+	useNodeInternal = false
+	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(t, err, "Should not fail listing nodes")
+	ProcessNodeUpdate(nodes.Items, err)
 	validateFile(t, emptyConfig)
 	expectedAddSet = append(expectedOgSet, "127.0.0.6")
 
@@ -583,7 +602,10 @@ func TestProcessNodeUpdate(t *testing.T) {
 
 	expectedDelSet := []string{"127.0.0.6"}
 
-	ProcessNodeUpdate(fake, false)
+	useNodeInternal = false
+	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(t, err, "Should not fail listing nodes")
+	ProcessNodeUpdate(nodes.Items, err)
 	validateFile(t, emptyConfig)
 
 	require.EqualValues(t, expectedDelSet, oldNodes)
@@ -829,7 +851,10 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 			require.Nil(err, "Should not fail creating node")
 			require.EqualValues(node, n, "Nodes should be equal")
 
-			ProcessNodeUpdate(fake, false)
+			useNodeInternal = false
+			nodes, err := fake.Core().Nodes().List(api.ListOptions{})
+			assert.Nil(err, "Should not fail listing nodes")
+			ProcessNodeUpdate(nodes.Items, err)
 		}
 
 		nodeCh <- struct{}{}
@@ -904,7 +929,10 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		require.Nil(err)
 		_, err = fake.Core().Nodes().Create(extraNode)
 		require.Nil(err)
-		ProcessNodeUpdate(fake, false)
+		useNodeInternal = false
+		nodes, err := fake.Core().Nodes().List(api.ListOptions{})
+		assert.Nil(err, "Should not fail listing nodes")
+		ProcessNodeUpdate(nodes.Items, err)
 
 		nodeCh <- struct{}{}
 	}()
@@ -1016,7 +1044,8 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	assert.Equal(2, len(s.Items))
 	assert.Equal(3, len(n.Items))
 
-	ProcessNodeUpdate(fake, false)
+	useNodeInternal = false
+	ProcessNodeUpdate(n.Items, err)
 
 	// ConfigMap ADDED
 	endptStore := newStore(nil)
@@ -1093,7 +1122,10 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	// Nodes ADDED
 	_, err = fake.Core().Nodes().Create(extraNode)
 	require.Nil(err)
-	ProcessNodeUpdate(fake, false)
+	useNodeInternal = false
+	n, err = fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(err, "Should not fail listing nodes")
+	ProcessNodeUpdate(n.Items, err)
 	assert.Equal(4, len(virtualServers.m))
 	assert.EqualValues(append(addrs, "127.0.0.3"),
 		virtualServers.m[serviceKey{"foo", 80, "default"}].VirtualServer.Backend.PoolMemberAddrs)
@@ -1146,7 +1178,10 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.Nil(err)
 	err = fake.Core().Nodes().Delete("node2", &api.DeleteOptions{})
 	require.Nil(err)
-	ProcessNodeUpdate(fake, false)
+	useNodeInternal = false
+	n, err = fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(err, "Should not fail listing nodes")
+	ProcessNodeUpdate(n.Items, err)
 	assert.Equal(2, len(virtualServers.m))
 	assert.EqualValues([]string{"127.0.0.3"},
 		virtualServers.m[serviceKey{"foo", 80, "default"}].VirtualServer.Backend.PoolMemberAddrs)
@@ -1436,7 +1471,8 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	assert.Equal(2, len(s.Items))
 	assert.Equal(4, len(n.Items))
 
-	ProcessNodeUpdate(fake, true)
+	useNodeInternal = true
+	ProcessNodeUpdate(n.Items, err)
 
 	// ConfigMap ADDED
 	endptStore := newStore(nil)
@@ -1487,7 +1523,10 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	// Nodes ADDED
 	_, err = fake.Core().Nodes().Create(extraNode)
 	require.Nil(err)
-	ProcessNodeUpdate(fake, true)
+	useNodeInternal = true
+	n, err = fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(err, "Should not fail listing nodes")
+	ProcessNodeUpdate(n.Items, err)
 	assert.Equal(2, len(virtualServers.m))
 	assert.EqualValues(append(addrs, "192.168.0.4"),
 		virtualServers.m[serviceKey{"iapp1", 80, "default"}].VirtualServer.Backend.PoolMemberAddrs)
@@ -1500,7 +1539,10 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	require.Nil(err)
 	err = fake.Core().Nodes().Delete("node2", &api.DeleteOptions{})
 	require.Nil(err)
-	ProcessNodeUpdate(fake, true)
+	useNodeInternal = true
+	n, err = fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(err, "Should not fail listing nodes")
+	ProcessNodeUpdate(n.Items, err)
 	assert.Equal(2, len(virtualServers.m))
 	assert.EqualValues([]string{"192.168.0.4"},
 		virtualServers.m[serviceKey{"iapp1", 80, "default"}].VirtualServer.Backend.PoolMemberAddrs)

@@ -21,20 +21,13 @@ import sys
 from string import Template
 import time
 import threading
+import logging
 
 import pytest
 
 import bigipconfigdriver
 
 _args_app_name = ['bigipconfigdriver.py']
-_args_base = [
-    '--username', 'booch',
-    '--password', 'unbreakable',
-    '--url', 'https://bigip.example.com'
-    ]
-_args_file = ['--config-file', '/tmp/file/../.././tmp/.//file']
-_args_positional = ['partition_a', 'partition_b', 'partition_c']
-_args_full = _args_base + _args_file + _args_positional
 
 
 class MockBigIp():
@@ -47,8 +40,10 @@ class MockBigIp():
         self._notify_event = notify_event
         self._notify_after = notify_after
 
-    def regenerate_config_f5(self, services):
-        assert type(services) is list
+    def regenerate_config_f5(self, config):
+        assert 'services' in config
+        services = config['services']
+
         assert services == self._expected_dict['services']
         self.calls = self.calls + 1
 
@@ -71,15 +66,9 @@ class MockEventHandler():
 
 
 def test_handleargs_noargs(capsys):
-    expected = ("usage: bigipconfigdriver.py [-h] --username USERNAME "
-                "--password PASSWORD --url\n"
-                "                            URL "
-                "--config-file CONFIG_FILE\n"
-                "                            [--verify-interval "
-                "VERIFY_INTERVAL]\n"
-                "                            [--log-level LOG_LEVEL]\n"
-                "                            partition [partition ...]\n"
-                "bigipconfigdriver.py: error: too few arguments\n")
+    expected = "usage: bigipconfigdriver.py [-h] --config-file CONFIG_FILE\n"\
+               "bigipconfigdriver.py: error:"\
+               " argument --config-file is required\n"
 
     sys.argv[0:] = _args_app_name
 
@@ -93,9 +82,7 @@ def test_handleargs_noargs(capsys):
 
 def test_handleargs_notfilepath():
     sys.argv[0:] = _args_app_name
-    sys.argv.extend(_args_base)
     sys.argv.extend(['--config-file', '/tmp/not-a-file/'])
-    sys.argv.extend(_args_positional)
 
     with pytest.raises(bigipconfigdriver.ConfigError) as eio:
         bigipconfigdriver._handle_args()
@@ -103,34 +90,30 @@ def test_handleargs_notfilepath():
     assert eio.value.message == 'must provide a file path'
 
 
+def test_handleargs_unexpected(capsys):
+    expected = "usage: bigipconfigdriver.py [-h] --config-file CONFIG_FILE\n"\
+               "bigipconfigdriver.py: error:"\
+               " unrecognized arguments: --bad-arg\n"
+
+    sys.argv[0:] = _args_app_name
+    sys.argv.extend(['--config-file', '/tmp/file'])
+    sys.argv.extend(['--bad-arg'])
+
+    with pytest.raises(SystemExit):
+        bigipconfigdriver._handle_args()
+
+    out, err = capsys.readouterr()
+    assert '' == out
+    assert expected == err
+
+
 def test_handleargs_expected():
     sys.argv[0:] = _args_app_name
-    sys.argv.extend(_args_full)
+    sys.argv.extend(['--config-file', '/tmp/.././tmp/file'])
 
     args = bigipconfigdriver._handle_args()
 
     assert args.config_file == '/tmp/file'
-    assert args.username == 'booch'
-    assert args.password == 'unbreakable'
-    assert args.url == 'https://bigip.example.com'
-    assert args.verify_interval == 30
-    assert args.partitions == _args_positional
-
-
-def test_handleargs_optional():
-    sys.argv[0:] = _args_app_name
-    sys.argv.extend(['--verify-interval', '1', '--log-level', 'INFO'])
-    sys.argv.extend(_args_full)
-
-    args = bigipconfigdriver._handle_args()
-
-    assert args.config_file == '/tmp/file'
-    assert args.username == 'booch'
-    assert args.password == 'unbreakable'
-    assert args.url == 'https://bigip.example.com'
-    assert args.verify_interval == 1
-    assert args.log_level == 'INFO'
-    assert args.partitions == _args_positional
 
 
 # IntervalTimer tests
@@ -458,7 +441,7 @@ def test_confighandler_lifecycle():
         assert handler._stop is True
 
 
-def test_confighandler_parse_config(request):
+def test_parse_config(request):
     handler = None
     try:
         bigip = MockBigIp()
@@ -467,7 +450,7 @@ def test_confighandler_parse_config(request):
 
         handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
 
-        r = handler._parse_config()
+        r = bigipconfigdriver._parse_config(config_file)
         assert r is None
 
         obj = {}
@@ -481,11 +464,473 @@ def test_confighandler_parse_config(request):
             request.addfinalizer(fin)
             json.dump(obj, f)
 
-        r = handler._parse_config()
+        r = bigipconfigdriver._parse_config(config_file)
         assert r is not None
         assert r['field1'] == obj['field1']
         assert r['field_string'] == obj['field_string']
         assert r['field_number'] == obj['field_number']
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_global_config(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {}
+        obj['global'] = {'log-level': 'WARNING', 'verify-interval': 10}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        verify_interval, level = bigipconfigdriver._handle_global_config(r)
+        assert verify_interval == 10
+        assert level == logging.WARNING
+
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_global_config_defaults(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {}
+        obj['global'] = {}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        verify_interval, level = bigipconfigdriver._handle_global_config(r)
+        assert verify_interval == bigipconfigdriver.DEFAULT_VERIFY_INTERVAL
+        assert level == bigipconfigdriver.DEFAULT_LOG_LEVEL
+
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_global_config_bad_string_log_level(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {"global": {"log-level": "everything", "verify-interval": 100}}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        verify_interval, level = bigipconfigdriver._handle_global_config(r)
+        assert verify_interval == 100
+        assert level == bigipconfigdriver.DEFAULT_LOG_LEVEL
+
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_global_config_number_log_level(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {"global": {"log-level": 55, "verify-interval": 100}}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        verify_interval, level = bigipconfigdriver._handle_global_config(r)
+        assert verify_interval == 100
+        assert level == bigipconfigdriver.DEFAULT_LOG_LEVEL
+
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_global_config_negative_verify_interval(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {"global": {"log-level": "ERROR", "verify-interval": -1}}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        verify_interval, level = bigipconfigdriver._handle_global_config(r)
+        assert verify_interval == bigipconfigdriver.DEFAULT_VERIFY_INTERVAL
+        assert level == logging.ERROR
+
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_global_config_string_verify_interval(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {"global": {"log-level": "ERROR", "verify-interval": "hundred"}}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        verify_interval, level = bigipconfigdriver._handle_global_config(r)
+        assert verify_interval == bigipconfigdriver.DEFAULT_VERIFY_INTERVAL
+        assert level == logging.ERROR
+
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_bigip_config(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {}
+        obj['bigip'] = {'username': 'admin', 'password': 'changeme',
+                        'url': 'http://10.10.10.10:443',
+                        'partitions': ['common', 'velcro']}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        try:
+            host, port = bigipconfigdriver._handle_bigip_config(r)
+            assert host == '10.10.10.10'
+            assert port == 443
+        except:
+            assert 0
+
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_bigip_config_missing_bigip(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        with pytest.raises(bigipconfigdriver.ConfigError):
+            bigipconfigdriver._handle_bigip_config(r)
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_bigip_config_missing_username(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {}
+        obj['bigip'] = {'password': 'changeme',
+                        'url': 'http://10.10.10.10:443',
+                        'partitions': ['common', 'velcro']}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        with pytest.raises(bigipconfigdriver.ConfigError):
+            bigipconfigdriver._handle_bigip_config(r)
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_bigip_config_missing_password(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {}
+        obj['bigip'] = {'username': 'admin',
+                        'url': 'http://10.10.10.10:443',
+                        'partitions': ['common', 'velcro']}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        with pytest.raises(bigipconfigdriver.ConfigError):
+            bigipconfigdriver._handle_bigip_config(r)
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_bigip_config_missing_url(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {}
+        obj['bigip'] = {'username': 'admin', 'password': 'changeme',
+                        'partitions': ['common', 'velcro']}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        with pytest.raises(bigipconfigdriver.ConfigError):
+            bigipconfigdriver._handle_bigip_config(r)
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_bigip_config_missing_partitions(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {}
+        obj['bigip'] = {'username': 'admin', 'password': 'changeme',
+                        'url': 'http://10.10.10.10:443',
+                        'partitions': []}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        with pytest.raises(bigipconfigdriver.ConfigError):
+            bigipconfigdriver._handle_bigip_config(r)
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_openshift_sdn_config(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {}
+        obj['openshift-sdn'] = {'vxlan-name': 'vxlan0',
+                                'vxlan-node-ips':
+                                ['198.162.0.1', '198.162.0.2']}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        try:
+            bigipconfigdriver._handle_openshift_sdn_config(r)
+        except:
+            assert 0
+
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_openshift_sdn_config_missing_vxlan_name(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {}
+        obj['openshift-sdn'] = {'vxlan-node-ips':
+                                ['198.162.0.1', '198.162.0.2']}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        with pytest.raises(bigipconfigdriver.ConfigError):
+            bigipconfigdriver._handle_openshift_sdn_config(r)
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_handle_openshift_sdn_config_missing_vxlan_node_ips(request):
+    handler = None
+    try:
+        bigip = MockBigIp()
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+
+        obj = {}
+        obj['openshift-sdn'] = {'vxlan-name': 'vxlan0'}
+
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        r = bigipconfigdriver._parse_config(config_file)
+        with pytest.raises(bigipconfigdriver.ConfigError):
+            bigipconfigdriver._handle_openshift_sdn_config(r)
     finally:
         assert handler is not None
 
@@ -502,6 +947,7 @@ def test_confighandler_reset(request):
         obj['services'].append({'field': 8080})
         obj['services'].append({'field': 9090})
         obj['services'].append({'field': 10101})
+        obj['global'] = {'verify-interval': 0}
 
         bigip = MockBigIp(obj)
         config_template = Template('/tmp/config.$pid')
@@ -555,6 +1001,7 @@ def test_confighandler_checkpoint(request):
         obj['services'].append({'field': 8080})
         obj['services'].append({'field': 9090})
         obj['services'].append({'field': 10101})
+        obj['global'] = {'verify-interval': 0.25}
 
         event = threading.Event()
         bigip = MockBigIp(obj, notify_event=event, notify_after=5)

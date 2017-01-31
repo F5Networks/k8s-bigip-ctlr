@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -29,6 +28,18 @@ import (
 	"k8s.io/client-go/1.4/rest"
 	"k8s.io/client-go/1.4/tools/clientcmd"
 )
+
+type GlobalSection struct {
+	LogLevel       string `json:"log-level,omitempty"`
+	VerifyInterval int    `json:"verify-interval,omitempty"`
+}
+
+type BigIPSection struct {
+	BigIPUsername   string   `json:"username,omitempty"`
+	BigIPPassword   string   `json:"password,omitempty"`
+	BigIPURL        string   `json:"url,omitempty"`
+	BigIPPartitions []string `json:"partitions,omitempty"`
+}
 
 var (
 	flags     = pflag.NewFlagSet("", pflag.ExitOnError)
@@ -73,27 +84,44 @@ func initLogger(logLevel string) error {
 	return nil
 }
 
+func initializeDriverConfig(
+	configWriter *writer.ConfigWriter,
+	global GlobalSection,
+	bigIP BigIPSection,
+) error {
+	if nil == configWriter {
+		return fmt.Errorf("config writer argument cannot be nil")
+	}
+
+	sectionNames := []string{"global", "bigip"}
+	for i, v := range []interface{}{global, bigIP} {
+		doneCh, errCh, err := configWriter.SendSection(sectionNames[i], v)
+		if nil != err {
+			return fmt.Errorf("failed writing global config section: %v", err)
+		} else {
+			select {
+			case <-doneCh:
+			case e := <-errCh:
+				return fmt.Errorf("failed writing section %s - %v: %v",
+					sectionNames[i], e, v)
+			case <-time.After(1000 * time.Millisecond):
+				log.Warning("Did not receive config write response in 1 second")
+			}
+		}
+	}
+
+	return nil
+}
+
 func createDriverCmd(
-	bigipPartitions []string,
-	bigipUsername string,
-	bigipPassword string,
-	bigipUrl string,
 	configFilename string,
-	verifyInterval string,
-	logLevel string,
 	pyCmd string,
 ) *exec.Cmd {
 	cmdName := "python"
 
 	cmdArgs := []string{
 		pyCmd,
-		"--username", bigipUsername,
-		"--password", bigipPassword,
-		"--url", bigipUrl,
-		"--config-file", configFilename,
-		"--verify-interval", verifyInterval,
-		"--log-level", logLevel,
-		strings.Join(bigipPartitions, " ")}
+		"--config-file", configFilename}
 
 	cmd := exec.Command(cmdName, cmdArgs...)
 
@@ -140,6 +168,35 @@ func runBigIpDriver(pid chan<- int, cmd *exec.Cmd) {
 		waitStatus = cmd.ProcessState.Sys().(syscall.WaitStatus)
 		log.Warningf("Config driver exited normally: %d", waitStatus.ExitStatus())
 	}
+}
+
+func startPythonDriver(configWriter *writer.ConfigWriter) (<-chan int, error) {
+	err := initializeDriverConfig(
+		configWriter,
+		GlobalSection{
+			LogLevel:       *logLevel,
+			VerifyInterval: *verifyInterval,
+		},
+		BigIPSection{
+			BigIPUsername:   *bigipUsername,
+			BigIPPassword:   *bigipPassword,
+			BigIPURL:        *bigipUrl,
+			BigIPPartitions: *bigipPartitions,
+		},
+	)
+	if nil != err {
+		return nil, err
+	}
+
+	subPidCh := make(chan int)
+	pyCmd := fmt.Sprintf("%s/bigipconfigdriver.py", *pythonBaseDir)
+	cmd := createDriverCmd(
+		configWriter.GetOutputFilename(),
+		pyCmd,
+	)
+	go runBigIpDriver(subPidCh, cmd)
+
+	return subPidCh, nil
 }
 
 func verifyArgs() error {
@@ -205,21 +262,10 @@ func main() {
 		log.Fatalf("'%v' is not a valid Pool Member Type", *poolMemberType)
 	}
 
-	verify := strconv.Itoa(*verifyInterval)
-
-	subPidCh := make(chan int)
-	pyCmd := fmt.Sprintf("%s/bigipconfigdriver.py", *pythonBaseDir)
-	cmd := createDriverCmd(
-		*bigipPartitions,
-		*bigipUsername,
-		*bigipPassword,
-		*bigipUrl,
-		configWriter.GetOutputFilename(),
-		verify,
-		*logLevel,
-		pyCmd,
-	)
-	go runBigIpDriver(subPidCh, cmd)
+	subPidCh, err := startPythonDriver(configWriter)
+	if nil != err {
+		log.Fatalf("Could not initialize subprocess configuration: %v", err)
+	}
 	subPid := <-subPidCh
 	defer func(pid int) {
 		if 0 != pid {

@@ -14,6 +14,7 @@ import (
 
 	"eventStream"
 	"tools/pollers"
+	"tools/writer"
 	"virtualServer"
 
 	log "velcro/vlogger"
@@ -72,8 +73,16 @@ func initLogger(logLevel string) error {
 	return nil
 }
 
-func createDriverCmd(bigipPartitions []string, bigipUsername, bigipPassword, bigipUrl,
-	verifyInterval, logLevel, pyCmd string) *exec.Cmd {
+func createDriverCmd(
+	bigipPartitions []string,
+	bigipUsername string,
+	bigipPassword string,
+	bigipUrl string,
+	configFilename string,
+	verifyInterval string,
+	logLevel string,
+	pyCmd string,
+) *exec.Cmd {
 	cmdName := "python"
 
 	cmdArgs := []string{
@@ -81,7 +90,7 @@ func createDriverCmd(bigipPartitions []string, bigipUsername, bigipPassword, big
 		"--username", bigipUsername,
 		"--password", bigipPassword,
 		"--url", bigipUrl,
-		"--config-file", virtualServer.OutputFilename,
+		"--config-file", configFilename,
 		"--verify-interval", verifyInterval,
 		"--log-level", logLevel,
 		strings.Join(bigipPartitions, " ")}
@@ -175,6 +184,15 @@ func main() {
 		log.Fatalf("%v", argError)
 	}
 
+	// FIXME(yacobucci) virtualServer should really be an object and not a
+	// singleton at some point
+	configWriter, err := writer.NewConfigWriter()
+	if nil != err {
+		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
+	}
+	defer configWriter.Stop()
+
+	virtualServer.SetConfigWriter(configWriter)
 	virtualServer.SetUseNodeInternal(*useNodeInternal)
 	virtualServer.SetNamespace(*namespace)
 
@@ -191,8 +209,16 @@ func main() {
 
 	subPidCh := make(chan int)
 	pyCmd := fmt.Sprintf("%s/bigipconfigdriver.py", *pythonBaseDir)
-	cmd := createDriverCmd(*bigipPartitions, *bigipUsername, *bigipPassword, *bigipUrl,
-		verify, *logLevel, pyCmd)
+	cmd := createDriverCmd(
+		*bigipPartitions,
+		*bigipUsername,
+		*bigipPassword,
+		*bigipUrl,
+		configWriter.GetOutputFilename(),
+		verify,
+		*logLevel,
+		pyCmd,
+	)
 	go runBigIpDriver(subPidCh, cmd)
 	subPid := <-subPidCh
 	defer func(pid int) {
@@ -210,7 +236,6 @@ func main() {
 
 	var kubeClient *kubernetes.Clientset
 	var config *rest.Config
-	var err error
 	if *inCluster {
 		config, err = rest.InClusterConfig()
 	} else {

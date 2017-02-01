@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"os"
 	"sort"
-	"strconv"
 	"testing"
 	"time"
 
 	"eventStream"
+	"tools/writer"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -198,15 +198,6 @@ var oneIappOneNodeConfig string = string(`{"services":[{"virtualServer":{"backen
 var twoSvcTwoPodsConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":80,"poolMemberAddrs":["10.2.96.0","10.2.96.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":8080,"poolMemberPort":8080,"poolMemberAddrs":["10.2.96.1","10.2.96.2"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}}]}`)
 
 var oneSvcTwoPodsConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":80,"poolMemberAddrs":["10.2.96.0","10.2.96.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}}]}`)
-
-func TestConfigFilename(t *testing.T) {
-	assert := assert.New(t)
-
-	pid := os.Getpid()
-	expectedFilename := "/tmp/f5-k8s-controller.config." + strconv.Itoa(pid) + ".json"
-
-	assert.Equal(expectedFilename, OutputFilename)
-}
 
 func newConfigMap(id, rv, namespace string,
 	keys map[string]string) *v1.ConfigMap {
@@ -463,13 +454,17 @@ func TestGetAddresses(t *testing.T) {
 }
 
 func validateFile(t *testing.T, expected string) {
-	configFile, err := os.Open(OutputFilename)
+	configFile, err := os.Open(config.GetOutputFilename())
 	if nil != err {
 		assert.Nil(t, err)
 		return
 	}
 
-	services := outputConfigs{}
+	services := struct {
+		Services VirtualServerConfigs `json:"services"`
+	}{
+		Services: VirtualServerConfigs{},
+	}
 
 	parser := json.NewDecoder(configFile)
 	err = parser.Decode(&services)
@@ -482,7 +477,12 @@ func validateFile(t *testing.T, expected string) {
 	sort.Sort(services.Services)
 
 	// Read JSON from exepectedOutput into array of structs
-	expectedOutput := outputConfigs{[]*VirtualServerConfig{}}
+	expectedOutput := struct {
+		Services VirtualServerConfigs `json:"services"`
+	}{
+		Services: VirtualServerConfigs{},
+	}
+
 	err = json.Unmarshal([]byte(expected), &expectedOutput)
 	if nil != err {
 		assert.Nil(t, err)
@@ -494,7 +494,11 @@ func validateFile(t *testing.T, expected string) {
 }
 
 func TestProcessNodeUpdate(t *testing.T) {
-	defer os.Remove(OutputFilename)
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 
 	originalSet := []v1.Node{
 		*newNode("node0", "0", true, []v1.NodeAddress{
@@ -618,6 +622,11 @@ func TestProcessNodeUpdate(t *testing.T) {
 }
 
 func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -670,6 +679,11 @@ func TestOverwriteAddCluster(t *testing.T) {
 }
 
 func testServiceChangeUpdateImpl(t *testing.T, isNodePort bool) {
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -714,6 +728,11 @@ func TestServiceChangeUpdateCluster(t *testing.T) {
 }
 
 func TestServicePortsRemovedNodePort(t *testing.T) {
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -809,7 +828,11 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 }
 
 func TestUpdatesConcurrentNodePort(t *testing.T) {
-	defer os.Remove(OutputFilename)
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -987,7 +1010,11 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 }
 
 func TestProcessUpdatesNodePort(t *testing.T) {
-	defer os.Remove(OutputFilename)
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1215,7 +1242,11 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 }
 
 func TestDontCareConfigMapNodePort(t *testing.T) {
-	defer os.Remove(OutputFilename)
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1252,7 +1283,11 @@ func TestDontCareConfigMapNodePort(t *testing.T) {
 }
 
 func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
-	defer os.Remove(OutputFilename)
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1331,7 +1366,11 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 }
 
 func TestNamespaceIsolation(t *testing.T) {
-	defer os.Remove(OutputFilename)
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1420,7 +1459,11 @@ func TestConfigMapKeysCluster(t *testing.T) {
 }
 
 func TestProcessUpdatesIAppNodePort(t *testing.T) {
-	defer os.Remove(OutputFilename)
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1577,7 +1620,11 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 }
 
 func TestSchemaValidation(t *testing.T) {
-	defer os.Remove(OutputFilename)
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1646,6 +1693,11 @@ func validateServiceIps(t *testing.T, serviceName, namespace string,
 }
 
 func TestVirtualServerWhenEndpointsChange(t *testing.T) {
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1675,7 +1727,6 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 	foo := newService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 	fake := fake.NewSimpleClientset(&v1.ServiceList{Items: []v1.Service{*foo}})
 
-	var err error
 	svcStore := newStore(nil)
 	svcStore.Add(foo)
 	var endptStore *eventStream.EventStore
@@ -1733,6 +1784,11 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 }
 
 func TestVirtualServerWhenServiceChanges(t *testing.T) {
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1766,7 +1822,7 @@ func TestVirtualServerWhenServiceChanges(t *testing.T) {
 	svcStore.Add(foo)
 
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
-	err := endptStore.Add(newEndpoints(svcName, "1", namespace, svcPodIps,
+	err = endptStore.Add(newEndpoints(svcName, "1", namespace, svcPodIps,
 		[]string{}, endptPorts))
 	require.Nil(err)
 
@@ -1808,6 +1864,11 @@ func TestVirtualServerWhenServiceChanges(t *testing.T) {
 }
 
 func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1824,7 +1885,7 @@ func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
 	svcPodIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
 	endptStore := newStore(nil)
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
-	err := endptStore.Add(newEndpoints(svcName, "1", namespace, svcPodIps,
+	err = endptStore.Add(newEndpoints(svcName, "1", namespace, svcPodIps,
 		[]string{}, endptPorts))
 	require.Nil(err)
 
@@ -1869,7 +1930,11 @@ func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
 }
 
 func TestUpdatesConcurrentCluster(t *testing.T) {
-	defer os.Remove(OutputFilename)
+	var err error
+	config, err = writer.NewConfigWriter()
+	assert.Nil(t, err)
+	require.NotNil(t, config)
+	defer config.Stop()
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()

@@ -100,7 +100,7 @@ var virtualServers struct {
 }
 
 // Nodes from previous iteration of node polling
-var oldNodes []string
+var oldNodes = []string{}
 
 // Mutex to control access to node data
 // FIXME: Simple synchronization for now, it remains to be determined if we'll

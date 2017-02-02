@@ -6,12 +6,15 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"eventStream"
+	"tools/pollers"
+	"tools/writer"
 	"virtualServer"
 
 	log "velcro/vlogger"
@@ -70,8 +73,16 @@ func initLogger(logLevel string) error {
 	return nil
 }
 
-func createDriverCmd(bigipPartitions []string, bigipUsername, bigipPassword, bigipUrl,
-	verifyInterval, logLevel, pyCmd string) *exec.Cmd {
+func createDriverCmd(
+	bigipPartitions []string,
+	bigipUsername string,
+	bigipPassword string,
+	bigipUrl string,
+	configFilename string,
+	verifyInterval string,
+	logLevel string,
+	pyCmd string,
+) *exec.Cmd {
 	cmdName := "python"
 
 	cmdArgs := []string{
@@ -79,7 +90,7 @@ func createDriverCmd(bigipPartitions []string, bigipUsername, bigipPassword, big
 		"--username", bigipUsername,
 		"--password", bigipPassword,
 		"--url", bigipUrl,
-		"--config-file", virtualServer.OutputFilename,
+		"--config-file", configFilename,
 		"--verify-interval", verifyInterval,
 		"--log-level", logLevel,
 		strings.Join(bigipPartitions, " ")}
@@ -173,6 +184,16 @@ func main() {
 		log.Fatalf("%v", argError)
 	}
 
+	// FIXME(yacobucci) virtualServer should really be an object and not a
+	// singleton at some point
+	configWriter, err := writer.NewConfigWriter()
+	if nil != err {
+		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
+	}
+	defer configWriter.Stop()
+
+	virtualServer.SetConfigWriter(configWriter)
+	virtualServer.SetUseNodeInternal(*useNodeInternal)
 	virtualServer.SetNamespace(*namespace)
 
 	var isNodePort bool
@@ -188,8 +209,16 @@ func main() {
 
 	subPidCh := make(chan int)
 	pyCmd := fmt.Sprintf("%s/bigipconfigdriver.py", *pythonBaseDir)
-	cmd := createDriverCmd(*bigipPartitions, *bigipUsername, *bigipPassword, *bigipUrl,
-		verify, *logLevel, pyCmd)
+	cmd := createDriverCmd(
+		*bigipPartitions,
+		*bigipUsername,
+		*bigipPassword,
+		*bigipUrl,
+		configWriter.GetOutputFilename(),
+		verify,
+		*logLevel,
+		pyCmd,
+	)
 	go runBigIpDriver(subPidCh, cmd)
 	subPid := <-subPidCh
 	defer func(pid int) {
@@ -207,7 +236,6 @@ func main() {
 
 	var kubeClient *kubernetes.Clientset
 	var config *rest.Config
-	var err error
 	if *inCluster {
 		config, err = rest.InClusterConfig()
 	} else {
@@ -227,8 +255,15 @@ func main() {
 	}
 
 	if isNodePort {
-		// Initialize the Node cache
-		virtualServer.ProcessNodeUpdate(kubeClient, *useNodeInternal)
+		np := pollers.NewNodePoller(kubeClient, 30*time.Second)
+		err = np.RegisterListener(virtualServer.ProcessNodeUpdate)
+		if nil != err {
+			log.Fatalf("error registering node update listener in nodeport mode: %v\n",
+				err)
+		}
+
+		np.Run()
+		defer np.Stop()
 	}
 
 	var endptEventStore *eventStream.EventStore
@@ -280,12 +315,8 @@ func main() {
 	configMapEventStream.Run()
 	defer configMapEventStream.Stop()
 
-	for {
-		time.Sleep(30 * time.Second)
-
-		if isNodePort {
-			// Poll for node changes
-			virtualServer.ProcessNodeUpdate(kubeClient, *useNodeInternal)
-		}
-	}
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-sigs
+	log.Infof("Exiting - signal %v\n", sig)
 }

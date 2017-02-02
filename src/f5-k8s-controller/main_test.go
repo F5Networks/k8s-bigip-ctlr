@@ -28,7 +28,16 @@ func TestDriverCmd(t *testing.T) {
 	pythonPath, err := exec.LookPath("python")
 	assert.Nil(t, err, "We should find python")
 
-	cmd := createDriverCmd(partitions, username, password, url, verify, log, pyDriver)
+	cmd := createDriverCmd(
+		partitions,
+		username,
+		password,
+		url,
+		configFile,
+		verify,
+		log,
+		pyDriver,
+	)
 
 	require.NotNil(t, cmd, "Command should not be nil")
 	require.NotNil(t, cmd.Path, "Path should not be nil")
@@ -58,7 +67,19 @@ func TestDriverSubProcess(t *testing.T) {
 	log := "INFO"
 	pyDriver := "./test/pyTest.py"
 
-	cmd := createDriverCmd(partitions, username, password, url, verify, log, pyDriver)
+	configFile := fmt.Sprintf("/tmp/f5-k8s-controller.config.%d.json",
+		os.Getpid())
+
+	cmd := createDriverCmd(
+		partitions,
+		username,
+		password,
+		url,
+		configFile,
+		verify,
+		log,
+		pyDriver,
+	)
 	go runBigIpDriver(subPidCh, cmd)
 	pid := <-subPidCh
 

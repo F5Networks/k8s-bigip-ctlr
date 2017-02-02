@@ -3,20 +3,18 @@ package virtualServer
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"reflect"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"eventStream"
+	"tools/writer"
 	log "velcro/vlogger"
 
 	"github.com/xeipuuv/gojsonschema"
 	"k8s.io/client-go/1.4/kubernetes"
-	"k8s.io/client-go/1.4/pkg/api"
 	"k8s.io/client-go/1.4/pkg/api/v1"
 )
 
@@ -82,14 +80,6 @@ func (slice VirtualServerConfigs) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-// Output file as an JSON array of Virtual Server configs
-type outputConfigs struct {
-	Services VirtualServerConfigs `json:"services"`
-}
-
-// Output file of Big-IP Virtual Server configs
-var OutputFilename string = "/tmp/f5-k8s-controller.config." + strconv.Itoa(os.Getpid()) + ".json"
-
 // Indicator to use an F5 schema
 var schemaIndicator string = "f5schemadb://"
 
@@ -117,10 +107,20 @@ var oldNodes []string
 // need something more complicated (channels, etc?)
 var mutex = &sync.Mutex{}
 
+var config *writer.ConfigWriter = nil
 var namespace = ""
+var useNodeInternal = false
+
+func SetConfigWriter(cw *writer.ConfigWriter) {
+	config = cw
+}
 
 func SetNamespace(ns string) {
 	namespace = ns
+}
+
+func SetUseNodeInternal(ni bool) {
+	useNodeInternal = ni
 }
 
 // Package init
@@ -535,8 +535,13 @@ func processEndpoints(
 }
 
 // Check for a change in Node state
-func ProcessNodeUpdate(kubeClient kubernetes.Interface, internal bool) {
-	newNodes, err := getNodeAddresses(kubeClient, internal)
+func ProcessNodeUpdate(obj interface{}, err error) {
+	if nil != err {
+		log.Warningf("Unable to get list of nodes, err=%+v", err)
+		return
+	}
+
+	newNodes, err := getNodeAddresses(obj)
 	if nil != err {
 		log.Warningf("Unable to get list of nodes, err=%+v", err)
 		return
@@ -572,29 +577,38 @@ func outputConfig() {
 // This function MUST be called with the virtualServers
 // lock held.
 func outputConfigLocked() {
-	var outputs outputConfigs
 
 	// Initialize the Services array as empty; json.Marshal() writes
 	// an uninitialized array as 'null', but we want an empty array
 	// written as '[]' instead
-	outputs.Services = []*VirtualServerConfig{}
+	services := VirtualServerConfigs{}
 
 	// Filter the configs to only those that have active services
 	for _, vs := range virtualServers.m {
 		if vs.VirtualServer.Backend.PoolMemberPort != 0 {
-			outputs.Services = append(outputs.Services, vs)
+			services = append(services, vs)
 		}
 	}
-	output, err := json.Marshal(outputs)
 
-	if err == nil {
-		err := ioutil.WriteFile(OutputFilename, output, 0644)
-
-		if err == nil {
-			log.Infof("Wrote %v Virtual Server configs to file %v", len(outputs.Services), OutputFilename)
-			log.Debugf("Output: %s", string(output))
-		} else {
-			log.Errorf("Failed to write Big-IP config data: %v", err)
+	doneCh, errCh, err := config.SendSection("services", services)
+	if nil != err {
+		log.Warningf("Failed to write Big-IP config data: %v", err)
+	} else {
+		select {
+		case <-doneCh:
+			log.Infof("Wrote %v Virtual Server configs", len(services))
+			if log.LL_DEBUG == log.GetLogLevel() {
+				output, err := json.Marshal(services)
+				if nil != err {
+					log.Warningf("Failed creating output debug log: %v", err)
+				} else {
+					log.Debugf("Services: %s", output)
+				}
+			}
+		case e := <-errCh:
+			log.Warningf("Failed to write Big-IP config data: %v", e)
+		case <-time.After(100 * time.Millisecond):
+			log.Warning("Did not receive config write response in 100 Milliseconds")
 		}
 	}
 }
@@ -609,23 +623,23 @@ func getNodesFromCache() []string {
 }
 
 // Get a list of Node addresses
-func getNodeAddresses(kubeClient kubernetes.Interface,
-	internal bool) ([]string, error) {
-	addrs := []string{}
-
-	nodes, err := kubeClient.Core().Nodes().List(api.ListOptions{})
-	if err != nil {
-		return nil, err
+func getNodeAddresses(obj interface{}) ([]string, error) {
+	nodes, ok := obj.([]v1.Node)
+	if false == ok {
+		return nil,
+			fmt.Errorf("poll update unexpected type, interface is not []v1.Node")
 	}
 
+	addrs := []string{}
+
 	var addrType v1.NodeAddressType
-	if internal {
+	if useNodeInternal {
 		addrType = v1.NodeInternalIP
 	} else {
 		addrType = v1.NodeExternalIP
 	}
 
-	for _, node := range nodes.Items {
+	for _, node := range nodes {
 		if node.Spec.Unschedulable {
 			// Skip master node
 			continue

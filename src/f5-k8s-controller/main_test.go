@@ -1,41 +1,79 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
-	"strings"
 	"testing"
 	"time"
+
+	"tools/writer"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+func TestConfigSetup(t *testing.T) {
+	configWriter, err := writer.NewConfigWriter()
+	assert.NoError(t, err)
+	require.NotNil(t, configWriter)
+	defer configWriter.Stop()
+
+	type ConfigTest struct {
+		Global GlobalSection `json:"global"`
+		BigIP  BigIPSection  `json:"bigip"`
+	}
+
+	expected := ConfigTest{
+		BigIP: BigIPSection{
+			BigIPUsername: "colonel atari",
+			BigIPPassword: "dexter",
+			BigIPURL:      "https://bigip.example.com",
+			BigIPPartitions: []string{
+				"k8s",
+				"openshift",
+				"marathon",
+			},
+		},
+		Global: GlobalSection{
+			LogLevel:       "WARNING",
+			VerifyInterval: 10101,
+		},
+	}
+
+	err = initializeDriverConfig(nil, expected.Global, expected.BigIP)
+	assert.Error(t, err)
+
+	err = initializeDriverConfig(
+		configWriter,
+		expected.Global,
+		expected.BigIP,
+	)
+	assert.NoError(t, err)
+
+	written, err := ioutil.ReadFile(configWriter.GetOutputFilename())
+	assert.NoError(t, err)
+	actual := ConfigTest{}
+	err = json.Unmarshal(written, &actual)
+	assert.NoError(t, err)
+
+	assert.EqualValues(t, expected, actual)
+}
+
 func TestDriverCmd(t *testing.T) {
-	username := "admin"
-	password := "test"
-	partitions := []string{"velcro1", "velcro2"}
-	url := "https://bigip.example.com"
-	verify := "30"
-	log := "INFO"
 	pyDriver := "/tmp/some-dir/test-driver.py"
 
 	configFile := fmt.Sprintf("/tmp/f5-k8s-controller.config.%d.json",
 		os.Getpid())
 
 	pythonPath, err := exec.LookPath("python")
-	assert.Nil(t, err, "We should find python")
+	assert.NoError(t, err, "We should find python")
 
 	cmd := createDriverCmd(
-		partitions,
-		username,
-		password,
-		url,
 		configFile,
-		verify,
-		log,
 		pyDriver,
 	)
 
@@ -46,38 +84,61 @@ func TestDriverCmd(t *testing.T) {
 	args := []string{
 		"python",
 		pyDriver,
-		"--username", username,
-		"--password", password,
-		"--url", url,
 		"--config-file", configFile,
-		"--verify-interval", "30",
-		"--log-level", log,
-		strings.Join(partitions, " ")}
+	}
 	require.EqualValues(t, cmd.Args, args, "We should get expected args list")
 }
 
 func TestDriverSubProcess(t *testing.T) {
+	configWriter, err := writer.NewConfigWriter()
+	assert.NoError(t, err)
+	require.NotNil(t, configWriter)
+	defer configWriter.Stop()
+
+	type ConfigTest struct {
+		Global GlobalSection `json:"global"`
+		BigIP  BigIPSection  `json:"bigip"`
+	}
+
+	config := ConfigTest{
+		BigIP: BigIPSection{
+			BigIPUsername: "admin",
+			BigIPPassword: "test",
+			BigIPURL:      "https://bigip.example.com",
+			BigIPPartitions: []string{
+				"velcro1",
+				"velcro2",
+			},
+		},
+		Global: GlobalSection{
+			LogLevel:       "INFO",
+			VerifyInterval: 30,
+		},
+	}
+
+	err = initializeDriverConfig(
+		configWriter,
+		config.Global,
+		config.BigIP,
+	)
+	assert.NoError(t, err)
+
+	written, err := ioutil.ReadFile(configWriter.GetOutputFilename())
+	assert.NoError(t, err)
+	actual := ConfigTest{}
+	err = json.Unmarshal(written, &actual)
+	assert.NoError(t, err)
+
+	assert.EqualValues(t, config, actual)
+
 	subPidCh := make(chan int)
 
-	username := "admin"
-	password := "test"
-	partitions := []string{"velcro1", "velcro2"}
-	url := "https://bigip.example.com"
-	verify := "30"
-	log := "INFO"
 	pyDriver := "./test/pyTest.py"
 
-	configFile := fmt.Sprintf("/tmp/f5-k8s-controller.config.%d.json",
-		os.Getpid())
+	configFile := configWriter.GetOutputFilename()
 
 	cmd := createDriverCmd(
-		partitions,
-		username,
-		password,
-		url,
 		configFile,
-		verify,
-		log,
 		pyDriver,
 	)
 	go runBigIpDriver(subPidCh, cmd)

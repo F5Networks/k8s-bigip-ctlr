@@ -37,6 +37,10 @@ root_logger = logging.getLogger()
 root_logger.addHandler(console)
 
 
+DEFAULT_LOG_LEVEL = logging.INFO
+DEFAULT_VERIFY_INTERVAL = 30.0
+
+
 class IntervalTimerError(Exception):
     def __init__(self, msg):
         Exception.__init__(self, msg)
@@ -112,34 +116,34 @@ class ConfigHandler():
     def __init__(self, config_file, bigip, verify_interval):
         self._config_file = config_file
         self._bigip = bigip
-        self._verify_interval = verify_interval
 
         self._condition = threading.Condition()
         self._thread = threading.Thread(target=self._do_reset)
         self._pending_reset = False
         self._stop = False
 
-        if self._verify_interval > 0:
-            self._interval = IntervalTimer(self._verify_interval,
-                                           self.notify_reset)
-        else:
-            self._interval = None
+        self._interval = None
+        self._verify_interval = 0
+        self.set_interval_timer(verify_interval)
+
         self._thread.start()
+
+    def set_interval_timer(self, verify_interval):
+        if verify_interval != self._verify_interval:
+            if self._interval is not None:
+                self._interval.destroy()
+                self._interval = None
+
+            self._verify_interval = verify_interval
+            if self._verify_interval > 0:
+                self._interval = IntervalTimer(self._verify_interval,
+                                               self.notify_reset)
 
     def stop(self):
         self._condition.acquire()
         self._stop = True
         self._condition.notify()
         self._condition.release()
-
-    def _parse_config(self):
-        if os.path.exists(self._config_file):
-            with open(self._config_file) as config:
-                config_json = json.load(config)
-                log.debug('loaded configuration file successfully')
-                return config_json
-        else:
-            return None
 
     def notify_reset(self):
         self._condition.acquire()
@@ -167,17 +171,15 @@ class ConfigHandler():
                 try:
                     start_time = time.time()
 
-                    config = self._parse_config()
+                    config = _parse_config(self._config_file)
+                    verify_interval, _ = _handle_global_config(config)
+                    _handle_openshift_sdn_config(config)
+                    self.set_interval_timer(verify_interval)
 
-                    # FIXME(yacobucci) update regenerate_config_f5 to take
-                    # the full config blob
-                    services = None
-                    try:
-                        services = config['services']
-                    except (TypeError, KeyError):
-                        services = []
+                    if 'services' not in config:
+                        config['services'] = []
 
-                    if self._bigip.regenerate_config_f5(services):
+                    if self._bigip.regenerate_config_f5(config):
                         # Timeout occurred, do a reset so that we try again
                         log.warning(
                             'regenerate operation timed out, resetting')
@@ -338,41 +340,23 @@ class ConfigWatcher(pyinotify.ProcessEvent):
                 self._on_change()
 
 
+def _parse_config(config_file):
+    if os.path.exists(config_file):
+        with open(config_file) as config:
+            config_json = json.load(config)
+            log.debug('loaded configuration file successfully')
+            return config_json
+    else:
+        return None
+
+
 def _handle_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-            '--username',
-            type=str,
-            required=True,
-            help='BigIp username')
-    parser.add_argument(
-            '--password',
-            type=str,
-            required=True,
-            help='BigIp password')
-    parser.add_argument(
-            '--url',
-            type=str,
-            required=True,
-            help='URL / IP address of BigIp')
     parser.add_argument(
             '--config-file',
             type=str,
             required=True,
             help='BigIp configuration file')
-    parser.add_argument(
-            '--verify-interval',
-            type=int,
-            default=30,
-            help='Interval to checkpoint BigIp configuration')
-    parser.add_argument(
-            '--log-level',
-            type=str,
-            default='INFO',
-            help='Logging level')
-    parser.add_argument(
-            'partitions', metavar='partition', type=str, nargs='+',
-            help='List of BigIp partitions available to the controller')
     args = parser.parse_args()
 
     basename = os.path.basename(args.config_file)
@@ -381,33 +365,109 @@ def _handle_args():
 
     args.config_file = os.path.realpath(args.config_file)
 
-    url = urlparse(args.url)
-    args.host = url.hostname
-    args.port = url.port
-    if not args.port:
-        args.port = 443
-
     return args
+
+
+def _handle_global_config(config):
+    level = DEFAULT_LOG_LEVEL
+    verify_interval = DEFAULT_VERIFY_INTERVAL
+
+    if config and 'global' in config:
+        global_cfg = config['global']
+
+        if 'log-level' in global_cfg:
+            log_level = global_cfg['log-level']
+            try:
+                level = logging.getLevelName(log_level.upper())
+            except (AttributeError):
+                log.warn('The "global:log-level" field in the configuration '
+                         'file should be a string')
+
+        if 'verify-interval' in global_cfg:
+            try:
+                verify_interval = float(global_cfg['verify-interval'])
+                if verify_interval < 0:
+                    verify_interval = DEFAULT_VERIFY_INTERVAL
+                    log.warn('The "global:verify-interval" field in the '
+                             'configuration file should be a non-negative '
+                             'number')
+            except (ValueError):
+                log.warn('The "global:verify-interval" field in the '
+                         'configuration file should be a number')
+
+    try:
+        root_logger.setLevel(level)
+    except:
+        level = DEFAULT_LOG_LEVEL
+        root_logger.setLevel(level)
+        log.warn('Undefined value specified for the '
+                 '"global:log-level" field in the configuration file')
+
+    # level only is needed for unit tests
+    return verify_interval, level
+
+
+def _handle_bigip_config(config):
+    if (not config) or ('bigip' not in config):
+        raise ConfigError('Configuration file missing "bigip" section')
+    bigip = config['bigip']
+    if 'username' not in bigip:
+        raise ConfigError('Configuration file missing '
+                          '"bigip:username" section')
+    if 'password' not in bigip:
+        raise ConfigError('Configuration file missing '
+                          '"bigip:password" section')
+    if 'url' not in bigip:
+        raise ConfigError('Configuration file missing "bigip:url" section')
+    if ('partitions' not in bigip) or (len(bigip['partitions']) == 0):
+        raise ConfigError('Configuration file must specify at least one '
+                          'partition in the "bigip:partitions" section')
+
+    url = urlparse(bigip['url'])
+    host = url.hostname
+    port = url.port
+    if not port:
+        port = 443
+
+    return host, port
+
+
+def _handle_openshift_sdn_config(config):
+    if config and 'openshift-sdn' in config:
+        sdn = config['openshift-sdn']
+        if 'vxlan-name' not in sdn:
+            raise ConfigError('Configuration file missing '
+                              '"openshift-sdn:vxlan-name" section')
+        if 'vxlan-node-ips' not in sdn:
+            raise ConfigError('Configuration file missing '
+                              '"openshift-sdn:vxlan-node-ips" section')
 
 
 def main():
     try:
         args = _handle_args()
 
-        level = logging.getLevelName(args.log_level.upper())
-        root_logger.setLevel(level)
+        config = _parse_config(args.config_file)
+        verify_interval, _ = _handle_global_config(config)
+        host, port = _handle_bigip_config(config)
 
-        bigip = CloudBigIP('kubernetes', args.host, args.port, args.username,
-                           args.password, args.partitions)
+        # FIXME (kenr): Big-IP settings are currently static (we ignore any
+        #               changes to these fields in subsequent updates). We
+        #               may want to make the changes dynamic in the future.
+        bigip = CloudBigIP('kubernetes', host, port,
+                           config['bigip']['username'],
+                           config['bigip']['password'],
+                           config['bigip']['partitions'])
 
-        handler = ConfigHandler(args.config_file, bigip, args.verify_interval)
+        handler = ConfigHandler(args.config_file, bigip, verify_interval)
+
         if os.path.exists(args.config_file):
             handler.notify_reset()
 
         watcher = ConfigWatcher(args.config_file, bigip, handler.notify_reset)
         watcher.loop()
         handler.stop()
-    except (ValueError, BigipWatcherError), err:
+    except (ValueError, ConfigError, BigipWatcherError), err:
         log.error(err)
         sys.exit(1)
 

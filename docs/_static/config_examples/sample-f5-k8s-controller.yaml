@@ -28,7 +28,8 @@ spec:
           args: ["--running-in-cluster=true",
             "--bigip-url=$(BIGIP_URL)",
             "--bigip-username=$(BIGIP_USERNAME)",
-            "--bigip-password=$(BIGIP_PASSWORD)"
+            "--bigip-password=$(BIGIP_PASSWORD)",
+            "--pool-member-type=cluster"
           ]
     imagePullSecrets:
         - name: f5-docker-images

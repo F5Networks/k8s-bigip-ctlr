@@ -95,6 +95,11 @@ Configuration Parameters
 |                   |           |           |               |                               | WARNING,          |
 |                   |           |           |               |                               | ERROR             |
 +-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| pool-member-type  | string    | Optional  | nodeport      | Defines the `Kubernetes       | nodeport, cluster |
+|                   |           |           |               | Service Type`_ applied to the |                   |
+|                   |           |           |               | pool member (NodePort or      |                   |
+|                   |           |           |               | ClusterIP)                    |                   |
++-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
 
 F5 Resource Properties
 ----------------------
@@ -211,3 +216,4 @@ API Endpoints
 .. _Kubernetes Ingress resources: http://kubernetes.io/docs/user-guide/ingress/
 .. _iApp table: https://devcentral.f5.com/wiki/iApp.Working-with-Tables.ashx
 .. _F5 resource: <add link to F5 Resource doc>
+.. _Kubernetes Service Type: https://kubernetes.io/docs/user-guide/services/#publishing-services---service-types

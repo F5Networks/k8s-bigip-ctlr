@@ -607,8 +607,8 @@ func outputConfigLocked() {
 			}
 		case e := <-errCh:
 			log.Warningf("Failed to write Big-IP config data: %v", e)
-		case <-time.After(100 * time.Millisecond):
-			log.Warning("Did not receive config write response in 100 Milliseconds")
+		case <-time.After(time.Second):
+			log.Warning("Did not receive config write response in 1s")
 		}
 	}
 }

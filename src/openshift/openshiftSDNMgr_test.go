@@ -3,65 +3,14 @@ package openshift
 import (
 	"fmt"
 	"testing"
-	"time"
+
+	"test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/1.4/pkg/api/unversioned"
 	"k8s.io/client-go/1.4/pkg/api/v1"
 )
-
-const (
-	ImmediateFail = iota
-	AsyncFail
-	Timeout
-	Success
-)
-
-type MockWriter struct {
-	FailStyle    int
-	WrittenTimes int
-	Name         string
-	SdnSection   sdnSection
-}
-
-func (mw *MockWriter) GetOutputFilename() string {
-	return "mock-file"
-}
-
-func (mw *MockWriter) Stop() {
-}
-
-func (mw *MockWriter) SendSection(
-	name string,
-	obj interface{},
-) (<-chan struct{}, <-chan error, error) {
-
-	doneCh := make(chan struct{})
-	errCh := make(chan error)
-
-	mw.WrittenTimes++
-
-	mw.Name = name
-	mw.SdnSection = obj.(sdnSection)
-
-	switch mw.FailStyle {
-	case ImmediateFail:
-		return nil, nil, fmt.Errorf("immediate test error")
-	case AsyncFail:
-		go func() {
-			errCh <- fmt.Errorf("async test error")
-		}()
-	case Timeout:
-		<-time.After(2 * time.Second)
-	case Success:
-		go func() {
-			doneCh <- struct{}{}
-		}()
-	}
-
-	return doneCh, errCh, nil
-}
 
 func newNode(id, rv string, unsched bool,
 	addresses []v1.NodeAddress) *v1.Node {
@@ -111,9 +60,9 @@ func getNodeList() []v1.Node {
 }
 
 func TestOpenshiftMgrCreate(t *testing.T) {
-	mock := &MockWriter{
-		FailStyle:    ImmediateFail,
-		WrittenTimes: 0,
+	mock := &test.MockWriter{
+		FailStyle: test.ImmediateFail,
+		Sections:  make(map[string]interface{}),
 	}
 
 	osMgr, err := NewOpenshiftSDNMgr("", "vxlan500", true, mock)
@@ -138,9 +87,9 @@ func TestOpenshiftMgrCreate(t *testing.T) {
 }
 
 func TestOpenshiftMgrNodeUpdateCallFail(t *testing.T) {
-	mock := &MockWriter{
-		FailStyle:    ImmediateFail,
-		WrittenTimes: 0,
+	mock := &test.MockWriter{
+		FailStyle: test.ImmediateFail,
+		Sections:  make(map[string]interface{}),
 	}
 
 	osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
@@ -152,9 +101,9 @@ func TestOpenshiftMgrNodeUpdateCallFail(t *testing.T) {
 }
 
 func TestOpenshiftNodeUpdateBadData(t *testing.T) {
-	mock := &MockWriter{
-		FailStyle:    ImmediateFail,
-		WrittenTimes: 0,
+	mock := &test.MockWriter{
+		FailStyle: test.ImmediateFail,
+		Sections:  make(map[string]interface{}),
 	}
 
 	osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
@@ -166,9 +115,9 @@ func TestOpenshiftNodeUpdateBadData(t *testing.T) {
 }
 
 func TestOpenshiftNodeUpdate(t *testing.T) {
-	mock := &MockWriter{
-		FailStyle:    Success,
-		WrittenTimes: 0,
+	mock := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
 	}
 
 	nodeList := getNodeList()
@@ -179,7 +128,10 @@ func TestOpenshiftNodeUpdate(t *testing.T) {
 		osMgr.ProcessNodeUpdate(nodeList, nil)
 	})
 	assert.EqualValues(t, 1, mock.WrittenTimes)
-	assert.Equal(t, "openshift-sdn", mock.Name)
+
+	mock.Lock()
+	assert.Contains(t, mock.Sections, "openshift-sdn")
+	mock.Unlock()
 
 	expected := sdnSection{
 		VxLAN: "vxlan500",
@@ -191,14 +143,22 @@ func TestOpenshiftNodeUpdate(t *testing.T) {
 		},
 	}
 
-	assert.EqualValues(t, expected, mock.SdnSection)
+	mock.Lock()
+	section, ok := mock.Sections["openshift-sdn"].(sdnSection)
+	mock.Unlock()
+	assert.True(t, ok)
+
+	assert.EqualValues(t, expected, section)
 
 	osMgr.useNodeInt = false
 	require.NotPanics(t, func() {
 		osMgr.ProcessNodeUpdate(nodeList, nil)
 	})
 	assert.Equal(t, 2, mock.WrittenTimes)
-	assert.Equal(t, "openshift-sdn", mock.Name)
+
+	mock.Lock()
+	assert.Contains(t, mock.Sections, "openshift-sdn")
+	mock.Unlock()
 
 	expected = sdnSection{
 		VxLAN: "vxlan500",
@@ -209,13 +169,18 @@ func TestOpenshiftNodeUpdate(t *testing.T) {
 		},
 	}
 
-	assert.EqualValues(t, expected, mock.SdnSection)
+	mock.Lock()
+	section, ok = mock.Sections["openshift-sdn"].(sdnSection)
+	mock.Unlock()
+	assert.True(t, ok)
+
+	assert.EqualValues(t, expected, section)
 }
 
 func TestOpenshiftNodeUpdateSendFail(t *testing.T) {
-	mock := &MockWriter{
-		FailStyle:    ImmediateFail,
-		WrittenTimes: 0,
+	mock := &test.MockWriter{
+		FailStyle: test.ImmediateFail,
+		Sections:  make(map[string]interface{}),
 	}
 
 	nodeList := getNodeList()
@@ -229,9 +194,9 @@ func TestOpenshiftNodeUpdateSendFail(t *testing.T) {
 }
 
 func TestOpenshiftNodeUpdateSendFailAsync(t *testing.T) {
-	mock := &MockWriter{
-		FailStyle:    AsyncFail,
-		WrittenTimes: 0,
+	mock := &test.MockWriter{
+		FailStyle: test.AsyncFail,
+		Sections:  make(map[string]interface{}),
 	}
 
 	nodeList := getNodeList()
@@ -245,9 +210,9 @@ func TestOpenshiftNodeUpdateSendFailAsync(t *testing.T) {
 }
 
 func TestOpenshiftNodeUpdateSendFailTimeout(t *testing.T) {
-	mock := &MockWriter{
-		FailStyle:    Timeout,
-		WrittenTimes: 0,
+	mock := &test.MockWriter{
+		FailStyle: test.Timeout,
+		Sections:  make(map[string]interface{}),
 	}
 
 	nodeList := getNodeList()

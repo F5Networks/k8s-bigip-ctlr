@@ -2,13 +2,12 @@ package virtualServer
 
 import (
 	"encoding/json"
-	"os"
 	"sort"
 	"testing"
 	"time"
 
 	"eventStream"
-	"tools/writer"
+	"test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +17,10 @@ import (
 	"k8s.io/client-go/1.4/pkg/api/v1"
 	"k8s.io/client-go/1.4/tools/cache"
 )
+
+func init() {
+	namespace = "default"
+}
 
 var schemaUrl string = "https://bldr-git.int.lineratesystems.com/velcro/schemas/raw/master/bigip-virtual-server_v0.1.2.json"
 
@@ -314,6 +317,51 @@ func newStore(onChange eventStream.OnChangeFunc) *eventStream.EventStore {
 	return store
 }
 
+func TestVirtualServerSendFail(t *testing.T) {
+	config = &test.MockWriter{
+		FailStyle: test.ImmediateFail,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	require.NotNil(t, mw)
+	assert.True(t, ok)
+
+	require.NotPanics(t, func() {
+		outputConfig()
+	})
+	assert.Equal(t, 1, mw.WrittenTimes)
+}
+
+func TestVirtualServerSendFailAsync(t *testing.T) {
+	config = &test.MockWriter{
+		FailStyle: test.AsyncFail,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	require.NotNil(t, mw)
+	assert.True(t, ok)
+
+	require.NotPanics(t, func() {
+		outputConfig()
+	})
+	assert.Equal(t, 1, mw.WrittenTimes)
+}
+
+func TestVirtualServerSendFailTimeout(t *testing.T) {
+	config = &test.MockWriter{
+		FailStyle: test.Timeout,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	require.NotNil(t, mw)
+	assert.True(t, ok)
+
+	require.NotPanics(t, func() {
+		outputConfig()
+	})
+	assert.Equal(t, 1, mw.WrittenTimes)
+}
+
 func TestVirtualServerSort(t *testing.T) {
 	virtualServers := VirtualServerConfigs{}
 
@@ -453,24 +501,16 @@ func TestGetAddresses(t *testing.T) {
 	assert.EqualValues(t, expectedReturn, addresses, "Should get no addresses")
 }
 
-func validateFile(t *testing.T, expected string) {
-	configFile, err := os.Open(config.GetOutputFilename())
-	if nil != err {
-		assert.Nil(t, err)
-		return
-	}
+func validateConfig(t *testing.T, mw *test.MockWriter, expected string) {
+	mw.Lock()
+	_, ok := mw.Sections["services"].(VirtualServerConfigs)
+	mw.Unlock()
+	assert.True(t, ok)
 
 	services := struct {
 		Services VirtualServerConfigs `json:"services"`
 	}{
-		Services: VirtualServerConfigs{},
-	}
-
-	parser := json.NewDecoder(configFile)
-	err = parser.Decode(&services)
-	if nil != err {
-		assert.Nil(t, err)
-		return
+		Services: mw.Sections["services"].(VirtualServerConfigs),
 	}
 
 	// Sort virtual-servers configs for comparison
@@ -483,7 +523,7 @@ func validateFile(t *testing.T, expected string) {
 		Services: VirtualServerConfigs{},
 	}
 
-	err = json.Unmarshal([]byte(expected), &expectedOutput)
+	err := json.Unmarshal([]byte(expected), &expectedOutput)
 	if nil != err {
 		assert.Nil(t, err)
 		return
@@ -494,11 +534,17 @@ func validateFile(t *testing.T, expected string) {
 }
 
 func TestProcessNodeUpdate(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
 
 	originalSet := []v1.Node{
 		*newNode("node0", "0", true, []v1.NodeAddress{
@@ -528,7 +574,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	nodes, err := fake.Core().Nodes().List(api.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	ProcessNodeUpdate(nodes.Items, err)
-	validateFile(t, emptyConfig)
+	validateConfig(t, mw, emptyConfig)
 	require.EqualValues(t, expectedOgSet, oldNodes,
 		"Should have cached correct node set")
 
@@ -547,7 +593,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	ProcessNodeUpdate(nodes.Items, err)
-	validateFile(t, emptyConfig)
+	validateConfig(t, mw, emptyConfig)
 	require.EqualValues(t, expectedInternal, oldNodes,
 		"Should have cached correct node set")
 
@@ -569,7 +615,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	ProcessNodeUpdate(nodes.Items, err)
-	validateFile(t, emptyConfig)
+	validateConfig(t, mw, emptyConfig)
 	expectedAddSet := append(expectedOgSet, "127.0.0.6")
 
 	require.EqualValues(t, expectedAddSet, oldNodes)
@@ -585,7 +631,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	ProcessNodeUpdate(nodes.Items, err)
-	validateFile(t, emptyConfig)
+	validateConfig(t, mw, emptyConfig)
 	expectedAddSet = append(expectedOgSet, "127.0.0.6")
 
 	require.EqualValues(t, expectedAddSet, oldNodes)
@@ -610,7 +656,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	ProcessNodeUpdate(nodes.Items, err)
-	validateFile(t, emptyConfig)
+	validateConfig(t, mw, emptyConfig)
 
 	require.EqualValues(t, expectedDelSet, oldNodes)
 
@@ -622,18 +668,19 @@ func TestProcessNodeUpdate(t *testing.T) {
 }
 
 func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
 
 	require := require.New(t)
-
-	namespace = "default"
 
 	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
@@ -679,11 +726,14 @@ func TestOverwriteAddCluster(t *testing.T) {
 }
 
 func testServiceChangeUpdateImpl(t *testing.T, isNodePort bool) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -728,11 +778,14 @@ func TestServiceChangeUpdateCluster(t *testing.T) {
 }
 
 func TestServicePortsRemovedNodePort(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -828,11 +881,14 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 }
 
 func TestUpdatesConcurrentNodePort(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -943,7 +999,7 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		assert.FailNow("Timed out excpecting service channel notification")
 	}
 
-	validateFile(t, twoSvcsTwoNodesConfig)
+	validateConfig(t, mw, twoSvcsTwoNodesConfig)
 
 	go func() {
 		err := fake.Core().Nodes().Delete("node1", &api.DeleteOptions{})
@@ -1006,15 +1062,18 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		assert.FailNow("Timed out excpecting service channel notification")
 	}
 
-	validateFile(t, oneSvcTwoNodesConfig)
+	validateConfig(t, mw, oneSvcTwoNodesConfig)
 }
 
 func TestProcessUpdatesNodePort(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1162,7 +1221,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		virtualServers.m[serviceKey{"foo", 8080, "default"}].VirtualServer.Backend.PoolMemberAddrs)
 	assert.EqualValues(append(addrs, "127.0.0.3"),
 		virtualServers.m[serviceKey{"foo", 9090, "default"}].VirtualServer.Backend.PoolMemberAddrs)
-	validateFile(t, twoSvcsFourPortsThreeNodesConfig)
+	validateConfig(t, mw, twoSvcsFourPortsThreeNodesConfig)
 
 	// ConfigMap DELETED third foo port
 	ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
@@ -1214,7 +1273,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		virtualServers.m[serviceKey{"foo", 80, "default"}].VirtualServer.Backend.PoolMemberAddrs)
 	assert.EqualValues([]string{"127.0.0.3"},
 		virtualServers.m[serviceKey{"bar", 80, "default"}].VirtualServer.Backend.PoolMemberAddrs)
-	validateFile(t, twoSvcsOneNodeConfig)
+	validateConfig(t, mw, twoSvcsOneNodeConfig)
 
 	// ConfigMap DELETED
 	err = fake.Core().ConfigMaps("default").Delete("foomap", &api.DeleteOptions{})
@@ -1227,7 +1286,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	assert.Equal(1, len(virtualServers.m))
 	assert.NotContains(virtualServers.m, serviceKey{"foo", 80, "default"},
 		"Config map should be removed after delete")
-	validateFile(t, oneSvcOneNodeConfig)
+	validateConfig(t, mw, oneSvcOneNodeConfig)
 
 	// Service DELETED
 	err = fake.Core().Services("default").Delete("bar", &api.DeleteOptions{})
@@ -1238,15 +1297,18 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		bar,
 		nil}, true, endptStore)
 	assert.Equal(1, len(virtualServers.m))
-	validateFile(t, emptyConfig)
+	validateConfig(t, mw, emptyConfig)
 }
 
 func TestDontCareConfigMapNodePort(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1283,11 +1345,14 @@ func TestDontCareConfigMapNodePort(t *testing.T) {
 }
 
 func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1366,11 +1431,14 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 }
 
 func TestNamespaceIsolation(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1395,7 +1463,7 @@ func TestNamespaceIsolation(t *testing.T) {
 	endptStore := newStore(nil)
 	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
 		nil, cfgFoo}, true, endptStore)
-	_, ok := virtualServers.m[serviceKey{"foo", 80, "default"}]
+	_, ok = virtualServers.m[serviceKey{"foo", 80, "default"}]
 	assert.True(ok, "Config map should be accessible")
 
 	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
@@ -1459,11 +1527,14 @@ func TestConfigMapKeysCluster(t *testing.T) {
 }
 
 func TestProcessUpdatesIAppNodePort(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1575,7 +1646,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		virtualServers.m[serviceKey{"iapp1", 80, "default"}].VirtualServer.Backend.PoolMemberAddrs)
 	assert.EqualValues(append(addrs, "192.168.0.4"),
 		virtualServers.m[serviceKey{"iapp2", 80, "default"}].VirtualServer.Backend.PoolMemberAddrs)
-	validateFile(t, twoIappsThreeNodesConfig)
+	validateConfig(t, mw, twoIappsThreeNodesConfig)
 
 	// Nodes DELETES
 	err = fake.Core().Nodes().Delete("node1", &api.DeleteOptions{})
@@ -1591,7 +1662,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		virtualServers.m[serviceKey{"iapp1", 80, "default"}].VirtualServer.Backend.PoolMemberAddrs)
 	assert.EqualValues([]string{"192.168.0.4"},
 		virtualServers.m[serviceKey{"iapp2", 80, "default"}].VirtualServer.Backend.PoolMemberAddrs)
-	validateFile(t, twoIappsOneNodeConfig)
+	validateConfig(t, mw, twoIappsOneNodeConfig)
 
 	// ConfigMap DELETED
 	err = fake.Core().ConfigMaps("default").Delete("iapp1map",
@@ -1605,7 +1676,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	assert.Equal(1, len(virtualServers.m))
 	assert.NotContains(virtualServers.m, serviceKey{"iapp1", 80, "default"},
 		"Config map should be removed after delete")
-	validateFile(t, oneIappOneNodeConfig)
+	validateConfig(t, mw, oneIappOneNodeConfig)
 
 	// Service DELETED
 	err = fake.Core().Services("default").Delete("iapp2", &api.DeleteOptions{})
@@ -1616,15 +1687,18 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		iapp2,
 		nil}, true, endptStore)
 	assert.Equal(1, len(virtualServers.m))
-	validateFile(t, emptyConfig)
+	validateConfig(t, mw, emptyConfig)
 }
 
 func TestSchemaValidation(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
@@ -1693,18 +1767,20 @@ func validateServiceIps(t *testing.T, serviceName, namespace string,
 }
 
 func TestVirtualServerWhenEndpointsChange(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
 
 	require := require.New(t)
 
-	namespace := "default"
 	svcName := "foo"
 	readyIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
 	notReadyIps := []string{"10.2.96.3", "10.2.96.4", "10.2.96.5", "10.2.96.6"}
@@ -1755,7 +1831,7 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
 	goodEndpts := newEndpoints(svcName, "1", namespace, readyIps, notReadyIps,
 		endptPorts)
-	err = endptStore.Add(goodEndpts)
+	err := endptStore.Add(goodEndpts)
 	require.Nil(err)
 	// this is for another service
 	badEndpts := newEndpoints("wrongSvc", "1", namespace, []string{"10.2.96.7"},
@@ -1784,18 +1860,20 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 }
 
 func TestVirtualServerWhenServiceChanges(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
 
 	require := require.New(t)
 
-	namespace := "default"
 	svcName := "foo"
 	svcPorts := []v1.ServicePort{
 		newServicePort("port0", 80),
@@ -1822,7 +1900,7 @@ func TestVirtualServerWhenServiceChanges(t *testing.T) {
 	svcStore.Add(foo)
 
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
-	err = endptStore.Add(newEndpoints(svcName, "1", namespace, svcPodIps,
+	err := endptStore.Add(newEndpoints(svcName, "1", namespace, svcPodIps,
 		[]string{}, endptPorts))
 	require.Nil(err)
 
@@ -1864,18 +1942,20 @@ func TestVirtualServerWhenServiceChanges(t *testing.T) {
 }
 
 func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
 
 	require := require.New(t)
 
-	namespace := "default"
 	svcName := "foo"
 	svcPorts := []v1.ServicePort{
 		newServicePort("port0", 80),
@@ -1885,7 +1965,7 @@ func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
 	svcPodIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
 	endptStore := newStore(nil)
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
-	err = endptStore.Add(newEndpoints(svcName, "1", namespace, svcPodIps,
+	err := endptStore.Add(newEndpoints(svcName, "1", namespace, svcPodIps,
 		[]string{}, endptPorts))
 	require.Nil(err)
 
@@ -1930,19 +2010,20 @@ func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
 }
 
 func TestUpdatesConcurrentCluster(t *testing.T) {
-	var err error
-	config, err = writer.NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, config)
-	defer config.Stop()
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
 	defer func() {
 		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
 	}()
 
 	assert := assert.New(t)
 	require := require.New(t)
-
-	namespace := "default"
 
 	fooIps := []string{"10.2.96.1", "10.2.96.2"}
 	fooPorts := []v1.ServicePort{newServicePort("port0", 8080)}
@@ -2048,7 +2129,7 @@ func TestUpdatesConcurrentCluster(t *testing.T) {
 		assert.FailNow("Timed out excpecting service channel notification")
 	}
 
-	validateFile(t, twoSvcTwoPodsConfig)
+	validateConfig(t, mw, twoSvcTwoPodsConfig)
 
 	go func() {
 		// delete endpoints for foo
@@ -2090,5 +2171,5 @@ func TestUpdatesConcurrentCluster(t *testing.T) {
 		assert.FailNow("Timed out excpecting service channel notification")
 	}
 	assert.Equal(1, len(virtualServers.m))
-	validateFile(t, oneSvcTwoPodsConfig)
+	validateConfig(t, mw, oneSvcTwoPodsConfig)
 }

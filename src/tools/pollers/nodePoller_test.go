@@ -132,7 +132,7 @@ func assertGoroutines(
 	expectedRoutines int,
 ) {
 	ticks := 0
-	tickLimit := 10
+	tickLimit := 100
 	ticker := time.NewTicker(100 * time.Millisecond)
 
 	err := operation()
@@ -187,8 +187,8 @@ func assertRegister(
 	}(&called))
 	assert.Nil(t, err)
 
-	<-time.After(100 * time.Millisecond)
 	runtime.Gosched()
+	<-time.After(100 * time.Millisecond)
 
 	assert.Condition(t, func() bool {
 		return called > 0

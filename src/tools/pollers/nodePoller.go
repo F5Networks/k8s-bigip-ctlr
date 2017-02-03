@@ -30,6 +30,8 @@ type NodePoller struct {
 	running      bool
 	runningLock  *sync.Mutex
 	regListeners []PollListener
+	nodeCache    []v1.Node
+	lastError    error
 }
 
 func NewNodePoller(
@@ -154,13 +156,15 @@ func (np *NodePoller) poller() {
 		if true == doPoll {
 			doPoll = false
 			nodes, err := np.kubeClient.Core().Nodes().List(api.ListOptions{})
+			np.nodeCache = nodes.Items
+			np.lastError = err
 
 			for _, listener := range listeners {
 				log.Debugf("NodePoller (%p) notifying listener: %+v", np, listener)
 				select {
 				case listener.l <- pollData{
-					nl:  nodes.Items,
-					err: err,
+					nl:  np.nodeCache,
+					err: np.lastError,
 				}:
 				default:
 				}
@@ -177,6 +181,11 @@ func (np *NodePoller) poller() {
 			log.Debugf("NodePoller (%p) poller goroutine adding listener: %+v",
 				np, pl)
 
+			pl.l <- pollData{
+				nl:  np.nodeCache,
+				err: np.lastError,
+			}
+
 			since := time.Since(loopTime)
 			remainingInterval = remainingInterval - since
 			log.Debugf("NodePoller (%p) listener add wake up - next poll in %v\n",
@@ -188,7 +197,7 @@ func (np *NodePoller) poller() {
 			listeners = append(listeners, pl)
 		case <-time.After(remainingInterval):
 			log.Debugf("NodePoller (%p) ready to poll, last wait: %v\n",
-				remainingInterval)
+				np, remainingInterval)
 			remainingInterval = np.pollInterval
 			doPoll = true
 		}

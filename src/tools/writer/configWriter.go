@@ -126,7 +126,7 @@ func (cw *ConfigWriter) waitData() {
 						cw, cs.name)
 					go respondErr(cs.errorCh, err)
 				} else {
-					log.Debugf("ConfigWriter (%p) successfully wrote config")
+					log.Debugf("ConfigWriter (%p) successfully wrote config", cw)
 					go respondDone(cs.doneCh)
 				}
 			}

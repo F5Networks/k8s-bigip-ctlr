@@ -176,9 +176,6 @@ class ConfigHandler():
                     _handle_openshift_sdn_config(config)
                     self.set_interval_timer(verify_interval)
 
-                    if 'services' not in config:
-                        config['services'] = []
-
                     if self._bigip.regenerate_config_f5(config):
                         # Timeout occurred, do a reset so that we try again
                         log.warning(

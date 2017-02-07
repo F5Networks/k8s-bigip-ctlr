@@ -11,6 +11,12 @@ import (
 	log "velcro/vlogger"
 )
 
+type Writer interface {
+	GetOutputFilename() string
+	Stop()
+	SendSection(string, interface{}) (<-chan struct{}, <-chan error, error)
+}
+
 type ConfigWriter struct {
 	configFile string
 	stopCh     chan struct{}
@@ -25,7 +31,7 @@ type configSection struct {
 	errorCh chan error
 }
 
-func NewConfigWriter() (*ConfigWriter, error) {
+func NewConfigWriter() (Writer, error) {
 	dir, err := ioutil.TempDir("", "f5-k8s-controller.config")
 	if nil != err {
 		return nil, fmt.Errorf("could not create unique config directory: %v", err)

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -67,17 +67,17 @@ func testFile(t *testing.T, f string, shouldExist bool) {
 }
 
 func TestConfigWriterGetters(t *testing.T) {
-	expect := "/tmp/f5-k8s-controller.config." + strconv.Itoa(os.Getpid()) + ".json"
-
 	cw, err := NewConfigWriter()
 	assert.Nil(t, err)
 	require.NotNil(t, cw)
 
-	cw.configFile = expect
+	defer cw.Stop()
 
 	f := cw.GetOutputFilename()
 
-	assert.Equal(t, expect, f)
+	dir := filepath.Dir(f)
+	_, err = os.Stat(dir)
+	assert.NoError(t, err)
 }
 
 func TestConfigWriterCreateStop(t *testing.T) {

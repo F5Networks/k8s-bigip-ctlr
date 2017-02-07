@@ -37,7 +37,7 @@ type NodePoller struct {
 func NewNodePoller(
 	kubeClient kubernetes.Interface,
 	pollInterval time.Duration,
-) *NodePoller {
+) Poller {
 	np := &NodePoller{
 		kubeClient:   kubeClient,
 		pollInterval: pollInterval,

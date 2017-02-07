@@ -16,6 +16,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type MockOut struct{}
+
+func (mo MockOut) Write(p []byte) (n int, err error) {
+	return
+}
+
+func resetFlags() {
+	pythonBaseDir = new(string)
+	logLevel = new(string)
+	verifyInterval = new(int)
+
+	namespace = new(string)
+	useNodeInternal = new(bool)
+	poolMemberType = new(string)
+	inCluster = new(bool)
+	kubeConfig = new(string)
+
+	bigIPURL = new(string)
+	bigIPUsername = new(string)
+	bigIPPassword = new(string)
+	bigIPPartitions = &[]string{}
+
+	openshiftSDNMode = ""
+	openshiftSDNName = new(string)
+
+	// package variables
+	isNodePort = false
+}
+
 func TestConfigSetup(t *testing.T) {
 	configWriter, err := writer.NewConfigWriter()
 	assert.NoError(t, err)
@@ -141,7 +170,7 @@ func TestDriverSubProcess(t *testing.T) {
 		configFile,
 		pyDriver,
 	)
-	go runBigIpDriver(subPidCh, cmd)
+	go runBigIPDriver(subPidCh, cmd)
 	pid := <-subPidCh
 
 	time.Sleep(time.Second)
@@ -203,10 +232,10 @@ func TestVerifyArgs(t *testing.T) {
 	argError := verifyArgs()
 	assert.Nil(t, argError, "there should not be an error")
 	assert.Equal(t, "testing", *namespace, "namespace flag not parsed correctly")
-	assert.Equal(t, "https://bigip.example.com", *bigipUrl, "bigipUrl flag not parsed correctly")
-	assert.Equal(t, "admin", *bigipUsername, "bigipUsername flag not parsed correctly")
-	assert.Equal(t, "admin", *bigipPassword, "bigipPassword flag not parsed correctly")
-	assert.Equal(t, []string{"velcro1", "velcro2"}, *bigipPartitions, "bigipPartitions flag not parsed correctly")
+	assert.Equal(t, "https://bigip.example.com", *bigIPURL, "bigipUrl flag not parsed correctly")
+	assert.Equal(t, "admin", *bigIPUsername, "bigipUsername flag not parsed correctly")
+	assert.Equal(t, "admin", *bigIPPassword, "bigipPassword flag not parsed correctly")
+	assert.Equal(t, []string{"velcro1", "velcro2"}, *bigIPPartitions, "bigipPartitions flag not parsed correctly")
 	assert.Equal(t, "INFO", *logLevel, "logLevel flag not parsed correctly")
 
 	// Test url variations
@@ -223,9 +252,9 @@ func TestVerifyArgs(t *testing.T) {
 	// Test empty required args
 	allArgs := map[string]*string{
 		"namespace":     namespace,
-		"bigipUrl":      bigipUrl,
-		"bigipUsername": bigipUsername,
-		"bigipPassword": bigipPassword,
+		"bigipUrl":      bigIPURL,
+		"bigipUsername": bigIPUsername,
+		"bigipPassword": bigIPPassword,
 		"logLevel":      logLevel,
 	}
 
@@ -237,10 +266,83 @@ func TestVerifyArgs(t *testing.T) {
 		*arg = holder
 	}
 
-	// Test bigipPartitions seperatly as it's a string array
-	holder := *bigipPartitions
-	*bigipPartitions = []string{}
+	// Test bigIPPartitions seperatly as it's a string array
+	holder := *bigIPPartitions
+	*bigIPPartitions = []string{}
 	argError = verifyArgs()
-	assert.Error(t, argError, "Argument bigipPartitions is required, and should not allow an empty string")
-	*bigipPartitions = holder
+	assert.Error(t, argError, "Argument bigIPPartitions is required, and should not allow an empty string")
+	*bigIPPartitions = holder
+}
+
+func TestOpenshiftSDNFlags(t *testing.T) {
+	os.Args = []string{
+		"./bin/f5-k8s-controller",
+		"--namespace=testing",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+	}
+
+	flags.Parse(os.Args)
+	err := verifyArgs()
+	assert.NoError(t, err)
+
+	assert.Equal(t, 0, len(openshiftSDNMode),
+		"Mode variable should not be set")
+	assert.Equal(t, 0, len(*openshiftSDNName),
+		"Name variable should not be set")
+
+	os.Args = []string{
+		"./bin/f5-k8s-controller",
+		"--namespace=testing",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+		"--openshift-sdn-name=vxlan500",
+	}
+
+	flags.Parse(os.Args)
+	err = verifyArgs()
+	assert.NoError(t, err)
+
+	assert.Equal(t, "maintain", openshiftSDNMode,
+		"Mode variable should be set to maintain")
+	assert.Equal(t, "vxlan500", *openshiftSDNName,
+		"VxLAN name should be set")
+}
+
+func TestOpenshiftSDNFlagEmpty(t *testing.T) {
+	resetFlags()
+	os.Args = []string{
+		"./bin/f5-k8s-controller",
+		"--namespace=testing",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+		"--openshift-sdn-name",
+	}
+
+	var called bool
+	oldUsage := flags.Usage
+	defer func() {
+		flags.Usage = oldUsage
+	}()
+	flags.Usage = func() {
+		called = true
+	}
+
+	flags.SetOutput(MockOut{})
+	defer flags.SetOutput(os.Stderr)
+
+	err := flags.Parse(os.Args)
+	assert.Error(t, err)
+	assert.True(t, called)
+
+	assert.Equal(t, 0, len(*openshiftSDNName))
 }

@@ -58,48 +58,52 @@ The BIG-IP then handles traffic for the Service on the specified virtual address
 
 Configuration Parameters
 ------------------------
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| Parameter         | Type      | Required  | Default       | Description                   | Allowed Values    |
-+===================+===========+===========+===============+===============================+===================+
-| bigip-username    | string    | Required  | n/a           | BIG-IP account username       |                   |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| bigip-password    | string    | Required  | n/a           | BIG-IP account password       |                   |
-|                   |           |           |               | [#secrets]_                   |                   |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| bigip-url         | string    | Required  | n/a           | BIG-IP admin IP address       |                   |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| bigip-partition   | string    | Required  | n/a           | The BIG-IP partition in which |                   |
-|                   |           |           |               | to configure objects.         |                   |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| kubeconfig        | string    | Required  | n/a           | Path to the *kubeconfig* file |                   |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| namespace         | string    | Required  | default       | Kubernetes namespace to watch |                   |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| python-basedir    | string    | Optional  | /app/python   | Path to python utilities      |                   |
-|                   |           |           |               | directory                     |                   |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| running-in-cluster| boolean   | Optional  |  true         | Indicates whether or not a    | true, false       |
-|                   |           |           |               | kubernetes cluster started    |                   |
-|                   |           |           |               | f5-k8s-controller             |                   |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| use-node-internal | boolean   | Optional  | true          | filter Kubernetes InternalIP  | true, false       |
-|                   |           |           |               | addresses for pool members    |                   |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| verify-interval   | integer   | Optional  | 30            | In seconds, internal at which |                   |
-|                   |           |           |               | to verify the BIG-IP          |                   |
-|                   |           |           |               | configuration.                |                   |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| log-level         | string    | Optional  | INFO          | Log level                     | INFO,             |
-|                   |           |           |               |                               | DEBUG,            |
-|                   |           |           |               |                               | CRITICAL,         |
-|                   |           |           |               |                               | WARNING,          |
-|                   |           |           |               |                               | ERROR             |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| pool-member-type  | string    | Optional  | nodeport      | Defines the `Kubernetes       | nodeport, cluster |
-|                   |           |           |               | Service Type`_ applied to the |                   |
-|                   |           |           |               | pool member (NodePort or      |                   |
-|                   |           |           |               | ClusterIP)                    |                   |
-+-------------------+-----------+-----------+---------------+-------------------------------+-------------------+
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| Parameter          | Type      | Required  | Default       | Description                   | Allowed Values    |
++====================+===========+===========+===============+===============================+===================+
+| bigip-username     | string    | Required  | n/a           | BIG-IP account username       |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| bigip-password     | string    | Required  | n/a           | BIG-IP account password       |                   |
+|                    |           |           |               | [#secrets]_                   |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| bigip-url          | string    | Required  | n/a           | BIG-IP admin IP address       |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| bigip-partition    | string    | Required  | n/a           | The BIG-IP partition in which |                   |
+|                    |           |           |               | to configure objects.         |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| kubeconfig         | string    | Required  | n/a           | Path to the *kubeconfig* file |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| namespace          | string    | Required  | default       | Kubernetes namespace to watch |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| python-basedir     | string    | Optional  | /app/python   | Path to python utilities      |                   |
+|                    |           |           |               | directory                     |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| running-in-cluster | boolean   | Optional  |  true         | Indicates whether or not a    | true, false       |
+|                    |           |           |               | kubernetes cluster started    |                   |
+|                    |           |           |               | f5-k8s-controller             |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| use-node-internal  | boolean   | Optional  | true          | filter Kubernetes InternalIP  | true, false       |
+|                    |           |           |               | addresses for pool members    |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| verify-interval    | integer   | Optional  | 30            | In seconds, internal at which |                   |
+|                    |           |           |               | to verify the BIG-IP          |                   |
+|                    |           |           |               | configuration.                |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| log-level          | string    | Optional  | INFO          | Log level                     | INFO,             |
+|                    |           |           |               |                               | DEBUG,            |
+|                    |           |           |               |                               | CRITICAL,         |
+|                    |           |           |               |                               | WARNING,          |
+|                    |           |           |               |                               | ERROR             |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| pool-member-type   | string    | Optional  | nodeport      | Defines the `Kubernetes       | nodeport, cluster |
+|                    |           |           |               | Service Type`_ applied to the |                   |
+|                    |           |           |               | pool member (NodePort or      |                   |
+|                    |           |           |               | ClusterIP)                    |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| openshift-sdn-name | string    | Optional  | n/a           | BigIP configured VxLAN name   |                   |
+|                    |           |           |               | for access into the Openshift |                   |
+|                    |           |           |               | SDN and Pod network           |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
 
 F5 Resource Properties
 ----------------------

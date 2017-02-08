@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import argparse
+import fcntl
 import hashlib
 import json
 import logging
@@ -216,7 +217,11 @@ class ConfigWatcher(pyinotify.ProcessEvent):
         self._config_dir = os.path.dirname(self._config_file)
         self._config_stats = None
         if os.path.exists(self._config_file):
-            self._config_stats = self._md5()
+            try:
+                self._config_stats = self._md5()
+            except IOError as ioe:
+                log.warning('ioerror during md5 sum calculation: {}'.
+                            format(ioe))
 
         self._running = False
         self._polling = False
@@ -284,11 +289,13 @@ class ConfigWatcher(pyinotify.ProcessEvent):
         md5 = hashlib.md5()
 
         with open(self._config_file, 'rb') as f:
+            fcntl.lockf(f.fileno(), fcntl.LOCK_SH, 0, 0, 0)
             while True:
                 buf = f.read(4096)
                 if not buf:
                     break
                 md5.update(buf)
+            fcntl.lockf(f.fileno(), fcntl.LOCK_UN, 0, 0, 0)
         return md5.digest()
 
     def _should_watch(self, pathname):
@@ -305,11 +312,15 @@ class ConfigWatcher(pyinotify.ProcessEvent):
             else:
                 changed = False
         else:
-            cur_hash = self._md5()
-            if cur_hash != self._config_stats:
-                changed = True
-            else:
-                changed = False
+            try:
+                cur_hash = self._md5()
+                if cur_hash != self._config_stats:
+                    changed = True
+                else:
+                    changed = False
+            except IOError as ioe:
+                log.warning('ioerror during md5 sum calculation: {}'.
+                            format(ioe))
 
         return (changed, cur_hash)
 
@@ -339,8 +350,10 @@ class ConfigWatcher(pyinotify.ProcessEvent):
 
 def _parse_config(config_file):
     if os.path.exists(config_file):
-        with open(config_file) as config:
+        with open(config_file, 'r') as config:
+            fcntl.lockf(config.fileno(), fcntl.LOCK_SH, 0, 0, 0)
             config_json = json.load(config)
+            fcntl.lockf(config.fileno(), fcntl.LOCK_UN, 0, 0, 0)
             log.debug('loaded configuration file successfully')
             return config_json
     else:
@@ -464,7 +477,7 @@ def main():
         watcher = ConfigWatcher(args.config_file, bigip, handler.notify_reset)
         watcher.loop()
         handler.stop()
-    except (ValueError, ConfigError, BigipWatcherError), err:
+    except (IOError, ValueError, ConfigError, BigipWatcherError), err:
         log.error(err)
         sys.exit(1)
 

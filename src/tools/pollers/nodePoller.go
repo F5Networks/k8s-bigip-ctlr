@@ -22,7 +22,7 @@ type pollListener struct {
 	s chan struct{}
 }
 
-type NodePoller struct {
+type nodePoller struct {
 	kubeClient   kubernetes.Interface
 	pollInterval time.Duration
 	stopCh       chan struct{}
@@ -38,7 +38,7 @@ func NewNodePoller(
 	kubeClient kubernetes.Interface,
 	pollInterval time.Duration,
 ) Poller {
-	np := &NodePoller{
+	np := &nodePoller{
 		kubeClient:   kubeClient,
 		pollInterval: pollInterval,
 		stopCh:       make(chan struct{}),
@@ -51,7 +51,7 @@ func NewNodePoller(
 	return np
 }
 
-func (np *NodePoller) Run() error {
+func (np *nodePoller) Run() error {
 	np.runningLock.Lock()
 	defer np.runningLock.Unlock()
 
@@ -71,7 +71,7 @@ func (np *NodePoller) Run() error {
 	return nil
 }
 
-func (np *NodePoller) Stop() error {
+func (np *nodePoller) Stop() error {
 	np.runningLock.Lock()
 	defer np.runningLock.Unlock()
 
@@ -86,7 +86,7 @@ func (np *NodePoller) Stop() error {
 	return nil
 }
 
-func (np *NodePoller) RegisterListener(p PollListener) error {
+func (np *nodePoller) RegisterListener(p PollListener) error {
 	np.runningLock.Lock()
 	defer np.runningLock.Unlock()
 
@@ -103,7 +103,7 @@ func (np *NodePoller) RegisterListener(p PollListener) error {
 	return nil
 }
 
-func (np *NodePoller) runListener(p PollListener) {
+func (np *nodePoller) runListener(p PollListener) {
 	listener := make(chan pollData)
 	stopCh := make(chan struct{})
 
@@ -130,13 +130,13 @@ func (np *NodePoller) runListener(p PollListener) {
 	return
 }
 
-func (np *NodePoller) stopListeners(listeners []pollListener) {
+func (np *nodePoller) stopListeners(listeners []pollListener) {
 	for _, pl := range listeners {
 		pl.s <- struct{}{}
 	}
 }
 
-func (np *NodePoller) poller() {
+func (np *nodePoller) poller() {
 	doPoll := true
 	var listeners []pollListener
 	var loopTime time.Time

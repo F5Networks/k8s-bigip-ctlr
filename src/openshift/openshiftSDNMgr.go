@@ -106,7 +106,7 @@ func (osm *OpenshiftSDNMgr) ProcessNodeUpdate(obj interface{}, err error) {
 			log.Warningf("Openshift manager (%s) failed to write config section: %v",
 				osm.vxLAN, e)
 		case <-time.After(time.Second):
-			log.Warningf("Openshift manager (%s) did not receive write response in 100ms",
+			log.Warningf("Openshift manager (%s) did not receive write response in 1s",
 				osm.vxLAN)
 		}
 	}

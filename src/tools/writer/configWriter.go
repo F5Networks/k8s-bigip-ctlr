@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	log "velcro/vlogger"
@@ -17,7 +18,17 @@ type Writer interface {
 	SendSection(string, interface{}) (<-chan struct{}, <-chan error, error)
 }
 
-type ConfigWriter struct {
+// Without a File interface unit testing becomes difficult,
+// use an internal Interface which describes what we need
+// from the file and which we can then mock in _test
+type pseudoFileInterface interface {
+	Close() error
+	Fd() uintptr
+	Truncate(size int64) error
+	Write(b []byte) (n int, err error)
+}
+
+type configWriter struct {
 	configFile string
 	stopCh     chan struct{}
 	dataCh     chan configSection
@@ -31,6 +42,9 @@ type configSection struct {
 	errorCh chan error
 }
 
+type doneCall func(chan<- struct{})
+type errCall func(chan<- error, error)
+
 func NewConfigWriter() (Writer, error) {
 	dir, err := ioutil.TempDir("", "f5-k8s-controller.config")
 	if nil != err {
@@ -39,7 +53,7 @@ func NewConfigWriter() (Writer, error) {
 
 	tmpfn := filepath.Join(dir, "config.json")
 
-	cw := &ConfigWriter{
+	cw := &configWriter{
 		configFile: tmpfn,
 		stopCh:     make(chan struct{}),
 		dataCh:     make(chan configSection),
@@ -52,31 +66,39 @@ func NewConfigWriter() (Writer, error) {
 	return cw, nil
 }
 
-func (cw *ConfigWriter) GetOutputFilename() string {
+func (cw *configWriter) GetOutputFilename() string {
 	return cw.configFile
 }
 
-func (cw *ConfigWriter) Stop() {
+func (cw *configWriter) Stop() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Warningf("ConfigWriter (%p) stop called after already stopped", cw)
+			log.Warningf("ConfigWriter (%p) stop called after stop", cw)
 		}
 	}()
 
 	cw.stopCh <- struct{}{}
 	close(cw.stopCh)
+	close(cw.dataCh)
 	os.RemoveAll(filepath.Dir(cw.configFile))
 
 	log.Infof("ConfigWriter stopped: %p", cw)
 }
 
-func (cw *ConfigWriter) SendSection(
+func (cw *configWriter) SendSection(
 	name string,
 	obj interface{},
 ) (<-chan struct{}, <-chan error, error) {
 	if 0 == len(name) {
 		return nil, nil, fmt.Errorf("cannot marshal section without name")
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			log.Warningf("ConfigWriter (%p) SendSection called after stop", cw)
+		}
+	}()
+
+	log.Debugf("ConfigWriter (%p) writing section name %s", cw, name)
 
 	done := make(chan struct{})
 	err := make(chan error)
@@ -87,11 +109,77 @@ func (cw *ConfigWriter) SendSection(
 		errorCh: err,
 	}
 
-	log.Debugf("ConfigWriter (%p) writing section name %s", cw, name)
 	return done, err, nil
 }
 
-func (cw *ConfigWriter) waitData() {
+func (cw *configWriter) _lockAndWrite(
+	f pseudoFileInterface,
+	output []byte,
+) (bool, error) {
+	var wroteSome bool
+	var err error
+
+	flock := syscall.Flock_t{
+		Type:   syscall.F_WRLCK,
+		Start:  0,
+		Len:    0,
+		Whence: int16(os.SEEK_SET),
+	}
+	err = syscall.FcntlFlock(uintptr(f.Fd()), syscall.F_SETLKW, &flock)
+	if nil != err {
+		return wroteSome, err
+	}
+
+	err = f.Truncate(0)
+	if nil != err {
+		return wroteSome, err
+	}
+	n, err := f.Write(output)
+	if nil == err {
+		wroteSome = true
+	} else {
+		if 0 == n {
+			return wroteSome, err
+		} else {
+			wroteSome = true
+			return wroteSome, err
+		}
+	}
+
+	flock = syscall.Flock_t{
+		Type:   syscall.F_UNLCK,
+		Start:  0,
+		Len:    0,
+		Whence: int16(os.SEEK_SET),
+	}
+	err = syscall.FcntlFlock(uintptr(f.Fd()), syscall.F_SETLKW, &flock)
+	if nil != err {
+		return wroteSome, err
+	}
+
+	return wroteSome, err
+}
+
+func (cw *configWriter) lockAndWrite(output []byte) (wroteSome bool, err error) {
+	f, err := os.OpenFile(cw.configFile, os.O_WRONLY|os.O_CREATE, 0644)
+	if nil != err {
+		return wroteSome, err
+	}
+
+	defer func() {
+		if err != nil {
+			f.Close()
+		} else {
+			err = f.Close()
+		}
+	}()
+
+	wroteSome, err = cw._lockAndWrite(f, output)
+
+	return wroteSome, err
+}
+
+func (cw *configWriter) waitData() {
 	respondDone := func(d chan<- struct{}) {
 		select {
 		case d <- struct{}{}:
@@ -113,7 +201,7 @@ func (cw *ConfigWriter) waitData() {
 			// check if this section will marshal
 			_, err := json.Marshal(cs.data)
 			if nil != err {
-				log.Warningf("ConfigWriter (%p) received bad json for section %s: %v",
+				log.Warningf("ConfigWriter (%p) received bad json for section (%s): %v",
 					cw, cs.name, err)
 				go respondErr(cs.errorCh, err)
 			} else {
@@ -121,18 +209,24 @@ func (cw *ConfigWriter) waitData() {
 
 				output, err := json.Marshal(cw.sectionMap)
 				if nil != err {
-					log.Warningf("ConfigWriter (%p) received marshal error: %v",
-						cw, cs.name)
+					log.Warningf("ConfigWriter (%p) received marshal error (%s): %v",
+						cw, cs.name, err)
 					go respondErr(cs.errorCh, err)
 				}
 
-				err = ioutil.WriteFile(cw.configFile, output, 0644)
+				wrote, err := cw.lockAndWrite(output)
 				if nil != err {
-					log.Warningf("ConfigWriter (%p) received io error: %v",
-						cw, cs.name)
+					if wrote {
+						log.Warningf("ConfigWriter (%p) errored during write of section (%s): %v",
+							cw, cs.name, err)
+					} else {
+						log.Warningf("ConfigWriter (%p) failed to write section (%s): %v",
+							cw, cs.name, err)
+					}
 					go respondErr(cs.errorCh, err)
 				} else {
-					log.Debugf("ConfigWriter (%p) successfully wrote config", cw)
+					log.Debugf("ConfigWriter (%p) successfully wrote section (%s)",
+						cw, cs.name)
 					go respondDone(cs.doneCh)
 				}
 			}

@@ -1,16 +1,14 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"testing"
 	"time"
 
-	"tools/writer"
+	"test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,10 +44,10 @@ func resetFlags() {
 }
 
 func TestConfigSetup(t *testing.T) {
-	configWriter, err := writer.NewConfigWriter()
-	assert.NoError(t, err)
-	require.NotNil(t, configWriter)
-	defer configWriter.Stop()
+	configWriter := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
 
 	type ConfigTest struct {
 		Global GlobalSection `json:"global"`
@@ -73,7 +71,7 @@ func TestConfigSetup(t *testing.T) {
 		},
 	}
 
-	err = initializeDriverConfig(nil, expected.Global, expected.BigIP)
+	err := initializeDriverConfig(nil, expected.Global, expected.BigIP)
 	assert.Error(t, err)
 
 	err = initializeDriverConfig(
@@ -83,11 +81,15 @@ func TestConfigSetup(t *testing.T) {
 	)
 	assert.NoError(t, err)
 
-	written, err := ioutil.ReadFile(configWriter.GetOutputFilename())
-	assert.NoError(t, err)
-	actual := ConfigTest{}
-	err = json.Unmarshal(written, &actual)
-	assert.NoError(t, err)
+	configWriter.Lock()
+	assert.Contains(t, configWriter.Sections, "bigip")
+	assert.Contains(t, configWriter.Sections, "global")
+
+	actual := ConfigTest{
+		configWriter.Sections["global"].(GlobalSection),
+		configWriter.Sections["bigip"].(BigIPSection),
+	}
+	configWriter.Unlock()
 
 	assert.EqualValues(t, expected, actual)
 }
@@ -119,17 +121,17 @@ func TestDriverCmd(t *testing.T) {
 }
 
 func TestDriverSubProcess(t *testing.T) {
-	configWriter, err := writer.NewConfigWriter()
-	assert.NoError(t, err)
-	require.NotNil(t, configWriter)
-	defer configWriter.Stop()
+	configWriter := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
 
 	type ConfigTest struct {
 		Global GlobalSection `json:"global"`
 		BigIP  BigIPSection  `json:"bigip"`
 	}
 
-	config := ConfigTest{
+	expected := ConfigTest{
 		BigIP: BigIPSection{
 			BigIPUsername: "admin",
 			BigIPPassword: "test",
@@ -145,20 +147,24 @@ func TestDriverSubProcess(t *testing.T) {
 		},
 	}
 
-	err = initializeDriverConfig(
+	err := initializeDriverConfig(
 		configWriter,
-		config.Global,
-		config.BigIP,
+		expected.Global,
+		expected.BigIP,
 	)
 	assert.NoError(t, err)
 
-	written, err := ioutil.ReadFile(configWriter.GetOutputFilename())
-	assert.NoError(t, err)
-	actual := ConfigTest{}
-	err = json.Unmarshal(written, &actual)
-	assert.NoError(t, err)
+	configWriter.Lock()
+	assert.Contains(t, configWriter.Sections, "bigip")
+	assert.Contains(t, configWriter.Sections, "global")
 
-	assert.EqualValues(t, config, actual)
+	actual := ConfigTest{
+		configWriter.Sections["global"].(GlobalSection),
+		configWriter.Sections["bigip"].(BigIPSection),
+	}
+	configWriter.Unlock()
+
+	assert.EqualValues(t, expected, actual)
 
 	subPidCh := make(chan int)
 

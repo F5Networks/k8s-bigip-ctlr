@@ -71,9 +71,9 @@ Configuration Parameters
 | bigip-partition    | string    | Required  | n/a           | The BIG-IP partition in which |                   |
 |                    |           |           |               | to configure objects.         |                   |
 +--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| kubeconfig         | string    | Required  | n/a           | Path to the *kubeconfig* file |                   |
+| namespace          | string    | Required  | n/a           | Kubernetes namespace to watch |                   |
 +--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| namespace          | string    | Required  | default       | Kubernetes namespace to watch |                   |
+| kubeconfig         | string    | Optional  | ./config      | Path to the *kubeconfig* file |                   |
 +--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
 | python-basedir     | string    | Optional  | /app/python   | Path to python utilities      |                   |
 |                    |           |           |               | directory                     |                   |

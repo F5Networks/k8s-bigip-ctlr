@@ -1,21 +1,21 @@
-# Sample configuration for f5-k8s-controller.
+# Sample configuration for k8s-bigip-ctlr.
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: f5-k8s-controller
+  name: k8s-bigip-ctlr
   namespace: kube-system
 spec:
   replicas: 1
   template:
     metadata:
-      name: f5-k8s-controller
+      name: k8s-bigip-ctlr
       labels:
-        app: f5-k8s-controller
+        app: k8s-bigip-ctlr
     spec:
       containers:
-        - name: f5-k8s-controller
+        - name: k8s-bigip-ctlr
           # Specify the path to your image here
-          image: "docker-registry/username/f5-k8s-controller:latest"
+          image: "docker-registry/username/k8s-bigip-ctlr:latest"
           env:
           # Pull BIG-IP username, password, and url out of the secret store and put in environment
             - name: BIGIP_USERNAME
@@ -24,7 +24,7 @@ spec:
               value: changeme
             - name: BIGIP_URL
               value: <your_BIG-IP_admin_ip>
-          command: ["/app/bin/f5-k8s-controller"]
+          command: ["/app/bin/k8s-bigip-ctlr"]
           args: ["--running-in-cluster=true",
             "--bigip-url=$(BIGIP_URL)",
             "--bigip-username=$(BIGIP_USERNAME)",

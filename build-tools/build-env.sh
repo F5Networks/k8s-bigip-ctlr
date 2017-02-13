@@ -18,7 +18,7 @@ set -e
 
 # CI Should set these variables
 : ${CLEAN_BUILD:=false}
-: ${IMG_TAG:=f5-k8s-controller:latest}
+: ${IMG_TAG:=k8s-bigip-ctlr:latest}
 : ${BUILD_IMG_TAG:=f5-k8s-ctlr-devel:latest}
 
 NO_CACHE_ARGS=""

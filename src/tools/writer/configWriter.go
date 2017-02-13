@@ -46,7 +46,7 @@ type doneCall func(chan<- struct{})
 type errCall func(chan<- error, error)
 
 func NewConfigWriter() (Writer, error) {
-	dir, err := ioutil.TempDir("", "f5-k8s-controller.config")
+	dir, err := ioutil.TempDir("", "k8s-bigip-ctlr.config")
 	if nil != err {
 		return nil, fmt.Errorf("could not create unique config directory: %v", err)
 	}

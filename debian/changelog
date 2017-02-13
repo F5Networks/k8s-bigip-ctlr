@@ -1,4 +1,4 @@
-f5-k8s-controller (0.0.1) UNRELEASED; urgency=medium
+k8s-bigip-ctlr (0.0.1) UNRELEASED; urgency=medium
 
   [ Builder ]
   * Initial release.

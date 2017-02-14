@@ -20,8 +20,6 @@ import (
 	log "velcro/vlogger"
 	clog "velcro/vlogger/console"
 
-	// FIXME: Put this back when we actually use the BIG-IP Go API
-	// f5 "github.com/scottdware/go-bigip"
 	"github.com/spf13/pflag"
 
 	"k8s.io/client-go/1.4/kubernetes"

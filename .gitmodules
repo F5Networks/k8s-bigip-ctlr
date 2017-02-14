@@ -58,9 +58,6 @@
 [submodule "vendor/src/golang.org/x/net"]
 	path = vendor/src/golang.org/x/net
 	url = git@bldr-git.int.lineratesystems.com:mirror/golang-x-net.git
-[submodule "vendor/src/github.com/scottdware/go-bigip"]
-	path = vendor/src/github.com/scottdware/go-bigip
-	url = git@bldr-git.int.lineratesystems.com:mirror/scottdware-go-bigip.git
 [submodule "vendor/src/github.com/stretchr/testify"]
 	path = vendor/src/github.com/stretchr/testify
 	url = git@bldr-git.int.lineratesystems.com:mirror/testify.git

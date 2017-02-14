@@ -1,8 +1,8 @@
-f5-k8s-controller
-=================
+k8s-bigip-ctlr
+==============
 
 
-The F5 Container Connector (CC) for `Kubernetes <http://kubernetes.io/>`_ -- f5-k8s-controller -- makes F5 BIG-IP L4-L7 services available to microservices-based applications running in Kubernetes.
+The F5 Kubernetes BIG-IP Controller for `Kubernetes <http://kubernetes.io/>`_ -- k8s-bigip-ctlr -- makes F5 BIG-IP L4-L7 services available to microservices-based applications running in Kubernetes.
 
 Releases and Compatibility
 --------------------------
@@ -22,7 +22,7 @@ Project Setup
 `````````````
 
 Gitlab F5 CC project:
-git@bldr-git.int.lineratesystems.com:velcro/f5-k8s-controller.git
+git@bldr-git.int.lineratesystems.com:velcro/k8s-bigip-ctlr.git
 
 Manual environment setup
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -41,11 +41,11 @@ Manual environment setup
     $ git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
     $ go install -v github.com/constabulary/gb/...
     $ git clone [gitlab F5 CC project]
-    $ cd f5-k8s-controller
+    $ cd k8s-bigip-ctlr
     $ git submodule update --init
     # Install python requirements using sudo or create a virtualenv workspace.
     $ sudo pip install -r python/requirements.txt
-    $ sudo pip install -r vendor/src/velcro/f5-marathon-lb/requirements.txt
+    $ sudo pip install -r vendor/src/velcro/marathon-bigip-ctlr/requirements.txt
     $ make release
 
 Docker environment setup
@@ -56,7 +56,7 @@ Note: if setting up a new workspace run these commands first:
 .. code-block:: bash
 
     $ git clone [gitlab F5 CC project]
-    $ cd f5-k8s-controller
+    $ cd k8s-bigip-ctlr
     $ git submodule update --init
 
 1. Install docker. For example, `Docker for Mac <https://docs.docker.com/engine/installation/mac/>`_
@@ -73,16 +73,16 @@ Usually, the controller is deployed by Kubernetes. The example below shows how i
 
    .. code-block:: shell
 
-       docker run -it -d f5networks/lwp f5velcro/f5-k8s-controller --kubeconfig=./kubeconfig
+       docker run -it -d f5networks/k8s-bigip-ctlr --kubeconfig=./kubeconfig
 
-   The controller will create a new application in your Kubernetes cluster to be the LWP for your application.
+   The controller will create a new application in your Kubernetes cluster to be the ASP for your application.
 
 
 
 Issues
 ------
 
-To report an issue or suggest an enhancement, please open an `Issue <https://bldr-git.int.lineratesystems.com/velcro/f5-k8s-controller/issues>`_.
+To report an issue or suggest an enhancement, please open an `Issue <https://bldr-git.int.lineratesystems.com/velcro/k8s-bigip-ctlr/issues>`_.
 
 Configuration
 -------------

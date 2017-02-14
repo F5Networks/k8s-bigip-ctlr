@@ -13,10 +13,10 @@ CURDIR="$(dirname $BASH_SOURCE)"
 # Setup a temp docker build context dir
 WKDIR=$(mktemp -d docker-build.XXXX)
 cp $CURDIR/Dockerfile.runtime $WKDIR
-cp bin/f5-k8s-controller $WKDIR/
+cp bin/k8s-bigip-ctlr $WKDIR/
 cp -R -l python $WKDIR/
-cp --remove-destination vendor/src/velcro/f5-marathon-lb/_f5.py $WKDIR/python/_f5.py
-cp --remove-destination vendor/src/velcro/f5-marathon-lb/common.py $WKDIR/python/common.py
+cp --remove-destination vendor/src/velcro/common-bigip-ctlr/_f5.py $WKDIR/python/_f5.py
+cp --remove-destination vendor/src/velcro/common-bigip-ctlr/common.py $WKDIR/python/common.py
 cp vendor/src/velcro/schemas/bigip-virtual-server_v*.json $WKDIR/
 
 echo "Docker build context:"

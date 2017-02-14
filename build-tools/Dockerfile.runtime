@@ -7,7 +7,7 @@ RUN mkdir -p "$APPPATH/bin" \
  
 WORKDIR $APPPATH
 
-COPY f5-k8s-controller $APPPATH/bin
+COPY k8s-bigip-ctlr $APPPATH/bin
 COPY python/ $APPPATH/python
 COPY bigip-virtual-server_v*.json $APPPATH/vendor/src/velcro/schemas/
 COPY python/k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
@@ -15,4 +15,4 @@ COPY python/k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
 RUN pip install -r /tmp/k8s-runtime-requirements.txt
 
 # Run the run application in the projects bin directory.
-CMD [ "/app/bin/f5-k8s-controller" ]
+CMD [ "/app/bin/k8s-bigip-ctlr" ]

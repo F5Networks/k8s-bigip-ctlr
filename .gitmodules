@@ -61,9 +61,6 @@
 [submodule "vendor/src/github.com/scottdware/go-bigip"]
 	path = vendor/src/github.com/scottdware/go-bigip
 	url = git@bldr-git.int.lineratesystems.com:mirror/scottdware-go-bigip.git
-[submodule "vendor/src/velcro/f5-marathon-lb"]
-	path = vendor/src/velcro/f5-marathon-lb
-	url = git@bldr-git.int.lineratesystems.com:velcro/f5-marathon-lb.git
 [submodule "vendor/src/github.com/stretchr/testify"]
 	path = vendor/src/github.com/stretchr/testify
 	url = git@bldr-git.int.lineratesystems.com:mirror/testify.git
@@ -82,3 +79,6 @@
 [submodule "vendor/src/velcro/schemas"]
 	path = vendor/src/velcro/schemas
 	url = git@bldr-git.int.lineratesystems.com:velcro/schemas.git
+[submodule "vendor/src/velcro/common-bigip-ctlr"]
+	path = vendor/src/velcro/common-bigip-ctlr
+	url = git@bldr-git.int.lineratesystems.com:velcro/marathon-bigip-ctlr.git

@@ -97,7 +97,7 @@ func TestConfigSetup(t *testing.T) {
 func TestDriverCmd(t *testing.T) {
 	pyDriver := "/tmp/some-dir/test-driver.py"
 
-	configFile := fmt.Sprintf("/tmp/f5-k8s-controller.config.%d.json",
+	configFile := fmt.Sprintf("/tmp/k8s-bigip-ctlr.config.%d.json",
 		os.Getpid())
 
 	pythonPath, err := exec.LookPath("python")
@@ -226,7 +226,7 @@ func TestDriverSubProcess(t *testing.T) {
 
 func TestVerifyArgs(t *testing.T) {
 	os.Args = []string{
-		"./bin/f5-k8s-controller",
+		"./bin/k8s-bigip-ctlr",
 		"--namespace=testing",
 		"--bigip-partition=velcro1",
 		"--bigip-partition=velcro2",
@@ -282,7 +282,7 @@ func TestVerifyArgs(t *testing.T) {
 
 func TestOpenshiftSDNFlags(t *testing.T) {
 	os.Args = []string{
-		"./bin/f5-k8s-controller",
+		"./bin/k8s-bigip-ctlr",
 		"--namespace=testing",
 		"--bigip-partition=velcro1",
 		"--bigip-partition=velcro2",
@@ -301,7 +301,7 @@ func TestOpenshiftSDNFlags(t *testing.T) {
 		"Name variable should not be set")
 
 	os.Args = []string{
-		"./bin/f5-k8s-controller",
+		"./bin/k8s-bigip-ctlr",
 		"--namespace=testing",
 		"--bigip-partition=velcro1",
 		"--bigip-partition=velcro2",
@@ -324,7 +324,7 @@ func TestOpenshiftSDNFlags(t *testing.T) {
 func TestOpenshiftSDNFlagEmpty(t *testing.T) {
 	resetFlags()
 	os.Args = []string{
-		"./bin/f5-k8s-controller",
+		"./bin/k8s-bigip-ctlr",
 		"--namespace=testing",
 		"--bigip-partition=velcro1",
 		"--bigip-partition=velcro2",

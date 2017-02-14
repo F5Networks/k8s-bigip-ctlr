@@ -1,5 +1,5 @@
 variables:
-  baseimg: "docker-registry.pdbld.f5net.com/${CI_PROJECT_NAMESPACE}/f5-k8s-controller"
+  baseimg: "docker-registry.pdbld.f5net.com/${CI_PROJECT_NAMESPACE}/k8s-bigip-ctlr"
 
 before_script:
   - 'if [ "$CI_BUILD_STAGE" != "deploy" ] && [ "$(id -u)" == "0" ]; then'
@@ -86,9 +86,9 @@ sanity verification:
     - make verify
 
 # Create the docker container and upload it to the internal docker registry with the tags
-#   <PROJ_NAMESPACE>/f5-k8s-controller:<COMMIT_ID>
-#   <PROJ_NAMESPACE>/f5-k8s-controller:<BRANCH>
-#   <PROJ_NAMESPACE>/f5-k8s-controller:<BRANCH>-<BUILD_ID>
+#   <PROJ_NAMESPACE>/k8s-bigip-ctlr:<COMMIT_ID>
+#   <PROJ_NAMESPACE>/k8s-bigip-ctlr:<BRANCH>
+#   <PROJ_NAMESPACE>/k8s-bigip-ctlr:<BRANCH>-<BUILD_ID>
 dockerize:
   stage: deploy
   tags:

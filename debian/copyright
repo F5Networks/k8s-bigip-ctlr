@@ -1,5 +1,5 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: f5-k8s-controller
+Upstream-Name: k8s-bigip-ctlr
 Source: http://www.f5.com
 
 Files: *

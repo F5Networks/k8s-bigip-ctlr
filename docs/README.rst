@@ -1,12 +1,12 @@
-f5-k8s-controller
-=================
+k8s-bigip-ctlr
+==============
 
 .. toctree::
     :hidden:
     :maxdepth: 2
 
 
-F5-k8s-controller is a tool for managing F5 BIG-IP `Local Traffic Manager <https://f5.com/products/big-ip/local-traffic-manager-ltm>`_ (LTM) services from `Kubernetes`_. The f5-k8s-controller can be deployed in Kubernetes as described in the `documentation <#>`_.
+F5-k8s-bigip-ctlr is a tool for managing F5 BIG-IP `Local Traffic Manager <https://f5.com/products/big-ip/local-traffic-manager-ltm>`_ (LTM) services from `Kubernetes`_. The f5-k8s-bigip-ctlr can be deployed in Kubernetes as described in the `documentation <#>`_.
 
 Features
 --------
@@ -39,13 +39,13 @@ Troubleshooting
 Architecture
 ------------
 
-The f5-k8s-controller is a Docker container that can run in a `Kubernetes`_ Pod. A special type of Kubernetes ConfigMap resource, called an `F5 resource`_, passes encoded data to ``f5-k8s-controller``, telling it:
+The ``k8s-bigip-ctlr`` is a Docker container that can run in a `Kubernetes`_ Pod. A special type of Kubernetes ConfigMap resource, called an `F5 resource`_, passes encoded data to ``k8s-bigip-ctlr``, telling it:
 
 1. what objects to configure on your BIG-IP, and
 2. to which `Kubernetes Service`_ the BIG-IP objects belong.
 
-F5-k8s-controller watches the Kubernetes API for the creation and modification of F5 resources.
-When it discovers changes, the f5-k8s-controller modifies the BIG-IP accordingly.
+The ``k8s-bigip-ctlr`` watches the Kubernetes API for the creation and modification of F5 resources.
+When it discovers changes, the ``k8s-bigip-ctlr`` modifies the BIG-IP accordingly.
 
 For example:
 
@@ -80,7 +80,7 @@ Configuration Parameters
 +--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
 | running-in-cluster | boolean   | Optional  |  true         | Indicates whether or not a    | true, false       |
 |                    |           |           |               | kubernetes cluster started    |                   |
-|                    |           |           |               | f5-k8s-controller             |                   |
+|                    |           |           |               | ``k8s-bigip-ctlr``            |                   |
 +--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
 | use-node-internal  | boolean   | Optional  | true          | filter Kubernetes InternalIP  | true, false       |
 |                    |           |           |               | addresses for pool members    |                   |
@@ -187,8 +187,8 @@ Backend
 
 Example Configuration Files
 ```````````````````````````
-- `sample-f5-k8s-controller.yaml <./_static/config_examples/sample-f5-k8s-controller.yaml>`_
-- `sample-f5-k8s-controller-secrets.yaml <./_static/config_examples/sample-f5-k8s-controller-secrets.yaml>`_
+- `sample-k8s-bigip-ctlr.yaml <./_static/config_examples/sample-k8s-bigip-ctlr.yaml>`_
+- `sample-k8s-bigip-ctlr-secrets.yaml <./_static/config_examples/sample-k8s-bigip-ctlr-secrets.yaml>`_
 - `sample-bigip-credentials-secret.yaml <./_static/config_examples/sample-bigip-credentials-secret.yaml>`_
 - `example-vs-resource.configmap.yaml <./_static/config_examples/example-vs-resource.configmap.yaml>`_
 - `example-vs-resource.json <./_static/config_examples/example-vs-resource.json>`_
@@ -202,8 +202,8 @@ API Endpoints
 
 -----------------------------
 
-.. [#objectpartition]  F5-k8s-controller creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap.
-.. [#nodeport]  The f5-k8s-controller forwards traffic to the NodePort assigned to the service by Kubernetes; see the Kubernetes `Services <http://kubernetes.io/docs/user-guide/services/>`_ documentation for more information.
+.. [#objectpartition]  The ``k8s-bigip-ctlr`` creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap.
+.. [#nodeport]  The ``k8s-bigip-ctlr`` forwards traffic to the NodePort assigned to the service by Kubernetes; see the Kubernetes `Services <http://kubernetes.io/docs/user-guide/services/>`_ documentation for more information.
 .. [#secrets]  Can be stored as a `Kubernetes Secret <http://kubernetes.io/docs/user-guide/secrets/>`_. See the `user documentation <#>`_ for instructions.
 .. [#dclogin]  Requires login to DevCentral.
 

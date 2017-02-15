@@ -6,6 +6,7 @@ if "%SPHINXBUILD%" == "" (
 	set SPHINXBUILD=sphinx-build
 )
 set BUILDDIR=_build
+set SPHINXOPTS=-aE
 set ALLSPHINXOPTS=-d %BUILDDIR%/doctrees %SPHINXOPTS% .
 set I18NSPHINXOPTS=%SPHINXOPTS% .
 if NOT "%PAPER%" == "" (

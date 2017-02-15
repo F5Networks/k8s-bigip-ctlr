@@ -122,6 +122,8 @@ class ConfigHandler():
         self._thread = threading.Thread(target=self._do_reset)
         self._pending_reset = False
         self._stop = False
+        self._backoff_timer = 1
+        self._max_backoff_time = 128
 
         self._interval = None
         self._verify_interval = 0
@@ -185,11 +187,12 @@ class ConfigHandler():
                         if (self._interval and self._interval.is_running() is
                                 True):
                             self._interval.stop()
-                        self.notify_reset()
+                        self.retry_backoff(self.notify_reset)
                     else:
                         if (self._interval and self._interval.is_running() is
                                 False):
                             self._interval.start()
+                        self._backoff_timer = 1
 
                     log.debug('updating tasks finished, took %s seconds',
                               time.time() - start_time)
@@ -202,6 +205,16 @@ class ConfigHandler():
 
         if self._interval:
             self._interval.destroy()
+
+    def retry_backoff(self, func):
+        """Add a backoff timer to retry in case of failure."""
+        e = threading.Event()
+        log.error("Error applying config, will try again in %s seconds",
+                  self._backoff_timer)
+        e.wait(self._backoff_timer)
+        if self._backoff_timer < self._max_backoff_time:
+            self._backoff_timer *= 2
+        func()
 
 
 class ConfigWatcher(pyinotify.ProcessEvent):

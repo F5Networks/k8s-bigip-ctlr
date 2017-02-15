@@ -980,11 +980,16 @@ def test_confighandler_reset(request):
         assert bigip.calls == 3
 
         # in the failure case we'll respond with a notify_reset to try again
-        # therefore, we'll tick twice in for this test case
+        # therefore, we'll tick twice for this test case
         bigip._fail = True
+        # set the backoff_timer for quick testing
+        handler._backoff_timer = .01
+
         handler.notify_reset()
         time.sleep(0.1)
         assert bigip.calls == 5
+        # backoff_timer is set to one after a clean run
+        assert handler._backoff_timer == 1
     finally:
         assert handler is not None
 
@@ -1086,6 +1091,32 @@ def test_confighandler_checkpointstopafterfailure(request):
     finally:
         assert handler is not None
 
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+        assert handler._interval.is_running() is False
+
+
+def test_confighandler_backoff(request):
+    def cb():
+        pass
+    try:
+        handler = bigipconfigdriver.ConfigHandler({}, {}, 0.25)
+        backoff = handler.retry_backoff
+        handler._backoff_timer = .025
+        handler._max_backoff_time = .1
+
+        backoff(cb)
+        # first call doubles _backoff_timer
+        assert handler._backoff_timer == .05
+        backoff(cb)
+        # second call doubles _backoff_timer
+        assert handler._backoff_timer == .1
+        backoff(cb)
+        # hit _max_backoff_time so _backoff_timer does not increase
+        assert handler._backoff_timer == .1
+
+    finally:
         handler.stop()
         handler._thread.join(30)
         assert handler._thread.is_alive() is False

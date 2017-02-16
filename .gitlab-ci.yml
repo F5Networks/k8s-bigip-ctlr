@@ -113,3 +113,20 @@ dockerize:
     - docker push "$baseimg:$CI_BUILD_REF_NAME-$CI_BUILD_ID"
   dependencies:
     - release build and unit test
+
+
+attributions generator:
+  image: docker-registry.pdbld.f5net.com/velcro/attributions-generator:master
+  stage: deploy
+  script:
+    - /usr/local/bin/run-backends.sh $PWD
+    - node /frontEnd/frontEnd.js $PWD
+  tags:
+    - docker
+  artifacts:
+    paths:
+      - Licenses_generated.json
+      - flatfile_attributions.json
+      - golang_attributions.json
+      - pip_attributions.json
+      - ATTRIBUTIONS.md

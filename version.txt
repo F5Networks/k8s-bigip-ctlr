@@ -1,3 +1,0 @@
-# Key value pairs related to versioning
-PROJECT_VERSION=0.1.0
-VERSION_BRANCH=master

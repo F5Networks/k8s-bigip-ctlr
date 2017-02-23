@@ -4,9 +4,6 @@ all:
 	@printf "  debug   - build and test with debug instrumentation\n"
 	@printf "  verify  - apply source verification (i.e. formatting,\n"
 	@printf "            licensing)\n"
-	@printf "  pkg-deb - build Debian packages for all supported distros\n"
-	@printf "  pkg-deb-'distro' - build Debian packages for the specified\n"
-	@printf "            distro. (ex: make pkg-deb-wily)\n"
 	@printf "  devel-image - build a local docker image 'k8s-ctrl-devel'\n"
 	@printf "                with all needed build tools\n"
 	@printf "  doc-preview - Use docs image to build local preview of docs\n"
@@ -72,12 +69,6 @@ dbg-unit-test: dbg-build
 fmt:
 	@echo "Enforcing code formatting using 'go fmt'..."
 	${PROJ_DIR}/build-tools/fmt.sh
-
-pkg-deb-wily:
-	debian/package.sh -C debian wily
-
-# Depend on rules for all supported distros
-pkg-deb: pkg-deb-wily
 
 devel-image:
 	./build-tools/build-devel-image.sh

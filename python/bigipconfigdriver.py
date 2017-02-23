@@ -420,9 +420,15 @@ def _handle_global_config(config):
 
     try:
         root_logger.setLevel(level)
+        if level > logging.DEBUG:
+            logging.getLogger('requests.packages.urllib3.'
+                              'connectionpool').setLevel(logging.WARNING)
     except:
         level = DEFAULT_LOG_LEVEL
         root_logger.setLevel(level)
+        if level > logging.DEBUG:
+            logging.getLogger('requests.packages.urllib3.'
+                              'connectionpool').setLevel(logging.WARNING)
         log.warn('Undefined value specified for the '
                  '"global:log-level" field in the configuration file')
 

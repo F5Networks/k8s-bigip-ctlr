@@ -15,7 +15,7 @@ RUN apk add --no-cache \
 		git \
 		make \
 		su-exec && \
-	pip install -U setuptools flake8 && \
+	pip install setuptools flake8 && \
 	pip install -r /tmp/k8s-build-requirements.txt && \
 	pip install -r /tmp/k8s-runtime-requirements.txt && \
 	pip install -r /tmp/requirements.docs.txt && \

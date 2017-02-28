@@ -89,9 +89,13 @@ Configuration Parameters
 | use-node-internal  | boolean   | Optional  | true          | filter Kubernetes InternalIP  | true, false       |
 |                    |           |           |               | addresses for pool members    |                   |
 +--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
-| verify-interval    | integer   | Optional  | 30            | In seconds, internal at which |                   |
+| verify-interval    | integer   | Optional  | 30            | In seconds, interval at which |                   |
 |                    |           |           |               | to verify the BIG-IP          |                   |
 |                    |           |           |               | configuration.                |                   |
++--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
+| node-poll-interval | integer   | Optional  | 30            | In seconds, interval at which |                   |
+|                    |           |           |               | to poll the cluster for its   |                   |
+|                    |           |           |               | node members.                 |                   |
 +--------------------+-----------+-----------+---------------+-------------------------------+-------------------+
 | log-level          | string    | Optional  | INFO          | Log level                     | INFO,             |
 |                    |           |           |               |                               | DEBUG,            |

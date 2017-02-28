@@ -48,9 +48,10 @@ var (
 	kubeFlags         *pflag.FlagSet
 	openshiftSDNFlags *pflag.FlagSet
 
-	pythonBaseDir  *string
-	logLevel       *string
-	verifyInterval *int
+	pythonBaseDir    *string
+	logLevel         *string
+	verifyInterval   *int
+	nodePollInterval *int
 
 	namespace       *string
 	useNodeInternal *bool
@@ -83,7 +84,9 @@ func init() {
 	logLevel = globalFlags.String("log-level", "INFO",
 		"Optional, logging level")
 	verifyInterval = globalFlags.Int("verify-interval", 30,
-		"Optional, interval at which to verify the BIG-IP configuration.")
+		"Optional, interval (in seconds) at which to verify the BIG-IP configuration.")
+	nodePollInterval = globalFlags.Int("node-poll-interval", 30,
+		"Optional, interval (in seconds) at which to poll for cluster nodes.")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsages())
@@ -329,7 +332,8 @@ func setupNodePolling(
 	kubeClient kubernetes.Interface,
 	configWriter writer.Writer,
 ) (pollers.Poller, error) {
-	np := pollers.NewNodePoller(kubeClient, 30*time.Second)
+	intervalFactor := time.Duration(*nodePollInterval)
+	np := pollers.NewNodePoller(kubeClient, intervalFactor*time.Second)
 
 	if isNodePort {
 		err := np.RegisterListener(virtualServer.ProcessNodeUpdate)

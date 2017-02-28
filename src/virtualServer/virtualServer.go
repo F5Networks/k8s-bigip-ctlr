@@ -259,8 +259,12 @@ func ProcessEndpointsUpdate(
 
 func getEndpointsForService(
 	portName string, eps *v1.Endpoints) (int32, []string) {
-	var ips []string
+	// FIXME(yacobucci) #87
+	// we could pass back the nil ips but _f5.py crashes when poolMemberAddrs
+	// is json:null. we can protect _f5.py by making this json:[] when empty
+	var ips []string = []string{}
 	var port int32
+
 	for _, subset := range eps.Subsets {
 		for _, p := range subset.Ports {
 			if portName == p.Name {
@@ -271,9 +275,7 @@ func getEndpointsForService(
 			}
 		}
 	}
-	if 0 == len(ips) {
-		port = 0
-	} else {
+	if 0 != len(ips) {
 		sort.Strings(ips)
 	}
 	return port, ips
@@ -326,20 +328,30 @@ func processService(
 			case eventStream.Added, eventStream.Replaced, eventStream.Updated:
 				if isNodePort {
 					if svc.Spec.Type == v1.ServiceTypeNodePort {
+						log.Debugf("Service backend matched %+v: using node port %v",
+							serviceKey{serviceName, portSpec.Port, namespace}, portSpec.NodePort)
+
 						vs.VirtualServer.Backend.PoolMemberPort = portSpec.NodePort
 						vs.VirtualServer.Backend.PoolMemberAddrs = getNodesFromCache()
 					}
 				} else {
-					item, _, _ := endptStore.GetByKey(namespace + "/" + serviceName)
+					item, _, err := endptStore.GetByKey(namespace + "/" + serviceName)
 					if nil != item {
 						eps := item.(*v1.Endpoints)
+						port, ips := getEndpointsForService(portSpec.Name, eps)
+
+						log.Debugf("Found endpoints for backend %+v: %v",
+							serviceKey{serviceName, portSpec.Port, namespace}, ips)
+
 						vs.VirtualServer.Backend.PoolMemberPort,
-							vs.VirtualServer.Backend.PoolMemberAddrs =
-							getEndpointsForService(portSpec.Name, eps)
+							vs.VirtualServer.Backend.PoolMemberAddrs = port, ips
+					} else {
+						log.Debugf("No endpoints for backend %+v: %v",
+							serviceKey{serviceName, portSpec.Port, namespace}, err)
 					}
 				}
 			case eventStream.Deleted:
-				vs.VirtualServer.Backend.PoolMemberPort = 0
+				vs.VirtualServer.Backend.PoolMemberPort = -1
 				vs.VirtualServer.Backend.PoolMemberAddrs = nil
 			}
 			updateConfig = true
@@ -347,7 +359,7 @@ func processService(
 	}
 	for p, _ := range rmvdPortsMap {
 		if vs, ok := virtualServers.m[serviceKey{serviceName, p, namespace}]; ok {
-			vs.VirtualServer.Backend.PoolMemberPort = 0
+			vs.VirtualServer.Backend.PoolMemberPort = -1
 			vs.VirtualServer.Backend.PoolMemberAddrs = nil
 			updateConfig = true
 		}
@@ -413,6 +425,9 @@ func processConfigMap(
 				if svc.Spec.Type == v1.ServiceTypeNodePort {
 					for _, portSpec := range svc.Spec.Ports {
 						if portSpec.Port == servicePort {
+							log.Debugf("Service backend matched %+v: using node port %v",
+								serviceKey{serviceName, portSpec.Port, namespace}, portSpec.NodePort)
+
 							cfg.VirtualServer.Backend.PoolMemberPort = portSpec.NodePort
 							cfg.VirtualServer.Backend.PoolMemberAddrs = getNodesFromCache()
 						}
@@ -424,11 +439,18 @@ func processConfigMap(
 					eps := item.(*v1.Endpoints)
 					for _, portSpec := range svc.Spec.Ports {
 						if portSpec.Port == servicePort {
+							port, ips := getEndpointsForService(portSpec.Name, eps)
+
+							log.Debugf("Found endpoints for backend %+v: %v",
+								serviceKey{serviceName, portSpec.Port, namespace}, ips)
+
 							cfg.VirtualServer.Backend.PoolMemberPort,
-								cfg.VirtualServer.Backend.PoolMemberAddrs =
-								getEndpointsForService(portSpec.Name, eps)
+								cfg.VirtualServer.Backend.PoolMemberAddrs = port, ips
 						}
 					}
+				} else {
+					log.Debugf("No endpoints for backend %+v: %v",
+						serviceKey{serviceName, servicePort, namespace}, err)
 				}
 			}
 		}
@@ -503,7 +525,6 @@ func processEndpoints(
 	namespace := eps.ObjectMeta.Namespace
 	item, _, _ := serviceStore.GetByKey(namespace + "/" + serviceName)
 	if nil == item {
-		// Service not found
 		return false
 	}
 	svc := item.(*v1.Service)
@@ -519,13 +540,19 @@ func processEndpoints(
 				port, ips := getEndpointsForService(portSpec.Name, eps)
 				if port != vs.VirtualServer.Backend.PoolMemberPort ||
 					!reflect.DeepEqual(ips, vs.VirtualServer.Backend.PoolMemberAddrs) {
+
+					log.Debugf("Updating endpoints for backend: %+v: from %v:%v to %v:%v",
+						serviceKey{serviceName, portSpec.Port, namespace},
+						vs.VirtualServer.Backend.PoolMemberPort, vs.VirtualServer.Backend.PoolMemberAddrs,
+						port, ips)
+
 					vs.VirtualServer.Backend.PoolMemberAddrs = ips
 					vs.VirtualServer.Backend.PoolMemberPort = port
 					updateConfig = true
 				}
 			case eventStream.Deleted:
 				vs.VirtualServer.Backend.PoolMemberAddrs = nil
-				vs.VirtualServer.Backend.PoolMemberPort = 0
+				vs.VirtualServer.Backend.PoolMemberPort = -1
 				updateConfig = true
 			}
 		}
@@ -585,7 +612,7 @@ func outputConfigLocked() {
 
 	// Filter the configs to only those that have active services
 	for _, vs := range virtualServers.m {
-		if vs.VirtualServer.Backend.PoolMemberPort != 0 {
+		if vs.VirtualServer.Backend.PoolMemberPort != -1 {
 			services = append(services, vs)
 		}
 	}

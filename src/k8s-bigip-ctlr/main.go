@@ -17,8 +17,8 @@ import (
 	"tools/writer"
 	"virtualServer"
 
-	log "velcro/vlogger"
-	clog "velcro/vlogger/console"
+	log "f5/vlogger"
+	clog "f5/vlogger/console"
 
 	"github.com/spf13/pflag"
 

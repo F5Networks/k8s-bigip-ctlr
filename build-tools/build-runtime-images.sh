@@ -17,7 +17,7 @@ cp bin/k8s-bigip-ctlr $WKDIR/
 mkdir -p $WKDIR/python
 cp python/*.py $WKDIR/python/
 cp python/k8s-runtime-requirements.txt $WKDIR/
-cp vendor/src/velcro/schemas/bigip-virtual-server_v*.json $WKDIR/
+cp vendor/src/f5/schemas/bigip-virtual-server_v*.json $WKDIR/
 
 echo "Docker build context:"
 ls -la $WKDIR

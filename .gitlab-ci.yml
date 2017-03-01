@@ -35,11 +35,11 @@ docs_tests:
     - ./build-tools/test-docs.sh
   tags:
     - docker
-  stage: test
+  stage: sanity
 
 python utility unit test:
   image: "python:2.7"
-  stage: test
+  stage: sanity
   script:
     - pip install flake8
     - pip install -r python/k8s-build-requirements.txt

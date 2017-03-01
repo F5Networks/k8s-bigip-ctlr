@@ -281,6 +281,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if _, isSet := os.LookupEnv("SCALE_PERF_ENABLE"); isSet {
+		now := time.Now()
+		log.Infof("SCALE_PERF: Started controller at: %d", now.Unix())
+	}
+
 	// FIXME(yacobucci) virtualServer should really be an object and not a
 	// singleton at some point
 	configWriter, err := writer.NewConfigWriter()

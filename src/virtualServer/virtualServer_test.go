@@ -229,25 +229,31 @@ var configmapIApp2 string = string(`{
 
 var emptyConfig string = string(`{"services":[]}`)
 
-var twoSvcsFourPortsThreeNodesConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":37001,"poolMemberAddrs":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"virtualServerName":"default_barmap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"healthMonitors":[{"interval":30,"protocol":"tcp","send":"GET /","timeout":20}],"serviceName":"foo","servicePort":80,"poolMemberPort":30001,"poolMemberAddrs":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"virtualServerName":"default_foomap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":8080,"poolMemberPort":38001,"poolMemberAddrs":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"virtualServerName":"default_foomap8080","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":9090,"poolMemberPort":39001,"poolMemberAddrs":["127.0.0.1","127.0.0.2","127.0.0.3"]},"frontend":{"virtualServerName":"default_foomap9090","partition":"velcro","balance":"round-robin","mode":"tcp","virtualAddress":{"bindAddr":"10.128.10.200","port":4041}}}}]}`)
+var twoSvcsFourPortsThreeNodesConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.1:37001","127.0.0.2:37001","127.0.0.3:37001"]},"frontend":{"virtualServerName":"default_barmap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"healthMonitors":[{"interval":30,"protocol":"tcp","send":"GET /","timeout":20}],"serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.1:30001","127.0.0.2:30001","127.0.0.3:30001"]},"frontend":{"virtualServerName":"default_foomap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":8080,"poolMemberAddrs":["127.0.0.1:38001","127.0.0.2:38001","127.0.0.3:38001"]},"frontend":{"virtualServerName":"default_foomap8080","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":9090,"poolMemberAddrs":["127.0.0.1:39001","127.0.0.2:39001","127.0.0.3:39001"]},"frontend":{"virtualServerName":"default_foomap9090","partition":"velcro","balance":"round-robin","mode":"tcp","virtualAddress":{"bindAddr":"10.128.10.200","port":4041}}}}]}`)
 
-var twoSvcsTwoNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":37001,"poolMemberAddrs":["127.0.0.1","127.0.0.2"]},"frontend":{"virtualServerName":"default_barmap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"healthMonitors":[{"interval":30,"protocol":"tcp","send":"GET /","timeout":20}],"serviceName":"foo","servicePort":80,"poolMemberPort":30001,"poolMemberAddrs":["127.0.0.1","127.0.0.2"]},"frontend":{"virtualServerName":"default_foomap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
+var twoSvcsTwoNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.1:37001","127.0.0.2:37001"]},"frontend":{"virtualServerName":"default_barmap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"healthMonitors":[{"interval":30,"protocol":"tcp","send":"GET /","timeout":20}],"serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.1:30001","127.0.0.2:30001"]},"frontend":{"virtualServerName":"default_foomap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
 
-var twoSvcsOneNodeConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":37001,"poolMemberAddrs":["127.0.0.3"]},"frontend":{"virtualServerName":"default_barmap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"healthMonitors":[{"interval":30,"protocol":"tcp","send":"GET /","timeout":20}],"serviceName":"foo","servicePort":80,"poolMemberPort":30001,"poolMemberAddrs":["127.0.0.3"]},"frontend":{"virtualServerName":"default_foomap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
+var twoSvcsOneNodeConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.3:37001"]},"frontend":{"virtualServerName":"default_barmap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"healthMonitors":[{"interval":30,"protocol":"tcp","send":"GET /","timeout":20}],"serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.3:30001"]},"frontend":{"virtualServerName":"default_foomap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}}}]}`)
 
-var oneSvcTwoNodesConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":37001,"poolMemberAddrs":["127.0.0.3"]},"frontend":{"virtualServerName":"default_barmap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}}]}`)
+var oneSvcOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.3:37001"]},"frontend":{"virtualServerName":"default_barmap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}}]}`)
 
-var oneSvcOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":37001,"poolMemberAddrs":["127.0.0.3"]},"frontend":{"virtualServerName":"default_barmap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}}]}`)
+var twoIappsThreeNodesConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp1","servicePort":80,"poolMemberAddrs":["192.168.0.1:10101","192.168.0.2:10101","192.168.0.4:10101"]},"frontend":{"virtualServerName":"default_iapp1map","partition":"velcro","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 1"},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}}}},{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.1:20202","192.168.0.2:20202","192.168.0.4:20202"]},"frontend":{"virtualServerName":"default_iapp2map","partition":"velcro","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
 
-var twoIappsThreeNodesConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp1","servicePort":80,"poolMemberPort":10101,"poolMemberAddrs":["192.168.0.1","192.168.0.2","192.168.0.4"]},"frontend":{"virtualServerName":"default_iapp1map","partition":"velcro","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 1"},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}}}},{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"poolMemberPort":20202,"poolMemberAddrs":["192.168.0.1","192.168.0.2","192.168.0.4"]},"frontend":{"virtualServerName":"default_iapp2map","partition":"velcro","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
+var twoIappsOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp1","servicePort":80,"poolMemberAddrs":["192.168.0.4:10101"]},"frontend":{"virtualServerName":"default_iapp1map","partition":"velcro","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 1"},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}}}},{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.4:20202"]},"frontend":{"virtualServerName":"default_iapp2map","partition":"velcro","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
 
-var twoIappsOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp1","servicePort":80,"poolMemberPort":10101,"poolMemberAddrs":["192.168.0.4"]},"frontend":{"virtualServerName":"default_iapp1map","partition":"velcro","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 1"},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}}}},{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"poolMemberPort":20202,"poolMemberAddrs":["192.168.0.4"]},"frontend":{"virtualServerName":"default_iapp2map","partition":"velcro","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
+var oneIappOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.4:20202"]},"frontend":{"virtualServerName":"default_iapp2map","partition":"velcro","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
 
-var oneIappOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"poolMemberPort":20202,"poolMemberAddrs":["192.168.0.4"]},"frontend":{"virtualServerName":"default_iapp2map","partition":"velcro","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
+var twoSvcTwoPodsConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]},"frontend":{"virtualServerName":"default_barmap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":8080,"poolMemberAddrs":["10.2.96.1:8080","10.2.96.2:8080"]},"frontend":{"virtualServerName":"default_foomap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}}]}`)
 
-var twoSvcTwoPodsConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":0,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]},"frontend":{"virtualServerName":"default_barmap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":8080,"poolMemberPort":0,"poolMemberAddrs":["10.2.96.1:8080","10.2.96.2:8080"]},"frontend":{"virtualServerName":"default_foomap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}}]}`)
+var oneSvcTwoPodsConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]},"frontend":{"virtualServerName":"default_barmap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}}]}`)
 
-var oneSvcTwoPodsConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":0,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]},"frontend":{"virtualServerName":"default_barmap","balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}}]}`)
+func generateExpectedAddrs(port int32, ips []string) []string {
+	var ret []string
+	for _, ip := range ips {
+		ret = append(ret, ip+":"+strconv.Itoa(int(port)))
+	}
+	return ret
+}
 
 func newConfigMap(id, rv, namespace string,
 	keys map[string]string) *v1.ConfigMap {
@@ -510,7 +516,12 @@ func validateConfig(t *testing.T, mw *test.MockWriter, expected string) {
 		return
 	}
 
-	require.True(t, assert.ObjectsAreEqualValues(expectedOutput, services))
+	for i, vs := range expectedOutput.Services {
+		require.Condition(t, func() bool {
+			return i < len(services.Services)
+		})
+		assert.ObjectsAreEqualValues(vs.VirtualServer, services.Services[i].VirtualServer)
+	}
 }
 
 func TestProcessNodeUpdate(t *testing.T) {
@@ -766,6 +777,17 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	defer virtualServers.Init()
 
 	require := require.New(t)
+	nodeSet := []v1.Node{
+		*newNode("node0", "0", false, []v1.NodeAddress{
+			{"InternalIP", "127.0.0.0"}}),
+		*newNode("node1", "1", false, []v1.NodeAddress{
+			{"InternalIP", "127.0.0.1"}}),
+		*newNode("node2", "2", false, []v1.NodeAddress{
+			{"InternalIP", "127.0.0.2"}}),
+	}
+
+	useNodeInternal = true
+	ProcessNodeUpdate(nodeSet, nil)
 
 	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
@@ -819,21 +841,25 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 8080, "default"}))
 	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 9090, "default"}))
 
+	addrs := []string{
+		"127.0.0.0",
+		"127.0.0.1",
+		"127.0.0.2",
+	}
 	vs, ok := virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
-	require.Equal(int32(30001), vs.VirtualServer.Backend.PoolMemberPort,
-		"Existing NodePort should be set")
+	require.EqualValues(generateExpectedAddrs(30001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs,
+		"Existing NodePort should be set on address")
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 8080, "default"}, formatVirtualServerName(cfgFoo8080))
 	require.True(ok)
-	require.Equal(int32(-1), vs.VirtualServer.Backend.PoolMemberPort,
-		"Removed NodePort should be unset")
+	require.False(vs.MetaData.Active)
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 9090, "default"}, formatVirtualServerName(cfgFoo9090))
 	require.True(ok)
-	require.Equal(int32(-1), vs.VirtualServer.Backend.PoolMemberPort,
-		"Removed NodePort should be unset")
+	require.False(vs.MetaData.Active)
 
 	// Re-add port in new service
 	newFoo2 := newService("foo", "1", "default", "NodePort",
@@ -853,18 +879,19 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
-	require.Equal(int32(20001), vs.VirtualServer.Backend.PoolMemberPort,
-		"Existing NodePort should be set")
+	require.EqualValues(generateExpectedAddrs(20001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs,
+		"Existing NodePort should be set on address")
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 8080, "default"}, formatVirtualServerName(cfgFoo8080))
 	require.True(ok)
-	require.Equal(int32(45454), vs.VirtualServer.Backend.PoolMemberPort,
-		"Removed NodePort should be unset")
+	require.EqualValues(generateExpectedAddrs(45454, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs,
+		"Existing NodePort should be set on address")
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 9090, "default"}, formatVirtualServerName(cfgFoo9090))
 	require.True(ok)
-	require.Equal(int32(-1), vs.VirtualServer.Backend.PoolMemberPort,
-		"Removed NodePort should be unset")
+	require.False(vs.MetaData.Active)
 }
 
 func TestUpdatesConcurrentNodePort(t *testing.T) {
@@ -1047,7 +1074,7 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		assert.FailNow("Timed out excpecting service channel notification")
 	}
 
-	validateConfig(t, mw, oneSvcTwoNodesConfig)
+	validateConfig(t, mw, oneSvcOneNodeConfig)
 }
 
 func TestProcessUpdatesNodePort(t *testing.T) {
@@ -1126,7 +1153,8 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	vs, ok := virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(30001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Second ConfigMap ADDED
 	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
@@ -1137,11 +1165,13 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(30001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"bar", 80, "default"}, formatVirtualServerName(cfgBar))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(37001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Service ADDED
 	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
@@ -1176,15 +1206,18 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 8080, "default"}, formatVirtualServerName(cfgFoo8080))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(38001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(30001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"bar", 80, "default"}, formatVirtualServerName(cfgBar))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(37001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// ConfigMap ADDED third foo port
 	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
@@ -1194,19 +1227,23 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 9090, "default"}, formatVirtualServerName(cfgFoo9090))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(39001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 8080, "default"}, formatVirtualServerName(cfgFoo8080))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(38001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(30001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"bar", 80, "default"}, formatVirtualServerName(cfgBar))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(37001, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Nodes ADDED
 	_, err = fake.Core().Nodes().Create(extraNode)
@@ -1219,22 +1256,22 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
-	assert.EqualValues(append(addrs, "127.0.0.3"),
+	assert.EqualValues(generateExpectedAddrs(30001, append(addrs, "127.0.0.3")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"bar", 80, "default"}, formatVirtualServerName(cfgBar))
 	require.True(ok)
-	assert.EqualValues(append(addrs, "127.0.0.3"),
+	assert.EqualValues(generateExpectedAddrs(37001, append(addrs, "127.0.0.3")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 8080, "default"}, formatVirtualServerName(cfgFoo8080))
 	require.True(ok)
-	assert.EqualValues(append(addrs, "127.0.0.3"),
+	assert.EqualValues(generateExpectedAddrs(38001, append(addrs, "127.0.0.3")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 9090, "default"}, formatVirtualServerName(cfgFoo9090))
 	require.True(ok)
-	assert.EqualValues(append(addrs, "127.0.0.3"),
+	assert.EqualValues(generateExpectedAddrs(39001, append(addrs, "127.0.0.3")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	validateConfig(t, mw, twoSvcsFourPortsThreeNodesConfig)
 
@@ -1287,12 +1324,12 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
-	assert.EqualValues([]string{"127.0.0.3"},
+	assert.EqualValues(generateExpectedAddrs(30001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"bar", 80, "default"}, formatVirtualServerName(cfgBar))
 	require.True(ok)
-	assert.EqualValues([]string{"127.0.0.3"},
+	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	validateConfig(t, mw, twoSvcsOneNodeConfig)
 
@@ -1465,6 +1502,15 @@ func TestNamespaceIsolation(t *testing.T) {
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client should not be nil")
 
+	node := newNode("node3", "3", false,
+		[]v1.NodeAddress{{"InternalIP", "127.0.0.3"}})
+	_, err := fake.Core().Nodes().Create(node)
+	require.Nil(err)
+	useNodeInternal = true
+	n, err := fake.Core().Nodes().List(api.ListOptions{})
+	assert.Nil(err, "Should not fail listing nodes")
+	ProcessNodeUpdate(n.Items, err)
+
 	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
@@ -1515,7 +1561,8 @@ func TestNamespaceIsolation(t *testing.T) {
 	vs, ok := virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
-	assert.EqualValues(37001, vs.VirtualServer.Backend.PoolMemberPort,
+	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
+		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
 	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
@@ -1526,7 +1573,8 @@ func TestNamespaceIsolation(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
-	assert.EqualValues(37001, vs.VirtualServer.Backend.PoolMemberPort,
+	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
+		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
 	ProcessServiceUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
@@ -1537,7 +1585,8 @@ func TestNamespaceIsolation(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
-	assert.EqualValues(37001, vs.VirtualServer.Backend.PoolMemberPort,
+	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
+		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
 	ProcessServiceUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
@@ -1545,7 +1594,8 @@ func TestNamespaceIsolation(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Service should not have been deleted")
-	assert.EqualValues(37001, vs.VirtualServer.Backend.PoolMemberPort,
+	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
+		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 }
 
@@ -1627,7 +1677,8 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	vs, ok := virtualServers.Get(
 		serviceKey{"iapp1", 80, "default"}, formatVirtualServerName(cfgIapp1))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(10101, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Second ConfigMap ADDED
 	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
@@ -1638,11 +1689,13 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"iapp1", 80, "default"}, formatVirtualServerName(cfgIapp1))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(10101, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"iapp2", 80, "default"}, formatVirtualServerName(cfgIapp2))
 	require.True(ok)
-	assert.EqualValues(addrs, vs.VirtualServer.Backend.PoolMemberAddrs)
+	assert.EqualValues(generateExpectedAddrs(20202, addrs),
+		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Service ADDED
 	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
@@ -1680,12 +1733,12 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"iapp1", 80, "default"}, formatVirtualServerName(cfgIapp1))
 	require.True(ok)
-	assert.EqualValues(append(addrs, "192.168.0.4"),
+	assert.EqualValues(generateExpectedAddrs(10101, append(addrs, "192.168.0.4")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"iapp2", 80, "default"}, formatVirtualServerName(cfgIapp2))
 	require.True(ok)
-	assert.EqualValues(append(addrs, "192.168.0.4"),
+	assert.EqualValues(generateExpectedAddrs(20202, append(addrs, "192.168.0.4")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	validateConfig(t, mw, twoIappsThreeNodesConfig)
 
@@ -1702,12 +1755,12 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	vs, ok = virtualServers.Get(
 		serviceKey{"iapp1", 80, "default"}, formatVirtualServerName(cfgIapp1))
 	require.True(ok)
-	assert.EqualValues([]string{"192.168.0.4"},
+	assert.EqualValues(generateExpectedAddrs(10101, []string{"192.168.0.4"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = virtualServers.Get(
 		serviceKey{"iapp2", 80, "default"}, formatVirtualServerName(cfgIapp2))
 	require.True(ok)
-	assert.EqualValues([]string{"192.168.0.4"},
+	assert.EqualValues(generateExpectedAddrs(20202, []string{"192.168.0.4"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	validateConfig(t, mw, twoIappsOneNodeConfig)
 
@@ -1879,7 +1932,7 @@ func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
 		vs, ok := virtualServers.Get(
 			serviceKey{"foo", p.Port, namespace}, formatVirtualServerName(cfgFoo))
 		require.True(ok)
-		require.EqualValues(0, vs.VirtualServer.Backend.PoolMemberPort)
+		require.EqualValues([]string{}, vs.VirtualServer.Backend.PoolMemberAddrs)
 	}
 
 	validateServiceIps(t, svcName, namespace, svcPorts, []string{})

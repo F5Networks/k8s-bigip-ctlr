@@ -602,8 +602,8 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 
-# The velcro/common-bigip-ctlr module is ours.
-- name: velcro/common-bigip-ctlr
+# The f5/common-bigip-ctlr module is ours.
+- name: f5/common-bigip-ctlr
   version: v0.2.0-60-g170378d
   attribution_text: |
     Copyright 2017 F5 Networks
@@ -620,8 +620,8 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 
-# The velcro/schemas module is ours.
-- name: velcro/schemas
+# The f5/schemas module is ours.
+- name: f5/schemas
   version: 92cb500
   attribution_text: |
     Copyright 2017 F5 Networks
@@ -638,8 +638,8 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 
-# The velcro/vlogger module is ours.
-- name: velcro/vlogger
+# The f5/vlogger module is ours.
+- name: f5/vlogger
   version: 7f3d588
   attribution_text: |
     Copyright 2017 F5 Networks

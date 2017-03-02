@@ -73,9 +73,9 @@
 [submodule "vendor/src/github.com/xeipuuv/gojsonreference"]
 	path = vendor/src/github.com/xeipuuv/gojsonreference
 	url = git@bldr-git.int.lineratesystems.com:mirror/gojsonreference.git
-[submodule "vendor/src/velcro/schemas"]
-	path = vendor/src/velcro/schemas
+[submodule "vendor/src/f5/schemas"]
+	path = vendor/src/f5/schemas
 	url = git@bldr-git.int.lineratesystems.com:velcro/schemas.git
-[submodule "vendor/src/velcro/common-bigip-ctlr"]
-	path = vendor/src/velcro/common-bigip-ctlr
+[submodule "vendor/src/f5/common-bigip-ctlr"]
+	path = vendor/src/f5/common-bigip-ctlr
 	url = git@bldr-git.int.lineratesystems.com:velcro/marathon-bigip-ctlr.git

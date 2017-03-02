@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"eventStream"
+	log "f5/vlogger"
 	"tools/writer"
-	log "velcro/vlogger"
 
 	"github.com/xeipuuv/gojsonschema"
 	"k8s.io/client-go/1.4/kubernetes"
@@ -22,7 +22,7 @@ import (
 // Most of this comes directly from a ConfigMap, with the exception
 // of NodePort and Nodes, which are dynamic
 // For more information regarding this structure and data model:
-//  velcro/schemas/bigip-virtual-server_[version].json
+//  f5/schemas/bigip-virtual-server_[version].json
 type VirtualServerConfig struct {
 	VirtualServer struct {
 		Backend struct {
@@ -84,7 +84,7 @@ func (slice VirtualServerConfigs) Swap(i, j int) {
 var schemaIndicator string = "f5schemadb://"
 
 // Where the schemas reside locally
-var schemaLocal string = "file:///app/vendor/src/velcro/schemas/"
+var schemaLocal string = "file:///app/vendor/src/f5/schemas/"
 
 // Virtual Server Key - unique server is Name + Port
 type serviceKey struct {

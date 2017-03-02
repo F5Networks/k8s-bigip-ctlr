@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	log "velcro/vlogger"
+	log "f5/vlogger"
 )
 
 type Writer interface {

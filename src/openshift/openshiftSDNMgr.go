@@ -73,15 +73,10 @@ func (osm *OpenshiftSDNMgr) ProcessNodeUpdate(obj interface{}, err error) {
 	}
 
 	for _, node := range nodes {
-		if node.Spec.Unschedulable {
-			// Skip unschedulable nodes
-			continue
-		} else {
-			nodeAddrs := node.Status.Addresses
-			for _, addr := range nodeAddrs {
-				if addr.Type == addrType {
-					addrs = append(addrs, addr.Address)
-				}
+		nodeAddrs := node.Status.Addresses
+		for _, addr := range nodeAddrs {
+			if addr.Type == addrType {
+				addrs = append(addrs, addr.Address)
 			}
 		}
 	}

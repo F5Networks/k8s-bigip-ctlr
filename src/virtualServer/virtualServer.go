@@ -40,6 +40,7 @@ type VirtualServerConfig struct {
 			} `json:"healthMonitors,omitempty"`
 		} `json:"backend"`
 		Frontend struct {
+			VirtualServerName string `json:"virtualServerName"`
 			// Mutual parameter, partition
 			Partition string `json:"partition"`
 
@@ -510,6 +511,8 @@ func processConfigMap(
 				serviceKey{oldCfg.VirtualServer.Backend.ServiceName,
 					oldCfg.VirtualServer.Backend.ServicePort, namespace})
 		}
+		name := fmt.Sprintf("%v_%v", namespace, cm.ObjectMeta.Name)
+		cfg.VirtualServer.Frontend.VirtualServerName = name
 		virtualServers.m[serviceKey{serviceName, servicePort, namespace}] = cfg
 		verified = true
 	case eventStream.Deleted:

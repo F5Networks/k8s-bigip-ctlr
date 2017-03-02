@@ -2,6 +2,7 @@ package virtualServer
 
 import (
 	"encoding/json"
+	"os"
 	"sort"
 	"testing"
 	"time"
@@ -20,9 +21,12 @@ import (
 
 func init() {
 	namespace = "default"
+
+	workingDir, _ := os.Getwd()
+	schemaUrl = "file://" + workingDir + "/../../vendor/src/f5/schemas/bigip-virtual-server_v0.1.2.json"
 }
 
-var schemaUrl string = "https://bldr-git.int.lineratesystems.com/velcro/schemas/raw/master/bigip-virtual-server_v0.1.2.json"
+var schemaUrl string
 
 var configmapFoo string = string(`{
   "virtualServer": {

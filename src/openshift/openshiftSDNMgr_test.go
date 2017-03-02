@@ -163,9 +163,11 @@ func TestOpenshiftNodeUpdate(t *testing.T) {
 	expected = sdnSection{
 		VxLAN: "vxlan500",
 		Nodes: []string{
+			"127.0.0.0",
 			"127.0.0.1",
 			"127.0.0.2",
 			"127.0.0.3",
+			"127.0.0.6",
 		},
 	}
 

@@ -285,7 +285,7 @@ func newEndpointPort(portName string, ports []int32) []v1.EndpointPort {
 
 func newEndpoints(svcName, rv, namespace string,
 	readyIps, notReadyIps []string, ports []v1.EndpointPort) *v1.Endpoints {
-	return &v1.Endpoints{
+	ep := &v1.Endpoints{
 		TypeMeta: unversioned.TypeMeta{
 			Kind:       "Endpoints",
 			APIVersion: "v1",
@@ -295,14 +295,21 @@ func newEndpoints(svcName, rv, namespace string,
 			Namespace:       namespace,
 			ResourceVersion: rv,
 		},
-		Subsets: []v1.EndpointSubset{
-			{
+		Subsets: []v1.EndpointSubset{},
+	}
+
+	if 0 < len(readyIps) {
+		ep.Subsets = append(
+			ep.Subsets,
+			v1.EndpointSubset{
 				Addresses:         newEndpointAddress(readyIps),
 				NotReadyAddresses: newEndpointAddress(notReadyIps),
 				Ports:             ports,
 			},
-		},
+		)
 	}
+
+	return ep
 }
 
 func newServicePort(name string, svcPort int32) v1.ServicePort {
@@ -847,10 +854,10 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	require.Equal(int32(30001),
 		virtualServers.m[serviceKey{"foo", 80, "default"}].VirtualServer.Backend.PoolMemberPort,
 		"Existing NodePort should be set")
-	require.Equal(int32(0),
+	require.Equal(int32(-1),
 		virtualServers.m[serviceKey{"foo", 8080, "default"}].VirtualServer.Backend.PoolMemberPort,
 		"Removed NodePort should be unset")
-	require.Equal(int32(0),
+	require.Equal(int32(-1),
 		virtualServers.m[serviceKey{"foo", 9090, "default"}].VirtualServer.Backend.PoolMemberPort,
 		"Removed NodePort should be unset")
 
@@ -875,7 +882,7 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	require.Equal(int32(45454),
 		virtualServers.m[serviceKey{"foo", 8080, "default"}].VirtualServer.Backend.PoolMemberPort,
 		"Removed NodePort should be unset")
-	require.Equal(int32(0),
+	require.Equal(int32(-1),
 		virtualServers.m[serviceKey{"foo", 9090, "default"}].VirtualServer.Backend.PoolMemberPort,
 		"Removed NodePort should be unset")
 }
@@ -1766,6 +1773,88 @@ func validateServiceIps(t *testing.T, serviceName, namespace string,
 	}
 }
 
+func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw)
+	assert.True(t, ok)
+
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
+
+	require := require.New(t)
+
+	svcName := "foo"
+	emptyIps := []string{}
+	readyIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
+	notReadyIps := []string{"10.2.96.3", "10.2.96.4", "10.2.96.5", "10.2.96.6"}
+	svcPorts := []v1.ServicePort{
+		newServicePort("port0", 80),
+	}
+
+	cfgFoo := newConfigMap("foomap", "1", namespace, map[string]string{
+		"schema": schemaUrl,
+		"data":   configmapFoo})
+
+	foo := newService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
+	fake := fake.NewSimpleClientset(&v1.ServiceList{Items: []v1.Service{*foo}})
+
+	svcStore := newStore(nil)
+	svcStore.Add(foo)
+	var endptStore *eventStream.EventStore
+	onEndptChange := func(changeType eventStream.ChangeType, obj interface{}) {
+		ProcessEndpointsUpdate(fake, changeType, obj, svcStore)
+	}
+	endptStore = newStore(onEndptChange)
+
+	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
+	goodEndpts := newEndpoints(svcName, "1", namespace, emptyIps, emptyIps,
+		endptPorts)
+
+	err := endptStore.Add(goodEndpts)
+	require.Nil(err)
+	// this is for another service
+	badEndpts := newEndpoints("wrongSvc", "1", namespace, []string{"10.2.96.7"},
+		[]string{}, endptPorts)
+	err = endptStore.Add(badEndpts)
+	require.Nil(err)
+
+	r := processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+		nil, cfgFoo}, false, endptStore)
+	require.True(r, "Config map should be processed")
+
+	require.Equal(len(svcPorts), len(virtualServers.m))
+	for _, p := range svcPorts {
+		require.Contains(virtualServers.m, serviceKey{"foo", p.Port, namespace})
+		vs := virtualServers.m[serviceKey{"foo", p.Port, namespace}]
+		require.EqualValues(0, vs.VirtualServer.Backend.PoolMemberPort)
+	}
+
+	validateServiceIps(t, svcName, namespace, svcPorts, []string{})
+
+	// Move it back to ready from not ready and make sure it is re-added
+	err = endptStore.Update(newEndpoints(svcName, "2", namespace, readyIps,
+		notReadyIps, endptPorts))
+	require.Nil(err)
+	validateServiceIps(t, svcName, namespace, svcPorts, readyIps)
+
+	// Remove all endpoints make sure they are removed but virtual server exists
+	err = endptStore.Update(newEndpoints(svcName, "3", namespace, emptyIps,
+		emptyIps, endptPorts))
+	require.Nil(err)
+	validateServiceIps(t, svcName, namespace, svcPorts, []string{})
+
+	// Move it back to ready from not ready and make sure it is re-added
+	err = endptStore.Update(newEndpoints(svcName, "4", namespace, readyIps,
+		notReadyIps, endptPorts))
+	require.Nil(err)
+	validateServiceIps(t, svcName, namespace, svcPorts, readyIps)
+}
+
 func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 	config = &test.MockWriter{
 		FailStyle: test.Success,
@@ -1782,6 +1871,7 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 	require := require.New(t)
 
 	svcName := "foo"
+	emptyIps := []string{}
 	readyIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
 	notReadyIps := []string{"10.2.96.3", "10.2.96.4", "10.2.96.5", "10.2.96.6"}
 	svcPorts := []v1.ServicePort{
@@ -1854,6 +1944,18 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 	readyIps = append(readyIps, notReadyIps[len(notReadyIps)-1])
 	notReadyIps = notReadyIps[:len(notReadyIps)-1]
 	err = endptStore.Update(newEndpoints(svcName, "3", namespace, readyIps,
+		notReadyIps, endptPorts))
+	require.Nil(err)
+	validateServiceIps(t, svcName, namespace, svcPorts, readyIps)
+
+	// Remove all endpoints make sure they are removed but virtual server exists
+	err = endptStore.Update(newEndpoints(svcName, "4", namespace, emptyIps,
+		emptyIps, endptPorts))
+	require.Nil(err)
+	validateServiceIps(t, svcName, namespace, svcPorts, []string{})
+
+	// Move it back to ready from not ready and make sure it is re-added
+	err = endptStore.Update(newEndpoints(svcName, "5", namespace, readyIps,
 		notReadyIps, endptPorts))
 	require.Nil(err)
 	validateServiceIps(t, svcName, namespace, svcPorts, readyIps)

@@ -2287,3 +2287,60 @@ func TestUpdatesConcurrentCluster(t *testing.T) {
 	assert.Equal(1, len(virtualServers.m))
 	validateConfig(t, mw, oneSvcTwoPodsConfig)
 }
+
+func TestNonNodePortServiceModeNodePort(t *testing.T) {
+	defer func() {
+		virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
+	}()
+
+	assert := assert.New(t)
+	require := require.New(t)
+
+	cfgFoo := newConfigMap(
+		"foomap",
+		"1",
+		"default",
+		map[string]string{
+			"schema": schemaUrl,
+			"data":   configmapFoo,
+		},
+	)
+
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client cannot be nil")
+
+	endptStore := newStore(nil)
+	r := processConfigMap(
+		fake,
+		eventStream.Added,
+		eventStream.ChangedObject{nil, cfgFoo},
+		true,
+		endptStore,
+	)
+	require.True(r, "Config map should be processed")
+
+	require.Equal(1, len(virtualServers.m))
+	require.Contains(
+		virtualServers.m,
+		serviceKey{"foo", 80, "default"},
+		"Virtual servers should have an entry",
+	)
+
+	foo := newService(
+		"foo",
+		"1",
+		"default",
+		"ClusterIP",
+		[]v1.ServicePort{{Port: 80}},
+	)
+
+	r = processService(
+		fake,
+		eventStream.Added,
+		eventStream.ChangedObject{nil, foo},
+		true,
+		endptStore,
+	)
+
+	assert.False(r, "Should not process non NodePort Service")
+}

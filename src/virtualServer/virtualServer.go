@@ -55,9 +55,20 @@ type VirtualServerConfig struct {
 			} `json:"sslProfile,omitempty"`
 
 			// iApp parameters
-			IApp          string            `json:"iapp,omitempty"`
-			IAppTableName string            `json:"iappTableName,omitempty"`
-			IAppOptions   map[string]string `json:"iappOptions,omitempty"`
+			IApp                string `json:"iapp,omitempty"`
+			IAppPoolMemberTable struct {
+				Name    string `json:"name"`
+				Columns []struct {
+					Name  string `json:"name"`
+					Kind  string `json:"kind,omitempty"`
+					Value string `json:"value,omitempty"`
+				} `json:"columns"`
+			} `json:"iappPoolMemberTable,omitempty"`
+			IAppOptions map[string]string `json:"iappOptions,omitempty"`
+			IAppTables  map[string]struct {
+				Columns []string   `json:"columns,omitempty"`
+				Rows    [][]string `json:"rows,omitempty"`
+			} `json:"iappTables,omitempty"`
 			IAppVariables map[string]string `json:"iappVariables,omitempty"`
 		} `json:"frontend"`
 	} `json:"virtualServer"`

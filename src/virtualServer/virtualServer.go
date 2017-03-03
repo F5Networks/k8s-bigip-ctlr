@@ -340,6 +340,7 @@ func processService(
 
 						vs.VirtualServer.Backend.PoolMemberPort = portSpec.NodePort
 						vs.VirtualServer.Backend.PoolMemberAddrs = getNodesFromCache()
+						updateConfig = true
 					}
 				} else {
 					item, _, err := endptStore.GetByKey(namespace + "/" + serviceName)
@@ -352,6 +353,7 @@ func processService(
 
 						vs.VirtualServer.Backend.PoolMemberPort,
 							vs.VirtualServer.Backend.PoolMemberAddrs = 0, ipPorts
+						updateConfig = true
 					} else {
 						log.Debugf("No endpoints for backend %+v: %v",
 							serviceKey{serviceName, portSpec.Port, namespace}, err)
@@ -360,8 +362,8 @@ func processService(
 			case eventStream.Deleted:
 				vs.VirtualServer.Backend.PoolMemberPort = -1
 				vs.VirtualServer.Backend.PoolMemberAddrs = nil
+				updateConfig = true
 			}
-			updateConfig = true
 		}
 	}
 	for p, _ := range rmvdPortsMap {

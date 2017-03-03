@@ -174,25 +174,90 @@ virtualServer
 iApps
 ~~~~~
 
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| Property      | Type      | Required  | Default   | Description                   | Allowed Values            |
-+===============+===========+===========+===========+===============================+===========================+
-| partition     | string    | Required  |           | Define the BIG-IP partition   |                           |
-|               |           |           |           | to manage.                    |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| iapp          | string    | Required  |           | BIG-IP iApp template to use   | Any iApp template already |
-|               |           |           |           | to create the application     | configured on the BIG-IP. |
-|               |           |           |           | service.                      |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| iappTableName | string    | Required  |           | `iApp table`_ entry specifying|                           |
-|               |           |           |           | pool members. [#dclogin]_     |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| iappOptions   | key-value | Required  |           | Define the App configurations | See configuration         |
-|               | object    |           |           |                               | parameters above.         |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| iappVariables | key-value | Required  |           | Define of iApp variables      |                           |
-|               | object    |           |           | needed for service creation.  |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
++---------------------+-----------+-----------+-----------+-------------------------------------------------------+---------------------------+
+| Property            | Type      | Required  | Default   | Description                                           | Allowed Values            |
++=====================+===========+===========+===========+=======================================================+===========================+
+| partition           | string    | Required  |           | Define the BIG-IP partition                           |                           |
+|                     |           |           |           | to manage.                                            |                           |
++---------------------+-----------+-----------+-----------+-------------------------------------------------------+---------------------------+
+| iapp                | string    | Required  |           | BIG-IP iApp template to use                           | Any iApp template already |
+|                     |           |           |           | to create the application                             | configured on the BIG-IP. |
+|                     |           |           |           | service.                                              |                           |
++---------------------+-----------+-----------+-----------+-------------------------------------------------------+---------------------------+
+| iappPoolMemberTable | JSON      | Required  |           | Defines the name and layout of the pool-member table  |                           |
+|                     | object    |           |           | in the iApp.                                          |                           |
+|                     |           |           |           | See the iApp Pool Member Table section below.         |                           |
++---------------------+-----------+-----------+-----------+-------------------------------------------------------+---------------------------+
+| iappTables          | JSON      | Optional  |           | Define iApp tables to apply to                        |                           |
+|                     | object    |           |           | the Application Service                               |                           |
+|                     | array     |           |           |                                                       |                           |
+|                     |           |           |           | Example:                                              |                           |
+|                     |           |           |           | ``"iappTables": {``                                   |                           |
+|                     |           |           |           | ``"monitor__Monitors":``                              |                           |
+|                     |           |           |           | ``{"columns": ["Index", "Name", "Type", "Options"],`` |                           |
+|                     |           |           |           | ``"rows": [[0, "mon1", "tcp", "" ],``                 |                           |
+|                     |           |           |           | ``[1, "mon2", "http", ""]]}}"``                       |                           |
++---------------------+-----------+-----------+-----------+-------------------------------------------------------+---------------------------+
+| iappOptions         | key-value | Required  |           | Define the App configurations                         | See configuration         |
+|                     | object    |           |           |                                                       | parameters above.         |
++---------------------+-----------+-----------+-----------+-------------------------------------------------------+---------------------------+
+| iappVariables       | key-value | Required  |           | Define of iApp variables                              |                           |
+|                     | object    |           |           | needed for service creation.                          |                           |
++---------------------+-----------+-----------+-----------+-------------------------------------------------------+---------------------------+
+
+iApp Pool Member Table
+``````````````````````
+
+You can use the ``iappPoolMemberTable`` option to describe the layout of the pool-member table that the controller should configure.  It is a JSON object with these properties:
+
+- ``name`` (required): A string that specifies the name of the table that contains the pool members.
+- ``columns`` (required): An array that specifies the columns that the controller will configure in the pool-member table, in order.
+
+Each entry in ``columns`` is an object that has a ``name`` property and either a ``kind`` or ``value`` property:
+
+- ``name`` (required): A string that specifies the column name.
+- ``kind``: A string that tells the controller what property from the node to substitute.  The controller supports ``"IPAddress"`` and ``"Port"``.
+- ``value``: A string that specifies a value.  The controller will not perform any substitution, it uses the value as specified.
+
+For instance, if you configure an application with two pods at 1.2.3.4:20123 and 1.2.3.5:20321, and you specify::
+
+    "iappPoolMemberTable" = {
+      "name": "pool__members",
+      "columns": [
+        {"name": "Port", "kind": "Port"},
+        {"name": "IPAddress", "kind": "IPAddress"},
+        {"name": "ConnectionLimit", "value": "0"}
+      ]
+    }
+
+This would configure the following table on BIG-IP::
+
+    {
+      "name": "pool__members",
+      "columnNames": [
+        "Port",
+        "IPAddress",
+        "ConnectionLimit",
+      ],
+      "rows": [
+        {
+          "row": [
+            "20123",
+            "1.2.3.4",
+            "0",
+          ]
+        },
+        {
+          "row": [
+            "20321",
+            "1.2.3.5",
+            "0",
+          ]
+        },
+      ]
+    }
+
+You will need to adjust this for the particular iApp template that you are using.  One way to discover the format is to configure an iApp manually from a template, and then check its configuration using ``tmsh list sys app service <appname>``.
 
 
 Backend
@@ -212,6 +277,7 @@ Backend
 |               | array     |           |           |                               |                           |
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 
+
 Example Configuration Files
 ```````````````````````````
 - `sample-k8s-bigip-ctlr.yaml <./_static/config_examples/sample-k8s-bigip-ctlr.yaml>`_
@@ -220,6 +286,7 @@ Example Configuration Files
 - `example-vs-resource.configmap.yaml <./_static/config_examples/example-vs-resource.configmap.yaml>`_
 - `example-vs-resource.json <./_static/config_examples/example-vs-resource.json>`_
 - `example-vs-resource-iapp.json <./_static/config_examples/example-vs-resource-iapp.json>`_
+- `example-advanced-vs-resource-iapp.json <./_static/config_examples/example-advanced-vs-resource-iapp.json>`_
 
 
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"sort"
+	"strconv"
 	"testing"
 	"time"
 
@@ -202,9 +203,9 @@ var twoIappsOneNodeConfig string = string(`{"services":[{"virtualServer":{"backe
 
 var oneIappOneNodeConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"iapp2","servicePort":80,"poolMemberPort":20202,"poolMemberAddrs":["192.168.0.4"]},"frontend":{"partition":"velcro","iapp":"/Common/f5.http","iappTableName":"pool__members","iappOptions":{"description":"iApp 2"},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}}}]}`)
 
-var twoSvcTwoPodsConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":80,"poolMemberAddrs":["10.2.96.0","10.2.96.3"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":8080,"poolMemberPort":8080,"poolMemberAddrs":["10.2.96.1","10.2.96.2"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}}]}`)
+var twoSvcTwoPodsConfig string = string(`{"services":[{"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":0,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}},{"virtualServer":{"backend":{"serviceName":"foo","servicePort":8080,"poolMemberPort":0,"poolMemberAddrs":["10.2.96.1:8080","10.2.96.2:8080"]},"frontend":{"partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}}}]}`)
 
-var oneSvcTwoPodsConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":80,"poolMemberAddrs":["10.2.96.0","10.2.96.3"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}}]}`)
+var oneSvcTwoPodsConfig string = string(`{"services":[ {"virtualServer":{"backend":{"serviceName":"bar","servicePort":80,"poolMemberPort":0,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]},"frontend":{"balance":"round-robin","mode":"http","partition":"velcro","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}}}]}`)
 
 func newConfigMap(id, rv, namespace string,
 	keys map[string]string) *v1.ConfigMap {
@@ -540,8 +541,7 @@ func validateConfig(t *testing.T, mw *test.MockWriter, expected string) {
 		return
 	}
 
-	require.True(t, assert.ObjectsAreEqualValues(expectedOutput, services),
-		"Config output does not match expected")
+	require.True(t, assert.ObjectsAreEqualValues(expectedOutput, services))
 }
 
 func TestProcessNodeUpdate(t *testing.T) {
@@ -1772,7 +1772,15 @@ func validateServiceIps(t *testing.T, serviceName, namespace string,
 		vs, ok := virtualServers.m[serviceKey{serviceName, p.Port, namespace}]
 		require.True(t, ok)
 		require.NotNil(t, vs)
-		require.EqualValues(t, ips, vs.VirtualServer.Backend.PoolMemberAddrs,
+		var expectedIps []string
+		if ips != nil {
+			expectedIps = []string{}
+			for _, ip := range ips {
+				ip = ip + ":" + strconv.Itoa(int(p.Port))
+				expectedIps = append(expectedIps, ip)
+			}
+		}
+		require.EqualValues(t, expectedIps, vs.VirtualServer.Backend.PoolMemberAddrs,
 			"nodes are not correct")
 	}
 }

@@ -112,7 +112,10 @@ func init() {
 	useNodeInternal = kubeFlags.Bool("use-node-internal", true,
 		"Optional, provide kubernetes InternalIP addresses to pool")
 	poolMemberType = kubeFlags.String("pool-member-type", "nodeport",
-		"Optional, type of k8s objects to add to pools, must be 'nodeport' or 'cluster'.")
+		"Optional, type of BIG-IP pool members to create. "+
+			"'nodeport' will use k8s service NodePort. "+
+			"'cluster' will use service endpoints. "+
+			"The BIG-IP must be able access the cluster network")
 	inCluster = kubeFlags.Bool("running-in-cluster", true,
 		"Optional, if this controller is running in a kubernetes cluster, use the pod secrets for creating a Kubernetes client.")
 	kubeConfig = kubeFlags.String("kubeconfig", "./config",

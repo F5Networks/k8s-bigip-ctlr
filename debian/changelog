@@ -1,8 +1,0 @@
-k8s-bigip-ctlr (0.0.1) UNRELEASED; urgency=medium
-
-  [ Builder ]
-  * Initial release.
-
-  [ Gary Ritzer ]
-
- -- Gary Ritzer <g.ritzer@f5.com>  Fri, 24 Aug 2016 11:13:13 -0600

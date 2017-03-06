@@ -1,4 +1,0 @@
-# Files to include in the binary package
-# FORMAT: <path to copy> [destination path]
-bin/k8s-bigip-ctlr* usr/bin/
-

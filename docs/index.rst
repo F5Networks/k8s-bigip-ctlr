@@ -7,40 +7,24 @@ F5 Kubernetes BIG-IP Controller
 
 
 F5 Kubernetes BIG-IP Controller manages F5 BIG-IP `Local Traffic Manager <https://f5.com/products/big-ip/local-traffic-manager-ltm>`_ (LTM) objects from `Kubernetes`_.
-See the `F5 Kubernetes BIG-IP Controller documentation <#tbd>`_ for user guides, tutorials, and more.
 
 
 Features
 --------
 - Dynamically creates, manages, and destroys BIG-IP objects.
-- Forwards traffic from BIG-IP to `Kubernetes clusters`_ via `NodePorts`_.
-- Uses existing BIG-IP SSL profiles for authentication.
+- Forwards traffic from BIG-IP to `Kubernetes clusters`_ via `NodePorts`_ or `ClusterIPs`_.
 - Support for F5 `iApps`_.
 
 Guides
 ------
 
-Getting Started
-```````````````
-- links
-- to
-- guides
+See the `F5 Kubernetes Container Connector user documentation </containers/v1/kubernetes/>`_.
 
-Deployment
-``````````
-- links
-- to
-- guides
-
-Troubleshooting
-```````````````
-- coming soon!
-
-Architecture
-------------
+Overview
+--------
 
 F5 Kubernetes BIG-IP Controller is a Docker container that runs in a `Kubernetes`_ Pod.
-It uses an `F5 Resource`_ to determine:
+It uses an F5 Resource to determine:
 
 - what objects to configure on your BIG-IP, and
 - to which `Kubernetes Service`_ the BIG-IP objects belong.
@@ -110,7 +94,7 @@ Configuration Parameters
 |                    |         |          |             | service. e.g. the pod's ip              |                |
 |                    |         |          |             |                                         |                |
 |                    |         |          |             | Use ``nodeport`` to create pool members |                |
-|                    |         |          |             | for each schedulable node useing the    |                |
+|                    |         |          |             | for each schedulable node using the     |                |
 |                    |         |          |             | service's NodePort                      |                |
 +--------------------+---------+----------+-------------+-----------------------------------------+----------------+
 | openshift-sdn-name | string  | Optional | n/a         | BigIP configured VxLAN name             |                |
@@ -163,8 +147,8 @@ virtualServer
 +---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 |   | port          | integer   | Required  |           | Port number                   |                           |
 +---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| sslProfile        | JSON      | Optional  |           | BIG-IP SSL profile to use to  |                           |
-|                   | object    |           |           | access virtual server.        |                           |
+| sslProfile        | JSON      | Optional  |           | BIG-IP SSL profile to apply   |                           |
+|                   | object    |           |           | to the virtual server.        |                           |
 +---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 |   | f5ProfileName | string    | Optional  |           | Name of the BIG-IP SSL        |                           |
 |   |               |           |           |           | profile.                      |                           |
@@ -188,7 +172,7 @@ iApps
 |                     |           |           |           | to create the application                             | configured on the BIG-IP. |
 |                     |           |           |           | service.                                              |                           |
 +---------------------+-----------+-----------+-----------+-------------------------------------------------------+---------------------------+
-| iappPoolMemberTable | JSON      | Required  |           | Defines the name and layout of the pool-member table  |                           |
+| iappPoolMemberTable | JSON      | Required  |           | Define the name and layout of the pool-member table   |                           |
 |                     | object    |           |           | in the iApp.                                          |                           |
 |                     |           |           |           | See the iApp Pool Member Table section below.         |                           |
 +---------------------+-----------+-----------+-----------+-------------------------------------------------------+---------------------------+
@@ -205,7 +189,7 @@ iApps
 | iappOptions         | key-value | Required  |           | Define the App configurations                         | See configuration         |
 |                     | object    |           |           |                                                       | parameters above.         |
 +---------------------+-----------+-----------+-----------+-------------------------------------------------------+---------------------------+
-| iappVariables       | key-value | Required  |           | Define of iApp variables                              |                           |
+| iappVariables       | key-value | Required  |           | Define the iApp variables                             |                           |
 |                     | object    |           |           | needed for service creation.                          |                           |
 +---------------------+-----------+-----------+-----------+-------------------------------------------------------+---------------------------+
 
@@ -284,7 +268,6 @@ Backend
 
 Example Configuration Files
 ```````````````````````````
-- `sample-k8s-bigip-ctlr.yaml <./_static/config_examples/sample-k8s-bigip-ctlr.yaml>`_
 - `sample-k8s-bigip-ctlr-secrets.yaml <./_static/config_examples/sample-k8s-bigip-ctlr-secrets.yaml>`_
 - `sample-bigip-credentials-secret.yaml <./_static/config_examples/sample-bigip-credentials-secret.yaml>`_
 - `example-vs-resource.configmap.yaml <./_static/config_examples/example-vs-resource.configmap.yaml>`_
@@ -293,17 +276,9 @@ Example Configuration Files
 - `example-advanced-vs-resource-iapp.json <./_static/config_examples/example-advanced-vs-resource-iapp.json>`_
 
 
-
-API Endpoints
--------------
-- Coming soon!
-
-
 .. [#objectpartition]  The F5 Kubernetes BIG-IP Controller creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap.
 .. [#nodeport]  The F5 Kubernetes BIG-IP Controller forwards traffic to the NodePort assigned to the service by Kubernetes; see the Kubernetes `Services <http://kubernetes.io/docs/user-guide/services/>`_ documentation for more information.
 .. [#secrets]  You can store sensitive information as a `Kubernetes Secret <http://kubernetes.io/docs/user-guide/secrets/>`_. See the `user documentation <#>`_ for instructions.
-.. [#dclogin]  Requires login to DevCentral.
-
 
 
 
@@ -312,10 +287,10 @@ API Endpoints
 .. _Kubernetes Service: https://kubernetes.io/docs/user-guide/services/
 .. _Kubernetes clusters: https://kubernetes.io/docs/admin/
 .. _NodePorts: https://kubernetes.io/docs/user-guide/services/#type-nodeport
+.. _ClusterIPs: https://kubernetes.io/docs/user-guide/services/#publishing-services---service-types
 .. _iApps: https://devcentral.f5.com/iapps
 .. _Kubernetes pods: https://kubernetes.io/docs/user-guide/pods/
 .. _Kubernetes Ingress resources: https://kubernetes.io/docs/user-guide/ingress/
 .. _iApp table: https://devcentral.f5.com/wiki/iApp.Working-with-Tables.ashx
-.. _F5 resource: <add link to F5 Resource doc>
 .. _Kubernetes Service Type: https://kubernetes.io/docs/user-guide/services/#publishing-services---service-types
 

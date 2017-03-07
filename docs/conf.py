@@ -79,7 +79,7 @@ author = u'F5 Networks'
 # The short X.Y version.
 version = u'1.0'
 # The full version, including alpha/beta/rc tags.
-release = u'1.0.0-dev'
+release = u'1.0.0'
 
 # def setup(app):
 #    app.add_config_value('versionlevel', '', 'env')

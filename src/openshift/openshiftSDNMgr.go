@@ -23,7 +23,7 @@ import (
 	log "f5/vlogger"
 	"tools/writer"
 
-	"k8s.io/client-go/1.4/pkg/api/v1"
+	"k8s.io/client-go/pkg/api/v1"
 )
 
 type sdnSection struct {

@@ -18,6 +18,7 @@ package virtualServer
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -25,16 +26,14 @@ import (
 	"testing"
 	"time"
 
-	"eventStream"
 	"test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/client-go/1.4/kubernetes/fake"
-	"k8s.io/client-go/1.4/pkg/api"
-	"k8s.io/client-go/1.4/pkg/api/unversioned"
-	"k8s.io/client-go/1.4/pkg/api/v1"
-	"k8s.io/client-go/1.4/tools/cache"
+	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/pkg/api/unversioned"
+	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 func init() {
@@ -372,9 +371,88 @@ func newServicePort(name string, svcPort int32) v1.ServicePort {
 	}
 }
 
-func newStore(onChange eventStream.OnChangeFunc) *eventStream.EventStore {
-	store := eventStream.NewEventStore(cache.MetaNamespaceKeyFunc, onChange)
-	return store
+// Adapter function to translate Store events to virtualServer calls
+type onChangeFunc func(change changeType, changed changedObject)
+
+type mockStore struct {
+	storage  cache.ThreadSafeStore
+	keyFunc  cache.KeyFunc
+	onChange onChangeFunc
+}
+
+func newStore(onChange onChangeFunc) cache.Store {
+	return &mockStore{
+		storage:  cache.NewThreadSafeStore(cache.Indexers{}, cache.Indices{}),
+		keyFunc:  cache.MetaNamespaceKeyFunc,
+		onChange: onChange,
+	}
+}
+
+func (ms *mockStore) Add(obj interface{}) error {
+	key, err := ms.keyFunc(obj)
+	if err != nil {
+		return cache.KeyError{obj, err}
+	}
+	ms.storage.Add(key, obj)
+	if ms.onChange != nil {
+		ms.onChange(added, changedObject{
+			nil,
+			obj,
+		})
+	}
+	return nil
+}
+func (ms *mockStore) Update(obj interface{}) error {
+	key, err := ms.keyFunc(obj)
+	if err != nil {
+		return cache.KeyError{obj, err}
+	}
+	oldObj, _ := ms.storage.Get(key)
+	ms.storage.Update(key, obj)
+	if ms.onChange != nil {
+		ms.onChange(updated, changedObject{
+			oldObj,
+			obj,
+		})
+	}
+	return nil
+}
+func (ms *mockStore) Delete(obj interface{}) error {
+	key, err := ms.keyFunc(obj)
+	if err != nil {
+		return cache.KeyError{obj, err}
+	}
+	ms.storage.Delete(key)
+	if ms.onChange != nil {
+		ms.onChange(deleted, changedObject{
+			obj,
+			nil,
+		})
+	}
+	return nil
+}
+func (ms *mockStore) List() []interface{} {
+	return nil
+}
+func (ms *mockStore) ListKeys() []string {
+	return nil
+}
+func (ms *mockStore) Get(obj interface{}) (item interface{}, exists bool, err error) {
+	key, err := ms.keyFunc(obj)
+	if err != nil {
+		return nil, false, cache.KeyError{obj, err}
+	}
+	return ms.GetByKey(key)
+}
+func (ms *mockStore) GetByKey(key string) (item interface{}, exists bool, err error) {
+	item, exists = ms.storage.Get(key)
+	return item, exists, nil
+}
+func (ms *mockStore) Replace(list []interface{}, resourceVersion string) error {
+	return errors.New("mock unimplemented")
+}
+func (ms *mockStore) Resync() error {
+	return errors.New("mock unimplemented")
 }
 
 func TestVirtualServerSendFail(t *testing.T) {
@@ -455,7 +533,7 @@ func TestGetAddresses(t *testing.T) {
 	}
 
 	useNodeInternal = false
-	nodes, err := fake.Core().Nodes().List(api.ListOptions{})
+	nodes, err := fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	addresses, err := getNodeAddresses(nodes.Items)
 	require.Nil(t, err, "Should not fail getting addresses")
@@ -475,13 +553,13 @@ func TestGetAddresses(t *testing.T) {
 
 	for _, node := range expectedNodes {
 		err := fake.Core().Nodes().Delete(node.ObjectMeta.Name,
-			&api.DeleteOptions{})
+			&v1.DeleteOptions{})
 		require.Nil(t, err, "Should not fail deleting node")
 	}
 
 	expectedReturn = []string{}
 	useNodeInternal = false
-	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
+	nodes, err = fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	addresses, err = getNodeAddresses(nodes.Items)
 	require.Nil(t, err, "Should not fail getting empty addresses")
@@ -560,7 +638,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	assert.NotNil(t, fake, "Mock client should not be nil")
 
 	useNodeInternal = false
-	nodes, err := fake.Core().Nodes().List(api.ListOptions{})
+	nodes, err := fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
@@ -579,7 +657,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	}
 
 	useNodeInternal = true
-	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
+	nodes, err = fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
@@ -601,7 +679,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 		true, []v1.NodeAddress{{"InternalIP", "127.0.0.7"}}))
 
 	useNodeInternal = false
-	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
+	nodes, err = fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
@@ -617,7 +695,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 
 	// make no changes and re-run process
 	useNodeInternal = false
-	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
+	nodes, err = fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
@@ -632,17 +710,17 @@ func TestProcessNodeUpdate(t *testing.T) {
 		"Cached nodes should be expected set")
 
 	// remove nodes
-	err = fake.Core().Nodes().Delete("node1", &api.DeleteOptions{})
+	err = fake.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
 	require.Nil(t, err)
-	fake.Core().Nodes().Delete("node2", &api.DeleteOptions{})
+	fake.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
 	require.Nil(t, err)
-	fake.Core().Nodes().Delete("node3", &api.DeleteOptions{})
+	fake.Core().Nodes().Delete("node3", &v1.DeleteOptions{})
 	require.Nil(t, err)
 
 	expectedDelSet := []string{"127.0.0.6"}
 
 	useNodeInternal = false
-	nodes, err = fake.Core().Nodes().List(api.ListOptions{})
+	nodes, err = fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
@@ -677,8 +755,8 @@ func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
 	require.NotNil(fake, "Mock client cannot be nil")
 
 	endptStore := newStore(nil)
-	r := processConfigMap(fake, eventStream.Added,
-		eventStream.ChangedObject{nil, cfgFoo}, isNodePort, endptStore)
+	r := processConfigMap(fake, added,
+		changedObject{nil, cfgFoo}, isNodePort, endptStore)
 	require.True(r, "Config map should be processed")
 
 	require.Equal(1, virtualServers.Count())
@@ -693,8 +771,8 @@ func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
 		"schema": schemaUrl,
 		"data":   configmapFooTcp})
 
-	r = processConfigMap(fake, eventStream.Added,
-		eventStream.ChangedObject{nil, cfgFoo}, isNodePort, endptStore)
+	r = processConfigMap(fake, added,
+		changedObject{nil, cfgFoo}, isNodePort, endptStore)
 	require.True(r, "Config map should be processed")
 
 	require.Equal(1, virtualServers.Count())
@@ -736,8 +814,8 @@ func testServiceChangeUpdateImpl(t *testing.T, isNodePort bool) {
 	require.NotNil(fake, "Mock client cannot be nil")
 
 	endptStore := newStore(nil)
-	r := processConfigMap(fake, eventStream.Added,
-		eventStream.ChangedObject{nil, cfgFoo}, true, endptStore)
+	r := processConfigMap(fake, added,
+		changedObject{nil, cfgFoo}, true, endptStore)
 	require.True(r, "Config map should be processed")
 
 	require.Equal(1, virtualServers.Count())
@@ -748,8 +826,8 @@ func testServiceChangeUpdateImpl(t *testing.T, isNodePort bool) {
 		"schema": schemaUrl,
 		"data":   configmapFoo8080})
 
-	r = processConfigMap(fake, eventStream.Updated,
-		eventStream.ChangedObject{cfgFoo, cfgFoo8080}, true, endptStore)
+	r = processConfigMap(fake, updated,
+		changedObject{cfgFoo, cfgFoo8080}, true, endptStore)
 	require.True(r, "Config map should be processed")
 	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 8080, "default"}),
 		"Virtual servers should have new entry")
@@ -807,17 +885,17 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	fake := fake.NewSimpleClientset(&v1.ServiceList{Items: []v1.Service{*foo}})
 
 	endptStore := newStore(nil)
-	r := processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+	r := processConfigMap(fake, added, changedObject{
 		nil,
 		cfgFoo}, true, endptStore)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+	r = processConfigMap(fake, added, changedObject{
 		nil,
 		cfgFoo8080}, true, endptStore)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+	r = processConfigMap(fake, added, changedObject{
 		nil,
 		cfgFoo9090}, true, endptStore)
 	require.True(r, "Config map should be processed")
@@ -831,7 +909,7 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	newFoo := newService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
 
-	r = processService(fake, eventStream.Updated, eventStream.ChangedObject{
+	r = processService(fake, updated, changedObject{
 		foo,
 		newFoo}, true, endptStore)
 	require.True(r, "Service should be processed")
@@ -866,7 +944,7 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 		[]v1.ServicePort{{Port: 80, NodePort: 20001},
 			{Port: 8080, NodePort: 45454}})
 
-	r = processService(fake, eventStream.Updated, eventStream.ChangedObject{
+	r = processService(fake, updated, changedObject{
 		newFoo,
 		newFoo2}, true, endptStore)
 	require.True(r, "Service should be processed")
@@ -943,7 +1021,7 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 			require.EqualValues(node, n, "Nodes should be equal")
 
 			useNodeInternal = false
-			nodes, err := fake.Core().Nodes().List(api.ListOptions{})
+			nodes, err := fake.Core().Nodes().List(v1.ListOptions{})
 			assert.Nil(err, "Should not fail listing nodes")
 			ProcessNodeUpdate(nodes.Items, err)
 		}
@@ -957,7 +1035,7 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		require.EqualValues(f, cfgFoo, "Maps should be equal")
 
 		endptStore := newStore(nil)
-		ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		ProcessConfigMapUpdate(fake, added, changedObject{
 			nil,
 			cfgFoo,
 		}, true, endptStore)
@@ -966,7 +1044,7 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		require.Nil(err, "Should not fail creating configmap")
 		require.EqualValues(b, cfgBar, "Maps should be equal")
 
-		ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		ProcessConfigMapUpdate(fake, added, changedObject{
 			nil,
 			cfgBar,
 		}, true, endptStore)
@@ -980,7 +1058,7 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		require.EqualValues(fSvc, foo, "Service should be equal")
 
 		endptStore := newStore(nil)
-		ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		ProcessServiceUpdate(fake, added, changedObject{
 			nil,
 			foo}, true, endptStore)
 
@@ -988,7 +1066,7 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		require.Nil(err, "Should not fail creating service")
 		require.EqualValues(bSvc, bar, "Maps should be equal")
 
-		ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+		ProcessServiceUpdate(fake, added, changedObject{
 			nil,
 			bar}, true, endptStore)
 
@@ -1014,14 +1092,14 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 	validateConfig(t, mw, twoSvcsTwoNodesConfig)
 
 	go func() {
-		err := fake.Core().Nodes().Delete("node1", &api.DeleteOptions{})
+		err := fake.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
 		require.Nil(err)
-		err = fake.Core().Nodes().Delete("node2", &api.DeleteOptions{})
+		err = fake.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
 		require.Nil(err)
 		_, err = fake.Core().Nodes().Create(extraNode)
 		require.Nil(err)
 		useNodeInternal = false
-		nodes, err := fake.Core().Nodes().List(api.ListOptions{})
+		nodes, err := fake.Core().Nodes().List(v1.ListOptions{})
 		assert.Nil(err, "Should not fail listing nodes")
 		ProcessNodeUpdate(nodes.Items, err)
 
@@ -1030,12 +1108,12 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 
 	go func() {
 		err := fake.Core().ConfigMaps("default").Delete("foomap",
-			&api.DeleteOptions{})
+			&v1.DeleteOptions{})
 		require.Nil(err, "Should not error deleting map")
-		m, _ := fake.Core().ConfigMaps("").List(api.ListOptions{})
+		m, _ := fake.Core().ConfigMaps("").List(v1.ListOptions{})
 		assert.Equal(1, len(m.Items))
 		endptStore := newStore(nil)
-		ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+		ProcessConfigMapUpdate(fake, deleted, changedObject{
 			cfgFoo,
 			nil,
 		}, true, endptStore)
@@ -1046,12 +1124,12 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 
 	go func() {
 		err := fake.Core().Services("default").Delete("foo",
-			&api.DeleteOptions{})
+			&v1.DeleteOptions{})
 		require.Nil(err, "Should not error deleting service")
-		s, _ := fake.Core().Services("").List(api.ListOptions{})
+		s, _ := fake.Core().Services("").List(v1.ListOptions{})
 		assert.Equal(1, len(s.Items))
 		endptStore := newStore(nil)
-		ProcessServiceUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+		ProcessServiceUpdate(fake, deleted, changedObject{
 			foo,
 			nil}, true, endptStore)
 
@@ -1129,11 +1207,11 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		&v1.NodeList{Items: nodes})
 	require.NotNil(fake, "Mock client cannot be nil")
 
-	m, err := fake.Core().ConfigMaps("").List(api.ListOptions{})
+	m, err := fake.Core().ConfigMaps("").List(v1.ListOptions{})
 	require.Nil(err)
-	s, err := fake.Core().Services("").List(api.ListOptions{})
+	s, err := fake.Core().Services("").List(v1.ListOptions{})
 	require.Nil(err)
-	n, err := fake.Core().Nodes().List(api.ListOptions{})
+	n, err := fake.Core().Nodes().List(v1.ListOptions{})
 	require.Nil(err)
 
 	assert.Equal(2, len(m.Items))
@@ -1143,9 +1221,9 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	useNodeInternal = false
 	ProcessNodeUpdate(n.Items, err)
 
-	// ConfigMap ADDED
+	// ConfigMap added
 	endptStore := newStore(nil)
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		cfgFoo,
 	}, true, endptStore)
@@ -1156,8 +1234,8 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	assert.EqualValues(generateExpectedAddrs(30001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
-	// Second ConfigMap ADDED
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	// Second ConfigMap added
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		cfgBar,
 	}, true, endptStore)
@@ -1174,32 +1252,32 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Service ADDED
-	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, added, changedObject{
 		nil,
 		foo}, true, endptStore)
 	assert.Equal(2, virtualServers.Count())
 
 	// Second Service ADDED
-	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, added, changedObject{
 		nil,
 		bar}, true, endptStore)
 	assert.Equal(2, virtualServers.Count())
 
 	// ConfigMap UPDATED
-	ProcessConfigMapUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, updated, changedObject{
 		cfgFoo,
 		cfgFoo,
 	}, true, endptStore)
 	assert.Equal(2, virtualServers.Count())
 
 	// Service UPDATED
-	ProcessServiceUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, updated, changedObject{
 		foo,
 		foo}, true, endptStore)
 	assert.Equal(2, virtualServers.Count())
 
 	// ConfigMap ADDED second foo port
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		cfgFoo8080}, true, endptStore)
 	assert.Equal(3, virtualServers.Count())
@@ -1220,7 +1298,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// ConfigMap ADDED third foo port
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		cfgFoo9090}, true, endptStore)
 	assert.Equal(4, virtualServers.Count())
@@ -1249,7 +1327,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	_, err = fake.Core().Nodes().Create(extraNode)
 	require.Nil(err)
 	useNodeInternal = false
-	n, err = fake.Core().Nodes().List(api.ListOptions{})
+	n, err = fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
 	ProcessNodeUpdate(n.Items, err)
 	assert.Equal(4, virtualServers.Count())
@@ -1276,7 +1354,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	validateConfig(t, mw, twoSvcsFourPortsThreeNodesConfig)
 
 	// ConfigMap DELETED third foo port
-	ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, deleted, changedObject{
 		cfgFoo9090,
 		nil}, true, endptStore)
 	assert.Equal(3, virtualServers.Count())
@@ -1290,7 +1368,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		"Virtual servers should contain remaining ports")
 
 	// ConfigMap UPDATED second foo port
-	ProcessConfigMapUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, updated, changedObject{
 		cfgFoo8080,
 		cfgFoo8080}, true, endptStore)
 	assert.Equal(3, virtualServers.Count())
@@ -1302,7 +1380,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		"Virtual servers should contain remaining ports")
 
 	// ConfigMap DELETED second foo port
-	ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, deleted, changedObject{
 		cfgFoo8080,
 		nil}, true, endptStore)
 	assert.Equal(2, virtualServers.Count())
@@ -1312,12 +1390,12 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		"Virtual servers should contain remaining ports")
 
 	// Nodes DELETES
-	err = fake.Core().Nodes().Delete("node1", &api.DeleteOptions{})
+	err = fake.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
 	require.Nil(err)
-	err = fake.Core().Nodes().Delete("node2", &api.DeleteOptions{})
+	err = fake.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
 	require.Nil(err)
 	useNodeInternal = false
-	n, err = fake.Core().Nodes().List(api.ListOptions{})
+	n, err = fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
 	ProcessNodeUpdate(n.Items, err)
 	assert.Equal(2, virtualServers.Count())
@@ -1334,10 +1412,10 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	validateConfig(t, mw, twoSvcsOneNodeConfig)
 
 	// ConfigMap DELETED
-	err = fake.Core().ConfigMaps("default").Delete("foomap", &api.DeleteOptions{})
-	m, err = fake.Core().ConfigMaps("").List(api.ListOptions{})
+	err = fake.Core().ConfigMaps("default").Delete("foomap", &v1.DeleteOptions{})
+	m, err = fake.Core().ConfigMaps("").List(v1.ListOptions{})
 	assert.Equal(1, len(m.Items))
-	ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, deleted, changedObject{
 		cfgFoo,
 		nil,
 	}, true, endptStore)
@@ -1346,12 +1424,12 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		"Config map should be removed after delete")
 	validateConfig(t, mw, oneSvcOneNodeConfig)
 
-	// Service DELETED
-	err = fake.Core().Services("default").Delete("bar", &api.DeleteOptions{})
+	// Service deletedD
+	err = fake.Core().Services("default").Delete("bar", &v1.DeleteOptions{})
 	require.Nil(err)
-	s, err = fake.Core().Services("").List(api.ListOptions{})
+	s, err = fake.Core().Services("").List(v1.ListOptions{})
 	assert.Equal(1, len(s.Items))
-	ProcessServiceUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, deleted, changedObject{
 		bar,
 		nil}, true, endptStore)
 	assert.Equal(1, virtualServers.Count())
@@ -1382,9 +1460,9 @@ func TestDontCareConfigMapNodePort(t *testing.T) {
 		&v1.ServiceList{Items: []v1.Service{*svc}})
 	require.NotNil(fake, "Mock client cannot be nil")
 
-	m, err := fake.Core().ConfigMaps("").List(api.ListOptions{})
+	m, err := fake.Core().ConfigMaps("").List(v1.ListOptions{})
 	require.Nil(err)
-	s, err := fake.Core().Services("").List(api.ListOptions{})
+	s, err := fake.Core().Services("").List(v1.ListOptions{})
 	require.Nil(err)
 
 	assert.Equal(1, len(m.Items))
@@ -1393,7 +1471,7 @@ func TestDontCareConfigMapNodePort(t *testing.T) {
 	// ConfigMap ADDED
 	assert.Equal(0, virtualServers.Count())
 	endptStore := newStore(nil)
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		cfg,
 	}, true, endptStore)
@@ -1424,7 +1502,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	require.EqualError(err, "configmap noschema does not contain schema key",
 		"Should receive no schema error")
 	endptStore := newStore(nil)
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		noschemakey,
 	}, isNodePort, endptStore)
@@ -1437,7 +1515,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	require.Nil(cfg, "Should not have parsed bad configmap")
 	require.EqualError(err, "configmap nodata does not contain data key",
 		"Should receive no data error")
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		nodatakey,
 	}, isNodePort, endptStore)
@@ -1451,7 +1529,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	require.Nil(cfg, "Should not have parsed bad configmap")
 	require.EqualError(err,
 		"invalid character '/' looking for beginning of value")
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		badjson,
 	}, isNodePort, endptStore)
@@ -1466,7 +1544,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	cfg, err = parseVirtualServerConfig(extrakeys)
 	require.NotNil(cfg, "Config map should parse with extra keys")
 	require.Nil(err, "Should not receive errors")
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		extrakeys,
 	}, isNodePort, endptStore)
@@ -1507,7 +1585,7 @@ func TestNamespaceIsolation(t *testing.T) {
 	_, err := fake.Core().Nodes().Create(node)
 	require.Nil(err)
 	useNodeInternal = true
-	n, err := fake.Core().Nodes().List(api.ListOptions{})
+	n, err := fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
 	ProcessNodeUpdate(n.Items, err)
 
@@ -1523,13 +1601,13 @@ func TestNamespaceIsolation(t *testing.T) {
 		[]v1.ServicePort{{Port: 80, NodePort: 50000}})
 
 	endptStore := newStore(nil)
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil, cfgFoo}, true, endptStore)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Config map should be accessible")
 
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil, cfgBar}, true, endptStore)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, formatVirtualServerName(cfgBar))
@@ -1538,7 +1616,7 @@ func TestNamespaceIsolation(t *testing.T) {
 		"Virtual servers should contain original config")
 	assert.Equal(1, virtualServers.Count(), "There should only be 1 virtual server")
 
-	ProcessConfigMapUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, updated, changedObject{
 		cfgBar, cfgBar}, true, endptStore)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, formatVirtualServerName(cfgBar))
@@ -1547,7 +1625,7 @@ func TestNamespaceIsolation(t *testing.T) {
 		"Virtual servers should contain original config")
 	assert.Equal(1, virtualServers.Count(), "There should only be 1 virtual server")
 
-	ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, deleted, changedObject{
 		cfgBar, nil}, true, endptStore)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, formatVirtualServerName(cfgBar))
@@ -1556,7 +1634,7 @@ func TestNamespaceIsolation(t *testing.T) {
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Config map should be accessible after delete called on incorrect namespace")
 
-	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, added, changedObject{
 		nil, servFoo}, true, endptStore)
 	vs, ok := virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
@@ -1565,7 +1643,7 @@ func TestNamespaceIsolation(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
-	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, added, changedObject{
 		nil, servBar}, true, endptStore)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, "foomap")
@@ -1577,7 +1655,7 @@ func TestNamespaceIsolation(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
-	ProcessServiceUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, updated, changedObject{
 		servBar, servBar}, true, endptStore)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, "foomap")
@@ -1589,7 +1667,7 @@ func TestNamespaceIsolation(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
-	ProcessServiceUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, deleted, changedObject{
 		servBar, nil}, true, endptStore)
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
@@ -1653,11 +1731,11 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		&v1.NodeList{Items: nodes})
 	require.NotNil(fake, "Mock client cannot be nil")
 
-	m, err := fake.Core().ConfigMaps("").List(api.ListOptions{})
+	m, err := fake.Core().ConfigMaps("").List(v1.ListOptions{})
 	require.Nil(err)
-	s, err := fake.Core().Services("").List(api.ListOptions{})
+	s, err := fake.Core().Services("").List(v1.ListOptions{})
 	require.Nil(err)
-	n, err := fake.Core().Nodes().List(api.ListOptions{})
+	n, err := fake.Core().Nodes().List(v1.ListOptions{})
 	require.Nil(err)
 
 	assert.Equal(2, len(m.Items))
@@ -1669,7 +1747,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 
 	// ConfigMap ADDED
 	endptStore := newStore(nil)
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		cfgIapp1,
 	}, true, endptStore)
@@ -1681,7 +1759,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Second ConfigMap ADDED
-	ProcessConfigMapUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		cfgIapp2,
 	}, true, endptStore)
@@ -1698,26 +1776,26 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Service ADDED
-	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, added, changedObject{
 		nil,
 		iapp1}, true, endptStore)
 	assert.Equal(2, virtualServers.Count())
 
 	// Second Service ADDED
-	ProcessServiceUpdate(fake, eventStream.Added, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, added, changedObject{
 		nil,
 		iapp2}, true, endptStore)
 	assert.Equal(2, virtualServers.Count())
 
 	// ConfigMap UPDATED
-	ProcessConfigMapUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, updated, changedObject{
 		cfgIapp1,
 		cfgIapp1,
 	}, true, endptStore)
 	assert.Equal(2, virtualServers.Count())
 
 	// Service UPDATED
-	ProcessServiceUpdate(fake, eventStream.Updated, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, updated, changedObject{
 		iapp1,
 		iapp1}, true, endptStore)
 	assert.Equal(2, virtualServers.Count())
@@ -1726,7 +1804,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	_, err = fake.Core().Nodes().Create(extraNode)
 	require.Nil(err)
 	useNodeInternal = true
-	n, err = fake.Core().Nodes().List(api.ListOptions{})
+	n, err = fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
 	ProcessNodeUpdate(n.Items, err)
 	assert.Equal(2, virtualServers.Count())
@@ -1743,12 +1821,12 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	validateConfig(t, mw, twoIappsThreeNodesConfig)
 
 	// Nodes DELETES
-	err = fake.Core().Nodes().Delete("node1", &api.DeleteOptions{})
+	err = fake.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
 	require.Nil(err)
-	err = fake.Core().Nodes().Delete("node2", &api.DeleteOptions{})
+	err = fake.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
 	require.Nil(err)
 	useNodeInternal = true
-	n, err = fake.Core().Nodes().List(api.ListOptions{})
+	n, err = fake.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
 	ProcessNodeUpdate(n.Items, err)
 	assert.Equal(2, virtualServers.Count())
@@ -1766,10 +1844,10 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 
 	// ConfigMap DELETED
 	err = fake.Core().ConfigMaps("default").Delete("iapp1map",
-		&api.DeleteOptions{})
-	m, err = fake.Core().ConfigMaps("").List(api.ListOptions{})
+		&v1.DeleteOptions{})
+	m, err = fake.Core().ConfigMaps("").List(v1.ListOptions{})
 	assert.Equal(1, len(m.Items))
-	ProcessConfigMapUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+	ProcessConfigMapUpdate(fake, deleted, changedObject{
 		cfgIapp1,
 		nil,
 	}, true, endptStore)
@@ -1779,11 +1857,11 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	validateConfig(t, mw, oneIappOneNodeConfig)
 
 	// Service DELETED
-	err = fake.Core().Services("default").Delete("iapp2", &api.DeleteOptions{})
+	err = fake.Core().Services("default").Delete("iapp2", &v1.DeleteOptions{})
 	require.Nil(err)
-	s, err = fake.Core().Services("").List(api.ListOptions{})
+	s, err = fake.Core().Services("").List(v1.ListOptions{})
 	assert.Equal(1, len(s.Items))
-	ProcessServiceUpdate(fake, eventStream.Deleted, eventStream.ChangedObject{
+	ProcessServiceUpdate(fake, deleted, changedObject{
 		iapp2,
 		nil}, true, endptStore)
 	assert.Equal(1, virtualServers.Count())
@@ -1904,8 +1982,8 @@ func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
 
 	svcStore := newStore(nil)
 	svcStore.Add(foo)
-	var endptStore *eventStream.EventStore
-	onEndptChange := func(changeType eventStream.ChangeType, obj interface{}) {
+	var endptStore cache.Store
+	onEndptChange := func(changeType changeType, obj changedObject) {
 		ProcessEndpointsUpdate(fake, changeType, obj, svcStore)
 	}
 	endptStore = newStore(onEndptChange)
@@ -1922,7 +2000,7 @@ func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
 	err = endptStore.Add(badEndpts)
 	require.Nil(err)
 
-	r := processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+	r := processConfigMap(fake, added, changedObject{
 		nil, cfgFoo}, false, endptStore)
 	require.True(r, "Config map should be processed")
 
@@ -1994,21 +2072,21 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 
 	svcStore := newStore(nil)
 	svcStore.Add(foo)
-	var endptStore *eventStream.EventStore
-	onEndptChange := func(changeType eventStream.ChangeType, obj interface{}) {
+	var endptStore cache.Store
+	onEndptChange := func(changeType changeType, obj changedObject) {
 		ProcessEndpointsUpdate(fake, changeType, obj, svcStore)
 	}
 	endptStore = newStore(onEndptChange)
 
-	r := processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+	r := processConfigMap(fake, added, changedObject{
 		nil, cfgFoo}, false, endptStore)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+	r = processConfigMap(fake, added, changedObject{
 		nil, cfgFoo8080}, false, endptStore)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+	r = processConfigMap(fake, added, changedObject{
 		nil, cfgFoo9090}, false, endptStore)
 	require.True(r, "Config map should be processed")
 
@@ -2086,15 +2164,8 @@ func TestVirtualServerWhenServiceChanges(t *testing.T) {
 	foo := newService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 	fake := fake.NewSimpleClientset(&v1.ServiceList{Items: []v1.Service{*foo}})
 
-	onSvcChange := func(changeType eventStream.ChangeType, obj interface{}) {
-		if changeType == eventStream.Replaced {
-			v := obj.([]interface{})
-			for _, item := range v {
-				processService(fake, changeType, item, false, endptStore)
-			}
-		} else {
-			processService(fake, changeType, obj, false, endptStore)
-		}
+	onSvcChange := func(changeType changeType, obj changedObject) {
+		processService(fake, changeType, obj, false, endptStore)
 	}
 	svcStore := newStore(onSvcChange)
 	svcStore.Add(foo)
@@ -2114,15 +2185,15 @@ func TestVirtualServerWhenServiceChanges(t *testing.T) {
 		"schema": schemaUrl,
 		"data":   configmapFoo9090})
 
-	r := processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+	r := processConfigMap(fake, added, changedObject{
 		nil, cfgFoo}, false, endptStore)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+	r = processConfigMap(fake, added, changedObject{
 		nil, cfgFoo8080}, false, endptStore)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, eventStream.Added, eventStream.ChangedObject{
+	r = processConfigMap(fake, added, changedObject{
 		nil, cfgFoo9090}, false, endptStore)
 	require.True(r, "Config map should be processed")
 
@@ -2173,15 +2244,8 @@ func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
 	// no virtual servers yet
 	require.Equal(0, virtualServers.Count())
 
-	onCfgChange := func(changeType eventStream.ChangeType, obj interface{}) {
-		if changeType == eventStream.Replaced {
-			v := obj.([]interface{})
-			for _, item := range v {
-				processConfigMap(fake, changeType, item, false, endptStore)
-			}
-		} else {
-			processConfigMap(fake, changeType, obj, false, endptStore)
-		}
+	onCfgChange := func(changeType changeType, obj changedObject) {
+		processConfigMap(fake, changeType, obj, false, endptStore)
 	}
 	cfgStore := newStore(onCfgChange)
 
@@ -2239,34 +2303,33 @@ func TestUpdatesConcurrentCluster(t *testing.T) {
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client cannot be nil")
 
-	var cfgStore *eventStream.EventStore
-	var endptStore *eventStream.EventStore
-	var svcStore *eventStream.EventStore
+	var cfgStore cache.Store
+	var endptStore cache.Store
+	var svcStore cache.Store
 
-	onCfgChange := func(changeType eventStream.ChangeType, obj interface{}) {
+	onCfgChange := func(changeType changeType, obj changedObject) {
 		ProcessConfigMapUpdate(fake, changeType, obj, false, endptStore)
 	}
 	cfgStore = newStore(onCfgChange)
 
-	onEndptChange := func(changeType eventStream.ChangeType, obj interface{}) {
+	onEndptChange := func(changeType changeType, obj changedObject) {
 		ProcessEndpointsUpdate(fake, changeType, obj, svcStore)
 	}
 	endptStore = newStore(onEndptChange)
 
-	onSvcChange := func(changeType eventStream.ChangeType, obj interface{}) {
+	onSvcChange := func(changeType changeType, obj changedObject) {
 		ProcessServiceUpdate(fake, changeType, obj, false, endptStore)
-		o, ok := obj.(eventStream.ChangedObject)
-		require.True(ok, "expected eventStream.ChangedObject")
+		require.True(ok, "expected changedObject")
 		switch changeType {
-		case eventStream.Added:
-			svc := o.New.(*v1.Service)
+		case added:
+			svc := obj.New.(*v1.Service)
 			fSvc, err := fake.Core().Services(namespace).Create(svc)
 			require.Nil(err, "Should not fail creating service")
 			require.EqualValues(fSvc, svc, "Service should be equal")
-		case eventStream.Deleted:
-			svc := o.Old.(*v1.Service)
+		case deleted:
+			svc := obj.Old.(*v1.Service)
 			err := fake.Core().Services(namespace).Delete(svc.ObjectMeta.Name,
-				&api.DeleteOptions{})
+				&v1.DeleteOptions{})
 			require.Nil(err, "Should not error deleting service")
 		}
 	}
@@ -2392,8 +2455,8 @@ func TestNonNodePortServiceModeNodePort(t *testing.T) {
 	endptStore := newStore(nil)
 	r := processConfigMap(
 		fake,
-		eventStream.Added,
-		eventStream.ChangedObject{nil, cfgFoo},
+		added,
+		changedObject{nil, cfgFoo},
 		true,
 		endptStore,
 	)
@@ -2414,8 +2477,8 @@ func TestNonNodePortServiceModeNodePort(t *testing.T) {
 
 	r = processService(
 		fake,
-		eventStream.Added,
-		eventStream.ChangedObject{nil, foo},
+		added,
+		changedObject{nil, foo},
 		true,
 		endptStore,
 	)
@@ -2443,12 +2506,12 @@ func TestMultipleVirtualServersForOneBackend(t *testing.T) {
 	svcStore := newStore(nil)
 	svcStore.Add(svc)
 
-	endptStore := newStore(func(changeType eventStream.ChangeType, obj interface{}) {
-		ProcessEndpointsUpdate(fake, changeType, obj, svcStore)
+	endptStore := newStore(func(change changeType, obj changedObject) {
+		ProcessEndpointsUpdate(fake, change, obj, svcStore)
 	})
 
-	cfgStore := newStore(func(changeType eventStream.ChangeType, obj interface{}) {
-		ProcessConfigMapUpdate(fake, changeType, obj, false, endptStore)
+	cfgStore := newStore(func(change changeType, obj changedObject) {
+		ProcessConfigMapUpdate(fake, change, obj, false, endptStore)
 	})
 
 	vsTemplate := `{

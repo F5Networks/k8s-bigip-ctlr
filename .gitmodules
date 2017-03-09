@@ -1,9 +1,6 @@
 [submodule "gb-pkgs/vlogger"]
 	path = gb-pkgs/vlogger
 	url = git@bldr-git.int.lineratesystems.com:velcro/vlogger.git
-[submodule "vendor/src/github.com/spf13/cobra"]
-	path = vendor/src/github.com/spf13/cobra
-	url = git@bldr-git.int.lineratesystems.com:mirror/cobra.git
 [submodule "vendor/src/github.com/spf13/pflag"]
 	path = vendor/src/github.com/spf13/pflag
 	url = git@bldr-git.int.lineratesystems.com:mirror/pflag.git
@@ -25,9 +22,6 @@
 [submodule "vendor/src/github.com/golang/glog"]
 	path = vendor/src/github.com/golang/glog
 	url = git@bldr-git.int.lineratesystems.com:mirror/golang-glog.git
-[submodule "vendor/src/github.com/golang/groupcache"]
-	path = vendor/src/github.com/golang/groupcache
-	url = git@bldr-git.int.lineratesystems.com:mirror/golang-groupcache.git
 [submodule "vendor/src/github.com/google/gofuzz"]
 	path = vendor/src/github.com/google/gofuzz
 	url = git@bldr-git.int.lineratesystems.com:mirror/google-gofuzz.git
@@ -55,15 +49,13 @@
 [submodule "vendor/src/github.com/docker/distribution"]
 	path = vendor/src/github.com/docker/distribution
 	url = git@bldr-git.int.lineratesystems.com:mirror/docker-distribution.git
+	branch = b15d882-free
 [submodule "vendor/src/golang.org/x/net"]
 	path = vendor/src/golang.org/x/net
 	url = git@bldr-git.int.lineratesystems.com:mirror/golang-x-net.git
 [submodule "vendor/src/github.com/stretchr/testify"]
 	path = vendor/src/github.com/stretchr/testify
 	url = git@bldr-git.int.lineratesystems.com:mirror/testify.git
-[submodule "vendor/src/github.com/pmezard/go-difflib"]
-	path = vendor/src/github.com/pmezard/go-difflib
-	url = git@bldr-git.int.lineratesystems.com:mirror/go-difflib.git
 [submodule "vendor/src/github.com/xeipuuv/gojsonschema"]
 	path = vendor/src/github.com/xeipuuv/gojsonschema
 	url = git@bldr-git.int.lineratesystems.com:mirror/gojsonschema.git
@@ -79,3 +71,51 @@
 [submodule "vendor/src/f5/common-bigip-ctlr"]
 	path = vendor/src/f5/common-bigip-ctlr
 	url = git@bldr-git.int.lineratesystems.com:velcro/marathon-bigip-ctlr.git
+[submodule "vendor/src/cloud.google.com/go"]
+	path = vendor/src/cloud.google.com/go
+	url = https://code.googlesource.com/gocloud
+[submodule "vendor/src/github.com/PuerkitoBio/purell"]
+	path = vendor/src/github.com/PuerkitoBio/purell
+	url = https://github.com/PuerkitoBio/purell.git
+[submodule "vendor/src/github.com/PuerkitoBio/urlesc"]
+	path = vendor/src/github.com/PuerkitoBio/urlesc
+	url = https://github.com/PuerkitoBio/urlesc.git
+[submodule "vendor/src/github.com/coreos/go-oidc"]
+	path = vendor/src/github.com/coreos/go-oidc
+	url = https://github.com/coreos/go-oidc.git
+[submodule "vendor/src/github.com/coreos/pkg"]
+	path = vendor/src/github.com/coreos/pkg
+	url = https://github.com/coreos/pkg.git
+[submodule "vendor/src/github.com/go-openapi/swag"]
+	path = vendor/src/github.com/go-openapi/swag
+	url = https://github.com/go-openapi/swag.git
+[submodule "vendor/src/github.com/go-openapi/spec"]
+	path = vendor/src/github.com/go-openapi/spec
+	url = https://github.com/go-openapi/spec.git
+[submodule "vendor/src/github.com/go-openapi/jsonreference"]
+	path = vendor/src/github.com/go-openapi/jsonreference
+	url = https://github.com/go-openapi/jsonreference.git
+[submodule "vendor/src/github.com/go-openapi/jsonpointer"]
+	path = vendor/src/github.com/go-openapi/jsonpointer
+	url = https://github.com/go-openapi/jsonpointer.git
+[submodule "vendor/src/github.com/howeyc/gopass"]
+	path = vendor/src/github.com/howeyc/gopass
+	url = https://github.com/howeyc/gopass.git
+[submodule "vendor/src/github.com/jonboulle/clockwork"]
+	path = vendor/src/github.com/jonboulle/clockwork
+	url = https://github.com/jonboulle/clockwork.git
+[submodule "vendor/src/github.com/mailru/easyjson"]
+	path = vendor/src/github.com/mailru/easyjson
+	url = https://github.com/mailru/easyjson.git
+[submodule "vendor/src/golang.org/x/crypto"]
+	path = vendor/src/golang.org/x/crypto
+	url = https://go.googlesource.com/crypto
+[submodule "vendor/src/golang.org/x/oauth2"]
+	path = vendor/src/golang.org/x/oauth2
+	url = https://go.googlesource.com/oauth2
+[submodule "vendor/src/golang.org/x/text"]
+	path = vendor/src/golang.org/x/text
+	url = https://go.googlesource.com/text
+[submodule "vendor/src/github.com/pmezard/go-difflib"]
+	path = vendor/src/github.com/pmezard/go-difflib
+	url = git@bldr-git.int.lineratesystems.com:mirror/go-difflib.git

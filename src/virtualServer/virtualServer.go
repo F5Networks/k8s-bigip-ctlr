@@ -23,7 +23,6 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -31,103 +30,9 @@ import (
 	log "f5/vlogger"
 	"tools/writer"
 
-	"github.com/xeipuuv/gojsonschema"
 	"k8s.io/client-go/1.4/kubernetes"
 	"k8s.io/client-go/1.4/pkg/api/v1"
 )
-
-// Definition of a Big-IP Virtual Server config
-// Most of this comes directly from a ConfigMap, with the exception
-// of NodePort and Nodes, which are dynamic
-// For more information regarding this structure and data model:
-//  f5/schemas/bigip-virtual-server_[version].json
-type VirtualServerConfig struct {
-	VirtualServer struct {
-		Backend struct {
-			ServiceName     string   `json:"serviceName"`
-			ServicePort     int32    `json:"servicePort"`
-			PoolMemberPort  int32    `json:"poolMemberPort"`
-			PoolMemberAddrs []string `json:"poolMemberAddrs"`
-			HealthMonitors  []struct {
-				Interval int    `json:"interval,omitempty"`
-				Protocol string `json:"protocol"`
-				Send     string `json:"send,omitempty"`
-				Timeout  int    `json:"timeout,omitempty"`
-			} `json:"healthMonitors,omitempty"`
-		} `json:"backend"`
-		Frontend struct {
-			VirtualServerName string `json:"virtualServerName"`
-			// Mutual parameter, partition
-			Partition string `json:"partition"`
-
-			// VirtualServer parameters
-			Balance        string `json:"balance,omitempty"`
-			Mode           string `json:"mode,omitempty"`
-			VirtualAddress *struct {
-				BindAddr string `json:"bindAddr,omitempty"`
-				Port     int32  `json:"port,omitempty"`
-			} `json:"virtualAddress,omitempty"`
-			SslProfile *struct {
-				F5ProfileName string `json:"f5ProfileName,omitempty"`
-			} `json:"sslProfile,omitempty"`
-
-			// iApp parameters
-			IApp                string `json:"iapp,omitempty"`
-			IAppPoolMemberTable struct {
-				Name    string `json:"name"`
-				Columns []struct {
-					Name  string `json:"name"`
-					Kind  string `json:"kind,omitempty"`
-					Value string `json:"value,omitempty"`
-				} `json:"columns"`
-			} `json:"iappPoolMemberTable,omitempty"`
-			IAppOptions map[string]string `json:"iappOptions,omitempty"`
-			IAppTables  map[string]struct {
-				Columns []string   `json:"columns,omitempty"`
-				Rows    [][]string `json:"rows,omitempty"`
-			} `json:"iappTables,omitempty"`
-			IAppVariables map[string]string `json:"iappVariables,omitempty"`
-		} `json:"frontend"`
-	} `json:"virtualServer"`
-}
-
-type VirtualServerConfigs []*VirtualServerConfig
-
-func (slice VirtualServerConfigs) Len() int {
-	return len(slice)
-}
-
-func (slice VirtualServerConfigs) Less(i, j int) bool {
-	return slice[i].VirtualServer.Backend.ServiceName <
-		slice[j].VirtualServer.Backend.ServiceName ||
-		(slice[i].VirtualServer.Backend.ServiceName ==
-			slice[j].VirtualServer.Backend.ServiceName &&
-			slice[i].VirtualServer.Backend.ServicePort <
-				slice[j].VirtualServer.Backend.ServicePort)
-}
-
-func (slice VirtualServerConfigs) Swap(i, j int) {
-	slice[i], slice[j] = slice[j], slice[i]
-}
-
-// Indicator to use an F5 schema
-var schemaIndicator string = "f5schemadb://"
-
-// Where the schemas reside locally
-var schemaLocal string = "file:///app/vendor/src/f5/schemas/"
-
-// Virtual Server Key - unique server is Name + Port
-type serviceKey struct {
-	ServiceName string
-	ServicePort int32
-	Namespace   string
-}
-
-// Map of Virtual Server configs
-var virtualServers struct {
-	sync.Mutex
-	m map[serviceKey]*VirtualServerConfig
-}
 
 // Nodes from previous iteration of node polling
 var oldNodes = []string{}
@@ -153,60 +58,8 @@ func SetUseNodeInternal(ni bool) {
 	useNodeInternal = ni
 }
 
-// Package init
-func init() {
-	virtualServers.m = make(map[serviceKey]*VirtualServerConfig)
-}
-
-// Unmarshal an expected VirtualServerConfig object
-func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
-	var cfg VirtualServerConfig
-
-	if schemaName, ok := cm.Data["schema"]; ok {
-		if data, ok := cm.Data["data"]; ok {
-			// FIXME For now, "f5schemadb" means the schema is local
-			// Trim whitespace and embedded quotes
-			schemaName = strings.TrimSpace(schemaName)
-			schemaName = strings.Trim(schemaName, "\"")
-			if strings.HasPrefix(schemaName, schemaIndicator) {
-				schemaName = strings.Replace(schemaName, schemaIndicator, schemaLocal, 1)
-			}
-			// Load the schema
-			schemaLoader := gojsonschema.NewReferenceLoader(schemaName)
-			schema, err := gojsonschema.NewSchema(schemaLoader)
-			if err != nil {
-				return nil, err
-			}
-			// Load the ConfigMap data and validate
-			dataLoader := gojsonschema.NewStringLoader(data)
-			result, err := schema.Validate(dataLoader)
-			if err != nil {
-				return nil, err
-			}
-
-			if result.Valid() {
-				err := json.Unmarshal([]byte(data), &cfg)
-				if nil != err {
-					return nil, err
-				}
-			} else {
-				var errors []string
-				for _, desc := range result.Errors() {
-					errors = append(errors, desc.String())
-				}
-				return nil, fmt.Errorf("configMap is not valid, errors: %q", errors)
-			}
-		} else {
-			return nil, fmt.Errorf("configmap %s does not contain data key",
-				cm.ObjectMeta.Name)
-		}
-	} else {
-		return nil, fmt.Errorf("configmap %s does not contain schema key",
-			cm.ObjectMeta.Name)
-	}
-
-	return &cfg, nil
-}
+// global virtualServers object
+var virtualServers *VirtualServers = NewVirtualServers()
 
 // Process Service objects from the eventStream
 func ProcessServiceUpdate(
@@ -357,48 +210,52 @@ func processService(
 	virtualServers.Lock()
 	defer virtualServers.Unlock()
 	for _, portSpec := range svc.Spec.Ports {
-		if vs, ok := virtualServers.m[serviceKey{serviceName, portSpec.Port, namespace}]; ok {
+		if vsMap, ok := virtualServers.GetAll(serviceKey{serviceName, portSpec.Port, namespace}); ok {
 			delete(rmvdPortsMap, portSpec.Port)
-			switch changeType {
-			case eventStream.Added, eventStream.Replaced, eventStream.Updated:
-				if isNodePort {
-					if svc.Spec.Type == v1.ServiceTypeNodePort {
-						log.Debugf("Service backend matched %+v: using node port %v",
-							serviceKey{serviceName, portSpec.Port, namespace}, portSpec.NodePort)
+			for _, vs := range vsMap {
+				switch changeType {
+				case eventStream.Added, eventStream.Replaced, eventStream.Updated:
+					if isNodePort {
+						if svc.Spec.Type == v1.ServiceTypeNodePort {
+							log.Debugf("Service backend matched %+v: using node port %v",
+								serviceKey{serviceName, portSpec.Port, namespace}, portSpec.NodePort)
 
-						vs.VirtualServer.Backend.PoolMemberPort = portSpec.NodePort
-						vs.VirtualServer.Backend.PoolMemberAddrs = getNodesFromCache()
-						updateConfig = true
-					}
-				} else {
-					item, _, err := endptStore.GetByKey(namespace + "/" + serviceName)
-					if nil != item {
-						eps := item.(*v1.Endpoints)
-						ipPorts := getEndpointsForService(portSpec.Name, eps)
-
-						log.Debugf("Found endpoints for backend %+v: %v",
-							serviceKey{serviceName, portSpec.Port, namespace}, ipPorts)
-
-						vs.VirtualServer.Backend.PoolMemberPort,
-							vs.VirtualServer.Backend.PoolMemberAddrs = 0, ipPorts
-						updateConfig = true
+							vs.VirtualServer.Backend.PoolMemberPort = portSpec.NodePort
+							vs.VirtualServer.Backend.PoolMemberAddrs = getNodesFromCache()
+							updateConfig = true
+						}
 					} else {
-						log.Debugf("No endpoints for backend %+v: %v",
-							serviceKey{serviceName, portSpec.Port, namespace}, err)
+						item, _, err := endptStore.GetByKey(namespace + "/" + serviceName)
+						if nil != item {
+							eps := item.(*v1.Endpoints)
+							ipPorts := getEndpointsForService(portSpec.Name, eps)
+
+							log.Debugf("Found endpoints for backend %+v: %v",
+								serviceKey{serviceName, portSpec.Port, namespace}, ipPorts)
+
+							vs.VirtualServer.Backend.PoolMemberPort,
+								vs.VirtualServer.Backend.PoolMemberAddrs = 0, ipPorts
+							updateConfig = true
+						} else {
+							log.Debugf("No endpoints for backend %+v: %v",
+								serviceKey{serviceName, portSpec.Port, namespace}, err)
+						}
 					}
+				case eventStream.Deleted:
+					vs.VirtualServer.Backend.PoolMemberPort = -1
+					vs.VirtualServer.Backend.PoolMemberAddrs = nil
+					updateConfig = true
 				}
-			case eventStream.Deleted:
-				vs.VirtualServer.Backend.PoolMemberPort = -1
-				vs.VirtualServer.Backend.PoolMemberAddrs = nil
-				updateConfig = true
 			}
 		}
 	}
 	for p, _ := range rmvdPortsMap {
-		if vs, ok := virtualServers.m[serviceKey{serviceName, p, namespace}]; ok {
-			vs.VirtualServer.Backend.PoolMemberPort = -1
-			vs.VirtualServer.Backend.PoolMemberAddrs = nil
-			updateConfig = true
+		if vsMap, ok := virtualServers.GetAll(serviceKey{serviceName, p, namespace}); ok {
+			for _, vs := range vsMap {
+				vs.VirtualServer.Backend.PoolMemberPort = -1
+				vs.VirtualServer.Backend.PoolMemberAddrs = nil
+				updateConfig = true
+			}
 		}
 	}
 
@@ -449,6 +306,7 @@ func processConfigMap(
 
 	serviceName := cfg.VirtualServer.Backend.ServiceName
 	servicePort := cfg.VirtualServer.Backend.ServicePort
+	vsName := formatVirtualServerName(cm)
 
 	switch changeType {
 	case eventStream.Added, eventStream.Replaced, eventStream.Updated:
@@ -512,29 +370,29 @@ func processConfigMap(
 		virtualServers.Lock()
 		defer virtualServers.Unlock()
 		if eventStream.Added == changeType {
-			if _, ok := virtualServers.m[serviceKey{serviceName, servicePort, namespace}]; ok {
+			if _, ok := virtualServers.Get(serviceKey{serviceName, servicePort, namespace}, vsName); ok {
 				log.Warningf(
 					"Overwriting existing entry for backend %+v - change type: %v",
 					serviceKey{serviceName, servicePort, namespace}, changeType)
 			}
 		} else if eventStream.Updated == changeType && true == backendChange {
-			if _, ok := virtualServers.m[serviceKey{serviceName, servicePort, namespace}]; ok {
+			if _, ok := virtualServers.Get(serviceKey{serviceName, servicePort, namespace}, vsName); ok {
 				log.Warningf(
 					"Overwriting existing entry for backend %+v - change type: %v",
 					serviceKey{serviceName, servicePort, namespace}, changeType)
 			}
-			delete(virtualServers.m,
+			virtualServers.Delete(
 				serviceKey{oldCfg.VirtualServer.Backend.ServiceName,
-					oldCfg.VirtualServer.Backend.ServicePort, namespace})
+					oldCfg.VirtualServer.Backend.ServicePort, namespace}, vsName)
 		}
-		name := fmt.Sprintf("%v_%v", namespace, cm.ObjectMeta.Name)
-		cfg.VirtualServer.Frontend.VirtualServerName = name
-		virtualServers.m[serviceKey{serviceName, servicePort, namespace}] = cfg
+		cfg.VirtualServer.Frontend.VirtualServerName = vsName
+		virtualServers.Assign(serviceKey{serviceName, servicePort, namespace},
+			vsName, cfg)
 		verified = true
 	case eventStream.Deleted:
 		virtualServers.Lock()
 		defer virtualServers.Unlock()
-		delete(virtualServers.m, serviceKey{serviceName, servicePort, namespace})
+		virtualServers.Delete(serviceKey{serviceName, servicePort, namespace}, vsName)
 		verified = true
 	}
 
@@ -573,24 +431,26 @@ func processEndpoints(
 
 	updateConfig := false
 	for _, portSpec := range svc.Spec.Ports {
-		if vs, ok := virtualServers.m[serviceKey{serviceName, portSpec.Port, namespace}]; ok {
-			switch changeType {
-			case eventStream.Added, eventStream.Updated, eventStream.Replaced:
-				ipPorts := getEndpointsForService(portSpec.Name, eps)
-				if !reflect.DeepEqual(ipPorts, vs.VirtualServer.Backend.PoolMemberAddrs) {
+		if vsMap, ok := virtualServers.GetAll(serviceKey{serviceName, portSpec.Port, namespace}); ok {
+			for _, vs := range vsMap {
+				switch changeType {
+				case eventStream.Added, eventStream.Updated, eventStream.Replaced:
+					ipPorts := getEndpointsForService(portSpec.Name, eps)
+					if !reflect.DeepEqual(ipPorts, vs.VirtualServer.Backend.PoolMemberAddrs) {
 
-					log.Debugf("Updating endpoints for backend: %+v: from %v to %v",
-						serviceKey{serviceName, portSpec.Port, namespace},
-						vs.VirtualServer.Backend.PoolMemberAddrs, ipPorts)
+						log.Debugf("Updating endpoints for backend: %+v: from %v to %v",
+							serviceKey{serviceName, portSpec.Port, namespace},
+							vs.VirtualServer.Backend.PoolMemberAddrs, ipPorts)
 
-					vs.VirtualServer.Backend.PoolMemberPort,
-						vs.VirtualServer.Backend.PoolMemberAddrs = 0, ipPorts
+						vs.VirtualServer.Backend.PoolMemberPort,
+							vs.VirtualServer.Backend.PoolMemberAddrs = 0, ipPorts
+						updateConfig = true
+					}
+				case eventStream.Deleted:
+					vs.VirtualServer.Backend.PoolMemberAddrs = nil
+					vs.VirtualServer.Backend.PoolMemberPort = -1
 					updateConfig = true
 				}
-			case eventStream.Deleted:
-				vs.VirtualServer.Backend.PoolMemberAddrs = nil
-				vs.VirtualServer.Backend.PoolMemberPort = -1
-				updateConfig = true
 			}
 		}
 	}
@@ -619,9 +479,9 @@ func ProcessNodeUpdate(obj interface{}, err error) {
 	// Compare last set of nodes with new one
 	if !reflect.DeepEqual(newNodes, oldNodes) {
 		log.Infof("ProcessNodeUpdate: Change in Node state detected")
-		for _, vs := range virtualServers.m {
-			vs.VirtualServer.Backend.PoolMemberAddrs = newNodes
-		}
+		virtualServers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
+			cfg.VirtualServer.Backend.PoolMemberAddrs = newNodes
+		})
 		// Output the Big-IP config
 		outputConfigLocked()
 
@@ -648,11 +508,11 @@ func outputConfigLocked() {
 	services := VirtualServerConfigs{}
 
 	// Filter the configs to only those that have active services
-	for _, vs := range virtualServers.m {
-		if vs.VirtualServer.Backend.PoolMemberPort != -1 {
-			services = append(services, vs)
+	virtualServers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
+		if cfg.VirtualServer.Backend.PoolMemberPort != -1 {
+			services = append(services, cfg)
 		}
-	}
+	})
 
 	doneCh, errCh, err := config.SendSection("services", services)
 	if nil != err {

@@ -21,6 +21,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,7 +74,7 @@ func newTestMap(nbrBackends, nbrConfigsPer int) *testMap {
 func assignTestMap(vss *VirtualServers, tm *testMap) {
 	for key, val := range *tm {
 		for _, tf := range val {
-			vss.Assign(key, newVirtualServerConfig(
+			vss.Assign(key, tf.name, newVirtualServerConfig(
 				key, tf.name, tf.addr.BindAddr, tf.addr.Port))
 		}
 	}
@@ -176,7 +177,7 @@ func TestAssign(t *testing.T) {
 	// interface functions.
 	require.Equal(nbrBackends, len(vss.m))
 	for _, vsCfgs := range vss.m {
-		require.Equal(nbrCfgsPer, len(vsCfgs))
+		assert.Equal(t, nbrCfgsPer, len(vsCfgs))
 	}
 }
 
@@ -209,7 +210,7 @@ func TestCountOf(t *testing.T) {
 	require.Equal(nbrBackends, len(vss.m))
 
 	for key, _ := range *tm {
-		require.Equal(nbrCfgsPer, vss.CountOf(key))
+		assert.Equal(t, nbrCfgsPer, vss.CountOf(key))
 	}
 }
 
@@ -229,7 +230,7 @@ func TestDelete(t *testing.T) {
 	for key, val := range *tm {
 		for _, tf := range val {
 			countBefore := vss.CountOf(key)
-			require.True(countBefore > 0)
+			assert.True(t, countBefore > 0)
 			ok := vss.Delete(key, tf.name)
 			require.True(ok)
 			countAfter := vss.CountOf(key)
@@ -237,7 +238,7 @@ func TestDelete(t *testing.T) {
 			// Test double-delete fails correctly
 			ok = vss.Delete(key, tf.name)
 			require.False(ok)
-			require.Equal(countAfter, vss.CountOf(key))
+			assert.Equal(t, countAfter, vss.CountOf(key))
 		}
 	}
 
@@ -268,7 +269,7 @@ func TestForEach(t *testing.T) {
 				found = true
 			}
 		}
-		require.True(found)
+		assert.True(t, found)
 	})
 	require.Equal(nbrBackends*nbrCfgsPer, totalConfigs)
 }
@@ -290,9 +291,9 @@ func TestGet(t *testing.T) {
 			vs, ok := vss.Get(key, tf.name)
 			require.True(ok)
 			require.NotNil(vs)
-			require.Equal(tf.addr.BindAddr,
+			assert.Equal(t, tf.addr.BindAddr,
 				vs.VirtualServer.Frontend.VirtualAddress.BindAddr)
-			require.Equal(tf.addr.Port,
+			assert.Equal(t, tf.addr.Port,
 				vs.VirtualServer.Frontend.VirtualAddress.Port)
 		}
 	}
@@ -314,6 +315,6 @@ func TestGetAll(t *testing.T) {
 		vsCfgMap, ok := vss.GetAll(key)
 		require.True(ok)
 		require.NotNil(vsCfgMap)
-		require.Equal(nbrCfgsPer, len(vsCfgMap))
+		assert.Equal(t, nbrCfgsPer, len(vsCfgMap))
 	}
 }

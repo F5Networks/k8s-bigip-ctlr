@@ -157,7 +157,7 @@ type VirtualServerEnumFunc func(key serviceKey, cfg *VirtualServerConfig)
 
 type VirtualServerInterface interface {
 	Init()
-	Assign(key serviceKey, cfg *VirtualServerConfig)
+	Assign(key serviceKey, name string, cfg *VirtualServerConfig)
 	Count() int
 	CountOf(key serviceKey) int
 	Get(key serviceKey, frontEndName string) (*VirtualServerConfig, bool)
@@ -179,13 +179,17 @@ func (vss *VirtualServers) Init() {
 }
 
 // Add or update cfg in VirtualServers, identified by key.
-func (vss *VirtualServers) Assign(key serviceKey, cfg *VirtualServerConfig) {
+func (vss *VirtualServers) Assign(
+	key serviceKey,
+	name string,
+	cfg *VirtualServerConfig,
+) {
 	vsMap, ok := vss.m[key]
 	if !ok {
 		vsMap = make(map[string]*VirtualServerConfig)
 		vss.m[key] = vsMap
 	}
-	vsMap[cfg.VirtualServer.Frontend.VirtualServerName] = cfg
+	vsMap[name] = cfg
 }
 
 // Count of all confiugrations currently stored.
@@ -232,7 +236,9 @@ func (vss *VirtualServers) ForEach(f VirtualServerEnumFunc) {
 
 // Get a specific configuration.
 func (vss *VirtualServers) Get(
-	key serviceKey, frontEndName string) (*VirtualServerConfig, bool) {
+	key serviceKey,
+	frontEndName string,
+) (*VirtualServerConfig, bool) {
 	vsMap, ok := vss.m[key]
 	if !ok {
 		return nil, ok

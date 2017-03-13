@@ -386,7 +386,8 @@ func processConfigMap(
 					oldCfg.VirtualServer.Backend.ServicePort, namespace}, vsName)
 		}
 		cfg.VirtualServer.Frontend.VirtualServerName = vsName
-		virtualServers.Assign(serviceKey{serviceName, servicePort, namespace}, cfg)
+		virtualServers.Assign(serviceKey{serviceName, servicePort, namespace},
+			vsName, cfg)
 		verified = true
 	case eventStream.Deleted:
 		virtualServers.Lock()

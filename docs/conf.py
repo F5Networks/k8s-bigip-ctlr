@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('../'))
 
-import sphinx_rtd_theme
+import f5_sphinx_theme
 import recommonmark
 import CommonMark
 from recommonmark.parser import CommonMarkParser
@@ -77,9 +77,9 @@ author = u'F5 Networks'
 # built documents.
 #
 # The short X.Y version.
-version = u'1.1'
+version = u'v1.1'
 # The full version, including alpha/beta/rc tags.
-release = u'1.1.0-dev'
+release = u'v1.1.0-dev'
 
 # def setup(app):
 #    app.add_config_value('versionlevel', '', 'env')
@@ -108,8 +108,18 @@ language = 'en'
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'venv', '.github',
-                    'Dockerfile']
+exclude_patterns = [
+     '_build',
+     'Thumbs.db',
+     '.DS_Store',
+     'venv',
+     '.github',
+     'Dockerfile',
+     'requirements.txt',
+     '*.swp',
+     '*.swx',
+     '*~',
+     ]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
@@ -148,7 +158,9 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'f5_sphinx_theme'
+html_theme_path = f5_sphinx_theme.get_html_theme_path()
+html_theme_options = {}
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -162,16 +174,16 @@ html_theme = 'sphinx_rtd_theme'
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
 #
-html_title = u'F5 Kubernetes BIG-IP Controller'
+html_title = "{} {}".format(project, version)
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
 #
-html_short_title = u'F5 Kubernetes BIG-IP Controller'
+#html_short_title = u'F5 Kubernetes BIG-IP Controller'
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
 #
-html_logo = '_static/f5_logo.jpg'
+html_logo = '_static/f5-logo-solid-rgb_small.png'
 
 # The name of an image file (relative to this directory) to use as a favicon of
 # the docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -203,9 +215,9 @@ html_static_path = ['_static/']
 
 # Custom sidebar templates, maps document names to template names.
 #
-#html_sidebars = {
-#   '**': ['localtoc.html', 'sourcelink.html', 'searchbox.html'],
-#}
+html_sidebars = {
+   '**': ['localtoc.html', 'searchbox.html']
+}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.

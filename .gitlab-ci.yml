@@ -29,13 +29,16 @@ stages:
   - build
   - deploy
 
-docs_tests:
-  image: docker-registry.pdbld.f5net.com/tools/containthedocs-light
+build docs:
+  image: docker-registry.pdbld.f5net.com/tools/containthedocs:master
   script:
     - ./build-tools/test-docs.sh
   tags:
     - docker
   stage: sanity
+  artifacts:
+    paths:
+      - docs/_build/html
 
 python utility unit test:
   image: "python:2.7"
@@ -130,3 +133,16 @@ attributions generator:
       - golang_attributions.json
       - pip_attributions.json
       - ATTRIBUTIONS.md
+
+Publish docs to internet:
+   # Publish ONLY 1.0-stable to the internet.
+   image: docker-registry.pdbld.f5net.com/tools/containthedocs:master
+   stage: deploy
+   tags:
+    - docker
+   only:
+    - 1.0-stable@velcro/k8s-bigip-ctlr
+   dependencies:
+     - build docs
+   script:
+     - publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.0

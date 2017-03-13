@@ -54,6 +54,13 @@ html:
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
+.PHONY: preview
+preview:
+	@echo "Running autobuild. View live edits at:"
+	@echo "  http://127.0.0.1:8000/index.html"
+	@echo ""
+	sphinx-autobuild --host 0.0.0.0 -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+
 .PHONY: dirhtml
 dirhtml:
 	$(SPHINXBUILD) -b dirhtml $(ALLSPHINXOPTS) $(BUILDDIR)/dirhtml

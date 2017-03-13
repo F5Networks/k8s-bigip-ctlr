@@ -17,11 +17,9 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -44,12 +42,12 @@ import (
 	"k8s.io/client-go/1.4/tools/clientcmd"
 )
 
-type GlobalSection struct {
+type globalSection struct {
 	LogLevel       string `json:"log-level,omitempty"`
 	VerifyInterval int    `json:"verify-interval,omitempty"`
 }
 
-type BigIPSection struct {
+type bigIPSection struct {
 	BigIPUsername   string   `json:"username,omitempty"`
 	BigIPPassword   string   `json:"password,omitempty"`
 	BigIPURL        string   `json:"url,omitempty"`
@@ -182,121 +180,6 @@ func initLogger(logLevel string) error {
 	return nil
 }
 
-func initializeDriverConfig(
-	configWriter writer.Writer,
-	global GlobalSection,
-	bigIP BigIPSection,
-) error {
-	if nil == configWriter {
-		return fmt.Errorf("config writer argument cannot be nil")
-	}
-
-	sectionNames := []string{"global", "bigip"}
-	for i, v := range []interface{}{global, bigIP} {
-		doneCh, errCh, err := configWriter.SendSection(sectionNames[i], v)
-		if nil != err {
-			return fmt.Errorf("failed writing global config section: %v", err)
-		} else {
-			select {
-			case <-doneCh:
-			case e := <-errCh:
-				return fmt.Errorf("failed writing section %s - %v: %v",
-					sectionNames[i], e, v)
-			case <-time.After(1000 * time.Millisecond):
-				log.Warning("Did not receive config write response in 1 second")
-			}
-		}
-	}
-
-	return nil
-}
-
-func createDriverCmd(
-	configFilename string,
-	pyCmd string,
-) *exec.Cmd {
-	cmdName := "python"
-
-	cmdArgs := []string{
-		pyCmd,
-		"--config-file", configFilename}
-
-	cmd := exec.Command(cmdName, cmdArgs...)
-
-	return cmd
-}
-
-func runBigIPDriver(pid chan<- int, cmd *exec.Cmd) {
-	defer close(pid)
-
-	// the config driver python logging goes to stderr by default
-	cmdOut, err := cmd.StderrPipe()
-	scanOut := bufio.NewScanner(cmdOut)
-	go func() {
-		for true {
-			if scanOut.Scan() {
-				log.Info(scanOut.Text())
-			} else {
-				break
-			}
-		}
-	}()
-
-	err = cmd.Start()
-	if nil != err {
-		log.Fatalf("Internal error: failed to start config driver: %v", err)
-	}
-	log.Infof("Started config driver sub-process at pid: %d", cmd.Process.Pid)
-
-	pid <- cmd.Process.Pid
-
-	err = cmd.Wait()
-	var waitStatus syscall.WaitStatus
-	if exitError, ok := err.(*exec.ExitError); ok {
-		waitStatus = exitError.Sys().(syscall.WaitStatus)
-		if waitStatus.Signaled() {
-			log.Fatalf("Config driver signaled to stop: %d - %s",
-				waitStatus.Signal(), waitStatus.Signal())
-		} else {
-			log.Fatalf("Config driver exited: %d", waitStatus.ExitStatus())
-		}
-	} else if nil != err {
-		log.Fatalf("Config driver exited with error: %v", err)
-	} else {
-		waitStatus = cmd.ProcessState.Sys().(syscall.WaitStatus)
-		log.Warningf("Config driver exited normally: %d", waitStatus.ExitStatus())
-	}
-}
-
-func startPythonDriver(configWriter writer.Writer) (<-chan int, error) {
-	err := initializeDriverConfig(
-		configWriter,
-		GlobalSection{
-			LogLevel:       *logLevel,
-			VerifyInterval: *verifyInterval,
-		},
-		BigIPSection{
-			BigIPUsername:   *bigIPUsername,
-			BigIPPassword:   *bigIPPassword,
-			BigIPURL:        *bigIPURL,
-			BigIPPartitions: *bigIPPartitions,
-		},
-	)
-	if nil != err {
-		return nil, err
-	}
-
-	subPidCh := make(chan int)
-	pyCmd := fmt.Sprintf("%s/bigipconfigdriver.py", *pythonBaseDir)
-	cmd := createDriverCmd(
-		configWriter.GetOutputFilename(),
-		pyCmd,
-	)
-	go runBigIPDriver(subPidCh, cmd)
-
-	return subPidCh, nil
-}
-
 func verifyArgs() error {
 	*logLevel = strings.ToUpper(*logLevel)
 	logErr := initLogger(*logLevel)
@@ -410,7 +293,18 @@ func main() {
 	virtualServer.SetUseNodeInternal(*useNodeInternal)
 	virtualServer.SetNamespace(*namespace)
 
-	subPidCh, err := startPythonDriver(configWriter)
+	gs := globalSection{
+		LogLevel:       *logLevel,
+		VerifyInterval: *verifyInterval,
+	}
+	bs := bigIPSection{
+		BigIPUsername:   *bigIPUsername,
+		BigIPPassword:   *bigIPPassword,
+		BigIPURL:        *bigIPURL,
+		BigIPPartitions: *bigIPPartitions,
+	}
+
+	subPidCh, err := startPythonDriver(configWriter, gs, bs, *pythonBaseDir)
 	if nil != err {
 		log.Fatalf("Could not initialize subprocess configuration: %v", err)
 	}
@@ -442,10 +336,6 @@ func main() {
 	kubeClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Fatalf("error connecting to the client: %v", err)
-	}
-
-	if err != nil {
-		log.Fatalf("failed to create client: %v", err)
 	}
 
 	if isNodePort || 0 != len(openshiftSDNMode) {

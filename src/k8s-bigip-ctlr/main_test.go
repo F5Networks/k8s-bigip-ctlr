@@ -28,35 +28,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/kubernetes/fake"
 )
 
 type MockOut struct{}
 
 func (mo MockOut) Write(p []byte) (n int, err error) {
 	return
-}
-
-func resetFlags() {
-	pythonBaseDir = new(string)
-	logLevel = new(string)
-	verifyInterval = new(int)
-
-	namespace = new(string)
-	useNodeInternal = new(bool)
-	poolMemberType = new(string)
-	inCluster = new(bool)
-	kubeConfig = new(string)
-
-	bigIPURL = new(string)
-	bigIPUsername = new(string)
-	bigIPPassword = new(string)
-	bigIPPartitions = &[]string{}
-
-	openshiftSDNMode = ""
-	openshiftSDNName = new(string)
-
-	// package variables
-	isNodePort = false
 }
 
 func TestConfigSetup(t *testing.T) {
@@ -108,6 +86,42 @@ func TestConfigSetup(t *testing.T) {
 	configWriter.Unlock()
 
 	assert.EqualValues(t, expected, actual)
+
+	// test error states
+	configWriter = &test.MockWriter{
+		FailStyle: test.ImmediateFail,
+		Sections:  make(map[string]interface{}),
+	}
+	err = initializeDriverConfig(
+		configWriter,
+		expected.Global,
+		expected.BigIP,
+	)
+	assert.Error(t, err)
+
+	configWriter = &test.MockWriter{
+		FailStyle: test.AsyncFail,
+		Sections:  make(map[string]interface{}),
+	}
+	err = initializeDriverConfig(
+		configWriter,
+		expected.Global,
+		expected.BigIP,
+	)
+	assert.Error(t, err)
+	// This will not error out but does print to the logs so verify the correct
+	// number of calls we expect to the writer
+	configWriter = &test.MockWriter{
+		FailStyle: test.Timeout,
+		Sections:  make(map[string]interface{}),
+	}
+	err = initializeDriverConfig(
+		configWriter,
+		expected.Global,
+		expected.BigIP,
+	)
+	assert.NoError(t, err)
+	assert.EqualValues(t, 2, configWriter.WrittenTimes)
 }
 
 func TestDriverCmd(t *testing.T) {
@@ -241,6 +255,7 @@ func TestDriverSubProcess(t *testing.T) {
 }
 
 func TestVerifyArgs(t *testing.T) {
+	defer _init()
 	os.Args = []string{
 		"./bin/k8s-bigip-ctlr",
 		"--namespace=testing",
@@ -294,9 +309,161 @@ func TestVerifyArgs(t *testing.T) {
 	argError = verifyArgs()
 	assert.Error(t, argError, "Argument bigIPPartitions is required, and should not allow an empty string")
 	*bigIPPartitions = holder
+
+	os.Args = []string{
+		"./bin/k8s-bigip-ctlr",
+		"--namespace=testing",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+		"--pool-member-type=cluster",
+	}
+
+	flags.Parse(os.Args)
+	argError = verifyArgs()
+	assert.NoError(t, argError)
+	assert.Equal(t, false, isNodePort)
+
+	os.Args = []string{
+		"./bin/k8s-bigip-ctlr",
+		"--namespace=testing",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+		"--pool-member-type=invalid",
+	}
+
+	flags.Parse(os.Args)
+	argError = verifyArgs()
+	assert.Error(t, argError)
+	assert.Equal(t, false, isNodePort)
+}
+
+func TestVerifyArgsSDN(t *testing.T) {
+	defer _init()
+	os.Args = []string{
+		"./bin/k8s-bigip-ctlr",
+		"--namespace=testing",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+		"--pool-member-type=cluster",
+		"--openshift-sdn-name=vxlan500",
+	}
+
+	flags.Parse(os.Args)
+	err := verifyArgs()
+	assert.NoError(t, err)
+
+	*openshiftSDNName = ""
+	err = verifyArgs()
+	assert.Error(t, err)
+}
+
+func TestNodePollerSetup(t *testing.T) {
+	defer _init()
+	os.Args = []string{
+		"./bin/k8s-bigip-ctlr",
+		"--namespace=testing",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+		"--pool-member-type=nodeport",
+	}
+
+	flags.Parse(os.Args)
+	err := verifyArgs()
+	assert.NoError(t, err)
+
+	fake := fake.NewSimpleClientset()
+	require.NotNil(t, fake, "Mock client cannot be nil")
+
+	configWriter := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	require.NotNil(t, configWriter, "Mock writer cannot be nil")
+
+	nodePoller := &test.MockPoller{
+		FailStyle: test.Success,
+	}
+	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
+
+	err = setupNodePolling(fake, configWriter, nodePoller)
+	assert.NoError(t, err)
+
+	nodePoller = &test.MockPoller{
+		FailStyle: test.ImmediateFail,
+	}
+	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
+
+	err = setupNodePolling(fake, configWriter, nodePoller)
+	assert.Error(t, err)
+}
+
+func TestNodePollerSetupCluster(t *testing.T) {
+	defer _init()
+	os.Args = []string{
+		"./bin/k8s-bigip-ctlr",
+		"--namespace=testing",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+		"--pool-member-type=cluster",
+		"--openshift-sdn-name=vxlan500",
+	}
+
+	flags.Parse(os.Args)
+	err := verifyArgs()
+	assert.NoError(t, err)
+
+	fake := fake.NewSimpleClientset()
+	require.NotNil(t, fake, "Mock client cannot be nil")
+
+	configWriter := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	require.NotNil(t, configWriter, "Mock writer cannot be nil")
+	// Success case
+	nodePoller := &test.MockPoller{
+		FailStyle: test.Success,
+	}
+	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
+
+	err = setupNodePolling(fake, configWriter, nodePoller)
+	assert.NoError(t, err)
+	// Fail case from config writer
+	nodePoller = &test.MockPoller{
+		FailStyle: test.ImmediateFail,
+	}
+	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
+
+	err = setupNodePolling(fake, configWriter, nodePoller)
+	assert.Error(t, err)
+	// Fail case from NewOpenshiftSDNMgr
+	*openshiftSDNName = ""
+	nodePoller = &test.MockPoller{
+		FailStyle: test.Success,
+	}
+	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
+
+	err = setupNodePolling(fake, configWriter, nodePoller)
+	assert.Error(t, err)
 }
 
 func TestOpenshiftSDNFlags(t *testing.T) {
+	defer _init()
 	os.Args = []string{
 		"./bin/k8s-bigip-ctlr",
 		"--namespace=testing",
@@ -338,7 +505,7 @@ func TestOpenshiftSDNFlags(t *testing.T) {
 }
 
 func TestOpenshiftSDNFlagEmpty(t *testing.T) {
-	resetFlags()
+	defer _init()
 	os.Args = []string{
 		"./bin/k8s-bigip-ctlr",
 		"--namespace=testing",

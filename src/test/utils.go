@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"tools/pollers"
 )
 
 const (
@@ -73,4 +75,26 @@ func (mw *MockWriter) SendSection(
 	}
 
 	return doneCh, errCh, nil
+}
+
+type MockPoller struct {
+	FailStyle int
+}
+
+func (mp *MockPoller) Run() error {
+	return nil
+}
+
+func (mp *MockPoller) Stop() error {
+	return nil
+}
+
+func (mp *MockPoller) RegisterListener(p pollers.PollListener) error {
+	switch mp.FailStyle {
+	case ImmediateFail:
+		return fmt.Errorf("immediate test error")
+	case Success:
+		return nil
+	}
+	return nil
 }

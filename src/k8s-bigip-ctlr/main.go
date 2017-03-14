@@ -86,7 +86,7 @@ var (
 	isNodePort bool
 )
 
-func init() {
+func _init() {
 	flags = pflag.NewFlagSet("main", pflag.ContinueOnError)
 	globalFlags = pflag.NewFlagSet("Global", pflag.ContinueOnError)
 	bigIPFlags = pflag.NewFlagSet("BigIP", pflag.ContinueOnError)
@@ -181,6 +181,11 @@ func initLogger(logLevel string) error {
 	return nil
 }
 
+// this is to allow for unit testing
+func init() {
+	_init()
+}
+
 func verifyArgs() error {
 	*logLevel = strings.ToUpper(*logLevel)
 	logErr := initLogger(*logLevel)
@@ -234,16 +239,14 @@ func verifyArgs() error {
 func setupNodePolling(
 	kubeClient kubernetes.Interface,
 	configWriter writer.Writer,
-) (pollers.Poller, error) {
-	intervalFactor := time.Duration(*nodePollInterval)
-	np := pollers.NewNodePoller(kubeClient, intervalFactor*time.Second)
+	np pollers.Poller,
+) error {
 
 	if isNodePort {
 		err := np.RegisterListener(virtualServer.ProcessNodeUpdate)
 		if nil != err {
-			return nil,
-				fmt.Errorf("error registering node update listener for nodeport mode: %v",
-					err)
+			return fmt.Errorf("error registering node update listener for nodeport mode: %v",
+				err)
 		}
 	}
 
@@ -255,18 +258,17 @@ func setupNodePolling(
 			configWriter,
 		)
 		if nil != err {
-			return nil, fmt.Errorf("error creating openshift sdn manager: %v", err)
+			return fmt.Errorf("error creating openshift sdn manager: %v", err)
 		}
 
 		err = np.RegisterListener(osMgr.ProcessNodeUpdate)
 		if nil != err {
-			return nil,
-				fmt.Errorf("error registering node update listener for openshift mode: %v",
-					err)
+			return fmt.Errorf("error registering node update listener for openshift mode: %v",
+				err)
 		}
 	}
 
-	return np, nil
+	return nil
 }
 
 func main() {
@@ -340,14 +342,16 @@ func main() {
 	}
 
 	if isNodePort || 0 != len(openshiftSDNMode) {
-		poller, err := setupNodePolling(kubeClient, configWriter)
+		intervalFactor := time.Duration(*nodePollInterval)
+		np := pollers.NewNodePoller(kubeClient, intervalFactor*time.Second)
+		err := setupNodePolling(kubeClient, configWriter, np)
 		if nil != err {
 			log.Fatalf("Required polling utility for node updates failed setup: %v",
 				err)
 		}
 
-		poller.Run()
-		defer poller.Stop()
+		np.Run()
+		defer np.Stop()
 	}
 
 	eh := virtualServer.NewEventHandler(kubeClient, isNodePort)

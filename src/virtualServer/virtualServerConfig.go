@@ -50,7 +50,6 @@ type healthMonitor struct {
 type virtualServerBackend struct {
 	ServiceName     string          `json:"serviceName"`
 	ServicePort     int32           `json:"servicePort"`
-	PoolMemberPort  int32           `json:"poolMemberPort"`
 	PoolMemberAddrs []string        `json:"poolMemberAddrs"`
 	HealthMonitors  []healthMonitor `json:"healthMonitors,omitempty"`
 }
@@ -99,8 +98,14 @@ type virtualServerFrontend struct {
 	IAppVariables       map[string]string         `json:"iappVariables,omitempty"`
 }
 
+type metaData struct {
+	Active   bool
+	NodePort int32
+}
+
 // main virtual server configuration
 type VirtualServerConfig struct {
+	MetaData      metaData `json:"-"`
 	VirtualServer struct {
 		Backend  virtualServerBackend  `json:"backend"`
 		Frontend virtualServerFrontend `json:"frontend"`

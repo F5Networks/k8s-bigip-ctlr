@@ -5,6 +5,7 @@ F5 Kubernetes BIG-IP Controller
     :hidden:
     :maxdepth: 2
 
+    RELEASE-NOTES
 
 F5 Kubernetes BIG-IP Controller manages F5 BIG-IP `Local Traffic Manager <https://f5.com/products/big-ip/local-traffic-manager-ltm>`_ (LTM) objects from `Kubernetes`_.
 
@@ -36,8 +37,8 @@ When it discovers changes, the F5 Kubernetes BIG-IP Controller modifies the BIG-
 For example:
 
 #. F5 Kubernetes BIG-IP Controller discovers a new F5 ``virtualServer`` resource.
-#. F5 Kubernetes BIG-IP Controller creates a new virtual server object on the BIG-IP; [#objectpartition]_
-#. F5 Kubernetes BIG-IP Controller creates a pool member on the virtual server for each node in the cluster; [#nodeport]_
+#. F5 Kubernetes BIG-IP Controller creates a new virtual server object on the BIG-IP. [#objectpartition]_
+#. F5 Kubernetes BIG-IP Controller creates a pool member on the virtual server for each node in the cluster. [#nodeport]_
 #. F5 Kubernetes BIG-IP Controller monitors F5 resources, and linked Kubernetes resources, for changes.
 #. F5 Kubernetes BIG-IP Controller reconfigures the BIG-IP when it discovers changes.
 
@@ -276,7 +277,7 @@ Example Configuration Files
 - `example-advanced-vs-resource-iapp.json <./_static/config_examples/example-advanced-vs-resource-iapp.json>`_
 
 
-.. [#objectpartition]  The F5 Kubernetes BIG-IP Controller creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap.
+.. [#objectpartition]  The F5 Kubernetes BIG-IP Controller creates and manages objects in the BIG-IP partition defined in the `F5 resource </containers/v1/kubernetes/index.html#f5-resource-properties>`_ ConfigMap.
 .. [#nodeport]  The F5 Kubernetes BIG-IP Controller forwards traffic to the NodePort assigned to the service by Kubernetes; see the Kubernetes `Services <http://kubernetes.io/docs/user-guide/services/>`_ documentation for more information.
 .. [#secrets]  You can store sensitive information as a `Kubernetes Secret <http://kubernetes.io/docs/user-guide/secrets/>`_. See the `user documentation <#>`_ for instructions.
 

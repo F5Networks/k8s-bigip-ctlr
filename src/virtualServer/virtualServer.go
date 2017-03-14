@@ -169,6 +169,20 @@ func getEndpointsForService(
 	return ipPorts
 }
 
+func getEndpointsForNodePort(nodePort int32) []string {
+	port := strconv.Itoa(int(nodePort))
+	nodes := getNodesFromCache()
+	for i, v := range nodes {
+		var b bytes.Buffer
+		b.WriteString(v)
+		b.WriteRune(':')
+		b.WriteString(port)
+		nodes[i] = b.String()
+	}
+
+	return nodes
+}
+
 // Process a change in Service state
 func processService(
 	kubeClient kubernetes.Interface,
@@ -219,9 +233,9 @@ func processService(
 						if svc.Spec.Type == v1.ServiceTypeNodePort {
 							log.Debugf("Service backend matched %+v: using node port %v",
 								serviceKey{serviceName, portSpec.Port, namespace}, portSpec.NodePort)
-
-							vs.VirtualServer.Backend.PoolMemberPort = portSpec.NodePort
-							vs.VirtualServer.Backend.PoolMemberAddrs = getNodesFromCache()
+							vs.MetaData.Active = true
+							vs.MetaData.NodePort = portSpec.NodePort
+							vs.VirtualServer.Backend.PoolMemberAddrs = getEndpointsForNodePort(portSpec.NodePort)
 							updateConfig = true
 						}
 					} else {
@@ -233,8 +247,8 @@ func processService(
 							log.Debugf("Found endpoints for backend %+v: %v",
 								serviceKey{serviceName, portSpec.Port, namespace}, ipPorts)
 
-							vs.VirtualServer.Backend.PoolMemberPort,
-								vs.VirtualServer.Backend.PoolMemberAddrs = 0, ipPorts
+							vs.MetaData.Active = true
+							vs.VirtualServer.Backend.PoolMemberAddrs = ipPorts
 							updateConfig = true
 						} else {
 							log.Debugf("No endpoints for backend %+v: %v",
@@ -242,7 +256,7 @@ func processService(
 						}
 					}
 				case eventStream.Deleted:
-					vs.VirtualServer.Backend.PoolMemberPort = -1
+					vs.MetaData.Active = false
 					vs.VirtualServer.Backend.PoolMemberAddrs = nil
 					updateConfig = true
 				}
@@ -252,7 +266,7 @@ func processService(
 	for p, _ := range rmvdPortsMap {
 		if vsMap, ok := virtualServers.GetAll(serviceKey{serviceName, p, namespace}); ok {
 			for _, vs := range vsMap {
-				vs.VirtualServer.Backend.PoolMemberPort = -1
+				vs.MetaData.Active = false
 				vs.VirtualServer.Backend.PoolMemberAddrs = nil
 				updateConfig = true
 			}
@@ -323,8 +337,9 @@ func processConfigMap(
 							log.Debugf("Service backend matched %+v: using node port %v",
 								serviceKey{serviceName, portSpec.Port, namespace}, portSpec.NodePort)
 
-							cfg.VirtualServer.Backend.PoolMemberPort = portSpec.NodePort
-							cfg.VirtualServer.Backend.PoolMemberAddrs = getNodesFromCache()
+							cfg.MetaData.Active = true
+							cfg.MetaData.NodePort = portSpec.NodePort
+							cfg.VirtualServer.Backend.PoolMemberAddrs = getEndpointsForNodePort(portSpec.NodePort)
 						}
 					}
 				}
@@ -339,8 +354,8 @@ func processConfigMap(
 							log.Debugf("Found endpoints for backend %+v: %v",
 								serviceKey{serviceName, portSpec.Port, namespace}, ipPorts)
 
-							cfg.VirtualServer.Backend.PoolMemberPort,
-								cfg.VirtualServer.Backend.PoolMemberAddrs = 0, ipPorts
+							cfg.MetaData.Active = true
+							cfg.VirtualServer.Backend.PoolMemberAddrs = ipPorts
 						}
 					}
 				} else {
@@ -442,13 +457,11 @@ func processEndpoints(
 							serviceKey{serviceName, portSpec.Port, namespace},
 							vs.VirtualServer.Backend.PoolMemberAddrs, ipPorts)
 
-						vs.VirtualServer.Backend.PoolMemberPort,
-							vs.VirtualServer.Backend.PoolMemberAddrs = 0, ipPorts
+						vs.VirtualServer.Backend.PoolMemberAddrs = ipPorts
 						updateConfig = true
 					}
 				case eventStream.Deleted:
 					vs.VirtualServer.Backend.PoolMemberAddrs = nil
-					vs.VirtualServer.Backend.PoolMemberPort = -1
 					updateConfig = true
 				}
 			}
@@ -480,7 +493,16 @@ func ProcessNodeUpdate(obj interface{}, err error) {
 	if !reflect.DeepEqual(newNodes, oldNodes) {
 		log.Infof("ProcessNodeUpdate: Change in Node state detected")
 		virtualServers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
-			cfg.VirtualServer.Backend.PoolMemberAddrs = newNodes
+			port := strconv.Itoa(int(cfg.MetaData.NodePort))
+			var newAddrPorts []string
+			for _, node := range newNodes {
+				var b bytes.Buffer
+				b.WriteString(node)
+				b.WriteRune(':')
+				b.WriteString(port)
+				newAddrPorts = append(newAddrPorts, b.String())
+			}
+			cfg.VirtualServer.Backend.PoolMemberAddrs = newAddrPorts
 		})
 		// Output the Big-IP config
 		outputConfigLocked()
@@ -509,7 +531,7 @@ func outputConfigLocked() {
 
 	// Filter the configs to only those that have active services
 	virtualServers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
-		if cfg.VirtualServer.Backend.PoolMemberPort != -1 {
+		if cfg.MetaData.Active == true {
 			services = append(services, cfg)
 		}
 	})
@@ -541,7 +563,8 @@ func outputConfigLocked() {
 func getNodesFromCache() []string {
 	mutex.Lock()
 	defer mutex.Unlock()
-	nodes := oldNodes
+	nodes := make([]string, len(oldNodes))
+	copy(nodes, oldNodes)
 
 	return nodes
 }

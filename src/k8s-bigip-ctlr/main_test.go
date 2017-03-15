@@ -66,12 +66,12 @@ func TestConfigSetup(t *testing.T) {
 	}
 
 	type ConfigTest struct {
-		Global GlobalSection `json:"global"`
-		BigIP  BigIPSection  `json:"bigip"`
+		Global globalSection `json:"global"`
+		BigIP  bigIPSection  `json:"bigip"`
 	}
 
 	expected := ConfigTest{
-		BigIP: BigIPSection{
+		BigIP: bigIPSection{
 			BigIPUsername: "colonel atari",
 			BigIPPassword: "dexter",
 			BigIPURL:      "https://bigip.example.com",
@@ -81,7 +81,7 @@ func TestConfigSetup(t *testing.T) {
 				"marathon",
 			},
 		},
-		Global: GlobalSection{
+		Global: globalSection{
 			LogLevel:       "WARNING",
 			VerifyInterval: 10101,
 		},
@@ -102,8 +102,8 @@ func TestConfigSetup(t *testing.T) {
 	assert.Contains(t, configWriter.Sections, "global")
 
 	actual := ConfigTest{
-		configWriter.Sections["global"].(GlobalSection),
-		configWriter.Sections["bigip"].(BigIPSection),
+		configWriter.Sections["global"].(globalSection),
+		configWriter.Sections["bigip"].(bigIPSection),
 	}
 	configWriter.Unlock()
 
@@ -143,12 +143,12 @@ func TestDriverSubProcess(t *testing.T) {
 	}
 
 	type ConfigTest struct {
-		Global GlobalSection `json:"global"`
-		BigIP  BigIPSection  `json:"bigip"`
+		Global globalSection `json:"global"`
+		BigIP  bigIPSection  `json:"bigip"`
 	}
 
 	expected := ConfigTest{
-		BigIP: BigIPSection{
+		BigIP: bigIPSection{
 			BigIPUsername: "admin",
 			BigIPPassword: "test",
 			BigIPURL:      "https://bigip.example.com",
@@ -157,7 +157,7 @@ func TestDriverSubProcess(t *testing.T) {
 				"velcro2",
 			},
 		},
-		Global: GlobalSection{
+		Global: globalSection{
 			LogLevel:       "INFO",
 			VerifyInterval: 30,
 		},
@@ -175,8 +175,8 @@ func TestDriverSubProcess(t *testing.T) {
 	assert.Contains(t, configWriter.Sections, "global")
 
 	actual := ConfigTest{
-		configWriter.Sections["global"].(GlobalSection),
-		configWriter.Sections["bigip"].(BigIPSection),
+		configWriter.Sections["global"].(globalSection),
+		configWriter.Sections["bigip"].(bigIPSection),
 	}
 	configWriter.Unlock()
 
@@ -207,12 +207,12 @@ func TestDriverSubProcess(t *testing.T) {
 
 	go func() {
 		count := 0
-		var testErr error = nil
+		var testErr error
 	forever:
 		for {
-			count += 1
+			count++
 			cmd := exec.Command("bash", []string{"test/testPyTest.sh"}...)
-			err := cmd.Start()
+			err = cmd.Start()
 			if err != nil {
 				testErr = errors.New("Should not error starting bash command")
 				break forever

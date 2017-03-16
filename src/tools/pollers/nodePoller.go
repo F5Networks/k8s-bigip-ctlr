@@ -23,9 +23,8 @@ import (
 
 	log "f5/vlogger"
 
-	"k8s.io/client-go/1.4/kubernetes"
-	"k8s.io/client-go/1.4/pkg/api"
-	"k8s.io/client-go/1.4/pkg/api/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/pkg/api/v1"
 )
 
 type pollData struct {
@@ -171,7 +170,7 @@ func (np *nodePoller) poller() {
 
 		if true == doPoll {
 			doPoll = false
-			nodes, err := np.kubeClient.Core().Nodes().List(api.ListOptions{})
+			nodes, err := np.kubeClient.Core().Nodes().List(v1.ListOptions{})
 			np.nodeCache = nodes.Items
 			np.lastError = err
 

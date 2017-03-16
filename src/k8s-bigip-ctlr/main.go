@@ -25,7 +25,6 @@ import (
 	"syscall"
 	"time"
 
-	"eventStream"
 	"openshift"
 	"tools/pollers"
 	"tools/writer"
@@ -36,10 +35,12 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"k8s.io/client-go/1.4/kubernetes"
-	"k8s.io/client-go/1.4/pkg/labels"
-	"k8s.io/client-go/1.4/rest"
-	"k8s.io/client-go/1.4/tools/clientcmd"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/labels"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 type globalSection struct {
@@ -349,54 +350,72 @@ func main() {
 		defer poller.Stop()
 	}
 
-	var endptEventStore *eventStream.EventStore
-
-	onServiceChange := func(changeType eventStream.ChangeType, obj interface{}) {
-		virtualServer.ProcessServiceUpdate(kubeClient, changeType, obj, isNodePort, endptEventStore)
-	}
-	serviceEventStream := eventStream.NewServiceEventStream(
-		kubeClient.Core(),
+	eh := virtualServer.NewEventHandler(kubeClient, isNodePort)
+	svcWatcher := newListWatchWithLabelSelector(
+		kubeClient.Core().RESTClient(),
+		"services",
 		*namespace,
+		labels.Everything(),
+	)
+	s, services := cache.NewInformer(
+		svcWatcher,
+		&v1.Service{},
 		5*time.Second,
-		onServiceChange,
-		nil,
-		nil)
-	serviceEventStream.Run()
-	defer serviceEventStream.Stop()
+		eh,
+	)
+	eh.SetStore(virtualServer.Services, s)
 
-	onConfigMapChange := func(changeType eventStream.ChangeType, obj interface{}) {
-		virtualServer.ProcessConfigMapUpdate(kubeClient, changeType, obj, isNodePort, endptEventStore)
-	}
 	f5ConfigMapSelector, err := labels.Parse("f5type in (virtual-server)")
 	if err != nil {
 		log.Warningf("failed to parse Label Selector string - controller will not filter for F5 specific objects - label: f5type : virtual-server, err %v", err)
 		f5ConfigMapSelector = nil
 	}
-	configMapEventStream := eventStream.NewConfigMapEventStream(
-		kubeClient.Core(),
+	cmWatcher := newListWatchWithLabelSelector(
+		kubeClient.Core().RESTClient(),
+		"configmaps",
 		*namespace,
-		5*time.Second,
-		onConfigMapChange,
 		f5ConfigMapSelector,
-		nil)
-	if !isNodePort {
-		onEpChange := func(changeType eventStream.ChangeType, obj interface{}) {
-			virtualServer.ProcessEndpointsUpdate(kubeClient, changeType, obj, serviceEventStream.Store())
-		}
-		endptEventStream := eventStream.NewEndpointsEventStream(
-			kubeClient.Core(),
-			*namespace,
-			5*time.Second,
-			onEpChange,
-			nil,
-			nil)
-		endptEventStore = endptEventStream.Store()
-		endptEventStream.Run()
-		defer endptEventStream.Stop()
-	}
+	)
+	s, configmaps := cache.NewInformer(
+		cmWatcher,
+		&v1.ConfigMap{},
+		5*time.Second,
+		eh,
+	)
+	eh.SetStore(virtualServer.Configmaps, s)
 
-	configMapEventStream.Run()
-	defer configMapEventStream.Stop()
+	if !isNodePort {
+		endptWatcher := newListWatchWithLabelSelector(
+			kubeClient.Core().RESTClient(),
+			"endpoints",
+			*namespace,
+			labels.Everything(),
+		)
+
+		s, endpoints := cache.NewInformer(
+			endptWatcher,
+			&v1.Endpoints{},
+			5*time.Second,
+			eh,
+		)
+		eh.SetStore(virtualServer.Endpoints, s)
+
+		stopEndpoints := make(chan struct{})
+		go endpoints.Run(stopEndpoints)
+		defer func() {
+			stopEndpoints <- struct{}{}
+		}()
+	}
+	stopServices := make(chan struct{})
+	go services.Run(stopServices)
+	defer func() {
+		stopServices <- struct{}{}
+	}()
+	stopConfigmaps := make(chan struct{})
+	go configmaps.Run(stopConfigmaps)
+	defer func() {
+		stopConfigmaps <- struct{}{}
+	}()
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)

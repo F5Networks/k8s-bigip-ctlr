@@ -25,20 +25,22 @@ before_script:
 
 stages:
   - sanity
-  - test
   - build
   - deploy
 
 build docs:
   image: docker-registry.pdbld.f5net.com/tools/containthedocs:master
   script:
+    - cp ATTRIBUTIONS.md docs/
     - ./build-tools/test-docs.sh
   tags:
     - docker
-  stage: sanity
+  stage: build
   artifacts:
     paths:
       - docs/_build/html
+  dependencies:
+    - attributions generator
 
 python utility unit test:
   image: "python:2.7"
@@ -122,7 +124,7 @@ dockerize:
 
 attributions generator:
   image: docker-registry.pdbld.f5net.com/velcro/attributions-generator:master
-  stage: deploy
+  stage: sanity
   script:
     - /usr/local/bin/run-backends.sh $PWD
     - node /frontEnd/frontEnd.js $PWD

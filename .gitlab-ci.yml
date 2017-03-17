@@ -78,7 +78,7 @@ debug build and unit test:
     - git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git $GOPATH/src/github.com/constabulary/gb
     - git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
     - go install -v github.com/constabulary/gb/...
-    - go get -v github.com/wadey/gocovmerge/...
+    - go get -v github.com/wadey/gocovmerge
     - make debug
   artifacts:
     paths:
@@ -95,7 +95,7 @@ sanity verification:
     - git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git $GOPATH/src/github.com/constabulary/gb
     - git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
     - go install -v github.com/constabulary/gb/...
-    - go get -v github.com/wadey/gocovmerge/...
+    - go get -v github.com/wadey/gocovmerge
     - make verify
 
 # Create the docker container and upload it to the internal docker registry with the tags

@@ -22,7 +22,7 @@ generate_cover_data() {
     NUM_COVERAGE_FILES=`find . -name "*.cover" | wc -l`
     if [ 0 -eq $NUM_COVERAGE_FILES ]; then
 	echo "No coverage analysis performed."
-	exit 0
+	exit 1
     fi
     # Merge all .cover files into one. The tool will handle overlaps correctly
     gocovmerge $(find . -name \*.cover) > $profile

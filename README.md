@@ -71,6 +71,7 @@ git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git \
   $GOPATH/src/github.com/constabulary/gb
 git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
 go install -v github.com/constabulary/gb/...
+go get -v github.com/wadey/gocovmerge
 
 # Install python requirements using sudo or create a virtualenv workspace.
 pip install -r python/*-requirements.txt

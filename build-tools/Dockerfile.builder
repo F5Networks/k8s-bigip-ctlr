@@ -22,6 +22,7 @@ RUN apk add --no-cache \
 	git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git $GOPATH/src/github.com/constabulary/gb && \
 	git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134 && \
 	go install github.com/constabulary/gb/... && \
+	go get github.com/wadey/gocovmerge && \
 	chmod 755 /entrypoint.sh
 
 ENTRYPOINT [ "/entrypoint.sh" ]

@@ -12,30 +12,22 @@ profile="coverage.out"
 mode=count
 coverage=0
 
-do_sum() {
-  out=$1
-
-  cur=$(echo $out | sed -e 's/^ok.*coverage:\s*//' -e 's/%.*$//')
-  coverage=$(echo "$coverage $cur" | awk '{ SUM = $1 + $2 } END { print SUM }')
-}
-
 generate_cover_data() {
     for pkg in "$@"; do
+        # This will generate a .cover file for each package
         f="$(echo $pkg | tr / -).cover"
-        out=$(env GOPATH=$PROJECT:$PROJECT/vendor go test -covermode="$mode" -coverprofile="$f" "$pkg")
-        echo $out
-        echo $out | grep -q "no test files" || do_sum "$out"
+        env GOPATH=$PROJECT:$PROJECT/vendor go test -covermode="$mode" -coverprofile="$f" "$pkg"
     done
 
-    echo "mode: $mode" > "$profile"
     NUM_COVERAGE_FILES=`find . -name "*.cover" | wc -l`
     if [ 0 -eq $NUM_COVERAGE_FILES ]; then
 	echo "No coverage analysis performed."
-	exit 0
+	exit 1
     fi
-    coverage_mean=$(echo "$coverage $NUM_COVERAGE_FILES" | awk '{ MEAN = $1 / $2 } END { printf "%.2f", MEAN }')
-    echo "mean coverage: ${coverage_mean}% of statements"
-    grep -h -v "^mode:" *.cover >> "$profile"
+    # Merge all .cover files into one. The tool will handle overlaps correctly
+    gocovmerge $(find . -name \*.cover) > $profile
+    # Generate the total coverage % and also the detailed html
+    env GOPATH=$PROJECT:$PROJECT/vendor go tool cover -func="$profile" | grep "^total:" | awk 'END { print "Total coverage:", $3, "of statements" }'
     env GOPATH=$PROJECT:$PROJECT/vendor go tool cover -html="$profile" -o coverage.html
     rm -f *.cover
 }

@@ -87,12 +87,12 @@ release = u'v1.1.0-dev'
 # Substitutions
 rst_epilog = '''
 .. |url-version| replace:: %(url_version)s
-.. |release_notes| raw:: html
+.. |release-notes| raw:: html
 
     <a href="http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/%(url_version)s/RELEASE-NOTES.html">Release Notes</a>
 .. |attributions| raw:: html
 
-    <a href="http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/%(url_version)s/ATTRIBUTIONS.html">ATTRIBUTIONS</a>
+    <a href="http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/%(url_version)s/ATTRIBUTIONS.html">Attributions</a>
 ''' % {
     'url_version': version
 }
@@ -127,7 +127,7 @@ exclude_patterns = [
      '*.swp',
      '*.swx',
      '*~',
-    'README'
+    'README.rst'
      ]
 
 # The reST default role (used for this markup: `text`) to use for all

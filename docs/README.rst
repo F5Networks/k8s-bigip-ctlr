@@ -164,6 +164,9 @@ virtualServer
 |   |               |           |           |           | Example: 'Common/testcert'    |                           |
 +---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 
+If ``bindAddr`` is not provided in the Frontend configuration, then you must supply it via a `Kubernetes Annotation`_ for the ConfigMap. The controller watches for the annotation key ``virtual-server.f5.com/ip``.
+This annotation must contain the IP address that the virtual server will use. You can configure an IPAM system to write out this annotation containing the IP address that it chose.
+
 iApps
 ~~~~~
 
@@ -290,6 +293,7 @@ Example Configuration Files
 
 .. _Kubernetes: https://kubernetes.io/
 .. _Kubernetes Service: https://kubernetes.io/docs/user-guide/services/
+.. _Kubernetes Annotation: https://kubernetes.io/docs/user-guide/annotations/
 .. _Kubernetes clusters: https://kubernetes.io/docs/admin/
 .. _NodePorts: https://kubernetes.io/docs/user-guide/services/#type-nodeport
 .. _ClusterIPs: https://kubernetes.io/docs/user-guide/services/#publishing-services---service-types

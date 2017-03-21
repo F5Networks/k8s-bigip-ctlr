@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync"
 
+	log "f5/vlogger"
 	"github.com/xeipuuv/gojsonschema"
 	"k8s.io/client-go/pkg/api/v1"
 )
@@ -290,7 +291,26 @@ func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 				return &cfg, err
 			}
 
-			if !result.Valid() {
+			if result.Valid() {
+				// Checking for annotation in VS, not iApp
+				if cfg.VirtualServer.Frontend.IApp == "" {
+					// Precedence to configmap bindAddr if annotation is also set
+					if cfg.VirtualServer.Frontend.VirtualAddress.BindAddr != "" &&
+						cm.ObjectMeta.Annotations["virtual-server.f5.com/ip"] != "" {
+						log.Warning(
+							"Both configmap bindAddr and virtual-server.f5.com/ip annotation are set. " +
+								"Choosing configmap's bindAddr...")
+					} else if cfg.VirtualServer.Frontend.VirtualAddress.BindAddr == "" {
+						// Check for IP annotation provided by IPAM system
+						if addr, ok := cm.ObjectMeta.Annotations["virtual-server.f5.com/ip"]; ok == true {
+							cfg.VirtualServer.Frontend.VirtualAddress.BindAddr = addr
+						} else {
+							return &cfg, fmt.Errorf(
+								"No virtual IP was specified for the virtual server %s", cm.ObjectMeta.Name)
+						}
+					}
+				}
+			} else {
 				var errors []string
 				for _, desc := range result.Errors() {
 					errors = append(errors, desc.String())

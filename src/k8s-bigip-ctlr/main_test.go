@@ -265,10 +265,11 @@ func TestVerifyArgs(t *testing.T) {
 		"--bigip-url=bigip.example.com",
 		"--bigip-username=admin"}
 
+	nameVar := []string{"testing"}
 	flags.Parse(os.Args)
 	argError := verifyArgs()
 	assert.Nil(t, argError, "there should not be an error")
-	assert.Equal(t, "testing", *namespace, "namespace flag not parsed correctly")
+	assert.Equal(t, nameVar, *namespaces, "namespace flag not parsed correctly")
 	assert.Equal(t, "https://bigip.example.com", *bigIPURL, "bigipUrl flag not parsed correctly")
 	assert.Equal(t, "admin", *bigIPUsername, "bigipUsername flag not parsed correctly")
 	assert.Equal(t, "admin", *bigIPPassword, "bigipPassword flag not parsed correctly")
@@ -288,7 +289,6 @@ func TestVerifyArgs(t *testing.T) {
 
 	// Test empty required args
 	allArgs := map[string]*string{
-		"namespace":     namespace,
 		"bigipUrl":      bigIPURL,
 		"bigipUsername": bigIPUsername,
 		"bigipPassword": bigIPPassword,
@@ -341,6 +341,44 @@ func TestVerifyArgs(t *testing.T) {
 	argError = verifyArgs()
 	assert.Error(t, argError)
 	assert.Equal(t, false, isNodePort)
+}
+
+func TestVerifyArgsLabels(t *testing.T) {
+	defer _init()
+	os.Args = []string{
+		"./bin/k8s-bigip-ctlr",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+		"--pool-member-type=cluster",
+		"--openshift-sdn-name=vxlan500",
+		"--namespace=testing",
+	}
+
+	flags.Parse(os.Args)
+	err := verifyArgs()
+	assert.NoError(t, err)
+	assert.Equal(t, false, watchAllNamespaces)
+
+	// No namespace or label sets watchAllNamespaces to true
+	var ns []string
+	*namespaces = ns
+	err = verifyArgs()
+	assert.NoError(t, err)
+	assert.Equal(t, true, watchAllNamespaces)
+
+	*namespaceLabel = "addLabel"
+	err = verifyArgs()
+	assert.NoError(t, err)
+	assert.Equal(t, false, watchAllNamespaces)
+
+	// Fail case, can only specify a namespace or label, not both
+	ns = []string{"fail"}
+	*namespaces = ns
+	err = verifyArgs()
+	assert.Error(t, err)
 }
 
 func TestVerifyArgsSDN(t *testing.T) {
@@ -534,4 +572,94 @@ func TestOpenshiftSDNFlagEmpty(t *testing.T) {
 	assert.True(t, called)
 
 	assert.Equal(t, 0, len(*openshiftSDNName))
+}
+
+func TestSetupWatchersAllNamespaces(t *testing.T) {
+	defer _init()
+	os.Args = []string{
+		"./bin/k8s-bigip-ctlr",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+	}
+
+	flags.Parse(os.Args)
+	err := verifyArgs()
+	assert.NoError(t, err)
+
+	label := "f5type in (virtual-server)"
+
+	cw := test.CalledWithStruct{"", "configmaps", label}
+
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+
+	setupWatchers(watchManager)
+	assert.Equal(t, 1, watchManager.(*test.MockWatchManager).CallCount)
+	assert.Equal(t, cw, watchManager.(*test.MockWatchManager).CalledWith[0])
+}
+
+func TestSetupWatchersMultipleNamespaces(t *testing.T) {
+	defer _init()
+	os.Args = []string{
+		"./bin/k8s-bigip-ctlr",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+		"--namespace=default",
+		"--namespace=test",
+		"--namespace=test2",
+	}
+
+	flags.Parse(os.Args)
+	err := verifyArgs()
+	assert.NoError(t, err)
+
+	label := "f5type in (virtual-server)"
+
+	var cwholder []test.CalledWithStruct
+	for _, ns := range *namespaces {
+		cwholder = append(cwholder, test.CalledWithStruct{ns, "configmaps", label})
+	}
+
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+
+	setupWatchers(watchManager)
+	assert.Equal(t, 3, watchManager.(*test.MockWatchManager).CallCount)
+
+	for i, cw := range cwholder {
+		assert.Equal(t, cw, watchManager.(*test.MockWatchManager).CalledWith[i])
+	}
+}
+
+func TestSetupWatchersLabels(t *testing.T) {
+	defer _init()
+	os.Args = []string{
+		"./bin/k8s-bigip-ctlr",
+		"--bigip-partition=velcro1",
+		"--bigip-partition=velcro2",
+		"--bigip-password=admin",
+		"--bigip-url=bigip.example.com",
+		"--bigip-username=admin",
+		"--namespace-label=prod",
+	}
+
+	flags.Parse(os.Args)
+	err := verifyArgs()
+	assert.NoError(t, err)
+
+	cw := test.CalledWithStruct{"", "namespaces", *namespaceLabel}
+
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+
+	setupWatchers(watchManager)
+	assert.Equal(t, 1, watchManager.(*test.MockWatchManager).CallCount)
+
+	assert.Equal(t, cw, watchManager.(*test.MockWatchManager).CalledWith[0])
 }

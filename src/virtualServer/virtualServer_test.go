@@ -30,15 +30,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/pkg/api/unversioned"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
 func init() {
-	namespace = "default"
-
 	workingDir, _ := os.Getwd()
 	schemaUrl = "file://" + workingDir + "/../../vendor/src/f5/schemas/bigip-virtual-server_v0.1.3.json"
 }
@@ -122,6 +120,27 @@ var configmapFooTcp string = string(`{
       "virtualAddress": {
         "bindAddr": "10.128.10.240",
         "port": 5051
+      }
+    }
+  }
+}`)
+
+var configmapFooInvalid string = string(`{
+  "virtualServer": {
+    "backend": {
+      "serviceName": "",
+      "servicePort": 0
+    },
+    "frontend": {
+      "balance": "super-duper-mojo",
+      "mode": "udp",
+      "partition": "",
+      "virtualAddress": {
+        "bindAddr": "10.128.10.260",
+        "port": 500000
+      },
+      "sslProfile": {
+        "f5ProfileName": ""
       }
     }
   }
@@ -287,61 +306,6 @@ func generateExpectedAddrs(port int32, ips []string) []string {
 	return ret
 }
 
-func newConfigMap(id, rv, namespace string,
-	keys map[string]string) *v1.ConfigMap {
-	return &v1.ConfigMap{
-		TypeMeta: unversioned.TypeMeta{
-			Kind:       "ConfigMap",
-			APIVersion: "v1",
-		},
-		ObjectMeta: v1.ObjectMeta{
-			Name:            id,
-			ResourceVersion: rv,
-			Namespace:       namespace,
-		},
-		Data: keys,
-	}
-}
-
-func newService(id, rv, namespace string, serviceType v1.ServiceType,
-	portSpecList []v1.ServicePort) *v1.Service {
-	return &v1.Service{
-		TypeMeta: unversioned.TypeMeta{
-			Kind:       "Service",
-			APIVersion: "v1",
-		},
-		ObjectMeta: v1.ObjectMeta{
-			Name:            id,
-			ResourceVersion: rv,
-			Namespace:       namespace,
-		},
-		Spec: v1.ServiceSpec{
-			Type:  serviceType,
-			Ports: portSpecList,
-		},
-	}
-}
-
-func newNode(id, rv string, unsched bool,
-	addresses []v1.NodeAddress) *v1.Node {
-	return &v1.Node{
-		TypeMeta: unversioned.TypeMeta{
-			Kind:       "Node",
-			APIVersion: "v1",
-		},
-		ObjectMeta: v1.ObjectMeta{
-			Name:            id,
-			ResourceVersion: rv,
-		},
-		Spec: v1.NodeSpec{
-			Unschedulable: unsched,
-		},
-		Status: v1.NodeStatus{
-			Addresses: addresses,
-		},
-	}
-}
-
 func convertSvcPortsToEndpointPorts(svcPorts []v1.ServicePort) []v1.EndpointPort {
 	eps := make([]v1.EndpointPort, len(svcPorts))
 	for i, v := range svcPorts {
@@ -349,52 +313,6 @@ func convertSvcPortsToEndpointPorts(svcPorts []v1.ServicePort) []v1.EndpointPort
 		eps[i].Port = v.Port
 	}
 	return eps
-}
-
-func newEndpointAddress(ips []string) []v1.EndpointAddress {
-	eps := make([]v1.EndpointAddress, len(ips))
-	for i, v := range ips {
-		eps[i].IP = v
-	}
-	return eps
-}
-
-func newEndpointPort(portName string, ports []int32) []v1.EndpointPort {
-	epp := make([]v1.EndpointPort, len(ports))
-	for i, v := range ports {
-		epp[i].Name = portName
-		epp[i].Port = v
-	}
-	return epp
-}
-
-func newEndpoints(svcName, rv, namespace string,
-	readyIps, notReadyIps []string, ports []v1.EndpointPort) *v1.Endpoints {
-	ep := &v1.Endpoints{
-		TypeMeta: unversioned.TypeMeta{
-			Kind:       "Endpoints",
-			APIVersion: "v1",
-		},
-		ObjectMeta: v1.ObjectMeta{
-			Name:            svcName,
-			Namespace:       namespace,
-			ResourceVersion: rv,
-		},
-		Subsets: []v1.EndpointSubset{},
-	}
-
-	if 0 < len(readyIps) {
-		ep.Subsets = append(
-			ep.Subsets,
-			v1.EndpointSubset{
-				Addresses:         newEndpointAddress(readyIps),
-				NotReadyAddresses: newEndpointAddress(notReadyIps),
-				Ports:             ports,
-			},
-		)
-	}
-
-	return ep
 }
 
 func newServicePort(name string, svcPort int32) v1.ServicePort {
@@ -405,7 +323,7 @@ func newServicePort(name string, svcPort int32) v1.ServicePort {
 }
 
 // Adapter function to translate Store events to virtualServer calls
-type onChangeFunc func(change changeType, changed changedObject)
+type onChangeFunc func(change changeType, changed ChangedObject)
 
 type mockStore struct {
 	storage  cache.ThreadSafeStore
@@ -413,7 +331,7 @@ type mockStore struct {
 	onChange onChangeFunc
 }
 
-func newStore(onChange onChangeFunc) cache.Store {
+func NewStore(onChange onChangeFunc) cache.Store {
 	return &mockStore{
 		storage:  cache.NewThreadSafeStore(cache.Indexers{}, cache.Indices{}),
 		keyFunc:  cache.MetaNamespaceKeyFunc,
@@ -428,7 +346,7 @@ func (ms *mockStore) Add(obj interface{}) error {
 	}
 	ms.storage.Add(key, obj)
 	if ms.onChange != nil {
-		ms.onChange(added, changedObject{
+		ms.onChange(added, ChangedObject{
 			nil,
 			obj,
 		})
@@ -443,7 +361,7 @@ func (ms *mockStore) Update(obj interface{}) error {
 	oldObj, _ := ms.storage.Get(key)
 	ms.storage.Update(key, obj)
 	if ms.onChange != nil {
-		ms.onChange(updated, changedObject{
+		ms.onChange(updated, ChangedObject{
 			oldObj,
 			obj,
 		})
@@ -457,7 +375,7 @@ func (ms *mockStore) Delete(obj interface{}) error {
 	}
 	ms.storage.Delete(key)
 	if ms.onChange != nil {
-		ms.onChange(deleted, changedObject{
+		ms.onChange(deleted, ChangedObject{
 			obj,
 			nil,
 		})
@@ -479,7 +397,10 @@ func (ms *mockStore) Get(obj interface{}) (item interface{}, exists bool, err er
 }
 func (ms *mockStore) GetByKey(key string) (item interface{}, exists bool, err error) {
 	item, exists = ms.storage.Get(key)
-	return item, exists, nil
+	if exists {
+		return item, exists, nil
+	}
+	return item, exists, errors.New("item does not exist")
 }
 func (ms *mockStore) Replace(list []interface{}, resourceVersion string) error {
 	return errors.New("mock unimplemented")
@@ -536,17 +457,17 @@ func TestVirtualServerSendFailTimeout(t *testing.T) {
 func TestGetAddresses(t *testing.T) {
 	// Existing Node data
 	expectedNodes := []*v1.Node{
-		newNode("node0", "0", true, []v1.NodeAddress{
+		test.NewNode("node0", "0", true, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.0"}}),
-		newNode("node1", "1", false, []v1.NodeAddress{
+		test.NewNode("node1", "1", false, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.1"}}),
-		newNode("node2", "2", false, []v1.NodeAddress{
+		test.NewNode("node2", "2", false, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.2"}}),
-		newNode("node3", "3", false, []v1.NodeAddress{
+		test.NewNode("node3", "3", false, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.3"}}),
-		newNode("node4", "4", false, []v1.NodeAddress{
+		test.NewNode("node4", "4", false, []v1.NodeAddress{
 			{"InternalIP", "127.0.0.4"}}),
-		newNode("node5", "5", false, []v1.NodeAddress{
+		test.NewNode("node5", "5", false, []v1.NodeAddress{
 			{"Hostname", "127.0.0.5"}}),
 	}
 
@@ -647,17 +568,17 @@ func TestProcessNodeUpdate(t *testing.T) {
 	defer virtualServers.Init()
 
 	originalSet := []v1.Node{
-		*newNode("node0", "0", true, []v1.NodeAddress{
+		*test.NewNode("node0", "0", true, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.0"}}),
-		*newNode("node1", "1", false, []v1.NodeAddress{
+		*test.NewNode("node1", "1", false, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.1"}}),
-		*newNode("node2", "2", false, []v1.NodeAddress{
+		*test.NewNode("node2", "2", false, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.2"}}),
-		*newNode("node3", "3", false, []v1.NodeAddress{
+		*test.NewNode("node3", "3", false, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.3"}}),
-		*newNode("node4", "4", false, []v1.NodeAddress{
+		*test.NewNode("node4", "4", false, []v1.NodeAddress{
 			{"InternalIP", "127.0.0.4"}}),
-		*newNode("node5", "5", false, []v1.NodeAddress{
+		*test.NewNode("node5", "5", false, []v1.NodeAddress{
 			{"Hostname", "127.0.0.5"}}),
 	}
 
@@ -704,11 +625,11 @@ func TestProcessNodeUpdate(t *testing.T) {
 		"Cached nodes should be expected set")
 
 	// add some nodes
-	_, err = fake.Core().Nodes().Create(newNode("nodeAdd", "nodeAdd", false,
+	_, err = fake.Core().Nodes().Create(test.NewNode("nodeAdd", "nodeAdd", false,
 		[]v1.NodeAddress{{"ExternalIP", "127.0.0.6"}}))
 	require.Nil(t, err, "Create should not return err")
 
-	_, err = fake.Core().Nodes().Create(newNode("nodeExclude", "nodeExclude",
+	_, err = fake.Core().Nodes().Create(test.NewNode("nodeExclude", "nodeExclude",
 		true, []v1.NodeAddress{{"InternalIP", "127.0.0.7"}}))
 
 	useNodeInternal = false
@@ -780,16 +701,23 @@ func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
 
 	require := require.New(t)
 
-	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
+	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
 
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
 
-	endptStore := newStore(nil)
-	r := processConfigMap(fake, added,
-		changedObject{nil, cfgFoo}, isNodePort, endptStore)
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	defer test.NewMockWatchManager()
+
+	r := processConfigMap(added,
+		ChangedObject{nil, cfgFoo}, isNodePort)
 	require.True(r, "Config map should be processed")
 
 	require.Equal(1, virtualServers.Count())
@@ -800,12 +728,12 @@ func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
 	require.True(ok)
 	require.Equal("http", vs.VirtualServer.Frontend.Mode, "Mode should be http")
 
-	cfgFoo = newConfigMap("foomap", "1", "default", map[string]string{
+	cfgFoo = test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFooTcp})
 
-	r = processConfigMap(fake, added,
-		changedObject{nil, cfgFoo}, isNodePort, endptStore)
+	r = processConfigMap(added,
+		ChangedObject{nil, cfgFoo}, isNodePort)
 	require.True(r, "Config map should be processed")
 
 	require.Equal(1, virtualServers.Count())
@@ -839,28 +767,35 @@ func testServiceChangeUpdateImpl(t *testing.T, isNodePort bool) {
 
 	require := require.New(t)
 
-	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
+	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
 
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
 
-	endptStore := newStore(nil)
-	r := processConfigMap(fake, added,
-		changedObject{nil, cfgFoo}, true, endptStore)
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	defer test.NewMockWatchManager()
+
+	r := processConfigMap(added,
+		ChangedObject{nil, cfgFoo}, true)
 	require.True(r, "Config map should be processed")
 
 	require.Equal(1, virtualServers.Count())
 	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should have an entry")
 
-	cfgFoo8080 := newConfigMap("foomap", "1", "default", map[string]string{
+	cfgFoo8080 := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo8080})
 
-	r = processConfigMap(fake, updated,
-		changedObject{cfgFoo, cfgFoo8080}, true, endptStore)
+	r = processConfigMap(updated,
+		ChangedObject{cfgFoo, cfgFoo8080}, true)
 	require.True(r, "Config map should be processed")
 	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 8080, "default"}),
 		"Virtual servers should have new entry")
@@ -885,52 +820,61 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	assert.NotNil(t, mw)
 	assert.True(t, ok)
 
+	require := require.New(t)
+
 	defer virtualServers.Init()
 
-	require := require.New(t)
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
+
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	defer test.NewMockWatchManager()
+
 	nodeSet := []v1.Node{
-		*newNode("node0", "0", false, []v1.NodeAddress{
+		*test.NewNode("node0", "0", false, []v1.NodeAddress{
 			{"InternalIP", "127.0.0.0"}}),
-		*newNode("node1", "1", false, []v1.NodeAddress{
+		*test.NewNode("node1", "1", false, []v1.NodeAddress{
 			{"InternalIP", "127.0.0.1"}}),
-		*newNode("node2", "2", false, []v1.NodeAddress{
+		*test.NewNode("node2", "2", false, []v1.NodeAddress{
 			{"InternalIP", "127.0.0.2"}}),
 	}
 
 	useNodeInternal = true
 	ProcessNodeUpdate(nodeSet, nil)
 
-	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
+	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
-	cfgFoo8080 := newConfigMap("foomap8080", "1", "default", map[string]string{
+	cfgFoo8080 := test.NewConfigMap("foomap8080", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo8080})
-	cfgFoo9090 := newConfigMap("foomap9090", "1", "default", map[string]string{
+	cfgFoo9090 := test.NewConfigMap("foomap9090", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo9090})
 
-	foo := newService("foo", "1", "default", "NodePort",
+	foo := test.NewService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001},
 			{Port: 8080, NodePort: 38001},
 			{Port: 9090, NodePort: 39001}})
 
-	fake := fake.NewSimpleClientset(&v1.ServiceList{Items: []v1.Service{*foo}})
-
-	endptStore := newStore(nil)
-	r := processConfigMap(fake, added, changedObject{
+	r := processConfigMap(added, ChangedObject{
 		nil,
-		cfgFoo}, true, endptStore)
+		cfgFoo}, true)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, added, changedObject{
+	r = processConfigMap(added, ChangedObject{
 		nil,
-		cfgFoo8080}, true, endptStore)
+		cfgFoo8080}, true)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, added, changedObject{
+	r = processConfigMap(added, ChangedObject{
 		nil,
-		cfgFoo9090}, true, endptStore)
+		cfgFoo9090}, true)
 	require.True(r, "Config map should be processed")
 
 	require.Equal(3, virtualServers.Count())
@@ -939,12 +883,12 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 9090, "default"}))
 
 	// Create a new service with less ports and update
-	newFoo := newService("foo", "1", "default", "NodePort",
+	newFoo := test.NewService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
 
-	r = processService(fake, updated, changedObject{
+	r = processService(updated, ChangedObject{
 		foo,
-		newFoo}, true, endptStore)
+		newFoo}, true)
 	require.True(r, "Service should be processed")
 
 	require.Equal(3, virtualServers.Count())
@@ -973,13 +917,13 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	require.False(vs.MetaData.Active)
 
 	// Re-add port in new service
-	newFoo2 := newService("foo", "1", "default", "NodePort",
+	newFoo2 := test.NewService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 20001},
 			{Port: 8080, NodePort: 45454}})
 
-	r = processService(fake, updated, changedObject{
+	r = processService(updated, ChangedObject{
 		newFoo,
-		newFoo2}, true, endptStore)
+		newFoo2}, true)
 	require.True(r, "Service should be processed")
 
 	require.Equal(3, virtualServers.Count())
@@ -1019,29 +963,38 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
+	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
-	cfgBar := newConfigMap("barmap", "1", "default", map[string]string{
+	cfgBar := test.NewConfigMap("barmap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapBar})
-	foo := newService("foo", "1", "default", "NodePort",
+	foo := test.NewService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
-	bar := newService("bar", "1", "default", "NodePort",
+	bar := test.NewService("bar", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
 	nodes := []*v1.Node{
-		newNode("node0", "0", true, []v1.NodeAddress{
+		test.NewNode("node0", "0", true, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.0"}}),
-		newNode("node1", "1", false, []v1.NodeAddress{
+		test.NewNode("node1", "1", false, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.1"}}),
-		newNode("node2", "2", false, []v1.NodeAddress{
+		test.NewNode("node2", "2", false, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.2"}}),
 	}
-	extraNode := newNode("node3", "3", false,
+	extraNode := test.NewNode("node3", "3", false,
 		[]v1.NodeAddress{{"ExternalIP", "127.0.0.3"}})
 
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
+
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	watchManager.(*test.MockWatchManager).Store["services"].Add(foo)
+	watchManager.(*test.MockWatchManager).Store["services"].Add(bar)
 
 	nodeCh := make(chan struct{})
 	mapCh := make(chan struct{})
@@ -1067,20 +1020,19 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		require.Nil(err, "Should not fail creating configmap")
 		require.EqualValues(f, cfgFoo, "Maps should be equal")
 
-		endptStore := newStore(nil)
-		ProcessConfigMapUpdate(fake, added, changedObject{
+		ProcessConfigMapUpdate(added, ChangedObject{
 			nil,
 			cfgFoo,
-		}, true, endptStore)
+		}, true)
 
 		b, err := fake.Core().ConfigMaps("default").Create(cfgBar)
 		require.Nil(err, "Should not fail creating configmap")
 		require.EqualValues(b, cfgBar, "Maps should be equal")
 
-		ProcessConfigMapUpdate(fake, added, changedObject{
+		ProcessConfigMapUpdate(added, ChangedObject{
 			nil,
 			cfgBar,
-		}, true, endptStore)
+		}, true)
 
 		mapCh <- struct{}{}
 	}()
@@ -1090,18 +1042,17 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		require.Nil(err, "Should not fail creating service")
 		require.EqualValues(fSvc, foo, "Service should be equal")
 
-		endptStore := newStore(nil)
-		ProcessServiceUpdate(fake, added, changedObject{
+		ProcessServiceUpdate(added, ChangedObject{
 			nil,
-			foo}, true, endptStore)
+			foo}, true)
 
 		bSvc, err := fake.Core().Services("default").Create(bar)
 		require.Nil(err, "Should not fail creating service")
 		require.EqualValues(bSvc, bar, "Maps should be equal")
 
-		ProcessServiceUpdate(fake, added, changedObject{
+		ProcessServiceUpdate(added, ChangedObject{
 			nil,
-			bar}, true, endptStore)
+			bar}, true)
 
 		serviceCh <- struct{}{}
 	}()
@@ -1145,11 +1096,10 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		require.Nil(err, "Should not error deleting map")
 		m, _ := fake.Core().ConfigMaps("").List(v1.ListOptions{})
 		assert.Equal(1, len(m.Items))
-		endptStore := newStore(nil)
-		ProcessConfigMapUpdate(fake, deleted, changedObject{
+		ProcessConfigMapUpdate(deleted, ChangedObject{
 			cfgFoo,
 			nil,
-		}, true, endptStore)
+		}, true)
 		assert.Equal(1, virtualServers.Count())
 
 		mapCh <- struct{}{}
@@ -1161,10 +1111,9 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 		require.Nil(err, "Should not error deleting service")
 		s, _ := fake.Core().Services("").List(v1.ListOptions{})
 		assert.Equal(1, len(s.Items))
-		endptStore := newStore(nil)
-		ProcessServiceUpdate(fake, deleted, changedObject{
+		ProcessServiceUpdate(deleted, ChangedObject{
 			foo,
-			nil}, true, endptStore)
+			nil}, true)
 
 		serviceCh <- struct{}{}
 	}()
@@ -1203,33 +1152,33 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require := require.New(t)
 
 	// Create a test env with two ConfigMaps, two Services, and three Nodes
-	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
+	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
-	cfgFoo8080 := newConfigMap("foomap8080", "1", "default", map[string]string{
+	cfgFoo8080 := test.NewConfigMap("foomap8080", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo8080})
-	cfgFoo9090 := newConfigMap("foomap9090", "1", "default", map[string]string{
+	cfgFoo9090 := test.NewConfigMap("foomap9090", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo9090})
-	cfgBar := newConfigMap("barmap", "1", "default", map[string]string{
+	cfgBar := test.NewConfigMap("barmap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapBar})
-	foo := newService("foo", "1", "default", "NodePort",
+	foo := test.NewService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001},
 			{Port: 8080, NodePort: 38001},
 			{Port: 9090, NodePort: 39001}})
-	bar := newService("bar", "1", "default", "NodePort",
+	bar := test.NewService("bar", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
 	nodes := []v1.Node{
-		*newNode("node0", "0", true, []v1.NodeAddress{
+		*test.NewNode("node0", "0", true, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.0"}}),
-		*newNode("node1", "1", false, []v1.NodeAddress{
+		*test.NewNode("node1", "1", false, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.1"}}),
-		*newNode("node2", "2", false, []v1.NodeAddress{
+		*test.NewNode("node2", "2", false, []v1.NodeAddress{
 			{"ExternalIP", "127.0.0.2"}}),
 	}
-	extraNode := newNode("node3", "3", false,
+	extraNode := test.NewNode("node3", "3", false,
 		[]v1.NodeAddress{{"ExternalIP", "127.0.0.3"}})
 
 	addrs := []string{"127.0.0.1", "127.0.0.2"}
@@ -1239,6 +1188,15 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		&v1.ServiceList{Items: []v1.Service{*foo, *bar}},
 		&v1.NodeList{Items: nodes})
 	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
+
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	watchManager.(*test.MockWatchManager).Store["services"].Add(foo)
+	watchManager.(*test.MockWatchManager).Store["services"].Add(bar)
 
 	m, err := fake.Core().ConfigMaps("").List(v1.ListOptions{})
 	require.Nil(err)
@@ -1255,11 +1213,10 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	ProcessNodeUpdate(n.Items, err)
 
 	// ConfigMap added
-	endptStore := newStore(nil)
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		cfgFoo,
-	}, true, endptStore)
+	}, true)
 	assert.Equal(1, virtualServers.Count())
 	vs, ok := virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
@@ -1268,10 +1225,10 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Second ConfigMap added
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		cfgBar,
-	}, true, endptStore)
+	}, true)
 	assert.Equal(2, virtualServers.Count())
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
@@ -1285,34 +1242,34 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Service ADDED
-	ProcessServiceUpdate(fake, added, changedObject{
+	ProcessServiceUpdate(added, ChangedObject{
 		nil,
-		foo}, true, endptStore)
+		foo}, true)
 	assert.Equal(2, virtualServers.Count())
 
 	// Second Service ADDED
-	ProcessServiceUpdate(fake, added, changedObject{
+	ProcessServiceUpdate(added, ChangedObject{
 		nil,
-		bar}, true, endptStore)
+		bar}, true)
 	assert.Equal(2, virtualServers.Count())
 
 	// ConfigMap UPDATED
-	ProcessConfigMapUpdate(fake, updated, changedObject{
+	ProcessConfigMapUpdate(updated, ChangedObject{
 		cfgFoo,
 		cfgFoo,
-	}, true, endptStore)
+	}, true)
 	assert.Equal(2, virtualServers.Count())
 
 	// Service UPDATED
-	ProcessServiceUpdate(fake, updated, changedObject{
+	ProcessServiceUpdate(updated, ChangedObject{
 		foo,
-		foo}, true, endptStore)
+		foo}, true)
 	assert.Equal(2, virtualServers.Count())
 
 	// ConfigMap ADDED second foo port
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
-		cfgFoo8080}, true, endptStore)
+		cfgFoo8080}, true)
 	assert.Equal(3, virtualServers.Count())
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 8080, "default"}, formatVirtualServerName(cfgFoo8080))
@@ -1331,9 +1288,9 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// ConfigMap ADDED third foo port
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
-		cfgFoo9090}, true, endptStore)
+		cfgFoo9090}, true)
 	assert.Equal(4, virtualServers.Count())
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 9090, "default"}, formatVirtualServerName(cfgFoo9090))
@@ -1387,9 +1344,9 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	validateConfig(t, mw, twoSvcsFourPortsThreeNodesConfig)
 
 	// ConfigMap DELETED third foo port
-	ProcessConfigMapUpdate(fake, deleted, changedObject{
+	ProcessConfigMapUpdate(deleted, ChangedObject{
 		cfgFoo9090,
-		nil}, true, endptStore)
+		nil}, true)
 	assert.Equal(3, virtualServers.Count())
 	assert.Equal(0, virtualServers.CountOf(serviceKey{"foo", 9090, "default"}),
 		"Virtual servers should not contain removed port")
@@ -1401,9 +1358,9 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		"Virtual servers should contain remaining ports")
 
 	// ConfigMap UPDATED second foo port
-	ProcessConfigMapUpdate(fake, updated, changedObject{
+	ProcessConfigMapUpdate(updated, ChangedObject{
 		cfgFoo8080,
-		cfgFoo8080}, true, endptStore)
+		cfgFoo8080}, true)
 	assert.Equal(3, virtualServers.Count())
 	assert.Equal(1, virtualServers.CountOf(serviceKey{"foo", 8080, "default"}),
 		"Virtual servers should contain remaining ports")
@@ -1413,9 +1370,9 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		"Virtual servers should contain remaining ports")
 
 	// ConfigMap DELETED second foo port
-	ProcessConfigMapUpdate(fake, deleted, changedObject{
+	ProcessConfigMapUpdate(deleted, ChangedObject{
 		cfgFoo8080,
-		nil}, true, endptStore)
+		nil}, true)
 	assert.Equal(2, virtualServers.Count())
 	assert.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should contain remaining ports")
@@ -1448,10 +1405,10 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	err = fake.Core().ConfigMaps("default").Delete("foomap", &v1.DeleteOptions{})
 	m, err = fake.Core().ConfigMaps("").List(v1.ListOptions{})
 	assert.Equal(1, len(m.Items))
-	ProcessConfigMapUpdate(fake, deleted, changedObject{
+	ProcessConfigMapUpdate(deleted, ChangedObject{
 		cfgFoo,
 		nil,
-	}, true, endptStore)
+	}, true)
 	assert.Equal(1, virtualServers.Count())
 	assert.Equal(0, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Config map should be removed after delete")
@@ -1462,9 +1419,9 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.Nil(err)
 	s, err = fake.Core().Services("").List(v1.ListOptions{})
 	assert.Equal(1, len(s.Items))
-	ProcessServiceUpdate(fake, deleted, changedObject{
+	ProcessServiceUpdate(deleted, ChangedObject{
 		bar,
-		nil}, true, endptStore)
+		nil}, true)
 	assert.Equal(1, virtualServers.Count())
 	validateConfig(t, mw, emptyConfig)
 }
@@ -1483,10 +1440,10 @@ func TestDontCareConfigMapNodePort(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	cfg := newConfigMap("foomap", "1", "default", map[string]string{
+	cfg := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   "bar"})
-	svc := newService("foo", "1", "default", "NodePort",
+	svc := test.NewService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
 
 	fake := fake.NewSimpleClientset(&v1.ConfigMapList{Items: []v1.ConfigMap{*cfg}},
@@ -1503,11 +1460,10 @@ func TestDontCareConfigMapNodePort(t *testing.T) {
 
 	// ConfigMap ADDED
 	assert.Equal(0, virtualServers.Count())
-	endptStore := newStore(nil)
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		cfg,
-	}, true, endptStore)
+	}, true)
 	assert.Equal(0, virtualServers.Count())
 }
 
@@ -1528,35 +1484,42 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client should not be nil")
 
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
+
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+
 	// Config map with no schema key
-	noschemakey := newConfigMap("noschema", "1", "default", map[string]string{
+	noschemakey := test.NewConfigMap("noschema", "1", "default", map[string]string{
 		"data": configmapFoo})
 	cfg, err := parseVirtualServerConfig(noschemakey)
 	require.EqualError(err, "configmap noschema does not contain schema key",
 		"Should receive no schema error")
-	endptStore := newStore(nil)
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		noschemakey,
-	}, isNodePort, endptStore)
+	}, isNodePort)
 	require.Equal(0, virtualServers.Count())
 
 	// Config map with no data key
-	nodatakey := newConfigMap("nodata", "1", "default", map[string]string{
+	nodatakey := test.NewConfigMap("nodata", "1", "default", map[string]string{
 		"schema": schemaUrl,
 	})
 	cfg, err = parseVirtualServerConfig(nodatakey)
 	require.Nil(cfg, "Should not have parsed bad configmap")
 	require.EqualError(err, "configmap nodata does not contain data key",
 		"Should receive no data error")
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		nodatakey,
-	}, isNodePort, endptStore)
+	}, isNodePort)
 	require.Equal(0, virtualServers.Count())
 
 	// Config map with bad json
-	badjson := newConfigMap("badjson", "1", "default", map[string]string{
+	badjson := test.NewConfigMap("badjson", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   "///// **invalid json** /////",
 	})
@@ -1564,27 +1527,27 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	require.Nil(cfg, "Should not have parsed bad configmap")
 	require.EqualError(err,
 		"invalid character '/' looking for beginning of value")
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		badjson,
-	}, isNodePort, endptStore)
+	}, isNodePort)
 	require.Equal(0, virtualServers.Count())
 
 	// Config map with no bind address
-	noBindAddr := newConfigMap("noBindAddr", "1", "default", map[string]string{
+	noBindAddr := test.NewConfigMap("noBindAddr", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapNoAddr,
 	})
 	cfg, err = parseVirtualServerConfig(noBindAddr)
 	require.NotNil(cfg, "Config map should parse with missing bindAddr")
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		noBindAddr,
-	}, isNodePort, endptStore)
+	}, isNodePort)
 	require.Equal(0, virtualServers.Count())
 
 	// Config map with extra keys
-	extrakeys := newConfigMap("extrakeys", "1", "default", map[string]string{
+	extrakeys := test.NewConfigMap("extrakeys", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo,
 		"key1":   "value1",
@@ -1593,26 +1556,26 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	cfg, err = parseVirtualServerConfig(extrakeys)
 	require.NotNil(cfg, "Config map should parse with extra keys")
 	require.Nil(err, "Should not receive errors")
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		extrakeys,
-	}, isNodePort, endptStore)
+	}, isNodePort)
 	require.Equal(1, virtualServers.Count())
 	virtualServers.Delete(serviceKey{"foo", 80, "default"},
 		formatVirtualServerName(extrakeys))
 
 	// Config map with no mode or balance
-	defaultModeAndBalance := newConfigMap("mode_balance", "1", "default", map[string]string{
+	defaultModeAndBalance := test.NewConfigMap("mode_balance", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapNoModeBalance,
 	})
 	cfg, err = parseVirtualServerConfig(defaultModeAndBalance)
 	require.NotNil(cfg, "Config map should exist and contain default mode and balance.")
 	require.Nil(err, "Should not receive errors")
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		defaultModeAndBalance,
-	}, isNodePort, endptStore)
+	}, isNodePort)
 	require.Equal(1, virtualServers.Count())
 
 	vs, ok := virtualServers.Get(
@@ -1644,8 +1607,16 @@ func TestNamespaceIsolation(t *testing.T) {
 
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client should not be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
 
-	node := newNode("node3", "3", false,
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	defer test.NewMockWatchManager()
+
+	node := test.NewNode("node3", "3", false,
 		[]v1.NodeAddress{{"InternalIP", "127.0.0.3"}})
 	_, err := fake.Core().Nodes().Create(node)
 	require.Nil(err)
@@ -1654,26 +1625,25 @@ func TestNamespaceIsolation(t *testing.T) {
 	assert.Nil(err, "Should not fail listing nodes")
 	ProcessNodeUpdate(n.Items, err)
 
-	cfgFoo := newConfigMap("foomap", "1", "default", map[string]string{
+	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
-	cfgBar := newConfigMap("foomap", "1", "wrongnamespace", map[string]string{
+	cfgBar := test.NewConfigMap("foomap", "1", "wrongnamespace", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
-	servFoo := newService("foo", "1", "default", "NodePort",
+	servFoo := test.NewService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-	servBar := newService("foo", "1", "wrongnamespace", "NodePort",
+	servBar := test.NewService("foo", "1", "wrongnamespace", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 50000}})
 
-	endptStore := newStore(nil)
-	ProcessConfigMapUpdate(fake, added, changedObject{
-		nil, cfgFoo}, true, endptStore)
+	ProcessConfigMapUpdate(added, ChangedObject{
+		nil, cfgFoo}, true)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Config map should be accessible")
 
-	ProcessConfigMapUpdate(fake, added, changedObject{
-		nil, cfgBar}, true, endptStore)
+	ProcessConfigMapUpdate(added, ChangedObject{
+		nil, cfgBar}, true)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, formatVirtualServerName(cfgBar))
 	assert.False(ok, "Config map should not be added if namespace does not match flag")
@@ -1681,8 +1651,8 @@ func TestNamespaceIsolation(t *testing.T) {
 		"Virtual servers should contain original config")
 	assert.Equal(1, virtualServers.Count(), "There should only be 1 virtual server")
 
-	ProcessConfigMapUpdate(fake, updated, changedObject{
-		cfgBar, cfgBar}, true, endptStore)
+	ProcessConfigMapUpdate(updated, ChangedObject{
+		cfgBar, cfgBar}, true)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, formatVirtualServerName(cfgBar))
 	assert.False(ok, "Config map should not be added if namespace does not match flag")
@@ -1690,8 +1660,8 @@ func TestNamespaceIsolation(t *testing.T) {
 		"Virtual servers should contain original config")
 	assert.Equal(1, virtualServers.Count(), "There should only be 1 virtual server")
 
-	ProcessConfigMapUpdate(fake, deleted, changedObject{
-		cfgBar, nil}, true, endptStore)
+	ProcessConfigMapUpdate(deleted, ChangedObject{
+		cfgBar, nil}, true)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, formatVirtualServerName(cfgBar))
 	assert.False(ok, "Config map should not be deleted if namespace does not match flag")
@@ -1699,8 +1669,8 @@ func TestNamespaceIsolation(t *testing.T) {
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Config map should be accessible after delete called on incorrect namespace")
 
-	ProcessServiceUpdate(fake, added, changedObject{
-		nil, servFoo}, true, endptStore)
+	ProcessServiceUpdate(added, ChangedObject{
+		nil, servFoo}, true)
 	vs, ok := virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
@@ -1708,8 +1678,8 @@ func TestNamespaceIsolation(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
-	ProcessServiceUpdate(fake, added, changedObject{
-		nil, servBar}, true, endptStore)
+	ProcessServiceUpdate(added, ChangedObject{
+		nil, servBar}, true)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, "foomap")
 	assert.False(ok, "Service should not be added if namespace does not match flag")
@@ -1720,8 +1690,8 @@ func TestNamespaceIsolation(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
-	ProcessServiceUpdate(fake, updated, changedObject{
-		servBar, servBar}, true, endptStore)
+	ProcessServiceUpdate(updated, ChangedObject{
+		servBar, servBar}, true)
 	_, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, "foomap")
 	assert.False(ok, "Service should not be added if namespace does not match flag")
@@ -1732,8 +1702,8 @@ func TestNamespaceIsolation(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
-	ProcessServiceUpdate(fake, deleted, changedObject{
-		servBar, nil}, true, endptStore)
+	ProcessServiceUpdate(deleted, ChangedObject{
+		servBar, nil}, true)
 	vs, ok = virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Service should not have been deleted")
@@ -1765,27 +1735,27 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	require := require.New(t)
 
 	// Create a test env with two ConfigMaps, two Services, and three Nodes
-	cfgIapp1 := newConfigMap("iapp1map", "1", "default", map[string]string{
+	cfgIapp1 := test.NewConfigMap("iapp1map", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapIApp1})
-	cfgIapp2 := newConfigMap("iapp2map", "1", "default", map[string]string{
+	cfgIapp2 := test.NewConfigMap("iapp2map", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapIApp2})
-	iapp1 := newService("iapp1", "1", "default", "NodePort",
+	iapp1 := test.NewService("iapp1", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 10101}})
-	iapp2 := newService("iapp2", "1", "default", "NodePort",
+	iapp2 := test.NewService("iapp2", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 20202}})
 	nodes := []v1.Node{
-		*newNode("node0", "0", true, []v1.NodeAddress{
+		*test.NewNode("node0", "0", true, []v1.NodeAddress{
 			{"InternalIP", "192.168.0.0"}}),
-		*newNode("node1", "1", false, []v1.NodeAddress{
+		*test.NewNode("node1", "1", false, []v1.NodeAddress{
 			{"InternalIP", "192.168.0.1"}}),
-		*newNode("node2", "2", false, []v1.NodeAddress{
+		*test.NewNode("node2", "2", false, []v1.NodeAddress{
 			{"InternalIP", "192.168.0.2"}}),
-		*newNode("node3", "3", false, []v1.NodeAddress{
+		*test.NewNode("node3", "3", false, []v1.NodeAddress{
 			{"ExternalIP", "192.168.0.3"}}),
 	}
-	extraNode := newNode("node4", "4", false, []v1.NodeAddress{{"InternalIP",
+	extraNode := test.NewNode("node4", "4", false, []v1.NodeAddress{{"InternalIP",
 		"192.168.0.4"}})
 
 	addrs := []string{"192.168.0.1", "192.168.0.2"}
@@ -1795,6 +1765,12 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		&v1.ServiceList{Items: []v1.Service{*iapp1, *iapp2}},
 		&v1.NodeList{Items: nodes})
 	require.NotNil(fake, "Mock client cannot be nil")
+
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	watchManager.(*test.MockWatchManager).Store["services"].Add(iapp1)
+	watchManager.(*test.MockWatchManager).Store["services"].Add(iapp2)
 
 	m, err := fake.Core().ConfigMaps("").List(v1.ListOptions{})
 	require.Nil(err)
@@ -1811,11 +1787,10 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	ProcessNodeUpdate(n.Items, err)
 
 	// ConfigMap ADDED
-	endptStore := newStore(nil)
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		cfgIapp1,
-	}, true, endptStore)
+	}, true)
 	assert.Equal(1, virtualServers.Count())
 	vs, ok := virtualServers.Get(
 		serviceKey{"iapp1", 80, "default"}, formatVirtualServerName(cfgIapp1))
@@ -1824,10 +1799,10 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Second ConfigMap ADDED
-	ProcessConfigMapUpdate(fake, added, changedObject{
+	ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		cfgIapp2,
-	}, true, endptStore)
+	}, true)
 	assert.Equal(2, virtualServers.Count())
 	vs, ok = virtualServers.Get(
 		serviceKey{"iapp1", 80, "default"}, formatVirtualServerName(cfgIapp1))
@@ -1841,28 +1816,28 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Service ADDED
-	ProcessServiceUpdate(fake, added, changedObject{
+	ProcessServiceUpdate(added, ChangedObject{
 		nil,
-		iapp1}, true, endptStore)
+		iapp1}, true)
 	assert.Equal(2, virtualServers.Count())
 
 	// Second Service ADDED
-	ProcessServiceUpdate(fake, added, changedObject{
+	ProcessServiceUpdate(added, ChangedObject{
 		nil,
-		iapp2}, true, endptStore)
+		iapp2}, true)
 	assert.Equal(2, virtualServers.Count())
 
 	// ConfigMap UPDATED
-	ProcessConfigMapUpdate(fake, updated, changedObject{
+	ProcessConfigMapUpdate(updated, ChangedObject{
 		cfgIapp1,
 		cfgIapp1,
-	}, true, endptStore)
+	}, true)
 	assert.Equal(2, virtualServers.Count())
 
 	// Service UPDATED
-	ProcessServiceUpdate(fake, updated, changedObject{
+	ProcessServiceUpdate(updated, ChangedObject{
 		iapp1,
-		iapp1}, true, endptStore)
+		iapp1}, true)
 	assert.Equal(2, virtualServers.Count())
 
 	// Nodes ADDED
@@ -1912,10 +1887,10 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		&v1.DeleteOptions{})
 	m, err = fake.Core().ConfigMaps("").List(v1.ListOptions{})
 	assert.Equal(1, len(m.Items))
-	ProcessConfigMapUpdate(fake, deleted, changedObject{
+	ProcessConfigMapUpdate(deleted, ChangedObject{
 		cfgIapp1,
 		nil,
-	}, true, endptStore)
+	}, true)
 	assert.Equal(1, virtualServers.Count())
 	assert.Equal(0, virtualServers.CountOf(serviceKey{"iapp1", 80, "default"}),
 		"Config map should be removed after delete")
@@ -1926,9 +1901,9 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	require.Nil(err)
 	s, err = fake.Core().Services("").List(v1.ListOptions{})
 	assert.Equal(1, len(s.Items))
-	ProcessServiceUpdate(fake, deleted, changedObject{
+	ProcessServiceUpdate(deleted, ChangedObject{
 		iapp2,
-		nil}, true, endptStore)
+		nil}, true)
 	assert.Equal(1, virtualServers.Count())
 	validateConfig(t, mw, emptyConfig)
 }
@@ -1950,31 +1925,9 @@ func TestSchemaValidation(t *testing.T) {
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client should not be nil")
 
-	// JSON is valid, but values are invalid
-	var configmapFoo string = string(`{
-	  "virtualServer": {
-	    "backend": {
-	      "serviceName": "",
-	      "servicePort": 0
-	    },
-	    "frontend": {
-	      "balance": "super-duper-mojo",
-	      "mode": "udp",
-	      "partition": "",
-	      "virtualAddress": {
-	        "bindAddr": "10.128.10.260",
-	        "port": 500000
-	      },
-	      "sslProfile": {
-	        "f5ProfileName": ""
-	      }
-	    }
-	  }
-	}`)
-
-	badjson := newConfigMap("badjson", "1", "default", map[string]string{
+	badjson := test.NewConfigMap("badjson", "1", "default", map[string]string{
 		"schema": schemaUrl,
-		"data":   configmapFoo,
+		"data":   configmapFooInvalid,
 	})
 	_, err := parseVirtualServerConfig(badjson)
 	assert.Contains(err.Error(),
@@ -2029,6 +1982,12 @@ func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
 
 	require := require.New(t)
 
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
+
 	svcName := "foo"
 	emptyIps := []string{}
 	readyIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
@@ -2037,65 +1996,71 @@ func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
 		newServicePort("port0", 80),
 	}
 
-	cfgFoo := newConfigMap("foomap", "1", namespace, map[string]string{
+	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
 
-	foo := newService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
-	fake := fake.NewSimpleClientset(&v1.ServiceList{Items: []v1.Service{*foo}})
+	foo := test.NewService(svcName, "1", "default", v1.ServiceTypeClusterIP, svcPorts)
 
-	svcStore := newStore(nil)
+	svcStore := NewStore(nil)
 	svcStore.Add(foo)
 	var endptStore cache.Store
-	onEndptChange := func(changeType changeType, obj changedObject) {
-		ProcessEndpointsUpdate(fake, changeType, obj, svcStore)
+	onEndptChange := func(changeType changeType, obj ChangedObject) {
+		ProcessEndpointsUpdate(changeType, obj)
 	}
-	endptStore = newStore(onEndptChange)
+	endptStore = NewStore(onEndptChange)
+
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["endpoints"] = NewStore(nil)
+	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	watchManager.(*test.MockWatchManager).Store["endpoints"] = endptStore
+	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
 
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
-	goodEndpts := newEndpoints(svcName, "1", namespace, emptyIps, emptyIps,
+	goodEndpts := test.NewEndpoints(svcName, "1", "default", emptyIps, emptyIps,
 		endptPorts)
 
 	err := endptStore.Add(goodEndpts)
 	require.Nil(err)
 	// this is for another service
-	badEndpts := newEndpoints("wrongSvc", "1", namespace, []string{"10.2.96.7"},
+	badEndpts := test.NewEndpoints("wrongSvc", "1", "default", []string{"10.2.96.7"},
 		[]string{}, endptPorts)
 	err = endptStore.Add(badEndpts)
 	require.Nil(err)
 
-	r := processConfigMap(fake, added, changedObject{
-		nil, cfgFoo}, false, endptStore)
+	r := processConfigMap(added, ChangedObject{
+		nil, cfgFoo}, false)
 	require.True(r, "Config map should be processed")
 
 	require.Equal(len(svcPorts), virtualServers.Count())
 	for _, p := range svcPorts {
-		require.Equal(1, virtualServers.CountOf(serviceKey{"foo", p.Port, namespace}))
+		require.Equal(1, virtualServers.CountOf(serviceKey{"foo", p.Port, "default"}))
 		vs, ok := virtualServers.Get(
-			serviceKey{"foo", p.Port, namespace}, formatVirtualServerName(cfgFoo))
+			serviceKey{"foo", p.Port, "default"}, formatVirtualServerName(cfgFoo))
 		require.True(ok)
 		require.EqualValues([]string(nil), vs.VirtualServer.Backend.PoolMemberAddrs)
 	}
 
-	validateServiceIps(t, svcName, namespace, svcPorts, nil)
+	validateServiceIps(t, svcName, "default", svcPorts, nil)
 
 	// Move it back to ready from not ready and make sure it is re-added
-	err = endptStore.Update(newEndpoints(svcName, "2", namespace, readyIps,
+	err = endptStore.Update(test.NewEndpoints(svcName, "2", "default", readyIps,
 		notReadyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, namespace, svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
 
 	// Remove all endpoints make sure they are removed but virtual server exists
-	err = endptStore.Update(newEndpoints(svcName, "3", namespace, emptyIps,
+	err = endptStore.Update(test.NewEndpoints(svcName, "3", "default", emptyIps,
 		emptyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, namespace, svcPorts, nil)
+	validateServiceIps(t, svcName, "default", svcPorts, nil)
 
 	// Move it back to ready from not ready and make sure it is re-added
-	err = endptStore.Update(newEndpoints(svcName, "4", namespace, readyIps,
+	err = endptStore.Update(test.NewEndpoints(svcName, "4", "default", readyIps,
 		notReadyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, namespace, svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
 }
 
 func TestVirtualServerWhenEndpointsChange(t *testing.T) {
@@ -2111,6 +2076,12 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 
 	require := require.New(t)
 
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
+
 	svcName := "foo"
 	emptyIps := []string{}
 	readyIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
@@ -2121,86 +2092,90 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 		newServicePort("port2", 9090),
 	}
 
-	cfgFoo := newConfigMap("foomap", "1", namespace, map[string]string{
+	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
-	cfgFoo8080 := newConfigMap("foomap8080", "1", namespace, map[string]string{
+	cfgFoo8080 := test.NewConfigMap("foomap8080", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo8080})
-	cfgFoo9090 := newConfigMap("foomap9090", "1", namespace, map[string]string{
+	cfgFoo9090 := test.NewConfigMap("foomap9090", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo9090})
 
-	foo := newService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
-	fake := fake.NewSimpleClientset(&v1.ServiceList{Items: []v1.Service{*foo}})
+	foo := test.NewService(svcName, "1", "default", v1.ServiceTypeClusterIP, svcPorts)
 
-	svcStore := newStore(nil)
+	svcStore := NewStore(nil)
 	svcStore.Add(foo)
 	var endptStore cache.Store
-	onEndptChange := func(changeType changeType, obj changedObject) {
-		ProcessEndpointsUpdate(fake, changeType, obj, svcStore)
+	onEndptChange := func(changeType changeType, obj ChangedObject) {
+		ProcessEndpointsUpdate(changeType, obj)
 	}
-	endptStore = newStore(onEndptChange)
+	endptStore = NewStore(onEndptChange)
 
-	r := processConfigMap(fake, added, changedObject{
-		nil, cfgFoo}, false, endptStore)
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["endpoints"] = endptStore
+	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
+
+	r := processConfigMap(added, ChangedObject{
+		nil, cfgFoo}, false)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, added, changedObject{
-		nil, cfgFoo8080}, false, endptStore)
+	r = processConfigMap(added, ChangedObject{
+		nil, cfgFoo8080}, false)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, added, changedObject{
-		nil, cfgFoo9090}, false, endptStore)
+	r = processConfigMap(added, ChangedObject{
+		nil, cfgFoo9090}, false)
 	require.True(r, "Config map should be processed")
 
 	require.Equal(len(svcPorts), virtualServers.Count())
 	for _, p := range svcPorts {
 		require.Equal(1,
-			virtualServers.CountOf(serviceKey{"foo", p.Port, namespace}))
+			virtualServers.CountOf(serviceKey{"foo", p.Port, "default"}))
 	}
 
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
-	goodEndpts := newEndpoints(svcName, "1", namespace, readyIps, notReadyIps,
+	goodEndpts := test.NewEndpoints(svcName, "1", "default", readyIps, notReadyIps,
 		endptPorts)
 	err := endptStore.Add(goodEndpts)
 	require.Nil(err)
 	// this is for another service
-	badEndpts := newEndpoints("wrongSvc", "1", namespace, []string{"10.2.96.7"},
+	badEndpts := test.NewEndpoints("wrongSvc", "1", "default", []string{"10.2.96.7"},
 		[]string{}, endptPorts)
 	err = endptStore.Add(badEndpts)
 	require.Nil(err)
 
-	validateServiceIps(t, svcName, namespace, svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
 
 	// Move an endpoint from ready to not ready and make sure it
 	// goes away from virtual servers
 	notReadyIps = append(notReadyIps, readyIps[len(readyIps)-1])
 	readyIps = readyIps[:len(readyIps)-1]
-	err = endptStore.Update(newEndpoints(svcName, "2", namespace, readyIps,
+	err = endptStore.Update(test.NewEndpoints(svcName, "2", "default", readyIps,
 		notReadyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, namespace, svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
 
 	// Move it back to ready from not ready and make sure it is re-added
 	readyIps = append(readyIps, notReadyIps[len(notReadyIps)-1])
 	notReadyIps = notReadyIps[:len(notReadyIps)-1]
-	err = endptStore.Update(newEndpoints(svcName, "3", namespace, readyIps,
+	err = endptStore.Update(test.NewEndpoints(svcName, "3", "default", readyIps,
 		notReadyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, namespace, svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
 
 	// Remove all endpoints make sure they are removed but virtual server exists
-	err = endptStore.Update(newEndpoints(svcName, "4", namespace, emptyIps,
+	err = endptStore.Update(test.NewEndpoints(svcName, "4", "default", emptyIps,
 		emptyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, namespace, svcPorts, nil)
+	validateServiceIps(t, svcName, "default", svcPorts, nil)
 
 	// Move it back to ready from not ready and make sure it is re-added
-	err = endptStore.Update(newEndpoints(svcName, "5", namespace, readyIps,
+	err = endptStore.Update(test.NewEndpoints(svcName, "5", "default", readyIps,
 		notReadyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, namespace, svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
 }
 
 func TestVirtualServerWhenServiceChanges(t *testing.T) {
@@ -2216,6 +2191,12 @@ func TestVirtualServerWhenServiceChanges(t *testing.T) {
 
 	require := require.New(t)
 
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
+
 	svcName := "foo"
 	svcPorts := []v1.ServicePort{
 		newServicePort("port0", 80),
@@ -2223,57 +2204,61 @@ func TestVirtualServerWhenServiceChanges(t *testing.T) {
 		newServicePort("port2", 9090),
 	}
 	svcPodIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
-	endptStore := newStore(nil)
+	endptStore := NewStore(nil)
 
-	foo := newService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
-	fake := fake.NewSimpleClientset(&v1.ServiceList{Items: []v1.Service{*foo}})
+	foo := test.NewService(svcName, "1", "default", v1.ServiceTypeClusterIP, svcPorts)
 
-	onSvcChange := func(changeType changeType, obj changedObject) {
-		processService(fake, changeType, obj, false, endptStore)
+	onSvcChange := func(changeType changeType, obj ChangedObject) {
+		processService(changeType, obj, false)
 	}
-	svcStore := newStore(onSvcChange)
+	svcStore := NewStore(onSvcChange)
 	svcStore.Add(foo)
 
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
-	err := endptStore.Add(newEndpoints(svcName, "1", namespace, svcPodIps,
+	err := endptStore.Add(test.NewEndpoints(svcName, "1", "default", svcPodIps,
 		[]string{}, endptPorts))
 	require.Nil(err)
 
-	cfgFoo := newConfigMap("foomap", "1", namespace, map[string]string{
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["endpoints"] = endptStore
+	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
+
+	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
-	cfgFoo8080 := newConfigMap("foomap8080", "1", namespace, map[string]string{
+	cfgFoo8080 := test.NewConfigMap("foomap8080", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo8080})
-	cfgFoo9090 := newConfigMap("foomap9090", "1", namespace, map[string]string{
+	cfgFoo9090 := test.NewConfigMap("foomap9090", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo9090})
 
-	r := processConfigMap(fake, added, changedObject{
-		nil, cfgFoo}, false, endptStore)
+	r := processConfigMap(added, ChangedObject{
+		nil, cfgFoo}, false)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, added, changedObject{
-		nil, cfgFoo8080}, false, endptStore)
+	r = processConfigMap(added, ChangedObject{
+		nil, cfgFoo8080}, false)
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(fake, added, changedObject{
-		nil, cfgFoo9090}, false, endptStore)
+	r = processConfigMap(added, ChangedObject{
+		nil, cfgFoo9090}, false)
 	require.True(r, "Config map should be processed")
 
 	require.Equal(len(svcPorts), virtualServers.Count())
-	validateServiceIps(t, svcName, namespace, svcPorts, svcPodIps)
+	validateServiceIps(t, svcName, "default", svcPorts, svcPodIps)
 
 	// delete the service and make sure the IPs go away on the VS
 	svcStore.Delete(foo)
 	require.Equal(len(svcPorts), virtualServers.Count())
-	validateServiceIps(t, svcName, namespace, svcPorts, nil)
+	validateServiceIps(t, svcName, "default", svcPorts, nil)
 
 	// re-add the service
 	foo.ObjectMeta.ResourceVersion = "2"
 	svcStore.Add(foo)
 	require.Equal(len(svcPorts), virtualServers.Count())
-	validateServiceIps(t, svcName, namespace, svcPorts, svcPodIps)
+	validateServiceIps(t, svcName, "default", svcPorts, svcPodIps)
 }
 
 func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
@@ -2289,6 +2274,12 @@ func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
 
 	require := require.New(t)
 
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
+
 	svcName := "foo"
 	svcPorts := []v1.ServicePort{
 		newServicePort("port0", 80),
@@ -2296,43 +2287,54 @@ func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
 		newServicePort("port2", 9090),
 	}
 	svcPodIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
-	endptStore := newStore(nil)
+
+	foo := test.NewService(svcName, "1", "default", v1.ServiceTypeClusterIP, svcPorts)
+
+	onSvcChange := func(changeType changeType, obj ChangedObject) {
+		processService(changeType, obj, false)
+	}
+	svcStore := NewStore(onSvcChange)
+	svcStore.Add(foo)
+
+	endptStore := NewStore(nil)
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
-	err := endptStore.Add(newEndpoints(svcName, "1", namespace, svcPodIps,
+	err := endptStore.Add(test.NewEndpoints(svcName, "1", "default", svcPodIps,
 		[]string{}, endptPorts))
 	require.Nil(err)
-
-	foo := newService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
-	fake := fake.NewSimpleClientset(&v1.ServiceList{Items: []v1.Service{*foo}})
 
 	// no virtual servers yet
 	require.Equal(0, virtualServers.Count())
 
-	onCfgChange := func(changeType changeType, obj changedObject) {
-		processConfigMap(fake, changeType, obj, false, endptStore)
+	onCfgChange := func(changeType changeType, obj ChangedObject) {
+		processConfigMap(changeType, obj, false)
 	}
-	cfgStore := newStore(onCfgChange)
+	cfgStore := NewStore(onCfgChange)
+
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["endpoints"] = endptStore
+	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
 
 	// add a config map
-	cfgFoo := newConfigMap("foomap", "1", namespace, map[string]string{
+	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
 	cfgStore.Add(cfgFoo)
 	require.Equal(1, virtualServers.Count())
-	validateServiceIps(t, svcName, namespace, svcPorts[:1], svcPodIps)
+	validateServiceIps(t, svcName, "default", svcPorts[:1], svcPodIps)
 
 	// add another
-	cfgFoo8080 := newConfigMap("foomap8080", "1", namespace, map[string]string{
+	cfgFoo8080 := test.NewConfigMap("foomap8080", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo8080})
 	cfgStore.Add(cfgFoo8080)
 	require.Equal(2, virtualServers.Count())
-	validateServiceIps(t, svcName, namespace, svcPorts[:2], svcPodIps)
+	validateServiceIps(t, svcName, "default", svcPorts[:2], svcPodIps)
 
 	// remove first one
 	cfgStore.Delete(cfgFoo)
 	require.Equal(1, virtualServers.Count())
-	validateServiceIps(t, svcName, namespace, svcPorts[1:2], svcPodIps)
+	validateServiceIps(t, svcName, "default", svcPorts[1:2], svcPodIps)
 }
 
 func TestUpdatesConcurrentCluster(t *testing.T) {
@@ -2354,54 +2356,62 @@ func TestUpdatesConcurrentCluster(t *testing.T) {
 	barIps := []string{"10.2.96.0", "10.2.96.3"}
 	barPorts := []v1.ServicePort{newServicePort("port1", 80)}
 
-	cfgFoo := newConfigMap("foomap", "1", namespace, map[string]string{
+	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo8080})
-	cfgBar := newConfigMap("barmap", "1", namespace, map[string]string{
+	cfgBar := test.NewConfigMap("barmap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapBar})
 
-	foo := newService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
-	bar := newService("bar", "1", namespace, v1.ServiceTypeClusterIP, barPorts)
+	foo := test.NewService("foo", "1", "default", v1.ServiceTypeClusterIP, fooPorts)
+	bar := test.NewService("bar", "1", "default", v1.ServiceTypeClusterIP, barPorts)
 
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
 
 	var cfgStore cache.Store
 	var endptStore cache.Store
 	var svcStore cache.Store
 
-	onCfgChange := func(changeType changeType, obj changedObject) {
-		ProcessConfigMapUpdate(fake, changeType, obj, false, endptStore)
+	onCfgChange := func(changeType changeType, obj ChangedObject) {
+		ProcessConfigMapUpdate(changeType, obj, false)
 	}
-	cfgStore = newStore(onCfgChange)
+	cfgStore = NewStore(onCfgChange)
 
-	onEndptChange := func(changeType changeType, obj changedObject) {
-		ProcessEndpointsUpdate(fake, changeType, obj, svcStore)
+	onEndptChange := func(changeType changeType, obj ChangedObject) {
+		ProcessEndpointsUpdate(changeType, obj)
 	}
-	endptStore = newStore(onEndptChange)
+	endptStore = NewStore(onEndptChange)
 
-	onSvcChange := func(changeType changeType, obj changedObject) {
-		ProcessServiceUpdate(fake, changeType, obj, false, endptStore)
-		require.True(ok, "expected changedObject")
+	onSvcChange := func(changeType changeType, obj ChangedObject) {
+		ProcessServiceUpdate(changeType, obj, false)
+		require.True(ok, "expected ChangedObject")
 		switch changeType {
 		case added:
 			svc := obj.New.(*v1.Service)
-			fSvc, err := fake.Core().Services(namespace).Create(svc)
+			fSvc, err := fake.Core().Services("default").Create(svc)
 			require.Nil(err, "Should not fail creating service")
 			require.EqualValues(fSvc, svc, "Service should be equal")
 		case deleted:
 			svc := obj.Old.(*v1.Service)
-			err := fake.Core().Services(namespace).Delete(svc.ObjectMeta.Name,
+			err := fake.Core().Services("default").Delete(svc.ObjectMeta.Name,
 				&v1.DeleteOptions{})
 			require.Nil(err, "Should not error deleting service")
 		}
 	}
-	svcStore = newStore(onSvcChange)
+	svcStore = NewStore(onSvcChange)
 
-	fooEndpts := newEndpoints("foo", "1", namespace, fooIps, barIps,
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["endpoints"] = endptStore
+	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
+
+	fooEndpts := test.NewEndpoints("foo", "1", "default", fooIps, barIps,
 		convertSvcPortsToEndpointPorts(fooPorts))
-	barEndpts := newEndpoints("bar", "1", namespace, barIps, fooIps,
+	barEndpts := test.NewEndpoints("bar", "1", "default", barIps, fooIps,
 		convertSvcPortsToEndpointPorts(barPorts))
 	cfgCh := make(chan struct{})
 	endptCh := make(chan struct{})
@@ -2503,7 +2513,7 @@ func TestNonNodePortServiceModeNodePort(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	cfgFoo := newConfigMap(
+	cfgFoo := test.NewConfigMap(
 		"foomap",
 		"1",
 		"default",
@@ -2515,14 +2525,29 @@ func TestNonNodePortServiceModeNodePort(t *testing.T) {
 
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
 
-	endptStore := newStore(nil)
+	svcName := "foo"
+	svcPorts := []v1.ServicePort{
+		newServicePort("port0", 80),
+	}
+
+	foo := test.NewService(svcName, "1", "default", v1.ServiceTypeClusterIP, svcPorts)
+
+	svcStore := NewStore(nil)
+	svcStore.Add(foo)
+
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["endpoints"] = NewStore(nil)
+	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
+
 	r := processConfigMap(
-		fake,
 		added,
-		changedObject{nil, cfgFoo},
+		ChangedObject{nil, cfgFoo},
 		true,
-		endptStore,
 	)
 	require.True(r, "Config map should be processed")
 
@@ -2531,7 +2556,7 @@ func TestNonNodePortServiceModeNodePort(t *testing.T) {
 		"Virtual servers should have an entry",
 	)
 
-	foo := newService(
+	foo = test.NewService(
 		"foo",
 		"1",
 		"default",
@@ -2540,11 +2565,9 @@ func TestNonNodePortServiceModeNodePort(t *testing.T) {
 	)
 
 	r = processService(
-		fake,
 		added,
-		changedObject{nil, foo},
+		ChangedObject{nil, foo},
 		true,
-		endptStore,
 	)
 
 	assert.False(r, "Should not process non NodePort Service")
@@ -2560,23 +2583,29 @@ func TestMultipleVirtualServersForOneBackend(t *testing.T) {
 	assert.True(t, ok)
 	require := require.New(t)
 
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client cannot be nil")
+	kubeClient = fake
+	var resetClient kubernetes.Interface
+	defer func() { kubeClient = resetClient }()
+
 	defer virtualServers.Init()
 
 	svcPorts := []v1.ServicePort{
 		newServicePort("port80", 80),
 	}
-	svc := newService("app", "1", "default", v1.ServiceTypeClusterIP, svcPorts)
-	fake := fake.NewSimpleClientset(&v1.ServiceList{Items: []v1.Service{*svc}})
-	svcStore := newStore(nil)
+	svc := test.NewService("app", "1", "default", v1.ServiceTypeClusterIP, svcPorts)
+	svcStore := NewStore(nil)
 	svcStore.Add(svc)
 
-	endptStore := newStore(func(change changeType, obj changedObject) {
-		ProcessEndpointsUpdate(fake, change, obj, svcStore)
+	cfgStore := NewStore(func(change changeType, obj ChangedObject) {
+		ProcessConfigMapUpdate(change, obj, false)
 	})
 
-	cfgStore := newStore(func(change changeType, obj changedObject) {
-		ProcessConfigMapUpdate(fake, change, obj, false, endptStore)
-	})
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
+	watchManager.(*test.MockWatchManager).Store["endpoints"] = NewStore(nil)
 
 	vsTemplate := `{
 		"virtualServer": {
@@ -2605,17 +2634,17 @@ func TestMultipleVirtualServersForOneBackend(t *testing.T) {
 	}`
 
 	require.Equal(0, virtualServers.Count())
-	cfgStore.Add(newConfigMap("cmap-1", "1", "default", map[string]string{
+	cfgStore.Add(test.NewConfigMap("cmap-1", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   fmt.Sprintf(vsTemplate, 5, 80),
 	}))
 	require.Equal(1, virtualServers.Count())
-	cfgStore.Update(newConfigMap("cmap-1", "2", "default", map[string]string{
+	cfgStore.Update(test.NewConfigMap("cmap-1", "2", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   fmt.Sprintf(vsTemplate, 5, 80),
 	}))
 	require.Equal(1, virtualServers.Count())
-	cfgStore.Add(newConfigMap("cmap-2", "1", "default", map[string]string{
+	cfgStore.Add(test.NewConfigMap("cmap-2", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   fmt.Sprintf(vsTemplate, 5, 8080),
 	}))

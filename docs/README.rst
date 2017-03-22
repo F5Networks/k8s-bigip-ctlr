@@ -64,7 +64,11 @@ Configuration Parameters
 | bigip-partition    | string  | Required | n/a         | The BIG-IP partition in which           |                |
 |                    |         |          |             | to configure objects.                   |                |
 +--------------------+---------+----------+-------------+-----------------------------------------+----------------+
-| namespace          | string  | Required | n/a         | Kubernetes namespace to watch           |                |
+| namespace          | string  | Optional | All         | Kubernetes namespace(s) to watch, if not|                |
+|                    |         |          |             | provided will watch all namespaces      |                |
++--------------------+---------+----------+-------------+-----------------------------------------+----------------+
+| namespace-label    | string  | Optional | n/a         | Tells the ``k8s-bigip-ctlr`` to watch   |                |
+|                    |         |          |             | any namespace with this label           |                |
 +--------------------+---------+----------+-------------+-----------------------------------------+----------------+
 | kubeconfig         | string  | Optional | ./config    | Path to the *kubeconfig* file           |                |
 +--------------------+---------+----------+-------------+-----------------------------------------+----------------+
@@ -304,4 +308,3 @@ Example Configuration Files
 .. _Kubernetes Ingress resources: https://kubernetes.io/docs/user-guide/ingress/
 .. _iApp table: https://devcentral.f5.com/wiki/iApp.Working-with-Tables.ashx
 .. _Kubernetes Service Type: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services---service-types
-

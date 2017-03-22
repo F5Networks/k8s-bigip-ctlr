@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package main
+package watchmanager
 
 import (
 	"k8s.io/client-go/pkg/api"

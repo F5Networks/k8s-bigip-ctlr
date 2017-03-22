@@ -21,32 +21,19 @@ import (
 
 	log "f5/vlogger"
 
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 type (
-	resourceType   int
-	resourceStores [3]cache.Store
-
 	eventHandler struct {
-		client     kubernetes.Interface
 		isNodePort bool
-		stores     resourceStores
 	}
 
-	changedObject struct {
+	ChangedObject struct {
 		Old interface{}
 		New interface{}
 	}
 	changeType int
-)
-
-const (
-	Endpoints resourceType = iota
-	Services
-	Configmaps
 )
 
 const (
@@ -56,48 +43,36 @@ const (
 )
 
 func NewEventHandler(
-	kubeClient kubernetes.Interface,
 	isNodePort bool,
 ) *eventHandler {
 	return &eventHandler{
-		client:     kubeClient,
 		isNodePort: isNodePort,
 	}
-}
-
-func (eh *eventHandler) SetStore(resource resourceType, s cache.Store) {
-	eh.stores[resource] = s
 }
 
 func (eh *eventHandler) delegator(
 	change changeType,
 	resource reflect.Type,
-	changed changedObject,
+	changed ChangedObject,
 ) {
 	log.Debugf("Delegating type %v to virtual server processors", resource)
 
 	if resource == reflect.TypeOf(&v1.Endpoints{}) {
 		ProcessEndpointsUpdate(
-			eh.client,
 			change,
 			changed,
-			eh.stores[Services],
 		)
 	} else if resource == reflect.TypeOf(&v1.ConfigMap{}) {
 		ProcessConfigMapUpdate(
-			eh.client,
 			change,
 			changed,
 			eh.isNodePort,
-			eh.stores[Endpoints],
 		)
 	} else if resource == reflect.TypeOf(&v1.Service{}) {
 		ProcessServiceUpdate(
-			eh.client,
 			change,
 			changed,
 			eh.isNodePort,
-			eh.stores[Endpoints],
 		)
 	} else {
 		log.Warningf("Unexpected object type received through event handler: %v", resource)
@@ -105,13 +80,13 @@ func (eh *eventHandler) delegator(
 }
 
 func (eh *eventHandler) OnAdd(obj interface{}) {
-	eh.delegator(added, reflect.TypeOf(obj), changedObject{Old: nil, New: obj})
+	eh.delegator(added, reflect.TypeOf(obj), ChangedObject{Old: nil, New: obj})
 }
 
 func (eh *eventHandler) OnUpdate(oldObj, newObj interface{}) {
-	eh.delegator(updated, reflect.TypeOf(newObj), changedObject{Old: oldObj, New: newObj})
+	eh.delegator(updated, reflect.TypeOf(newObj), ChangedObject{Old: oldObj, New: newObj})
 }
 
 func (eh *eventHandler) OnDelete(obj interface{}) {
-	eh.delegator(deleted, reflect.TypeOf(obj), changedObject{Old: obj, New: nil})
+	eh.delegator(deleted, reflect.TypeOf(obj), ChangedObject{Old: obj, New: nil})
 }

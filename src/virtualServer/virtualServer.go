@@ -28,34 +28,58 @@ import (
 
 	log "f5/vlogger"
 	"tools/writer"
+	"watchmanager"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/pkg/runtime"
 )
 
-// Nodes from previous iteration of node polling
-var oldNodes = []string{}
+var (
+	config             writer.Writer
+	watchAllNamespaces bool
+	useNodeInternal    bool
+	watchManager       watchmanager.Manager
+	kubeClient         kubernetes.Interface
 
-// Mutex to control access to node data
-// FIXME: Simple synchronization for now, it remains to be determined if we'll
-// need something more complicated (channels, etc?)
-var mutex = &sync.Mutex{}
+	// Mutex to control access to node data
+	// FIXME: Simple synchronization for now, it remains to be determined if we'll
+	// need something more complicated (channels, etc?)
+	mutex = &sync.Mutex{}
+	// Nodes from previous iteration of node polling
+	oldNodes = []string{}
+)
 
-var config writer.Writer
-var namespace = ""
-var useNodeInternal = false
+const (
+	endpoints int = iota
+	configmaps
+	services
+)
+
+var objInterfaces = [3]runtime.Object{
+	&v1.Endpoints{},
+	&v1.ConfigMap{},
+	&v1.Service{},
+}
 
 func SetConfigWriter(cw writer.Writer) {
 	config = cw
 }
 
-func SetNamespace(ns string) {
-	namespace = ns
+func SetNamespace(wa bool) {
+	watchAllNamespaces = wa
 }
 
 func SetUseNodeInternal(ni bool) {
 	useNodeInternal = ni
+}
+
+func SetManager(m watchmanager.Manager) {
+	watchManager = m
+}
+
+func SetClient(k kubernetes.Interface) {
+	kubeClient = k
 }
 
 // global virtualServers object
@@ -63,16 +87,15 @@ var virtualServers *VirtualServers = NewVirtualServers()
 
 // Process Service objects from the controller
 func ProcessServiceUpdate(
-	kubeClient kubernetes.Interface,
 	changeType changeType,
-	obj changedObject,
+	obj ChangedObject,
 	isNodePort bool,
-	endptStore cache.Store) {
+) {
 
 	updated := false
 
 	log.Debugf("ProcessServiceUpdate (%v) for 1 Service", changeType)
-	updated = processService(kubeClient, changeType, obj, isNodePort, endptStore)
+	updated = processService(changeType, obj, isNodePort)
 
 	if updated {
 		// Output the Big-IP config
@@ -82,16 +105,14 @@ func ProcessServiceUpdate(
 
 // Process ConfigMap objects from the controller
 func ProcessConfigMapUpdate(
-	kubeClient kubernetes.Interface,
 	changeType changeType,
-	obj changedObject,
+	obj ChangedObject,
 	isNodePort bool,
-	endptStore cache.Store) {
-
+) {
 	updated := false
 
 	log.Debugf("ProcessConfigMapUpdate (%v) for 1 ConfigMap", changeType)
-	updated = processConfigMap(kubeClient, changeType, obj, isNodePort, endptStore)
+	updated = processConfigMap(changeType, obj, isNodePort)
 
 	if updated {
 		// Output the Big-IP config
@@ -100,15 +121,14 @@ func ProcessConfigMapUpdate(
 }
 
 func ProcessEndpointsUpdate(
-	kubeClient kubernetes.Interface,
 	changeType changeType,
-	obj changedObject,
-	serviceStore cache.Store) {
+	obj ChangedObject,
+) {
 
 	updated := false
 
 	log.Debugf("ProcessEndpointsUpdate (%v) for 1 Pod", changeType)
-	updated = processEndpoints(kubeClient, changeType, obj, serviceStore)
+	updated = processEndpoints(changeType, obj)
 
 	if updated {
 		// Output the Big-IP config
@@ -158,11 +178,10 @@ func getEndpointsForNodePort(nodePort int32) []string {
 
 // Process a change in Service state
 func processService(
-	kubeClient kubernetes.Interface,
 	changeType changeType,
-	o changedObject,
+	o ChangedObject,
 	isNodePort bool,
-	endptStore cache.Store) bool {
+) bool {
 
 	var svc *v1.Service
 	rmvdPortsMap := make(map[int32]*struct{})
@@ -180,13 +199,14 @@ func processService(
 		svc = o.Old.(*v1.Service)
 	}
 
-	serviceName := svc.ObjectMeta.Name
-	updateConfig := false
-
-	if svc.ObjectMeta.Namespace != namespace {
-		log.Warningf("Recieving service updates for unwatched namespace %s", svc.ObjectMeta.Namespace)
+	test := watchManager.NamespaceExists(svc.ObjectMeta.Namespace, objInterfaces[services])
+	if !test {
 		return false
 	}
+
+	serviceName := svc.ObjectMeta.Name
+	updateConfig := false
+	namespace := svc.ObjectMeta.Namespace
 
 	// Check if the service that changed is associated with a ConfigMap
 	virtualServers.Lock()
@@ -207,7 +227,7 @@ func processService(
 							updateConfig = true
 						}
 					} else {
-						item, _, err := endptStore.GetByKey(namespace + "/" + serviceName)
+						item, _, err := watchManager.GetStoreItem(namespace, "endpoints", serviceName)
 						if nil != item {
 							eps := item.(*v1.Endpoints)
 							ipPorts := getEndpointsForService(portSpec.Name, eps)
@@ -246,12 +266,10 @@ func processService(
 
 // Process a change in ConfigMap state
 func processConfigMap(
-	kubeClient kubernetes.Interface,
 	changeType changeType,
-	o changedObject,
+	o ChangedObject,
 	isNodePort bool,
-	endptStore cache.Store) bool {
-
+) bool {
 	var cfg *VirtualServerConfig
 
 	verified := false
@@ -268,9 +286,13 @@ func processConfigMap(
 		cm = o.Old.(*v1.ConfigMap)
 	}
 
-	if cm.ObjectMeta.Namespace != namespace {
-		log.Warningf("Recieving config map updates for unwatched namespace %s", cm.ObjectMeta.Namespace)
-		return false
+	namespace := cm.ObjectMeta.Namespace
+	if !watchAllNamespaces {
+		test := watchManager.NamespaceExists(namespace, objInterfaces[configmaps])
+		if !test {
+			log.Debugf("Recieving service updates for unwatched namespace %s", cm.ObjectMeta.Namespace)
+			return false
+		}
 	}
 
 	// Decode the JSON data in the ConfigMap
@@ -302,11 +324,17 @@ func processConfigMap(
 
 	switch changeType {
 	case added, updated:
-		// FIXME(yacobucci) Issue #13 this shouldn't go to the API server but
-		// use the eventStream and eventStore functionality
-		svc, err := kubeClient.Core().Services(namespace).Get(serviceName)
-
-		if nil == err {
+		eh := NewEventHandler(isNodePort)
+		serviceStore, err := watchManager.Add(namespace, "services", "", objInterfaces[services], eh)
+		if nil != err {
+			log.Warningf("Failed to add services watch for namespace %v: %v", namespace, err)
+			return false
+		}
+		realsvc, found, err := serviceStore.GetByKey(namespace + "/" + serviceName)
+		// If the item isn't found skip this block and create a placeholder entry
+		// which will be processed when we get our initial add from the watch
+		if nil == err && found {
+			svc := realsvc.(*v1.Service)
 			// Check if service is of type NodePort
 			if isNodePort {
 				if svc.Spec.Type == v1.ServiceTypeNodePort {
@@ -322,7 +350,13 @@ func processConfigMap(
 					}
 				}
 			} else {
-				item, _, _ := endptStore.GetByKey(namespace + "/" + serviceName)
+				epStore, epErr := watchManager.Add(namespace, "endpoints", "", objInterfaces[endpoints], eh)
+				if nil != epErr {
+					log.Warningf("Failed to add endpoints watch for namespace %v: %v", namespace, epErr)
+					return false
+				}
+
+				item, _, _ := epStore.GetByKey(namespace + "/" + serviceName)
 				if nil != item {
 					eps := item.(*v1.Endpoints)
 					for _, portSpec := range svc.Spec.Ports {
@@ -406,10 +440,9 @@ func processConfigMap(
 }
 
 func processEndpoints(
-	kubeClient kubernetes.Interface,
 	changeType changeType,
-	o changedObject,
-	serviceStore cache.Store) bool {
+	o ChangedObject,
+) bool {
 
 	var eps *v1.Endpoints
 	switch changeType {
@@ -421,7 +454,9 @@ func processEndpoints(
 
 	serviceName := eps.ObjectMeta.Name
 	namespace := eps.ObjectMeta.Namespace
-	item, _, _ := serviceStore.GetByKey(namespace + "/" + serviceName)
+
+	item, _, _ := watchManager.GetStoreItem(namespace, "services", serviceName)
+
 	if nil == item {
 		return false
 	}
@@ -587,4 +622,16 @@ func getNodeAddresses(obj interface{}) ([]string, error) {
 	}
 
 	return addrs, nil
+}
+
+// RemoveNamespace cleans up all virtual servers that reference a removed namespace
+func RemoveNamespace(ns string) {
+	virtualServers.Lock()
+	defer virtualServers.Unlock()
+	virtualServers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
+		if key.Namespace == ns {
+			virtualServers.Delete(key, "")
+		}
+	})
+	outputConfigLocked()
 }

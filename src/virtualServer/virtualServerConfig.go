@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	log "f5/vlogger"
+
 	"github.com/xeipuuv/gojsonschema"
 	"k8s.io/client-go/pkg/api/v1"
 )
@@ -223,6 +224,10 @@ func (vss *VirtualServers) Delete(key serviceKey, frontEndName string) bool {
 	vsMap, ok := vss.m[key]
 	if !ok {
 		return false
+	}
+	if frontEndName == "" {
+		delete(vss.m, key)
+		return true
 	}
 	if _, ok := vsMap[frontEndName]; ok {
 		delete(vsMap, frontEndName)

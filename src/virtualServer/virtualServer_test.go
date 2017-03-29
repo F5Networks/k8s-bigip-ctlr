@@ -1496,9 +1496,8 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	require.NotNil(fake, "Mock client should not be nil")
 
 	noschemakey := newConfigMap("noschema", "1", "default", map[string]string{
-		"data": "bar"})
+		"data": configmapFoo})
 	cfg, err := parseVirtualServerConfig(noschemakey)
-	require.Nil(cfg, "Should not have parsed bad configmap")
 	require.EqualError(err, "configmap noschema does not contain schema key",
 		"Should receive no schema error")
 	endptStore := newStore(nil)
@@ -1911,8 +1910,7 @@ func TestSchemaValidation(t *testing.T) {
 		"schema": schemaUrl,
 		"data":   configmapFoo,
 	})
-	cfg, err := parseVirtualServerConfig(badjson)
-	require.Nil(cfg, "Should not have parsed bad configmap")
+	_, err := parseVirtualServerConfig(badjson)
 	assert.Contains(err.Error(),
 		"virtualServer.frontend.partition: String length must be greater than or equal to 1")
 	assert.Contains(err.Error(),

@@ -263,8 +263,12 @@ func (vss *VirtualServers) GetAll(
 func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 	var cfg VirtualServerConfig
 
-	if schemaName, ok := cm.Data["schema"]; ok {
-		if data, ok := cm.Data["data"]; ok {
+	if data, ok := cm.Data["data"]; ok {
+		err := json.Unmarshal([]byte(data), &cfg)
+		if nil != err {
+			return nil, err
+		}
+		if schemaName, ok := cm.Data["schema"]; ok {
 			// FIXME For now, "f5schemadb" means the schema is local
 			// Trim whitespace and embedded quotes
 			schemaName = strings.TrimSpace(schemaName)
@@ -277,33 +281,28 @@ func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 			schemaLoader := gojsonschema.NewReferenceLoader(schemaName)
 			schema, err := gojsonschema.NewSchema(schemaLoader)
 			if err != nil {
-				return nil, err
+				return &cfg, err
 			}
 			// Load the ConfigMap data and validate
 			dataLoader := gojsonschema.NewStringLoader(data)
 			result, err := schema.Validate(dataLoader)
 			if err != nil {
-				return nil, err
+				return &cfg, err
 			}
 
-			if result.Valid() {
-				err := json.Unmarshal([]byte(data), &cfg)
-				if nil != err {
-					return nil, err
-				}
-			} else {
+			if !result.Valid() {
 				var errors []string
 				for _, desc := range result.Errors() {
 					errors = append(errors, desc.String())
 				}
-				return nil, fmt.Errorf("configMap is not valid, errors: %q", errors)
+				return &cfg, fmt.Errorf("configMap is not valid, errors: %q", errors)
 			}
 		} else {
-			return nil, fmt.Errorf("configmap %s does not contain data key",
+			return &cfg, fmt.Errorf("configmap %s does not contain schema key",
 				cm.ObjectMeta.Name)
 		}
 	} else {
-		return nil, fmt.Errorf("configmap %s does not contain schema key",
+		return nil, fmt.Errorf("configmap %s does not contain data key",
 			cm.ObjectMeta.Name)
 	}
 

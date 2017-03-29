@@ -281,6 +281,19 @@ func processConfigMap(
 	if nil != err {
 		log.Warningf("Could not get config for ConfigMap: %v - %v",
 			cm.ObjectMeta.Name, err)
+		// If virtual server exists for invalid configmap, delete it
+		if nil != cfg {
+			if _, ok := virtualServers.Get(
+				serviceKey{cfg.VirtualServer.Backend.ServiceName,
+					cfg.VirtualServer.Backend.ServicePort, namespace}, formatVirtualServerName(cm)); ok {
+				virtualServers.Lock()
+				defer virtualServers.Unlock()
+				virtualServers.Delete(serviceKey{cfg.VirtualServer.Backend.ServiceName,
+					cfg.VirtualServer.Backend.ServicePort, namespace}, formatVirtualServerName(cm))
+				log.Warningf("Deleted virtual server associated with ConfigMap: %v", cm.ObjectMeta.Name)
+				return true
+			}
+		}
 		return false
 	}
 

@@ -23,6 +23,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -40,7 +41,7 @@ func init() {
 	namespace = "default"
 
 	workingDir, _ := os.Getwd()
-	schemaUrl = "file://" + workingDir + "/../../vendor/src/f5/schemas/bigip-virtual-server_v0.1.2.json"
+	schemaUrl = "file://" + workingDir + "/../../vendor/src/f5/schemas/bigip-virtual-server_v0.1.3.json"
 }
 
 var schemaUrl string
@@ -1534,6 +1535,21 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	}, isNodePort, endptStore)
 	require.Equal(0, virtualServers.Count())
 
+	configmapNoAddr := configmapFoo
+	strings.Replace(configmapNoAddr, "\"bindAddr\": \"10.128.10.240\"", "", -1)
+	noBindAddr := newConfigMap("noBindAddr", "1", "default", map[string]string{
+		"schema": schemaUrl,
+		"data":   configmapNoAddr,
+	})
+	cfg, err = parseVirtualServerConfig(noBindAddr)
+	require.NotNil(cfg, "Config map should parse with missing bindAddr")
+	require.Nil(err, "Should not receive errors")
+	ProcessConfigMapUpdate(fake, added, changedObject{
+		nil,
+		noBindAddr,
+	}, isNodePort, endptStore)
+	require.Equal(1, virtualServers.Count())
+
 	extrakeys := newConfigMap("extrakeys", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo,
@@ -1547,7 +1563,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 		nil,
 		extrakeys,
 	}, isNodePort, endptStore)
-	require.Equal(1, virtualServers.Count())
+	require.Equal(2, virtualServers.Count())
 
 	vs, ok := virtualServers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(extrakeys))

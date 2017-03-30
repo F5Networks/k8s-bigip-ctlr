@@ -1,4 +1,4 @@
-FROM docker-registry.pdbld.f5net.com/velcro/alpine-golang-python:master
+FROM python:2.7-alpine
 
 ENV APPPATH /app
 

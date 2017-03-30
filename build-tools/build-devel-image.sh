@@ -22,6 +22,9 @@ cp $CURDIR/Dockerfile.builder $WKDIR
 cp $CURDIR/entrypoint.builder.sh $WKDIR
 cp $CURDIR/../python/k8s-*-requirements.txt $WKDIR/
 cp $CURDIR/../requirements.docs.txt $WKDIR
+# GOLANG patches
+cp $CURDIR/golang/17847.patch $WKDIR/
+cp $CURDIR/golang/no-pic.patch $WKDIR/
 
 docker build --force-rm ${NO_CACHE_ARGS} \
   -t $BUILD_IMG_TAG \

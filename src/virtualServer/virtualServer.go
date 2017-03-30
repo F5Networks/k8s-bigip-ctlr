@@ -72,7 +72,7 @@ func ProcessServiceUpdate(
 	updated := false
 
 	log.Debugf("ProcessServiceUpdate (%v) for 1 Service", changeType)
-	updated = processService(kubeClient, changeType, obj, isNodePort, endptStore) || updated
+	updated = processService(kubeClient, changeType, obj, isNodePort, endptStore)
 
 	if updated {
 		// Output the Big-IP config
@@ -91,7 +91,7 @@ func ProcessConfigMapUpdate(
 	updated := false
 
 	log.Debugf("ProcessConfigMapUpdate (%v) for 1 ConfigMap", changeType)
-	updated = processConfigMap(kubeClient, changeType, obj, isNodePort, endptStore) || updated
+	updated = processConfigMap(kubeClient, changeType, obj, isNodePort, endptStore)
 
 	if updated {
 		// Output the Big-IP config
@@ -108,7 +108,7 @@ func ProcessEndpointsUpdate(
 	updated := false
 
 	log.Debugf("ProcessEndpointsUpdate (%v) for 1 Pod", changeType)
-	updated = processEndpoints(kubeClient, changeType, obj, serviceStore) || updated
+	updated = processEndpoints(kubeClient, changeType, obj, serviceStore)
 
 	if updated {
 		// Output the Big-IP config
@@ -290,6 +290,8 @@ func processConfigMap(
 				defer virtualServers.Unlock()
 				virtualServers.Delete(serviceKey{cfg.VirtualServer.Backend.ServiceName,
 					cfg.VirtualServer.Backend.ServicePort, namespace}, formatVirtualServerName(cm))
+				delete(cm.ObjectMeta.Annotations, "status.virtual-server.f5.com/ip")
+				kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
 				log.Warningf("Deleted virtual server associated with ConfigMap: %v", cm.ObjectMeta.Name)
 				return true
 			}
@@ -382,6 +384,19 @@ func processConfigMap(
 		cfg.VirtualServer.Frontend.VirtualServerName = vsName
 		virtualServers.Assign(serviceKey{serviceName, servicePort, namespace},
 			vsName, cfg)
+
+		// Set a status annotation to contain the virtualAddress bindAddr
+		if cfg.VirtualServer.Frontend.IApp == "" {
+			if cm.ObjectMeta.Annotations == nil {
+				cm.ObjectMeta.Annotations = make(map[string]string)
+			}
+			cm.ObjectMeta.Annotations["status.virtual-server.f5.com/ip"] =
+				cfg.VirtualServer.Frontend.VirtualAddress.BindAddr
+			_, err = kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
+			if nil != err {
+				log.Warningf("Error when creating status IP annotation: %s", err)
+			}
+		}
 		verified = true
 	case deleted:
 		virtualServers.Lock()

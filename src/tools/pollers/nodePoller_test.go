@@ -142,45 +142,11 @@ func initTestData(t *testing.T) (Poller, []nodeData) {
 	return np, expectedNodes
 }
 
-func assertGoroutines(
-	t *testing.T,
-	operation func() error,
-	expectedRoutines int,
-) {
-	ticks := 0
-	tickLimit := 100
-	ticker := time.NewTicker(100 * time.Millisecond)
-
-	err := operation()
-	assert.Nil(t, err)
-	runtime.Gosched()
-
-	if expectedRoutines == runtime.NumGoroutine() {
-		assert.Equal(t, expectedRoutines, runtime.NumGoroutine())
-		return
-	}
-
-	for _ = range ticker.C {
-		runtime.Gosched()
-
-		if expectedRoutines == runtime.NumGoroutine() {
-			break
-		}
-
-		ticks++
-		if tickLimit == ticks {
-			break
-		}
-	}
-
-	assert.Equal(t, expectedRoutines, runtime.NumGoroutine())
-}
-
 func assertRegister(
 	t *testing.T,
 	p Poller,
-	expectedRoutines int,
 	expectedNodes []nodeData,
+	stopped bool,
 ) {
 	called := 0
 	err := p.RegisterListener(func(call *int) PollListener {
@@ -207,13 +173,14 @@ func assertRegister(
 	<-time.After(100 * time.Millisecond)
 
 	assert.Condition(t, func() bool {
-		return called > 0
+		var cond bool
+		if false == stopped {
+			cond = called > 0
+		} else {
+			cond = called == 0
+		}
+		return cond
 	}, "Listener should have been called 1 or more times")
-
-	if -1 != expectedRoutines {
-		assert.Equal(t, expectedRoutines, runtime.NumGoroutine(),
-			"Should have started a goroutine for each listeners")
-	}
 }
 
 func TestNodePollerStartStop(t *testing.T) {
@@ -223,18 +190,28 @@ func TestNodePollerStartStop(t *testing.T) {
 	np := NewNodePoller(fake, 1*time.Millisecond)
 	require.NotNil(t, np, "Node poller cannot be nil")
 
-	curGoroutines := runtime.NumGoroutine()
-	assertGoroutines(t, np.Run, curGoroutines+1)
-
-	// call run a second time
 	err := np.Run()
+	assert.Nil(t, err)
+	// call run a second time
+	err = np.Run()
 	assert.NotNil(t, err)
 
+	var called bool
 	err = np.RegisterListener(func(obj interface{}, err error) {
-		// do nothing
+		called = true
 	})
 
-	assertGoroutines(t, np.Stop, curGoroutines)
+	<-time.After(100 * time.Millisecond)
+	assert.True(t, called)
+
+	err = np.Stop()
+	assert.Nil(t, err)
+
+	// after stop called should not be reset to true from a running
+	// listener
+	<-time.After(100 * time.Millisecond)
+	called = false
+	assert.False(t, called)
 
 	// call stop a second time
 	err = np.Stop()
@@ -244,22 +221,23 @@ func TestNodePollerStartStop(t *testing.T) {
 func TestNodePoller(t *testing.T) {
 	np, expectedNodes := initTestData(t)
 
-	curGoroutines := runtime.NumGoroutine()
 	err := np.Run()
 	assert.Nil(t, err)
 
-	for _, v := range []int{1, 2, 3, 4, 5} {
+	for _ = range []int{1, 2, 3, 4, 5} {
 		// one is the magic number, 1 routine for the NodePoller
-		assertRegister(t, np, curGoroutines+1+v, expectedNodes)
+		assertRegister(t, np, expectedNodes, false)
 	}
 
-	assertGoroutines(t, np.Stop, curGoroutines)
+	err = np.Stop()
+	assert.NoError(t, err)
+
+	assertRegister(t, np, expectedNodes, true)
 }
 
 func TestNodePollerSlowReader(t *testing.T) {
 	np, expectedNodes := initTestData(t)
 
-	curGoroutines := runtime.NumGoroutine()
 	err := np.Run()
 	assert.Nil(t, err)
 
@@ -267,36 +245,41 @@ func TestNodePollerSlowReader(t *testing.T) {
 		<-time.After(500 * time.Millisecond)
 	})
 
-	for _, v := range []int{1, 2, 3, 4, 5} {
+	for _ = range []int{1, 2, 3, 4, 5} {
 		// two is the magic number, 1 routine1 for the NodePoller
 		// plus the 1 slow reader
-		assertRegister(t, np, curGoroutines+2+v, expectedNodes)
+		assertRegister(t, np, expectedNodes, false)
 	}
 
-	assertGoroutines(t, np.Stop, curGoroutines)
+	err = np.Stop()
+	assert.NoError(t, err)
+
+	assertRegister(t, np, expectedNodes, true)
 }
 
 func TestNodePollerConcurrent(t *testing.T) {
 	np, expectedNodes := initTestData(t)
 
-	curGoroutines := runtime.NumGoroutine()
 	err := np.Run()
 	assert.Nil(t, err)
 
 	var wg sync.WaitGroup
-	for _, _ = range []int{0, 1, 2, 3, 4} {
+	for _ = range []int{0, 1, 2, 3, 4} {
 		wg.Add(1)
 		go func() {
 			// don't test against number of go routines, for this
 			// test they are too transitory because of the concurrency
 			// routine we're using here
-			assertRegister(t, np, -1, expectedNodes)
+			assertRegister(t, np, expectedNodes, false)
 			wg.Done()
 		}()
 	}
 
 	wg.Wait()
-	assertGoroutines(t, np.Stop, curGoroutines)
+	err = np.Stop()
+	assert.NoError(t, err)
+
+	assertRegister(t, np, expectedNodes, true)
 }
 
 func TestNodePollerRegisterWhileStopped(t *testing.T) {
@@ -306,10 +289,8 @@ func TestNodePollerRegisterWhileStopped(t *testing.T) {
 	np := NewNodePoller(fake, 1*time.Millisecond)
 	require.NotNil(t, np, "Node poller cannot be nil")
 
-	curGoroutines := runtime.NumGoroutine()
-
 	calls := []bool{false, false, false, false, false}
-	for i, _ := range calls {
+	for i := range calls {
 		err := np.RegisterListener(func(index int) PollListener {
 			var p PollListener = func(obj interface{}, err error) {
 				if false == calls[index] {
@@ -327,11 +308,12 @@ func TestNodePollerRegisterWhileStopped(t *testing.T) {
 	runtime.Gosched()
 	<-time.After(100 * time.Millisecond)
 
-	for i, _ := range calls {
+	for i := range calls {
 		assert.True(t, calls[i])
 	}
 
-	assertGoroutines(t, np.Stop, curGoroutines)
+	err = np.Stop()
+	<-time.After(100 * time.Millisecond)
 
 	calls = []bool{
 		false,
@@ -346,7 +328,7 @@ func TestNodePollerRegisterWhileStopped(t *testing.T) {
 		false,
 	}
 
-	for i, _ := range calls[5:] {
+	for i := range calls[5:] {
 		err := np.RegisterListener(func(index int) PollListener {
 			var p PollListener = func(obj interface{}, err error) {
 				if false == calls[index] {
@@ -364,9 +346,10 @@ func TestNodePollerRegisterWhileStopped(t *testing.T) {
 	runtime.Gosched()
 	<-time.After(100 * time.Millisecond)
 
-	for i, _ := range calls {
+	for i := range calls {
 		assert.True(t, calls[i])
 	}
 
-	assertGoroutines(t, np.Stop, curGoroutines)
+	err = np.Stop()
+	assert.NoError(t, err)
 }

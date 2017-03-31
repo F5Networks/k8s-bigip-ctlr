@@ -22,7 +22,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -111,30 +110,6 @@ type simpleTest struct {
 	Test testSection `json:"simple-test"`
 }
 
-func checkGoroutines(t *testing.T, expectedRoutines int) {
-	ticks := 0
-	tickLimit := 100
-	ticker := time.NewTicker(100 * time.Millisecond)
-
-	if expectedRoutines == runtime.NumGoroutine() {
-		assert.Equal(t, expectedRoutines, runtime.NumGoroutine())
-	} else {
-		for _ = range ticker.C {
-			runtime.Gosched()
-
-			if expectedRoutines == runtime.NumGoroutine() {
-				assert.Equal(t, expectedRoutines, runtime.NumGoroutine())
-				return
-			}
-
-			ticks++
-			if tickLimit == ticks {
-				assert.FailNow(t, "Did not exit go routines in 10s")
-			}
-		}
-	}
-}
-
 func pollError(t *testing.T, doneCh <-chan struct{}, errCh <-chan error) {
 	ticks := 0
 	tickLimit := 100
@@ -215,8 +190,6 @@ func TestConfigWriterGetters(t *testing.T) {
 }
 
 func TestConfigWriterCreateStop(t *testing.T) {
-	curGoroutines := runtime.NumGoroutine()
-
 	cw, err := NewConfigWriter()
 	assert.Nil(t, err)
 	require.NotNil(t, cw)
@@ -224,10 +197,14 @@ func TestConfigWriterCreateStop(t *testing.T) {
 	f := cw.GetOutputFilename()
 	testFile(t, f, false)
 
-	checkGoroutines(t, curGoroutines+1)
+	doneCh, errCh, err := cw.SendSection("write-after-start", struct{}{})
+	assert.Nil(t, err)
+
+	pollDone(t, doneCh, errCh)
+	testFile(t, f, true)
 
 	cw.Stop()
-	checkGoroutines(t, curGoroutines)
+	testFile(t, f, false)
 
 	// Maybe overdone here but stopping and writing multiple times to ensure
 	// there isn't a deadlock lurking in the Stop functionality.
@@ -236,7 +213,7 @@ func TestConfigWriterCreateStop(t *testing.T) {
 	cw.SendSection("write-after-stop", struct{}{})
 	cw.Stop()
 	cw.SendSection("write-after-stop", struct{}{})
-	checkGoroutines(t, curGoroutines)
+	testFile(t, f, false)
 }
 
 func TestConfigWriterBadJson(t *testing.T) {
@@ -252,7 +229,7 @@ func TestConfigWriterBadJson(t *testing.T) {
 		assert.False(t, os.IsExist(err))
 	}()
 
-	badJson := map[struct{ key string }]string{
+	badJSON := map[struct{ key string }]string{
 		struct{ key string }{
 			key: "one",
 		}: "something goes here",
@@ -264,7 +241,7 @@ func TestConfigWriterBadJson(t *testing.T) {
 		}: "this really shouldn't marshal",
 	}
 
-	doneCh, errCh, err := cw.SendSection("bad", badJson)
+	doneCh, errCh, err := cw.SendSection("bad", badJSON)
 	assert.Nil(t, err)
 
 	pollError(t, doneCh, errCh)

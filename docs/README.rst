@@ -295,11 +295,11 @@ Example Configuration Files
 .. _Kubernetes Service: https://kubernetes.io/docs/user-guide/services/
 .. _Kubernetes Annotation: https://kubernetes.io/docs/user-guide/annotations/
 .. _Kubernetes clusters: https://kubernetes.io/docs/admin/
-.. _NodePorts: https://kubernetes.io/docs/user-guide/services/#type-nodeport
-.. _ClusterIPs: https://kubernetes.io/docs/user-guide/services/#publishing-services---service-types
+.. _NodePorts: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
+.. _ClusterIPs: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services---service-types
 .. _iApps: https://devcentral.f5.com/iapps
 .. _Kubernetes pods: https://kubernetes.io/docs/user-guide/pods/
 .. _Kubernetes Ingress resources: https://kubernetes.io/docs/user-guide/ingress/
 .. _iApp table: https://devcentral.f5.com/wiki/iApp.Working-with-Tables.ashx
-.. _Kubernetes Service Type: https://kubernetes.io/docs/user-guide/services/#publishing-services---service-types
+.. _Kubernetes Service Type: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services---service-types
 

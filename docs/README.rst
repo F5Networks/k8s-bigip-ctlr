@@ -167,6 +167,8 @@ virtualServer
 If ``bindAddr`` is not provided in the Frontend configuration, then you must supply it via a `Kubernetes Annotation`_ for the ConfigMap. The controller watches for the annotation key ``virtual-server.f5.com/ip``.
 This annotation must contain the IP address that the virtual server will use. You can configure an IPAM system to write out this annotation containing the IP address that it chose.
 
+A user of the Kubernetes API can check the ``status.virtual-server.f5.com/ip`` annotation, set by the controller, to see the ``bindAddr`` that the virtual server is using.
+
 iApps
 ~~~~~
 

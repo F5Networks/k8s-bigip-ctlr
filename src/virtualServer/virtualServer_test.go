@@ -164,23 +164,6 @@ var configmapBar string = string(`{
   }
 }`)
 
-var configmapNoAddr string = string(`{
-  "virtualServer": {
-    "backend": {
-      "serviceName": "bar",
-      "servicePort": 80
-    },
-    "frontend": {
-      "balance": "round-robin",
-      "mode": "http",
-      "partition": "velcro",
-      "virtualAddress": {
-        "port": 80
-      }
-    }
-  }
-}`)
-
 var configmapNoModeBalance string = string(`{
   "virtualServer": {
     "backend": {
@@ -1533,19 +1516,6 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	}, isNodePort)
 	require.Equal(0, virtualServers.Count())
 
-	// Config map with no bind address
-	noBindAddr := test.NewConfigMap("noBindAddr", "1", "default", map[string]string{
-		"schema": schemaUrl,
-		"data":   configmapNoAddr,
-	})
-	cfg, err = parseVirtualServerConfig(noBindAddr)
-	require.NotNil(cfg, "Config map should parse with missing bindAddr")
-	ProcessConfigMapUpdate(added, ChangedObject{
-		nil,
-		noBindAddr,
-	}, isNodePort)
-	require.Equal(0, virtualServers.Count())
-
 	// Config map with extra keys
 	extrakeys := test.NewConfigMap("extrakeys", "1", "default", map[string]string{
 		"schema": schemaUrl,
@@ -1906,6 +1876,127 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		nil}, true)
 	assert.Equal(1, virtualServers.Count())
 	validateConfig(t, mw, emptyConfig)
+}
+
+func testNoBindAddr(t *testing.T, isNodePort bool) {
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw, "MockWriter should not be nil")
+	assert.True(t, ok, "MockWriter should have returned ok")
+	defer virtualServers.Init()
+	require := require.New(t)
+	assert := assert.New(t)
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client should not be nil")
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	var configmapNoBindAddr string = string(`{
+	"virtualServer": {
+	    "backend": {
+	      "serviceName": "foo",
+	      "servicePort": 80
+	    },
+	    "frontend": {
+	      "balance": "round-robin",
+	      "mode": "http",
+	      "partition": "velcro",
+	      "virtualAddress": {
+	        "port": 10000
+	      },
+	      "sslProfile": {
+	        "f5ProfileName": "velcro/testcert"
+	      }
+	    }
+	  }
+	}`)
+	noBindAddr := test.NewConfigMap("noBindAddr", "1", "default", map[string]string{
+		"schema": schemaUrl,
+		"data":   configmapNoBindAddr,
+	})
+	_, err := parseVirtualServerConfig(noBindAddr)
+	assert.Nil(err, "Missing bindAddr should be valid")
+	ProcessConfigMapUpdate(added, ChangedObject{
+		nil,
+		noBindAddr,
+	}, isNodePort)
+	require.Equal(1, virtualServers.Count())
+
+	vs, ok := virtualServers.Get(
+		serviceKey{"foo", 80, "default"}, formatVirtualServerName(noBindAddr))
+	assert.True(ok, "Config map should be accessible")
+	assert.NotNil(vs, "Config map should be object")
+
+	require.Equal("round-robin", vs.VirtualServer.Frontend.Balance)
+	require.Equal("http", vs.VirtualServer.Frontend.Mode)
+	require.Equal("velcro", vs.VirtualServer.Frontend.Partition)
+	require.Equal("", vs.VirtualServer.Frontend.VirtualAddress.BindAddr)
+	require.Equal(int32(10000), vs.VirtualServer.Frontend.VirtualAddress.Port)
+}
+
+func testNoVirtualAddress(t *testing.T, isNodePort bool) {
+	config = &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	mw, ok := config.(*test.MockWriter)
+	assert.NotNil(t, mw, "MockWriter should not be nil")
+	assert.True(t, ok, "MockWriter should have returned ok")
+	defer virtualServers.Init()
+	require := require.New(t)
+	assert := assert.New(t)
+	fake := fake.NewSimpleClientset()
+	require.NotNil(fake, "Mock client should not be nil")
+	watchManager = test.NewMockWatchManager()
+	defer func() { watchManager = test.NewMockWatchManager() }()
+	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	var configmapNoVirtualAddress string = string(`{
+	  "virtualServer": {
+	    "backend": {
+	      "serviceName": "foo",
+	      "servicePort": 80
+	    },
+	    "frontend": {
+	      "balance": "round-robin",
+	      "mode": "http",
+	      "partition": "velcro",
+	      "sslProfile": {
+	        "f5ProfileName": "velcro/testcert"
+	      }
+	    }
+	  }
+	}`)
+	noVirtualAddress := test.NewConfigMap("noVirtualAddress", "1", "default", map[string]string{
+		"schema": schemaUrl,
+		"data":   configmapNoVirtualAddress,
+	})
+	_, err := parseVirtualServerConfig(noVirtualAddress)
+	assert.Nil(err, "Missing virtualAddress should be valid")
+	ProcessConfigMapUpdate(added, ChangedObject{
+		nil,
+		noVirtualAddress,
+	}, isNodePort)
+	require.Equal(1, virtualServers.Count())
+
+	vs, ok := virtualServers.Get(
+		serviceKey{"foo", 80, "default"}, formatVirtualServerName(noVirtualAddress))
+	assert.True(ok, "Config map should be accessible")
+	assert.NotNil(vs, "Config map should be object")
+
+	require.Equal("round-robin", vs.VirtualServer.Frontend.Balance)
+	require.Equal("http", vs.VirtualServer.Frontend.Mode)
+	require.Equal("velcro", vs.VirtualServer.Frontend.Partition)
+	require.Nil(vs.VirtualServer.Frontend.VirtualAddress)
+}
+
+func TestPoolOnly(t *testing.T) {
+	testNoVirtualAddress(t, true)
+	testNoBindAddr(t, true)
+	testNoVirtualAddress(t, false)
+	testNoBindAddr(t, false)
 }
 
 func TestSchemaValidation(t *testing.T) {

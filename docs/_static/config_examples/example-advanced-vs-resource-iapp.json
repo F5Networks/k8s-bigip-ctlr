@@ -41,13 +41,13 @@
           "columns": ["Index", "Name", "Type", "Options"],
           "rows": [["0", "/Common/tcp", "none", "none"]]
         }
-      }
+      },
       "iappOptions": {
         "description": "Example Advanced iApp"
       },
       "iappVariables": {
         "pool__addr": "127.0.0.2",
-        "pool__port": "4430"
+        "pool__port": "4430",
         "pool__mask": "255.255.255.255",
         "vs__Name": "appsvc_iapp_vs",
         "vs__ProfileClientProtocol": "/Common/tcp-wan-optimized",

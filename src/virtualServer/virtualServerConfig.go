@@ -33,6 +33,9 @@ import (
 // For more information regarding this structure and data model:
 //  f5/schemas/bigip-virtual-server_[version].json
 
+var DEFAULT_MODE string = "tcp"
+var DEFAULT_BALANCE string = "round-robin"
+
 // frontend bindaddr and port
 type virtualAddress struct {
 	BindAddr string `json:"bindAddr,omitempty"`
@@ -292,6 +295,14 @@ func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 			}
 
 			if result.Valid() {
+				// If mode not set, use default
+				if cfg.VirtualServer.Frontend.Mode == "" {
+					cfg.VirtualServer.Frontend.Mode = DEFAULT_MODE
+				}
+				// If balance not set, use default
+				if cfg.VirtualServer.Frontend.Balance == "" {
+					cfg.VirtualServer.Frontend.Balance = DEFAULT_BALANCE
+				}
 				// Checking for annotation in VS, not iApp
 				if cfg.VirtualServer.Frontend.IApp == "" {
 					// Precedence to configmap bindAddr if annotation is also set

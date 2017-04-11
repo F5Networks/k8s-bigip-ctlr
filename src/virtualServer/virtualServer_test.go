@@ -23,7 +23,6 @@ import (
 	"os"
 	"sort"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -141,6 +140,39 @@ var configmapBar string = string(`{
       "virtualAddress": {
         "bindAddr": "10.128.10.240",
         "port": 6051
+      }
+    }
+  }
+}`)
+
+var configmapNoAddr string = string(`{
+  "virtualServer": {
+    "backend": {
+      "serviceName": "bar",
+      "servicePort": 80
+    },
+    "frontend": {
+      "balance": "round-robin",
+      "mode": "http",
+      "partition": "velcro",
+      "virtualAddress": {
+        "port": 80
+      }
+    }
+  }
+}`)
+
+var configmapNoModeBalance string = string(`{
+  "virtualServer": {
+    "backend": {
+      "serviceName": "bar",
+      "servicePort": 80
+    },
+    "frontend": {
+      "partition": "velcro",
+      "virtualAddress": {
+        "bindAddr": "10.128.10.240",
+        "port": 80
       }
     }
   }
@@ -1496,6 +1528,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	fake := fake.NewSimpleClientset()
 	require.NotNil(fake, "Mock client should not be nil")
 
+	// Config map with no schema key
 	noschemakey := newConfigMap("noschema", "1", "default", map[string]string{
 		"data": configmapFoo})
 	cfg, err := parseVirtualServerConfig(noschemakey)
@@ -1508,6 +1541,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	}, isNodePort, endptStore)
 	require.Equal(0, virtualServers.Count())
 
+	// Config map with no data key
 	nodatakey := newConfigMap("nodata", "1", "default", map[string]string{
 		"schema": schemaUrl,
 	})
@@ -1521,6 +1555,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	}, isNodePort, endptStore)
 	require.Equal(0, virtualServers.Count())
 
+	// Config map with bad json
 	badjson := newConfigMap("badjson", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   "///// **invalid json** /////",
@@ -1535,21 +1570,20 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	}, isNodePort, endptStore)
 	require.Equal(0, virtualServers.Count())
 
-	configmapNoAddr := configmapFoo
-	strings.Replace(configmapNoAddr, "\"bindAddr\": \"10.128.10.240\"", "", -1)
+	// Config map with no bind address
 	noBindAddr := newConfigMap("noBindAddr", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapNoAddr,
 	})
 	cfg, err = parseVirtualServerConfig(noBindAddr)
 	require.NotNil(cfg, "Config map should parse with missing bindAddr")
-	require.Nil(err, "Should not receive errors")
 	ProcessConfigMapUpdate(fake, added, changedObject{
 		nil,
 		noBindAddr,
 	}, isNodePort, endptStore)
-	require.Equal(1, virtualServers.Count())
+	require.Equal(0, virtualServers.Count())
 
+	// Config map with extra keys
 	extrakeys := newConfigMap("extrakeys", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo,
@@ -1563,19 +1597,35 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 		nil,
 		extrakeys,
 	}, isNodePort, endptStore)
-	require.Equal(2, virtualServers.Count())
+	require.Equal(1, virtualServers.Count())
+	virtualServers.Delete(serviceKey{"foo", 80, "default"},
+		formatVirtualServerName(extrakeys))
+
+	// Config map with no mode or balance
+	defaultModeAndBalance := newConfigMap("mode_balance", "1", "default", map[string]string{
+		"schema": schemaUrl,
+		"data":   configmapNoModeBalance,
+	})
+	cfg, err = parseVirtualServerConfig(defaultModeAndBalance)
+	require.NotNil(cfg, "Config map should exist and contain default mode and balance.")
+	require.Nil(err, "Should not receive errors")
+	ProcessConfigMapUpdate(fake, added, changedObject{
+		nil,
+		defaultModeAndBalance,
+	}, isNodePort, endptStore)
+	require.Equal(1, virtualServers.Count())
 
 	vs, ok := virtualServers.Get(
-		serviceKey{"foo", 80, "default"}, formatVirtualServerName(extrakeys))
+		serviceKey{"bar", 80, "default"}, formatVirtualServerName(defaultModeAndBalance))
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(vs, "Config map should be object")
 
 	require.Equal("round-robin", vs.VirtualServer.Frontend.Balance)
-	require.Equal("http", vs.VirtualServer.Frontend.Mode)
+	require.Equal("tcp", vs.VirtualServer.Frontend.Mode)
 	require.Equal("velcro", vs.VirtualServer.Frontend.Partition)
 	require.Equal("10.128.10.240",
 		vs.VirtualServer.Frontend.VirtualAddress.BindAddr)
-	require.Equal(int32(5051), vs.VirtualServer.Frontend.VirtualAddress.Port)
+	require.Equal(int32(80), vs.VirtualServer.Frontend.VirtualAddress.Port)
 }
 
 func TestNamespaceIsolation(t *testing.T) {

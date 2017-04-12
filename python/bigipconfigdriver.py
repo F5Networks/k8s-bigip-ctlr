@@ -47,9 +47,8 @@ class IntervalTimerError(Exception):
         Exception.__init__(self, msg)
 
 
-class IntervalTimer(threading.Thread):
-
-    def __init__(self, interval, cb, args=[], kwargs={}):
+class IntervalTimer(object):
+    def __init__(self, interval, cb):
         float(interval)
         if 0 >= interval:
             raise IntervalTimerError("interval must be greater than 0")
@@ -57,50 +56,61 @@ class IntervalTimer(threading.Thread):
         if not cb or not callable(cb):
             raise IntervalTimerError("cb must be callable object")
 
-        threading.Thread.__init__(self)
-        self._interval = interval
         self._cb = cb
-        self._args = args
-        self._kwargs = kwargs
-        self._restart = threading.Event()
-        self._stop = threading.Event()
-        self._stop.set()
-        self._destroy = threading.Event()
+        self._interval = interval
+        self._execution_time = 0.0
+        self._running = False
+        self._timer = None
+        self._lock = threading.RLock()
 
-    def start(self):
-        self._start()
+    def _set_execution_time(self, start_time, stop_time):
+        if stop_time >= start_time:
+            self._execution_time = stop_time - start_time
+        else:
+            self._execution_time = 0.0
 
-        if self.is_alive() is False:
-            super(IntervalTimer, self).start()
+    def _adjust_interval(self):
+        adjusted_interval = self._interval - self._execution_time
+        if adjusted_interval < 0.0:
+            adjusted_interval = 0.0
+        self._execution_time = 0.0
+        return adjusted_interval
 
-    def _start(self):
-        self._stop.clear()
-        self._restart.set()
-
-    def stop(self):
-        self._restart.clear()
-        self._stop.set()
-
-    def destroy(self):
-        self._destroy.set()
-        if not self._restart.is_set():
-            self._restart.set()
-        if not self._stop.is_set():
-            self._stop.set()
+    def _run(self):
+        start_time = time.clock()
+        try:
+            self._cb()
+        except Exception:
+            log.exception('Unexpected error')
+        finally:
+            with self._lock:
+                stop_time = time.clock()
+                self._set_execution_time(start_time, stop_time)
+                if self._running:
+                    self.start()
 
     def is_running(self):
-        return not self._stop.is_set() and self._restart.is_set()
+        return self._running
 
-    def run(self):
-        while True:
-            if not self._stop.wait(self._interval):
-                if not self._destroy.is_set():
-                    self._cb(*self._args, **self._kwargs)
-            else:
-                self._restart.wait()
+    def start(self):
+        with self._lock:
+            if self._running:
+                # restart timer, possibly with a new interval
+                self.stop()
+            self._timer = threading.Timer(self._adjust_interval(), self._run)
+            # timers can't be stopped, cancel just prevents the callback from
+            # occuring when the timer finally expires.  Make it a daemon allows
+            # cancelled timers to exit eventually without a need for join.
+            self._timer.daemon = True
+            self._timer.start()
+            self._running = True
 
-            if self._destroy.is_set():
-                break
+    def stop(self):
+        with self._lock:
+            if self._running:
+                self._timer.cancel()
+                self._timer = None
+                self._running = False
 
 
 class ConfigError(Exception):
@@ -134,7 +144,7 @@ class ConfigHandler():
     def set_interval_timer(self, verify_interval):
         if verify_interval != self._verify_interval:
             if self._interval is not None:
-                self._interval.destroy()
+                self._interval.stop()
                 self._interval = None
 
             self._verify_interval = verify_interval
@@ -164,12 +174,12 @@ class ConfigHandler():
                     self._condition.wait()
                 log.debug('config handler woken for reset')
 
+                self._pending_reset = False
+                self._condition.release()
+
                 if self._stop:
                     log.info('stopping config handler')
                     break
-
-                self._pending_reset = False
-                self._condition.release()
 
                 try:
                     start_time = time.time()
@@ -180,9 +190,9 @@ class ConfigHandler():
                     self.set_interval_timer(verify_interval)
 
                     if self._bigip.regenerate_config_f5(config):
-                        # Timeout occurred, do a reset so that we try again
+                        # Error occurred, perform retries
                         log.warning(
-                            'regenerate operation timed out, resetting')
+                            'regenerate operation failed, restarting')
 
                         if (self._interval and self._interval.is_running() is
                                 True):
@@ -204,7 +214,7 @@ class ConfigHandler():
                     log.exception('Unexpected error')
 
         if self._interval:
-            self._interval.destroy()
+            self._interval.stop()
 
     def retry_backoff(self, func):
         """Add a backoff timer to retry in case of failure."""

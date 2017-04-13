@@ -14,14 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from copy import deepcopy
 import json
+import logging
 import os
 import shutil
-import sys
 from string import Template
-import time
+import sys
 import threading
-import logging
+import time
+
+import _f5
 
 import pytest
 
@@ -29,32 +32,113 @@ import bigipconfigdriver
 
 _args_app_name = ['bigipconfigdriver.py']
 
+_cloud_config = {
+    'bigip': {
+        'username': 'test',
+        'url': 'https://127.0.0.1',
+        'password': 'admin',
+        'partitions': ['test']
+    },
+    'services': [
+        {
+            'virtualServer': {
+                'frontend': {
+                    'virtualServerName': 'test.service',
+                    'partition': 'test',
+                    'virtualAddress': {
+                        'bindAddr': '127.0.0.1',
+                        'port': 8080
+                    },
+                    'mode': 'http',
+                    'balance': 'round-robin'
+                },
+                'backend': {
+                    'poolMemberAddrs': [
+                        '192.168.0.1',
+                        '192.168.0.2'
+                    ],
+                    'serviceName': 'myService',
+                    'servicePort': 80
+                }
+            }
+        },
+    ],
+    'global': {
+        'verify-interval': 0.25,
+        'log-level': u'INFO'
+    }
+}
 
-class MockBigIp():
-    def __init__(self, expected_dict={'services': []}, fail=False,
-                 notify_event=None, notify_after=0):
+_expected_bigip_config = {
+    'network': {},
+    'ltm': {
+        'test.service': {
+            'virtual_address': '127.0.0.1',
+            'name': 'test.service',
+            'partition': 'test',
+            'virtual': {
+                'disabled': False,
+                'profiles': [
+                    {
+                        'partition': 'Common',
+                        'name': 'http'
+                    }
+                ],
+                'pool': '/test/test.service',
+                'ipProtocol': 'tcp',
+                'destination': '/test/127.0.0.1:8080',
+                'enabled': True,
+                'sourceAddressTranslation': {
+                    'type': 'automap'
+                }
+            },
+            'health': [],
+            'nodes': {
+                '192.168.0.2': {
+                    'state': 'user-up',
+                    'session': 'user-enabled'
+                },
+                '192.168.0.1': {
+                    'state': 'user-up',
+                    'session': 'user-enabled'
+                }
+            },
+            'pool': {
+                'monitor': None,
+                'loadBalancingMode': u'round-robin'
+            }
+        }
+    }
+}
+
+
+class MockBigIp(_f5.CloudBigIP):
+    def __init__(self, fail=False, notify_event=None, notify_after=0,
+                 handle_results=None):
+        self._cloud = 'k8s'
+        self._partitions = _cloud_config['bigip']['partitions']
         self.calls = 0
-        assert 'services' in expected_dict
-        self._expected_dict = expected_dict
         self._fail = fail
         self._notify_event = notify_event
         self._notify_after = notify_after
+        self._handle_results = handle_results
 
-    def regenerate_config_f5(self, config):
-        assert 'services' in config
-        services = config['services']
+    def _apply_config(self, cfg):
+        expected_bigip_config = json.loads(json.dumps(cfg))
+        actual_bigip_config = json.loads(json.dumps(cfg))
+        assert expected_bigip_config == actual_bigip_config
 
-        assert services == self._expected_dict['services']
         self.calls = self.calls + 1
 
         if self._notify_event and self.calls == self._notify_after:
             self._notify_event.set()
 
-        if not self._fail:
-            return False
+        if self._handle_results:
+            self._handle_results()
         else:
-            self._fail = False
-            return True
+            if self._fail:
+                self._fail = False
+                raise _f5.f5.sdk_exception.F5SDKError('SDK Failure')
 
 
 class MockEventHandler():
@@ -143,86 +227,46 @@ def test_interval_init():
         bigipconfigdriver.IntervalTimer(0.1, "hello")
 
 
-def test_interval():
+def test_interval_repeat():
     counter = {'times': 0}
     event = threading.Event()
 
-    test_arg1 = "colonel atari"
-    test_arg2 = "dexter"
-
-    test_kwargs = {
-        "baseball": "a sport",
-        "football": "another sport"
-    }
-
-    def intervalCb(*args, **kwargs):
-        assert args[0] == test_arg1
-        assert args[1] == test_arg2
-
-        assert 'baseball' in kwargs
-        assert 'football' in kwargs
-        assert 'interval' in kwargs
-
-        assert kwargs['baseball'] == test_kwargs['baseball']
-        assert kwargs['football'] == test_kwargs['football']
-
+    def intervalCb():
         counter['times'] = counter['times'] + 1
         if 5 == counter['times']:
             event.set()
 
     interval = None
     try:
-        interval = bigipconfigdriver.IntervalTimer(0.25, intervalCb,
-                                                   (test_arg1, test_arg2),
-                                                   test_kwargs)
+        interval = bigipconfigdriver.IntervalTimer(0.25, intervalCb)
         assert interval is not None
-        assert interval._stop.is_set() is True
-        assert interval._restart.is_set() is False
-        assert interval._destroy.is_set() is False
         assert interval.is_running() is False
 
-        test_kwargs['interval'] = interval
-
         interval.start()
-        assert interval._stop.is_set() is False
-        assert interval._restart.is_set() is True
-        assert interval._destroy.is_set() is False
         assert interval.is_running() is True
 
         event.wait(30)
         assert event.is_set() is True
 
         interval.stop()
-        assert interval._stop.is_set() is True
-        assert interval._restart.is_set() is False
-        assert interval._destroy.is_set() is False
         assert interval.is_running() is False
 
         event.clear()
         counter['times'] = 0
 
         interval.start()
-        assert interval._stop.is_set() is False
-        assert interval._restart.is_set() is True
-        assert interval._destroy.is_set() is False
         assert interval.is_running() is True
 
         event.wait(30)
         assert event.is_set() is True
 
         interval.stop()
-        assert interval._stop.is_set() is True
-        assert interval._restart.is_set() is False
-        assert interval._destroy.is_set() is False
         assert interval.is_running() is False
 
         event.clear()
         counter['times'] = 0
 
         interval.start()
-        assert interval._stop.is_set() is False
-        assert interval._restart.is_set() is True
-        assert interval._destroy.is_set() is False
         assert interval.is_running() is True
 
         event.wait(30)
@@ -232,19 +276,15 @@ def test_interval():
         counter['times'] = 0
 
         interval.start()
-        assert interval._stop.is_set() is False
-        assert interval._restart.is_set() is True
-        assert interval._destroy.is_set() is False
         assert interval.is_running() is True
 
-        interval.destroy()
-        interval.join(30)
-        assert interval.is_alive() is False
+        interval.stop()
+        assert interval.is_running() is False
     finally:
         assert interval is not None
 
 
-def test_interval_startdestroy():
+def test_interval_startstop():
     def cb():
         pass
 
@@ -252,25 +292,18 @@ def test_interval_startdestroy():
     try:
         interval = bigipconfigdriver.IntervalTimer(0.25, cb)
         assert interval is not None
-        assert interval._stop.is_set() is True
-        assert interval._restart.is_set() is False
-        assert interval._destroy.is_set() is False
         assert interval.is_running() is False
 
         interval.start()
-        assert interval._stop.is_set() is False
-        assert interval._restart.is_set() is True
-        assert interval._destroy.is_set() is False
         assert interval.is_running() is True
 
-        interval.destroy()
-        interval.join(30)
-        assert interval.is_alive() is False
+        interval.stop()
+        assert interval.is_running() is False
     finally:
         assert interval is not None
 
 
-def test_interval_nostartdestroy():
+def test_interval_nostartstop():
     def cb():
         pass
 
@@ -278,20 +311,11 @@ def test_interval_nostartdestroy():
     try:
         interval = bigipconfigdriver.IntervalTimer(0.25, cb)
         assert interval is not None
-        assert interval._stop.is_set() is True
-        assert interval._restart.is_set() is False
-        assert interval._destroy.is_set() is False
         assert interval.is_running() is False
 
-        assert interval.is_alive() is False
+        interval.stop()
+        assert interval.is_running() is False
 
-        interval.destroy()
-        assert interval._destroy.is_set() is True
-        assert interval._restart.is_set() is True
-        assert interval._stop.is_set() is True
-        assert interval.is_alive() is False
-
-        interval.join(30)
     except RuntimeError:
         assert interval.is_alive() is False
     finally:
@@ -941,24 +965,47 @@ def test_handle_openshift_sdn_config_missing_vxlan_node_ips(request):
 
 def test_confighandler_reset(request):
     handler = None
-    try:
-        obj = {}
-        obj['services'] = []
-        obj['services'].append({'field': 8080})
-        obj['services'].append({'field': 9090})
-        obj['services'].append({'field': 10101})
-        obj['global'] = {'verify-interval': 0}
+    bigip = None
+    flags = {'valid_interval_state': True}
 
-        bigip = MockBigIp(obj)
+    try:
+        # Force an error on the fourth invocation, verify interval timer
+        # is disabled during retries
+        def handle_results():
+            if bigip.calls == 4:
+                # turn on retries by returning an error
+                exception = _f5.f5.sdk_exception.F5SDKError('SDK Failure')
+                raise exception
+
+            valid_interval_state = flags['valid_interval_state']
+            if bigip.calls == 1 or bigip.calls == 5:
+                # verify interval timer is off due to previous error
+                if valid_interval_state:
+                    valid_interval_state =\
+                        (handler._interval.is_running() is False)
+            else:
+                if valid_interval_state:
+                    valid_interval_state =\
+                        (handler._interval.is_running() is True)
+            flags['valid_interval_state'] = valid_interval_state
+
+        event = threading.Event()
+        bigip = MockBigIp(notify_event=event, notify_after=5,
+                          handle_results=handle_results)
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        # keep the interval timer from expiring during retries
+        interval_time = 0.6
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip,
+                                                  interval_time)
         # give the thread an opportunity to spin up
         time.sleep(0)
 
         assert bigip.calls == 0
 
+        obj = deepcopy(_cloud_config)
+        obj['global']['verify-interval'] = interval_time
         with open(config_file, 'w+') as f:
             def fin():
                 os.unlink(config_file)
@@ -970,26 +1017,92 @@ def test_confighandler_reset(request):
         handler.notify_reset()
         time.sleep(0.1)
         assert bigip.calls == 1
+        assert flags['valid_interval_state'] is True
 
         handler.notify_reset()
         time.sleep(0.1)
         assert bigip.calls == 2
+        assert flags['valid_interval_state'] is True
 
         handler.notify_reset()
         time.sleep(0.1)
         assert bigip.calls == 3
+        assert flags['valid_interval_state'] is True
 
         # in the failure case we'll respond with a notify_reset to try again
         # therefore, we'll tick twice for this test case
-        bigip._fail = True
         # set the backoff_timer for quick testing
         handler._backoff_timer = .01
 
         handler.notify_reset()
-        time.sleep(0.1)
+        event.wait(0.6)
+        assert event.is_set() is True
+        assert flags['valid_interval_state'] is True
+
+        # verify interval timer doesn't fire until after interval expires
+        # (interval time from successful retry)
+        time.sleep(interval_time / 2)
         assert bigip.calls == 5
+
         # backoff_timer is set to one after a clean run
         assert handler._backoff_timer == 1
+
+        # Interval should expire since minimum sleep time since successfully
+        # retry was 0.3 + 0.7 which is more than the interval (0.6)
+        time.sleep(interval_time)
+        assert bigip.calls == 6
+
+    finally:
+        assert handler is not None
+
+        handler.stop()
+        handler._thread.join(30)
+        assert handler._thread.is_alive() is False
+
+
+def test_confighandler_execution(request):
+    handler = None
+    try:
+        # Each execution of the regenerate_config_f5() should take as
+        # long as the interval timer to verify we adjust for this.
+        interval_time = 0.20
+
+        def handle_results():
+            time.sleep(interval_time)
+
+        bigip = MockBigIp(handle_results=handle_results)
+        config_template = Template('/tmp/config.$pid')
+        config_file = config_template.substitute(pid=os.getpid())
+
+        # make the interval timer the same as the execution time
+        handler = bigipconfigdriver.ConfigHandler(config_file, bigip,
+                                                  interval_time)
+        # give the thread an opportunity to spin up
+        time.sleep(0)
+
+        assert bigip.calls == 0
+
+        obj = deepcopy(_cloud_config)
+        obj['global']['verify-interval'] = interval_time
+        with open(config_file, 'w+') as f:
+            def fin():
+                os.unlink(config_file)
+            request.addfinalizer(fin)
+            json.dump(obj, f)
+
+        assert handler._thread.is_alive() is True
+
+        # The time spent in the execution of the regenerate_config_f5() should
+        # not delay the next interval.  So we expect to have at least
+        # 'total_time / interval' number of calls.
+        total_time = 1.00
+        # If we didn't account for execution time, we'd get about 50% of
+        # the expected, so we'll use 75% to account for clock slop.
+        min_expected_calls = int(0.75 * total_time / interval_time)
+        handler.notify_reset()
+        time.sleep(total_time)
+        assert bigip.calls >= min_expected_calls
+
     finally:
         assert handler is not None
 
@@ -1001,15 +1114,8 @@ def test_confighandler_reset(request):
 def test_confighandler_checkpoint(request):
     handler = None
     try:
-        obj = {}
-        obj['services'] = []
-        obj['services'].append({'field': 8080})
-        obj['services'].append({'field': 9090})
-        obj['services'].append({'field': 10101})
-        obj['global'] = {'verify-interval': 0.25}
-
         event = threading.Event()
-        bigip = MockBigIp(obj, notify_event=event, notify_after=5)
+        bigip = MockBigIp(notify_event=event, notify_after=5)
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
@@ -1024,13 +1130,13 @@ def test_confighandler_checkpoint(request):
             def fin():
                 os.unlink(config_file)
             request.addfinalizer(fin)
-            json.dump(obj, f)
+            json.dump(_cloud_config, f)
 
         assert handler._thread.is_alive() is True
 
         assert handler._interval.is_running() is False
         handler.notify_reset()
-        time.sleep(0.1)
+        time.sleep(0.2)
         assert handler._interval.is_running() is True
 
         event.wait(30)
@@ -1047,14 +1153,8 @@ def test_confighandler_checkpoint(request):
 def test_confighandler_checkpointstopafterfailure(request):
     handler = None
     try:
-        obj = {}
-        obj['services'] = []
-        obj['services'].append({'field': 8080})
-        obj['services'].append({'field': 9090})
-        obj['services'].append({'field': 10101})
-
         event = threading.Event()
-        bigip = MockBigIp(obj, fail=True, notify_event=event, notify_after=5)
+        bigip = MockBigIp(fail=True, notify_event=event, notify_after=5)
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
@@ -1069,7 +1169,7 @@ def test_confighandler_checkpointstopafterfailure(request):
             def fin():
                 os.unlink(config_file)
             request.addfinalizer(fin)
-            json.dump(obj, f)
+            json.dump(_cloud_config, f)
 
         assert handler._thread.is_alive() is True
 
@@ -1084,7 +1184,7 @@ def test_confighandler_checkpointstopafterfailure(request):
         handler._pending_reset = True
         handler._condition.notify()
         handler._condition.release()
-        time.sleep(0.1)
+        time.sleep(0.2)
 
         # should be false here because an invalid config stops the interval
         assert handler._interval.is_running() is False

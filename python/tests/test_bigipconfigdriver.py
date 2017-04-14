@@ -963,7 +963,17 @@ def test_handle_openshift_sdn_config_missing_vxlan_node_ips(request):
         assert handler._thread.is_alive() is False
 
 
-def test_confighandler_reset(request):
+def test_confighandler_reset_sdk_error(request):
+    exception = _f5.f5.sdk_exception.F5SDKError('SDK Failure')
+    common_confighandler_reset(request, exception)
+
+
+def test_confighandler_reset_unexpected_error(request):
+    exception = Exception('Unexpected Failure')
+    common_confighandler_reset(request, exception)
+
+
+def common_confighandler_reset(request, exception):
     handler = None
     bigip = None
     flags = {'valid_interval_state': True}
@@ -974,7 +984,6 @@ def test_confighandler_reset(request):
         def handle_results():
             if bigip.calls == 4:
                 # turn on retries by returning an error
-                exception = _f5.f5.sdk_exception.F5SDKError('SDK Failure')
                 raise exception
 
             valid_interval_state = flags['valid_interval_state']

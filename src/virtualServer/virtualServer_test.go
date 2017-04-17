@@ -2074,10 +2074,10 @@ func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
 		vs, ok := virtualServers.Get(
 			serviceKey{"foo", p.Port, namespace}, formatVirtualServerName(cfgFoo))
 		require.True(ok)
-		require.EqualValues([]string{}, vs.VirtualServer.Backend.PoolMemberAddrs)
+		require.EqualValues([]string(nil), vs.VirtualServer.Backend.PoolMemberAddrs)
 	}
 
-	validateServiceIps(t, svcName, namespace, svcPorts, []string{})
+	validateServiceIps(t, svcName, namespace, svcPorts, nil)
 
 	// Move it back to ready from not ready and make sure it is re-added
 	err = endptStore.Update(newEndpoints(svcName, "2", namespace, readyIps,
@@ -2089,7 +2089,7 @@ func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
 	err = endptStore.Update(newEndpoints(svcName, "3", namespace, emptyIps,
 		emptyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, namespace, svcPorts, []string{})
+	validateServiceIps(t, svcName, namespace, svcPorts, nil)
 
 	// Move it back to ready from not ready and make sure it is re-added
 	err = endptStore.Update(newEndpoints(svcName, "4", namespace, readyIps,
@@ -2194,7 +2194,7 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 	err = endptStore.Update(newEndpoints(svcName, "4", namespace, emptyIps,
 		emptyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, namespace, svcPorts, []string{})
+	validateServiceIps(t, svcName, namespace, svcPorts, nil)
 
 	// Move it back to ready from not ready and make sure it is re-added
 	err = endptStore.Update(newEndpoints(svcName, "5", namespace, readyIps,

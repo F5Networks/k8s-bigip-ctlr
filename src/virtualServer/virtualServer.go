@@ -120,10 +120,7 @@ func getEndpointsForService(
 	portName string,
 	eps *v1.Endpoints,
 ) []string {
-	// FIXME(yacobucci) #87
-	// we could pass back the nil ips but _f5.py crashes when poolMemberAddrs
-	// is json:null. we can protect _f5.py by making this json:[] when empty
-	var ipPorts []string = []string{}
+	var ipPorts []string
 
 	for _, subset := range eps.Subsets {
 		for _, p := range subset.Ports {

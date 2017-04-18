@@ -4,3 +4,4 @@ pyinotify==0.9.6
 ipaddress==1.0.17
 PyJWT==1.4.0
 requests==2.9.1
+sseclient==0.0.14

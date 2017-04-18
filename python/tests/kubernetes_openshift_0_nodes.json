@@ -1,0 +1,7 @@
+{
+  "openshift-sdn": {
+    "vxlan-name": "/partition0/vxlan0",
+    "vxlan-node-ips": [
+    ]
+  }
+}

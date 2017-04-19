@@ -24,6 +24,7 @@ import os.path
 import sys
 import time
 import threading
+import signal
 
 import pyinotify
 
@@ -118,11 +119,6 @@ class ConfigError(Exception):
         Exception.__init__(self, msg)
 
 
-class BigipWatcherError(Exception):
-    def __init__(self, msg):
-        Exception.__init__(self, msg)
-
-
 class ConfigHandler():
     def __init__(self, config_file, bigip, verify_interval):
         self._config_file = config_file
@@ -206,11 +202,7 @@ class ConfigHandler():
 
                     log.debug('updating tasks finished, took %s seconds',
                               time.time() - start_time)
-                except IOError as e:
-                    log.warning(e)
-                except ValueError as e:
-                    log.warning(e)
-                except:
+                except Exception:
                     log.exception('Unexpected error')
 
         if self._interval:
@@ -231,7 +223,7 @@ class ConfigWatcher(pyinotify.ProcessEvent):
     def __init__(self, config_file, bigip, on_change):
         basename = os.path.basename(config_file)
         if not basename or 0 == len(basename):
-            raise BigipWatcherError('config_file must be a file path')
+            raise ConfigError('config_file must be a file path')
 
         self._config_file = config_file
         self._bigip = bigip
@@ -248,6 +240,13 @@ class ConfigWatcher(pyinotify.ProcessEvent):
 
         self._running = False
         self._polling = False
+        self._user_abort = False
+        signal.signal(signal.SIGINT, self._exit_gracefully)
+        signal.signal(signal.SIGTERM, self._exit_gracefully)
+
+    def _exit_gracefully(self, signum, frame):
+        self._user_abort = True
+        self._running = False
 
     def _loop_check(self, notifier):
         if self._polling:
@@ -278,7 +277,6 @@ class ConfigWatcher(pyinotify.ProcessEvent):
                                       format(self._config_dir))
                             time.sleep(1)
 
-                try:
                     _wm = pyinotify.WatchManager()
                     _notifier = pyinotify.Notifier(_wm, default_proc_fun=self)
                     _notifier.coalesce_events(True)
@@ -299,14 +297,11 @@ class ConfigWatcher(pyinotify.ProcessEvent):
                     if (not self._polling and _notifier._fd is None):
                         log.info('terminating')
                         self._running = False
+            except Exception as e:
+                log.warning(e)
 
-                except pyinotify.WatchManagerError, err:
-                    raise BigipWatcherError(str(err))
-                except pyinotify.NotifierError, err:
-                    raise BigipWatcherError(str(err))
-            except KeyboardInterrupt:
-                log.info('terminating')
-                self._running = False
+        if self._user_abort:
+            log.info('Received user kill signal, terminating.')
 
     def _md5(self):
         md5 = hashlib.md5()
@@ -506,8 +501,11 @@ def main():
         watcher = ConfigWatcher(args.config_file, bigip, handler.notify_reset)
         watcher.loop()
         handler.stop()
-    except (IOError, ValueError, ConfigError, BigipWatcherError), err:
-        log.error(err)
+    except (IOError, ValueError, ConfigError) as e:
+        log.error(e)
+        sys.exit(1)
+    except Exception:
+        log.exception('Unexpected error')
         sys.exit(1)
 
     return 0

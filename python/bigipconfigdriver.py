@@ -277,26 +277,26 @@ class ConfigWatcher(pyinotify.ProcessEvent):
                                       format(self._config_dir))
                             time.sleep(1)
 
-                    _wm = pyinotify.WatchManager()
-                    _notifier = pyinotify.Notifier(_wm, default_proc_fun=self)
-                    _notifier.coalesce_events(True)
-                    mask = (pyinotify.IN_CREATE | pyinotify.IN_DELETE |
-                            pyinotify.IN_MOVED_FROM | pyinotify.IN_MOVED_TO |
-                            pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVE_SELF |
-                            pyinotify.IN_DELETE_SELF)
-                    _wm.add_watch(
-                        path=self._config_dir,
-                        mask=mask,
-                        quiet=False,
-                        exclude_filter=lambda path: False)
+                _wm = pyinotify.WatchManager()
+                _notifier = pyinotify.Notifier(_wm, default_proc_fun=self)
+                _notifier.coalesce_events(True)
+                mask = (pyinotify.IN_CREATE | pyinotify.IN_DELETE |
+                        pyinotify.IN_MOVED_FROM | pyinotify.IN_MOVED_TO |
+                        pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVE_SELF |
+                        pyinotify.IN_DELETE_SELF)
+                _wm.add_watch(
+                    path=self._config_dir,
+                    mask=mask,
+                    quiet=False,
+                    exclude_filter=lambda path: False)
 
-                    log.info('entering inotify loop to watch {}'.format(
-                        self._config_file))
-                    _notifier.loop(callback=self._loop_check)
+                log.info('entering inotify loop to watch {}'.format(
+                    self._config_file))
+                _notifier.loop(callback=self._loop_check)
 
-                    if (not self._polling and _notifier._fd is None):
-                        log.info('terminating')
-                        self._running = False
+                if (not self._polling and _notifier._fd is None):
+                    log.info('terminating')
+                    self._running = False
             except Exception as e:
                 log.warning(e)
 

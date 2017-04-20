@@ -491,7 +491,8 @@ def main():
         bigip = CloudBigIP('kubernetes', host, port,
                            config['bigip']['username'],
                            config['bigip']['password'],
-                           config['bigip']['partitions'])
+                           config['bigip']['partitions'],
+                           token='tmos')
 
         handler = ConfigHandler(args.config_file, bigip, verify_interval)
 

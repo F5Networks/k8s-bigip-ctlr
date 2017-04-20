@@ -46,6 +46,8 @@
         "description": "Example Advanced iApp"
       },
       "iappVariables": {
+        "iapp__strictUpdates":"enabled",
+        "feature__easyL4Firewall":"auto",
         "pool__addr": "127.0.0.2",
         "pool__port": "4430",
         "pool__mask": "255.255.255.255",

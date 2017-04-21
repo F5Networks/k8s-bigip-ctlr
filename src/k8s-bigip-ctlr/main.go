@@ -29,6 +29,7 @@ import (
 	"tools/pollers"
 	"tools/writer"
 	"virtualServer"
+	"watchmanager"
 
 	log "f5/vlogger"
 	clog "f5/vlogger/console"
@@ -37,9 +38,7 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/labels"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -68,11 +67,12 @@ var (
 	verifyInterval   *int
 	nodePollInterval *int
 
-	namespace       *string
+	namespaces      *[]string
 	useNodeInternal *bool
 	poolMemberType  *string
 	inCluster       *bool
 	kubeConfig      *string
+	namespaceLabel  *string
 
 	bigIPURL        *string
 	bigIPUsername   *string
@@ -83,7 +83,9 @@ var (
 	openshiftSDNName *string
 
 	// package variables
-	isNodePort bool
+	isNodePort         bool
+	watchAllNamespaces bool
+	watchManager       watchmanager.Manager
 )
 
 func _init() {
@@ -122,8 +124,9 @@ func _init() {
 	}
 
 	// Kubernetes flags
-	namespace = kubeFlags.String("namespace", "",
-		"Required, Kubernetes namespace to watch")
+	namespaces = kubeFlags.StringArray("namespace", []string{},
+		"Optional, Kubernetes namespace(s) to watch."+
+			"If left blank controller will watch all k8s namespaces")
 	useNodeInternal = kubeFlags.Bool("use-node-internal", true,
 		"Optional, provide kubernetes InternalIP addresses to pool")
 	poolMemberType = kubeFlags.String("pool-member-type", "nodeport",
@@ -135,6 +138,8 @@ func _init() {
 		"Optional, if this controller is running in a kubernetes cluster, use the pod secrets for creating a Kubernetes client.")
 	kubeConfig = kubeFlags.String("kubeconfig", "./config",
 		"Optional, absolute path to the kubeconfig file")
+	namespaceLabel = kubeFlags.String("namespace-label", "",
+		"Optional, used to watch for namespaces with this label")
 
 	kubeFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsages())
@@ -194,8 +199,18 @@ func verifyArgs() error {
 	}
 
 	if len(*bigIPURL) == 0 || len(*bigIPUsername) == 0 || len(*bigIPPassword) == 0 ||
-		len(*bigIPPartitions) == 0 || len(*namespace) == 0 || len(*poolMemberType) == 0 {
+		len(*bigIPPartitions) == 0 || len(*poolMemberType) == 0 {
 		return fmt.Errorf("Missing required parameter")
+	}
+
+	if len(*namespaces) != 0 && len(*namespaceLabel) != 0 {
+		return fmt.Errorf("Can not specify both namespace and namespace-label")
+	}
+
+	if len(*namespaces) == 0 && len(*namespaceLabel) == 0 {
+		watchAllNamespaces = true
+	} else {
+		watchAllNamespaces = false
 	}
 
 	u, err := url.Parse(*bigIPURL)
@@ -206,6 +221,9 @@ func verifyArgs() error {
 	if len(u.Scheme) == 0 {
 		*bigIPURL = "https://" + *bigIPURL
 		u, err = url.Parse(*bigIPURL)
+		if nil != err {
+			return fmt.Errorf("Error parsing url: %s", err)
+		}
 	}
 
 	if u.Scheme != "https" {
@@ -271,6 +289,35 @@ func setupNodePolling(
 	return nil
 }
 
+// setup the initial watch based off the flags passed in, if no flags then we
+// watch all namespaces
+func setupWatchers(watchManager watchmanager.Manager) {
+	eh := virtualServer.NewEventHandler(isNodePort)
+	label := "f5type in (virtual-server)"
+
+	if len(*namespaceLabel) == 0 {
+		if watchAllNamespaces == true {
+			_, err := watchManager.Add("", "configmaps", label, &v1.ConfigMap{}, eh)
+			if nil != err {
+				log.Warningf("Failed to add configmaps watch for all namespaces:%v", err)
+			}
+		} else {
+			for _, namespace := range *namespaces {
+				_, err := watchManager.Add(namespace, "configmaps", label, &v1.ConfigMap{}, eh)
+				if nil != err {
+					log.Warningf("Failed to add configmaps watch for namespace %v: %v", namespace, err)
+				}
+			}
+		}
+	} else {
+		e := eventHandler{}
+		_, err := watchManager.Add("", "namespaces", *namespaceLabel, &v1.Namespace{}, &e)
+		if nil != err {
+			log.Warningf("Failed to add label watch for namespaces:%v", err)
+		}
+	}
+}
+
 func main() {
 	err := flags.Parse(os.Args)
 	if nil != err {
@@ -296,10 +343,6 @@ func main() {
 		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
 	}
 	defer configWriter.Stop()
-
-	virtualServer.SetConfigWriter(configWriter)
-	virtualServer.SetUseNodeInternal(*useNodeInternal)
-	virtualServer.SetNamespace(*namespace)
 
 	gs := globalSection{
 		LogLevel:       *logLevel,
@@ -358,73 +401,16 @@ func main() {
 		np.Run()
 		defer np.Stop()
 	}
+	rc := kubeClient.Core().RESTClient()
+	watchManager = watchmanager.NewWatchManager(rc)
 
-	eh := virtualServer.NewEventHandler(kubeClient, isNodePort)
-	svcWatcher := newListWatchWithLabelSelector(
-		kubeClient.Core().RESTClient(),
-		"services",
-		*namespace,
-		labels.Everything(),
-	)
-	s, services := cache.NewInformer(
-		svcWatcher,
-		&v1.Service{},
-		5*time.Second,
-		eh,
-	)
-	eh.SetStore(virtualServer.Services, s)
+	virtualServer.SetConfigWriter(configWriter)
+	virtualServer.SetUseNodeInternal(*useNodeInternal)
+	virtualServer.SetNamespace(watchAllNamespaces)
+	virtualServer.SetClient(kubeClient)
+	virtualServer.SetManager(watchManager)
 
-	f5ConfigMapSelector, err := labels.Parse("f5type in (virtual-server)")
-	if err != nil {
-		log.Warningf("failed to parse Label Selector string - controller will not filter for F5 specific objects - label: f5type : virtual-server, err %v", err)
-		f5ConfigMapSelector = nil
-	}
-	cmWatcher := newListWatchWithLabelSelector(
-		kubeClient.Core().RESTClient(),
-		"configmaps",
-		*namespace,
-		f5ConfigMapSelector,
-	)
-	s, configmaps := cache.NewInformer(
-		cmWatcher,
-		&v1.ConfigMap{},
-		5*time.Second,
-		eh,
-	)
-	eh.SetStore(virtualServer.Configmaps, s)
-
-	if !isNodePort {
-		endptWatcher := newListWatchWithLabelSelector(
-			kubeClient.Core().RESTClient(),
-			"endpoints",
-			*namespace,
-			labels.Everything(),
-		)
-
-		s, endpoints := cache.NewInformer(
-			endptWatcher,
-			&v1.Endpoints{},
-			5*time.Second,
-			eh,
-		)
-		eh.SetStore(virtualServer.Endpoints, s)
-
-		stopEndpoints := make(chan struct{})
-		go endpoints.Run(stopEndpoints)
-		defer func() {
-			stopEndpoints <- struct{}{}
-		}()
-	}
-	stopServices := make(chan struct{})
-	go services.Run(stopServices)
-	defer func() {
-		stopServices <- struct{}{}
-	}()
-	stopConfigmaps := make(chan struct{})
-	go configmaps.Run(stopConfigmaps)
-	defer func() {
-		stopConfigmaps <- struct{}{}
-	}()
+	setupWatchers(watchManager)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)

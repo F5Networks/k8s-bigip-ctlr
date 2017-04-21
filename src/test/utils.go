@@ -17,11 +17,21 @@
 package test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
 	"sync"
 	"time"
 
 	"tools/pollers"
+
+	"k8s.io/client-go/pkg/api/unversioned"
+	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/runtime"
+	"k8s.io/client-go/rest/fake"
+	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -97,4 +107,263 @@ func (mp *MockPoller) RegisterListener(p pollers.PollListener) error {
 		return nil
 	}
 	return nil
+}
+
+// MockWatchManager used for testing
+type MockWatchManager struct {
+	Store      map[string]cache.Store
+	Namespaces []string
+	CallCount  int
+	CalledWith []CalledWithStruct
+}
+
+// CalledWithStruct shows what params Add was called with
+type CalledWithStruct struct {
+	Namespace string
+	Resource  string
+	Label     string
+}
+
+// NewMockWatchManager provides the MockWatchManager and allows access to
+// internal state
+func NewMockWatchManager() *MockWatchManager {
+	m := &MockWatchManager{
+		Store: make(map[string]cache.Store),
+	}
+	m.Namespaces = []string{"default"}
+	return m
+}
+
+// GetStoreItem returns an item from a store
+func (m *MockWatchManager) GetStoreItem(
+	namespace string,
+	resource string,
+	serviceName string,
+) (interface{}, bool, error) {
+	item, exists, err := m.Store[resource].GetByKey(namespace + "/" + serviceName)
+	return item, exists, err
+}
+
+// Add returns the store for referenced resource
+func (m *MockWatchManager) Add(
+	namespace string,
+	resource string,
+	label string,
+	returnObj runtime.Object,
+	eventHandler cache.ResourceEventHandler,
+) (cache.Store, error) {
+	m.CallCount++
+	cw := CalledWithStruct{namespace, resource, label}
+	m.CalledWith = append(m.CalledWith, cw)
+	return m.Store[resource], nil
+}
+
+// Remove a namespace from the list
+func (m *MockWatchManager) Remove(namespace string, resource string) {
+	for i, ns := range m.Namespaces {
+		if ns == namespace {
+			m.Namespaces[i] = m.Namespaces[len(m.Namespaces)-1]
+			m.Namespaces[len(m.Namespaces)-1] = ""
+			m.Namespaces = m.Namespaces[:len(m.Namespaces)-1]
+		}
+	}
+}
+
+// NamespaceExists checks if a namespace exists in the list of namespaces
+func (m *MockWatchManager) NamespaceExists(namespace string, returnObj runtime.Object) bool {
+	var found bool
+	found = false
+	for _, ns := range m.Namespaces {
+		if ns == namespace {
+			found = true
+		}
+	}
+	return found
+}
+
+// NewConfigMap returns a new configmap object
+func NewConfigMap(id, rv, namespace string,
+	keys map[string]string) *v1.ConfigMap {
+	return &v1.ConfigMap{
+		TypeMeta: unversioned.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name:            id,
+			ResourceVersion: rv,
+			Namespace:       namespace,
+		},
+		Data: keys,
+	}
+}
+
+// NewNode returns a new node object
+func NewNode(id, rv string, unsched bool,
+	addresses []v1.NodeAddress) *v1.Node {
+	return &v1.Node{
+		TypeMeta: unversioned.TypeMeta{
+			Kind:       "Node",
+			APIVersion: "v1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name:            id,
+			ResourceVersion: rv,
+		},
+		Spec: v1.NodeSpec{
+			Unschedulable: unsched,
+		},
+		Status: v1.NodeStatus{
+			Addresses: addresses,
+		},
+	}
+}
+
+// NewService returns a service
+func NewService(id, rv, namespace string, serviceType v1.ServiceType,
+	portSpecList []v1.ServicePort) *v1.Service {
+	return &v1.Service{
+		TypeMeta: unversioned.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name:            id,
+			ResourceVersion: rv,
+			Namespace:       namespace,
+		},
+		Spec: v1.ServiceSpec{
+			Type:  serviceType,
+			Ports: portSpecList,
+		},
+	}
+}
+
+//NewEndpoints returns an endpoints objects
+func NewEndpoints(svcName, rv, namespace string,
+	readyIps, notReadyIps []string, ports []v1.EndpointPort) *v1.Endpoints {
+	ep := &v1.Endpoints{
+		TypeMeta: unversioned.TypeMeta{
+			Kind:       "Endpoints",
+			APIVersion: "v1",
+		},
+		ObjectMeta: v1.ObjectMeta{
+			Name:            svcName,
+			Namespace:       namespace,
+			ResourceVersion: rv,
+		},
+		Subsets: []v1.EndpointSubset{},
+	}
+
+	if 0 < len(readyIps) {
+		ep.Subsets = append(
+			ep.Subsets,
+			v1.EndpointSubset{
+				Addresses:         newEndpointAddress(readyIps),
+				NotReadyAddresses: newEndpointAddress(notReadyIps),
+				Ports:             ports,
+			},
+		)
+	}
+
+	return ep
+}
+
+func newEndpointAddress(ips []string) []v1.EndpointAddress {
+	eps := make([]v1.EndpointAddress, len(ips))
+	for i, v := range ips {
+		eps[i].IP = v
+	}
+	return eps
+}
+
+// CreateFakeHTTPClient returns a fake RESTClient which also satisfies rest.Interface
+func CreateFakeHTTPClient() *fake.RESTClient {
+	fakeClient := &fake.RESTClient{
+		NegotiatedSerializer: &fakeNegotiatedSerializer{},
+		Resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       ioutil.NopCloser(bytes.NewReader([]byte(""))),
+		},
+		Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
+			header := http.Header{}
+			header.Set("Content-Type", runtime.ContentTypeJSON)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     header,
+				Body:       ioutil.NopCloser(bytes.NewReader([]byte(""))),
+			}, nil
+		}),
+	}
+	return fakeClient
+}
+
+// // Below here is all used to mock the client calls
+type fakeNegotiatedSerializer struct{}
+
+func (fns *fakeNegotiatedSerializer) SupportedMediaTypes() []runtime.SerializerInfo {
+	info := runtime.SerializerInfo{
+		MediaType:        runtime.ContentTypeJSON,
+		EncodesAsText:    true,
+		Serializer:       nil,
+		PrettySerializer: nil,
+		StreamSerializer: &runtime.StreamSerializerInfo{
+			EncodesAsText: true,
+			Serializer:    &fakeDecoder{IsWatching: true},
+			Framer:        &fakeFrame{},
+		},
+	}
+	return []runtime.SerializerInfo{info}
+}
+
+func (fns *fakeNegotiatedSerializer) EncoderForVersion(
+	serializer runtime.Encoder,
+	gv runtime.GroupVersioner,
+) runtime.Encoder {
+	return nil
+}
+
+func (fns *fakeNegotiatedSerializer) DecoderToVersion(
+	serializer runtime.Decoder,
+	gv runtime.GroupVersioner,
+) runtime.Decoder {
+	return &fakeDecoder{}
+}
+
+type fakeDecoder struct {
+	IsWatching bool
+}
+
+func (fd *fakeDecoder) Decode(
+	data []byte,
+	defaults *unversioned.GroupVersionKind,
+	into runtime.Object,
+) (runtime.Object, *unversioned.GroupVersionKind, error) {
+	if fd.IsWatching {
+		return nil, nil, io.EOF
+	}
+	return &v1.ConfigMapList{
+		TypeMeta: unversioned.TypeMeta{
+			Kind:       "ConfigMapList",
+			APIVersion: "v1",
+		},
+		ListMeta: unversioned.ListMeta{
+			SelfLink:        "/api/v1/namespaces/potato/configmaps",
+			ResourceVersion: "1403005",
+		},
+		Items: []v1.ConfigMap{},
+	}, nil, nil
+}
+
+func (fd *fakeDecoder) Encode(obj runtime.Object, w io.Writer) error {
+	return nil
+}
+
+type fakeFrame struct{}
+
+func (ff *fakeFrame) NewFrameReader(r io.ReadCloser) io.ReadCloser {
+	return r
+}
+func (ff *fakeFrame) NewFrameWriter(w io.Writer) io.Writer {
+	return w
 }

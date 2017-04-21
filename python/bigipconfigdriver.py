@@ -73,7 +73,8 @@ class K8sCloudBigIP(CloudBigIP):
     def __init__(self, hostname, port, username, password, partitions):
         """Initialize the K8sCloudBigIP object."""
         super(K8sCloudBigIP, self).__init__(hostname, port, username,
-                                            password, partitions)
+                                            password, partitions,
+                                            token="tmos")
 
     def _apply_config(self, config):
         """Apply the configuration to the BIG-IP.

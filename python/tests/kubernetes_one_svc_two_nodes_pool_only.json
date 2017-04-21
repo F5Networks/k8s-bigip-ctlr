@@ -1,0 +1,35 @@
+{
+  "services": [
+    {
+      "virtualServer": {
+        "backend": {
+          "poolMemberAddrs": [
+            "172.16.0.5:30008",
+            "172.16.0.6:30008"
+          ],
+          "serviceName": "foo",
+          "servicePort": 80,
+          "healthMonitors": [ {
+            "interval": 30,
+            "timeout": 20,
+            "send": "GET /",
+            "protocol": "tcp"
+            },
+            {
+            "interval": 10,
+            "timeout": 5,
+            "send": "GET /",
+            "protocol": "http"
+            }
+          ]
+        },
+        "frontend": {
+          "virtualServerName": "default_configmap",
+          "balance": "round-robin",
+          "mode": "http",
+          "partition": "k8s"
+        }
+      }
+    }
+  ]
+}

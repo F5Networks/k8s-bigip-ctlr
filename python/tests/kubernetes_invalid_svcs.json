@@ -1,0 +1,73 @@
+{
+  "services": [
+    {
+      "virtualServer": {
+        "backend": {
+          "poolMemberAddrs": [
+            "172.16.0.5:30008"
+          ],
+          "serviceName": "invalid_partition",
+          "servicePort": 80
+        },
+        "frontend": {
+          "virtualServerName": "invalid_partition_configmap",
+          "balance": "round-robin",
+          "mode": "http",
+          "partition": "",
+          "virtualAddress": {
+            "bindAddr": "10.128.10.240",
+            "port": 5051
+          }
+        }
+      }
+    },
+    {
+      "virtualServer": {
+        "backend": {
+          "poolMemberAddrs": [
+            "172.16.0.5:30008"
+          ],
+          "serviceName": "invalid_sslProfile0",
+          "servicePort": 80
+        },
+        "frontend": {
+          "virtualServerName": "invalid_sslProfile0_configmap",
+          "balance": "round-robin",
+          "mode": "tcp",
+          "partition": "k8s",
+          "sslProfile": {
+              "f5ProfileName": "invalid"
+          },
+          "virtualAddress": {
+            "bindAddr": "10.128.10.240",
+            "port": 5051
+          }
+        }
+      }
+    },
+    {
+      "virtualServer": {
+        "backend": {
+          "poolMemberAddrs": [
+            "172.16.0.6:30009"
+          ],
+          "serviceName": "invalid_sslProfile1",
+          "servicePort": 80
+        },
+        "frontend": {
+          "virtualServerName": "invalid_sslProfile1_configmap",
+          "balance": "round-robin",
+          "mode": "udp",
+          "partition": "k8s",
+          "sslProfile": {
+              "f5ProfileName": ""
+          },
+          "virtualAddress": {
+            "bindAddr": "10.128.10.241",
+            "port": 5052
+          }
+        }
+      }
+    }
+  ]
+}

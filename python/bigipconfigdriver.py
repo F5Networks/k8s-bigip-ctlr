@@ -30,8 +30,8 @@ import urllib
 import pyinotify
 
 from urlparse import urlparse
-from _f5 import CloudBigIP, get_protocol, has_partition, log_sequence
-from common import extract_partition_and_name, ipv4_to_mac,\
+from f5_cccl._f5 import CloudBigIP, get_protocol, has_partition, log_sequence
+from f5_cccl.common import extract_partition_and_name, ipv4_to_mac,\
     list_diff_exclusive, IPV4FormatError, PartitionNameError
 
 log = logging.getLogger(__name__)

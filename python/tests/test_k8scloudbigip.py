@@ -19,7 +19,7 @@ Units tests for testing BIG-IP resource management in Kubernetes and OpenShift.
 """
 import unittest
 from mock import Mock, patch
-from common import ipv4_to_mac
+from f5_cccl.common import ipv4_to_mac
 from f5.bigip import BigIP
 from testcommon import BigIPTest
 ctlr = __import__('bigipconfigdriver')

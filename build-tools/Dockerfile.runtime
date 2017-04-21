@@ -12,7 +12,9 @@ COPY python/ $APPPATH/python
 COPY bigip-virtual-server_v*.json $APPPATH/vendor/src/f5/schemas/
 COPY k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
 
-RUN pip install -r /tmp/k8s-runtime-requirements.txt
+RUN apk --no-cache --update add --virtual pip-install-deps git && \
+    pip install -r /tmp/k8s-runtime-requirements.txt && \
+    apk del pip-install-deps
 
 # Run the run application in the projects bin directory.
 CMD [ "/app/bin/k8s-bigip-ctlr" ]

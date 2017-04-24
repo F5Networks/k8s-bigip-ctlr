@@ -144,7 +144,7 @@ virtualServer
 | partition         | string    | Required  |           | Define the BIG-IP partition   |                           |
 |                   |           |           |           | to manage                     |                           |
 +-------------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| virtualAddress    | JSON      | Required  |           | Allocate a virtual address    |                           |
+| virtualAddress    | JSON      | Optional  |           | Allocate a virtual address    |                           |
 |                   | object    |           |           | from the BIG-IP               |                           |
 +---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 |   | bindAddr      | string    | Required  |           | Virtual IP address            |                           |
@@ -172,6 +172,10 @@ If ``bindAddr`` is not provided in the Frontend configuration, then you must sup
 This annotation must contain the IP address that the virtual server will use. You can configure an IPAM system to write out this annotation containing the IP address that it chose.
 
 A user of the Kubernetes API can check the ``status.virtual-server.f5.com/ip`` annotation, set by the controller, to see the ``bindAddr`` that the virtual server is using.
+
+If ``virtualAddress`` or ``bindAddr`` are not provided in the Frontend configuration, then the controller will configure and manage pools, pool members, and healthchecks for the service without a virtual server on the BIG-IP.
+Instead you should already have a BIG-IP virtual server that handles client connections and has an irule or traffic policy to forward the request to the correct pool. The stable name of the pool will be the namespace
+of the Kubernetes service followed by an underscore followed by the name of the service ConfigMap.
 
 iApps
 ~~~~~

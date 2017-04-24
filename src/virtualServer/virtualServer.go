@@ -417,15 +417,17 @@ func processConfigMap(
 			vsName, cfg)
 
 		// Set a status annotation to contain the virtualAddress bindAddr
-		if cfg.VirtualServer.Frontend.IApp == "" {
-			if cm.ObjectMeta.Annotations == nil {
-				cm.ObjectMeta.Annotations = make(map[string]string)
-			}
-			cm.ObjectMeta.Annotations["status.virtual-server.f5.com/ip"] =
-				cfg.VirtualServer.Frontend.VirtualAddress.BindAddr
-			_, err = kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
-			if nil != err {
-				log.Warningf("Error when creating status IP annotation: %s", err)
+		if cfg.VirtualServer.Frontend.IApp == "" && cfg.VirtualServer.Frontend.VirtualAddress != nil {
+			if cfg.VirtualServer.Frontend.VirtualAddress.BindAddr != "" {
+				if cm.ObjectMeta.Annotations == nil {
+					cm.ObjectMeta.Annotations = make(map[string]string)
+				}
+				cm.ObjectMeta.Annotations["status.virtual-server.f5.com/ip"] =
+					cfg.VirtualServer.Frontend.VirtualAddress.BindAddr
+				_, err = kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
+				if nil != err {
+					log.Warningf("Error when creating status IP annotation: %s", err)
+				}
 			}
 		}
 		verified = true

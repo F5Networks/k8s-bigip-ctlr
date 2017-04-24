@@ -309,7 +309,7 @@ func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 					cfg.VirtualServer.Frontend.Balance = DEFAULT_BALANCE
 				}
 				// Checking for annotation in VS, not iApp
-				if cfg.VirtualServer.Frontend.IApp == "" {
+				if cfg.VirtualServer.Frontend.IApp == "" && cfg.VirtualServer.Frontend.VirtualAddress != nil {
 					// Precedence to configmap bindAddr if annotation is also set
 					if cfg.VirtualServer.Frontend.VirtualAddress.BindAddr != "" &&
 						cm.ObjectMeta.Annotations["virtual-server.f5.com/ip"] != "" {
@@ -321,8 +321,7 @@ func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 						if addr, ok := cm.ObjectMeta.Annotations["virtual-server.f5.com/ip"]; ok == true {
 							cfg.VirtualServer.Frontend.VirtualAddress.BindAddr = addr
 						} else {
-							return &cfg, fmt.Errorf(
-								"No virtual IP was specified for the virtual server %s", cm.ObjectMeta.Name)
+							log.Infof("No virtual IP was specified for the virtual server %s creating pool only.", cm.ObjectMeta.Name)
 						}
 					}
 				}

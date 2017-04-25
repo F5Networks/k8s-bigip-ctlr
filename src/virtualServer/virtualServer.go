@@ -301,7 +301,7 @@ func processConfigMap(
 	if !watchAllNamespaces {
 		test := watchManager.NamespaceExists(namespace, objInterfaces[configmaps])
 		if !test {
-			log.Debugf("Recieving service updates for unwatched namespace %s", cm.ObjectMeta.Namespace)
+			log.Debugf("Receiving service updates for unwatched namespace %s", cm.ObjectMeta.Namespace)
 			return false
 		}
 	}
@@ -462,6 +462,7 @@ func processConfigMap(
 			}
 		}
 		verified = true
+		log.Debugf(`Looking for service "%s" as specified by ConfigMap "%s".`, serviceName, cm.ObjectMeta.Name)
 	case deleted:
 		virtualServers.Lock()
 		defer virtualServers.Unlock()

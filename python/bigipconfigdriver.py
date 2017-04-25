@@ -42,6 +42,13 @@ root_logger = logging.getLogger()
 root_logger.addHandler(console)
 
 
+class RootFilter(logging.Filter):
+    def filter(self, record):
+        return not record.getMessage().startswith("RESPONSE::STATUS")
+
+
+root_logger.addFilter(RootFilter())
+
 DEFAULT_LOG_LEVEL = logging.INFO
 DEFAULT_VERIFY_INTERVAL = 30.0
 

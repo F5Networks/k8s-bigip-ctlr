@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"fmt"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 
@@ -80,7 +81,17 @@ func runBigIPDriver(pid chan<- int, cmd *exec.Cmd) {
 	go func() {
 		for true {
 			if scanOut.Scan() {
-				log.Info(scanOut.Text())
+				if strings.Contains(scanOut.Text(), "DEBUG]") {
+					log.Debug(scanOut.Text())
+				} else if strings.Contains(scanOut.Text(), "WARNING]") {
+					log.Warning(scanOut.Text())
+				} else if strings.Contains(scanOut.Text(), "ERROR]") {
+					log.Error(scanOut.Text())
+				} else if strings.Contains(scanOut.Text(), "CRITICAL]") {
+					log.Critical(scanOut.Text())
+				} else {
+					log.Info(scanOut.Text())
+				}
 			} else {
 				break
 			}

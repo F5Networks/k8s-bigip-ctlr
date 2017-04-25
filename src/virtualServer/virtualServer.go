@@ -94,7 +94,6 @@ func ProcessServiceUpdate(
 
 	updated := false
 
-	log.Debugf("ProcessServiceUpdate (%v) for 1 Service", changeType)
 	updated = processService(changeType, obj, isNodePort)
 
 	if updated {
@@ -111,7 +110,6 @@ func ProcessConfigMapUpdate(
 ) {
 	updated := false
 
-	log.Debugf("ProcessConfigMapUpdate (%v) for 1 ConfigMap", changeType)
 	updated = processConfigMap(changeType, obj, isNodePort)
 
 	if updated {
@@ -127,7 +125,6 @@ func ProcessEndpointsUpdate(
 
 	updated := false
 
-	log.Debugf("ProcessEndpointsUpdate (%v) for 1 Pod", changeType)
 	updated = processEndpoints(changeType, obj)
 
 	if updated {
@@ -141,6 +138,10 @@ func getEndpointsForService(
 	eps *v1.Endpoints,
 ) []string {
 	var ipPorts []string
+
+	if eps == nil {
+		return ipPorts
+	}
 
 	for _, subset := range eps.Subsets {
 		for _, p := range subset.Ports {
@@ -199,6 +200,9 @@ func processService(
 		svc = o.Old.(*v1.Service)
 	}
 
+	log.Debugf("Process Service watch - change type: %v name: %v namespace: %v",
+		changeType, svc.ObjectMeta.Name, svc.ObjectMeta.Namespace)
+
 	test := watchManager.NamespaceExists(svc.ObjectMeta.Namespace, objInterfaces[services])
 	if !test {
 		return false
@@ -227,26 +231,28 @@ func processService(
 							updateConfig = true
 						}
 					} else {
-						item, _, err := watchManager.GetStoreItem(namespace, "endpoints", serviceName)
-						if nil != item {
-							eps := item.(*v1.Endpoints)
-							ipPorts := getEndpointsForService(portSpec.Name, eps)
+						item, found, _ := watchManager.GetStoreItem(namespace, "endpoints", serviceName)
+						eps, _ := item.(*v1.Endpoints)
+						ipPorts := getEndpointsForService(portSpec.Name, eps)
 
+						vs.MetaData.Active = true
+						vs.VirtualServer.Backend.PoolMemberAddrs = ipPorts
+						updateConfig = true
+
+						if found {
 							log.Debugf("Found endpoints for backend %+v: %v",
 								serviceKey{serviceName, portSpec.Port, namespace}, ipPorts)
-
-							vs.MetaData.Active = true
-							vs.VirtualServer.Backend.PoolMemberAddrs = ipPorts
-							updateConfig = true
 						} else {
-							log.Debugf("No endpoints for backend %+v: %v",
-								serviceKey{serviceName, portSpec.Port, namespace}, err)
+							log.Debugf("No endpoints found for backend %+v - waiting for endpoints update",
+								serviceKey{serviceName, portSpec.Port, namespace})
 						}
 					}
 				case deleted:
 					vs.MetaData.Active = false
 					vs.VirtualServer.Backend.PoolMemberAddrs = nil
 					updateConfig = true
+					log.Debugf("Service delete matching backend %+v deactivating config",
+						serviceKey{serviceName, portSpec.Port, namespace})
 				}
 			}
 		}
@@ -257,6 +263,8 @@ func processService(
 				vs.MetaData.Active = false
 				vs.VirtualServer.Backend.PoolMemberAddrs = nil
 				updateConfig = true
+				log.Debugf("Service update removed matching backend %+v deactivating config",
+					serviceKey{serviceName, p, namespace})
 			}
 		}
 	}
@@ -285,6 +293,9 @@ func processConfigMap(
 	case deleted:
 		cm = o.Old.(*v1.ConfigMap)
 	}
+
+	log.Debugf("Process ConfigMap watch - change type: %v name: %v namespace: %v",
+		changeType, cm.ObjectMeta.Name, cm.ObjectMeta.Namespace)
 
 	namespace := cm.ObjectMeta.Namespace
 	if !watchAllNamespaces {
@@ -333,21 +344,29 @@ func processConfigMap(
 		realsvc, found, err := serviceStore.GetByKey(namespace + "/" + serviceName)
 		// If the item isn't found skip this block and create a placeholder entry
 		// which will be processed when we get our initial add from the watch
-		if nil == err && found {
-			svc := realsvc.(*v1.Service)
+		svc, _ := realsvc.(*v1.Service)
+		if nil == err {
 			// Check if service is of type NodePort
 			if isNodePort {
-				if svc.Spec.Type == v1.ServiceTypeNodePort {
-					for _, portSpec := range svc.Spec.Ports {
-						if portSpec.Port == servicePort {
-							log.Debugf("Service backend matched %+v: using node port %v",
-								serviceKey{serviceName, portSpec.Port, namespace}, portSpec.NodePort)
+				if found {
+					if svc.Spec.Type == v1.ServiceTypeNodePort {
+						for _, portSpec := range svc.Spec.Ports {
+							if portSpec.Port == servicePort {
+								log.Debugf("Service backend matched %+v: using node port %v",
+									serviceKey{serviceName, portSpec.Port, namespace}, portSpec.NodePort)
 
-							cfg.MetaData.Active = true
-							cfg.MetaData.NodePort = portSpec.NodePort
-							cfg.VirtualServer.Backend.PoolMemberAddrs = getEndpointsForNodePort(portSpec.NodePort)
+								cfg.MetaData.Active = true
+								cfg.MetaData.NodePort = portSpec.NodePort
+								cfg.VirtualServer.Backend.PoolMemberAddrs = getEndpointsForNodePort(portSpec.NodePort)
+							}
 						}
+					} else {
+						log.Debugf("Requested service backend %+v not of NodePort type",
+							serviceKey{serviceName, servicePort, namespace})
 					}
+				} else {
+					log.Debugf("Requested service backend %+v not found - waiting for service update",
+						serviceKey{serviceName, servicePort, namespace})
 				}
 			} else {
 				epStore, epErr := watchManager.Add(namespace, "endpoints", "", objInterfaces[endpoints], eh)
@@ -357,8 +376,8 @@ func processConfigMap(
 				}
 
 				item, _, _ := epStore.GetByKey(namespace + "/" + serviceName)
-				if nil != item {
-					eps := item.(*v1.Endpoints)
+				if found {
+					eps, _ := item.(*v1.Endpoints)
 					for _, portSpec := range svc.Spec.Ports {
 						if portSpec.Port == servicePort {
 							ipPorts := getEndpointsForService(portSpec.Name, eps)
@@ -371,8 +390,8 @@ func processConfigMap(
 						}
 					}
 				} else {
-					log.Debugf("No endpoints for backend %+v: %v",
-						serviceKey{serviceName, servicePort, namespace}, err)
+					log.Debugf("Requested service backend %+v not found - waiting for service update",
+						serviceKey{serviceName, servicePort, namespace})
 				}
 			}
 		}
@@ -419,14 +438,26 @@ func processConfigMap(
 		// Set a status annotation to contain the virtualAddress bindAddr
 		if cfg.VirtualServer.Frontend.IApp == "" && cfg.VirtualServer.Frontend.VirtualAddress != nil {
 			if cfg.VirtualServer.Frontend.VirtualAddress.BindAddr != "" {
+				var doUpdate bool
 				if cm.ObjectMeta.Annotations == nil {
 					cm.ObjectMeta.Annotations = make(map[string]string)
+					doUpdate = true
+				} else if cm.ObjectMeta.Annotations["status.virtual-server.f5.com/ip"] !=
+					cfg.VirtualServer.Frontend.VirtualAddress.BindAddr {
+					doUpdate = true
 				}
-				cm.ObjectMeta.Annotations["status.virtual-server.f5.com/ip"] =
-					cfg.VirtualServer.Frontend.VirtualAddress.BindAddr
-				_, err = kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
-				if nil != err {
-					log.Warningf("Error when creating status IP annotation: %s", err)
+
+				if doUpdate {
+					cm.ObjectMeta.Annotations["status.virtual-server.f5.com/ip"] =
+						cfg.VirtualServer.Frontend.VirtualAddress.BindAddr
+					_, err = kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
+					if nil != err {
+						log.Warningf("Error when creating status IP annotation: %s", err)
+					} else {
+						log.Debugf("Updating ConfigMap %+v annotation - %v: %v",
+							serviceKey{serviceName, servicePort, namespace}, "status.virtual-server.f5.com/ip",
+							cfg.VirtualServer.Frontend.VirtualAddress.BindAddr)
+					}
 				}
 			}
 		}
@@ -436,6 +467,8 @@ func processConfigMap(
 		defer virtualServers.Unlock()
 		virtualServers.Delete(serviceKey{serviceName, servicePort, namespace}, vsName)
 		verified = true
+		log.Debugf("ConfigMap delete %+v deactivating config",
+			serviceKey{serviceName, servicePort, namespace})
 	}
 
 	return verified
@@ -456,6 +489,9 @@ func processEndpoints(
 
 	serviceName := eps.ObjectMeta.Name
 	namespace := eps.ObjectMeta.Namespace
+
+	log.Debugf("Process Endpoints watch - change type: %v name: %v namespace: %v",
+		changeType, serviceName, namespace)
 
 	item, _, _ := watchManager.GetStoreItem(namespace, "services", serviceName)
 

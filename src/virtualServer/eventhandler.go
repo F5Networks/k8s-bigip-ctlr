@@ -42,6 +42,19 @@ const (
 	deleted
 )
 
+func (ct changeType) String() string {
+	switch ct {
+	case added:
+		return "Add"
+	case updated:
+		return "Update"
+	case deleted:
+		return "Delete"
+	}
+
+	return "Unknown"
+}
+
 func NewEventHandler(
 	isNodePort bool,
 ) *eventHandler {

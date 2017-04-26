@@ -97,7 +97,7 @@ func (np *nodePoller) Stop() error {
 		return fmt.Errorf("NodePoller Stop method called while stopped")
 	}
 
-	log.Debugf("NodePoller stopped: %p", np)
+	log.Infof("NodePoller stopped: %p", np)
 	return nil
 }
 

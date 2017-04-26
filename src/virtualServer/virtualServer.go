@@ -341,6 +341,8 @@ func processConfigMap(
 			log.Warningf("Failed to add services watch for namespace %v: %v", namespace, err)
 			return false
 		}
+		log.Debugf(`Looking for service "%s" in namespace "%s" as specified by ConfigMap "%s".`,
+			serviceName, namespace, cm.ObjectMeta.Name)
 		realsvc, found, err := serviceStore.GetByKey(namespace + "/" + serviceName)
 		// If the item isn't found skip this block and create a placeholder entry
 		// which will be processed when we get our initial add from the watch
@@ -462,7 +464,6 @@ func processConfigMap(
 			}
 		}
 		verified = true
-		log.Debugf(`Looking for service "%s" as specified by ConfigMap "%s".`, serviceName, cm.ObjectMeta.Name)
 	case deleted:
 		virtualServers.Lock()
 		defer virtualServers.Unlock()

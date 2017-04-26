@@ -255,13 +255,12 @@ func verifyArgs() error {
 }
 
 func setupNodePolling(
-	kubeClient kubernetes.Interface,
-	configWriter writer.Writer,
+	appMgr *virtualServer.Manager,
 	np pollers.Poller,
 ) error {
 
-	if isNodePort {
-		err := np.RegisterListener(virtualServer.ProcessNodeUpdate)
+	if appMgr.IsNodePort() {
+		err := np.RegisterListener(appMgr.ProcessNodeUpdate)
 		if nil != err {
 			return fmt.Errorf("error registering node update listener for nodeport mode: %v",
 				err)
@@ -272,8 +271,8 @@ func setupNodePolling(
 		osMgr, err := openshift.NewOpenshiftSDNMgr(
 			openshiftSDNMode,
 			*openshiftSDNName,
-			*useNodeInternal,
-			configWriter,
+			appMgr.UseNodeInternal(),
+			appMgr.ConfigWriter(),
 		)
 		if nil != err {
 			return fmt.Errorf("error creating openshift sdn manager: %v", err)
@@ -291,27 +290,27 @@ func setupNodePolling(
 
 // setup the initial watch based off the flags passed in, if no flags then we
 // watch all namespaces
-func setupWatchers(watchManager watchmanager.Manager) {
-	eh := virtualServer.NewEventHandler(isNodePort)
+func setupWatchers(appMgr *virtualServer.Manager) {
 	label := "f5type in (virtual-server)"
 
 	if len(*namespaceLabel) == 0 {
+		eh := virtualServer.NewEventHandler(appMgr)
 		if watchAllNamespaces == true {
-			_, err := watchManager.Add("", "configmaps", label, &v1.ConfigMap{}, eh)
+			_, err := appMgr.WatchManager().Add("", "configmaps", label, &v1.ConfigMap{}, eh)
 			if nil != err {
 				log.Warningf("Failed to add configmaps watch for all namespaces:%v", err)
 			}
 		} else {
 			for _, namespace := range *namespaces {
-				_, err := watchManager.Add(namespace, "configmaps", label, &v1.ConfigMap{}, eh)
+				_, err := appMgr.WatchManager().Add(namespace, "configmaps", label, &v1.ConfigMap{}, eh)
 				if nil != err {
 					log.Warningf("Failed to add configmaps watch for namespace %v: %v", namespace, err)
 				}
 			}
 		}
 	} else {
-		e := eventHandler{}
-		_, err := watchManager.Add("", "namespaces", *namespaceLabel, &v1.Namespace{}, &e)
+		eh := NewNamespaceEventHandler(appMgr)
+		_, err := appMgr.WatchManager().Add("", "namespaces", *namespaceLabel, &v1.Namespace{}, eh)
 		if nil != err {
 			log.Warningf("Failed to add label watch for namespaces:%v", err)
 		}
@@ -336,13 +335,17 @@ func main() {
 		log.Infof("SCALE_PERF: Started controller at: %d", now.Unix())
 	}
 
-	// FIXME(yacobucci) virtualServer should really be an object and not a
-	// singleton at some point
 	configWriter, err := writer.NewConfigWriter()
 	if nil != err {
 		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
 	}
 	defer configWriter.Stop()
+	var appMgrParms = virtualServer.Params{
+		ConfigWriter:       configWriter,
+		WatchAllNamespaces: watchAllNamespaces,
+		UseNodeInternal:    *useNodeInternal,
+		IsNodePort:         isNodePort,
+	}
 
 	gs := globalSection{
 		LogLevel:       *logLevel,
@@ -373,7 +376,6 @@ func main() {
 		}
 	}(subPid)
 
-	var kubeClient *kubernetes.Clientset
 	var config *rest.Config
 	if *inCluster {
 		config, err = rest.InClusterConfig()
@@ -384,15 +386,20 @@ func main() {
 		log.Fatalf("error creating configuration: %v", err)
 	}
 	// creates the clientset
-	kubeClient, err = kubernetes.NewForConfig(config)
+	appMgrParms.KubeClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Fatalf("error connecting to the client: %v", err)
 	}
 
+	rc := appMgrParms.KubeClient.Core().RESTClient()
+	appMgrParms.WatchManager = watchmanager.NewWatchManager(rc)
+
+	appMgr := virtualServer.NewManager(&appMgrParms)
+
 	if isNodePort || 0 != len(openshiftSDNMode) {
 		intervalFactor := time.Duration(*nodePollInterval)
-		np := pollers.NewNodePoller(kubeClient, intervalFactor*time.Second)
-		err := setupNodePolling(kubeClient, configWriter, np)
+		np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second)
+		err := setupNodePolling(appMgr, np)
 		if nil != err {
 			log.Fatalf("Required polling utility for node updates failed setup: %v",
 				err)
@@ -401,16 +408,8 @@ func main() {
 		np.Run()
 		defer np.Stop()
 	}
-	rc := kubeClient.Core().RESTClient()
-	watchManager = watchmanager.NewWatchManager(rc)
 
-	virtualServer.SetConfigWriter(configWriter)
-	virtualServer.SetUseNodeInternal(*useNodeInternal)
-	virtualServer.SetNamespace(watchAllNamespaces)
-	virtualServer.SetClient(kubeClient)
-	virtualServer.SetManager(watchManager)
-
-	setupWatchers(watchManager)
+	setupWatchers(appMgr)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)

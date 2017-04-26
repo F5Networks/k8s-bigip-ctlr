@@ -26,7 +26,7 @@ import (
 
 type (
 	eventHandler struct {
-		isNodePort bool
+		appMgr *Manager
 	}
 
 	ChangedObject struct {
@@ -56,10 +56,10 @@ func (ct changeType) String() string {
 }
 
 func NewEventHandler(
-	isNodePort bool,
+	appMgr *Manager,
 ) *eventHandler {
 	return &eventHandler{
-		isNodePort: isNodePort,
+		appMgr: appMgr,
 	}
 }
 
@@ -71,21 +71,19 @@ func (eh *eventHandler) delegator(
 	log.Debugf("Delegating type %v to virtual server processors", resource)
 
 	if resource == reflect.TypeOf(&v1.Endpoints{}) {
-		ProcessEndpointsUpdate(
+		eh.appMgr.ProcessEndpointsUpdate(
 			change,
 			changed,
 		)
 	} else if resource == reflect.TypeOf(&v1.ConfigMap{}) {
-		ProcessConfigMapUpdate(
+		eh.appMgr.ProcessConfigMapUpdate(
 			change,
 			changed,
-			eh.isNodePort,
 		)
 	} else if resource == reflect.TypeOf(&v1.Service{}) {
-		ProcessServiceUpdate(
+		eh.appMgr.ProcessServiceUpdate(
 			change,
 			changed,
-			eh.isNodePort,
 		)
 	} else {
 		log.Warningf("Unexpected object type received through event handler: %v", resource)

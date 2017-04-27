@@ -21,7 +21,7 @@ import unittest
 from mock import Mock, patch
 from f5_cccl.common import ipv4_to_mac
 from f5.bigip import BigIP
-from testcommon import BigIPTest
+from f5_cccl.testcommon import BigIPTest
 ctlr = __import__('bigipconfigdriver')
 
 

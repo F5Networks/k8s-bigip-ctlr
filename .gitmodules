@@ -68,9 +68,6 @@
 [submodule "vendor/src/f5/schemas"]
 	path = vendor/src/f5/schemas
 	url = git@bldr-git.int.lineratesystems.com:velcro/schemas.git
-[submodule "vendor/src/f5/common-bigip-ctlr"]
-	path = vendor/src/f5/common-bigip-ctlr
-	url = git@bldr-git.int.lineratesystems.com:velcro/marathon-bigip-ctlr.git
 [submodule "vendor/src/cloud.google.com/go"]
 	path = vendor/src/cloud.google.com/go
 	url = https://code.googlesource.com/gocloud

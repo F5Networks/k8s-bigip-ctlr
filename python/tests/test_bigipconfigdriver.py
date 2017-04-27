@@ -24,7 +24,7 @@ import sys
 import threading
 import time
 
-import _f5
+import f5_cccl._f5
 
 import pytest
 
@@ -112,7 +112,7 @@ _expected_bigip_config = {
 }
 
 
-class MockBigIp(_f5.CloudBigIP):
+class MockBigIp(f5_cccl._f5.CloudBigIP):
     def __init__(self, fail=False, notify_event=None, notify_after=0,
                  handle_results=None):
         self._cloud = 'k8s'
@@ -138,7 +138,7 @@ class MockBigIp(_f5.CloudBigIP):
         else:
             if self._fail:
                 self._fail = False
-                raise _f5.f5.sdk_exception.F5SDKError('SDK Failure')
+                raise f5_cccl._f5.f5.sdk_exception.F5SDKError('SDK Failure')
 
 
 class MockEventHandler():
@@ -964,7 +964,7 @@ def test_handle_openshift_sdn_config_missing_vxlan_node_ips(request):
 
 
 def test_confighandler_reset_sdk_error(request):
-    exception = _f5.f5.sdk_exception.F5SDKError('SDK Failure')
+    exception = f5_cccl._f5.f5.sdk_exception.F5SDKError('SDK Failure')
     common_confighandler_reset(request, exception)
 
 

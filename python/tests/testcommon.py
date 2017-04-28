@@ -1,1 +1,0 @@
-../../vendor/src/f5/common-bigip-ctlr/tests/testcommon.py

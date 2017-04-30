@@ -25,10 +25,10 @@ import (
 	"syscall"
 	"time"
 
+	"appmanager"
 	"openshift"
 	"tools/pollers"
 	"tools/writer"
-	"virtualServer"
 	"watchmanager"
 
 	log "f5/vlogger"
@@ -255,7 +255,7 @@ func verifyArgs() error {
 }
 
 func setupNodePolling(
-	appMgr *virtualServer.Manager,
+	appMgr *appmanager.Manager,
 	np pollers.Poller,
 ) error {
 
@@ -290,11 +290,11 @@ func setupNodePolling(
 
 // setup the initial watch based off the flags passed in, if no flags then we
 // watch all namespaces
-func setupWatchers(appMgr *virtualServer.Manager) {
+func setupWatchers(appMgr *appmanager.Manager) {
 	label := "f5type in (virtual-server)"
 
 	if len(*namespaceLabel) == 0 {
-		eh := virtualServer.NewEventHandler(appMgr)
+		eh := appmanager.NewEventHandler(appMgr)
 		if watchAllNamespaces == true {
 			_, err := appMgr.WatchManager().Add("", "configmaps", label, &v1.ConfigMap{}, eh)
 			if nil != err {
@@ -340,7 +340,7 @@ func main() {
 		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
 	}
 	defer configWriter.Stop()
-	var appMgrParms = virtualServer.Params{
+	var appMgrParms = appmanager.Params{
 		ConfigWriter:       configWriter,
 		WatchAllNamespaces: watchAllNamespaces,
 		UseNodeInternal:    *useNodeInternal,
@@ -394,7 +394,7 @@ func main() {
 	rc := appMgrParms.KubeClient.Core().RESTClient()
 	appMgrParms.WatchManager = watchmanager.NewWatchManager(rc)
 
-	appMgr := virtualServer.NewManager(&appMgrParms)
+	appMgr := appmanager.NewManager(&appMgrParms)
 
 	if isNodePort || 0 != len(openshiftSDNMode) {
 		intervalFactor := time.Duration(*nodePollInterval)

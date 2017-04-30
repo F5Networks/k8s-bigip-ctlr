@@ -17,7 +17,7 @@
 package main
 
 import (
-	"virtualServer"
+	"appmanager"
 
 	log "f5/vlogger"
 
@@ -26,11 +26,11 @@ import (
 
 // Implementation for the cache.ResourceEventHandler interface for namespaces
 type namespaceEventHandler struct {
-	appMgr *virtualServer.Manager
+	appMgr *appmanager.Manager
 }
 
 func NewNamespaceEventHandler(
-	appMgr *virtualServer.Manager,
+	appMgr *appmanager.Manager,
 ) *namespaceEventHandler {
 	return &namespaceEventHandler{appMgr: appMgr}
 }
@@ -40,7 +40,7 @@ func (eh *namespaceEventHandler) OnAdd(obj interface{}) {
 	label := "f5type in (virtual-server)"
 	ns = obj.(*v1.Namespace)
 	namespace := ns.ObjectMeta.Name
-	handlers := virtualServer.NewEventHandler(eh.appMgr)
+	handlers := appmanager.NewEventHandler(eh.appMgr)
 	st, err := watchManager.Add(namespace, "configmaps", label, &v1.ConfigMap{}, handlers)
 	if nil != err {
 		log.Warningf("Failed to add configmaps watch for namespace %v: %v", namespace, err)
@@ -49,7 +49,7 @@ func (eh *namespaceEventHandler) OnAdd(obj interface{}) {
 	if len(st.ListKeys()) > 0 {
 		items := st.List()
 		for _, item := range items {
-			obj := virtualServer.ChangedObject{Old: nil, New: item}
+			obj := appmanager.ChangedObject{Old: nil, New: item}
 			eh.appMgr.ProcessConfigMapUpdate(0, obj)
 		}
 	}

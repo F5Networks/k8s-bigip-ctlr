@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"virtualServer"
+	"appmanager"
 
 	"test"
 
@@ -437,7 +437,7 @@ func TestNodePollerSetup(t *testing.T) {
 	}
 	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
 
-	vsm := virtualServer.NewManager(&virtualServer.Params{
+	vsm := appmanager.NewManager(&appmanager.Params{
 		KubeClient:   fake,
 		ConfigWriter: configWriter,
 		IsNodePort:   true,
@@ -486,7 +486,7 @@ func TestNodePollerSetupCluster(t *testing.T) {
 	}
 	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
 
-	vsm := virtualServer.NewManager(&virtualServer.Params{
+	vsm := appmanager.NewManager(&appmanager.Params{
 		KubeClient:   fake,
 		ConfigWriter: configWriter,
 	})
@@ -604,7 +604,7 @@ func TestSetupWatchersAllNamespaces(t *testing.T) {
 
 	cw := test.CalledWithStruct{"", "configmaps", label}
 
-	vsm := virtualServer.NewManager(&virtualServer.Params{
+	vsm := appmanager.NewManager(&appmanager.Params{
 		WatchManager: test.NewMockWatchManager(),
 	})
 
@@ -639,7 +639,7 @@ func TestSetupWatchersMultipleNamespaces(t *testing.T) {
 		cwholder = append(cwholder, test.CalledWithStruct{ns, "configmaps", label})
 	}
 
-	vsm := virtualServer.NewManager(&virtualServer.Params{
+	vsm := appmanager.NewManager(&appmanager.Params{
 		WatchManager: test.NewMockWatchManager(),
 	})
 
@@ -670,7 +670,7 @@ func TestSetupWatchersLabels(t *testing.T) {
 
 	cw := test.CalledWithStruct{"", "namespaces", *namespaceLabel}
 
-	vsm := virtualServer.NewManager(&virtualServer.Params{
+	vsm := appmanager.NewManager(&appmanager.Params{
 		WatchManager: test.NewMockWatchManager(),
 	})
 

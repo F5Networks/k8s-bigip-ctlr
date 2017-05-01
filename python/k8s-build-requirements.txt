@@ -1,3 +1,3 @@
--e git+https://github.com/f5devcentral/f5-cccl.git#egg=f5-cccl
+-e git+https://github.com/f5devcentral/f5-cccl.git@2aae905a96b2decfcf71994a93ca17d80e8012ce#egg=f5-cccl
 pytest==3.0.2
 mock

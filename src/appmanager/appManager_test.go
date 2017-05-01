@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package virtualServer
+package appmanager
 
 import (
 	"encoding/json"
@@ -30,7 +30,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
@@ -393,46 +392,43 @@ func (ms *mockStore) Resync() error {
 }
 
 func TestVirtualServerSendFail(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.ImmediateFail,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	require.NotNil(t, mw)
-	assert.True(t, ok)
+
+	appMgr := NewManager(&Params{ConfigWriter: mw})
 
 	require.NotPanics(t, func() {
-		outputConfig()
+		appMgr.outputConfig()
 	})
 	assert.Equal(t, 1, mw.WrittenTimes)
 }
 
 func TestVirtualServerSendFailAsync(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.AsyncFail,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	require.NotNil(t, mw)
-	assert.True(t, ok)
+
+	appMgr := NewManager(&Params{ConfigWriter: mw})
 
 	require.NotPanics(t, func() {
-		outputConfig()
+		appMgr.outputConfig()
 	})
 	assert.Equal(t, 1, mw.WrittenTimes)
 }
 
 func TestVirtualServerSendFailTimeout(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Timeout,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	require.NotNil(t, mw)
-	assert.True(t, ok)
+
+	appMgr := NewManager(&Params{ConfigWriter: mw})
 
 	require.NotPanics(t, func() {
-		outputConfig()
+		appMgr.outputConfig()
 	})
 	assert.Equal(t, 1, mw.WrittenTimes)
 }
@@ -460,19 +456,21 @@ func TestGetAddresses(t *testing.T) {
 		"127.0.0.3",
 	}
 
-	fake := fake.NewSimpleClientset()
-	assert.NotNil(t, fake, "Mock client cannot be nil")
+	appMgr := NewManager(&Params{IsNodePort: true})
+
+	fakeClient := fake.NewSimpleClientset()
+	assert.NotNil(t, fakeClient, "Mock client cannot be nil")
 
 	for _, expectedNode := range expectedNodes {
-		node, err := fake.Core().Nodes().Create(expectedNode)
+		node, err := fakeClient.Core().Nodes().Create(expectedNode)
 		require.Nil(t, err, "Should not fail creating node")
 		require.EqualValues(t, expectedNode, node, "Nodes should be equal")
 	}
 
-	useNodeInternal = false
-	nodes, err := fake.Core().Nodes().List(v1.ListOptions{})
+	appMgr.useNodeInternal = false
+	nodes, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
-	addresses, err := getNodeAddresses(nodes.Items)
+	addresses, err := appMgr.getNodeAddresses(nodes.Items)
 	require.Nil(t, err, "Should not fail getting addresses")
 	assert.EqualValues(t, expectedReturn, addresses,
 		"Should receive the correct addresses")
@@ -482,23 +480,23 @@ func TestGetAddresses(t *testing.T) {
 		"127.0.0.4",
 	}
 
-	useNodeInternal = true
-	addresses, err = getNodeAddresses(nodes.Items)
+	appMgr.useNodeInternal = true
+	addresses, err = appMgr.getNodeAddresses(nodes.Items)
 	require.Nil(t, err, "Should not fail getting internal addresses")
 	assert.EqualValues(t, expectedInternal, addresses,
 		"Should receive the correct addresses")
 
 	for _, node := range expectedNodes {
-		err := fake.Core().Nodes().Delete(node.ObjectMeta.Name,
+		err := fakeClient.Core().Nodes().Delete(node.ObjectMeta.Name,
 			&v1.DeleteOptions{})
 		require.Nil(t, err, "Should not fail deleting node")
 	}
 
 	expectedReturn = []string{}
-	useNodeInternal = false
-	nodes, err = fake.Core().Nodes().List(v1.ListOptions{})
+	appMgr.useNodeInternal = false
+	nodes, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
-	addresses, err = getNodeAddresses(nodes.Items)
+	addresses, err = appMgr.getNodeAddresses(nodes.Items)
 	require.Nil(t, err, "Should not fail getting empty addresses")
 	assert.EqualValues(t, expectedReturn, addresses, "Should get no addresses")
 }
@@ -540,15 +538,15 @@ func validateConfig(t *testing.T, mw *test.MockWriter, expected string) {
 }
 
 func TestProcessNodeUpdate(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
 
-	defer virtualServers.Init()
+	appMgr := NewManager(&Params{
+		ConfigWriter: mw,
+		IsNodePort:   true,
+	})
 
 	originalSet := []v1.Node{
 		*test.NewNode("node0", "0", true, []v1.NodeAddress{
@@ -571,19 +569,19 @@ func TestProcessNodeUpdate(t *testing.T) {
 		"127.0.0.3",
 	}
 
-	fake := fake.NewSimpleClientset(&v1.NodeList{Items: originalSet})
-	assert.NotNil(t, fake, "Mock client should not be nil")
+	fakeClient := fake.NewSimpleClientset(&v1.NodeList{Items: originalSet})
+	assert.NotNil(t, fakeClient, "Mock client should not be nil")
 
-	useNodeInternal = false
-	nodes, err := fake.Core().Nodes().List(v1.ListOptions{})
+	appMgr.useNodeInternal = false
+	nodes, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
-	ProcessNodeUpdate(nodes.Items, err)
+	appMgr.ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
-	require.EqualValues(t, expectedOgSet, oldNodes,
+	require.EqualValues(t, expectedOgSet, appMgr.oldNodes,
 		"Should have cached correct node set")
 
-	cachedNodes := getNodesFromCache()
-	require.EqualValues(t, oldNodes, cachedNodes,
+	cachedNodes := appMgr.getNodesFromCache()
+	require.EqualValues(t, appMgr.oldNodes, cachedNodes,
 		"Cached nodes should be oldNodes")
 	require.EqualValues(t, expectedOgSet, cachedNodes,
 		"Cached nodes should be expected set")
@@ -593,94 +591,89 @@ func TestProcessNodeUpdate(t *testing.T) {
 		"127.0.0.4",
 	}
 
-	useNodeInternal = true
-	nodes, err = fake.Core().Nodes().List(v1.ListOptions{})
+	appMgr.useNodeInternal = true
+	nodes, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
-	ProcessNodeUpdate(nodes.Items, err)
+	appMgr.ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
-	require.EqualValues(t, expectedInternal, oldNodes,
+	require.EqualValues(t, expectedInternal, appMgr.oldNodes,
 		"Should have cached correct node set")
 
-	cachedNodes = getNodesFromCache()
-	require.EqualValues(t, oldNodes, cachedNodes,
+	cachedNodes = appMgr.getNodesFromCache()
+	require.EqualValues(t, appMgr.oldNodes, cachedNodes,
 		"Cached nodes should be oldNodes")
 	require.EqualValues(t, expectedInternal, cachedNodes,
 		"Cached nodes should be expected set")
 
 	// add some nodes
-	_, err = fake.Core().Nodes().Create(test.NewNode("nodeAdd", "nodeAdd", false,
+	_, err = fakeClient.Core().Nodes().Create(test.NewNode("nodeAdd", "nodeAdd", false,
 		[]v1.NodeAddress{{"ExternalIP", "127.0.0.6"}}))
 	require.Nil(t, err, "Create should not return err")
 
-	_, err = fake.Core().Nodes().Create(test.NewNode("nodeExclude", "nodeExclude",
+	_, err = fakeClient.Core().Nodes().Create(test.NewNode("nodeExclude", "nodeExclude",
 		true, []v1.NodeAddress{{"InternalIP", "127.0.0.7"}}))
 
-	useNodeInternal = false
-	nodes, err = fake.Core().Nodes().List(v1.ListOptions{})
+	appMgr.useNodeInternal = false
+	nodes, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
-	ProcessNodeUpdate(nodes.Items, err)
+	appMgr.ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
 	expectedAddSet := append(expectedOgSet, "127.0.0.6")
 
-	require.EqualValues(t, expectedAddSet, oldNodes)
+	require.EqualValues(t, expectedAddSet, appMgr.oldNodes)
 
-	cachedNodes = getNodesFromCache()
-	require.EqualValues(t, oldNodes, cachedNodes,
+	cachedNodes = appMgr.getNodesFromCache()
+	require.EqualValues(t, appMgr.oldNodes, cachedNodes,
 		"Cached nodes should be oldNodes")
 	require.EqualValues(t, expectedAddSet, cachedNodes,
 		"Cached nodes should be expected set")
 
 	// make no changes and re-run process
-	useNodeInternal = false
-	nodes, err = fake.Core().Nodes().List(v1.ListOptions{})
+	appMgr.useNodeInternal = false
+	nodes, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
-	ProcessNodeUpdate(nodes.Items, err)
+	appMgr.ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
 	expectedAddSet = append(expectedOgSet, "127.0.0.6")
 
-	require.EqualValues(t, expectedAddSet, oldNodes)
+	require.EqualValues(t, expectedAddSet, appMgr.oldNodes)
 
-	cachedNodes = getNodesFromCache()
-	require.EqualValues(t, oldNodes, cachedNodes,
+	cachedNodes = appMgr.getNodesFromCache()
+	require.EqualValues(t, appMgr.oldNodes, cachedNodes,
 		"Cached nodes should be oldNodes")
 	require.EqualValues(t, expectedAddSet, cachedNodes,
 		"Cached nodes should be expected set")
 
 	// remove nodes
-	err = fake.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
+	err = fakeClient.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
 	require.Nil(t, err)
-	fake.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
+	fakeClient.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
 	require.Nil(t, err)
-	fake.Core().Nodes().Delete("node3", &v1.DeleteOptions{})
+	fakeClient.Core().Nodes().Delete("node3", &v1.DeleteOptions{})
 	require.Nil(t, err)
 
 	expectedDelSet := []string{"127.0.0.6"}
 
-	useNodeInternal = false
-	nodes, err = fake.Core().Nodes().List(v1.ListOptions{})
+	appMgr.useNodeInternal = false
+	nodes, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
-	ProcessNodeUpdate(nodes.Items, err)
+	appMgr.ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
 
-	require.EqualValues(t, expectedDelSet, oldNodes)
+	require.EqualValues(t, expectedDelSet, appMgr.oldNodes)
 
-	cachedNodes = getNodesFromCache()
-	require.EqualValues(t, oldNodes, cachedNodes,
+	cachedNodes = appMgr.getNodesFromCache()
+	require.EqualValues(t, appMgr.oldNodes, cachedNodes,
 		"Cached nodes should be oldNodes")
 	require.EqualValues(t, expectedDelSet, cachedNodes,
 		"Cached nodes should be expected set")
 }
 
 func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	require := require.New(t)
 
@@ -688,25 +681,27 @@ func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
 		"schema": schemaUrl,
 		"data":   configmapFoo})
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
-	defer test.NewMockWatchManager()
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["services"] = NewStore(nil)
+	appMgr := NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   isNodePort,
+	})
 
-	r := processConfigMap(added,
-		ChangedObject{nil, cfgFoo}, isNodePort)
+	r := appMgr.processConfigMap(added,
+		ChangedObject{nil, cfgFoo})
 	require.True(r, "Config map should be processed")
 
-	require.Equal(1, virtualServers.Count())
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
+	vservers := appMgr.vservers
+	require.Equal(1, vservers.Count())
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should have entry")
-	vs, ok := virtualServers.Get(
+	vs, ok := vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
 	require.Equal("http", vs.VirtualServer.Frontend.Mode, "Mode should be http")
@@ -715,14 +710,14 @@ func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
 		"schema": schemaUrl,
 		"data":   configmapFooTcp})
 
-	r = processConfigMap(added,
-		ChangedObject{nil, cfgFoo}, isNodePort)
+	r = appMgr.processConfigMap(added,
+		ChangedObject{nil, cfgFoo})
 	require.True(r, "Config map should be processed")
 
-	require.Equal(1, virtualServers.Count())
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
+	require.Equal(1, vservers.Count())
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should have new entry")
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
 	require.Equal("tcp", vs.VirtualServer.Frontend.Mode,
@@ -738,15 +733,10 @@ func TestOverwriteAddCluster(t *testing.T) {
 }
 
 func testServiceChangeUpdateImpl(t *testing.T, isNodePort bool) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	require := require.New(t)
 
@@ -754,35 +744,37 @@ func testServiceChangeUpdateImpl(t *testing.T, isNodePort bool) {
 		"schema": schemaUrl,
 		"data":   configmapFoo})
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
-	defer test.NewMockWatchManager()
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["services"] = NewStore(nil)
+	appMgr := NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   isNodePort,
+	})
 
-	r := processConfigMap(added,
-		ChangedObject{nil, cfgFoo}, true)
+	r := appMgr.processConfigMap(added,
+		ChangedObject{nil, cfgFoo})
 	require.True(r, "Config map should be processed")
 
-	require.Equal(1, virtualServers.Count())
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
+	vservers := appMgr.vservers
+	require.Equal(1, vservers.Count())
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should have an entry")
 
 	cfgFoo8080 := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo8080})
 
-	r = processConfigMap(updated,
-		ChangedObject{cfgFoo, cfgFoo8080}, true)
+	r = appMgr.processConfigMap(updated,
+		ChangedObject{cfgFoo, cfgFoo8080})
 	require.True(r, "Config map should be processed")
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 8080, "default"}),
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 8080, "default"}),
 		"Virtual servers should have new entry")
-	require.Equal(0, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
+	require.Equal(0, vservers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should have old config removed")
 }
 
@@ -795,28 +787,25 @@ func TestServiceChangeUpdateCluster(t *testing.T) {
 }
 
 func TestServicePortsRemovedNodePort(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
 
 	require := require.New(t)
 
-	defer virtualServers.Init()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
-
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
-	defer test.NewMockWatchManager()
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["services"] = NewStore(nil)
+	appMgr := NewManager(&Params{
+		KubeClient:      fakeClient,
+		ConfigWriter:    mw,
+		WatchManager:    watchManager,
+		IsNodePort:      true,
+		UseNodeInternal: true,
+	})
 
 	nodeSet := []v1.Node{
 		*test.NewNode("node0", "0", false, []v1.NodeAddress{
@@ -827,8 +816,7 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 			{"InternalIP", "127.0.0.2"}}),
 	}
 
-	useNodeInternal = true
-	ProcessNodeUpdate(nodeSet, nil)
+	appMgr.ProcessNodeUpdate(nodeSet, nil)
 
 	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
@@ -845,56 +833,57 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 			{Port: 8080, NodePort: 38001},
 			{Port: 9090, NodePort: 39001}})
 
-	r := processConfigMap(added, ChangedObject{
+	r := appMgr.processConfigMap(added, ChangedObject{
 		nil,
-		cfgFoo}, true)
+		cfgFoo})
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(added, ChangedObject{
+	r = appMgr.processConfigMap(added, ChangedObject{
 		nil,
-		cfgFoo8080}, true)
+		cfgFoo8080})
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(added, ChangedObject{
+	r = appMgr.processConfigMap(added, ChangedObject{
 		nil,
-		cfgFoo9090}, true)
+		cfgFoo9090})
 	require.True(r, "Config map should be processed")
 
-	require.Equal(3, virtualServers.Count())
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}))
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 8080, "default"}))
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 9090, "default"}))
+	vservers := appMgr.vservers
+	require.Equal(3, vservers.Count())
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}))
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 8080, "default"}))
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 9090, "default"}))
 
 	// Create a new service with less ports and update
 	newFoo := test.NewService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
 
-	r = processService(updated, ChangedObject{
+	r = appMgr.processService(updated, ChangedObject{
 		foo,
-		newFoo}, true)
+		newFoo})
 	require.True(r, "Service should be processed")
 
-	require.Equal(3, virtualServers.Count())
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}))
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 8080, "default"}))
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 9090, "default"}))
+	require.Equal(3, vservers.Count())
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}))
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 8080, "default"}))
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 9090, "default"}))
 
 	addrs := []string{
 		"127.0.0.0",
 		"127.0.0.1",
 		"127.0.0.2",
 	}
-	vs, ok := virtualServers.Get(
+	vs, ok := vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
 	require.EqualValues(generateExpectedAddrs(30001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Existing NodePort should be set on address")
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 8080, "default"}, formatVirtualServerName(cfgFoo8080))
 	require.True(ok)
 	require.False(vs.MetaData.Active)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 9090, "default"}, formatVirtualServerName(cfgFoo9090))
 	require.True(ok)
 	require.False(vs.MetaData.Active)
@@ -904,44 +893,39 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 		[]v1.ServicePort{{Port: 80, NodePort: 20001},
 			{Port: 8080, NodePort: 45454}})
 
-	r = processService(updated, ChangedObject{
+	r = appMgr.processService(updated, ChangedObject{
 		newFoo,
-		newFoo2}, true)
+		newFoo2})
 	require.True(r, "Service should be processed")
 
-	require.Equal(3, virtualServers.Count())
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}))
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 8080, "default"}))
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 9090, "default"}))
+	require.Equal(3, vservers.Count())
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}))
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 8080, "default"}))
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 9090, "default"}))
 
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
 	require.EqualValues(generateExpectedAddrs(20001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Existing NodePort should be set on address")
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 8080, "default"}, formatVirtualServerName(cfgFoo8080))
 	require.True(ok)
 	require.EqualValues(generateExpectedAddrs(45454, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Existing NodePort should be set on address")
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 9090, "default"}, formatVirtualServerName(cfgFoo9090))
 	require.True(ok)
 	require.False(vs.MetaData.Active)
 }
 
 func TestUpdatesConcurrentNodePort(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	assert := assert.New(t)
 	require := require.New(t)
@@ -967,17 +951,20 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 	extraNode := test.NewNode("node3", "3", false,
 		[]v1.NodeAddress{{"ExternalIP", "127.0.0.3"}})
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
-	watchManager.(*test.MockWatchManager).Store["services"].Add(foo)
-	watchManager.(*test.MockWatchManager).Store["services"].Add(bar)
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["services"] = NewStore(nil)
+	watchManager.Store["services"].Add(foo)
+	watchManager.Store["services"].Add(bar)
+	appMgr := NewManager(&Params{
+		KubeClient:      fakeClient,
+		ConfigWriter:    mw,
+		WatchManager:    watchManager,
+		IsNodePort:      true,
+		UseNodeInternal: false,
+	})
 
 	nodeCh := make(chan struct{})
 	mapCh := make(chan struct{})
@@ -985,57 +972,56 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 
 	go func() {
 		for _, node := range nodes {
-			n, err := fake.Core().Nodes().Create(node)
+			n, err := fakeClient.Core().Nodes().Create(node)
 			require.Nil(err, "Should not fail creating node")
 			require.EqualValues(node, n, "Nodes should be equal")
 
-			useNodeInternal = false
-			nodes, err := fake.Core().Nodes().List(v1.ListOptions{})
+			nodes, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
 			assert.Nil(err, "Should not fail listing nodes")
-			ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items, err)
 		}
 
 		nodeCh <- struct{}{}
 	}()
 
 	go func() {
-		f, err := fake.Core().ConfigMaps("default").Create(cfgFoo)
+		f, err := fakeClient.Core().ConfigMaps("default").Create(cfgFoo)
 		require.Nil(err, "Should not fail creating configmap")
 		require.EqualValues(f, cfgFoo, "Maps should be equal")
 
-		ProcessConfigMapUpdate(added, ChangedObject{
+		appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 			nil,
 			cfgFoo,
-		}, true)
+		})
 
-		b, err := fake.Core().ConfigMaps("default").Create(cfgBar)
+		b, err := fakeClient.Core().ConfigMaps("default").Create(cfgBar)
 		require.Nil(err, "Should not fail creating configmap")
 		require.EqualValues(b, cfgBar, "Maps should be equal")
 
-		ProcessConfigMapUpdate(added, ChangedObject{
+		appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 			nil,
 			cfgBar,
-		}, true)
+		})
 
 		mapCh <- struct{}{}
 	}()
 
 	go func() {
-		fSvc, err := fake.Core().Services("default").Create(foo)
+		fSvc, err := fakeClient.Core().Services("default").Create(foo)
 		require.Nil(err, "Should not fail creating service")
 		require.EqualValues(fSvc, foo, "Service should be equal")
 
-		ProcessServiceUpdate(added, ChangedObject{
+		appMgr.ProcessServiceUpdate(added, ChangedObject{
 			nil,
-			foo}, true)
+			foo})
 
-		bSvc, err := fake.Core().Services("default").Create(bar)
+		bSvc, err := fakeClient.Core().Services("default").Create(bar)
 		require.Nil(err, "Should not fail creating service")
 		require.EqualValues(bSvc, bar, "Maps should be equal")
 
-		ProcessServiceUpdate(added, ChangedObject{
+		appMgr.ProcessServiceUpdate(added, ChangedObject{
 			nil,
-			bar}, true)
+			bar})
 
 		serviceCh <- struct{}{}
 	}()
@@ -1057,46 +1043,46 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 	}
 
 	validateConfig(t, mw, twoSvcsTwoNodesConfig)
+	vservers := appMgr.vservers
 
 	go func() {
-		err := fake.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
+		err := fakeClient.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
 		require.Nil(err)
-		err = fake.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
+		err = fakeClient.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
 		require.Nil(err)
-		_, err = fake.Core().Nodes().Create(extraNode)
+		_, err = fakeClient.Core().Nodes().Create(extraNode)
 		require.Nil(err)
-		useNodeInternal = false
-		nodes, err := fake.Core().Nodes().List(v1.ListOptions{})
+		nodes, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
 		assert.Nil(err, "Should not fail listing nodes")
-		ProcessNodeUpdate(nodes.Items, err)
+		appMgr.ProcessNodeUpdate(nodes.Items, err)
 
 		nodeCh <- struct{}{}
 	}()
 
 	go func() {
-		err := fake.Core().ConfigMaps("default").Delete("foomap",
+		err := fakeClient.Core().ConfigMaps("default").Delete("foomap",
 			&v1.DeleteOptions{})
 		require.Nil(err, "Should not error deleting map")
-		m, _ := fake.Core().ConfigMaps("").List(v1.ListOptions{})
+		m, _ := fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
 		assert.Equal(1, len(m.Items))
-		ProcessConfigMapUpdate(deleted, ChangedObject{
+		appMgr.ProcessConfigMapUpdate(deleted, ChangedObject{
 			cfgFoo,
 			nil,
-		}, true)
-		assert.Equal(1, virtualServers.Count())
+		})
+		assert.Equal(1, vservers.Count())
 
 		mapCh <- struct{}{}
 	}()
 
 	go func() {
-		err := fake.Core().Services("default").Delete("foo",
+		err := fakeClient.Core().Services("default").Delete("foo",
 			&v1.DeleteOptions{})
 		require.Nil(err, "Should not error deleting service")
-		s, _ := fake.Core().Services("").List(v1.ListOptions{})
+		s, _ := fakeClient.Core().Services("").List(v1.ListOptions{})
 		assert.Equal(1, len(s.Items))
-		ProcessServiceUpdate(deleted, ChangedObject{
+		appMgr.ProcessServiceUpdate(deleted, ChangedObject{
 			foo,
-			nil}, true)
+			nil})
 
 		serviceCh <- struct{}{}
 	}()
@@ -1121,15 +1107,10 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 }
 
 func TestProcessUpdatesNodePort(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	assert := assert.New(t)
 	require := require.New(t)
@@ -1166,160 +1147,162 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 
 	addrs := []string{"127.0.0.1", "127.0.0.2"}
 
-	fake := fake.NewSimpleClientset(
+	fakeClient := fake.NewSimpleClientset(
 		&v1.ConfigMapList{Items: []v1.ConfigMap{*cfgFoo, *cfgBar}},
 		&v1.ServiceList{Items: []v1.Service{*foo, *bar}},
 		&v1.NodeList{Items: nodes})
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
-	watchManager.(*test.MockWatchManager).Store["services"].Add(foo)
-	watchManager.(*test.MockWatchManager).Store["services"].Add(bar)
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["services"] = NewStore(nil)
+	watchManager.Store["services"].Add(foo)
+	watchManager.Store["services"].Add(bar)
+	appMgr := NewManager(&Params{
+		KubeClient:      fakeClient,
+		ConfigWriter:    mw,
+		WatchManager:    watchManager,
+		IsNodePort:      true,
+		UseNodeInternal: false,
+	})
 
-	m, err := fake.Core().ConfigMaps("").List(v1.ListOptions{})
+	m, err := fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
 	require.Nil(err)
-	s, err := fake.Core().Services("").List(v1.ListOptions{})
+	s, err := fakeClient.Core().Services("").List(v1.ListOptions{})
 	require.Nil(err)
-	n, err := fake.Core().Nodes().List(v1.ListOptions{})
+	n, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
 	require.Nil(err)
 
 	assert.Equal(2, len(m.Items))
 	assert.Equal(2, len(s.Items))
 	assert.Equal(3, len(n.Items))
 
-	useNodeInternal = false
-	ProcessNodeUpdate(n.Items, err)
+	appMgr.ProcessNodeUpdate(n.Items, err)
 
 	// ConfigMap added
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		cfgFoo,
-	}, true)
-	assert.Equal(1, virtualServers.Count())
-	vs, ok := virtualServers.Get(
+	})
+	vservers := appMgr.vservers
+	assert.Equal(1, vservers.Count())
+	vs, ok := vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(30001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Second ConfigMap added
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		cfgBar,
-	}, true)
-	assert.Equal(2, virtualServers.Count())
-	vs, ok = virtualServers.Get(
+	})
+	assert.Equal(2, vservers.Count())
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(30001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"bar", 80, "default"}, formatVirtualServerName(cfgBar))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(37001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Service ADDED
-	ProcessServiceUpdate(added, ChangedObject{
+	appMgr.ProcessServiceUpdate(added, ChangedObject{
 		nil,
-		foo}, true)
-	assert.Equal(2, virtualServers.Count())
+		foo})
+	assert.Equal(2, vservers.Count())
 
 	// Second Service ADDED
-	ProcessServiceUpdate(added, ChangedObject{
+	appMgr.ProcessServiceUpdate(added, ChangedObject{
 		nil,
-		bar}, true)
-	assert.Equal(2, virtualServers.Count())
+		bar})
+	assert.Equal(2, vservers.Count())
 
 	// ConfigMap UPDATED
-	ProcessConfigMapUpdate(updated, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(updated, ChangedObject{
 		cfgFoo,
 		cfgFoo,
-	}, true)
-	assert.Equal(2, virtualServers.Count())
+	})
+	assert.Equal(2, vservers.Count())
 
 	// Service UPDATED
-	ProcessServiceUpdate(updated, ChangedObject{
+	appMgr.ProcessServiceUpdate(updated, ChangedObject{
 		foo,
-		foo}, true)
-	assert.Equal(2, virtualServers.Count())
+		foo})
+	assert.Equal(2, vservers.Count())
 
 	// ConfigMap ADDED second foo port
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
-		cfgFoo8080}, true)
-	assert.Equal(3, virtualServers.Count())
-	vs, ok = virtualServers.Get(
+		cfgFoo8080})
+	assert.Equal(3, vservers.Count())
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 8080, "default"}, formatVirtualServerName(cfgFoo8080))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(38001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(30001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"bar", 80, "default"}, formatVirtualServerName(cfgBar))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(37001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// ConfigMap ADDED third foo port
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
-		cfgFoo9090}, true)
-	assert.Equal(4, virtualServers.Count())
-	vs, ok = virtualServers.Get(
+		cfgFoo9090})
+	assert.Equal(4, vservers.Count())
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 9090, "default"}, formatVirtualServerName(cfgFoo9090))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(39001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 8080, "default"}, formatVirtualServerName(cfgFoo8080))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(38001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(30001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"bar", 80, "default"}, formatVirtualServerName(cfgBar))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(37001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Nodes ADDED
-	_, err = fake.Core().Nodes().Create(extraNode)
+	_, err = fakeClient.Core().Nodes().Create(extraNode)
 	require.Nil(err)
-	useNodeInternal = false
-	n, err = fake.Core().Nodes().List(v1.ListOptions{})
+	n, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
-	ProcessNodeUpdate(n.Items, err)
-	assert.Equal(4, virtualServers.Count())
-	vs, ok = virtualServers.Get(
+	appMgr.ProcessNodeUpdate(n.Items, err)
+	assert.Equal(4, vservers.Count())
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(30001, append(addrs, "127.0.0.3")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"bar", 80, "default"}, formatVirtualServerName(cfgBar))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(37001, append(addrs, "127.0.0.3")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 8080, "default"}, formatVirtualServerName(cfgFoo8080))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(38001, append(addrs, "127.0.0.3")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 9090, "default"}, formatVirtualServerName(cfgFoo9090))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(39001, append(addrs, "127.0.0.3")),
@@ -1327,57 +1310,56 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	validateConfig(t, mw, twoSvcsFourPortsThreeNodesConfig)
 
 	// ConfigMap DELETED third foo port
-	ProcessConfigMapUpdate(deleted, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(deleted, ChangedObject{
 		cfgFoo9090,
-		nil}, true)
-	assert.Equal(3, virtualServers.Count())
-	assert.Equal(0, virtualServers.CountOf(serviceKey{"foo", 9090, "default"}),
+		nil})
+	assert.Equal(3, vservers.Count())
+	assert.Equal(0, vservers.CountOf(serviceKey{"foo", 9090, "default"}),
 		"Virtual servers should not contain removed port")
-	assert.Equal(1, virtualServers.CountOf(serviceKey{"foo", 8080, "default"}),
+	assert.Equal(1, vservers.CountOf(serviceKey{"foo", 8080, "default"}),
 		"Virtual servers should contain remaining ports")
-	assert.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
+	assert.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should contain remaining ports")
-	assert.Equal(1, virtualServers.CountOf(serviceKey{"bar", 80, "default"}),
+	assert.Equal(1, vservers.CountOf(serviceKey{"bar", 80, "default"}),
 		"Virtual servers should contain remaining ports")
 
 	// ConfigMap UPDATED second foo port
-	ProcessConfigMapUpdate(updated, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(updated, ChangedObject{
 		cfgFoo8080,
-		cfgFoo8080}, true)
-	assert.Equal(3, virtualServers.Count())
-	assert.Equal(1, virtualServers.CountOf(serviceKey{"foo", 8080, "default"}),
+		cfgFoo8080})
+	assert.Equal(3, vservers.Count())
+	assert.Equal(1, vservers.CountOf(serviceKey{"foo", 8080, "default"}),
 		"Virtual servers should contain remaining ports")
-	assert.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
+	assert.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should contain remaining ports")
-	assert.Equal(1, virtualServers.CountOf(serviceKey{"bar", 80, "default"}),
+	assert.Equal(1, vservers.CountOf(serviceKey{"bar", 80, "default"}),
 		"Virtual servers should contain remaining ports")
 
 	// ConfigMap DELETED second foo port
-	ProcessConfigMapUpdate(deleted, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(deleted, ChangedObject{
 		cfgFoo8080,
-		nil}, true)
-	assert.Equal(2, virtualServers.Count())
-	assert.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
+		nil})
+	assert.Equal(2, vservers.Count())
+	assert.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should contain remaining ports")
-	assert.Equal(1, virtualServers.CountOf(serviceKey{"bar", 80, "default"}),
+	assert.Equal(1, vservers.CountOf(serviceKey{"bar", 80, "default"}),
 		"Virtual servers should contain remaining ports")
 
 	// Nodes DELETES
-	err = fake.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
+	err = fakeClient.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
 	require.Nil(err)
-	err = fake.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
+	err = fakeClient.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
 	require.Nil(err)
-	useNodeInternal = false
-	n, err = fake.Core().Nodes().List(v1.ListOptions{})
+	n, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
-	ProcessNodeUpdate(n.Items, err)
-	assert.Equal(2, virtualServers.Count())
-	vs, ok = virtualServers.Get(
+	appMgr.ProcessNodeUpdate(n.Items, err)
+	assert.Equal(2, vservers.Count())
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(30001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"bar", 80, "default"}, formatVirtualServerName(cfgBar))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
@@ -1385,40 +1367,35 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	validateConfig(t, mw, twoSvcsOneNodeConfig)
 
 	// ConfigMap DELETED
-	err = fake.Core().ConfigMaps("default").Delete("foomap", &v1.DeleteOptions{})
-	m, err = fake.Core().ConfigMaps("").List(v1.ListOptions{})
+	err = fakeClient.Core().ConfigMaps("default").Delete("foomap", &v1.DeleteOptions{})
+	m, err = fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
 	assert.Equal(1, len(m.Items))
-	ProcessConfigMapUpdate(deleted, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(deleted, ChangedObject{
 		cfgFoo,
 		nil,
-	}, true)
-	assert.Equal(1, virtualServers.Count())
-	assert.Equal(0, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
+	})
+	assert.Equal(1, vservers.Count())
+	assert.Equal(0, vservers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Config map should be removed after delete")
 	validateConfig(t, mw, oneSvcOneNodeConfig)
 
 	// Service deletedD
-	err = fake.Core().Services("default").Delete("bar", &v1.DeleteOptions{})
+	err = fakeClient.Core().Services("default").Delete("bar", &v1.DeleteOptions{})
 	require.Nil(err)
-	s, err = fake.Core().Services("").List(v1.ListOptions{})
+	s, err = fakeClient.Core().Services("").List(v1.ListOptions{})
 	assert.Equal(1, len(s.Items))
-	ProcessServiceUpdate(deleted, ChangedObject{
+	appMgr.ProcessServiceUpdate(deleted, ChangedObject{
 		bar,
-		nil}, true)
-	assert.Equal(1, virtualServers.Count())
+		nil})
+	assert.Equal(1, vservers.Count())
 	validateConfig(t, mw, emptyConfig)
 }
 
 func TestDontCareConfigMapNodePort(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	assert := assert.New(t)
 	require := require.New(t)
@@ -1429,51 +1406,56 @@ func TestDontCareConfigMapNodePort(t *testing.T) {
 	svc := test.NewService("foo", "1", "default", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 30001}})
 
-	fake := fake.NewSimpleClientset(&v1.ConfigMapList{Items: []v1.ConfigMap{*cfg}},
+	fakeClient := fake.NewSimpleClientset(&v1.ConfigMapList{Items: []v1.ConfigMap{*cfg}},
 		&v1.ServiceList{Items: []v1.Service{*svc}})
-	require.NotNil(fake, "Mock client cannot be nil")
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
-	m, err := fake.Core().ConfigMaps("").List(v1.ListOptions{})
+	watchManager := test.NewMockWatchManager()
+	appMgr := NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   true,
+	})
+
+	m, err := fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
 	require.Nil(err)
-	s, err := fake.Core().Services("").List(v1.ListOptions{})
+	s, err := fakeClient.Core().Services("").List(v1.ListOptions{})
 	require.Nil(err)
 
 	assert.Equal(1, len(m.Items))
 	assert.Equal(1, len(s.Items))
 
 	// ConfigMap ADDED
-	assert.Equal(0, virtualServers.Count())
-	ProcessConfigMapUpdate(added, ChangedObject{
+	vservers := appMgr.vservers
+	assert.Equal(0, vservers.Count())
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		cfg,
-	}, true)
-	assert.Equal(0, virtualServers.Count())
+	})
+	assert.Equal(0, vservers.Count())
 }
 
 func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	require := require.New(t)
 	assert := assert.New(t)
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client should not be nil")
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client should not be nil")
 
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
-
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["services"] = NewStore(nil)
+	appMgr := NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   isNodePort,
+	})
 
 	// Config map with no schema key
 	noschemakey := test.NewConfigMap("noschema", "1", "default", map[string]string{
@@ -1481,11 +1463,12 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	cfg, err := parseVirtualServerConfig(noschemakey)
 	require.EqualError(err, "configmap noschema does not contain schema key",
 		"Should receive no schema error")
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		noschemakey,
-	}, isNodePort)
-	require.Equal(0, virtualServers.Count())
+	})
+	vservers := appMgr.vservers
+	require.Equal(0, vservers.Count())
 
 	// Config map with no data key
 	nodatakey := test.NewConfigMap("nodata", "1", "default", map[string]string{
@@ -1495,11 +1478,11 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	require.Nil(cfg, "Should not have parsed bad configmap")
 	require.EqualError(err, "configmap nodata does not contain data key",
 		"Should receive no data error")
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		nodatakey,
-	}, isNodePort)
-	require.Equal(0, virtualServers.Count())
+	})
+	require.Equal(0, vservers.Count())
 
 	// Config map with bad json
 	badjson := test.NewConfigMap("badjson", "1", "default", map[string]string{
@@ -1510,11 +1493,11 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	require.Nil(cfg, "Should not have parsed bad configmap")
 	require.EqualError(err,
 		"invalid character '/' looking for beginning of value")
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		badjson,
-	}, isNodePort)
-	require.Equal(0, virtualServers.Count())
+	})
+	require.Equal(0, vservers.Count())
 
 	// Config map with extra keys
 	extrakeys := test.NewConfigMap("extrakeys", "1", "default", map[string]string{
@@ -1526,12 +1509,12 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	cfg, err = parseVirtualServerConfig(extrakeys)
 	require.NotNil(cfg, "Config map should parse with extra keys")
 	require.Nil(err, "Should not receive errors")
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		extrakeys,
-	}, isNodePort)
-	require.Equal(1, virtualServers.Count())
-	virtualServers.Delete(serviceKey{"foo", 80, "default"},
+	})
+	require.Equal(1, vservers.Count())
+	vservers.Delete(serviceKey{"foo", 80, "default"},
 		formatVirtualServerName(extrakeys))
 
 	// Config map with no mode or balance
@@ -1542,13 +1525,13 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	cfg, err = parseVirtualServerConfig(defaultModeAndBalance)
 	require.NotNil(cfg, "Config map should exist and contain default mode and balance.")
 	require.Nil(err, "Should not receive errors")
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		defaultModeAndBalance,
-	}, isNodePort)
-	require.Equal(1, virtualServers.Count())
+	})
+	require.Equal(1, vservers.Count())
 
-	vs, ok := virtualServers.Get(
+	vs, ok := vservers.Get(
 		serviceKey{"bar", 80, "default"}, formatVirtualServerName(defaultModeAndBalance))
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(vs, "Config map should be object")
@@ -1562,38 +1545,34 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 }
 
 func TestNamespaceIsolation(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	require := require.New(t)
 	assert := assert.New(t)
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client should not be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client should not be nil")
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
-	defer test.NewMockWatchManager()
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["services"] = NewStore(nil)
+	appMgr := NewManager(&Params{
+		KubeClient:      fakeClient,
+		ConfigWriter:    mw,
+		WatchManager:    watchManager,
+		IsNodePort:      true,
+		UseNodeInternal: true,
+	})
 
 	node := test.NewNode("node3", "3", false,
 		[]v1.NodeAddress{{"InternalIP", "127.0.0.3"}})
-	_, err := fake.Core().Nodes().Create(node)
+	_, err := fakeClient.Core().Nodes().Create(node)
 	require.Nil(err)
-	useNodeInternal = true
-	n, err := fake.Core().Nodes().List(v1.ListOptions{})
+	n, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
-	ProcessNodeUpdate(n.Items, err)
+	appMgr.ProcessNodeUpdate(n.Items, err)
 
 	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
@@ -1606,75 +1585,76 @@ func TestNamespaceIsolation(t *testing.T) {
 	servBar := test.NewService("foo", "1", "wrongnamespace", "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 50000}})
 
-	ProcessConfigMapUpdate(added, ChangedObject{
-		nil, cfgFoo}, true)
-	_, ok = virtualServers.Get(
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
+		nil, cfgFoo})
+	vservers := appMgr.vservers
+	_, ok := vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Config map should be accessible")
 
-	ProcessConfigMapUpdate(added, ChangedObject{
-		nil, cfgBar}, true)
-	_, ok = virtualServers.Get(
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
+		nil, cfgBar})
+	_, ok = vservers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, formatVirtualServerName(cfgBar))
 	assert.False(ok, "Config map should not be added if namespace does not match flag")
-	assert.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
+	assert.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should contain original config")
-	assert.Equal(1, virtualServers.Count(), "There should only be 1 virtual server")
+	assert.Equal(1, vservers.Count(), "There should only be 1 virtual server")
 
-	ProcessConfigMapUpdate(updated, ChangedObject{
-		cfgBar, cfgBar}, true)
-	_, ok = virtualServers.Get(
+	appMgr.ProcessConfigMapUpdate(updated, ChangedObject{
+		cfgBar, cfgBar})
+	_, ok = vservers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, formatVirtualServerName(cfgBar))
 	assert.False(ok, "Config map should not be added if namespace does not match flag")
-	assert.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
+	assert.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should contain original config")
-	assert.Equal(1, virtualServers.Count(), "There should only be 1 virtual server")
+	assert.Equal(1, vservers.Count(), "There should only be 1 virtual server")
 
-	ProcessConfigMapUpdate(deleted, ChangedObject{
-		cfgBar, nil}, true)
-	_, ok = virtualServers.Get(
+	appMgr.ProcessConfigMapUpdate(deleted, ChangedObject{
+		cfgBar, nil})
+	_, ok = vservers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, formatVirtualServerName(cfgBar))
 	assert.False(ok, "Config map should not be deleted if namespace does not match flag")
-	_, ok = virtualServers.Get(
+	_, ok = vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Config map should be accessible after delete called on incorrect namespace")
 
-	ProcessServiceUpdate(added, ChangedObject{
-		nil, servFoo}, true)
-	vs, ok := virtualServers.Get(
+	appMgr.ProcessServiceUpdate(added, ChangedObject{
+		nil, servFoo})
+	vs, ok := vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
-	ProcessServiceUpdate(added, ChangedObject{
-		nil, servBar}, true)
-	_, ok = virtualServers.Get(
+	appMgr.ProcessServiceUpdate(added, ChangedObject{
+		nil, servBar})
+	_, ok = vservers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, "foomap")
 	assert.False(ok, "Service should not be added if namespace does not match flag")
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
-	ProcessServiceUpdate(updated, ChangedObject{
-		servBar, servBar}, true)
-	_, ok = virtualServers.Get(
+	appMgr.ProcessServiceUpdate(updated, ChangedObject{
+		servBar, servBar})
+	_, ok = vservers.Get(
 		serviceKey{"foo", 80, "wrongnamespace"}, "foomap")
 	assert.False(ok, "Service should not be added if namespace does not match flag")
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Port should match initial config")
 
-	ProcessServiceUpdate(deleted, ChangedObject{
-		servBar, nil}, true)
-	vs, ok = virtualServers.Get(
+	appMgr.ProcessServiceUpdate(deleted, ChangedObject{
+		servBar, nil})
+	vs, ok = vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(cfgFoo))
 	assert.True(ok, "Service should not have been deleted")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
@@ -1691,15 +1671,10 @@ func TestConfigMapKeysCluster(t *testing.T) {
 }
 
 func TestProcessUpdatesIAppNodePort(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	assert := assert.New(t)
 	require := require.New(t)
@@ -1730,100 +1705,105 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 
 	addrs := []string{"192.168.0.1", "192.168.0.2"}
 
-	fake := fake.NewSimpleClientset(
+	fakeClient := fake.NewSimpleClientset(
 		&v1.ConfigMapList{Items: []v1.ConfigMap{*cfgIapp1, *cfgIapp2}},
 		&v1.ServiceList{Items: []v1.Service{*iapp1, *iapp2}},
 		&v1.NodeList{Items: nodes})
-	require.NotNil(fake, "Mock client cannot be nil")
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
-	watchManager.(*test.MockWatchManager).Store["services"].Add(iapp1)
-	watchManager.(*test.MockWatchManager).Store["services"].Add(iapp2)
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["services"] = NewStore(nil)
+	watchManager.Store["services"].Add(iapp1)
+	watchManager.Store["services"].Add(iapp2)
+	appMgr := NewManager(&Params{
+		KubeClient:      fakeClient,
+		ConfigWriter:    mw,
+		WatchManager:    watchManager,
+		IsNodePort:      true,
+		UseNodeInternal: true,
+	})
 
-	m, err := fake.Core().ConfigMaps("").List(v1.ListOptions{})
+	m, err := fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
 	require.Nil(err)
-	s, err := fake.Core().Services("").List(v1.ListOptions{})
+	s, err := fakeClient.Core().Services("").List(v1.ListOptions{})
 	require.Nil(err)
-	n, err := fake.Core().Nodes().List(v1.ListOptions{})
+	n, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
 	require.Nil(err)
 
 	assert.Equal(2, len(m.Items))
 	assert.Equal(2, len(s.Items))
 	assert.Equal(4, len(n.Items))
 
-	useNodeInternal = true
-	ProcessNodeUpdate(n.Items, err)
+	appMgr.ProcessNodeUpdate(n.Items, err)
 
 	// ConfigMap ADDED
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		cfgIapp1,
-	}, true)
-	assert.Equal(1, virtualServers.Count())
-	vs, ok := virtualServers.Get(
+	})
+	vservers := appMgr.vservers
+	assert.Equal(1, vservers.Count())
+	vs, ok := vservers.Get(
 		serviceKey{"iapp1", 80, "default"}, formatVirtualServerName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Second ConfigMap ADDED
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		cfgIapp2,
-	}, true)
-	assert.Equal(2, virtualServers.Count())
-	vs, ok = virtualServers.Get(
+	})
+	assert.Equal(2, vservers.Count())
+	vs, ok = vservers.Get(
 		serviceKey{"iapp1", 80, "default"}, formatVirtualServerName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"iapp2", 80, "default"}, formatVirtualServerName(cfgIapp2))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(20202, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 
 	// Service ADDED
-	ProcessServiceUpdate(added, ChangedObject{
+	appMgr.ProcessServiceUpdate(added, ChangedObject{
 		nil,
-		iapp1}, true)
-	assert.Equal(2, virtualServers.Count())
+		iapp1})
+	assert.Equal(2, vservers.Count())
 
 	// Second Service ADDED
-	ProcessServiceUpdate(added, ChangedObject{
+	appMgr.ProcessServiceUpdate(added, ChangedObject{
 		nil,
-		iapp2}, true)
-	assert.Equal(2, virtualServers.Count())
+		iapp2})
+	assert.Equal(2, vservers.Count())
 
 	// ConfigMap UPDATED
-	ProcessConfigMapUpdate(updated, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(updated, ChangedObject{
 		cfgIapp1,
 		cfgIapp1,
-	}, true)
-	assert.Equal(2, virtualServers.Count())
+	})
+	assert.Equal(2, vservers.Count())
 
 	// Service UPDATED
-	ProcessServiceUpdate(updated, ChangedObject{
+	appMgr.ProcessServiceUpdate(updated, ChangedObject{
 		iapp1,
-		iapp1}, true)
-	assert.Equal(2, virtualServers.Count())
+		iapp1})
+	assert.Equal(2, vservers.Count())
 
 	// Nodes ADDED
-	_, err = fake.Core().Nodes().Create(extraNode)
+	_, err = fakeClient.Core().Nodes().Create(extraNode)
 	require.Nil(err)
-	useNodeInternal = true
-	n, err = fake.Core().Nodes().List(v1.ListOptions{})
+	n, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
-	ProcessNodeUpdate(n.Items, err)
-	assert.Equal(2, virtualServers.Count())
-	vs, ok = virtualServers.Get(
+	appMgr.ProcessNodeUpdate(n.Items, err)
+	assert.Equal(2, vservers.Count())
+	vs, ok = vservers.Get(
 		serviceKey{"iapp1", 80, "default"}, formatVirtualServerName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, append(addrs, "192.168.0.4")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"iapp2", 80, "default"}, formatVirtualServerName(cfgIapp2))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(20202, append(addrs, "192.168.0.4")),
@@ -1831,21 +1811,20 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	validateConfig(t, mw, twoIappsThreeNodesConfig)
 
 	// Nodes DELETES
-	err = fake.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
+	err = fakeClient.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
 	require.Nil(err)
-	err = fake.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
+	err = fakeClient.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
 	require.Nil(err)
-	useNodeInternal = true
-	n, err = fake.Core().Nodes().List(v1.ListOptions{})
+	n, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
-	ProcessNodeUpdate(n.Items, err)
-	assert.Equal(2, virtualServers.Count())
-	vs, ok = virtualServers.Get(
+	appMgr.ProcessNodeUpdate(n.Items, err)
+	assert.Equal(2, vservers.Count())
+	vs, ok = vservers.Get(
 		serviceKey{"iapp1", 80, "default"}, formatVirtualServerName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, []string{"192.168.0.4"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
-	vs, ok = virtualServers.Get(
+	vs, ok = vservers.Get(
 		serviceKey{"iapp2", 80, "default"}, formatVirtualServerName(cfgIapp2))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(20202, []string{"192.168.0.4"}),
@@ -1853,47 +1832,48 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	validateConfig(t, mw, twoIappsOneNodeConfig)
 
 	// ConfigMap DELETED
-	err = fake.Core().ConfigMaps("default").Delete("iapp1map",
+	err = fakeClient.Core().ConfigMaps("default").Delete("iapp1map",
 		&v1.DeleteOptions{})
-	m, err = fake.Core().ConfigMaps("").List(v1.ListOptions{})
+	m, err = fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
 	assert.Equal(1, len(m.Items))
-	ProcessConfigMapUpdate(deleted, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(deleted, ChangedObject{
 		cfgIapp1,
 		nil,
-	}, true)
-	assert.Equal(1, virtualServers.Count())
-	assert.Equal(0, virtualServers.CountOf(serviceKey{"iapp1", 80, "default"}),
+	})
+	assert.Equal(1, vservers.Count())
+	assert.Equal(0, vservers.CountOf(serviceKey{"iapp1", 80, "default"}),
 		"Config map should be removed after delete")
 	validateConfig(t, mw, oneIappOneNodeConfig)
 
 	// Service DELETED
-	err = fake.Core().Services("default").Delete("iapp2", &v1.DeleteOptions{})
+	err = fakeClient.Core().Services("default").Delete("iapp2", &v1.DeleteOptions{})
 	require.Nil(err)
-	s, err = fake.Core().Services("").List(v1.ListOptions{})
+	s, err = fakeClient.Core().Services("").List(v1.ListOptions{})
 	assert.Equal(1, len(s.Items))
-	ProcessServiceUpdate(deleted, ChangedObject{
+	appMgr.ProcessServiceUpdate(deleted, ChangedObject{
 		iapp2,
-		nil}, true)
-	assert.Equal(1, virtualServers.Count())
+		nil})
+	assert.Equal(1, vservers.Count())
 	validateConfig(t, mw, emptyConfig)
 }
 
 func testNoBindAddr(t *testing.T, isNodePort bool) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw, "MockWriter should not be nil")
-	assert.True(t, ok, "MockWriter should have returned ok")
-	defer virtualServers.Init()
 	require := require.New(t)
 	assert := assert.New(t)
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client should not be nil")
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client should not be nil")
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["services"] = NewStore(nil)
+	appMgr := NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   isNodePort,
+	})
 	var configmapNoBindAddr string = string(`{
 	"virtualServer": {
 	    "backend": {
@@ -1919,13 +1899,14 @@ func testNoBindAddr(t *testing.T, isNodePort bool) {
 	})
 	_, err := parseVirtualServerConfig(noBindAddr)
 	assert.Nil(err, "Missing bindAddr should be valid")
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		noBindAddr,
-	}, isNodePort)
-	require.Equal(1, virtualServers.Count())
+	})
+	vservers := appMgr.vservers
+	require.Equal(1, vservers.Count())
 
-	vs, ok := virtualServers.Get(
+	vs, ok := vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(noBindAddr))
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(vs, "Config map should be object")
@@ -1938,21 +1919,22 @@ func testNoBindAddr(t *testing.T, isNodePort bool) {
 }
 
 func testNoVirtualAddress(t *testing.T, isNodePort bool) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw, "MockWriter should not be nil")
-	assert.True(t, ok, "MockWriter should have returned ok")
-	defer virtualServers.Init()
 	require := require.New(t)
 	assert := assert.New(t)
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client should not be nil")
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client should not be nil")
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["services"] = NewStore(nil)
+	appMgr := NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   isNodePort,
+	})
 	var configmapNoVirtualAddress string = string(`{
 	  "virtualServer": {
 	    "backend": {
@@ -1975,13 +1957,14 @@ func testNoVirtualAddress(t *testing.T, isNodePort bool) {
 	})
 	_, err := parseVirtualServerConfig(noVirtualAddress)
 	assert.Nil(err, "Missing virtualAddress should be valid")
-	ProcessConfigMapUpdate(added, ChangedObject{
+	appMgr.ProcessConfigMapUpdate(added, ChangedObject{
 		nil,
 		noVirtualAddress,
-	}, isNodePort)
-	require.Equal(1, virtualServers.Count())
+	})
+	vservers := appMgr.vservers
+	require.Equal(1, vservers.Count())
 
-	vs, ok := virtualServers.Get(
+	vs, ok := vservers.Get(
 		serviceKey{"foo", 80, "default"}, formatVirtualServerName(noVirtualAddress))
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(vs, "Config map should be object")
@@ -2000,21 +1983,11 @@ func TestPoolOnly(t *testing.T) {
 }
 
 func TestSchemaValidation(t *testing.T) {
-	config = &test.MockWriter{
-		FailStyle: test.Success,
-		Sections:  make(map[string]interface{}),
-	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
-
 	require := require.New(t)
 	assert := assert.New(t)
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client should not be nil")
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client should not be nil")
 
 	badjson := test.NewConfigMap("badjson", "1", "default", map[string]string{
 		"schema": schemaUrl,
@@ -2040,9 +2013,9 @@ func TestSchemaValidation(t *testing.T) {
 }
 
 func validateServiceIps(t *testing.T, serviceName, namespace string,
-	svcPorts []v1.ServicePort, ips []string) {
+	svcPorts []v1.ServicePort, ips []string, vservers *VirtualServers) {
 	for _, p := range svcPorts {
-		vsMap, ok := virtualServers.GetAll(serviceKey{serviceName, p.Port, namespace})
+		vsMap, ok := vservers.GetAll(serviceKey{serviceName, p.Port, namespace})
 		require.True(t, ok)
 		require.NotNil(t, vsMap)
 		for _, vs := range vsMap {
@@ -2061,23 +2034,15 @@ func validateServiceIps(t *testing.T, serviceName, namespace string,
 }
 
 func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	require := require.New(t)
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
 	svcName := "foo"
 	emptyIps := []string{}
@@ -2093,20 +2058,25 @@ func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
 
 	foo := test.NewService(svcName, "1", "default", v1.ServiceTypeClusterIP, svcPorts)
 
+	var appMgr *Manager
+
 	svcStore := NewStore(nil)
 	svcStore.Add(foo)
 	var endptStore cache.Store
 	onEndptChange := func(changeType changeType, obj ChangedObject) {
-		ProcessEndpointsUpdate(changeType, obj)
+		appMgr.ProcessEndpointsUpdate(changeType, obj)
 	}
 	endptStore = NewStore(onEndptChange)
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["endpoints"] = NewStore(nil)
-	watchManager.(*test.MockWatchManager).Store["services"] = NewStore(nil)
-	watchManager.(*test.MockWatchManager).Store["endpoints"] = endptStore
-	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["endpoints"] = endptStore
+	watchManager.Store["services"] = svcStore
+	appMgr = NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   false,
+	})
 
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
 	goodEndpts := test.NewEndpoints(svcName, "1", "default", emptyIps, emptyIps,
@@ -2120,58 +2090,51 @@ func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
 	err = endptStore.Add(badEndpts)
 	require.Nil(err)
 
-	r := processConfigMap(added, ChangedObject{
-		nil, cfgFoo}, false)
+	r := appMgr.processConfigMap(added, ChangedObject{
+		nil, cfgFoo})
 	require.True(r, "Config map should be processed")
 
-	require.Equal(len(svcPorts), virtualServers.Count())
+	vservers := appMgr.vservers
+	require.Equal(len(svcPorts), vservers.Count())
 	for _, p := range svcPorts {
-		require.Equal(1, virtualServers.CountOf(serviceKey{"foo", p.Port, "default"}))
-		vs, ok := virtualServers.Get(
+		require.Equal(1, vservers.CountOf(serviceKey{"foo", p.Port, "default"}))
+		vs, ok := vservers.Get(
 			serviceKey{"foo", p.Port, "default"}, formatVirtualServerName(cfgFoo))
 		require.True(ok)
 		require.EqualValues([]string(nil), vs.VirtualServer.Backend.PoolMemberAddrs)
 	}
 
-	validateServiceIps(t, svcName, "default", svcPorts, nil)
+	validateServiceIps(t, svcName, "default", svcPorts, nil, vservers)
 
 	// Move it back to ready from not ready and make sure it is re-added
 	err = endptStore.Update(test.NewEndpoints(svcName, "2", "default", readyIps,
 		notReadyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps, vservers)
 
 	// Remove all endpoints make sure they are removed but virtual server exists
 	err = endptStore.Update(test.NewEndpoints(svcName, "3", "default", emptyIps,
 		emptyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, "default", svcPorts, nil)
+	validateServiceIps(t, svcName, "default", svcPorts, nil, vservers)
 
 	// Move it back to ready from not ready and make sure it is re-added
 	err = endptStore.Update(test.NewEndpoints(svcName, "4", "default", readyIps,
 		notReadyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps, vservers)
 }
 
 func TestVirtualServerWhenEndpointsChange(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	require := require.New(t)
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
 	svcName := "foo"
 	emptyIps := []string{}
@@ -2195,35 +2158,43 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 
 	foo := test.NewService(svcName, "1", "default", v1.ServiceTypeClusterIP, svcPorts)
 
+	var appMgr *Manager
+
 	svcStore := NewStore(nil)
 	svcStore.Add(foo)
 	var endptStore cache.Store
 	onEndptChange := func(changeType changeType, obj ChangedObject) {
-		ProcessEndpointsUpdate(changeType, obj)
+		appMgr.ProcessEndpointsUpdate(changeType, obj)
 	}
 	endptStore = NewStore(onEndptChange)
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["endpoints"] = endptStore
-	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["endpoints"] = endptStore
+	watchManager.Store["services"] = svcStore
+	appMgr = NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   false,
+	})
 
-	r := processConfigMap(added, ChangedObject{
-		nil, cfgFoo}, false)
+	r := appMgr.processConfigMap(added, ChangedObject{
+		nil, cfgFoo})
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(added, ChangedObject{
-		nil, cfgFoo8080}, false)
+	r = appMgr.processConfigMap(added, ChangedObject{
+		nil, cfgFoo8080})
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(added, ChangedObject{
-		nil, cfgFoo9090}, false)
+	r = appMgr.processConfigMap(added, ChangedObject{
+		nil, cfgFoo9090})
 	require.True(r, "Config map should be processed")
 
-	require.Equal(len(svcPorts), virtualServers.Count())
+	vservers := appMgr.vservers
+	require.Equal(len(svcPorts), vservers.Count())
 	for _, p := range svcPorts {
 		require.Equal(1,
-			virtualServers.CountOf(serviceKey{"foo", p.Port, "default"}))
+			vservers.CountOf(serviceKey{"foo", p.Port, "default"}))
 	}
 
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
@@ -2237,7 +2208,7 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 	err = endptStore.Add(badEndpts)
 	require.Nil(err)
 
-	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps, vservers)
 
 	// Move an endpoint from ready to not ready and make sure it
 	// goes away from virtual servers
@@ -2246,7 +2217,7 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 	err = endptStore.Update(test.NewEndpoints(svcName, "2", "default", readyIps,
 		notReadyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps, vservers)
 
 	// Move it back to ready from not ready and make sure it is re-added
 	readyIps = append(readyIps, notReadyIps[len(notReadyIps)-1])
@@ -2254,39 +2225,31 @@ func TestVirtualServerWhenEndpointsChange(t *testing.T) {
 	err = endptStore.Update(test.NewEndpoints(svcName, "3", "default", readyIps,
 		notReadyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps, vservers)
 
 	// Remove all endpoints make sure they are removed but virtual server exists
 	err = endptStore.Update(test.NewEndpoints(svcName, "4", "default", emptyIps,
 		emptyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, "default", svcPorts, nil)
+	validateServiceIps(t, svcName, "default", svcPorts, nil, vservers)
 
 	// Move it back to ready from not ready and make sure it is re-added
 	err = endptStore.Update(test.NewEndpoints(svcName, "5", "default", readyIps,
 		notReadyIps, endptPorts))
 	require.Nil(err)
-	validateServiceIps(t, svcName, "default", svcPorts, readyIps)
+	validateServiceIps(t, svcName, "default", svcPorts, readyIps, vservers)
 }
 
 func TestVirtualServerWhenServiceChanges(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	require := require.New(t)
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
 	svcName := "foo"
 	svcPorts := []v1.ServicePort{
@@ -2299,21 +2262,29 @@ func TestVirtualServerWhenServiceChanges(t *testing.T) {
 
 	foo := test.NewService(svcName, "1", "default", v1.ServiceTypeClusterIP, svcPorts)
 
+	var appMgr *Manager
+
 	onSvcChange := func(changeType changeType, obj ChangedObject) {
-		processService(changeType, obj, false)
+		appMgr.processService(changeType, obj)
 	}
 	svcStore := NewStore(onSvcChange)
-	svcStore.Add(foo)
 
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
 	err := endptStore.Add(test.NewEndpoints(svcName, "1", "default", svcPodIps,
 		[]string{}, endptPorts))
 	require.Nil(err)
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["endpoints"] = endptStore
-	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["endpoints"] = endptStore
+	watchManager.Store["services"] = svcStore
+	appMgr = NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   false,
+	})
+
+	svcStore.Add(foo)
 
 	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
@@ -2325,51 +2296,44 @@ func TestVirtualServerWhenServiceChanges(t *testing.T) {
 		"schema": schemaUrl,
 		"data":   configmapFoo9090})
 
-	r := processConfigMap(added, ChangedObject{
-		nil, cfgFoo}, false)
+	r := appMgr.processConfigMap(added, ChangedObject{
+		nil, cfgFoo})
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(added, ChangedObject{
-		nil, cfgFoo8080}, false)
+	r = appMgr.processConfigMap(added, ChangedObject{
+		nil, cfgFoo8080})
 	require.True(r, "Config map should be processed")
 
-	r = processConfigMap(added, ChangedObject{
-		nil, cfgFoo9090}, false)
+	r = appMgr.processConfigMap(added, ChangedObject{
+		nil, cfgFoo9090})
 	require.True(r, "Config map should be processed")
 
-	require.Equal(len(svcPorts), virtualServers.Count())
-	validateServiceIps(t, svcName, "default", svcPorts, svcPodIps)
+	vservers := appMgr.vservers
+	require.Equal(len(svcPorts), vservers.Count())
+	validateServiceIps(t, svcName, "default", svcPorts, svcPodIps, vservers)
 
 	// delete the service and make sure the IPs go away on the VS
 	svcStore.Delete(foo)
-	require.Equal(len(svcPorts), virtualServers.Count())
-	validateServiceIps(t, svcName, "default", svcPorts, nil)
+	require.Equal(len(svcPorts), vservers.Count())
+	validateServiceIps(t, svcName, "default", svcPorts, nil, vservers)
 
 	// re-add the service
 	foo.ObjectMeta.ResourceVersion = "2"
 	svcStore.Add(foo)
-	require.Equal(len(svcPorts), virtualServers.Count())
-	validateServiceIps(t, svcName, "default", svcPorts, svcPodIps)
+	require.Equal(len(svcPorts), vservers.Count())
+	validateServiceIps(t, svcName, "default", svcPorts, svcPodIps, vservers)
 }
 
 func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	require := require.New(t)
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
 	svcName := "foo"
 	svcPorts := []v1.ServicePort{
@@ -2381,63 +2345,66 @@ func TestVirtualServerWhenConfigMapChanges(t *testing.T) {
 
 	foo := test.NewService(svcName, "1", "default", v1.ServiceTypeClusterIP, svcPorts)
 
+	var appMgr *Manager
 	onSvcChange := func(changeType changeType, obj ChangedObject) {
-		processService(changeType, obj, false)
+		appMgr.processService(changeType, obj)
 	}
 	svcStore := NewStore(onSvcChange)
-	svcStore.Add(foo)
 
 	endptStore := NewStore(nil)
 	endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
+	onCfgChange := func(changeType changeType, obj ChangedObject) {
+		appMgr.processConfigMap(changeType, obj)
+	}
+	cfgStore := NewStore(onCfgChange)
+
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["endpoints"] = endptStore
+	watchManager.Store["services"] = svcStore
+	appMgr = NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   false,
+	})
+
+	svcStore.Add(foo)
+
 	err := endptStore.Add(test.NewEndpoints(svcName, "1", "default", svcPodIps,
 		[]string{}, endptPorts))
 	require.Nil(err)
 
 	// no virtual servers yet
-	require.Equal(0, virtualServers.Count())
-
-	onCfgChange := func(changeType changeType, obj ChangedObject) {
-		processConfigMap(changeType, obj, false)
-	}
-	cfgStore := NewStore(onCfgChange)
-
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["endpoints"] = endptStore
-	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
+	vservers := appMgr.vservers
+	require.Equal(0, vservers.Count())
 
 	// add a config map
 	cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo})
 	cfgStore.Add(cfgFoo)
-	require.Equal(1, virtualServers.Count())
-	validateServiceIps(t, svcName, "default", svcPorts[:1], svcPodIps)
+	require.Equal(1, vservers.Count())
+	validateServiceIps(t, svcName, "default", svcPorts[:1], svcPodIps, vservers)
 
 	// add another
 	cfgFoo8080 := test.NewConfigMap("foomap8080", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFoo8080})
 	cfgStore.Add(cfgFoo8080)
-	require.Equal(2, virtualServers.Count())
-	validateServiceIps(t, svcName, "default", svcPorts[:2], svcPodIps)
+	require.Equal(2, vservers.Count())
+	validateServiceIps(t, svcName, "default", svcPorts[:2], svcPodIps, vservers)
 
 	// remove first one
 	cfgStore.Delete(cfgFoo)
-	require.Equal(1, virtualServers.Count())
-	validateServiceIps(t, svcName, "default", svcPorts[1:2], svcPodIps)
+	require.Equal(1, vservers.Count())
+	validateServiceIps(t, svcName, "default", svcPorts[1:2], svcPodIps, vservers)
 }
 
 func TestUpdatesConcurrentCluster(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
-
-	defer virtualServers.Init()
 
 	assert := assert.New(t)
 	require := require.New(t)
@@ -2457,48 +2424,50 @@ func TestUpdatesConcurrentCluster(t *testing.T) {
 	foo := test.NewService("foo", "1", "default", v1.ServiceTypeClusterIP, fooPorts)
 	bar := test.NewService("bar", "1", "default", v1.ServiceTypeClusterIP, barPorts)
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
 	var cfgStore cache.Store
 	var endptStore cache.Store
 	var svcStore cache.Store
+	var appMgr *Manager
 
 	onCfgChange := func(changeType changeType, obj ChangedObject) {
-		ProcessConfigMapUpdate(changeType, obj, false)
+		appMgr.ProcessConfigMapUpdate(changeType, obj)
 	}
 	cfgStore = NewStore(onCfgChange)
 
 	onEndptChange := func(changeType changeType, obj ChangedObject) {
-		ProcessEndpointsUpdate(changeType, obj)
+		appMgr.ProcessEndpointsUpdate(changeType, obj)
 	}
 	endptStore = NewStore(onEndptChange)
 
 	onSvcChange := func(changeType changeType, obj ChangedObject) {
-		ProcessServiceUpdate(changeType, obj, false)
-		require.True(ok, "expected ChangedObject")
+		appMgr.ProcessServiceUpdate(changeType, obj)
 		switch changeType {
 		case added:
 			svc := obj.New.(*v1.Service)
-			fSvc, err := fake.Core().Services("default").Create(svc)
+			fSvc, err := fakeClient.Core().Services("default").Create(svc)
 			require.Nil(err, "Should not fail creating service")
 			require.EqualValues(fSvc, svc, "Service should be equal")
 		case deleted:
 			svc := obj.Old.(*v1.Service)
-			err := fake.Core().Services("default").Delete(svc.ObjectMeta.Name,
+			err := fakeClient.Core().Services("default").Delete(svc.ObjectMeta.Name,
 				&v1.DeleteOptions{})
 			require.Nil(err, "Should not error deleting service")
 		}
 	}
 	svcStore = NewStore(onSvcChange)
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["endpoints"] = endptStore
-	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["endpoints"] = endptStore
+	watchManager.Store["services"] = svcStore
+	appMgr = NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   false,
+	})
 
 	fooEndpts := test.NewEndpoints("foo", "1", "default", fooIps, barIps,
 		convertSvcPortsToEndpointPorts(fooPorts))
@@ -2507,6 +2476,7 @@ func TestUpdatesConcurrentCluster(t *testing.T) {
 	cfgCh := make(chan struct{})
 	endptCh := make(chan struct{})
 	svcCh := make(chan struct{})
+	vservers := appMgr.vservers
 
 	go func() {
 		err := endptStore.Add(fooEndpts)
@@ -2594,13 +2564,11 @@ func TestUpdatesConcurrentCluster(t *testing.T) {
 	case <-time.After(time.Second * 30):
 		assert.FailNow("Timed out excpecting service channel notification")
 	}
-	assert.Equal(1, virtualServers.Count())
+	assert.Equal(1, vservers.Count())
 	validateConfig(t, mw, oneSvcTwoPodsConfig)
 }
 
 func TestNonNodePortServiceModeNodePort(t *testing.T) {
-	defer virtualServers.Init()
-
 	assert := assert.New(t)
 	require := require.New(t)
 
@@ -2614,11 +2582,8 @@ func TestNonNodePortServiceModeNodePort(t *testing.T) {
 		},
 	)
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
 	svcName := "foo"
 	svcPorts := []v1.ServicePort{
@@ -2630,20 +2595,24 @@ func TestNonNodePortServiceModeNodePort(t *testing.T) {
 	svcStore := NewStore(nil)
 	svcStore.Add(foo)
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["endpoints"] = NewStore(nil)
-	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["endpoints"] = NewStore(nil)
+	watchManager.Store["services"] = svcStore
+	appMgr := NewManager(&Params{
+		KubeClient:   fakeClient,
+		WatchManager: watchManager,
+		IsNodePort:   true,
+	})
 
-	r := processConfigMap(
+	r := appMgr.processConfigMap(
 		added,
 		ChangedObject{nil, cfgFoo},
-		true,
 	)
 	require.True(r, "Config map should be processed")
 
-	require.Equal(1, virtualServers.Count())
-	require.Equal(1, virtualServers.CountOf(serviceKey{"foo", 80, "default"}),
+	vservers := appMgr.vservers
+	require.Equal(1, vservers.Count())
+	require.Equal(1, vservers.CountOf(serviceKey{"foo", 80, "default"}),
 		"Virtual servers should have an entry",
 	)
 
@@ -2655,32 +2624,25 @@ func TestNonNodePortServiceModeNodePort(t *testing.T) {
 		[]v1.ServicePort{{Port: 80}},
 	)
 
-	r = processService(
+	r = appMgr.processService(
 		added,
 		ChangedObject{nil, foo},
-		true,
 	)
 
 	assert.False(r, "Should not process non NodePort Service")
 }
 
 func TestMultipleVirtualServersForOneBackend(t *testing.T) {
-	config = &test.MockWriter{
+	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
 	}
-	mw, ok := config.(*test.MockWriter)
-	assert.NotNil(t, mw)
-	assert.True(t, ok)
+
 	require := require.New(t)
+	var appMgr *Manager
 
-	fake := fake.NewSimpleClientset()
-	require.NotNil(fake, "Mock client cannot be nil")
-	kubeClient = fake
-	var resetClient kubernetes.Interface
-	defer func() { kubeClient = resetClient }()
-
-	defer virtualServers.Init()
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client cannot be nil")
 
 	svcPorts := []v1.ServicePort{
 		newServicePort("port80", 80),
@@ -2690,13 +2652,18 @@ func TestMultipleVirtualServersForOneBackend(t *testing.T) {
 	svcStore.Add(svc)
 
 	cfgStore := NewStore(func(change changeType, obj ChangedObject) {
-		ProcessConfigMapUpdate(change, obj, false)
+		appMgr.ProcessConfigMapUpdate(change, obj)
 	})
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
-	watchManager.(*test.MockWatchManager).Store["services"] = svcStore
-	watchManager.(*test.MockWatchManager).Store["endpoints"] = NewStore(nil)
+	watchManager := test.NewMockWatchManager()
+	watchManager.Store["services"] = svcStore
+	watchManager.Store["endpoints"] = NewStore(nil)
+	appMgr = NewManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		WatchManager: watchManager,
+		IsNodePort:   false,
+	})
 
 	vsTemplate := `{
 		"virtualServer": {
@@ -2724,20 +2691,21 @@ func TestMultipleVirtualServersForOneBackend(t *testing.T) {
 		}
 	}`
 
-	require.Equal(0, virtualServers.Count())
+	vservers := appMgr.vservers
+	require.Equal(0, vservers.Count())
 	cfgStore.Add(test.NewConfigMap("cmap-1", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   fmt.Sprintf(vsTemplate, 5, 80),
 	}))
-	require.Equal(1, virtualServers.Count())
+	require.Equal(1, vservers.Count())
 	cfgStore.Update(test.NewConfigMap("cmap-1", "2", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   fmt.Sprintf(vsTemplate, 5, 80),
 	}))
-	require.Equal(1, virtualServers.Count())
+	require.Equal(1, vservers.Count())
 	cfgStore.Add(test.NewConfigMap("cmap-2", "1", "default", map[string]string{
 		"schema": schemaUrl,
 		"data":   fmt.Sprintf(vsTemplate, 5, 8080),
 	}))
-	require.Equal(2, virtualServers.Count())
+	require.Equal(2, vservers.Count())
 }

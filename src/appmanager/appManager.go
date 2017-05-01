@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package virtualServer
+package appmanager
 
 import (
 	"bytes"
@@ -35,21 +35,6 @@ import (
 	"k8s.io/client-go/pkg/runtime"
 )
 
-var (
-	config             writer.Writer
-	watchAllNamespaces bool
-	useNodeInternal    bool
-	watchManager       watchmanager.Manager
-	kubeClient         kubernetes.Interface
-
-	// Mutex to control access to node data
-	// FIXME: Simple synchronization for now, it remains to be determined if we'll
-	// need something more complicated (channels, etc?)
-	mutex = &sync.Mutex{}
-	// Nodes from previous iteration of node polling
-	oldNodes = []string{}
-)
-
 const (
 	endpoints int = iota
 	configmaps
@@ -62,74 +47,107 @@ var objInterfaces = [3]runtime.Object{
 	&v1.Service{},
 }
 
-func SetConfigWriter(cw writer.Writer) {
-	config = cw
+type Manager struct {
+	vservers     *VirtualServers
+	kubeClient   kubernetes.Interface
+	configWriter writer.Writer
+	watchManager watchmanager.Manager
+	// Use internal node IPs
+	useNodeInternal bool
+	// Running in nodeport (or cluster) mode
+	isNodePort bool
+	// Watch all namespaces
+	watchAllNamespaces bool
+	// Mutex to control access to node data
+	// FIXME: Simple synchronization for now, it remains to be determined if we'll
+	// need something more complicated (channels, etc?)
+	oldNodesMutex sync.Mutex
+	// Nodes from previous iteration of node polling
+	oldNodes []string
 }
 
-func SetNamespace(wa bool) {
-	watchAllNamespaces = wa
+// Struct to allow NewManager to receive all or only specific parameters.
+type Params struct {
+	KubeClient         kubernetes.Interface
+	ConfigWriter       writer.Writer
+	WatchManager       watchmanager.Manager
+	UseNodeInternal    bool
+	IsNodePort         bool
+	WatchAllNamespaces bool
 }
 
-func SetUseNodeInternal(ni bool) {
-	useNodeInternal = ni
+// Create and return a new app manager that meets the Manager interface
+func NewManager(params *Params) *Manager {
+	return &Manager{
+		vservers:           NewVirtualServers(),
+		kubeClient:         params.KubeClient,
+		configWriter:       params.ConfigWriter,
+		watchManager:       params.WatchManager,
+		useNodeInternal:    params.UseNodeInternal,
+		isNodePort:         params.IsNodePort,
+		watchAllNamespaces: params.WatchAllNamespaces,
+	}
 }
 
-func SetManager(m watchmanager.Manager) {
-	watchManager = m
+func (appMgr *Manager) IsNodePort() bool {
+	return appMgr.isNodePort
 }
 
-func SetClient(k kubernetes.Interface) {
-	kubeClient = k
+func (appMgr *Manager) UseNodeInternal() bool {
+	return appMgr.useNodeInternal
 }
 
-// global virtualServers object
-var virtualServers *VirtualServers = NewVirtualServers()
+func (appMgr *Manager) ConfigWriter() writer.Writer {
+	return appMgr.configWriter
+}
+
+func (appMgr *Manager) WatchManager() watchmanager.Manager {
+	return appMgr.watchManager
+}
 
 // Process Service objects from the controller
-func ProcessServiceUpdate(
+func (appMgr *Manager) ProcessServiceUpdate(
 	changeType changeType,
 	obj ChangedObject,
-	isNodePort bool,
 ) {
 
 	updated := false
 
-	updated = processService(changeType, obj, isNodePort)
+	updated = appMgr.processService(changeType, obj)
 
 	if updated {
 		// Output the Big-IP config
-		outputConfig()
+		appMgr.outputConfig()
 	}
 }
 
 // Process ConfigMap objects from the controller
-func ProcessConfigMapUpdate(
+func (appMgr *Manager) ProcessConfigMapUpdate(
 	changeType changeType,
 	obj ChangedObject,
-	isNodePort bool,
 ) {
 	updated := false
 
-	updated = processConfigMap(changeType, obj, isNodePort)
+	updated = appMgr.processConfigMap(changeType, obj)
 
 	if updated {
 		// Output the Big-IP config
-		outputConfig()
+		appMgr.outputConfig()
 	}
 }
 
-func ProcessEndpointsUpdate(
+func (appMgr *Manager) ProcessEndpointsUpdate(
 	changeType changeType,
 	obj ChangedObject,
 ) {
 
 	updated := false
 
-	updated = processEndpoints(changeType, obj)
+	updated = appMgr.processEndpoints(changeType, obj)
 
 	if updated {
 		// Output the Big-IP config
-		outputConfig()
+		appMgr.outputConfig()
 	}
 }
 
@@ -163,9 +181,11 @@ func getEndpointsForService(
 	return ipPorts
 }
 
-func getEndpointsForNodePort(nodePort int32) []string {
+func (appMgr *Manager) getEndpointsForNodePort(
+	nodePort int32,
+) []string {
 	port := strconv.Itoa(int(nodePort))
-	nodes := getNodesFromCache()
+	nodes := appMgr.getNodesFromCache()
 	for i, v := range nodes {
 		var b bytes.Buffer
 		b.WriteString(v)
@@ -178,10 +198,9 @@ func getEndpointsForNodePort(nodePort int32) []string {
 }
 
 // Process a change in Service state
-func processService(
+func (appMgr *Manager) processService(
 	changeType changeType,
 	o ChangedObject,
-	isNodePort bool,
 ) bool {
 
 	var svc *v1.Service
@@ -203,7 +222,9 @@ func processService(
 	log.Debugf("Process Service watch - change type: %v name: %v namespace: %v",
 		changeType, svc.ObjectMeta.Name, svc.ObjectMeta.Namespace)
 
-	test := watchManager.NamespaceExists(svc.ObjectMeta.Namespace, objInterfaces[services])
+	test := appMgr.WatchManager().NamespaceExists(
+		svc.ObjectMeta.Namespace,
+		objInterfaces[services])
 	if !test {
 		return false
 	}
@@ -213,25 +234,25 @@ func processService(
 	namespace := svc.ObjectMeta.Namespace
 
 	// Check if the service that changed is associated with a ConfigMap
-	virtualServers.Lock()
-	defer virtualServers.Unlock()
+	appMgr.vservers.Lock()
+	defer appMgr.vservers.Unlock()
 	for _, portSpec := range svc.Spec.Ports {
-		if vsMap, ok := virtualServers.GetAll(serviceKey{serviceName, portSpec.Port, namespace}); ok {
+		if vsMap, ok := appMgr.vservers.GetAll(serviceKey{serviceName, portSpec.Port, namespace}); ok {
 			delete(rmvdPortsMap, portSpec.Port)
 			for _, vs := range vsMap {
 				switch changeType {
 				case added, updated:
-					if isNodePort {
+					if appMgr.IsNodePort() {
 						if svc.Spec.Type == v1.ServiceTypeNodePort {
 							log.Debugf("Service backend matched %+v: using node port %v",
 								serviceKey{serviceName, portSpec.Port, namespace}, portSpec.NodePort)
 							vs.MetaData.Active = true
 							vs.MetaData.NodePort = portSpec.NodePort
-							vs.VirtualServer.Backend.PoolMemberAddrs = getEndpointsForNodePort(portSpec.NodePort)
+							vs.VirtualServer.Backend.PoolMemberAddrs = appMgr.getEndpointsForNodePort(portSpec.NodePort)
 							updateConfig = true
 						}
 					} else {
-						item, found, _ := watchManager.GetStoreItem(namespace, "endpoints", serviceName)
+						item, found, _ := appMgr.WatchManager().GetStoreItem(namespace, "endpoints", serviceName)
 						eps, _ := item.(*v1.Endpoints)
 						ipPorts := getEndpointsForService(portSpec.Name, eps)
 
@@ -258,7 +279,7 @@ func processService(
 		}
 	}
 	for p, _ := range rmvdPortsMap {
-		if vsMap, ok := virtualServers.GetAll(serviceKey{serviceName, p, namespace}); ok {
+		if vsMap, ok := appMgr.vservers.GetAll(serviceKey{serviceName, p, namespace}); ok {
 			for _, vs := range vsMap {
 				vs.MetaData.Active = false
 				vs.VirtualServer.Backend.PoolMemberAddrs = nil
@@ -273,10 +294,9 @@ func processService(
 }
 
 // Process a change in ConfigMap state
-func processConfigMap(
+func (appMgr *Manager) processConfigMap(
 	changeType changeType,
 	o ChangedObject,
-	isNodePort bool,
 ) bool {
 	var cfg *VirtualServerConfig
 
@@ -298,8 +318,8 @@ func processConfigMap(
 		changeType, cm.ObjectMeta.Name, cm.ObjectMeta.Namespace)
 
 	namespace := cm.ObjectMeta.Namespace
-	if !watchAllNamespaces {
-		test := watchManager.NamespaceExists(namespace, objInterfaces[configmaps])
+	if !appMgr.watchAllNamespaces {
+		test := appMgr.WatchManager().NamespaceExists(namespace, objInterfaces[configmaps])
 		if !test {
 			log.Debugf("Receiving service updates for unwatched namespace %s", cm.ObjectMeta.Namespace)
 			return false
@@ -313,15 +333,15 @@ func processConfigMap(
 			cm.ObjectMeta.Name, err)
 		// If virtual server exists for invalid configmap, delete it
 		if nil != cfg {
-			if _, ok := virtualServers.Get(
+			if _, ok := appMgr.vservers.Get(
 				serviceKey{cfg.VirtualServer.Backend.ServiceName,
 					cfg.VirtualServer.Backend.ServicePort, namespace}, formatVirtualServerName(cm)); ok {
-				virtualServers.Lock()
-				defer virtualServers.Unlock()
-				virtualServers.Delete(serviceKey{cfg.VirtualServer.Backend.ServiceName,
+				appMgr.vservers.Lock()
+				defer appMgr.vservers.Unlock()
+				appMgr.vservers.Delete(serviceKey{cfg.VirtualServer.Backend.ServiceName,
 					cfg.VirtualServer.Backend.ServicePort, namespace}, formatVirtualServerName(cm))
 				delete(cm.ObjectMeta.Annotations, "status.virtual-server.f5.com/ip")
-				kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
+				appMgr.kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
 				log.Warningf("Deleted virtual server associated with ConfigMap: %v", cm.ObjectMeta.Name)
 				return true
 			}
@@ -335,8 +355,8 @@ func processConfigMap(
 
 	switch changeType {
 	case added, updated:
-		eh := NewEventHandler(isNodePort)
-		serviceStore, err := watchManager.Add(namespace, "services", "", objInterfaces[services], eh)
+		eh := NewEventHandler(appMgr)
+		serviceStore, err := appMgr.WatchManager().Add(namespace, "services", "", objInterfaces[services], eh)
 		if nil != err {
 			log.Warningf("Failed to add services watch for namespace %v: %v", namespace, err)
 			return false
@@ -349,7 +369,7 @@ func processConfigMap(
 		svc, _ := realsvc.(*v1.Service)
 		if nil == err {
 			// Check if service is of type NodePort
-			if isNodePort {
+			if appMgr.IsNodePort() {
 				if found {
 					if svc.Spec.Type == v1.ServiceTypeNodePort {
 						for _, portSpec := range svc.Spec.Ports {
@@ -359,7 +379,7 @@ func processConfigMap(
 
 								cfg.MetaData.Active = true
 								cfg.MetaData.NodePort = portSpec.NodePort
-								cfg.VirtualServer.Backend.PoolMemberAddrs = getEndpointsForNodePort(portSpec.NodePort)
+								cfg.VirtualServer.Backend.PoolMemberAddrs = appMgr.getEndpointsForNodePort(portSpec.NodePort)
 							}
 						}
 					} else {
@@ -371,7 +391,7 @@ func processConfigMap(
 						serviceKey{serviceName, servicePort, namespace})
 				}
 			} else {
-				epStore, epErr := watchManager.Add(namespace, "endpoints", "", objInterfaces[endpoints], eh)
+				epStore, epErr := appMgr.WatchManager().Add(namespace, "endpoints", "", objInterfaces[endpoints], eh)
 				if nil != epErr {
 					log.Warningf("Failed to add endpoints watch for namespace %v: %v", namespace, epErr)
 					return false
@@ -415,26 +435,26 @@ func processConfigMap(
 			}
 		}
 
-		virtualServers.Lock()
-		defer virtualServers.Unlock()
+		appMgr.vservers.Lock()
+		defer appMgr.vservers.Unlock()
 		if added == changeType {
-			if _, ok := virtualServers.Get(serviceKey{serviceName, servicePort, namespace}, vsName); ok {
+			if _, ok := appMgr.vservers.Get(serviceKey{serviceName, servicePort, namespace}, vsName); ok {
 				log.Warningf(
 					"Overwriting existing entry for backend %+v - change type: %v",
 					serviceKey{serviceName, servicePort, namespace}, changeType)
 			}
 		} else if updated == changeType && true == backendChange {
-			if _, ok := virtualServers.Get(serviceKey{serviceName, servicePort, namespace}, vsName); ok {
+			if _, ok := appMgr.vservers.Get(serviceKey{serviceName, servicePort, namespace}, vsName); ok {
 				log.Warningf(
 					"Overwriting existing entry for backend %+v - change type: %v",
 					serviceKey{serviceName, servicePort, namespace}, changeType)
 			}
-			virtualServers.Delete(
+			appMgr.vservers.Delete(
 				serviceKey{oldCfg.VirtualServer.Backend.ServiceName,
 					oldCfg.VirtualServer.Backend.ServicePort, namespace}, vsName)
 		}
 		cfg.VirtualServer.Frontend.VirtualServerName = vsName
-		virtualServers.Assign(serviceKey{serviceName, servicePort, namespace},
+		appMgr.vservers.Assign(serviceKey{serviceName, servicePort, namespace},
 			vsName, cfg)
 
 		// Set a status annotation to contain the virtualAddress bindAddr
@@ -452,7 +472,7 @@ func processConfigMap(
 				if doUpdate {
 					cm.ObjectMeta.Annotations["status.virtual-server.f5.com/ip"] =
 						cfg.VirtualServer.Frontend.VirtualAddress.BindAddr
-					_, err = kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
+					_, err = appMgr.kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
 					if nil != err {
 						log.Warningf("Error when creating status IP annotation: %s", err)
 					} else {
@@ -465,9 +485,9 @@ func processConfigMap(
 		}
 		verified = true
 	case deleted:
-		virtualServers.Lock()
-		defer virtualServers.Unlock()
-		virtualServers.Delete(serviceKey{serviceName, servicePort, namespace}, vsName)
+		appMgr.vservers.Lock()
+		defer appMgr.vservers.Unlock()
+		appMgr.vservers.Delete(serviceKey{serviceName, servicePort, namespace}, vsName)
 		verified = true
 		log.Debugf("ConfigMap delete %+v deactivating config",
 			serviceKey{serviceName, servicePort, namespace})
@@ -476,7 +496,7 @@ func processConfigMap(
 	return verified
 }
 
-func processEndpoints(
+func (appMgr *Manager) processEndpoints(
 	changeType changeType,
 	o ChangedObject,
 ) bool {
@@ -495,19 +515,19 @@ func processEndpoints(
 	log.Debugf("Process Endpoints watch - change type: %v name: %v namespace: %v",
 		changeType, serviceName, namespace)
 
-	item, _, _ := watchManager.GetStoreItem(namespace, "services", serviceName)
+	item, _, _ := appMgr.WatchManager().GetStoreItem(namespace, "services", serviceName)
 
 	if nil == item {
 		return false
 	}
 	svc := item.(*v1.Service)
 
-	virtualServers.Lock()
-	defer virtualServers.Unlock()
+	appMgr.vservers.Lock()
+	defer appMgr.vservers.Unlock()
 
 	updateConfig := false
 	for _, portSpec := range svc.Spec.Ports {
-		if vsMap, ok := virtualServers.GetAll(serviceKey{serviceName, portSpec.Port, namespace}); ok {
+		if vsMap, ok := appMgr.vservers.GetAll(serviceKey{serviceName, portSpec.Port, namespace}); ok {
 			for _, vs := range vsMap {
 				switch changeType {
 				case added, updated:
@@ -533,27 +553,29 @@ func processEndpoints(
 }
 
 // Check for a change in Node state
-func ProcessNodeUpdate(obj interface{}, err error) {
+func (appMgr *Manager) ProcessNodeUpdate(
+	obj interface{}, err error,
+) {
 	if nil != err {
 		log.Warningf("Unable to get list of nodes, err=%+v", err)
 		return
 	}
 
-	newNodes, err := getNodeAddresses(obj)
+	newNodes, err := appMgr.getNodeAddresses(obj)
 	if nil != err {
 		log.Warningf("Unable to get list of nodes, err=%+v", err)
 		return
 	}
 	sort.Strings(newNodes)
 
-	virtualServers.Lock()
-	defer virtualServers.Unlock()
-	mutex.Lock()
-	defer mutex.Unlock()
+	appMgr.vservers.Lock()
+	defer appMgr.vservers.Unlock()
+	appMgr.oldNodesMutex.Lock()
+	defer appMgr.oldNodesMutex.Unlock()
 	// Compare last set of nodes with new one
-	if !reflect.DeepEqual(newNodes, oldNodes) {
+	if !reflect.DeepEqual(newNodes, appMgr.oldNodes) {
 		log.Infof("ProcessNodeUpdate: Change in Node state detected")
-		virtualServers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
+		appMgr.vservers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
 			port := strconv.Itoa(int(cfg.MetaData.NodePort))
 			var newAddrPorts []string
 			for _, node := range newNodes {
@@ -566,24 +588,24 @@ func ProcessNodeUpdate(obj interface{}, err error) {
 			cfg.VirtualServer.Backend.PoolMemberAddrs = newAddrPorts
 		})
 		// Output the Big-IP config
-		outputConfigLocked()
+		appMgr.outputConfigLocked()
 
 		// Update node cache
-		oldNodes = newNodes
+		appMgr.oldNodes = newNodes
 	}
 }
 
 // Dump out the Virtual Server configs to a file
-func outputConfig() {
-	virtualServers.Lock()
-	outputConfigLocked()
-	virtualServers.Unlock()
+func (appMgr *Manager) outputConfig() {
+	appMgr.vservers.Lock()
+	appMgr.outputConfigLocked()
+	appMgr.vservers.Unlock()
 }
 
 // Dump out the Virtual Server configs to a file
 // This function MUST be called with the virtualServers
 // lock held.
-func outputConfigLocked() {
+func (appMgr *Manager) outputConfigLocked() {
 
 	// Initialize the Services array as empty; json.Marshal() writes
 	// an uninitialized array as 'null', but we want an empty array
@@ -591,13 +613,13 @@ func outputConfigLocked() {
 	services := VirtualServerConfigs{}
 
 	// Filter the configs to only those that have active services
-	virtualServers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
+	appMgr.vservers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
 		if cfg.MetaData.Active == true {
 			services = append(services, cfg)
 		}
 	})
 
-	doneCh, errCh, err := config.SendSection("services", services)
+	doneCh, errCh, err := appMgr.ConfigWriter().SendSection("services", services)
 	if nil != err {
 		log.Warningf("Failed to write Big-IP config data: %v", err)
 	} else {
@@ -621,17 +643,19 @@ func outputConfigLocked() {
 }
 
 // Return a copy of the node cache
-func getNodesFromCache() []string {
-	mutex.Lock()
-	defer mutex.Unlock()
-	nodes := make([]string, len(oldNodes))
-	copy(nodes, oldNodes)
+func (appMgr *Manager) getNodesFromCache() []string {
+	appMgr.oldNodesMutex.Lock()
+	defer appMgr.oldNodesMutex.Unlock()
+	nodes := make([]string, len(appMgr.oldNodes))
+	copy(nodes, appMgr.oldNodes)
 
 	return nodes
 }
 
 // Get a list of Node addresses
-func getNodeAddresses(obj interface{}) ([]string, error) {
+func (appMgr *Manager) getNodeAddresses(
+	obj interface{},
+) ([]string, error) {
 	nodes, ok := obj.([]v1.Node)
 	if false == ok {
 		return nil,
@@ -641,7 +665,7 @@ func getNodeAddresses(obj interface{}) ([]string, error) {
 	addrs := []string{}
 
 	var addrType v1.NodeAddressType
-	if useNodeInternal {
+	if appMgr.UseNodeInternal() {
 		addrType = v1.NodeInternalIP
 	} else {
 		addrType = v1.NodeExternalIP
@@ -665,13 +689,13 @@ func getNodeAddresses(obj interface{}) ([]string, error) {
 }
 
 // RemoveNamespace cleans up all virtual servers that reference a removed namespace
-func RemoveNamespace(ns string) {
-	virtualServers.Lock()
-	defer virtualServers.Unlock()
-	virtualServers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
+func (appMgr *Manager) RemoveNamespace(ns string) {
+	appMgr.vservers.Lock()
+	defer appMgr.vservers.Unlock()
+	appMgr.vservers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
 		if key.Namespace == ns {
-			virtualServers.Delete(key, "")
+			appMgr.vservers.Delete(key, "")
 		}
 	})
-	outputConfigLocked()
+	appMgr.outputConfigLocked()
 }

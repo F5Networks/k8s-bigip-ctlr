@@ -17,21 +17,30 @@
 package main
 
 import (
-	"virtualServer"
+	"appmanager"
 
 	log "f5/vlogger"
 
 	"k8s.io/client-go/pkg/api/v1"
 )
 
-type eventHandler struct{}
+// Implementation for the cache.ResourceEventHandler interface for namespaces
+type namespaceEventHandler struct {
+	appMgr *appmanager.Manager
+}
 
-func (eh *eventHandler) OnAdd(obj interface{}) {
+func NewNamespaceEventHandler(
+	appMgr *appmanager.Manager,
+) *namespaceEventHandler {
+	return &namespaceEventHandler{appMgr: appMgr}
+}
+
+func (eh *namespaceEventHandler) OnAdd(obj interface{}) {
 	var ns *v1.Namespace
 	label := "f5type in (virtual-server)"
 	ns = obj.(*v1.Namespace)
 	namespace := ns.ObjectMeta.Name
-	handlers := virtualServer.NewEventHandler(isNodePort)
+	handlers := appmanager.NewEventHandler(eh.appMgr)
 	st, err := watchManager.Add(namespace, "configmaps", label, &v1.ConfigMap{}, handlers)
 	if nil != err {
 		log.Warningf("Failed to add configmaps watch for namespace %v: %v", namespace, err)
@@ -40,19 +49,19 @@ func (eh *eventHandler) OnAdd(obj interface{}) {
 	if len(st.ListKeys()) > 0 {
 		items := st.List()
 		for _, item := range items {
-			obj := virtualServer.ChangedObject{Old: nil, New: item}
-			virtualServer.ProcessConfigMapUpdate(0, obj, isNodePort)
+			obj := appmanager.ChangedObject{Old: nil, New: item}
+			eh.appMgr.ProcessConfigMapUpdate(0, obj)
 		}
 	}
 }
 
-func (eh *eventHandler) OnUpdate(oldObj, newObj interface{}) {
+func (eh *namespaceEventHandler) OnUpdate(oldObj, newObj interface{}) {
 	// Unimplemented function
 }
 
-func (eh *eventHandler) OnDelete(obj interface{}) {
+func (eh *namespaceEventHandler) OnDelete(obj interface{}) {
 	var ns *v1.Namespace
 	ns = obj.(*v1.Namespace)
 	watchManager.Remove(ns.ObjectMeta.Name, "namespaces")
-	virtualServer.RemoveNamespace(ns.ObjectMeta.Name)
+	eh.appMgr.RemoveNamespace(ns.ObjectMeta.Name)
 }

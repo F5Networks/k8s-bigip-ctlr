@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"appmanager"
+
 	"test"
 
 	"github.com/stretchr/testify/assert"
@@ -435,7 +437,12 @@ func TestNodePollerSetup(t *testing.T) {
 	}
 	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
 
-	err = setupNodePolling(fake, configWriter, nodePoller)
+	vsm := appmanager.NewManager(&appmanager.Params{
+		KubeClient:   fake,
+		ConfigWriter: configWriter,
+		IsNodePort:   true,
+	})
+	err = setupNodePolling(vsm, nodePoller)
 	assert.NoError(t, err)
 
 	nodePoller = &test.MockPoller{
@@ -443,7 +450,7 @@ func TestNodePollerSetup(t *testing.T) {
 	}
 	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
 
-	err = setupNodePolling(fake, configWriter, nodePoller)
+	err = setupNodePolling(vsm, nodePoller)
 	assert.Error(t, err)
 }
 
@@ -479,7 +486,11 @@ func TestNodePollerSetupCluster(t *testing.T) {
 	}
 	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
 
-	err = setupNodePolling(fake, configWriter, nodePoller)
+	vsm := appmanager.NewManager(&appmanager.Params{
+		KubeClient:   fake,
+		ConfigWriter: configWriter,
+	})
+	err = setupNodePolling(vsm, nodePoller)
 	assert.NoError(t, err)
 	// Fail case from config writer
 	nodePoller = &test.MockPoller{
@@ -487,7 +498,7 @@ func TestNodePollerSetupCluster(t *testing.T) {
 	}
 	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
 
-	err = setupNodePolling(fake, configWriter, nodePoller)
+	err = setupNodePolling(vsm, nodePoller)
 	assert.Error(t, err)
 	// Fail case from NewOpenshiftSDNMgr
 	*openshiftSDNName = ""
@@ -496,7 +507,7 @@ func TestNodePollerSetupCluster(t *testing.T) {
 	}
 	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
 
-	err = setupNodePolling(fake, configWriter, nodePoller)
+	err = setupNodePolling(vsm, nodePoller)
 	assert.Error(t, err)
 }
 
@@ -593,12 +604,14 @@ func TestSetupWatchersAllNamespaces(t *testing.T) {
 
 	cw := test.CalledWithStruct{"", "configmaps", label}
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
+	vsm := appmanager.NewManager(&appmanager.Params{
+		WatchManager: test.NewMockWatchManager(),
+	})
 
-	setupWatchers(watchManager)
-	assert.Equal(t, 1, watchManager.(*test.MockWatchManager).CallCount)
-	assert.Equal(t, cw, watchManager.(*test.MockWatchManager).CalledWith[0])
+	setupWatchers(vsm)
+	assert.Equal(t, 1, vsm.WatchManager().(*test.MockWatchManager).CallCount)
+	assert.Equal(t, cw,
+		vsm.WatchManager().(*test.MockWatchManager).CalledWith[0])
 }
 
 func TestSetupWatchersMultipleNamespaces(t *testing.T) {
@@ -626,14 +639,16 @@ func TestSetupWatchersMultipleNamespaces(t *testing.T) {
 		cwholder = append(cwholder, test.CalledWithStruct{ns, "configmaps", label})
 	}
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
+	vsm := appmanager.NewManager(&appmanager.Params{
+		WatchManager: test.NewMockWatchManager(),
+	})
 
-	setupWatchers(watchManager)
-	assert.Equal(t, 3, watchManager.(*test.MockWatchManager).CallCount)
+	setupWatchers(vsm)
+	assert.Equal(t, 3, vsm.WatchManager().(*test.MockWatchManager).CallCount)
 
 	for i, cw := range cwholder {
-		assert.Equal(t, cw, watchManager.(*test.MockWatchManager).CalledWith[i])
+		assert.Equal(t, cw,
+			vsm.WatchManager().(*test.MockWatchManager).CalledWith[i])
 	}
 }
 
@@ -655,11 +670,13 @@ func TestSetupWatchersLabels(t *testing.T) {
 
 	cw := test.CalledWithStruct{"", "namespaces", *namespaceLabel}
 
-	watchManager = test.NewMockWatchManager()
-	defer func() { watchManager = test.NewMockWatchManager() }()
+	vsm := appmanager.NewManager(&appmanager.Params{
+		WatchManager: test.NewMockWatchManager(),
+	})
 
-	setupWatchers(watchManager)
-	assert.Equal(t, 1, watchManager.(*test.MockWatchManager).CallCount)
+	setupWatchers(vsm)
+	assert.Equal(t, 1, vsm.WatchManager().(*test.MockWatchManager).CallCount)
 
-	assert.Equal(t, cw, watchManager.(*test.MockWatchManager).CalledWith[0])
+	assert.Equal(t, cw,
+		vsm.WatchManager().(*test.MockWatchManager).CalledWith[0])
 }

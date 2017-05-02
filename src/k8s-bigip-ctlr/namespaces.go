@@ -41,7 +41,7 @@ func (eh *namespaceEventHandler) OnAdd(obj interface{}) {
 	ns = obj.(*v1.Namespace)
 	namespace := ns.ObjectMeta.Name
 	handlers := appmanager.NewEventHandler(eh.appMgr)
-	st, err := watchManager.Add(namespace, "configmaps", label, &v1.ConfigMap{}, handlers)
+	st, err := eh.appMgr.WatchManager().Add(namespace, "configmaps", label, &v1.ConfigMap{}, handlers)
 	if nil != err {
 		log.Warningf("Failed to add configmaps watch for namespace %v: %v", namespace, err)
 		return
@@ -62,6 +62,6 @@ func (eh *namespaceEventHandler) OnUpdate(oldObj, newObj interface{}) {
 func (eh *namespaceEventHandler) OnDelete(obj interface{}) {
 	var ns *v1.Namespace
 	ns = obj.(*v1.Namespace)
-	watchManager.Remove(ns.ObjectMeta.Name, "namespaces")
+	eh.appMgr.WatchManager().Remove(ns.ObjectMeta.Name, "namespaces")
 	eh.appMgr.RemoveNamespace(ns.ObjectMeta.Name)
 }

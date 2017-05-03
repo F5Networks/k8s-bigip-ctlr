@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"tools/pollers"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

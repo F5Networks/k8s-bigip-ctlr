@@ -27,7 +27,7 @@ import (
 	"time"
 
 	log "f5/vlogger"
-	"tools/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"

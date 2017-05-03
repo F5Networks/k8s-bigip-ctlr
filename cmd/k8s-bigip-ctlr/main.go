@@ -25,10 +25,10 @@ import (
 	"syscall"
 	"time"
 
-	"appmanager"
-	"openshift"
-	"tools/pollers"
-	"tools/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/openshift"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	log "f5/vlogger"
 	clog "f5/vlogger/console"

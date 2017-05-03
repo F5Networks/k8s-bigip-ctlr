@@ -25,9 +25,8 @@ import (
 	"testing"
 	"time"
 
-	"appmanager"
-
-	"test"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

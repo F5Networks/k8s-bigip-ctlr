@@ -24,7 +24,7 @@ import (
 	"syscall"
 	"time"
 
-	"tools/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	log "f5/vlogger"
 )

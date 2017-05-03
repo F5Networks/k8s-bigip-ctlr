@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"test"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +38,7 @@ import (
 
 func init() {
 	workingDir, _ := os.Getwd()
-	schemaUrl = "file://" + workingDir + "/../../vendor/src/f5/schemas/bigip-virtual-server_v0.1.3.json"
+	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.3.json"
 }
 
 var schemaUrl string

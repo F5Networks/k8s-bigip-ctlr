@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"testing"
 
-	"test"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

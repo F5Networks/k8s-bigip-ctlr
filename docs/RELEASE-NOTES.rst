@@ -1,6 +1,17 @@
 Release Notes for K8S BIG-IP Controller
 ============================================
 
+v1.1.0-dev
+----------
+
+* Features
+
+  * Watches all Kubernetes namespaces by default, or can watch a list of namespaces, or namespaces with a customer specified label. This addresses a previous limitation in v1.0.0.
+  * Watches for Kubernetes annotation if virtual address not specified, enabling custom IPAM integration.
+  * Creates detached pools if virtual server bind addresses not specified.
+  * Container image size reduced from 361MB to 123MB.
+  * Can use local and non-local BIG-IP users.
+
 v1.0.0
 ------
 

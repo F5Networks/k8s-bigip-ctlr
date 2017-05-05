@@ -77,9 +77,9 @@ author = u'F5 Networks'
 # built documents.
 #
 # The short X.Y version.
-version = u'v1.1'
+version = u'v1.1-beta'
 # The full version, including alpha/beta/rc tags.
-release = u'v1.1.0-dev'
+release = u'v1.1.0-beta.1'
 
 # def setup(app):
 #    app.add_config_value('versionlevel', '', 'env')

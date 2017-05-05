@@ -139,14 +139,14 @@ attributions generator:
       - ATTRIBUTIONS.md
 
 Publish docs to internet:
-   # Publish ONLY 1.0-stable to the internet.
+   # Publish ONLY stable and beta branches to the internet.
    image: docker-registry.pdbld.f5net.com/tools/containthedocs:master
    stage: deploy
    tags:
     - docker
    only:
-    - 1.0-stable@velcro/k8s-bigip-ctlr
+    - 1.1.0-beta.1@velcro/k8s-bigip-ctlr
    dependencies:
      - build docs
    script:
-     - publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.0
+       - publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.1-beta

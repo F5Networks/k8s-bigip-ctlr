@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/rest/fake"
 )
 
@@ -124,6 +125,25 @@ func NewConfigMap(id, rv, namespace string,
 			Namespace:       namespace,
 		},
 		Data: keys,
+	}
+}
+
+// NewIngress returns a new ingress object
+func NewIngress(id, rv, namespace string,
+	spec v1beta1.IngressSpec,
+	annotations map[string]string) *v1beta1.Ingress {
+	return &v1beta1.Ingress{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "extensions/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            id,
+			ResourceVersion: rv,
+			Namespace:       namespace,
+			Annotations:     annotations,
+		},
+		Spec: spec,
 	}
 }
 

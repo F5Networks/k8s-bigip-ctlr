@@ -73,6 +73,7 @@ var (
 	inCluster       *bool
 	kubeConfig      *string
 	namespaceLabel  *string
+	manageIngress   *bool
 
 	bigIPURL        *string
 	bigIPUsername   *string
@@ -139,6 +140,9 @@ func _init() {
 		"Optional, absolute path to the kubeconfig file")
 	namespaceLabel = kubeFlags.String("namespace-label", "",
 		"Optional, used to watch for namespaces with this label")
+	manageIngress = kubeFlags.Bool("manage-ingress", false,
+		"Optional, specify whether or not to manage Ingress resources")
+	kubeFlags.MarkHidden("manage-ingress")
 
 	kubeFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsages())
@@ -349,6 +353,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	appmanager.DEFAULT_PARTITION = (*bigIPPartitions)[0]
+
 	if _, isSet := os.LookupEnv("SCALE_PERF_ENABLE"); isSet {
 		now := time.Now()
 		log.Infof("SCALE_PERF: Started controller at: %d", now.Unix())
@@ -363,6 +369,7 @@ func main() {
 		ConfigWriter:    configWriter,
 		UseNodeInternal: *useNodeInternal,
 		IsNodePort:      isNodePort,
+		ManageIngress:   *manageIngress,
 	}
 
 	gs := globalSection{

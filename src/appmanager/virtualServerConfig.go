@@ -26,6 +26,7 @@ import (
 
 	"github.com/xeipuuv/gojsonschema"
 	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 // Definition of a Big-IP Virtual Server config
@@ -36,6 +37,8 @@ import (
 
 var DEFAULT_MODE string = "tcp"
 var DEFAULT_BALANCE string = "round-robin"
+var DEFAULT_HTTP_PORT int32 = 80
+var DEFAULT_PARTITION string
 
 // frontend bindaddr and port
 type virtualAddress struct {
@@ -150,8 +153,13 @@ type serviceKey struct {
 }
 
 // format the namespace and name for use in the frontend definition
-func formatVirtualServerName(cm *v1.ConfigMap) string {
+func formatConfigMapVSName(cm *v1.ConfigMap) string {
 	return fmt.Sprintf("%v_%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
+}
+
+// format the namespace and name for use in the frontend definition
+func formatIngressVSName(ing *v1beta1.Ingress) string {
+	return fmt.Sprintf("%v_%v-ingress", ing.ObjectMeta.Namespace, ing.ObjectMeta.Name)
 }
 
 type VirtualServerConfigMap map[string]*VirtualServerConfig

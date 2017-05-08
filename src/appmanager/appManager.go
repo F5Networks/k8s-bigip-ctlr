@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -46,13 +47,14 @@ import (
 const DefaultConfigMapLabel = "f5type in (virtual-server)"
 const vsBindAddrAnnotation = "status.virtual-server.f5.com/ip"
 
-type VirtualServerPortMap map[int32]*VirtualServerConfig
+type VirtualServerPortMap map[int32][]*VirtualServerConfig
 
 type Manager struct {
-	vservers     *VirtualServers
-	kubeClient   kubernetes.Interface
-	restClient   rest.Interface
-	configWriter writer.Writer
+	vservers          *VirtualServers
+	kubeClient        kubernetes.Interface
+	restClientv1      rest.Interface
+	restClientv1beta1 rest.Interface
+	configWriter      writer.Writer
 	// Use internal node IPs
 	useNodeInternal bool
 	// Running in nodeport (or cluster) mode
@@ -71,6 +73,8 @@ type Manager struct {
 	// Namespace informer support (namespace labels)
 	nsQueue    workqueue.RateLimitingInterface
 	nsInformer cache.SharedIndexInformer
+	// Parameter to specify whether or not to watch/manage Ingress resources
+	manage_ingress bool
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -80,6 +84,7 @@ type Params struct {
 	ConfigWriter    writer.Writer
 	UseNodeInternal bool
 	IsNodePort      bool
+	ManageIngress   bool
 }
 
 // Create and return a new app manager that meets the Manager interface
@@ -89,20 +94,27 @@ func NewManager(params *Params) *Manager {
 	nsQueue := workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "namespace-controller")
 	manager := Manager{
-		vservers:        NewVirtualServers(),
-		kubeClient:      params.KubeClient,
-		restClient:      params.restClient,
-		configWriter:    params.ConfigWriter,
-		useNodeInternal: params.UseNodeInternal,
-		isNodePort:      params.IsNodePort,
-		vsQueue:         vsQueue,
-		nsQueue:         nsQueue,
-		appInformers:    make(map[string]*appInformer),
+		vservers:          NewVirtualServers(),
+		kubeClient:        params.KubeClient,
+		restClientv1:      params.restClient,
+		restClientv1beta1: params.restClient,
+		configWriter:      params.ConfigWriter,
+		useNodeInternal:   params.UseNodeInternal,
+		isNodePort:        params.IsNodePort,
+		manage_ingress:    params.ManageIngress,
+		vsQueue:           vsQueue,
+		nsQueue:           nsQueue,
+		appInformers:      make(map[string]*appInformer),
 	}
-	if nil != manager.kubeClient && nil == manager.restClient {
+	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
-		manager.restClient = manager.kubeClient.Core().RESTClient()
+		manager.restClientv1 = manager.kubeClient.Core().RESTClient()
 	}
+	if nil != manager.kubeClient && nil == manager.restClientv1beta1 {
+		// This is the normal production case, but need the checks for unit tests.
+		manager.restClientv1beta1 = manager.kubeClient.Extensions().RESTClient()
+	}
+
 	return &manager
 }
 
@@ -143,7 +155,8 @@ func (appMgr *Manager) addNamespaceLocked(
 	if appInf, found := appMgr.appInformers[namespace]; found {
 		return appInf, nil
 	}
-	appInf = appMgr.newAppInformer(namespace, cfgMapSelector, resyncPeriod)
+	appInf = appMgr.newAppInformer(namespace, appMgr.manage_ingress,
+		cfgMapSelector, resyncPeriod)
 	appMgr.appInformers[namespace] = appInf
 	return appInf, nil
 }
@@ -178,7 +191,7 @@ func (appMgr *Manager) AddNamespaceLabelInformer(
 	}
 	appMgr.nsInformer = cache.NewSharedIndexInformer(
 		newListWatchWithLabelSelector(
-			appMgr.restClient,
+			appMgr.restClientv1,
 			"namespaces",
 			"",
 			labelSelector,
@@ -307,20 +320,24 @@ type appInformer struct {
 	cfgMapInformer cache.SharedIndexInformer
 	svcInformer    cache.SharedIndexInformer
 	endptInformer  cache.SharedIndexInformer
+	ingInformer    cache.SharedIndexInformer
 	stopCh         chan struct{}
+	manage_ingress bool
 }
 
 func (appMgr *Manager) newAppInformer(
 	namespace string,
+	manage_ingress bool,
 	cfgMapSelector labels.Selector,
 	resyncPeriod time.Duration,
 ) *appInformer {
 	appInf := appInformer{
-		namespace: namespace,
-		stopCh:    make(chan struct{}),
+		namespace:      namespace,
+		stopCh:         make(chan struct{}),
+		manage_ingress: manage_ingress,
 		cfgMapInformer: cache.NewSharedIndexInformer(
 			newListWatchWithLabelSelector(
-				appMgr.restClient,
+				appMgr.restClientv1,
 				"configmaps",
 				namespace,
 				cfgMapSelector,
@@ -331,7 +348,7 @@ func (appMgr *Manager) newAppInformer(
 		),
 		svcInformer: cache.NewSharedIndexInformer(
 			newListWatchWithLabelSelector(
-				appMgr.restClient,
+				appMgr.restClientv1,
 				"services",
 				namespace,
 				labels.Everything(),
@@ -342,12 +359,23 @@ func (appMgr *Manager) newAppInformer(
 		),
 		endptInformer: cache.NewSharedIndexInformer(
 			newListWatchWithLabelSelector(
-				appMgr.restClient,
+				appMgr.restClientv1,
 				"endpoints",
 				namespace,
 				labels.Everything(),
 			),
 			&v1.Endpoints{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+		ingInformer: cache.NewSharedIndexInformer(
+			newListWatchWithLabelSelector(
+				appMgr.restClientv1beta1,
+				"ingresses",
+				namespace,
+				labels.Everything(),
+			),
+			&v1beta1.Ingress{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
@@ -379,6 +407,16 @@ func (appMgr *Manager) newAppInformer(
 		},
 		resyncPeriod,
 	)
+
+	appInf.ingInformer.AddEventHandlerWithResyncPeriod(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { appMgr.enqueueIngress(obj) },
+			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueIngress(cur) },
+			DeleteFunc: func(obj interface{}) { appMgr.enqueueIngress(obj) },
+		},
+		resyncPeriod,
+	)
+
 	return &appInf
 }
 
@@ -433,15 +471,28 @@ func (appInf *appInformer) start() {
 	go appInf.cfgMapInformer.Run(appInf.stopCh)
 	go appInf.svcInformer.Run(appInf.stopCh)
 	go appInf.endptInformer.Run(appInf.stopCh)
+	if appInf.manage_ingress {
+		go appInf.ingInformer.Run(appInf.stopCh)
+	}
 }
 
 func (appInf *appInformer) waitForCacheSync() {
-	cache.WaitForCacheSync(
-		appInf.stopCh,
-		appInf.cfgMapInformer.HasSynced,
-		appInf.svcInformer.HasSynced,
-		appInf.endptInformer.HasSynced,
-	)
+	if appInf.manage_ingress {
+		cache.WaitForCacheSync(
+			appInf.stopCh,
+			appInf.cfgMapInformer.HasSynced,
+			appInf.svcInformer.HasSynced,
+			appInf.endptInformer.HasSynced,
+			appInf.ingInformer.HasSynced,
+		)
+	} else {
+		cache.WaitForCacheSync(
+			appInf.stopCh,
+			appInf.cfgMapInformer.HasSynced,
+			appInf.svcInformer.HasSynced,
+			appInf.endptInformer.HasSynced,
+		)
+	}
 }
 
 func (appInf *appInformer) stopInformers() {
@@ -618,44 +669,13 @@ func (appMgr *Manager) syncVirtualServer(vsKey vsQueueKey) error {
 				cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
 			continue
 		}
-		if vsCfg.VirtualServer.Backend.ServiceName != vsKey.ServiceName {
+		vsName := formatConfigMapVSName(cm)
+		if ok, found, updated := appMgr.handleVSForResource(
+			vsCfg, vsKey, vsMap, vsName, svcPortMap, svc, appInf); !ok {
 			continue
-		}
-
-		// Match, remove from vsMap so we don't delete it at the end.
-		delete(vsMap, vsCfg.VirtualServer.Backend.ServicePort)
-		svcKey := serviceKey{
-			Namespace:   vsKey.Namespace,
-			ServiceName: vsKey.ServiceName,
-			ServicePort: vsCfg.VirtualServer.Backend.ServicePort,
-		}
-		vsName := formatVirtualServerName(cm)
-		if _, ok := svcPortMap[vsCfg.VirtualServer.Backend.ServicePort]; !ok {
-			log.Debugf("Process Service delete - name: %v namespace: %v",
-				vsKey.ServiceName, vsKey.Namespace)
-			if appMgr.deactivateVirtualServer(svcKey, vsName, vsCfg) {
-				vsUpdated += 1
-			}
-		}
-
-		// Set the virtual server name in our parsed copy so we can compare it
-		// later to see if it has actually changed.
-		vsCfg.VirtualServer.Frontend.VirtualServerName = vsName
-
-		if !svcFound {
-			// The service is gone, de-activate it in the config.
-			if appMgr.deactivateVirtualServer(svcKey, vsName, vsCfg) {
-				vsUpdated += 1
-			}
-			continue
-		}
-
-		// Update pool members.
-		vsFound += 1
-		if appMgr.IsNodePort() {
-			appMgr.updatePoolMembersForNodePort(svc, svcKey, vsCfg)
 		} else {
-			appMgr.updatePoolMembersForCluster(svc, svcKey, vsCfg, appInf)
+			vsFound += found
+			vsUpdated += updated
 		}
 
 		// Set a status annotation to contain the virtualAddress bindAddr
@@ -664,11 +684,38 @@ func (appMgr *Manager) syncVirtualServer(vsKey vsQueueKey) error {
 			vsCfg.VirtualServer.Frontend.VirtualAddress.BindAddr != "" {
 			appMgr.setBindAddrAnnotation(cm, vsKey, vsCfg)
 		}
-
-		// This will only update the config if the vs actually changed.
-		if appMgr.saveVirtualServer(svcKey, vsName, vsCfg) {
-			vsUpdated += 1
+	}
+	ingByIndex, err := appInf.ingInformer.GetIndexer().ByIndex(
+		"namespace", vsKey.Namespace)
+	if nil != err {
+		log.Warningf("Unable to list ingresses for namespace '%v': %v",
+			vsKey.Namespace, err)
+		return err
+	}
+	for _, obj := range ingByIndex {
+		// We need to look at all ingresses in the store, parse the data blob,
+		// and see if it belongs to the service that has changed.
+		ing := obj.(*v1beta1.Ingress)
+		if ing.ObjectMeta.Namespace != vsKey.Namespace {
+			continue
 		}
+		vsCfg := createVSConfigFromIngress(ing)
+		if vsCfg == nil {
+			// Currently, an error is returned only if the Ingress is one we
+			// do not care about
+			continue
+		}
+		vsName := formatIngressVSName(ing)
+		if ok, found, updated := appMgr.handleVSForResource(
+			vsCfg, vsKey, vsMap, vsName, svcPortMap, svc, appInf); !ok {
+			continue
+		} else {
+			vsFound += found
+			vsUpdated += updated
+		}
+
+		// Set the Ingress Status IP address
+		appMgr.setIngressStatus(ing, vsCfg)
 	}
 
 	if len(vsMap) > 0 {
@@ -685,6 +732,77 @@ func (appMgr *Manager) syncVirtualServer(vsKey vsQueueKey) error {
 	}
 
 	return nil
+}
+
+// Common handling function for both ConfigMaps and Ingresses
+func (appMgr *Manager) handleVSForResource(
+	vsCfg *VirtualServerConfig,
+	vsKey vsQueueKey,
+	vsMap VirtualServerPortMap,
+	vsName string,
+	svcPortMap map[int32]bool,
+	svc *v1.Service,
+	appInf *appInformer,
+) (bool, int, int) {
+	vsFound := 0
+	vsUpdated := 0
+
+	if vsCfg.VirtualServer.Backend.ServiceName != vsKey.ServiceName {
+		return false, vsFound, vsUpdated
+	}
+
+	svcKey := serviceKey{
+		Namespace:   vsKey.Namespace,
+		ServiceName: vsKey.ServiceName,
+		ServicePort: vsCfg.VirtualServer.Backend.ServicePort,
+	}
+	// Match, remove from vsMap so we don't delete it at the end.
+	cfgList := vsMap[vsCfg.VirtualServer.Backend.ServicePort]
+	if len(cfgList) == 1 {
+		delete(vsMap, vsCfg.VirtualServer.Backend.ServicePort)
+	} else {
+		for index, val := range cfgList {
+			if val.VirtualServer.Frontend.VirtualServerName == vsName {
+				cfgList = append(cfgList[:index], cfgList[index+1:]...)
+			}
+		}
+		vsMap[vsCfg.VirtualServer.Backend.ServicePort] = cfgList
+	}
+
+	if _, ok := svcPortMap[vsCfg.VirtualServer.Backend.ServicePort]; !ok {
+		log.Debugf("Process Service delete - name: %v namespace: %v",
+			vsKey.ServiceName, vsKey.Namespace)
+		if appMgr.deactivateVirtualServer(svcKey, vsName, vsCfg) {
+			vsUpdated += 1
+		}
+	}
+
+	// Set the virtual server name in our parsed copy so we can compare it
+	// later to see if it has actually changed.
+	vsCfg.VirtualServer.Frontend.VirtualServerName = vsName
+
+	if nil == svc {
+		// The service is gone, de-activate it in the config.
+		if appMgr.deactivateVirtualServer(svcKey, vsName, vsCfg) {
+			vsUpdated += 1
+		}
+		return false, vsFound, vsUpdated
+	}
+
+	// Update pool members.
+	vsFound += 1
+	if appMgr.IsNodePort() {
+		appMgr.updatePoolMembersForNodePort(svc, svcKey, vsCfg)
+	} else {
+		appMgr.updatePoolMembersForCluster(svc, svcKey, vsCfg, appInf)
+	}
+
+	// This will only update the config if the vs actually changed.
+	if appMgr.saveVirtualServer(svcKey, vsName, vsCfg) {
+		vsUpdated += 1
+	}
+
+	return true, vsFound, vsUpdated
 }
 
 func (appMgr *Manager) updatePoolMembersForNodePort(
@@ -786,7 +904,8 @@ func (appMgr *Manager) getVirtualServersForKey(
 	appMgr.vservers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
 		if key.Namespace == vsKey.Namespace &&
 			key.ServiceName == vsKey.ServiceName {
-			vsMap[cfg.VirtualServer.Backend.ServicePort] = cfg
+			vsMap[cfg.VirtualServer.Backend.ServicePort] =
+				append(vsMap[cfg.VirtualServer.Backend.ServicePort], cfg)
 		}
 	})
 	return vsMap
@@ -799,15 +918,17 @@ func (appMgr *Manager) deleteUnusedVirtualServers(
 	vsDeleted := 0
 	appMgr.vservers.Lock()
 	defer appMgr.vservers.Unlock()
-	for port, cfg := range vsMap {
+	for port, cfgList := range vsMap {
 		tmpKey := serviceKey{
 			Namespace:   vsKey.Namespace,
 			ServiceName: vsKey.ServiceName,
 			ServicePort: port,
 		}
-		vsName := cfg.VirtualServer.Frontend.VirtualServerName
-		if appMgr.vservers.Delete(tmpKey, vsName) {
-			vsDeleted += 1
+		for _, cfg := range cfgList {
+			vsName := cfg.VirtualServer.Frontend.VirtualServerName
+			if appMgr.vservers.Delete(tmpKey, vsName) {
+				vsDeleted += 1
+			}
 		}
 	}
 	return vsDeleted
@@ -837,6 +958,27 @@ func (appMgr *Manager) setBindAddrAnnotation(
 				vsKey, vsBindAddrAnnotation,
 				vsCfg.VirtualServer.Frontend.VirtualAddress.BindAddr)
 		}
+	}
+}
+
+func (appMgr *Manager) setIngressStatus(
+	ing *v1beta1.Ingress,
+	vsCfg *VirtualServerConfig,
+) {
+	// Set the ingress status to include the virtual IP
+	var updateErr error
+	lbIngress := v1.LoadBalancerIngress{IP: vsCfg.VirtualServer.Frontend.VirtualAddress.BindAddr}
+	if len(ing.Status.LoadBalancer.Ingress) == 0 {
+		ing.Status.LoadBalancer.Ingress = append(ing.Status.LoadBalancer.Ingress, lbIngress)
+		_, updateErr = appMgr.kubeClient.ExtensionsV1beta1().
+			Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(ing)
+	} else if ing.Status.LoadBalancer.Ingress[0].IP != vsCfg.VirtualServer.Frontend.VirtualAddress.BindAddr {
+		ing.Status.LoadBalancer.Ingress[0] = lbIngress
+		_, updateErr = appMgr.kubeClient.ExtensionsV1beta1().
+			Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(ing)
+	}
+	if nil != updateErr {
+		log.Warningf("Error when setting Ingress status IP: %v", updateErr)
 	}
 }
 
@@ -919,6 +1061,43 @@ func (appMgr *Manager) enqueueEndpoints(obj interface{}) {
 	}
 }
 
+func (appMgr *Manager) checkValidIngress(
+	obj interface{},
+) (bool, *vsQueueKey) {
+	ing := obj.(*v1beta1.Ingress)
+	namespace := ing.ObjectMeta.Namespace
+	_, ok := appMgr.getNamespaceInformer(namespace)
+	if !ok {
+		// Not watching this namespace
+		return false, nil
+	}
+	vsCfg := createVSConfigFromIngress(ing)
+	if vsCfg == nil {
+		vsName := formatIngressVSName(ing)
+		serviceName := ing.Spec.Backend.ServiceName
+		servicePort := ing.Spec.Backend.ServicePort.IntVal
+		vsKey := serviceKey{serviceName, servicePort, ing.ObjectMeta.Namespace}
+		if _, ok := appMgr.vservers.Get(vsKey, vsName); ok {
+			appMgr.vservers.Lock()
+			appMgr.vservers.Delete(vsKey, vsName)
+			appMgr.vservers.Unlock()
+			appMgr.outputConfig()
+		}
+		return false, nil
+	}
+
+	return true, &vsQueueKey{
+		Namespace:   namespace,
+		ServiceName: ing.Spec.Backend.ServiceName,
+	}
+}
+
+func (appMgr *Manager) enqueueIngress(obj interface{}) {
+	if ok, key := appMgr.checkValidIngress(obj); ok {
+		appMgr.vsQueue.Add(*key)
+	}
+}
+
 func getEndpointsForService(
 	portName string,
 	eps *v1.Endpoints,
@@ -978,7 +1157,7 @@ func handleVirtualServerConfigParseFailure(
 		serviceName := cfg.VirtualServer.Backend.ServiceName
 		servicePort := cfg.VirtualServer.Backend.ServicePort
 		vsKey := serviceKey{serviceName, servicePort, cm.ObjectMeta.Namespace}
-		vsName := formatVirtualServerName(cm)
+		vsName := formatConfigMapVSName(cm)
 		if _, ok := appMgr.vservers.Get(vsKey, vsName); ok {
 			appMgr.vservers.Lock()
 			defer appMgr.vservers.Unlock()
@@ -1127,4 +1306,52 @@ func (appMgr *Manager) getNodeAddresses(
 	}
 
 	return addrs, nil
+}
+
+// Create a VirtualServerConfig based on an Ingress resource config
+func createVSConfigFromIngress(ing *v1beta1.Ingress) *VirtualServerConfig {
+	var cfg VirtualServerConfig
+
+	if class, ok := ing.ObjectMeta.Annotations["kubernetes.io/ingress.class"]; ok == true {
+		if class != "f5" {
+			return nil
+		}
+	}
+
+	cfg.VirtualServer.Frontend.Mode = "http"
+	if balance, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/balance"]; ok == true {
+		cfg.VirtualServer.Frontend.Balance = balance
+	} else {
+		cfg.VirtualServer.Frontend.Balance = DEFAULT_BALANCE
+	}
+	cfg.VirtualServer.Frontend.VirtualAddress = &virtualAddress{}
+
+	if partition, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/partition"]; ok == true {
+		cfg.VirtualServer.Frontend.Partition = partition
+	} else {
+		cfg.VirtualServer.Frontend.Partition = DEFAULT_PARTITION
+	}
+
+	if httpPort, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/http-port"]; ok == true {
+		port, _ := strconv.ParseInt(httpPort, 10, 32)
+		cfg.VirtualServer.Frontend.VirtualAddress.Port = int32(port)
+	} else {
+		cfg.VirtualServer.Frontend.VirtualAddress.Port = DEFAULT_HTTP_PORT
+	}
+
+	if addr, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/ip"]; ok == true {
+		cfg.VirtualServer.Frontend.VirtualAddress.BindAddr = addr
+	} else {
+		log.Infof("No virtual IP was specified for the virtual server %s, creating pool only.",
+			ing.ObjectMeta.Name)
+	}
+
+	if profile, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/ssl-profile"]; ok == true {
+		cfg.VirtualServer.Frontend.SslProfile = &sslProfile{}
+		cfg.VirtualServer.Frontend.SslProfile.F5ProfileName = profile
+	}
+	cfg.VirtualServer.Backend.ServiceName = ing.Spec.Backend.ServiceName
+	cfg.VirtualServer.Backend.ServicePort = ing.Spec.Backend.ServicePort.IntVal
+
+	return &cfg
 }

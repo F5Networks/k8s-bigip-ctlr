@@ -31,7 +31,7 @@ stages:
 build docs:
   image: docker-registry.pdbld.f5net.com/tools/containthedocs:master
   script:
-    - cp ATTRIBUTIONS.md docs/
+    - cp ATTRIBUTIONS.md docs/_static/
     - ./build-tools/test-docs.sh
   tags:
     - docker

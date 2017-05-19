@@ -163,18 +163,18 @@ func (appMgr *Manager) removeNamespaceLocked(namespace string) error {
 	return nil
 }
 
-func (appMgr *Manager) AddNamespaceInformer(
+func (appMgr *Manager) AddNamespaceLabelInformer(
 	labelSelector labels.Selector,
 	resyncPeriod time.Duration,
 ) error {
 	appMgr.informersMutex.Lock()
 	defer appMgr.informersMutex.Unlock()
 	if nil != appMgr.nsInformer {
-		return fmt.Errorf("Already have a namespace informer added.")
+		return fmt.Errorf("Already have a namespace label informer added.")
 	}
 	if 0 != len(appMgr.appInformers) {
-		return fmt.Errorf("Cannot set a namespace informer when informers " +
-			"have been installed for one or more namespaces.")
+		return fmt.Errorf("Cannot set a namespace label informer when informers " +
+			"have been setup for one or more namespaces.")
 	}
 	appMgr.nsInformer = cache.NewSharedIndexInformer(
 		newListWatchWithLabelSelector(
@@ -207,7 +207,6 @@ func (appMgr *Manager) enqueueNamespace(obj interface{}) {
 func (appMgr *Manager) namespaceWorker() {
 	for appMgr.processNextNamespace() {
 	}
-	fmt.Printf("exiting namespaceWorker\n")
 }
 
 func (appMgr *Manager) processNextNamespace() bool {
@@ -294,7 +293,7 @@ func (appMgr *Manager) GetWatchedNamespaces() []string {
 	return namespaces
 }
 
-func (appMgr *Manager) GetNamespaceInformer() cache.SharedIndexInformer {
+func (appMgr *Manager) GetNamespaceLabelInformer() cache.SharedIndexInformer {
 	return appMgr.nsInformer
 }
 
@@ -468,6 +467,7 @@ func (appMgr *Manager) Run(stopCh <-chan struct{}) {
 func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer appMgr.vsQueue.ShutDown()
+	defer appMgr.nsQueue.ShutDown()
 
 	if nil != appMgr.nsInformer {
 		// Using one worker for namespace label changes.

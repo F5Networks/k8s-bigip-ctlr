@@ -329,7 +329,7 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 		if nil != err {
 			log.Warningf("Failed to create label selector: %v", err)
 		}
-		err = appMgr.AddNamespaceInformer(ls, resyncPeriod)
+		err = appMgr.AddNamespaceLabelInformer(ls, resyncPeriod)
 		if nil != err {
 			log.Warningf("Failed to add label watch for all namespaces:%v", err)
 		}
@@ -433,7 +433,6 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs
-	//stopCh <- struct{}{}
 	close(stopCh)
 	log.Infof("Exiting - signal %v\n", sig)
 }

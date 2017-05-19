@@ -318,10 +318,10 @@ func (m *mockAppManager) startLabelMode(nsLabel string) error {
 		return fmt.Errorf(
 			"Failed to create namespace selector for label %v", nsLabel, err)
 	}
-	err = m.appMgr.AddNamespaceInformer(nsSelector, 0)
+	err = m.appMgr.AddNamespaceLabelInformer(nsSelector, 0)
 	if nil != err {
 		return fmt.Errorf(
-			"Failed to add namespace informer with selector %v: %v",
+			"Failed to add namespace label informer with selector %v: %v",
 			nsSelector, err)
 	}
 	return nil
@@ -2828,20 +2828,20 @@ func TestNamespaceInformerAddRemove(t *testing.T) {
 	nsSelector, err := labels.Parse("watching")
 	require.Nil(err)
 
-	// Add a namespace to appMgr, which should prevent a namespace informer
-	// from being added.
+	// Add a namespace to appMgr, which should prevent a namespace label
+	// informer from being added.
 	err = mock.appMgr.AddNamespace("default", cfgMapSelector, 0)
 	assert.Nil(err)
-	// Try adding a namespace informer, which should fail
-	err = mock.appMgr.AddNamespaceInformer(nsSelector, 0)
+	// Try adding a namespace label informer, which should fail
+	err = mock.appMgr.AddNamespaceLabelInformer(nsSelector, 0)
 	assert.NotNil(err)
 	// Remove namespace added previously and retry, which should work.
 	err = mock.appMgr.removeNamespace("default")
 	assert.Nil(err)
-	err = mock.appMgr.AddNamespaceInformer(nsSelector, 0)
+	err = mock.appMgr.AddNamespaceLabelInformer(nsSelector, 0)
 	assert.Nil(err)
 	// Re-adding it should fail
-	err = mock.appMgr.AddNamespaceInformer(nsSelector, 0)
+	err = mock.appMgr.AddNamespaceLabelInformer(nsSelector, 0)
 	assert.NotNil(err)
 }
 

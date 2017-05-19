@@ -671,6 +671,6 @@ func TestSetupWatchersLabels(t *testing.T) {
 	setupWatchers(vsm, 0)
 	namespaces = vsm.GetWatchedNamespaces()
 	assert.Equal(t, 0, len(namespaces))
-	nsInf := vsm.GetNamespaceInformer()
+	nsInf := vsm.GetNamespaceLabelInformer()
 	require.NotNil(t, nsInf)
 }

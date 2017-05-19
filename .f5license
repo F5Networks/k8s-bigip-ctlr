@@ -26,7 +26,7 @@
 
 # The client-go module contains a proper LICENSE file.
 - name: client-go
-  version: 8c220fd
+  version: f1a2a2d
   attribution_text: |
     Copyright 2014 The Kubernetes Authors.
 
@@ -62,7 +62,7 @@
 
 # The docker/distribution project has a large number of authors.
 - name: docker/distribution
-  version: docs-v2.4.1-2016-06-28-108-g23b05e7
+  version: v2.3.0-rc.1-248-gb15d882
   license: Apache-2.0
   author:
     name: Contributing authors
@@ -622,7 +622,7 @@
 
 # The f5/schemas module is ours.
 - name: f5/schemas
-  version: 92cb500
+  version: 1884c68
   attribution_text: |
     Copyright 2017 F5 Networks
 
@@ -639,7 +639,7 @@
     limitations under the License.
 
 # The f5/vlogger module is ours.
-- name: f5/vlogger
+- name: velcro/vlogger
   version: 7f3d588
   attribution_text: |
     Copyright 2017 F5 Networks

@@ -116,3 +116,18 @@
 [submodule "vendor/src/github.com/pmezard/go-difflib"]
 	path = vendor/src/github.com/pmezard/go-difflib
 	url = git@bldr-git.int.lineratesystems.com:mirror/go-difflib.git
+[submodule "vendor/src/github.com/golang/groupcache"]
+	path = vendor/src/github.com/golang/groupcache
+	url = https://github.com/golang/groupcache
+[submodule "vendor/src/github.com/golang/protobuf"]
+	path = vendor/src/github.com/golang/protobuf
+	url = https://github.com/golang/protobuf
+[submodule "vendor/src/golang.org/x/sys"]
+	path = vendor/src/golang.org/x/sys
+	url = https://go.googlesource.com/sys
+[submodule "vendor/src/google.golang.org/appengine"]
+	path = vendor/src/google.golang.org/appengine
+	url = https://github.com/golang/appengine
+[submodule "vendor/src/k8s.io/apimachinery"]
+	path = vendor/src/k8s.io/apimachinery
+	url = https://github.com/kubernetes/apimachinery

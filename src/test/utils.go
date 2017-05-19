@@ -27,11 +27,12 @@ import (
 
 	"tools/pollers"
 
-	"k8s.io/client-go/pkg/api/unversioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/runtime"
 	"k8s.io/client-go/rest/fake"
-	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -109,87 +110,15 @@ func (mp *MockPoller) RegisterListener(p pollers.PollListener) error {
 	return nil
 }
 
-// MockWatchManager used for testing
-type MockWatchManager struct {
-	Store      map[string]cache.Store
-	Namespaces []string
-	CallCount  int
-	CalledWith []CalledWithStruct
-}
-
-// CalledWithStruct shows what params Add was called with
-type CalledWithStruct struct {
-	Namespace string
-	Resource  string
-	Label     string
-}
-
-// NewMockWatchManager provides the MockWatchManager and allows access to
-// internal state
-func NewMockWatchManager() *MockWatchManager {
-	m := &MockWatchManager{
-		Store: make(map[string]cache.Store),
-	}
-	m.Namespaces = []string{"default"}
-	return m
-}
-
-// GetStoreItem returns an item from a store
-func (m *MockWatchManager) GetStoreItem(
-	namespace string,
-	resource string,
-	serviceName string,
-) (interface{}, bool, error) {
-	item, exists, err := m.Store[resource].GetByKey(namespace + "/" + serviceName)
-	return item, exists, err
-}
-
-// Add returns the store for referenced resource
-func (m *MockWatchManager) Add(
-	namespace string,
-	resource string,
-	label string,
-	returnObj runtime.Object,
-	eventHandler cache.ResourceEventHandler,
-) (cache.Store, error) {
-	m.CallCount++
-	cw := CalledWithStruct{namespace, resource, label}
-	m.CalledWith = append(m.CalledWith, cw)
-	return m.Store[resource], nil
-}
-
-// Remove a namespace from the list
-func (m *MockWatchManager) Remove(namespace string, resource string) {
-	for i, ns := range m.Namespaces {
-		if ns == namespace {
-			m.Namespaces[i] = m.Namespaces[len(m.Namespaces)-1]
-			m.Namespaces[len(m.Namespaces)-1] = ""
-			m.Namespaces = m.Namespaces[:len(m.Namespaces)-1]
-		}
-	}
-}
-
-// NamespaceExists checks if a namespace exists in the list of namespaces
-func (m *MockWatchManager) NamespaceExists(namespace string, returnObj runtime.Object) bool {
-	var found bool
-	found = false
-	for _, ns := range m.Namespaces {
-		if ns == namespace {
-			found = true
-		}
-	}
-	return found
-}
-
 // NewConfigMap returns a new configmap object
 func NewConfigMap(id, rv, namespace string,
 	keys map[string]string) *v1.ConfigMap {
 	return &v1.ConfigMap{
-		TypeMeta: unversioned.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMap",
 			APIVersion: "v1",
 		},
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            id,
 			ResourceVersion: rv,
 			Namespace:       namespace,
@@ -202,11 +131,11 @@ func NewConfigMap(id, rv, namespace string,
 func NewNode(id, rv string, unsched bool,
 	addresses []v1.NodeAddress) *v1.Node {
 	return &v1.Node{
-		TypeMeta: unversioned.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Node",
 			APIVersion: "v1",
 		},
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            id,
 			ResourceVersion: rv,
 		},
@@ -223,11 +152,11 @@ func NewNode(id, rv string, unsched bool,
 func NewService(id, rv, namespace string, serviceType v1.ServiceType,
 	portSpecList []v1.ServicePort) *v1.Service {
 	return &v1.Service{
-		TypeMeta: unversioned.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Service",
 			APIVersion: "v1",
 		},
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            id,
 			ResourceVersion: rv,
 			Namespace:       namespace,
@@ -243,11 +172,11 @@ func NewService(id, rv, namespace string, serviceType v1.ServiceType,
 func NewEndpoints(svcName, rv, namespace string,
 	readyIps, notReadyIps []string, ports []v1.EndpointPort) *v1.Endpoints {
 	ep := &v1.Endpoints{
-		TypeMeta: unversioned.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Endpoints",
 			APIVersion: "v1",
 		},
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            svcName,
 			Namespace:       namespace,
 			ResourceVersion: rv,
@@ -280,6 +209,7 @@ func newEndpointAddress(ips []string) []v1.EndpointAddress {
 // CreateFakeHTTPClient returns a fake RESTClient which also satisfies rest.Interface
 func CreateFakeHTTPClient() *fake.RESTClient {
 	fakeClient := &fake.RESTClient{
+		APIRegistry:          api.Registry,
 		NegotiatedSerializer: &fakeNegotiatedSerializer{},
 		Resp: &http.Response{
 			StatusCode: http.StatusOK,
@@ -336,18 +266,18 @@ type fakeDecoder struct {
 
 func (fd *fakeDecoder) Decode(
 	data []byte,
-	defaults *unversioned.GroupVersionKind,
+	defaults *schema.GroupVersionKind,
 	into runtime.Object,
-) (runtime.Object, *unversioned.GroupVersionKind, error) {
+) (runtime.Object, *schema.GroupVersionKind, error) {
 	if fd.IsWatching {
 		return nil, nil, io.EOF
 	}
 	return &v1.ConfigMapList{
-		TypeMeta: unversioned.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMapList",
 			APIVersion: "v1",
 		},
-		ListMeta: unversioned.ListMeta{
+		ListMeta: metav1.ListMeta{
 			SelfLink:        "/api/v1/namespaces/potato/configmaps",
 			ResourceVersion: "1403005",
 		},
@@ -366,4 +296,19 @@ func (ff *fakeFrame) NewFrameReader(r io.ReadCloser) io.ReadCloser {
 }
 func (ff *fakeFrame) NewFrameWriter(w io.Writer) io.Writer {
 	return w
+}
+
+func NewNamespace(name, rv string, labels map[string]string) *v1.Namespace {
+	ns := &v1.Namespace{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Namespace",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            name,
+			ResourceVersion: rv,
+			Labels:          labels,
+		},
+	}
+	return ns
 }

@@ -29,7 +29,6 @@ import (
 	"openshift"
 	"tools/pollers"
 	"tools/writer"
-	"watchmanager"
 
 	log "f5/vlogger"
 	clog "f5/vlogger/console"
@@ -37,9 +36,10 @@ import (
 	"github.com/spf13/pflag"
 
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 type globalSection struct {
@@ -85,7 +85,6 @@ var (
 	// package variables
 	isNodePort         bool
 	watchAllNamespaces bool
-	watchManager       watchmanager.Manager
 )
 
 func _init() {
@@ -288,31 +287,51 @@ func setupNodePolling(
 	return nil
 }
 
+func createLabel(label string) (labels.Selector, error) {
+	var l labels.Selector
+	var err error
+	if label == "" {
+		l = labels.Everything()
+	} else {
+		l, err = labels.Parse(label)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse Label Selector string: %v", err)
+		}
+	}
+	return l, nil
+}
+
 // setup the initial watch based off the flags passed in, if no flags then we
 // watch all namespaces
-func setupWatchers(appMgr *appmanager.Manager) {
-	label := "f5type in (virtual-server)"
+func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
+	label := appmanager.DefaultConfigMapLabel
 
 	if len(*namespaceLabel) == 0 {
-		eh := appmanager.NewEventHandler(appMgr)
+		ls, err := createLabel(label)
+		if nil != err {
+			log.Warningf("Failed to create label selector: %v", err)
+		}
 		if watchAllNamespaces == true {
-			_, err := appMgr.WatchManager().Add("", "configmaps", label, &v1.ConfigMap{}, eh)
+			err = appMgr.AddNamespace("", ls, resyncPeriod)
 			if nil != err {
-				log.Warningf("Failed to add configmaps watch for all namespaces:%v", err)
+				log.Warningf("Failed to add informers for all namespaces:%v", err)
 			}
 		} else {
 			for _, namespace := range *namespaces {
-				_, err := appMgr.WatchManager().Add(namespace, "configmaps", label, &v1.ConfigMap{}, eh)
+				err = appMgr.AddNamespace(namespace, ls, resyncPeriod)
 				if nil != err {
-					log.Warningf("Failed to add configmaps watch for namespace %v: %v", namespace, err)
+					log.Warningf("Failed to add informers for namespace %v: %v", namespace, err)
 				}
 			}
 		}
 	} else {
-		eh := NewNamespaceEventHandler(appMgr)
-		_, err := appMgr.WatchManager().Add("", "namespaces", *namespaceLabel, &v1.Namespace{}, eh)
+		ls, err := createLabel(*namespaceLabel)
 		if nil != err {
-			log.Warningf("Failed to add label watch for namespaces:%v", err)
+			log.Warningf("Failed to create label selector: %v", err)
+		}
+		err = appMgr.AddNamespaceLabelInformer(ls, resyncPeriod)
+		if nil != err {
+			log.Warningf("Failed to add label watch for all namespaces:%v", err)
 		}
 	}
 }
@@ -341,10 +360,9 @@ func main() {
 	}
 	defer configWriter.Stop()
 	var appMgrParms = appmanager.Params{
-		ConfigWriter:       configWriter,
-		WatchAllNamespaces: watchAllNamespaces,
-		UseNodeInternal:    *useNodeInternal,
-		IsNodePort:         isNodePort,
+		ConfigWriter:    configWriter,
+		UseNodeInternal: *useNodeInternal,
+		IsNodePort:      isNodePort,
 	}
 
 	gs := globalSection{
@@ -391,9 +409,6 @@ func main() {
 		log.Fatalf("error connecting to the client: %v", err)
 	}
 
-	rc := appMgrParms.KubeClient.Core().RESTClient()
-	appMgrParms.WatchManager = watchmanager.NewWatchManager(rc)
-
 	appMgr := appmanager.NewManager(&appMgrParms)
 
 	if isNodePort || 0 != len(openshiftSDNMode) {
@@ -409,10 +424,15 @@ func main() {
 		defer np.Stop()
 	}
 
-	setupWatchers(appMgr)
+	setupWatchers(appMgr, 30*time.Second)
+
+	stopCh := make(chan struct{})
+
+	appMgr.Run(stopCh)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigs
+	close(stopCh)
 	log.Infof("Exiting - signal %v\n", sig)
 }

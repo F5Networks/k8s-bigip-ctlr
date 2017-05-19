@@ -33,7 +33,6 @@ import (
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest/fake"
-	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -109,78 +108,6 @@ func (mp *MockPoller) RegisterListener(p pollers.PollListener) error {
 		return nil
 	}
 	return nil
-}
-
-// MockWatchManager used for testing
-type MockWatchManager struct {
-	Store      map[string]cache.Store
-	Namespaces []string
-	CallCount  int
-	CalledWith []CalledWithStruct
-}
-
-// CalledWithStruct shows what params Add was called with
-type CalledWithStruct struct {
-	Namespace string
-	Resource  string
-	Label     string
-}
-
-// NewMockWatchManager provides the MockWatchManager and allows access to
-// internal state
-func NewMockWatchManager() *MockWatchManager {
-	m := &MockWatchManager{
-		Store: make(map[string]cache.Store),
-	}
-	m.Namespaces = []string{"default"}
-	return m
-}
-
-// GetStoreItem returns an item from a store
-func (m *MockWatchManager) GetStoreItem(
-	namespace string,
-	resource string,
-	serviceName string,
-) (interface{}, bool, error) {
-	item, exists, err := m.Store[resource].GetByKey(namespace + "/" + serviceName)
-	return item, exists, err
-}
-
-// Add returns the store for referenced resource
-func (m *MockWatchManager) Add(
-	namespace string,
-	resource string,
-	label string,
-	returnObj runtime.Object,
-	eventHandler cache.ResourceEventHandler,
-) (cache.Store, error) {
-	m.CallCount++
-	cw := CalledWithStruct{namespace, resource, label}
-	m.CalledWith = append(m.CalledWith, cw)
-	return m.Store[resource], nil
-}
-
-// Remove a namespace from the list
-func (m *MockWatchManager) Remove(namespace string, resource string) {
-	for i, ns := range m.Namespaces {
-		if ns == namespace {
-			m.Namespaces[i] = m.Namespaces[len(m.Namespaces)-1]
-			m.Namespaces[len(m.Namespaces)-1] = ""
-			m.Namespaces = m.Namespaces[:len(m.Namespaces)-1]
-		}
-	}
-}
-
-// NamespaceExists checks if a namespace exists in the list of namespaces
-func (m *MockWatchManager) NamespaceExists(namespace string, returnObj runtime.Object) bool {
-	var found bool
-	found = false
-	for _, ns := range m.Namespaces {
-		if ns == namespace {
-			found = true
-		}
-	}
-	return found
 }
 
 // NewConfigMap returns a new configmap object
@@ -369,4 +296,19 @@ func (ff *fakeFrame) NewFrameReader(r io.ReadCloser) io.ReadCloser {
 }
 func (ff *fakeFrame) NewFrameWriter(w io.Writer) io.Writer {
 	return w
+}
+
+func NewNamespace(name, rv string, labels map[string]string) *v1.Namespace {
+	ns := &v1.Namespace{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Namespace",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            name,
+			ResourceVersion: rv,
+			Labels:          labels,
+		},
+	}
+	return ns
 }

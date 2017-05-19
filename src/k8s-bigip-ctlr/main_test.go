@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"testing"
 	"time"
 
@@ -600,18 +601,16 @@ func TestSetupWatchersAllNamespaces(t *testing.T) {
 	err := verifyArgs()
 	assert.NoError(t, err)
 
-	label := "f5type in (virtual-server)"
-
-	cw := test.CalledWithStruct{"", "configmaps", label}
-
 	vsm := appmanager.NewManager(&appmanager.Params{
-		WatchManager: test.NewMockWatchManager(),
+		KubeClient: fake.NewSimpleClientset(),
 	})
 
-	setupWatchers(vsm)
-	assert.Equal(t, 1, vsm.WatchManager().(*test.MockWatchManager).CallCount)
-	assert.Equal(t, cw,
-		vsm.WatchManager().(*test.MockWatchManager).CalledWith[0])
+	namespaces := vsm.GetWatchedNamespaces()
+	assert.Equal(t, 0, len(namespaces))
+	setupWatchers(vsm, 0)
+	namespaces = vsm.GetWatchedNamespaces()
+	require.Equal(t, 1, len(namespaces))
+	assert.Equal(t, "", namespaces[0])
 }
 
 func TestSetupWatchersMultipleNamespaces(t *testing.T) {
@@ -632,24 +631,19 @@ func TestSetupWatchersMultipleNamespaces(t *testing.T) {
 	err := verifyArgs()
 	assert.NoError(t, err)
 
-	label := "f5type in (virtual-server)"
-
-	var cwholder []test.CalledWithStruct
-	for _, ns := range *namespaces {
-		cwholder = append(cwholder, test.CalledWithStruct{ns, "configmaps", label})
-	}
-
 	vsm := appmanager.NewManager(&appmanager.Params{
-		WatchManager: test.NewMockWatchManager(),
+		KubeClient: fake.NewSimpleClientset(),
 	})
 
-	setupWatchers(vsm)
-	assert.Equal(t, 3, vsm.WatchManager().(*test.MockWatchManager).CallCount)
-
-	for i, cw := range cwholder {
-		assert.Equal(t, cw,
-			vsm.WatchManager().(*test.MockWatchManager).CalledWith[i])
-	}
+	namespaces := vsm.GetWatchedNamespaces()
+	assert.Equal(t, 0, len(namespaces))
+	setupWatchers(vsm, 0)
+	namespaces = vsm.GetWatchedNamespaces()
+	require.Equal(t, 3, len(namespaces))
+	sort.Strings(namespaces)
+	assert.Equal(t, "default", namespaces[0])
+	assert.Equal(t, "test", namespaces[1])
+	assert.Equal(t, "test2", namespaces[2])
 }
 
 func TestSetupWatchersLabels(t *testing.T) {
@@ -668,15 +662,15 @@ func TestSetupWatchersLabels(t *testing.T) {
 	err := verifyArgs()
 	assert.NoError(t, err)
 
-	cw := test.CalledWithStruct{"", "namespaces", *namespaceLabel}
-
 	vsm := appmanager.NewManager(&appmanager.Params{
-		WatchManager: test.NewMockWatchManager(),
+		KubeClient: fake.NewSimpleClientset(),
 	})
 
-	setupWatchers(vsm)
-	assert.Equal(t, 1, vsm.WatchManager().(*test.MockWatchManager).CallCount)
-
-	assert.Equal(t, cw,
-		vsm.WatchManager().(*test.MockWatchManager).CalledWith[0])
+	namespaces := vsm.GetWatchedNamespaces()
+	assert.Equal(t, 0, len(namespaces))
+	setupWatchers(vsm, 0)
+	namespaces = vsm.GetWatchedNamespaces()
+	assert.Equal(t, 0, len(namespaces))
+	nsInf := vsm.GetNamespaceInformer()
+	require.NotNil(t, nsInf)
 }

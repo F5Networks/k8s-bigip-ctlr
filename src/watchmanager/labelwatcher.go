@@ -17,10 +17,10 @@
 package watchmanager
 
 import (
-	"k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/labels"
-	"k8s.io/client-go/pkg/runtime"
-	"k8s.io/client-go/pkg/watch"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -30,21 +30,21 @@ func newListWatchWithLabelSelector(
 	namespace string,
 	labelSelector labels.Selector,
 ) *cache.ListWatch {
-	listFunc := func(options api.ListOptions) (runtime.Object, error) {
+	listFunc := func(options metav1.ListOptions) (runtime.Object, error) {
 		return c.Get().
 			Namespace(namespace).
 			Resource(resource).
-			VersionedParams(&options, api.ParameterCodec).
+			VersionedParams(&options, metav1.ParameterCodec).
 			LabelsSelectorParam(labelSelector).
 			Do().
 			Get()
 	}
-	watchFunc := func(options api.ListOptions) (watch.Interface, error) {
+	watchFunc := func(options metav1.ListOptions) (watch.Interface, error) {
 		return c.Get().
 			Prefix("watch").
 			Namespace(namespace).
 			Resource(resource).
-			VersionedParams(&options, api.ParameterCodec).
+			VersionedParams(&options, metav1.ParameterCodec).
 			LabelsSelectorParam(labelSelector).
 			Watch()
 	}

@@ -25,6 +25,7 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type pollData struct {
@@ -170,7 +171,7 @@ func (np *nodePoller) poller() {
 
 		if true == doPoll {
 			doPoll = false
-			nodes, err := np.kubeClient.Core().Nodes().List(v1.ListOptions{})
+			nodes, err := np.kubeClient.Core().Nodes().List(metav1.ListOptions{})
 			np.nodeCache = nodes.Items
 			np.lastError = err
 

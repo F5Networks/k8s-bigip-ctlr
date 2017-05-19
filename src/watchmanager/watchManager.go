@@ -24,8 +24,8 @@ import (
 
 	log "f5/vlogger"
 
-	"k8s.io/client-go/pkg/labels"
-	"k8s.io/client-go/pkg/runtime"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	rest "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 )
@@ -78,7 +78,7 @@ func (m *watchManager) Add(
 	eventHandler cache.ResourceEventHandler,
 ) (cache.Store, error) {
 	var rs cache.Store
-	var controller *cache.Controller
+	var controller cache.Controller
 	var ok bool
 	// TODO: Should this check for a valid resource?
 	if resource == "" {
@@ -110,7 +110,7 @@ func (m *watchManager) Add(
 		stopWatcher := make(chan struct{})
 		go controller.Run(stopWatcher)
 
-		m.controllers[n] = *controller
+		m.controllers[n] = controller
 		m.stores[n] = rs
 	}
 

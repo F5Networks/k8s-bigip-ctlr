@@ -30,6 +30,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
@@ -468,7 +469,7 @@ func TestGetAddresses(t *testing.T) {
 	}
 
 	appMgr.useNodeInternal = false
-	nodes, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
+	nodes, err := fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	addresses, err := appMgr.getNodeAddresses(nodes.Items)
 	require.Nil(t, err, "Should not fail getting addresses")
@@ -488,13 +489,13 @@ func TestGetAddresses(t *testing.T) {
 
 	for _, node := range expectedNodes {
 		err := fakeClient.Core().Nodes().Delete(node.ObjectMeta.Name,
-			&v1.DeleteOptions{})
+			&metav1.DeleteOptions{})
 		require.Nil(t, err, "Should not fail deleting node")
 	}
 
 	expectedReturn = []string{}
 	appMgr.useNodeInternal = false
-	nodes, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
+	nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	addresses, err = appMgr.getNodeAddresses(nodes.Items)
 	require.Nil(t, err, "Should not fail getting empty addresses")
@@ -573,7 +574,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	assert.NotNil(t, fakeClient, "Mock client should not be nil")
 
 	appMgr.useNodeInternal = false
-	nodes, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
+	nodes, err := fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	appMgr.ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
@@ -592,7 +593,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	}
 
 	appMgr.useNodeInternal = true
-	nodes, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
+	nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	appMgr.ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
@@ -614,7 +615,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 		true, []v1.NodeAddress{{"InternalIP", "127.0.0.7"}}))
 
 	appMgr.useNodeInternal = false
-	nodes, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
+	nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	appMgr.ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
@@ -630,7 +631,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 
 	// make no changes and re-run process
 	appMgr.useNodeInternal = false
-	nodes, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
+	nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	appMgr.ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
@@ -645,17 +646,17 @@ func TestProcessNodeUpdate(t *testing.T) {
 		"Cached nodes should be expected set")
 
 	// remove nodes
-	err = fakeClient.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
+	err = fakeClient.Core().Nodes().Delete("node1", &metav1.DeleteOptions{})
 	require.Nil(t, err)
-	fakeClient.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
+	fakeClient.Core().Nodes().Delete("node2", &metav1.DeleteOptions{})
 	require.Nil(t, err)
-	fakeClient.Core().Nodes().Delete("node3", &v1.DeleteOptions{})
+	fakeClient.Core().Nodes().Delete("node3", &metav1.DeleteOptions{})
 	require.Nil(t, err)
 
 	expectedDelSet := []string{"127.0.0.6"}
 
 	appMgr.useNodeInternal = false
-	nodes, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
+	nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(t, err, "Should not fail listing nodes")
 	appMgr.ProcessNodeUpdate(nodes.Items, err)
 	validateConfig(t, mw, emptyConfig)
@@ -976,7 +977,7 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 			require.Nil(err, "Should not fail creating node")
 			require.EqualValues(node, n, "Nodes should be equal")
 
-			nodes, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
+			nodes, err := fakeClient.Core().Nodes().List(metav1.ListOptions{})
 			assert.Nil(err, "Should not fail listing nodes")
 			appMgr.ProcessNodeUpdate(nodes.Items, err)
 		}
@@ -1046,13 +1047,13 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 	vservers := appMgr.vservers
 
 	go func() {
-		err := fakeClient.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
+		err := fakeClient.Core().Nodes().Delete("node1", &metav1.DeleteOptions{})
 		require.Nil(err)
-		err = fakeClient.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
+		err = fakeClient.Core().Nodes().Delete("node2", &metav1.DeleteOptions{})
 		require.Nil(err)
 		_, err = fakeClient.Core().Nodes().Create(extraNode)
 		require.Nil(err)
-		nodes, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
+		nodes, err := fakeClient.Core().Nodes().List(metav1.ListOptions{})
 		assert.Nil(err, "Should not fail listing nodes")
 		appMgr.ProcessNodeUpdate(nodes.Items, err)
 
@@ -1061,9 +1062,9 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 
 	go func() {
 		err := fakeClient.Core().ConfigMaps("default").Delete("foomap",
-			&v1.DeleteOptions{})
+			&metav1.DeleteOptions{})
 		require.Nil(err, "Should not error deleting map")
-		m, _ := fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
+		m, _ := fakeClient.Core().ConfigMaps("").List(metav1.ListOptions{})
 		assert.Equal(1, len(m.Items))
 		appMgr.ProcessConfigMapUpdate(deleted, ChangedObject{
 			cfgFoo,
@@ -1076,9 +1077,9 @@ func TestUpdatesConcurrentNodePort(t *testing.T) {
 
 	go func() {
 		err := fakeClient.Core().Services("default").Delete("foo",
-			&v1.DeleteOptions{})
+			&metav1.DeleteOptions{})
 		require.Nil(err, "Should not error deleting service")
-		s, _ := fakeClient.Core().Services("").List(v1.ListOptions{})
+		s, _ := fakeClient.Core().Services("").List(metav1.ListOptions{})
 		assert.Equal(1, len(s.Items))
 		appMgr.ProcessServiceUpdate(deleted, ChangedObject{
 			foo,
@@ -1165,11 +1166,11 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		UseNodeInternal: false,
 	})
 
-	m, err := fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
+	m, err := fakeClient.Core().ConfigMaps("").List(metav1.ListOptions{})
 	require.Nil(err)
-	s, err := fakeClient.Core().Services("").List(v1.ListOptions{})
+	s, err := fakeClient.Core().Services("").List(metav1.ListOptions{})
 	require.Nil(err)
-	n, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
+	n, err := fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	require.Nil(err)
 
 	assert.Equal(2, len(m.Items))
@@ -1283,7 +1284,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	// Nodes ADDED
 	_, err = fakeClient.Core().Nodes().Create(extraNode)
 	require.Nil(err)
-	n, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
+	n, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
 	appMgr.ProcessNodeUpdate(n.Items, err)
 	assert.Equal(4, vservers.Count())
@@ -1346,11 +1347,11 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 		"Virtual servers should contain remaining ports")
 
 	// Nodes DELETES
-	err = fakeClient.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
+	err = fakeClient.Core().Nodes().Delete("node1", &metav1.DeleteOptions{})
 	require.Nil(err)
-	err = fakeClient.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
+	err = fakeClient.Core().Nodes().Delete("node2", &metav1.DeleteOptions{})
 	require.Nil(err)
-	n, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
+	n, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
 	appMgr.ProcessNodeUpdate(n.Items, err)
 	assert.Equal(2, vservers.Count())
@@ -1367,8 +1368,8 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	validateConfig(t, mw, twoSvcsOneNodeConfig)
 
 	// ConfigMap DELETED
-	err = fakeClient.Core().ConfigMaps("default").Delete("foomap", &v1.DeleteOptions{})
-	m, err = fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
+	err = fakeClient.Core().ConfigMaps("default").Delete("foomap", &metav1.DeleteOptions{})
+	m, err = fakeClient.Core().ConfigMaps("").List(metav1.ListOptions{})
 	assert.Equal(1, len(m.Items))
 	appMgr.ProcessConfigMapUpdate(deleted, ChangedObject{
 		cfgFoo,
@@ -1380,9 +1381,9 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	validateConfig(t, mw, oneSvcOneNodeConfig)
 
 	// Service deletedD
-	err = fakeClient.Core().Services("default").Delete("bar", &v1.DeleteOptions{})
+	err = fakeClient.Core().Services("default").Delete("bar", &metav1.DeleteOptions{})
 	require.Nil(err)
-	s, err = fakeClient.Core().Services("").List(v1.ListOptions{})
+	s, err = fakeClient.Core().Services("").List(metav1.ListOptions{})
 	assert.Equal(1, len(s.Items))
 	appMgr.ProcessServiceUpdate(deleted, ChangedObject{
 		bar,
@@ -1418,9 +1419,9 @@ func TestDontCareConfigMapNodePort(t *testing.T) {
 		IsNodePort:   true,
 	})
 
-	m, err := fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
+	m, err := fakeClient.Core().ConfigMaps("").List(metav1.ListOptions{})
 	require.Nil(err)
-	s, err := fakeClient.Core().Services("").List(v1.ListOptions{})
+	s, err := fakeClient.Core().Services("").List(metav1.ListOptions{})
 	require.Nil(err)
 
 	assert.Equal(1, len(m.Items))
@@ -1570,7 +1571,7 @@ func TestNamespaceIsolation(t *testing.T) {
 		[]v1.NodeAddress{{"InternalIP", "127.0.0.3"}})
 	_, err := fakeClient.Core().Nodes().Create(node)
 	require.Nil(err)
-	n, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
+	n, err := fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
 	appMgr.ProcessNodeUpdate(n.Items, err)
 
@@ -1723,11 +1724,11 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 		UseNodeInternal: true,
 	})
 
-	m, err := fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
+	m, err := fakeClient.Core().ConfigMaps("").List(metav1.ListOptions{})
 	require.Nil(err)
-	s, err := fakeClient.Core().Services("").List(v1.ListOptions{})
+	s, err := fakeClient.Core().Services("").List(metav1.ListOptions{})
 	require.Nil(err)
-	n, err := fakeClient.Core().Nodes().List(v1.ListOptions{})
+	n, err := fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	require.Nil(err)
 
 	assert.Equal(2, len(m.Items))
@@ -1794,7 +1795,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	// Nodes ADDED
 	_, err = fakeClient.Core().Nodes().Create(extraNode)
 	require.Nil(err)
-	n, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
+	n, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
 	appMgr.ProcessNodeUpdate(n.Items, err)
 	assert.Equal(2, vservers.Count())
@@ -1811,11 +1812,11 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	validateConfig(t, mw, twoIappsThreeNodesConfig)
 
 	// Nodes DELETES
-	err = fakeClient.Core().Nodes().Delete("node1", &v1.DeleteOptions{})
+	err = fakeClient.Core().Nodes().Delete("node1", &metav1.DeleteOptions{})
 	require.Nil(err)
-	err = fakeClient.Core().Nodes().Delete("node2", &v1.DeleteOptions{})
+	err = fakeClient.Core().Nodes().Delete("node2", &metav1.DeleteOptions{})
 	require.Nil(err)
-	n, err = fakeClient.Core().Nodes().List(v1.ListOptions{})
+	n, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 	assert.Nil(err, "Should not fail listing nodes")
 	appMgr.ProcessNodeUpdate(n.Items, err)
 	assert.Equal(2, vservers.Count())
@@ -1833,8 +1834,8 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 
 	// ConfigMap DELETED
 	err = fakeClient.Core().ConfigMaps("default").Delete("iapp1map",
-		&v1.DeleteOptions{})
-	m, err = fakeClient.Core().ConfigMaps("").List(v1.ListOptions{})
+		&metav1.DeleteOptions{})
+	m, err = fakeClient.Core().ConfigMaps("").List(metav1.ListOptions{})
 	assert.Equal(1, len(m.Items))
 	appMgr.ProcessConfigMapUpdate(deleted, ChangedObject{
 		cfgIapp1,
@@ -1846,9 +1847,9 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	validateConfig(t, mw, oneIappOneNodeConfig)
 
 	// Service DELETED
-	err = fakeClient.Core().Services("default").Delete("iapp2", &v1.DeleteOptions{})
+	err = fakeClient.Core().Services("default").Delete("iapp2", &metav1.DeleteOptions{})
 	require.Nil(err)
-	s, err = fakeClient.Core().Services("").List(v1.ListOptions{})
+	s, err = fakeClient.Core().Services("").List(metav1.ListOptions{})
 	assert.Equal(1, len(s.Items))
 	appMgr.ProcessServiceUpdate(deleted, ChangedObject{
 		iapp2,
@@ -2453,7 +2454,7 @@ func TestUpdatesConcurrentCluster(t *testing.T) {
 		case deleted:
 			svc := obj.Old.(*v1.Service)
 			err := fakeClient.Core().Services("default").Delete(svc.ObjectMeta.Name,
-				&v1.DeleteOptions{})
+				&metav1.DeleteOptions{})
 			require.Nil(err, "Should not error deleting service")
 		}
 	}

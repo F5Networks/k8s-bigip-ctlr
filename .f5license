@@ -26,7 +26,7 @@
 
 # The client-go module contains a proper LICENSE file.
 - name: client-go
-  version: f1a2a2d
+  version: 3627aeb
   attribution_text: |
     Copyright 2014 The Kubernetes Authors.
 
@@ -638,7 +638,7 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 
-# The f5/vlogger module is ours.
+# The velcro/vlogger module is ours.
 - name: velcro/vlogger
   version: 7f3d588
   attribution_text: |

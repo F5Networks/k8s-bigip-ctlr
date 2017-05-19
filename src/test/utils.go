@@ -27,9 +27,11 @@ import (
 
 	"tools/pollers"
 
-	"k8s.io/client-go/pkg/api/unversioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/runtime"
 	"k8s.io/client-go/rest/fake"
 	"k8s.io/client-go/tools/cache"
 )
@@ -185,11 +187,11 @@ func (m *MockWatchManager) NamespaceExists(namespace string, returnObj runtime.O
 func NewConfigMap(id, rv, namespace string,
 	keys map[string]string) *v1.ConfigMap {
 	return &v1.ConfigMap{
-		TypeMeta: unversioned.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMap",
 			APIVersion: "v1",
 		},
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            id,
 			ResourceVersion: rv,
 			Namespace:       namespace,
@@ -202,11 +204,11 @@ func NewConfigMap(id, rv, namespace string,
 func NewNode(id, rv string, unsched bool,
 	addresses []v1.NodeAddress) *v1.Node {
 	return &v1.Node{
-		TypeMeta: unversioned.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Node",
 			APIVersion: "v1",
 		},
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            id,
 			ResourceVersion: rv,
 		},
@@ -223,11 +225,11 @@ func NewNode(id, rv string, unsched bool,
 func NewService(id, rv, namespace string, serviceType v1.ServiceType,
 	portSpecList []v1.ServicePort) *v1.Service {
 	return &v1.Service{
-		TypeMeta: unversioned.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Service",
 			APIVersion: "v1",
 		},
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            id,
 			ResourceVersion: rv,
 			Namespace:       namespace,
@@ -243,11 +245,11 @@ func NewService(id, rv, namespace string, serviceType v1.ServiceType,
 func NewEndpoints(svcName, rv, namespace string,
 	readyIps, notReadyIps []string, ports []v1.EndpointPort) *v1.Endpoints {
 	ep := &v1.Endpoints{
-		TypeMeta: unversioned.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "Endpoints",
 			APIVersion: "v1",
 		},
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:            svcName,
 			Namespace:       namespace,
 			ResourceVersion: rv,
@@ -280,6 +282,7 @@ func newEndpointAddress(ips []string) []v1.EndpointAddress {
 // CreateFakeHTTPClient returns a fake RESTClient which also satisfies rest.Interface
 func CreateFakeHTTPClient() *fake.RESTClient {
 	fakeClient := &fake.RESTClient{
+		APIRegistry:          api.Registry,
 		NegotiatedSerializer: &fakeNegotiatedSerializer{},
 		Resp: &http.Response{
 			StatusCode: http.StatusOK,
@@ -336,18 +339,18 @@ type fakeDecoder struct {
 
 func (fd *fakeDecoder) Decode(
 	data []byte,
-	defaults *unversioned.GroupVersionKind,
+	defaults *schema.GroupVersionKind,
 	into runtime.Object,
-) (runtime.Object, *unversioned.GroupVersionKind, error) {
+) (runtime.Object, *schema.GroupVersionKind, error) {
 	if fd.IsWatching {
 		return nil, nil, io.EOF
 	}
 	return &v1.ConfigMapList{
-		TypeMeta: unversioned.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMapList",
 			APIVersion: "v1",
 		},
-		ListMeta: unversioned.ListMeta{
+		ListMeta: metav1.ListMeta{
 			SelfLink:        "/api/v1/namespaces/potato/configmaps",
 			ResourceVersion: "1403005",
 		},

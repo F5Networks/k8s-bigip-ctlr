@@ -126,7 +126,7 @@ attributions generator:
   image: docker-registry.pdbld.f5net.com/velcro/attributions-generator:master
   stage: sanity
   script:
-    - /usr/local/bin/run-backends.sh $PWD
+    - /usr/local/bin/run-backends.sh $PWD --pip="--requirements=python/k8s-runtime-requirements.txt"
     - node /frontEnd/frontEnd.js $PWD
   tags:
     - docker

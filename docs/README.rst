@@ -6,6 +6,7 @@ F5 Kubernetes BIG-IP Controller
     :maxdepth: 2
 
     RELEASE-NOTES
+    /_static/ATTRIBUTIONS
 
 F5 Kubernetes BIG-IP Controller manages F5 BIG-IP `Local Traffic Manager <https://f5.com/products/big-ip/local-traffic-manager-ltm>`_ (LTM) objects from `Kubernetes`_.
 
@@ -13,6 +14,7 @@ F5 Kubernetes BIG-IP Controller manages F5 BIG-IP `Local Traffic Manager <https:
 
 |attributions|
 
+:fonticon:`fa fa-download` :download:`Attributions.md </_static/ATTRIBUTIONS.md>`
 
 Features
 --------

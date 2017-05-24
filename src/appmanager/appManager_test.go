@@ -32,8 +32,10 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 func init() {
@@ -468,6 +470,45 @@ func (m *mockAppManager) deleteEndpoints(ep *v1.Endpoints) bool {
 	return ok
 }
 
+func (m *mockAppManager) addIngress(ing *v1beta1.Ingress) bool {
+	ok, vsKey := m.appMgr.checkValidIngress(ing)
+	if ok {
+		mtx := m.getVsMutex(*vsKey)
+		mtx.Lock()
+		defer mtx.Unlock()
+		appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
+		appInf.ingInformer.GetStore().Add(ing)
+		m.appMgr.syncVirtualServer(*vsKey)
+	}
+	return ok
+}
+
+func (m *mockAppManager) updateIngress(ing *v1beta1.Ingress) bool {
+	ok, vsKey := m.appMgr.checkValidIngress(ing)
+	if ok {
+		mtx := m.getVsMutex(*vsKey)
+		mtx.Lock()
+		defer mtx.Unlock()
+		appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
+		appInf.ingInformer.GetStore().Update(ing)
+		m.appMgr.syncVirtualServer(*vsKey)
+	}
+	return ok
+}
+
+func (m *mockAppManager) deleteIngress(ing *v1beta1.Ingress) bool {
+	ok, vsKey := m.appMgr.checkValidIngress(ing)
+	if ok {
+		mtx := m.getVsMutex(*vsKey)
+		mtx.Lock()
+		defer mtx.Unlock()
+		appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
+		appInf.ingInformer.GetStore().Delete(ing)
+		m.appMgr.syncVirtualServer(*vsKey)
+	}
+	return ok
+}
+
 func (m *mockAppManager) addNamespace(ns *v1.Namespace) bool {
 	if "" == m.nsLabel {
 		return false
@@ -816,7 +857,7 @@ func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
 	require.Equal(1, vservers.CountOf(serviceKey{"foo", 80, namespace}),
 		"Virtual servers should have entry")
 	vs, ok := vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.Equal("http", vs.VirtualServer.Frontend.Mode, "Mode should be http")
 
@@ -831,7 +872,7 @@ func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
 	require.Equal(1, vservers.CountOf(serviceKey{"foo", 80, namespace}),
 		"Virtual servers should have new entry")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.Equal("tcp", vs.VirtualServer.Frontend.Mode,
 		"Mode should be tcp after overwrite")
@@ -983,17 +1024,17 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 		"127.0.0.2",
 	}
 	vs, ok := vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.EqualValues(generateExpectedAddrs(30001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Existing NodePort should be set on address")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 8080, namespace}, formatVirtualServerName(cfgFoo8080))
+		serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 	require.True(ok)
 	require.False(vs.MetaData.Active)
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 9090, namespace}, formatVirtualServerName(cfgFoo9090))
+		serviceKey{"foo", 9090, namespace}, formatConfigMapVSName(cfgFoo9090))
 	require.True(ok)
 	require.False(vs.MetaData.Active)
 
@@ -1010,19 +1051,19 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	require.Equal(1, vservers.CountOf(serviceKey{"foo", 9090, namespace}))
 
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.EqualValues(generateExpectedAddrs(20001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Existing NodePort should be set on address")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 8080, namespace}, formatVirtualServerName(cfgFoo8080))
+		serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 	require.True(ok)
 	require.EqualValues(generateExpectedAddrs(45454, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
 		"Existing NodePort should be set on address")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 9090, namespace}, formatVirtualServerName(cfgFoo9090))
+		serviceKey{"foo", 9090, namespace}, formatConfigMapVSName(cfgFoo9090))
 	require.True(ok)
 	require.False(vs.MetaData.Active)
 }
@@ -1246,7 +1287,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	vservers := appMgr.vservers()
 	assert.Equal(1, vservers.Count())
 	vs, ok := vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 
 	// Second ConfigMap added
@@ -1254,11 +1295,11 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.True(r, "Config map should be processed")
 	assert.Equal(2, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.False(vs.MetaData.Active)
 	vs, ok = vservers.Get(
-		serviceKey{"bar", 80, namespace}, formatVirtualServerName(cfgBar))
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	require.False(vs.MetaData.Active)
 
@@ -1267,7 +1308,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.True(r, "Service should be processed")
 	assert.Equal(2, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(30001, addrs),
@@ -1278,7 +1319,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.True(r, "Service should be processed")
 	assert.Equal(2, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"bar", 80, namespace}, formatVirtualServerName(cfgBar))
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(37001, addrs),
@@ -1289,19 +1330,19 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.True(r, "Config map should be processed")
 	assert.Equal(3, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 8080, namespace}, formatVirtualServerName(cfgFoo8080))
+		serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(38001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(30001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"bar", 80, namespace}, formatVirtualServerName(cfgBar))
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(37001, addrs),
@@ -1312,25 +1353,25 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.True(r, "Config map should be processed")
 	assert.Equal(4, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 9090, namespace}, formatVirtualServerName(cfgFoo9090))
+		serviceKey{"foo", 9090, namespace}, formatConfigMapVSName(cfgFoo9090))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(39001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 8080, namespace}, formatVirtualServerName(cfgFoo8080))
+		serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(38001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(30001, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"bar", 80, namespace}, formatVirtualServerName(cfgBar))
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(37001, addrs),
@@ -1344,25 +1385,25 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	appMgr.processNodeUpdate(n.Items, err)
 	assert.Equal(4, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(30001, append(addrs, "127.0.0.3")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"bar", 80, namespace}, formatVirtualServerName(cfgBar))
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(37001, append(addrs, "127.0.0.3")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 8080, namespace}, formatVirtualServerName(cfgFoo8080))
+		serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(38001, append(addrs, "127.0.0.3")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 9090, namespace}, formatVirtualServerName(cfgFoo9090))
+		serviceKey{"foo", 9090, namespace}, formatConfigMapVSName(cfgFoo9090))
 	require.True(ok)
 	require.True(vs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(39001, append(addrs, "127.0.0.3")),
@@ -1414,12 +1455,12 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	appMgr.processNodeUpdate(n.Items, err)
 	assert.Equal(2, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(30001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"bar", 80, namespace}, formatVirtualServerName(cfgBar))
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
@@ -1555,7 +1596,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	require.True(r, "Config map should be processed")
 	require.Equal(1, vservers.Count())
 	vservers.Delete(serviceKey{"foo", 80, namespace},
-		formatVirtualServerName(extrakeys))
+		formatConfigMapVSName(extrakeys))
 
 	// Config map with no mode or balance
 	defaultModeAndBalance := test.NewConfigMap("mode_balance", "1", namespace, map[string]string{
@@ -1570,7 +1611,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	require.Equal(1, vservers.Count())
 
 	vs, ok := vservers.Get(
-		serviceKey{"bar", 80, namespace}, formatVirtualServerName(defaultModeAndBalance))
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(defaultModeAndBalance))
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(vs, "Config map should be object")
 
@@ -1630,13 +1671,13 @@ func TestNamespaceIsolation(t *testing.T) {
 	require.True(r, "Config map should be processed")
 	vservers := appMgr.vservers()
 	_, ok := vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Config map should be accessible")
 
 	r = appMgr.addConfigMap(cfgBar)
 	require.False(r, "Config map should not be processed")
 	_, ok = vservers.Get(
-		serviceKey{"foo", 80, wrongNamespace}, formatVirtualServerName(cfgBar))
+		serviceKey{"foo", 80, wrongNamespace}, formatConfigMapVSName(cfgBar))
 	assert.False(ok, "Config map should not be added if namespace does not match flag")
 	assert.Equal(1, vservers.CountOf(serviceKey{"foo", 80, namespace}),
 		"Virtual servers should contain original config")
@@ -1645,7 +1686,7 @@ func TestNamespaceIsolation(t *testing.T) {
 	r = appMgr.updateConfigMap(cfgBar)
 	require.False(r, "Config map should not be processed")
 	_, ok = vservers.Get(
-		serviceKey{"foo", 80, wrongNamespace}, formatVirtualServerName(cfgBar))
+		serviceKey{"foo", 80, wrongNamespace}, formatConfigMapVSName(cfgBar))
 	assert.False(ok, "Config map should not be added if namespace does not match flag")
 	assert.Equal(1, vservers.CountOf(serviceKey{"foo", 80, namespace}),
 		"Virtual servers should contain original config")
@@ -1654,16 +1695,16 @@ func TestNamespaceIsolation(t *testing.T) {
 	r = appMgr.deleteConfigMap(cfgBar)
 	require.False(r, "Config map should not be processed")
 	_, ok = vservers.Get(
-		serviceKey{"foo", 80, wrongNamespace}, formatVirtualServerName(cfgBar))
+		serviceKey{"foo", 80, wrongNamespace}, formatConfigMapVSName(cfgBar))
 	assert.False(ok, "Config map should not be deleted if namespace does not match flag")
 	_, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Config map should be accessible after delete called on incorrect namespace")
 
 	r = appMgr.addService(servFoo)
 	require.True(r, "Service should be processed")
 	vs, ok := vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
@@ -1675,7 +1716,7 @@ func TestNamespaceIsolation(t *testing.T) {
 		serviceKey{"foo", 80, wrongNamespace}, "foomap")
 	assert.False(ok, "Service should not be added if namespace does not match flag")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
@@ -1687,7 +1728,7 @@ func TestNamespaceIsolation(t *testing.T) {
 		serviceKey{"foo", 80, wrongNamespace}, "foomap")
 	assert.False(ok, "Service should not be added if namespace does not match flag")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
@@ -1696,7 +1737,7 @@ func TestNamespaceIsolation(t *testing.T) {
 	r = appMgr.deleteService(servBar)
 	require.False(r, "Service should not be processed")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(cfgFoo))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Service should not have been deleted")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs,
@@ -1774,7 +1815,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	vservers := appMgr.vservers()
 	assert.Equal(1, vservers.Count())
 	vs, ok := vservers.Get(
-		serviceKey{"iapp1", 80, namespace}, formatVirtualServerName(cfgIapp1))
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 
 	// Second ConfigMap ADDED
@@ -1782,7 +1823,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	require.True(r, "Config map should be processed")
 	assert.Equal(2, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"iapp1", 80, namespace}, formatVirtualServerName(cfgIapp1))
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 
 	// Service ADDED
@@ -1790,7 +1831,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	require.True(r, "Service should be processed")
 	assert.Equal(2, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"iapp1", 80, namespace}, formatVirtualServerName(cfgIapp1))
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
@@ -1800,12 +1841,12 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	require.True(r, "Service should be processed")
 	assert.Equal(2, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"iapp1", 80, namespace}, formatVirtualServerName(cfgIapp1))
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"iapp2", 80, namespace}, formatVirtualServerName(cfgIapp2))
+		serviceKey{"iapp2", 80, namespace}, formatConfigMapVSName(cfgIapp2))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(20202, addrs),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
@@ -1828,12 +1869,12 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	appMgr.processNodeUpdate(n.Items, err)
 	assert.Equal(2, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"iapp1", 80, namespace}, formatVirtualServerName(cfgIapp1))
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, append(addrs, "192.168.0.4")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"iapp2", 80, namespace}, formatVirtualServerName(cfgIapp2))
+		serviceKey{"iapp2", 80, namespace}, formatConfigMapVSName(cfgIapp2))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(20202, append(addrs, "192.168.0.4")),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
@@ -1849,12 +1890,12 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	appMgr.processNodeUpdate(n.Items, err)
 	assert.Equal(2, vservers.Count())
 	vs, ok = vservers.Get(
-		serviceKey{"iapp1", 80, namespace}, formatVirtualServerName(cfgIapp1))
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, []string{"192.168.0.4"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
 	vs, ok = vservers.Get(
-		serviceKey{"iapp2", 80, namespace}, formatVirtualServerName(cfgIapp2))
+		serviceKey{"iapp2", 80, namespace}, formatConfigMapVSName(cfgIapp2))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(20202, []string{"192.168.0.4"}),
 		vs.VirtualServer.Backend.PoolMemberAddrs)
@@ -1927,7 +1968,7 @@ func testNoBindAddr(t *testing.T, isNodePort bool) {
 	require.Equal(1, vservers.Count())
 
 	vs, ok := vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(noBindAddr))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(noBindAddr))
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(vs, "Config map should be object")
 
@@ -1987,7 +2028,7 @@ func testNoVirtualAddress(t *testing.T, isNodePort bool) {
 	require.Equal(1, vservers.Count())
 
 	vs, ok := vservers.Get(
-		serviceKey{"foo", 80, namespace}, formatVirtualServerName(noVirtualAddress))
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(noVirtualAddress))
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(vs, "Config map should be object")
 
@@ -2114,7 +2155,7 @@ func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
 	for _, p := range svcPorts {
 		require.Equal(1, vservers.CountOf(serviceKey{"foo", p.Port, namespace}))
 		vs, ok := vservers.Get(
-			serviceKey{"foo", p.Port, namespace}, formatVirtualServerName(cfgFoo))
+			serviceKey{"foo", p.Port, namespace}, formatConfigMapVSName(cfgFoo))
 		require.True(ok)
 		require.EqualValues([]string(nil), vs.VirtualServer.Backend.PoolMemberAddrs)
 	}
@@ -2737,38 +2778,38 @@ func TestMultipleNamespaces(t *testing.T) {
 	r := appMgr.addConfigMap(cfgNs1)
 	assert.True(r, "Config map should be processed")
 	vs, ok := vservers.Get(
-		serviceKey{"foo", 80, ns1}, formatVirtualServerName(cfgNs1))
+		serviceKey{"foo", 80, ns1}, formatConfigMapVSName(cfgNs1))
 	assert.True(ok, "Config map should be accessible")
 	assert.False(vs.MetaData.Active)
 	r = appMgr.addService(svcNs1)
 	assert.True(r, "Service should be processed")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, ns1}, formatVirtualServerName(cfgNs1))
+		serviceKey{"foo", 80, ns1}, formatConfigMapVSName(cfgNs1))
 	assert.True(ok, "Config map should be accessible")
 	assert.True(vs.MetaData.Active)
 
 	r = appMgr.addConfigMap(cfgNs2)
 	assert.True(r, "Config map should be processed")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, ns2}, formatVirtualServerName(cfgNs2))
+		serviceKey{"foo", 80, ns2}, formatConfigMapVSName(cfgNs2))
 	assert.True(ok, "Config map should be accessible")
 	assert.False(vs.MetaData.Active)
 	r = appMgr.addService(svcNs2)
 	assert.True(r, "Service should be processed")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, ns2}, formatVirtualServerName(cfgNs2))
+		serviceKey{"foo", 80, ns2}, formatConfigMapVSName(cfgNs2))
 	assert.True(ok, "Config map should be accessible")
 	assert.True(vs.MetaData.Active)
 
 	r = appMgr.addConfigMap(cfgNsDefault)
 	assert.False(r, "Config map should not be processed")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, nsDefault}, formatVirtualServerName(cfgNsDefault))
+		serviceKey{"foo", 80, nsDefault}, formatConfigMapVSName(cfgNsDefault))
 	assert.False(ok, "Config map should not be accessible")
 	r = appMgr.addService(svcNsDefault)
 	assert.False(r, "Service should not be processed")
 	vs, ok = vservers.Get(
-		serviceKey{"foo", 80, nsDefault}, formatVirtualServerName(cfgNsDefault))
+		serviceKey{"foo", 80, nsDefault}, formatConfigMapVSName(cfgNsDefault))
 	assert.False(ok, "Config map should not be accessible")
 }
 
@@ -2906,13 +2947,13 @@ func TestNamespaceLabels(t *testing.T) {
 	r = appMgr.addConfigMap(cfgNs3)
 	assert.False(r, "Config map should not be processed")
 	_, ok := vservers.Get(serviceKey{"foo", 80, ns1.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs1))
+		formatConfigMapVSName(cfgNs1))
 	assert.False(ok, "Config map should not be accessible")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns2.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs2))
+		formatConfigMapVSName(cfgNs2))
 	assert.False(ok, "Config map should not be accessible")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns3.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs3))
+		formatConfigMapVSName(cfgNs3))
 	assert.False(ok, "Config map should not be accessible")
 
 	// Add a namespace with no label, should still not create any vservers.
@@ -2925,13 +2966,13 @@ func TestNamespaceLabels(t *testing.T) {
 	r = appMgr.addConfigMap(cfgNs3)
 	assert.False(r, "Config map should not be processed")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns1.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs1))
+		formatConfigMapVSName(cfgNs1))
 	assert.False(ok, "Config map should not be accessible")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns2.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs2))
+		formatConfigMapVSName(cfgNs2))
 	assert.False(ok, "Config map should not be accessible")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns3.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs3))
+		formatConfigMapVSName(cfgNs3))
 	assert.False(ok, "Config map should not be accessible")
 
 	// Add a namespace with a mismatched label, should still not create any
@@ -2945,13 +2986,13 @@ func TestNamespaceLabels(t *testing.T) {
 	r = appMgr.addConfigMap(cfgNs3)
 	assert.False(r, "Config map should not be processed")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns1.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs1))
+		formatConfigMapVSName(cfgNs1))
 	assert.False(ok, "Config map should not be accessible")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns2.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs2))
+		formatConfigMapVSName(cfgNs2))
 	assert.False(ok, "Config map should not be accessible")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns3.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs3))
+		formatConfigMapVSName(cfgNs3))
 	assert.False(ok, "Config map should not be accessible")
 
 	// Add a namespace with a matching label and make sure the config map that
@@ -2965,13 +3006,13 @@ func TestNamespaceLabels(t *testing.T) {
 	r = appMgr.addConfigMap(cfgNs3)
 	assert.True(r, "Config map should be processed")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns1.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs1))
+		formatConfigMapVSName(cfgNs1))
 	assert.False(ok, "Config map should not be accessible")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns2.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs2))
+		formatConfigMapVSName(cfgNs2))
 	assert.False(ok, "Config map should not be accessible")
 	vs, ok := vservers.Get(serviceKey{"foo", 80, ns3.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs3))
+		formatConfigMapVSName(cfgNs3))
 	assert.True(ok, "Config map should be accessible")
 	assert.False(vs.MetaData.Active)
 
@@ -2990,13 +3031,134 @@ func TestNamespaceLabels(t *testing.T) {
 	r = appMgr.addService(svcNs3)
 	assert.True(r, "Service should be processed")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns1.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs1))
+		formatConfigMapVSName(cfgNs1))
 	assert.False(ok, "Config map should not be accessible")
 	_, ok = vservers.Get(serviceKey{"foo", 80, ns2.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs2))
+		formatConfigMapVSName(cfgNs2))
 	assert.False(ok, "Config map should not be accessible")
 	vs, ok = vservers.Get(serviceKey{"foo", 80, ns3.ObjectMeta.Name},
-		formatVirtualServerName(cfgNs3))
+		formatConfigMapVSName(cfgNs3))
 	assert.True(ok, "Config map should be accessible")
 	assert.True(vs.MetaData.Active)
+}
+
+func TestIngressConfiguration(t *testing.T) {
+	require := require.New(t)
+	namespace := "default"
+	ingressConfig := v1beta1.IngressSpec{
+		Backend: &v1beta1.IngressBackend{
+			ServiceName: "foo",
+			ServicePort: intstr.IntOrString{IntVal: 80},
+		},
+	}
+	ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
+		map[string]string{
+			"virtual-server.f5.com/ip":        "1.2.3.4",
+			"virtual-server.f5.com/partition": "velcro",
+		})
+	cfg := createVSConfigFromIngress(ingress)
+	require.Equal("round-robin", cfg.VirtualServer.Frontend.Balance)
+	require.Equal("http", cfg.VirtualServer.Frontend.Mode)
+	require.Equal("velcro", cfg.VirtualServer.Frontend.Partition)
+	require.Equal("1.2.3.4", cfg.VirtualServer.Frontend.VirtualAddress.BindAddr)
+	require.Equal(int32(80), cfg.VirtualServer.Frontend.VirtualAddress.Port)
+
+	ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
+		map[string]string{
+			"virtual-server.f5.com/ip":        "1.2.3.4",
+			"virtual-server.f5.com/partition": "velcro",
+			"virtual-server.f5.com/http-port": "443",
+			"virtual-server.f5.com/balance":   "foobar",
+			"kubernetes.io/ingress.class":     "f5",
+		})
+	cfg = createVSConfigFromIngress(ingress)
+	require.Equal("foobar", cfg.VirtualServer.Frontend.Balance)
+	require.Equal(int32(443), cfg.VirtualServer.Frontend.VirtualAddress.Port)
+
+	ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
+		map[string]string{
+			"kubernetes.io/ingress.class": "notf5",
+		})
+	cfg = createVSConfigFromIngress(ingress)
+	require.Nil(cfg)
+}
+
+func TestVirtualServerForIngress(t *testing.T) {
+	mw := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	require := require.New(t)
+	assert := assert.New(t)
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client should not be nil")
+	namespace := "default"
+
+	appMgr := newMockAppManager(&Params{
+		KubeClient:    fakeClient,
+		ConfigWriter:  mw,
+		restClient:    test.CreateFakeHTTPClient(),
+		IsNodePort:    true,
+		ManageIngress: true,
+	})
+	err := appMgr.startNonLabelMode([]string{namespace})
+	require.Nil(err)
+	defer appMgr.shutdown()
+
+	ingressConfig := v1beta1.IngressSpec{
+		Backend: &v1beta1.IngressBackend{
+			ServiceName: "foo",
+			ServicePort: intstr.IntOrString{IntVal: 80},
+		},
+	}
+	// Add a new Ingress
+	ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
+		map[string]string{
+			"virtual-server.f5.com/ip":        "1.2.3.4",
+			"virtual-server.f5.com/partition": "velcro",
+		})
+	r := appMgr.addIngress(ingress)
+	require.True(r, "Ingress resource should be processed")
+	vservers := appMgr.vservers()
+	require.Equal(1, vservers.Count())
+	// Associate a service
+	svcNs1 := test.NewService("foo", "1", namespace, "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+	r = appMgr.addService(svcNs1)
+	assert.True(r, "Service should be processed")
+
+	vs, ok := vservers.Get(
+		serviceKey{"foo", 80, "default"}, "default_ingress-ingress")
+	assert.True(ok, "Ingress should be accessible")
+	assert.NotNil(vs, "Ingress should be object")
+	assert.True(vs.MetaData.Active)
+
+	require.Equal("round-robin", vs.VirtualServer.Frontend.Balance)
+	require.Equal("http", vs.VirtualServer.Frontend.Mode)
+	require.Equal("velcro", vs.VirtualServer.Frontend.Partition)
+	require.Equal("1.2.3.4", vs.VirtualServer.Frontend.VirtualAddress.BindAddr)
+	require.Equal(int32(80), vs.VirtualServer.Frontend.VirtualAddress.Port)
+	// Update the Ingress resource
+	ingress2 := test.NewIngress("ingress", "1", namespace, ingressConfig,
+		map[string]string{
+			"virtual-server.f5.com/ip":        "5.6.7.8",
+			"virtual-server.f5.com/partition": "velcro2",
+			"virtual-server.f5.com/http-port": "443",
+		})
+	r = appMgr.updateIngress(ingress2)
+	require.True(r, "Ingress resource should be processed")
+	require.Equal(1, vservers.Count())
+
+	vs, ok = vservers.Get(
+		serviceKey{"foo", 80, "default"}, "default_ingress-ingress")
+	assert.True(ok, "Ingress should be accessible")
+	assert.NotNil(vs, "Ingress should be object")
+
+	require.Equal("velcro2", vs.VirtualServer.Frontend.Partition)
+	require.Equal("5.6.7.8", vs.VirtualServer.Frontend.VirtualAddress.BindAddr)
+	require.Equal(int32(443), vs.VirtualServer.Frontend.VirtualAddress.Port)
+	// Delete the Ingress resource
+	r = appMgr.deleteIngress(ingress2)
+	require.True(r, "Ingress resource should be processed")
+	require.Equal(0, vservers.Count())
 }

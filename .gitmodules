@@ -66,8 +66,8 @@
 	path = vendor/src/github.com/xeipuuv/gojsonreference
 	url = git@bldr-git.int.lineratesystems.com:mirror/gojsonreference.git
 [submodule "vendor/src/f5/schemas"]
-	path = vendor/src/f5/schemas
-	url = git@bldr-git.int.lineratesystems.com:velcro/schemas.git
+	path = schemas
+	url = ../../velcro/schemas.git
 [submodule "vendor/src/cloud.google.com/go"]
 	path = vendor/src/cloud.google.com/go
 	url = https://code.googlesource.com/gocloud

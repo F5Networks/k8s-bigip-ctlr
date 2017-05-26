@@ -318,3 +318,33 @@ func TestGetAll(t *testing.T) {
 		assert.Equal(t, nbrCfgsPer, len(vsCfgMap))
 	}
 }
+
+func TestSslProfileName(t *testing.T) {
+	assert := assert.New(t)
+	var vs VirtualServerConfig
+	// verify initial state
+	assert.Nil(vs.VirtualServer.Frontend.SslProfile)
+	empty := ""
+	assert.Equal(empty, vs.GetFrontendSslProfileName())
+
+	// set a name and make sure it is saved
+	profileName := "profileName"
+	vs.SetFrontendSslProfileName(profileName)
+	assert.NotNil(vs.VirtualServer.Frontend.SslProfile)
+	assert.Equal(profileName,
+		vs.VirtualServer.Frontend.SslProfile.F5ProfileName)
+	assert.Equal(profileName, vs.GetFrontendSslProfileName())
+
+	// change the name and make sure it is saved
+	newProfileName := "newProfileName"
+	vs.SetFrontendSslProfileName(newProfileName)
+	assert.NotNil(vs.VirtualServer.Frontend.SslProfile)
+	assert.Equal(newProfileName,
+		vs.VirtualServer.Frontend.SslProfile.F5ProfileName)
+	assert.Equal(newProfileName, vs.GetFrontendSslProfileName())
+
+	// set the name back to empty and make sure the pointer goes back to nil
+	vs.SetFrontendSslProfileName(empty)
+	assert.Nil(vs.VirtualServer.Frontend.SslProfile)
+	assert.Equal(empty, vs.GetFrontendSslProfileName())
+}

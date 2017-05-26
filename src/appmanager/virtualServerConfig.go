@@ -120,6 +120,34 @@ type VirtualServerConfig struct {
 	} `json:"virtualServer"`
 }
 
+// FIXME(garyr): Per issue #178 our VirtualServerConfig object only
+// supports one ssl-profile on a virtual server, though multiples are
+// supported on the Big-IP. These functions need to change once multiples
+// are supported in VirtualServerConfig.
+// Wrappers around the ssl profile name to simplify its use due to the
+// pointer and nested depth.
+func (vs *VirtualServerConfig) SetFrontendSslProfileName(name string) {
+	if 0 == len(name) {
+		// set the pointer to nil so it won't be marshaled
+		vs.VirtualServer.Frontend.SslProfile = nil
+		return
+	}
+	if nil == vs.VirtualServer.Frontend.SslProfile {
+		// the pointer is nil, need to create the nested object
+		vs.VirtualServer.Frontend.SslProfile = &sslProfile{
+			F5ProfileName: name,
+		}
+	} else {
+		vs.VirtualServer.Frontend.SslProfile.F5ProfileName = name
+	}
+}
+func (vs *VirtualServerConfig) GetFrontendSslProfileName() string {
+	if nil == vs.VirtualServer.Frontend.SslProfile {
+		return ""
+	}
+	return vs.VirtualServer.Frontend.SslProfile.F5ProfileName
+}
+
 type VirtualServerConfigs []*VirtualServerConfig
 
 func (slice VirtualServerConfigs) Len() int {
@@ -160,6 +188,14 @@ func formatConfigMapVSName(cm *v1.ConfigMap) string {
 // format the namespace and name for use in the frontend definition
 func formatIngressVSName(ing *v1beta1.Ingress) string {
 	return fmt.Sprintf("%v_%v-ingress", ing.ObjectMeta.Namespace, ing.ObjectMeta.Name)
+}
+
+// format the namespace and name for use in the frontend definition
+func formatIngressSslProfileName(
+	cfg *VirtualServerConfig,
+	secret string,
+) string {
+	return fmt.Sprintf("%v/%v", cfg.VirtualServer.Frontend.Partition, secret)
 }
 
 type VirtualServerConfigMap map[string]*VirtualServerConfig

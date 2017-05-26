@@ -3163,3 +3163,78 @@ func TestVirtualServerForIngress(t *testing.T) {
 	require.True(r, "Ingress resource should be processed")
 	require.Equal(0, vservers.Count())
 }
+
+func TestIngressSslProfile(t *testing.T) {
+	// FIXME(garyr): Per issue #178 our VirtualServerConfig object only
+	// supports one ssl-profile on a virtual server, though multiples are
+	// supported on the Big-IP. Once that issue is resolved, this test
+	// should be updated to test multiple ssl profiles.
+	mw := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	require := require.New(t)
+	assert := assert.New(t)
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client should not be nil")
+	namespace := "default"
+	svcName := "foo"
+	var svcPort int32 = 443
+	svcKey := serviceKey{
+		Namespace:   namespace,
+		ServiceName: svcName,
+		ServicePort: svcPort,
+	}
+	sslProfileName := "theSslProfileName"
+
+	appMgr := newMockAppManager(&Params{
+		KubeClient:   fakeClient,
+		ConfigWriter: mw,
+		restClient:   test.CreateFakeHTTPClient(),
+		IsNodePort:   false,
+	})
+	err := appMgr.startNonLabelMode([]string{namespace})
+	require.Nil(err)
+	defer appMgr.shutdown()
+
+	spec := v1beta1.IngressSpec{
+		TLS: []v1beta1.IngressTLS{
+			{
+				SecretName: sslProfileName,
+			},
+		},
+		Backend: &v1beta1.IngressBackend{
+			ServiceName: svcName,
+			ServicePort: intstr.IntOrString{IntVal: svcPort},
+		},
+	}
+	fooIng := test.NewIngress("ingress", "1", namespace, spec,
+		map[string]string{
+			"virtual-server.f5.com/ip":        "1.2.3.4",
+			"virtual-server.f5.com/partition": "velcro",
+		})
+	svcPorts := []v1.ServicePort{newServicePort("port0", svcPort)}
+	fooSvc := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP,
+		svcPorts)
+	emptyIps := []string{}
+	readyIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
+	endpts := test.NewEndpoints(svcName, "1", namespace, readyIps, emptyIps,
+		convertSvcPortsToEndpointPorts(svcPorts))
+
+	// Add ingress, service, and endpoints objects and make sure the
+	// ssl-profile set in the ingress object shows up in the virtual server.
+	r := appMgr.addIngress(fooIng)
+	assert.True(r, "Ingress resource should be processed")
+	r = appMgr.addService(fooSvc)
+	assert.True(r, "Service should be processed")
+	r = appMgr.addEndpoints(endpts)
+	assert.True(r, "Endpoints should be processed")
+	vservers := appMgr.vservers()
+	assert.Equal(1, vservers.Count())
+	assert.Equal(1, vservers.CountOf(svcKey))
+	vsCfg, found := vservers.Get(svcKey, formatIngressVSName(fooIng))
+	assert.True(found)
+	require.NotNil(vsCfg)
+	secretName := formatIngressSslProfileName(vsCfg, sslProfileName)
+	assert.Equal(secretName, vsCfg.GetFrontendSslProfileName())
+}

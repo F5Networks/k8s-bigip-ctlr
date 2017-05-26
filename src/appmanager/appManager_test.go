@@ -700,6 +700,7 @@ func TestProcessNodeUpdate(t *testing.T) {
 	appMgr := NewManager(&Params{
 		ConfigWriter: mw,
 		IsNodePort:   true,
+		InitialState: true,
 	})
 
 	originalSet := []v1.Node{

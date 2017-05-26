@@ -55,6 +55,7 @@ type Manager struct {
 	restClientv1      rest.Interface
 	restClientv1beta1 rest.Interface
 	configWriter      writer.Writer
+	initialState      bool
 	// Use internal node IPs
 	useNodeInternal bool
 	// Running in nodeport (or cluster) mode
@@ -85,6 +86,7 @@ type Params struct {
 	UseNodeInternal bool
 	IsNodePort      bool
 	ManageIngress   bool
+	InitialState    bool // included in params for unit testing only
 }
 
 // Create and return a new app manager that meets the Manager interface
@@ -102,6 +104,7 @@ func NewManager(params *Params) *Manager {
 		useNodeInternal:   params.UseNodeInternal,
 		isNodePort:        params.IsNodePort,
 		manage_ingress:    params.ManageIngress,
+		initialState:      params.InitialState,
 		vsQueue:           vsQueue,
 		nsQueue:           nsQueue,
 		appInformers:      make(map[string]*appInformer),
@@ -729,6 +732,12 @@ func (appMgr *Manager) syncVirtualServer(vsKey vsQueueKey) error {
 
 	if vsUpdated > 0 || vsDeleted > 0 {
 		appMgr.outputConfig()
+	} else if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 {
+		appMgr.vservers.Lock()
+		defer appMgr.vservers.Unlock()
+		if !appMgr.initialState {
+			appMgr.outputConfigLocked()
+		}
 	}
 
 	return nil
@@ -1192,25 +1201,32 @@ func (appMgr *Manager) ProcessNodeUpdate(
 	defer appMgr.vservers.Unlock()
 	appMgr.oldNodesMutex.Lock()
 	defer appMgr.oldNodesMutex.Unlock()
-	// Compare last set of nodes with new one
-	if !reflect.DeepEqual(newNodes, appMgr.oldNodes) {
-		log.Infof("ProcessNodeUpdate: Change in Node state detected")
-		appMgr.vservers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
-			port := strconv.Itoa(int(cfg.MetaData.NodePort))
-			var newAddrPorts []string
-			for _, node := range newNodes {
-				var b bytes.Buffer
-				b.WriteString(node)
-				b.WriteRune(':')
-				b.WriteString(port)
-				newAddrPorts = append(newAddrPorts, b.String())
-			}
-			cfg.VirtualServer.Backend.PoolMemberAddrs = newAddrPorts
-		})
-		// Output the Big-IP config
-		appMgr.outputConfigLocked()
 
-		// Update node cache
+	// Only check for updates once we are in our initial state
+	if appMgr.initialState {
+		// Compare last set of nodes with new one
+		if !reflect.DeepEqual(newNodes, appMgr.oldNodes) {
+			log.Infof("ProcessNodeUpdate: Change in Node state detected")
+			appMgr.vservers.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
+				port := strconv.Itoa(int(cfg.MetaData.NodePort))
+				var newAddrPorts []string
+				for _, node := range newNodes {
+					var b bytes.Buffer
+					b.WriteString(node)
+					b.WriteRune(':')
+					b.WriteString(port)
+					newAddrPorts = append(newAddrPorts, b.String())
+				}
+				cfg.VirtualServer.Backend.PoolMemberAddrs = newAddrPorts
+			})
+			// Output the Big-IP config
+			appMgr.outputConfigLocked()
+
+			// Update node cache
+			appMgr.oldNodes = newNodes
+		}
+	} else {
+		// Initialize appMgr nodes on our first pass through
 		appMgr.oldNodes = newNodes
 	}
 }
@@ -1238,27 +1254,30 @@ func (appMgr *Manager) outputConfigLocked() {
 			services = append(services, cfg)
 		}
 	})
-
-	doneCh, errCh, err := appMgr.ConfigWriter().SendSection("services", services)
-	if nil != err {
-		log.Warningf("Failed to write Big-IP config data: %v", err)
-	} else {
-		select {
-		case <-doneCh:
-			log.Infof("Wrote %v Virtual Server configs", len(services))
-			if log.LL_DEBUG == log.GetLogLevel() {
-				output, err := json.Marshal(services)
-				if nil != err {
-					log.Warningf("Failed creating output debug log: %v", err)
-				} else {
-					log.Debugf("Services: %s", output)
+	if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 ||
+		appMgr.initialState == true {
+		doneCh, errCh, err := appMgr.ConfigWriter().SendSection("services", services)
+		if nil != err {
+			log.Warningf("Failed to write Big-IP config data: %v", err)
+		} else {
+			select {
+			case <-doneCh:
+				log.Infof("Wrote %v Virtual Server configs", len(services))
+				if log.LL_DEBUG == log.GetLogLevel() {
+					output, err := json.Marshal(services)
+					if nil != err {
+						log.Warningf("Failed creating output debug log: %v", err)
+					} else {
+						log.Debugf("Services: %s", output)
+					}
 				}
+			case e := <-errCh:
+				log.Warningf("Failed to write Big-IP config data: %v", e)
+			case <-time.After(time.Second):
+				log.Warning("Did not receive config write response in 1s")
 			}
-		case e := <-errCh:
-			log.Warningf("Failed to write Big-IP config data: %v", e)
-		case <-time.After(time.Second):
-			log.Warning("Did not receive config write response in 1s")
 		}
+		appMgr.initialState = true
 	}
 }
 

@@ -472,6 +472,8 @@ class ConfigHandler():
                     start_time = time.time()
 
                     config = _parse_config(self._config_file)
+                    if 'services' not in config:
+                        continue
                     verify_interval, _ = _handle_global_config(config)
                     _handle_openshift_sdn_config(config)
                     self.set_interval_timer(verify_interval)

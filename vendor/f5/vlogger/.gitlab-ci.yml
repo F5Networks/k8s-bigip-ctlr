@@ -1,0 +1,68 @@
+before_script:
+  # git and golang are not in ubuntu:wily by default
+  - '(which git && which go) || (apt-get update -y && apt-get install -y git golang)'
+  - if [ -z "$GOPATH" ]; then export GOPATH=/go; fi
+
+  - echo "Installing GB..."
+  - git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git $GOPATH/src/github.com/constabulary/gb
+  - git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
+  - go install -v github.com/constabulary/gb/...
+
+  - echo "Obtaining git submodules..."
+  - git submodule sync 
+  - git submodule update --init
+
+stages:
+  - sanity
+  - build
+  - test
+  - deploy
+      
+release build and unit test:
+  image: "golang:1.7"
+  stage: build
+  script:
+    - make release
+  tags:
+    - docker
+  artifacts:
+    untracked: true
+    paths:
+      - coverage.out
+      - coverage.html
+
+debug build and unit test:
+  image: "golang:1.7"
+  stage: build
+  script:
+    - make debug
+  tags:
+    - docker
+  artifacts:
+    untracked: true
+    paths:
+      - coverage.out
+      - coverage.html
+
+sanity verification:
+  image: "golang:1.7"
+  stage: sanity
+  script:
+    - make verify
+  tags:
+    - docker
+
+build debian packages for ubuntu wily:
+  image: "f5lenny/ubuntu-wily-golang:latest"
+  stage: build
+  script:
+    # These packages are required by the package script
+    - echo "Installing additional packages..."
+    - apt-get update -y && apt-get install -y devscripts equivs m4 make
+    - make pkg-deb-wily
+  tags:
+    - docker
+  artifacts:
+    untracked: true
+    paths:
+      - build/wily/

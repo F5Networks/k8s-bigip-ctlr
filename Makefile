@@ -1,19 +1,37 @@
-all:
-	@printf "\n\nAvailable targets:\n"
-	@printf "  release - build and test without instrumentation\n"
-	@printf "  debug   - build and test with debug instrumentation\n"
-	@printf "  verify  - apply source verification (i.e. formatting,\n"
-	@printf "            licensing)\n"
-	@printf "  devel-image - build a local docker image 'k8s-ctrl-devel'\n"
-	@printf "                with all needed build tools\n"
-	@printf "  doc-preview - Use docs image to build local preview of docs\n"
-	@printf "  test-docs   - Use docs image to build and test docs"
+PACKAGE  := github.com/F5Networks/k8s-bigip-ctlr
 
-release: pre-build generate rel-build rel-unit-test
+BASE     := $(GOPATH)/src/$(PACKAGE)
+GOOS     = $(shell go env GOOS)
+GOARCH   = $(shell go env GOARCH)
+GOBIN    = $(GOPATH)/bin/$(GOOS)-$(GOARCH)
 
-debug: pre-build generate dbg-build dbg-unit-test
+GO_BUILD_FLAGS=-v
 
-verify: pre-build fmt
+
+all: local-build
+
+test: local-go-test local-python-test
+
+prod: prod-build
+
+debug: dbg-unit-test
+
+verify: fmt
+
+docs: _docs
+
+godep-save:
+	rm -rf vendor Godeps
+	godep save ./...
+
+clean:
+	rm -rf _docker_workspace
+	rm -rf _build
+	rm -rf docs/_build
+	rm -f *_attributions.json
+	rm -f docs/_static/ATTRIBUTIONS.md
+	@echo "Did not clean local go workspace"
+
 
 ############################################################################
 # NOTE:
@@ -21,64 +39,99 @@ verify: pre-build fmt
 #   targets above. Publicly maintained targets above are always provided.
 ############################################################################
 
-# Use GB to get the project's directory.
-PROJ_DIR = $(shell gb env GB_PROJECT_DIR)
+# Depend on always-build when inputs aren't known
+.PHONY: always-build
 
-# Allow user to pass in gb build options
-ifeq ($(CLEAN_BUILD),true)
-  GB_BUILD_OPTS=-f -F
-else
-  GB_BUILD_OPTS=
-endif
+# Disable builtin implicit rules
+.SUFFIXES:
+
+local-go-test: local-build check-gopath
+	go test $(GO_BUILD_FLAGS) ./pkg/... ./cmd/...
+
+local-build: check-gopath
+	GOBIN=$(GOBIN) go install $(GO_BUILD_FLAGS) ./pkg/... ./cmd/...
+
+check-gopath:
+	@if [ "$(BASE)" != "$(CURDIR)" ]; then \
+	  echo "Source directory must be in valid GO workspace."; \
+	  echo "Check GOPATH?"; \
+	  false; \
+	fi
 
 pre-build:
-	${PROJ_DIR}/build-tools/build-start.sh
+	git -C $(CURDIR) status
+	git -C $(CURDIR) describe --all --long
 
-generate: pre-build
-	@echo "Generating source files..."
-	gb generate
-
-rel-build: generate
+prod-build: pre-build
 	@echo "Building with minimal instrumentation..."
-	gb build $(GB_BUILD_OPTS)
+	$(CURDIR)/build-tools/build-release-artifacts.sh
+	$(CURDIR)/build-tools/build-release-images.sh
 
-dbg-build: generate
+dbg-build: pre-build
 	@echo "Building with race detection instrumentation..."
-	gb build -race $(GB_BUILD_OPTS)
-
-rel-unit-test: rel-build
-	@echo "Running unit tests on 'release' build..."
-	gb test -v $(GB_BUILD_OPTS) \
-		-test.benchmem \
-		-test.cpuprofile profile.cpu.rel \
-		-test.blockprofile profile.block.rel \
-		-test.memprofile profile.mem.rel
-	@echo "Gathering unit test code coverage for 'release' build..."
-	${PROJ_DIR}/build-tools/coverage.sh
+	go build -race $(GO_BUILD_OPTS) ./...
 
 dbg-unit-test: dbg-build
 	@echo "Running unit tests on 'debug' build..."
-	gb test -v $(GB_BUILD_OPTS) \
-		-test.benchmem \
-		-test.cpuprofile profile.cpu.dbg \
-		-test.blockprofile profile.block.dbg \
-		-test.memprofile profile.mem.dbg
-	@echo "Gathering unit test code coverage for 'debug' build..."
-	${PROJ_DIR}/build-tools/coverage.sh
+	$(CURDIR)/build-tools/dbg-build.sh
 
 fmt:
 	@echo "Enforcing code formatting using 'go fmt'..."
-	${PROJ_DIR}/build-tools/fmt.sh
+	$(CURDIR)/build-tools/fmt.sh
 
 devel-image:
 	./build-tools/build-devel-image.sh
 
-# Build docs standalone from this repo
+#
+# Docs
+#
 doc-preview:
 	rm -rf docs/_build
 	DOCKER_RUN_ARGS="-p 127.0.0.1:8000:8000" \
 	  ./build-tools/docker-docs.sh make -C docs preview
 
-test-docs:
-	rm -rf docs/_build
-	./build-tools/docker-docs.sh ./build-tools/test-docs.sh
+_docs: docs/_static/ATTRIBUTIONS.md always-build
+	./build-tools/docker-docs.sh ./build-tools/make-docs.sh
+
+
+#
+# Attributions Generation
+#
+golang_attributions.json: Godeps/Godeps.json
+	./build-tools/attributions-generator.sh \
+		/usr/local/bin/golang-backend.py --project-path=$(CURDIR)
+
+flatfile_attributions.json: .f5license
+	./build-tools/attributions-generator.sh \
+		/usr/local/bin/flatfile-backend.py --project-path=$(CURDIR)
+
+pip_attributions.json: always-build
+	./build-tools/attributions-generator.sh \
+		/usr/local/bin/pip-backend.py \
+		--requirements=python/k8s-runtime-requirements.txt \
+		--project-path=$(CURDIR) \
+
+docs/_static/ATTRIBUTIONS.md: flatfile_attributions.json  golang_attributions.json  pip_attributions.json
+	./build-tools/attributions-generator.sh \
+		node /frontEnd/frontEnd.js $(CURDIR)
+	mv ATTRIBUTIONS.md $@
+
+#
+# Python unit tests
+#
+_build/venv.local: python/k8s-build-requirements.txt  python/k8s-runtime-requirements.txt
+	[ -d "$@" ] || virtualenv "$@"
+	. "$@/bin/activate" && pip install $(foreach f,$^,-r $(f))
+	touch "$@"
+
+local-python-test: _build/python.testpass
+
+_build/python.testpass: _build/venv.local $(shell find python -type f)
+	@mkdir -p $(@D)
+	. $(CURDIR)/_build/venv.local/bin/activate \
+	  && flake8 $(CURDIR)/python/
+	. $(CURDIR)/_build/venv.local/bin/activate \
+	  && cd $(CURDIR)/python \
+	  && PYTHONPATH=$$PYTHONPATH:$(CURDIR)/python pytest -slvv
+	touch $@
+

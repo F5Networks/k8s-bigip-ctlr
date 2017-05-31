@@ -30,59 +30,41 @@ docker run f5networks/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr <args>
 Building
 --------
 
-Note that these instructions will only work for internal users.
+The official images are built using docker, but the adventurous can use standard go build tools. 
 
-To checkout and build:
+### Official Build
+
+Prerequisites:
+- Docker
 
 ```shell
 git clone https://github.com/f5networks/k8s-bigip-ctlr.git
 cd  k8s-bigip-ctlr
-git submodule sync
-git submodule update --init
+
+# Use docker to build the release artifacts, into a local "_docker_workspace" directory, then put into docker iamges
+make prod
 ```
 
-The official images are built using a docker image. To use this, first build it:
+
+### Alternate, unofficial build
+
+A normal go and godep toolchain can be used as well
+
+Prerequisites:
+- go 1.7
+- $GOPATH pointing at a valid go workspace
+- godep (Only needed to modify vendor's packages)
+- python
+- virtualenv
 
 ```shell
-make devel-image
+mkdir -p $GOPATH/src/github.com/F5Networks
+cd $GOPATH/src/github.com/F5Networks
+git clone https://github.com/f5networks/k8s-bigip-ctlr.git
+cd k8s-bigip-ctlr
+
+# Build all packages, and run unit tests
+make all test
 ```
 
-Then, to mount your working tree into a build container and run the build commands:
-```shell
-./build-tools/run-in-docker.sh make release
-```
-
-### Alternate Manual Build - Ubuntu
-
-To build locally, you'll need the following build dependencies:
-
-```shell
-# Install build dependencies
-sudo apt-get update
-sudo apt-get install devscripts equivs git golang golang-go.tools m4 \
-  make python python-dev python-pip
-
-# Install gb tool into PATH
-export GOPATH=$HOME/go
-mkdir -p $GOPATH
-export PATH=$PATH:$GOPATH/bin
-sudo go install -v -race runtime/race
-git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git \
-  $GOPATH/src/github.com/constabulary/gb
-git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
-go install -v github.com/constabulary/gb/...
-go get -v github.com/wadey/gocovmerge
-
-# Install python requirements using sudo or create a virtualenv workspace.
-pip install -r python/*-requirements.txt
-```
-
-Then to build:
-
-```shell
-# Build with debug options like race detection
-make debug
-
-# Build with release options
-make release
-```
+To make changes to vendor dependencies, see [Devel](DEVEL.md)

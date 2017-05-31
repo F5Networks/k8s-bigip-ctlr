@@ -1,91 +1,55 @@
-variables:
-  baseimg: "docker-registry.pdbld.f5net.com/${CI_PROJECT_NAMESPACE}/k8s-bigip-ctlr"
-
 before_script:
-  - 'if [ "$CI_BUILD_STAGE" != "deploy" ] && [ "$(id -u)" == "0" ]; then'
-  # Only run if in a container
-  # Use apt-cache server to speed things up
-  - echo -e "Acquire::HTTP::Proxy \"http://apt-cache.pdbld.f5net.com:3142\";\nAcquire::HTTPS::Proxy \"false\";" > /etc/apt/apt.conf.d/01proxy
-  - fi
-  # Install ssh-agent if not already installed, it is required by Docker.
-  # (change apt-get to yum if you use a CentOS-based image)
-  - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
-
-  # Run ssh-agent (inside the build environment)
-  - eval $(ssh-agent -s)
-  # Add the SSH key stored in TESTLAB_CI_SSH_PRIVATE_KEY variable to the agent store
-  - ssh-add <(echo "$TESTLAB_CI_SSH_PRIVATE_KEY")
-  - echo 'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no $*' > /tmp/ssh
-  - chmod a+x /tmp/ssh
-  - export GIT_SSH=/tmp/ssh
-
-  - echo "Obtaining git submodules..."
   - git submodule sync --recursive
   - git submodule update --init --recursive
+
+
+variables:
+  baseimg: "docker-registry.pdbld.f5net.com/${CI_PROJECT_NAMESPACE}/k8s-bigip-ctlr"
 
 stages:
   - sanity
   - build
   - deploy
 
-build docs:
-  image: docker-registry.pdbld.f5net.com/tools/containthedocs:master
-  script:
-    - cp ATTRIBUTIONS.md docs/_static/
-    - ./build-tools/test-docs.sh
-  tags:
-    - docker
-  stage: build
-  artifacts:
-    paths:
-      - docs/_build/html
-  dependencies:
-    - attributions generator
-
-python utility unit test:
+python unit test:
   image: "python:2.7"
-  stage: sanity
+  stage: build
   script:
-    - pip install flake8
-    - pip install -r python/k8s-build-requirements.txt
-    - pip install -r python/k8s-runtime-requirements.txt
-    - flake8 ./python/
-    - cd python; PYTHONPATH=$PYTHONPATH:$PWD pytest -slvv
+    - make local-python-test
   tags:
     - docker
 
-release build and unit test:
+prod build:
   stage: build
   tags:
     - docker-build
   script:
     - export BUILD_IMG_TAG="${baseimg}-devel:${CI_BUILD_REF}"
     - export CLEAN_BUILD=true
-    - ./build-tools/build-runtime-artifacts.sh
+    - make docs
+    - ./build-tools/build-release-artifacts.sh
+  coverage: "/coverage:\\s+(.*)\\%\\s+of\\s+statements$/"
   artifacts:
     paths:
-      - coverage.out
-      - coverage.html
-      - bin/
+      - _docker_workspace
+      - flatfile_attributions.json
+      - golang_attributions.json
+      - pip_attributions.json
+      - docs/_static/ATTRIBUTIONS.md
+      - docs/_build/html
 
 # The official alpine image doesn't support race.
 # Use a different build env for debug
-debug build and unit test:
-  image: "golang:1.7.5"
+debug build:
   stage: build
   tags:
-    - docker
+    - docker-build
   script:
-    - echo "Installing GB..."
-    - git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git $GOPATH/src/github.com/constabulary/gb
-    - git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
-    - go install -v github.com/constabulary/gb/...
-    - go get -v github.com/wadey/gocovmerge
-    - make debug
+    - export BUILD_IMG_TAG="${baseimg}-devel:${CI_BUILD_REF}"
+    - ./build-tools/build-debug-artifacts.sh
   artifacts:
     paths:
-      - coverage.out
-      - coverage.html
+      - _docker_workspace
 
 sanity verification:
   image: "golang:1.7.5"
@@ -93,11 +57,6 @@ sanity verification:
   tags:
     - docker
   script:
-    - echo "Installing GB..."
-    - git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git $GOPATH/src/github.com/constabulary/gb
-    - git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134
-    - go install -v github.com/constabulary/gb/...
-    - go get -v github.com/wadey/gocovmerge
     - make verify
 
 # Create the docker container and upload it to the internal docker registry with the tags
@@ -112,31 +71,15 @@ dockerize:
     - export IMG_TAG="${baseimg}:${CI_BUILD_REF}"
     - export BUILD_IMG_TAG="${baseimg}-devel:${CI_BUILD_REF}"
     - export CLEAN_BUILD=true
-    - ./build-tools/build-runtime-images.sh
+    - ./build-tools/build-release-images.sh
     - docker tag "$IMG_TAG" "$baseimg:$CI_BUILD_REF_NAME"
     - docker tag "$IMG_TAG" "$baseimg:$CI_BUILD_REF_NAME-$CI_BUILD_ID"
     - docker push "$IMG_TAG"
     - docker push "$baseimg:$CI_BUILD_REF_NAME"
     - docker push "$baseimg:$CI_BUILD_REF_NAME-$CI_BUILD_ID"
   dependencies:
-    - release build and unit test
+    - prod build
 
-
-attributions generator:
-  image: docker-registry.pdbld.f5net.com/velcro/attributions-generator:master
-  stage: sanity
-  script:
-    - /usr/local/bin/run-backends.sh $PWD --pip="--requirements=python/k8s-runtime-requirements.txt"
-    - node /frontEnd/frontEnd.js $PWD
-  tags:
-    - docker
-  artifacts:
-    paths:
-      - Licenses_generated.json
-      - flatfile_attributions.json
-      - golang_attributions.json
-      - pip_attributions.json
-      - ATTRIBUTIONS.md
 
 Publish docs to internet:
    # Publish ONLY 1.0-stable to the internet.
@@ -147,6 +90,6 @@ Publish docs to internet:
    only:
     - 1.0-stable@velcro/k8s-bigip-ctlr
    dependencies:
-     - build docs
+     - prod build
    script:
      - publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.0

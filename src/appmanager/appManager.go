@@ -758,7 +758,7 @@ func (appMgr *Manager) handleIngressTls(
 			return
 		}
 		for _, tls := range ing.Spec.TLS {
-			secretName := formatIngressSslProfileName(vsCfg, tls.SecretName)
+			secretName := formatIngressSslProfileName(tls.SecretName)
 			appMgr.setSslProfileForIngress(vsCfg, secretName)
 		}
 	} else {

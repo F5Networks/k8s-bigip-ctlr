@@ -6,7 +6,8 @@
 *.po
 *.so.[0-9]*
 *.pyc
-build
+/_docker_workspace
+/_build
 \#*
 \.\#*
 GPATH
@@ -24,15 +25,14 @@ GTAGS
 debian/files
 debian/*.debhelper.log
 debian/*.substvars
-obj-x86_64-linux-gnu/
-/bin
-/pkg
-vendor/manifest
-*.dbg
+*.cpu.dbg
+*.mem.dbg
+*.block.dbg
 *.rel
 coverage.out
 coverage.html
 python/.cache
+/venv.local
 
 # Docs
 docs/_build*

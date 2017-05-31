@@ -7,16 +7,16 @@ set -x
 
 CURDIR="$(dirname $BASH_SOURCE)"
 
-. $CURDIR/build-env.sh
+. $CURDIR/_build-lib.sh
 
 # Build the builder image.
 $CURDIR/build-devel-image.sh
 
 # Build artifacts using the build image
-$CURDIR/run-in-docker.sh make release
+$CURDIR/run-in-docker.sh ./build-tools/rel-build.sh
 
 if $CLEAN_BUILD; then
   docker rmi $BUILD_IMG_TAG
 fi
 
-# Now ready to run ./build-runtime-images.sh
+# Now ready to run ./build-release-images.sh

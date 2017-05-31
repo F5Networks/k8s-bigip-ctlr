@@ -36,6 +36,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	"k8s.io/client-go/tools/record"
 )
 
 func init() {
@@ -3092,7 +3093,9 @@ func TestVirtualServerForIngress(t *testing.T) {
 	require := require.New(t)
 	assert := assert.New(t)
 	fakeClient := fake.NewSimpleClientset()
+	fakeRecorder := record.NewFakeRecorder(5)
 	require.NotNil(fakeClient, "Mock client should not be nil")
+	require.NotNil(fakeRecorder, "Mock recorder should not be nil")
 	namespace := "default"
 
 	appMgr := newMockAppManager(&Params{
@@ -3100,7 +3103,7 @@ func TestVirtualServerForIngress(t *testing.T) {
 		ConfigWriter:  mw,
 		restClient:    test.CreateFakeHTTPClient(),
 		IsNodePort:    true,
-		ManageIngress: true,
+		EventRecorder: fakeRecorder,
 	})
 	err := appMgr.startNonLabelMode([]string{namespace})
 	require.Nil(err)
@@ -3172,7 +3175,9 @@ func TestIngressSslProfile(t *testing.T) {
 	require := require.New(t)
 	assert := assert.New(t)
 	fakeClient := fake.NewSimpleClientset()
+	fakeRecorder := record.NewFakeRecorder(5)
 	require.NotNil(fakeClient, "Mock client should not be nil")
+	require.NotNil(fakeRecorder, "Mock recorder should not be nil")
 	namespace := "default"
 	svcName := "foo"
 	var svcPort int32 = 443
@@ -3185,10 +3190,11 @@ func TestIngressSslProfile(t *testing.T) {
 	sslProfileName2 := "common/anotherSslProfileName"
 
 	appMgr := newMockAppManager(&Params{
-		KubeClient:   fakeClient,
-		ConfigWriter: mw,
-		restClient:   test.CreateFakeHTTPClient(),
-		IsNodePort:   false,
+		KubeClient:    fakeClient,
+		ConfigWriter:  mw,
+		restClient:    test.CreateFakeHTTPClient(),
+		IsNodePort:    false,
+		EventRecorder: fakeRecorder,
 	})
 	err := appMgr.startNonLabelMode([]string{namespace})
 	require.Nil(err)

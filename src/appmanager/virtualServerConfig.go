@@ -191,11 +191,24 @@ func formatIngressVSName(ing *v1beta1.Ingress) string {
 }
 
 // format the namespace and name for use in the frontend definition
-func formatIngressSslProfileName(
-	cfg *VirtualServerConfig,
-	secret string,
-) string {
-	return fmt.Sprintf("%v/%v", cfg.VirtualServer.Frontend.Partition, secret)
+func formatIngressSslProfileName(secret string) string {
+	profName := strings.TrimSpace(strings.TrimPrefix(secret, "/"))
+	parts := strings.Split(profName, "/")
+	switch len(parts) {
+	case 2:
+		profName = fmt.Sprintf("%v/%v", parts[0], parts[1])
+	case 1:
+		// This is technically supported on the Big-IP, but will fail in the
+		// python driver. Issue a warning here for better context.
+		log.Warningf("WARNING: TLS secret '%v' does not contain a full path.",
+			secret)
+	default:
+		// This is almost certainly an error, but again issue a warning for
+		// improved context here and pass it through to be handled elsewhere.
+		log.Warningf("WARNING: TLS secret '%v' is formatted incorrectly.",
+			secret)
+	}
+	return profName
 }
 
 type VirtualServerConfigMap map[string]*VirtualServerConfig

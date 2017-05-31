@@ -3185,7 +3185,7 @@ func TestIngressSslProfile(t *testing.T) {
 		ServiceName: svcName,
 		ServicePort: svcPort,
 	}
-	sslProfileName := "theSslProfileName"
+	sslProfileName := "velcro/theSslProfileName"
 
 	appMgr := newMockAppManager(&Params{
 		KubeClient:   fakeClient,
@@ -3235,6 +3235,6 @@ func TestIngressSslProfile(t *testing.T) {
 	vsCfg, found := vservers.Get(svcKey, formatIngressVSName(fooIng))
 	assert.True(found)
 	require.NotNil(vsCfg)
-	secretName := formatIngressSslProfileName(vsCfg, sslProfileName)
+	secretName := formatIngressSslProfileName(sslProfileName)
 	assert.Equal(secretName, vsCfg.GetFrontendSslProfileName())
 }

@@ -126,6 +126,13 @@ _build/venv.local: python/k8s-build-requirements.txt  python/k8s-runtime-require
 
 local-python-test: _build/python.testpass
 
+ifeq ($(GOOS), darwin)
+# Python tests depend on inotify, which isn't available on mac
+_build/python.testpass:
+	@echo "SKIPPING PYTHON TESTS"
+	@echo "  Use 'make prod' to run python tests"
+	touch $@
+else
 _build/python.testpass: _build/venv.local $(shell find python -type f)
 	@mkdir -p $(@D)
 	. $(CURDIR)/_build/venv.local/bin/activate \
@@ -134,4 +141,5 @@ _build/python.testpass: _build/venv.local $(shell find python -type f)
 	  && cd $(CURDIR)/python \
 	  && PYTHONPATH=$$PYTHONPATH:$(CURDIR)/python pytest -slvv
 	touch $@
+endif
 

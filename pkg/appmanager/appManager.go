@@ -759,27 +759,11 @@ func (appMgr *Manager) handleIngressTls(
 		}
 		for _, tls := range ing.Spec.TLS {
 			secretName := formatIngressSslProfileName(tls.SecretName)
-			appMgr.setSslProfileForIngress(vsCfg, secretName)
+			vsCfg.AddFrontendSslProfileName(secretName)
 		}
 	} else {
 		// NOTE(garyr): Only single service ingress is currently supported.
 	}
-}
-
-func (appMgr *Manager) setSslProfileForIngress(
-	vsCfg *VirtualServerConfig,
-	secretName string,
-) {
-	// FIXME(garyr): Per issue #178 our VirtualServerConfig object only
-	// supports one ssl-profile on a virtual server, though multiples are
-	// supported on the Big-IP. When that issue is resolved the warning
-	// below should be removed.
-	sslProf := vsCfg.GetFrontendSslProfileName()
-	if len(sslProf) > 0 && sslProf != secretName {
-		log.Warningf("WARNING: replacing existing ssl profile '%v' with '%v'\n",
-			sslProf, secretName)
-	}
-	vsCfg.SetFrontendSslProfileName(secretName)
 }
 
 // Common handling function for both ConfigMaps and Ingresses

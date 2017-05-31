@@ -40,7 +40,7 @@ import (
 
 func init() {
 	workingDir, _ := os.Getwd()
-	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.3.json"
+	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.4.json"
 }
 
 var schemaUrl string
@@ -3165,10 +3165,6 @@ func TestVirtualServerForIngress(t *testing.T) {
 }
 
 func TestIngressSslProfile(t *testing.T) {
-	// FIXME(garyr): Per issue #178 our VirtualServerConfig object only
-	// supports one ssl-profile on a virtual server, though multiples are
-	// supported on the Big-IP. Once that issue is resolved, this test
-	// should be updated to test multiple ssl profiles.
 	mw := &test.MockWriter{
 		FailStyle: test.Success,
 		Sections:  make(map[string]interface{}),
@@ -3185,7 +3181,8 @@ func TestIngressSslProfile(t *testing.T) {
 		ServiceName: svcName,
 		ServicePort: svcPort,
 	}
-	sslProfileName := "velcro/theSslProfileName"
+	sslProfileName1 := "velcro/theSslProfileName"
+	sslProfileName2 := "common/anotherSslProfileName"
 
 	appMgr := newMockAppManager(&Params{
 		KubeClient:   fakeClient,
@@ -3200,7 +3197,10 @@ func TestIngressSslProfile(t *testing.T) {
 	spec := v1beta1.IngressSpec{
 		TLS: []v1beta1.IngressTLS{
 			{
-				SecretName: sslProfileName,
+				SecretName: sslProfileName1,
+			},
+			{
+				SecretName: sslProfileName2,
 			},
 		},
 		Backend: &v1beta1.IngressBackend{
@@ -3235,6 +3235,10 @@ func TestIngressSslProfile(t *testing.T) {
 	vsCfg, found := vservers.Get(svcKey, formatIngressVSName(fooIng))
 	assert.True(found)
 	require.NotNil(vsCfg)
-	secretName := formatIngressSslProfileName(sslProfileName)
-	assert.Equal(secretName, vsCfg.GetFrontendSslProfileName())
+	secretArray := []string{
+		formatIngressSslProfileName(sslProfileName1),
+		formatIngressSslProfileName(sslProfileName2),
+	}
+	sort.Strings(secretArray)
+	assert.Equal(secretArray, vsCfg.GetFrontendSslProfileNames())
 }

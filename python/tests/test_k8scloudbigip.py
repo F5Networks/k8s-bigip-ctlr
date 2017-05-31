@@ -421,6 +421,8 @@ class KubernetesTest(BigIPTest):
                                   'profiles': [{'partition': 'Common',
                                                 'name': 'clientssl'},
                                                {'partition': 'Common',
+                                                'name': 'clientssl-secure'},
+                                               {'partition': 'Common',
                                                 'name': 'http'}]}
         virtual = self.create_mock_virtual('default_configmap',
                                            **virtual_data_unchanged)
@@ -462,6 +464,7 @@ class KubernetesTest(BigIPTest):
             'pool': '/Common/default_configmap',
             'sourceAddressTranslation': {'type': 'snat'},
             'profiles': [{'partition': 'Common', 'name': 'clientssl'},
+                         {'partition': 'Common', 'name': 'clientssl-secure'},
                          {'partition': 'Common', 'name': 'tcp'}]
         }
         for key in virtual_data_changed:

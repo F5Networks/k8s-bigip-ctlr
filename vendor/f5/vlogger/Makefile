@@ -1,21 +1,61 @@
-REQUIRED_VELCRO_GB_SUBPACKAGES = 
+PACKAGE  := f5/vlogger
 
-all:
-	@printf "\n\nAvailable targets:\n"
-	@printf "  release - build and test without instrumentation\n"
-	@printf "  debug   - build and test with debug instrumentation\n"
-	@printf "  verify  - apply source verification (i.e. formatting,\n"
-	@printf "            licensing)\n"
-	@printf "  pkg-deb - build Debian packages for all supported distros\n"
-	@printf "  pkg-deb-'distro' - build Debian packages for the specified\n"
-	@printf "            distro. (ex: make pkg-deb-wily)\n"
-	@printf "  build-deps - install build dependencies\n"
+export GOPATH   := $(CURDIR)/_build/gopath
+BASE     := $(GOPATH)/src/$(PACKAGE)
+GOOS     = $(shell go env GOOS)
+GOARCH   = $(shell go env GOARCH)
 
-release: pre-build generate rel-build rel-unit-test
+GO_BUILD_FLAGS=-v
 
-debug: pre-build generate dbg-build dbg-unit-test
 
-verify: pre-build fmt
+GOBIN = $(GOPATH)/bin/$(GOOS)-$(GOARCH)
+
+# Generate local package lists
+#   replace prefix "_$(dir $(CURDIR)" because that is prepended when GOPATH isn't set
+#   Exclude all local vendor, becuase we don't want to explicitly build those
+ALL_PKGS      := $(shell go list ./...| sed 's,^_$(CURDIR),$(PACKAGE),' |  grep -v "^$(PACKAGE)/vendor")
+TEST_PKGS     := $(shell go list -f '{{ if or .TestGoFiles .XTestGoFiles }}{{ .ImportPath }}{{ end }}' ./... | sed 's,^_$(CURDIR),$(PACKAGE),' |  grep -v "^$(PACKAGE)/vendor")
+ALL_COVERAGE  := $(addprefix _build/,$(addsuffix .coverage.out,$(TEST_PKGS)))
+
+
+#
+# Normal build for developers. Just builds source.
+#
+all: local-build
+
+#
+# Run unit tests
+#
+test: local-go-test
+
+#
+# Prod build, with all verification
+#
+prod: local-build local-go-test coverage
+
+#
+# Run tests, and genear
+#
+coverage: _build/coverage.html
+
+#
+# Debug build, with all verification
+#
+debug: GO_BUILD_FLAGS=-v -race
+debug: local-build local-go-test 
+
+#
+# Remove all build artifacts
+#
+clean:
+	rm -rf _build
+	rm -rf _gopath
+
+info: $(BASE)
+	@echo "ALL_PKGS: $(ALL_PKGS)"
+	@echo "TEST_PKGS: $(ALL_PKGS)"
+	@echo "ALL_COVERAGE: $(ALL_COVERAGE)"
+
 
 ############################################################################
 # NOTE:
@@ -23,78 +63,41 @@ verify: pre-build fmt
 #   targets above. Publicly maintained targets above are always provided.
 ############################################################################
 
-# Use GB to get the project's directory.
-PROJ_DIR = $(shell gb env GB_PROJECT_DIR)
+$(BASE):
+	@mkdir -p $(@D)
+	ln -s $(CURDIR) $@
 
-pre-build:
-	${PROJ_DIR}/scripts/build-start.sh
+local-build: | $(BASE)
+	cd $(BASE) && GOBIN=$(GOBIN) go install $(GO_BUILD_FLAGS) ./... 
 
-generate: pre-build
-	@echo "Generating source files..."
-	gb generate
+# Build isn't required, but makes repeat builds faster
+local-go-test: local-build | $(BASE)
+	cd $(BASE) && go test $(GO_BUILD_FLAGS) $(TEST_PKGS)
 
-rel-build: generate
-	@echo "Building with minimal instrumentation..."
-	gb build
+fmt: | $(BASE)
+	@git diff --exit-code || {echo "Can't format code with local changes";false;}
+	@echo "Files that need formating:"
+	@go fmt $(ALL_PKGS)
+	@git diff --exit-code
 
-dbg-build: generate
-	@echo "Building with race detection instrumentation..."
-	gb build -race
 
-rel-unit-test: rel-build
-	@echo "Running unit tests on 'release' build..."
-	gb test -v \
-		-test.benchmem \
-		-test.cpuprofile profile.cpu.rel \
-		-test.blockprofile profile.block.rel \
-		-test.memprofile profile.mem.rel
-	@echo "Gathering unit test code coverage for 'release' build..."
-	${PROJ_DIR}/scripts/coverage.sh
+.PHONY: always-build
 
-dbg-unit-test: dbg-build
-	@echo "Running unit tests on 'debug' build..."
-	gb test -v \
-		-test.benchmem \
-		-test.cpuprofile profile.cpu.dbg \
-		-test.blockprofile profile.block.dbg \
-		-test.memprofile profile.mem.dbg
-	@echo "Gathering unit test code coverage for 'debug' build..."
-	${PROJ_DIR}/scripts/coverage.sh
+_build/%.coverage.out: $(BASE) always-build
+	@mkdir -p $(@D)
+	cd $(BASE) && go test $(GO_BUILD_FLAGS) -covermode=count -coverprofile=$@ $*
 
-fmt:
-	@echo "Enforcing code formatting using 'go fmt'..."
-	${PROJ_DIR}/scripts/fmt.sh
 
-pkg-deb-wily:
-	@#the vlogger library is not a stand-alone package
-	@#debian/package.sh -C debian wily
+_build/coverage.out: $(ALL_COVERAGE) | $(BASE)
+	@mkdir -p $(@D)
+	cd $(BASE) && gocovmerge $(ALL_COVERAGE) > $@
 
-# Depend on rules for all supported distros
-pkg-deb: pkg-deb-wily
+_build/coverage.html: _build/coverage.out | $(BASE)
+	cd $(BASE) && go tool cover -html=$< -o $@
+	cd $(BASE) && go tool cover -func=$<
+	@cd $(BASE) && go tool cover -func=$< | grep "^total:" | awk 'END { print "Total coverage:", $$3, "of statements" }'
 
-############################################################################
-# build-pkgs:
-#   Installs tools required to build this package
-#
-#   Assumes a container build environment unless VAGRANT_INSTALL is set to 1.
-#   Recursively calls build-pkgs for each gobuild package that is explicitly
-#   needed by this package.
-############################################################################
-BUILDDEP_FIRSTPASS_FILE=""
-ifeq ($(MAKELEVEL), 0)
-	BUILDDEP_FIRSTPASS_FILE=`pwd`/.build-deps.$$PPID
-endif
 
-build-deps-init:
-	@echo "Initializing build tools in `pwd`"
-	@BUILDDEP_FIRSTPASS_FILE=$(BUILDDEP_FIRSTPASS_FILE) BUILDTARGET=$@ \
-	 ./scripts/build-deps.sh $(REQUIRED_VELCRO_GB_SUBPACKAGES)
+# Disable builtin implicit rules
+.SUFFIXES:
 
-build-deps:
-	@if [ $(MAKELEVEL) -eq 0 ]; then \
-	 MAKELEVEL=0 ${MAKE} --no-print-directory BUILDDEP_FIRSTPASS_FILE=$(BUILDDEP_FIRSTPASS_FILE) build-deps-init; \
-	 fi
-
-	@echo "Installing build tools in `pwd`"
-	@BUILDDEP_FIRSTPASS_FILE=$(BUILDDEP_FIRSTPASS_FILE) BUILDTARGET=$@ \
-	 ./scripts/build-deps.sh $(REQUIRED_VELCRO_GB_SUBPACKAGES)

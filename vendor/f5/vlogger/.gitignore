@@ -6,7 +6,6 @@
 *.po
 *.so.[0-9]*
 *.pyc
-build
 \#*
 \.\#*
 GPATH
@@ -21,14 +20,6 @@ GTAGS
 *.v8heapsnapshot
 *.idea
 .vagrant
-debian/files
-debian/*.debhelper.log
-debian/*.substvars
-obj-x86_64-linux-gnu/
-bin
-pkg
-vendor/manifest
 *.dbg
 *.rel
-coverage.out
-coverage.html
+/_build

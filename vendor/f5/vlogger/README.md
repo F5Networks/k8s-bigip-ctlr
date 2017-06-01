@@ -1,6 +1,6 @@
 # vlogger
 
-    import "vlogger"
+    import "f5/vlogger"
 
 Package vlogger implements an interface around basic logging features so that
 end-user and library writers can code to the interface without worrying about
@@ -115,8 +115,8 @@ statements to the console:
     package main
 
     import (
-      log  "velcro/vlogger"
-      "velcro/vlogger/console"
+      log  "f5/vlogger"
+      "f5/vlogger/console"
 
     func init() {
       // Log all messages to the user's console

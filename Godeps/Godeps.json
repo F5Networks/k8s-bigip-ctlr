@@ -8,11 +8,11 @@
 	"Deps": [
 		{
 			"ImportPath": "f5/vlogger",
-			"Rev": "d410b21d07799ab98280f00f0e549e3e393a619e"
+			"Rev": "a80fe6ca0a25509ff481816d237b1599a68bd5c1"
 		},
 		{
 			"ImportPath": "f5/vlogger/console",
-			"Rev": "d410b21d07799ab98280f00f0e549e3e393a619e"
+			"Rev": "a80fe6ca0a25509ff481816d237b1599a68bd5c1"
 		},
 		{
 			"ImportPath": "github.com/PuerkitoBio/purell",

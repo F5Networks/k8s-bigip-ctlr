@@ -672,7 +672,7 @@
 
 # The f5/vlogger module is ours.
 - name: f5/vlogger
-  version: d410b21
+  version: a80fe6c
   attribution_text: |
     Copyright 2017 F5 Networks
 

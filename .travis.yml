@@ -1,0 +1,48 @@
+language: bash
+sudo: required
+services:
+  - docker
+
+before_install:
+  - docker pull golang:1.7.5
+  - docker pull python:2.7
+
+script:
+  - set -e
+  - if [ "$DOCKER_NAMESPACE" == "" ]; then DOCKER_NAMESPACE="local"; fi
+  - BASE_PUSH_TARGET="$DOCKER_NAMESPACE/k8s-bigip-ctlr"
+  - |
+    if [ "$DOCKER_P" == "" -o "$DOCKER_U" == "" -o $DOCKER_NAMESPACE == "" ]; then
+      echo "[INFO] Docker user, password, or namespace vars absent from travis-ci."
+      if [ "$TRAVIS_REPO_SLUG" == "F5Networks/k8s-bigip-ctlr" ]; then
+        echo "[ERROR] Docker push will fail. See README.md 'build' section and contact repo admin."
+        false
+      else
+        echo "[INFO] Not an 'F5Networks' commit, docker optional."
+        echo "[INFO] See README.md section 'build' to configure travis with DockerHub."
+      fi
+    else
+      docker login -u="$DOCKER_U" -p="$DOCKER_P"
+      DOCKER_READY="true"
+    fi
+  - export IMG_TAG="${BASE_PUSH_TARGET}:${TRAVIS_COMMIT}"
+  - export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${TRAVIS_COMMIT}"
+  - export CLEAN_BUILD=true
+  - ./build-tools/build-devel-image.sh
+  - ./build-tools/run-in-docker.sh make verify
+  - ./build-tools/run-in-docker.sh ./build-tools/python-tests.sh
+  - ./build-tools/build-debug-artifacts.sh
+  - ./build-tools/build-release-artifacts.sh
+  - ./build-tools/build-release-images.sh
+  - docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
+  - docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID"
+  - |
+    if [ "$DOCKER_READY" ]; then
+      docker push "$IMG_TAG"
+      docker push "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
+      docker push "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID"
+    fi
+  - |
+    if [ "$TRAVIS_TAG" == "1.0-stable" ]; then
+      docker run -it f5devcentral/containthedocs publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.0
+    fi

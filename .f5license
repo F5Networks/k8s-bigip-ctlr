@@ -219,7 +219,7 @@
 # The golang/groupcache module does not have a list of authors, but the
 # copyright header in every source file is attributed to Google Inc.
 - name: golang/groupcache
-  version: 02826c3
+  version: b710c84
   license: Apache-2.0
   author:
     name: Google Inc.

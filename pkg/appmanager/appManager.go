@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -39,8 +40,11 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	watch "k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes/scheme"
+	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	rest "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 )
 
@@ -76,6 +80,10 @@ type Manager struct {
 	nsInformer cache.SharedIndexInformer
 	// Parameter to specify whether or not to watch/manage Ingress resources
 	manage_ingress bool
+	// Event recorder
+	broadcaster   record.EventBroadcaster
+	eventRecorder record.EventRecorder
+	eventSource   v1.EventSource
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -86,7 +94,8 @@ type Params struct {
 	UseNodeInternal bool
 	IsNodePort      bool
 	ManageIngress   bool
-	InitialState    bool // included in params for unit testing only
+	InitialState    bool                 // Unit testing only
+	EventRecorder   record.EventRecorder // Unit testing only
 }
 
 // Create and return a new app manager that meets the Manager interface
@@ -105,6 +114,7 @@ func NewManager(params *Params) *Manager {
 		isNodePort:        params.IsNodePort,
 		manage_ingress:    params.ManageIngress,
 		initialState:      params.InitialState,
+		eventRecorder:     params.EventRecorder,
 		vsQueue:           vsQueue,
 		nsQueue:           nsQueue,
 		appInformers:      make(map[string]*appInformer),
@@ -116,6 +126,11 @@ func NewManager(params *Params) *Manager {
 	if nil != manager.kubeClient && nil == manager.restClientv1beta1 {
 		// This is the normal production case, but need the checks for unit tests.
 		manager.restClientv1beta1 = manager.kubeClient.Extensions().RESTClient()
+	}
+	manager.eventSource = v1.EventSource{Component: "k8s-bigip-ctlr"}
+	manager.broadcaster = record.NewBroadcaster()
+	if nil == manager.eventRecorder {
+		manager.eventRecorder = manager.broadcaster.NewRecorder(scheme.Scheme, manager.eventSource)
 	}
 
 	return &manager
@@ -719,6 +734,12 @@ func (appMgr *Manager) syncVirtualServer(vsKey vsQueueKey) error {
 		} else {
 			vsFound += found
 			vsUpdated += updated
+			if updated > 0 {
+				msg := fmt.Sprintf(
+					"Configured a virtual server '%v' for the Ingress.",
+					vsCfg.VirtualServer.Frontend.VirtualServerName)
+				appMgr.recordIngressEvent(ing, "VirtualServerConfigured", msg, "")
+			}
 		}
 
 		// Set the Ingress Status IP address
@@ -818,20 +839,41 @@ func (appMgr *Manager) handleVSForResource(
 		if appMgr.deactivateVirtualServer(svcKey, vsName, vsCfg) {
 			vsUpdated += 1
 		}
+
+		// If this is an Ingress resource, add an event that the service wasn't found
+		if strings.HasSuffix(vsCfg.VirtualServer.Frontend.VirtualServerName, "ingress") {
+			msg := fmt.Sprintf("Service '%v' has not been found.",
+				vsCfg.VirtualServer.Backend.ServiceName)
+			appMgr.recordIngressEvent(nil, "ServiceNotFound", msg,
+				vsCfg.VirtualServer.Frontend.VirtualServerName)
+		}
 		return false, vsFound, vsUpdated
 	}
 
 	// Update pool members.
 	vsFound += 1
+	correctBackend := true
+	var reason string
+	var msg string
 	if appMgr.IsNodePort() {
-		appMgr.updatePoolMembersForNodePort(svc, svcKey, vsCfg)
+		correctBackend, reason, msg =
+			appMgr.updatePoolMembersForNodePort(svc, svcKey, vsCfg)
 	} else {
-		appMgr.updatePoolMembersForCluster(svc, svcKey, vsCfg, appInf)
+		correctBackend, reason, msg =
+			appMgr.updatePoolMembersForCluster(svc, svcKey, vsCfg, appInf)
 	}
 
 	// This will only update the config if the vs actually changed.
 	if appMgr.saveVirtualServer(svcKey, vsName, vsCfg) {
 		vsUpdated += 1
+
+		// If this is an Ingress resource, add an event if there was a backend error
+		if !correctBackend {
+			if strings.HasSuffix(vsCfg.VirtualServer.Frontend.VirtualServerName, "ingress") {
+				appMgr.recordIngressEvent(nil, reason, msg,
+					vsCfg.VirtualServer.Frontend.VirtualServerName)
+			}
+		}
 	}
 
 	return true, vsFound, vsUpdated
@@ -841,7 +883,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 	svc *v1.Service,
 	vsKey serviceKey,
 	vsCfg *VirtualServerConfig,
-) {
+) (bool, string, string) {
 	if svc.Spec.Type == v1.ServiceTypeNodePort {
 		for _, portSpec := range svc.Spec.Ports {
 			if portSpec.Port == vsKey.ServicePort {
@@ -853,8 +895,12 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 					appMgr.getEndpointsForNodePort(portSpec.NodePort)
 			}
 		}
+		return true, "", ""
 	} else {
-		log.Debugf("Requested service backend %+v not of NodePort type", vsKey)
+		msg := fmt.Sprintf("Requested service backend '%+v' not of NodePort type",
+			vsKey.ServiceName)
+		log.Debug(msg)
+		return false, "IncorrectBackendServiceType", msg
 	}
 }
 
@@ -863,12 +909,13 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 	vsKey serviceKey,
 	vsCfg *VirtualServerConfig,
 	appInf *appInformer,
-) {
+) (bool, string, string) {
 	svcKey := vsKey.Namespace + "/" + vsKey.ServiceName
 	item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
 	if !found {
-		log.Debugf("Endpoints for service '%v' not found!", svcKey)
-		return
+		msg := fmt.Sprintf("Endpoints for service '%v' not found!", svcKey)
+		log.Debug(msg)
+		return false, "EndpointsNotFound", msg
 	}
 	eps, _ := item.(*v1.Endpoints)
 	for _, portSpec := range svc.Spec.Ports {
@@ -879,6 +926,7 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 			vsCfg.VirtualServer.Backend.PoolMemberAddrs = ipPorts
 		}
 	}
+	return true, "", ""
 }
 
 func (appMgr *Manager) deactivateVirtualServer(
@@ -998,20 +1046,52 @@ func (appMgr *Manager) setIngressStatus(
 	vsCfg *VirtualServerConfig,
 ) {
 	// Set the ingress status to include the virtual IP
-	var updateErr error
 	lbIngress := v1.LoadBalancerIngress{IP: vsCfg.VirtualServer.Frontend.VirtualAddress.BindAddr}
 	if len(ing.Status.LoadBalancer.Ingress) == 0 {
 		ing.Status.LoadBalancer.Ingress = append(ing.Status.LoadBalancer.Ingress, lbIngress)
-		_, updateErr = appMgr.kubeClient.ExtensionsV1beta1().
-			Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(ing)
 	} else if ing.Status.LoadBalancer.Ingress[0].IP != vsCfg.VirtualServer.Frontend.VirtualAddress.BindAddr {
 		ing.Status.LoadBalancer.Ingress[0] = lbIngress
-		_, updateErr = appMgr.kubeClient.ExtensionsV1beta1().
-			Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(ing)
 	}
+	_, updateErr := appMgr.kubeClient.ExtensionsV1beta1().
+		Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(ing)
 	if nil != updateErr {
-		log.Warningf("Error when setting Ingress status IP: %v", updateErr)
+		warning := fmt.Sprintf(
+			"Error when setting Ingress status IP for virtual server %v: %v",
+			vsCfg.VirtualServer.Frontend.VirtualServerName, updateErr)
+		log.Warning(warning)
+		appMgr.recordIngressEvent(ing, "StatusIPError", warning, "")
 	}
+}
+
+// This function expects either an Ingress resource or the name of a VS for an Ingress
+func (appMgr *Manager) recordIngressEvent(ing *v1beta1.Ingress,
+	reason,
+	message,
+	vsName string) {
+	var namespace string
+	var name string
+	if ing != nil {
+		namespace = ing.ObjectMeta.Namespace
+	} else {
+		namespace = strings.Split(vsName, "_")[0]
+		name = vsName[len(namespace)+1 : len(vsName)-len("-ingress")]
+	}
+	appMgr.broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{
+		Interface: appMgr.kubeClient.Core().Events(namespace)})
+
+	// If we aren't given an Ingress resource, we use the name to find it
+	var err error
+	if ing == nil {
+		ing, err = appMgr.kubeClient.Extensions().Ingresses(namespace).
+			Get(name, metav1.GetOptions{})
+		if nil != err {
+			log.Warningf("Could not find Ingress resource '%v'.", name)
+			return
+		}
+	}
+
+	// Create the event
+	appMgr.eventRecorder.Event(ing, v1.EventTypeNormal, reason, message)
 }
 
 func (appMgr *Manager) checkValidConfigMap(

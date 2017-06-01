@@ -33,7 +33,10 @@
             "port": 5051
           },
           "sslProfile": {
-            "f5ProfileName": "Common/clientssl"
+            "f5ProfileNames": [
+              "Common/clientssl",
+              "Common/clientssl-secure"
+            ]
           }
         }
       }

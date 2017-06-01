@@ -278,6 +278,16 @@ def create_network_config_kubernetes(config):
     return f5_network
 
 
+def append_ssl_profile(profiles, profName):
+    profile = (profName.split('/'))
+    if len(profile) != 2:
+        log.error("Could not parse partition and name "
+                  "from SSL profile: %s", profName)
+    else:
+        profiles.append({'partition': profile[0],
+                         'name': profile[1]})
+
+
 def create_ltm_config_kubernetes(bigip, config):
     """Create a BIG-IP LTM configuration from the Kubernetes configuration.
 
@@ -333,15 +343,14 @@ def create_ltm_config_kubernetes(bigip, config):
             # Parse the SSL profile into partition and name
             profiles = []
             if 'sslProfile' in frontend:
-                profile = (
-                    frontend['sslProfile']['f5ProfileName'].split('/'))
-                if len(profile) != 2:
-                    log.error("Could not parse partition and name from "
-                              "SSL profile: %s",
-                              frontend['sslProfile']['f5ProfileName'])
-                else:
-                    profiles.append({'partition': profile[0],
-                                     'name': profile[1]})
+                # The sslProfile item can be empty or have either
+                # 'f5ProfileName' or 'f5ProfileNames', not both.
+                if 'f5ProfileName' in frontend['sslProfile']:
+                    append_ssl_profile(
+                        profiles, frontend['sslProfile']['f5ProfileName'])
+                elif 'f5ProfileNames' in frontend['sslProfile']:
+                    for profName in frontend['sslProfile']['f5ProfileNames']:
+                        append_ssl_profile(profiles, profName)
 
             # Add appropriate profiles
             if str(frontend['mode']).lower() == 'http':

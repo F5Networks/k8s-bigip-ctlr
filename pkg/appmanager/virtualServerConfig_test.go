@@ -324,27 +324,35 @@ func TestSslProfileName(t *testing.T) {
 	var vs VirtualServerConfig
 	// verify initial state
 	assert.Nil(vs.VirtualServer.Frontend.SslProfile)
-	empty := ""
-	assert.Equal(empty, vs.GetFrontendSslProfileName())
+	empty := []string{}
+	assert.Equal(empty, vs.GetFrontendSslProfileNames())
 
 	// set a name and make sure it is saved
 	profileName := "profileName"
-	vs.SetFrontendSslProfileName(profileName)
+	vs.AddFrontendSslProfileName(profileName)
 	assert.NotNil(vs.VirtualServer.Frontend.SslProfile)
 	assert.Equal(profileName,
 		vs.VirtualServer.Frontend.SslProfile.F5ProfileName)
-	assert.Equal(profileName, vs.GetFrontendSslProfileName())
+	assert.Equal([]string{profileName}, vs.GetFrontendSslProfileNames())
 
-	// change the name and make sure it is saved
+	// add a second profile
 	newProfileName := "newProfileName"
-	vs.SetFrontendSslProfileName(newProfileName)
+	vs.AddFrontendSslProfileName(newProfileName)
 	assert.NotNil(vs.VirtualServer.Frontend.SslProfile)
+	assert.Equal("", vs.VirtualServer.Frontend.SslProfile.F5ProfileName)
+	assert.Equal([]string{newProfileName, profileName},
+		vs.VirtualServer.Frontend.SslProfile.F5ProfileNames)
+	assert.Equal([]string{newProfileName, profileName},
+		vs.GetFrontendSslProfileNames())
+
+	// Remove both profiles and make sure the pointer goes back to nil
+	r := vs.RemoveFrontendSslProfileName(profileName)
+	assert.True(r)
 	assert.Equal(newProfileName,
 		vs.VirtualServer.Frontend.SslProfile.F5ProfileName)
-	assert.Equal(newProfileName, vs.GetFrontendSslProfileName())
-
-	// set the name back to empty and make sure the pointer goes back to nil
-	vs.SetFrontendSslProfileName(empty)
+	assert.Equal([]string{newProfileName}, vs.GetFrontendSslProfileNames())
+	r = vs.RemoveFrontendSslProfileName(newProfileName)
+	assert.True(r)
 	assert.Nil(vs.VirtualServer.Frontend.SslProfile)
-	assert.Equal(empty, vs.GetFrontendSslProfileName())
+	assert.Equal(empty, vs.GetFrontendSslProfileNames())
 }

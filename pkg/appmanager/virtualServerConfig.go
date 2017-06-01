@@ -19,6 +19,7 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -64,7 +65,8 @@ type virtualServerBackend struct {
 
 // frontend ssl profile
 type sslProfile struct {
-	F5ProfileName string `json:"f5ProfileName,omitempty"`
+	F5ProfileName  string   `json:"f5ProfileName,omitempty"`
+	F5ProfileNames []string `json:"f5ProfileNames,omitempty"`
 }
 
 // frontend pool member column definition
@@ -120,32 +122,90 @@ type VirtualServerConfig struct {
 	} `json:"virtualServer"`
 }
 
-// FIXME(garyr): Per issue #178 our VirtualServerConfig object only
-// supports one ssl-profile on a virtual server, though multiples are
-// supported on the Big-IP. These functions need to change once multiples
-// are supported in VirtualServerConfig.
 // Wrappers around the ssl profile name to simplify its use due to the
 // pointer and nested depth.
-func (vs *VirtualServerConfig) SetFrontendSslProfileName(name string) {
+func (vs *VirtualServerConfig) AddFrontendSslProfileName(name string) {
 	if 0 == len(name) {
-		// set the pointer to nil so it won't be marshaled
-		vs.VirtualServer.Frontend.SslProfile = nil
 		return
 	}
 	if nil == vs.VirtualServer.Frontend.SslProfile {
 		// the pointer is nil, need to create the nested object
-		vs.VirtualServer.Frontend.SslProfile = &sslProfile{
-			F5ProfileName: name,
+		vs.VirtualServer.Frontend.SslProfile = &sslProfile{}
+	}
+	// Use a variable with a shorter name to make this code more readable.
+	sslProf := vs.VirtualServer.Frontend.SslProfile
+	nbrProfs := len(sslProf.F5ProfileNames)
+	if nbrProfs == 0 {
+		if sslProf.F5ProfileName == name {
+			// Adding same profile is a no-op.
+			return
 		}
+		if sslProf.F5ProfileName == "" {
+			// We only have one profile currently.
+			sslProf.F5ProfileName = name
+			return
+		}
+		// # profiles will be > 1, switch to array.
+		insertProfileName(sslProf, sslProf.F5ProfileName, 0)
+		sslProf.F5ProfileName = ""
+	}
+
+	// The ssl profile names are maintained as a sorted array.
+	i := sort.SearchStrings(sslProf.F5ProfileNames, name)
+	if i < len(sslProf.F5ProfileNames) && sslProf.F5ProfileNames[i] == name {
+		// found, don't add a duplicate.
 	} else {
-		vs.VirtualServer.Frontend.SslProfile.F5ProfileName = name
+		// Insert into the correct position.
+		insertProfileName(sslProf, name, i)
 	}
 }
-func (vs *VirtualServerConfig) GetFrontendSslProfileName() string {
-	if nil == vs.VirtualServer.Frontend.SslProfile {
-		return ""
+
+func insertProfileName(sslProf *sslProfile, name string, i int) {
+	sslProf.F5ProfileNames = append(sslProf.F5ProfileNames, "")
+	copy(sslProf.F5ProfileNames[i+1:], sslProf.F5ProfileNames[i:])
+	sslProf.F5ProfileNames[i] = name
+}
+
+func (vs *VirtualServerConfig) RemoveFrontendSslProfileName(name string) bool {
+	if 0 == len(name) || nil == vs.VirtualServer.Frontend.SslProfile {
+		return false
 	}
-	return vs.VirtualServer.Frontend.SslProfile.F5ProfileName
+	// Use a variable with a shorter name to make this code more readable.
+	sslProf := vs.VirtualServer.Frontend.SslProfile
+	nbrProfs := len(sslProf.F5ProfileNames)
+	if nbrProfs == 0 {
+		if sslProf.F5ProfileName == name {
+			vs.VirtualServer.Frontend.SslProfile = nil
+			return true
+		}
+		return false
+	}
+	// The ssl profile names are maintained as a sorted array.
+	i := sort.SearchStrings(sslProf.F5ProfileNames, name)
+	if i < nbrProfs && sslProf.F5ProfileNames[i] == name {
+		// found, remove it and adjust the array.
+		nbrProfs -= 1
+		copy(sslProf.F5ProfileNames[i:], sslProf.F5ProfileNames[i+1:])
+		sslProf.F5ProfileNames[nbrProfs] = ""
+		sslProf.F5ProfileNames = sslProf.F5ProfileNames[:nbrProfs]
+		if nbrProfs == 1 {
+			// Stop using array.
+			sslProf.F5ProfileName = sslProf.F5ProfileNames[0]
+			sslProf.F5ProfileNames = []string{}
+		}
+		return true
+	}
+	return false
+}
+
+func (vs *VirtualServerConfig) GetFrontendSslProfileNames() []string {
+	if nil == vs.VirtualServer.Frontend.SslProfile {
+		return []string{}
+	}
+	if "" != vs.VirtualServer.Frontend.SslProfile.F5ProfileName {
+		return []string{vs.VirtualServer.Frontend.SslProfile.F5ProfileName}
+	}
+	return vs.VirtualServer.Frontend.SslProfile.F5ProfileNames
 }
 
 type VirtualServerConfigs []*VirtualServerConfig

@@ -21,7 +21,7 @@ import unittest
 from mock import Mock, patch
 from f5_cccl.common import ipv4_to_mac
 from f5.bigip import BigIP
-from f5_cccl.testcommon import BigIPTest
+from f5_cccl.testcommon import BigIPTest, MockIapp
 ctlr = __import__('bigipconfigdriver')
 
 
@@ -55,7 +55,11 @@ class KubernetesTest(BigIPTest):
         partition = 'k8s'
         with patch.object(BigIP, '_get_tmos_version'):
             bigip = ctlr.K8sCloudBigIP('1.2.3.4', '443', 'admin',
-                                       'default', [partition])
+                                       'default', [partition], manage_types=[
+                                           '/tm/ltm/virtual',
+                                           '/tm/ltm/pool',
+                                           '/tm/ltm/monitor',
+                                           '/tm/sys/application/service'])
         super(KubernetesTest, self).setUp(partition, bigip)
 
         self.bigip.fdb_records_update_orig = self.bigip.fdb_records_update
@@ -303,12 +307,20 @@ class KubernetesTest(BigIPTest):
         self.bigip.sys.application.services.get_collection = \
             Mock(side_effect=self.mock_iapp_update_services_get_collection)
         self.bigip.sys.application.services.service.load = \
-            Mock(side_effect=self.mock_iapp_service_load)
+            Mock(side_effect=self.mock_iapp_update_service_load)
         self.bigip.iapp_update = self.bigip.iapp_update_orig
         self.bigip.cleanup_nodes = Mock()
 
         # Do the BIG-IP configuration
         cfg = ctlr.create_config_kubernetes(self.bigip, self.cloud_data)
+
+        iapp_def = self.bigip.iapp_build_definition(
+            cfg['ltm']['services']['default_configmap'])
+        self.test_iapp = MockIapp(name='default_configmap',
+                                  partition=self.test_partition,
+                                  variables=iapp_def['variables'],
+                                  tables=iapp_def['tables'])
+
         self.bigip.regenerate_config_f5(cfg)
 
         # Verify BIG-IP configuration

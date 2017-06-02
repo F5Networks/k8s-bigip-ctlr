@@ -26,11 +26,20 @@ import (
 )
 
 type simpleTestConfig struct {
+	key  resourceKey
 	name string
 	addr virtualAddress
 }
 
-type testMap map[serviceKey][]simpleTestConfig
+type resourceMap map[serviceKey][]simpleTestConfig
+
+func newResourceKey(rsName, rsType, namespace string) resourceKey {
+	return resourceKey{
+		ResourceName: rsName,
+		ResourceType: rsType,
+		Namespace:    namespace,
+	}
+}
 
 func newServiceKey(svcPort int32, svcName, namespace string) serviceKey {
 	return serviceKey{
@@ -40,232 +49,248 @@ func newServiceKey(svcPort int32, svcName, namespace string) serviceKey {
 	}
 }
 
-func newVirtualServerConfig(
-	key serviceKey, vsName string,
-	bindAddr string, bindPort int32) *VirtualServerConfig {
-	var cfg VirtualServerConfig
-	cfg.VirtualServer.Backend.ServiceName = key.ServiceName
-	cfg.VirtualServer.Backend.ServicePort = key.ServicePort
-	cfg.VirtualServer.Frontend.VirtualServerName = vsName
-	cfg.VirtualServer.Frontend.VirtualAddress = new(virtualAddress)
-	cfg.VirtualServer.Frontend.VirtualAddress.BindAddr = bindAddr
-	cfg.VirtualServer.Frontend.VirtualAddress.Port = bindPort
+func newResourceConfig(
+	key resourceKey, vsName string,
+	bindAddr string, bindPort, svcPort int32) *ResourceConfig {
+	var cfg ResourceConfig
+	cfg.Pools = append(cfg.Pools, Pool{})
+	cfg.Pools[0].ServiceName = "svc"
+	cfg.Pools[0].ServicePort = svcPort
+	cfg.Virtual.VirtualServerName = vsName
+	cfg.Virtual.VirtualAddress = new(virtualAddress)
+	cfg.Virtual.VirtualAddress.BindAddr = bindAddr
+	cfg.Virtual.VirtualAddress.Port = bindPort
 	return &cfg
 }
 
-func newTestMap(nbrBackends, nbrConfigsPer int) *testMap {
+func newTestMap(nbrBackends, nbrConfigsPer int) *resourceMap {
 	// Add nbrBackends backends each with nbrConfigsPer configs
+	rm := make(resourceMap)
 	namespace := "velcro"
 	svcName := "svc"
-	tm := make(testMap)
 	svcPort := 80
+	rsName := "testmap"
+	rsType := "configmap"
 	bindPort := 8000
 	for i := 0; i < nbrBackends; i++ {
-		key := newServiceKey(int32(svcPort+i), svcName, namespace)
+		svcKey := newServiceKey(int32(svcPort+i), svcName, namespace)
 		for j := 0; j < nbrConfigsPer; j++ {
-			cfgName := fmt.Sprintf("vs-%d-%d", i, j)
+			name := fmt.Sprintf("%s_%d_%d", rsName, i, j)
+			rsKey := newResourceKey(name, rsType, namespace)
+			cfgName := fmt.Sprintf("rs-%d-%d", i, j)
 			addr := virtualAddress{"10.0.0.1", int32(bindPort + j)}
-			tm[key] = append(tm[key], simpleTestConfig{cfgName, addr})
+			rm[svcKey] = append(rm[svcKey], simpleTestConfig{rsKey, cfgName, addr})
 		}
 	}
-	return &tm
+	return &rm
 }
 
-func assignTestMap(vss *VirtualServers, tm *testMap) {
-	for key, val := range *tm {
+func assignTestMap(rs *Resources, rm *resourceMap) {
+	for key, val := range *rm {
 		for _, tf := range val {
-			vss.Assign(key, tf.name, newVirtualServerConfig(
-				key, tf.name, tf.addr.BindAddr, tf.addr.Port))
+			rs.Assign(tf.key, newResourceConfig(
+				tf.key, tf.name, tf.addr.BindAddr, tf.addr.Port, key.ServicePort))
 		}
 	}
 }
 
-func TestVirtualServerSort(t *testing.T) {
-	virtualServers := VirtualServerConfigs{}
+func TestResourceSort(t *testing.T) {
+	resources := ResourceConfigs{}
 
-	expectedList := make(VirtualServerConfigs, 10)
+	expectedList := make(ResourceConfigs, 10)
 
-	vs := VirtualServerConfig{}
-	vs.VirtualServer.Backend.ServiceName = "bar"
-	vs.VirtualServer.Backend.ServicePort = 80
-	virtualServers = append(virtualServers, &vs)
-	expectedList[1] = &vs
+	rs := ResourceConfig{}
+	rs.Pools = append(rs.Pools, Pool{})
+	rs.Pools[0].ServiceName = "bar"
+	rs.Pools[0].ServicePort = 80
+	resources = append(resources, &rs)
+	expectedList[1] = &rs
 
-	vs = VirtualServerConfig{}
-	vs.VirtualServer.Backend.ServiceName = "foo"
-	vs.VirtualServer.Backend.ServicePort = 2
-	virtualServers = append(virtualServers, &vs)
-	expectedList[5] = &vs
+	rs = ResourceConfig{}
+	rs.Pools = append(rs.Pools, Pool{})
+	rs.Pools[0].ServiceName = "foo"
+	rs.Pools[0].ServicePort = 2
+	resources = append(resources, &rs)
+	expectedList[5] = &rs
 
-	vs = VirtualServerConfig{}
-	vs.VirtualServer.Backend.ServiceName = "foo"
-	vs.VirtualServer.Backend.ServicePort = 8080
-	virtualServers = append(virtualServers, &vs)
-	expectedList[7] = &vs
+	rs = ResourceConfig{}
+	rs.Pools = append(rs.Pools, Pool{})
+	rs.Pools[0].ServiceName = "foo"
+	rs.Pools[0].ServicePort = 8080
+	resources = append(resources, &rs)
+	expectedList[7] = &rs
 
-	vs = VirtualServerConfig{}
-	vs.VirtualServer.Backend.ServiceName = "baz"
-	vs.VirtualServer.Backend.ServicePort = 1
-	virtualServers = append(virtualServers, &vs)
-	expectedList[2] = &vs
+	rs = ResourceConfig{}
+	rs.Pools = append(rs.Pools, Pool{})
+	rs.Pools[0].ServiceName = "baz"
+	rs.Pools[0].ServicePort = 1
+	resources = append(resources, &rs)
+	expectedList[2] = &rs
 
-	vs = VirtualServerConfig{}
-	vs.VirtualServer.Backend.ServiceName = "foo"
-	vs.VirtualServer.Backend.ServicePort = 80
-	virtualServers = append(virtualServers, &vs)
-	expectedList[6] = &vs
+	rs = ResourceConfig{}
+	rs.Pools = append(rs.Pools, Pool{})
+	rs.Pools[0].ServiceName = "foo"
+	rs.Pools[0].ServicePort = 80
+	resources = append(resources, &rs)
+	expectedList[6] = &rs
 
-	vs = VirtualServerConfig{}
-	vs.VirtualServer.Backend.ServiceName = "foo"
-	vs.VirtualServer.Backend.ServicePort = 9090
-	virtualServers = append(virtualServers, &vs)
-	expectedList[9] = &vs
+	rs = ResourceConfig{}
+	rs.Pools = append(rs.Pools, Pool{})
+	rs.Pools[0].ServiceName = "foo"
+	rs.Pools[0].ServicePort = 9090
+	resources = append(resources, &rs)
+	expectedList[9] = &rs
 
-	vs = VirtualServerConfig{}
-	vs.VirtualServer.Backend.ServiceName = "baz"
-	vs.VirtualServer.Backend.ServicePort = 1000
-	virtualServers = append(virtualServers, &vs)
-	expectedList[3] = &vs
+	rs = ResourceConfig{}
+	rs.Pools = append(rs.Pools, Pool{})
+	rs.Pools[0].ServiceName = "baz"
+	rs.Pools[0].ServicePort = 1000
+	resources = append(resources, &rs)
+	expectedList[3] = &rs
 
-	vs = VirtualServerConfig{}
-	vs.VirtualServer.Backend.ServiceName = "foo"
-	vs.VirtualServer.Backend.ServicePort = 8080
-	virtualServers = append(virtualServers, &vs)
-	expectedList[8] = &vs
+	rs = ResourceConfig{}
+	rs.Pools = append(rs.Pools, Pool{})
+	rs.Pools[0].ServiceName = "foo"
+	rs.Pools[0].ServicePort = 8080
+	resources = append(resources, &rs)
+	expectedList[8] = &rs
 
-	vs = VirtualServerConfig{}
-	vs.VirtualServer.Backend.ServiceName = "foo"
-	vs.VirtualServer.Backend.ServicePort = 1
-	virtualServers = append(virtualServers, &vs)
-	expectedList[4] = &vs
+	rs = ResourceConfig{}
+	rs.Pools = append(rs.Pools, Pool{})
+	rs.Pools[0].ServiceName = "foo"
+	rs.Pools[0].ServicePort = 1
+	resources = append(resources, &rs)
+	expectedList[4] = &rs
 
-	vs = VirtualServerConfig{}
-	vs.VirtualServer.Backend.ServiceName = "bar"
-	vs.VirtualServer.Backend.ServicePort = 1
-	virtualServers = append(virtualServers, &vs)
-	expectedList[0] = &vs
+	rs = ResourceConfig{}
+	rs.Pools = append(rs.Pools, Pool{})
+	rs.Pools[0].ServiceName = "bar"
+	rs.Pools[0].ServicePort = 1
+	resources = append(resources, &rs)
+	expectedList[0] = &rs
 
-	sort.Sort(virtualServers)
+	sort.Sort(resources)
 
 	for i, _ := range expectedList {
-		require.EqualValues(t, expectedList[i], virtualServers[i],
+		require.EqualValues(t, expectedList[i], resources[i],
 			"Sorted list elements should be equal")
 	}
 }
 
-func TestNewVirtualServers(t *testing.T) {
-	// Test that we can create a new/empty VirtualServers object.
+func TestNewResources(t *testing.T) {
+	// Test that we can create a new/empty resources object.
 	require := require.New(t)
-	vss := NewVirtualServers()
-	require.NotNil(vss)
-	require.NotNil(vss.m)
+	rs := NewResources()
+	require.NotNil(rs)
+	require.NotNil(rs.rm)
 }
 
 func TestAssign(t *testing.T) {
 	// Test Assign() to make sure we can add multiple configs for a backend.
 	require := require.New(t)
-	vss := NewVirtualServers()
-	require.NotNil(vss)
+	rs := NewResources()
+	require.NotNil(rs)
 
 	nbrBackends := 2
 	nbrCfgsPer := 2
-	tm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(tm)
-	assignTestMap(vss, tm)
+	rm := newTestMap(nbrBackends, nbrCfgsPer)
+	require.NotNil(rm)
+	assignTestMap(rs, rm)
 
-	// Make sure vss has the correct number of objects without using other
+	// Make sure rs has the correct number of objects without using other
 	// interface functions.
-	require.Equal(nbrBackends, len(vss.m))
-	for _, vsCfgs := range vss.m {
-		assert.Equal(t, nbrCfgsPer, len(vsCfgs))
-	}
+	require.Equal(nbrBackends*nbrCfgsPer, len(rs.rm))
 }
 
 func TestCount(t *testing.T) {
 	// Test Count() to make sure we count all items
 	require := require.New(t)
-	vss := NewVirtualServers()
-	require.NotNil(vss)
+	rs := NewResources()
+	require.NotNil(rs)
 
 	nbrBackends := 2
 	nbrCfgsPer := 2
-	tm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(tm)
-	assignTestMap(vss, tm)
+	rm := newTestMap(nbrBackends, nbrCfgsPer)
+	require.NotNil(rm)
+	assignTestMap(rs, rm)
 
-	require.Equal(nbrBackends*nbrCfgsPer, vss.Count())
+	require.Equal(nbrBackends*nbrCfgsPer, rs.Count())
 }
 
 func TestCountOf(t *testing.T) {
 	// Test CountOf() to make sure we count configs per backend correctly.
 	require := require.New(t)
-	vss := NewVirtualServers()
-	require.NotNil(vss)
+	rs := NewResources()
+	require.NotNil(rs)
 
 	nbrBackends := 2
 	nbrCfgsPer := 2
-	tm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(tm)
-	assignTestMap(vss, tm)
-	require.Equal(nbrBackends, len(vss.m))
-
-	for key, _ := range *tm {
-		assert.Equal(t, nbrCfgsPer, vss.CountOf(key))
+	rm := newTestMap(nbrBackends, nbrCfgsPer)
+	require.NotNil(rm)
+	assignTestMap(rs, rm)
+	require.Equal(nbrBackends*nbrCfgsPer, len(rs.rm))
+	for key, _ := range *rm {
+		assert.Equal(t, nbrCfgsPer, rs.CountOf(key))
 	}
 }
 
 func TestDelete(t *testing.T) {
 	// Test Delete() to make sure we can delete specific/all configs.
 	require := require.New(t)
-	vss := NewVirtualServers()
-	require.NotNil(vss)
+	rs := NewResources()
+	require.NotNil(rs)
 
 	nbrBackends := 2
 	nbrCfgsPer := 2
-	tm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(tm)
-	assignTestMap(vss, tm)
+	rm := newTestMap(nbrBackends, nbrCfgsPer)
+	require.NotNil(rm)
+	assignTestMap(rs, rm)
 
 	// delete each config one at a time
-	for key, val := range *tm {
+	for _, val := range *rm {
 		for _, tf := range val {
-			countBefore := vss.CountOf(key)
+			countBefore := rs.Count()
 			assert.True(t, countBefore > 0)
-			ok := vss.Delete(key, tf.name)
+			ok := rs.Delete(tf.key)
 			require.True(ok)
-			countAfter := vss.CountOf(key)
+			countAfter := rs.Count()
 			require.Equal(countBefore-1, countAfter)
 			// Test double-delete fails correctly
-			ok = vss.Delete(key, tf.name)
+			ok = rs.Delete(tf.key)
 			require.False(ok)
-			assert.Equal(t, countAfter, vss.CountOf(key))
+			assert.Equal(t, countAfter, rs.Count())
 		}
 	}
 
 	// should be completely empty now
-	require.Equal(0, len(vss.m))
+	require.Equal(0, len(rs.rm))
 }
 
 func TestForEach(t *testing.T) {
 	// Test ForEach() to make sure we can iterate over all configs.
 	require := require.New(t)
-	vss := NewVirtualServers()
-	require.NotNil(vss)
+	rs := NewResources()
+	require.NotNil(rs)
 
 	nbrBackends := 2
 	nbrCfgsPer := 2
-	tm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(tm)
-	assignTestMap(vss, tm)
+	rm := newTestMap(nbrBackends, nbrCfgsPer)
+	require.NotNil(rm)
+	assignTestMap(rs, rm)
 
 	totalConfigs := 0
-	vss.ForEach(func(key serviceKey, cfg *VirtualServerConfig) {
+	rs.ForEach(func(key resourceKey, cfg *ResourceConfig) {
+		svcKey := serviceKey{
+			ServiceName: cfg.Pools[0].ServiceName,
+			ServicePort: cfg.Pools[0].ServicePort,
+			Namespace:   key.Namespace,
+		}
 		totalConfigs += 1
-		testObj := (*tm)[key]
+		testObj := (*rm)[svcKey]
 		require.NotNil(testObj)
 		found := false
 		for _, val := range testObj {
-			if val.name == cfg.VirtualServer.Frontend.VirtualServerName {
+			if val.name == cfg.Virtual.VirtualServerName {
 				found = true
 			}
 		}
@@ -277,24 +302,24 @@ func TestForEach(t *testing.T) {
 func TestGet(t *testing.T) {
 	// Test Get() to make sure we can access specific configs.
 	require := require.New(t)
-	vss := NewVirtualServers()
-	require.NotNil(vss)
+	rs := NewResources()
+	require.NotNil(rs)
 
 	nbrBackends := 2
 	nbrCfgsPer := 2
-	tm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(tm)
-	assignTestMap(vss, tm)
+	rm := newTestMap(nbrBackends, nbrCfgsPer)
+	require.NotNil(rm)
+	assignTestMap(rs, rm)
 
-	for key, val := range *tm {
+	for _, val := range *rm {
 		for _, tf := range val {
-			vs, ok := vss.Get(key, tf.name)
+			r, ok := rs.Get(tf.key)
 			require.True(ok)
-			require.NotNil(vs)
+			require.NotNil(rs)
 			assert.Equal(t, tf.addr.BindAddr,
-				vs.VirtualServer.Frontend.VirtualAddress.BindAddr)
+				r.Virtual.VirtualAddress.BindAddr)
 			assert.Equal(t, tf.addr.Port,
-				vs.VirtualServer.Frontend.VirtualAddress.Port)
+				r.Virtual.VirtualAddress.Port)
 		}
 	}
 }
@@ -302,57 +327,56 @@ func TestGet(t *testing.T) {
 func TestGetAll(t *testing.T) {
 	// Test GetAll() to make sure we can get all configs.
 	require := require.New(t)
-	vss := NewVirtualServers()
-	require.NotNil(vss)
+	rs := NewResources()
+	require.NotNil(rs)
 
 	nbrBackends := 2
 	nbrCfgsPer := 2
-	tm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(tm)
-	assignTestMap(vss, tm)
+	rm := newTestMap(nbrBackends, nbrCfgsPer)
+	require.NotNil(rm)
+	assignTestMap(rs, rm)
 
-	for key, _ := range *tm {
-		vsCfgMap, ok := vss.GetAll(key)
-		require.True(ok)
-		require.NotNil(vsCfgMap)
-		assert.Equal(t, nbrCfgsPer, len(vsCfgMap))
+	for key, _ := range *rm {
+		cfgMap := rs.GetAll(key)
+		require.NotNil(cfgMap)
+		assert.Equal(t, nbrCfgsPer, len(cfgMap))
 	}
 }
 
 func TestSslProfileName(t *testing.T) {
 	assert := assert.New(t)
-	var vs VirtualServerConfig
+	var rs ResourceConfig
 	// verify initial state
-	assert.Nil(vs.VirtualServer.Frontend.SslProfile)
+	assert.Nil(rs.Virtual.SslProfile)
 	empty := []string{}
-	assert.Equal(empty, vs.GetFrontendSslProfileNames())
+	assert.Equal(empty, rs.Virtual.GetFrontendSslProfileNames())
 
 	// set a name and make sure it is saved
 	profileName := "profileName"
-	vs.AddFrontendSslProfileName(profileName)
-	assert.NotNil(vs.VirtualServer.Frontend.SslProfile)
+	rs.Virtual.AddFrontendSslProfileName(profileName)
+	assert.NotNil(rs.Virtual.SslProfile)
 	assert.Equal(profileName,
-		vs.VirtualServer.Frontend.SslProfile.F5ProfileName)
-	assert.Equal([]string{profileName}, vs.GetFrontendSslProfileNames())
+		rs.Virtual.SslProfile.F5ProfileName)
+	assert.Equal([]string{profileName}, rs.Virtual.GetFrontendSslProfileNames())
 
 	// add a second profile
 	newProfileName := "newProfileName"
-	vs.AddFrontendSslProfileName(newProfileName)
-	assert.NotNil(vs.VirtualServer.Frontend.SslProfile)
-	assert.Equal("", vs.VirtualServer.Frontend.SslProfile.F5ProfileName)
+	rs.Virtual.AddFrontendSslProfileName(newProfileName)
+	assert.NotNil(rs.Virtual.SslProfile)
+	assert.Equal("", rs.Virtual.SslProfile.F5ProfileName)
 	assert.Equal([]string{newProfileName, profileName},
-		vs.VirtualServer.Frontend.SslProfile.F5ProfileNames)
+		rs.Virtual.SslProfile.F5ProfileNames)
 	assert.Equal([]string{newProfileName, profileName},
-		vs.GetFrontendSslProfileNames())
+		rs.Virtual.GetFrontendSslProfileNames())
 
 	// Remove both profiles and make sure the pointer goes back to nil
-	r := vs.RemoveFrontendSslProfileName(profileName)
+	r := rs.Virtual.RemoveFrontendSslProfileName(profileName)
 	assert.True(r)
 	assert.Equal(newProfileName,
-		vs.VirtualServer.Frontend.SslProfile.F5ProfileName)
-	assert.Equal([]string{newProfileName}, vs.GetFrontendSslProfileNames())
-	r = vs.RemoveFrontendSslProfileName(newProfileName)
+		rs.Virtual.SslProfile.F5ProfileName)
+	assert.Equal([]string{newProfileName}, rs.Virtual.GetFrontendSslProfileNames())
+	r = rs.Virtual.RemoveFrontendSslProfileName(newProfileName)
 	assert.True(r)
-	assert.Nil(vs.VirtualServer.Frontend.SslProfile)
-	assert.Equal(empty, vs.GetFrontendSslProfileNames())
+	assert.Nil(rs.Virtual.SslProfile)
+	assert.Equal(empty, rs.Virtual.GetFrontendSslProfileNames())
 }

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -41,26 +42,75 @@ var DEFAULT_BALANCE string = "round-robin"
 var DEFAULT_HTTP_PORT int32 = 80
 var DEFAULT_PARTITION string
 
+type BigIPConfig struct {
+	Virtuals []Virtual `json:"virtualServers,omitempty"`
+	Pools    []Pool    `json:"pools,omitempty"`
+	Monitors []Monitor `json:"monitors,omitempty"`
+	Policies []Policy  `json:"l7policies,omitempty"`
+}
+
+type metaData struct {
+	Active   bool
+	NodePort int32
+}
+
+type ResourceConfig struct {
+	MetaData metaData  `json:"-"`
+	Virtual  Virtual   `json:"virtual,omitempty"`
+	Pools    []Pool    `json:"pools,omitempty"`
+	Monitors []Monitor `json:"monitors,omitempty"`
+	Policies []Policy  `json:"policies,omitempty"`
+}
+
+// virtual server frontend
+type Virtual struct {
+	VirtualServerName string `json:"name"`
+	PoolName          string `json:"pool"`
+	// Mutual parameter, partition
+	Partition string `json:"partition"`
+
+	// VirtualServer parameters
+	Balance        string          `json:"balance,omitempty"`
+	Mode           string          `json:"mode,omitempty"`
+	VirtualAddress *virtualAddress `json:"virtualAddress,omitempty"`
+	SslProfile     *sslProfile     `json:"sslProfile,omitempty"`
+
+	// iApp parameters
+	IApp                string                    `json:"iapp,omitempty"`
+	IAppPoolMemberTable iappPoolMemberTable       `json:"iappPoolMemberTable,omitempty"`
+	IAppOptions         map[string]string         `json:"iappOptions,omitempty"`
+	IAppTables          map[string]iappTableEntry `json:"iappTables,omitempty"`
+	IAppVariables       map[string]string         `json:"iappVariables,omitempty"`
+}
+
+// Pool backend
+type Pool struct {
+	Name            string   `json:"name"`
+	Partition       string   `json:"partition"`
+	ServiceName     string   `json:"serviceName"`
+	ServicePort     int32    `json:"servicePort"`
+	PoolMemberAddrs []string `json:"poolMemberAddrs"`
+	MonitorNames    []string `json:"monitor"`
+}
+
+// backend health monitor
+type Monitor struct {
+	Name      string `json:"name"`
+	Partition string `json:"partition"`
+	Interval  int    `json:"interval,omitempty"`
+	Protocol  string `json:"protocol"`
+	Send      string `json:"send,omitempty"`
+	Timeout   int    `json:"timeout,omitempty"`
+}
+
+// virtual policy
+type Policy struct {
+}
+
 // frontend bindaddr and port
 type virtualAddress struct {
 	BindAddr string `json:"bindAddr,omitempty"`
 	Port     int32  `json:"port,omitempty"`
-}
-
-// backend health monitor
-type healthMonitor struct {
-	Interval int    `json:"interval,omitempty"`
-	Protocol string `json:"protocol"`
-	Send     string `json:"send,omitempty"`
-	Timeout  int    `json:"timeout,omitempty"`
-}
-
-// virtual server backend backend
-type virtualServerBackend struct {
-	ServiceName     string          `json:"serviceName"`
-	ServicePort     int32           `json:"servicePort"`
-	PoolMemberAddrs []string        `json:"poolMemberAddrs"`
-	HealthMonitors  []healthMonitor `json:"healthMonitors,omitempty"`
 }
 
 // frontend ssl profile
@@ -88,52 +138,33 @@ type iappTableEntry struct {
 	Rows    [][]string `json:"rows,omitempty"`
 }
 
-// virtual server frontend
-type virtualServerFrontend struct {
-	VirtualServerName string `json:"virtualServerName"`
-	// Mutual parameter, partition
-	Partition string `json:"partition"`
-
-	// VirtualServer parameters
-	Balance        string          `json:"balance,omitempty"`
-	Mode           string          `json:"mode,omitempty"`
-	VirtualAddress *virtualAddress `json:"virtualAddress,omitempty"`
-	SslProfile     *sslProfile     `json:"sslProfile,omitempty"`
-
-	// iApp parameters
-	IApp                string                    `json:"iapp,omitempty"`
-	IAppPoolMemberTable iappPoolMemberTable       `json:"iappPoolMemberTable,omitempty"`
-	IAppOptions         map[string]string         `json:"iappOptions,omitempty"`
-	IAppTables          map[string]iappTableEntry `json:"iappTables,omitempty"`
-	IAppVariables       map[string]string         `json:"iappVariables,omitempty"`
-}
-
-type metaData struct {
-	Active   bool
-	NodePort int32
-}
-
-// main virtual server configuration
-type VirtualServerConfig struct {
-	MetaData      metaData `json:"-"`
+// Used to unmarshal ConfigMap data
+type ConfigMap struct {
 	VirtualServer struct {
-		Backend  virtualServerBackend  `json:"backend"`
-		Frontend virtualServerFrontend `json:"frontend"`
+		Backend  configMapBackend `json:"backend"`
+		Frontend Virtual          `json:"frontend"`
 	} `json:"virtualServer"`
+}
+
+type configMapBackend struct {
+	ServiceName     string    `json:"serviceName"`
+	ServicePort     int32     `json:"servicePort"`
+	PoolMemberAddrs []string  `json:"poolMemberAddrs"`
+	HealthMonitors  []Monitor `json:"healthMonitors,omitempty"`
 }
 
 // Wrappers around the ssl profile name to simplify its use due to the
 // pointer and nested depth.
-func (vs *VirtualServerConfig) AddFrontendSslProfileName(name string) {
+func (v *Virtual) AddFrontendSslProfileName(name string) {
 	if 0 == len(name) {
 		return
 	}
-	if nil == vs.VirtualServer.Frontend.SslProfile {
+	if nil == v.SslProfile {
 		// the pointer is nil, need to create the nested object
-		vs.VirtualServer.Frontend.SslProfile = &sslProfile{}
+		v.SslProfile = &sslProfile{}
 	}
 	// Use a variable with a shorter name to make this code more readable.
-	sslProf := vs.VirtualServer.Frontend.SslProfile
+	sslProf := v.SslProfile
 	nbrProfs := len(sslProf.F5ProfileNames)
 	if nbrProfs == 0 {
 		if sslProf.F5ProfileName == name {
@@ -166,16 +197,16 @@ func insertProfileName(sslProf *sslProfile, name string, i int) {
 	sslProf.F5ProfileNames[i] = name
 }
 
-func (vs *VirtualServerConfig) RemoveFrontendSslProfileName(name string) bool {
-	if 0 == len(name) || nil == vs.VirtualServer.Frontend.SslProfile {
+func (v *Virtual) RemoveFrontendSslProfileName(name string) bool {
+	if 0 == len(name) || nil == v.SslProfile {
 		return false
 	}
 	// Use a variable with a shorter name to make this code more readable.
-	sslProf := vs.VirtualServer.Frontend.SslProfile
+	sslProf := v.SslProfile
 	nbrProfs := len(sslProf.F5ProfileNames)
 	if nbrProfs == 0 {
 		if sslProf.F5ProfileName == name {
-			vs.VirtualServer.Frontend.SslProfile = nil
+			v.SslProfile = nil
 			return true
 		}
 		return false
@@ -198,32 +229,32 @@ func (vs *VirtualServerConfig) RemoveFrontendSslProfileName(name string) bool {
 	return false
 }
 
-func (vs *VirtualServerConfig) GetFrontendSslProfileNames() []string {
-	if nil == vs.VirtualServer.Frontend.SslProfile {
+func (v *Virtual) GetFrontendSslProfileNames() []string {
+	if nil == v.SslProfile {
 		return []string{}
 	}
-	if "" != vs.VirtualServer.Frontend.SslProfile.F5ProfileName {
-		return []string{vs.VirtualServer.Frontend.SslProfile.F5ProfileName}
+	if "" != v.SslProfile.F5ProfileName {
+		return []string{v.SslProfile.F5ProfileName}
 	}
-	return vs.VirtualServer.Frontend.SslProfile.F5ProfileNames
+	return v.SslProfile.F5ProfileNames
 }
 
-type VirtualServerConfigs []*VirtualServerConfig
+type ResourceConfigs []*ResourceConfig
 
-func (slice VirtualServerConfigs) Len() int {
+func (slice ResourceConfigs) Len() int {
 	return len(slice)
 }
 
-func (slice VirtualServerConfigs) Less(i, j int) bool {
-	return slice[i].VirtualServer.Backend.ServiceName <
-		slice[j].VirtualServer.Backend.ServiceName ||
-		(slice[i].VirtualServer.Backend.ServiceName ==
-			slice[j].VirtualServer.Backend.ServiceName &&
-			slice[i].VirtualServer.Backend.ServicePort <
-				slice[j].VirtualServer.Backend.ServicePort)
+func (slice ResourceConfigs) Less(i, j int) bool {
+	return slice[i].Pools[0].ServiceName <
+		slice[j].Pools[0].ServiceName ||
+		(slice[i].Pools[0].ServiceName ==
+			slice[j].Pools[0].ServiceName &&
+			slice[i].Pools[0].ServicePort <
+				slice[j].Pools[0].ServicePort)
 }
 
-func (slice VirtualServerConfigs) Swap(i, j int) {
+func (slice ResourceConfigs) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
@@ -238,6 +269,12 @@ type serviceKey struct {
 	ServiceName string
 	ServicePort int32
 	Namespace   string
+}
+
+type resourceKey struct {
+	ResourceName string
+	ResourceType string
+	Namespace    string
 }
 
 // format the namespace and name for use in the frontend definition
@@ -271,126 +308,107 @@ func formatIngressSslProfileName(secret string) string {
 	return profName
 }
 
-type VirtualServerConfigMap map[string]*VirtualServerConfig
-
-// Map of Virtual Server configs
-type VirtualServers struct {
+// Map of Resource configs
+type Resources struct {
 	sync.Mutex
-	m map[serviceKey]VirtualServerConfigMap
+	rm map[resourceKey]*ResourceConfig
 }
 
-// callback type for ForEach()
-type VirtualServerEnumFunc func(key serviceKey, cfg *VirtualServerConfig)
-
-type VirtualServerInterface interface {
+type ResourceInterface interface {
 	Init()
-	Assign(key serviceKey, name string, cfg *VirtualServerConfig)
+	Assign(key resourceKey, cfg *ResourceConfig)
 	Count() int
 	CountOf(key serviceKey) int
-	Get(key serviceKey, frontEndName string) (*VirtualServerConfig, bool)
-	GetAll(key serviceKey) (VirtualServerConfigMap, bool)
-	Delete(key serviceKey, frontEndName string) bool
-	ForEach(f VirtualServerEnumFunc)
+	Get(key resourceKey) (*ResourceConfig, bool)
+	Delete(key resourceKey) bool
+	GetAll(key serviceKey) ResourceConfigs
+	ForEach(f ResourceEnumFunc)
 }
 
-// Constructor for VirtualServers.
-func NewVirtualServers() *VirtualServers {
-	var vss VirtualServers
-	vss.Init()
-	return &vss
+// Constructor for Resources
+func NewResources() *Resources {
+	var rs Resources
+	rs.Init()
+	return &rs
 }
 
 // Receiver to initialize the object.
-func (vss *VirtualServers) Init() {
-	vss.m = make(map[serviceKey]VirtualServerConfigMap)
+func (rs *Resources) Init() {
+	rs.rm = make(map[resourceKey]*ResourceConfig)
 }
 
-// Add or update cfg in VirtualServers, identified by key.
-func (vss *VirtualServers) Assign(
-	key serviceKey,
-	name string,
-	cfg *VirtualServerConfig,
-) {
-	vsMap, ok := vss.m[key]
-	if !ok {
-		vsMap = make(map[string]*VirtualServerConfig)
-		vss.m[key] = vsMap
-	}
-	vsMap[name] = cfg
+// callback type for ForEach()
+type ResourceEnumFunc func(key resourceKey, cfg *ResourceConfig)
+
+// Add or update a Resource config, identified by key.
+func (rs *Resources) Assign(key resourceKey, cfg *ResourceConfig) {
+	rs.rm[key] = cfg
 }
 
-// Count of all confiugrations currently stored.
-func (vss *VirtualServers) Count() int {
-	var ct int = 0
-	for _, cfgs := range vss.m {
-		ct += len(cfgs)
-	}
-	return ct
+// Count of all configurations currently stored.
+func (rs *Resources) Count() int {
+	return len(rs.rm)
 }
 
 // Count of all configurations for a specific backend.
-func (vss *VirtualServers) CountOf(key serviceKey) int {
-	if vsMap, ok := vss.m[key]; ok {
-		return len(vsMap)
+func (rs *Resources) CountOf(key serviceKey) int {
+	count := 0
+	for _, cfg := range rs.rm {
+		backend := cfg.Pools[0]
+		if backend.ServiceName == key.ServiceName &&
+			backend.ServicePort == key.ServicePort {
+			count++
+		}
 	}
-	return 0
+	return count
 }
 
-// Remove a specific configuration.
-func (vss *VirtualServers) Delete(key serviceKey, frontEndName string) bool {
-	vsMap, ok := vss.m[key]
+// Remove a specific resource configuration.
+func (rs *Resources) Delete(key resourceKey) bool {
+	_, ok := rs.rm[key]
 	if !ok {
 		return false
 	}
-	if frontEndName == "" {
-		delete(vss.m, key)
-		return true
-	}
-	if _, ok := vsMap[frontEndName]; ok {
-		delete(vsMap, frontEndName)
-		if len(vsMap) == 0 {
-			delete(vss.m, key)
-		}
-		return true
-	}
-	return false
+	delete(rs.rm, key)
+	return true
 }
 
 // Iterate over all configurations, calling the supplied callback with each.
-func (vss *VirtualServers) ForEach(f VirtualServerEnumFunc) {
-	for key, cfgs := range vss.m {
-		for _, cfg := range cfgs {
-			f(key, cfg)
-		}
+func (rs *Resources) ForEach(f ResourceEnumFunc) {
+	for key, cfg := range rs.rm {
+		f(key, cfg)
 	}
 }
 
-// Get a specific configuration.
-func (vss *VirtualServers) Get(
-	key serviceKey,
-	frontEndName string,
-) (*VirtualServerConfig, bool) {
-	vsMap, ok := vss.m[key]
+// Get a specific Resource cfg
+func (rs *Resources) Get(key resourceKey) (*ResourceConfig, bool) {
+	resource, ok := rs.rm[key]
 	if !ok {
 		return nil, ok
 	}
-	vs, ok := vsMap[frontEndName]
-	return vs, ok
+	return resource, ok
 }
 
 // Get all configurations for a specific backend
-func (vss *VirtualServers) GetAll(
-	key serviceKey) (VirtualServerConfigMap, bool) {
-	vsMap, ok := vss.m[key]
-	return vsMap, ok
+func (rs *Resources) GetAll(key serviceKey) ResourceConfigs {
+	var rMap ResourceConfigs
+	for _, cfg := range rs.rm {
+		backend := cfg.Pools[0]
+		if backend.ServiceName == key.ServiceName &&
+			backend.ServicePort == key.ServicePort {
+			rMap = append(rMap, cfg)
+		}
+	}
+	return rMap
 }
 
-// Unmarshal an expected VirtualServerConfig object
-func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
-	var cfg VirtualServerConfig
+// Unmarshal an expected ConfigMap object
+func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
+	var cfg ResourceConfig
+	var cfgMap ConfigMap
 
 	if data, ok := cm.Data["data"]; ok {
-		err := json.Unmarshal([]byte(data), &cfg)
+		err := json.Unmarshal([]byte(data), &cfgMap)
 		if nil != err {
 			return nil, err
 		}
@@ -417,26 +435,21 @@ func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 			}
 
 			if result.Valid() {
-				// If mode not set, use default
-				if cfg.VirtualServer.Frontend.Mode == "" {
-					cfg.VirtualServer.Frontend.Mode = DEFAULT_MODE
-				}
-				// If balance not set, use default
-				if cfg.VirtualServer.Frontend.Balance == "" {
-					cfg.VirtualServer.Frontend.Balance = DEFAULT_BALANCE
-				}
+				cfg.Virtual.VirtualServerName = formatConfigMapVSName(cm)
+				copyConfigMap(&cfg, &cfgMap)
+
 				// Checking for annotation in VS, not iApp
-				if cfg.VirtualServer.Frontend.IApp == "" && cfg.VirtualServer.Frontend.VirtualAddress != nil {
+				if cfg.Virtual.IApp == "" && cfg.Virtual.VirtualAddress != nil {
 					// Precedence to configmap bindAddr if annotation is also set
-					if cfg.VirtualServer.Frontend.VirtualAddress.BindAddr != "" &&
+					if cfg.Virtual.VirtualAddress.BindAddr != "" &&
 						cm.ObjectMeta.Annotations["virtual-server.f5.com/ip"] != "" {
 						log.Warning(
 							"Both configmap bindAddr and virtual-server.f5.com/ip annotation are set. " +
 								"Choosing configmap's bindAddr...")
-					} else if cfg.VirtualServer.Frontend.VirtualAddress.BindAddr == "" {
+					} else if cfg.Virtual.VirtualAddress.BindAddr == "" {
 						// Check for IP annotation provided by IPAM system
 						if addr, ok := cm.ObjectMeta.Annotations["virtual-server.f5.com/ip"]; ok == true {
-							cfg.VirtualServer.Frontend.VirtualAddress.BindAddr = addr
+							cfg.Virtual.VirtualAddress.BindAddr = addr
 						} else {
 							log.Infof("No virtual IP was specified for the virtual server %s creating pool only.", cm.ObjectMeta.Name)
 						}
@@ -459,4 +472,109 @@ func parseVirtualServerConfig(cm *v1.ConfigMap) (*VirtualServerConfig, error) {
 	}
 
 	return &cfg, nil
+}
+
+func copyConfigMap(cfg *ResourceConfig, cfgMap *ConfigMap) {
+	// If mode not set, use default
+	if cfgMap.VirtualServer.Frontend.Mode == "" {
+		cfg.Virtual.Mode = DEFAULT_MODE
+	} else {
+		cfg.Virtual.Mode = cfgMap.VirtualServer.Frontend.Mode
+	}
+	// If balance not set, use default
+	if cfgMap.VirtualServer.Frontend.Balance == "" {
+		cfg.Virtual.Balance = DEFAULT_BALANCE
+	} else {
+		cfg.Virtual.Balance = cfgMap.VirtualServer.Frontend.Balance
+	}
+
+	cfg.Virtual.Partition = cfgMap.VirtualServer.Frontend.Partition
+	cfg.Virtual.VirtualAddress = cfgMap.VirtualServer.Frontend.VirtualAddress
+	cfg.Virtual.SslProfile = cfgMap.VirtualServer.Frontend.SslProfile
+	cfg.Virtual.IApp = cfgMap.VirtualServer.Frontend.IApp
+	cfg.Virtual.IAppPoolMemberTable = cfgMap.VirtualServer.Frontend.IAppPoolMemberTable
+	cfg.Virtual.IAppOptions = cfgMap.VirtualServer.Frontend.IAppOptions
+	cfg.Virtual.IAppTables = cfgMap.VirtualServer.Frontend.IAppTables
+	cfg.Virtual.IAppVariables = cfgMap.VirtualServer.Frontend.IAppVariables
+
+	var monitorNames []string
+	var name string
+	for index, mon := range cfgMap.VirtualServer.Backend.HealthMonitors {
+		if index > 0 {
+			name = fmt.Sprintf("%s_%d", cfg.Virtual.VirtualServerName, index)
+		} else {
+			name = fmt.Sprintf("%s", cfg.Virtual.VirtualServerName)
+		}
+		monitor := Monitor{
+			Name:      name,
+			Partition: cfg.Virtual.Partition,
+			Interval:  mon.Interval,
+			Protocol:  mon.Protocol,
+			Send:      mon.Send,
+			Timeout:   mon.Timeout,
+		}
+		cfg.Monitors = append(cfg.Monitors, monitor)
+		fullName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, name)
+		monitorNames = append(monitorNames, fullName)
+	}
+	pool := Pool{
+		Name:            cfg.Virtual.VirtualServerName,
+		Partition:       cfg.Virtual.Partition,
+		ServiceName:     cfgMap.VirtualServer.Backend.ServiceName,
+		ServicePort:     cfgMap.VirtualServer.Backend.ServicePort,
+		PoolMemberAddrs: cfgMap.VirtualServer.Backend.PoolMemberAddrs,
+		MonitorNames:    monitorNames,
+	}
+	cfg.Pools = append(cfg.Pools, pool)
+	cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
+}
+
+// Create a ResourceConfig based on an Ingress resource config
+func createRSConfigFromIngress(ing *v1beta1.Ingress) *ResourceConfig {
+	var cfg ResourceConfig
+
+	if class, ok := ing.ObjectMeta.Annotations["kubernetes.io/ingress.class"]; ok == true {
+		if class != "f5" {
+			return nil
+		}
+	}
+	cfg.Virtual.VirtualServerName = formatIngressVSName(ing)
+	cfg.Virtual.Mode = "http"
+	if balance, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/balance"]; ok == true {
+		cfg.Virtual.Balance = balance
+	} else {
+		cfg.Virtual.Balance = DEFAULT_BALANCE
+	}
+	cfg.Virtual.VirtualAddress = &virtualAddress{}
+
+	if partition, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/partition"]; ok == true {
+		cfg.Virtual.Partition = partition
+	} else {
+		cfg.Virtual.Partition = DEFAULT_PARTITION
+	}
+
+	if httpPort, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/http-port"]; ok == true {
+		port, _ := strconv.ParseInt(httpPort, 10, 32)
+		cfg.Virtual.VirtualAddress.Port = int32(port)
+	} else {
+		cfg.Virtual.VirtualAddress.Port = DEFAULT_HTTP_PORT
+	}
+
+	if addr, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/ip"]; ok == true {
+		cfg.Virtual.VirtualAddress.BindAddr = addr
+	} else {
+		log.Infof("No virtual IP was specified for the virtual server %s, creating pool only.",
+			ing.ObjectMeta.Name)
+	}
+
+	pool := Pool{
+		Name:        cfg.Virtual.VirtualServerName,
+		Partition:   cfg.Virtual.Partition,
+		ServiceName: ing.Spec.Backend.ServiceName,
+		ServicePort: ing.Spec.Backend.ServicePort.IntVal,
+	}
+	cfg.Pools = append(cfg.Pools, pool)
+	cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
+
+	return &cfg
 }

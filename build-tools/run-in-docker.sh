@@ -11,7 +11,7 @@ CURDIR="$(dirname $BASH_SOURCE)"
 
 RUN_ARGS=( \
   --rm
-  -v $PWD:$PWD
+  -v $PWD:$PWD:z
   --workdir $PWD
   -e CLEAN_BUILD="${CLEAN_BUILD}"
   -e IMG_TAG="${IMG_TAG}"

@@ -1,0 +1,25 @@
+FROM docker.io/centos:7
+
+ENV APPPATH /app
+
+RUN mkdir -p "$APPPATH/bin" \
+ && chmod -R 755 "$APPPATH"
+
+WORKDIR $APPPATH
+
+COPY k8s-bigip-ctlr $APPPATH/bin
+COPY python/ $APPPATH/python
+COPY bigip-virtual-server_v*.json $APPPATH/vendor/src/f5/schemas/
+COPY k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
+
+RUN yum -y install centos-release-scl && \
+#   apk --no-cache --update add --virtual pip-install-deps git && \
+#   yum -y install --setopt=tsflags=nodocs python27 git && \
+    yum -y install --setopt=tsflags=nodocs python27 && \
+    source scl_source enable python27 && \
+    pip install --upgrade pip && \
+    pip install -r /tmp/k8s-runtime-requirements.txt
+#   apk del pip-install-deps
+
+# Run the run application in the projects bin directory.
+CMD [ "/app/bin/k8s-bigip-ctlr" ]

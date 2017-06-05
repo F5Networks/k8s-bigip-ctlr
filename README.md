@@ -44,7 +44,18 @@ git submodule update --init
 The official images are built using a docker image. To use this, first build it:
 
 ```shell
+# Alpine image
 make devel-image
+
+OR
+
+# CentOS7 image
+make devel-image TARGET=centos7
+
+OR
+
+# RHEL7 image
+make devel-image TARGET=rhel7
 ```
 
 Then, to mount your working tree into a build container and run the build commands:

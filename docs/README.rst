@@ -125,7 +125,7 @@ F5 Resources are JSON blobs encoded within Kubernetes ConfigMaps. The ConfigMap 
 | f5type        | Defines the type of object                        | virtual-server                                |
 |               | ``k8s-bigip-ctlr`` creates on the BIG-IP          |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
-| schema        | Verifies the ``data`` blob                        | f5schemadb://bigip-virtual-server_v0.1.2.json |
+| schema        | Verifies the ``data`` blob                        | f5schemadb://bigip-virtual-server_v0.1.3.json |
 +---------------+---------------------------------------------------+-----------------------------------------------+
 | data          | Defines the F5 resource                           |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+

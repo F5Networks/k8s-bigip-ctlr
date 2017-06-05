@@ -13,9 +13,9 @@ ENV GOLANG_SRC_SHA256 4e834513a2079f8cbbd357502cccaac9507fd00a1efe672375798858ff
 # https://golang.org/issue/17847
 #COPY 17847.patch /
 
-RUN	yum clean all && \
+RUN yum clean all && \
 	REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-rpms && \
-    yum -y update-minimal --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
+	yum -y update-minimal --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
 	  --security --sec-severity=Important --sec-severity=Critical && \
 	yum -y install --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
 	  golang-github-cpuguy83-go-md2man gcc openssl golang git make wget python27 && \
@@ -23,7 +23,7 @@ RUN	yum clean all && \
 # Add epel repo for dpkg install
 	curl -o epel-release-latest-7.noarch.rpm -SL https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
             --retry 9 --retry-max-time 0 -C - && \
-    rpm -ivh epel-release-latest-7.noarch.rpm && rm epel-release-latest-7.noarch.rpm && \
+	rpm -ivh epel-release-latest-7.noarch.rpm && rm epel-release-latest-7.noarch.rpm && \
 	yum -y install --disablerepo "*" --enablerepo epel --setopt=tsflags=nodocs dpkg && \
 	export GOROOT_BOOTSTRAP="$(go env GOROOT)" && \
 	wget -q "$GOLANG_SRC_URL" -O golang.tar.gz && \
@@ -55,9 +55,8 @@ RUN source scl_source enable python27 && \
 	pip install setuptools flake8 && \
 	pip install -r /tmp/k8s-build-requirements.txt && \
 	pip install -r /tmp/k8s-runtime-requirements.txt && \
-	pip install -r /tmp/requirements.docs.txt
-
-RUN	go get github.com/wadey/gocovmerge && \
+	pip install -r /tmp/requirements.docs.txt && \
+	go get github.com/wadey/gocovmerge && \
 	git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git $GOPATH/src/github.com/constabulary/gb && \
 	git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134 && \
 	go install github.com/constabulary/gb/... && \

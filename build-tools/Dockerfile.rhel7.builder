@@ -7,34 +7,35 @@ ENV GOLANG_VERSION 1.7.5
 ENV GOLANG_SRC_URL https://golang.org/dl/go$GOLANG_VERSION.src.tar.gz
 ENV GOLANG_SRC_SHA256 4e834513a2079f8cbbd357502cccaac9507fd00a1efe672375798858ff291815
 
+### IS THIS NECESSARY w/ CENTOS/RHEL?
 # https://golang.org/issue/14851
-COPY no-pic.patch /
+#COPY no-pic.patch /
 # https://golang.org/issue/17847
-COPY 17847.patch /
+#COPY 17847.patch /
 
-RUN yum clean all && yum-config-manager --disable \* &> /dev/null && \
-### Add necessary Red Hat repos here
-    yum-config-manager --enable rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-rpms &> /dev/null && \
-    yum -y update-minimal --security --sec-severity=Important --sec-severity=Critical --setopt=tsflags=nodocs && \
-	yum -y install --setopt=tsflags=nodocs golang-github-cpuguy83-go-md2man gcc openssl golang git make wget patch python27 && \
-#    go-md2man -in /tmp/help.md -out /help.1 && \
-	yum -y remove golang-github-cpuguy83-go-md2man && \
-    curl -o epel-release-latest-7.noarch.rpm -SL https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
+RUN	yum clean all && \
+	REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-rpms && \
+    yum -y update-minimal --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
+	  --security --sec-severity=Important --sec-severity=Critical && \
+	yum -y install --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
+	  golang-github-cpuguy83-go-md2man gcc openssl golang git make wget python27 && \
+#	  golang-github-cpuguy83-go-md2man gcc openssl golang git make wget patch python27 && \
+# Add epel repo for dpkg install
+	curl -o epel-release-latest-7.noarch.rpm -SL https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
             --retry 9 --retry-max-time 0 -C - && \
     rpm -ivh epel-release-latest-7.noarch.rpm && rm epel-release-latest-7.noarch.rpm && \
-	yum -y install --setopt=tsflags=nodocs dpkg && \
+	yum -y install --disablerepo "*" --enablerepo epel --setopt=tsflags=nodocs dpkg && \
 	export GOROOT_BOOTSTRAP="$(go env GOROOT)" && \
 	wget -q "$GOLANG_SRC_URL" -O golang.tar.gz && \
 	echo "$GOLANG_SRC_SHA256  golang.tar.gz" | sha256sum -c - && \
 	tar -C /usr/local -xzf golang.tar.gz && \
 	rm golang.tar.gz && \
 	cd /usr/local/go/src && \
-	patch -p2 -i /no-pic.patch && \
-	patch -p2 -i /17847.patch && \
+#	patch -p2 -i /no-pic.patch && \
+#	patch -p2 -i /17847.patch && \
+#	rm -rf /*.patch && \
 	./make.bash && \
-	rm -rf /*.patch && \
-    yum-config-manager --disable epel && \
-	yum -y remove golang && \
+	yum -y erase golang && \
 	yum clean all
 
 ENV GOPATH /go

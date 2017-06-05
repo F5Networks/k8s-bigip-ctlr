@@ -7,13 +7,15 @@ ENV GOLANG_VERSION 1.7.5
 ENV GOLANG_SRC_URL https://golang.org/dl/go$GOLANG_VERSION.src.tar.gz
 ENV GOLANG_SRC_SHA256 4e834513a2079f8cbbd357502cccaac9507fd00a1efe672375798858ff291815
 
+### IS THIS NECESSARY w/ CENTOS/RHEL?
 # https://golang.org/issue/14851
-COPY no-pic.patch /
+#COPY no-pic.patch /
 # https://golang.org/issue/17847
-COPY 17847.patch /
+#COPY 17847.patch /
 
 RUN yum -y install centos-release-scl && \
-	yum -y install --setopt=tsflags=nodocs epel-release gcc openssl golang git make wget patch python27 && \
+#	yum -y install --setopt=tsflags=nodocs epel-release gcc openssl golang git make wget patch python27 && \
+	yum -y install --setopt=tsflags=nodocs epel-release gcc openssl golang git make wget python27 && \
 	yum -y install --setopt=tsflags=nodocs dpkg && \
 	export GOROOT_BOOTSTRAP="$(go env GOROOT)" && \
 	wget -q "$GOLANG_SRC_URL" -O golang.tar.gz && \
@@ -21,10 +23,10 @@ RUN yum -y install centos-release-scl && \
 	tar -C /usr/local -xzf golang.tar.gz && \
 	rm golang.tar.gz && \
 	cd /usr/local/go/src && \
-	patch -p2 -i /no-pic.patch && \
-	patch -p2 -i /17847.patch && \
+#	patch -p2 -i /no-pic.patch && \
+#	patch -p2 -i /17847.patch && \
+#	rm -rf /*.patch && \
 	./make.bash && \
-	rm -rf /*.patch && \
 	yum -y remove golang && \
 	yum clean all
 

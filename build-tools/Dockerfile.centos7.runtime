@@ -14,8 +14,7 @@ COPY k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
 
 RUN yum -y install centos-release-scl && \
 #   apk --no-cache --update add --virtual pip-install-deps git && \
-#   yum -y install --setopt=tsflags=nodocs python27 git && \
-    yum -y install --setopt=tsflags=nodocs python27 && \
+    yum -y install --setopt=tsflags=nodocs python27 git && \
     source scl_source enable python27 && \
     pip install --upgrade pip && \
     pip install -r /tmp/k8s-runtime-requirements.txt

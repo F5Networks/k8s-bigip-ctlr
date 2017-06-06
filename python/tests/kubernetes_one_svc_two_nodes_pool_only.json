@@ -1,35 +1,45 @@
 {
-  "services": [
-    {
-      "virtualServer": {
-        "backend": {
-          "poolMemberAddrs": [
-            "172.16.0.5:30008",
-            "172.16.0.6:30008"
-          ],
-          "serviceName": "foo",
-          "servicePort": 80,
-          "healthMonitors": [ {
-            "interval": 30,
-            "timeout": 20,
-            "send": "GET /",
-            "protocol": "tcp"
-            },
-            {
-            "interval": 10,
-            "timeout": 5,
-            "send": "GET /",
-            "protocol": "http"
-            }
-          ]
-        },
-        "frontend": {
-          "virtualServerName": "default_configmap",
-          "balance": "round-robin",
-          "mode": "http",
-          "partition": "k8s"
-        }
+  "resources": {
+    "virtualServers": [
+      {
+        "name": "default_configmap",
+        "partition": "k8s",
+        "mode": "http",
+        "pool": "/k8s/default_configmap",
+        "balance": "round-robin"
       }
-    }
-  ]
+    ],
+    "pools": [
+      {
+        "name": "default_configmap",
+        "poolMemberAddrs": [
+          "172.16.0.5:30008",
+          "172.16.0.6:30008"
+        ],
+        "serviceName": "foo",
+        "servicePort": 80,
+        "monitor": [
+          "/k8s/default_configmap",
+          "/k8s/default_configmap_1"
+        ]
+      }
+    ],
+    "monitors": [
+      {
+        "name": "default_configmap",
+        "partition": "k8s",
+        "interval": 30,
+        "protocol": "tcp",
+        "send": "GET /",
+        "timeout": 20
+      }, {
+        "name": "default_configmap_1",
+        "partition": "k8s",
+        "interval": 10,
+        "protocol": "http",
+        "send": "GET /",
+        "timeout": 5
+      }
+    ]
+  }
 }

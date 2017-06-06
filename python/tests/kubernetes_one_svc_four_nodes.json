@@ -1,28 +1,30 @@
 {
-  "services": [
-    {
-      "virtualServer": {
-        "backend": {
-          "poolMemberAddrs": [
-            "172.16.0.5:30008",
-            "172.16.0.6:30008",
-            "172.16.0.7:30008",
-            "172.16.0.8:30008"
-          ],
-          "serviceName": "foo",
-          "servicePort": 80
-        },
-        "frontend": {
-          "virtualServerName": "default_configmap",
-          "balance": "round-robin",
-          "mode": "http",
-          "partition": "k8s",
-          "virtualAddress": {
-            "bindAddr": "10.128.10.240",
-            "port": 5051
-          }
+  "resources": {
+    "virtualServers": [
+      {
+        "name": "default_configmap",
+        "partition": "k8s",
+        "mode": "http",
+        "balance": "round-robin",
+        "pool": "/k8s/default_configmap",
+        "virtualAddress": {
+          "bindAddr": "10.128.10.240",
+          "port": 5051
         }
       }
-    }
-  ]
+    ],
+    "pools": [
+      {
+        "name": "default_configmap",
+        "poolMemberAddrs": [
+          "172.16.0.5:30008",
+          "172.16.0.6:30008",
+          "172.16.0.7:30008",
+          "172.16.0.8:30008"
+        ],
+        "serviceName": "foo",
+        "servicePort": 80
+      }
+    ]
+  }
 }

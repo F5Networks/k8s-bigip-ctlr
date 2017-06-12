@@ -1,73 +1,67 @@
 {
-  "services": [
-    {
-      "virtualServer": {
-        "backend": {
-          "poolMemberAddrs": [
-            "172.16.0.5:30008"
-          ],
-          "serviceName": "invalid_partition",
-          "servicePort": 80
+  "resources": {
+    "virtualServers": [
+      {
+        "name": "invalid_partition_configmap",
+        "partition": "",
+        "mode": "http",
+        "balance": "round-robin",
+        "pool": "invalid_partition_configmap",
+        "virtualAddress": {
+          "bindAddr": "10.128.10.240",
+          "port": 5051
+        }
+      }, {
+        "name": "invalid_sslProfile0_configmap",
+        "partition": "k8s",
+        "mode": "tcp",
+        "balance": "round-robin",
+        "pool": "invalid_sslProfile0_configmap",
+        "sslProfile": {
+          "f5ProfileName": "invalid"
         },
-        "frontend": {
-          "virtualServerName": "invalid_partition_configmap",
-          "balance": "round-robin",
-          "mode": "http",
-          "partition": "",
-          "virtualAddress": {
-            "bindAddr": "10.128.10.240",
-            "port": 5051
-          }
+        "virtualAddress": {
+          "bindAddr": "10.128.10.240",
+          "port": 5051
+        }
+      }, {
+        "name": "invalid_sslProfile1_configmap",
+        "partition": "k8s",
+        "mode": "udp",
+        "balance": "round-robin",
+        "pool": "invalid_sslProfile1_configmap",
+        "sslProfile": {
+          "f5ProfileName": ""
+        },
+        "virtualAddress": {
+          "bindAddr": "10.128.10.241",
+          "port": 5052
         }
       }
-    },
-    {
-      "virtualServer": {
-        "backend": {
-          "poolMemberAddrs": [
-            "172.16.0.5:30008"
-          ],
-          "serviceName": "invalid_sslProfile0",
-          "servicePort": 80
-        },
-        "frontend": {
-          "virtualServerName": "invalid_sslProfile0_configmap",
-          "balance": "round-robin",
-          "mode": "tcp",
-          "partition": "k8s",
-          "sslProfile": {
-              "f5ProfileName": "invalid"
-          },
-          "virtualAddress": {
-            "bindAddr": "10.128.10.240",
-            "port": 5051
-          }
-        }
+    ],
+    "pools": [
+      {
+        "name": "invalid_partition_configmap",
+        "poolMemberAddrs": [
+          "172.16.0.5:30008"
+        ],
+        "serviceName": "invalid_partition",
+        "servicePort": 80
+      }, {
+        "name": "invalid_sslProfile0_configmap",
+        "poolMemberAddrs": [
+          "172.16.0.5:30008"
+        ],
+        "serviceName": "invalid_sslProfile0",
+        "servicePort": 80
+      }, {
+        "name": "invalid_sslProfile1_configmap",
+        "poolMemberAddrs": [
+          "172.16.0.6:30009"
+        ],
+        "serviceName": "invalid_sslProfile1",
+        "servicePort": 80
       }
-    },
-    {
-      "virtualServer": {
-        "backend": {
-          "poolMemberAddrs": [
-            "172.16.0.6:30009"
-          ],
-          "serviceName": "invalid_sslProfile1",
-          "servicePort": 80
-        },
-        "frontend": {
-          "virtualServerName": "invalid_sslProfile1_configmap",
-          "balance": "round-robin",
-          "mode": "udp",
-          "partition": "k8s",
-          "sslProfile": {
-              "f5ProfileName": ""
-          },
-          "virtualAddress": {
-            "bindAddr": "10.128.10.241",
-            "port": 5052
-          }
-        }
-      }
-    }
-  ]
+    ]
+  }
 }

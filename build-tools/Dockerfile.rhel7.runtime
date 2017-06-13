@@ -1,0 +1,42 @@
+FROM registry.access.redhat.com/rhel7
+
+LABEL name="f5networks/k8s-bigip-ctlr" \
+      vendor="F5 Networks" \
+      version="1.0" \
+      release="1" \
+### Required labels above - recommended below
+      url="http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/latest/" \
+      summary="F5 Kubernetes BIG-IP Controller" \
+      run='docker run --name ${NAME} ${IMAGE} /app/bin/k8s-bigip-ctlr' \
+      io.k8s.description="k8s-bigip-ctlr will do ....." \
+      io.k8s.display-name="F5 Kubernetes BIG-IP Controller" \
+      io.openshift.expose-services="" \
+      io.openshift.tags="f5,f5networks,bigip"
+
+ENV APPPATH /app
+
+RUN mkdir -p "$APPPATH/bin" \
+ && chmod -R 755 "$APPPATH"
+
+WORKDIR $APPPATH
+
+COPY help.md /tmp/
+COPY k8s-bigip-ctlr $APPPATH/bin
+COPY python/ $APPPATH/python
+COPY bigip-virtual-server_v*.json $APPPATH/vendor/src/f5/schemas/
+COPY k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
+
+RUN REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-rpms && \
+	yum -y update-minimal --disablerepo "*" --enablerepo rhel-7-server-rpms --setopt=tsflags=nodocs \
+	  --security --sec-severity=Important --sec-severity=Critical && \
+	yum -y install --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
+	  golang-github-cpuguy83-go-md2man python27 git && \
+    go-md2man -in /tmp/help.md -out /help.1 && \
+    yum -y erase golang-github-cpuguy83-go-md2man && \
+    yum clean all && \
+    source scl_source enable python27 && \
+    pip install --upgrade pip && \
+    pip install -r /tmp/k8s-runtime-requirements.txt
+
+# Run the run application in the projects bin directory.
+CMD [ "/app/bin/k8s-bigip-ctlr" ]

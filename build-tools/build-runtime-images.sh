@@ -13,6 +13,7 @@ CURDIR="$(dirname $BASH_SOURCE)"
 # Setup a temp docker build context dir
 WKDIR=$(mktemp -d docker-build.XXXX)
 cp $CURDIR/Dockerfile.$OS.runtime $WKDIR/Dockerfile.runtime
+cp $CURDIR/help.md $WKDIR/
 cp bin/k8s-bigip-ctlr $WKDIR/
 mkdir -p $WKDIR/python
 cp python/*.py $WKDIR/python/

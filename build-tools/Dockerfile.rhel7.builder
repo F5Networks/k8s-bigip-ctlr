@@ -7,19 +7,11 @@ ENV GOLANG_VERSION 1.7.5
 ENV GOLANG_SRC_URL https://golang.org/dl/go$GOLANG_VERSION.src.tar.gz
 ENV GOLANG_SRC_SHA256 4e834513a2079f8cbbd357502cccaac9507fd00a1efe672375798858ff291815
 
-### IS THIS NECESSARY w/ CENTOS/RHEL?
-# https://golang.org/issue/14851
-#COPY no-pic.patch /
-# https://golang.org/issue/17847
-#COPY 17847.patch /
-
-RUN yum clean all && \
-	REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-rpms && \
-	yum -y update-minimal --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
+RUN REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-rpms && \
+	yum -y update-minimal --disablerepo "*" --enablerepo rhel-7-server-rpms --setopt=tsflags=nodocs \
 	  --security --sec-severity=Important --sec-severity=Critical && \
 	yum -y install --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
-	  golang-github-cpuguy83-go-md2man gcc openssl golang git make wget python27 && \
-#	  golang-github-cpuguy83-go-md2man gcc openssl golang git make wget patch python27 && \
+	  gcc openssl golang git make wget python27 && \
 # Add epel repo for dpkg install
 	curl -o epel-release-latest-7.noarch.rpm -SL https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
             --retry 9 --retry-max-time 0 -C - && \
@@ -31,9 +23,6 @@ RUN yum clean all && \
 	tar -C /usr/local -xzf golang.tar.gz && \
 	rm golang.tar.gz && \
 	cd /usr/local/go/src && \
-#	patch -p2 -i /no-pic.patch && \
-#	patch -p2 -i /17847.patch && \
-#	rm -rf /*.patch && \
 	./make.bash && \
 	yum -y erase golang && \
 	yum clean all
@@ -56,10 +45,10 @@ RUN source scl_source enable python27 && \
 	pip install -r /tmp/k8s-build-requirements.txt && \
 	pip install -r /tmp/k8s-runtime-requirements.txt && \
 	pip install -r /tmp/requirements.docs.txt && \
-	go get github.com/wadey/gocovmerge && \
 	git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git $GOPATH/src/github.com/constabulary/gb && \
-	git -C $GOPATH/src/github.com/constabulary/gb checkout 2b9e9134 && \
+	cd $GOPATH/src/github.com/constabulary/gb && git checkout 2b9e9134 && \
 	go install github.com/constabulary/gb/... && \
+	go get github.com/wadey/gocovmerge && \
 	chmod 755 /entrypoint.sh
 
 # install gosu

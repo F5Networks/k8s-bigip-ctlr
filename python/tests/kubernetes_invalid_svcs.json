@@ -42,6 +42,7 @@
     "pools": [
       {
         "name": "invalid_partition_configmap",
+        "partition": "",
         "poolMemberAddrs": [
           "172.16.0.5:30008"
         ],
@@ -49,6 +50,7 @@
         "servicePort": 80
       }, {
         "name": "invalid_sslProfile0_configmap",
+        "partition": "k8s",
         "poolMemberAddrs": [
           "172.16.0.5:30008"
         ],
@@ -56,6 +58,7 @@
         "servicePort": 80
       }, {
         "name": "invalid_sslProfile1_configmap",
+        "partition": "k8s",
         "poolMemberAddrs": [
           "172.16.0.6:30009"
         ],

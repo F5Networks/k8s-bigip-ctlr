@@ -307,7 +307,8 @@ class KubernetesTest(BigIPTest):
         cfg = ctlr.create_config_kubernetes(self.bigip, self.cloud_data)
 
         iapp_def = self.bigip.iapp_build_definition(
-            cfg['ltm']['virtualServers']['default_configmap'])
+            cfg['ltm']['virtualServers']['default_configmap'],
+            cfg['ltm']['pools'][0])
         self.test_iapp = MockIapp(name='default_configmap',
                                   partition=self.test_partition,
                                   variables=iapp_def['variables'],
@@ -412,7 +413,10 @@ class KubernetesTest(BigIPTest):
         # Create a mock Pool
         pool_data_unchanged = {'monitor': '/k8s/default_configmap and '
                                           '/k8s/default_configmap_1',
-                               'balance': 'round-robin'}
+                               'balance': 'round-robin',
+                               'partition': 'k8s',
+                               'members': ['172.16.0.5:30008',
+                                           '172.16.0.6:30008']}
         pool = self.create_mock_pool('default_configmap',
                                      **pool_data_unchanged)
 

@@ -387,44 +387,46 @@ def create_ltm_config_kubernetes(bigip, config):
                     'profiles': profiles,
                     'policies': policies
                 })
-
-        nodes = {}
-        # FIXME(garyr): CCCL still looks for nodes in the service, so convert
-        # to the expected format.
-        found_svc = False
-        for pool in f5_pools:
-            if pool['name'] == vs_name:
-                found_svc = True
-                for node in pool['poolMemberAddrs']:
-                    nodes.update({node: {
-                        'state': 'user-up',
-                        'session': 'user-enabled'
-                    }})
-        if not found_svc:
-            log.warning(
-                'Virtual server "{}" has service "{}", which is empty - '
-                'configuring 0 pool members.'.format(
-                    vs_name, pool['serviceName']))
-        f5_service['nodes'] = nodes
         f5_services.update({vs_name: f5_service})
+    configuration['virtualServers'] = f5_services
 
     # FIXME(garyr): CCCL presently expects pools slightly differently than
     # we get from the controller, so convert to the expected format here.
+    found_svc = False
     for pool in f5_pools:
         new_pool = {}
+        members = {}
         pname = pool['name']
         new_pool['name'] = pname
         monitors = None
         if 'monitor' in pool and pool['monitor']:
             monitors = ' and '.join(pool['monitor'])
         new_pool['monitor'] = monitors
+
         balance = None
+        vname = pname.rsplit('_', 1)[0]
         if pname in f5_services:
             if 'balance' in f5_services[pname]:
                 balance = f5_services[pname]['balance']
+        elif vname in f5_services:
+            if 'balance' in f5_services[vname]:
+                balance = f5_services[vname]['balance']
         new_pool['loadBalancingMode'] = balance
+        new_pool['partition'] = pool['partition']
+        if pool['name'] in f5_services or vname in f5_services:
+            found_svc = True
+            for member in pool['poolMemberAddrs']:
+                members.update({member: {
+                    'state': 'user-up',
+                    'session': 'user-enabled'
+                }})
+        new_pool['members'] = members
         configuration['pools'].append(new_pool)
-    configuration['virtualServers'] = f5_services
+        if not found_svc:
+            log.warning(
+                'Pool "{}" has service "{}", which is empty - '
+                'configuring 0 pool members.'.format(
+                    pname, pool['serviceName']))
 
     return configuration
 

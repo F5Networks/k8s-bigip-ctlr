@@ -39,7 +39,7 @@ _cloud_config = {
         'password': 'admin',
         'partitions': ['test']
     },
-    'virtualServers': [
+    'resources': [
         {
             'virtualServer': {
                 'frontend': {

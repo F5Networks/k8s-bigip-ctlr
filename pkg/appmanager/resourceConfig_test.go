@@ -26,20 +26,11 @@ import (
 )
 
 type simpleTestConfig struct {
-	key  resourceKey
 	name string
 	addr virtualAddress
 }
 
 type resourceMap map[serviceKey][]simpleTestConfig
-
-func newResourceKey(rsName, rsType, namespace string) resourceKey {
-	return resourceKey{
-		ResourceName: rsName,
-		ResourceType: rsType,
-		Namespace:    namespace,
-	}
-}
 
 func newServiceKey(svcPort int32, svcName, namespace string) serviceKey {
 	return serviceKey{
@@ -50,13 +41,13 @@ func newServiceKey(svcPort int32, svcName, namespace string) serviceKey {
 }
 
 func newResourceConfig(
-	key resourceKey, vsName string,
-	bindAddr string, bindPort, svcPort int32) *ResourceConfig {
+	key serviceKey, rsName string,
+	bindAddr string, bindPort int32) *ResourceConfig {
 	var cfg ResourceConfig
 	cfg.Pools = append(cfg.Pools, Pool{})
-	cfg.Pools[0].ServiceName = "svc"
-	cfg.Pools[0].ServicePort = svcPort
-	cfg.Virtual.VirtualServerName = vsName
+	cfg.Pools[0].ServiceName = key.ServiceName
+	cfg.Pools[0].ServicePort = key.ServicePort
+	cfg.Virtual.VirtualServerName = rsName
 	cfg.Virtual.VirtualAddress = new(virtualAddress)
 	cfg.Virtual.VirtualAddress.BindAddr = bindAddr
 	cfg.Virtual.VirtualAddress.Port = bindPort
@@ -69,17 +60,13 @@ func newTestMap(nbrBackends, nbrConfigsPer int) *resourceMap {
 	namespace := "velcro"
 	svcName := "svc"
 	svcPort := 80
-	rsName := "testmap"
-	rsType := "configmap"
 	bindPort := 8000
 	for i := 0; i < nbrBackends; i++ {
 		svcKey := newServiceKey(int32(svcPort+i), svcName, namespace)
 		for j := 0; j < nbrConfigsPer; j++ {
-			name := fmt.Sprintf("%s_%d_%d", rsName, i, j)
-			rsKey := newResourceKey(name, rsType, namespace)
 			cfgName := fmt.Sprintf("rs-%d-%d", i, j)
 			addr := virtualAddress{"10.0.0.1", int32(bindPort + j)}
-			rm[svcKey] = append(rm[svcKey], simpleTestConfig{rsKey, cfgName, addr})
+			rm[svcKey] = append(rm[svcKey], simpleTestConfig{cfgName, addr})
 		}
 	}
 	return &rm
@@ -88,8 +75,8 @@ func newTestMap(nbrBackends, nbrConfigsPer int) *resourceMap {
 func assignTestMap(rs *Resources, rm *resourceMap) {
 	for key, val := range *rm {
 		for _, tf := range val {
-			rs.Assign(tf.key, newResourceConfig(
-				tf.key, tf.name, tf.addr.BindAddr, tf.addr.Port, key.ServicePort))
+			rs.Assign(key, tf.name, newResourceConfig(
+				key, tf.name, tf.addr.BindAddr, tf.addr.Port))
 		}
 	}
 }
@@ -199,7 +186,10 @@ func TestAssign(t *testing.T) {
 
 	// Make sure rs has the correct number of objects without using other
 	// interface functions.
-	require.Equal(nbrBackends*nbrCfgsPer, len(rs.rm))
+	require.Equal(nbrBackends, len(rs.rm))
+	for _, rsCfgs := range rs.rm {
+		assert.Equal(t, nbrCfgsPer, len(rsCfgs))
+	}
 }
 
 func TestCount(t *testing.T) {
@@ -228,7 +218,7 @@ func TestCountOf(t *testing.T) {
 	rm := newTestMap(nbrBackends, nbrCfgsPer)
 	require.NotNil(rm)
 	assignTestMap(rs, rm)
-	require.Equal(nbrBackends*nbrCfgsPer, len(rs.rm))
+	require.Equal(nbrBackends, len(rs.rm))
 	for key, _ := range *rm {
 		assert.Equal(t, nbrCfgsPer, rs.CountOf(key))
 	}
@@ -247,18 +237,18 @@ func TestDelete(t *testing.T) {
 	assignTestMap(rs, rm)
 
 	// delete each config one at a time
-	for _, val := range *rm {
+	for key, val := range *rm {
 		for _, tf := range val {
-			countBefore := rs.Count()
+			countBefore := rs.CountOf(key)
 			assert.True(t, countBefore > 0)
-			ok := rs.Delete(tf.key)
+			ok := rs.Delete(key, tf.name)
 			require.True(ok)
-			countAfter := rs.Count()
+			countAfter := rs.CountOf(key)
 			require.Equal(countBefore-1, countAfter)
 			// Test double-delete fails correctly
-			ok = rs.Delete(tf.key)
+			ok = rs.Delete(key, tf.name)
 			require.False(ok)
-			assert.Equal(t, countAfter, rs.Count())
+			assert.Equal(t, countAfter, rs.CountOf(key))
 		}
 	}
 
@@ -279,14 +269,9 @@ func TestForEach(t *testing.T) {
 	assignTestMap(rs, rm)
 
 	totalConfigs := 0
-	rs.ForEach(func(key resourceKey, cfg *ResourceConfig) {
-		svcKey := serviceKey{
-			ServiceName: cfg.Pools[0].ServiceName,
-			ServicePort: cfg.Pools[0].ServicePort,
-			Namespace:   key.Namespace,
-		}
+	rs.ForEach(func(key serviceKey, cfg *ResourceConfig) {
 		totalConfigs += 1
-		testObj := (*rm)[svcKey]
+		testObj := (*rm)[key]
 		require.NotNil(testObj)
 		found := false
 		for _, val := range testObj {
@@ -311,9 +296,9 @@ func TestGet(t *testing.T) {
 	require.NotNil(rm)
 	assignTestMap(rs, rm)
 
-	for _, val := range *rm {
+	for key, val := range *rm {
 		for _, tf := range val {
-			r, ok := rs.Get(tf.key)
+			r, ok := rs.Get(key, tf.name)
 			require.True(ok)
 			require.NotNil(rs)
 			assert.Equal(t, tf.addr.BindAddr,
@@ -337,9 +322,10 @@ func TestGetAll(t *testing.T) {
 	assignTestMap(rs, rm)
 
 	for key, _ := range *rm {
-		cfgMap := rs.GetAll(key)
-		require.NotNil(cfgMap)
-		assert.Equal(t, nbrCfgsPer, len(cfgMap))
+		rsCfgMap, ok := rs.GetAll(key)
+		require.True(ok)
+		require.NotNil(rsCfgMap)
+		assert.Equal(t, nbrCfgsPer, len(rsCfgMap))
 	}
 }
 

@@ -271,12 +271,6 @@ type serviceKey struct {
 	Namespace   string
 }
 
-type resourceKey struct {
-	ResourceName string
-	ResourceType string
-	Namespace    string
-}
-
 // format the namespace and name for use in the frontend definition
 func formatConfigMapVSName(cm *v1.ConfigMap) string {
 	return fmt.Sprintf("%v_%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
@@ -308,20 +302,22 @@ func formatIngressSslProfileName(secret string) string {
 	return profName
 }
 
+type ResourceConfigMap map[string]*ResourceConfig
+
 // Map of Resource configs
 type Resources struct {
 	sync.Mutex
-	rm map[resourceKey]*ResourceConfig
+	rm map[serviceKey]ResourceConfigMap
 }
 
 type ResourceInterface interface {
 	Init()
-	Assign(key resourceKey, cfg *ResourceConfig)
+	Assign(key serviceKey, name string, cfg *ResourceConfig)
 	Count() int
 	CountOf(key serviceKey) int
-	Get(key resourceKey) (*ResourceConfig, bool)
-	Delete(key resourceKey) bool
-	GetAll(key serviceKey) ResourceConfigs
+	Get(key serviceKey, name string) (*ResourceConfig, bool)
+	GetAll(key serviceKey) (ResourceConfigMap, bool)
+	Delete(key serviceKey, name string) bool
 	ForEach(f ResourceEnumFunc)
 }
 
@@ -334,72 +330,82 @@ func NewResources() *Resources {
 
 // Receiver to initialize the object.
 func (rs *Resources) Init() {
-	rs.rm = make(map[resourceKey]*ResourceConfig)
+	rs.rm = make(map[serviceKey]ResourceConfigMap)
 }
 
 // callback type for ForEach()
-type ResourceEnumFunc func(key resourceKey, cfg *ResourceConfig)
+type ResourceEnumFunc func(key serviceKey, cfg *ResourceConfig)
 
 // Add or update a Resource config, identified by key.
-func (rs *Resources) Assign(key resourceKey, cfg *ResourceConfig) {
-	rs.rm[key] = cfg
+func (rs *Resources) Assign(key serviceKey, name string, cfg *ResourceConfig) {
+	rsMap, ok := rs.rm[key]
+	if !ok {
+		rsMap = make(map[string]*ResourceConfig)
+		rs.rm[key] = rsMap
+	}
+	rsMap[name] = cfg
 }
 
 // Count of all configurations currently stored.
 func (rs *Resources) Count() int {
-	return len(rs.rm)
+	var ct int = 0
+	for _, cfgs := range rs.rm {
+		ct += len(cfgs)
+	}
+	return ct
 }
 
 // Count of all configurations for a specific backend.
 func (rs *Resources) CountOf(key serviceKey) int {
-	count := 0
-	for _, cfg := range rs.rm {
-		backend := cfg.Pools[0]
-		if backend.ServiceName == key.ServiceName &&
-			backend.ServicePort == key.ServicePort {
-			count++
-		}
+	if rsMap, ok := rs.rm[key]; ok {
+		return len(rsMap)
 	}
-	return count
+	return 0
 }
 
 // Remove a specific resource configuration.
-func (rs *Resources) Delete(key resourceKey) bool {
-	_, ok := rs.rm[key]
+func (rs *Resources) Delete(key serviceKey, name string) bool {
+	rsMap, ok := rs.rm[key]
 	if !ok {
 		return false
 	}
-	delete(rs.rm, key)
-	return true
+	if name == "" {
+		delete(rs.rm, key)
+		return true
+	}
+	if _, ok := rsMap[name]; ok {
+		delete(rsMap, name)
+		if len(rsMap) == 0 {
+			delete(rs.rm, key)
+		}
+		return true
+	}
+	return false
 }
 
 // Iterate over all configurations, calling the supplied callback with each.
 func (rs *Resources) ForEach(f ResourceEnumFunc) {
-	for key, cfg := range rs.rm {
-		f(key, cfg)
+	for key, cfgs := range rs.rm {
+		for _, cfg := range cfgs {
+			f(key, cfg)
+		}
 	}
 }
 
 // Get a specific Resource cfg
-func (rs *Resources) Get(key resourceKey) (*ResourceConfig, bool) {
-	resource, ok := rs.rm[key]
+func (rs *Resources) Get(key serviceKey, name string) (*ResourceConfig, bool) {
+	rsMap, ok := rs.rm[key]
 	if !ok {
 		return nil, ok
 	}
+	resource, ok := rsMap[name]
 	return resource, ok
 }
 
 // Get all configurations for a specific backend
-func (rs *Resources) GetAll(key serviceKey) ResourceConfigs {
-	var rMap ResourceConfigs
-	for _, cfg := range rs.rm {
-		backend := cfg.Pools[0]
-		if backend.ServiceName == key.ServiceName &&
-			backend.ServicePort == key.ServicePort {
-			rMap = append(rMap, cfg)
-		}
-	}
-	return rMap
+func (rs *Resources) GetAll(key serviceKey) (ResourceConfigMap, bool) {
+	rsMap, ok := rs.rm[key]
+	return rsMap, ok
 }
 
 // Unmarshal an expected ConfigMap object

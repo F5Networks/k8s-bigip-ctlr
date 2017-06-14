@@ -51,7 +51,7 @@ import (
 const DefaultConfigMapLabel = "f5type in (virtual-server)"
 const vsBindAddrAnnotation = "status.virtual-server.f5.com/ip"
 
-type ResourceMap map[resourceKey]*ResourceConfig
+type ResourceMap map[int32][]*ResourceConfig
 
 type Manager struct {
 	resources         *Resources
@@ -299,9 +299,9 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 		appMgr.resources.Lock()
 		defer appMgr.resources.Unlock()
 		rsDeleted := 0
-		appMgr.resources.ForEach(func(key resourceKey, cfg *ResourceConfig) {
+		appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
 			if key.Namespace == nsName {
-				if appMgr.resources.Delete(key) {
+				if appMgr.resources.Delete(key, "") {
 					rsDeleted += 1
 				}
 			}
@@ -326,6 +326,11 @@ func (appMgr *Manager) GetWatchedNamespaces() []string {
 
 func (appMgr *Manager) GetNamespaceLabelInformer() cache.SharedIndexInformer {
 	return appMgr.nsInformer
+}
+
+type serviceQueueKey struct {
+	Namespace   string
+	ServiceName string
 }
 
 type appInformer struct {
@@ -601,7 +606,7 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 	}
 	defer appMgr.vsQueue.Done(key)
 
-	err := appMgr.syncVirtualServer(key.(resourceKey))
+	err := appMgr.syncVirtualServer(key.(serviceQueueKey))
 	if err == nil {
 		appMgr.vsQueue.Forget(key)
 		return true
@@ -613,164 +618,141 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 	return true
 }
 
-func (appMgr *Manager) syncVirtualServer(rKey resourceKey) error {
+func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
-		log.Debugf("Finished syncing virtual servers (%v)",
-			endTime.Sub(startTime))
+		log.Debugf("Finished syncing virtual servers %+v (%v)",
+			sKey, endTime.Sub(startTime))
 	}()
 
 	// Get the informers for the namespace. This will tell us if we care about
 	// this item.
-	appInf, haveNamespace := appMgr.getNamespaceInformer(rKey.Namespace)
+	appInf, haveNamespace := appMgr.getNamespaceInformer(sKey.Namespace)
 	if !haveNamespace {
 		// This shouldn't happen as the namespace is checked for every item before
 		// it is added to the queue, but issue a warning if it does.
 		log.Warningf(
 			"Received an update for an item from an un-watched namespace %v",
-			rKey.Namespace)
+			sKey.Namespace)
 		return nil
 	}
 
-	// rsMap stores all resources currently in Resources matching rsKey
-	var rsMap ResourceMap
-	if rKey.ResourceType != "configmap" && rKey.ResourceType != "ingress" {
-		rsMap = appMgr.getResourcesForBackend(rKey)
-	} else {
-		rsMap = appMgr.getResourcesForKey(rKey)
+	// Lookup the service
+	svcKey := sKey.Namespace + "/" + sKey.ServiceName
+	obj, svcFound, err := appInf.svcInformer.GetIndexer().GetByKey(svcKey)
+	if nil != err {
+		// Returning non-nil err will re-queue this item with rate-limiting.
+		log.Warningf("Error looking up service '%v': %v\n", svcKey, err)
+		return err
 	}
+
+	// Use a map to allow ports in the service to be looked up quickly while
+	// looping through the ConfigMaps. The value is not currently used.
+	svcPortMap := make(map[int32]bool)
+	var svc *v1.Service
+	if svcFound {
+		svc = obj.(*v1.Service)
+		for _, portSpec := range svc.Spec.Ports {
+			svcPortMap[portSpec.Port] = false
+		}
+	}
+
+	// rsMap stores all resources currently in Resources matching sKey, indexed by port
+	rsMap := appMgr.getResourcesForKey(sKey)
 
 	vsFound := 0
 	vsUpdated := 0
 	vsDeleted := 0
-	if rKey.ResourceType != "ingress" {
-		cfgMapsByIndex, err := appInf.cfgMapInformer.GetIndexer().ByIndex(
-			"namespace", rKey.Namespace)
-		if nil != err {
-			log.Warningf("Unable to list config maps for namespace '%v': %v",
-				rKey.Namespace, err)
-			return err
+	cfgMapsByIndex, err := appInf.cfgMapInformer.GetIndexer().ByIndex(
+		"namespace", sKey.Namespace)
+	if nil != err {
+		log.Warningf("Unable to list config maps for namespace '%v': %v",
+			sKey.Namespace, err)
+		return err
+	}
+	for _, obj := range cfgMapsByIndex {
+		// We need to look at all config maps in the store, parse the data blob,
+		// and see if it belongs to the service that has changed.
+		cm := obj.(*v1.ConfigMap)
+		if cm.ObjectMeta.Namespace != sKey.Namespace {
+			continue
 		}
-		for _, obj := range cfgMapsByIndex {
-			// We need to look at all config maps in the store, parse the data blob,
-			// and see if it belongs to the service that has changed.
-			cm := obj.(*v1.ConfigMap)
-			if cm.ObjectMeta.Namespace != rKey.Namespace {
-				continue
-			}
-			var rsKey resourceKey
-			if rKey.ResourceType != "configmap" {
-				rsKey = resourceKey{
-					ResourceName: cm.ObjectMeta.Name,
-					ResourceType: "configmap",
-					Namespace:    cm.ObjectMeta.Namespace,
-				}
-			} else if cm.ObjectMeta.Name != rKey.ResourceName {
-				continue
-			} else {
-				rsKey = rKey
-			}
-			rsCfg, err := parseConfigMap(cm)
-			if nil != err {
-				// Ignore this config map for the time being. When the user updates it
-				// so that it is valid it will be requeued.
-				fmt.Errorf("Error parsing ConfigMap %v_%v",
-					cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
-				continue
-			}
-			svc, svcPortMap, err := appMgr.lookupService(appInf, rsKey.Namespace,
-				rsCfg.Pools[0].ServiceName)
-			if nil != err {
-				return err
-			}
+		rsCfg, err := parseConfigMap(cm)
+		if nil != err {
+			// Ignore this config map for the time being. When the user updates it
+			// so that it is valid it will be requeued.
+			fmt.Errorf("Error parsing ConfigMap %v_%v",
+				cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
+			continue
+		}
 
-			vsName := rsCfg.Virtual.VirtualServerName
-			if ok, found, updated := appMgr.handleConfigForType(
-				rsCfg, rsKey, rsMap, vsName, svcPortMap, svc, appInf); !ok {
-				vsUpdated += updated
-				continue
-			} else {
-				vsFound += found
-				vsUpdated += updated
-			}
+		rsName := rsCfg.Virtual.VirtualServerName
+		if ok, found, updated := appMgr.handleConfigForType(
+			rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf); !ok {
+			vsUpdated += updated
+			continue
+		} else {
+			vsFound += found
+			vsUpdated += updated
+		}
 
-			// Set a status annotation to contain the virtualAddress bindAddr
-			if rsCfg.Virtual.IApp == "" &&
-				rsCfg.Virtual.VirtualAddress != nil &&
-				rsCfg.Virtual.VirtualAddress.BindAddr != "" {
-				appMgr.setBindAddrAnnotation(cm, rsKey, rsCfg)
-			}
+		// Set a status annotation to contain the virtualAddress bindAddr
+		if rsCfg.Virtual.IApp == "" &&
+			rsCfg.Virtual.VirtualAddress != nil &&
+			rsCfg.Virtual.VirtualAddress.BindAddr != "" {
+			appMgr.setBindAddrAnnotation(cm, sKey, rsCfg)
 		}
 	}
-	if rKey.ResourceType != "configmap" {
-		ingByIndex, err := appInf.ingInformer.GetIndexer().ByIndex(
-			"namespace", rKey.Namespace)
-		if nil != err {
-			log.Warningf("Unable to list ingresses for namespace '%v': %v",
-				rKey.Namespace, err)
-			return err
+	ingByIndex, err := appInf.ingInformer.GetIndexer().ByIndex(
+		"namespace", sKey.Namespace)
+	if nil != err {
+		log.Warningf("Unable to list ingresses for namespace '%v': %v",
+			sKey.Namespace, err)
+		return err
+	}
+	for _, obj := range ingByIndex {
+		// We need to look at all ingresses in the store, parse the data blob,
+		// and see if it belongs to the service that has changed.
+		ing := obj.(*v1beta1.Ingress)
+		if ing.ObjectMeta.Namespace != sKey.Namespace {
+			continue
 		}
-		for _, obj := range ingByIndex {
-			// We need to look at all ingresses in the store, parse the data blob,
-			// and see if it belongs to the service that has changed.
-			ing := obj.(*v1beta1.Ingress)
-			if ing.ObjectMeta.Namespace != rKey.Namespace {
-				continue
-			}
-			var rsKey resourceKey
-			if rKey.ResourceType != "ingress" {
-				rsKey = resourceKey{
-					ResourceName: ing.ObjectMeta.Name,
-					ResourceType: "ingress",
-					Namespace:    ing.ObjectMeta.Namespace,
-				}
-			} else if ing.ObjectMeta.Name != rKey.ResourceName {
-				continue
-			} else {
-				rsKey = rKey
-			}
 
-			rsCfg := createRSConfigFromIngress(ing)
-			if rsCfg == nil {
-				// Currently, an error is returned only if the Ingress is one we
-				// do not care about
-				continue
-			}
-			svc, svcPortMap, err := appMgr.lookupService(appInf, rsKey.Namespace,
-				rsCfg.Pools[0].ServiceName)
-			if nil != err {
-				return err
-			}
-
-			// Handle TLS configuration
-			appMgr.handleIngressTls(rsCfg, ing)
-
-			vsName := formatIngressVSName(ing)
-			if ok, found, updated := appMgr.handleConfigForType(
-				rsCfg, rsKey, rsMap, vsName, svcPortMap, svc, appInf); !ok {
-				vsUpdated += updated
-				continue
-			} else {
-				vsFound += found
-				vsUpdated += updated
-				if updated > 0 {
-					msg := fmt.Sprintf(
-						"Configured a virtual server '%v' for the Ingress.",
-						rsCfg.Virtual.VirtualServerName)
-					appMgr.recordIngressEvent(ing, "VirtualServerConfigured", msg, "")
-				}
-			}
-
-			// Set the Ingress Status IP address
-			appMgr.setIngressStatus(ing, rsCfg)
+		rsCfg := createRSConfigFromIngress(ing)
+		if rsCfg == nil {
+			// Currently, an error is returned only if the Ingress is one we
+			// do not care about
+			continue
 		}
+
+		// Handle TLS configuration
+		appMgr.handleIngressTls(rsCfg, ing)
+
+		rsName := formatIngressVSName(ing)
+		if ok, found, updated := appMgr.handleConfigForType(
+			rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf); !ok {
+			vsUpdated += updated
+			continue
+		} else {
+			vsFound += found
+			vsUpdated += updated
+			if updated > 0 {
+				msg := fmt.Sprintf(
+					"Configured a virtual server '%v' for the Ingress.",
+					rsCfg.Virtual.VirtualServerName)
+				appMgr.recordIngressEvent(ing, "VirtualServerConfigured", msg, "")
+			}
+		}
+
+		// Set the Ingress Status IP address
+		appMgr.setIngressStatus(ing, rsCfg)
 	}
 
 	if len(rsMap) > 0 {
 		// We get here when there are ports defined in the service that don't
 		// have a corresponding config map.
-		vsDeleted = appMgr.deleteUnusedResources(rsMap)
+		vsDeleted = appMgr.deleteUnusedResources(sKey, rsMap)
 	}
 	log.Debugf("Updated %v of %v virtual server configs, deleted %v",
 		vsUpdated, vsFound, vsDeleted)
@@ -786,32 +768,6 @@ func (appMgr *Manager) syncVirtualServer(rKey resourceKey) error {
 	}
 
 	return nil
-}
-
-func (appMgr *Manager) lookupService(
-	appInf *appInformer,
-	namespace,
-	serviceName string) (*v1.Service, map[int32]bool, error) {
-	// Lookup the service
-	svcKey := namespace + "/" + serviceName
-	obj, svcFound, err := appInf.svcInformer.GetIndexer().GetByKey(svcKey)
-	if nil != err {
-		// Returning non-nil err will re-queue this item with rate-limiting.
-		log.Warningf("Error looking up service '%v': %v\n", svcKey, err)
-		return nil, nil, err
-	}
-
-	// Use a map to allow ports in the service to be looked up quickly while
-	// looping through the ConfigMaps. The value is not currently used.
-	svcPortMap := make(map[int32]bool)
-	var svc *v1.Service
-	if svcFound {
-		svc = obj.(*v1.Service)
-		for _, portSpec := range svc.Spec.Ports {
-			svcPortMap[portSpec.Port] = false
-		}
-	}
-	return svc, svcPortMap, nil
 }
 
 func (appMgr *Manager) handleIngressTls(
@@ -836,9 +792,9 @@ func (appMgr *Manager) handleIngressTls(
 // Common handling function for both ConfigMaps and Ingresses
 func (appMgr *Manager) handleConfigForType(
 	rsCfg *ResourceConfig,
-	rsKey resourceKey,
+	sKey serviceQueueKey,
 	rsMap ResourceMap,
-	vsName string,
+	rsName string,
 	svcPortMap map[int32]bool,
 	svc *v1.Service,
 	appInf *appInformer,
@@ -846,39 +802,39 @@ func (appMgr *Manager) handleConfigForType(
 	vsFound := 0
 	vsUpdated := 0
 
-	if svc != nil && rsCfg.Pools[0].ServiceName != svc.ObjectMeta.Name {
+	if rsCfg.Pools[0].ServiceName != sKey.ServiceName {
 		return false, vsFound, vsUpdated
 	}
 
-	// If the rsMap contains a key, but appMgr.resources no longer has that key,
-	// then we don't process it.
-	// (berman) This helps prevent a race when a service and configmap are deleted
-	// at the same time. There still may be a race here.
-	if _, ok := rsMap[rsKey]; ok {
-		if _, ok := appMgr.resources.Get(rsKey); !ok {
-			return false, vsFound, vsUpdated
-		}
-	}
-
 	svcKey := serviceKey{
-		Namespace:   rsKey.Namespace,
+		Namespace:   sKey.Namespace,
 		ServiceName: rsCfg.Pools[0].ServiceName,
 		ServicePort: rsCfg.Pools[0].ServicePort,
 	}
 	// Match, remove from rsMap so we don't delete it at the end.
-	delete(rsMap, rsKey)
+	cfgList := rsMap[rsCfg.Pools[0].ServicePort]
+	if len(cfgList) == 1 {
+		delete(rsMap, rsCfg.Pools[0].ServicePort)
+	} else {
+		for index, val := range cfgList {
+			if val.Virtual.VirtualServerName == rsName {
+				cfgList = append(cfgList[:index], cfgList[index+1:]...)
+			}
+		}
+		rsMap[rsCfg.Pools[0].ServicePort] = cfgList
+	}
 
 	if _, ok := svcPortMap[rsCfg.Pools[0].ServicePort]; !ok {
 		log.Debugf("Process Service delete - name: %v namespace: %v",
-			rsCfg.Pools[0].ServiceName, rsKey.Namespace)
-		if appMgr.deactivateVirtualServer(rsKey, vsName, rsCfg) {
+			rsCfg.Pools[0].ServiceName, svcKey.Namespace)
+		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg) {
 			vsUpdated += 1
 		}
 	}
 
 	if nil == svc {
 		// The service is gone, de-activate it in the config.
-		if appMgr.deactivateVirtualServer(rsKey, vsName, rsCfg) {
+		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg) {
 			vsUpdated += 1
 		}
 		// If this is an Ingress resource, add an event that the service wasn't found
@@ -905,7 +861,7 @@ func (appMgr *Manager) handleConfigForType(
 	}
 
 	// This will only update the config if the vs actually changed.
-	if appMgr.saveVirtualServer(rsKey, vsName, rsCfg) {
+	if appMgr.saveVirtualServer(svcKey, rsName, rsCfg) {
 		vsUpdated += 1
 
 		// If this is an Ingress resource, add an event if there was a backend error
@@ -971,19 +927,19 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 }
 
 func (appMgr *Manager) deactivateVirtualServer(
-	rsKey resourceKey,
-	vsName string,
+	sKey serviceKey,
+	rsName string,
 	rsCfg *ResourceConfig,
 ) bool {
 	updateConfig := false
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
-	if rs, ok := appMgr.resources.Get(rsKey); ok {
+	if rs, ok := appMgr.resources.Get(sKey, rsName); ok {
 		rsCfg.MetaData.Active = false
 		rsCfg.Pools[0].PoolMemberAddrs = nil
 		if !reflect.DeepEqual(rs, rsCfg) {
 			log.Debugf("Service delete matching backend %v %v deactivating config",
-				rsKey, vsName)
+				sKey, rsName)
 			updateConfig = true
 		}
 	} else {
@@ -992,63 +948,61 @@ func (appMgr *Manager) deactivateVirtualServer(
 		updateConfig = true
 	}
 	if updateConfig {
-		appMgr.resources.Assign(rsKey, rsCfg)
+		appMgr.resources.Assign(sKey, rsName, rsCfg)
 	}
 	return updateConfig
 }
 
 func (appMgr *Manager) saveVirtualServer(
-	rsKey resourceKey,
-	vsName string,
+	sKey serviceKey,
+	rsName string,
 	newRsCfg *ResourceConfig,
 ) bool {
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
-	if oldRsCfg, ok := appMgr.resources.Get(rsKey); ok {
+	if oldRsCfg, ok := appMgr.resources.Get(sKey, rsName); ok {
 		if reflect.DeepEqual(oldRsCfg, newRsCfg) {
 			// not changed, don't trigger a config write
 			return false
 		}
-		log.Warningf("Overwriting existing entry for backend %+v", rsKey)
+		log.Warningf("Overwriting existing entry for backend %+v", sKey)
 	}
-	appMgr.resources.Assign(rsKey, newRsCfg)
+	appMgr.resources.Assign(sKey, rsName, newRsCfg)
 	return true
 }
 
-// Get all resources that use a specific backend
-func (appMgr *Manager) getResourcesForBackend(rsKey resourceKey) ResourceMap {
-	appMgr.resources.Lock()
-	defer appMgr.resources.Unlock()
-	rsMap := make(ResourceMap)
-	appMgr.resources.ForEach(func(key resourceKey, cfg *ResourceConfig) {
-		if key.Namespace == rsKey.Namespace &&
-			rsKey.ResourceName == cfg.Pools[0].ServiceName {
-			rsMap[key] = cfg
-		}
-	})
-	return rsMap
-}
-
-func (appMgr *Manager) getResourcesForKey(rsKey resourceKey) ResourceMap {
+func (appMgr *Manager) getResourcesForKey(sKey serviceQueueKey) ResourceMap {
 	// Return a copy of what is stored in resources
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
 	rsMap := make(ResourceMap)
-	appMgr.resources.ForEach(func(key resourceKey, cfg *ResourceConfig) {
-		if key == rsKey {
-			rsMap[rsKey] = cfg
+	appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
+		if key.Namespace == sKey.Namespace &&
+			key.ServiceName == sKey.ServiceName {
+			rsMap[cfg.Pools[0].ServicePort] =
+				append(rsMap[cfg.Pools[0].ServicePort], cfg)
 		}
 	})
 	return rsMap
 }
 
-func (appMgr *Manager) deleteUnusedResources(rsMap ResourceMap) int {
+func (appMgr *Manager) deleteUnusedResources(
+	sKey serviceQueueKey,
+	rsMap ResourceMap) int {
 	rsDeleted := 0
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
-	for key, _ := range rsMap {
-		if appMgr.resources.Delete(key) {
-			rsDeleted += 1
+	for port, cfgList := range rsMap {
+		tmpKey := serviceKey{
+			Namespace:   sKey.Namespace,
+			ServiceName: sKey.ServiceName,
+			ServicePort: port,
+		}
+		for _, cfg := range cfgList {
+			rsName := cfg.Virtual.VirtualServerName
+			if appMgr.resources.Delete(tmpKey, rsName) {
+				rsDeleted += 1
+			}
 		}
 	}
 	return rsDeleted
@@ -1056,7 +1010,7 @@ func (appMgr *Manager) deleteUnusedResources(rsMap ResourceMap) int {
 
 func (appMgr *Manager) setBindAddrAnnotation(
 	cm *v1.ConfigMap,
-	rsKey resourceKey,
+	sKey serviceQueueKey,
 	rsCfg *ResourceConfig,
 ) {
 	var doUpdate bool
@@ -1070,12 +1024,12 @@ func (appMgr *Manager) setBindAddrAnnotation(
 	if doUpdate {
 		cm.ObjectMeta.Annotations[vsBindAddrAnnotation] =
 			rsCfg.Virtual.VirtualAddress.BindAddr
-		_, err := appMgr.kubeClient.CoreV1().ConfigMaps(rsKey.Namespace).Update(cm)
+		_, err := appMgr.kubeClient.CoreV1().ConfigMaps(sKey.Namespace).Update(cm)
 		if nil != err {
 			log.Warningf("Error when creating status IP annotation: %s", err)
 		} else {
 			log.Debugf("Updating ConfigMap %+v annotation - %v: %v",
-				rsKey, vsBindAddrAnnotation,
+				sKey, vsBindAddrAnnotation,
 				rsCfg.Virtual.VirtualAddress.BindAddr)
 		}
 	}
@@ -1107,14 +1061,14 @@ func (appMgr *Manager) setIngressStatus(
 func (appMgr *Manager) recordIngressEvent(ing *v1beta1.Ingress,
 	reason,
 	message,
-	vsName string) {
+	rsName string) {
 	var namespace string
 	var name string
 	if ing != nil {
 		namespace = ing.ObjectMeta.Namespace
 	} else {
-		namespace = strings.Split(vsName, "_")[0]
-		name = vsName[len(namespace)+1 : len(vsName)-len("-ingress")]
+		namespace = strings.Split(rsName, "_")[0]
+		name = rsName[len(namespace)+1 : len(rsName)-len("-ingress")]
 	}
 	appMgr.broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{
 		Interface: appMgr.kubeClient.Core().Events(namespace)})
@@ -1136,7 +1090,7 @@ func (appMgr *Manager) recordIngressEvent(ing *v1beta1.Ingress,
 
 func (appMgr *Manager) checkValidConfigMap(
 	obj interface{},
-) (bool, *resourceKey) {
+) (bool, []*serviceQueueKey) {
 	// Identify the specific service being referenced, and return it if it's
 	// one we care about.
 	cm := obj.(*v1.ConfigMap)
@@ -1154,23 +1108,26 @@ func (appMgr *Manager) checkValidConfigMap(
 		}
 		return false, nil
 	}
-
-	return true, &resourceKey{
-		ResourceName: cm.ObjectMeta.Name,
-		ResourceType: "configmap",
-		Namespace:    namespace,
+	key := &serviceQueueKey{
+		ServiceName: cfg.Pools[0].ServiceName,
+		Namespace:   namespace,
 	}
+	var keyList []*serviceQueueKey
+	keyList = append(keyList, key)
+	return true, keyList
 }
 
 func (appMgr *Manager) enqueueConfigMap(obj interface{}) {
-	if ok, key := appMgr.checkValidConfigMap(obj); ok {
-		appMgr.vsQueue.Add(*key)
+	if ok, keys := appMgr.checkValidConfigMap(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
 	}
 }
 
 func (appMgr *Manager) checkValidService(
 	obj interface{},
-) (bool, *resourceKey) {
+) (bool, []*serviceQueueKey) {
 	// Check if the service to see if we care about it.
 	svc := obj.(*v1.Service)
 	namespace := svc.ObjectMeta.Namespace
@@ -1179,22 +1136,26 @@ func (appMgr *Manager) checkValidService(
 		// Not watching this namespace
 		return false, nil
 	}
-	return true, &resourceKey{
-		ResourceName: svc.ObjectMeta.Name,
-		ResourceType: "service",
-		Namespace:    namespace,
+	key := &serviceQueueKey{
+		ServiceName: svc.ObjectMeta.Name,
+		Namespace:   namespace,
 	}
+	var keyList []*serviceQueueKey
+	keyList = append(keyList, key)
+	return true, keyList
 }
 
 func (appMgr *Manager) enqueueService(obj interface{}) {
-	if ok, key := appMgr.checkValidService(obj); ok {
-		appMgr.vsQueue.Add(*key)
+	if ok, keys := appMgr.checkValidService(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
 	}
 }
 
 func (appMgr *Manager) checkValidEndpoints(
 	obj interface{},
-) (bool, *resourceKey) {
+) (bool, []*serviceQueueKey) {
 	eps := obj.(*v1.Endpoints)
 	namespace := eps.ObjectMeta.Namespace
 	// Check if the service to see if we care about it.
@@ -1203,22 +1164,26 @@ func (appMgr *Manager) checkValidEndpoints(
 		// Not watching this namespace
 		return false, nil
 	}
-	return true, &resourceKey{
-		ResourceName: eps.ObjectMeta.Name,
-		ResourceType: "endpoints",
-		Namespace:    namespace,
+	key := &serviceQueueKey{
+		ServiceName: eps.ObjectMeta.Name,
+		Namespace:   namespace,
 	}
+	var keyList []*serviceQueueKey
+	keyList = append(keyList, key)
+	return true, keyList
 }
 
 func (appMgr *Manager) enqueueEndpoints(obj interface{}) {
-	if ok, key := appMgr.checkValidEndpoints(obj); ok {
-		appMgr.vsQueue.Add(*key)
+	if ok, keys := appMgr.checkValidEndpoints(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
 	}
 }
 
 func (appMgr *Manager) checkValidIngress(
 	obj interface{},
-) (bool, *resourceKey) {
+) (bool, []*serviceQueueKey) {
 	ing := obj.(*v1beta1.Ingress)
 	namespace := ing.ObjectMeta.Namespace
 	_, ok := appMgr.getNamespaceInformer(namespace)
@@ -1228,26 +1193,32 @@ func (appMgr *Manager) checkValidIngress(
 	}
 	rsCfg := createRSConfigFromIngress(ing)
 	if rsCfg == nil {
-		rsKey := resourceKey{ing.ObjectMeta.Name, "ingress", namespace}
-		if _, ok := appMgr.resources.Get(rsKey); ok {
+		rsName := formatIngressVSName(ing)
+		serviceName := ing.Spec.Backend.ServiceName
+		servicePort := ing.Spec.Backend.ServicePort.IntVal
+		rsKey := serviceKey{serviceName, servicePort, ing.ObjectMeta.Namespace}
+		if _, ok := appMgr.resources.Get(rsKey, rsName); ok {
 			appMgr.resources.Lock()
-			appMgr.resources.Delete(rsKey)
+			appMgr.resources.Delete(rsKey, rsName)
 			appMgr.resources.Unlock()
 			appMgr.outputConfig()
 		}
 		return false, nil
 	}
-
-	return true, &resourceKey{
-		ResourceName: ing.ObjectMeta.Name,
-		ResourceType: "ingress",
-		Namespace:    namespace,
+	key := &serviceQueueKey{
+		ServiceName: rsCfg.Pools[0].ServiceName,
+		Namespace:   namespace,
 	}
+	var keyList []*serviceQueueKey
+	keyList = append(keyList, key)
+	return true, keyList
 }
 
 func (appMgr *Manager) enqueueIngress(obj interface{}) {
-	if ok, key := appMgr.checkValidIngress(obj); ok {
-		appMgr.vsQueue.Add(*key)
+	if ok, keys := appMgr.checkValidIngress(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
 	}
 }
 
@@ -1306,12 +1277,22 @@ func handleConfigMapParseFailure(
 	log.Warningf("Could not get config for ConfigMap: %v - %v",
 		cm.ObjectMeta.Name, err)
 	// If virtual server exists for invalid configmap, delete it
+	var serviceName string
+	var servicePort int32
 	if nil != cfg {
-		rsKey := resourceKey{cm.ObjectMeta.Name, "configmap", cm.ObjectMeta.Namespace}
-		if _, ok := appMgr.resources.Get(rsKey); ok {
+		if len(cfg.Pools) == 0 {
+			serviceName = ""
+			servicePort = 0
+		} else {
+			serviceName = cfg.Pools[0].ServiceName
+			servicePort = cfg.Pools[0].ServicePort
+		}
+		sKey := serviceKey{serviceName, servicePort, cm.ObjectMeta.Namespace}
+		rsName := formatConfigMapVSName(cm)
+		if _, ok := appMgr.resources.Get(sKey, rsName); ok {
 			appMgr.resources.Lock()
 			defer appMgr.resources.Unlock()
-			appMgr.resources.Delete(rsKey)
+			appMgr.resources.Delete(sKey, rsName)
 			delete(cm.ObjectMeta.Annotations, vsBindAddrAnnotation)
 			appMgr.kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
 			log.Warningf("Deleted virtual server associated with ConfigMap: %v",
@@ -1348,7 +1329,7 @@ func (appMgr *Manager) ProcessNodeUpdate(
 		// Compare last set of nodes with new one
 		if !reflect.DeepEqual(newNodes, appMgr.oldNodes) {
 			log.Infof("ProcessNodeUpdate: Change in Node state detected")
-			appMgr.resources.ForEach(func(key resourceKey, cfg *ResourceConfig) {
+			appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
 				port := strconv.Itoa(int(cfg.MetaData.NodePort))
 				var newAddrPorts []string
 				for _, node := range newNodes {
@@ -1391,7 +1372,7 @@ func (appMgr *Manager) outputConfigLocked() {
 	resourceCount := 0
 
 	// Filter the configs to only those that have active services
-	appMgr.resources.ForEach(func(key resourceKey, cfg *ResourceConfig) {
+	appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
 		if cfg.MetaData.Active == true {
 			resources.Virtuals = append(resources.Virtuals, cfg.Virtual)
 			resources.Pools = append(resources.Pools, cfg.Pools...)

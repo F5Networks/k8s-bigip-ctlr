@@ -287,7 +287,7 @@ var oneSvcTwoPodsConfig string = string(`{"services":[ {"virtualServer":{"backen
 type mockAppManager struct {
 	appMgr  *Manager
 	mutex   sync.Mutex
-	vsMutex map[resourceKey]*sync.Mutex
+	vsMutex map[serviceQueueKey]*sync.Mutex
 	nsLabel string
 }
 
@@ -295,7 +295,7 @@ func newMockAppManager(params *Params) *mockAppManager {
 	return &mockAppManager{
 		appMgr:  NewManager(params),
 		mutex:   sync.Mutex{},
-		vsMutex: make(map[resourceKey]*sync.Mutex),
+		vsMutex: make(map[serviceQueueKey]*sync.Mutex),
 	}
 }
 
@@ -339,13 +339,13 @@ func (m *mockAppManager) resources() *Resources {
 	return m.appMgr.resources
 }
 
-func (m *mockAppManager) getVsMutex(rsKey resourceKey) *sync.Mutex {
+func (m *mockAppManager) getVsMutex(sKey serviceQueueKey) *sync.Mutex {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	mtx, ok := m.vsMutex[rsKey]
+	mtx, ok := m.vsMutex[sKey]
 	if !ok {
 		mtx = &sync.Mutex{}
-		m.vsMutex[rsKey] = mtx
+		m.vsMutex[sKey] = mtx
 	}
 	return mtx
 }
@@ -355,157 +355,181 @@ func (m *mockAppManager) processNodeUpdate(obj interface{}, err error) {
 }
 
 func (m *mockAppManager) addConfigMap(cm *v1.ConfigMap) bool {
-	ok, vsKey := m.appMgr.checkValidConfigMap(cm)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
-		appInf.cfgMapInformer.GetStore().Add(cm)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidConfigMap(cm)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
+			appInf.cfgMapInformer.GetStore().Add(cm)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) updateConfigMap(cm *v1.ConfigMap) bool {
-	ok, vsKey := m.appMgr.checkValidConfigMap(cm)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
-		appInf.cfgMapInformer.GetStore().Update(cm)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidConfigMap(cm)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
+			appInf.cfgMapInformer.GetStore().Update(cm)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) deleteConfigMap(cm *v1.ConfigMap) bool {
-	ok, vsKey := m.appMgr.checkValidConfigMap(cm)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
-		appInf.cfgMapInformer.GetStore().Delete(cm)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidConfigMap(cm)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
+			appInf.cfgMapInformer.GetStore().Delete(cm)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) addService(svc *v1.Service) bool {
-	ok, vsKey := m.appMgr.checkValidService(svc)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(svc.ObjectMeta.Namespace)
-		appInf.svcInformer.GetStore().Add(svc)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidService(svc)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(svc.ObjectMeta.Namespace)
+			appInf.svcInformer.GetStore().Add(svc)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) updateService(svc *v1.Service) bool {
-	ok, vsKey := m.appMgr.checkValidService(svc)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(svc.ObjectMeta.Namespace)
-		appInf.svcInformer.GetStore().Update(svc)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidService(svc)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(svc.ObjectMeta.Namespace)
+			appInf.svcInformer.GetStore().Update(svc)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) deleteService(svc *v1.Service) bool {
-	ok, vsKey := m.appMgr.checkValidService(svc)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(svc.ObjectMeta.Namespace)
-		appInf.svcInformer.GetStore().Delete(svc)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidService(svc)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(svc.ObjectMeta.Namespace)
+			appInf.svcInformer.GetStore().Delete(svc)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) addEndpoints(ep *v1.Endpoints) bool {
-	ok, vsKey := m.appMgr.checkValidEndpoints(ep)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
-		appInf.endptInformer.GetStore().Add(ep)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidEndpoints(ep)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
+			appInf.endptInformer.GetStore().Add(ep)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) updateEndpoints(ep *v1.Endpoints) bool {
-	ok, vsKey := m.appMgr.checkValidEndpoints(ep)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
-		appInf.endptInformer.GetStore().Update(ep)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidEndpoints(ep)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
+			appInf.endptInformer.GetStore().Update(ep)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) deleteEndpoints(ep *v1.Endpoints) bool {
-	ok, vsKey := m.appMgr.checkValidEndpoints(ep)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
-		appInf.endptInformer.GetStore().Delete(ep)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidEndpoints(ep)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
+			appInf.endptInformer.GetStore().Delete(ep)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) addIngress(ing *v1beta1.Ingress) bool {
-	ok, vsKey := m.appMgr.checkValidIngress(ing)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
-		appInf.ingInformer.GetStore().Add(ing)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidIngress(ing)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
+			appInf.ingInformer.GetStore().Add(ing)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) updateIngress(ing *v1beta1.Ingress) bool {
-	ok, vsKey := m.appMgr.checkValidIngress(ing)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
-		appInf.ingInformer.GetStore().Update(ing)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidIngress(ing)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
+			appInf.ingInformer.GetStore().Update(ing)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) deleteIngress(ing *v1beta1.Ingress) bool {
-	ok, vsKey := m.appMgr.checkValidIngress(ing)
-	if ok {
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
-		appInf.ingInformer.GetStore().Delete(ing)
-		m.appMgr.syncVirtualServer(*vsKey)
+	ok, keys := m.appMgr.checkValidIngress(ing)
+	for _, vsKey := range keys {
+		if ok {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
+			appInf.ingInformer.GetStore().Delete(ing)
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
@@ -868,7 +892,7 @@ func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
 	require.Equal(1, resources.CountOf(serviceKey{"foo", 80, namespace}),
 		"Virtual servers should have entry")
 	rs, ok := resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.Equal("http", rs.Virtual.Mode, "Mode should be http")
 
@@ -882,7 +906,7 @@ func testOverwriteAddImpl(t *testing.T, isNodePort bool) {
 	require.Equal(1, resources.CountOf(serviceKey{"foo", 80, namespace}),
 		"Virtual servers should have new entry")
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.Equal("tcp", rs.Virtual.Mode,
 		"Mode should be tcp after overwrite")
@@ -1034,17 +1058,17 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 		"127.0.0.2",
 	}
 	rs, ok := resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.EqualValues(generateExpectedAddrs(30001, addrs),
 		rs.Pools[0].PoolMemberAddrs,
 		"Existing NodePort should be set on address")
 	rs, ok = resources.Get(
-		resourceKey{"foomap8080", "configmap", namespace})
+		serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 	require.True(ok)
 	require.False(rs.MetaData.Active)
 	rs, ok = resources.Get(
-		resourceKey{"foomap9090", "configmap", namespace})
+		serviceKey{"foo", 9090, namespace}, formatConfigMapVSName(cfgFoo9090))
 	require.True(ok)
 	require.False(rs.MetaData.Active)
 
@@ -1061,19 +1085,19 @@ func TestServicePortsRemovedNodePort(t *testing.T) {
 	require.Equal(1, resources.CountOf(serviceKey{"foo", 9090, namespace}))
 
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.EqualValues(generateExpectedAddrs(20001, addrs),
 		rs.Pools[0].PoolMemberAddrs,
 		"Existing NodePort should be set on address")
 	rs, ok = resources.Get(
-		resourceKey{"foomap8080", "configmap", namespace})
+		serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 	require.True(ok)
 	require.EqualValues(generateExpectedAddrs(45454, addrs),
 		rs.Pools[0].PoolMemberAddrs,
 		"Existing NodePort should be set on address")
 	rs, ok = resources.Get(
-		resourceKey{"foomap9090", "configmap", namespace})
+		serviceKey{"foo", 9090, namespace}, formatConfigMapVSName(cfgFoo9090))
 	require.True(ok)
 	require.False(rs.MetaData.Active)
 }
@@ -1297,7 +1321,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	resources := appMgr.resources()
 	assert.Equal(1, resources.Count())
 	rs, ok := resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 
 	// Second ConfigMap added
@@ -1305,11 +1329,11 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.True(r, "Config map should be processed")
 	assert.Equal(2, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.False(rs.MetaData.Active)
 	rs, ok = resources.Get(
-		resourceKey{"barmap", "configmap", namespace})
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	require.False(rs.MetaData.Active)
 
@@ -1318,7 +1342,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.True(r, "Service should be processed")
 	assert.Equal(2, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(30001, addrs),
@@ -1329,7 +1353,7 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.True(r, "Service should be processed")
 	assert.Equal(2, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"barmap", "configmap", namespace})
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(37001, addrs),
@@ -1340,19 +1364,19 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.True(r, "Config map should be processed")
 	assert.Equal(3, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"foomap8080", "configmap", namespace})
+		serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(38001, addrs),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(30001, addrs),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"barmap", "configmap", namespace})
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(37001, addrs),
@@ -1363,25 +1387,25 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	require.True(r, "Config map should be processed")
 	assert.Equal(4, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"foomap9090", "configmap", namespace})
+		serviceKey{"foo", 9090, namespace}, formatConfigMapVSName(cfgFoo9090))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(39001, addrs),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"foomap8080", "configmap", namespace})
+		serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(38001, addrs),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(30001, addrs),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"barmap", "configmap", namespace})
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(37001, addrs),
@@ -1395,25 +1419,25 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	appMgr.processNodeUpdate(n.Items, err)
 	assert.Equal(4, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(30001, append(addrs, "127.0.0.3")),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"barmap", "configmap", namespace})
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(37001, append(addrs, "127.0.0.3")),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"foomap8080", "configmap", namespace})
+		serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(38001, append(addrs, "127.0.0.3")),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"foomap9090", "configmap", namespace})
+		serviceKey{"foo", 9090, namespace}, formatConfigMapVSName(cfgFoo9090))
 	require.True(ok)
 	require.True(rs.MetaData.Active)
 	assert.EqualValues(generateExpectedAddrs(39001, append(addrs, "127.0.0.3")),
@@ -1465,12 +1489,12 @@ func TestProcessUpdatesNodePort(t *testing.T) {
 	appMgr.processNodeUpdate(n.Items, err)
 	assert.Equal(2, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(30001, []string{"127.0.0.3"}),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"barmap", "configmap", namespace})
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		rs.Pools[0].PoolMemberAddrs)
@@ -1605,7 +1629,8 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	r = appMgr.addConfigMap(extrakeys)
 	require.True(r, "Config map should be processed")
 	require.Equal(1, resources.Count())
-	resources.Delete(resourceKey{"extrakeys", "configmap", namespace})
+	resources.Delete(serviceKey{"foo", 80, namespace},
+		formatConfigMapVSName(extrakeys))
 
 	// Config map with no mode or balance
 	defaultModeAndBalance := test.NewConfigMap("mode_balance", "1", namespace, map[string]string{
@@ -1620,7 +1645,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	require.Equal(1, resources.Count())
 
 	rs, ok := resources.Get(
-		resourceKey{"mode_balance", "configmap", namespace})
+		serviceKey{"bar", 80, namespace}, formatConfigMapVSName(defaultModeAndBalance))
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(rs, "Config map should be object")
 
@@ -1680,13 +1705,13 @@ func TestNamespaceIsolation(t *testing.T) {
 	require.True(r, "Config map should be processed")
 	resources := appMgr.resources()
 	_, ok := resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Config map should be accessible")
 
 	r = appMgr.addConfigMap(cfgBar)
 	require.False(r, "Config map should not be processed")
 	_, ok = resources.Get(
-		resourceKey{"foomap", "configmap", wrongNamespace})
+		serviceKey{"foo", 80, wrongNamespace}, formatConfigMapVSName(cfgFoo))
 	assert.False(ok, "Config map should not be added if namespace does not match flag")
 	assert.Equal(1, resources.CountOf(serviceKey{"foo", 80, namespace}),
 		"Virtual servers should contain original config")
@@ -1695,7 +1720,7 @@ func TestNamespaceIsolation(t *testing.T) {
 	r = appMgr.updateConfigMap(cfgBar)
 	require.False(r, "Config map should not be processed")
 	_, ok = resources.Get(
-		resourceKey{"foomap", "configmap", wrongNamespace})
+		serviceKey{"foo", 80, wrongNamespace}, formatConfigMapVSName(cfgFoo))
 	assert.False(ok, "Config map should not be added if namespace does not match flag")
 	assert.Equal(1, resources.CountOf(serviceKey{"foo", 80, namespace}),
 		"Virtual servers should contain original config")
@@ -1704,16 +1729,16 @@ func TestNamespaceIsolation(t *testing.T) {
 	r = appMgr.deleteConfigMap(cfgBar)
 	require.False(r, "Config map should not be processed")
 	_, ok = resources.Get(
-		resourceKey{"foomap", "configmap", wrongNamespace})
+		serviceKey{"foo", 80, wrongNamespace}, formatConfigMapVSName(cfgFoo))
 	assert.False(ok, "Config map should not be deleted if namespace does not match flag")
 	_, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Config map should be accessible after delete called on incorrect namespace")
 
 	r = appMgr.addService(servFoo)
 	require.True(r, "Service should be processed")
 	rs, ok := resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		rs.Pools[0].PoolMemberAddrs,
@@ -1722,10 +1747,10 @@ func TestNamespaceIsolation(t *testing.T) {
 	r = appMgr.addService(servBar)
 	require.False(r, "Service should not be processed")
 	_, ok = resources.Get(
-		resourceKey{"foomap", "configmap", wrongNamespace})
+		serviceKey{"foo", 80, wrongNamespace}, formatConfigMapVSName(cfgFoo))
 	assert.False(ok, "Service should not be added if namespace does not match flag")
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		rs.Pools[0].PoolMemberAddrs,
@@ -1734,10 +1759,10 @@ func TestNamespaceIsolation(t *testing.T) {
 	r = appMgr.updateService(servBar)
 	require.False(r, "Service should not be processed")
 	_, ok = resources.Get(
-		resourceKey{"foomap", "configmap", wrongNamespace})
+		serviceKey{"foo", 80, wrongNamespace}, formatConfigMapVSName(cfgFoo))
 	assert.False(ok, "Service should not be added if namespace does not match flag")
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Service should be accessible")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		rs.Pools[0].PoolMemberAddrs,
@@ -1746,7 +1771,7 @@ func TestNamespaceIsolation(t *testing.T) {
 	r = appMgr.deleteService(servBar)
 	require.False(r, "Service should not be processed")
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 	assert.True(ok, "Service should not have been deleted")
 	assert.EqualValues(generateExpectedAddrs(37001, []string{"127.0.0.3"}),
 		rs.Pools[0].PoolMemberAddrs,
@@ -1824,7 +1849,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	resources := appMgr.resources()
 	assert.Equal(1, resources.Count())
 	rs, ok := resources.Get(
-		resourceKey{"iapp1map", "configmap", namespace})
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 
 	// Second ConfigMap ADDED
@@ -1832,7 +1857,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	require.True(r, "Config map should be processed")
 	assert.Equal(2, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"iapp1map", "configmap", namespace})
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 
 	// Service ADDED
@@ -1840,7 +1865,7 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	require.True(r, "Service should be processed")
 	assert.Equal(2, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"iapp1map", "configmap", namespace})
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, addrs),
 		rs.Pools[0].PoolMemberAddrs)
@@ -1850,12 +1875,12 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	require.True(r, "Service should be processed")
 	assert.Equal(2, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"iapp1map", "configmap", namespace})
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, addrs),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"iapp2map", "configmap", namespace})
+		serviceKey{"iapp2", 80, namespace}, formatConfigMapVSName(cfgIapp2))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(20202, addrs),
 		rs.Pools[0].PoolMemberAddrs)
@@ -1878,12 +1903,12 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	appMgr.processNodeUpdate(n.Items, err)
 	assert.Equal(2, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"iapp1map", "configmap", namespace})
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, append(addrs, "192.168.0.4")),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"iapp2map", "configmap", namespace})
+		serviceKey{"iapp2", 80, namespace}, formatConfigMapVSName(cfgIapp2))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(20202, append(addrs, "192.168.0.4")),
 		rs.Pools[0].PoolMemberAddrs)
@@ -1899,12 +1924,12 @@ func TestProcessUpdatesIAppNodePort(t *testing.T) {
 	appMgr.processNodeUpdate(n.Items, err)
 	assert.Equal(2, resources.Count())
 	rs, ok = resources.Get(
-		resourceKey{"iapp1map", "configmap", namespace})
+		serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(10101, []string{"192.168.0.4"}),
 		rs.Pools[0].PoolMemberAddrs)
 	rs, ok = resources.Get(
-		resourceKey{"iapp2map", "configmap", namespace})
+		serviceKey{"iapp2", 80, namespace}, formatConfigMapVSName(cfgIapp2))
 	require.True(ok)
 	assert.EqualValues(generateExpectedAddrs(20202, []string{"192.168.0.4"}),
 		rs.Pools[0].PoolMemberAddrs)
@@ -1977,7 +2002,7 @@ func testNoBindAddr(t *testing.T, isNodePort bool) {
 	require.Equal(1, resources.Count())
 
 	rs, ok := resources.Get(
-		resourceKey{"noBindAddr", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(noBindAddr))
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(rs, "Config map should be object")
 
@@ -2037,7 +2062,7 @@ func testNoVirtualAddress(t *testing.T, isNodePort bool) {
 	require.Equal(1, resources.Count())
 
 	rs, ok := resources.Get(
-		resourceKey{"noVirtualAddress", "configmap", namespace})
+		serviceKey{"foo", 80, namespace}, formatConfigMapVSName(noVirtualAddress))
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(rs, "Config map should be object")
 
@@ -2088,7 +2113,8 @@ func TestSchemaValidation(t *testing.T) {
 func validateServiceIps(t *testing.T, serviceName, namespace string,
 	svcPorts []v1.ServicePort, ips []string, resources *Resources) {
 	for _, p := range svcPorts {
-		vsMap := resources.GetAll(serviceKey{serviceName, p.Port, namespace})
+		vsMap, ok := resources.GetAll(serviceKey{serviceName, p.Port, namespace})
+		require.True(t, ok)
 		require.NotNil(t, vsMap)
 		for _, rs := range vsMap {
 			var expectedIps []string
@@ -2163,7 +2189,7 @@ func TestVirtualServerWhenEndpointsEmpty(t *testing.T) {
 	for _, p := range svcPorts {
 		require.Equal(1, resources.CountOf(serviceKey{"foo", p.Port, namespace}))
 		rs, ok := resources.Get(
-			resourceKey{"foomap", "configmap", namespace})
+			serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 		require.True(ok)
 		require.EqualValues([]string(nil), rs.Pools[0].PoolMemberAddrs)
 	}
@@ -2786,38 +2812,38 @@ func TestMultipleNamespaces(t *testing.T) {
 	r := appMgr.addConfigMap(cfgNs1)
 	assert.True(r, "Config map should be processed")
 	rs, ok := resources.Get(
-		resourceKey{"foomap", "configmap", ns1})
+		serviceKey{"foo", 80, ns1}, formatConfigMapVSName(cfgNs1))
 	assert.True(ok, "Config map should be accessible")
 	assert.False(rs.MetaData.Active)
 	r = appMgr.addService(svcNs1)
 	assert.True(r, "Service should be processed")
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", ns1})
+		serviceKey{"foo", 80, ns1}, formatConfigMapVSName(cfgNs1))
 	assert.True(ok, "Config map should be accessible")
 	assert.True(rs.MetaData.Active)
 
 	r = appMgr.addConfigMap(cfgNs2)
 	assert.True(r, "Config map should be processed")
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", ns2})
+		serviceKey{"foo", 80, ns2}, formatConfigMapVSName(cfgNs2))
 	assert.True(ok, "Config map should be accessible")
 	assert.False(rs.MetaData.Active)
 	r = appMgr.addService(svcNs2)
 	assert.True(r, "Service should be processed")
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", ns2})
+		serviceKey{"foo", 80, ns2}, formatConfigMapVSName(cfgNs2))
 	assert.True(ok, "Config map should be accessible")
 	assert.True(rs.MetaData.Active)
 
 	r = appMgr.addConfigMap(cfgNsDefault)
 	assert.False(r, "Config map should not be processed")
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", nsDefault})
+		serviceKey{"foo", 80, nsDefault}, formatConfigMapVSName(cfgNsDefault))
 	assert.False(ok, "Config map should not be accessible")
 	r = appMgr.addService(svcNsDefault)
 	assert.False(r, "Service should not be processed")
 	rs, ok = resources.Get(
-		resourceKey{"foomap", "configmap", nsDefault})
+		serviceKey{"foo", 80, nsDefault}, formatConfigMapVSName(cfgNsDefault))
 	assert.False(ok, "Config map should not be accessible")
 }
 
@@ -2954,11 +2980,14 @@ func TestNamespaceLabels(t *testing.T) {
 	assert.False(r, "Config map should not be processed")
 	r = appMgr.addConfigMap(cfgNs3)
 	assert.False(r, "Config map should not be processed")
-	_, ok := resources.Get(resourceKey{"foomap", "configmap", ns1.ObjectMeta.Name})
+	_, ok := resources.Get(serviceKey{"foo", 80, ns1.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs1))
 	assert.False(ok, "Config map should not be accessible")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns2.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns2.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs2))
 	assert.False(ok, "Config map should not be accessible")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns3.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns3.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs3))
 	assert.False(ok, "Config map should not be accessible")
 
 	// Add a namespace with no label, should still not create any resources.
@@ -2970,11 +2999,14 @@ func TestNamespaceLabels(t *testing.T) {
 	assert.False(r, "Config map should not be processed")
 	r = appMgr.addConfigMap(cfgNs3)
 	assert.False(r, "Config map should not be processed")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns1.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns1.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs1))
 	assert.False(ok, "Config map should not be accessible")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns2.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns2.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs2))
 	assert.False(ok, "Config map should not be accessible")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns3.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns3.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs3))
 	assert.False(ok, "Config map should not be accessible")
 
 	// Add a namespace with a mismatched label, should still not create any
@@ -2987,11 +3019,14 @@ func TestNamespaceLabels(t *testing.T) {
 	assert.False(r, "Config map should not be processed")
 	r = appMgr.addConfigMap(cfgNs3)
 	assert.False(r, "Config map should not be processed")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns1.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns1.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs1))
 	assert.False(ok, "Config map should not be accessible")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns2.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns2.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs2))
 	assert.False(ok, "Config map should not be accessible")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns3.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns3.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs3))
 	assert.False(ok, "Config map should not be accessible")
 
 	// Add a namespace with a matching label and make sure the config map that
@@ -3004,11 +3039,14 @@ func TestNamespaceLabels(t *testing.T) {
 	assert.False(r, "Config map should not be processed")
 	r = appMgr.addConfigMap(cfgNs3)
 	assert.True(r, "Config map should be processed")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns1.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns1.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs1))
 	assert.False(ok, "Config map should not be accessible")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns2.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns2.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs2))
 	assert.False(ok, "Config map should not be accessible")
-	rs, ok := resources.Get(resourceKey{"foomap", "configmap", ns3.ObjectMeta.Name})
+	rs, ok := resources.Get(serviceKey{"foo", 80, ns3.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs3))
 	assert.True(ok, "Config map should be accessible")
 	assert.False(rs.MetaData.Active)
 
@@ -3026,11 +3064,14 @@ func TestNamespaceLabels(t *testing.T) {
 	assert.False(r, "Service should not be processed")
 	r = appMgr.addService(svcNs3)
 	assert.True(r, "Service should be processed")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns1.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns1.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs1))
 	assert.False(ok, "Config map should not be accessible")
-	_, ok = resources.Get(resourceKey{"foomap", "configmap", ns2.ObjectMeta.Name})
+	_, ok = resources.Get(serviceKey{"foo", 80, ns2.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs2))
 	assert.False(ok, "Config map should not be accessible")
-	rs, ok = resources.Get(resourceKey{"foomap", "configmap", ns3.ObjectMeta.Name})
+	rs, ok = resources.Get(serviceKey{"foo", 80, ns3.ObjectMeta.Name},
+		formatConfigMapVSName(cfgNs3))
 	assert.True(ok, "Config map should be accessible")
 	assert.True(rs.MetaData.Active)
 }
@@ -3123,7 +3164,7 @@ func TestVirtualServerForIngress(t *testing.T) {
 	assert.True(r, "Service should be processed")
 
 	rs, ok := resources.Get(
-		resourceKey{"ingress", "ingress", "default"})
+		serviceKey{"foo", 80, "default"}, "default_ingress-ingress")
 	assert.True(ok, "Ingress should be accessible")
 	assert.NotNil(rs, "Ingress should be object")
 	assert.True(rs.MetaData.Active)
@@ -3145,7 +3186,7 @@ func TestVirtualServerForIngress(t *testing.T) {
 	require.Equal(1, resources.Count())
 
 	rs, ok = resources.Get(
-		resourceKey{"ingress", "ingress", "default"})
+		serviceKey{"foo", 80, "default"}, "default_ingress-ingress")
 	assert.True(ok, "Ingress should be accessible")
 	assert.NotNil(rs, "Ingress should be object")
 
@@ -3218,12 +3259,6 @@ func TestIngressSslProfile(t *testing.T) {
 	endpts := test.NewEndpoints(svcName, "1", namespace, readyIps, emptyIps,
 		convertSvcPortsToEndpointPorts(svcPorts))
 
-	rsKey := resourceKey{
-		ResourceName: "ingress",
-		ResourceType: "ingress",
-		Namespace:    namespace,
-	}
-
 	// Add ingress, service, and endpoints objects and make sure the
 	// ssl-profile set in the ingress object shows up in the virtual server.
 	r := appMgr.addIngress(fooIng)
@@ -3235,7 +3270,7 @@ func TestIngressSslProfile(t *testing.T) {
 	resources := appMgr.resources()
 	assert.Equal(1, resources.Count())
 	assert.Equal(1, resources.CountOf(svcKey))
-	vsCfg, found := resources.Get(rsKey)
+	vsCfg, found := resources.Get(svcKey, formatIngressVSName(fooIng))
 	assert.True(found)
 	require.NotNil(vsCfg)
 	secretArray := []string{

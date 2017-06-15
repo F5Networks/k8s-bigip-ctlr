@@ -33,11 +33,11 @@ COPY k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
 COPY requirements.docs.txt /tmp/requirements.docs.txt
 
 RUN source scl_source enable python27 && \
-	pip install --upgrade pip && \
-	pip install setuptools flake8 && \
-	pip install -r /tmp/k8s-build-requirements.txt && \
-	pip install -r /tmp/k8s-runtime-requirements.txt && \
-	pip install -r /tmp/requirements.docs.txt && \
+	pip install --no-cache-dir --upgrade pip && \
+	pip install --no-cache-dir setuptools flake8 && \
+	pip install --no-cache-dir -r /tmp/k8s-build-requirements.txt && \
+	pip install --no-cache-dir -r /tmp/k8s-runtime-requirements.txt && \
+	pip install --no-cache-dir -r /tmp/requirements.docs.txt && \
 	git clone https://bldr-git.int.lineratesystems.com/mirror/gb.git $GOPATH/src/github.com/constabulary/gb && \
 	cd $GOPATH/src/github.com/constabulary/gb && git checkout 2b9e9134 && \
 	go install github.com/constabulary/gb/... && \

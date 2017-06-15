@@ -13,10 +13,13 @@ COPY bigip-virtual-server_v*.json $APPPATH/vendor/src/f5/schemas/
 COPY k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
 
 RUN yum -y install centos-release-scl && \
-    yum -y install --setopt=tsflags=nodocs python27 git && \
+    yum -y install --setopt=tsflags=nodocs python27-python-pip git && \
     source scl_source enable python27 && \
-    pip install --upgrade pip && \
-    pip install -r /tmp/k8s-runtime-requirements.txt
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /tmp/k8s-runtime-requirements.txt && \
+    python -m pip uninstall -y pip setuptools && \
+    yum -y autoremove git && \
+    yum clean all
 
 # Run the run application in the projects bin directory.
 CMD [ "/app/bin/k8s-bigip-ctlr" ]

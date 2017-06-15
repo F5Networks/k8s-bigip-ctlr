@@ -31,6 +31,15 @@ else
   GB_BUILD_OPTS=
 endif
 
+# Allow user to pass in OS build options
+ifeq ($(TARGET),rhel7)
+	OS := rhel7
+else ifeq ($(TARGET),centos7)
+	OS := centos7
+else
+	OS := alpine
+endif
+
 pre-build:
 	${PROJ_DIR}/build-tools/build-start.sh
 
@@ -71,7 +80,7 @@ fmt:
 	${PROJ_DIR}/build-tools/fmt.sh
 
 devel-image:
-	./build-tools/build-devel-image.sh
+	OS=$(OS) ./build-tools/build-devel-image.sh
 
 # Build docs standalone from this repo
 doc-preview:

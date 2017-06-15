@@ -43,5 +43,12 @@ RUN microdnf --enablerepo=rhel-7-server-rpms --enablerepo=rhel-7-server-optional
       perl-parent perl-podlators perl-threads perl-threads-shared rsync && \
     microdnf clean all
 
+# entrypoint to enable scl python at runtime
+RUN echo $'#!/bin/sh\n\
+source scl_source enable python27\n\
+exec "$@"' > $APPPATH/bin/entrypoint.sh && \
+    chmod +x $APPPATH/bin/entrypoint.sh
+
+ENTRYPOINT [ "/app/bin/entrypoint.sh" ]
 # Run the run application in the projects bin directory.
 CMD [ "/app/bin/k8s-bigip-ctlr" ]

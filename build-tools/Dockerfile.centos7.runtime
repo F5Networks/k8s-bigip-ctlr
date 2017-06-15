@@ -21,5 +21,12 @@ RUN yum -y install centos-release-scl && \
     yum -y autoremove git && \
     yum clean all
 
+# entrypoint to enable scl python at runtime
+RUN echo $'#!/bin/sh\n\
+source scl_source enable python27\n\
+exec "$@"' > $APPPATH/bin/entrypoint.sh && \
+    chmod +x $APPPATH/bin/entrypoint.sh
+
+ENTRYPOINT [ "/app/bin/entrypoint.sh" ]
 # Run the run application in the projects bin directory.
 CMD [ "/app/bin/k8s-bigip-ctlr" ]

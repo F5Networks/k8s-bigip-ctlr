@@ -19,6 +19,7 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,7 +47,7 @@ type BigIPConfig struct {
 	Virtuals []Virtual `json:"virtualServers,omitempty"`
 	Pools    []Pool    `json:"pools,omitempty"`
 	Monitors []Monitor `json:"monitors,omitempty"`
-	Policies []Policy  `json:"l7policies,omitempty"`
+	Policies []Policy  `json:"l7Policies,omitempty"`
 }
 
 type metaData struct {
@@ -74,6 +75,7 @@ type Virtual struct {
 	Mode           string          `json:"mode,omitempty"`
 	VirtualAddress *virtualAddress `json:"virtualAddress,omitempty"`
 	SslProfile     *sslProfile     `json:"sslProfile,omitempty"`
+	Policies       []nameRef       `json:"policies,omitempty"`
 
 	// iApp parameters
 	IApp                string                    `json:"iapp,omitempty"`
@@ -105,6 +107,52 @@ type Monitor struct {
 
 // virtual policy
 type Policy struct {
+	Name        string   `json:"name"`
+	Partition   string   `json:"partition"`
+	SubPath     string   `json:"subPath,omitempty"`
+	Controls    []string `json:"controls,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Legacy      bool     `json:"legacy,omitempty"`
+	Requires    []string `json:"requires,omitempty"`
+	Rules       []*rule  `json:"rules,omitempty"`
+	Strategy    string   `json:"strategy,omitempty"`
+}
+
+type rule struct {
+	Name       string       `json:"name"`
+	Actions    []*action    `json:"actions,omitempty"`
+	Conditions []*condition `json:"conditions,omitempty"`
+}
+
+type action struct {
+	Name      string `json:"name"`
+	HttpReply bool   `json:"httpReply,omitempty"`
+	Forward   bool   `json:"forward,omitempty"`
+	Location  string `json:"location,omitempty"`
+	Redirect  bool   `json:"redirect,omitempty"`
+	Request   bool   `json:"request,omitempty"`
+	Reset     bool   `json:"reset,omitempty"`
+}
+
+type condition struct {
+	Name            string   `json:"name"`
+	CaseInsensitive bool     `json:"caseInsensitive,omitempty"`
+	Equals          bool     `json:"equals,omitempty"`
+	EndsWith        bool     `json:"endsWith,omitempty"`
+	External        bool     `json:"external,omitempty"`
+	Host            bool     `json:"host,omitempty"`
+	HTTPURI         bool     `json:"httpUri,omitempty"`
+	Present         bool     `json:"present,omitempty"`
+	Remote          bool     `json:"remote,omitempty"`
+	Request         bool     `json:"request,omitempty"`
+	Scheme          bool     `json:"scheme,omitempty"`
+	Values          []string `json:"values"`
+}
+
+// virtual server policy/profile reference
+type nameRef struct {
+	Name      string `json:"name"`
+	Partition string `json:"partition"`
 }
 
 // frontend bindaddr and port
@@ -583,4 +631,54 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress) *ResourceConfig {
 	cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
 
 	return &cfg
+}
+
+func (rc *ResourceConfig) SetPolicy(policy Policy) {
+	toFind := nameRef{
+		Name:      policy.Name,
+		Partition: policy.Partition,
+	}
+	found := false
+	for _, polName := range rc.Virtual.Policies {
+		if reflect.DeepEqual(toFind, polName) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		rc.Virtual.Policies = append(rc.Virtual.Policies, toFind)
+	}
+	for i, pol := range rc.Policies {
+		if pol.Name == policy.Name && pol.Partition == policy.Partition {
+			rc.Policies[i] = policy
+			return
+		}
+	}
+	rc.Policies = append(rc.Policies, policy)
+}
+
+func (rc *ResourceConfig) RemovePolicy(toFind nameRef) {
+	for i, polName := range rc.Virtual.Policies {
+		if reflect.DeepEqual(toFind, polName) {
+			// Remove from array
+			copy(rc.Virtual.Policies[i:], rc.Virtual.Policies[i+1:])
+			rc.Virtual.Policies[len(rc.Virtual.Policies)-1] = nameRef{}
+			rc.Virtual.Policies = rc.Virtual.Policies[:len(rc.Virtual.Policies)-1]
+			break
+		}
+	}
+	for i, pol := range rc.Policies {
+		if pol.Name == toFind.Name && pol.Partition == toFind.Partition {
+			if len(rc.Policies) == 1 {
+				// No policies left
+				rc.Policies = nil
+			} else {
+				// Remove from array
+				copy(rc.Policies[i:], rc.Policies[i+1:])
+				rc.Policies[len(rc.Policies)-1] = Policy{}
+				rc.Policies = rc.Policies[:len(rc.Policies)-1]
+			}
+			return
+		}
+	}
 }

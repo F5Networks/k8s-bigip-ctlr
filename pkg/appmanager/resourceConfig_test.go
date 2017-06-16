@@ -366,3 +366,65 @@ func TestSslProfileName(t *testing.T) {
 	assert.Nil(rs.Virtual.SslProfile)
 	assert.Equal(empty, rs.Virtual.GetFrontendSslProfileNames())
 }
+
+func TestSetAndRemovePolicy(t *testing.T) {
+	assert := assert.New(t)
+	var rc ResourceConfig
+
+	lenValidate := func(expectedLen int) {
+		assert.Equal(expectedLen, len(rc.Virtual.Policies))
+		assert.Equal(len(rc.Virtual.Policies), len(rc.Policies))
+	}
+
+	// verify initial state
+	lenValidate(0)
+
+	// add a policy
+	policy1 := Policy{
+		Name:      "policy1",
+		Partition: "k8s",
+		Strategy:  "first-match",
+	}
+	rc.SetPolicy(policy1)
+	lenValidate(1)
+	assert.Equal("first-match", rc.Policies[0].Strategy)
+
+	// change data in existing policy
+	policy1.Strategy = "best-match"
+	assert.Equal("first-match", rc.Policies[0].Strategy)
+	rc.SetPolicy(policy1)
+	lenValidate(1)
+	assert.Equal("best-match", rc.Policies[0].Strategy)
+
+	// add a second policy
+	policy2 := Policy{
+		Name:      "policy2",
+		Partition: "k8s",
+		Strategy:  "first-match",
+	}
+	rc.SetPolicy(policy2)
+	lenValidate(2)
+
+	// make sure it is appended
+	assert.Equal("policy1", rc.Policies[0].Name)
+	assert.Equal("policy2", rc.Policies[1].Name)
+
+	// remove first policy
+	toRemove := nameRef{
+		Name:      policy1.Name,
+		Partition: policy1.Partition,
+	}
+	rc.RemovePolicy(toRemove)
+	lenValidate(1)
+	assert.Equal("policy2", rc.Policies[0].Name)
+
+	// remove last policy
+	toRemove.Name = policy2.Name
+	toRemove.Partition = policy2.Partition
+	rc.RemovePolicy(toRemove)
+	lenValidate(0)
+
+	// make sure deleting something that isn't there doesn't fail badly
+	rc.RemovePolicy(toRemove)
+	lenValidate(0)
+}

@@ -403,6 +403,8 @@ class KubernetesTest(BigIPTest):
         self.bigip.get_virtual = Mock(side_effect=self.mock_get_virtual)
         self.bigip.get_virtual_profiles = Mock(
             side_effect=self.mock_get_virtual_profiles)
+        self.bigip.get_virtual_policies = Mock(
+            side_effect=self.mock_get_virtual_policies)
         self.bigip.get_member = Mock(side_effect=self.mock_get_member)
         self.bigip.get_virtual_address = Mock(
             side_effect=self.mock_get_virtual_address)
@@ -427,7 +429,8 @@ class KubernetesTest(BigIPTest):
                                                {'partition': 'Common',
                                                 'name': 'clientssl-secure'},
                                                {'partition': 'Common',
-                                                'name': 'http'}]}
+                                                'name': 'http'}],
+                                  'policies': []}
         virtual = self.create_mock_virtual('default_configmap',
                                            **virtual_data_unchanged)
 
@@ -475,6 +478,22 @@ class KubernetesTest(BigIPTest):
             data = virtual_data_unchanged.copy()
             # Change one thing
             data[key] = virtual_data_changed[key]
+            virtual = self.create_mock_virtual('default_configmap',
+                                               **data)
+            cfg = ctlr.create_config_kubernetes(self.bigip, self.cloud_data)
+            self.bigip.regenerate_config_f5(cfg)
+            self.assertTrue(virtual.modify.called)
+
+        # Make sure virtual server modify is called for policy name changes.
+        policies = [
+            {'partition': 'Common', 'name': 'policy1'},
+            {'partition': 'Common', 'name': 'policy2'},
+            {}
+            ]
+        for pol in policies:
+            data = virtual_data_unchanged.copy()
+            # Change one thing
+            data['policies'] = pol
             virtual = self.create_mock_virtual('default_configmap',
                                                **data)
             cfg = ctlr.create_config_kubernetes(self.bigip, self.cloud_data)

@@ -886,6 +886,8 @@ func (appMgr *Manager) handleConfigForType(
 	if _, ok := svcPortMap[pool.ServicePort]; !ok {
 		log.Debugf("Process Service delete - name: %v namespace: %v",
 			pool.ServiceName, svcKey.Namespace)
+		log.Infof("Ports for service '%v' have not been found.",
+			pool.ServiceName)
 		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
 			vsUpdated += 1
 		}
@@ -893,6 +895,7 @@ func (appMgr *Manager) handleConfigForType(
 
 	if nil == svc {
 		// The service is gone, de-activate it in the config.
+		log.Infof("Service '%v' has not been found.", pool.ServiceName)
 		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
 			vsUpdated += 1
 		}

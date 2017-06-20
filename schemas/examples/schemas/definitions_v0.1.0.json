@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema/org/schema#",
+  "id": "f5schemadb://schemas/definitions_v0.1.0.json",
+
+  "type": "object",
+  "definitions": {
+    "nonEmptyString": { "type": "string", "minLength": 1 },
+    "positiveInteger": { "type": "integer", "minimum": 1 },
+    "negativeInteger": { "type": "integer", "maximum": -1 }
+  }
+}

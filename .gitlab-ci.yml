@@ -1,8 +1,3 @@
-before_script:
-  - git submodule sync --recursive
-  - git submodule update --init --recursive
-
-
 variables:
   baseimg: "docker-registry.pdbld.f5net.com/${CI_PROJECT_NAMESPACE}/k8s-bigip-ctlr"
 
@@ -58,6 +53,15 @@ sanity verification:
     - docker
   script:
     - make verify
+
+schema test:
+  image: "f5yacobucci/node6.2-wily:latest"
+  stage: sanity
+  script:
+    - npm install jsonschema nodeunit
+    - bash schemas/scripts/run-tests.sh
+  tags:
+    - docker
 
 # Create the docker container and upload it to the internal docker registry with the tags
 #   <PROJ_NAMESPACE>/k8s-bigip-ctlr:<COMMIT_ID>

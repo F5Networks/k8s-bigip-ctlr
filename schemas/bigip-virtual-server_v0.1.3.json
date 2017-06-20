@@ -1,0 +1,195 @@
+{
+  "$schema": "http://json-schema/org/schema#",
+  "id": "f5schemadb://bigip-virtual-server_v0.1.3.json",
+
+  "type": "object",
+
+  "definitions": {
+    "backendType": {
+      "type": "object",
+      "properties": {
+        "healthMonitors": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/healthMonitorType" }
+        },
+        "serviceName": { "type": "string", "minLength": 1 },
+        "servicePort": { "$ref": "#/definitions/portType" }
+      },
+      "additionalProperties": false,
+      "required": [ "serviceName", "servicePort" ]
+    },
+    "frontendIAppType": {
+      "type": "object",
+      "properties": {
+        "iapp": { "type": "string", "minLength": 1 },
+        "iappOptions": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-zA-Z0-9_-]+$": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "iappPoolMemberTable": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "columns": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  { "$ref": "#/definitions/iappAddressType" },
+                  { "$ref": "#/definitions/iappPortType" },
+                  { "$ref": "#/definitions/iappValueType" }
+                ]
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [ "name", "columns" ]
+        },
+        "iappTables": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-zA-Z0-9_-]+$": { "$ref": "#/definitions/iappTableType" }
+          },
+          "additionalProperties": false
+        },
+        "iappVariables": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-zA-Z0-9_-]+$": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "partition": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false,
+      "required": [ "partition", "iapp", "iappOptions", "iappVariables",
+                    "iappPoolMemberTable" ]
+    },
+    "frontendVSType": {
+      "type": "object",
+      "properties": {
+        "balance": { "type": "string", "enum":
+          [ "dynamic-ratio-member",
+            "dynamic-ratio-node",
+            "fastest-app-response",
+            "fastest-node",
+            "least-connections-member",
+            "least-connections-node",
+            "least-sessions",
+            "observed-member",
+            "observed-node",
+            "predictive-member",
+            "predictive-node",
+            "ratio-least-connections-member",
+            "ratio-least-connections-node",
+            "ratio-member",
+            "ratio-node",
+            "round-robin",
+            "ratio-session",
+            "weighted-least-connections-member",
+            "weighted-least-connections-node" ] },
+        "partition": { "type": "string", "minLength": 1 },
+        "mode": { "type": "string", "enum": [ "http", "tcp" ] },
+        "sslProfile": { "$ref": "#/definitions/sslProfileType" },
+        "virtualAddress": { "$ref": "#/definitions/virtualAddressType" }
+      },
+      "additionalProperties": false,
+      "required": [ "partition" ]
+    },
+    "healthMonitorType": {
+      "type": "object",
+      "properties": {
+        "interval": { "type": "integer", "minimum": 1, "maximum": 86400 },
+        "protocol": { "type": "string", "enum": [ "http", "tcp" ] },
+        "send": { "type": "string", "minLength": 1 },
+        "timeout": { "type": "integer", "minimum": 1, "maximum": 86400 }
+      },
+      "additionalProperties": false,
+      "required": [ "protocol" ]
+    },
+    "iappAddressType": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": [ "IPAddress" ] }
+      },
+      "additionalProperties": false,
+      "required": [ "name", "kind" ]
+    },
+    "iappPortType": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": [ "Port" ] }
+      },
+      "additionalProperties": false,
+      "required": [ "name", "kind" ]
+    },
+    "iappValueType": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "value": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false,
+      "required": [ "name", "value" ]
+    },
+    "iappTableType": {
+      "type": "object",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "rows": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "string" }}
+        }
+      },
+      "additionalProperties": false,
+      "required": [ "columns", "rows" ]
+    },
+    "portType": { "type": "integer", "minimum": 1, "maximum": 65535 },
+    "sslProfileType": {
+      "type": "object",
+      "properties": {
+        "f5ProfileName": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false,
+      "required": [ "f5ProfileName" ]
+    },
+    "virtualAddressType": {
+      "type": "object",
+      "properties": {
+        "bindAddr": {
+          "anyOf": [ { "format": "ipv4" }, { "format": "ipv6" } ]
+        },
+        "port": { "$ref": "#/definitions/portType" }
+      },
+      "additionalProperties": false,
+      "required": [ "port" ]
+    }
+  },
+
+  "properties": {
+    "virtualServer": {
+      "type": "object",
+      "properties": {
+        "backend": { "$ref": "#/definitions/backendType" },
+        "frontend": {
+          "oneOf": [
+            { "$ref": "#/definitions/frontendIAppType" },
+            { "$ref": "#/definitions/frontendVSType" }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [ "backend", "frontend" ]
+    }
+  },
+  "additionalProperties": false,
+  "required": [ "virtualServer" ]
+}

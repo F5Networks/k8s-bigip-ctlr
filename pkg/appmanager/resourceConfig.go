@@ -30,6 +30,7 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	"k8s.io/client-go/tools/cache"
 )
 
 // Definition of a Big-IP Virtual Server config
@@ -114,18 +115,21 @@ type Policy struct {
 	Description string   `json:"description,omitempty"`
 	Legacy      bool     `json:"legacy,omitempty"`
 	Requires    []string `json:"requires,omitempty"`
-	Rules       []*rule  `json:"rules,omitempty"`
+	Rules       []*Rule  `json:"rules,omitempty"`
 	Strategy    string   `json:"strategy,omitempty"`
 }
 
-type rule struct {
+type Rule struct {
 	Name       string       `json:"name"`
+	FullURI    string       `json:"-"`
+	Ordinal    int          `json:"ordinal,omitempty"`
 	Actions    []*action    `json:"actions,omitempty"`
 	Conditions []*condition `json:"conditions,omitempty"`
 }
 
 type action struct {
 	Name      string `json:"name"`
+	Pool      string `json:"pool",omitempty"`
 	HttpReply bool   `json:"httpReply,omitempty"`
 	Forward   bool   `json:"forward,omitempty"`
 	Location  string `json:"location,omitempty"`
@@ -140,14 +144,20 @@ type condition struct {
 	Equals          bool     `json:"equals,omitempty"`
 	EndsWith        bool     `json:"endsWith,omitempty"`
 	External        bool     `json:"external,omitempty"`
+	HTTPHost        bool     `json:"httpHost,omitempty"`
 	Host            bool     `json:"host,omitempty"`
 	HTTPURI         bool     `json:"httpUri,omitempty"`
+	Index           int      `json:"index,omitempty"`
+	PathSegment     bool     `json:"pathSegment,omitempty"`
 	Present         bool     `json:"present,omitempty"`
 	Remote          bool     `json:"remote,omitempty"`
 	Request         bool     `json:"request,omitempty"`
 	Scheme          bool     `json:"scheme,omitempty"`
 	Values          []string `json:"values"`
 }
+
+type Rules []*Rule
+type ruleMap map[string]*Rule
 
 // virtual server policy/profile reference
 type nameRef struct {
@@ -365,6 +375,7 @@ type ResourceInterface interface {
 	CountOf(key serviceKey) int
 	Get(key serviceKey, name string) (*ResourceConfig, bool)
 	GetAll(key serviceKey) (ResourceConfigMap, bool)
+	GetAllWithName(name string) (ResourceConfigs, []serviceKey)
 	Delete(key serviceKey, name string) bool
 	ForEach(f ResourceEnumFunc)
 }
@@ -454,6 +465,20 @@ func (rs *Resources) Get(key serviceKey, name string) (*ResourceConfig, bool) {
 func (rs *Resources) GetAll(key serviceKey) (ResourceConfigMap, bool) {
 	rsMap, ok := rs.rm[key]
 	return rsMap, ok
+}
+
+// Get all configurations with a specific name, spanning multiple backends
+// This is for multi-service ingress
+func (rs *Resources) GetAllWithName(name string) (ResourceConfigs, []serviceKey) {
+	var cfgs ResourceConfigs
+	var keys []serviceKey
+	rs.ForEach(func(key serviceKey, cfg *ResourceConfig) {
+		if name == cfg.Virtual.VirtualServerName {
+			cfgs = append(cfgs, cfg)
+			keys = append(keys, key)
+		}
+	})
+	return cfgs, keys
 }
 
 // Unmarshal an expected ConfigMap object
@@ -584,7 +609,10 @@ func copyConfigMap(cfg *ResourceConfig, cfgMap *ConfigMap) {
 }
 
 // Create a ResourceConfig based on an Ingress resource config
-func createRSConfigFromIngress(ing *v1beta1.Ingress) *ResourceConfig {
+func createRSConfigFromIngress(ing *v1beta1.Ingress,
+	ns string,
+	svcIndexer cache.Indexer,
+) *ResourceConfig {
 	var cfg ResourceConfig
 
 	if class, ok := ing.ObjectMeta.Annotations["kubernetes.io/ingress.class"]; ok == true {
@@ -621,14 +649,57 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress) *ResourceConfig {
 			ing.ObjectMeta.Name)
 	}
 
-	pool := Pool{
-		Name:        cfg.Virtual.VirtualServerName,
-		Partition:   cfg.Virtual.Partition,
-		ServiceName: ing.Spec.Backend.ServiceName,
-		ServicePort: ing.Spec.Backend.ServicePort.IntVal,
+	if nil != ing.Spec.Rules { //multi-service
+		index := 0
+		poolName := cfg.Virtual.VirtualServerName
+		for _, rule := range ing.Spec.Rules {
+			if nil != rule.IngressRuleValue.HTTP {
+				for _, path := range rule.IngressRuleValue.HTTP.Paths {
+					exists := false
+					for _, pl := range cfg.Pools {
+						if pl.ServiceName == path.Backend.ServiceName &&
+							pl.ServicePort == path.Backend.ServicePort.IntVal {
+							exists = true
+						}
+					}
+					if exists {
+						continue
+					}
+					// If service doesn't exist, don't create a pool for it
+					sKey := ns + "/" + path.Backend.ServiceName
+					_, svcFound, _ := svcIndexer.GetByKey(sKey)
+					if !svcFound {
+						index++
+						continue
+					}
+					if index > 0 {
+						poolName = fmt.Sprintf("%s_%d", cfg.Virtual.VirtualServerName, index)
+					}
+					pool := Pool{
+						Name:        poolName,
+						Partition:   cfg.Virtual.Partition,
+						ServiceName: path.Backend.ServiceName,
+						ServicePort: path.Backend.ServicePort.IntVal,
+					}
+					cfg.Pools = append(cfg.Pools, pool)
+					index++
+				}
+			}
+		}
+		rules := processIngressRules(&ing.Spec, cfg.Pools, cfg.Virtual.Partition)
+		plcy := createPolicy(*rules, cfg.Virtual.VirtualServerName, cfg.Virtual.Partition)
+		cfg.SetPolicy(*plcy)
+		cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, cfg.Pools[0].Name)
+	} else { // single-service
+		pool := Pool{
+			Name:        cfg.Virtual.VirtualServerName,
+			Partition:   cfg.Virtual.Partition,
+			ServiceName: ing.Spec.Backend.ServiceName,
+			ServicePort: ing.Spec.Backend.ServicePort.IntVal,
+		}
+		cfg.Pools = append(cfg.Pools, pool)
+		cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
 	}
-	cfg.Pools = append(cfg.Pools, pool)
-	cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
 
 	return &cfg
 }

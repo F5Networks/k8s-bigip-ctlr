@@ -719,12 +719,25 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			continue
 		}
 
-		rsCfg := createRSConfigFromIngress(ing)
+		rsCfg := createRSConfigFromIngress(ing, sKey.Namespace,
+			appMgr.appInformers[sKey.Namespace].svcInformer.GetIndexer())
 		if rsCfg == nil {
 			// Currently, an error is returned only if the Ingress is one we
 			// do not care about
 			continue
 		}
+		// make sure all policies across configs for this Ingress match each other
+		appMgr.resources.Lock()
+		cfgs, keys := appMgr.resources.GetAllWithName(rsCfg.Virtual.VirtualServerName)
+		for i, cfg := range cfgs {
+			for _, policy := range rsCfg.Policies {
+				if policy.Name == rsCfg.Virtual.VirtualServerName {
+					cfg.SetPolicy(policy)
+				}
+			}
+			appMgr.resources.Assign(keys[i], rsCfg.Virtual.VirtualServerName, cfg)
+		}
+		appMgr.resources.Unlock()
 
 		// Handle TLS configuration
 		appMgr.handleIngressTls(rsCfg, ing)
@@ -735,13 +748,17 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			vsUpdated += updated
 			continue
 		} else {
+			if updated > 0 && !appMgr.processAllMultiSvc(len(rsCfg.Pools),
+				rsCfg.Virtual.VirtualServerName) {
+				updated -= 1
+			}
 			vsFound += found
 			vsUpdated += updated
 			if updated > 0 {
 				msg := fmt.Sprintf(
-					"Configured a virtual server '%v' for the Ingress.",
+					"Created a ResourceConfig '%v' for the Ingress.",
 					rsCfg.Virtual.VirtualServerName)
-				appMgr.recordIngressEvent(ing, "VirtualServerConfigured", msg, "")
+				appMgr.recordIngressEvent(ing, "ResourceConfigured", msg, "")
 			}
 		}
 
@@ -802,47 +819,89 @@ func (appMgr *Manager) handleConfigForType(
 	vsFound := 0
 	vsUpdated := 0
 
-	if rsCfg.Pools[0].ServiceName != sKey.ServiceName {
+	var pool Pool
+	found := false
+	plIdx := 0
+	for i, pl := range rsCfg.Pools {
+		if pl.ServiceName == sKey.ServiceName {
+			found = true
+			pool = pl
+			plIdx = i
+			break
+		}
+	}
+	if !found {
+		// If multi-service Ingress, remove any pools/rules associated with the
+		// service, across all stored keys for the Ingress
+		appMgr.resources.Lock()
+		defer appMgr.resources.Unlock()
+		cfgs, keys := appMgr.resources.GetAllWithName(rsName)
+		for i, cfg := range cfgs {
+			for j, pool := range cfg.Pools {
+				if pool.ServiceName == sKey.ServiceName {
+					copy(cfg.Pools[j:], cfg.Pools[j+1:])
+					cfg.Pools[len(cfg.Pools)-1] = Pool{}
+					cfg.Pools = cfg.Pools[:len(cfg.Pools)-1]
+				}
+			}
+			appMgr.resources.Assign(keys[i], rsName, cfg)
+		}
+		// If default Virtual pool was removed, update the default pool to one that
+		// still exists
+		cfgs, keys = appMgr.resources.GetAllWithName(rsName)
+		for i, cfg := range cfgs {
+			var validPoolName bool
+			for _, pl := range cfg.Pools {
+				if cfg.Virtual.PoolName == "/"+cfg.Virtual.Partition+"/"+pl.Name {
+					validPoolName = true
+				}
+			}
+			if !validPoolName {
+				cfg.Virtual.PoolName = "/" + cfg.Virtual.Partition + "/" +
+					cfg.Pools[0].Name
+				appMgr.resources.Assign(keys[i], rsName, cfg)
+			}
+		}
 		return false, vsFound, vsUpdated
 	}
-
 	svcKey := serviceKey{
 		Namespace:   sKey.Namespace,
-		ServiceName: rsCfg.Pools[0].ServiceName,
-		ServicePort: rsCfg.Pools[0].ServicePort,
+		ServiceName: pool.ServiceName,
+		ServicePort: pool.ServicePort,
 	}
+
 	// Match, remove from rsMap so we don't delete it at the end.
-	cfgList := rsMap[rsCfg.Pools[0].ServicePort]
+	cfgList := rsMap[pool.ServicePort]
 	if len(cfgList) == 1 {
-		delete(rsMap, rsCfg.Pools[0].ServicePort)
-	} else {
+		delete(rsMap, pool.ServicePort)
+	} else if len(cfgList) > 1 {
 		for index, val := range cfgList {
 			if val.Virtual.VirtualServerName == rsName {
 				cfgList = append(cfgList[:index], cfgList[index+1:]...)
 			}
 		}
-		rsMap[rsCfg.Pools[0].ServicePort] = cfgList
+		rsMap[pool.ServicePort] = cfgList
 	}
 
-	if _, ok := svcPortMap[rsCfg.Pools[0].ServicePort]; !ok {
+	if _, ok := svcPortMap[pool.ServicePort]; !ok {
 		log.Debugf("Process Service delete - name: %v namespace: %v",
-			rsCfg.Pools[0].ServiceName, svcKey.Namespace)
-		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg) {
+			pool.ServiceName, svcKey.Namespace)
+		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
 			vsUpdated += 1
 		}
 	}
 
 	if nil == svc {
 		// The service is gone, de-activate it in the config.
-		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg) {
+		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
 			vsUpdated += 1
 		}
+
 		// If this is an Ingress resource, add an event that the service wasn't found
-		if strings.HasSuffix(rsCfg.Virtual.VirtualServerName, "ingress") {
+		if strings.HasSuffix(rsName, "ingress") {
 			msg := fmt.Sprintf("Service '%v' has not been found.",
-				rsCfg.Pools[0].ServiceName)
-			appMgr.recordIngressEvent(nil, "ServiceNotFound", msg,
-				rsCfg.Virtual.VirtualServerName)
+				pool.ServiceName)
+			appMgr.recordIngressEvent(nil, "ServiceNotFound", msg, rsName)
 		}
 		return false, vsFound, vsUpdated
 	}
@@ -854,10 +913,10 @@ func (appMgr *Manager) handleConfigForType(
 	var msg string
 	if appMgr.IsNodePort() {
 		correctBackend, reason, msg =
-			appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg)
+			appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
 	} else {
 		correctBackend, reason, msg =
-			appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf)
+			appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf, plIdx)
 	}
 
 	// This will only update the config if the vs actually changed.
@@ -880,6 +939,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 	svc *v1.Service,
 	svcKey serviceKey,
 	rsCfg *ResourceConfig,
+	index int,
 ) (bool, string, string) {
 	if svc.Spec.Type == v1.ServiceTypeNodePort {
 		for _, portSpec := range svc.Spec.Ports {
@@ -888,7 +948,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 					svcKey, portSpec.NodePort)
 				rsCfg.MetaData.Active = true
 				rsCfg.MetaData.NodePort = portSpec.NodePort
-				rsCfg.Pools[0].PoolMemberAddrs =
+				rsCfg.Pools[index].PoolMemberAddrs =
 					appMgr.getEndpointsForNodePort(portSpec.NodePort)
 			}
 		}
@@ -906,6 +966,7 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 	sKey serviceKey,
 	rsCfg *ResourceConfig,
 	appInf *appInformer,
+	index int,
 ) (bool, string, string) {
 	svcKey := sKey.Namespace + "/" + sKey.ServiceName
 	item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
@@ -920,7 +981,7 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 			ipPorts := getEndpointsForService(portSpec.Name, eps)
 			log.Debugf("Found endpoints for backend %+v: %v", sKey, ipPorts)
 			rsCfg.MetaData.Active = true
-			rsCfg.Pools[0].PoolMemberAddrs = ipPorts
+			rsCfg.Pools[index].PoolMemberAddrs = ipPorts
 		}
 	}
 	return true, "", ""
@@ -930,13 +991,14 @@ func (appMgr *Manager) deactivateVirtualServer(
 	sKey serviceKey,
 	rsName string,
 	rsCfg *ResourceConfig,
+	index int,
 ) bool {
 	updateConfig := false
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
 	if rs, ok := appMgr.resources.Get(sKey, rsName); ok {
 		rsCfg.MetaData.Active = false
-		rsCfg.Pools[0].PoolMemberAddrs = nil
+		rsCfg.Pools[index].PoolMemberAddrs = nil
 		if !reflect.DeepEqual(rs, rsCfg) {
 			log.Debugf("Service delete matching backend %v %v deactivating config",
 				sKey, rsName)
@@ -979,11 +1041,23 @@ func (appMgr *Manager) getResourcesForKey(sKey serviceQueueKey) ResourceMap {
 	appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
 		if key.Namespace == sKey.Namespace &&
 			key.ServiceName == sKey.ServiceName {
-			rsMap[cfg.Pools[0].ServicePort] =
-				append(rsMap[cfg.Pools[0].ServicePort], cfg)
+			rsMap[key.ServicePort] =
+				append(rsMap[key.ServicePort], cfg)
 		}
 	})
 	return rsMap
+}
+
+func (appMgr *Manager) processAllMultiSvc(numPools int, rsName string) bool {
+	// If multi-service and we haven't yet configured keys/cfgs for each service,
+	// then we don't want to update
+	appMgr.resources.Lock()
+	defer appMgr.resources.Unlock()
+	_, keys := appMgr.resources.GetAllWithName(rsName)
+	if len(keys) != numPools {
+		return false
+	}
+	return true
 }
 
 func (appMgr *Manager) deleteUnusedResources(
@@ -1049,6 +1123,11 @@ func (appMgr *Manager) setIngressStatus(
 	_, updateErr := appMgr.kubeClient.ExtensionsV1beta1().
 		Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(ing)
 	if nil != updateErr {
+		// Multi-service causes the controller to try to update the status multiple times
+		// at once. Ignore this error.
+		if strings.Contains(updateErr.Error(), "object has been modified") {
+			return
+		}
 		warning := fmt.Sprintf(
 			"Error when setting Ingress status IP for virtual server %v: %v",
 			rsCfg.Virtual.VirtualServerName, updateErr)
@@ -1191,26 +1270,57 @@ func (appMgr *Manager) checkValidIngress(
 		// Not watching this namespace
 		return false, nil
 	}
-	rsCfg := createRSConfigFromIngress(ing)
+	rsCfg := createRSConfigFromIngress(ing, namespace,
+		appMgr.appInformers[namespace].svcInformer.GetIndexer())
+	rsName := formatIngressVSName(ing)
 	if rsCfg == nil {
-		rsName := formatIngressVSName(ing)
-		serviceName := ing.Spec.Backend.ServiceName
-		servicePort := ing.Spec.Backend.ServicePort.IntVal
-		rsKey := serviceKey{serviceName, servicePort, ing.ObjectMeta.Namespace}
-		if _, ok := appMgr.resources.Get(rsKey, rsName); ok {
-			appMgr.resources.Lock()
-			appMgr.resources.Delete(rsKey, rsName)
-			appMgr.resources.Unlock()
-			appMgr.outputConfig()
+		appMgr.resources.Lock()
+		defer appMgr.resources.Unlock()
+		if nil == ing.Spec.Rules { //single-service
+			serviceName := ing.Spec.Backend.ServiceName
+			servicePort := ing.Spec.Backend.ServicePort.IntVal
+			sKey := serviceKey{serviceName, servicePort, ing.ObjectMeta.Namespace}
+			if _, ok := appMgr.resources.Get(sKey, rsName); ok {
+				appMgr.resources.Delete(sKey, rsName)
+			}
+		} else { //multi-service
+			_, keys := appMgr.resources.GetAllWithName(rsName)
+			for _, key := range keys {
+				appMgr.resources.Delete(key, rsName)
+			}
 		}
+		appMgr.outputConfig()
 		return false, nil
 	}
-	key := &serviceQueueKey{
-		ServiceName: rsCfg.Pools[0].ServiceName,
-		Namespace:   namespace,
-	}
 	var keyList []*serviceQueueKey
-	keyList = append(keyList, key)
+	for _, pool := range rsCfg.Pools {
+		key := &serviceQueueKey{
+			ServiceName: pool.ServiceName,
+			Namespace:   namespace,
+		}
+		keyList = append(keyList, key)
+	}
+	// Check if we have a key that contains this config that is no longer
+	// being used; if so, delete the config for that key
+	appMgr.resources.Lock()
+	defer appMgr.resources.Unlock()
+	_, keys := appMgr.resources.GetAllWithName(rsName)
+	found := false
+	if len(keys) > len(keyList) {
+		for _, key := range keys {
+			for _, sKey := range keyList {
+				if sKey.ServiceName == key.ServiceName &&
+					sKey.Namespace == key.Namespace {
+					found = true
+					break
+				}
+			}
+			if found == false {
+				appMgr.resources.Delete(key, rsName)
+			}
+			found = false
+		}
+	}
 	return true, keyList
 }
 
@@ -1369,16 +1479,20 @@ func (appMgr *Manager) outputConfigLocked() {
 	// an uninitialized array as 'null', but we want an empty array
 	// written as '[]' instead
 	resources := BigIPConfig{}
-	resourceCount := 0
 
 	// Filter the configs to only those that have active services
 	appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
 		if cfg.MetaData.Active == true {
-			resources.Virtuals = append(resources.Virtuals, cfg.Virtual)
-			resources.Pools = append(resources.Pools, cfg.Pools...)
-			resources.Monitors = append(resources.Monitors, cfg.Monitors...)
-			resources.Policies = append(resources.Policies, cfg.Policies...)
-			resourceCount++
+			resources.Virtuals = appendVirtual(resources.Virtuals, cfg.Virtual)
+			for _, p := range cfg.Pools {
+				resources.Pools = appendPool(resources.Pools, p)
+			}
+			for _, m := range cfg.Monitors {
+				resources.Monitors = appendMonitor(resources.Monitors, m)
+			}
+			for _, p := range cfg.Policies {
+				resources.Policies = appendPolicy(resources.Policies, p)
+			}
 		}
 	})
 	if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 ||
@@ -1389,7 +1503,7 @@ func (appMgr *Manager) outputConfigLocked() {
 		} else {
 			select {
 			case <-doneCh:
-				log.Infof("Wrote %v Virtual Server configs", resourceCount)
+				log.Infof("Wrote %v Virtual Server configs", len(resources.Virtuals))
 				if log.LL_DEBUG == log.GetLogLevel() {
 					output, err := json.Marshal(resources)
 					if nil != err {
@@ -1406,6 +1520,56 @@ func (appMgr *Manager) outputConfigLocked() {
 		}
 		appMgr.initialState = true
 	}
+}
+
+// Only append to the list if it isn't already in the list
+func appendVirtual(rsVirtuals []Virtual, v Virtual) []Virtual {
+	for _, rv := range rsVirtuals {
+		if rv.VirtualServerName == v.VirtualServerName &&
+			rv.Partition == v.Partition {
+			return rsVirtuals
+		}
+	}
+	return append(rsVirtuals, v)
+}
+
+// Only append to the list if it isn't already in the list
+func appendPool(rsPools []Pool, p Pool) []Pool {
+	for i, rp := range rsPools {
+		if rp.Name == p.Name &&
+			rp.Partition == p.Partition {
+			if len(p.PoolMemberAddrs) > 0 {
+				rsPools[i].PoolMemberAddrs = p.PoolMemberAddrs
+			}
+			return rsPools
+		}
+	}
+	if len(p.PoolMemberAddrs) == 0 {
+		return rsPools
+	}
+	return append(rsPools, p)
+}
+
+// Only append to the list if it isn't already in the list
+func appendMonitor(rsMons []Monitor, m Monitor) []Monitor {
+	for _, rm := range rsMons {
+		if rm.Name == m.Name &&
+			rm.Partition == m.Partition {
+			return rsMons
+		}
+	}
+	return append(rsMons, m)
+}
+
+// Only append to the list if it isn't already in the list
+func appendPolicy(rsPolicies []Policy, p Policy) []Policy {
+	for _, rp := range rsPolicies {
+		if rp.Name == p.Name &&
+			rp.Partition == p.Partition {
+			return rsPolicies
+		}
+	}
+	return append(rsPolicies, p)
 }
 
 // Return a copy of the node cache

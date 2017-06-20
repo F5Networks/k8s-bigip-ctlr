@@ -3090,7 +3090,7 @@ func TestIngressConfiguration(t *testing.T) {
 			"virtual-server.f5.com/ip":        "1.2.3.4",
 			"virtual-server.f5.com/partition": "velcro",
 		})
-	cfg := createRSConfigFromIngress(ingress)
+	cfg := createRSConfigFromIngress(ingress, namespace, nil)
 	require.Equal("round-robin", cfg.Virtual.Balance)
 	require.Equal("http", cfg.Virtual.Mode)
 	require.Equal("velcro", cfg.Virtual.Partition)
@@ -3105,7 +3105,7 @@ func TestIngressConfiguration(t *testing.T) {
 			"virtual-server.f5.com/balance":   "foobar",
 			"kubernetes.io/ingress.class":     "f5",
 		})
-	cfg = createRSConfigFromIngress(ingress)
+	cfg = createRSConfigFromIngress(ingress, namespace, nil)
 	require.Equal("foobar", cfg.Virtual.Balance)
 	require.Equal(int32(443), cfg.Virtual.VirtualAddress.Port)
 
@@ -3113,7 +3113,7 @@ func TestIngressConfiguration(t *testing.T) {
 		map[string]string{
 			"kubernetes.io/ingress.class": "notf5",
 		})
-	cfg = createRSConfigFromIngress(ingress)
+	cfg = createRSConfigFromIngress(ingress, namespace, nil)
 	require.Nil(cfg)
 }
 
@@ -3125,7 +3125,7 @@ func TestVirtualServerForIngress(t *testing.T) {
 	require := require.New(t)
 	assert := assert.New(t)
 	fakeClient := fake.NewSimpleClientset()
-	fakeRecorder := record.NewFakeRecorder(5)
+	fakeRecorder := record.NewFakeRecorder(100)
 	require.NotNil(fakeClient, "Mock client should not be nil")
 	require.NotNil(fakeRecorder, "Mock recorder should not be nil")
 	namespace := "default"
@@ -3158,9 +3158,9 @@ func TestVirtualServerForIngress(t *testing.T) {
 	resources := appMgr.resources()
 	require.Equal(1, resources.Count())
 	// Associate a service
-	svcNs1 := test.NewService("foo", "1", namespace, "NodePort",
+	fooSvc := test.NewService("foo", "1", namespace, "NodePort",
 		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-	r = appMgr.addService(svcNs1)
+	r = appMgr.addService(fooSvc)
 	assert.True(r, "Service should be processed")
 
 	rs, ok := resources.Get(
@@ -3197,6 +3197,117 @@ func TestVirtualServerForIngress(t *testing.T) {
 	r = appMgr.deleteIngress(ingress2)
 	require.True(r, "Ingress resource should be processed")
 	require.Equal(0, resources.Count())
+
+	// Multi-service Ingress
+	ingressConfig = v1beta1.IngressSpec{
+		Rules: []v1beta1.IngressRule{
+			{Host: "host1",
+				IngressRuleValue: v1beta1.IngressRuleValue{
+					HTTP: &v1beta1.HTTPIngressRuleValue{
+						Paths: []v1beta1.HTTPIngressPath{
+							{Path: "/foo",
+								Backend: v1beta1.IngressBackend{
+									ServiceName: "foo",
+									ServicePort: intstr.IntOrString{IntVal: 80},
+								},
+							},
+							{Path: "/bar",
+								Backend: v1beta1.IngressBackend{
+									ServiceName: "bar",
+									ServicePort: intstr.IntOrString{IntVal: 80},
+								},
+							},
+						},
+					},
+				},
+			},
+			{Host: "host2",
+				IngressRuleValue: v1beta1.IngressRuleValue{
+					HTTP: &v1beta1.HTTPIngressRuleValue{
+						Paths: []v1beta1.HTTPIngressPath{
+							{Path: "/foo",
+								Backend: v1beta1.IngressBackend{
+									ServiceName: "foo",
+									ServicePort: intstr.IntOrString{IntVal: 80},
+								},
+							},
+							{Path: "/foobar",
+								Backend: v1beta1.IngressBackend{
+									ServiceName: "foobar",
+									ServicePort: intstr.IntOrString{IntVal: 80},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	barSvc := test.NewService("bar", "2", namespace, "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 37002}})
+	r = appMgr.addService(barSvc)
+	assert.True(r, "Service should be processed")
+	foobarSvc := test.NewService("foobar", "3", namespace, "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 37003}})
+	r = appMgr.addService(foobarSvc)
+	assert.True(r, "Service should be processed")
+
+	ingress3 := test.NewIngress("ingress", "2", namespace, ingressConfig,
+		map[string]string{
+			"virtual-server.f5.com/ip":        "1.2.3.4",
+			"virtual-server.f5.com/partition": "velcro",
+		})
+	r = appMgr.addIngress(ingress3)
+	require.True(r, "Ingress resource should be processed")
+	// 4 rules, but only 3 backends specified. We should have 3 keys stored, one for
+	// each backend
+	require.Equal(3, resources.Count())
+	rs, ok = resources.Get(
+		serviceKey{"foo", 80, "default"}, "default_ingress-ingress")
+	require.Equal(4, len(rs.Policies[0].Rules))
+	appMgr.deleteService(fooSvc)
+	require.Equal(2, resources.Count())
+	rs, ok = resources.Get(
+		serviceKey{"bar", 80, "default"}, "default_ingress-ingress")
+	require.Equal(2, len(rs.Policies[0].Rules))
+
+	appMgr.deleteIngress(ingress3)
+	appMgr.addService(fooSvc)
+	ingressConfig = v1beta1.IngressSpec{
+		Rules: []v1beta1.IngressRule{
+			{Host: "",
+				IngressRuleValue: v1beta1.IngressRuleValue{
+					HTTP: &v1beta1.HTTPIngressRuleValue{
+						Paths: []v1beta1.HTTPIngressPath{
+							{Path: "/foo",
+								Backend: v1beta1.IngressBackend{
+									ServiceName: "foo",
+									ServicePort: intstr.IntOrString{IntVal: 80},
+								},
+							},
+							{Path: "/bar",
+								Backend: v1beta1.IngressBackend{
+									ServiceName: "bar",
+									ServicePort: intstr.IntOrString{IntVal: 80},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ingress4 := test.NewIngress("ingress", "3", namespace, ingressConfig,
+		map[string]string{
+			"virtual-server.f5.com/ip":        "1.2.3.4",
+			"virtual-server.f5.com/partition": "velcro",
+		})
+	r = appMgr.addIngress(ingress4)
+	require.True(r, "Ingress resource should be processed")
+	require.Equal(2, resources.Count())
+	rs, ok = resources.Get(
+		serviceKey{"foo", 80, "default"}, "default_ingress-ingress")
+	require.Equal(2, len(rs.Policies[0].Rules))
 }
 
 func TestIngressSslProfile(t *testing.T) {

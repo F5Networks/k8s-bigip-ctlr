@@ -16,6 +16,7 @@
     "pools": [
       {
         "name": "default_configmap",
+        "partition": "k8s",
         "poolMemberAddrs": [
           "172.16.0.5:30008"
         ],

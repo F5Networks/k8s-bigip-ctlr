@@ -3318,7 +3318,7 @@ func TestIngressSslProfile(t *testing.T) {
 	require := require.New(t)
 	assert := assert.New(t)
 	fakeClient := fake.NewSimpleClientset()
-	fakeRecorder := record.NewFakeRecorder(5)
+	fakeRecorder := record.NewFakeRecorder(15)
 	require.NotNil(fakeClient, "Mock client should not be nil")
 	require.NotNil(fakeRecorder, "Mock recorder should not be nil")
 	namespace := "default"
@@ -3390,4 +3390,57 @@ func TestIngressSslProfile(t *testing.T) {
 	}
 	sort.Strings(secretArray)
 	assert.Equal(secretArray, vsCfg.Virtual.GetFrontendSslProfileNames())
+	// No annotations were specified to control http redirect, check that
+	// we are in the default state 2.
+	require.Equal(1, len(vsCfg.Policies))
+	require.Equal(1, len(vsCfg.Policies[0].Rules))
+	assert.Equal(httpRedirectRuleName, vsCfg.Policies[0].Rules[0].Name)
+
+	// Set the annotations the same as default and recheck
+	fooIng.ObjectMeta.Annotations[ingressSslRedirect] = "true"
+	fooIng.ObjectMeta.Annotations[ingressAllowHttp] = "false"
+	r = appMgr.addIngress(fooIng)
+	vsCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng))
+	assert.True(found)
+	require.NotNil(vsCfg)
+	assert.True(r, "Ingress resource should be processed")
+	require.Equal(1, len(vsCfg.Policies))
+	require.Equal(1, len(vsCfg.Policies[0].Rules))
+	assert.Equal(httpRedirectRuleName, vsCfg.Policies[0].Rules[0].Name)
+
+	// Now test state 1.
+	fooIng.ObjectMeta.Annotations[ingressSslRedirect] = "false"
+	fooIng.ObjectMeta.Annotations[ingressAllowHttp] = "false"
+	r = appMgr.addIngress(fooIng)
+	vsCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng))
+	assert.True(found)
+	require.NotNil(vsCfg)
+	assert.True(r, "Ingress resource should be processed")
+	require.Equal(1, len(vsCfg.Policies))
+	require.Equal(1, len(vsCfg.Policies[0].Rules))
+	assert.Equal(httpDropRuleName, vsCfg.Policies[0].Rules[0].Name)
+
+	// Now test state 3.
+	fooIng.ObjectMeta.Annotations[ingressSslRedirect] = "false"
+	fooIng.ObjectMeta.Annotations[ingressAllowHttp] = "true"
+	r = appMgr.addIngress(fooIng)
+	vsCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng))
+	assert.True(found)
+	require.NotNil(vsCfg)
+	assert.True(r, "Ingress resource should be processed")
+	require.Equal(0, len(vsCfg.Policies))
+
+	// Clear out TLS in the ingress, but use default http redirect settings.
+	fooIng.Spec.TLS = nil
+	delete(fooIng.ObjectMeta.Annotations, ingressSslRedirect)
+	delete(fooIng.ObjectMeta.Annotations, ingressAllowHttp)
+	r = appMgr.addIngress(fooIng)
+	assert.True(r, "Ingress resource should be processed")
+	assert.Equal(1, resources.Count())
+	assert.Equal(1, resources.CountOf(svcKey))
+	vsCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng))
+	assert.True(found)
+	require.NotNil(vsCfg)
+	assert.Equal([]string{}, vsCfg.Virtual.GetFrontendSslProfileNames())
+	require.Equal(0, len(vsCfg.Policies))
 }

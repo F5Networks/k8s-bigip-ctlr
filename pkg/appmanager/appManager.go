@@ -50,6 +50,10 @@ import (
 
 const DefaultConfigMapLabel = "f5type in (virtual-server)"
 const vsBindAddrAnnotation = "status.virtual-server.f5.com/ip"
+const ingressSslRedirect = "ingress.kubernetes.io/ssl-redirect"
+const ingressAllowHttp = "ingress.kubernetes.io/allow-http"
+const httpRedirectRuleName = "http-redirect"
+const httpDropRuleName = "http-drop"
 
 type ResourceMap map[int32][]*ResourceConfig
 
@@ -787,23 +791,138 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	return nil
 }
 
+func getBooleanAnnotation(
+	annotations map[string]string,
+	key string,
+	defaultValue bool,
+) bool {
+	val, found := annotations[key]
+	if !found {
+		return defaultValue
+	}
+	bVal, err := strconv.ParseBool(val)
+	if nil != err {
+		log.Errorf("Unable to parse boolean value '%v': %v", val, err)
+		return defaultValue
+	}
+	return bVal
+}
+
 func (appMgr *Manager) handleIngressTls(
 	rsCfg *ResourceConfig,
 	ing *v1beta1.Ingress,
 ) {
-	if len(ing.Spec.Rules) == 0 {
-		// single service ingress
-		if nil == rsCfg.Virtual.VirtualAddress {
-			// Nothing to do for pool-only mode
-			return
-		}
-		for _, tls := range ing.Spec.TLS {
-			secretName := formatIngressSslProfileName(tls.SecretName)
-			rsCfg.Virtual.AddFrontendSslProfileName(secretName)
-		}
-	} else {
-		// NOTE(garyr): Only single service ingress is currently supported.
+	if 0 == len(ing.Spec.TLS) {
+		// Nothing to do if no TLS section
+		return
 	}
+	if nil == rsCfg.Virtual.VirtualAddress ||
+		rsCfg.Virtual.VirtualAddress.BindAddr == "" {
+		// Nothing to do for pool-only mode
+		return
+	}
+
+	for _, tls := range ing.Spec.TLS {
+		secretName := formatIngressSslProfileName(tls.SecretName)
+		rsCfg.Virtual.AddFrontendSslProfileName(secretName)
+	}
+
+	// sslRedirect defaults to true, allowHttp defaults to false.
+	sslRedirect := getBooleanAnnotation(ing.ObjectMeta.Annotations,
+		ingressSslRedirect, true)
+	allowHttp := getBooleanAnnotation(ing.ObjectMeta.Annotations,
+		ingressAllowHttp, false)
+	// -----------------------------------------------------------------
+	// | State | sslRedirect | allowHttp | Description                 |
+	// -----------------------------------------------------------------
+	// |   1   |     F       |    F      | Just HTTPS, nothing on HTTP |
+	// -----------------------------------------------------------------
+	// |   2   |     T       |    F      | HTTP redirects to HTTPS     |
+	// -----------------------------------------------------------------
+	// |   2   |     T       |    T      | Honor sslRedirect == true   |
+	// -----------------------------------------------------------------
+	// |   3   |     F       |    T      | Both HTTP and HTTPS         |
+	// -----------------------------------------------------------------
+	if sslRedirect {
+		// State 2, apply HTTP redirect policy
+		log.Debugf("TLS: Applying HTTP redirect policy.")
+		policyName := fmt.Sprintf("%s-http-redirect",
+			rsCfg.Virtual.VirtualServerName)
+		policy := newHttpRedirectPolicy(rsCfg.Virtual.Partition, policyName)
+		rsCfg.SetPolicy(policy)
+	} else if allowHttp {
+		// State 3, do not apply any policy
+		log.Debugf("TLS: Not applying any policies.")
+	} else {
+		// State 1
+		log.Debugf("TLS: Applying drop HTTP policy")
+		policyName := fmt.Sprintf("%s-drop-http",
+			rsCfg.Virtual.VirtualServerName)
+		policy := newDropHttpPolicy(rsCfg.Virtual.Partition, policyName)
+		rsCfg.SetPolicy(policy)
+	}
+}
+
+func newHttpRedirectPolicy(partition, policyName string) Policy {
+	redirAction := action{
+		Name:      "0",
+		HttpReply: true,
+		Location:  `tcl:https://[getfield [HTTP::host] : 1][HTTP::uri]`,
+		Redirect:  true,
+		Request:   true,
+	}
+	policy := Policy{
+		Name:      policyName,
+		Partition: partition,
+		Legacy:    true,
+		Controls:  []string{"forwarding"},
+		Requires:  []string{"http"},
+		Strategy:  "/Common/first-match",
+		Rules: []*Rule{
+			&Rule{
+				Name:    httpRedirectRuleName,
+				Actions: []*action{&redirAction},
+			},
+		},
+	}
+	return policy
+}
+
+func newDropHttpPolicy(partition, policyName string) Policy {
+	dropAction := action{
+		Name:    "0",
+		Forward: true,
+		Request: true,
+		Reset:   true,
+	}
+	cond := condition{
+		Name:            "0",
+		CaseInsensitive: true,
+		Equals:          true,
+		External:        true,
+		HTTPURI:         true,
+		Present:         true,
+		Remote:          true,
+		Request:         true,
+		Scheme:          true,
+		Values:          []string{"http"},
+	}
+	policy := Policy{
+		Name:      policyName,
+		Partition: partition,
+		Legacy:    true,
+		Controls:  []string{"forwarding"},
+		Requires:  []string{"http"},
+		Strategy:  "/Common/first-match",
+		Rules: []*Rule{
+			&Rule{
+				Name:       httpDropRuleName,
+				Conditions: []*condition{&cond},
+				Actions:    []*action{&dropAction},
+			},
+		},
+	}
+	return policy
 }
 
 // Common handling function for both ConfigMaps and Ingresses

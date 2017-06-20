@@ -1,3 +1,0 @@
-[submodule "schemas"]
-	path = schemas
-	url = ../../velcro/schemas.git

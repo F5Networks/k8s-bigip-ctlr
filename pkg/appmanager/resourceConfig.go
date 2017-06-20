@@ -689,7 +689,9 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress,
 		rules := processIngressRules(&ing.Spec, cfg.Pools, cfg.Virtual.Partition)
 		plcy := createPolicy(*rules, cfg.Virtual.VirtualServerName, cfg.Virtual.Partition)
 		cfg.SetPolicy(*plcy)
-		cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, cfg.Pools[0].Name)
+		if nil != cfg.Pools {
+			cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, cfg.Pools[0].Name)
+		}
 	} else { // single-service
 		pool := Pool{
 			Name:        cfg.Virtual.VirtualServerName,

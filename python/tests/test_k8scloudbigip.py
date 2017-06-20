@@ -17,12 +17,14 @@
 Units tests for testing BIG-IP resource management in Kubernetes and OpenShift.
 
 """
+from __future__ import absolute_import
+
 import unittest
 from mock import Mock, patch
 from f5_cccl.common import ipv4_to_mac
 from f5.bigip import BigIP
 from f5_cccl.testcommon import BigIPTest, MockIapp
-ctlr = __import__('bigipconfigdriver')
+from .. import bigipconfigdriver as ctlr
 
 
 class VxLANTunnel():

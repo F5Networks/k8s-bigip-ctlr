@@ -52,6 +52,7 @@ const DefaultConfigMapLabel = "f5type in (virtual-server)"
 const vsBindAddrAnnotation = "status.virtual-server.f5.com/ip"
 const ingressSslRedirect = "ingress.kubernetes.io/ssl-redirect"
 const ingressAllowHttp = "ingress.kubernetes.io/allow-http"
+const ingHealthMonitorAnnotation = "virtual-server.f5.com/health"
 const httpRedirectRuleName = "http-redirect"
 const httpDropRuleName = "http-drop"
 
@@ -765,6 +766,25 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 				appMgr.recordIngressEvent(ing, "ResourceConfigured", msg, "")
 			}
 		}
+		hmStr, found := ing.ObjectMeta.Annotations[ingHealthMonitorAnnotation]
+		if found {
+			var monitors IngressHealthMonitors
+			err := json.Unmarshal([]byte(hmStr), &monitors)
+			if err != nil {
+				msg := fmt.Sprintf(
+					"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
+				log.Errorf("%s", msg)
+				appMgr.recordIngressEvent(ing, "InvalidData", msg, rsName)
+			} else {
+				if nil != ing.Spec.Backend {
+					appMgr.handleSingleServiceHealthMonitors(
+						rsName, rsCfg.Virtual.Partition, ing, monitors)
+				} else {
+					appMgr.handleMultiServiceHealthMonitors(
+						rsName, rsCfg.Virtual.Partition, ing, monitors)
+				}
+			}
+		}
 
 		// Set the Ingress Status IP address
 		appMgr.setIngressStatus(ing, rsCfg)
@@ -923,6 +943,220 @@ func newDropHttpPolicy(partition, policyName string) Policy {
 		},
 	}
 	return policy
+}
+
+func (appMgr *Manager) assignHealthMonitorsByPath(
+	rsName string,
+	ing *v1beta1.Ingress,
+	rulesMap ingressHostToPathMap,
+	monitors IngressHealthMonitors,
+) error {
+	// The returned error is used for 'fatal' errors only, meaning abandon
+	// any further processing of health monitors for this Ingress.
+	for _, mon := range monitors {
+		slashPos := strings.Index(mon.Path, "/")
+		if slashPos == -1 {
+			return fmt.Errorf("Health Monitor path '%v' is not valid.", mon.Path)
+		}
+
+		host := mon.Path[:slashPos]
+		path := mon.Path[slashPos:]
+		pm, found := rulesMap[host]
+		if false == found && host != "*" {
+			pm, found = rulesMap["*"]
+		}
+		if false == found {
+			msg := fmt.Sprintf("Rule not found for Health Monitor host '%v'", host)
+			log.Warningf("%s", msg)
+			appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg, rsName)
+			continue
+		}
+		ruleData, found := pm[path]
+		if false == found {
+			msg := fmt.Sprintf("Rule not found for Health Monitor path '%v'",
+				mon.Path)
+			log.Warningf("%s", msg)
+			appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg, rsName)
+			continue
+		}
+		ruleData.healthMon = mon
+	}
+	return nil
+}
+
+func (appMgr *Manager) assignMonitorToPool(
+	cfg *ResourceConfig,
+	fullPoolPath string,
+	ruleData *ingressRuleData,
+) {
+	partition, poolName := splitBigipPath(fullPoolPath, false)
+	for poolNdx, pool := range cfg.Pools {
+		if pool.Partition == partition && pool.Name == poolName {
+			ruleData.assigned = true
+			monitor := Monitor{
+				Name:      poolName,
+				Partition: partition,
+				Protocol:  "http",
+				Interval:  ruleData.healthMon.Interval,
+				Send:      ruleData.healthMon.Send,
+				Timeout:   ruleData.healthMon.Timeout,
+			}
+			cfg.SetMonitor(&cfg.Pools[poolNdx], monitor)
+		}
+	}
+}
+
+func (appMgr *Manager) notifyUnusedHealthMonitorRules(
+	rsName string,
+	ing *v1beta1.Ingress,
+	hostToPathMap ingressHostToPathMap,
+) {
+	for _, paths := range hostToPathMap {
+		for _, ruleData := range paths {
+			if false == ruleData.assigned {
+				msg := fmt.Sprintf(
+					"Health Monitor path '%v' does not match any Ingress paths.",
+					ruleData.healthMon.Path)
+				appMgr.recordIngressEvent(ing, "MonitorRuleNotUsed", msg, rsName)
+			}
+		}
+	}
+}
+
+func (appMgr *Manager) handleSingleServiceHealthMonitors(
+	rsName string,
+	partition string,
+	ing *v1beta1.Ingress,
+	monitors IngressHealthMonitors,
+) {
+	// Setup the rule-to-pool map from the ingress
+	ruleItem := make(ingressPathToRuleMap)
+	ruleItem["/"] = &ingressRuleData{
+		svcName: ing.Spec.Backend.ServiceName,
+		svcPort: ing.Spec.Backend.ServicePort.IntVal,
+	}
+	hostToPathMap := make(ingressHostToPathMap)
+	hostToPathMap["*"] = ruleItem
+
+	err := appMgr.assignHealthMonitorsByPath(
+		rsName, ing, hostToPathMap, monitors)
+	if nil != err {
+		log.Errorf("%s", err.Error())
+		appMgr.recordIngressEvent(ing, "MonitorError", err.Error(), rsName)
+		return
+	}
+
+	appMgr.resources.Lock()
+	defer appMgr.resources.Unlock()
+	for _, paths := range hostToPathMap {
+		for _, ruleData := range paths {
+			key := serviceKey{
+				Namespace:   ing.ObjectMeta.Namespace,
+				ServiceName: ruleData.svcName,
+				ServicePort: ruleData.svcPort,
+			}
+			cfgs, _ := appMgr.resources.GetAll(key)
+			for _, cfg := range cfgs {
+				appMgr.assignMonitorToPool(cfg, cfg.Virtual.PoolName, ruleData)
+			}
+		}
+	}
+
+	appMgr.notifyUnusedHealthMonitorRules(rsName, ing, hostToPathMap)
+}
+
+func (appMgr *Manager) handleMultiServiceHealthMonitors(
+	rsName string,
+	partition string,
+	ing *v1beta1.Ingress,
+	monitors IngressHealthMonitors,
+) {
+	// Setup the rule-to-pool map from the ingress
+	hostToPathMap := make(ingressHostToPathMap)
+	for _, rule := range ing.Spec.Rules {
+		if nil == rule.IngressRuleValue.HTTP {
+			continue
+		}
+		host := rule.Host
+		if host == "" {
+			host = "*"
+		}
+		ruleItem, found := hostToPathMap[host]
+		if !found {
+			ruleItem = make(ingressPathToRuleMap)
+			hostToPathMap[host] = ruleItem
+		}
+		for _, path := range rule.IngressRuleValue.HTTP.Paths {
+			pathItem, found := ruleItem[path.Path]
+			if found {
+				msg := fmt.Sprintf(
+					"Health Monitor path '%v' already exists for host '%v'",
+					path, rule.Host)
+				log.Warningf("%s", msg)
+				appMgr.recordIngressEvent(ing, "DuplicatePath", msg, rsName)
+			} else {
+				pathItem = &ingressRuleData{
+					svcName: path.Backend.ServiceName,
+					svcPort: path.Backend.ServicePort.IntVal,
+				}
+				ruleItem[path.Path] = pathItem
+			}
+		}
+	}
+	if _, found := hostToPathMap["*"]; found {
+		for key, _ := range hostToPathMap {
+			if key == "*" {
+				continue
+			}
+			msg := fmt.Sprintf(
+				"Health Monitor rule for host '%v' conflicts with rule for all hosts.",
+				key)
+			log.Warningf("%s", msg)
+			appMgr.recordIngressEvent(ing, "DuplicatePath", msg, rsName)
+		}
+		return
+	}
+
+	err := appMgr.assignHealthMonitorsByPath(
+		rsName, ing, hostToPathMap, monitors)
+	if nil != err {
+		log.Errorf("%s", err.Error())
+		appMgr.recordIngressEvent(ing, "MonitorError", err.Error(), rsName)
+		return
+	}
+
+	appMgr.resources.Lock()
+	defer appMgr.resources.Unlock()
+	for host, paths := range hostToPathMap {
+		for path, ruleData := range paths {
+			fullUri := host + path
+			key := serviceKey{
+				Namespace:   ing.ObjectMeta.Namespace,
+				ServiceName: ruleData.svcName,
+				ServicePort: ruleData.svcPort,
+			}
+			cfgs, _ := appMgr.resources.GetAll(key)
+			for _, cfg := range cfgs {
+				for _, pol := range cfg.Policies {
+					if pol.Name != cfg.Virtual.VirtualServerName {
+						continue
+					}
+					for _, rule := range pol.Rules {
+						if fullUri != rule.FullURI {
+							continue
+						}
+						for _, action := range rule.Actions {
+							if action.Forward && "" != action.Pool {
+								appMgr.assignMonitorToPool(cfg, action.Pool, ruleData)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	appMgr.notifyUnusedHealthMonitorRules(rsName, ing, hostToPathMap)
 }
 
 // Common handling function for both ConfigMaps and Ingresses

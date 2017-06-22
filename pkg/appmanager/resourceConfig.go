@@ -18,6 +18,7 @@ package appmanager
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -513,6 +514,11 @@ func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
 				return &cfg, err
 			}
 
+			//Check if we care about the partition specified in the configmap
+			if cfgMap.VirtualServer.Frontend.Partition != DEFAULT_PARTITION {
+				var errStr string = fmt.Sprintf("The partition '%s' in the ConfigMap does not match '%s' that the controller watches for", cfgMap.VirtualServer.Frontend.Partition, DEFAULT_PARTITION)
+				return &cfg, errors.New(errStr)
+			}
 			if result.Valid() {
 				cfg.Virtual.VirtualServerName = formatConfigMapVSName(cm)
 				copyConfigMap(&cfg, &cfgMap)

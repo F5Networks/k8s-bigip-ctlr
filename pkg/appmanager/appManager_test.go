@@ -42,6 +42,7 @@ import (
 func init() {
 	workingDir, _ := os.Getwd()
 	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.4.json"
+	DEFAULT_PARTITION = "velcro"
 }
 
 var schemaUrl string
@@ -2087,6 +2088,7 @@ func TestSchemaValidation(t *testing.T) {
 	fakeClient := fake.NewSimpleClientset()
 	require.NotNil(fakeClient, "Mock client should not be nil")
 
+	DEFAULT_PARTITION = ""
 	badjson := test.NewConfigMap("badjson", "1", namespace, map[string]string{
 		"schema": schemaUrl,
 		"data":   configmapFooInvalid,
@@ -2108,6 +2110,20 @@ func TestSchemaValidation(t *testing.T) {
 		"virtualServer.backend.serviceName: String length must be greater than or equal to 1")
 	assert.Contains(err.Error(),
 		"virtualServer.backend.servicePort: Must be greater than or equal to 1")
+	DEFAULT_PARTITION = "velcro"
+}
+
+func TestConfigMapWrongPartition(t *testing.T) {
+	require := require.New(t)
+	namespace := "default"
+	//Config map with wrong partition
+	DEFAULT_PARTITION = "k8s" //partition the controller has been asked to watch
+	wrongPartition := test.NewConfigMap("foomap", "1", namespace, map[string]string{
+		"schema": schemaUrl,
+		"data":   configmapFoo})
+	_, err := parseConfigMap(wrongPartition)
+	require.NotNil(err, "Config map with wrong partition should throw an error")
+	DEFAULT_PARTITION = "velcro"
 }
 
 func validateServiceIps(t *testing.T, serviceName, namespace string,

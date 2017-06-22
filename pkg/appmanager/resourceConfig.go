@@ -211,6 +211,25 @@ type configMapBackend struct {
 	HealthMonitors  []Monitor `json:"healthMonitors,omitempty"`
 }
 
+// This is the format for each item in the health monitor annotation used
+// in the Ingress object.
+type IngressHealthMonitor struct {
+	Path     string `json:"path"`
+	Interval int    `json:"interval"`
+	Send     string `json:"send"`
+	Timeout  int    `json:"timeout"`
+}
+type IngressHealthMonitors []IngressHealthMonitor
+
+type ingressRuleData struct {
+	svcName   string
+	svcPort   int32
+	healthMon IngressHealthMonitor
+	assigned  bool
+}
+type ingressPathToRuleMap map[string]*ingressRuleData
+type ingressHostToPathMap map[string]ingressPathToRuleMap
+
 // Wrappers around the ssl profile name to simplify its use due to the
 // pointer and nested depth.
 func (v *Virtual) AddFrontendSslProfileName(name string) {
@@ -295,6 +314,15 @@ func (v *Virtual) GetFrontendSslProfileNames() []string {
 		return []string{v.SslProfile.F5ProfileName}
 	}
 	return v.SslProfile.F5ProfileNames
+}
+
+func (v *Virtual) ToString() string {
+	output, err := json.Marshal(v)
+	if nil != err {
+		log.Errorf("Unable to convert virtual {%+v} to string: %v", v, err)
+		return ""
+	}
+	return string(output)
 }
 
 type ResourceConfigs []*ResourceConfig
@@ -754,4 +782,54 @@ func (rc *ResourceConfig) RemovePolicy(toFind nameRef) {
 			return
 		}
 	}
+}
+
+func (rc *ResourceConfig) SetMonitor(pool *Pool, monitor Monitor) {
+	found := false
+	toFind := fmt.Sprintf("/%s/%s", monitor.Partition, monitor.Name)
+	for _, name := range pool.MonitorNames {
+		if name == toFind {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		pool.MonitorNames = append(pool.MonitorNames, toFind)
+	}
+	for i, mon := range rc.Monitors {
+		if mon.Name == monitor.Name && mon.Partition == monitor.Partition {
+			rc.Monitors[i] = monitor
+			return
+		}
+	}
+	rc.Monitors = append(rc.Monitors, monitor)
+}
+
+func splitBigipPath(path string, keepSlash bool) (partition, objName string) {
+	cleanPath := strings.TrimLeft(path, "/")
+	slashPos := strings.Index(cleanPath, "/")
+	if slashPos == -1 {
+		// No partition
+		objName = cleanPath
+	} else {
+		// Partition and name
+		partition = cleanPath[:slashPos]
+		if keepSlash {
+			objName = cleanPath[slashPos:]
+		} else {
+			objName = cleanPath[slashPos+1:]
+		}
+	}
+	return
+}
+
+func joinBigipPath(partition, objName string) string {
+	if objName == "" {
+		return ""
+	}
+	if partition == "" {
+		return objName
+	}
+	return fmt.Sprintf("/%s/%s", partition, objName)
 }

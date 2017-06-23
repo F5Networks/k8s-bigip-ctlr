@@ -83,8 +83,6 @@ type Manager struct {
 	// Namespace informer support (namespace labels)
 	nsQueue    workqueue.RateLimitingInterface
 	nsInformer cache.SharedIndexInformer
-	// Parameter to specify whether or not to watch/manage Ingress resources
-	manage_ingress bool
 	// Event recorder
 	broadcaster   record.EventBroadcaster
 	eventRecorder record.EventRecorder
@@ -98,7 +96,6 @@ type Params struct {
 	ConfigWriter    writer.Writer
 	UseNodeInternal bool
 	IsNodePort      bool
-	ManageIngress   bool
 	InitialState    bool                 // Unit testing only
 	EventRecorder   record.EventRecorder // Unit testing only
 }
@@ -117,7 +114,6 @@ func NewManager(params *Params) *Manager {
 		configWriter:      params.ConfigWriter,
 		useNodeInternal:   params.UseNodeInternal,
 		isNodePort:        params.IsNodePort,
-		manage_ingress:    params.ManageIngress,
 		initialState:      params.InitialState,
 		eventRecorder:     params.EventRecorder,
 		vsQueue:           vsQueue,
@@ -178,8 +174,7 @@ func (appMgr *Manager) addNamespaceLocked(
 	if appInf, found := appMgr.appInformers[namespace]; found {
 		return appInf, nil
 	}
-	appInf = appMgr.newAppInformer(namespace, appMgr.manage_ingress,
-		cfgMapSelector, resyncPeriod)
+	appInf = appMgr.newAppInformer(namespace, cfgMapSelector, resyncPeriod)
 	appMgr.appInformers[namespace] = appInf
 	return appInf, nil
 }
@@ -345,19 +340,16 @@ type appInformer struct {
 	endptInformer  cache.SharedIndexInformer
 	ingInformer    cache.SharedIndexInformer
 	stopCh         chan struct{}
-	manage_ingress bool
 }
 
 func (appMgr *Manager) newAppInformer(
 	namespace string,
-	manage_ingress bool,
 	cfgMapSelector labels.Selector,
 	resyncPeriod time.Duration,
 ) *appInformer {
 	appInf := appInformer{
-		namespace:      namespace,
-		stopCh:         make(chan struct{}),
-		manage_ingress: manage_ingress,
+		namespace: namespace,
+		stopCh:    make(chan struct{}),
 		cfgMapInformer: cache.NewSharedIndexInformer(
 			newListWatchWithLabelSelector(
 				appMgr.restClientv1,
@@ -494,28 +486,17 @@ func (appInf *appInformer) start() {
 	go appInf.cfgMapInformer.Run(appInf.stopCh)
 	go appInf.svcInformer.Run(appInf.stopCh)
 	go appInf.endptInformer.Run(appInf.stopCh)
-	if appInf.manage_ingress {
-		go appInf.ingInformer.Run(appInf.stopCh)
-	}
+	go appInf.ingInformer.Run(appInf.stopCh)
 }
 
 func (appInf *appInformer) waitForCacheSync() {
-	if appInf.manage_ingress {
-		cache.WaitForCacheSync(
-			appInf.stopCh,
-			appInf.cfgMapInformer.HasSynced,
-			appInf.svcInformer.HasSynced,
-			appInf.endptInformer.HasSynced,
-			appInf.ingInformer.HasSynced,
-		)
-	} else {
-		cache.WaitForCacheSync(
-			appInf.stopCh,
-			appInf.cfgMapInformer.HasSynced,
-			appInf.svcInformer.HasSynced,
-			appInf.endptInformer.HasSynced,
-		)
-	}
+	cache.WaitForCacheSync(
+		appInf.stopCh,
+		appInf.cfgMapInformer.HasSynced,
+		appInf.svcInformer.HasSynced,
+		appInf.endptInformer.HasSynced,
+		appInf.ingInformer.HasSynced,
+	)
 }
 
 func (appInf *appInformer) stopInformers() {

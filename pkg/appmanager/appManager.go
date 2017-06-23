@@ -863,27 +863,37 @@ func (appMgr *Manager) handleIngressTls(
 	// -----------------------------------------------------------------
 	// |   3   |     F       |    T      | Both HTTP and HTTPS         |
 	// -----------------------------------------------------------------
+	var rule *Rule
+	var policyName string
 	if sslRedirect {
 		// State 2, apply HTTP redirect policy
 		log.Debugf("TLS: Applying HTTP redirect policy.")
-		policyName := fmt.Sprintf("%s-http-redirect",
+		policyName = fmt.Sprintf("%s-http-redirect",
 			rsCfg.Virtual.VirtualServerName)
-		policy := newHttpRedirectPolicy(rsCfg.Virtual.Partition, policyName)
-		rsCfg.SetPolicy(policy)
+		rule = newHttpRedirectPolicyRule()
 	} else if allowHttp {
 		// State 3, do not apply any policy
 		log.Debugf("TLS: Not applying any policies.")
 	} else {
 		// State 1
 		log.Debugf("TLS: Applying drop HTTP policy")
-		policyName := fmt.Sprintf("%s-drop-http",
+		policyName = fmt.Sprintf("%s-drop-http",
 			rsCfg.Virtual.VirtualServerName)
-		policy := newDropHttpPolicy(rsCfg.Virtual.Partition, policyName)
-		rsCfg.SetPolicy(policy)
+		rule = newDropHttpPolicyRule()
+	}
+	if nil != rule && "" != policyName {
+		policy := rsCfg.FindPolicy("forwarding")
+		if nil == policy {
+			policy = createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
+		} else {
+			rule.Ordinal = len(policy.Rules)
+			policy.Rules = append(policy.Rules, rule)
+		}
+		rsCfg.SetPolicy(*policy)
 	}
 }
 
-func newHttpRedirectPolicy(partition, policyName string) Policy {
+func newHttpRedirectPolicyRule() *Rule {
 	redirAction := action{
 		Name:      "0",
 		HttpReply: true,
@@ -891,24 +901,15 @@ func newHttpRedirectPolicy(partition, policyName string) Policy {
 		Redirect:  true,
 		Request:   true,
 	}
-	policy := Policy{
-		Name:      policyName,
-		Partition: partition,
-		Legacy:    true,
-		Controls:  []string{"forwarding"},
-		Requires:  []string{"http"},
-		Strategy:  "/Common/first-match",
-		Rules: []*Rule{
-			&Rule{
-				Name:    httpRedirectRuleName,
-				Actions: []*action{&redirAction},
-			},
-		},
+	rule := Rule{
+		Name:    httpRedirectRuleName,
+		Actions: []*action{&redirAction},
+		Ordinal: 0,
 	}
-	return policy
+	return &rule
 }
 
-func newDropHttpPolicy(partition, policyName string) Policy {
+func newDropHttpPolicyRule() *Rule {
 	dropAction := action{
 		Name:    "0",
 		Forward: true,
@@ -927,22 +928,13 @@ func newDropHttpPolicy(partition, policyName string) Policy {
 		Scheme:          true,
 		Values:          []string{"http"},
 	}
-	policy := Policy{
-		Name:      policyName,
-		Partition: partition,
-		Legacy:    true,
-		Controls:  []string{"forwarding"},
-		Requires:  []string{"http"},
-		Strategy:  "/Common/first-match",
-		Rules: []*Rule{
-			&Rule{
-				Name:       httpDropRuleName,
-				Conditions: []*condition{&cond},
-				Actions:    []*action{&dropAction},
-			},
-		},
+	rule := Rule{
+		Name:       httpDropRuleName,
+		Conditions: []*condition{&cond},
+		Actions:    []*action{&dropAction},
+		Ordinal:    0,
 	}
-	return policy
+	return &rule
 }
 
 func (appMgr *Manager) assignHealthMonitorsByPath(

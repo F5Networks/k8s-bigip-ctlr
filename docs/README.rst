@@ -140,35 +140,42 @@ Frontend
 
 virtualServer
 ~~~~~~~~~~~~~
-+-------------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| Property          | Type      | Required  | Default   | Description                   | Allowed Values            |
-+===================+===========+===========+===========+===============================+===========================+
-| partition         | string    | Required  |           | Define the BIG-IP partition   |                           |
-|                   |           |           |           | to manage                     |                           |
-+-------------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| virtualAddress    | JSON      | Optional  |           | Allocate a virtual address    |                           |
-|                   | object    |           |           | from the BIG-IP               |                           |
-+---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-|   | bindAddr      | string    | Required  |           | Virtual IP address            |                           |
-+---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-|   | port          | integer   | Required  |           | Port number                   |                           |
-+---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| mode              | string    | Optional  | tcp       | Set the proxy mode            | http, tcp                 |
-+-------------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| balance           | string    | Optional  | round-    | Set the load balancing mode   | round-robin               |
-|                   |           |           | robin     |                               |                           |
-+-------------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| sslProfile        | JSON      | Optional  |           | BIG-IP SSL profile to apply   |                           |
-|                   | object    |           |           | to the virtual server.        |                           |
-+---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-|   | f5ProfileName | string    | Optional  |           | Name of the BIG-IP SSL        |                           |
-|   |               |           |           |           | profile.                      |                           |
-|   |               |           |           |           |                               |                           |
-|   |               |           |           |           | Uses format 'partition_name/  |                           |
-|   |               |           |           |           | cert_name'                    |                           |
-|   |               |           |           |           |                               |                           |
-|   |               |           |           |           | Example: 'Common/testcert'    |                           |
-+---+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
+
+==================== ================= ============== =========== ===================================================== ======================
+Property             Type              Required       Default     Description                                           Allowed Values
+==================== ================= ============== =========== ===================================================== ======================
+partition            string            Required                   Define the BIG-IP partition to manage
+
+virtualAddress       JSON object       Optional                   Allocate a virtual address from the BIG-IP
+
+- bindAddr           string            Required                   Virtual IP address
+- port               integer           Required                   Port number
+
+mode                 string            Optional       tcp         Set the proxy mode                                    http, tcp
+
+balance              string            Optional       round-robin Set the load balancing mode                           round-robin
+
+sslProfile           JSON object       Optional                   BIG-IP SSL profile to apply to the virtual server.
+
+- f5ProfileName      string            Optional                   Name of the BIG-IP SSL profile you want to use.
+
+                                                                  Uses format :code:`partition_name/cert_name`
+
+                                                                  Example: :code:`Common/testcert`
+
+- f5ProfileNames     array of strings  Optional                   Array of BIG-IP SSL profile names.
+
+                                                                  Each SSL profile name uses the format
+                                                                  :code:`partition_name/cert_name`.
+
+                                                                  Example: ::
+
+                                                                    [
+                                                                      'Common/testcert1',
+                                                                      'Common/testcert2'
+                                                                    ]
+==================== ================= ============== =========== ===================================================== ======================
+
 
 If ``bindAddr`` is not provided in the Frontend configuration, then you must supply it via a `Kubernetes Annotation`_ for the ConfigMap. The controller watches for the annotation key ``virtual-server.f5.com/ip``.
 This annotation must contain the IP address that the virtual server will use. You can configure an IPAM system to write out this annotation containing the IP address that it chose.
@@ -178,6 +185,8 @@ A user of the Kubernetes API can check the ``status.virtual-server.f5.com/ip`` a
 If ``virtualAddress`` or ``bindAddr`` are not provided in the Frontend configuration, then the controller will configure and manage pools, pool members, and healthchecks for the service without a virtual server on the BIG-IP.
 Instead you should already have a BIG-IP virtual server that handles client connections and has an irule or traffic policy to forward the request to the correct pool. The stable name of the pool will be the namespace
 of the Kubernetes service followed by an underscore followed by the name of the service ConfigMap.
+
+**To configure multiple SSL profiles**, use ``f5ProfileNames``, not ``f5ProfileName``. ``f5ProfileName`` and ``f5ProfileNames`` are mutually exclusive.
 
 iApps
 ~~~~~

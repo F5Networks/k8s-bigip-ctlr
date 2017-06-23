@@ -790,6 +790,17 @@ func (rc *ResourceConfig) RemovePolicy(toFind nameRef) {
 	}
 }
 
+func (rc *ResourceConfig) FindPolicy(controlType string) *Policy {
+	for _, pol := range rc.Policies {
+		for _, cType := range pol.Controls {
+			if cType == controlType {
+				return &pol
+			}
+		}
+	}
+	return nil
+}
+
 func (rc *ResourceConfig) SetMonitor(pool *Pool, monitor Monitor) {
 	found := false
 	toFind := fmt.Sprintf("/%s/%s", monitor.Partition, monitor.Name)

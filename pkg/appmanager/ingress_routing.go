@@ -64,7 +64,7 @@ func createRule(uri, poolName, partition string) (*Rule, error) {
 			Request:  true,
 			Values:   []string{strings.TrimPrefix(u.Host, "*")},
 		})
-	} else {
+	} else if u.Host != "" {
 		c = append(c, &condition{
 			Equals:   true,
 			Host:     true,
@@ -131,9 +131,6 @@ func processIngressRules(
 	for _, rule := range ing.Rules {
 		if nil != rule.IngressRuleValue.HTTP {
 			for _, path := range rule.IngressRuleValue.HTTP.Paths {
-				if rule.Host == "" {
-					rule.Host = "*"
-				}
 				uri = rule.Host + path.Path
 				for _, pool := range pools {
 					if path.Backend.ServiceName == pool.ServiceName {

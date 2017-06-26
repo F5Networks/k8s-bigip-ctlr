@@ -1087,7 +1087,6 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 			log.Warningf("%s", msg)
 			appMgr.recordIngressEvent(ing, "DuplicatePath", msg, rsName)
 		}
-		return
 	}
 
 	err := appMgr.assignHealthMonitorsByPath(
@@ -1102,7 +1101,11 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 	defer appMgr.resources.Unlock()
 	for host, paths := range hostToPathMap {
 		for path, ruleData := range paths {
-			fullUri := host + path
+			if 0 == len(ruleData.healthMon.Path) {
+				// hostToPathMap has an entry for each rule, but not necessarily an
+				// associated health monitor.
+				continue
+			}
 			key := serviceKey{
 				Namespace:   ing.ObjectMeta.Namespace,
 				ServiceName: ruleData.svcName,
@@ -1115,12 +1118,20 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 						continue
 					}
 					for _, rule := range pol.Rules {
-						if fullUri != rule.FullURI {
-							continue
+						slashPos := strings.Index(rule.FullURI, "/")
+						var ruleHost, rulePath string
+						if slashPos == -1 {
+							ruleHost = rule.FullURI
+							rulePath = "/"
+						} else {
+							ruleHost = rule.FullURI[:slashPos]
+							rulePath = rule.FullURI[slashPos:]
 						}
-						for _, action := range rule.Actions {
-							if action.Forward && "" != action.Pool {
-								appMgr.assignMonitorToPool(cfg, action.Pool, ruleData)
+						if (host == "*" || host == ruleHost) && path == rulePath {
+							for _, action := range rule.Actions {
+								if action.Forward && "" != action.Pool {
+									appMgr.assignMonitorToPool(cfg, action.Pool, ruleData)
+								}
 							}
 						}
 					}

@@ -4044,7 +4044,7 @@ func TestMultiServiceIngressNoPathHealthCheck(t *testing.T) {
 		ServicePort: int32(svc1aPort),
 	}
 	assert.Equal(1, resources.CountOf(svc1aKey))
-	vsCfgFoo, found := resources.Get(svc1aKey, formatIngressVSName(ing))
+	vsCfgFoo, found := resources.Get(svc1aKey, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgFoo)
 
@@ -4054,7 +4054,7 @@ func TestMultiServiceIngressNoPathHealthCheck(t *testing.T) {
 		ServicePort: int32(svc1bPort),
 	}
 	assert.Equal(1, resources.CountOf(svc1bKey))
-	vsCfgBar, found := resources.Get(svc1bKey, formatIngressVSName(ing))
+	vsCfgBar, found := resources.Get(svc1bKey, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgBar)
 
@@ -4064,7 +4064,7 @@ func TestMultiServiceIngressNoPathHealthCheck(t *testing.T) {
 		ServicePort: int32(svc2Port),
 	}
 	assert.Equal(1, resources.CountOf(svc2Key))
-	vsCfgBaz, found := resources.Get(svc2Key, formatIngressVSName(ing))
+	vsCfgBaz, found := resources.Get(svc2Key, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgBaz)
 

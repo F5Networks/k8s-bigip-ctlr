@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -43,6 +42,7 @@ import (
 var DEFAULT_MODE string = "tcp"
 var DEFAULT_BALANCE string = "round-robin"
 var DEFAULT_HTTP_PORT int32 = 80
+var DEFAULT_HTTPS_PORT int32 = 443
 var DEFAULT_PARTITION string
 
 type BigIPConfig struct {
@@ -364,8 +364,9 @@ func formatConfigMapVSName(cm *v1.ConfigMap) string {
 }
 
 // format the namespace and name for use in the frontend definition
-func formatIngressVSName(ing *v1beta1.Ingress) string {
-	return fmt.Sprintf("%v_%v-ingress", ing.ObjectMeta.Namespace, ing.ObjectMeta.Name)
+func formatIngressVSName(ing *v1beta1.Ingress, protocol string) string {
+	return fmt.Sprintf("%v_%v-ingress_%s",
+		ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, protocol)
 }
 
 // format the namespace and name for use in the frontend definition
@@ -646,6 +647,7 @@ func copyConfigMap(cfg *ResourceConfig, cfgMap *ConfigMap) {
 func createRSConfigFromIngress(ing *v1beta1.Ingress,
 	ns string,
 	svcIndexer cache.Indexer,
+	pStruct portStruct,
 ) *ResourceConfig {
 	var cfg ResourceConfig
 
@@ -654,7 +656,7 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress,
 			return nil
 		}
 	}
-	cfg.Virtual.VirtualServerName = formatIngressVSName(ing)
+	cfg.Virtual.VirtualServerName = formatIngressVSName(ing, pStruct.protocol)
 	cfg.Virtual.Mode = "http"
 	if balance, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/balance"]; ok == true {
 		cfg.Virtual.Balance = balance
@@ -662,18 +664,12 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress,
 		cfg.Virtual.Balance = DEFAULT_BALANCE
 	}
 	cfg.Virtual.VirtualAddress = &virtualAddress{}
+	cfg.Virtual.VirtualAddress.Port = pStruct.port
 
 	if partition, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/partition"]; ok == true {
 		cfg.Virtual.Partition = partition
 	} else {
 		cfg.Virtual.Partition = DEFAULT_PARTITION
-	}
-
-	if httpPort, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/http-port"]; ok == true {
-		port, _ := strconv.ParseInt(httpPort, 10, 32)
-		cfg.Virtual.VirtualAddress.Port = int32(port)
-	} else {
-		cfg.Virtual.VirtualAddress.Port = DEFAULT_HTTP_PORT
 	}
 
 	if addr, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/ip"]; ok == true {

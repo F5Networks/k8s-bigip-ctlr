@@ -3106,7 +3106,11 @@ func TestIngressConfiguration(t *testing.T) {
 			"virtual-server.f5.com/ip":        "1.2.3.4",
 			"virtual-server.f5.com/partition": "velcro",
 		})
-	cfg := createRSConfigFromIngress(ingress, namespace, nil)
+	ps := portStruct{
+		protocol: "http",
+		port:     80,
+	}
+	cfg := createRSConfigFromIngress(ingress, namespace, nil, ps)
 	require.Equal("round-robin", cfg.Virtual.Balance)
 	require.Equal("http", cfg.Virtual.Mode)
 	require.Equal("velcro", cfg.Virtual.Partition)
@@ -3117,19 +3121,23 @@ func TestIngressConfiguration(t *testing.T) {
 		map[string]string{
 			"virtual-server.f5.com/ip":        "1.2.3.4",
 			"virtual-server.f5.com/partition": "velcro",
-			"virtual-server.f5.com/http-port": "443",
+			"virtual-server.f5.com/http-port": "100",
 			"virtual-server.f5.com/balance":   "foobar",
 			"kubernetes.io/ingress.class":     "f5",
 		})
-	cfg = createRSConfigFromIngress(ingress, namespace, nil)
+	ps = portStruct{
+		protocol: "http",
+		port:     100,
+	}
+	cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
 	require.Equal("foobar", cfg.Virtual.Balance)
-	require.Equal(int32(443), cfg.Virtual.VirtualAddress.Port)
+	require.Equal(int32(100), cfg.Virtual.VirtualAddress.Port)
 
 	ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
 		map[string]string{
 			"kubernetes.io/ingress.class": "notf5",
 		})
-	cfg = createRSConfigFromIngress(ingress, namespace, nil)
+	cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
 	require.Nil(cfg)
 }
 
@@ -3180,7 +3188,7 @@ func TestVirtualServerForIngress(t *testing.T) {
 	assert.True(r, "Service should be processed")
 
 	rs, ok := resources.Get(
-		serviceKey{"foo", 80, "default"}, "default_ingress-ingress")
+		serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
 	assert.True(ok, "Ingress should be accessible")
 	assert.NotNil(rs, "Ingress should be object")
 	assert.True(rs.MetaData.Active)
@@ -3202,7 +3210,7 @@ func TestVirtualServerForIngress(t *testing.T) {
 	require.Equal(1, resources.Count())
 
 	rs, ok = resources.Get(
-		serviceKey{"foo", 80, "default"}, "default_ingress-ingress")
+		serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
 	assert.True(ok, "Ingress should be accessible")
 	assert.NotNil(rs, "Ingress should be object")
 
@@ -3279,12 +3287,12 @@ func TestVirtualServerForIngress(t *testing.T) {
 	// each backend
 	require.Equal(3, resources.Count())
 	rs, ok = resources.Get(
-		serviceKey{"foo", 80, "default"}, "default_ingress-ingress")
+		serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
 	require.Equal(4, len(rs.Policies[0].Rules))
 	appMgr.deleteService(fooSvc)
 	require.Equal(2, resources.Count())
 	rs, ok = resources.Get(
-		serviceKey{"bar", 80, "default"}, "default_ingress-ingress")
+		serviceKey{"bar", 80, "default"}, "default_ingress-ingress_http")
 	require.Equal(2, len(rs.Policies[0].Rules))
 
 	appMgr.deleteIngress(ingress3)
@@ -3322,7 +3330,7 @@ func TestVirtualServerForIngress(t *testing.T) {
 	require.True(r, "Ingress resource should be processed")
 	require.Equal(2, resources.Count())
 	rs, ok = resources.Get(
-		serviceKey{"foo", 80, "default"}, "default_ingress-ingress")
+		serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
 	require.Equal(2, len(rs.Policies[0].Rules))
 }
 
@@ -3334,7 +3342,7 @@ func TestIngressSslProfile(t *testing.T) {
 	require := require.New(t)
 	assert := assert.New(t)
 	fakeClient := fake.NewSimpleClientset()
-	fakeRecorder := record.NewFakeRecorder(15)
+	fakeRecorder := record.NewFakeRecorder(100)
 	require.NotNil(fakeClient, "Mock client should not be nil")
 	require.NotNil(fakeRecorder, "Mock recorder should not be nil")
 	namespace := "default"
@@ -3395,56 +3403,62 @@ func TestIngressSslProfile(t *testing.T) {
 	r = appMgr.addEndpoints(endpts)
 	assert.True(r, "Endpoints should be processed")
 	resources := appMgr.resources()
-	assert.Equal(1, resources.Count())
-	assert.Equal(1, resources.CountOf(svcKey))
-	vsCfg, found := resources.Get(svcKey, formatIngressVSName(fooIng))
+	assert.Equal(2, resources.Count())
+	assert.Equal(2, resources.CountOf(svcKey))
+	httpCfg, found := resources.Get(svcKey, formatIngressVSName(fooIng, "http"))
 	assert.True(found)
-	require.NotNil(vsCfg)
+	require.NotNil(httpCfg)
+
+	httpsCfg, found := resources.Get(svcKey, formatIngressVSName(fooIng, "https"))
+	assert.True(found)
+	require.NotNil(httpsCfg)
 	secretArray := []string{
 		formatIngressSslProfileName(sslProfileName1),
 		formatIngressSslProfileName(sslProfileName2),
 	}
 	sort.Strings(secretArray)
-	assert.Equal(secretArray, vsCfg.Virtual.GetFrontendSslProfileNames())
+	assert.Equal(secretArray, httpsCfg.Virtual.GetFrontendSslProfileNames())
+
 	// No annotations were specified to control http redirect, check that
 	// we are in the default state 2.
-	require.Equal(1, len(vsCfg.Policies))
-	require.Equal(1, len(vsCfg.Policies[0].Rules))
-	assert.Equal(httpRedirectRuleName, vsCfg.Policies[0].Rules[0].Name)
+	require.Equal(1, len(httpCfg.Policies))
+	require.Equal(1, len(httpCfg.Policies[0].Rules))
+	assert.Equal(httpRedirectRuleName, httpCfg.Policies[0].Rules[0].Name)
 
 	// Set the annotations the same as default and recheck
 	fooIng.ObjectMeta.Annotations[ingressSslRedirect] = "true"
 	fooIng.ObjectMeta.Annotations[ingressAllowHttp] = "false"
 	r = appMgr.addIngress(fooIng)
-	vsCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng))
+	httpCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng, "http"))
 	assert.True(found)
-	require.NotNil(vsCfg)
+	require.NotNil(httpCfg)
 	assert.True(r, "Ingress resource should be processed")
-	require.Equal(1, len(vsCfg.Policies))
-	require.Equal(1, len(vsCfg.Policies[0].Rules))
-	assert.Equal(httpRedirectRuleName, vsCfg.Policies[0].Rules[0].Name)
+	require.Equal(1, len(httpCfg.Policies))
+	require.Equal(1, len(httpCfg.Policies[0].Rules))
+	assert.Equal(httpRedirectRuleName, httpCfg.Policies[0].Rules[0].Name)
 
 	// Now test state 1.
 	fooIng.ObjectMeta.Annotations[ingressSslRedirect] = "false"
 	fooIng.ObjectMeta.Annotations[ingressAllowHttp] = "false"
 	r = appMgr.addIngress(fooIng)
-	vsCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng))
+	httpsCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng, "https"))
 	assert.True(found)
-	require.NotNil(vsCfg)
+	require.NotNil(httpsCfg)
 	assert.True(r, "Ingress resource should be processed")
-	require.Equal(1, len(vsCfg.Policies))
-	require.Equal(1, len(vsCfg.Policies[0].Rules))
-	assert.Equal(httpDropRuleName, vsCfg.Policies[0].Rules[0].Name)
+	assert.Equal(1, resources.Count())
+	assert.Equal(1, resources.CountOf(svcKey))
+	require.Equal(0, len(httpsCfg.Policies))
+	assert.Equal(secretArray, httpsCfg.Virtual.GetFrontendSslProfileNames())
 
 	// Now test state 3.
 	fooIng.ObjectMeta.Annotations[ingressSslRedirect] = "false"
 	fooIng.ObjectMeta.Annotations[ingressAllowHttp] = "true"
 	r = appMgr.addIngress(fooIng)
-	vsCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng))
+	httpCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng, "http"))
 	assert.True(found)
-	require.NotNil(vsCfg)
+	require.NotNil(httpCfg)
 	assert.True(r, "Ingress resource should be processed")
-	require.Equal(0, len(vsCfg.Policies))
+	require.Equal(0, len(httpCfg.Policies))
 
 	// Clear out TLS in the ingress, but use default http redirect settings.
 	fooIng.Spec.TLS = nil
@@ -3454,11 +3468,14 @@ func TestIngressSslProfile(t *testing.T) {
 	assert.True(r, "Ingress resource should be processed")
 	assert.Equal(1, resources.Count())
 	assert.Equal(1, resources.CountOf(svcKey))
-	vsCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng))
+	httpCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng, "http"))
 	assert.True(found)
-	require.NotNil(vsCfg)
-	assert.Equal([]string{}, vsCfg.Virtual.GetFrontendSslProfileNames())
-	require.Equal(0, len(vsCfg.Policies))
+	require.NotNil(httpCfg)
+	require.Equal(0, len(httpCfg.Policies))
+
+	httpsCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng, "https"))
+	assert.False(found)
+	require.Nil(httpsCfg)
 }
 
 func checkSingleServiceHealthMonitor(
@@ -3577,7 +3594,7 @@ func TestSingleServiceIngressHealthCheck(t *testing.T) {
 
 	// The first test uses an explicit server name
 	assert.Equal(1, resources.CountOf(svcKey))
-	vsCfgFoo, found := resources.Get(svcKey, formatIngressVSName(ing))
+	vsCfgFoo, found := resources.Get(svcKey, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgFoo)
 	checkSingleServiceHealthMonitor(t, vsCfgFoo, svcName, svcPort, true)
@@ -3593,7 +3610,7 @@ func TestSingleServiceIngressHealthCheck(t *testing.T) {
 	r = appMgr.updateIngress(ing)
 	assert.True(r, "Ingress resource should be processed")
 	assert.Equal(1, resources.CountOf(svcKey))
-	vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName(ing))
+	vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgFoo)
 	checkSingleServiceHealthMonitor(t, vsCfgFoo, svcName, svcPort, true)
@@ -3609,7 +3626,7 @@ func TestSingleServiceIngressHealthCheck(t *testing.T) {
 	r = appMgr.updateIngress(ing)
 	assert.True(r, "Ingress resource should be processed")
 	assert.Equal(1, resources.CountOf(svcKey))
-	vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName(ing))
+	vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgFoo)
 	checkSingleServiceHealthMonitor(t, vsCfgFoo, svcName, svcPort, true)
@@ -3624,7 +3641,7 @@ func TestSingleServiceIngressHealthCheck(t *testing.T) {
 	r = appMgr.updateIngress(ing)
 	assert.True(r, "Ingress resource should be processed")
 	assert.Equal(1, resources.CountOf(svcKey))
-	vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName(ing))
+	vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgFoo)
 	checkSingleServiceHealthMonitor(t, vsCfgFoo, svcName, svcPort, false)
@@ -3825,7 +3842,7 @@ func TestMultiServiceIngressHealthCheck(t *testing.T) {
 		ServicePort: int32(svc1Port),
 	}
 	assert.Equal(1, resources.CountOf(svc1Key))
-	vsCfgFoo, found := resources.Get(svc1Key, formatIngressVSName(ing))
+	vsCfgFoo, found := resources.Get(svc1Key, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgFoo)
 
@@ -3848,7 +3865,7 @@ func TestMultiServiceIngressHealthCheck(t *testing.T) {
 		ServicePort: int32(svc2Port),
 	}
 	assert.Equal(1, resources.CountOf(svc2Key))
-	vsCfgBar, found := resources.Get(svc2Key, formatIngressVSName(ing))
+	vsCfgBar, found := resources.Get(svc2Key, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgBar)
 
@@ -3871,7 +3888,7 @@ func TestMultiServiceIngressHealthCheck(t *testing.T) {
 		ServicePort: int32(svc3Port),
 	}
 	assert.Equal(1, resources.CountOf(svc3Key))
-	vsCfgBaz, found := resources.Get(svc3Key, formatIngressVSName(ing))
+	vsCfgBaz, found := resources.Get(svc3Key, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgBaz)
 
@@ -3994,7 +4011,7 @@ func TestMultiServiceIngressOneHealthCheck(t *testing.T) {
 		ServicePort: int32(svc1aPort),
 	}
 	assert.Equal(1, resources.CountOf(svc1aKey))
-	vsCfgFoo, found := resources.Get(svc1aKey, formatIngressVSName(ing))
+	vsCfgFoo, found := resources.Get(svc1aKey, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgFoo)
 
@@ -4017,7 +4034,7 @@ func TestMultiServiceIngressOneHealthCheck(t *testing.T) {
 		ServicePort: int32(svc1bPort),
 	}
 	assert.Equal(1, resources.CountOf(svc1bKey))
-	vsCfgBar, found := resources.Get(svc1bKey, formatIngressVSName(ing))
+	vsCfgBar, found := resources.Get(svc1bKey, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgBar)
 
@@ -4040,7 +4057,7 @@ func TestMultiServiceIngressOneHealthCheck(t *testing.T) {
 		ServicePort: int32(svc2Port),
 	}
 	assert.Equal(1, resources.CountOf(svc2Key))
-	vsCfgBaz, found := resources.Get(svc2Key, formatIngressVSName(ing))
+	vsCfgBaz, found := resources.Get(svc2Key, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgBaz)
 
@@ -4163,7 +4180,7 @@ func TestMultiServiceIngressHealthCheckNoHost(t *testing.T) {
 		ServicePort: int32(svc1Port),
 	}
 	assert.Equal(1, resources.CountOf(svc1Key))
-	vsCfgFoo, found := resources.Get(svc1Key, formatIngressVSName(ing))
+	vsCfgFoo, found := resources.Get(svc1Key, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgFoo)
 
@@ -4186,7 +4203,7 @@ func TestMultiServiceIngressHealthCheckNoHost(t *testing.T) {
 		ServicePort: int32(svc2Port),
 	}
 	assert.Equal(1, resources.CountOf(svc2Key))
-	vsCfgBar, found := resources.Get(svc2Key, formatIngressVSName(ing))
+	vsCfgBar, found := resources.Get(svc2Key, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgBar)
 
@@ -4209,7 +4226,7 @@ func TestMultiServiceIngressHealthCheckNoHost(t *testing.T) {
 		ServicePort: int32(svc3Port),
 	}
 	assert.Equal(1, resources.CountOf(svc3Key))
-	vsCfgBaz, found := resources.Get(svc3Key, formatIngressVSName(ing))
+	vsCfgBaz, found := resources.Get(svc3Key, formatIngressVSName(ing, "http"))
 	assert.True(found)
 	require.NotNil(vsCfgBaz)
 

@@ -2,3 +2,5 @@
 pytest==3.0.2
 mock
 flake8
+pytest-cov==2.5.1
+coveralls==1.1

@@ -48,11 +48,13 @@ RUN apk add --no-cache \
 		git \
 		make \
 		su-exec && \
-	pip install setuptools flake8 && \
+	pip install setuptools flake8 virtualenv && \
 	pip install -r /tmp/k8s-build-requirements.txt && \
 	pip install -r /tmp/k8s-runtime-requirements.txt && \
 	pip install -r /tmp/requirements.docs.txt && \
 	go get github.com/wadey/gocovmerge && \
+	go get golang.org/x/tools/cmd/cover && \
+	go get github.com/mattn/goveralls && \
 	chmod 755 /entrypoint.sh
 
 ENTRYPOINT [ "/entrypoint.sh" ]

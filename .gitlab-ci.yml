@@ -6,14 +6,6 @@ stages:
   - build
   - deploy
 
-python unit test:
-  image: "python:2.7"
-  stage: build
-  script:
-    - make local-python-test
-  tags:
-    - docker
-
 prod build:
   stage: build
   tags:

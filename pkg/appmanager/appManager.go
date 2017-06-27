@@ -735,6 +735,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 					appMgr.handleMultiServiceHealthMonitors(
 						rsName, rsCfg, ing, monitors)
 				}
+				rsCfg.SortMonitors()
 			}
 		}
 

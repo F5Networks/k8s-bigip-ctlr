@@ -705,61 +705,64 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			continue
 		}
 
-		rsCfg := createRSConfigFromIngress(ing, sKey.Namespace,
-			appMgr.appInformers[sKey.Namespace].svcInformer.GetIndexer())
-		if rsCfg == nil {
-			// Currently, an error is returned only if the Ingress is one we
-			// do not care about
-			continue
-		}
+		for _, portStruct := range appMgr.virtualPorts(ing) {
+			rsCfg := createRSConfigFromIngress(ing, sKey.Namespace,
+				appMgr.appInformers[sKey.Namespace].svcInformer.GetIndexer(),
+				portStruct)
+			if rsCfg == nil {
+				// Currently, an error is returned only if the Ingress is one we
+				// do not care about
+				continue
+			}
 
-		// Handle TLS configuration
-		appMgr.handleIngressTls(rsCfg, ing)
+			// Handle TLS configuration
+			appMgr.handleIngressTls(rsCfg, ing)
 
-		// Handle Ingress health monitors
-		rsName := rsCfg.Virtual.VirtualServerName
-		hmStr, found := ing.ObjectMeta.Annotations[ingHealthMonitorAnnotation]
-		if found {
-			var monitors IngressHealthMonitors
-			err := json.Unmarshal([]byte(hmStr), &monitors)
-			if err != nil {
-				msg := fmt.Sprintf(
-					"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
-				log.Errorf("%s", msg)
-				appMgr.recordIngressEvent(ing, "InvalidData", msg, rsName)
-			} else {
-				if nil != ing.Spec.Backend {
-					appMgr.handleSingleServiceHealthMonitors(
-						rsName, rsCfg, ing, monitors)
+			// Handle Ingress health monitors
+			rsName := rsCfg.Virtual.VirtualServerName
+			hmStr, found := ing.ObjectMeta.Annotations[ingHealthMonitorAnnotation]
+			if found {
+				var monitors IngressHealthMonitors
+				err := json.Unmarshal([]byte(hmStr), &monitors)
+				if err != nil {
+					msg := fmt.Sprintf(
+						"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
+					log.Errorf("%s", msg)
+					appMgr.recordIngressEvent(ing, "InvalidData", msg, rsName)
 				} else {
-					appMgr.handleMultiServiceHealthMonitors(
-						rsName, rsCfg, ing, monitors)
+					if nil != ing.Spec.Backend {
+						appMgr.handleSingleServiceHealthMonitors(
+							rsName, rsCfg, ing, monitors)
+					} else {
+						appMgr.handleMultiServiceHealthMonitors(
+							rsName, rsCfg, ing, monitors)
+					}
 				}
 				rsCfg.SortMonitors()
 			}
-		}
 
-		if ok, found, updated := appMgr.handleConfigForType(
-			rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf); !ok {
-			vsUpdated += updated
-			continue
-		} else {
-			if updated > 0 && !appMgr.processAllMultiSvc(len(rsCfg.Pools),
-				rsCfg.Virtual.VirtualServerName) {
-				updated -= 1
+			if ok, found, updated := appMgr.handleConfigForType(
+				rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf); !ok {
+				vsUpdated += updated
+				continue
+			} else {
+				if updated > 0 && !appMgr.processAllMultiSvc(len(rsCfg.Pools),
+					rsCfg.Virtual.VirtualServerName) {
+					updated -= 1
+				}
+				vsFound += found
+				vsUpdated += updated
+				if updated > 0 {
+					msg := fmt.Sprintf(
+						"Created a ResourceConfig '%v' for the Ingress.",
+						rsCfg.Virtual.VirtualServerName)
+					appMgr.recordIngressEvent(ing, "ResourceConfigured", msg, "")
+				}
 			}
-			vsFound += found
-			vsUpdated += updated
-			if updated > 0 {
-				msg := fmt.Sprintf(
-					"Created a ResourceConfig '%v' for the Ingress.",
-					rsCfg.Virtual.VirtualServerName)
-				appMgr.recordIngressEvent(ing, "ResourceConfigured", msg, "")
-			}
-		}
 
-		// Set the Ingress Status IP address
-		appMgr.setIngressStatus(ing, rsCfg)
+			// Set the Ingress Status IP address
+			appMgr.setIngressStatus(ing, rsCfg)
+		}
 	}
 
 	if len(rsMap) > 0 {
@@ -814,9 +817,22 @@ func (appMgr *Manager) handleIngressTls(
 		return
 	}
 
-	for _, tls := range ing.Spec.TLS {
-		secretName := formatIngressSslProfileName(tls.SecretName)
-		rsCfg.Virtual.AddFrontendSslProfileName(secretName)
+	var httpsPort int32
+	if port, ok :=
+		ing.ObjectMeta.Annotations["virtual-server.f5.com/https-port"]; ok == true {
+		p, _ := strconv.ParseInt(port, 10, 32)
+		httpsPort = int32(p)
+	} else {
+		httpsPort = DEFAULT_HTTPS_PORT
+	}
+	// If we are processing the HTTPS server,
+	// then we don't need a redirect policy, only profiles
+	if rsCfg.Virtual.VirtualAddress.Port == httpsPort {
+		for _, tls := range ing.Spec.TLS {
+			secretName := formatIngressSslProfileName(tls.SecretName)
+			rsCfg.Virtual.AddFrontendSslProfileName(secretName)
+		}
+		return
 	}
 
 	// sslRedirect defaults to true, allowHttp defaults to false.
@@ -842,17 +858,12 @@ func (appMgr *Manager) handleIngressTls(
 		log.Debugf("TLS: Applying HTTP redirect policy.")
 		policyName = fmt.Sprintf("%s-http-redirect",
 			rsCfg.Virtual.VirtualServerName)
-		rule = newHttpRedirectPolicyRule()
+		rule = newHttpRedirectPolicyRule(httpsPort)
 	} else if allowHttp {
 		// State 3, do not apply any policy
 		log.Debugf("TLS: Not applying any policies.")
-	} else {
-		// State 1
-		log.Debugf("TLS: Applying drop HTTP policy")
-		policyName = fmt.Sprintf("%s-drop-http",
-			rsCfg.Virtual.VirtualServerName)
-		rule = newDropHttpPolicyRule()
 	}
+
 	if nil != rule && "" != policyName {
 		policy := rsCfg.FindPolicy("forwarding")
 		if nil == policy {
@@ -865,11 +876,12 @@ func (appMgr *Manager) handleIngressTls(
 	}
 }
 
-func newHttpRedirectPolicyRule() *Rule {
+func newHttpRedirectPolicyRule(httpsPort int32) *Rule {
+	loc := fmt.Sprintf(`tcl:https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]`, httpsPort)
 	redirAction := action{
 		Name:      "0",
 		HttpReply: true,
-		Location:  `tcl:https://[getfield [HTTP::host] : 1][HTTP::uri]`,
+		Location:  loc,
 		Redirect:  true,
 		Request:   true,
 	}
@@ -881,32 +893,56 @@ func newHttpRedirectPolicyRule() *Rule {
 	return &rule
 }
 
-func newDropHttpPolicyRule() *Rule {
-	dropAction := action{
-		Name:    "0",
-		Forward: true,
-		Request: true,
-		Reset:   true,
+type portStruct struct {
+	protocol string
+	port     int32
+}
+
+func (appMgr *Manager) virtualPorts(ing *v1beta1.Ingress) []portStruct {
+	var httpPort int32
+	var httpsPort int32
+	if port, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/http-port"]; ok == true {
+		p, _ := strconv.ParseInt(port, 10, 32)
+		httpPort = int32(p)
+	} else {
+		httpPort = DEFAULT_HTTP_PORT
 	}
-	cond := condition{
-		Name:            "0",
-		CaseInsensitive: true,
-		Equals:          true,
-		External:        true,
-		HTTPURI:         true,
-		Present:         true,
-		Remote:          true,
-		Request:         true,
-		Scheme:          true,
-		Values:          []string{"http"},
+	if port, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/https-port"]; ok == true {
+		p, _ := strconv.ParseInt(port, 10, 32)
+		httpsPort = int32(p)
+	} else {
+		httpsPort = DEFAULT_HTTPS_PORT
 	}
-	rule := Rule{
-		Name:       httpDropRuleName,
-		Conditions: []*condition{&cond},
-		Actions:    []*action{&dropAction},
-		Ordinal:    0,
+	// sslRedirect defaults to true, allowHttp defaults to false.
+	sslRedirect := getBooleanAnnotation(ing.ObjectMeta.Annotations,
+		ingressSslRedirect, true)
+	allowHttp := getBooleanAnnotation(ing.ObjectMeta.Annotations,
+		ingressAllowHttp, false)
+
+	http := portStruct{
+		protocol: "http",
+		port:     httpPort,
 	}
-	return &rule
+	https := portStruct{
+		protocol: "https",
+		port:     httpsPort,
+	}
+	var ports []portStruct
+	if len(ing.Spec.TLS) > 0 {
+		if sslRedirect || allowHttp {
+			// States 2,3; both HTTP and HTTPS
+			// 2 virtual servers needed
+			ports = append(ports, http)
+			ports = append(ports, https)
+		} else {
+			// State 1; HTTPS only
+			ports = append(ports, https)
+		}
+	} else {
+		// HTTP only, no TLS
+		ports = append(ports, http)
+	}
+	return ports
 }
 
 func (appMgr *Manager) assignHealthMonitorsByPath(
@@ -1595,58 +1631,79 @@ func (appMgr *Manager) checkValidIngress(
 		// Not watching this namespace
 		return false, nil
 	}
-	rsCfg := createRSConfigFromIngress(ing, namespace,
-		appMgr.appInformers[namespace].svcInformer.GetIndexer())
-	rsName := formatIngressVSName(ing)
-	if rsCfg == nil {
-		appMgr.resources.Lock()
-		defer appMgr.resources.Unlock()
-		if nil == ing.Spec.Rules { //single-service
-			serviceName := ing.Spec.Backend.ServiceName
-			servicePort := ing.Spec.Backend.ServicePort.IntVal
-			sKey := serviceKey{serviceName, servicePort, ing.ObjectMeta.Namespace}
-			if _, ok := appMgr.resources.Get(sKey, rsName); ok {
-				appMgr.resources.Delete(sKey, rsName)
-			}
-		} else { //multi-service
-			_, keys := appMgr.resources.GetAllWithName(rsName)
-			for _, key := range keys {
-				appMgr.resources.Delete(key, rsName)
-			}
-		}
-		appMgr.outputConfig()
-		return false, nil
-	}
-	var keyList []*serviceQueueKey
-	for _, pool := range rsCfg.Pools {
-		key := &serviceQueueKey{
-			ServiceName: pool.ServiceName,
-			Namespace:   namespace,
-		}
-		keyList = append(keyList, key)
-	}
-	// Check if we have a key that contains this config that is no longer
-	// being used; if so, delete the config for that key
+	var allKeys []*serviceQueueKey
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
-	_, keys := appMgr.resources.GetAllWithName(rsName)
-	found := false
-	if len(keys) > len(keyList) {
-		for _, key := range keys {
-			for _, sKey := range keyList {
-				if sKey.ServiceName == key.ServiceName &&
-					sKey.Namespace == key.Namespace {
-					found = true
-					break
+	for _, portStruct := range appMgr.virtualPorts(ing) {
+		var keyList []*serviceQueueKey
+		rsCfg := createRSConfigFromIngress(ing, namespace,
+			appMgr.appInformers[namespace].svcInformer.GetIndexer(),
+			portStruct)
+		rsName := rsCfg.Virtual.VirtualServerName
+		if rsCfg == nil {
+			if nil == ing.Spec.Rules { //single-service
+				serviceName := ing.Spec.Backend.ServiceName
+				servicePort := ing.Spec.Backend.ServicePort.IntVal
+				sKey := serviceKey{serviceName, servicePort, ing.ObjectMeta.Namespace}
+				if _, ok := appMgr.resources.Get(sKey, rsName); ok {
+					appMgr.resources.Delete(sKey, rsName)
+				}
+			} else { //multi-service
+				_, keys := appMgr.resources.GetAllWithName(rsName)
+				for _, key := range keys {
+					appMgr.resources.Delete(key, rsName)
 				}
 			}
-			if found == false {
-				appMgr.resources.Delete(key, rsName)
+			appMgr.outputConfig()
+			return false, nil
+		}
+
+		for _, pool := range rsCfg.Pools {
+			key := &serviceQueueKey{
+				ServiceName: pool.ServiceName,
+				Namespace:   namespace,
 			}
-			found = false
+			keyList = append(keyList, key)
+		}
+		// Check if we have a key that contains this config that is no longer
+		// being used; if so, delete the config for that key
+		_, keys := appMgr.resources.GetAllWithName(rsName)
+		found := false
+		if len(keys) > len(keyList) {
+			for _, key := range keys {
+				for _, sKey := range keyList {
+					if sKey.ServiceName == key.ServiceName &&
+						sKey.Namespace == key.Namespace {
+						found = true
+						break
+					}
+				}
+				if found == false {
+					appMgr.resources.Delete(key, rsName)
+				}
+				found = false
+			}
+		}
+		if len(allKeys) > 0 {
+			// Append if not in list
+			for _, k := range keyList {
+				var keyFound bool
+				for _, ele := range allKeys {
+					if ele.Namespace == k.Namespace &&
+						ele.ServiceName == k.ServiceName {
+						keyFound = true
+						break
+					}
+				}
+				if !keyFound {
+					allKeys = append(allKeys, k)
+				}
+			}
+		} else {
+			allKeys = append(allKeys, keyList...)
 		}
 	}
-	return true, keyList
+	return true, allKeys
 }
 
 func (appMgr *Manager) enqueueIngress(obj interface{}) {

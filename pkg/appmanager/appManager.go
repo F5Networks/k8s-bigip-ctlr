@@ -712,23 +712,32 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			// do not care about
 			continue
 		}
-		// make sure all policies across configs for this Ingress match each other
-		appMgr.resources.Lock()
-		cfgs, keys := appMgr.resources.GetAllWithName(rsCfg.Virtual.VirtualServerName)
-		for i, cfg := range cfgs {
-			for _, policy := range rsCfg.Policies {
-				if policy.Name == rsCfg.Virtual.VirtualServerName {
-					cfg.SetPolicy(policy)
-				}
-			}
-			appMgr.resources.Assign(keys[i], rsCfg.Virtual.VirtualServerName, cfg)
-		}
-		appMgr.resources.Unlock()
 
 		// Handle TLS configuration
 		appMgr.handleIngressTls(rsCfg, ing)
 
-		rsName := formatIngressVSName(ing)
+		// Handle Ingress health monitors
+		rsName := rsCfg.Virtual.VirtualServerName
+		hmStr, found := ing.ObjectMeta.Annotations[ingHealthMonitorAnnotation]
+		if found {
+			var monitors IngressHealthMonitors
+			err := json.Unmarshal([]byte(hmStr), &monitors)
+			if err != nil {
+				msg := fmt.Sprintf(
+					"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
+				log.Errorf("%s", msg)
+				appMgr.recordIngressEvent(ing, "InvalidData", msg, rsName)
+			} else {
+				if nil != ing.Spec.Backend {
+					appMgr.handleSingleServiceHealthMonitors(
+						rsName, rsCfg, ing, monitors)
+				} else {
+					appMgr.handleMultiServiceHealthMonitors(
+						rsName, rsCfg, ing, monitors)
+				}
+			}
+		}
+
 		if ok, found, updated := appMgr.handleConfigForType(
 			rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf); !ok {
 			vsUpdated += updated
@@ -745,25 +754,6 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 					"Created a ResourceConfig '%v' for the Ingress.",
 					rsCfg.Virtual.VirtualServerName)
 				appMgr.recordIngressEvent(ing, "ResourceConfigured", msg, "")
-			}
-		}
-		hmStr, found := ing.ObjectMeta.Annotations[ingHealthMonitorAnnotation]
-		if found {
-			var monitors IngressHealthMonitors
-			err := json.Unmarshal([]byte(hmStr), &monitors)
-			if err != nil {
-				msg := fmt.Sprintf(
-					"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
-				log.Errorf("%s", msg)
-				appMgr.recordIngressEvent(ing, "InvalidData", msg, rsName)
-			} else {
-				if nil != ing.Spec.Backend {
-					appMgr.handleSingleServiceHealthMonitors(
-						rsName, rsCfg.Virtual.Partition, ing, monitors)
-				} else {
-					appMgr.handleMultiServiceHealthMonitors(
-						rsName, rsCfg.Virtual.Partition, ing, monitors)
-				}
 			}
 		}
 
@@ -998,7 +988,7 @@ func (appMgr *Manager) notifyUnusedHealthMonitorRules(
 
 func (appMgr *Manager) handleSingleServiceHealthMonitors(
 	rsName string,
-	partition string,
+	cfg *ResourceConfig,
 	ing *v1beta1.Ingress,
 	monitors IngressHealthMonitors,
 ) {
@@ -1023,15 +1013,7 @@ func (appMgr *Manager) handleSingleServiceHealthMonitors(
 	defer appMgr.resources.Unlock()
 	for _, paths := range hostToPathMap {
 		for _, ruleData := range paths {
-			key := serviceKey{
-				Namespace:   ing.ObjectMeta.Namespace,
-				ServiceName: ruleData.svcName,
-				ServicePort: ruleData.svcPort,
-			}
-			cfgs, _ := appMgr.resources.GetAll(key)
-			for _, cfg := range cfgs {
-				appMgr.assignMonitorToPool(cfg, cfg.Virtual.PoolName, ruleData)
-			}
+			appMgr.assignMonitorToPool(cfg, cfg.Virtual.PoolName, ruleData)
 		}
 	}
 
@@ -1040,7 +1022,7 @@ func (appMgr *Manager) handleSingleServiceHealthMonitors(
 
 func (appMgr *Manager) handleMultiServiceHealthMonitors(
 	rsName string,
-	partition string,
+	cfg *ResourceConfig,
 	ing *v1beta1.Ingress,
 	monitors IngressHealthMonitors,
 ) {
@@ -1106,32 +1088,24 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 				// associated health monitor.
 				continue
 			}
-			key := serviceKey{
-				Namespace:   ing.ObjectMeta.Namespace,
-				ServiceName: ruleData.svcName,
-				ServicePort: ruleData.svcPort,
-			}
-			cfgs, _ := appMgr.resources.GetAll(key)
-			for _, cfg := range cfgs {
-				for _, pol := range cfg.Policies {
-					if pol.Name != cfg.Virtual.VirtualServerName {
-						continue
+			for _, pol := range cfg.Policies {
+				if pol.Name != cfg.Virtual.VirtualServerName {
+					continue
+				}
+				for _, rule := range pol.Rules {
+					slashPos := strings.Index(rule.FullURI, "/")
+					var ruleHost, rulePath string
+					if slashPos == -1 {
+						ruleHost = rule.FullURI
+						rulePath = "/"
+					} else {
+						ruleHost = rule.FullURI[:slashPos]
+						rulePath = rule.FullURI[slashPos:]
 					}
-					for _, rule := range pol.Rules {
-						slashPos := strings.Index(rule.FullURI, "/")
-						var ruleHost, rulePath string
-						if slashPos == -1 {
-							ruleHost = rule.FullURI
-							rulePath = "/"
-						} else {
-							ruleHost = rule.FullURI[:slashPos]
-							rulePath = rule.FullURI[slashPos:]
-						}
-						if (host == "*" || host == ruleHost) && path == rulePath {
-							for _, action := range rule.Actions {
-								if action.Forward && "" != action.Pool {
-									appMgr.assignMonitorToPool(cfg, action.Pool, ruleData)
-								}
+					if (host == "*" || host == ruleHost) && path == rulePath {
+						for _, action := range rule.Actions {
+							if action.Forward && "" != action.Pool {
+								appMgr.assignMonitorToPool(cfg, action.Pool, ruleData)
 							}
 						}
 					}
@@ -1198,6 +1172,12 @@ func (appMgr *Manager) handleConfigForType(
 					cfg.Pools[0].Name
 				appMgr.resources.Assign(keys[i], rsName, cfg)
 			}
+			for _, policy := range rsCfg.Policies {
+				if policy.Name == rsName {
+					cfg.SetPolicy(policy)
+				}
+			}
+			appMgr.resources.Assign(keys[i], rsName, cfg)
 		}
 		return false, vsFound, vsUpdated
 	}

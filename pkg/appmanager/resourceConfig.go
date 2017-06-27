@@ -58,11 +58,11 @@ type metaData struct {
 }
 
 type ResourceConfig struct {
-	MetaData metaData  `json:"-"`
-	Virtual  Virtual   `json:"virtual,omitempty"`
-	Pools    []Pool    `json:"pools,omitempty"`
-	Monitors []Monitor `json:"monitors,omitempty"`
-	Policies []Policy  `json:"policies,omitempty"`
+	MetaData metaData `json:"-"`
+	Virtual  Virtual  `json:"virtual,omitempty"`
+	Pools    []Pool   `json:"pools,omitempty"`
+	Monitors Monitors `json:"monitors,omitempty"`
+	Policies []Policy `json:"policies,omitempty"`
 }
 
 // virtual server frontend
@@ -106,6 +106,7 @@ type Monitor struct {
 	Send      string `json:"send,omitempty"`
 	Timeout   int    `json:"timeout,omitempty"`
 }
+type Monitors []Monitor
 
 // virtual policy
 type Policy struct {
@@ -821,6 +822,24 @@ func (rc *ResourceConfig) SetMonitor(pool *Pool, monitor Monitor) {
 		}
 	}
 	rc.Monitors = append(rc.Monitors, monitor)
+}
+
+func (slice Monitors) Len() int {
+	return len(slice)
+}
+
+func (slice Monitors) Less(i, j int) bool {
+	return slice[i].Partition < slice[j].Partition ||
+		(slice[i].Partition == slice[j].Partition &&
+			slice[i].Name < slice[j].Name)
+}
+
+func (slice Monitors) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
+func (rc *ResourceConfig) SortMonitors() {
+	sort.Sort(rc.Monitors)
 }
 
 func splitBigipPath(path string, keepSlash bool) (partition, objName string) {

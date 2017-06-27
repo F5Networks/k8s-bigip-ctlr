@@ -3880,6 +3880,182 @@ func TestMultiServiceIngressHealthCheck(t *testing.T) {
 	checkMultiServiceHealthMonitor(t, vsCfgBaz, svc3Name, svc3Port, true)
 }
 
+func TestMultiServiceIngressNoPathHealthCheck(t *testing.T) {
+	mw := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	require := require.New(t)
+	assert := assert.New(t)
+	fakeClient := fake.NewSimpleClientset()
+	fakeRecorder := record.NewFakeRecorder(100)
+	require.NotNil(fakeClient, "Mock client should not be nil")
+	require.NotNil(fakeRecorder, "Mock recorder should not be nil")
+	namespace := "default"
+
+	appMgr := newMockAppManager(&Params{
+		KubeClient:    fakeClient,
+		ConfigWriter:  mw,
+		restClient:    test.CreateFakeHTTPClient(),
+		IsNodePort:    false,
+		EventRecorder: fakeRecorder,
+	})
+	err := appMgr.startNonLabelMode([]string{namespace})
+	require.Nil(err)
+	defer appMgr.shutdown()
+
+	host1Name := "foo.bar.com"
+	svc1aName := "nginx"
+	svc1aPort := 80
+	svc1aPath := "/foo"
+	svc1bName := "nginx2"
+	svc1bPort := 80
+	svc1bPath := "/bar"
+	host2Name := "bar.foo.com"
+	svc2Name := "nginx3"
+	svc2Port := 80
+	spec := v1beta1.IngressSpec{
+		Rules: []v1beta1.IngressRule{
+			{
+				Host: host1Name,
+				IngressRuleValue: v1beta1.IngressRuleValue{
+					HTTP: &v1beta1.HTTPIngressRuleValue{
+						Paths: []v1beta1.HTTPIngressPath{
+							{
+								Path: svc1aPath,
+								Backend: v1beta1.IngressBackend{
+									ServiceName: svc1aName,
+									ServicePort: intstr.FromInt(svc1aPort),
+								},
+							}, {
+								Path: svc1bPath,
+								Backend: v1beta1.IngressBackend{
+									ServiceName: svc1bName,
+									ServicePort: intstr.FromInt(svc1bPort),
+								},
+							},
+						},
+					},
+				},
+			}, {
+				Host: host2Name,
+				IngressRuleValue: v1beta1.IngressRuleValue{
+					HTTP: &v1beta1.HTTPIngressRuleValue{
+						Paths: []v1beta1.HTTPIngressPath{
+							{
+								Backend: v1beta1.IngressBackend{
+									ServiceName: svc2Name,
+									ServicePort: intstr.FromInt(svc2Port),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ing := test.NewIngress("ingress", "1", namespace, spec,
+		map[string]string{
+			"virtual-server.f5.com/ip":        "172.16.3.2",
+			"virtual-server.f5.com/partition": "velcro",
+			"virtual-server.f5.com/health": `[
+				{
+					"path":     "foo.bar.com/foo",
+					"send":     "HTTP GET /health/foo",
+					"interval": 5,
+					"timeout":  10
+				}, {
+					"path":     "foo.bar.com/bar",
+					"send":     "HTTP GET /health/bar",
+					"interval": 5,
+					"timeout":  10
+				}, {
+					"path":     "bar.foo.com/",
+					"send":     "HTTP GET /health",
+					"interval": 5,
+					"timeout":  10
+				}
+			]`,
+		})
+	emptyIps := []string{}
+
+	svc1aPorts := []v1.ServicePort{newServicePort(svc1aName, int32(svc1aPort))}
+	fooSvc := test.NewService(svc1aName, "1", namespace, v1.ServiceTypeClusterIP,
+		svc1aPorts)
+	ready1aIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
+	endpts1a := test.NewEndpoints(svc1aName, "1", namespace, ready1aIps, emptyIps,
+		convertSvcPortsToEndpointPorts(svc1aPorts))
+
+	r := appMgr.addService(fooSvc)
+	assert.True(r, "Service should be processed")
+	r = appMgr.addEndpoints(endpts1a)
+	assert.True(r, "Endpoints should be processed")
+
+	svc1bPorts := []v1.ServicePort{newServicePort(svc1bName, int32(svc1bPort))}
+	barSvc := test.NewService(svc1bName, "1", namespace, v1.ServiceTypeClusterIP,
+		svc1bPorts)
+	ready1bIps := []string{"10.2.96.3", "10.2.96.4", "10.2.96.5"}
+	endpts1b := test.NewEndpoints(svc1bName, "1", namespace, ready1bIps, emptyIps,
+		convertSvcPortsToEndpointPorts(svc1bPorts))
+
+	r = appMgr.addService(barSvc)
+	assert.True(r, "Service should be processed")
+	r = appMgr.addEndpoints(endpts1b)
+	assert.True(r, "Endpoints should be processed")
+
+	svc2Ports := []v1.ServicePort{newServicePort(svc2Name, int32(svc2Port))}
+	bazSvc := test.NewService(svc2Name, "1", namespace, v1.ServiceTypeClusterIP,
+		svc2Ports)
+	ready2Ips := []string{"10.2.96.6", "10.2.96.7", "10.2.96.8"}
+	endpts2 := test.NewEndpoints(svc2Name, "1", namespace, ready2Ips, emptyIps,
+		convertSvcPortsToEndpointPorts(svc2Ports))
+
+	r = appMgr.addService(bazSvc)
+	assert.True(r, "Service should be processed")
+	r = appMgr.addEndpoints(endpts2)
+	assert.True(r, "Endpoints should be processed")
+
+	r = appMgr.addIngress(ing)
+	assert.True(r, "Ingress resource should be processed")
+
+	resources := appMgr.resources()
+	assert.Equal(3, resources.Count())
+
+	svc1aKey := serviceKey{
+		Namespace:   namespace,
+		ServiceName: svc1aName,
+		ServicePort: int32(svc1aPort),
+	}
+	assert.Equal(1, resources.CountOf(svc1aKey))
+	vsCfgFoo, found := resources.Get(svc1aKey, formatIngressVSName(ing))
+	assert.True(found)
+	require.NotNil(vsCfgFoo)
+
+	svc1bKey := serviceKey{
+		Namespace:   namespace,
+		ServiceName: svc1bName,
+		ServicePort: int32(svc1bPort),
+	}
+	assert.Equal(1, resources.CountOf(svc1bKey))
+	vsCfgBar, found := resources.Get(svc1bKey, formatIngressVSName(ing))
+	assert.True(found)
+	require.NotNil(vsCfgBar)
+
+	svc2Key := serviceKey{
+		Namespace:   namespace,
+		ServiceName: svc2Name,
+		ServicePort: int32(svc2Port),
+	}
+	assert.Equal(1, resources.CountOf(svc2Key))
+	vsCfgBaz, found := resources.Get(svc2Key, formatIngressVSName(ing))
+	assert.True(found)
+	require.NotNil(vsCfgBaz)
+
+	checkMultiServiceHealthMonitor(t, vsCfgFoo, svc1aName, svc1aPort, true)
+	checkMultiServiceHealthMonitor(t, vsCfgBar, svc1bName, svc1bPort, true)
+	checkMultiServiceHealthMonitor(t, vsCfgBaz, svc2Name, svc2Port, true)
+}
+
 func TestMultiServiceIngressOneHealthCheck(t *testing.T) {
 	mw := &test.MockWriter{
 		FailStyle: test.Success,

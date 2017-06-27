@@ -735,6 +735,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 					appMgr.handleMultiServiceHealthMonitors(
 						rsName, rsCfg, ing, monitors)
 				}
+				rsCfg.SortMonitors()
 			}
 		}
 
@@ -1042,7 +1043,11 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 			hostToPathMap[host] = ruleItem
 		}
 		for _, path := range rule.IngressRuleValue.HTTP.Paths {
-			pathItem, found := ruleItem[path.Path]
+			pathKey := path.Path
+			if "" == pathKey {
+				pathKey = "/"
+			}
+			pathItem, found := ruleItem[pathKey]
 			if found {
 				msg := fmt.Sprintf(
 					"Health Monitor path '%v' already exists for host '%v'",
@@ -1054,7 +1059,7 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 					svcName: path.Backend.ServiceName,
 					svcPort: path.Backend.ServicePort.IntVal,
 				}
-				ruleItem[path.Path] = pathItem
+				ruleItem[pathKey] = pathItem
 			}
 		}
 	}

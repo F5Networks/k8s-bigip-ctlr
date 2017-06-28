@@ -741,6 +741,20 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 				rsCfg.SortMonitors()
 			}
 
+			// make sure all policies across configs for this Ingress match each other
+			appMgr.resources.Lock()
+			cfgs, keys := appMgr.resources.GetAllWithName(rsCfg.Virtual.VirtualServerName)
+
+			for i, cfg := range cfgs {
+				for _, policy := range rsCfg.Policies {
+					if policy.Name == rsCfg.Virtual.VirtualServerName {
+						cfg.SetPolicy(policy)
+					}
+				}
+				appMgr.resources.Assign(keys[i], rsCfg.Virtual.VirtualServerName, cfg)
+			}
+			appMgr.resources.Unlock()
+
 			if ok, found, updated := appMgr.handleConfigForType(
 				rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf); !ok {
 				vsUpdated += updated
@@ -1213,12 +1227,6 @@ func (appMgr *Manager) handleConfigForType(
 					cfg.Pools[0].Name
 				appMgr.resources.Assign(keys[i], rsName, cfg)
 			}
-			for _, policy := range rsCfg.Policies {
-				if policy.Name == rsName {
-					cfg.SetPolicy(policy)
-				}
-			}
-			appMgr.resources.Assign(keys[i], rsName, cfg)
 		}
 		return false, vsFound, vsUpdated
 	}

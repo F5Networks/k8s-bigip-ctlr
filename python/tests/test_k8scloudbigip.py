@@ -426,7 +426,7 @@ class KubernetesTest(BigIPTest):
         virtual_data_unchanged = {'enabled': True,
                                   'disabled': False,
                                   'ipProtocol': 'tcp',
-                                  'destination': '/k8s/10.128.10.240:5051',
+                                  'destination': '/k8s/FE80::1.5051',
                                   'pool': '/k8s/default_configmap',
                                   'sourceAddressTranslation':
                                   {'type': 'automap'},

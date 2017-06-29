@@ -30,6 +30,8 @@ RUN_ARGS=( \
   -e IMG_TAG="${IMG_TAG}"
   -e BUILD_IMG_TAG="${BUILD_IMG_TAG}"
   -e LOCAL_USER_ID=$(id -u)
+  -e TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG
+  -e COVERALLS_TOKEN=$COVERALLS_REPO_TOKEN
 )
 
 # Add -it if caller is a terminal

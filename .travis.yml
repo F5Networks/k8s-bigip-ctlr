@@ -5,22 +5,17 @@ services:
 
 before_install:
   - docker pull golang:1.7.5
-  - docker pull python:2.7
+  - docker pull node:6.11.0-slim
 
 script:
   - set -e
+  - docker run --rm -it -v `pwd`:`pwd` -w `pwd` node:6.11.0-slim build-tools/schema-tests.sh
   - if [ "$DOCKER_NAMESPACE" == "" ]; then DOCKER_NAMESPACE="local"; fi
   - BASE_PUSH_TARGET="$DOCKER_NAMESPACE/k8s-bigip-ctlr"
   - |
     if [ "$DOCKER_P" == "" -o "$DOCKER_U" == "" -o $DOCKER_NAMESPACE == "" ]; then
       echo "[INFO] Docker user, password, or namespace vars absent from travis-ci."
-      if [ "$TRAVIS_REPO_SLUG" == "F5Networks/k8s-bigip-ctlr" ]; then
-        echo "[ERROR] Docker push will fail. See README.md 'build' section and contact repo admin."
-        false
-      else
-        echo "[INFO] Not an 'F5Networks' commit, docker optional."
-        echo "[INFO] See README.md section 'build' to configure travis with DockerHub."
-      fi
+      echo "[INFO] See README.md section 'build' to configure travis with DockerHub."
     else
       docker login -u="$DOCKER_U" -p="$DOCKER_P"
       DOCKER_READY="true"
@@ -30,7 +25,6 @@ script:
   - export CLEAN_BUILD=true
   - ./build-tools/build-devel-image.sh
   - ./build-tools/run-in-docker.sh make verify
-  - ./build-tools/run-in-docker.sh ./build-tools/python-tests.sh
   - ./build-tools/build-debug-artifacts.sh
   - ./build-tools/build-release-artifacts.sh
   - ./build-tools/build-release-images.sh

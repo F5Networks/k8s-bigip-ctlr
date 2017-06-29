@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/F5Networks/k8s-bigip-ctlr.svg?branch=master)](https://travis-ci.org/F5Networks/k8s-bigip-ctlr) [![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg?branch=master)](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr?branch=master)
+
 F5 Kubernetes BIG-IP Controller
 ===============================
 
@@ -30,7 +32,7 @@ docker run f5networks/k8s-bigip-ctlr /app/bin/k8s-bigip-ctlr <args>
 Building
 --------
 
-The official images are built using docker, but the adventurous can use standard go build tools. 
+The official images are built using docker, but the adventurous can use standard go build tools.
 
 ### Official Build
 

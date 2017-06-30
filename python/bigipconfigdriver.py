@@ -402,8 +402,8 @@ def create_ltm_config_kubernetes(bigip, config):
 
     # FIXME(garyr): CCCL presently expects pools slightly differently than
     # we get from the controller, so convert to the expected format here.
-    found_svc = False
     for pool in f5_pools:
+        found_svc = False
         new_pool = {}
         members = {}
         pname = pool['name']
@@ -424,16 +424,17 @@ def create_ltm_config_kubernetes(bigip, config):
         new_pool['loadBalancingMode'] = balance
         new_pool['partition'] = pool['partition']
         if pool['name'] in f5_services or vname in f5_services:
-            found_svc = True
-            for member in pool['poolMemberAddrs']:
-                members.update({member: {
-                    'state': 'user-up',
-                    'session': 'user-enabled'
-                }})
-        new_pool['members'] = members
+            if pool['poolMemberAddrs'] is not None:
+                found_svc = True
+                for member in pool['poolMemberAddrs']:
+                    members.update({member: {
+                        'state': 'user-up',
+                        'session': 'user-enabled'
+                    }})
+            new_pool['members'] = members
         configuration['pools'].append(new_pool)
         if not found_svc:
-            log.warning(
+            log.info(
                 'Pool "{}" has service "{}", which is empty - '
                 'configuring 0 pool members.'.format(
                     pname, pool['serviceName']))

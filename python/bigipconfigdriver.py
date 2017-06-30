@@ -18,6 +18,7 @@ from __future__ import absolute_import
 import argparse
 import fcntl
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -375,14 +376,22 @@ def create_ltm_config_kubernetes(bigip, config):
                 f5_service['virtual_address'] = \
                     svc['virtualAddress']['bindAddr']
 
+                addr = svc['virtualAddress']['bindAddr']
+                port = svc['virtualAddress']['port']
+                destination = None
+                if isinstance(ipaddress.ip_address(addr),
+                              ipaddress.IPv6Address):
+                    destination = ("/%s/%s.%d" %
+                                   (vs_partition, addr, port))
+                else:
+                    destination = ("/%s/%s:%d" %
+                                   (vs_partition, addr, port))
+
                 f5_service['virtual'].update({
                     'enabled': True,
                     'disabled': False,
                     'ipProtocol': get_protocol(svc['mode']),
-                    'destination':
-                    "/%s/%s:%d" % (vs_partition,
-                                   svc['virtualAddress']['bindAddr'],
-                                   svc['virtualAddress']['port']),
+                    'destination': destination,
                     'pool': "%s" % (svc['pool']),
                     'sourceAddressTranslation': {'type': 'automap'},
                     'profiles': profiles,

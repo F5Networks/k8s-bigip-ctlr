@@ -7,7 +7,7 @@
         "mode": "http",
         "balance": "round-robin",
         "virtualAddress": {
-          "bindAddr": "10.128.10.240",
+          "bindAddr": "FE80::1",
           "port": 5051
         },
         "sslProfile": {

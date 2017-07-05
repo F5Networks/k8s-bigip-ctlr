@@ -513,11 +513,7 @@ class ConfigHandler():
                         # Error occurred, perform retries
                         log.warning(
                             'regenerate operation failed, restarting')
-
-                        if (self._interval and self._interval.is_running() is
-                                True):
-                            self._interval.stop()
-                        self.retry_backoff(self.notify_reset)
+                        self.handle_backoff()
                     else:
                         if (self._interval and self._interval.is_running() is
                                 False):
@@ -548,9 +544,17 @@ class ConfigHandler():
                               time.time() - start_time)
                 except Exception:
                     log.exception('Unexpected error')
+                    self.handle_backoff()
 
         if self._interval:
             self._interval.stop()
+
+    def handle_backoff(self):
+        """Wrapper for calls to retry_backoff."""
+        if (self._interval and self._interval.is_running() is
+                True):
+            self._interval.stop()
+        self.retry_backoff(self.notify_reset)
 
     def retry_backoff(self, func):
         """Add a backoff timer to retry in case of failure."""

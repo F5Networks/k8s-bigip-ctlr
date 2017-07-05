@@ -1042,7 +1042,7 @@ def common_confighandler_reset(request, exception):
         # in the failure case we'll respond with a notify_reset to try again
         # therefore, we'll tick twice for this test case
         # set the backoff_timer for quick testing
-        handler._backoff_timer = .01
+        handler._backoff_time = .01
 
         handler.notify_reset()
         event.wait(0.6)
@@ -1054,8 +1054,10 @@ def common_confighandler_reset(request, exception):
         time.sleep(interval_time / 2)
         assert bigip.calls == 5
 
-        # backoff_timer is set to one after a clean run
-        assert handler._backoff_timer == 1
+        # backoff_time is set to one and backoff_timer is reset to None
+        # after a clean run
+        assert handler._backoff_time == 1
+        assert handler._backoff_timer is None
 
         # Interval should expire since minimum sleep time since successfully
         # retry was 0.3 + 0.7 which is more than the interval (0.6)
@@ -1207,27 +1209,129 @@ def test_confighandler_checkpointstopafterfailure(request):
         assert handler._interval.is_running() is False
 
 
-def test_confighandler_backoff(request):
-    def cb():
-        pass
+def test_confighandler_backoff_time(request):
     try:
         handler = bigipconfigdriver.ConfigHandler({}, {}, 0.25)
-        backoff = handler.retry_backoff
-        handler._backoff_timer = .025
+        backoff = handler.handle_backoff
+        handler._backoff_time = .025
         handler._max_backoff_time = .1
 
-        backoff(cb)
-        # first call doubles _backoff_timer
-        assert handler._backoff_timer == .05
-        backoff(cb)
-        # second call doubles _backoff_timer
-        assert handler._backoff_timer == .1
-        backoff(cb)
-        # hit _max_backoff_time so _backoff_timer does not increase
-        assert handler._backoff_timer == .1
+        backoff()
+        # first call doubles _backoff_time _backoff_timer should have original
+        # value for its interval
+        assert handler._backoff_timer.interval == .025
+        assert handler._backoff_time == .05
+        backoff()
+        # values should not change since we already have a timer set
+        assert handler._backoff_timer.interval == .025
+        assert handler._backoff_time == .05
+        handler._backoff_timer = None
+        backoff()
+        # call doubles _backoff_time since we cleared previous timer
+        assert handler._backoff_timer.interval == .05
+        assert handler._backoff_time == .1
+        handler._backoff_timer = None
+        backoff()
+        # hit _max_backoff_time so _backoff_time does not increase
+        assert handler._backoff_timer.interval == .1
+        assert handler._backoff_time == .1
 
     finally:
         handler.stop()
         handler._thread.join(30)
         assert handler._thread.is_alive() is False
         assert handler._interval.is_running() is False
+
+
+class MockRegenerateBigIp(f5_cccl._f5.CloudBigIP):
+
+    def __init__(self, returns):
+        self._returns = returns
+
+    def regenerate_config_f5(self, cfg):
+        val = self._returns.pop(0)
+        if type(val) is 'exceptions.Exception':
+            raise val
+        else:
+            return val
+
+
+def test_confighandler_backoff_timer(request):
+    SLEEP_INTERVAL = 0.1
+    INTERVAL = 5
+    TEST_VECTORS = [
+        [True, False, Exception('Error'), True, True],
+        [
+            Exception('Error'), False, True, Exception('Error'),
+            Exception('Error')
+        ]
+    ]
+
+    config_template = Template('/tmp/config.$pid')
+    config_file = config_template.substitute(pid=os.getpid())
+    obj = deepcopy(_cloud_config)
+    obj['global']['verify-interval'] = INTERVAL
+    with open(config_file, 'w+') as f:
+        def fin():
+            os.unlink(config_file)
+        request.addfinalizer(fin)
+        json.dump(obj, f)
+
+    for vector in TEST_VECTORS:
+        try:
+            bigip = MockRegenerateBigIp(vector)
+
+            handler = bigipconfigdriver.ConfigHandler(
+                config_file, bigip, INTERVAL
+            )
+            time.sleep(SLEEP_INTERVAL)
+
+            assert handler._thread.is_alive() is True
+
+            # regenerate_config_f5 had an error so create a backoff timer
+            # with an arbitrary backoff time.
+            handler._backoff_time = 64
+            handler.notify_reset()
+            time.sleep(SLEEP_INTERVAL)
+            assert handler._backoff_timer.interval == 64
+            assert handler._backoff_timer.finished.is_set() is False
+            prev_timer = handler._backoff_timer
+
+            # regenerate_config_f5 did not have an error on reconfig so we
+            # should cancel and cleanup backoff timer.
+            handler.notify_reset()
+            time.sleep(SLEEP_INTERVAL)
+            assert handler._backoff_timer is None
+            assert prev_timer.finished.is_set() is True
+
+            # regenerate_config_f5 had an error on reconfig so create a new
+            # backoff timer with another arbitrary backoff time.
+            handler._backoff_time = 0.5
+            handler.notify_reset()
+            time.sleep(SLEEP_INTERVAL)
+            assert handler._backoff_timer.interval == 0.5
+            assert handler._backoff_timer.finished.is_set() is False
+            prev_timer = handler._backoff_timer
+
+            # regenerate_config_f5 had another error on reconfig but there is
+            # already a backoff timer so do not create a new backoff timer.
+            handler.notify_reset()
+            time.sleep(SLEEP_INTERVAL)
+            assert handler._backoff_timer.interval == 0.5
+            assert handler._backoff_timer.finished.is_set() is False
+            assert handler._backoff_timer is prev_timer
+
+            # Let the back off timer play out and call its cb resetting the
+            # timer reference and calling notify_reset. regenerate_config_f5
+            # will have had an error so a new timer should be created.
+            handler._backoff_time = 32
+            time.sleep(0.6)
+            assert handler._backoff_timer.interval == 32
+            assert handler._backoff_timer.finished.is_set() is False
+            assert handler._backoff_timer is not prev_timer
+
+        finally:
+            handler.stop()
+            handler._thread.join(30)
+            assert handler._thread.is_alive() is False
+            assert handler._interval.is_running() is False

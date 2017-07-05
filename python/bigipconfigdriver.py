@@ -451,7 +451,8 @@ class ConfigHandler():
         self._thread = threading.Thread(target=self._do_reset)
         self._pending_reset = False
         self._stop = False
-        self._backoff_timer = 1
+        self._backoff_time = 1
+        self._backoff_timer = None
         self._max_backoff_time = 128
 
         self._interval = None
@@ -476,6 +477,8 @@ class ConfigHandler():
         self._stop = True
         self._condition.notify()
         self._condition.release()
+        if self._backoff_timer is not None:
+            self.cleanup_backoff()
 
     def notify_reset(self):
         self._condition.acquire()
@@ -498,6 +501,8 @@ class ConfigHandler():
 
                 if self._stop:
                     log.info('stopping config handler')
+                    if self._backoff_timer is not None:
+                        self.cleanup_backoff()
                     break
 
                 try:
@@ -514,16 +519,14 @@ class ConfigHandler():
                         # Error occurred, perform retries
                         log.warning(
                             'regenerate operation failed, restarting')
-
-                        if (self._interval and self._interval.is_running() is
-                                True):
-                            self._interval.stop()
-                        self.retry_backoff(self.notify_reset)
+                        self.handle_backoff()
                     else:
                         if (self._interval and self._interval.is_running() is
                                 False):
                             self._interval.start()
-                        self._backoff_timer = 1
+                        self._backoff_time = 1
+                        if self._backoff_timer is not None:
+                            self.cleanup_backoff()
 
                         perf_enable = os.environ.get('SCALE_PERF_ENABLE')
                         if perf_enable:  # pragma: no cover
@@ -549,19 +552,39 @@ class ConfigHandler():
                               time.time() - start_time)
                 except Exception:
                     log.exception('Unexpected error')
+                    self.handle_backoff()
 
         if self._interval:
             self._interval.stop()
 
-    def retry_backoff(self, func):
+    def cleanup_backoff(self):
+        """Cleans up canceled backoff timers."""
+        self._backoff_timer.cancel()
+        self._backoff_timer.join()
+        self._backoff_timer = None
+
+    def handle_backoff(self):
+        """Wrapper for calls to retry_backoff."""
+        if (self._interval and self._interval.is_running() is
+                True):
+            self._interval.stop()
+        if self._backoff_timer is None:
+            self.retry_backoff()
+
+    def retry_backoff(self):
         """Add a backoff timer to retry in case of failure."""
-        e = threading.Event()
+        def timer_cb():
+            self._backoff_timer = None
+            self.notify_reset()
+
+        self._backoff_timer = threading.Timer(
+            self._backoff_time, timer_cb
+        )
         log.error("Error applying config, will try again in %s seconds",
-                  self._backoff_timer)
-        e.wait(self._backoff_timer)
-        if self._backoff_timer < self._max_backoff_time:
-            self._backoff_timer *= 2
-        func()
+                  self._backoff_time)
+        self._backoff_timer.start()
+        if self._backoff_time < self._max_backoff_time:
+            self._backoff_time *= 2
 
 
 class ConfigWatcher(pyinotify.ProcessEvent):

@@ -707,8 +707,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 
 		for _, portStruct := range appMgr.virtualPorts(ing) {
 			rsCfg := createRSConfigFromIngress(ing, sKey.Namespace,
-				appMgr.appInformers[sKey.Namespace].svcInformer.GetIndexer(),
-				portStruct)
+				appInf.svcInformer.GetIndexer(), portStruct)
 			if rsCfg == nil {
 				// Currently, an error is returned only if the Ingress is one we
 				// do not care about
@@ -1634,7 +1633,7 @@ func (appMgr *Manager) checkValidIngress(
 ) (bool, []*serviceQueueKey) {
 	ing := obj.(*v1beta1.Ingress)
 	namespace := ing.ObjectMeta.Namespace
-	_, ok := appMgr.getNamespaceInformer(namespace)
+	appInf, ok := appMgr.getNamespaceInformer(namespace)
 	if !ok {
 		// Not watching this namespace
 		return false, nil
@@ -1645,8 +1644,7 @@ func (appMgr *Manager) checkValidIngress(
 	for _, portStruct := range appMgr.virtualPorts(ing) {
 		var keyList []*serviceQueueKey
 		rsCfg := createRSConfigFromIngress(ing, namespace,
-			appMgr.appInformers[namespace].svcInformer.GetIndexer(),
-			portStruct)
+			appInf.svcInformer.GetIndexer(), portStruct)
 		rsName := rsCfg.Virtual.VirtualServerName
 		if rsCfg == nil {
 			if nil == ing.Spec.Rules { //single-service

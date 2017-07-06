@@ -1934,9 +1934,6 @@ func appendPool(rsPools []Pool, p Pool) []Pool {
 			return rsPools
 		}
 	}
-	if len(p.PoolMemberAddrs) == 0 {
-		return rsPools
-	}
 	return append(rsPools, p)
 }
 

@@ -533,10 +533,11 @@ class ConfigHandler():
                             test_data = {}
                             app_count = 0
                             backend_count = 0
-                            for service in config['virtualServers']:
+                            for service in config['resources'][
+                                    'virtualServers']:
                                 app_count += 1
                                 backends = 0
-                                for pool in config['pools']:
+                                for pool in config['resources']['pools']:
                                     if pool['name'] == service['name']:
                                         backends = len(pool['poolMemberAddrs'])
                                         break

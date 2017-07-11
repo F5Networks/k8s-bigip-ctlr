@@ -3,7 +3,8 @@ FROM python:2.7-alpine
 ENV APPPATH /app
 
 RUN mkdir -p "$APPPATH/bin" \
- && chmod -R 755 "$APPPATH"
+ && chmod -R 755 "$APPPATH" \
+ && adduser -D ctlr
  
 WORKDIR $APPPATH
 
@@ -15,6 +16,8 @@ COPY k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
 RUN apk --no-cache --update add --virtual pip-install-deps git && \
     pip install -r /tmp/k8s-runtime-requirements.txt && \
     apk del pip-install-deps
+
+USER ctlr
 
 # Run the run application in the projects bin directory.
 CMD [ "/app/bin/k8s-bigip-ctlr" ]

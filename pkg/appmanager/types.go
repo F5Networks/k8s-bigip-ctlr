@@ -19,10 +19,11 @@ package appmanager
 type (
 	// Config of all resources to configure on the BIG-IP
 	BigIPConfig struct {
-		Virtuals []Virtual `json:"virtualServers,omitempty"`
-		Pools    []Pool    `json:"pools,omitempty"`
-		Monitors []Monitor `json:"monitors,omitempty"`
-		Policies []Policy  `json:"l7Policies,omitempty"`
+		Virtuals       []Virtual       `json:"virtualServers,omitempty"`
+		Pools          []Pool          `json:"pools,omitempty"`
+		Monitors       []Monitor       `json:"monitors,omitempty"`
+		Policies       []Policy        `json:"l7Policies,omitempty"`
+		CustomProfiles []CustomProfile `json:"customProfiles,omitempty"`
 	}
 
 	// Config for a single resource (ConfigMap or Ingress)
@@ -174,6 +175,14 @@ type (
 	iappTableEntry struct {
 		Columns []string   `json:"columns,omitempty"`
 		Rows    [][]string `json:"rows,omitempty"`
+	}
+
+	// Client SSL Profile loaded from Secret
+	CustomProfile struct {
+		Name      string `json:"name"`
+		Partition string `json:"partition"`
+		Cert      []byte `json:"cert"`
+		Key       []byte `json:"key"`
 	}
 
 	// Used to unmarshal ConfigMap data

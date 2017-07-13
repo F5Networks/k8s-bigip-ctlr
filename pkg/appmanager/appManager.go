@@ -58,6 +58,7 @@ type ResourceMap map[int32][]*ResourceConfig
 
 type Manager struct {
 	resources         *Resources
+	customProfiles    CustomProfileStore
 	kubeClient        kubernetes.Interface
 	restClientv1      rest.Interface
 	restClientv1beta1 rest.Interface
@@ -106,6 +107,7 @@ func NewManager(params *Params) *Manager {
 		workqueue.DefaultControllerRateLimiter(), "namespace-controller")
 	manager := Manager{
 		resources:         NewResources(),
+		customProfiles:    NewCustomProfiles(),
 		kubeClient:        params.KubeClient,
 		restClientv1:      params.restClient,
 		restClientv1beta1: params.restClient,
@@ -680,6 +682,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	vsFound := 0
 	vsUpdated := 0
 	vsDeleted := 0
+	cpUpdated := 0
 	cfgMapsByIndex, err := appInf.cfgMapInformer.GetIndexer().ByIndex(
 		"namespace", sKey.Namespace)
 	if nil != err {
@@ -701,6 +704,33 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			fmt.Errorf("Error parsing ConfigMap %v_%v",
 				cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
 			continue
+		}
+
+		// Check if SSLProfile(s) are contained in Secrets
+		for _, profile := range rsCfg.Virtual.GetFrontendSslProfileNames() {
+			// Check if profile is contained in a Secret
+			secret, err := appMgr.kubeClient.Core().Secrets(cm.ObjectMeta.Namespace).
+				Get(profile, metav1.GetOptions{})
+			if err != nil {
+				// No secret, so we assume the profile is a BIG-IP default
+				log.Infof("Couldn't find Secret with name '%s', parsing secretName as path.",
+					profile)
+				continue
+			}
+			err, updated := appMgr.handleSslProfile(rsCfg, secret, cm.ObjectMeta.Namespace)
+			if err != nil {
+				log.Warningf("%v", err)
+				continue
+			}
+			if updated {
+				cpUpdated += 1
+			}
+			// Replace the current stored sslProfile with a correctly formatted
+			// profile (since this profile is just a secret name)
+			rsCfg.Virtual.RemoveFrontendSslProfileName(profile)
+			secretName := formatIngressSslProfileName(
+				rsCfg.Virtual.Partition + "/" + profile)
+			rsCfg.Virtual.AddFrontendSslProfileName(secretName)
 		}
 
 		rsName := rsCfg.Virtual.VirtualServerName
@@ -745,7 +775,10 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			}
 
 			// Handle TLS configuration
-			appMgr.handleIngressTls(rsCfg, ing)
+			updated := appMgr.handleIngressTls(rsCfg, ing)
+			if updated {
+				cpUpdated += 1
+			}
 
 			// Handle Ingress health monitors
 			rsName := rsCfg.Virtual.VirtualServerName
@@ -816,7 +849,10 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	log.Debugf("Updated %v of %v virtual server configs, deleted %v",
 		vsUpdated, vsFound, vsDeleted)
 
-	if vsUpdated > 0 || vsDeleted > 0 {
+	// delete any custom profiles that are no longer referenced
+	appMgr.deleteUnusedProfiles(sKey.Namespace)
+
+	if vsUpdated > 0 || vsDeleted > 0 || cpUpdated > 0 {
 		appMgr.outputConfig()
 	} else if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 {
 		appMgr.resources.Lock()
@@ -846,18 +882,25 @@ func getBooleanAnnotation(
 	return bVal
 }
 
+type secretKey struct {
+	Name         string
+	Namespace    string
+	ResourceName string
+}
+
+// Return value is whether or not a custom profile was updated
 func (appMgr *Manager) handleIngressTls(
 	rsCfg *ResourceConfig,
 	ing *v1beta1.Ingress,
-) {
+) bool {
 	if 0 == len(ing.Spec.TLS) {
 		// Nothing to do if no TLS section
-		return
+		return false
 	}
 	if nil == rsCfg.Virtual.VirtualAddress ||
 		rsCfg.Virtual.VirtualAddress.BindAddr == "" {
 		// Nothing to do for pool-only mode
-		return
+		return false
 	}
 
 	var httpsPort int32
@@ -871,11 +914,30 @@ func (appMgr *Manager) handleIngressTls(
 	// If we are processing the HTTPS server,
 	// then we don't need a redirect policy, only profiles
 	if rsCfg.Virtual.VirtualAddress.Port == httpsPort {
+		var cpUpdated, updateState bool
 		for _, tls := range ing.Spec.TLS {
-			secretName := formatIngressSslProfileName(tls.SecretName)
+			// Check if profile is contained in a Secret
+			secret, err := appMgr.kubeClient.Core().Secrets(ing.ObjectMeta.Namespace).
+				Get(tls.SecretName, metav1.GetOptions{})
+			if err != nil {
+				// No secret, so we assume the profile is a BIG-IP default
+				log.Infof("Couldn't find Secret with name '%s': %s. Parsing secretName as path.",
+					tls.SecretName, err)
+				secretName := formatIngressSslProfileName(tls.SecretName)
+				rsCfg.Virtual.AddFrontendSslProfileName(secretName)
+				continue
+			}
+			err, cpUpdated = appMgr.handleSslProfile(rsCfg, secret, ing.ObjectMeta.Namespace)
+			if err != nil {
+				log.Warningf("%v", err)
+				continue
+			}
+			updateState = updateState || cpUpdated
+			secretName := formatIngressSslProfileName(
+				rsCfg.Virtual.Partition + "/" + tls.SecretName)
 			rsCfg.Virtual.AddFrontendSslProfileName(secretName)
 		}
-		return
+		return cpUpdated
 	}
 
 	// sslRedirect defaults to true, allowHttp defaults to false.
@@ -917,6 +979,45 @@ func (appMgr *Manager) handleIngressTls(
 		}
 		rsCfg.SetPolicy(*policy)
 	}
+	return false
+}
+
+func (appMgr *Manager) handleSslProfile(
+	rsCfg *ResourceConfig,
+	secret *v1.Secret,
+	namespace string) (error, bool) {
+	if _, ok := secret.Data["tls.crt"]; !ok {
+		err := fmt.Errorf("Invalid Secret '%v': 'tls.crt' field not specified.",
+			secret.ObjectMeta.Name)
+		return err, false
+	}
+	if _, ok := secret.Data["tls.key"]; !ok {
+		err := fmt.Errorf("Invalid Secret '%v': 'tls.key' field not specified.",
+			secret.ObjectMeta.Name)
+		return err, false
+	}
+
+	cp := CustomProfile{
+		Name:      secret.ObjectMeta.Name,
+		Partition: rsCfg.Virtual.Partition,
+		Cert:      secret.Data["tls.crt"],
+		Key:       secret.Data["tls.key"],
+	}
+	skey := secretKey{
+		Name:         cp.Name,
+		Namespace:    namespace,
+		ResourceName: rsCfg.Virtual.VirtualServerName,
+	}
+	if prof, ok := appMgr.customProfiles.profs[skey]; ok {
+		if !reflect.DeepEqual(prof, cp) {
+			appMgr.customProfiles.profs[skey] = cp
+			return nil, true
+		} else {
+			return nil, false
+		}
+	}
+	appMgr.customProfiles.profs[skey] = cp
+	return nil, false
 }
 
 type portStruct struct {
@@ -1249,6 +1350,29 @@ func (appMgr *Manager) deleteUnusedResources(
 		}
 	}
 	return rsDeleted
+}
+
+func (appMgr *Manager) deleteUnusedProfiles(namespace string) {
+	var found bool
+	appMgr.customProfiles.Lock()
+	defer appMgr.customProfiles.Unlock()
+	for key, profile := range appMgr.customProfiles.profs {
+		found = false
+		appMgr.resources.ForEach(func(k serviceKey, rsCfg *ResourceConfig) {
+			if key.ResourceName == rsCfg.Virtual.VirtualServerName &&
+				key.Namespace == namespace {
+				for _, profName := range rsCfg.Virtual.GetFrontendSslProfileNames() {
+					if profName == (rsCfg.Virtual.Partition + "/" + profile.Name) {
+						found = true
+						break
+					}
+				}
+			}
+		})
+		if !found {
+			delete(appMgr.customProfiles.profs, key)
+		}
+	}
 }
 
 func (appMgr *Manager) setBindAddrAnnotation(

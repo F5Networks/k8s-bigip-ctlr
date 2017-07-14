@@ -1,7 +1,7 @@
 Release Notes for K8S BIG-IP Controller
 ============================================
 
-v1.1.0-dev
+|release|
 ----------
 
 Added Functionality
@@ -32,7 +32,7 @@ Added Functionality
 * Can manage multiple BIG-IP partitions in the following environments
 
   * Kubernetes
-  * Red Hat OpenShift 
+  * Red Hat OpenShift
 
 * Manages the following LTM resources for the BIG-IP partition(s)
 
@@ -45,7 +45,7 @@ Added Functionality
   * Application Services
 
 * Manages the following Network resource for the BIG-IP partition(s)
-  
+
   * FDB tunnel records (Red Hat OpenShift)
 
 Removed Functionality
@@ -61,4 +61,3 @@ Limitations
 * Parameters other than IPAddress and Port (e.g. Connection Limit) specified in the iApp Pool Member Table apply to all members of the pool.
 * Cannot configure virtual servers with IPv6 addresses in the configmap.
 * The K8S BIG-IP Controller cannot watch more than one namespace.
-

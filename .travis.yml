@@ -6,6 +6,7 @@ services:
 before_install:
   - docker pull golang:1.7.5
   - docker pull node:6.11.0-slim
+  - docker pull f5devcentral/containthedocs
 
 script:
   - set -e
@@ -36,7 +37,12 @@ script:
       docker push "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
       docker push "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID"
     fi
-  - |
-    if [ "$TRAVIS_TAG" == "1.0-stable" ]; then
-      docker run -it f5devcentral/containthedocs publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.0
-    fi
+
+deploy:
+  - provider: script
+    skip_cleanup: true
+    on:
+      branch: 1.1-stable
+      repo: F5Networks/k8s-bigip-ctlr
+    script:
+      - ./build-tools/deploy-docs.sh publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.1

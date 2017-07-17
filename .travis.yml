@@ -46,3 +46,8 @@ deploy:
       repo: F5Networks/k8s-bigip-ctlr
     script:
       - ./build-tools/deploy-docs.sh publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.1
+
+notifications:
+  slack:
+    rooms:
+      secure: mStBSaHe009xjilMEq5YwRmiYAB+oWZkKe1nk6rYebxw1uxVSe18lXkq9dhmX9a7nvko1iLvVYeXhmwE4ZWfnYVeMkaWq5/P3Rx0f453oEeM5SvqgoJfDPFyKqwBQgeIcOkZ+RMXiJRynPhb8BvnVMi24ZYUUpNP45TWWoBXHXg3xaPaFXQucZpHpPFYKZt8V5/aRhLTDhzvNP1o//ijgTuKDp2zuRSmVin5ofCEi78fDVIX5UXxvK47xx0dM5Lg8JFx/Tz9NcLreWsnz2NrRHxFwaxvGQiZAIamUwGCJKAoS+WlRVtcLuyB+FFfwaO0EaTKJr/5OWv8uhpK7pZfvfL//ShIHIf4FeCiOZG6s+PNiwzmxjVsX8CkZDqIvW+arGYA9OcYwKzLKBi5fR0SQzr2Eu+w53BhvutHzl7uok8XcxIzlo6zNaR23kYR9chnnIFvAwhugHa2iSoilAohsrf0nBNdDj0G2ObZSi4j68mQhn3fTHZzEDE3TddwnHcMgHOSkPFIZZJJZ4MrY5Ky1MuaZocOqCSPJlpPpd5EoJdBjozR5Coqsek3W1iaEgKVKsDuCvqsEHpI5JTLrJb9Q7g47O0dmDDOteQWDY6BJB/oFKjg5E+uN4qWCP99ydCS8UMTEdedZ/MZu2uGHeNgchRSsiLpFSOwoR/QlC2ezGQ=

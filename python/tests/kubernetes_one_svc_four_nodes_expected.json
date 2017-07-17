@@ -1,0 +1,55 @@
+{
+    "ltm": {
+        "iapps": [],
+        "l7Policies": [],
+        "monitors": [],
+        "pools": [
+            {
+                "members": [
+                    {
+                        "address": "172.16.0.5",
+                        "port": 30008,
+                        "session": "user-enabled"
+                    },
+                    {
+                        "address": "172.16.0.6",
+                        "port": 30008,
+                        "session": "user-enabled"
+                    },
+                    {
+                        "address": "172.16.0.7",
+                        "port": 30008,
+                        "session": "user-enabled"
+                    },
+                    {
+                        "address": "172.16.0.8",
+                        "port": 30008,
+                        "session": "user-enabled"
+                    }
+                ],
+                "name": "default_configmap"
+            }
+        ],
+        "virtualServers": [
+            {
+                "destination": "/k8s/10.128.10.240:5051",
+                "enabled": true,
+                "ipProtocol": "tcp",
+                "name": "default_configmap",
+                "policies": [],
+                "pool": "/k8s/default_configmap",
+                "profiles": [
+                    {
+                        "name": "http",
+                        "partition": "Common"
+                    }
+                ],
+                "sourceAddressTranslation": {
+                    "type": "automap"
+                },
+                "virtual_address": "10.128.10.240"
+            }
+        ]
+    },
+    "network": {}
+}

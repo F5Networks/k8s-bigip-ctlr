@@ -25,7 +25,7 @@ import sys
 import threading
 import time
 
-import f5_cccl._f5
+from f5_cccl.exceptions import F5CcclValidationError
 
 import pytest
 
@@ -113,7 +113,7 @@ _expected_bigip_config = {
 }
 
 
-class MockBigIp(f5_cccl._f5.CloudBigIP):
+class MockCCCL(bigipconfigdriver.K8sCloudServiceManager):
     def __init__(self, fail=False, notify_event=None, notify_after=0,
                  handle_results=None):
         self._cloud = 'k8s'
@@ -124,7 +124,7 @@ class MockBigIp(f5_cccl._f5.CloudBigIP):
         self._notify_after = notify_after
         self._handle_results = handle_results
 
-    def _apply_config(self, cfg):
+    def apply_config(self, cfg):
         expected_bigip_config = json.loads(json.dumps(cfg))
         actual_bigip_config = json.loads(json.dumps(cfg))
         assert expected_bigip_config == actual_bigip_config
@@ -139,7 +139,9 @@ class MockBigIp(f5_cccl._f5.CloudBigIP):
         else:
             if self._fail:
                 self._fail = False
-                raise f5_cccl._f5.f5.sdk_exception.F5SDKError('SDK Failure')
+                raise F5CcclValidationError
+
+        return 0
 
 
 class MockEventHandler():
@@ -334,7 +336,7 @@ def test_configwatcher_init(request):
 
     request.addfinalizer(fin)
 
-    watcher = bigipconfigdriver.ConfigWatcher(expected_file, MockBigIp(),
+    watcher = bigipconfigdriver.ConfigWatcher(expected_file,
                                               MockEventHandler().on_change)
 
     assert watcher._config_file == expected_file
@@ -352,7 +354,7 @@ def test_configwatcher_init(request):
         os.utime(expected_file, None)
 
     watcherExist = bigipconfigdriver.ConfigWatcher(
-            expected_file, MockBigIp(),
+            expected_file,
             MockEventHandler().on_change)
 
     assert watcherExist._config_file == expected_file
@@ -366,7 +368,7 @@ def test_configwatcher_shouldwatch():
     watch_file_template = Template('/tmp/$pid')
     watch_file = watch_file_template.substitute(pid=os.getpid())
 
-    watcher = bigipconfigdriver.ConfigWatcher(watch_file, MockBigIp(),
+    watcher = bigipconfigdriver.ConfigWatcher(watch_file,
                                               MockEventHandler().on_change)
 
     assert watcher._should_watch(watch_file) is True
@@ -392,7 +394,7 @@ def test_configwatcher_loop(request):
         '\xd7-\x16\xde\x92\xf2\xb6\xc1\x05\xce\xabj\x84\xcf\xcaz', None
     ]
 
-    watcher = bigipconfigdriver.ConfigWatcher(watch_file, MockBigIp(),
+    watcher = bigipconfigdriver.ConfigWatcher(watch_file,
                                               MockEventHandler().on_change)
 
     # loop will block and threading will introduce synchronization complexities
@@ -447,14 +449,14 @@ def test_configwatcher_loop(request):
 def test_confighandler_lifecycle():
     handler = None
     try:
-        bigip = MockBigIp()
-        handler = bigipconfigdriver.ConfigHandler('/tmp/config', bigip, 0)
+        cccl = MockCCCL()
+        handler = bigipconfigdriver.ConfigHandler('/tmp/config', [cccl], 0)
 
         assert handler._thread in threading.enumerate()
         assert handler._thread.is_alive() is True
         assert handler._pending_reset is False
         assert handler._stop is False
-        assert handler._bigip == bigip
+        assert handler._cccls == [cccl]
         assert handler._config_file == '/tmp/config'
     finally:
         assert handler is not None
@@ -469,11 +471,11 @@ def test_confighandler_lifecycle():
 def test_parse_config(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         r = bigipconfigdriver._parse_config(config_file)
         assert r is None
@@ -505,11 +507,11 @@ def test_parse_config(request):
 def test_handle_global_config(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {}
         obj['global'] = {'log-level': 'WARNING', 'verify-interval': 10}
@@ -536,11 +538,11 @@ def test_handle_global_config(request):
 def test_handle_global_config_defaults(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {}
         obj['global'] = {}
@@ -567,11 +569,11 @@ def test_handle_global_config_defaults(request):
 def test_handle_global_config_bad_string_log_level(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {"global": {"log-level": "everything", "verify-interval": 100}}
 
@@ -597,11 +599,11 @@ def test_handle_global_config_bad_string_log_level(request):
 def test_handle_global_config_number_log_level(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {"global": {"log-level": 55, "verify-interval": 100}}
 
@@ -627,11 +629,11 @@ def test_handle_global_config_number_log_level(request):
 def test_handle_global_config_negative_verify_interval(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {"global": {"log-level": "ERROR", "verify-interval": -1}}
 
@@ -657,11 +659,11 @@ def test_handle_global_config_negative_verify_interval(request):
 def test_handle_global_config_string_verify_interval(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {"global": {"log-level": "ERROR", "verify-interval": "hundred"}}
 
@@ -687,11 +689,11 @@ def test_handle_global_config_string_verify_interval(request):
 def test_handle_bigip_config(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {}
         obj['bigip'] = {'username': 'admin', 'password': 'changeme',
@@ -723,11 +725,11 @@ def test_handle_bigip_config(request):
 def test_handle_bigip_config_missing_bigip(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {}
 
@@ -751,11 +753,11 @@ def test_handle_bigip_config_missing_bigip(request):
 def test_handle_bigip_config_missing_username(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {}
         obj['bigip'] = {'password': 'changeme',
@@ -782,11 +784,11 @@ def test_handle_bigip_config_missing_username(request):
 def test_handle_bigip_config_missing_password(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {}
         obj['bigip'] = {'username': 'admin',
@@ -813,11 +815,11 @@ def test_handle_bigip_config_missing_password(request):
 def test_handle_bigip_config_missing_url(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {}
         obj['bigip'] = {'username': 'admin', 'password': 'changeme',
@@ -843,11 +845,11 @@ def test_handle_bigip_config_missing_url(request):
 def test_handle_bigip_config_missing_partitions(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {}
         obj['bigip'] = {'username': 'admin', 'password': 'changeme',
@@ -874,11 +876,11 @@ def test_handle_bigip_config_missing_partitions(request):
 def test_handle_openshift_sdn_config(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {}
         obj['openshift-sdn'] = {'vxlan-name': 'vxlan0',
@@ -908,11 +910,11 @@ def test_handle_openshift_sdn_config(request):
 def test_handle_openshift_sdn_config_missing_vxlan_name(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {}
         obj['openshift-sdn'] = {'vxlan-node-ips':
@@ -938,11 +940,11 @@ def test_handle_openshift_sdn_config_missing_vxlan_name(request):
 def test_handle_openshift_sdn_config_missing_vxlan_node_ips(request):
     handler = None
     try:
-        bigip = MockBigIp()
+        cccl = MockCCCL()
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip, 0)
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl], 0)
 
         obj = {}
         obj['openshift-sdn'] = {'vxlan-name': 'vxlan0'}
@@ -964,8 +966,8 @@ def test_handle_openshift_sdn_config_missing_vxlan_node_ips(request):
         assert handler._thread.is_alive() is False
 
 
-def test_confighandler_reset_sdk_error(request):
-    exception = f5_cccl._f5.f5.sdk_exception.F5SDKError('SDK Failure')
+def test_confighandler_reset_validation_error(request):
+    exception = F5CcclValidationError
     common_confighandler_reset(request, exception)
 
 
@@ -976,19 +978,19 @@ def test_confighandler_reset_unexpected_error(request):
 
 def common_confighandler_reset(request, exception):
     handler = None
-    bigip = None
+    cccl = None
     flags = {'valid_interval_state': True}
 
     try:
         # Force an error on the fourth invocation, verify interval timer
         # is disabled during retries
         def handle_results():
-            if bigip.calls == 4:
+            if cccl.calls == 4:
                 # turn on retries by returning an error
                 raise exception
 
             valid_interval_state = flags['valid_interval_state']
-            if bigip.calls == 1 or bigip.calls == 5:
+            if cccl.calls == 1 or cccl.calls == 5:
                 # verify interval timer is off due to previous error
                 if valid_interval_state:
                     valid_interval_state =\
@@ -1000,19 +1002,19 @@ def common_confighandler_reset(request, exception):
             flags['valid_interval_state'] = valid_interval_state
 
         event = threading.Event()
-        bigip = MockBigIp(notify_event=event, notify_after=5,
-                          handle_results=handle_results)
+        cccl = MockCCCL(notify_event=event, notify_after=5,
+                        handle_results=handle_results)
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
         # keep the interval timer from expiring during retries
         interval_time = 0.6
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip,
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl],
                                                   interval_time)
         # give the thread an opportunity to spin up
         time.sleep(0)
 
-        assert bigip.calls == 0
+        assert cccl.calls == 0
 
         obj = deepcopy(_cloud_config)
         obj['global']['verify-interval'] = interval_time
@@ -1026,17 +1028,17 @@ def common_confighandler_reset(request, exception):
 
         handler.notify_reset()
         time.sleep(0.1)
-        assert bigip.calls == 1
+        assert cccl.calls == 1
         assert flags['valid_interval_state'] is True
 
         handler.notify_reset()
         time.sleep(0.1)
-        assert bigip.calls == 2
+        assert cccl.calls == 2
         assert flags['valid_interval_state'] is True
 
         handler.notify_reset()
         time.sleep(0.1)
-        assert bigip.calls == 3
+        assert cccl.calls == 3
         assert flags['valid_interval_state'] is True
 
         # in the failure case we'll respond with a notify_reset to try again
@@ -1052,7 +1054,7 @@ def common_confighandler_reset(request, exception):
         # verify interval timer doesn't fire until after interval expires
         # (interval time from successful retry)
         time.sleep(interval_time / 2)
-        assert bigip.calls == 5
+        assert cccl.calls == 5
 
         # backoff_time is set to one and backoff_timer is reset to None
         # after a clean run
@@ -1062,7 +1064,7 @@ def common_confighandler_reset(request, exception):
         # Interval should expire since minimum sleep time since successfully
         # retry was 0.3 + 0.7 which is more than the interval (0.6)
         time.sleep(interval_time)
-        assert bigip.calls == 6
+        assert cccl.calls == 6
 
     finally:
         assert handler is not None
@@ -1082,17 +1084,17 @@ def test_confighandler_execution(request):
         def handle_results():
             time.sleep(interval_time)
 
-        bigip = MockBigIp(handle_results=handle_results)
+        cccl = MockCCCL(handle_results=handle_results)
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
         # make the interval timer the same as the execution time
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip,
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl],
                                                   interval_time)
         # give the thread an opportunity to spin up
         time.sleep(0)
 
-        assert bigip.calls == 0
+        assert cccl.calls == 0
 
         obj = deepcopy(_cloud_config)
         obj['global']['verify-interval'] = interval_time
@@ -1113,7 +1115,7 @@ def test_confighandler_execution(request):
         min_expected_calls = int(0.75 * total_time / interval_time)
         handler.notify_reset()
         time.sleep(total_time)
-        assert bigip.calls >= min_expected_calls
+        assert cccl.calls >= min_expected_calls
 
     finally:
         assert handler is not None
@@ -1127,16 +1129,16 @@ def test_confighandler_checkpoint(request):
     handler = None
     try:
         event = threading.Event()
-        bigip = MockBigIp(notify_event=event, notify_after=5)
+        cccl = MockCCCL(notify_event=event, notify_after=5)
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip,
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl],
                                                   0.25)
         # give the thread an opportunity to spin up
         time.sleep(0)
 
-        assert bigip.calls == 0
+        assert cccl.calls == 0
 
         with open(config_file, 'w+') as f:
             def fin():
@@ -1166,16 +1168,16 @@ def test_confighandler_checkpointstopafterfailure(request):
     handler = None
     try:
         event = threading.Event()
-        bigip = MockBigIp(fail=True, notify_event=event, notify_after=5)
+        cccl = MockCCCL(fail=True, notify_event=event, notify_after=5)
         config_template = Template('/tmp/config.$pid')
         config_file = config_template.substitute(pid=os.getpid())
 
-        handler = bigipconfigdriver.ConfigHandler(config_file, bigip,
+        handler = bigipconfigdriver.ConfigHandler(config_file, [cccl],
                                                   0.25)
         # give the thread an opportunity to spin up
         time.sleep(0)
 
-        assert bigip.calls == 0
+        assert cccl.calls == 0
 
         with open(config_file, 'w+') as f:
             def fin():
@@ -1243,12 +1245,12 @@ def test_confighandler_backoff_time(request):
         assert handler._interval.is_running() is False
 
 
-class MockRegenerateBigIp(f5_cccl._f5.CloudBigIP):
+class MockApplyConfigCCCL(bigipconfigdriver.K8sCloudServiceManager):
 
     def __init__(self, returns):
         self._returns = returns
 
-    def regenerate_config_f5(self, cfg):
+    def apply_config(self, cfg):
         val = self._returns.pop(0)
         if type(val) is 'exceptions.Exception':
             raise val
@@ -1279,10 +1281,10 @@ def test_confighandler_backoff_timer(request):
 
     for vector in TEST_VECTORS:
         try:
-            bigip = MockRegenerateBigIp(vector)
+            cccl = MockApplyConfigCCCL(vector)
 
             handler = bigipconfigdriver.ConfigHandler(
-                config_file, bigip, INTERVAL
+                config_file, [cccl], INTERVAL
             )
             time.sleep(SLEEP_INTERVAL)
 

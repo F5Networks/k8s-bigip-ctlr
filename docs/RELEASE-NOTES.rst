@@ -1,33 +1,34 @@
 Release Notes for K8S BIG-IP Controller
-============================================
+=======================================
 
 |release|
-----------
+---------
 
 Added Functionality
-^^^^^^^^^^^^^^^^^^^
+```````````````````
 
-* Virtual Servers can now be configured on the BIG-IP from Kubernetes Ingress resources.
-* Multiple SSL Profiles can be configured for a Virtual Server.
-* Watches all Kubernetes namespaces by default, or can watch a list of namespaces, or namespaces with a customer specified label. This addresses a previous limitation in v1.0.0.
-* Watches for Kubernetes annotation if virtual address not specified, enabling custom IPAM integration.
-* Creates detached pools if virtual server bind addresses not specified.
+* Creation of BIG-IP Virtual Servers from Kubernetes Ingress resources.
+* Configure multiple SSL Profiles for a BIG-IP Virtual Servers.
+* Watch all Kubernetes namespaces by default; watch a list of namespaces; watch namespaces with a user-specified label.
+* Watch for Kubernetes annotation if virtual address not specified, enabling custom IPAM integration.
+* Create detached pools if virtual server bind addresses not specified.
 * Container image size reduced from 361MB to 123MB.
 * Can use local and non-local BIG-IP users.
 
 Removed Functionality
-^^^^^^^^^^^^^^^^^^^^^
+`````````````````````
 
 Limitations
-^^^^^^^^^^^
+~~~~~~~~~~~
 
-* The SSL Profiles referenced in Ingress resources must already be configured on the BIG-IP. Any Secret resources configured in Kubernetes are not used.
+* The SSL Profiles referenced in Ingress resources must already exist on the BIG-IP device.
+  Any Secret resources configured in Kubernetes are not used.
 
 v1.0.0
 ------
 
 Added Functionality
-^^^^^^^^^^^^^^^^^^^
+```````````````````
 
 * Can manage multiple BIG-IP partitions in the following environments
 
@@ -49,10 +50,10 @@ Added Functionality
   * FDB tunnel records (Red Hat OpenShift)
 
 Removed Functionality
-^^^^^^^^^^^^^^^^^^^^^
+`````````````````````
 
 Limitations
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 * Cannot share endpoints managed in a partition controlled by the K8S BIG-IP Controller with endpoints managed in another partition.
 * Kubernetes allows a service to name the individual service ports within a particular service.  However, the K8S BIG-IP Controller requires the virtual server section within the configmap to refer to the port number for the service port, not the name.

@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# 
+#
 # Run the arrtibutions generator container
 #
 
 set -e
 set -x
 
-ATTR_GEN_IMG=docker-registry.pdbld.f5net.com/velcro/attributions-generator:master
+ATTR_GEN_IMG=f5devcentral/attributions-generator:latest
 docker pull ${ATTR_GEN_IMG}
 
 RUN_ARGS=( \

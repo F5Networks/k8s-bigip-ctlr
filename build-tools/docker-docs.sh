@@ -2,8 +2,8 @@
 
 set -x
 
-: ${DOC_IMG:=docker-registry.pdbld.f5net.com/tools/containthedocs:master}
- 
+: ${DOC_IMG:=f5devcentral/containthedocs:latest}
+
 RUN_ARGS=( \
   --rm
   -v $PWD:$PWD

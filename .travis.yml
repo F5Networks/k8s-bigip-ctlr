@@ -37,6 +37,7 @@ script:
       docker push "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
       docker push "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID"
     fi
+  - make docs
 
 deploy:
   - provider: script

@@ -53,8 +53,6 @@ const vsBindAddrAnnotation = "status.virtual-server.f5.com/ip"
 const ingressSslRedirect = "ingress.kubernetes.io/ssl-redirect"
 const ingressAllowHttp = "ingress.kubernetes.io/allow-http"
 const ingHealthMonitorAnnotation = "virtual-server.f5.com/health"
-const httpRedirectRuleName = "http-redirect"
-const httpDropRuleName = "http-drop"
 
 type ResourceMap map[int32][]*ResourceConfig
 
@@ -460,6 +458,38 @@ func newListWatchWithLabelSelector(
 			Watch()
 	}
 	return &cache.ListWatch{ListFunc: listFunc, WatchFunc: watchFunc}
+}
+
+func (appMgr *Manager) enqueueConfigMap(obj interface{}) {
+	if ok, keys := appMgr.checkValidConfigMap(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) enqueueService(obj interface{}) {
+	if ok, keys := appMgr.checkValidService(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) enqueueEndpoints(obj interface{}) {
+	if ok, keys := appMgr.checkValidEndpoints(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) enqueueIngress(obj interface{}) {
+	if ok, keys := appMgr.checkValidIngress(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
 }
 
 func (appMgr *Manager) getNamespaceInformer(
@@ -889,28 +919,12 @@ func (appMgr *Manager) handleIngressTls(
 	}
 }
 
-func newHttpRedirectPolicyRule(httpsPort int32) *Rule {
-	loc := fmt.Sprintf(`tcl:https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]`, httpsPort)
-	redirAction := action{
-		Name:      "0",
-		HttpReply: true,
-		Location:  loc,
-		Redirect:  true,
-		Request:   true,
-	}
-	rule := Rule{
-		Name:    httpRedirectRuleName,
-		Actions: []*action{&redirAction},
-		Ordinal: 0,
-	}
-	return &rule
-}
-
 type portStruct struct {
 	protocol string
 	port     int32
 }
 
+// Return the required ports for Ingress VS (depending on sslRedirect/allowHttp vals)
 func (appMgr *Manager) virtualPorts(ing *v1beta1.Ingress) []portStruct {
 	var httpPort int32
 	var httpsPort int32
@@ -956,219 +970,6 @@ func (appMgr *Manager) virtualPorts(ing *v1beta1.Ingress) []portStruct {
 		ports = append(ports, http)
 	}
 	return ports
-}
-
-func (appMgr *Manager) assignHealthMonitorsByPath(
-	rsName string,
-	ing *v1beta1.Ingress,
-	rulesMap ingressHostToPathMap,
-	monitors IngressHealthMonitors,
-) error {
-	// The returned error is used for 'fatal' errors only, meaning abandon
-	// any further processing of health monitors for this Ingress.
-	for _, mon := range monitors {
-		slashPos := strings.Index(mon.Path, "/")
-		if slashPos == -1 {
-			return fmt.Errorf("Health Monitor path '%v' is not valid.", mon.Path)
-		}
-
-		host := mon.Path[:slashPos]
-		path := mon.Path[slashPos:]
-		pm, found := rulesMap[host]
-		if false == found && host != "*" {
-			pm, found = rulesMap["*"]
-		}
-		if false == found {
-			msg := fmt.Sprintf("Rule not found for Health Monitor host '%v'", host)
-			log.Warningf("%s", msg)
-			appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg, rsName)
-			continue
-		}
-		ruleData, found := pm[path]
-		if false == found {
-			msg := fmt.Sprintf("Rule not found for Health Monitor path '%v'",
-				mon.Path)
-			log.Warningf("%s", msg)
-			appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg, rsName)
-			continue
-		}
-		ruleData.healthMon = mon
-	}
-	return nil
-}
-
-func (appMgr *Manager) assignMonitorToPool(
-	cfg *ResourceConfig,
-	fullPoolPath string,
-	ruleData *ingressRuleData,
-) {
-	partition, poolName := splitBigipPath(fullPoolPath, false)
-	for poolNdx, pool := range cfg.Pools {
-		if pool.Partition == partition && pool.Name == poolName {
-			ruleData.assigned = true
-			monitor := Monitor{
-				Name:      poolName,
-				Partition: partition,
-				Protocol:  "http",
-				Interval:  ruleData.healthMon.Interval,
-				Send:      ruleData.healthMon.Send,
-				Timeout:   ruleData.healthMon.Timeout,
-			}
-			cfg.SetMonitor(&cfg.Pools[poolNdx], monitor)
-		}
-	}
-}
-
-func (appMgr *Manager) notifyUnusedHealthMonitorRules(
-	rsName string,
-	ing *v1beta1.Ingress,
-	hostToPathMap ingressHostToPathMap,
-) {
-	for _, paths := range hostToPathMap {
-		for _, ruleData := range paths {
-			if false == ruleData.assigned {
-				msg := fmt.Sprintf(
-					"Health Monitor path '%v' does not match any Ingress paths.",
-					ruleData.healthMon.Path)
-				appMgr.recordIngressEvent(ing, "MonitorRuleNotUsed", msg, rsName)
-			}
-		}
-	}
-}
-
-func (appMgr *Manager) handleSingleServiceHealthMonitors(
-	rsName string,
-	cfg *ResourceConfig,
-	ing *v1beta1.Ingress,
-	monitors IngressHealthMonitors,
-) {
-	// Setup the rule-to-pool map from the ingress
-	ruleItem := make(ingressPathToRuleMap)
-	ruleItem["/"] = &ingressRuleData{
-		svcName: ing.Spec.Backend.ServiceName,
-		svcPort: ing.Spec.Backend.ServicePort.IntVal,
-	}
-	hostToPathMap := make(ingressHostToPathMap)
-	hostToPathMap["*"] = ruleItem
-
-	err := appMgr.assignHealthMonitorsByPath(
-		rsName, ing, hostToPathMap, monitors)
-	if nil != err {
-		log.Errorf("%s", err.Error())
-		appMgr.recordIngressEvent(ing, "MonitorError", err.Error(), rsName)
-		return
-	}
-
-	appMgr.resources.Lock()
-	defer appMgr.resources.Unlock()
-	for _, paths := range hostToPathMap {
-		for _, ruleData := range paths {
-			appMgr.assignMonitorToPool(cfg, cfg.Virtual.PoolName, ruleData)
-		}
-	}
-
-	appMgr.notifyUnusedHealthMonitorRules(rsName, ing, hostToPathMap)
-}
-
-func (appMgr *Manager) handleMultiServiceHealthMonitors(
-	rsName string,
-	cfg *ResourceConfig,
-	ing *v1beta1.Ingress,
-	monitors IngressHealthMonitors,
-) {
-	// Setup the rule-to-pool map from the ingress
-	hostToPathMap := make(ingressHostToPathMap)
-	for _, rule := range ing.Spec.Rules {
-		if nil == rule.IngressRuleValue.HTTP {
-			continue
-		}
-		host := rule.Host
-		if host == "" {
-			host = "*"
-		}
-		ruleItem, found := hostToPathMap[host]
-		if !found {
-			ruleItem = make(ingressPathToRuleMap)
-			hostToPathMap[host] = ruleItem
-		}
-		for _, path := range rule.IngressRuleValue.HTTP.Paths {
-			pathKey := path.Path
-			if "" == pathKey {
-				pathKey = "/"
-			}
-			pathItem, found := ruleItem[pathKey]
-			if found {
-				msg := fmt.Sprintf(
-					"Health Monitor path '%v' already exists for host '%v'",
-					path, rule.Host)
-				log.Warningf("%s", msg)
-				appMgr.recordIngressEvent(ing, "DuplicatePath", msg, rsName)
-			} else {
-				pathItem = &ingressRuleData{
-					svcName: path.Backend.ServiceName,
-					svcPort: path.Backend.ServicePort.IntVal,
-				}
-				ruleItem[pathKey] = pathItem
-			}
-		}
-	}
-	if _, found := hostToPathMap["*"]; found {
-		for key, _ := range hostToPathMap {
-			if key == "*" {
-				continue
-			}
-			msg := fmt.Sprintf(
-				"Health Monitor rule for host '%v' conflicts with rule for all hosts.",
-				key)
-			log.Warningf("%s", msg)
-			appMgr.recordIngressEvent(ing, "DuplicatePath", msg, rsName)
-		}
-	}
-
-	err := appMgr.assignHealthMonitorsByPath(
-		rsName, ing, hostToPathMap, monitors)
-	if nil != err {
-		log.Errorf("%s", err.Error())
-		appMgr.recordIngressEvent(ing, "MonitorError", err.Error(), rsName)
-		return
-	}
-
-	appMgr.resources.Lock()
-	defer appMgr.resources.Unlock()
-	for host, paths := range hostToPathMap {
-		for path, ruleData := range paths {
-			if 0 == len(ruleData.healthMon.Path) {
-				// hostToPathMap has an entry for each rule, but not necessarily an
-				// associated health monitor.
-				continue
-			}
-			for _, pol := range cfg.Policies {
-				if pol.Name != cfg.Virtual.VirtualServerName {
-					continue
-				}
-				for _, rule := range pol.Rules {
-					slashPos := strings.Index(rule.FullURI, "/")
-					var ruleHost, rulePath string
-					if slashPos == -1 {
-						ruleHost = rule.FullURI
-						rulePath = "/"
-					} else {
-						ruleHost = rule.FullURI[:slashPos]
-						rulePath = rule.FullURI[slashPos:]
-					}
-					if (host == "*" || host == ruleHost) && path == rulePath {
-						for _, action := range rule.Actions {
-							if action.Forward && "" != action.Pool {
-								appMgr.assignMonitorToPool(cfg, action.Pool, ruleData)
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	appMgr.notifyUnusedHealthMonitorRules(rsName, ing, hostToPathMap)
 }
 
 // Common handling function for both ConfigMaps and Ingresses
@@ -1535,191 +1336,6 @@ func (appMgr *Manager) recordIngressEvent(ing *v1beta1.Ingress,
 	appMgr.eventRecorder.Event(ing, v1.EventTypeNormal, reason, message)
 }
 
-func (appMgr *Manager) checkValidConfigMap(
-	obj interface{},
-) (bool, []*serviceQueueKey) {
-	// Identify the specific service being referenced, and return it if it's
-	// one we care about.
-	cm := obj.(*v1.ConfigMap)
-	namespace := cm.ObjectMeta.Namespace
-	_, ok := appMgr.getNamespaceInformer(namespace)
-	if !ok {
-		// Not watching this namespace
-		return false, nil
-	}
-	cfg, err := parseConfigMap(cm)
-	if nil != err {
-		if handleConfigMapParseFailure(appMgr, cm, cfg, err) {
-			// resources is updated if true is returned, write out the config.
-			appMgr.outputConfig()
-		}
-		return false, nil
-	}
-	key := &serviceQueueKey{
-		ServiceName: cfg.Pools[0].ServiceName,
-		Namespace:   namespace,
-	}
-	var keyList []*serviceQueueKey
-	keyList = append(keyList, key)
-	return true, keyList
-}
-
-func (appMgr *Manager) enqueueConfigMap(obj interface{}) {
-	if ok, keys := appMgr.checkValidConfigMap(obj); ok {
-		for _, key := range keys {
-			appMgr.vsQueue.Add(*key)
-		}
-	}
-}
-
-func (appMgr *Manager) checkValidService(
-	obj interface{},
-) (bool, []*serviceQueueKey) {
-	// Check if the service to see if we care about it.
-	svc := obj.(*v1.Service)
-	namespace := svc.ObjectMeta.Namespace
-	_, ok := appMgr.getNamespaceInformer(namespace)
-	if !ok {
-		// Not watching this namespace
-		return false, nil
-	}
-	key := &serviceQueueKey{
-		ServiceName: svc.ObjectMeta.Name,
-		Namespace:   namespace,
-	}
-	var keyList []*serviceQueueKey
-	keyList = append(keyList, key)
-	return true, keyList
-}
-
-func (appMgr *Manager) enqueueService(obj interface{}) {
-	if ok, keys := appMgr.checkValidService(obj); ok {
-		for _, key := range keys {
-			appMgr.vsQueue.Add(*key)
-		}
-	}
-}
-
-func (appMgr *Manager) checkValidEndpoints(
-	obj interface{},
-) (bool, []*serviceQueueKey) {
-	eps := obj.(*v1.Endpoints)
-	namespace := eps.ObjectMeta.Namespace
-	// Check if the service to see if we care about it.
-	_, ok := appMgr.getNamespaceInformer(namespace)
-	if !ok {
-		// Not watching this namespace
-		return false, nil
-	}
-	key := &serviceQueueKey{
-		ServiceName: eps.ObjectMeta.Name,
-		Namespace:   namespace,
-	}
-	var keyList []*serviceQueueKey
-	keyList = append(keyList, key)
-	return true, keyList
-}
-
-func (appMgr *Manager) enqueueEndpoints(obj interface{}) {
-	if ok, keys := appMgr.checkValidEndpoints(obj); ok {
-		for _, key := range keys {
-			appMgr.vsQueue.Add(*key)
-		}
-	}
-}
-
-func (appMgr *Manager) checkValidIngress(
-	obj interface{},
-) (bool, []*serviceQueueKey) {
-	ing := obj.(*v1beta1.Ingress)
-	namespace := ing.ObjectMeta.Namespace
-	appInf, ok := appMgr.getNamespaceInformer(namespace)
-	if !ok {
-		// Not watching this namespace
-		return false, nil
-	}
-	var allKeys []*serviceQueueKey
-	appMgr.resources.Lock()
-	defer appMgr.resources.Unlock()
-	for _, portStruct := range appMgr.virtualPorts(ing) {
-		var keyList []*serviceQueueKey
-		rsCfg := createRSConfigFromIngress(ing, namespace,
-			appInf.svcInformer.GetIndexer(), portStruct)
-		rsName := rsCfg.Virtual.VirtualServerName
-		if rsCfg == nil {
-			if nil == ing.Spec.Rules { //single-service
-				serviceName := ing.Spec.Backend.ServiceName
-				servicePort := ing.Spec.Backend.ServicePort.IntVal
-				sKey := serviceKey{serviceName, servicePort, ing.ObjectMeta.Namespace}
-				if _, ok := appMgr.resources.Get(sKey, rsName); ok {
-					appMgr.resources.Delete(sKey, rsName)
-				}
-			} else { //multi-service
-				_, keys := appMgr.resources.GetAllWithName(rsName)
-				for _, key := range keys {
-					appMgr.resources.Delete(key, rsName)
-				}
-			}
-			appMgr.outputConfig()
-			return false, nil
-		}
-
-		for _, pool := range rsCfg.Pools {
-			key := &serviceQueueKey{
-				ServiceName: pool.ServiceName,
-				Namespace:   namespace,
-			}
-			keyList = append(keyList, key)
-		}
-		// Check if we have a key that contains this config that is no longer
-		// being used; if so, delete the config for that key
-		_, keys := appMgr.resources.GetAllWithName(rsName)
-		found := false
-		if len(keys) > len(keyList) {
-			for _, key := range keys {
-				for _, sKey := range keyList {
-					if sKey.ServiceName == key.ServiceName &&
-						sKey.Namespace == key.Namespace {
-						found = true
-						break
-					}
-				}
-				if found == false {
-					appMgr.resources.Delete(key, rsName)
-				}
-				found = false
-			}
-		}
-		if len(allKeys) > 0 {
-			// Append if not in list
-			for _, k := range keyList {
-				var keyFound bool
-				for _, ele := range allKeys {
-					if ele.Namespace == k.Namespace &&
-						ele.ServiceName == k.ServiceName {
-						keyFound = true
-						break
-					}
-				}
-				if !keyFound {
-					allKeys = append(allKeys, k)
-				}
-			}
-		} else {
-			allKeys = append(allKeys, keyList...)
-		}
-	}
-	return true, allKeys
-}
-
-func (appMgr *Manager) enqueueIngress(obj interface{}) {
-	if ok, keys := appMgr.checkValidIngress(obj); ok {
-		for _, key := range keys {
-			appMgr.vsQueue.Add(*key)
-		}
-	}
-}
-
 func getEndpointsForService(
 	portName string,
 	eps *v1.Endpoints,
@@ -1849,112 +1465,6 @@ func (appMgr *Manager) ProcessNodeUpdate(
 		// Initialize appMgr nodes on our first pass through
 		appMgr.oldNodes = newNodes
 	}
-}
-
-// Dump out the Virtual Server configs to a file
-func (appMgr *Manager) outputConfig() {
-	appMgr.resources.Lock()
-	appMgr.outputConfigLocked()
-	appMgr.resources.Unlock()
-}
-
-// Dump out the Virtual Server configs to a file
-// This function MUST be called with the virtualServers
-// lock held.
-func (appMgr *Manager) outputConfigLocked() {
-
-	// Initialize the Resources array as empty; json.Marshal() writes
-	// an uninitialized array as 'null', but we want an empty array
-	// written as '[]' instead
-	resources := BigIPConfig{}
-
-	// Filter the configs to only those that have active services
-	appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
-		if cfg.MetaData.Active == true {
-			resources.Virtuals = appendVirtual(resources.Virtuals, cfg.Virtual)
-			for _, p := range cfg.Pools {
-				resources.Pools = appendPool(resources.Pools, p)
-			}
-			for _, m := range cfg.Monitors {
-				resources.Monitors = appendMonitor(resources.Monitors, m)
-			}
-			for _, p := range cfg.Policies {
-				resources.Policies = appendPolicy(resources.Policies, p)
-			}
-		}
-	})
-	if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 ||
-		appMgr.initialState == true {
-		doneCh, errCh, err := appMgr.ConfigWriter().SendSection("resources", resources)
-		if nil != err {
-			log.Warningf("Failed to write Big-IP config data: %v", err)
-		} else {
-			select {
-			case <-doneCh:
-				log.Infof("Wrote %v Virtual Server configs", len(resources.Virtuals))
-				if log.LL_DEBUG == log.GetLogLevel() {
-					output, err := json.Marshal(resources)
-					if nil != err {
-						log.Warningf("Failed creating output debug log: %v", err)
-					} else {
-						log.Debugf("Resources: %s", output)
-					}
-				}
-			case e := <-errCh:
-				log.Warningf("Failed to write Big-IP config data: %v", e)
-			case <-time.After(time.Second):
-				log.Warning("Did not receive config write response in 1s")
-			}
-		}
-		appMgr.initialState = true
-	}
-}
-
-// Only append to the list if it isn't already in the list
-func appendVirtual(rsVirtuals []Virtual, v Virtual) []Virtual {
-	for _, rv := range rsVirtuals {
-		if rv.VirtualServerName == v.VirtualServerName &&
-			rv.Partition == v.Partition {
-			return rsVirtuals
-		}
-	}
-	return append(rsVirtuals, v)
-}
-
-// Only append to the list if it isn't already in the list
-func appendPool(rsPools []Pool, p Pool) []Pool {
-	for i, rp := range rsPools {
-		if rp.Name == p.Name &&
-			rp.Partition == p.Partition {
-			if len(p.PoolMemberAddrs) > 0 {
-				rsPools[i].PoolMemberAddrs = p.PoolMemberAddrs
-			}
-			return rsPools
-		}
-	}
-	return append(rsPools, p)
-}
-
-// Only append to the list if it isn't already in the list
-func appendMonitor(rsMons []Monitor, m Monitor) []Monitor {
-	for _, rm := range rsMons {
-		if rm.Name == m.Name &&
-			rm.Partition == m.Partition {
-			return rsMons
-		}
-	}
-	return append(rsMons, m)
-}
-
-// Only append to the list if it isn't already in the list
-func appendPolicy(rsPolicies []Policy, p Policy) []Policy {
-	for _, rp := range rsPolicies {
-		if rp.Name == p.Name &&
-			rp.Partition == p.Partition {
-			return rsPolicies
-		}
-	}
-	return append(rsPolicies, p)
 }
 
 // Return a copy of the node cache

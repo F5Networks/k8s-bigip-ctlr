@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/F5Networks/k8s-bigip-ctlr.svg?branch=master)](https://travis-ci.org/F5Networks/k8s-bigip-ctlr) [![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg?branch=master)](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr?branch=master)
 
-F5 Kubernetes BIG-IP Controller
-===============================
+F5 BIG-IP Controller for Kubernetes
+===================================
 
 The F5 BIG-IP Controller for [Kubernetes](http://kubernetes.io/) makes F5 BIG-IP
 [Local Traffic Manager](<https://f5.com/products/big-ip/local-traffic-manager-ltm)
@@ -11,10 +11,11 @@ Documentation
 -------------
 
 For instruction on how to use this component, see the
-[F5 Kubernetes BIG-IP Controller docs](http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/latest/).
+[docs](http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/latest/)
+for F5 BIG-IP Controller for Kubernetes.
 
 For guides on this and other solutions for Kubernetes, see the
-[F5 Kubernetes Solution Guides](http://clouddocs.f5.com/containers/latest/kubernetes).
+[F5 Solution Guides for Kubernetes](http://clouddocs.f5.com/containers/latest/kubernetes).
 
 
 Running

@@ -22,11 +22,3 @@ WORKDIR/src/"package\_name"
 In the above structure this script should be invoked from WORKDIR and
 "package\_name" should be a directory under WORKDIR/src which contains all go
 files related to the package whose vendor dependencies have to be determined.
-
-### Requirements
-This script uses python gitlab API module called gitlab. Follow the instructions
-here: https://github.com/gpocentek/python-gitlab to install the module.
-
-### Limitations
-To enable CI builds to work correctly, mirrored projects need to deploy
-gitlab-ci "Deploy Key" which is not supported by this script.

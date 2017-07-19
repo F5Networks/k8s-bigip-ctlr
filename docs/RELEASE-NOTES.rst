@@ -8,7 +8,7 @@ Added Functionality
 ```````````````````
 
 * Creation of BIG-IP Virtual Servers from Kubernetes Ingress resources.
-* Configure multiple SSL Profiles for a BIG-IP Virtual Servers.
+* Configure multiple SSL Profiles for a BIG-IP Virtual Server.
 * Watch all Kubernetes namespaces by default; watch a list of namespaces; watch namespaces with a user-specified label.
 * Watch for Kubernetes annotation if virtual address not specified, enabling custom IPAM integration.
 * Create detached pools if virtual server bind addresses not specified.

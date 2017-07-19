@@ -69,7 +69,7 @@ source_encoding = 'utf-8-sig'
 master_doc = 'index'
 
 # General information about the project. 
-project = u'F5 Kubernetes BIG-IP Controller'
+project = u'F5 BIG-IP Controller for Kubernetes'
 copyright = u'2017 F5 Networks Inc'
 author = u'F5 Networks'
 
@@ -190,7 +190,7 @@ html_title = "{} {}".format(project, version)
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
 #
-#html_short_title = u'F5 Kubernetes BIG-IP Controller'
+#html_short_title = u'F5 BIG-IP Controller for Kubernetes'
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
@@ -315,7 +315,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'F5 Kubernetes BIG-IP Controller.tex',
-     u'F5 Kubernetes BIG-IP Controller - Documentation',
+     u'F5 BIG-IP Controller for Kubernetes - Documentation',
      'F5 Networks', 'manual'),
 ]
 
@@ -365,8 +365,8 @@ latex_toplevel_sectioning = 'section'
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'F5 Kubernetes BIG-IP Controller',
-     u'F5 Kubernetes BIG-IP Controller - Documentation',
+    (master_doc, 'F5 BIG-IP Controller for Kubernetes',
+     u'F5 BIG-IP Controller for Kubernetes - Documentation',
      [author], 1)
 ]
 
@@ -381,9 +381,9 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'F5 Kubernetes BIG-IP Controller',
-     u'F5 Kubernetes BIG-IP Controller Documentation',
-     author, 'F5 Kubernetes BIG-IP Controller', 'manual'),
+    (master_doc, 'F5 BIG-IP Controller for Kubernetes',
+     u'F5 BIG-IP Controller for Kubernetes - Documentation',
+     author, 'F5 BIG-IP Controller for Kubernetes', 'manual'),
 ]
 
 # Documents to append as an appendix to all manuals.

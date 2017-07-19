@@ -1,5 +1,5 @@
-Release Notes for K8S BIG-IP Controller
-=======================================
+Release Notes for BIG-IP Controller for Kubernetes
+==================================================
 
 |release|
 ---------

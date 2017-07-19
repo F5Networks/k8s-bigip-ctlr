@@ -45,192 +45,11 @@ var DEFAULT_HTTP_PORT int32 = 80
 var DEFAULT_HTTPS_PORT int32 = 443
 var DEFAULT_PARTITION string
 
-type BigIPConfig struct {
-	Virtuals []Virtual `json:"virtualServers,omitempty"`
-	Pools    []Pool    `json:"pools,omitempty"`
-	Monitors []Monitor `json:"monitors,omitempty"`
-	Policies []Policy  `json:"l7Policies,omitempty"`
-}
+// Indicator to use an F5 schema
+var schemaIndicator string = "f5schemadb://"
 
-type metaData struct {
-	Active   bool
-	NodePort int32
-}
-
-type ResourceConfig struct {
-	MetaData metaData `json:"-"`
-	Virtual  Virtual  `json:"virtual,omitempty"`
-	Pools    []Pool   `json:"pools,omitempty"`
-	Monitors Monitors `json:"monitors,omitempty"`
-	Policies []Policy `json:"policies,omitempty"`
-}
-
-// virtual server frontend
-type Virtual struct {
-	VirtualServerName string `json:"name"`
-	PoolName          string `json:"pool"`
-	// Mutual parameter, partition
-	Partition string `json:"partition"`
-
-	// VirtualServer parameters
-	Balance        string          `json:"balance,omitempty"`
-	Mode           string          `json:"mode,omitempty"`
-	VirtualAddress *virtualAddress `json:"virtualAddress,omitempty"`
-	SslProfile     *sslProfile     `json:"sslProfile,omitempty"`
-	Policies       []nameRef       `json:"policies,omitempty"`
-
-	// iApp parameters
-	IApp                string                    `json:"iapp,omitempty"`
-	IAppPoolMemberTable iappPoolMemberTable       `json:"iappPoolMemberTable,omitempty"`
-	IAppOptions         map[string]string         `json:"iappOptions,omitempty"`
-	IAppTables          map[string]iappTableEntry `json:"iappTables,omitempty"`
-	IAppVariables       map[string]string         `json:"iappVariables,omitempty"`
-}
-
-// Pool backend
-type Pool struct {
-	Name            string   `json:"name"`
-	Partition       string   `json:"partition"`
-	ServiceName     string   `json:"serviceName"`
-	ServicePort     int32    `json:"servicePort"`
-	PoolMemberAddrs []string `json:"poolMemberAddrs"`
-	MonitorNames    []string `json:"monitor"`
-}
-
-// backend health monitor
-type Monitor struct {
-	Name      string `json:"name"`
-	Partition string `json:"partition"`
-	Interval  int    `json:"interval,omitempty"`
-	Protocol  string `json:"protocol"`
-	Send      string `json:"send,omitempty"`
-	Timeout   int    `json:"timeout,omitempty"`
-}
-type Monitors []Monitor
-
-// virtual policy
-type Policy struct {
-	Name        string   `json:"name"`
-	Partition   string   `json:"partition"`
-	SubPath     string   `json:"subPath,omitempty"`
-	Controls    []string `json:"controls,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Legacy      bool     `json:"legacy,omitempty"`
-	Requires    []string `json:"requires,omitempty"`
-	Rules       []*Rule  `json:"rules,omitempty"`
-	Strategy    string   `json:"strategy,omitempty"`
-}
-
-type Rule struct {
-	Name       string       `json:"name"`
-	FullURI    string       `json:"-"`
-	Ordinal    int          `json:"ordinal,omitempty"`
-	Actions    []*action    `json:"actions,omitempty"`
-	Conditions []*condition `json:"conditions,omitempty"`
-}
-
-type action struct {
-	Name      string `json:"name"`
-	Pool      string `json:"pool",omitempty"`
-	HttpReply bool   `json:"httpReply,omitempty"`
-	Forward   bool   `json:"forward,omitempty"`
-	Location  string `json:"location,omitempty"`
-	Redirect  bool   `json:"redirect,omitempty"`
-	Request   bool   `json:"request,omitempty"`
-	Reset     bool   `json:"reset,omitempty"`
-}
-
-type condition struct {
-	Name            string   `json:"name"`
-	CaseInsensitive bool     `json:"caseInsensitive,omitempty"`
-	Equals          bool     `json:"equals,omitempty"`
-	EndsWith        bool     `json:"endsWith,omitempty"`
-	External        bool     `json:"external,omitempty"`
-	HTTPHost        bool     `json:"httpHost,omitempty"`
-	Host            bool     `json:"host,omitempty"`
-	HTTPURI         bool     `json:"httpUri,omitempty"`
-	Index           int      `json:"index,omitempty"`
-	PathSegment     bool     `json:"pathSegment,omitempty"`
-	Present         bool     `json:"present,omitempty"`
-	Remote          bool     `json:"remote,omitempty"`
-	Request         bool     `json:"request,omitempty"`
-	Scheme          bool     `json:"scheme,omitempty"`
-	Values          []string `json:"values"`
-}
-
-type Rules []*Rule
-type ruleMap map[string]*Rule
-
-// virtual server policy/profile reference
-type nameRef struct {
-	Name      string `json:"name"`
-	Partition string `json:"partition"`
-}
-
-// frontend bindaddr and port
-type virtualAddress struct {
-	BindAddr string `json:"bindAddr,omitempty"`
-	Port     int32  `json:"port,omitempty"`
-}
-
-// frontend ssl profile
-type sslProfile struct {
-	F5ProfileName  string   `json:"f5ProfileName,omitempty"`
-	F5ProfileNames []string `json:"f5ProfileNames,omitempty"`
-}
-
-// frontend pool member column definition
-type iappPoolMemberColumn struct {
-	Name  string `json:"name"`
-	Kind  string `json:"kind,omitempty"`
-	Value string `json:"value,omitempty"`
-}
-
-// frontend pool member table
-type iappPoolMemberTable struct {
-	Name    string                 `json:"name"`
-	Columns []iappPoolMemberColumn `json:"columns"`
-}
-
-// frontend iapp table entry
-type iappTableEntry struct {
-	Columns []string   `json:"columns,omitempty"`
-	Rows    [][]string `json:"rows,omitempty"`
-}
-
-// Used to unmarshal ConfigMap data
-type ConfigMap struct {
-	VirtualServer struct {
-		Backend  configMapBackend `json:"backend"`
-		Frontend Virtual          `json:"frontend"`
-	} `json:"virtualServer"`
-}
-
-type configMapBackend struct {
-	ServiceName     string    `json:"serviceName"`
-	ServicePort     int32     `json:"servicePort"`
-	PoolMemberAddrs []string  `json:"poolMemberAddrs"`
-	HealthMonitors  []Monitor `json:"healthMonitors,omitempty"`
-}
-
-// This is the format for each item in the health monitor annotation used
-// in the Ingress object.
-type IngressHealthMonitor struct {
-	Path     string `json:"path"`
-	Interval int    `json:"interval"`
-	Send     string `json:"send"`
-	Timeout  int    `json:"timeout"`
-}
-type IngressHealthMonitors []IngressHealthMonitor
-
-type ingressRuleData struct {
-	svcName   string
-	svcPort   int32
-	healthMon IngressHealthMonitor
-	assigned  bool
-}
-type ingressPathToRuleMap map[string]*ingressRuleData
-type ingressHostToPathMap map[string]ingressPathToRuleMap
+// Where the schemas reside locally
+var schemaLocal string = "file:///app/vendor/src/f5/schemas/"
 
 // Wrappers around the ssl profile name to simplify its use due to the
 // pointer and nested depth.
@@ -327,8 +146,6 @@ func (v *Virtual) ToString() string {
 	return string(output)
 }
 
-type ResourceConfigs []*ResourceConfig
-
 func (slice ResourceConfigs) Len() int {
 	return len(slice)
 }
@@ -344,19 +161,6 @@ func (slice ResourceConfigs) Less(i, j int) bool {
 
 func (slice ResourceConfigs) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
-}
-
-// Indicator to use an F5 schema
-var schemaIndicator string = "f5schemadb://"
-
-// Where the schemas reside locally
-var schemaLocal string = "file:///app/vendor/src/f5/schemas/"
-
-// Virtual Server Key - unique server is Name + Port
-type serviceKey struct {
-	ServiceName string
-	ServicePort int32
-	Namespace   string
 }
 
 // format the namespace and name for use in the frontend definition

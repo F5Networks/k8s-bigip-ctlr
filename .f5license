@@ -26,7 +26,7 @@
 
 # The client-go module contains a proper LICENSE file.
 - name: client-go
-  version: v3.0.0-beta.0
+  version: v3.0.0
   attribution_text: |
     Copyright 2014 The Kubernetes Authors.
 
@@ -44,7 +44,7 @@
 
 # The apimachinery module contains a proper LICENSE file.
 - name: apimachinery
-  version: 75b8dd2
+  version: 85ace53
   attribution_text: |
     Copyright 2014 The Kubernetes Authors.
 
@@ -80,7 +80,7 @@
 
 # The docker/distribution project has a large number of authors.
 - name: docker/distribution
-  version: v2.4.0-rc.1-38-gcd27f17
+  version: v2.4.0-rc.1-38-gcd27f179
   license: Apache-2.0
   author:
     name: Contributing authors
@@ -170,7 +170,7 @@
 
 # The gogo/protobuf module contains a proper LICENSE file.
 - name: gogo/protobuf
-  version: v0.2-33-ge18d7aa
+  version: v0.2-33-ge18d7aa8
   attribution_text: |
     Extensions for Protocol Buffers to create more go like structures.
 

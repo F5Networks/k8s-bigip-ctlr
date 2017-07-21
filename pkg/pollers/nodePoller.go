@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	log "f5/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"

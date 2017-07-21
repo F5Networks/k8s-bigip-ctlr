@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	log "f5/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 

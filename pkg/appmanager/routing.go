@@ -25,7 +25,7 @@ import (
 	"strings"
 	"sync"
 
-	log "f5/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )

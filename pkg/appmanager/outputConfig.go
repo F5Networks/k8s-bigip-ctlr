@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"time"
 
-	log "f5/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
 // Dump out the Virtual Server configs to a file

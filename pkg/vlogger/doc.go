@@ -118,8 +118,8 @@ to the console:
   package main
 
   import (
-    log  "velcro/vlogger"
-    "velcro/vlogger/console"
+    log  "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+    "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger/console"
 
   func init() {
     // Log all messages to the user's console

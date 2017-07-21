@@ -26,7 +26,7 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
-	log "f5/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
 func initializeDriverConfig(

@@ -21,23 +21,7 @@ verify: fmt
 docs: _docs
 
 
-#
-# f5/vlogger isn't in a go gettable import path
-#
-# Manually restore it, then remove it from Godeps.json so that godep can
-# restore the remaining deps without errors
 godep-restore: check-gopath
-	mkdir -p $(GOPATH)/src/f5
-	[ -d $(GOPATH)/src/f5/vlogger ] \
-		|| git clone https://gitlab.pdbld.f5net.com/velcro/vlogger.git \
-		   $(GOPATH)/src/f5/vlogger
-	rev=`cat Godeps/Godeps.json \
-	    | jq -r '[.Deps[] | select(.ImportPath | startswith("f5/vlogger"))] | .[0].Rev'` \
-	  && cd $(GOPATH)/src/f5/vlogger \
-	  && git fetch --all \
-	  && git checkout $$rev
-	mv Godeps/Godeps.json Godeps/Godeps.json.bk
-	cat Godeps/Godeps.json.bk | jq '.Deps=[.Deps[] | select( .ImportPath | startswith("f5") | not) ]' > Godeps/Godeps.json
 	godep restore
 	rm -rf vendor Godeps
 

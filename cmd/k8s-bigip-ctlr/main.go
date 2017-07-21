@@ -30,8 +30,8 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
-	log "f5/vlogger"
-	clog "f5/vlogger/console"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	clog "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger/console"
 
 	"github.com/spf13/pflag"
 

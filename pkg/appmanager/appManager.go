@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	log "f5/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	"k8s.io/apimachinery/pkg/runtime"

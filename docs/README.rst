@@ -8,7 +8,7 @@ F5 BIG-IP Controller for Kubernetes
     RELEASE-NOTES
     /_static/ATTRIBUTIONS
 
-The |project| manages F5 BIG-IP `Local Traffic Manager <https://f5.com/products/big-ip/local-traffic-manager-ltm>`_ (LTM) objects from `Kubernetes`_.
+The |kctlr-long| manages F5 BIG-IP `Local Traffic Manager <https://f5.com/products/big-ip/local-traffic-manager-ltm>`_ (LTM) objects from `Kubernetes`_.
 
 |release-notes|
 
@@ -30,23 +30,23 @@ See the `F5 Container Connector for Kubernetes user documentation </containers/v
 Overview
 --------
 
-The |project| is a Docker container that runs in a `Kubernetes`_ Pod.
+The |kctlr-long| is a Docker container that runs in a `Kubernetes`_ Pod.
 It uses an F5 Resource to determine:
 
 - what objects to configure on your BIG-IP, and
 - to which `Kubernetes Service`_ the BIG-IP objects belong.
 
-The |project| watches the Kubernetes API for the creation and modification of F5 resources.
-When it discovers changes, the |project| modifies the BIG-IP accordingly.
+The |kctlr-long| watches the Kubernetes API for the creation and modification of F5 resources.
+When it discovers changes, the |kctlr-long| modifies the BIG-IP accordingly.
 
 
 For example:
 
-#. |project| discovers a new F5 ``virtualServer`` resource.
-#. |project| creates a new virtual server object on the BIG-IP. [#objectpartition]_
-#. |project| creates a pool member on the virtual server for each node in the cluster. [#nodeport]_
-#. |project| monitors F5 resources, and linked Kubernetes resources, for changes.
-#. |project| reconfigures the BIG-IP when it discovers changes.
+#. |kctlr-long| discovers a new F5 ``virtualServer`` resource.
+#. |kctlr-long| creates a new virtual server object on the BIG-IP. [#objectpartition]_
+#. |kctlr-long| creates a pool member on the virtual server for each node in the cluster. [#nodeport]_
+#. |kctlr-long| monitors F5 resources, and linked Kubernetes resources, for changes.
+#. |kctlr-long| reconfigures the BIG-IP when it discovers changes.
 
 The BIG-IP handles traffic for the Service the specified virtual address and load-balances to all nodes in the cluster. Within the cluster, the allocated NodePort load balances traffic to all pods.
 
@@ -305,8 +305,8 @@ Example Configuration Files
 - `example-advanced-vs-resource-iapp.json <./_static/config_examples/example-advanced-vs-resource-iapp.json>`_
 
 
-.. [#objectpartition]  The |project| creates and manages objects in the BIG-IP partition defined in the `F5 resource </containers/v1/kubernetes/index.html#f5-resource-properties>`_ ConfigMap.
-.. [#nodeport]  The |project| forwards traffic to the NodePort assigned to the service by Kubernetes; see the Kubernetes `Services <http://kubernetes.io/docs/user-guide/services/>`_ documentation for more information.
+.. [#objectpartition]  The |kctlr-long| creates and manages objects in the BIG-IP partition defined in the `F5 resource </containers/v1/kubernetes/index.html#f5-resource-properties>`_ ConfigMap.
+.. [#nodeport]  The |kctlr-long| forwards traffic to the NodePort assigned to the service by Kubernetes; see the Kubernetes `Services <http://kubernetes.io/docs/user-guide/services/>`_ documentation for more information.
 .. [#secrets]  You can store sensitive information as a `Kubernetes Secret <http://kubernetes.io/docs/user-guide/secrets/>`_. See the `user documentation <#>`_ for instructions.
 
 

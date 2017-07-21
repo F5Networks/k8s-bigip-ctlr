@@ -184,15 +184,26 @@ func formatIngressSslProfileName(secret string) string {
 	case 1:
 		// This is technically supported on the Big-IP, but will fail in the
 		// python driver. Issue a warning here for better context.
-		log.Warningf("WARNING: TLS secret '%v' does not contain a full path.",
-			secret)
+		log.Warningf("TLS secret '%v' does not contain a full path.", secret)
 	default:
 		// This is almost certainly an error, but again issue a warning for
 		// improved context here and pass it through to be handled elsewhere.
-		log.Warningf("WARNING: TLS secret '%v' is formatted incorrectly.",
-			secret)
+		log.Warningf("TLS secret '%v' is formatted incorrectly.", secret)
 	}
 	return profName
+}
+
+// Store of CustomProfiles
+type CustomProfileStore struct {
+	sync.Mutex
+	profs map[secretKey]CustomProfile
+}
+
+// Contructor for CustomProfiles
+func NewCustomProfiles() CustomProfileStore {
+	var cps CustomProfileStore
+	cps.profs = make(map[secretKey]CustomProfile)
+	return cps
 }
 
 type ResourceConfigMap map[string]*ResourceConfig

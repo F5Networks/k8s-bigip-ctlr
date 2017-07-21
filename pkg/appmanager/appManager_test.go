@@ -340,6 +340,10 @@ func (m *mockAppManager) resources() *Resources {
 	return m.appMgr.resources
 }
 
+func (m *mockAppManager) customProfiles() map[secretKey]CustomProfile {
+	return m.appMgr.customProfiles.profs
+}
+
 func (m *mockAppManager) getVsMutex(sKey serviceQueueKey) *sync.Mutex {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -3476,4 +3480,91 @@ func TestIngressSslProfile(t *testing.T) {
 	httpsCfg, found = resources.Get(svcKey, formatIngressVSName(fooIng, "https"))
 	assert.False(found)
 	require.Nil(httpsCfg)
+}
+
+func TestSecretSslProfile(t *testing.T) {
+	mw := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	require := require.New(t)
+	assert := assert.New(t)
+	fakeClient := fake.NewSimpleClientset()
+	fakeRecorder := record.NewFakeRecorder(100)
+	require.NotNil(fakeClient, "Mock client should not be nil")
+	require.NotNil(fakeRecorder, "Mock recorder should not be nil")
+	namespace := "default"
+
+	appMgr := newMockAppManager(&Params{
+		KubeClient:    fakeClient,
+		ConfigWriter:  mw,
+		restClient:    test.CreateFakeHTTPClient(),
+		IsNodePort:    false,
+		EventRecorder: fakeRecorder,
+	})
+	err := appMgr.startNonLabelMode([]string{namespace})
+	require.Nil(err)
+	defer appMgr.shutdown()
+
+	// Create a secret
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "secret",
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			"tls.crt": []byte("testcert"),
+			"tls.key": []byte("testkey"),
+		},
+	}
+	_, err = fakeClient.Core().Secrets(namespace).Create(secret)
+	require.Nil(err)
+
+	spec := v1beta1.IngressSpec{
+		TLS: []v1beta1.IngressTLS{
+			{
+				SecretName: secret.ObjectMeta.Name,
+			},
+		},
+		Backend: &v1beta1.IngressBackend{
+			ServiceName: "foo",
+			ServicePort: intstr.IntOrString{IntVal: 80},
+		},
+	}
+	// Test for Ingress
+	ingress := test.NewIngress("ingress", "1", namespace, spec,
+		map[string]string{
+			"virtual-server.f5.com/ip":        "1.2.3.4",
+			"virtual-server.f5.com/partition": "velcro",
+		})
+	appMgr.addIngress(ingress)
+
+	customProfiles := appMgr.customProfiles()
+	assert.Equal(1, len(customProfiles))
+	// Test for ConfigMap
+	var configmapSecret string = string(`{
+	"virtualServer": {
+	    "backend": {
+	      "serviceName": "foo",
+	      "servicePort": 80
+	    },
+	    "frontend": {
+	      "partition": "velcro",
+	      "virtualAddress": {
+	        "port": 10000
+	      },
+	      "sslProfile": {
+	        "f5ProfileName": "secret"
+	      }
+	    }
+	  }
+	}`)
+	secretCfg := test.NewConfigMap("secretCfg", "1", namespace, map[string]string{
+		"schema": schemaUrl,
+		"data":   configmapSecret,
+	})
+	appMgr.addConfigMap(secretCfg)
+	assert.Equal(2, len(customProfiles))
+	appMgr.deleteConfigMap(secretCfg)
+	assert.Equal(1, len(customProfiles))
 }

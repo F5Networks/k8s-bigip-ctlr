@@ -16,6 +16,7 @@
 from __future__ import absolute_import
 
 import argparse
+import base64
 import fcntl
 import hashlib
 import ipaddress
@@ -35,6 +36,7 @@ from urlparse import urlparse
 from f5_cccl._f5 import CloudBigIP, get_protocol, has_partition, log_sequence
 from f5_cccl.common import extract_partition_and_name, ipv4_to_mac,\
     list_diff_exclusive, IPV4FormatError, PartitionNameError
+from f5.bigip import ManagementRoot
 
 log = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -44,12 +46,24 @@ root_logger = logging.getLogger()
 root_logger.addHandler(console)
 
 
-class RootFilter(logging.Filter):
+class ResponseStatusFilter(logging.Filter):
     def filter(self, record):
         return not record.getMessage().startswith("RESPONSE::STATUS")
 
 
-root_logger.addFilter(RootFilter())
+class CertFilter(logging.Filter):
+    def filter(self, record):
+        return "CERTIFICATE" not in record.getMessage()
+
+
+class KeyFilter(logging.Filter):
+    def filter(self, record):
+        return "PRIVATE KEY" not in record.getMessage()
+
+
+root_logger.addFilter(ResponseStatusFilter())
+root_logger.addFilter(CertFilter())
+root_logger.addFilter(KeyFilter())
 
 DEFAULT_LOG_LEVEL = logging.INFO
 DEFAULT_VERIFY_INTERVAL = 30.0
@@ -442,6 +456,79 @@ def create_ltm_config_kubernetes(bigip, config):
     return configuration
 
 
+def _create_client_ssl_profile(bigip, profile):
+    # bigip object is of type f5.bigip.tm;
+    # we need f5.bigip.shared for the uploader
+    mgmt = ManagementRoot(bigip.hostname, bigip._username, bigip._password)
+    uploader = mgmt.shared.file_transfer.uploads
+    cert_registrar = bigip.sys.crypto.certs
+    key_registrar = bigip.sys.crypto.keys
+    ssl_client_profile = bigip.ltm.profile.client_ssls.client_ssl
+
+    name = profile['name']
+    partition = profile['partition']
+    cert = base64.b64decode(profile['cert'])
+    key = base64.b64decode(profile['key'])
+
+    # No need to create if it exists
+    if ssl_client_profile.exists(name=name, partition=partition):
+        return
+
+    certfilename = name + '.crt'
+    keyfilename = name + '.key'
+
+    try:
+        # In-memory upload -- data not written to local file system but
+        # is saved as a file on the BIG-IP
+        uploader.upload_bytes(cert, certfilename)
+        uploader.upload_bytes(key, keyfilename)
+
+        # import certificate
+        param_set = {}
+        param_set['name'] = certfilename
+        param_set['from-local-file'] = os.path.join(
+            '/var/config/rest/downloads', certfilename)
+        cert_registrar.exec_cmd('install', **param_set)
+
+        # import key
+        param_set['name'] = keyfilename
+        param_set['from-local-file'] = os.path.join(
+            '/var/config/rest/downloads', keyfilename)
+        key_registrar.exec_cmd('install', **param_set)
+
+        # create ssl-client profile from cert/key pair
+        chain = [{'name': name,
+                  'cert': '/Common/' + certfilename,
+                  'key': '/Common/' + keyfilename}]
+        ssl_client_profile.create(name=name,
+                                  partition=partition,
+                                  certKeyChain=chain,
+                                  sniDefault=False,
+                                  defaultsFrom=None)
+    except Exception as err:
+        log.error("Error creating SSL profile: %s" % err.message)
+
+
+def _delete_client_ssl_profiles(bigip, config):
+    if 'customProfiles' not in config:
+        # delete any profiles in managed partitions
+        for partition in bigip._partitions:
+            for prof in bigip.ltm.profile.client_ssls.get_collection(
+                requests_params={'params': '$filter=partition+eq+%s'
+                                 % partition}):
+                prof.delete()
+    else:
+        # delete profiles no longer in our config
+        for partition in bigip._partitions:
+            for prof in bigip.ltm.profile.client_ssls.get_collection(
+                requests_params={'params': '$filter=partition+eq+%s'
+                                 % partition}):
+                if not any(d['name'] == prof.name and
+                           d['partition'] == partition
+                           for d in config['customProfiles']):
+                    prof.delete()
+
+
 class ConfigHandler():
     def __init__(self, config_file, bigip, verify_interval):
         self._config_file = config_file
@@ -490,6 +577,10 @@ class ConfigHandler():
         log.debug('config handler thread start')
 
         with self._condition:
+            # customProfiles is true when we've written out a custom profile.
+            # Once we know we've written out a profile, we can call delete
+            # if needed.
+            customProfiles = False
             while True:
                 self._condition.acquire()
                 if not self._pending_reset and not self._stop:
@@ -514,6 +605,13 @@ class ConfigHandler():
                     verify_interval, _ = _handle_global_config(config)
                     _handle_openshift_sdn_config(config)
                     self.set_interval_timer(verify_interval)
+
+                    # Manually create custom profiles;CCCL doesn't yet do this
+                    if 'customProfiles' in config['resources']:
+                        for profile in config['resources']['customProfiles']:
+                            _create_client_ssl_profile(self._bigip, profile)
+                            customProfiles = True
+
                     cfg = create_config_kubernetes(self._bigip, config)
                     if self._bigip.regenerate_config_f5(cfg):
                         # Error occurred, perform retries
@@ -527,6 +625,11 @@ class ConfigHandler():
                         self._backoff_time = 1
                         if self._backoff_timer is not None:
                             self.cleanup_backoff()
+
+                        # Manually delete custom profiles (if needed)
+                        if customProfiles:
+                            _delete_client_ssl_profiles(self._bigip,
+                                                        config['resources'])
 
                         perf_enable = os.environ.get('SCALE_PERF_ENABLE')
                         if perf_enable:  # pragma: no cover

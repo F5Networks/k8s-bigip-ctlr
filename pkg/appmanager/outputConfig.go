@@ -55,6 +55,9 @@ func (appMgr *Manager) outputConfigLocked() {
 			}
 		}
 	})
+	for _, profile := range appMgr.customProfiles.profs {
+		resources.CustomProfiles = append(resources.CustomProfiles, profile)
+	}
 	if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 ||
 		appMgr.initialState == true {
 		doneCh, errCh, err := appMgr.ConfigWriter().SendSection("resources", resources)
@@ -65,6 +68,8 @@ func (appMgr *Manager) outputConfigLocked() {
 			case <-doneCh:
 				log.Infof("Wrote %v Virtual Server configs", len(resources.Virtuals))
 				if log.LL_DEBUG == log.GetLogLevel() {
+					// Remove customProfiles from output
+					resources.CustomProfiles = []CustomProfile{}
 					output, err := json.Marshal(resources)
 					if nil != err {
 						log.Warningf("Failed creating output debug log: %v", err)

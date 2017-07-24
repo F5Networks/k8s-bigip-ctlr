@@ -40,6 +40,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"k8s.io/apimachinery/pkg/labels"
+
+	routeclient "github.com/openshift/origin/pkg/client"
+	// The import below is required to register the RouteList and Route types.
+	_ "github.com/openshift/origin/pkg/route/api/install"
 )
 
 type globalSection struct {
@@ -73,6 +77,7 @@ var (
 	inCluster       *bool
 	kubeConfig      *string
 	namespaceLabel  *string
+	manageRoutes    *bool
 
 	bigIPURL        *string
 	bigIPUsername   *string
@@ -139,6 +144,9 @@ func _init() {
 		"Optional, absolute path to the kubeconfig file")
 	namespaceLabel = kubeFlags.String("namespace-label", "",
 		"Optional, used to watch for namespaces with this label")
+	manageRoutes = kubeFlags.Bool("manage-routes", false,
+		"Optional, specify whether or not to manage Route resources")
+	kubeFlags.MarkHidden("manage-routes")
 
 	kubeFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsages())
@@ -409,6 +417,12 @@ func main() {
 	appMgrParms.KubeClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Fatalf("error connecting to the client: %v", err)
+	}
+	if *manageRoutes {
+		appMgrParms.RouteClientV1, err = routeclient.New(config)
+		if nil != err {
+			log.Fatalf("unable to create route client: err: %+v\n", err)
+		}
 	}
 
 	appMgr := appmanager.NewManager(&appMgrParms)

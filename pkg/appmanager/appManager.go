@@ -46,6 +46,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+
+	routeclient "github.com/openshift/origin/pkg/client"
+	routeapi "github.com/openshift/origin/pkg/route/api"
 )
 
 const DefaultConfigMapLabel = "f5type in (virtual-server)"
@@ -62,6 +65,7 @@ type Manager struct {
 	kubeClient        kubernetes.Interface
 	restClientv1      rest.Interface
 	restClientv1beta1 rest.Interface
+	routeClientV1     *routeclient.Client
 	configWriter      writer.Writer
 	initialState      bool
 	// Use internal node IPs
@@ -92,6 +96,7 @@ type Manager struct {
 type Params struct {
 	KubeClient      kubernetes.Interface
 	restClient      rest.Interface // package local for unit testing only
+	RouteClientV1   *routeclient.Client
 	ConfigWriter    writer.Writer
 	UseNodeInternal bool
 	IsNodePort      bool
@@ -111,6 +116,7 @@ func NewManager(params *Params) *Manager {
 		kubeClient:        params.KubeClient,
 		restClientv1:      params.restClient,
 		restClientv1beta1: params.restClient,
+		routeClientV1:     params.RouteClientV1,
 		configWriter:      params.ConfigWriter,
 		useNodeInternal:   params.UseNodeInternal,
 		isNodePort:        params.IsNodePort,
@@ -339,6 +345,7 @@ type appInformer struct {
 	svcInformer    cache.SharedIndexInformer
 	endptInformer  cache.SharedIndexInformer
 	ingInformer    cache.SharedIndexInformer
+	routeInformer  cache.SharedIndexInformer
 	stopCh         chan struct{}
 }
 
@@ -395,6 +402,19 @@ func (appMgr *Manager) newAppInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
 	}
+	if nil != appMgr.routeClientV1 {
+		appInf.routeInformer = cache.NewSharedIndexInformer(
+			newListWatchWithLabelSelector(
+				appMgr.routeClientV1.RESTClient,
+				"routes",
+				namespace,
+				labels.Everything(),
+			),
+			&routeapi.Route{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
+	}
 
 	appInf.cfgMapInformer.AddEventHandlerWithResyncPeriod(
 		&cache.ResourceEventHandlerFuncs{
@@ -431,6 +451,24 @@ func (appMgr *Manager) newAppInformer(
 		},
 		resyncPeriod,
 	)
+
+	if nil != appMgr.routeClientV1 {
+		// TODO: add enqueueRoute() calls here
+		appInf.routeInformer.AddEventHandlerWithResyncPeriod(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc: func(obj interface{}) {
+					fmt.Printf("routeInformer: AddFunc: %+v\n", obj)
+				},
+				UpdateFunc: func(old, cur interface{}) {
+					fmt.Printf("routeInformer: UpdateFunc: %+v\n", cur)
+				},
+				DeleteFunc: func(obj interface{}) {
+					fmt.Printf("routeInformer: DeleteFunc: %+v\n", obj)
+				},
+			},
+			resyncPeriod,
+		)
+	}
 
 	return &appInf
 }
@@ -519,16 +557,30 @@ func (appInf *appInformer) start() {
 	go appInf.svcInformer.Run(appInf.stopCh)
 	go appInf.endptInformer.Run(appInf.stopCh)
 	go appInf.ingInformer.Run(appInf.stopCh)
+	if nil != appInf.routeInformer {
+		go appInf.routeInformer.Run(appInf.stopCh)
+	}
 }
 
 func (appInf *appInformer) waitForCacheSync() {
-	cache.WaitForCacheSync(
-		appInf.stopCh,
-		appInf.cfgMapInformer.HasSynced,
-		appInf.svcInformer.HasSynced,
-		appInf.endptInformer.HasSynced,
-		appInf.ingInformer.HasSynced,
-	)
+	if nil != appInf.routeInformer {
+		cache.WaitForCacheSync(
+			appInf.stopCh,
+			appInf.cfgMapInformer.HasSynced,
+			appInf.svcInformer.HasSynced,
+			appInf.endptInformer.HasSynced,
+			appInf.ingInformer.HasSynced,
+			appInf.routeInformer.HasSynced,
+		)
+	} else {
+		cache.WaitForCacheSync(
+			appInf.stopCh,
+			appInf.cfgMapInformer.HasSynced,
+			appInf.svcInformer.HasSynced,
+			appInf.endptInformer.HasSynced,
+			appInf.ingInformer.HasSynced,
+		)
+	}
 }
 
 func (appInf *appInformer) stopInformers() {

@@ -26,7 +26,6 @@ godep-restore: check-gopath
 	rm -rf vendor Godeps
 
 godep-save: check-gopath
-	rm -rf vendor Godeps
 	godep save ./...
 
 clean:

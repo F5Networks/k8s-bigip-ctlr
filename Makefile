@@ -5,7 +5,10 @@ GOOS     = $(shell go env GOOS)
 GOARCH   = $(shell go env GOARCH)
 GOBIN    = $(GOPATH)/bin/$(GOOS)-$(GOARCH)
 
-GO_BUILD_FLAGS=-v
+export BUILD_VERSION := $(shell ./build-tools/version-tool version)
+export BUILD_INFO := $(shell ./build-tools/version-tool build-info)
+
+GO_BUILD_FLAGS=-v -ldflags "-extldflags \"-static\" -X main.version=$(BUILD_VERSION) -X main.buildInfo=$(BUILD_INFO)"
 
 # Allow users to pass in BASE_OS build options (alpine or rhel7)
 BASE_OS ?= alpine

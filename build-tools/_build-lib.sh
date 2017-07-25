@@ -27,6 +27,16 @@ set -e
 PKGIMPORT="github.com/F5Networks/k8s-bigip-ctlr"
 
 
+if [[ $BUILD_VERSION == "" ]]; then
+  echo "Must set BUILD_VERSION"
+  false
+fi
+if [[ $BUILD_INFO == "" ]]; then
+  echo "Must set BUILD_INFO"
+  false
+fi
+
+
 # Defer calculating build dir until actualy in the build environment
 get_builddir() {
 # Ensure PWD starts with GOPATH
@@ -58,15 +68,16 @@ echodo() {
 
 #TODO: Should GOBIN be set too?
 go_install () {
-  local pkg="$1"
-  local BUILDDIR=$(get_builddir)
-
+  # Declare seperate from assign, so failures aren't maked by local
+  local BUILDDIR
+  BUILDDIR=$(get_builddir)
+  local GO_BUILD_FLAGS=( -v -ldflags "-extldflags \"-static\" -X main.version=${BUILD_VERSION} -X main.buildInfo=${BUILD_INFO}" )
 
   mkdir -p "$BUILDDIR"
   (
     export GOBIN="$BUILDDIR/bin"
     echodo cd "$BUILDDIR"
-    echodo go install $BUILD_VARIANT_FLAGS -v "$pkg"
+    echodo go install $BUILD_VARIANT_FLAGS "${GO_BUILD_FLAGS[@]}" -v "$@"
   )
 }
 

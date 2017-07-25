@@ -1,0 +1,326 @@
+#!/usr/bin/env python
+
+"""Tool for determing and diplaying controller version and build info."""
+
+import argparse
+import re
+import os
+
+import subprocess
+from subprocess import check_output
+from datetime import datetime
+from pipes import quote
+
+
+def normalize(s):
+    """Convert to integer."""
+    try:
+        x = int(s)
+    except ValueError:
+        x = s
+    return x
+
+
+def dotted_cmp(A, B):
+    """Compare two semvers."""
+    a = '.'.split(A)
+    b = '.'.split(B)
+    i = 0
+    while True:
+        if i >= len(a) and i >= len(b):
+            return 0
+        elif i >= len(a):
+            return 1
+        elif i >= len(b):
+            return -1
+
+        c = cmp(normalize(a[i]), normalize(b[i]))
+        if c:
+            return c
+        i += 1
+
+
+def pre_cmp(a, b):
+    """Compare two semvers."""
+    if a == '' and b == '':
+        return 0
+    elif a == '':
+        return 1
+    elif b == '':
+        return -1
+    else:
+        return dotted_cmp(a, b)
+
+
+def version_selftest():
+    """Self-test for Version tool."""
+    # Test
+    test_orig = [
+        Version('0.1.1+builda.x.y'),
+        Version('0.1.1'),
+        Version('1.2.3-alpha'),
+        Version('1.2.3-alpha.2'),
+        Version('1.2.3-alpha.10'),
+        Version('1.2.3-beta'),
+        Version('1.2.3'),
+        Version('10.0.0'),
+    ]
+    test_sorted = sorted(test_orig)
+    if test_orig != test_sorted:
+        print test_orig
+        print test_sorted
+        raise Exception("Self-test: version sorting broken")
+
+    if Version('10.2.3') < Version('1.1.0'):
+        raise Exception("Self-test: version sorting broken")
+    if Version('10.2.3') == Version('1.1.0'):
+        raise Exception("Self-test: version eq broken")
+    if Version('1.1.0-alpha') == Version('1.1.0'):
+        raise Exception("Self-test: version eq broken")
+    if Version('1.1.0') != Version('1.1.0'):
+        raise Exception("Self-test: version eq broken")
+
+
+class NotVersionError(ValueError):
+    """Exception representing and invalid Version."""
+
+    pass
+
+
+class Version(object):
+    """Represent a semver version."""
+
+    def __init__(self, ver_str, prefix=''):
+        """Initialize version."""
+        # See semver.org 2.0
+        pre_pat = r'-(?P<prerel>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)'
+        build_pat = r'\+(?P<build>[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)'
+        ver_pat = r'(?P<major>[0-9]+)\.(?P<minor>[0-9]+)\.(?P<patch>[0-9]+)'
+
+        ver_regx = re.compile('{}{}(?:{})?(?:{})?'
+                              .format(prefix, ver_pat, pre_pat, build_pat))
+        m = ver_regx.match(ver_str)
+        if not m:
+            raise NotVersionError(
+                "Version {} is not in proper semver format".format(ver_str))
+
+        self.major = m.group('major')
+        self.minor = m.group('minor')
+        self.patch = m.group('patch')
+        self.pre = m.group('prerel') or ''
+        self.build = m.group('build') or ''
+
+    def __cmp__(self, other):
+        """Define comparison operator."""
+        return cmp(self.major, other.major) or \
+            cmp(self.minor, other.minor) or \
+            cmp(self.patch, other.patch) or \
+            pre_cmp(self.pre, other.pre)
+
+    def __str__(self):
+        """Define string operator."""
+        s = '{}.{}.{}'.format(self.major, self.minor, self.patch)
+        if self.pre:
+            s += '-'
+            s += self.pre
+        if self.build:
+            s += '+'
+            s += self.build
+        return s
+
+    def __repr__(self):
+        """Represent the Version object."""
+        return self.__str__()
+
+
+class VersionInfo(object):
+    """Represent all relevant version info.
+
+    Determine the following information for a build:
+       - semver
+       - git SHA
+       - buildinfo
+    """
+
+    def __init__(self, version_file):
+        """Determine version, SHA, and buildinfo."""
+        data = version_file.read().strip()
+        self._ver_file = Version(data)
+
+        if self._ver_file.pre or self._ver_file.build:
+            raise Exception("{} contains more than major.minor.patch"
+                            .format(version_file.name))
+        self._vers = {
+            'major': self._ver_file.major,
+            'minor': self._ver_file.minor,
+            'patch': self._ver_file.patch,
+            'tag': None,
+        }
+
+        # If this commit has any version tags, they must be <= the version
+        # listed in the version-file. The version or a pre-release of the
+        # version must be represented
+        tags = check_output(['git', 'tag', '-l', '--contains', 'HEAD'
+                             ]).splitlines()
+        tag_versions = []
+        for t in tags:
+            try:
+                ver = Version(t, prefix='v')
+                if ver > self._ver_file:
+                    raise Exception(
+                        "next-version.txt appears to need updating." +
+                        "This commit has a version tag ({}) that is newer."
+                        .format(ver)
+                    )
+
+                tag_versions.append(ver)
+            except NotVersionError:
+                pass
+
+        # Also ensure that the version file is the same major.minor.patch as
+        # the newest tag
+        if tag_versions:
+            tag_ver = sorted(tag_versions)[-1]
+            self._vers['tag'] = tag_ver
+            if tag_ver.major != self._ver_file.major or \
+               tag_ver.minor != self._ver_file.minor or \
+               tag_ver.patch != self._ver_file.patch:
+                raise Exception(
+                    "next-version.txt appears to need updating." +
+                    "This commit has a version tag ({}) that doesn't match."
+                    .format(tag_ver)
+                )
+
+        # If the there is a tag matching the version file, it must point at the
+        # current commit.
+        as_tag = 'v' + data
+        check_tag = check_output(['git', 'tag', '-l', as_tag]).strip()
+        if check_tag != "":
+            # Make sure v$VERSION is a tag pointing at HEAD
+            rc = subprocess.call(
+                'git tag -l --contains HEAD | grep -q "^{}$"'.format(as_tag),
+                shell=True)
+            if rc != 0:
+                raise Exception("next-version.txt appears to need updating." +
+                                "There is already a tag with that version, " +
+                                "and it isn't the current commit")
+
+        # Add extra info
+        self._vers['sha'] = check_output(['git', 'rev-parse', 'HEAD']).strip()
+        self._vers['version_str'] = self.version_str()
+        self._vers['build_info'] = self.buildinfo()
+
+    def version_str(self):
+        """
+        Return the canonical version string for this build.
+
+        Will start with a v, and will have
+
+        """
+        if self._vers['tag']:
+            return self.format("{tag}")
+        else:
+            return self.format("{major}.{minor}.{patch}-WIP")
+
+    def buildinfo(self):
+        """Return a string that meets the semver buildinfo format."""
+        # sha = check_output(['git', 'rev-parse', 'HEAD'])
+        sha_info = check_output([
+            'git', 'describe', '--match=DO_NOT_CREATE_THIS_TAG',
+            '--always', '--dirty']).strip()
+        datestr = datetime.now().strftime('%Y%m%d%H%M%S')
+        ci_info = self._ci_info()
+        if ci_info:
+            return "n{build_num}-{build_id}".format(**ci_info)
+        else:
+            # This is a developer build
+            return "{}-{}-{}".format(
+                os.environ['USER'],
+                sha_info,
+                datestr)
+
+    def format(self, template):
+        """
+        Return a formatted string using the provided template.
+
+        Template should contain version properties
+        """
+        return template.format(**self._vers)
+
+    def _ci_info(self):
+        if os.environ.get('CI', None):
+            # This is a CI build. True for travis and gitlab at least.
+            if os.environ.get('TRAVIS', None):
+                info = {
+                    'build_num': os.environ['TRAVIS_BUILD_NUMBER'],
+                    'build_id':  os.environ['TRAVIS_BUILD_ID'],
+                    'slug':  os.environ['TRAVIS_REPO_SLUG'],
+                }
+                # Travis build
+                ci_tag = os.environ.get('TRAVIS_TAG', None)
+                if ci_tag:
+                    try:
+                        ci_ver = Version(ci_tag, prefix='v')
+                        if ci_ver != self._ver['tag']:
+                            raise Exception("CI tag doesn't match newest tag")
+                    except NotVersionError:
+                        pass
+                    info['tag'] = os.environ['TRAVIS_TAG']
+                return info
+            else:
+                raise Exception("This CI build isn't handled")
+        return None
+
+
+def print_docker_build_args(args):
+    """Create labels for Docker container."""
+    ver = VersionInfo(args.version_file)
+    labels = {
+        'scm_version': ver.format('{sha}'),
+        'version': ver.version_str(),
+    }
+
+    ret = []
+    for k, v in labels.iteritems():
+        ret.append('--label')
+        ret.append(quote('{}={}'.format(k, v)))
+
+    print ' '.join(ret)
+
+
+def main():
+    """Entry point for Version Tool."""
+    version_selftest()
+
+    parser = argparse.ArgumentParser(description='Version Tool')
+    parser.add_argument('--version-file',
+                        type=argparse.FileType('r'),
+                        default='next-version.txt')
+
+    subparsers = parser.add_subparsers(help='sub-command help')
+
+    def add_printer(cmd, tmpl, **kwargs):
+        def print_func(args):
+            ver = VersionInfo(args.version_file)
+            print ver.format(tmpl)
+
+        sub = subparsers.add_parser(cmd, **kwargs)
+        sub.set_defaults(func=print_func)
+        return sub
+
+    add_printer('version', '{version_str}', help='print the version number')
+    add_printer('build-info', '{build_info}', help='print the build-info')
+    add_printer('major', '{major}', help='print the major version number')
+    add_printer('minor', '{minor}', help='print the minor version number')
+    add_printer('patch', '{patch}', help='print the patch version number')
+
+    sub = subparsers.add_parser('docker-build-args',
+                                help='"--label" args to pass to docker build')
+    sub.set_defaults(func=print_docker_build_args)
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

@@ -688,6 +688,13 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 	return true
 }
 
+type vsSyncStats struct {
+	vsFound   int
+	vsUpdated int
+	vsDeleted int
+	cpUpdated int
+}
+
 func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	startTime := time.Now()
 	defer func() {
@@ -731,10 +738,49 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	// rsMap stores all resources currently in Resources matching sKey, indexed by port
 	rsMap := appMgr.getResourcesForKey(sKey)
 
-	vsFound := 0
-	vsUpdated := 0
-	vsDeleted := 0
-	cpUpdated := 0
+	var stats vsSyncStats
+	err = appMgr.syncConfigMaps(&stats, sKey, rsMap, svcPortMap, svc, appInf)
+	if nil != err {
+		return err
+	}
+
+	err = appMgr.syncIngresses(&stats, sKey, rsMap, svcPortMap, svc, appInf)
+	if nil != err {
+		return err
+	}
+
+	if len(rsMap) > 0 {
+		// We get here when there are ports defined in the service that don't
+		// have a corresponding config map.
+		stats.vsDeleted = appMgr.deleteUnusedResources(sKey, rsMap)
+	}
+	log.Debugf("Updated %v of %v virtual server configs, deleted %v",
+		stats.vsUpdated, stats.vsFound, stats.vsDeleted)
+
+	// delete any custom profiles that are no longer referenced
+	appMgr.deleteUnusedProfiles(sKey.Namespace)
+
+	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 {
+		appMgr.outputConfig()
+	} else if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 {
+		appMgr.resources.Lock()
+		defer appMgr.resources.Unlock()
+		if !appMgr.initialState {
+			appMgr.outputConfigLocked()
+		}
+	}
+
+	return nil
+}
+
+func (appMgr *Manager) syncConfigMaps(
+	stats *vsSyncStats,
+	sKey serviceQueueKey,
+	rsMap ResourceMap,
+	svcPortMap map[int32]bool,
+	svc *v1.Service,
+	appInf *appInformer,
+) (error) {
 	cfgMapsByIndex, err := appInf.cfgMapInformer.GetIndexer().ByIndex(
 		"namespace", sKey.Namespace)
 	if nil != err {
@@ -775,7 +821,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 				continue
 			}
 			if updated {
-				cpUpdated += 1
+				stats.cpUpdated += 1
 			}
 			// Replace the current stored sslProfile with a correctly formatted
 			// profile (since this profile is just a secret name)
@@ -788,11 +834,11 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		rsName := rsCfg.Virtual.VirtualServerName
 		if ok, found, updated := appMgr.handleConfigForType(
 			rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf); !ok {
-			vsUpdated += updated
+			stats.vsUpdated += updated
 			continue
 		} else {
-			vsFound += found
-			vsUpdated += updated
+			stats.vsFound += found
+			stats.vsUpdated += updated
 		}
 
 		// Set a status annotation to contain the virtualAddress bindAddr
@@ -802,6 +848,17 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			appMgr.setBindAddrAnnotation(cm, sKey, rsCfg)
 		}
 	}
+	return nil
+}
+
+func (appMgr *Manager) syncIngresses(
+	stats *vsSyncStats,
+	sKey serviceQueueKey,
+	rsMap ResourceMap,
+	svcPortMap map[int32]bool,
+	svc *v1.Service,
+	appInf *appInformer,
+) (error) {
 	ingByIndex, err := appInf.ingInformer.GetIndexer().ByIndex(
 		"namespace", sKey.Namespace)
 	if nil != err {
@@ -829,7 +886,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			// Handle TLS configuration
 			updated := appMgr.handleIngressTls(rsCfg, ing)
 			if updated {
-				cpUpdated += 1
+				stats.cpUpdated += 1
 			}
 
 			// Handle Ingress health monitors
@@ -871,15 +928,15 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 
 			if ok, found, updated := appMgr.handleConfigForType(
 				rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf); !ok {
-				vsUpdated += updated
+				stats.vsUpdated += updated
 				continue
 			} else {
 				if updated > 0 && !appMgr.processAllMultiSvc(len(rsCfg.Pools),
 					rsCfg.Virtual.VirtualServerName) {
 					updated -= 1
 				}
-				vsFound += found
-				vsUpdated += updated
+				stats.vsFound += found
+				stats.vsUpdated += updated
 				if updated > 0 {
 					msg := fmt.Sprintf(
 						"Created a ResourceConfig '%v' for the Ingress.",
@@ -892,28 +949,6 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			appMgr.setIngressStatus(ing, rsCfg)
 		}
 	}
-
-	if len(rsMap) > 0 {
-		// We get here when there are ports defined in the service that don't
-		// have a corresponding config map.
-		vsDeleted = appMgr.deleteUnusedResources(sKey, rsMap)
-	}
-	log.Debugf("Updated %v of %v virtual server configs, deleted %v",
-		vsUpdated, vsFound, vsDeleted)
-
-	// delete any custom profiles that are no longer referenced
-	appMgr.deleteUnusedProfiles(sKey.Namespace)
-
-	if vsUpdated > 0 || vsDeleted > 0 || cpUpdated > 0 {
-		appMgr.outputConfig()
-	} else if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 {
-		appMgr.resources.Lock()
-		defer appMgr.resources.Unlock()
-		if !appMgr.initialState {
-			appMgr.outputConfigLocked()
-		}
-	}
-
 	return nil
 }
 

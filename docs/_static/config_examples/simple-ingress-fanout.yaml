@@ -1,0 +1,25 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ing-fanout
+  namespace: default
+  annotations:
+    # IP address of a BIG-IP pool member
+    virtual-server.f5.com/ip: "1.2.3.4"
+    # BIG-IP partition
+    virtual-server.f5.com/partition: "k8s"
+    # Load balancing algorithm
+    virtual-server.f5.com/balance: "round-robin"
+spec:
+  rules:
+  - host: mysite.example.com
+    http:
+      paths:
+      - path: /mysite/app1
+        backend:
+          serviceName: myService1
+          servicePort: 80
+      - path: /mysite/app2
+        backend:
+          serviceName: myService2
+          servicePort: 80

@@ -1,0 +1,34 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+ name: ing-virtual-hosting
+ namespace: default
+ annotations:
+  # BIG-IP pool member IP address
+  virtual-server.f5.com/ip: "1.2.3.4"
+  # BIG-IP partition
+  virtual-server.f5.com/partition: "k8s"
+  # Load balancing algorithm
+  virtual-server.f5.com/balance: "round-robin"
+  # Specify the port you want to handle requests
+  virtual-server.f5.com/http-port: "80"
+spec:
+ rules:
+ # URL
+ - host: mysite.example.com
+   http:
+     # path to Service from URL
+     paths:
+       - path: /myApp1
+         backend:
+           serviceName: myService1
+           servicePort: 80
+ # URL
+ - host: yoursite.example.com
+   http:
+     # path to Service from URL
+     paths:
+       - path: /myApp2
+         backend:
+           serviceName: myService2
+           servicePort: 80

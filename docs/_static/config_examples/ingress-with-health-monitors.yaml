@@ -1,0 +1,38 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ing1
+  namespace: default
+  annotations:
+    virtual-server.f5.com/ip:        "1.2.3.4"
+    virtual-server.f5.com/partition: "k8s"
+    virtual-server.f5.com/health: |
+      [
+        {
+          "path":     "svc1.example.com/app1",
+          "send":     "HTTP GET /health/app1",
+          "interval": 5,
+          "timeout":  10
+        }, {
+          "path":     "svc2.example.com/app2",
+          "send":     "HTTP GET /health/app2",
+          "interval": 5,
+          "timeout":  5
+        }
+      ]
+spec:
+  rules:
+  - host: svc1.example.com
+    http:
+      paths:
+      - backend:
+          serviceName: svc1
+          servicePort: 8080
+        path: /app1
+  - host: svc2.example.com
+    http:
+      paths:
+      - backend:
+          serviceName: svc2
+          servicePort: 9090
+        path: /app2

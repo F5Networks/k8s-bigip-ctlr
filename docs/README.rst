@@ -21,6 +21,8 @@ Features
 - Dynamically creates, manages, and destroys BIG-IP objects.
 - Forwards traffic from BIG-IP to `Kubernetes clusters`_ via `NodePorts`_ or `ClusterIPs`_.
 - Support for F5 `iApps`_.
+- Handles F5-specific VirtualServer objects created in Kubernetes.
+- Handles standard Ingress objects created in Kubernetes (with some F5-specific extensions).
 
 Guides
 ------
@@ -36,8 +38,11 @@ It uses an F5 Resource to determine:
 - what objects to configure on your BIG-IP, and
 - to which `Kubernetes Service`_ the BIG-IP objects belong.
 
-The |kctlr-long| watches the Kubernetes API for the creation and modification of F5 resources.
-When it discovers changes, the |kctlr-long| modifies the BIG-IP accordingly.
+The |kctlr-long| watches the Kubernetes API for the creation, modification or deletion of Kubernetes objects.  For some objects, it responds to these events by creating, modifying or deleting objects in the configuration of a BIG-IP. It handles these objects:
+- A *ConfigMap that is the F5-specific VirtualServer* type, used to create per-service virtual servers and/or pools on BIG-IP.
+- The standard Kubernetes *Ingress* object, used to create a single virtual server on BIG-IP with L7 policies to route to individual services. This object can have some F5-specific annotations documented below to control F5-specific behavior.
+
+One controller can handle a mix of these objects simultaneously. See below for the specifics regarding the handling of these objects.
 
 
 For example:
@@ -50,8 +55,9 @@ For example:
 
 The BIG-IP handles traffic for the Service the specified virtual address and load-balances to all nodes in the cluster. Within the cluster, the allocated NodePort load balances traffic to all pods.
 
-Configuration Parameters
-------------------------
+Controller Configuration Parameters
+-----------------------------------
+These configuration parameters are global to the controller.
 
 +--------------------+---------+----------+-------------+-----------------------------------------+----------------+
 | Parameter          | Type    | Required | Default     | Description                             | Allowed Values |
@@ -114,10 +120,9 @@ Configuration Parameters
 +--------------------+---------+----------+-------------+-----------------------------------------+----------------+
 
 
-F5 Resource Properties
-----------------------
-
-F5 Resources are JSON blobs encoded within Kubernetes ConfigMaps. The ConfigMap must contain the following properties:
+VirtualServer ConfigMap Properties
+----------------------------------
+The |kctlr-long| supports VirtualServer ConfigMap objects.
 
 +---------------+---------------------------------------------------+-----------------------------------------------+
 | Property      | Description                                       | Allowed Values                                |
@@ -294,6 +299,52 @@ Backend
 |               | array     |           |           |                               |                           |
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 
+Ingress Resources
+-----------------
+The |kctlr-long| supports Kubernetes Ingress resources as an alternative to F5 Resource ConfigMaps.
+
+Supported annotations
+`````````````````````
+
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| Annotation                         | Type        | Required  | Description                                                                         | Default     |
++====================================+=============+===========+=====================================================================================+=============+
+| virtual-server.f5.com/ip           | string      | Required  | Contains the IP address that the virtual server will use.                           |             |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| virtual-server.f5.com/partition    | string      | Required  | Specifies which partition on the Big-IP the controller should create/update/delete  |             |
+|                                    |             |           | objects in for this Ingress.                                                        |             |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| kubernetes.io/ingress.class        | string      | Optional  | If specified, it must contain the value `f5`.                                       | f5          |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| virtual-server.f5.com/balance      | string      | Optional  | Specifies the load balancing mode.                                                  | round-robin |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| virtual-server.f5.com/http-port    | integer     | Optional  | Specifies the HTTP port.                                                            | 80          |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| virtual-server.f5.com/https-port   | integer     | Optional  | Specifies the HTTPS port.                                                           | 443         |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| virtual-server.f5.com/health       | JSON object | Optional  | Health monitor configuration to use for the Ingress resource.                       |             |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| ingress.kubernetes.io/allow-http   | boolean     | Optional  | For HTTPS Ingress resources, specifies to also allow HTTP traffic.                  | false       |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| ingress.kubernetes.io/ssl-redirect | boolean     | Optional  | For HTTPS Ingress resources, specifies to redirect HTTP traffic to the HTTPS port   | true        |
+|                                    |             |           | (see below).                                                                        |             |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+
+If the Ingress resource contains a `tls` section, the `allow-http` and `ssl-redirect` annotations provide a method of controlling HTTP traffic. In this case, the controller uses the value set in the `allow-http` annotation to enable or disable HTTP traffic. Use the `ssl-redirect` annotation to redirect all HTTP traffic to the HTTPS Virtual Server.
+
+One or more SSL profiles may exist in the Ingress resource, and must already exist on the BIG-IP. The SSL profiles referenced in the Ingress resource must use the full path used on the BIG-IP, such as `/Common/clientssl`.
+
+To configure health monitors on your Ingress resource, you need to use the appropriate annotation with a JSON object containing an array of health monitor JSON object for each path specified in the Ingress resource. Each health monitor JSON object must have the following 4 fields::
+
+    {
+      "path": "serviceName/path",
+      "send": "<send string to set in the health monitor>",
+      "interval": <health check interval>,
+      "timeout": <number of seconds before the check has timed out>
+    }
+
+
+Please see the example configuration files for more details.
 
 Example Configuration Files
 ```````````````````````````
@@ -303,6 +354,11 @@ Example Configuration Files
 - `example-vs-resource.json <./_static/config_examples/example-vs-resource.json>`_
 - `example-vs-resource-iapp.json <./_static/config_examples/example-vs-resource-iapp.json>`_
 - `example-advanced-vs-resource-iapp.json <./_static/config_examples/example-advanced-vs-resource-iapp.json>`_
+- `single-service-ingress.yaml <./_static/config_examples/single-service-ingress.yaml>`_
+- `single-service-tls-ingress.yaml <./_static/config_examples/single-service-tls-ingress.yaml>`_
+- `simple-ingress-fanout.yaml <./_static/config_examples/simple-ingress-fanout.yaml>`_
+- `name-based-ingress.yaml <./_static/config_examples/name-based-ingress.yaml>`_
+- `ingress-with-health-monitors.yaml <./_static/config_examples/ingress-with-health-monitors.yaml>`_
 
 
 .. [#objectpartition]  The |kctlr-long| creates and manages objects in the BIG-IP partition defined in the `F5 resource </containers/v1/kubernetes/index.html#f5-resource-properties>`_ ConfigMap.

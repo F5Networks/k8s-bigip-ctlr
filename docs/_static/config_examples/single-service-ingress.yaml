@@ -1,0 +1,15 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ingress1
+  namespace: default
+  annotations:
+    # Provide an IP address from the external VLAN on your BIG-IP device
+    virtual-server.f5.com/ip: "10.190.25.70"
+    # Specify the BIG-IP partition containing the virtual server
+    virtual-server.f5.com/partition: "k8s"
+spec:
+  backend:
+    # The name of the Kubernetes Service you want to expose to external traffic
+    serviceName: myService
+    servicePort: 80

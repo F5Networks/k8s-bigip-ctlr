@@ -37,8 +37,9 @@ type (
 	ResourceConfigs []*ResourceConfig
 
 	metaData struct {
-		Active   bool
-		NodePort int32
+		Active       bool
+		NodePort     int32
+		ResourceType string
 	}
 
 	// Virtual server config
@@ -67,6 +68,7 @@ type (
 	Pool struct {
 		Name            string   `json:"name"`
 		Partition       string   `json:"partition"`
+		Balance         string   `json:"loadBalancingMode"`
 		ServiceName     string   `json:"serviceName"`
 		ServicePort     int32    `json:"servicePort"`
 		PoolMemberAddrs []string `json:"poolMemberAddrs"`
@@ -179,10 +181,11 @@ type (
 
 	// Client SSL Profile loaded from Secret
 	CustomProfile struct {
-		Name      string `json:"name"`
-		Partition string `json:"partition"`
-		Cert      []byte `json:"cert"`
-		Key       []byte `json:"key"`
+		Name       string `json:"name"`
+		Partition  string `json:"partition"`
+		Cert       string `json:"cert"`
+		Key        string `json:"key"`
+		ServerName string `json:"serverName,omitempty"`
 	}
 
 	// Used to unmarshal ConfigMap data

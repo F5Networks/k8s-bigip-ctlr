@@ -16,7 +16,6 @@
 from __future__ import absolute_import
 
 import argparse
-import base64
 import fcntl
 import hashlib
 import ipaddress
@@ -637,20 +636,14 @@ def create_ltm_config_kubernetes(partition, config):
         new_pool['name'] = pname
         if 'monitor' in pool and pool['monitor']:
             new_pool['monitors'] = pool['monitor']
+        new_pool['loadBalancingMode'] = pool['loadBalancingMode']
 
-        balance = None
+        # FIXME(berman): This is still very hacky until we fix the bug
+        # where pools are created for iapps; this conditional ensures we create
+        # pools in all cases except in the iapp case
         vname = pname.rsplit('_', 1)[0]
-        if pname in f5_services:
-            if 'balance' in f5_services[pname]:
-                balance = f5_services[pname]['balance']
-        elif vname in f5_services:
-            if 'balance' in f5_services[vname]:
-                balance = f5_services[vname]['balance']
-
-        if balance is not None:
-            new_pool['loadBalancingMode'] = balance
-
-        if pool['name'] in f5_services or vname in f5_services:
+        if (pool['name'] in f5_services or vname in f5_services
+                or pool['name'].startswith('openshift_')):
             if pool.get('poolMemberAddrs', None) is not None:
                 found_svc = True
                 for member in pool['poolMemberAddrs']:
@@ -699,8 +692,9 @@ def _create_client_ssl_profile(mgmt, profile):
 
     name = profile['name']
     partition = profile['partition']
-    cert = base64.b64decode(profile['cert'])
-    key = base64.b64decode(profile['key'])
+    cert = profile['cert']
+    key = profile['key']
+    serverName = profile.get('serverName', None)
 
     # No need to create if it exists
     if ssl_client_profile.exists(name=name, partition=partition):
@@ -735,6 +729,7 @@ def _create_client_ssl_profile(mgmt, profile):
         ssl_client_profile.create(name=name,
                                   partition=partition,
                                   certKeyChain=chain,
+                                  serverName=serverName,
                                   sniDefault=False,
                                   defaultsFrom=None)
     except Exception as err:

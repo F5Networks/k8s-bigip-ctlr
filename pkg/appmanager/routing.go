@@ -36,7 +36,7 @@ func (r Rules) Len() int           { return len(r) }
 func (r Rules) Less(i, j int) bool { return r[i].FullURI < r[j].FullURI }
 func (r Rules) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
 
-func createRule(uri, poolName, partition string) (*Rule, error) {
+func createRule(uri, poolName, partition, routeName string) (*Rule, error) {
 	_u := "scheme://" + uri
 	_u = strings.TrimSuffix(_u, "/")
 	u, err := url.Parse(_u)
@@ -95,6 +95,7 @@ func createRule(uri, poolName, partition string) (*Rule, error) {
 	}
 
 	rl := Rule{
+		Name:       routeName,
 		FullURI:    uri,
 		Actions:    []*action{&a},
 		Conditions: c,
@@ -143,7 +144,8 @@ func processIngressRules(
 				if poolName == "" {
 					continue
 				}
-				rl, err = createRule(uri, poolName, partition)
+				// This blank name gets overridden by an ordinal later on
+				rl, err = createRule(uri, poolName, partition, "")
 				if nil != err {
 					log.Warningf("Error configuring rule: %v", err)
 					return nil

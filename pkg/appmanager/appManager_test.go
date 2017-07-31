@@ -28,6 +28,7 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 
+	routeapi "github.com/openshift/origin/pkg/route/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -267,23 +268,23 @@ var configmapIApp2 string = string(`{
 
 var emptyConfig string = string(`{"resources":{}}`)
 
-var twoSvcsFourPortsThreeNodesConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}},{"name":"default_foomap8080","pool":"/velcro/default_foomap8080","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}},{"name":"default_foomap9090","pool":"/velcro/default_foomap9090","partition":"velcro","balance":"round-robin","mode":"tcp","virtualAddress":{"bindAddr":"10.128.10.200","port":4041}}],"pools":[{"name":"default_barmap","partition":"velcro","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.1:37001","127.0.0.2:37001","127.0.0.3:37001"],"monitor":null},{"name":"default_foomap","partition":"velcro","serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.1:30001","127.0.0.2:30001","127.0.0.3:30001"],"monitor":["/velcro/default_foomap"]},{"name":"default_foomap8080","partition":"velcro","serviceName":"foo","servicePort":8080,"poolMemberAddrs":["127.0.0.1:38001","127.0.0.2:38001","127.0.0.3:38001"],"monitor":null},{"name":"default_foomap9090","partition":"velcro","serviceName":"foo","servicePort":9090,"poolMemberAddrs":["127.0.0.1:39001","127.0.0.2:39001","127.0.0.3:39001"],"monitor":null}],"monitors":[{"name":"default_foomap","partition":"velcro","interval":30,"protocol":"tcp","send":"GET /","timeout":20}]}}`)
+var twoSvcsFourPortsThreeNodesConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}},{"name":"default_foomap8080","pool":"/velcro/default_foomap8080","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}},{"name":"default_foomap9090","pool":"/velcro/default_foomap9090","partition":"velcro","mode":"tcp","virtualAddress":{"bindAddr":"10.128.10.200","port":4041}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.1:37001","127.0.0.2:37001","127.0.0.3:37001"],"monitor":null},{"name":"default_foomap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.1:30001","127.0.0.2:30001","127.0.0.3:30001"],"monitor":["/velcro/default_foomap"]},{"name":"default_foomap8080","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":8080,"poolMemberAddrs":["127.0.0.1:38001","127.0.0.2:38001","127.0.0.3:38001"],"monitor":null},{"name":"default_foomap9090","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":9090,"poolMemberAddrs":["127.0.0.1:39001","127.0.0.2:39001","127.0.0.3:39001"],"monitor":null}],"monitors":[{"name":"default_foomap","partition":"velcro","interval":30,"protocol":"tcp","send":"GET /","timeout":20}]}}`)
 
-var twoSvcsTwoNodesConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}],"pools":[{"name":"default_barmap","partition":"velcro","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.1:37001","127.0.0.2:37001"]},{"name":"default_foomap","partition":"velcro","serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.1:30001","127.0.0.2:30001"],"monitor":["/velcro/default_foomap"]}],"monitors":[{"name":"default_foomap","partition":"velcro","interval":30,"protocol":"tcp","send":"GET /","timeout":20}]}}`)
+var twoSvcsTwoNodesConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.1:37001","127.0.0.2:37001"]},{"name":"default_foomap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.1:30001","127.0.0.2:30001"],"monitor":["/velcro/default_foomap"]}],"monitors":[{"name":"default_foomap","partition":"velcro","interval":30,"protocol":"tcp","send":"GET /","timeout":20}]}}`)
 
-var twoSvcsOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}],"pools":[{"name":"default_barmap","partition":"velcro","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.3:37001"]},{"name":"default_foomap","partition":"velcro","serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.3:30001"],"monitor":["/velcro/default_foomap"]}],"monitors":[{"name":"default_foomap","partition":"velcro","interval":30,"protocol":"tcp","send":"GET /","timeout":20}]}}`)
+var twoSvcsOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.3:37001"]},{"name":"default_foomap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.3:30001"],"monitor":["/velcro/default_foomap"]}],"monitors":[{"name":"default_foomap","partition":"velcro","interval":30,"protocol":"tcp","send":"GET /","timeout":20}]}}`)
 
-var oneSvcOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}],"pools":[{"name":"default_barmap","partition":"velcro","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.3:37001"]}]}}`)
+var oneSvcOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.3:37001"]}]}}`)
 
-var twoIappsThreeNodesConfig string = string(`{"resources":{"virtualServers":[{"name":"default_iapp1map","pool":"/velcro/default_iapp1map","partition":"velcro","balance":"round-robin","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 1"},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}},{"name":"default_iapp2map","pool":"/velcro/default_iapp2map","partition":"velcro","balance":"round-robin","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}],"pools":[{"name":"default_iapp1map","partition":"velcro","serviceName":"iapp1","servicePort":80,"poolMemberAddrs":["192.168.0.1:10101","192.168.0.2:10101","192.168.0.4:10101"],"monitor":null},{"name":"default_iapp2map","partition":"velcro","serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.1:20202","192.168.0.2:20202","192.168.0.4:20202"],"monitor":null}]}}`)
+var twoIappsThreeNodesConfig string = string(`{"resources":{"virtualServers":[{"name":"default_iapp1map","pool":"/velcro/default_iapp1map","partition":"velcro","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 1"},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}},{"name":"default_iapp2map","pool":"/velcro/default_iapp2map","partition":"velcro","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}],"pools":[{"name":"default_iapp1map","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"iapp1","servicePort":80,"poolMemberAddrs":["192.168.0.1:10101","192.168.0.2:10101","192.168.0.4:10101"],"monitor":null},{"name":"default_iapp2map","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.1:20202","192.168.0.2:20202","192.168.0.4:20202"],"monitor":null}]}}`)
 
-var twoIappsOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_iapp1map","pool":"/velcro/default_iapp1map","partition":"velcro","balance":"round-robin","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 1"},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}},{"name":"default_iapp2map","pool":"/velcro/default_iapp2map","partition":"velcro","balance":"round-robin","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}],"pools":[{"name":"default_iapp1map","partition":"velcro","serviceName":"iapp1","servicePort":80,"poolMemberAddrs":["192.168.0.4:10101"],"monitor":null},{"name":"default_iapp2map","partition":"velcro","serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.4:20202"],"monitor":null}]}}`)
+var twoIappsOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_iapp1map","pool":"/velcro/default_iapp1map","partition":"velcro","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 1"},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}},{"name":"default_iapp2map","pool":"/velcro/default_iapp2map","partition":"velcro","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}],"pools":[{"name":"default_iapp1map","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"iapp1","servicePort":80,"poolMemberAddrs":["192.168.0.4:10101"],"monitor":null},{"name":"default_iapp2map","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.4:20202"],"monitor":null}]}}`)
 
-var oneIappOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_iapp2map","pool":"/velcro/default_iapp2map","partition":"velcro","balance":"round-robin","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}],"pools":[{"name":"default_iapp2map","partition":"velcro","serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.4:20202"],"monitor":null}]}}`)
+var oneIappOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_iapp2map","pool":"/velcro/default_iapp2map","partition":"velcro","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}],"pools":[{"name":"default_iapp2map","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.4:20202"],"monitor":null}]}}`)
 
-var twoSvcTwoPodsConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}],"pools":[{"name":"default_barmap","partition":"velcro","serviceName":"bar","servicePort":80,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]},{"name":"default_foomap","partition":"velcro","serviceName":"foo","servicePort":8080,"poolMemberAddrs":["10.2.96.1:8080","10.2.96.2:8080"]}]}}`)
+var twoSvcTwoPodsConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]},{"name":"default_foomap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":8080,"poolMemberAddrs":["10.2.96.1:8080","10.2.96.2:8080"]}]}}`)
 
-var oneSvcTwoPodsConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","balance":"round-robin","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}],"pools":[{"name":"default_barmap","partition":"velcro","serviceName":"bar","servicePort":80,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]}]}}`)
+var oneSvcTwoPodsConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]}]}}`)
 
 type mockAppManager struct {
 	appMgr  *Manager
@@ -535,6 +536,46 @@ func (m *mockAppManager) deleteIngress(ing *v1beta1.Ingress) bool {
 			defer mtx.Unlock()
 			m.appMgr.syncVirtualServer(*vsKey)
 		}
+	}
+	return ok
+}
+
+func (m *mockAppManager) addRoute(route *routeapi.Route) bool {
+	ok, vsKey := m.appMgr.checkValidRoute(route)
+	if ok {
+		appInf, _ := m.appMgr.getNamespaceInformer(route.ObjectMeta.Namespace)
+		appInf.routeInformer.GetStore().Add(route)
+		mtx := m.getVsMutex(*vsKey)
+		mtx.Lock()
+		defer mtx.Unlock()
+		m.appMgr.syncVirtualServer(*vsKey)
+
+	}
+	return ok
+}
+
+func (m *mockAppManager) updateRoute(route *routeapi.Route) bool {
+	ok, vsKey := m.appMgr.checkValidRoute(route)
+	if ok {
+		appInf, _ := m.appMgr.getNamespaceInformer(route.ObjectMeta.Namespace)
+		appInf.routeInformer.GetStore().Update(route)
+		mtx := m.getVsMutex(*vsKey)
+		mtx.Lock()
+		defer mtx.Unlock()
+		m.appMgr.syncVirtualServer(*vsKey)
+	}
+	return ok
+}
+
+func (m *mockAppManager) deleteRoute(route *routeapi.Route) bool {
+	ok, vsKey := m.appMgr.checkValidRoute(route)
+	if ok {
+		appInf, _ := m.appMgr.getNamespaceInformer(route.ObjectMeta.Namespace)
+		appInf.routeInformer.GetStore().Delete(route)
+		mtx := m.getVsMutex(*vsKey)
+		mtx.Lock()
+		defer mtx.Unlock()
+		m.appMgr.syncVirtualServer(*vsKey)
 	}
 	return ok
 }
@@ -1654,7 +1695,7 @@ func testConfigMapKeysImpl(t *testing.T, isNodePort bool) {
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(rs, "Config map should be object")
 
-	require.Equal("round-robin", rs.Virtual.Balance)
+	require.Equal("round-robin", rs.Pools[0].Balance)
 	require.Equal("tcp", rs.Virtual.Mode)
 	require.Equal("velcro", rs.Virtual.Partition)
 	require.Equal("10.128.10.240",
@@ -2011,7 +2052,7 @@ func testNoBindAddr(t *testing.T, isNodePort bool) {
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(rs, "Config map should be object")
 
-	require.Equal("round-robin", rs.Virtual.Balance)
+	require.Equal("round-robin", rs.Pools[0].Balance)
 	require.Equal("http", rs.Virtual.Mode)
 	require.Equal("velcro", rs.Virtual.Partition)
 	require.Equal("", rs.Virtual.VirtualAddress.BindAddr)
@@ -2071,7 +2112,7 @@ func testNoVirtualAddress(t *testing.T, isNodePort bool) {
 	assert.True(ok, "Config map should be accessible")
 	assert.NotNil(rs, "Config map should be object")
 
-	require.Equal("round-robin", rs.Virtual.Balance)
+	require.Equal("round-robin", rs.Pools[0].Balance)
 	require.Equal("http", rs.Virtual.Mode)
 	require.Equal("velcro", rs.Virtual.Partition)
 	require.Nil(rs.Virtual.VirtualAddress)
@@ -3096,55 +3137,6 @@ func TestNamespaceLabels(t *testing.T) {
 	assert.True(rs.MetaData.Active)
 }
 
-func TestIngressConfiguration(t *testing.T) {
-	require := require.New(t)
-	namespace := "default"
-	ingressConfig := v1beta1.IngressSpec{
-		Backend: &v1beta1.IngressBackend{
-			ServiceName: "foo",
-			ServicePort: intstr.IntOrString{IntVal: 80},
-		},
-	}
-	ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
-		map[string]string{
-			"virtual-server.f5.com/ip":        "1.2.3.4",
-			"virtual-server.f5.com/partition": "velcro",
-		})
-	ps := portStruct{
-		protocol: "http",
-		port:     80,
-	}
-	cfg := createRSConfigFromIngress(ingress, namespace, nil, ps)
-	require.Equal("round-robin", cfg.Virtual.Balance)
-	require.Equal("http", cfg.Virtual.Mode)
-	require.Equal("velcro", cfg.Virtual.Partition)
-	require.Equal("1.2.3.4", cfg.Virtual.VirtualAddress.BindAddr)
-	require.Equal(int32(80), cfg.Virtual.VirtualAddress.Port)
-
-	ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
-		map[string]string{
-			"virtual-server.f5.com/ip":        "1.2.3.4",
-			"virtual-server.f5.com/partition": "velcro",
-			"virtual-server.f5.com/http-port": "100",
-			"virtual-server.f5.com/balance":   "foobar",
-			"kubernetes.io/ingress.class":     "f5",
-		})
-	ps = portStruct{
-		protocol: "http",
-		port:     100,
-	}
-	cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
-	require.Equal("foobar", cfg.Virtual.Balance)
-	require.Equal(int32(100), cfg.Virtual.VirtualAddress.Port)
-
-	ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
-		map[string]string{
-			"kubernetes.io/ingress.class": "notf5",
-		})
-	cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
-	require.Nil(cfg)
-}
-
 func TestVirtualServerForIngress(t *testing.T) {
 	mw := &test.MockWriter{
 		FailStyle: test.Success,
@@ -3197,7 +3189,7 @@ func TestVirtualServerForIngress(t *testing.T) {
 	assert.NotNil(rs, "Ingress should be object")
 	assert.True(rs.MetaData.Active)
 
-	require.Equal("round-robin", rs.Virtual.Balance)
+	require.Equal("round-robin", rs.Pools[0].Balance)
 	require.Equal("http", rs.Virtual.Mode)
 	require.Equal("velcro", rs.Virtual.Partition)
 	require.Equal("1.2.3.4", rs.Virtual.VirtualAddress.BindAddr)
@@ -3566,5 +3558,104 @@ func TestSecretSslProfile(t *testing.T) {
 	appMgr.addConfigMap(secretCfg)
 	assert.Equal(2, len(customProfiles))
 	appMgr.deleteConfigMap(secretCfg)
+	assert.Equal(1, len(customProfiles))
+}
+
+func TestVirtualServerForRoute(t *testing.T) {
+	mw := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	require := require.New(t)
+	assert := assert.New(t)
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client should not be nil")
+	namespace := "default"
+
+	appMgr := newMockAppManager(&Params{
+		KubeClient:    fakeClient,
+		ConfigWriter:  mw,
+		restClient:    test.CreateFakeHTTPClient(),
+		RouteClientV1: test.CreateFakeHTTPClient(),
+		IsNodePort:    true,
+	})
+	err := appMgr.startNonLabelMode([]string{namespace})
+	require.Nil(err)
+	defer appMgr.shutdown()
+
+	spec := routeapi.RouteSpec{
+		Host: "foobar.com",
+		Path: "/foo",
+		To: routeapi.RouteTargetReference{
+			Kind: "Service",
+			Name: "foo",
+		},
+		TLS: &routeapi.TLSConfig{
+			Termination: "edge",
+			Certificate: "cert",
+			Key:         "key",
+		},
+	}
+	route := test.NewRoute("route", "1", namespace, spec)
+	r := appMgr.addRoute(route)
+	require.True(r, "Route resource should be processed")
+
+	resources := appMgr.resources()
+	// Associate a service
+	fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+		[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+	r = appMgr.addService(fooSvc)
+	assert.True(r, "Service should be processed")
+	require.Equal(2, resources.Count())
+
+	rs, ok := resources.Get(
+		serviceKey{"foo", 443, "default"}, "openshift_default_https")
+	require.True(ok, "Route should be accessible")
+	require.NotNil(rs, "Route should be object")
+	assert.True(rs.MetaData.Active)
+	assert.Equal(1, len(rs.Policies[0].Rules))
+
+	customProfiles := appMgr.customProfiles()
+	assert.Equal(1, len(customProfiles))
+
+	spec = routeapi.RouteSpec{
+		Host: "barfoo.com",
+		Path: "/bar",
+		To: routeapi.RouteTargetReference{
+			Kind: "Service",
+			Name: "bar",
+		},
+		TLS: &routeapi.TLSConfig{
+			Termination: "edge",
+			Certificate: "cert",
+			Key:         "key",
+		},
+	}
+	route2 := test.NewRoute("route2", "1", namespace, spec)
+	r = appMgr.addRoute(route2)
+	require.True(r, "Route resource should be processed")
+	resources = appMgr.resources()
+	// Associate a service
+	barSvc := test.NewService("bar", "1", namespace, "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+	appMgr.addService(barSvc)
+	r = assert.True(r, "Service should be processed")
+	require.Equal(4, resources.Count())
+
+	rs, ok = resources.Get(
+		serviceKey{"bar", 80, "default"}, "openshift_default_https")
+	require.True(ok, "Route should be accessible")
+	require.NotNil(rs, "Route should be object")
+	assert.True(rs.MetaData.Active)
+	assert.Equal(2, len(rs.Policies[0].Rules))
+
+	customProfiles = appMgr.customProfiles()
+	assert.Equal(2, len(customProfiles))
+
+	// Delete a Route resource
+	r = appMgr.deleteRoute(route2)
+	require.True(r, "Route resource should be processed")
+	require.Equal(2, resources.Count())
+	assert.Equal(1, len(rs.Policies[0].Rules))
 	assert.Equal(1, len(customProfiles))
 }

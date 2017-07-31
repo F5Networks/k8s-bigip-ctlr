@@ -21,8 +21,13 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+
+	routeapi "github.com/openshift/origin/pkg/route/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 type simpleTestConfig struct {
@@ -427,4 +432,106 @@ func TestSetAndRemovePolicy(t *testing.T) {
 	// make sure deleting something that isn't there doesn't fail badly
 	rc.RemovePolicy(toRemove)
 	lenValidate(0)
+}
+
+func TestIngressConfiguration(t *testing.T) {
+	require := require.New(t)
+	namespace := "default"
+	ingressConfig := v1beta1.IngressSpec{
+		Backend: &v1beta1.IngressBackend{
+			ServiceName: "foo",
+			ServicePort: intstr.IntOrString{IntVal: 80},
+		},
+	}
+	ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
+		map[string]string{
+			"virtual-server.f5.com/ip":        "1.2.3.4",
+			"virtual-server.f5.com/partition": "velcro",
+		})
+	ps := portStruct{
+		protocol: "http",
+		port:     80,
+	}
+	cfg := createRSConfigFromIngress(ingress, namespace, nil, ps)
+	require.Equal("round-robin", cfg.Pools[0].Balance)
+	require.Equal("http", cfg.Virtual.Mode)
+	require.Equal("velcro", cfg.Virtual.Partition)
+	require.Equal("1.2.3.4", cfg.Virtual.VirtualAddress.BindAddr)
+	require.Equal(int32(80), cfg.Virtual.VirtualAddress.Port)
+
+	ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
+		map[string]string{
+			"virtual-server.f5.com/ip":        "1.2.3.4",
+			"virtual-server.f5.com/partition": "velcro",
+			"virtual-server.f5.com/http-port": "100",
+			"virtual-server.f5.com/balance":   "foobar",
+			"kubernetes.io/ingress.class":     "f5",
+		})
+	ps = portStruct{
+		protocol: "http",
+		port:     100,
+	}
+	cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
+	require.Equal("foobar", cfg.Pools[0].Balance)
+	require.Equal(int32(100), cfg.Virtual.VirtualAddress.Port)
+
+	ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
+		map[string]string{
+			"kubernetes.io/ingress.class": "notf5",
+		})
+	cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
+	require.Nil(cfg)
+}
+
+func TestRouteConfiguration(t *testing.T) {
+	require := require.New(t)
+	namespace := "default"
+	spec := routeapi.RouteSpec{
+		Host: "foobar.com",
+		Path: "/foo",
+		To: routeapi.RouteTargetReference{
+			Kind: "Service",
+			Name: "foo",
+		},
+		TLS: &routeapi.TLSConfig{
+			Termination: "edge",
+			Certificate: "cert",
+			Key:         "key",
+		},
+	}
+	route := test.NewRoute("route", "1", namespace, spec)
+	ps := portStruct{
+		protocol: "https",
+		port:     443,
+	}
+	cfg, _ := createRSConfigFromRoute(route, Resources{}, RouteConfig{}, ps, 443)
+
+	require.Equal("openshift_default_https", cfg.Virtual.VirtualServerName)
+	require.Equal("openshift_default_foo", cfg.Pools[0].Name)
+	require.Equal("foo", cfg.Pools[0].ServiceName)
+	require.Equal(int32(443), cfg.Pools[0].ServicePort)
+	require.Equal("openshift_secure_routes", cfg.Policies[0].Name)
+	require.Equal("openshift_route_default_route", cfg.Policies[0].Rules[0].Name)
+
+	spec = routeapi.RouteSpec{
+		Host: "foobar.com",
+		Path: "/foo",
+		To: routeapi.RouteTargetReference{
+			Kind: "Service",
+			Name: "bar",
+		},
+	}
+	route2 := test.NewRoute("route2", "1", namespace, spec)
+	ps = portStruct{
+		protocol: "http",
+		port:     80,
+	}
+	cfg, _ = createRSConfigFromRoute(route2, Resources{}, RouteConfig{}, ps, 80)
+
+	require.Equal("openshift_default_http", cfg.Virtual.VirtualServerName)
+	require.Equal("openshift_default_bar", cfg.Pools[0].Name)
+	require.Equal("bar", cfg.Pools[0].ServiceName)
+	require.Equal(int32(80), cfg.Pools[0].ServicePort)
+	require.Equal("openshift_insecure_routes", cfg.Policies[0].Name)
+	require.Equal("openshift_route_default_route2", cfg.Policies[0].Rules[0].Name)
 }

@@ -21,13 +21,15 @@ from __future__ import absolute_import
 
 import unittest
 import json
+import os.path
+import f5_cccl
 from mock import Mock, patch
 from f5.bigip import ManagementRoot
 from f5_cccl.exceptions import F5CcclValidationError
 from f5_cccl.exceptions import F5CcclSchemaError
 from .. import bigipconfigdriver as ctlr
 
-SCHEMA_PATH = "./src/f5-cccl/f5_cccl/schemas/cccl-api-schema.yml"
+SCHEMA_PATH = "/go/src/f5-cccl/f5_cccl/schemas/cccl-api-schema.yml"
 
 
 # Kuberentes app data
@@ -88,6 +90,7 @@ class KubernetesTest(unittest.TestCase):
         """Test suite set up."""
         # Mock the call to _get_tmos_version(), which tries to make a
         # connection
+        print os.path.abspath(f5_cccl.__file__)
         partition = 'k8s'
         with patch.object(ManagementRoot, '_get_tmos_version'):
             bigip = ManagementRoot('1.2.3.4', 'admin', 'default')

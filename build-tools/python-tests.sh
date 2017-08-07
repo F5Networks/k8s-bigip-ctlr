@@ -11,6 +11,8 @@ CURDIR="$(dirname $BASH_SOURCE)"
 BUILDDIR=$(get_builddir)
 
 export BUILDDIR=$BUILDDIR
+pwd
+ls
 
 (cd python && flake8 . --exclude src,lib,go,bin,docs,cmd)
 (cd python && pytest . -slvv --ignore=src/ -p no:cacheprovider --cov)

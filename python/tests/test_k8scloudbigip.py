@@ -27,7 +27,7 @@ from f5_cccl.exceptions import F5CcclValidationError
 from f5_cccl.exceptions import F5CcclSchemaError
 from .. import bigipconfigdriver as ctlr
 
-SCHEMA_PATH = "../src/f5-cccl/f5_cccl/schemas/cccl-api-schema.yml"
+SCHEMA_PATH = "./src/f5-cccl/f5_cccl/schemas/cccl-api-schema.yml"
 
 
 # Kuberentes app data

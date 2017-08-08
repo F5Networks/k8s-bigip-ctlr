@@ -269,23 +269,6 @@ func (v *Virtual) RemoveProfile(prof ProfileRef) bool {
 	return false
 }
 
-func (slice ResourceConfigs) Len() int {
-	return len(slice)
-}
-
-func (slice ResourceConfigs) Less(i, j int) bool {
-	return slice[i].Pools[0].ServiceName <
-		slice[j].Pools[0].ServiceName ||
-		(slice[i].Pools[0].ServiceName ==
-			slice[j].Pools[0].ServiceName &&
-			slice[i].Pools[0].ServicePort <
-				slice[j].Pools[0].ServicePort)
-}
-
-func (slice ResourceConfigs) Swap(i, j int) {
-	slice[i], slice[j] = slice[j], slice[i]
-}
-
 // format the namespace and name for use in the frontend definition
 func formatConfigMapVSName(cm *v1.ConfigMap) string {
 	return fmt.Sprintf("%v_%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
@@ -929,6 +912,43 @@ func (rc *ResourceConfig) SetMonitor(pool *Pool, monitor Monitor) {
 	rc.Monitors = append(rc.Monitors, monitor)
 }
 
+// Sorting methods for unit testing
+func (slice Virtuals) Len() int {
+	return len(slice)
+}
+
+func (slice Virtuals) Less(i, j int) bool {
+	return slice[i].Partition < slice[j].Partition ||
+		(slice[i].Partition == slice[j].Partition &&
+			slice[i].VirtualServerName < slice[j].VirtualServerName)
+}
+
+func (slice Virtuals) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
+func (cfg *BigIPConfig) SortVirtuals() {
+	sort.Sort(cfg.Virtuals)
+}
+
+func (slice Pools) Len() int {
+	return len(slice)
+}
+
+func (slice Pools) Less(i, j int) bool {
+	return slice[i].Partition < slice[j].Partition ||
+		(slice[i].Partition == slice[j].Partition &&
+			slice[i].Name < slice[j].Name)
+}
+
+func (slice Pools) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
+func (cfg *BigIPConfig) SortPools() {
+	sort.Sort(cfg.Pools)
+}
+
 func (slice Monitors) Len() int {
 	return len(slice)
 }
@@ -941,6 +961,10 @@ func (slice Monitors) Less(i, j int) bool {
 
 func (slice Monitors) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
+}
+
+func (cfg *BigIPConfig) SortMonitors() {
+	sort.Sort(cfg.Monitors)
 }
 
 func (rc *ResourceConfig) SortMonitors() {

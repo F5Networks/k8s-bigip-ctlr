@@ -13,6 +13,4 @@ BUILD_VARIANT=debug
 
 go_install $(all_cmds)
 
-for pkg in $(all_cmds) $(all_pkgs); do
-  test_pkg_profile "$pkg"
-done
+ginkgo_test_with_profile

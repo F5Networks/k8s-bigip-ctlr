@@ -18,12 +18,11 @@ package openshift
 
 import (
 	"fmt"
-	"testing"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
 )
@@ -75,170 +74,172 @@ func getNodeList() []v1.Node {
 	return nodes
 }
 
-func TestOpenshiftMgrCreate(t *testing.T) {
-	mock := &test.MockWriter{
-		FailStyle: test.ImmediateFail,
-		Sections:  make(map[string]interface{}),
-	}
+var _ = Describe("OpenShiftSDNMgr Tests", func() {
+	It("is only created using proper arguments", func() {
+		mock := &test.MockWriter{
+			FailStyle: test.ImmediateFail,
+			Sections:  make(map[string]interface{}),
+		}
 
-	osMgr, err := NewOpenshiftSDNMgr("", "vxlan500", true, mock)
-	assert.Error(t, err)
-	assert.Nil(t, osMgr)
+		osMgr, err := NewOpenshiftSDNMgr("", "vxlan500", true, mock)
+		Expect(err).To(HaveOccurred())
+		Expect(osMgr).To(BeNil())
 
-	osMgr, err = NewOpenshiftSDNMgr("gobbledy-goo", "vxlan500", true, mock)
-	assert.Error(t, err)
-	assert.Nil(t, osMgr)
+		osMgr, err = NewOpenshiftSDNMgr("gobbledy-goo", "vxlan500", true, mock)
+		Expect(err).To(HaveOccurred())
+		Expect(osMgr).To(BeNil())
 
-	osMgr, err = NewOpenshiftSDNMgr("maintain", "", true, mock)
-	assert.Error(t, err)
-	assert.Nil(t, osMgr)
+		osMgr, err = NewOpenshiftSDNMgr("maintain", "", true, mock)
+		Expect(err).To(HaveOccurred())
+		Expect(osMgr).To(BeNil())
 
-	osMgr, err = NewOpenshiftSDNMgr("maintain", "vxlan500", true, nil)
-	assert.Error(t, err)
-	assert.Nil(t, osMgr)
+		osMgr, err = NewOpenshiftSDNMgr("maintain", "vxlan500", true, nil)
+		Expect(err).To(HaveOccurred())
+		Expect(osMgr).To(BeNil())
 
-	osMgr, err = NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
-	assert.NoError(t, err)
-	assert.NotNil(t, osMgr)
-}
-
-func TestOpenshiftMgrNodeUpdateCallFail(t *testing.T) {
-	mock := &test.MockWriter{
-		FailStyle: test.ImmediateFail,
-		Sections:  make(map[string]interface{}),
-	}
-
-	osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
-	assert.NoError(t, err)
-	require.NotPanics(t, func() {
-		osMgr.ProcessNodeUpdate(struct{}{}, fmt.Errorf("an error"))
+		osMgr, err = NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(osMgr).ToNot(BeNil())
 	})
-	assert.EqualValues(t, 0, mock.WrittenTimes)
-}
 
-func TestOpenshiftNodeUpdateBadData(t *testing.T) {
-	mock := &test.MockWriter{
-		FailStyle: test.ImmediateFail,
-		Sections:  make(map[string]interface{}),
-	}
+	It("doesn't panic when node update call fails", func() {
+		mock := &test.MockWriter{
+			FailStyle: test.ImmediateFail,
+			Sections:  make(map[string]interface{}),
+		}
 
-	osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
-	assert.NoError(t, err)
-	require.NotPanics(t, func() {
-		osMgr.ProcessNodeUpdate(struct{}{}, nil)
+		osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(func() {
+			osMgr.ProcessNodeUpdate(struct{}{}, fmt.Errorf("an error"))
+		}).ToNot(Panic())
+		Expect(mock.WrittenTimes).To(Equal(0))
 	})
-	assert.EqualValues(t, 0, mock.WrittenTimes)
-}
 
-func TestOpenshiftNodeUpdate(t *testing.T) {
-	mock := &test.MockWriter{
-		FailStyle: test.Success,
-		Sections:  make(map[string]interface{}),
-	}
+	It("doesn't panic when giving node update bad data", func() {
+		mock := &test.MockWriter{
+			FailStyle: test.ImmediateFail,
+			Sections:  make(map[string]interface{}),
+		}
 
-	nodeList := getNodeList()
-
-	osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
-	assert.NoError(t, err)
-	require.NotPanics(t, func() {
-		osMgr.ProcessNodeUpdate(nodeList, nil)
+		osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(func() {
+			osMgr.ProcessNodeUpdate(struct{}{}, nil)
+		}).ToNot(Panic())
+		Expect(mock.WrittenTimes).To(Equal(0))
 	})
-	assert.EqualValues(t, 1, mock.WrittenTimes)
 
-	mock.Lock()
-	assert.Contains(t, mock.Sections, "openshift-sdn")
-	mock.Unlock()
+	It("updates nodes", func() {
+		mock := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
+		}
 
-	expected := sdnSection{
-		VxLAN: "vxlan500",
-		Nodes: []string{
-			"127.1.1.2",
-			"127.0.0.4",
-			"127.1.1.5",
-			"127.0.0.7",
-		},
-	}
+		nodeList := getNodeList()
 
-	mock.Lock()
-	section, ok := mock.Sections["openshift-sdn"].(sdnSection)
-	mock.Unlock()
-	assert.True(t, ok)
+		osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(func() {
+			osMgr.ProcessNodeUpdate(nodeList, nil)
+		}).ToNot(Panic())
+		Expect(mock.WrittenTimes).To(Equal(1))
 
-	assert.EqualValues(t, expected, section)
+		mock.Lock()
+		Expect(mock.Sections).To(HaveKey("openshift-sdn"))
+		mock.Unlock()
 
-	osMgr.useNodeInt = false
-	require.NotPanics(t, func() {
-		osMgr.ProcessNodeUpdate(nodeList, nil)
+		expected := sdnSection{
+			VxLAN: "vxlan500",
+			Nodes: []string{
+				"127.1.1.2",
+				"127.0.0.4",
+				"127.1.1.5",
+				"127.0.0.7",
+			},
+		}
+
+		mock.Lock()
+		section, ok := mock.Sections["openshift-sdn"].(sdnSection)
+		mock.Unlock()
+		Expect(ok).To(BeTrue())
+
+		Expect(section).To(Equal(expected))
+
+		osMgr.useNodeInt = false
+		Expect(func() {
+			osMgr.ProcessNodeUpdate(nodeList, nil)
+		}).ToNot(Panic())
+		Expect(mock.WrittenTimes).To(Equal(2))
+
+		mock.Lock()
+		Expect(mock.Sections).To(HaveKey("openshift-sdn"))
+		mock.Unlock()
+
+		expected = sdnSection{
+			VxLAN: "vxlan500",
+			Nodes: []string{
+				"127.0.0.0",
+				"127.0.0.1",
+				"127.0.0.2",
+				"127.0.0.3",
+				"127.0.0.6",
+			},
+		}
+
+		mock.Lock()
+		section, ok = mock.Sections["openshift-sdn"].(sdnSection)
+		mock.Unlock()
+		Expect(ok).To(BeTrue())
+
+		Expect(section).To(Equal(expected))
 	})
-	assert.Equal(t, 2, mock.WrittenTimes)
 
-	mock.Lock()
-	assert.Contains(t, mock.Sections, "openshift-sdn")
-	mock.Unlock()
+	It("updates nodes - SendFail", func() {
+		mock := &test.MockWriter{
+			FailStyle: test.ImmediateFail,
+			Sections:  make(map[string]interface{}),
+		}
 
-	expected = sdnSection{
-		VxLAN: "vxlan500",
-		Nodes: []string{
-			"127.0.0.0",
-			"127.0.0.1",
-			"127.0.0.2",
-			"127.0.0.3",
-			"127.0.0.6",
-		},
-	}
+		nodeList := getNodeList()
 
-	mock.Lock()
-	section, ok = mock.Sections["openshift-sdn"].(sdnSection)
-	mock.Unlock()
-	assert.True(t, ok)
-
-	assert.EqualValues(t, expected, section)
-}
-
-func TestOpenshiftNodeUpdateSendFail(t *testing.T) {
-	mock := &test.MockWriter{
-		FailStyle: test.ImmediateFail,
-		Sections:  make(map[string]interface{}),
-	}
-
-	nodeList := getNodeList()
-
-	osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
-	assert.NoError(t, err)
-	require.NotPanics(t, func() {
-		osMgr.ProcessNodeUpdate(nodeList, nil)
+		osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(func() {
+			osMgr.ProcessNodeUpdate(nodeList, nil)
+		}).ToNot(Panic())
+		Expect(mock.WrittenTimes).To(Equal(1))
 	})
-	assert.EqualValues(t, 1, mock.WrittenTimes)
-}
 
-func TestOpenshiftNodeUpdateSendFailAsync(t *testing.T) {
-	mock := &test.MockWriter{
-		FailStyle: test.AsyncFail,
-		Sections:  make(map[string]interface{}),
-	}
+	It("updates nodes - SendFailAsync", func() {
+		mock := &test.MockWriter{
+			FailStyle: test.AsyncFail,
+			Sections:  make(map[string]interface{}),
+		}
 
-	nodeList := getNodeList()
+		nodeList := getNodeList()
 
-	osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
-	assert.NoError(t, err)
-	require.NotPanics(t, func() {
-		osMgr.ProcessNodeUpdate(nodeList, nil)
+		osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(func() {
+			osMgr.ProcessNodeUpdate(nodeList, nil)
+		}).ToNot(Panic())
+		Expect(mock.WrittenTimes).To(Equal(1))
 	})
-	assert.EqualValues(t, 1, mock.WrittenTimes)
-}
 
-func TestOpenshiftNodeUpdateSendFailTimeout(t *testing.T) {
-	mock := &test.MockWriter{
-		FailStyle: test.Timeout,
-		Sections:  make(map[string]interface{}),
-	}
+	It("updates nodes - SendFailTimeout", func() {
+		mock := &test.MockWriter{
+			FailStyle: test.Timeout,
+			Sections:  make(map[string]interface{}),
+		}
 
-	nodeList := getNodeList()
+		nodeList := getNodeList()
 
-	osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
-	assert.NoError(t, err)
-	require.NotPanics(t, func() {
-		osMgr.ProcessNodeUpdate(nodeList, nil)
+		osMgr, err := NewOpenshiftSDNMgr("maintain", "vxlan500", true, mock)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(func() {
+			osMgr.ProcessNodeUpdate(nodeList, nil)
+		}).ToNot(Panic())
+		Expect(mock.WrittenTimes).To(Equal(1))
 	})
-	assert.EqualValues(t, 1, mock.WrittenTimes)
-}
+})

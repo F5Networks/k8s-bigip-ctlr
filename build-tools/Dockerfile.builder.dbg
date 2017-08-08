@@ -2,9 +2,11 @@ FROM golang:1.7.5
 
 ENV GOSU_VERSION 1.10
 RUN set -x \
-  go get -v github.com/wadey/gocovmerge \
+  go get -v github.com/wadey/gocovmerge && \
+  go get github.com/onsi/ginkgo/ginkgo && \
+  go get github.com/onsi/gomega \
   && apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates wget \
+  && apt-get install -y --no-install-recommends ca-certificates rsync wget \
   && rm -rf /var/lib/apt/lists/* \
   && dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')" \
   && wget -O /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch" \

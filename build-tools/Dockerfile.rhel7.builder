@@ -10,7 +10,7 @@ RUN REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-
 	yum -y update-minimal --disablerepo "*" --enablerepo rhel-7-server-rpms --setopt=tsflags=nodocs \
 	  --security --sec-severity=Important --sec-severity=Critical && \
 	yum -y install --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
-	  gcc openssl golang git make wget python27 && \
+	  gcc openssl golang git make rsync wget python27 && \
 # Add epel repo for dpkg install
 	curl -o epel-release-latest-7.noarch.rpm -SL https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
             --retry 9 --retry-max-time 0 -C - && \
@@ -63,6 +63,8 @@ RUN source scl_source enable python27 && \
 	go get github.com/wadey/gocovmerge && \
 	go get golang.org/x/tools/cmd/cover && \
 	go get github.com/mattn/goveralls && \
+	go get github.com/onsi/ginkgo/ginkgo && \
+	go get github.com/onsi/gomega && \
 	chmod 755 /entrypoint.sh
 
 ENTRYPOINT [ "/entrypoint.sh" ]

@@ -19,13 +19,12 @@ package appmanager
 import (
 	"fmt"
 	"sort"
-	"testing"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	routeapi "github.com/openshift/origin/pkg/route/api"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
@@ -86,630 +85,608 @@ func assignTestMap(rs *Resources, rm *resourceMap) {
 	}
 }
 
-func TestResourceSort(t *testing.T) {
-	resources := ResourceConfigs{}
+var _ = Describe("Resource Config Tests", func() {
+	Describe("RS Config utils", func() {
+		var rs *Resources
+		var rm *resourceMap
+		var nbrBackends, nbrCfgsPer int
+		BeforeEach(func() {
+			rs = NewResources()
+			Expect(rs).ToNot(BeNil())
 
-	expectedList := make(ResourceConfigs, 10)
+			nbrBackends = 2
+			nbrCfgsPer = 2
+			rm = newTestMap(nbrBackends, nbrCfgsPer)
+			Expect(rm).ToNot(BeNil())
+			assignTestMap(rs, rm)
+		})
 
-	rs := ResourceConfig{}
-	rs.Pools = append(rs.Pools, Pool{})
-	rs.Pools[0].ServiceName = "bar"
-	rs.Pools[0].ServicePort = 80
-	resources = append(resources, &rs)
-	expectedList[1] = &rs
+		It("sorts virtuals", func() {
+			virtuals := Virtuals{}
+			expectedList := make(Virtuals, 5)
 
-	rs = ResourceConfig{}
-	rs.Pools = append(rs.Pools, Pool{})
-	rs.Pools[0].ServiceName = "foo"
-	rs.Pools[0].ServicePort = 2
-	resources = append(resources, &rs)
-	expectedList[5] = &rs
+			v := Virtual{}
+			v.Partition = "a"
+			v.VirtualServerName = "foo"
+			virtuals = append(virtuals, v)
+			expectedList[1] = v
 
-	rs = ResourceConfig{}
-	rs.Pools = append(rs.Pools, Pool{})
-	rs.Pools[0].ServiceName = "foo"
-	rs.Pools[0].ServicePort = 8080
-	resources = append(resources, &rs)
-	expectedList[7] = &rs
+			v = Virtual{}
+			v.Partition = "a"
+			v.VirtualServerName = "bar"
+			virtuals = append(virtuals, v)
+			expectedList[0] = v
 
-	rs = ResourceConfig{}
-	rs.Pools = append(rs.Pools, Pool{})
-	rs.Pools[0].ServiceName = "baz"
-	rs.Pools[0].ServicePort = 1
-	resources = append(resources, &rs)
-	expectedList[2] = &rs
+			v = Virtual{}
+			v.Partition = "c"
+			v.VirtualServerName = "bar"
+			virtuals = append(virtuals, v)
+			expectedList[3] = v
 
-	rs = ResourceConfig{}
-	rs.Pools = append(rs.Pools, Pool{})
-	rs.Pools[0].ServiceName = "foo"
-	rs.Pools[0].ServicePort = 80
-	resources = append(resources, &rs)
-	expectedList[6] = &rs
+			v = Virtual{}
+			v.Partition = "c"
+			v.VirtualServerName = "foo"
+			virtuals = append(virtuals, v)
+			expectedList[4] = v
 
-	rs = ResourceConfig{}
-	rs.Pools = append(rs.Pools, Pool{})
-	rs.Pools[0].ServiceName = "foo"
-	rs.Pools[0].ServicePort = 9090
-	resources = append(resources, &rs)
-	expectedList[9] = &rs
+			v = Virtual{}
+			v.Partition = "b"
+			v.VirtualServerName = "bar"
+			virtuals = append(virtuals, v)
+			expectedList[2] = v
 
-	rs = ResourceConfig{}
-	rs.Pools = append(rs.Pools, Pool{})
-	rs.Pools[0].ServiceName = "baz"
-	rs.Pools[0].ServicePort = 1000
-	resources = append(resources, &rs)
-	expectedList[3] = &rs
+			sort.Sort(virtuals)
 
-	rs = ResourceConfig{}
-	rs.Pools = append(rs.Pools, Pool{})
-	rs.Pools[0].ServiceName = "foo"
-	rs.Pools[0].ServicePort = 8080
-	resources = append(resources, &rs)
-	expectedList[8] = &rs
-
-	rs = ResourceConfig{}
-	rs.Pools = append(rs.Pools, Pool{})
-	rs.Pools[0].ServiceName = "foo"
-	rs.Pools[0].ServicePort = 1
-	resources = append(resources, &rs)
-	expectedList[4] = &rs
-
-	rs = ResourceConfig{}
-	rs.Pools = append(rs.Pools, Pool{})
-	rs.Pools[0].ServiceName = "bar"
-	rs.Pools[0].ServicePort = 1
-	resources = append(resources, &rs)
-	expectedList[0] = &rs
-
-	sort.Sort(resources)
-
-	for i, _ := range expectedList {
-		require.EqualValues(t, expectedList[i], resources[i],
-			"Sorted list elements should be equal")
-	}
-}
-
-func TestNewResources(t *testing.T) {
-	// Test that we can create a new/empty resources object.
-	require := require.New(t)
-	rs := NewResources()
-	require.NotNil(rs)
-	require.NotNil(rs.rm)
-}
-
-func TestAssign(t *testing.T) {
-	// Test Assign() to make sure we can add multiple configs for a backend.
-	require := require.New(t)
-	rs := NewResources()
-	require.NotNil(rs)
-
-	nbrBackends := 2
-	nbrCfgsPer := 2
-	rm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(rm)
-	assignTestMap(rs, rm)
-
-	// Make sure rs has the correct number of objects without using other
-	// interface functions.
-	require.Equal(nbrBackends, len(rs.rm))
-	for _, rsCfgs := range rs.rm {
-		assert.Equal(t, nbrCfgsPer, len(rsCfgs))
-	}
-}
-
-func TestCount(t *testing.T) {
-	// Test Count() to make sure we count all items
-	require := require.New(t)
-	rs := NewResources()
-	require.NotNil(rs)
-
-	nbrBackends := 2
-	nbrCfgsPer := 2
-	rm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(rm)
-	assignTestMap(rs, rm)
-
-	require.Equal(nbrBackends*nbrCfgsPer, rs.Count())
-}
-
-func TestCountOf(t *testing.T) {
-	// Test CountOf() to make sure we count configs per backend correctly.
-	require := require.New(t)
-	rs := NewResources()
-	require.NotNil(rs)
-
-	nbrBackends := 2
-	nbrCfgsPer := 2
-	rm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(rm)
-	assignTestMap(rs, rm)
-	require.Equal(nbrBackends, len(rs.rm))
-	for key, _ := range *rm {
-		assert.Equal(t, nbrCfgsPer, rs.CountOf(key))
-	}
-}
-
-func TestDelete(t *testing.T) {
-	// Test Delete() to make sure we can delete specific/all configs.
-	require := require.New(t)
-	rs := NewResources()
-	require.NotNil(rs)
-
-	nbrBackends := 2
-	nbrCfgsPer := 2
-	rm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(rm)
-	assignTestMap(rs, rm)
-
-	// delete each config one at a time
-	for key, val := range *rm {
-		for _, tf := range val {
-			countBefore := rs.CountOf(key)
-			assert.True(t, countBefore > 0)
-			ok := rs.Delete(key, tf.name)
-			require.True(ok)
-			countAfter := rs.CountOf(key)
-			require.Equal(countBefore-1, countAfter)
-			// Test double-delete fails correctly
-			ok = rs.Delete(key, tf.name)
-			require.False(ok)
-			assert.Equal(t, countAfter, rs.CountOf(key))
-		}
-	}
-
-	// should be completely empty now
-	require.Equal(0, len(rs.rm))
-}
-
-func TestForEach(t *testing.T) {
-	// Test ForEach() to make sure we can iterate over all configs.
-	require := require.New(t)
-	rs := NewResources()
-	require.NotNil(rs)
-
-	nbrBackends := 2
-	nbrCfgsPer := 2
-	rm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(rm)
-	assignTestMap(rs, rm)
-
-	totalConfigs := 0
-	rs.ForEach(func(key serviceKey, cfg *ResourceConfig) {
-		totalConfigs += 1
-		testObj := (*rm)[key]
-		require.NotNil(testObj)
-		found := false
-		for _, val := range testObj {
-			if val.name == cfg.Virtual.VirtualServerName {
-				found = true
+			for i, _ := range expectedList {
+				Expect(virtuals[i]).To(Equal(expectedList[i]),
+					"Sorted list elements should be equal.")
 			}
-		}
-		assert.True(t, found)
+		})
+
+		It("sorts pools", func() {
+			pools := Pools{}
+			expectedList := make(Pools, 5)
+
+			p := Pool{}
+			p.Partition = "b"
+			p.Name = "foo"
+			pools = append(pools, p)
+			expectedList[3] = p
+
+			p = Pool{}
+			p.Partition = "a"
+			p.Name = "foo"
+			pools = append(pools, p)
+			expectedList[1] = p
+
+			p = Pool{}
+			p.Partition = "b"
+			p.Name = "bar"
+			pools = append(pools, p)
+			expectedList[2] = p
+
+			p = Pool{}
+			p.Partition = "a"
+			p.Name = "bar"
+			pools = append(pools, p)
+			expectedList[0] = p
+
+			p = Pool{}
+			p.Partition = "c"
+			p.Name = "foo"
+			pools = append(pools, p)
+			expectedList[4] = p
+
+			sort.Sort(pools)
+
+			for i, _ := range expectedList {
+				Expect(pools[i]).To(Equal(expectedList[i]),
+					"Sorted list elements should be equal.")
+			}
+		})
+
+		It("sorts monitors", func() {
+			monitors := Monitors{}
+			expectedList := make(Monitors, 5)
+
+			m := Monitor{}
+			m.Partition = "a"
+			m.Name = "bar"
+			monitors = append(monitors, m)
+			expectedList[0] = m
+
+			m = Monitor{}
+			m.Partition = "b"
+			m.Name = "foo"
+			monitors = append(monitors, m)
+			expectedList[3] = m
+
+			m = Monitor{}
+			m.Partition = "b"
+			m.Name = "bar"
+			monitors = append(monitors, m)
+			expectedList[2] = m
+
+			m = Monitor{}
+			m.Partition = "a"
+			m.Name = "foo"
+			monitors = append(monitors, m)
+			expectedList[1] = m
+
+			m = Monitor{}
+			m.Partition = "c"
+			m.Name = "foo"
+			monitors = append(monitors, m)
+			expectedList[4] = m
+
+			sort.Sort(monitors)
+
+			for i, _ := range expectedList {
+				Expect(monitors[i]).To(Equal(expectedList[i]),
+					"Sorted list elements should be equal.")
+			}
+		})
+
+		It("creates new resources", func() {
+			// Test that we can create a new/empty resources object.
+			rs := NewResources()
+			Expect(rs).ToNot(BeNil())
+			Expect(rs.rm).ToNot(BeNil())
+		})
+
+		It("assigns configs to backends", func() {
+			// Test Assign() to make sure we can add multiple configs for a backend.
+			// Make sure rs has the correct number of objects without using other
+			// interface functions.
+			Expect(len(rs.rm)).To(Equal(nbrBackends))
+			for _, rsCfgs := range rs.rm {
+				Expect(len(rsCfgs)).To(Equal(nbrCfgsPer))
+			}
+		})
+
+		It("can count all resources", func() {
+			// Test Count() to make sure we count all items
+			Expect(rs.Count()).To(Equal(nbrBackends * nbrCfgsPer))
+		})
+
+		It("can count configs per backend", func() {
+			// Test CountOf() to make sure we count configs per backend correctly.
+			Expect(len(rs.rm)).To(Equal(nbrBackends))
+			for key, _ := range *rm {
+				Expect(rs.CountOf(key)).To(Equal(nbrCfgsPer))
+			}
+		})
+
+		It("deletes configs", func() {
+			// Test Delete() to make sure we can delete specific/all configs.
+			// delete each config one at a time
+			for key, val := range *rm {
+				for _, tf := range val {
+					countBefore := rs.CountOf(key)
+					Expect(countBefore).To(BeNumerically(">", 0))
+					ok := rs.Delete(key, tf.name)
+					Expect(ok).To(BeTrue())
+					countAfter := rs.CountOf(key)
+					Expect(countAfter).To(Equal(countBefore - 1))
+					// Test double-delete fails correctly
+					ok = rs.Delete(key, tf.name)
+					Expect(ok).To(BeFalse())
+					Expect(rs.CountOf(key)).To(Equal(countAfter))
+				}
+			}
+
+			// should be completely empty now
+			Expect(len(rs.rm)).To(Equal(0))
+		})
+
+		It("can iterate over all configs", func() {
+			// Test ForEach() to make sure we can iterate over all configs.
+			totalConfigs := 0
+			rs.ForEach(func(key serviceKey, cfg *ResourceConfig) {
+				totalConfigs += 1
+				testObj := (*rm)[key]
+				Expect(testObj).ToNot(BeNil())
+				found := false
+				for _, val := range testObj {
+					if val.name == cfg.Virtual.VirtualServerName {
+						found = true
+					}
+				}
+				Expect(found).To(BeTrue())
+			})
+			Expect(totalConfigs).To(Equal(nbrBackends * nbrCfgsPer))
+		})
+
+		It("can get a specific config", func() {
+			// Test Get() to make sure we can access specific configs.
+			for key, val := range *rm {
+				for _, tf := range val {
+					r, ok := rs.Get(key, tf.name)
+					Expect(ok).To(BeTrue())
+					Expect(r).ToNot(BeNil())
+					Expect(r.Virtual.VirtualAddress.BindAddr).To(Equal(tf.addr.BindAddr))
+					Expect(r.Virtual.VirtualAddress.Port).To(Equal(tf.addr.Port))
+				}
+			}
+		})
+
+		It("can get all configs", func() {
+			// Test GetAll() to make sure we can get all configs.
+			for key, _ := range *rm {
+				rsCfgMap, ok := rs.GetAll(key)
+				Expect(ok).To(BeTrue())
+				Expect(rsCfgMap).ToNot(BeNil())
+				Expect(len(rsCfgMap)).To(Equal(nbrCfgsPer))
+			}
+		})
 	})
-	require.Equal(nbrBackends*nbrCfgsPer, totalConfigs)
-}
 
-func TestGet(t *testing.T) {
-	// Test Get() to make sure we can access specific configs.
-	require := require.New(t)
-	rs := NewResources()
-	require.NotNil(rs)
+	Describe("Config Manipulation", func() {
+		It("configures ssl profile names", func() {
+			var rs ResourceConfig
+			// verify initial state
+			Expect(rs.Virtual.SslProfile).To(BeNil())
+			empty := []string{}
+			Expect(rs.Virtual.GetFrontendSslProfileNames()).To(Equal(empty))
 
-	nbrBackends := 2
-	nbrCfgsPer := 2
-	rm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(rm)
-	assignTestMap(rs, rm)
+			// set a name and make sure it is saved
+			profileName := "profileName"
+			rs.Virtual.AddFrontendSslProfileName(profileName)
+			Expect(rs.Virtual.SslProfile).ToNot(BeNil())
+			Expect(rs.Virtual.SslProfile.F5ProfileName).To(Equal(profileName))
+			Expect(rs.Virtual.GetFrontendSslProfileNames()).To(Equal([]string{profileName}))
 
-	for key, val := range *rm {
-		for _, tf := range val {
-			r, ok := rs.Get(key, tf.name)
-			require.True(ok)
-			require.NotNil(rs)
-			assert.Equal(t, tf.addr.BindAddr,
-				r.Virtual.VirtualAddress.BindAddr)
-			assert.Equal(t, tf.addr.Port,
-				r.Virtual.VirtualAddress.Port)
-		}
-	}
-}
+			// add a second profile
+			newProfileName := "newProfileName"
+			rs.Virtual.AddFrontendSslProfileName(newProfileName)
+			Expect(rs.Virtual.SslProfile).ToNot(BeNil())
+			Expect(rs.Virtual.SslProfile.F5ProfileName).To(Equal(""))
+			Expect(rs.Virtual.SslProfile.F5ProfileNames).To(
+				Equal([]string{newProfileName, profileName}))
+			Expect(rs.Virtual.GetFrontendSslProfileNames()).To(
+				Equal([]string{newProfileName, profileName}))
 
-func TestGetAll(t *testing.T) {
-	// Test GetAll() to make sure we can get all configs.
-	require := require.New(t)
-	rs := NewResources()
-	require.NotNil(rs)
-
-	nbrBackends := 2
-	nbrCfgsPer := 2
-	rm := newTestMap(nbrBackends, nbrCfgsPer)
-	require.NotNil(rm)
-	assignTestMap(rs, rm)
-
-	for key, _ := range *rm {
-		rsCfgMap, ok := rs.GetAll(key)
-		require.True(ok)
-		require.NotNil(rsCfgMap)
-		assert.Equal(t, nbrCfgsPer, len(rsCfgMap))
-	}
-}
-
-func TestSslProfileName(t *testing.T) {
-	assert := assert.New(t)
-	var rs ResourceConfig
-	// verify initial state
-	assert.Nil(rs.Virtual.SslProfile)
-	empty := []string{}
-	assert.Equal(empty, rs.Virtual.GetFrontendSslProfileNames())
-
-	// set a name and make sure it is saved
-	profileName := "profileName"
-	rs.Virtual.AddFrontendSslProfileName(profileName)
-	assert.NotNil(rs.Virtual.SslProfile)
-	assert.Equal(profileName,
-		rs.Virtual.SslProfile.F5ProfileName)
-	assert.Equal([]string{profileName}, rs.Virtual.GetFrontendSslProfileNames())
-
-	// add a second profile
-	newProfileName := "newProfileName"
-	rs.Virtual.AddFrontendSslProfileName(newProfileName)
-	assert.NotNil(rs.Virtual.SslProfile)
-	assert.Equal("", rs.Virtual.SslProfile.F5ProfileName)
-	assert.Equal([]string{newProfileName, profileName},
-		rs.Virtual.SslProfile.F5ProfileNames)
-	assert.Equal([]string{newProfileName, profileName},
-		rs.Virtual.GetFrontendSslProfileNames())
-
-	// Remove both profiles and make sure the pointer goes back to nil
-	r := rs.Virtual.RemoveFrontendSslProfileName(profileName)
-	assert.True(r)
-	assert.Equal(newProfileName,
-		rs.Virtual.SslProfile.F5ProfileName)
-	assert.Equal([]string{newProfileName}, rs.Virtual.GetFrontendSslProfileNames())
-	r = rs.Virtual.RemoveFrontendSslProfileName(newProfileName)
-	assert.True(r)
-	assert.Nil(rs.Virtual.SslProfile)
-	assert.Equal(empty, rs.Virtual.GetFrontendSslProfileNames())
-}
-
-func TestSetAndRemovePolicy(t *testing.T) {
-	assert := assert.New(t)
-	var rc ResourceConfig
-
-	lenValidate := func(expectedLen int) {
-		assert.Equal(expectedLen, len(rc.Virtual.Policies))
-		assert.Equal(len(rc.Virtual.Policies), len(rc.Policies))
-	}
-
-	// verify initial state
-	lenValidate(0)
-
-	// add a policy
-	policy1 := Policy{
-		Name:      "policy1",
-		Partition: "k8s",
-		Strategy:  "first-match",
-	}
-	rc.SetPolicy(policy1)
-	lenValidate(1)
-	assert.Equal("first-match", rc.Policies[0].Strategy)
-
-	// change data in existing policy
-	policy1.Strategy = "best-match"
-	assert.Equal("first-match", rc.Policies[0].Strategy)
-	rc.SetPolicy(policy1)
-	lenValidate(1)
-	assert.Equal("best-match", rc.Policies[0].Strategy)
-
-	// add a second policy
-	policy2 := Policy{
-		Name:      "policy2",
-		Partition: "k8s",
-		Strategy:  "first-match",
-	}
-	rc.SetPolicy(policy2)
-	lenValidate(2)
-
-	// make sure it is appended
-	assert.Equal("policy1", rc.Policies[0].Name)
-	assert.Equal("policy2", rc.Policies[1].Name)
-
-	// remove first policy
-	toRemove := nameRef{
-		Name:      policy1.Name,
-		Partition: policy1.Partition,
-	}
-	rc.RemovePolicy(toRemove)
-	lenValidate(1)
-	assert.Equal("policy2", rc.Policies[0].Name)
-
-	// remove last policy
-	toRemove.Name = policy2.Name
-	toRemove.Partition = policy2.Partition
-	rc.RemovePolicy(toRemove)
-	lenValidate(0)
-
-	// make sure deleting something that isn't there doesn't fail badly
-	rc.RemovePolicy(toRemove)
-	lenValidate(0)
-}
-
-func TestIngressConfiguration(t *testing.T) {
-	require := require.New(t)
-	namespace := "default"
-	ingressConfig := v1beta1.IngressSpec{
-		Backend: &v1beta1.IngressBackend{
-			ServiceName: "foo",
-			ServicePort: intstr.IntOrString{IntVal: 80},
-		},
-	}
-	ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
-		map[string]string{
-			"virtual-server.f5.com/ip":        "1.2.3.4",
-			"virtual-server.f5.com/partition": "velcro",
+			// Remove both profiles and make sure the pointer goes back to nil
+			r := rs.Virtual.RemoveFrontendSslProfileName(profileName)
+			Expect(r).To(BeTrue())
+			Expect(rs.Virtual.SslProfile.F5ProfileName).To(Equal(newProfileName))
+			Expect(rs.Virtual.GetFrontendSslProfileNames()).To(Equal([]string{newProfileName}))
+			r = rs.Virtual.RemoveFrontendSslProfileName(newProfileName)
+			Expect(r).To(BeTrue())
+			Expect(rs.Virtual.SslProfile).To(BeNil())
+			Expect(rs.Virtual.GetFrontendSslProfileNames()).To(Equal(empty))
 		})
-	ps := portStruct{
-		protocol: "http",
-		port:     80,
-	}
-	cfg := createRSConfigFromIngress(ingress, namespace, nil, ps)
-	require.Equal("round-robin", cfg.Pools[0].Balance)
-	require.Equal("http", cfg.Virtual.Mode)
-	require.Equal("velcro", cfg.Virtual.Partition)
-	require.Equal("1.2.3.4", cfg.Virtual.VirtualAddress.BindAddr)
-	require.Equal(int32(80), cfg.Virtual.VirtualAddress.Port)
 
-	ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
-		map[string]string{
-			"virtual-server.f5.com/ip":        "1.2.3.4",
-			"virtual-server.f5.com/partition": "velcro",
-			"virtual-server.f5.com/http-port": "100",
-			"virtual-server.f5.com/balance":   "foobar",
-			"kubernetes.io/ingress.class":     "f5",
+		It("sets and removes policies", func() {
+			var rc ResourceConfig
+
+			lenValidate := func(expectedLen int) {
+				Expect(len(rc.Virtual.Policies)).To(Equal(expectedLen))
+				Expect(len(rc.Policies)).To(Equal(len(rc.Virtual.Policies)))
+			}
+
+			// verify initial state
+			lenValidate(0)
+
+			// add a policy
+			policy1 := Policy{
+				Name:      "policy1",
+				Partition: "k8s",
+				Strategy:  "first-match",
+			}
+			rc.SetPolicy(policy1)
+			lenValidate(1)
+			Expect(rc.Policies[0].Strategy).To(Equal("first-match"))
+
+			// change data in existing policy
+			policy1.Strategy = "best-match"
+			Expect(rc.Policies[0].Strategy).To(Equal("first-match"))
+			rc.SetPolicy(policy1)
+			lenValidate(1)
+			Expect(rc.Policies[0].Strategy).To(Equal("best-match"))
+
+			// add a second policy
+			policy2 := Policy{
+				Name:      "policy2",
+				Partition: "k8s",
+				Strategy:  "first-match",
+			}
+			rc.SetPolicy(policy2)
+			lenValidate(2)
+
+			// make sure it is appended
+			Expect(rc.Policies[0].Name).To(Equal("policy1"))
+			Expect(rc.Policies[1].Name).To(Equal("policy2"))
+
+			// remove first policy
+			toRemove := nameRef{
+				Name:      policy1.Name,
+				Partition: policy1.Partition,
+			}
+			rc.RemovePolicy(toRemove)
+			lenValidate(1)
+			Expect(rc.Policies[0].Name).To(Equal("policy2"))
+
+			// remove last policy
+			toRemove.Name = policy2.Name
+			toRemove.Partition = policy2.Partition
+			rc.RemovePolicy(toRemove)
+			lenValidate(0)
+
+			// make sure deleting something that isn't there doesn't fail badly
+			rc.RemovePolicy(toRemove)
+			lenValidate(0)
 		})
-	ps = portStruct{
-		protocol: "http",
-		port:     100,
-	}
-	cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
-	require.Equal("foobar", cfg.Pools[0].Balance)
-	require.Equal(int32(100), cfg.Virtual.VirtualAddress.Port)
 
-	ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
-		map[string]string{
-			"kubernetes.io/ingress.class": "notf5",
+		It("properly configures ingress resources", func() {
+			namespace := "default"
+			ingressConfig := v1beta1.IngressSpec{
+				Backend: &v1beta1.IngressBackend{
+					ServiceName: "foo",
+					ServicePort: intstr.IntOrString{IntVal: 80},
+				},
+			}
+			ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
+				map[string]string{
+					"virtual-server.f5.com/ip":        "1.2.3.4",
+					"virtual-server.f5.com/partition": "velcro",
+				})
+			ps := portStruct{
+				protocol: "http",
+				port:     80,
+			}
+			cfg := createRSConfigFromIngress(ingress, namespace, nil, ps)
+			Expect(cfg.Pools[0].Balance).To(Equal("round-robin"))
+			Expect(cfg.Virtual.Mode).To(Equal("http"))
+			Expect(cfg.Virtual.Partition).To(Equal("velcro"))
+			Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
+			Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(80)))
+
+			ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
+				map[string]string{
+					"virtual-server.f5.com/ip":        "1.2.3.4",
+					"virtual-server.f5.com/partition": "velcro",
+					"virtual-server.f5.com/http-port": "100",
+					"virtual-server.f5.com/balance":   "foobar",
+					"kubernetes.io/ingress.class":     "f5",
+				})
+			ps = portStruct{
+				protocol: "http",
+				port:     100,
+			}
+			cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
+			Expect(cfg.Pools[0].Balance).To(Equal("foobar"))
+			Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(100)))
+
+			ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
+				map[string]string{
+					"kubernetes.io/ingress.class": "notf5",
+				})
+			cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
+			Expect(cfg).To(BeNil())
 		})
-	cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
-	require.Nil(cfg)
-}
 
-func TestRouteConfiguration(t *testing.T) {
-	require := require.New(t)
-	namespace := "default"
-	spec := routeapi.RouteSpec{
-		Host: "foobar.com",
-		Path: "/foo",
-		To: routeapi.RouteTargetReference{
-			Kind: "Service",
-			Name: "foo",
-		},
-		TLS: &routeapi.TLSConfig{
-			Termination: "edge",
-			Certificate: "cert",
-			Key:         "key",
-		},
-	}
-	route := test.NewRoute("route", "1", namespace, spec)
-	ps := portStruct{
-		protocol: "https",
-		port:     443,
-	}
-	cfg, _ := createRSConfigFromRoute(route, Resources{}, RouteConfig{}, ps)
+		It("properly configures route resources", func() {
+			namespace := "default"
+			spec := routeapi.RouteSpec{
+				Host: "foobar.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: &routeapi.TLSConfig{
+					Termination: "edge",
+					Certificate: "cert",
+					Key:         "key",
+				},
+			}
+			route := test.NewRoute("route", "1", namespace, spec)
+			ps := portStruct{
+				protocol: "https",
+				port:     443,
+			}
+			cfg, _ := createRSConfigFromRoute(route, Resources{}, RouteConfig{}, ps)
+			Expect(cfg.Virtual.VirtualServerName).To(Equal("openshift_default_https"))
+			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_foo"))
+			Expect(cfg.Pools[0].ServiceName).To(Equal("foo"))
+			Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))
+			Expect(cfg.Policies[0].Name).To(Equal("openshift_secure_routes"))
+			Expect(cfg.Policies[0].Rules[0].Name).To(Equal("openshift_route_default_route"))
 
-	require.Equal("openshift_default_https", cfg.Virtual.VirtualServerName)
-	require.Equal("openshift_default_foo", cfg.Pools[0].Name)
-	require.Equal("foo", cfg.Pools[0].ServiceName)
-	require.Equal(int32(80), cfg.Pools[0].ServicePort)
-	require.Equal("openshift_secure_routes", cfg.Policies[0].Name)
-	require.Equal("openshift_route_default_route", cfg.Policies[0].Rules[0].Name)
+			spec = routeapi.RouteSpec{
+				Host: "foobar.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+			}
+			route2 := test.NewRoute("route2", "1", namespace, spec)
+			ps = portStruct{
+				protocol: "http",
+				port:     80,
+			}
+			cfg, _ = createRSConfigFromRoute(route2, Resources{}, RouteConfig{}, ps)
+			Expect(cfg.Virtual.VirtualServerName).To(Equal("openshift_default_http"))
+			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_bar"))
+			Expect(cfg.Pools[0].ServiceName).To(Equal("bar"))
+			Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))
+			Expect(cfg.Policies[0].Name).To(Equal("openshift_insecure_routes"))
+			Expect(cfg.Policies[0].Rules[0].Name).To(Equal("openshift_route_default_route2"))
+		})
 
-	spec = routeapi.RouteSpec{
-		Host: "foobar.com",
-		Path: "/foo",
-		To: routeapi.RouteTargetReference{
-			Kind: "Service",
-			Name: "bar",
-		},
-	}
-	route2 := test.NewRoute("route2", "1", namespace, spec)
-	ps = portStruct{
-		protocol: "http",
-		port:     80,
-	}
-	cfg, _ = createRSConfigFromRoute(route2, Resources{}, RouteConfig{}, ps)
+		It("sets and removes internal data group records", func() {
+			idg := NewInternalDataGroup("test-dg", "test")
+			Expect(idg).ToNot(BeNil())
+			Expect(idg.Records.Len()).To(Equal(0))
 
-	require.Equal("openshift_default_http", cfg.Virtual.VirtualServerName)
-	require.Equal("openshift_default_bar", cfg.Pools[0].Name)
-	require.Equal("bar", cfg.Pools[0].ServiceName)
-	require.Equal(int32(80), cfg.Pools[0].ServicePort)
-	require.Equal("openshift_insecure_routes", cfg.Policies[0].Name)
-	require.Equal("openshift_route_default_route2", cfg.Policies[0].Rules[0].Name)
-}
+			// Test add. Add items out of sort order and make sure order is maintained.
+			testData := []string{
+				"second",
+				"third",
+				"first",
+			}
+			for i, val := range testData {
+				updated := idg.AddOrUpdateRecord(val+" name", val+" data")
+				Expect(updated).To(BeTrue())
+				Expect(idg.Records.Len()).To(Equal(i + 1))
+			}
+			Expect(sort.IsSorted(idg.Records)).To(BeTrue())
 
-func TestSetAndRemoveInternalDataGroupRecords(t *testing.T) {
-	assert := assert.New(t)
-	require := require.New(t)
-	idg := NewInternalDataGroup("test-dg", "test")
-	require.NotNil(idg)
-	assert.Equal(0, idg.Records.Len())
+			// Test updates of existing items.
+			for _, val := range testData {
+				updated := idg.AddOrUpdateRecord(val+" name", val+" updated data")
+				Expect(updated).To(BeTrue())
+			}
+			// Make sure updates with same data does not indicate an update.
+			for _, val := range testData {
+				updated := idg.AddOrUpdateRecord(val+" name", val+" updated data")
+				Expect(updated).To(BeFalse())
+			}
 
-	// Test add. Add items out of sort order and make sure order is maintained.
-	testData := []string{
-		"second",
-		"third",
-		"first",
-	}
-	for i, val := range testData {
-		updated := idg.AddOrUpdateRecord(val+" name", val+" data")
-		assert.True(updated)
-		assert.Equal(i+1, idg.Records.Len())
-	}
-	assert.True(sort.IsSorted(idg.Records))
+			// Test remove for both existing and non-existing records.
+			expectedRecCt := len(testData)
+			for _, val := range testData {
+				// remove existing.
+				updated := idg.RemoveRecord(val + " name")
+				Expect(updated).To(BeTrue())
+				expectedRecCt--
+				Expect(idg.Records.Len()).To(Equal(expectedRecCt))
+				// remove non-existing.
+				updated = idg.RemoveRecord(val + " name")
+				Expect(updated).To(BeFalse())
+				Expect(idg.Records.Len()).To(Equal(expectedRecCt))
+			}
+		})
 
-	// Test updates of existing items.
-	for _, val := range testData {
-		updated := idg.AddOrUpdateRecord(val+" name", val+" updated data")
-		assert.True(updated)
-	}
-	// Make sure updates with same data does not indicate an update.
-	for _, val := range testData {
-		updated := idg.AddOrUpdateRecord(val+" name", val+" updated data")
-		assert.False(updated)
-	}
+		It("sets and removes profiles", func() {
+			virtual := Virtual{}
+			Expect(virtual.Profiles.Len()).To(Equal(0))
 
-	// Test remove for both existing and non-existing records.
-	expectedRecCt := len(testData)
-	for _, val := range testData {
-		// remove existing.
-		updated := idg.RemoveRecord(val + " name")
-		assert.True(updated)
-		expectedRecCt--
-		assert.Equal(expectedRecCt, idg.Records.Len())
-		// remove non-existing.
-		updated = idg.RemoveRecord(val + " name")
-		assert.False(updated)
-		assert.Equal(expectedRecCt, idg.Records.Len())
-	}
-}
+			// Test add. Add items out of sort order and make sure order is maintained.
+			testData := []ProfileRef{
+				{Partition: "test1", Name: "second"},
+				{Partition: "test2", Name: "first"},
+				{Partition: "test1", Name: "first"},
+			}
+			for i, prof := range testData {
+				updated := virtual.AddOrUpdateProfile(prof)
+				Expect(updated).To(BeTrue())
+				Expect(virtual.Profiles.Len()).To(Equal(i + 1))
+			}
+			Expect(sort.IsSorted(virtual.Profiles)).To(BeTrue())
 
-func TestSetAndRemoveProfiles(t *testing.T) {
-	assert := assert.New(t)
-	virtual := Virtual{}
-	assert.Equal(0, virtual.Profiles.Len())
+			// Test updates of existing items.
+			for _, prof := range testData {
+				prof.Context = customProfileAll
+				updated := virtual.AddOrUpdateProfile(prof)
+				Expect(updated).To(BeTrue())
+			}
+			// Make sure updates with same data does not indicate an update.
+			for _, prof := range testData {
+				prof.Context = customProfileAll
+				updated := virtual.AddOrUpdateProfile(prof)
+				Expect(updated).To(BeFalse())
+			}
 
-	// Test add. Add items out of sort order and make sure order is maintained.
-	testData := []ProfileRef{
-		{Partition: "test1", Name: "second"},
-		{Partition: "test2", Name: "first"},
-		{Partition: "test1", Name: "first"},
-	}
-	for i, prof := range testData {
-		updated := virtual.AddOrUpdateProfile(prof)
-		assert.True(updated)
-		assert.Equal(i+1, virtual.Profiles.Len())
-	}
-	assert.True(sort.IsSorted(virtual.Profiles))
+			// Test remove for both existing and non-existing records.
+			expectedProfCt := len(testData)
+			for _, prof := range testData {
+				// remove existing.
+				updated := virtual.RemoveProfile(prof)
+				Expect(updated).To(BeTrue())
+				expectedProfCt--
+				Expect(virtual.Profiles.Len()).To(Equal(expectedProfCt))
+				// remove non-existing.
+				updated = virtual.RemoveProfile(prof)
+				Expect(updated).To(BeFalse())
+				Expect(virtual.Profiles.Len()).To(Equal(expectedProfCt))
+			}
+		})
 
-	// Test updates of existing items.
-	for _, prof := range testData {
-		prof.Context = customProfileAll
-		updated := virtual.AddOrUpdateProfile(prof)
-		assert.True(updated)
-	}
-	// Make sure updates with same data does not indicate an update.
-	for _, prof := range testData {
-		prof.Context = customProfileAll
-		updated := virtual.AddOrUpdateProfile(prof)
-		assert.False(updated)
-	}
+		It("handles profile context", func() {
+			virtual := Virtual{}
+			Expect(virtual.Profiles.Len()).To(Equal(0))
+			Expect(virtual.GetProfileCountByContext(customProfileAll)).To(Equal(0))
+			Expect(virtual.GetProfileCountByContext(customProfileClient)).To(Equal(0))
+			Expect(virtual.GetProfileCountByContext(customProfileServer)).To(Equal(0))
 
-	// Test remove for both existing and non-existing records.
-	expectedProfCt := len(testData)
-	for _, prof := range testData {
-		// remove existing.
-		updated := virtual.RemoveProfile(prof)
-		assert.True(updated)
-		expectedProfCt--
-		assert.Equal(expectedProfCt, virtual.Profiles.Len())
-		// remove non-existing.
-		updated = virtual.RemoveProfile(prof)
-		assert.False(updated)
-		assert.Equal(expectedProfCt, virtual.Profiles.Len())
-	}
-}
+			// Test add. Add one profile of each type to Virtual.Profiles[].
+			testData := []ProfileRef{
+				{Partition: "test1", Name: "second", Context: customProfileAll},
+				{Partition: "test2", Name: "first", Context: customProfileClient},
+				{Partition: "test1", Name: "first", Context: customProfileServer},
+			}
+			for _, prof := range testData {
+				updated := virtual.AddOrUpdateProfile(prof)
+				Expect(updated).To(BeTrue())
+			}
+			Expect(virtual.GetProfileCountByContext(customProfileAll)).To(Equal(1))
+			Expect(virtual.GetProfileCountByContext(customProfileClient)).To(Equal(1))
+			Expect(virtual.GetProfileCountByContext(customProfileServer)).To(Equal(1))
 
-func TestProfileContextCount(t *testing.T) {
-	assert := assert.New(t)
-	virtual := Virtual{}
-	assert.Equal(0, virtual.Profiles.Len())
-	assert.Equal(0, virtual.GetProfileCountByContext(customProfileAll))
-	assert.Equal(0, virtual.GetProfileCountByContext(customProfileClient))
-	assert.Equal(0, virtual.GetProfileCountByContext(customProfileServer))
+			// Change existing items and check counts change correctly.
+			for _, prof := range testData {
+				prof.Context = customProfileServer
+				virtual.AddOrUpdateProfile(prof)
+			}
+			Expect(virtual.GetProfileCountByContext(customProfileAll)).To(Equal(0))
+			Expect(virtual.GetProfileCountByContext(customProfileClient)).To(Equal(0))
+			Expect(virtual.GetProfileCountByContext(customProfileServer)).To(Equal(3))
+			for _, prof := range testData {
+				prof.Context = customProfileClient
+				virtual.AddOrUpdateProfile(prof)
+			}
+			Expect(virtual.GetProfileCountByContext(customProfileAll)).To(Equal(0))
+			Expect(virtual.GetProfileCountByContext(customProfileClient)).To(Equal(3))
+			Expect(virtual.GetProfileCountByContext(customProfileServer)).To(Equal(0))
 
-	// Test add. Add one profile of each type to Virtual.Profiles[].
-	testData := []ProfileRef{
-		{Partition: "test1", Name: "second", Context: customProfileAll},
-		{Partition: "test2", Name: "first", Context: customProfileClient},
-		{Partition: "test1", Name: "first", Context: customProfileServer},
-	}
-	for _, prof := range testData {
-		updated := virtual.AddOrUpdateProfile(prof)
-		assert.True(updated)
-	}
-	assert.Equal(1, virtual.GetProfileCountByContext(customProfileAll))
-	assert.Equal(1, virtual.GetProfileCountByContext(customProfileClient))
-	assert.Equal(1, virtual.GetProfileCountByContext(customProfileServer))
+			// Add some frontend client profiles.
+			virtual.AddFrontendSslProfileName("test3/firstprofile")
+			Expect(virtual.GetProfileCountByContext(customProfileClient)).To(Equal(4))
+			virtual.AddFrontendSslProfileName("test3/secondprofile")
+			Expect(virtual.GetProfileCountByContext(customProfileClient)).To(Equal(5))
+		})
 
-	// Change existing items and check counts change correctly.
-	for _, prof := range testData {
-		prof.Context = customProfileServer
-		virtual.AddOrUpdateProfile(prof)
-	}
-	assert.Equal(0, virtual.GetProfileCountByContext(customProfileAll))
-	assert.Equal(0, virtual.GetProfileCountByContext(customProfileClient))
-	assert.Equal(3, virtual.GetProfileCountByContext(customProfileServer))
-	for _, prof := range testData {
-		prof.Context = customProfileClient
-		virtual.AddOrUpdateProfile(prof)
-	}
-	assert.Equal(0, virtual.GetProfileCountByContext(customProfileAll))
-	assert.Equal(3, virtual.GetProfileCountByContext(customProfileClient))
-	assert.Equal(0, virtual.GetProfileCountByContext(customProfileServer))
+		It("can tell which profile each virtual references", func() {
+			virtual := Virtual{}
 
-	// Add some frontend client profiles.
-	virtual.AddFrontendSslProfileName("test3/firstprofile")
-	assert.Equal(4, virtual.GetProfileCountByContext(customProfileClient))
-	virtual.AddFrontendSslProfileName("test3/secondprofile")
-	assert.Equal(5, virtual.GetProfileCountByContext(customProfileClient))
-}
+			testData := []ProfileRef{
+				{Partition: "test1", Name: "second", Context: customProfileAll},
+				{Partition: "test2", Name: "first", Context: customProfileClient},
+				{Partition: "test1", Name: "first", Context: customProfileServer},
+				{Partition: "test3", Name: "third", Context: customProfileClient},
+			}
+			for _, prof := range testData {
+				cprof := NewCustomProfile(prof, "")
+				refs := virtual.ReferencesProfile(cprof)
+				Expect(refs).To(BeFalse())
+			}
 
-func TestReferencesProfile(t *testing.T) {
-	assert := assert.New(t)
-	virtual := Virtual{}
+			// add profiles from 'test1' to Profiles[] and 'test3' to frontend.
+			for _, prof := range testData {
+				switch prof.Partition {
+				case "test1":
+					virtual.AddOrUpdateProfile(prof)
+				case "test3":
+					profName := fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
+					virtual.AddFrontendSslProfileName(profName)
+				}
+			}
 
-	testData := []ProfileRef{
-		{Partition: "test1", Name: "second", Context: customProfileAll},
-		{Partition: "test2", Name: "first", Context: customProfileClient},
-		{Partition: "test1", Name: "first", Context: customProfileServer},
-		{Partition: "test3", Name: "third", Context: customProfileClient},
-	}
-	for _, prof := range testData {
-		cprof := NewCustomProfile(prof, "")
-		refs := virtual.ReferencesProfile(cprof)
-		assert.False(refs)
-	}
-
-	// add profiles from 'test1' to Profiles[] and 'test3' to frontend.
-	for _, prof := range testData {
-		switch prof.Partition {
-		case "test1":
-			virtual.AddOrUpdateProfile(prof)
-		case "test3":
-			profName := fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
-			virtual.AddFrontendSslProfileName(profName)
-		}
-	}
-
-	for _, prof := range testData {
-		switch prof.Partition {
-		case "test1", "test3":
-			cprof := NewCustomProfile(prof, "")
-			refs := virtual.ReferencesProfile(cprof)
-			assert.True(refs)
-		case "test2":
-			cprof := NewCustomProfile(prof, "")
-			refs := virtual.ReferencesProfile(cprof)
-			assert.False(refs)
-		}
-	}
-}
+			for _, prof := range testData {
+				switch prof.Partition {
+				case "test1", "test3":
+					cprof := NewCustomProfile(prof, "")
+					refs := virtual.ReferencesProfile(cprof)
+					Expect(refs).To(BeTrue())
+				case "test2":
+					cprof := NewCustomProfile(prof, "")
+					refs := virtual.ReferencesProfile(cprof)
+					Expect(refs).To(BeFalse())
+				}
+			}
+		})
+	})
+})

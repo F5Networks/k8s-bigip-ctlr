@@ -70,45 +70,39 @@ go_install () {
   )
 }
 
-test_pkg () {
-  local pkg="$1"
-  local BUILDDIR=$(get_builddir)
+ginkgo_test_with_coverage () {
+  local WKDIR=$(tmpdir_for_test)
+  BUILDDIR=$(get_builddir)
+  # Set our gopath to the tmp dir for package import resolution
+  export GOPATH=$WKDIR
 
-  mkdir -p "$BUILDDIR/test/$pkg"
   (
     export GOBIN="$BUILDDIR/bin"
-    echodo cd "$BUILDDIR/test/$pkg"
-    echodo go test -v -covermode=count -coverprofile=coverage.out "$pkg"
+    cd "$WKDIR/src/$PKGIMPORT"
+    ginkgo -r -keepGoing -trace -randomizeAllSpecs -progress --nodes 4 -cover
+    echo "Gathering unit test code coverage for 'release' build..."
+    gather_coverage $WKDIR
+    rm -rf $WKDIR
+    export GOPATH=/build
   )
 }
 
-test_pkg_cover () {
-  local pkg="$1"
-  local BUILDDIR=$(get_builddir)
-
-  mkdir -p "$BUILDDIR"
+ginkgo_test_with_profile () {
+  local WKDIR=$(tmpdir_for_test)
+  BUILDDIR=$(get_builddir)
+  mkdir -p $BUILDDIR/profile
+  export GOPATH=$WKDIR
   (
     export GOBIN="$BUILDDIR/bin"
-    echodo cd "$BUILDDIR"
-    echodo go test -v "$pkg"
-  )
-}
-
-test_pkg_profile () {
-  local pkg="$1"
-  local BUILDDIR=$(get_builddir)
-
-  mkdir -p "$BUILDDIR/test/$pkg"
-  (
-    export GOBIN="$BUILDDIR/bin"
-    echodo cd "$BUILDDIR/test/$pkg"
-    echodo go test -v  \
-            ${BUILD_VARIANT_FLAGS} \
-            -test.benchmem \
+    cd "$WKDIR/src/$PKGIMPORT"
+    ginkgo -r -keepGoing -randomizeAllSpecs -progress --nodes 4 \
+            ${BUILD_VARIANT_FLAGS} -- \
             -test.cpuprofile profile.cpu \
             -test.blockprofile profile.block \
-            -test.memprofile profile.mem \
-            "$pkg"
+            -test.memprofile profile.mem
+    rsync -a -f"+ */" -f"+ profile.cpu" -f"+ profile.block" -f"+ profile.mem" -f"- *" . $BUILDDIR/profile
+    rm -rf $WKDIR
+    export GOPATH=/build
   )
 }
 
@@ -120,15 +114,29 @@ all_pkgs() {
 }
 
 gather_coverage() {
-  local BUILDDIR=$(get_builddir)
-
+	local WKDIR="$1"
+	mkdir -p $BUILDDIR/coverage
+	
   (
-    cd $BUILDDIR/test
-    gocovmerge `find . -name coverage.out` > merged-coverage.out
+    cd $WKDIR/src/github.com/F5Networks
+    gocovmerge `find . -name *.coverprofile` > merged-coverage.out
     go tool cover -html=merged-coverage.out -o coverage.html
     go tool cover -func=merged-coverage.out
     # Total coverage for CI
     go tool cover -func=merged-coverage.out | grep "^total:" | awk 'END { print "Total coverage:", $3, "of statements" }'
+    rsync -a -f"+ */" -f"+ *.coverprofile" -f"+ coverage.html" -f"+ merged-coverage.out" -f"- *" . $BUILDDIR/coverage
   )
+}
 
+# Create a tmp dir with go src files in a writable location
+tmpdir_for_test() {
+  BUILDDIR=$(get_builddir)
+  mkdir -p $BUILDDIR
+  # Create a temp dir we can write to
+  local WKDIR=$(mktemp -d $BUILDDIR/tmpXXXXXX)
+  # src dir to follow gopath convention
+  mkdir -p $WKDIR/src
+  # Copy over mounted src to our writable src
+  rsync -a --exclude '.git' --exclude '_docker_workspace' $GOPATH/src/ $WKDIR/src
+  echo $WKDIR
 }

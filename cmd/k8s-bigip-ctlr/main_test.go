@@ -17,19 +17,18 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"sort"
-	"testing"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gexec"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -39,637 +38,602 @@ func (mo MockOut) Write(p []byte) (n int, err error) {
 	return
 }
 
-func TestConfigSetup(t *testing.T) {
-	configWriter := &test.MockWriter{
-		FailStyle: test.Success,
-		Sections:  make(map[string]interface{}),
-	}
-
-	type ConfigTest struct {
-		Global globalSection `json:"global"`
-		BigIP  bigIPSection  `json:"bigip"`
-	}
-
-	expected := ConfigTest{
-		BigIP: bigIPSection{
-			BigIPUsername: "colonel atari",
-			BigIPPassword: "dexter",
-			BigIPURL:      "https://bigip.example.com",
-			BigIPPartitions: []string{
-				"k8s",
-				"openshift",
-				"marathon",
-			},
-		},
-		Global: globalSection{
-			LogLevel:       "WARNING",
-			VerifyInterval: 10101,
-		},
-	}
-
-	err := initializeDriverConfig(nil, expected.Global, expected.BigIP)
-	assert.Error(t, err)
-
-	err = initializeDriverConfig(
-		configWriter,
-		expected.Global,
-		expected.BigIP,
-	)
-	assert.NoError(t, err)
-
-	configWriter.Lock()
-	assert.Contains(t, configWriter.Sections, "bigip")
-	assert.Contains(t, configWriter.Sections, "global")
-
-	actual := ConfigTest{
-		configWriter.Sections["global"].(globalSection),
-		configWriter.Sections["bigip"].(bigIPSection),
-	}
-	configWriter.Unlock()
-
-	assert.EqualValues(t, expected, actual)
-
-	// test error states
-	configWriter = &test.MockWriter{
-		FailStyle: test.ImmediateFail,
-		Sections:  make(map[string]interface{}),
-	}
-	err = initializeDriverConfig(
-		configWriter,
-		expected.Global,
-		expected.BigIP,
-	)
-	assert.Error(t, err)
-
-	configWriter = &test.MockWriter{
-		FailStyle: test.AsyncFail,
-		Sections:  make(map[string]interface{}),
-	}
-	err = initializeDriverConfig(
-		configWriter,
-		expected.Global,
-		expected.BigIP,
-	)
-	assert.Error(t, err)
-	// This will not error out but does print to the logs so verify the correct
-	// number of calls we expect to the writer
-	configWriter = &test.MockWriter{
-		FailStyle: test.Timeout,
-		Sections:  make(map[string]interface{}),
-	}
-	err = initializeDriverConfig(
-		configWriter,
-		expected.Global,
-		expected.BigIP,
-	)
-	assert.NoError(t, err)
-	assert.EqualValues(t, 2, configWriter.WrittenTimes)
-}
-
-func TestDriverCmd(t *testing.T) {
-	pyDriver := "/tmp/some-dir/test-driver.py"
-
-	configFile := fmt.Sprintf("/tmp/k8s-bigip-ctlr.config.%d.json",
-		os.Getpid())
-
-	pythonPath, err := exec.LookPath("python")
-	assert.NoError(t, err, "We should find python")
-
-	cmd := createDriverCmd(
-		configFile,
-		pyDriver,
-	)
-
-	require.NotNil(t, cmd, "Command should not be nil")
-	require.NotNil(t, cmd.Path, "Path should not be nil")
-	require.Equal(t, cmd.Path, pythonPath, "The command path should be python")
-
-	args := []string{
-		"python",
-		pyDriver,
-		"--config-file", configFile,
-	}
-	require.EqualValues(t, cmd.Args, args, "We should get expected args list")
-}
-
-func TestDriverSubProcess(t *testing.T) {
-	configWriter := &test.MockWriter{
-		FailStyle: test.Success,
-		Sections:  make(map[string]interface{}),
-	}
-
-	type ConfigTest struct {
-		Global globalSection `json:"global"`
-		BigIP  bigIPSection  `json:"bigip"`
-	}
-
-	expected := ConfigTest{
-		BigIP: bigIPSection{
-			BigIPUsername: "admin",
-			BigIPPassword: "test",
-			BigIPURL:      "https://bigip.example.com",
-			BigIPPartitions: []string{
-				"velcro1",
-				"velcro2",
-			},
-		},
-		Global: globalSection{
-			LogLevel:       "INFO",
-			VerifyInterval: 30,
-		},
-	}
-
-	err := initializeDriverConfig(
-		configWriter,
-		expected.Global,
-		expected.BigIP,
-	)
-	assert.NoError(t, err)
-
-	configWriter.Lock()
-	assert.Contains(t, configWriter.Sections, "bigip")
-	assert.Contains(t, configWriter.Sections, "global")
-
-	actual := ConfigTest{
-		configWriter.Sections["global"].(globalSection),
-		configWriter.Sections["bigip"].(bigIPSection),
-	}
-	configWriter.Unlock()
-
-	assert.EqualValues(t, expected, actual)
-
-	subPidCh := make(chan int)
-
-	pyDriver := "./test/pyTest.py"
-
-	configFile := configWriter.GetOutputFilename()
-
-	cmd := createDriverCmd(
-		configFile,
-		pyDriver,
-	)
-	go runBigIPDriver(subPidCh, cmd)
-	pid := <-subPidCh
-
-	time.Sleep(time.Second)
-
-	assert.NotEqual(t, pid, 0, "Pid should be set and not nil value")
-
-	proc, err := os.FindProcess(pid)
-	assert.NoError(t, err)
-	assert.NotNil(t, proc, "Should have process object")
-
-	done := make(chan error)
-
-	go func() {
-		count := 0
-		var testErr error
-	forever:
-		for {
-			count++
-			cmd := exec.Command("bash", []string{"test/testPyTest.sh"}...)
-			err = cmd.Start()
-			if err != nil {
-				testErr = errors.New("Should not error starting bash command")
-				break forever
-			}
-			err = cmd.Wait()
-			if _, ok := err.(*exec.ExitError); ok {
-				break forever
-			}
-
-			if count == 30 {
-				testErr = errors.New("Timed out waiting for process to stop")
-				break forever
-			}
-
-			<-time.After(time.Second)
+var _ = Describe("Main Tests", func() {
+	It("sets up the config", func() {
+		configWriter := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
 		}
 
-		done <- testErr
-	}()
+		type ConfigTest struct {
+			Global globalSection `json:"global"`
+			BigIP  bigIPSection  `json:"bigip"`
+		}
 
-	err = proc.Signal(os.Interrupt)
-	require.NoError(t, err)
+		expected := ConfigTest{
+			BigIP: bigIPSection{
+				BigIPUsername: "colonel atari",
+				BigIPPassword: "dexter",
+				BigIPURL:      "https://bigip.example.com",
+				BigIPPartitions: []string{
+					"k8s",
+					"openshift",
+					"marathon",
+				},
+			},
+			Global: globalSection{
+				LogLevel:       "WARNING",
+				VerifyInterval: 10101,
+			},
+		}
 
-	err = <-done
-	require.NoError(t, err)
-}
+		err := initializeDriverConfig(nil, expected.Global, expected.BigIP)
+		Expect(err).ToNot(BeNil())
 
-func TestVerifyArgs(t *testing.T) {
-	defer _init()
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--namespace=testing",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin"}
+		err = initializeDriverConfig(
+			configWriter,
+			expected.Global,
+			expected.BigIP,
+		)
+		Expect(err).To(BeNil())
 
-	nameVar := []string{"testing"}
-	flags.Parse(os.Args)
-	argError := verifyArgs()
-	assert.Nil(t, argError, "there should not be an error")
-	assert.Equal(t, nameVar, *namespaces, "namespace flag not parsed correctly")
-	assert.Equal(t, "https://bigip.example.com", *bigIPURL, "bigipUrl flag not parsed correctly")
-	assert.Equal(t, "admin", *bigIPUsername, "bigipUsername flag not parsed correctly")
-	assert.Equal(t, "admin", *bigIPPassword, "bigipPassword flag not parsed correctly")
-	assert.Equal(t, []string{"velcro1", "velcro2"}, *bigIPPartitions, "bigipPartitions flag not parsed correctly")
-	assert.Equal(t, "INFO", *logLevel, "logLevel flag not parsed correctly")
+		configWriter.Lock()
+		Expect(configWriter.Sections).To(HaveKey("bigip"))
+		Expect(configWriter.Sections).To(HaveKey("global"))
 
-	// Test url variations
-	os.Args[5] = "--bigip-url=fail://bigip.example.com"
-	flags.Parse(os.Args)
-	argError = verifyArgs()
-	assert.Error(t, argError, fmt.Sprintf("BIGIP-URL should fail with incorrect scheme 'fail://'"))
+		actual := ConfigTest{
+			configWriter.Sections["global"].(globalSection),
+			configWriter.Sections["bigip"].(bigIPSection),
+		}
+		configWriter.Unlock()
 
-	os.Args[5] = "--bigip-url=https://bigip.example.com/some/path"
-	flags.Parse(os.Args)
-	argError = verifyArgs()
-	assert.Error(t, argError, fmt.Sprintf("BIGIP-URL should fail with invalid path'"))
+		Expect(actual).To(Equal(expected))
 
-	// Test empty required args
-	allArgs := map[string]*string{
-		"bigipUrl":      bigIPURL,
-		"bigipUsername": bigIPUsername,
-		"bigipPassword": bigIPPassword,
-		"logLevel":      logLevel,
-	}
+		// test error states
+		configWriter = &test.MockWriter{
+			FailStyle: test.ImmediateFail,
+			Sections:  make(map[string]interface{}),
+		}
+		err = initializeDriverConfig(
+			configWriter,
+			expected.Global,
+			expected.BigIP,
+		)
+		Expect(err).ToNot(BeNil())
 
-	for argName, arg := range allArgs {
-		holder := *arg
-		*arg = ""
+		configWriter = &test.MockWriter{
+			FailStyle: test.AsyncFail,
+			Sections:  make(map[string]interface{}),
+		}
+		err = initializeDriverConfig(
+			configWriter,
+			expected.Global,
+			expected.BigIP,
+		)
+		Expect(err).ToNot(BeNil())
+		// This will not error out but does print to the logs so verify the correct
+		// number of calls we expect to the writer
+		configWriter = &test.MockWriter{
+			FailStyle: test.Timeout,
+			Sections:  make(map[string]interface{}),
+		}
+		err = initializeDriverConfig(
+			configWriter,
+			expected.Global,
+			expected.BigIP,
+		)
+		Expect(err).To(BeNil())
+		Expect(configWriter.WrittenTimes).To(Equal(2))
+	})
+
+	It("sets up the driver command", func() {
+		pyDriver := "/tmp/some-dir/test-driver.py"
+
+		configFile := fmt.Sprintf("/tmp/k8s-bigip-ctlr.config.%d.json",
+			os.Getpid())
+
+		pythonPath, err := exec.LookPath("python")
+		Expect(err).To(BeNil(), "We should find python.")
+
+		cmd := createDriverCmd(
+			configFile,
+			pyDriver,
+		)
+
+		Expect(cmd).ToNot(BeNil())
+		Expect(cmd.Path).ToNot(BeNil())
+		Expect(cmd.Path).To(Equal(pythonPath))
+
+		args := []string{
+			"python",
+			pyDriver,
+			"--config-file", configFile,
+		}
+		Expect(cmd.Args).To(Equal(args))
+	})
+
+	It("runs the driver subprocess", func() {
+		configWriter := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
+		}
+
+		type ConfigTest struct {
+			Global globalSection `json:"global"`
+			BigIP  bigIPSection  `json:"bigip"`
+		}
+
+		expected := ConfigTest{
+			BigIP: bigIPSection{
+				BigIPUsername: "admin",
+				BigIPPassword: "test",
+				BigIPURL:      "https://bigip.example.com",
+				BigIPPartitions: []string{
+					"velcro1",
+					"velcro2",
+				},
+			},
+			Global: globalSection{
+				LogLevel:       "INFO",
+				VerifyInterval: 30,
+			},
+		}
+
+		err := initializeDriverConfig(
+			configWriter,
+			expected.Global,
+			expected.BigIP,
+		)
+		Expect(err).To(BeNil())
+
+		configWriter.Lock()
+		Expect(configWriter.Sections).To(HaveKey("bigip"))
+		Expect(configWriter.Sections).To(HaveKey("global"))
+
+		actual := ConfigTest{
+			configWriter.Sections["global"].(globalSection),
+			configWriter.Sections["bigip"].(bigIPSection),
+		}
+		configWriter.Unlock()
+
+		Expect(actual).To(Equal(expected))
+
+		subPidCh := make(chan int)
+		pyDriver := "./test/pyTest.py"
+		configFile := configWriter.GetOutputFilename()
+
+		cmd := createDriverCmd(
+			configFile,
+			pyDriver,
+		)
+		go runBigIPDriver(subPidCh, cmd)
+		pid := <-subPidCh
+
+		time.Sleep(time.Second)
+
+		Expect(pid).ToNot(Equal(0), "Pid should be set and not nil value.")
+
+		proc, err := os.FindProcess(pid)
+		Expect(err).To(BeNil())
+		Expect(proc).ToNot(BeNil(), "Should have process object.")
+
+		cmd = exec.Command("bash", []string{"test/testPyTest.sh"}...)
+		session, _ := Start(cmd, GinkgoWriter, GinkgoWriter)
+		Eventually(session, 30*time.Second).Should(Exit(0))
+	})
+
+	It("verifies cli arguments", func() {
+		defer _init()
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--namespace=testing",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin"}
+
+		nameVar := []string{"testing"}
+		flags.Parse(os.Args)
+		argError := verifyArgs()
+		Expect(argError).To(BeNil())
+		Expect(*namespaces).To(Equal(nameVar))
+		Expect(*bigIPURL).To(Equal("https://bigip.example.com"))
+		Expect(*bigIPUsername).To(Equal("admin"))
+		Expect(*bigIPPassword).To(Equal("admin"))
+		Expect(*bigIPPartitions).To(Equal([]string{"velcro1", "velcro2"}))
+		Expect(*logLevel).To(Equal("INFO"))
+
+		// Test url variations
+		os.Args[5] = "--bigip-url=fail://bigip.example.com"
+		flags.Parse(os.Args)
 		argError = verifyArgs()
-		assert.Error(t, argError, fmt.Sprintf("Argument %s is required, and should not allow an empty string", argName))
-		*arg = holder
-	}
+		Expect(argError).ToNot(BeNil(), "BIGIP-URL should fail with incorrect scheme 'fail://'.")
 
-	// Test bigIPPartitions seperatly as it's a string array
-	holder := *bigIPPartitions
-	*bigIPPartitions = []string{}
-	argError = verifyArgs()
-	assert.Error(t, argError, "Argument bigIPPartitions is required, and should not allow an empty string")
-	*bigIPPartitions = holder
+		os.Args[5] = "--bigip-url=https://bigip.example.com/some/path"
+		flags.Parse(os.Args)
+		argError = verifyArgs()
+		Expect(argError).ToNot(BeNil(), "BIGIP-URL should fail with invalid path.")
 
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--namespace=testing",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-		"--pool-member-type=cluster",
-	}
+		// Test empty required args
+		allArgs := map[string]*string{
+			"bigipUrl":      bigIPURL,
+			"bigipUsername": bigIPUsername,
+			"bigipPassword": bigIPPassword,
+			"logLevel":      logLevel,
+		}
 
-	flags.Parse(os.Args)
-	argError = verifyArgs()
-	assert.NoError(t, argError)
-	assert.Equal(t, false, isNodePort)
+		for argName, arg := range allArgs {
+			holder := *arg
+			*arg = ""
+			argError = verifyArgs()
+			Expect(argError).ToNot(BeNil(), fmt.Sprintf(
+				"Argument %s is required, and should not allow an empty string.", argName))
+			*arg = holder
+		}
 
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--namespace=testing",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-		"--pool-member-type=invalid",
-	}
+		// Test bigIPPartitions seperatly as it's a string array
+		holder := *bigIPPartitions
+		*bigIPPartitions = []string{}
+		argError = verifyArgs()
+		Expect(argError).ToNot(BeNil(),
+			"Argument bigIPPartitions is required, and should not allow an empty string.")
+		*bigIPPartitions = holder
 
-	flags.Parse(os.Args)
-	argError = verifyArgs()
-	assert.Error(t, argError)
-	assert.Equal(t, false, isNodePort)
-}
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--namespace=testing",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+			"--pool-member-type=cluster",
+		}
 
-func TestVerifyArgsLabels(t *testing.T) {
-	defer _init()
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-		"--pool-member-type=cluster",
-		"--openshift-sdn-name=vxlan500",
-		"--namespace=testing",
-	}
+		flags.Parse(os.Args)
+		argError = verifyArgs()
+		Expect(argError).To(BeNil())
+		Expect(isNodePort).To(BeFalse())
 
-	flags.Parse(os.Args)
-	err := verifyArgs()
-	assert.NoError(t, err)
-	assert.Equal(t, false, watchAllNamespaces)
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--namespace=testing",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+			"--pool-member-type=invalid",
+		}
 
-	// No namespace or label sets watchAllNamespaces to true
-	var ns []string
-	*namespaces = ns
-	err = verifyArgs()
-	assert.NoError(t, err)
-	assert.Equal(t, true, watchAllNamespaces)
-
-	*namespaceLabel = "addLabel"
-	err = verifyArgs()
-	assert.NoError(t, err)
-	assert.Equal(t, false, watchAllNamespaces)
-
-	// Fail case, can only specify a namespace or label, not both
-	ns = []string{"fail"}
-	*namespaces = ns
-	err = verifyArgs()
-	assert.Error(t, err)
-}
-
-func TestVerifyArgsSDN(t *testing.T) {
-	defer _init()
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--namespace=testing",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-		"--pool-member-type=cluster",
-		"--openshift-sdn-name=vxlan500",
-	}
-
-	flags.Parse(os.Args)
-	err := verifyArgs()
-	assert.NoError(t, err)
-
-	*openshiftSDNName = ""
-	err = verifyArgs()
-	assert.Error(t, err)
-}
-
-func TestNodePollerSetup(t *testing.T) {
-	defer _init()
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--namespace=testing",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-		"--pool-member-type=nodeport",
-	}
-
-	flags.Parse(os.Args)
-	err := verifyArgs()
-	assert.NoError(t, err)
-
-	fake := fake.NewSimpleClientset()
-	require.NotNil(t, fake, "Mock client cannot be nil")
-
-	configWriter := &test.MockWriter{
-		FailStyle: test.Success,
-		Sections:  make(map[string]interface{}),
-	}
-	require.NotNil(t, configWriter, "Mock writer cannot be nil")
-
-	nodePoller := &test.MockPoller{
-		FailStyle: test.Success,
-	}
-	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
-
-	vsm := appmanager.NewManager(&appmanager.Params{
-		KubeClient:   fake,
-		ConfigWriter: configWriter,
-		IsNodePort:   true,
-	})
-	err = setupNodePolling(vsm, nodePoller)
-	assert.NoError(t, err)
-
-	nodePoller = &test.MockPoller{
-		FailStyle: test.ImmediateFail,
-	}
-	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
-
-	err = setupNodePolling(vsm, nodePoller)
-	assert.Error(t, err)
-}
-
-func TestNodePollerSetupCluster(t *testing.T) {
-	defer _init()
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--namespace=testing",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-		"--pool-member-type=cluster",
-		"--openshift-sdn-name=vxlan500",
-	}
-
-	flags.Parse(os.Args)
-	err := verifyArgs()
-	assert.NoError(t, err)
-
-	fake := fake.NewSimpleClientset()
-	require.NotNil(t, fake, "Mock client cannot be nil")
-
-	configWriter := &test.MockWriter{
-		FailStyle: test.Success,
-		Sections:  make(map[string]interface{}),
-	}
-	require.NotNil(t, configWriter, "Mock writer cannot be nil")
-	// Success case
-	nodePoller := &test.MockPoller{
-		FailStyle: test.Success,
-	}
-	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
-
-	vsm := appmanager.NewManager(&appmanager.Params{
-		KubeClient:   fake,
-		ConfigWriter: configWriter,
-	})
-	err = setupNodePolling(vsm, nodePoller)
-	assert.NoError(t, err)
-	// Fail case from config writer
-	nodePoller = &test.MockPoller{
-		FailStyle: test.ImmediateFail,
-	}
-	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
-
-	err = setupNodePolling(vsm, nodePoller)
-	assert.Error(t, err)
-	// Fail case from NewOpenshiftSDNMgr
-	*openshiftSDNName = ""
-	nodePoller = &test.MockPoller{
-		FailStyle: test.Success,
-	}
-	require.NotNil(t, nodePoller, "Mock poller cannot be nil")
-
-	err = setupNodePolling(vsm, nodePoller)
-	assert.Error(t, err)
-}
-
-func TestOpenshiftSDNFlags(t *testing.T) {
-	defer _init()
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--namespace=testing",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-	}
-
-	flags.Parse(os.Args)
-	err := verifyArgs()
-	assert.NoError(t, err)
-
-	assert.Equal(t, 0, len(openshiftSDNMode),
-		"Mode variable should not be set")
-	assert.Equal(t, 0, len(*openshiftSDNName),
-		"Name variable should not be set")
-
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--namespace=testing",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-		"--openshift-sdn-name=vxlan500",
-	}
-
-	flags.Parse(os.Args)
-	err = verifyArgs()
-	assert.NoError(t, err)
-
-	assert.Equal(t, "maintain", openshiftSDNMode,
-		"Mode variable should be set to maintain")
-	assert.Equal(t, "vxlan500", *openshiftSDNName,
-		"VxLAN name should be set")
-}
-
-func TestOpenshiftSDNFlagEmpty(t *testing.T) {
-	defer _init()
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--namespace=testing",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-		"--openshift-sdn-name",
-	}
-
-	var called bool
-	oldUsage := flags.Usage
-	defer func() {
-		flags.Usage = oldUsage
-	}()
-	flags.Usage = func() {
-		called = true
-	}
-
-	flags.SetOutput(MockOut{})
-	defer flags.SetOutput(os.Stderr)
-
-	err := flags.Parse(os.Args)
-	assert.Error(t, err)
-	assert.True(t, called)
-
-	assert.Equal(t, 0, len(*openshiftSDNName))
-}
-
-func TestSetupWatchersAllNamespaces(t *testing.T) {
-	defer _init()
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-	}
-
-	flags.Parse(os.Args)
-	err := verifyArgs()
-	assert.NoError(t, err)
-
-	vsm := appmanager.NewManager(&appmanager.Params{
-		KubeClient: fake.NewSimpleClientset(),
+		flags.Parse(os.Args)
+		argError = verifyArgs()
+		Expect(argError).ToNot(BeNil())
+		Expect(isNodePort).To(BeFalse())
 	})
 
-	namespaces := vsm.GetWatchedNamespaces()
-	assert.Equal(t, 0, len(namespaces))
-	setupWatchers(vsm, 0)
-	namespaces = vsm.GetWatchedNamespaces()
-	require.Equal(t, 1, len(namespaces))
-	assert.Equal(t, "", namespaces[0])
-}
+	It("verifies args labels", func() {
+		defer _init()
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+			"--pool-member-type=cluster",
+			"--openshift-sdn-name=vxlan500",
+			"--namespace=testing",
+		}
 
-func TestSetupWatchersMultipleNamespaces(t *testing.T) {
-	defer _init()
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-		"--namespace=default",
-		"--namespace=test",
-		"--namespace=test2",
-	}
+		flags.Parse(os.Args)
+		err := verifyArgs()
+		Expect(err).To(BeNil())
+		Expect(watchAllNamespaces).To(BeFalse())
 
-	flags.Parse(os.Args)
-	err := verifyArgs()
-	assert.NoError(t, err)
+		// No namespace or label sets watchAllNamespaces to true
+		var ns []string
+		*namespaces = ns
+		err = verifyArgs()
+		Expect(err).To(BeNil())
+		Expect(watchAllNamespaces).To(BeTrue())
 
-	vsm := appmanager.NewManager(&appmanager.Params{
-		KubeClient: fake.NewSimpleClientset(),
+		*namespaceLabel = "addLabel"
+		err = verifyArgs()
+		Expect(err).To(BeNil())
+		Expect(watchAllNamespaces).To(BeFalse())
+
+		// Fail case, can only specify a namespace or label, not both
+		ns = []string{"fail"}
+		*namespaces = ns
+		err = verifyArgs()
+		Expect(err).ToNot(BeNil())
 	})
 
-	namespaces := vsm.GetWatchedNamespaces()
-	assert.Equal(t, 0, len(namespaces))
-	setupWatchers(vsm, 0)
-	namespaces = vsm.GetWatchedNamespaces()
-	require.Equal(t, 3, len(namespaces))
-	sort.Strings(namespaces)
-	assert.Equal(t, "default", namespaces[0])
-	assert.Equal(t, "test", namespaces[1])
-	assert.Equal(t, "test2", namespaces[2])
-}
+	It("verifies SDN args", func() {
+		defer _init()
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--namespace=testing",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+			"--pool-member-type=cluster",
+			"--openshift-sdn-name=vxlan500",
+		}
 
-func TestSetupWatchersLabels(t *testing.T) {
-	defer _init()
-	os.Args = []string{
-		"./bin/k8s-bigip-ctlr",
-		"--bigip-partition=velcro1",
-		"--bigip-partition=velcro2",
-		"--bigip-password=admin",
-		"--bigip-url=bigip.example.com",
-		"--bigip-username=admin",
-		"--namespace-label=prod",
-	}
+		flags.Parse(os.Args)
+		err := verifyArgs()
+		Expect(err).To(BeNil())
 
-	flags.Parse(os.Args)
-	err := verifyArgs()
-	assert.NoError(t, err)
-
-	vsm := appmanager.NewManager(&appmanager.Params{
-		KubeClient: fake.NewSimpleClientset(),
+		*openshiftSDNName = ""
+		err = verifyArgs()
+		Expect(err).ToNot(BeNil())
 	})
 
-	namespaces := vsm.GetWatchedNamespaces()
-	assert.Equal(t, 0, len(namespaces))
-	setupWatchers(vsm, 0)
-	namespaces = vsm.GetWatchedNamespaces()
-	assert.Equal(t, 0, len(namespaces))
-	nsInf := vsm.GetNamespaceLabelInformer()
-	require.NotNil(t, nsInf)
-}
+	It("sets up the node poller", func() {
+		defer _init()
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--namespace=testing",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+			"--pool-member-type=nodeport",
+		}
+
+		flags.Parse(os.Args)
+		err := verifyArgs()
+		Expect(err).To(BeNil())
+
+		fake := fake.NewSimpleClientset()
+		Expect(fake).ToNot(BeNil(), "Mock client cannot be nil.")
+
+		configWriter := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
+		}
+		Expect(configWriter).ToNot(BeNil(), "Mock writer cannot be nil.")
+
+		nodePoller := &test.MockPoller{
+			FailStyle: test.Success,
+		}
+		Expect(nodePoller).ToNot(BeNil(), "Mock poller cannot be nil.")
+
+		vsm := appmanager.NewManager(&appmanager.Params{
+			KubeClient:   fake,
+			ConfigWriter: configWriter,
+			IsNodePort:   true,
+		})
+		err = setupNodePolling(vsm, nodePoller)
+		Expect(err).To(BeNil())
+
+		nodePoller = &test.MockPoller{
+			FailStyle: test.ImmediateFail,
+		}
+		Expect(nodePoller).ToNot(BeNil(), "Mock poller cannot be nil.")
+
+		err = setupNodePolling(vsm, nodePoller)
+		Expect(err).ToNot(BeNil())
+	})
+
+	It("sets up node poller - Cluster", func() {
+		defer _init()
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--namespace=testing",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+			"--pool-member-type=cluster",
+			"--openshift-sdn-name=vxlan500",
+		}
+
+		flags.Parse(os.Args)
+		err := verifyArgs()
+		Expect(err).To(BeNil())
+
+		fake := fake.NewSimpleClientset()
+		Expect(fake).ToNot(BeNil(), "Mock client cannot be nil.")
+
+		configWriter := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
+		}
+		Expect(configWriter).ToNot(BeNil(), "Mock writer cannot be nil.")
+		// Success case
+		nodePoller := &test.MockPoller{
+			FailStyle: test.Success,
+		}
+		Expect(nodePoller).ToNot(BeNil(), "Mock poller cannot be nil.")
+
+		vsm := appmanager.NewManager(&appmanager.Params{
+			KubeClient:   fake,
+			ConfigWriter: configWriter,
+		})
+		err = setupNodePolling(vsm, nodePoller)
+		Expect(err).To(BeNil())
+		// Fail case from config writer
+		nodePoller = &test.MockPoller{
+			FailStyle: test.ImmediateFail,
+		}
+		Expect(nodePoller).ToNot(BeNil(), "Mock poller cannot be nil.")
+
+		err = setupNodePolling(vsm, nodePoller)
+		Expect(err).ToNot(BeNil())
+		// Fail case from NewOpenshiftSDNMgr
+		*openshiftSDNName = ""
+		nodePoller = &test.MockPoller{
+			FailStyle: test.Success,
+		}
+		Expect(nodePoller).ToNot(BeNil(), "Mock poller cannot be nil.")
+
+		err = setupNodePolling(vsm, nodePoller)
+		Expect(err).ToNot(BeNil())
+	})
+
+	It("handles openshift sdn flags", func() {
+		defer _init()
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--namespace=testing",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+		}
+
+		flags.Parse(os.Args)
+		err := verifyArgs()
+		Expect(err).To(BeNil())
+
+		Expect(len(openshiftSDNMode)).To(Equal(0), "Mode variable should not be set.")
+		Expect(len(*openshiftSDNName)).To(Equal(0), "Name variable should not be set.")
+
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--namespace=testing",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+			"--openshift-sdn-name=vxlan500",
+		}
+
+		flags.Parse(os.Args)
+		err = verifyArgs()
+		Expect(err).To(BeNil())
+
+		Expect(openshiftSDNMode).To(Equal("maintain"))
+		Expect(*openshiftSDNName).To(Equal("vxlan500"))
+	})
+
+	It("handles empty openshift sdn flags", func() {
+		defer _init()
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--namespace=testing",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+			"--openshift-sdn-name",
+		}
+
+		var called bool
+		oldUsage := flags.Usage
+		defer func() {
+			flags.Usage = oldUsage
+		}()
+		flags.Usage = func() {
+			called = true
+		}
+
+		flags.SetOutput(MockOut{})
+		defer flags.SetOutput(os.Stderr)
+
+		err := flags.Parse(os.Args)
+		Expect(err).ToNot(BeNil())
+		Expect(called).To(BeTrue())
+		Expect(len(*openshiftSDNName)).To(Equal(0))
+	})
+
+	It("sets up watches for all namespaces", func() {
+		defer _init()
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+		}
+
+		flags.Parse(os.Args)
+		err := verifyArgs()
+		Expect(err).To(BeNil())
+
+		vsm := appmanager.NewManager(&appmanager.Params{
+			KubeClient: fake.NewSimpleClientset(),
+		})
+
+		namespaces := vsm.GetWatchedNamespaces()
+		Expect(len(namespaces)).To(Equal(0))
+		setupWatchers(vsm, 0)
+		namespaces = vsm.GetWatchedNamespaces()
+		Expect(len(namespaces)).To(Equal(1))
+		Expect(namespaces[0]).To(Equal(""))
+	})
+
+	It("sets up watchers for multiple namespaces", func() {
+		defer _init()
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+			"--namespace=default",
+			"--namespace=test",
+			"--namespace=test2",
+		}
+
+		flags.Parse(os.Args)
+		err := verifyArgs()
+		Expect(err).To(BeNil())
+
+		vsm := appmanager.NewManager(&appmanager.Params{
+			KubeClient: fake.NewSimpleClientset(),
+		})
+
+		namespaces := vsm.GetWatchedNamespaces()
+		Expect(len(namespaces)).To(Equal(0))
+		setupWatchers(vsm, 0)
+		namespaces = vsm.GetWatchedNamespaces()
+		Expect(len(namespaces)).To(Equal(3))
+		sort.Strings(namespaces)
+		Expect(namespaces[0]).To(Equal("default"))
+		Expect(namespaces[1]).To(Equal("test"))
+		Expect(namespaces[2]).To(Equal("test2"))
+	})
+
+	It("sets up watches for labels", func() {
+		defer _init()
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+			"--namespace-label=prod",
+		}
+
+		flags.Parse(os.Args)
+		err := verifyArgs()
+		Expect(err).To(BeNil())
+
+		vsm := appmanager.NewManager(&appmanager.Params{
+			KubeClient: fake.NewSimpleClientset(),
+		})
+
+		namespaces := vsm.GetWatchedNamespaces()
+		Expect(len(namespaces)).To(Equal(0))
+		setupWatchers(vsm, 0)
+		namespaces = vsm.GetWatchedNamespaces()
+		Expect(len(namespaces)).To(Equal(0))
+		nsInf := vsm.GetNamespaceLabelInformer()
+		Expect(nsInf).ToNot(BeNil())
+	})
+})

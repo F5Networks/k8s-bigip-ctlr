@@ -12,7 +12,7 @@ CURDIR="$(dirname $BASH_SOURCE)"
 
 # Setup a temp docker build context dir
 WKDIR=$(mktemp -d docker-build.XXXX)
-cp $CURDIR/Dockerfile.runtime $WKDIR
+cp $CURDIR/Dockerfile.$BASE_OS.runtime $WKDIR/Dockerfile.runtime
 
 # Hard code the platform dir here
 cp $CURDIR/../_docker_workspace/out/$RELEASE_PLATFORM/bin/* $WKDIR/
@@ -23,6 +23,8 @@ cp schemas/bigip-virtual-server_v*.json $WKDIR/
 
 echo "Docker build context:"
 ls -la $WKDIR
+
+## TODO: add versioning labels to build command (major, minor, commit sha, etc.)
 
 docker build --force-rm ${NO_CACHE_ARGS} \
   -t $IMG_TAG \

@@ -7,6 +7,9 @@ GOBIN    = $(GOPATH)/bin/$(GOOS)-$(GOARCH)
 
 GO_BUILD_FLAGS=-v
 
+# Allow users to pass in BASE_OS build options (alpine or rhel7)
+BASE_OS ?= alpine
+
 
 all: local-build
 
@@ -63,13 +66,13 @@ check-gopath:
 	fi
 
 pre-build:
-	git -C $(CURDIR) status
-	git -C $(CURDIR) describe --all --long
+	git status
+	git describe --all --long
 
 prod-build: pre-build
 	@echo "Building with minimal instrumentation..."
-	$(CURDIR)/build-tools/build-release-artifacts.sh
-	$(CURDIR)/build-tools/build-release-images.sh
+	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
+	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
 
 dbg-build: pre-build
 	@echo "Building with race detection instrumentation..."
@@ -84,7 +87,7 @@ fmt:
 	$(CURDIR)/build-tools/fmt.sh
 
 devel-image:
-	./build-tools/build-devel-image.sh
+	BASE_OS=$(BASE_OS) ./build-tools/build-devel-image.sh
 
 #
 # Docs

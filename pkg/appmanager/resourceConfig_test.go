@@ -535,3 +535,49 @@ func TestRouteConfiguration(t *testing.T) {
 	require.Equal("openshift_insecure_routes", cfg.Policies[0].Name)
 	require.Equal("openshift_route_default_route2", cfg.Policies[0].Rules[0].Name)
 }
+
+func TestSetAndRemoveInternalDataGroupRecords(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+	idg := NewInternalDataGroup("test-dg", "test")
+	require.NotNil(idg)
+	assert.Equal(0, idg.Records.Len())
+
+	// Test add. Add items out of sort order and make sure order is maintained.
+	testData := []string{
+		"second",
+		"third",
+		"first",
+	}
+	for i, val := range testData {
+		updated := idg.AddOrUpdateRecord(val+" name", val+" data")
+		assert.True(updated)
+		assert.Equal(i+1, idg.Records.Len())
+	}
+	assert.True(sort.IsSorted(idg.Records))
+
+	// Test updates of existing items.
+	for _, val := range testData {
+		updated := idg.AddOrUpdateRecord(val+" name", val+" updated data")
+		assert.True(updated)
+	}
+	// Make sure updates with same data does not indicate an update.
+	for _, val := range testData {
+		updated := idg.AddOrUpdateRecord(val+" name", val+" updated data")
+		assert.False(updated)
+	}
+
+	// Test remove for both existing and non-existing records.
+	expectedRecCt := len(testData)
+	for _, val := range testData {
+		// remove existing.
+		updated := idg.RemoveRecord(val + " name")
+		assert.True(updated)
+		expectedRecCt--
+		assert.Equal(expectedRecCt, idg.Records.Len())
+		// remove non-existing.
+		updated = idg.RemoveRecord(val + " name")
+		assert.False(updated)
+		assert.Equal(expectedRecCt, idg.Records.Len())
+	}
+}

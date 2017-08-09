@@ -487,7 +487,9 @@ def create_ltm_config_kubernetes(partition, config):
         'l7Policies': [],
         'pools': [],
         'monitors': [],
-        'iapps': []
+        'iapps': [],
+        'iRules': [],
+        'internalDataGroups': []
     }
 
     f5_services = {}
@@ -507,6 +509,18 @@ def create_ltm_config_kubernetes(partition, config):
             del monitor['partition']
 
             configuration['monitors'].append(monitor)
+
+    # reformat iRules
+    for irule in config.get('iRules', []):
+        if irule.get('partition', None) == partition:
+            del irule['partition']
+            configuration['iRules'].append(irule)
+
+    # reformat internalDataGroups
+    for idg in config.get('internalDataGroups', []):
+        if idg.get('partition', None) == partition:
+            del idg['partition']
+            configuration['internalDataGroups'].append(idg)
 
     svcs = config['virtualServers']
     for svc in svcs:
@@ -534,6 +548,7 @@ def create_ltm_config_kubernetes(partition, config):
             continue
 
         f5_service['name'] = vs_name
+        f5_service['rules'] = svc.get('rules', [])
 
         if 'iapp' in svc:
             cfg = {'tables': []}

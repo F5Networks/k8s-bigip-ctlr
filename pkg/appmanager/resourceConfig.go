@@ -40,17 +40,19 @@ import (
 // For more information regarding this structure and data model:
 //  f5/schemas/bigip-virtual-server_[version].json
 
-var DEFAULT_MODE string = "tcp"
-var DEFAULT_BALANCE string = "round-robin"
-var DEFAULT_HTTP_PORT int32 = 80
-var DEFAULT_HTTPS_PORT int32 = 443
+const DEFAULT_MODE string = "tcp"
+const DEFAULT_BALANCE string = "round-robin"
+const DEFAULT_HTTP_PORT int32 = 80
+const DEFAULT_HTTPS_PORT int32 = 443
+
+// FIXME: remove this global variable.
 var DEFAULT_PARTITION string
 
 // Indicator to use an F5 schema
-var schemaIndicator string = "f5schemadb://"
+const schemaIndicator string = "f5schemadb://"
 
 // Where the schemas reside locally
-var schemaLocal string = "file:///app/vendor/src/f5/schemas/"
+const schemaLocal string = "file:///app/vendor/src/f5/schemas/"
 
 // Wrappers around the ssl profile name to simplify its use due to the
 // pointer and nested depth.
@@ -136,6 +138,16 @@ func (v *Virtual) GetFrontendSslProfileNames() []string {
 		return []string{v.SslProfile.F5ProfileName}
 	}
 	return v.SslProfile.F5ProfileNames
+}
+
+func (v *Virtual) AddIRule(ruleName string) bool {
+	for _, irule := range v.IRules {
+		if irule == ruleName {
+			return false
+		}
+	}
+	v.IRules = append(v.IRules, ruleName)
+	return true
 }
 
 func (v *Virtual) ToString() string {
@@ -592,6 +604,9 @@ func createRSConfigFromRoute(
 		policyName = "openshift_secure_routes"
 		rsName = formatRouteVSName(route, "https")
 	}
+	passThroughRuleName := fmt.Sprintf("/%s/%s",
+		DEFAULT_PARTITION, sslPassthroughIRuleName)
+
 	// Create the pool
 	pool := Pool{
 		Name:        formatRoutePoolName(route),
@@ -640,37 +655,34 @@ func createRSConfigFromRoute(
 			// If rule doesn't exist, see if we need it for this protocol type
 			if pStruct.protocol == "http" {
 				if nil == tls || len(tls.Termination) == 0 {
-					if len(rsCfg.Policies) > 0 {
-						rsCfg.Policies[0].Rules = append(rsCfg.Policies[0].Rules, rule)
-					} else {
-						plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
-						rsCfg.SetPolicy(*plcy)
-					}
-				} else if tls.Termination == routeapi.TLSTerminationEdge &&
-					tls.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyAllow {
-					if len(rsCfg.Policies) > 0 {
-						rsCfg.Policies[0].Rules = append(rsCfg.Policies[0].Rules, rule)
-					} else {
-						plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
-						rsCfg.SetPolicy(*plcy)
-					}
-				} else if tls.Termination == routeapi.TLSTerminationEdge &&
-					tls.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyRedirect {
-					rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
-					if len(rsCfg.Policies) > 0 {
-						rsCfg.Policies[0].Rules = append(rsCfg.Policies[0].Rules, rule)
-					} else {
-						plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
-						rsCfg.SetPolicy(*plcy)
+					rsCfg.AddRuleToPolicy(policyName, rule)
+				} else {
+					switch tls.Termination {
+					case routeapi.TLSTerminationEdge:
+						if tls.InsecureEdgeTerminationPolicy ==
+							routeapi.InsecureEdgeTerminationPolicyAllow {
+							rsCfg.AddRuleToPolicy(policyName, rule)
+						} else if tls.InsecureEdgeTerminationPolicy ==
+							routeapi.InsecureEdgeTerminationPolicyRedirect {
+							rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
+							rsCfg.AddRuleToPolicy(policyName, rule)
+						}
+					case routeapi.TLSTerminationPassthrough:
+						if tls.InsecureEdgeTerminationPolicy ==
+							routeapi.InsecureEdgeTerminationPolicyRedirect {
+							rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
+							rsCfg.AddRuleToPolicy(policyName, rule)
+						}
 					}
 				}
 			} else {
-				if nil != tls && len(tls.Termination) > 0 {
-					if len(rsCfg.Policies) > 0 {
-						rsCfg.Policies[0].Rules = append(rsCfg.Policies[0].Rules, rule)
-					} else {
-						plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
-						rsCfg.SetPolicy(*plcy)
+				// https
+				if nil != tls {
+					switch tls.Termination {
+					case routeapi.TLSTerminationEdge:
+						rsCfg.AddRuleToPolicy(policyName, rule)
+					case routeapi.TLSTerminationPassthrough:
+						rsCfg.Virtual.AddIRule(passThroughRuleName)
 					}
 				}
 			}
@@ -690,27 +702,53 @@ func createRSConfigFromRoute(
 
 		if pStruct.protocol == "http" {
 			if nil == tls || len(tls.Termination) == 0 {
-				plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
-				rsCfg.SetPolicy(*plcy)
-			} else if tls.Termination == routeapi.TLSTerminationEdge &&
-				tls.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyAllow {
-				plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
-				rsCfg.SetPolicy(*plcy)
-			} else if tls.Termination == routeapi.TLSTerminationEdge &&
-				tls.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyRedirect {
-				rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
-				plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
-				rsCfg.SetPolicy(*plcy)
+				rsCfg.AddRuleToPolicy(policyName, rule)
+			} else {
+				switch tls.Termination {
+				case routeapi.TLSTerminationEdge:
+					if tls.InsecureEdgeTerminationPolicy ==
+						routeapi.InsecureEdgeTerminationPolicyAllow {
+						rsCfg.AddRuleToPolicy(policyName, rule)
+					} else if tls.InsecureEdgeTerminationPolicy ==
+						routeapi.InsecureEdgeTerminationPolicyRedirect {
+						rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
+						rsCfg.AddRuleToPolicy(policyName, rule)
+					}
+				case routeapi.TLSTerminationPassthrough:
+					if tls.InsecureEdgeTerminationPolicy ==
+						routeapi.InsecureEdgeTerminationPolicyRedirect {
+						rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
+						rsCfg.AddRuleToPolicy(policyName, rule)
+					}
+				}
 			}
 		} else {
-			if nil != tls && len(tls.Termination) > 0 {
-				plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
-				rsCfg.SetPolicy(*plcy)
+			if nil != tls {
+				switch tls.Termination {
+				case routeapi.TLSTerminationEdge:
+					rsCfg.AddRuleToPolicy(policyName, rule)
+				case routeapi.TLSTerminationPassthrough:
+					rsCfg.Virtual.AddIRule(passThroughRuleName)
+				}
 			}
 		}
 	}
 
 	return rsCfg, nil
+}
+
+func (rc *ResourceConfig) AddRuleToPolicy(
+	policyName string,
+	rule *Rule,
+) {
+	// We currently have at most 1 policy, 'forwarding'
+	policy := rc.FindPolicy("forwarding")
+	if nil != policy {
+		policy.Rules = append(policy.Rules, rule)
+	} else {
+		policy = createPolicy(Rules{rule}, policyName, rc.Virtual.Partition)
+	}
+	rc.SetPolicy(*policy)
 }
 
 func (rc *ResourceConfig) SetPolicy(policy Policy) {
@@ -840,4 +878,75 @@ func joinBigipPath(partition, objName string) string {
 		return objName
 	}
 	return fmt.Sprintf("/%s/%s", partition, objName)
+}
+
+func NewIRule(name, partition, code string) *IRule {
+	return &IRule{
+		Name:      name,
+		Partition: partition,
+		Code:      code,
+	}
+}
+
+func NewInternalDataGroup(name, partition string) *InternalDataGroup {
+	// Need to explicitly initialize Records to an empty array so it isn't nil.
+	return &InternalDataGroup{
+		Name:      name,
+		Partition: partition,
+		Records:   []InternalDataGroupRecord{},
+	}
+}
+
+func (slice InternalDataGroupRecords) Less(i, j int) bool {
+	return slice[i].Name < slice[j].Name
+}
+
+func (slice InternalDataGroupRecords) Len() int {
+	return len(slice)
+}
+
+func (slice InternalDataGroupRecords) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
+func (idg *InternalDataGroup) AddOrUpdateRecord(name, data string) bool {
+	// The records are maintained as a sorted array.
+	nameKeyFunc := func(i int) bool {
+		return idg.Records[i].Name >= name
+	}
+	i := sort.Search(idg.Records.Len(), nameKeyFunc)
+	if i < idg.Records.Len() && idg.Records[i].Name == name {
+		if idg.Records[i].Data != data {
+			// name found with different data, update
+			idg.Records[i].Data = data
+			return true
+		}
+		// name found with same data
+		return false
+	}
+
+	// Insert into the correct position.
+	idg.Records = append(idg.Records, InternalDataGroupRecord{})
+	copy(idg.Records[i+1:], idg.Records[i:])
+	idg.Records[i] = InternalDataGroupRecord{Name: name, Data: data}
+
+	return true
+}
+
+func (idg *InternalDataGroup) RemoveRecord(name string) bool {
+	// The records are maintained as a sorted array.
+	nameKeyFunc := func(i int) bool {
+		return idg.Records[i].Name >= name
+	}
+	nbrRecs := idg.Records.Len()
+	i := sort.Search(nbrRecs, nameKeyFunc)
+	if i < nbrRecs && idg.Records[i].Name == name {
+		// found, remove it and adjust the array.
+		nbrRecs -= 1
+		copy(idg.Records[i:], idg.Records[i+1:])
+		idg.Records[nbrRecs] = InternalDataGroupRecord{}
+		idg.Records = idg.Records[:nbrRecs]
+		return true
+	}
+	return false
 }

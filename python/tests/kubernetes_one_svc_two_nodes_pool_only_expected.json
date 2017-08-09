@@ -1,6 +1,8 @@
 {
     "ltm": {
         "iapps": [],
+        "internalDataGroups": [],
+        "iRules": [],
         "l7Policies": [],
         "monitors": [
             {

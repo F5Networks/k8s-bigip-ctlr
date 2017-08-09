@@ -18,6 +18,7 @@ package appmanager
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -55,9 +56,34 @@ func (appMgr *Manager) outputConfigLocked() {
 			}
 		}
 	})
+
+	// To allow the ssl passthrough iRule to be associated with a virtual,
+	// it must have at least one client or server SSL profile associated with
+	// it. We currently only support client SSL profiles, so if the virtual
+	// does not have any client SSL profiles AND references the iRule then
+	// we force it to take the BIG-IP's base client SSL profile in the output
+	// config.
+	for vKey, virtual := range resources.Virtuals {
+		for _, irule := range virtual.IRules {
+			if strings.Contains(irule, sslPassthroughIRuleName) {
+				clientSslProfiles := virtual.GetFrontendSslProfileNames()
+				if len(clientSslProfiles) == 0 {
+					sslProf := "Common/clientssl"
+					resources.Virtuals[vKey].AddFrontendSslProfileName(sslProf)
+				}
+			}
+		}
+	}
 	for _, profile := range appMgr.customProfiles.profs {
 		resources.CustomProfiles = append(resources.CustomProfiles, profile)
 	}
+	for _, irule := range appMgr.irulesMap {
+		resources.IRules = append(resources.IRules, *irule)
+	}
+	for _, intDg := range appMgr.intDgMap {
+		resources.InternalDataGroups = append(resources.InternalDataGroups, *intDg)
+	}
+
 	if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 ||
 		appMgr.initialState == true {
 		doneCh, errCh, err := appMgr.ConfigWriter().SendSection("resources", resources)

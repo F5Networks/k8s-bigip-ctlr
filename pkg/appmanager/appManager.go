@@ -61,6 +61,8 @@ type ResourceMap map[int32][]*ResourceConfig
 type Manager struct {
 	resources         *Resources
 	customProfiles    CustomProfileStore
+	irulesMap         IRulesMap
+	intDgMap          InternalDataGroupMap
 	kubeClient        kubernetes.Interface
 	restClientv1      rest.Interface
 	restClientv1beta1 rest.Interface
@@ -79,6 +81,10 @@ type Manager struct {
 	oldNodes []string
 	// Mutex for all informers (for informer CRUD)
 	informersMutex sync.Mutex
+	// Mutex for irulesMap
+	irulesMutex sync.Mutex
+	// Mutex for intDgMap
+	intDgMutex sync.Mutex
 	// App informer support
 	vsQueue      workqueue.RateLimitingInterface
 	appInformers map[string]*appInformer
@@ -122,6 +128,8 @@ func NewManager(params *Params) *Manager {
 	manager := Manager{
 		resources:         NewResources(),
 		customProfiles:    NewCustomProfiles(),
+		irulesMap:         make(IRulesMap),
+		intDgMap:          make(InternalDataGroupMap),
 		kubeClient:        params.KubeClient,
 		restClientv1:      params.restClient,
 		restClientv1beta1: params.restClient,
@@ -151,6 +159,28 @@ func NewManager(params *Params) *Manager {
 	}
 
 	return &manager
+}
+
+func (appMgr *Manager) addIRule(name, partition, rule string) {
+	appMgr.irulesMutex.Lock()
+	defer appMgr.irulesMutex.Unlock()
+
+	key := nameRef{
+		Name:      name,
+		Partition: partition,
+	}
+	appMgr.irulesMap[key] = NewIRule(name, partition, rule)
+}
+
+func (appMgr *Manager) addInternalDataGroup(name, partition string) {
+	appMgr.intDgMutex.Lock()
+	defer appMgr.intDgMutex.Unlock()
+
+	key := nameRef{
+		Name:      name,
+		Partition: partition,
+	}
+	appMgr.intDgMap[key] = NewInternalDataGroup(name, partition)
 }
 
 func (appMgr *Manager) watchingAllNamespacesLocked() bool {
@@ -617,6 +647,13 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 	defer appMgr.vsQueue.ShutDown()
 	defer appMgr.nsQueue.ShutDown()
 
+	if nil != appMgr.routeClientV1 {
+		appMgr.addIRule(
+			sslPassthroughIRuleName, DEFAULT_PARTITION, sslPassthroughIRule())
+		appMgr.addInternalDataGroup(passthroughHostsDgName, DEFAULT_PARTITION)
+		appMgr.addInternalDataGroup(reencryptHostsDgName, DEFAULT_PARTITION)
+	}
+
 	if nil != appMgr.nsInformer {
 		// Using one worker for namespace label changes.
 		appMgr.startAndSyncNamespaceInformer(stopCh)
@@ -702,6 +739,7 @@ type vsSyncStats struct {
 	vsUpdated int
 	vsDeleted int
 	cpUpdated int
+	dgUpdated int
 }
 
 func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
@@ -779,7 +817,8 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	// delete any custom profiles that are no longer referenced
 	appMgr.deleteUnusedProfiles(sKey.Namespace)
 
-	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 {
+	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
+		stats.dgUpdated > 0 {
 		appMgr.outputConfig()
 	} else if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 {
 		appMgr.resources.Lock()
@@ -987,10 +1026,19 @@ func (appMgr *Manager) syncRoutes(
 		return err
 	}
 
+	// Rebuild all internal data groups for routes as we process each
+	dgMap := make(InternalDataGroupMap)
 	for _, obj := range routeByIndex {
 		// We need to look at all routes in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
 		route := obj.(*routeapi.Route)
+		if nil != route.Spec.TLS &&
+			route.Spec.TLS.Termination == routeapi.TLSTerminationPassthrough {
+			// The information stored in the internal data groups can span multiple
+			// namespaces, so we need to keep dgMap updated with all current routes
+			// regardless of anything that happens below.
+			updateDataGroupForRoute(route, DEFAULT_PARTITION, dgMap)
+		}
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
@@ -1032,6 +1080,7 @@ func (appMgr *Manager) syncRoutes(
 
 			// TLS Cert/Key
 			if nil != route.Spec.TLS &&
+				route.Spec.TLS.Termination == routeapi.TLSTerminationEdge &&
 				rsCfg.Virtual.VirtualAddress.Port == DEFAULT_HTTPS_PORT {
 				cp := CustomProfile{
 					Name:       route.ObjectMeta.Name + "-https-cert",
@@ -1056,6 +1105,10 @@ func (appMgr *Manager) syncRoutes(
 			}
 		}
 	}
+
+	// Update internal data groups for routes if changed
+	appMgr.updateRouteDataGroups(stats, dgMap)
+
 	return nil
 }
 
@@ -1202,6 +1255,8 @@ func (appMgr *Manager) handleSslProfile(
 		Namespace:    namespace,
 		ResourceName: rsCfg.Virtual.VirtualServerName,
 	}
+	appMgr.customProfiles.Lock()
+	defer appMgr.customProfiles.Unlock()
 	if prof, ok := appMgr.customProfiles.profs[skey]; ok {
 		if !reflect.DeepEqual(prof, cp) {
 			appMgr.customProfiles.profs[skey] = cp

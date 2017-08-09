@@ -63,6 +63,8 @@
                 ]
             }
         ],
+        "internalDataGroups": [],
+        "iRules": [],
         "l7Policies": [],
         "monitors": [],
         "pools": [],

@@ -386,14 +386,15 @@ def create_network_config_kubernetes(config):
     return f5_network
 
 
-def append_ssl_profile(profiles, profName):
+def append_ssl_profile(profiles, profName, context):
     profile = (profName.split('/'))
     if len(profile) != 2:
         log.error("Could not parse partition and name "
                   "from SSL profile: %s", profName)
     else:
         profiles.append({'partition': profile[0],
-                         'name': profile[1]})
+                         'name': profile[1],
+                         'context': context})
 
 
 def create_ltm_config_kubernetes(partition, config):
@@ -507,20 +508,30 @@ def create_ltm_config_kubernetes(partition, config):
 
             configuration['iapps'].append(iapp)
         else:
+            # FIXME(garyr): profiles should be set properly the controller.
             # Parse the SSL profile into partition and name
             if 'sslProfile' in svc:
                 # The sslProfile item can be empty or have either
                 # 'f5ProfileName' or 'f5ProfileNames', not both.
                 if 'f5ProfileName' in svc['sslProfile']:
                     append_ssl_profile(
-                        profiles, svc['sslProfile']['f5ProfileName'])
+                        profiles, svc['sslProfile']['f5ProfileName'],
+                        'clientside')
                 elif 'f5ProfileNames' in svc['sslProfile']:
                     for profName in svc['sslProfile']['f5ProfileNames']:
-                        append_ssl_profile(profiles, profName)
+                        append_ssl_profile(profiles, profName, 'clientside')
 
             # Add appropriate profiles
-            profile_http = {'partition': 'Common', 'name': 'http'}
-            profile_tcp = {'partition': 'Common', 'name': 'tcp'}
+            profile_http = {
+                'partition': 'Common',
+                'name': 'http',
+                'context': 'all'
+                }
+            profile_tcp = {
+                'partition': 'Common',
+                'name': 'tcp',
+                'context': 'all'
+                }
             if str(svc['mode']).lower() == 'http':
                 if profile_http not in profiles:
                     profiles.append(profile_http)
@@ -613,52 +624,55 @@ def create_ltm_config_kubernetes(partition, config):
     return configuration
 
 
-def _create_client_ssl_profile(mgmt, profile):
+def _create_custom_profiles(mgmt, partition, custom_profiles):
     incomplete = 0
 
-    # bigip object is of type f5.bigip.tm;
-    # we need f5.bigip.shared for the uploader
-    uploader = mgmt.shared.file_transfer.uploads
-    cert_registrar = mgmt.tm.sys.crypto.certs
-    key_registrar = mgmt.tm.sys.crypto.keys
+    customProfiles = False
+    for profile in custom_profiles:
+        if profile['partition'] == partition:
+            if profile['context'] == 'clientside':
+                incomplete += _create_client_ssl_profile(mgmt, profile)
+                customProfiles = True
+            elif profile['context'] == 'serverside':
+                incomplete += _create_server_ssl_profile(mgmt, profile)
+                customProfiles = True
+            else:
+                log.error(
+                    "Only client or server custom profiles are supported.")
+
+    return customProfiles, incomplete
+
+
+def _create_client_ssl_profile(mgmt, profile):
     ssl_client_profile = mgmt.tm.ltm.profile.client_ssls.client_ssl
 
     name = profile['name']
     partition = profile['partition']
-    cert = profile['cert']
-    key = profile['key']
-    serverName = profile.get('serverName', None)
 
     # No need to create if it exists
     if ssl_client_profile.exists(name=name, partition=partition):
-        return
+        return 0
 
-    certfilename = name + '.crt'
-    keyfilename = name + '.key'
+    cert = profile['cert']
+    cert_name = name + '.crt'
+    incomplete = _install_certificate(mgmt, cert, cert_name)
+    if incomplete > 0:
+        # Unable to install cert
+        return incomplete
+
+    key = profile['key']
+    key_name = name + '.key'
+    incomplete = _install_key(mgmt, key, key_name)
+    if incomplete > 0:
+        # Unable to install key
+        return incomplete
 
     try:
-        # In-memory upload -- data not written to local file system but
-        # is saved as a file on the BIG-IP
-        uploader.upload_bytes(cert, certfilename)
-        uploader.upload_bytes(key, keyfilename)
-
-        # import certificate
-        param_set = {}
-        param_set['name'] = certfilename
-        param_set['from-local-file'] = os.path.join(
-            '/var/config/rest/downloads', certfilename)
-        cert_registrar.exec_cmd('install', **param_set)
-
-        # import key
-        param_set['name'] = keyfilename
-        param_set['from-local-file'] = os.path.join(
-            '/var/config/rest/downloads', keyfilename)
-        key_registrar.exec_cmd('install', **param_set)
-
         # create ssl-client profile from cert/key pair
         chain = [{'name': name,
-                  'cert': '/Common/' + certfilename,
-                  'key': '/Common/' + keyfilename}]
+                  'cert': '/Common/' + cert_name,
+                  'key': '/Common/' + key_name}]
+        serverName = profile.get('serverName', None)
         ssl_client_profile.create(name=name,
                                   partition=partition,
                                   certKeyChain=chain,
@@ -666,23 +680,71 @@ def _create_client_ssl_profile(mgmt, profile):
                                   sniDefault=False,
                                   defaultsFrom=None)
     except Exception as err:
-        log.error("Error creating SSL profile: %s" % err.message)
+        log.error("Error creating client SSL profile: %s" % err.message)
         incomplete = 1
 
     return incomplete
 
 
-def _delete_client_ssl_profiles(mgmt, partition, config):
-    incomplete = 0
+def _create_server_ssl_profile(mgmt, profile):
+    ssl_server_profile = mgmt.tm.ltm.profile.server_ssls.server_ssl
+
+    name = profile['name']
+    partition = profile['partition']
+
+    # No need to create if it exists
+    if ssl_server_profile.exists(name=name, partition=partition):
+        return 0
+
+    cert = profile['cert']
+    cert_name = name + '.crt'
+    incomplete = _install_certificate(mgmt, cert, cert_name)
+    if incomplete > 0:
+        # Unable to install cert
+        return incomplete
 
     try:
-        profiles = mgmt.tm.ltm.profile.client_ssls.get_collection(
+        # create ssl-server profile
+        ssl_server_profile.create(name=name,
+                                  partition=partition,
+                                  chain=cert_name)
+    except Exception as err:
+        incomplete += 1
+        log.error("Error creating server SSL profile: %s" % err.message)
+
+    return incomplete
+
+
+def _delete_unused_ssl_profiles(mgmt, partition, config):
+    incomplete = 0
+
+    # client profiles
+    try:
+        client_profiles = mgmt.tm.ltm.profile.client_ssls.get_collection(
             requests_params={'params': '$filter=partition+eq+%s'
                              % partition})
+        incomplete += _delete_ssl_profiles(partition, config, client_profiles)
     except Exception as err:
-        log.error("Error reading profiles from BIG-IP: %s" % err.message)
+        log.error("Error reading client SSL profiles from BIG-IP: %s" %
+                  err.message)
         incomplete += 1
-        return incomplete
+
+    # server profiles
+    try:
+        server_profiles = mgmt.tm.ltm.profile.server_ssls.get_collection(
+            requests_params={'params': '$filter=partition+eq+%s'
+                             % partition})
+        incomplete += _delete_ssl_profiles(partition, config, server_profiles)
+    except Exception as err:
+        log.error("Error reading server SSL profiles from BIG-IP: %s" %
+                  err.message)
+        incomplete += 1
+
+    return incomplete
+
+
+def _delete_ssl_profiles(partition, config, profiles):
+    incomplete = 0
 
     if 'customProfiles' not in config:
         # delete any profiles in managed partition
@@ -705,6 +767,86 @@ def _delete_client_ssl_profiles(mgmt, partition, config):
                     incomplete += 1
 
     return incomplete
+
+
+def _upload_crypto_file(mgmt, file_data, file_name):
+    # bigip object is of type f5.bigip.tm;
+    # we need f5.bigip.shared for the uploader
+    uploader = mgmt.shared.file_transfer.uploads
+
+    # In-memory upload -- data not written to local file system but
+    # is saved as a file on the BIG-IP
+    uploader.upload_bytes(file_data, file_name)
+
+
+def _import_certificate(mgmt, cert_name):
+    cert_registrar = mgmt.tm.sys.crypto.certs
+    param_set = {}
+    param_set['name'] = cert_name
+    param_set['from-local-file'] = os.path.join(
+        '/var/config/rest/downloads', cert_name)
+    cert_registrar.exec_cmd('install', **param_set)
+
+
+def _import_key(mgmt, key_name):
+    key_registrar = mgmt.tm.sys.crypto.keys
+    param_set = {}
+    param_set['name'] = key_name
+    param_set['from-local-file'] = os.path.join(
+        '/var/config/rest/downloads', key_name)
+    key_registrar.exec_cmd('install', **param_set)
+
+
+def _install_certificate(mgmt, cert_data, cert_name):
+    incomplete = 0
+
+    try:
+        if not _certificate_exists(mgmt, cert_name):
+            # Upload and install cert
+            _upload_crypto_file(mgmt, cert_data, cert_name)
+            _import_certificate(mgmt, cert_name)
+
+    except Exception as err:
+        incomplete += 1
+        log.error("Error uploading certificate %s: %s" %
+                  (cert_name, err.message))
+
+    return incomplete
+
+
+def _install_key(mgmt, key_data, key_name):
+    incomplete = 0
+
+    try:
+        if not _key_exists(mgmt, key_name):
+            # Upload and install cert
+            _upload_crypto_file(mgmt, key_data, key_name)
+            _import_key(mgmt, key_name)
+
+    except Exception as err:
+        incomplete += 1
+        log.error("Error uploading key %s: %s" %
+                  (key_name, err.message))
+
+    return incomplete
+
+
+def _certificate_exists(mgmt, cert_name):
+    # All certs are in the Common partition
+    name_to_find = "/Common/{}".format(cert_name)
+    for cert in mgmt.tm.sys.crypto.certs.get_collection():
+        if cert.name == name_to_find:
+            return True
+    return False
+
+
+def _key_exists(mgmt, key_name):
+    # All keys are in the Common partition
+    name_to_find = "/Common/{}".format(key_name)
+    for key in mgmt.tm.sys.crypto.keys.get_collection():
+        if key.name == name_to_find:
+            return True
+    return False
 
 
 class ConfigHandler():
@@ -795,14 +937,12 @@ class ConfigHandler():
                         # Manually create custom profiles;
                         # CCCL doesn't yet do this
                         if 'customProfiles' in config['resources']:
-                            for profile in \
-                                    config['resources']['customProfiles']:
-                                if profile['partition'] == \
-                                        mgr.get_partition():
-                                    _create_client_ssl_profile(
-                                        mgr.mgmt_root(),
-                                        profile)
-                                    customProfiles = True
+                            tmp = 0
+                            customProfiles, tmp = _create_custom_profiles(
+                                    mgr.mgmt_root(),
+                                    mgr.get_partition(),
+                                    config['resources']['customProfiles'])
+                            incomplete += tmp
 
                         # Apply the BIG-IP config after creating profiles
                         # and before deleting profiles
@@ -810,7 +950,7 @@ class ConfigHandler():
 
                         # Manually delete custom profiles (if needed)
                         if customProfiles:
-                            _delete_client_ssl_profiles(
+                            _delete_unused_ssl_profiles(
                                 mgr.mgmt_root(),
                                 mgr.get_partition(),
                                 config['resources'])

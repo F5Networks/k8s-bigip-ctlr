@@ -54,6 +54,11 @@ const schemaIndicator string = "f5schemadb://"
 // Where the schemas reside locally
 const schemaLocal string = "file:///app/vendor/src/f5/schemas/"
 
+// Constants for CustomProfile.Type as defined in CCCL
+const customProfileAll string = "all"
+const customProfileClient string = "clientside"
+const customProfileServer string = "serverside"
+
 // Wrappers around the ssl profile name to simplify its use due to the
 // pointer and nested depth.
 func (v *Virtual) AddFrontendSslProfileName(name string) {
@@ -140,6 +145,50 @@ func (v *Virtual) GetFrontendSslProfileNames() []string {
 	return v.SslProfile.F5ProfileNames
 }
 
+func (v *Virtual) GetProfileCountByContext(context string) int {
+	// Valid values of context are 'clientside', serverside', and 'all'.
+	// 'all' does not mean all profiles, but profiles that can be used in
+	// multiple contexts.
+
+	profCt := 0
+
+	for _, prof := range v.Profiles {
+		if prof.Context == context {
+			profCt++
+		}
+	}
+
+	if context == customProfileClient {
+		// Until client SSL profiles are stored exclusively within v.Profiles we
+		// need to to count the ones in the frontend struct as well.
+		profCt += len(v.GetFrontendSslProfileNames())
+	}
+
+	return profCt
+}
+
+func (v *Virtual) ReferencesProfile(profile CustomProfile) bool {
+	for _, prof := range v.Profiles {
+		if prof.Name == profile.Name &&
+			prof.Partition == profile.Partition &&
+			prof.Context == profile.Context {
+			return true
+		}
+	}
+	if profile.Context == customProfileClient {
+		// Until client SSL profiles are stored exclusively within v.Profiles we
+		// need to look in frontend as well.
+		nameToFind := fmt.Sprintf("%s/%s", profile.Partition, profile.Name)
+		for _, profName := range v.GetFrontendSslProfileNames() {
+			if profName == nameToFind {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func (v *Virtual) AddIRule(ruleName string) bool {
 	for _, irule := range v.IRules {
 		if irule == ruleName {
@@ -157,6 +206,67 @@ func (v *Virtual) ToString() string {
 		return ""
 	}
 	return string(output)
+}
+
+func (slice ProfileRefs) Less(i, j int) bool {
+	return ((slice[i].Partition < slice[j].Partition) ||
+		(slice[i].Partition == slice[j].Partition &&
+			slice[i].Name < slice[j].Name))
+}
+
+func (slice ProfileRefs) Len() int {
+	return len(slice)
+}
+
+func (slice ProfileRefs) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
+func (v *Virtual) AddOrUpdateProfile(prof ProfileRef) bool {
+	// The profiles are maintained as a sorted array.
+	keyFunc := func(i int) bool {
+		return ((v.Profiles[i].Partition > prof.Partition) ||
+			(v.Profiles[i].Partition == prof.Partition &&
+				v.Profiles[i].Name >= prof.Name))
+	}
+	profCt := v.Profiles.Len()
+	i := sort.Search(profCt, keyFunc)
+	if i < profCt && v.Profiles[i].Partition == prof.Partition &&
+		v.Profiles[i].Name == prof.Name {
+		// found, look for data changed
+		if v.Profiles[i] == prof {
+			// unchanged
+			return false
+		}
+	} else {
+		// Insert into the correct position.
+		v.Profiles = append(v.Profiles, ProfileRef{})
+		copy(v.Profiles[i+1:], v.Profiles[i:])
+	}
+	v.Profiles[i] = prof
+
+	return true
+}
+
+func (v *Virtual) RemoveProfile(prof ProfileRef) bool {
+	// The profiles are maintained as a sorted array.
+	keyFunc := func(i int) bool {
+		return ((v.Profiles[i].Partition > prof.Partition) ||
+			(v.Profiles[i].Partition == prof.Partition &&
+				v.Profiles[i].Name >= prof.Name))
+	}
+	profCt := v.Profiles.Len()
+	i := sort.Search(profCt, keyFunc)
+	if i < profCt && v.Profiles[i].Partition == prof.Partition &&
+		v.Profiles[i].Name == prof.Name {
+		// found, remove it and adjust the array.
+		profCt -= 1
+		copy(v.Profiles[i:], v.Profiles[i+1:])
+		v.Profiles[profCt] = ProfileRef{}
+		v.Profiles = v.Profiles[:profCt]
+		return true
+	}
+	return false
 }
 
 func (slice ResourceConfigs) Len() int {
@@ -601,10 +711,6 @@ func createRSConfigFromRoute(
 		policyName = "openshift_secure_routes"
 		rsName = formatRouteVSName(route, "https")
 	}
-	passThroughRuleName := fmt.Sprintf("/%s/%s",
-		DEFAULT_PARTITION, sslPassthroughIRuleName)
-	redirectIRuleName := fmt.Sprintf("/%s/%s",
-		DEFAULT_PARTITION, httpRedirectIRuleName)
 
 	// Create the pool
 	pool := Pool{
@@ -651,38 +757,7 @@ func createRSConfigFromRoute(
 			}
 		}
 		if !found {
-			// If rule doesn't exist, see if we need it for this protocol type
-			if pStruct.protocol == "http" {
-				if nil == tls || len(tls.Termination) == 0 {
-					rsCfg.AddRuleToPolicy(policyName, rule)
-				} else {
-					switch tls.Termination {
-					case routeapi.TLSTerminationEdge:
-						if tls.InsecureEdgeTerminationPolicy ==
-							routeapi.InsecureEdgeTerminationPolicyAllow {
-							rsCfg.AddRuleToPolicy(policyName, rule)
-						} else if tls.InsecureEdgeTerminationPolicy ==
-							routeapi.InsecureEdgeTerminationPolicyRedirect {
-							rsCfg.Virtual.AddIRule(redirectIRuleName)
-						}
-					case routeapi.TLSTerminationPassthrough:
-						if tls.InsecureEdgeTerminationPolicy ==
-							routeapi.InsecureEdgeTerminationPolicyRedirect {
-							rsCfg.Virtual.AddIRule(redirectIRuleName)
-						}
-					}
-				}
-			} else {
-				// https
-				if nil != tls {
-					switch tls.Termination {
-					case routeapi.TLSTerminationEdge:
-						rsCfg.AddRuleToPolicy(policyName, rule)
-					case routeapi.TLSTerminationPassthrough:
-						rsCfg.Virtual.AddIRule(passThroughRuleName)
-					}
-				}
-			}
+			rsCfg.HandleRouteTls(tls, pStruct.protocol, policyName, rule)
 		}
 	} else { // This is a new VS for a Route
 		rsCfg.MetaData.ResourceType = "route"
@@ -696,39 +771,52 @@ func createRSConfigFromRoute(
 		}
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 
-		if pStruct.protocol == "http" {
-			if nil == tls || len(tls.Termination) == 0 {
-				rsCfg.AddRuleToPolicy(policyName, rule)
-			} else {
-				switch tls.Termination {
-				case routeapi.TLSTerminationEdge:
-					if tls.InsecureEdgeTerminationPolicy ==
-						routeapi.InsecureEdgeTerminationPolicyAllow {
-						rsCfg.AddRuleToPolicy(policyName, rule)
-					} else if tls.InsecureEdgeTerminationPolicy ==
-						routeapi.InsecureEdgeTerminationPolicyRedirect {
-						rsCfg.Virtual.AddIRule(redirectIRuleName)
-					}
-				case routeapi.TLSTerminationPassthrough:
-					if tls.InsecureEdgeTerminationPolicy ==
-						routeapi.InsecureEdgeTerminationPolicyRedirect {
-						rsCfg.Virtual.AddIRule(redirectIRuleName)
-					}
-				}
-			}
-		} else {
-			if nil != tls {
-				switch tls.Termination {
-				case routeapi.TLSTerminationEdge:
-					rsCfg.AddRuleToPolicy(policyName, rule)
-				case routeapi.TLSTerminationPassthrough:
-					rsCfg.Virtual.AddIRule(passThroughRuleName)
-				}
-			}
-		}
+		rsCfg.HandleRouteTls(tls, pStruct.protocol, policyName, rule)
 	}
 
 	return rsCfg, nil
+}
+
+func (rc *ResourceConfig) HandleRouteTls(
+	tls *routeapi.TLSConfig,
+	protocol string,
+	policyName string,
+	rule *Rule,
+) {
+	if protocol == "http" {
+		if nil == tls || len(tls.Termination) == 0 {
+			rc.AddRuleToPolicy(policyName, rule)
+		} else {
+			// Handle redirect policy for edge. Reencrypt and passthrough do not
+			// support redirect policies, despite what the OpenShift docs say.
+			if tls.Termination == routeapi.TLSTerminationEdge {
+				// edge supports 'allow' and 'redirect'
+				switch tls.InsecureEdgeTerminationPolicy {
+				case routeapi.InsecureEdgeTerminationPolicyAllow:
+					rc.AddRuleToPolicy(policyName, rule)
+				case routeapi.InsecureEdgeTerminationPolicyRedirect:
+					redirectIRuleName := fmt.Sprintf("/%s/%s",
+						DEFAULT_PARTITION, httpRedirectIRuleName)
+					rc.Virtual.AddIRule(redirectIRuleName)
+				}
+			}
+		}
+	} else {
+		// https
+		if nil != tls {
+			passThroughRuleName := fmt.Sprintf("/%s/%s",
+				DEFAULT_PARTITION, sslPassthroughIRuleName)
+			switch tls.Termination {
+			case routeapi.TLSTerminationEdge:
+				rc.AddRuleToPolicy(policyName, rule)
+			case routeapi.TLSTerminationPassthrough:
+				rc.Virtual.AddIRule(passThroughRuleName)
+			case routeapi.TLSTerminationReencrypt:
+				rc.Virtual.AddIRule(passThroughRuleName)
+				rc.AddRuleToPolicy(policyName, rule)
+			}
+		}
+	}
 }
 
 func (rc *ResourceConfig) AddRuleToPolicy(
@@ -943,4 +1031,13 @@ func (idg *InternalDataGroup) RemoveRecord(name string) bool {
 		return true
 	}
 	return false
+}
+
+func NewCustomProfile(profile ProfileRef, cert string) CustomProfile {
+	return CustomProfile{
+		Name:      profile.Name,
+		Partition: profile.Partition,
+		Context:   profile.Context,
+		Cert:      cert,
+	}
 }

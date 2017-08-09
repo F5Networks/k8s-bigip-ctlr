@@ -43,6 +43,7 @@
                 "pool": "/k8s/default_configmap",
                 "profiles": [
                     {
+                        "context": "all",
                         "name": "http",
                         "partition": "Common"
                     }

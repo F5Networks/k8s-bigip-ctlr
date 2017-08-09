@@ -39,6 +39,7 @@
                 "pool": "invalid_sslProfile0_configmap",
                 "profiles": [
                     {
+                        "context": "all",
                         "name": "tcp",
                         "partition": "Common"
                     }

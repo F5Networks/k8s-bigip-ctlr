@@ -44,6 +44,14 @@ type (
 		ResourceType string
 	}
 
+	// Reference to pre-existing profiles
+	ProfileRef struct {
+		Name      string `json:"name"`
+		Partition string `json:"partition"`
+		Context   string `json:"context"` // 'clientside', 'serverside', or 'all'
+	}
+	ProfileRefs []ProfileRef
+
 	// Virtual server config
 	Virtual struct {
 		VirtualServerName string `json:"name"`
@@ -58,6 +66,8 @@ type (
 		SslProfile     *sslProfile     `json:"sslProfile,omitempty"`
 		Policies       []nameRef       `json:"policies,omitempty"`
 		IRules         []string        `json:"rules,omitempty"`
+		// FIXME: All profiles should reside in Profiles, just server ssl ones now.
+		Profiles ProfileRefs `json:"profiles,omitempty"`
 
 		// iApp parameters
 		IApp                string                    `json:"iapp,omitempty"`
@@ -182,10 +192,11 @@ type (
 		Rows    [][]string `json:"rows,omitempty"`
 	}
 
-	// Client SSL Profile loaded from Secret
+	// SSL Profile loaded from Secret or Route object
 	CustomProfile struct {
 		Name       string `json:"name"`
 		Partition  string `json:"partition"`
+		Context    string `json:"context"` // 'clientside', 'serverside', or 'all'
 		Cert       string `json:"cert"`
 		Key        string `json:"key"`
 		ServerName string `json:"serverName,omitempty"`

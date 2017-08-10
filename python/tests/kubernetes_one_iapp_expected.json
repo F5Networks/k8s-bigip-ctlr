@@ -1,0 +1,72 @@
+{
+    "ltm": {
+        "iapps": [
+            {
+                "name": "default_configmap",
+                "options": {
+                    "description": "This is a test iApp",
+                    "trafficGroup": "/Common/traffic-group-local-only"
+                },
+                "tables": [
+                    {
+                        "columnNames": [
+                            "addr",
+                            "port",
+                            "connection_limit"
+                        ],
+                        "name": "pool__members",
+                        "rows": [
+                            {
+                                "row": [
+                                    "172.16.0.5",
+                                    "30008",
+                                    "0"
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "template": "/Common/f5.http",
+                "variables": [
+                    {
+                        "name": "monitor__monitor",
+                        "value": "/#create_new#"
+                    },
+                    {
+                        "name": "net__client_mode",
+                        "value": "wan"
+                    },
+                    {
+                        "name": "pool__pool_to_use",
+                        "value": "/#create_new#"
+                    },
+                    {
+                        "name": "net__server_mode",
+                        "value": "lan"
+                    },
+                    {
+                        "name": "pool__addr",
+                        "value": "10.128.10.240"
+                    },
+                    {
+                        "name": "monitor__response",
+                        "value": "none"
+                    },
+                    {
+                        "name": "monitor__uri",
+                        "value": "/"
+                    },
+                    {
+                        "name": "pool__port",
+                        "value": "8080"
+                    }
+                ]
+            }
+        ],
+        "l7Policies": [],
+        "monitors": [],
+        "pools": [],
+        "virtualServers": []
+    },
+    "network": {}
+}

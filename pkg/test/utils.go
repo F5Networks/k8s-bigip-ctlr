@@ -27,6 +27,7 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 
+	routeapi "github.com/openshift/origin/pkg/route/api"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -142,6 +143,22 @@ func NewIngress(id, rv, namespace string,
 			ResourceVersion: rv,
 			Namespace:       namespace,
 			Annotations:     annotations,
+		},
+		Spec: spec,
+	}
+}
+
+// NewRoute returns a new route object
+func NewRoute(id, rv, namespace string, spec routeapi.RouteSpec) *routeapi.Route {
+	return &routeapi.Route{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Route",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            id,
+			ResourceVersion: rv,
+			Namespace:       namespace,
 		},
 		Spec: spec,
 	}

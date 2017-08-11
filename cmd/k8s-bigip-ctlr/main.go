@@ -65,6 +65,7 @@ var (
 	bigIPFlags        *pflag.FlagSet
 	kubeFlags         *pflag.FlagSet
 	openshiftSDNFlags *pflag.FlagSet
+	osRouteFlags      *pflag.FlagSet
 
 	pythonBaseDir    *string
 	logLevel         *string
@@ -87,6 +88,10 @@ var (
 	openshiftSDNMode string
 	openshiftSDNName *string
 
+	routeVserverAddr       *string
+	routeDefaultServerCert *string
+	routeLabel             *string
+
 	// package variables
 	isNodePort         bool
 	watchAllNamespaces bool
@@ -98,6 +103,7 @@ func _init() {
 	bigIPFlags = pflag.NewFlagSet("BigIP", pflag.ContinueOnError)
 	kubeFlags = pflag.NewFlagSet("Kubernetes", pflag.ContinueOnError)
 	openshiftSDNFlags = pflag.NewFlagSet("Openshift SDN", pflag.ContinueOnError)
+	osRouteFlags = pflag.NewFlagSet("OpenShift Routes", pflag.ContinueOnError)
 
 	// Global flags
 	pythonBaseDir = globalFlags.String("python-basedir", "/app/python",
@@ -166,10 +172,26 @@ func _init() {
 		fmt.Fprintf(os.Stderr, "  Openshift SDN:\n%s\n", openshiftSDNFlags.FlagUsages())
 	}
 
+	// OpenShift Route flags
+	routeVserverAddr = osRouteFlags.String("route-vserver-addr", "",
+		"Optional, bind address for virtual server for Route objects.")
+	routeDefaultServerCert = osRouteFlags.String("route-default-server-cert", "",
+		"Optional, default server cert for Route objects.")
+	routeLabel = osRouteFlags.String("route-label", "",
+		"Optional, label for which Route objects to watch.")
+	osRouteFlags.MarkHidden("route-vserver-addr")
+	osRouteFlags.MarkHidden("route-default-server-cert")
+	osRouteFlags.MarkHidden("route-label")
+
+	osRouteFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "  Openshift Routes:\n%s\n", osRouteFlags.FlagUsages())
+	}
+
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(bigIPFlags)
 	flags.AddFlagSet(kubeFlags)
 	flags.AddFlagSet(openshiftSDNFlags)
+	flags.AddFlagSet(osRouteFlags)
 
 	flags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s\n", os.Args[0])
@@ -177,6 +199,7 @@ func _init() {
 		bigIPFlags.Usage()
 		kubeFlags.Usage()
 		openshiftSDNFlags.Usage()
+		osRouteFlags.Usage()
 	}
 }
 
@@ -369,10 +392,17 @@ func main() {
 		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
 	}
 	defer configWriter.Stop()
+	var routeConfig = appmanager.RouteConfig{
+		RouteVSAddr:     *routeVserverAddr,
+		RouteServerCert: *routeDefaultServerCert,
+		RouteLabel:      *routeLabel,
+	}
+
 	var appMgrParms = appmanager.Params{
 		ConfigWriter:    configWriter,
 		UseNodeInternal: *useNodeInternal,
 		IsNodePort:      isNodePort,
+		RouteConfig:     routeConfig,
 	}
 
 	gs := globalSection{
@@ -419,7 +449,8 @@ func main() {
 		log.Fatalf("error connecting to the client: %v", err)
 	}
 	if *manageRoutes {
-		appMgrParms.RouteClientV1, err = routeclient.New(config)
+		rclient, err := routeclient.New(config)
+		appMgrParms.RouteClientV1 = rclient.RESTClient
 		if nil != err {
 			log.Fatalf("unable to create route client: err: %+v\n", err)
 		}

@@ -2,16 +2,6 @@
   "resources": {
     "virtualServers": [
       {
-        "name": "invalid_partition_configmap",
-        "partition": "",
-        "mode": "http",
-        "balance": "round-robin",
-        "pool": "invalid_partition_configmap",
-        "virtualAddress": {
-          "bindAddr": "10.128.10.240",
-          "port": 5051
-        }
-      }, {
         "name": "invalid_sslProfile0_configmap",
         "partition": "k8s",
         "mode": "tcp",
@@ -41,16 +31,9 @@
     ],
     "pools": [
       {
-        "name": "invalid_partition_configmap",
-        "partition": "",
-        "poolMemberAddrs": [
-          "172.16.0.5:30008"
-        ],
-        "serviceName": "invalid_partition",
-        "servicePort": 80
-      }, {
         "name": "invalid_sslProfile0_configmap",
         "partition": "k8s",
+        "loadBalancingMode": "round-robin",
         "poolMemberAddrs": [
           "172.16.0.5:30008"
         ],
@@ -59,6 +42,7 @@
       }, {
         "name": "invalid_sslProfile1_configmap",
         "partition": "k8s",
+        "loadBalancingMode": "round-robin",
         "poolMemberAddrs": [
           "172.16.0.6:30009"
         ],

@@ -20,6 +20,7 @@
         ],
         "pools": [
             {
+                "loadBalancingMode": "round-robin",
                 "members": [
                     {
                         "address": "172.16.0.5",

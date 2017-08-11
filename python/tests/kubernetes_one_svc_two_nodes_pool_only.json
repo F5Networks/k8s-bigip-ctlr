@@ -13,6 +13,7 @@
       {
         "name": "default_configmap",
         "partition": "k8s",
+        "loadBalancingMode": "round-robin",
         "poolMemberAddrs": [
           "172.16.0.5:30008",
           "172.16.0.6:30008"

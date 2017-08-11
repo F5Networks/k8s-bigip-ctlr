@@ -27,6 +27,7 @@ import (
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
+	routeapi "github.com/openshift/origin/pkg/route/api"
 	"github.com/xeipuuv/gojsonschema"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
@@ -175,6 +176,23 @@ func formatIngressVSName(ing *v1beta1.Ingress, protocol string) string {
 }
 
 // format the namespace and name for use in the frontend definition
+func formatRouteVSName(route *routeapi.Route, protocol string) string {
+	return fmt.Sprintf("openshift_%s_%s",
+		route.ObjectMeta.Namespace, protocol)
+}
+
+// format the namespace and name for use in the backend definition
+func formatRoutePoolName(route *routeapi.Route) string {
+	return fmt.Sprintf("openshift_%s_%s",
+		route.ObjectMeta.Namespace, route.Spec.To.Name)
+}
+
+// format the Rule name for a Route
+func formatRouteRuleName(route *routeapi.Route) string {
+	return fmt.Sprintf("openshift_route_%s_%s", route.ObjectMeta.Namespace,
+		route.ObjectMeta.Name)
+}
+
 func formatIngressSslProfileName(secret string) string {
 	profName := strings.TrimSpace(strings.TrimPrefix(secret, "/"))
 	parts := strings.Split(profName, "/")
@@ -412,10 +430,11 @@ func copyConfigMap(cfg *ResourceConfig, cfgMap *ConfigMap) {
 		cfg.Virtual.Mode = cfgMap.VirtualServer.Frontend.Mode
 	}
 	// If balance not set, use default
+	var balance string
 	if cfgMap.VirtualServer.Frontend.Balance == "" {
-		cfg.Virtual.Balance = DEFAULT_BALANCE
+		balance = DEFAULT_BALANCE
 	} else {
-		cfg.Virtual.Balance = cfgMap.VirtualServer.Frontend.Balance
+		balance = cfgMap.VirtualServer.Frontend.Balance
 	}
 
 	cfg.Virtual.Partition = cfgMap.VirtualServer.Frontend.Partition
@@ -450,6 +469,7 @@ func copyConfigMap(cfg *ResourceConfig, cfgMap *ConfigMap) {
 	pool := Pool{
 		Name:            cfg.Virtual.VirtualServerName,
 		Partition:       cfg.Virtual.Partition,
+		Balance:         balance,
 		ServiceName:     cfgMap.VirtualServer.Backend.ServiceName,
 		ServicePort:     cfgMap.VirtualServer.Backend.ServicePort,
 		PoolMemberAddrs: cfgMap.VirtualServer.Backend.PoolMemberAddrs,
@@ -474,10 +494,11 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress,
 	}
 	cfg.Virtual.VirtualServerName = formatIngressVSName(ing, pStruct.protocol)
 	cfg.Virtual.Mode = "http"
-	if balance, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/balance"]; ok == true {
-		cfg.Virtual.Balance = balance
+	var balance string
+	if bal, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/balance"]; ok == true {
+		balance = bal
 	} else {
-		cfg.Virtual.Balance = DEFAULT_BALANCE
+		balance = DEFAULT_BALANCE
 	}
 	cfg.Virtual.VirtualAddress = &virtualAddress{}
 	cfg.Virtual.VirtualAddress.Port = pStruct.port
@@ -524,6 +545,7 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress,
 					pool := Pool{
 						Name:        poolName,
 						Partition:   cfg.Virtual.Partition,
+						Balance:     balance,
 						ServiceName: path.Backend.ServiceName,
 						ServicePort: path.Backend.ServicePort.IntVal,
 					}
@@ -542,6 +564,7 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress,
 		pool := Pool{
 			Name:        cfg.Virtual.VirtualServerName,
 			Partition:   cfg.Virtual.Partition,
+			Balance:     balance,
 			ServiceName: ing.Spec.Backend.ServiceName,
 			ServicePort: ing.Spec.Backend.ServicePort.IntVal,
 		}
@@ -550,6 +573,144 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress,
 	}
 
 	return &cfg
+}
+
+func createRSConfigFromRoute(
+	route *routeapi.Route,
+	resources Resources,
+	routeConfig RouteConfig,
+	pStruct portStruct,
+	backendPort int32,
+) (ResourceConfig, error) {
+	var rsCfg ResourceConfig
+	var policyName, rsName string
+
+	if pStruct.protocol == "http" {
+		policyName = "openshift_insecure_routes"
+		rsName = formatRouteVSName(route, "http")
+	} else {
+		policyName = "openshift_secure_routes"
+		rsName = formatRouteVSName(route, "https")
+	}
+	// Create the pool
+	pool := Pool{
+		Name:        formatRoutePoolName(route),
+		Partition:   DEFAULT_PARTITION,
+		Balance:     DEFAULT_BALANCE,
+		ServiceName: route.Spec.To.Name,
+		ServicePort: backendPort,
+	}
+	// Create the rule
+	uri := route.Spec.Host + route.Spec.Path
+	rule, err := createRule(uri, pool.Name, pool.Partition, formatRouteRuleName(route))
+	if nil != err {
+		err = fmt.Errorf("Error configuring rule for Route %s: %v", route.ObjectMeta.Name, err)
+		return rsCfg, err
+	}
+	tls := route.Spec.TLS
+
+	resources.Lock()
+	defer resources.Unlock()
+	// Check to see if we have any Routes already saved for this VS type
+	cfgs, _ := resources.GetAllWithName(rsName)
+	if len(cfgs) > 0 {
+		// If we do, use an existing config
+		rsCfg = *cfgs[0]
+		// If this pool doesn't already exist, add it
+		var found bool
+		for _, pl := range rsCfg.Pools {
+			if pl.Name == pool.Name {
+				found = true
+			}
+		}
+		if !found {
+			rsCfg.Pools = append(rsCfg.Pools, pool)
+		}
+		// If rule already exists, update it; else add it
+		found = false
+		if len(rsCfg.Policies) > 0 {
+			for i, rl := range rsCfg.Policies[0].Rules {
+				if rl.Name == rule.Name {
+					found = true
+					rsCfg.Policies[0].Rules[i] = rule
+				}
+			}
+		}
+		if !found {
+			// If rule doesn't exist, see if we need it for this protocol type
+			if pStruct.protocol == "http" {
+				if nil == tls || len(tls.Termination) == 0 {
+					if len(rsCfg.Policies) > 0 {
+						rsCfg.Policies[0].Rules = append(rsCfg.Policies[0].Rules, rule)
+					} else {
+						plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
+						rsCfg.SetPolicy(*plcy)
+					}
+				} else if tls.Termination == routeapi.TLSTerminationEdge &&
+					tls.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyAllow {
+					if len(rsCfg.Policies) > 0 {
+						rsCfg.Policies[0].Rules = append(rsCfg.Policies[0].Rules, rule)
+					} else {
+						plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
+						rsCfg.SetPolicy(*plcy)
+					}
+				} else if tls.Termination == routeapi.TLSTerminationEdge &&
+					tls.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyRedirect {
+					rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
+					if len(rsCfg.Policies) > 0 {
+						rsCfg.Policies[0].Rules = append(rsCfg.Policies[0].Rules, rule)
+					} else {
+						plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
+						rsCfg.SetPolicy(*plcy)
+					}
+				}
+			} else {
+				if nil != tls && len(tls.Termination) > 0 {
+					if len(rsCfg.Policies) > 0 {
+						rsCfg.Policies[0].Rules = append(rsCfg.Policies[0].Rules, rule)
+					} else {
+						plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
+						rsCfg.SetPolicy(*plcy)
+					}
+				}
+			}
+		}
+	} else { // This is a new VS for a Route
+		rsCfg.MetaData.ResourceType = "route"
+		rsCfg.Virtual.VirtualServerName = rsName
+		rsCfg.Virtual.Mode = "http"
+		rsCfg.Virtual.Partition = DEFAULT_PARTITION
+		rsCfg.Virtual.VirtualAddress = &virtualAddress{}
+		rsCfg.Virtual.VirtualAddress.Port = pStruct.port
+		if routeConfig.RouteVSAddr != "" {
+			rsCfg.Virtual.VirtualAddress.BindAddr = routeConfig.RouteVSAddr
+		}
+		rsCfg.Pools = append(rsCfg.Pools, pool)
+		rsCfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", rsCfg.Virtual.Partition, pool.Name)
+
+		if pStruct.protocol == "http" {
+			if nil == tls || len(tls.Termination) == 0 {
+				plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
+				rsCfg.SetPolicy(*plcy)
+			} else if tls.Termination == routeapi.TLSTerminationEdge &&
+				tls.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyAllow {
+				plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
+				rsCfg.SetPolicy(*plcy)
+			} else if tls.Termination == routeapi.TLSTerminationEdge &&
+				tls.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyRedirect {
+				rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
+				plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
+				rsCfg.SetPolicy(*plcy)
+			}
+		} else {
+			if nil != tls && len(tls.Termination) > 0 {
+				plcy := createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
+				rsCfg.SetPolicy(*plcy)
+			}
+		}
+	}
+
+	return rsCfg, nil
 }
 
 func (rc *ResourceConfig) SetPolicy(policy Policy) {

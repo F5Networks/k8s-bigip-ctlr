@@ -47,7 +47,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	routeclient "github.com/openshift/origin/pkg/client"
 	routeapi "github.com/openshift/origin/pkg/route/api"
 )
 
@@ -65,7 +64,7 @@ type Manager struct {
 	kubeClient        kubernetes.Interface
 	restClientv1      rest.Interface
 	restClientv1beta1 rest.Interface
-	routeClientV1     *routeclient.Client
+	routeClientV1     rest.Interface
 	configWriter      writer.Writer
 	initialState      bool
 	// Use internal node IPs
@@ -90,18 +89,28 @@ type Manager struct {
 	broadcaster   record.EventBroadcaster
 	eventRecorder record.EventRecorder
 	eventSource   v1.EventSource
+	// Route configurations
+	routeConfig RouteConfig
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
 type Params struct {
 	KubeClient      kubernetes.Interface
 	restClient      rest.Interface // package local for unit testing only
-	RouteClientV1   *routeclient.Client
+	RouteClientV1   rest.Interface
 	ConfigWriter    writer.Writer
 	UseNodeInternal bool
 	IsNodePort      bool
+	RouteConfig     RouteConfig
 	InitialState    bool                 // Unit testing only
 	EventRecorder   record.EventRecorder // Unit testing only
+}
+
+// Configuration options for Routes in OpenShift
+type RouteConfig struct {
+	RouteVSAddr     string
+	RouteServerCert string
+	RouteLabel      string
 }
 
 // Create and return a new app manager that meets the Manager interface
@@ -122,6 +131,7 @@ func NewManager(params *Params) *Manager {
 		isNodePort:        params.IsNodePort,
 		initialState:      params.InitialState,
 		eventRecorder:     params.EventRecorder,
+		routeConfig:       params.RouteConfig,
 		vsQueue:           vsQueue,
 		nsQueue:           nsQueue,
 		appInformers:      make(map[string]*appInformer),
@@ -405,7 +415,7 @@ func (appMgr *Manager) newAppInformer(
 	if nil != appMgr.routeClientV1 {
 		appInf.routeInformer = cache.NewSharedIndexInformer(
 			newListWatchWithLabelSelector(
-				appMgr.routeClientV1.RESTClient,
+				appMgr.routeClientV1,
 				"routes",
 				namespace,
 				labels.Everything(),
@@ -453,18 +463,11 @@ func (appMgr *Manager) newAppInformer(
 	)
 
 	if nil != appMgr.routeClientV1 {
-		// TODO: add enqueueRoute() calls here
 		appInf.routeInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc: func(obj interface{}) {
-					fmt.Printf("routeInformer: AddFunc: %+v\n", obj)
-				},
-				UpdateFunc: func(old, cur interface{}) {
-					fmt.Printf("routeInformer: UpdateFunc: %+v\n", cur)
-				},
-				DeleteFunc: func(obj interface{}) {
-					fmt.Printf("routeInformer: DeleteFunc: %+v\n", obj)
-				},
+				AddFunc:    func(obj interface{}) { appMgr.enqueueRoute(obj) },
+				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueRoute(cur) },
+				DeleteFunc: func(obj interface{}) { appMgr.enqueueRoute(obj) },
 			},
 			resyncPeriod,
 		)
@@ -529,6 +532,12 @@ func (appMgr *Manager) enqueueIngress(obj interface{}) {
 		for _, key := range keys {
 			appMgr.vsQueue.Add(*key)
 		}
+	}
+}
+
+func (appMgr *Manager) enqueueRoute(obj interface{}) {
+	if ok, key := appMgr.checkValidRoute(obj); ok {
+		appMgr.vsQueue.Add(*key)
 	}
 }
 
@@ -728,11 +737,14 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	// looping through the ConfigMaps. The value is not currently used.
 	svcPortMap := make(map[int32]bool)
 	var svc *v1.Service
+	var routePort int32
 	if svcFound {
 		svc = obj.(*v1.Service)
 		for _, portSpec := range svc.Spec.Ports {
 			svcPortMap[portSpec.Port] = false
 		}
+		// For Routes, we use the first svc port we see
+		routePort = svc.Spec.Ports[0].Port
 	}
 
 	// rsMap stores all resources currently in Resources matching sKey, indexed by port
@@ -748,11 +760,18 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	if nil != err {
 		return err
 	}
+	if nil != appInf.routeInformer && routePort != 0 {
+		err = appMgr.syncRoutes(&stats, sKey, rsMap, svcPortMap, svc, appInf, routePort)
+		if nil != err {
+			return err
+		}
+	}
 
 	if len(rsMap) > 0 {
 		// We get here when there are ports defined in the service that don't
 		// have a corresponding config map.
 		stats.vsDeleted = appMgr.deleteUnusedResources(sKey, rsMap)
+		appMgr.deleteUnusedRoutes(sKey.Namespace)
 	}
 	log.Debugf("Updated %v of %v virtual server configs, deleted %v",
 		stats.vsUpdated, stats.vsFound, stats.vsDeleted)
@@ -780,7 +799,7 @@ func (appMgr *Manager) syncConfigMaps(
 	svcPortMap map[int32]bool,
 	svc *v1.Service,
 	appInf *appInformer,
-) (error) {
+) error {
 	cfgMapsByIndex, err := appInf.cfgMapInformer.GetIndexer().ByIndex(
 		"namespace", sKey.Namespace)
 	if nil != err {
@@ -833,7 +852,7 @@ func (appMgr *Manager) syncConfigMaps(
 
 		rsName := rsCfg.Virtual.VirtualServerName
 		if ok, found, updated := appMgr.handleConfigForType(
-			rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf); !ok {
+			rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf, ""); !ok {
 			stats.vsUpdated += updated
 			continue
 		} else {
@@ -858,7 +877,7 @@ func (appMgr *Manager) syncIngresses(
 	svcPortMap map[int32]bool,
 	svc *v1.Service,
 	appInf *appInformer,
-) (error) {
+) error {
 	ingByIndex, err := appInf.ingInformer.GetIndexer().ByIndex(
 		"namespace", sKey.Namespace)
 	if nil != err {
@@ -927,7 +946,7 @@ func (appMgr *Manager) syncIngresses(
 			appMgr.resources.Unlock()
 
 			if ok, found, updated := appMgr.handleConfigForType(
-				rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf); !ok {
+				rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf, ""); !ok {
 				stats.vsUpdated += updated
 				continue
 			} else {
@@ -944,9 +963,97 @@ func (appMgr *Manager) syncIngresses(
 					appMgr.recordIngressEvent(ing, "ResourceConfigured", msg, "")
 				}
 			}
-
 			// Set the Ingress Status IP address
 			appMgr.setIngressStatus(ing, rsCfg)
+		}
+	}
+	return nil
+}
+
+func (appMgr *Manager) syncRoutes(
+	stats *vsSyncStats,
+	sKey serviceQueueKey,
+	rsMap ResourceMap,
+	svcPortMap map[int32]bool,
+	svc *v1.Service,
+	appInf *appInformer,
+	backendPort int32,
+) error {
+	routeByIndex, err := appInf.routeInformer.GetIndexer().ByIndex(
+		"namespace", sKey.Namespace)
+	if nil != err {
+		log.Warningf("Unable to list routes for namespace '%v': %v",
+			sKey.Namespace, err)
+		return err
+	}
+
+	for _, obj := range routeByIndex {
+		// We need to look at all routes in the store, parse the data blob,
+		// and see if it belongs to the service that has changed.
+		route := obj.(*routeapi.Route)
+		if route.ObjectMeta.Namespace != sKey.Namespace {
+			continue
+		}
+		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
+			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
+		for _, ps := range pStructs {
+			rsCfg, err := createRSConfigFromRoute(route,
+				*appMgr.resources, appMgr.routeConfig, ps, backendPort)
+			if err != nil {
+				// We return err if there was an error creating a rule
+				log.Warningf("%v", err)
+				continue
+			}
+
+			rsName := rsCfg.Virtual.VirtualServerName
+			if ok, found, updated := appMgr.handleConfigForType(
+				&rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf,
+				route.Spec.To.Name); !ok {
+				stats.vsUpdated += updated
+				continue
+			} else {
+				stats.vsFound += found
+				stats.vsUpdated += updated
+			}
+
+			// We store this same config on every route that has the same protocol, but it is only
+			// written to the BIG-IP once. This block guarantees that all of these configs
+			// are in the same state.
+			appMgr.resources.Lock()
+			cfgs, keys := appMgr.resources.GetAllWithName(rsCfg.Virtual.VirtualServerName)
+			for i, cfg := range cfgs {
+				if cfg.Virtual.Partition == rsCfg.Virtual.Partition &&
+					!reflect.DeepEqual(cfg, rsCfg) {
+					cfg = &rsCfg
+					appMgr.resources.Assign(keys[i], cfg.Virtual.VirtualServerName, cfg)
+				}
+			}
+			appMgr.resources.Unlock()
+
+			// TLS Cert/Key
+			if nil != route.Spec.TLS &&
+				rsCfg.Virtual.VirtualAddress.Port == DEFAULT_HTTPS_PORT {
+				cp := CustomProfile{
+					Name:       route.ObjectMeta.Name + "-https-cert",
+					Partition:  rsCfg.Virtual.Partition,
+					Cert:       route.Spec.TLS.Certificate,
+					Key:        route.Spec.TLS.Key,
+					ServerName: route.Spec.Host,
+				}
+				skey := secretKey{
+					Name:         cp.Name,
+					Namespace:    sKey.Namespace,
+					ResourceName: rsName,
+				}
+				if prof, ok := appMgr.customProfiles.profs[skey]; ok {
+					if !reflect.DeepEqual(prof, cp) {
+						stats.cpUpdated += 1
+					}
+				}
+				appMgr.customProfiles.profs[skey] = cp
+				profilePath := fmt.Sprintf("%s/%s", cp.Partition, cp.Name)
+				rsCfg.Virtual.AddFrontendSslProfileName(profilePath)
+			}
 		}
 	}
 	return nil
@@ -1087,8 +1194,8 @@ func (appMgr *Manager) handleSslProfile(
 	cp := CustomProfile{
 		Name:      secret.ObjectMeta.Name,
 		Partition: rsCfg.Virtual.Partition,
-		Cert:      secret.Data["tls.crt"],
-		Key:       secret.Data["tls.key"],
+		Cert:      string(secret.Data["tls.crt"]),
+		Key:       string(secret.Data["tls.key"]),
 	}
 	skey := secretKey{
 		Name:         cp.Name,
@@ -1160,7 +1267,7 @@ func (appMgr *Manager) virtualPorts(ing *v1beta1.Ingress) []portStruct {
 	return ports
 }
 
-// Common handling function for both ConfigMaps and Ingresses
+// Common handling function for ConfigMaps, Ingresses, and Routes
 func (appMgr *Manager) handleConfigForType(
 	rsCfg *ResourceConfig,
 	sKey serviceQueueKey,
@@ -1169,6 +1276,7 @@ func (appMgr *Manager) handleConfigForType(
 	svcPortMap map[int32]bool,
 	svc *v1.Service,
 	appInf *appInformer,
+	currRouteSvc string, // Only used for Routes
 ) (bool, int, int) {
 	vsFound := 0
 	vsUpdated := 0
@@ -1210,7 +1318,7 @@ func (appMgr *Manager) handleConfigForType(
 					validPoolName = true
 				}
 			}
-			if !validPoolName {
+			if !validPoolName && len(cfg.Pools) > 0 {
 				cfg.Virtual.PoolName = "/" + cfg.Virtual.Partition + "/" +
 					cfg.Pools[0].Name
 				appMgr.resources.Assign(keys[i], rsName, cfg)
@@ -1225,23 +1333,29 @@ func (appMgr *Manager) handleConfigForType(
 	}
 
 	// Match, remove from rsMap so we don't delete it at the end.
+	// In the case of Routes: If the svc of the currently processed route doesn't match
+	// the svc in our serviceKey, then we don't want to delete it from the map (all routes
+	// with the same protocol have the same VS name, so we don't want to ignore a route that
+	// was actually deleted).
 	cfgList := rsMap[pool.ServicePort]
-	if len(cfgList) == 1 {
-		delete(rsMap, pool.ServicePort)
-	} else if len(cfgList) > 1 {
-		for index, val := range cfgList {
-			if val.Virtual.VirtualServerName == rsName {
-				cfgList = append(cfgList[:index], cfgList[index+1:]...)
+	if currRouteSvc == "" || currRouteSvc == sKey.ServiceName {
+		if len(cfgList) == 1 {
+			delete(rsMap, pool.ServicePort)
+		} else if len(cfgList) > 1 {
+			for index, val := range cfgList {
+				if val.Virtual.VirtualServerName == rsName {
+					cfgList = append(cfgList[:index], cfgList[index+1:]...)
+				}
 			}
+			rsMap[pool.ServicePort] = cfgList
 		}
-		rsMap[pool.ServicePort] = cfgList
 	}
 
 	if _, ok := svcPortMap[pool.ServicePort]; !ok {
 		log.Debugf("Process Service delete - name: %v namespace: %v",
 			pool.ServiceName, svcKey.Namespace)
-		log.Infof("Ports for service '%v' have not been found.",
-			pool.ServiceName)
+		log.Infof("Port '%v' for service '%v' was not found.",
+			pool.ServicePort, pool.ServiceName)
 		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
 			vsUpdated += 1
 		}
@@ -1437,6 +1551,72 @@ func (appMgr *Manager) deleteUnusedResources(
 		}
 	}
 	return rsDeleted
+}
+
+// If a route is deleted, loop through other route configs and delete pools/rules/profiles
+// for the deleted route.
+func (appMgr *Manager) deleteUnusedRoutes(namespace string) {
+	appMgr.resources.Lock()
+	defer appMgr.resources.Unlock()
+	var routeName string
+	appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
+		if cfg.MetaData.ResourceType == "route" {
+			for i, pool := range cfg.Pools {
+				sKey := serviceKey{
+					ServiceName: pool.ServiceName,
+					ServicePort: pool.ServicePort,
+					Namespace:   key.Namespace,
+				}
+				if _, ok := appMgr.resources.Get(sKey, cfg.Virtual.VirtualServerName); !ok {
+					poolName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
+					// Delete rule
+					for _, pol := range cfg.Policies {
+						if len(pol.Rules) == 1 {
+							nr := nameRef{
+								Name:      pol.Name,
+								Partition: pol.Partition,
+							}
+							cfg.RemovePolicy(nr)
+							continue
+						}
+						for i, rule := range pol.Rules {
+							if len(rule.Actions) > 0 && rule.Actions[0].Pool == poolName {
+								routeName = strings.Split(rule.Name, "_")[3]
+								if i >= len(pol.Rules)-1 {
+									pol.Rules = pol.Rules[:len(pol.Rules)-1]
+								} else {
+									copy(pol.Rules[i:], pol.Rules[i+1:])
+									pol.Rules[len(pol.Rules)-1] = &Rule{}
+									pol.Rules = pol.Rules[:len(pol.Rules)-1]
+								}
+								cfg.SetPolicy(pol)
+							}
+						}
+					}
+					// Delete pool
+					if i >= len(cfg.Pools)-1 {
+						cfg.Pools = cfg.Pools[:len(cfg.Pools)-1]
+					} else {
+						copy(cfg.Pools[i:], cfg.Pools[i+1:])
+						cfg.Pools[len(cfg.Pools)-1] = Pool{}
+						cfg.Pools = cfg.Pools[:len(cfg.Pools)-1]
+					}
+					// If we removed the default pool, set a new one
+					if cfg.Virtual.PoolName == poolName {
+						cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s",
+							cfg.Virtual.Partition, cfg.Pools[0].Name)
+					}
+					// Delete profile
+					if routeName != "" {
+						profileName := fmt.Sprintf("%s/%s-https-cert",
+							cfg.Virtual.Partition, routeName)
+						cfg.Virtual.RemoveFrontendSslProfileName(profileName)
+					}
+				}
+			}
+			appMgr.resources.Assign(key, cfg.Virtual.VirtualServerName, cfg)
+		}
+	})
 }
 
 func (appMgr *Manager) deleteUnusedProfiles(namespace string) {

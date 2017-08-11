@@ -17,6 +17,7 @@
 package appmanager
 
 import (
+	routeapi "github.com/openshift/origin/pkg/route/api"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
@@ -172,4 +173,21 @@ func (appMgr *Manager) checkValidIngress(
 		}
 	}
 	return true, allKeys
+}
+
+func (appMgr *Manager) checkValidRoute(
+	obj interface{},
+) (bool, *serviceQueueKey) {
+	route := obj.(*routeapi.Route)
+	namespace := route.ObjectMeta.Namespace
+	_, ok := appMgr.getNamespaceInformer(namespace)
+	if !ok {
+		// Not watching this namespace
+		return false, nil
+	}
+	key := &serviceQueueKey{
+		ServiceName: route.Spec.To.Name,
+		Namespace:   namespace,
+	}
+	return true, key
 }

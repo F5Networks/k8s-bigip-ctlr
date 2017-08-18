@@ -1,4 +1,4 @@
--e git+https://github.com/f5devcentral/f5-cccl.git@8e46ce68011f9d015aa7f63781c9d97e05454b72#egg=f5-cccl
+-e git+https://github.com/f5devcentral/f5-cccl.git@e4c0cb9859aa6f0363b75d188644d2d8184f2c16#egg=f5-cccl
 pytest==3.0.2
 mock
 flake8

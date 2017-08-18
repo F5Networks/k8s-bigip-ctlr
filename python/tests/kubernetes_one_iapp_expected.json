@@ -7,60 +7,41 @@
                     "description": "This is a test iApp",
                     "trafficGroup": "/Common/traffic-group-local-only"
                 },
-                "tables": [
-                    {
-                        "columnNames": [
-                            "addr",
-                            "port",
-                            "connection_limit"
-                        ],
-                        "name": "pool__members",
-                        "rows": [
-                            {
-                                "row": [
-                                    "172.16.0.5",
-                                    "30008",
-                                    "0"
-                                ]
-                            }
-                        ]
-                    }
-                ],
+                "poolMemberTable": {
+                    "columns": [
+                        {
+                            "kind": "IPAddress",
+                            "name": "addr"
+                        },
+                        {
+                            "kind": "Port",
+                            "name": "port"
+                        },
+                        {
+                            "name": "connection_limit",
+                            "value": "0"
+                        }
+                    ],
+                    "members": [
+                        {
+                            "address": "172.16.0.5",
+                            "port": 30008
+                        }
+                    ],
+                    "name": "pool__members"
+                },
+                "tables": {},
                 "template": "/Common/f5.http",
-                "variables": [
-                    {
-                        "name": "monitor__monitor",
-                        "value": "/#create_new#"
-                    },
-                    {
-                        "name": "net__client_mode",
-                        "value": "wan"
-                    },
-                    {
-                        "name": "pool__pool_to_use",
-                        "value": "/#create_new#"
-                    },
-                    {
-                        "name": "net__server_mode",
-                        "value": "lan"
-                    },
-                    {
-                        "name": "pool__addr",
-                        "value": "10.128.10.240"
-                    },
-                    {
-                        "name": "monitor__response",
-                        "value": "none"
-                    },
-                    {
-                        "name": "monitor__uri",
-                        "value": "/"
-                    },
-                    {
-                        "name": "pool__port",
-                        "value": "8080"
-                    }
-                ]
+                "variables": {
+                    "monitor__monitor": "/#create_new#",
+                    "monitor__response": "none",
+                    "monitor__uri": "/",
+                    "net__client_mode": "wan",
+                    "net__server_mode": "lan",
+                    "pool__addr": "10.128.10.240",
+                    "pool__pool_to_use": "/#create_new#",
+                    "pool__port": "8080"
+                }
             }
         ],
         "internalDataGroups": [],

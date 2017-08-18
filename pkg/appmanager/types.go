@@ -19,11 +19,13 @@ package appmanager
 type (
 	// Config of all resources to configure on the BIG-IP
 	BigIPConfig struct {
-		Virtuals       []Virtual       `json:"virtualServers,omitempty"`
-		Pools          []Pool          `json:"pools,omitempty"`
-		Monitors       []Monitor       `json:"monitors,omitempty"`
-		Policies       []Policy        `json:"l7Policies,omitempty"`
-		CustomProfiles []CustomProfile `json:"customProfiles,omitempty"`
+		Virtuals           []Virtual           `json:"virtualServers,omitempty"`
+		Pools              []Pool              `json:"pools,omitempty"`
+		Monitors           []Monitor           `json:"monitors,omitempty"`
+		Policies           []Policy            `json:"l7Policies,omitempty"`
+		CustomProfiles     []CustomProfile     `json:"customProfiles,omitempty"`
+		IRules             []IRule             `json:"iRules,omitempty"`
+		InternalDataGroups []InternalDataGroup `json:"internalDataGroups,omitempty"`
 	}
 
 	// Config for a single resource (ConfigMap or Ingress)
@@ -55,6 +57,7 @@ type (
 		VirtualAddress *virtualAddress `json:"virtualAddress,omitempty"`
 		SslProfile     *sslProfile     `json:"sslProfile,omitempty"`
 		Policies       []nameRef       `json:"policies,omitempty"`
+		IRules         []string        `json:"rules,omitempty"`
 
 		// iApp parameters
 		IApp                string                    `json:"iapp,omitempty"`
@@ -228,4 +231,27 @@ type (
 		ServicePort int32
 		Namespace   string
 	}
+
+	// iRules
+	IRule struct {
+		Name      string `json:"name"`
+		Partition string `json:"partition"`
+		Code      string `json:"apiAnonymous"`
+	}
+
+	IRulesMap map[nameRef]*IRule
+
+	InternalDataGroup struct {
+		Name      string                   `json:"name"`
+		Partition string                   `json:"partition"`
+		Records   InternalDataGroupRecords `json:"records"`
+	}
+
+	InternalDataGroupRecord struct {
+		Name string `json:"name"`
+		Data string `json:"data"`
+	}
+	InternalDataGroupRecords []InternalDataGroupRecord
+
+	InternalDataGroupMap map[nameRef]*InternalDataGroup
 )

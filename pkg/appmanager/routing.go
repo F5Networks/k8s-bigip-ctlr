@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -27,10 +28,19 @@ import (
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
+	routeapi "github.com/openshift/origin/pkg/route/api"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 const httpRedirectRuleName = "http-redirect"
+const sslPassthroughIRuleName = "openshift_passthrough_irule"
+
+// Internal data group for passthrough routes to map server names to pools.
+const passthroughHostsDgName = "ssl_passthrough_servername_dg"
+
+// Internal data group for reencrypt routes.
+// FIXME: Only used by the iRule below until reencrypt is supported.
+const reencryptHostsDgName = "ssl_reencrypt_servername_dg"
 
 func (r Rules) Len() int           { return len(r) }
 func (r Rules) Less(i, j int) bool { return r[i].FullURI < r[j].FullURI }
@@ -200,4 +210,200 @@ func newHttpRedirectPolicyRule(httpsPort int32) *Rule {
 		Ordinal: 0,
 	}
 	return &rule
+}
+
+func sslPassthroughIRule() string {
+	iRuleCode := `
+when CLIENT_ACCEPTED {
+	TCP::collect
+}
+
+when CLIENT_DATA {
+	# Byte 0 is the content type.
+	# Bytes 1-2 are the TLS version.
+	# Bytes 3-4 are the TLS payload length.
+	# Bytes 5-$tls_payload_len are the TLS payload.
+	binary scan [TCP::payload] cSS tls_content_type tls_version tls_payload_len
+
+	switch $tls_version {
+		"769" -
+		"770" -
+		"771" {
+			# Content type of 22 indicates the TLS payload contains a handshake.
+			if { $tls_content_type == 22 } {
+				# Byte 5 (the first byte of the handshake) indicates the handshake
+				# record type, and a value of 1 signifies that the handshake record is
+				# a ClientHello.
+				binary scan [TCP::payload] @5c tls_handshake_record_type
+				if { $tls_handshake_record_type == 1 } {
+					# Bytes 6-8 are the handshake length (which we ignore).
+					# Bytes 9-10 are the TLS version (which we ignore).
+					# Bytes 11-42 are random data (which we ignore).
+
+					# Byte 43 is the session ID length.  Following this are three
+					# variable-length fields which we shall skip over.
+					set record_offset 43
+
+					# Skip the session ID.
+					binary scan [TCP::payload] @${record_offset}c tls_session_id_len
+					incr record_offset [expr {1 + $tls_session_id_len}]
+
+					# Skip the cipher_suites field.
+					binary scan [TCP::payload] @${record_offset}S tls_cipher_suites_len
+					incr record_offset [expr {2 + $tls_cipher_suites_len}]
+
+					# Skip the compression_methods field.
+					binary scan [TCP::payload] @${record_offset}c tls_compression_methods_len
+					incr record_offset [expr {1 + $tls_compression_methods_len}]
+
+					# Get the number of extensions, and store the extensions.
+					binary scan [TCP::payload] @${record_offset}S tls_extensions_len
+					incr record_offset 2
+					binary scan [TCP::payload] @${record_offset}a* tls_extensions
+
+					for { set extension_start 0 }
+							{ $tls_extensions_len - $extension_start == abs($tls_extensions_len - $extension_start) }
+							{ incr extension_start 4 } {
+						# Bytes 0-1 of the extension are the extension type.
+						# Bytes 2-3 of the extension are the extension length.
+						binary scan $tls_extensions @${extension_start}SS extension_type extension_len
+
+						# Extension type 00 is the ServerName extension.
+						if { $extension_type == "00" } {
+							# Bytes 4-5 of the extension are the SNI length (we ignore this).
+
+							# Byte 6 of the extension is the SNI type.
+							set sni_type_offset [expr {$extension_start + 6}]
+							binary scan $tls_extensions @${sni_type_offset}S sni_type
+
+							# Type 0 is host_name.
+							if { $sni_type == "0" } {
+								# Bytes 7-8 of the extension are the SNI data (host_name)
+								# length.
+								set sni_len_offset [expr {$extension_start + 7}]
+								binary scan $tls_extensions @${sni_len_offset}S sni_len
+
+								# Bytes 9-$sni_len are the SNI data (host_name).
+								set sni_start [expr {$extension_start + 9}]
+								binary scan $tls_extensions @${sni_start}A${sni_len} tls_servername
+							}
+						}
+
+						incr extension_start $extension_len
+					}
+
+					if { [info exists tls_servername] } {
+						set servername_lower [string tolower $tls_servername]
+						SSL::disable serverside
+						if { [class match $servername_lower equals ssl_passthrough_servername_dg] } {
+							pool [class match -value $servername_lower equals ssl_passthrough_servername_dg]
+							SSL::disable
+							HTTP::disable
+						}
+						elseif { [class match $servername_lower equals ssl_reencrypt_servername_dg] } {
+							pool [class match -value $servername_lower equals ssl_reencrypt_servername_dg]
+							SSL::enable serverside
+						}
+					}
+				}
+			}
+		}
+	}
+
+	TCP::release
+}
+`
+	return iRuleCode
+}
+
+// Update a specific datagroup for passthrough routes, indicating if
+// something had changed.
+func (appMgr *Manager) updatePassthroughRouteDataGroups(
+	partition string,
+	poolName string,
+	hostName string,
+) (bool, error) {
+
+	changed := false
+	key := nameRef{
+		Name:      passthroughHostsDgName,
+		Partition: partition,
+	}
+
+	appMgr.intDgMutex.Lock()
+	defer appMgr.intDgMutex.Unlock()
+	hostDg, found := appMgr.intDgMap[key]
+	if false == found {
+		return false, fmt.Errorf("Internal Data-group /%s/%s does not exist.",
+			partition, passthroughHostsDgName)
+	}
+
+	if hostDg.AddOrUpdateRecord(hostName, poolName) {
+		changed = true
+	}
+
+	return changed, nil
+}
+
+// Update a data group map based on a passthrough route object.
+func updateDataGroupForPassthroughRoute(
+	route *routeapi.Route,
+	partition string,
+	dgMap InternalDataGroupMap,
+) {
+	hostName := route.Spec.Host
+	poolName := formatRoutePoolName(route)
+	updateDataGroup(dgMap, passthroughHostsDgName,
+		partition, hostName, poolName)
+}
+
+// Add or update a data group record
+func updateDataGroup(
+	intDgMap InternalDataGroupMap,
+	name string,
+	partition string,
+	key string,
+	value string,
+) {
+	mapKey := nameRef{
+		Name:      name,
+		Partition: partition,
+	}
+	dg, found := intDgMap[mapKey]
+	if found {
+		dg.AddOrUpdateRecord(key, value)
+	} else {
+		newDg := InternalDataGroup{
+			Name:      name,
+			Partition: partition,
+		}
+		newDg.AddOrUpdateRecord(key, value)
+		intDgMap[mapKey] = &newDg
+	}
+}
+
+// Update the appMgr datagroup cache for passthrough routes, indicating if
+// something had changed by updating 'stats', which should rewrite the config.
+func (appMgr *Manager) updateRouteDataGroups(
+	stats *vsSyncStats,
+	dgMap InternalDataGroupMap,
+) {
+	appMgr.intDgMutex.Lock()
+	defer appMgr.intDgMutex.Unlock()
+
+	for _, grp := range dgMap {
+		mapKey := nameRef{
+			Name:      grp.Name,
+			Partition: grp.Partition,
+		}
+		dg, found := appMgr.intDgMap[mapKey]
+		if found {
+			if !reflect.DeepEqual(dg.Records, grp.Records) {
+				dg.Records = grp.Records
+				stats.dgUpdated += 1
+			}
+		} else {
+			appMgr.intDgMap[mapKey] = grp
+		}
+	}
 }

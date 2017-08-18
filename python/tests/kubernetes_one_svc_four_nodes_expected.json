@@ -1,6 +1,8 @@
 {
     "ltm": {
         "iapps": [],
+        "internalDataGroups": [],
+        "iRules": [],
         "l7Policies": [],
         "monitors": [],
         "pools": [
@@ -45,6 +47,7 @@
                         "partition": "Common"
                     }
                 ],
+                "rules": [],
                 "sourceAddressTranslation": {
                     "type": "automap"
                 },

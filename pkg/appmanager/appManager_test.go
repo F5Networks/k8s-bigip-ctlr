@@ -3659,3 +3659,117 @@ func TestVirtualServerForRoute(t *testing.T) {
 	assert.Equal(1, len(rs.Policies[0].Rules))
 	assert.Equal(1, len(customProfiles))
 }
+
+func TestPassthroughRoute(t *testing.T) {
+	mw := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	require := require.New(t)
+	assert := assert.New(t)
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client should not be nil")
+	namespace := "default"
+
+	appMgr := newMockAppManager(&Params{
+		KubeClient:    fakeClient,
+		ConfigWriter:  mw,
+		restClient:    test.CreateFakeHTTPClient(),
+		RouteClientV1: test.CreateFakeHTTPClient(),
+		IsNodePort:    true,
+	})
+	err := appMgr.startNonLabelMode([]string{namespace})
+	require.Nil(err)
+	defer appMgr.shutdown()
+
+	// create 2 services and routes
+	hostName1 := "foobar.com"
+	svcName1 := "foo"
+	spec := routeapi.RouteSpec{
+		Host: hostName1,
+		Path: "/foo",
+		To: routeapi.RouteTargetReference{
+			Kind: "Service",
+			Name: svcName1,
+		},
+		TLS: &routeapi.TLSConfig{
+			Termination: routeapi.TLSTerminationPassthrough,
+		},
+	}
+	route1 := test.NewRoute("rt1", "1", namespace, spec)
+	r := appMgr.addRoute(route1)
+	assert.True(r, "Route resource should be processed")
+
+	resources := appMgr.resources()
+	fooSvc := test.NewService(svcName1, "1", namespace, "NodePort",
+		[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+	r = appMgr.addService(fooSvc)
+	assert.True(r, "Service should be processed")
+	assert.Equal(2, resources.Count())
+
+	hostName2 := "barfoo.com"
+	svcName2 := "bar"
+	spec = routeapi.RouteSpec{
+		Host: hostName2,
+		Path: "/bar",
+		To: routeapi.RouteTargetReference{
+			Kind: "Service",
+			Name: svcName2,
+		},
+		TLS: &routeapi.TLSConfig{
+			Termination:                   routeapi.TLSTerminationPassthrough,
+			InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyRedirect,
+		},
+	}
+	route2 := test.NewRoute("rt2", "1", namespace, spec)
+	r = appMgr.addRoute(route2)
+	require.True(r, "Route resource should be processed")
+	resources = appMgr.resources()
+	barSvc := test.NewService(svcName2, "1", namespace, "NodePort",
+		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+	appMgr.addService(barSvc)
+	r = assert.True(r, "Service should be processed")
+	assert.Equal(4, resources.Count())
+
+	// Check state.
+	rs, ok := resources.Get(
+		serviceKey{svcName1, 443, namespace}, "openshift_default_https")
+	assert.True(ok, "Route should be accessible")
+	require.NotNil(rs, "Route should be object")
+	assert.True(rs.MetaData.Active)
+	assert.Equal(0, len(rs.Policies))
+	assert.Equal(1, len(rs.Virtual.IRules))
+	expectedIRuleName := fmt.Sprintf("/%s/%s",
+		DEFAULT_PARTITION, sslPassthroughIRuleName)
+	assert.Equal(expectedIRuleName, rs.Virtual.IRules[0])
+	hostDgKey := nameRef{
+		Name:      passthroughHostsDgName,
+		Partition: DEFAULT_PARTITION,
+	}
+	hostDg, found := appMgr.appMgr.intDgMap[hostDgKey]
+	assert.True(found)
+	assert.Equal(2, len(hostDg.Records))
+	assert.Equal(hostName1, hostDg.Records[1].Name)
+	assert.Equal(hostName2, hostDg.Records[0].Name)
+	assert.Equal(formatRoutePoolName(route1), hostDg.Records[1].Data)
+	assert.Equal(formatRoutePoolName(route2), hostDg.Records[0].Data)
+
+	rs, ok = resources.Get(
+		serviceKey{svcName2, 80, namespace}, "openshift_default_http")
+	require.True(ok, "Route should be accessible")
+	require.NotNil(rs, "Route should be object")
+	assert.True(rs.MetaData.Active)
+	assert.Equal(1, len(rs.Policies))
+	assert.Equal(1, len(rs.Policies[0].Rules))
+	assert.Equal(httpRedirectRuleName, rs.Policies[0].Rules[0].Name)
+
+	// Delete a Route resource and make sure the data groups are cleaned up.
+	r = appMgr.deleteRoute(route2)
+	require.True(r, "Route resource should be processed")
+	require.Equal(2, resources.Count())
+	hostDg, found = appMgr.appMgr.intDgMap[hostDgKey]
+	assert.True(found)
+	assert.Equal(1, len(hostDg.Records))
+	assert.Equal(hostName1, hostDg.Records[0].Name)
+	assert.Equal(formatRoutePoolName(route1), hostDg.Records[0].Data)
+}

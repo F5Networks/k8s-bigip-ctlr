@@ -1037,7 +1037,7 @@ func (appMgr *Manager) syncRoutes(
 			// The information stored in the internal data groups can span multiple
 			// namespaces, so we need to keep dgMap updated with all current routes
 			// regardless of anything that happens below.
-			updateDataGroupForRoute(route, DEFAULT_PARTITION, dgMap)
+			updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION, dgMap)
 		}
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue

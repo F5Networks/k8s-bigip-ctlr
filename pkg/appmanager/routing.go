@@ -316,6 +316,8 @@ when CLIENT_DATA {
 	return iRuleCode
 }
 
+// Update a specific datagroup for passthrough routes, indicating if
+// something had changed.
 func (appMgr *Manager) updatePassthroughRouteDataGroups(
 	partition string,
 	poolName string,
@@ -343,7 +345,8 @@ func (appMgr *Manager) updatePassthroughRouteDataGroups(
 	return changed, nil
 }
 
-func updateDataGroupForRoute(
+// Update a data group map based on a passthrough route object.
+func updateDataGroupForPassthroughRoute(
 	route *routeapi.Route,
 	partition string,
 	dgMap InternalDataGroupMap,
@@ -354,6 +357,7 @@ func updateDataGroupForRoute(
 		partition, hostName, poolName)
 }
 
+// Add or update a data group record
 func updateDataGroup(
 	intDgMap InternalDataGroupMap,
 	name string,
@@ -378,6 +382,8 @@ func updateDataGroup(
 	}
 }
 
+// Update the appMgr datagroup cache for passthrough routes, indicating if
+// something had changed by updating 'stats', which should rewrite the config.
 func (appMgr *Manager) updateRouteDataGroups(
 	stats *vsSyncStats,
 	dgMap InternalDataGroupMap,

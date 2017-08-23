@@ -359,10 +359,6 @@ Example Configuration Files
 - `simple-ingress-fanout.yaml <./_static/config_examples/simple-ingress-fanout.yaml>`_
 - `name-based-ingress.yaml <./_static/config_examples/name-based-ingress.yaml>`_
 - `ingress-with-health-monitors.yaml <./_static/config_examples/ingress-with-health-monitors.yaml>`_
-- `sample-rbac-clusterrole.yaml <./_static/config_examples/sample-rbac-clusterrole.yaml>`_
-- `sample-rbac-clusterrolebinding.yaml <./_static/config_examples/sample-rbac-clusterrolebinding.yaml>`_
-- `sample-rbac-serviceaccount.yaml <./_static/config_examples/sample-rbac-serviceaccount.yaml>`_
-- `sample-rbac-cc-deployment.yaml <./_static/config_examples/sample-rbac-cc-deployment.yaml>`_
 
 
 .. [#objectpartition]  The |kctlr-long| creates and manages objects in the BIG-IP partition defined in the `F5 resource </containers/v1/kubernetes/index.html#f5-resource-properties>`_ ConfigMap.

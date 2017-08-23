@@ -45,7 +45,13 @@ git clone https://github.com/f5networks/k8s-bigip-ctlr.git
 cd  k8s-bigip-ctlr
 
 # Use docker to build the release artifacts, into a local "_docker_workspace" directory, then put into docker iamges
+# Alpine image
 make prod
+
+OR
+
+# RHEL7 image
+make prod BASE_OS=rhel7
 ```
 
 

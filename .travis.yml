@@ -24,6 +24,7 @@ script:
   - export IMG_TAG="${BASE_PUSH_TARGET}:${TRAVIS_COMMIT}"
   - export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${TRAVIS_COMMIT}"
   - export CLEAN_BUILD=true
+  - export BASE_OS=alpine
   - ./build-tools/build-devel-image.sh
   - ./build-tools/run-in-docker.sh make verify
   - ./build-tools/build-debug-artifacts.sh

@@ -347,7 +347,6 @@ def create_ltm_config_kubernetes(bigip, config):
             f5_service['iapp']['tables'] = svc.get('iappTables', {})
         else:
             f5_service['virtual'] = {}
-            f5_service['pool'] = {}
             f5_service['health'] = []
 
             # Parse the SSL profile into partition and name
@@ -392,11 +391,12 @@ def create_ltm_config_kubernetes(bigip, config):
                     'disabled': False,
                     'ipProtocol': get_protocol(svc['mode']),
                     'destination': destination,
-                    'pool': "%s" % (svc['pool']),
                     'sourceAddressTranslation': {'type': 'automap'},
                     'profiles': profiles,
                     'policies': policies
                 })
+                if 'pool' in svc:
+                    f5_service['virtual']['pool'] = str(svc['pool'])
         f5_services.update({vs_name: f5_service})
     configuration['virtualServers'] = f5_services
 

@@ -72,13 +72,14 @@ var (
 	verifyInterval   *int
 	nodePollInterval *int
 
-	namespaces      *[]string
-	useNodeInternal *bool
-	poolMemberType  *string
-	inCluster       *bool
-	kubeConfig      *string
-	namespaceLabel  *string
-	manageRoutes    *bool
+	namespaces        *[]string
+	useNodeInternal   *bool
+	poolMemberType    *string
+	inCluster         *bool
+	kubeConfig        *string
+	namespaceLabel    *string
+	manageRoutes      *bool
+	nodeLabelSelector *string
 
 	bigIPURL        *string
 	bigIPUsername   *string
@@ -151,6 +152,8 @@ func _init() {
 		"Optional, used to watch for namespaces with this label")
 	manageRoutes = kubeFlags.Bool("manage-routes", false,
 		"Optional, specify whether or not to manage Route resources")
+	nodeLabelSelector = kubeFlags.String("node-label-selector", "",
+		"Optional, used to watch only for nodes with this label")
 
 	kubeFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsages())
@@ -456,7 +459,7 @@ func main() {
 
 	if isNodePort || 0 != len(openshiftSDNMode) {
 		intervalFactor := time.Duration(*nodePollInterval)
-		np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second)
+		np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
 		err := setupNodePolling(appMgr, np)
 		if nil != err {
 			log.Fatalf("Required polling utility for node updates failed setup: %v",

@@ -43,7 +43,7 @@ type (
 	// Virtual server config
 	Virtual struct {
 		VirtualServerName string `json:"name"`
-		PoolName          string `json:"pool"`
+		PoolName          string `json:"pool,omitempty"`
 		// Mutual parameter, partition
 		Partition string `json:"partition"`
 

@@ -1348,8 +1348,9 @@ func (appMgr *Manager) handleConfigForType(
 		}
 	}
 	if !found {
-		// If multi-service Ingress, remove any pools/rules associated with the
-		// service, across all stored keys for the Ingress
+		// If the current cfg has no pool for this service,
+		// remove any pools associated with the service,
+		// across all stored keys for the resource
 		appMgr.resources.Lock()
 		defer appMgr.resources.Unlock()
 		cfgs, keys := appMgr.resources.GetAllWithName(rsName)
@@ -1362,22 +1363,6 @@ func (appMgr *Manager) handleConfigForType(
 				}
 			}
 			appMgr.resources.Assign(keys[i], rsName, cfg)
-		}
-		// If default Virtual pool was removed, update the default pool to one that
-		// still exists
-		cfgs, keys = appMgr.resources.GetAllWithName(rsName)
-		for i, cfg := range cfgs {
-			var validPoolName bool
-			for _, pl := range cfg.Pools {
-				if cfg.Virtual.PoolName == "/"+cfg.Virtual.Partition+"/"+pl.Name {
-					validPoolName = true
-				}
-			}
-			if !validPoolName && len(cfg.Pools) > 0 {
-				cfg.Virtual.PoolName = "/" + cfg.Virtual.Partition + "/" +
-					cfg.Pools[0].Name
-				appMgr.resources.Assign(keys[i], rsName, cfg)
-			}
 		}
 		return false, vsFound, vsUpdated
 	}
@@ -1655,11 +1640,6 @@ func (appMgr *Manager) deleteUnusedRoutes(namespace string) {
 						copy(cfg.Pools[i:], cfg.Pools[i+1:])
 						cfg.Pools[len(cfg.Pools)-1] = Pool{}
 						cfg.Pools = cfg.Pools[:len(cfg.Pools)-1]
-					}
-					// If we removed the default pool, set a new one
-					if cfg.Virtual.PoolName == poolName {
-						cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s",
-							cfg.Virtual.Partition, cfg.Pools[0].Name)
 					}
 					// Delete profile
 					if routeName != "" {

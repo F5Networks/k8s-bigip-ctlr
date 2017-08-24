@@ -507,8 +507,6 @@ def create_ltm_config_kubernetes(partition, config):
 
             configuration['iapps'].append(iapp)
         else:
-            f5_service['pool'] = {}
-
             # Parse the SSL profile into partition and name
             if 'sslProfile' in svc:
                 # The sslProfile item can be empty or have either
@@ -550,11 +548,12 @@ def create_ltm_config_kubernetes(partition, config):
                     'enabled': True,
                     'ipProtocol': get_protocol(svc['mode']),
                     'destination': destination,
-                    'pool': "%s" % (svc['pool']),
                     'sourceAddressTranslation': {'type': 'automap'},
                     'profiles': profiles,
                     'policies': policies
                 })
+                if 'pool' in svc:
+                    f5_service['pool'] = str(svc['pool'])
             f5_services.update({vs_name: f5_service})
 
             if f5_service.get('destination', None) is not None:

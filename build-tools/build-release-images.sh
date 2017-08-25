@@ -20,6 +20,8 @@ mkdir -p $WKDIR/python
 cp python/*.py $WKDIR/python/
 cp python/k8s-runtime-requirements.txt $WKDIR/
 cp schemas/bigip-virtual-server_v*.json $WKDIR/
+cp LICENSE $WKDIR/
+cp $CURDIR/help.md $WKDIR/help.md
 
 echo "Docker build context:"
 ls -la $WKDIR

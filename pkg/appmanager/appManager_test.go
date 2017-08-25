@@ -3417,9 +3417,10 @@ func TestIngressSslProfile(t *testing.T) {
 
 	// No annotations were specified to control http redirect, check that
 	// we are in the default state 2.
-	require.Equal(1, len(httpCfg.Policies))
-	require.Equal(1, len(httpCfg.Policies[0].Rules))
-	assert.Equal(httpRedirectRuleName, httpCfg.Policies[0].Rules[0].Name)
+	require.Equal(1, len(httpCfg.Virtual.IRules))
+	expectedIRuleName := fmt.Sprintf("/%s/%s",
+		DEFAULT_PARTITION, httpRedirectIRuleName)
+	assert.Equal(expectedIRuleName, httpCfg.Virtual.IRules[0])
 
 	// Set the annotations the same as default and recheck
 	fooIng.ObjectMeta.Annotations[ingressSslRedirect] = "true"
@@ -3429,9 +3430,10 @@ func TestIngressSslProfile(t *testing.T) {
 	assert.True(found)
 	require.NotNil(httpCfg)
 	assert.True(r, "Ingress resource should be processed")
-	require.Equal(1, len(httpCfg.Policies))
-	require.Equal(1, len(httpCfg.Policies[0].Rules))
-	assert.Equal(httpRedirectRuleName, httpCfg.Policies[0].Rules[0].Name)
+	require.Equal(1, len(httpCfg.Virtual.IRules))
+	expectedIRuleName = fmt.Sprintf("/%s/%s",
+		DEFAULT_PARTITION, httpRedirectIRuleName)
+	assert.Equal(expectedIRuleName, httpCfg.Virtual.IRules[0])
 
 	// Now test state 1.
 	fooIng.ObjectMeta.Annotations[ingressSslRedirect] = "false"
@@ -3759,9 +3761,10 @@ func TestPassthroughRoute(t *testing.T) {
 	require.True(ok, "Route should be accessible")
 	require.NotNil(rs, "Route should be object")
 	assert.True(rs.MetaData.Active)
-	assert.Equal(1, len(rs.Policies))
-	assert.Equal(1, len(rs.Policies[0].Rules))
-	assert.Equal(httpRedirectRuleName, rs.Policies[0].Rules[0].Name)
+	require.Equal(1, len(rs.Virtual.IRules))
+	expectedIRuleName = fmt.Sprintf("/%s/%s",
+		DEFAULT_PARTITION, httpRedirectIRuleName)
+	assert.Equal(expectedIRuleName, rs.Virtual.IRules[0])
 
 	// Delete a Route resource and make sure the data groups are cleaned up.
 	r = appMgr.deleteRoute(route2)

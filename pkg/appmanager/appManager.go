@@ -647,6 +647,9 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 	defer appMgr.vsQueue.ShutDown()
 	defer appMgr.nsQueue.ShutDown()
 
+	appMgr.addIRule(httpRedirectIRuleName, DEFAULT_PARTITION,
+		httpRedirectIRule(DEFAULT_HTTPS_PORT))
+
 	if nil != appMgr.routeClientV1 {
 		appMgr.addIRule(
 			sslPassthroughIRuleName, DEFAULT_PARTITION, sslPassthroughIRule())
@@ -1206,11 +1209,15 @@ func (appMgr *Manager) handleIngressTls(
 	var rule *Rule
 	var policyName string
 	if sslRedirect {
-		// State 2, apply HTTP redirect policy
-		log.Debugf("TLS: Applying HTTP redirect policy.")
-		policyName = fmt.Sprintf("%s-http-redirect",
-			rsCfg.Virtual.VirtualServerName)
-		rule = newHttpRedirectPolicyRule(httpsPort)
+		// State 2, set HTTP redirect iRule
+		log.Debugf("TLS: Applying HTTP redirect iRule.")
+		ruleName := fmt.Sprintf("/%s/%s", DEFAULT_PARTITION, httpRedirectIRuleName)
+		if httpsPort != DEFAULT_HTTPS_PORT {
+			ruleName = fmt.Sprintf("%s_%d", ruleName, httpsPort)
+			appMgr.addIRule(ruleName, DEFAULT_PARTITION,
+				httpRedirectIRule(httpsPort))
+		}
+		rsCfg.Virtual.AddIRule(ruleName)
 	} else if allowHttp {
 		// State 3, do not apply any policy
 		log.Debugf("TLS: Not applying any policies.")

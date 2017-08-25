@@ -1,59 +1,77 @@
 {
-  "resources": {
-    "virtualServers": [
-      {
-        "name": "default_configmap",
-        "partition": "k8s",
-        "mode": "http",
-        "balance": "round-robin",
-        "virtualAddress": {
-          "bindAddr": "FE80::1",
-          "port": 5051
-        },
-        "sslProfile": {
-          "f5ProfileNames": [
-            "Common/clientssl",
-            "Common/clientssl-secure"
-          ]
-        },
-        "pool": "/k8s/default_configmap"
-      }
-    ],
-    "pools": [
-      {
-        "name": "default_configmap",
-        "partition": "k8s",
-        "loadBalancingMode": "round-robin",
-        "poolMemberAddrs": [
-          "172.16.0.5:30008",
-          "172.16.0.6:30008"
-        ],
-        "serviceName": "foo",
-        "servicePort": 80,
-        "monitor": [
-          "/k8s/default_configmap",
-          "/k8s/default_configmap_1"
-        ]
-      }
-    ],
-    "monitors": [
-      {
-        "name": "default_configmap",
-        "partition": "k8s",
-        "interval": 30,
-        "protocol": "tcp",
-        "send": "GET /",
-        "timeout": 20
-      }, {
-        "name": "default_configmap_1",
-        "partition": "k8s",
-        "interval": 10,
-        "protocol": "http",
-        "send": "GET /",
-        "timeout": 5
-      }
-    ],
-    "iRules": [],
-    "internalDataGroups": []
-  }
+    "resources": {
+        "k8s": {
+            "iRules": [],
+            "iapps": [],
+            "internalDataGroups": [],
+            "l7Policies": [],
+            "monitors": [
+                {
+                    "interval": 30,
+                    "name": "default_configmap_0_tcp",
+                    "send": "GET /",
+                    "timeout": 20,
+                    "type": "tcp"
+                },
+                {
+                    "interval": 10,
+                    "name": "default_configmap_1_0_http",
+                    "send": "GET /",
+                    "timeout": 5,
+                    "type": "http"
+                }
+            ],
+            "pools": [
+                {
+                    "loadBalancingMode": "round-robin",
+                    "members": [
+                        {
+                            "address": "172.16.0.5",
+                            "port": 30008,
+                            "session": "user-enabled"
+                        },
+                        {
+                            "address": "172.16.0.6",
+                            "port": 30008,
+                            "session": "user-enabled"
+                        }
+                    ],
+                    "monitors": [
+                        "/k8s/default_configmap_0_tcp",
+                        "/k8s/default_configmap_1_0_http"
+                    ],
+                    "name": "default_configmap"
+                }
+            ],
+            "virtualServers": [
+                {
+                    "destination": "/k8s/FE80::1.5051",
+                    "enabled": true,
+                    "ipProtocol": "tcp",
+                    "name": "default_configmap",
+                    "pool": "/k8s/default_configmap",
+                    "profiles": [
+                        {
+                            "context": "clientside",
+                            "name": "clientssl",
+                            "partition": "Common"
+                        },
+                        {
+                            "context": "clientside",
+                            "name": "clientssl-secure",
+                            "partition": "Common"
+                        },
+                        {
+                            "context": "all",
+                            "name": "tcp",
+                            "partition": "Common"
+                        }
+                    ],
+                    "sourceAddressTranslation": {
+                        "type": "automap"
+                    }
+                }
+            ]
+        }
+    }
 }

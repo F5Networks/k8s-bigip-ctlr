@@ -1,5 +1,6 @@
 {
     "ltm": {
+        "iRules": [],
         "iapps": [
             {
                 "name": "default_configmap",
@@ -25,12 +26,12 @@
                     "members": [
                         {
                             "address": "172.16.0.5",
-                            "port": 30008
+                            "port": 30008,
+                            "session": "user-enabled"
                         }
                     ],
                     "name": "pool__members"
                 },
-                "tables": {},
                 "template": "/Common/f5.http",
                 "variables": {
                     "monitor__monitor": "/#create_new#",
@@ -45,7 +46,6 @@
             }
         ],
         "internalDataGroups": [],
-        "iRules": [],
         "l7Policies": [],
         "monitors": [],
         "pools": [],

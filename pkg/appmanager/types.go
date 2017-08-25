@@ -17,6 +17,9 @@
 package appmanager
 
 type (
+	// Configs for each BIG-IP partition
+	PartitionMap map[string]*BigIPConfig
+
 	// Config of all resources to configure on the BIG-IP
 	BigIPConfig struct {
 		Virtuals           Virtuals            `json:"virtualServers,omitempty"`
@@ -26,6 +29,7 @@ type (
 		CustomProfiles     []CustomProfile     `json:"customProfiles,omitempty"`
 		IRules             []IRule             `json:"iRules,omitempty"`
 		InternalDataGroups []InternalDataGroup `json:"internalDataGroups,omitempty"`
+		IApps              []IApp              `json:"iapps,omitempty"`
 	}
 
 	// Config for a single resource (ConfigMap or Ingress)
@@ -57,54 +61,82 @@ type (
 		VirtualServerName string `json:"name"`
 		PoolName          string `json:"pool,omitempty"`
 		// Mutual parameter, partition
-		Partition string `json:"partition"`
+		Partition string `json:"partition,omitempty"`
 
 		// VirtualServer parameters
-		Balance        string          `json:"balance,omitempty"`
-		Mode           string          `json:"mode,omitempty"`
-		VirtualAddress *virtualAddress `json:"virtualAddress,omitempty"`
-		SslProfile     *sslProfile     `json:"sslProfile,omitempty"`
-		Policies       []nameRef       `json:"policies,omitempty"`
-		IRules         []string        `json:"rules,omitempty"`
+		Balance               string                `json:"balance,omitempty"`
+		Mode                  string                `json:"mode,omitempty"`
+		VirtualAddress        *virtualAddress       `json:"virtualAddress,omitempty"`
+		Destination           string                `json:"destination,omitempty"`
+		Enabled               bool                  `json:"enabled,omitempty"`
+		IpProtocol            string                `json:"ipProtocol,omitempty"`
+		SourceAddrTranslation sourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
+		SslProfile            *sslProfile           `json:"sslProfile,omitempty"`
+		Policies              []nameRef             `json:"policies,omitempty"`
+		IRules                []string              `json:"rules,omitempty"`
 		// FIXME: All profiles should reside in Profiles, just server ssl ones now.
-		Profiles ProfileRefs `json:"profiles,omitempty"`
+		Profiles              ProfileRefs           `json:"profiles,omitempty"`
 
 		// iApp parameters
 		IApp                string                    `json:"iapp,omitempty"`
-		IAppPoolMemberTable iappPoolMemberTable       `json:"iappPoolMemberTable,omitempty"`
+		IAppPoolMemberTable *iappPoolMemberTable      `json:"iappPoolMemberTable,omitempty"`
 		IAppOptions         map[string]string         `json:"iappOptions,omitempty"`
 		IAppTables          map[string]iappTableEntry `json:"iappTables,omitempty"`
 		IAppVariables       map[string]string         `json:"iappVariables,omitempty"`
 	}
 	Virtuals []Virtual
 
+	// IApp
+	IApp struct {
+		Name                string                    `json:"name"`
+		Partition           string                    `json:"partition,omitempty"`
+		IApp                string                    `json:"template"`
+		IAppPoolMemberTable *iappPoolMemberTable      `json:"poolMemberTable,omitempty"`
+		IAppOptions         map[string]string         `json:"options,omitempty"`
+		IAppTables          map[string]iappTableEntry `json:"tables,omitempty"`
+		IAppVariables       map[string]string         `json:"variables,omitempty"`
+	}
+
+	// Pool Member
+	Member struct {
+		Address string `json:"address"`
+		Port    int32  `json:"port"`
+		Session string `json:"session,omitempty"`
+	}
+
 	// Pool config
 	Pool struct {
-		Name            string   `json:"name"`
-		Partition       string   `json:"partition"`
-		Balance         string   `json:"loadBalancingMode"`
-		ServiceName     string   `json:"serviceName"`
-		ServicePort     int32    `json:"servicePort"`
-		PoolMemberAddrs []string `json:"poolMemberAddrs"`
-		MonitorNames    []string `json:"monitor"`
+		Name         string   `json:"name"`
+		Partition    string   `json:"partition,omitempty"`
+		Balance      string   `json:"loadBalancingMode"`
+		ServiceName  string   `json:"serviceName,omitempty"`
+		ServicePort  int32    `json:"servicePort,omitempty"`
+		Members      []Member `json:"members"`
+		MonitorNames []string `json:"monitors,omitempty"`
 	}
 	Pools []Pool
 
 	// Pool health monitor
 	Monitor struct {
 		Name      string `json:"name"`
-		Partition string `json:"partition"`
+		Partition string `json:"partition,omitempty"`
 		Interval  int    `json:"interval,omitempty"`
-		Protocol  string `json:"protocol"`
+		Protocol  string `json:"protocol,omitempty"`
+		Type      string `json:"type,omitempty"`
 		Send      string `json:"send,omitempty"`
 		Timeout   int    `json:"timeout,omitempty"`
 	}
 	Monitors []Monitor
 
+	// Virtual Server Source Address Translation
+	sourceAddrTranslation struct {
+		Type string `json:"type"`
+	}
+
 	// Virtual policy
 	Policy struct {
 		Name        string   `json:"name"`
-		Partition   string   `json:"partition"`
+		Partition   string   `json:"partition,omitempty"`
 		SubPath     string   `json:"subPath,omitempty"`
 		Controls    []string `json:"controls,omitempty"`
 		Description string   `json:"description,omitempty"`
@@ -186,6 +218,7 @@ type (
 	iappPoolMemberTable struct {
 		Name    string                 `json:"name"`
 		Columns []iappPoolMemberColumn `json:"columns"`
+		Members []Member               `json:"members,omitempty"`
 	}
 
 	// frontend iapp table entry
@@ -197,7 +230,7 @@ type (
 	// SSL Profile loaded from Secret or Route object
 	CustomProfile struct {
 		Name       string `json:"name"`
-		Partition  string `json:"partition"`
+		Partition  string `json:"partition,omitempty"`
 		Context    string `json:"context"` // 'clientside', 'serverside', or 'all'
 		Cert       string `json:"cert"`
 		Key        string `json:"key"`
@@ -248,7 +281,7 @@ type (
 	// iRules
 	IRule struct {
 		Name      string `json:"name"`
-		Partition string `json:"partition"`
+		Partition string `json:"partition,omitempty"`
 		Code      string `json:"apiAnonymous"`
 	}
 
@@ -256,7 +289,7 @@ type (
 
 	InternalDataGroup struct {
 		Name      string                   `json:"name"`
-		Partition string                   `json:"partition"`
+		Partition string                   `json:"partition,omitempty"`
 		Records   InternalDataGroupRecords `json:"records"`
 	}
 

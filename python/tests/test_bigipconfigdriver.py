@@ -40,8 +40,8 @@ _cloud_config = {
         'password': 'admin',
         'partition': 'test'
     },
-    'resources': [
-        {
+    'resources': {
+        "test": {
             'virtualServer': {
                 'frontend': {
                     'virtualServerName': 'test.service',
@@ -62,8 +62,8 @@ _cloud_config = {
                     'servicePort': 80
                 }
             }
-        },
-    ],
+        }
+    },
     'global': {
         'verify-interval': 0.25,
         'log-level': u'INFO'
@@ -126,6 +126,12 @@ class MockMgr(bigipconfigdriver.K8sCloudServiceManager):
 
     def get_partition(self):
         return self._partition
+
+    def _apply_ltm_config(self, cfg):
+        return self._apply_config(cfg)
+
+    def _apply_network_config(self, cfg):
+        return 0
 
     def _apply_config(self, cfg):
         expected_bigip_config = json.loads(json.dumps(cfg))
@@ -1243,6 +1249,12 @@ class MockApplyConfigMgr(bigipconfigdriver.K8sCloudServiceManager):
 
     def __init__(self, returns):
         self._returns = returns
+
+    def _apply_ltm_config(self, cfg):
+        return self._apply_config(cfg)
+
+    def _apply_network_config(self, cfg):
+        return 0
 
     def _apply_config(self, cfg):
         val = self._returns.pop(0)

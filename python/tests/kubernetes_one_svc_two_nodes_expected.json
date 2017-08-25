@@ -1,8 +1,8 @@
 {
     "ltm": {
+        "iRules": [],
         "iapps": [],
         "internalDataGroups": [],
-        "iRules": [],
         "l7Policies": [],
         "monitors": [
             {
@@ -48,7 +48,6 @@
                 "enabled": true,
                 "ipProtocol": "tcp",
                 "name": "default_configmap",
-                "policies": [],
                 "pool": "/k8s/default_configmap",
                 "profiles": [
                     {
@@ -63,15 +62,13 @@
                     },
                     {
                         "context": "all",
-                        "name": "http",
+                        "name": "tcp",
                         "partition": "Common"
                     }
                 ],
-                "rules": [],
                 "sourceAddressTranslation": {
                     "type": "automap"
-                },
-                "virtual_address": "FE80::1"
+                }
             }
         ]
     },

@@ -17,7 +17,6 @@
 package appmanager
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -1564,7 +1563,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 					svcKey, portSpec.NodePort)
 				rsCfg.MetaData.Active = true
 				rsCfg.MetaData.NodePort = portSpec.NodePort
-				rsCfg.Pools[index].PoolMemberAddrs =
+				rsCfg.Pools[index].Members =
 					appMgr.getEndpointsForNodePort(portSpec.NodePort)
 			}
 		}
@@ -1597,7 +1596,7 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 			ipPorts := getEndpointsForService(portSpec.Name, eps)
 			log.Debugf("Found endpoints for backend %+v: %v", sKey, ipPorts)
 			rsCfg.MetaData.Active = true
-			rsCfg.Pools[index].PoolMemberAddrs = ipPorts
+			rsCfg.Pools[index].Members = ipPorts
 		}
 	}
 	return true, "", ""
@@ -1614,7 +1613,7 @@ func (appMgr *Manager) deactivateVirtualServer(
 	defer appMgr.resources.Unlock()
 	if rs, ok := appMgr.resources.Get(sKey, rsName); ok {
 		rsCfg.MetaData.Active = false
-		rsCfg.Pools[index].PoolMemberAddrs = nil
+		rsCfg.Pools[index].Members = nil
 		if !reflect.DeepEqual(rs, rsCfg) {
 			log.Debugf("Service delete matching backend %v %v deactivating config",
 				sKey, rsName)
@@ -1867,47 +1866,45 @@ func (appMgr *Manager) recordIngressEvent(ing *v1beta1.Ingress,
 func getEndpointsForService(
 	portName string,
 	eps *v1.Endpoints,
-) []string {
-	var ipPorts []string
+) []Member {
+	var members []Member
 
 	if eps == nil {
-		return ipPorts
+		return members
 	}
 
 	for _, subset := range eps.Subsets {
 		for _, p := range subset.Ports {
 			if portName == p.Name {
-				port := strconv.Itoa(int(p.Port))
 				for _, addr := range subset.Addresses {
-					var b bytes.Buffer
-					b.WriteString(addr.IP)
-					b.WriteRune(':')
-					b.WriteString(port)
-					ipPorts = append(ipPorts, b.String())
+					member := Member{
+						Address: addr.IP,
+						Port:    p.Port,
+						Session: "user-enabled",
+					}
+					members = append(members, member)
 				}
 			}
 		}
 	}
-	if 0 != len(ipPorts) {
-		sort.Strings(ipPorts)
-	}
-	return ipPorts
+	return members
 }
 
 func (appMgr *Manager) getEndpointsForNodePort(
 	nodePort int32,
-) []string {
-	port := strconv.Itoa(int(nodePort))
+) []Member {
 	nodes := appMgr.getNodesFromCache()
-	for i, v := range nodes {
-		var b bytes.Buffer
-		b.WriteString(v)
-		b.WriteRune(':')
-		b.WriteString(port)
-		nodes[i] = b.String()
+	var members []Member
+	for _, v := range nodes {
+		member := Member{
+			Address: v,
+			Port:    nodePort,
+			Session: "user-enabled",
+		}
+		members = append(members, member)
 	}
 
-	return nodes
+	return members
 }
 
 func handleConfigMapParseFailure(
@@ -1972,16 +1969,16 @@ func (appMgr *Manager) ProcessNodeUpdate(
 		if !reflect.DeepEqual(newNodes, appMgr.oldNodes) {
 			log.Infof("ProcessNodeUpdate: Change in Node state detected")
 			appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
-				port := strconv.Itoa(int(cfg.MetaData.NodePort))
-				var newAddrPorts []string
+				var members []Member
 				for _, node := range newNodes {
-					var b bytes.Buffer
-					b.WriteString(node)
-					b.WriteRune(':')
-					b.WriteString(port)
-					newAddrPorts = append(newAddrPorts, b.String())
+					member := Member{
+						Address: node,
+						Port:    cfg.MetaData.NodePort,
+						Session: "user-enabled",
+					}
+					members = append(members, member)
 				}
-				cfg.Pools[0].PoolMemberAddrs = newAddrPorts
+				cfg.Pools[0].Members = members
 			})
 			// Output the Big-IP config
 			appMgr.outputConfigLocked()

@@ -74,7 +74,11 @@ func (appMgr *Manager) assignMonitorToPool(
 		if pool.Partition == partition && pool.Name == poolName {
 			ruleData.assigned = true
 			monitor := Monitor{
-				Name:      poolName,
+				// Append the protocol to the monitor names to differentiate them.
+				// Also add a monitor index to the name to be consistent with the
+				// marathon-bigip-ctlr. Since the monitor names are already unique here,
+				// appending a '0' is sufficient.
+				Name:      poolName + "_0_http",
 				Partition: partition,
 				Protocol:  "http",
 				Interval:  ruleData.healthMon.Interval,

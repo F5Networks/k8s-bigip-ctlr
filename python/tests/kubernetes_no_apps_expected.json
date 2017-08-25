@@ -1,8 +1,8 @@
 {
     "ltm": {
+        "iRules": [],
         "iapps": [],
         "internalDataGroups": [],
-        "iRules": [],
         "l7Policies": [],
         "monitors": [],
         "pools": [],

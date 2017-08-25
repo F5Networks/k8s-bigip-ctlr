@@ -603,6 +603,8 @@ func createRSConfigFromRoute(
 	}
 	passThroughRuleName := fmt.Sprintf("/%s/%s",
 		DEFAULT_PARTITION, sslPassthroughIRuleName)
+	redirectIRuleName := fmt.Sprintf("/%s/%s",
+		DEFAULT_PARTITION, httpRedirectIRuleName)
 
 	// Create the pool
 	pool := Pool{
@@ -661,14 +663,12 @@ func createRSConfigFromRoute(
 							rsCfg.AddRuleToPolicy(policyName, rule)
 						} else if tls.InsecureEdgeTerminationPolicy ==
 							routeapi.InsecureEdgeTerminationPolicyRedirect {
-							rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
-							rsCfg.AddRuleToPolicy(policyName, rule)
+							rsCfg.Virtual.AddIRule(redirectIRuleName)
 						}
 					case routeapi.TLSTerminationPassthrough:
 						if tls.InsecureEdgeTerminationPolicy ==
 							routeapi.InsecureEdgeTerminationPolicyRedirect {
-							rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
-							rsCfg.AddRuleToPolicy(policyName, rule)
+							rsCfg.Virtual.AddIRule(redirectIRuleName)
 						}
 					}
 				}
@@ -707,14 +707,12 @@ func createRSConfigFromRoute(
 						rsCfg.AddRuleToPolicy(policyName, rule)
 					} else if tls.InsecureEdgeTerminationPolicy ==
 						routeapi.InsecureEdgeTerminationPolicyRedirect {
-						rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
-						rsCfg.AddRuleToPolicy(policyName, rule)
+						rsCfg.Virtual.AddIRule(redirectIRuleName)
 					}
 				case routeapi.TLSTerminationPassthrough:
 					if tls.InsecureEdgeTerminationPolicy ==
 						routeapi.InsecureEdgeTerminationPolicyRedirect {
-						rule = newHttpRedirectPolicyRule(DEFAULT_HTTPS_PORT)
-						rsCfg.AddRuleToPolicy(policyName, rule)
+						rsCfg.Virtual.AddIRule(redirectIRuleName)
 					}
 				}
 			}

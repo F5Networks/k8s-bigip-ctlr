@@ -32,7 +32,7 @@ import (
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
-const httpRedirectRuleName = "http-redirect"
+const httpRedirectIRuleName = "http_redirect_irule"
 const sslPassthroughIRuleName = "openshift_passthrough_irule"
 
 // Internal data group for passthrough routes to map server names to pools.
@@ -195,21 +195,13 @@ func processIngressRules(
 	return &rls
 }
 
-func newHttpRedirectPolicyRule(httpsPort int32) *Rule {
-	loc := fmt.Sprintf(`tcl:https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]`, httpsPort)
-	redirAction := action{
-		Name:      "0",
-		HttpReply: true,
-		Location:  loc,
-		Redirect:  true,
-		Request:   true,
-	}
-	rule := Rule{
-		Name:    httpRedirectRuleName,
-		Actions: []*action{&redirAction},
-		Ordinal: 0,
-	}
-	return &rule
+func httpRedirectIRule(port int32) string {
+	iRuleCode := fmt.Sprintf(`
+	when HTTP_REQUEST {
+       HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]
+    }`, port)
+
+	return iRuleCode
 }
 
 func sslPassthroughIRule() string {

@@ -59,15 +59,14 @@ func (appMgr *Manager) outputConfigLocked() {
 
 	// To allow the ssl passthrough iRule to be associated with a virtual,
 	// it must have at least one client or server SSL profile associated with
-	// it. We currently only support client SSL profiles, so if the virtual
-	// does not have any client SSL profiles AND references the iRule then
-	// we force it to take the BIG-IP's base client SSL profile in the output
-	// config.
+	// it. If the virtual doesn't have any of either type, we force it to take
+	// the BIG-IP's base client SSL profile in the output config.
 	for vKey, virtual := range resources.Virtuals {
 		for _, irule := range virtual.IRules {
 			if strings.Contains(irule, sslPassthroughIRuleName) {
-				clientSslProfiles := virtual.GetFrontendSslProfileNames()
-				if len(clientSslProfiles) == 0 {
+				clientProfCt := virtual.GetProfileCountByContext(customProfileClient)
+				serverProfCt := virtual.GetProfileCountByContext(customProfileServer)
+				if 0 == clientProfCt && 0 == serverProfCt {
 					sslProf := "Common/clientssl"
 					resources.Virtuals[vKey].AddFrontendSslProfileName(sslProf)
 				}

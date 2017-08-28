@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"reflect"
 	"sort"
 	"strconv"
@@ -159,6 +160,35 @@ func NewManager(params *Params) *Manager {
 	}
 
 	return &manager
+}
+
+func (appMgr *Manager) loadDefaultCert(
+	namespace string,
+) (*ProfileRef, bool) {
+	// OpenShift will put the default server SSL cert on each pod. We create a
+	// server SSL profile for it and associate it to any reencrypt routes that
+	// have not explicitly set a certificate.
+	profileName := "openshift_route_cluster_default-server-ssl"
+	profile := ProfileRef{
+		Name:      profileName,
+		Partition: DEFAULT_PARTITION,
+		Context:   customProfileServer,
+	}
+	appMgr.customProfiles.Lock()
+	defer appMgr.customProfiles.Unlock()
+	skey := secretKey{Name: profileName, Namespace: namespace}
+	_, found := appMgr.customProfiles.profs[skey]
+	if !found {
+		path := "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
+		data, err := ioutil.ReadFile(path)
+		if nil != err {
+			log.Errorf("Unable to load default cluster certificate '%v': %v",
+				path, err)
+			return nil, false
+		}
+		appMgr.customProfiles.profs[skey] = NewCustomProfile(profile, string(data))
+	}
+	return &profile, !found
 }
 
 func (appMgr *Manager) addIRule(name, partition, rule string) {
@@ -1021,8 +1051,7 @@ func (appMgr *Manager) syncRoutes(
 	appInf *appInformer,
 	backendPort int32,
 ) error {
-	routeByIndex, err := appInf.routeInformer.GetIndexer().ByIndex(
-		"namespace", sKey.Namespace)
+	routeByIndex, err := appInf.getOrderedRoutes(sKey.Namespace)
 	if nil != err {
 		log.Warningf("Unable to list routes for namespace '%v': %v",
 			sKey.Namespace, err)
@@ -1031,16 +1060,19 @@ func (appMgr *Manager) syncRoutes(
 
 	// Rebuild all internal data groups for routes as we process each
 	dgMap := make(InternalDataGroupMap)
-	for _, obj := range routeByIndex {
+	for _, route := range routeByIndex {
 		// We need to look at all routes in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
-		route := obj.(*routeapi.Route)
-		if nil != route.Spec.TLS &&
-			route.Spec.TLS.Termination == routeapi.TLSTerminationPassthrough {
+		if nil != route.Spec.TLS {
 			// The information stored in the internal data groups can span multiple
-			// namespaces, so we need to keep dgMap updated with all current routes
+			// namespaces, so we need to keep them updated with all current routes
 			// regardless of anything that happens below.
-			updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION, dgMap)
+			switch route.Spec.TLS.Termination {
+			case routeapi.TLSTerminationPassthrough:
+				updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION, dgMap)
+			case routeapi.TLSTerminationReencrypt:
+				updateDataGroupForReencryptRoute(route, DEFAULT_PARTITION, dgMap)
+			}
 		}
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
@@ -1083,28 +1115,14 @@ func (appMgr *Manager) syncRoutes(
 
 			// TLS Cert/Key
 			if nil != route.Spec.TLS &&
-				route.Spec.TLS.Termination == routeapi.TLSTerminationEdge &&
 				rsCfg.Virtual.VirtualAddress.Port == DEFAULT_HTTPS_PORT {
-				cp := CustomProfile{
-					Name:       route.ObjectMeta.Name + "-https-cert",
-					Partition:  rsCfg.Virtual.Partition,
-					Cert:       route.Spec.TLS.Certificate,
-					Key:        route.Spec.TLS.Key,
-					ServerName: route.Spec.Host,
+				switch route.Spec.TLS.Termination {
+				case routeapi.TLSTerminationEdge:
+					appMgr.setClientSslProfile(stats, sKey, &rsCfg, route)
+				case routeapi.TLSTerminationReencrypt:
+					appMgr.setClientSslProfile(stats, sKey, &rsCfg, route)
+					appMgr.setServerSslProfile(stats, sKey, &rsCfg, route)
 				}
-				skey := secretKey{
-					Name:         cp.Name,
-					Namespace:    sKey.Namespace,
-					ResourceName: rsName,
-				}
-				if prof, ok := appMgr.customProfiles.profs[skey]; ok {
-					if !reflect.DeepEqual(prof, cp) {
-						stats.cpUpdated += 1
-					}
-				}
-				appMgr.customProfiles.profs[skey] = cp
-				profilePath := fmt.Sprintf("%s/%s", cp.Partition, cp.Name)
-				rsCfg.Virtual.AddFrontendSslProfileName(profilePath)
 			}
 		}
 	}
@@ -1113,6 +1131,80 @@ func (appMgr *Manager) syncRoutes(
 	appMgr.updateRouteDataGroups(stats, dgMap)
 
 	return nil
+}
+
+func (appMgr *Manager) setClientSslProfile(
+	stats *vsSyncStats,
+	sKey serviceQueueKey,
+	rsCfg *ResourceConfig,
+	route *routeapi.Route,
+) {
+	profileName := "Common/clientssl"
+	if "" != route.Spec.TLS.Certificate && "" != route.Spec.TLS.Key {
+		cp := CustomProfile{
+			Name:       route.ObjectMeta.Name + "-https-cert",
+			Partition:  rsCfg.Virtual.Partition,
+			Context:    customProfileClient,
+			Cert:       route.Spec.TLS.Certificate,
+			Key:        route.Spec.TLS.Key,
+			ServerName: route.Spec.Host,
+		}
+		skey := secretKey{
+			Name:         cp.Name,
+			Namespace:    sKey.Namespace,
+			ResourceName: rsCfg.Virtual.VirtualServerName,
+		}
+		appMgr.customProfiles.Lock()
+		defer appMgr.customProfiles.Unlock()
+		if prof, ok := appMgr.customProfiles.profs[skey]; ok {
+			if !reflect.DeepEqual(prof, cp) {
+				stats.cpUpdated += 1
+			}
+		}
+		appMgr.customProfiles.profs[skey] = cp
+		profileName = fmt.Sprintf("%s/%s", cp.Partition, cp.Name)
+	}
+	rsCfg.Virtual.AddFrontendSslProfileName(profileName)
+}
+
+func (appMgr *Manager) setServerSslProfile(
+	stats *vsSyncStats,
+	sKey serviceQueueKey,
+	rsCfg *ResourceConfig,
+	route *routeapi.Route,
+) {
+	if "" != route.Spec.TLS.DestinationCACertificate {
+		// Create new SSL server profile with the provided CA Certificate.
+		ruleName := formatRouteRuleName(route)
+		profile := ProfileRef{
+			Name:      ruleName + "-server-ssl",
+			Partition: rsCfg.Virtual.Partition,
+			Context:   customProfileServer,
+		}
+		cp := NewCustomProfile(profile, route.Spec.TLS.DestinationCACertificate)
+		skey := secretKey{
+			Name:         cp.Name,
+			Namespace:    sKey.Namespace,
+			ResourceName: rsCfg.Virtual.VirtualServerName,
+		}
+		appMgr.customProfiles.Lock()
+		defer appMgr.customProfiles.Unlock()
+		if prof, ok := appMgr.customProfiles.profs[skey]; ok {
+			if !reflect.DeepEqual(prof, cp) {
+				stats.cpUpdated += 1
+			}
+		}
+		appMgr.customProfiles.profs[skey] = cp
+		rsCfg.Virtual.AddOrUpdateProfile(profile)
+	} else {
+		profile, added := appMgr.loadDefaultCert(sKey.Namespace)
+		if nil != profile {
+			rsCfg.Virtual.AddOrUpdateProfile(*profile)
+		}
+		if added {
+			stats.cpUpdated += 1
+		}
+	}
 }
 
 func getBooleanAnnotation(
@@ -1254,6 +1346,7 @@ func (appMgr *Manager) handleSslProfile(
 	cp := CustomProfile{
 		Name:      secret.ObjectMeta.Name,
 		Partition: rsCfg.Virtual.Partition,
+		Context:   customProfileClient,
 		Cert:      string(secret.Data["tls.crt"]),
 		Key:       string(secret.Data["tls.key"]),
 	}
@@ -1670,11 +1763,8 @@ func (appMgr *Manager) deleteUnusedProfiles(namespace string) {
 		appMgr.resources.ForEach(func(k serviceKey, rsCfg *ResourceConfig) {
 			if key.ResourceName == rsCfg.Virtual.VirtualServerName &&
 				key.Namespace == namespace {
-				for _, profName := range rsCfg.Virtual.GetFrontendSslProfileNames() {
-					if profName == (rsCfg.Virtual.Partition + "/" + profile.Name) {
-						found = true
-						break
-					}
+				if rsCfg.Virtual.ReferencesProfile(profile) {
+					found = true
 				}
 			}
 		})

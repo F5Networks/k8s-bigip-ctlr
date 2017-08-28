@@ -3761,10 +3761,8 @@ func TestPassthroughRoute(t *testing.T) {
 	require.True(ok, "Route should be accessible")
 	require.NotNil(rs, "Route should be object")
 	assert.True(rs.MetaData.Active)
-	require.Equal(1, len(rs.Virtual.IRules))
-	expectedIRuleName = fmt.Sprintf("/%s/%s",
-		DEFAULT_PARTITION, httpRedirectIRuleName)
-	assert.Equal(expectedIRuleName, rs.Virtual.IRules[0])
+	require.Equal(0, len(rs.Virtual.IRules))
+	assert.Equal(0, len(rs.Policies))
 
 	// Delete a Route resource and make sure the data groups are cleaned up.
 	r = appMgr.deleteRoute(route2)
@@ -3775,4 +3773,94 @@ func TestPassthroughRoute(t *testing.T) {
 	assert.Equal(1, len(hostDg.Records))
 	assert.Equal(hostName1, hostDg.Records[0].Name)
 	assert.Equal(formatRoutePoolName(route1), hostDg.Records[0].Data)
+}
+
+func TestReencryptRoute(t *testing.T) {
+	mw := &test.MockWriter{
+		FailStyle: test.Success,
+		Sections:  make(map[string]interface{}),
+	}
+	require := require.New(t)
+	assert := assert.New(t)
+	fakeClient := fake.NewSimpleClientset()
+	require.NotNil(fakeClient, "Mock client should not be nil")
+	namespace := "default"
+
+	appMgr := newMockAppManager(&Params{
+		KubeClient:    fakeClient,
+		ConfigWriter:  mw,
+		restClient:    test.CreateFakeHTTPClient(),
+		RouteClientV1: test.CreateFakeHTTPClient(),
+		IsNodePort:    true,
+	})
+	err := appMgr.startNonLabelMode([]string{namespace})
+	require.Nil(err)
+	defer appMgr.shutdown()
+
+	hostName := "foobar.com"
+	spec := routeapi.RouteSpec{
+		Host: hostName,
+		Path: "/foo",
+		To: routeapi.RouteTargetReference{
+			Kind: "Service",
+			Name: "foo",
+		},
+		TLS: &routeapi.TLSConfig{
+			Termination: "reencrypt",
+			Certificate: "cert",
+			Key:         "key",
+			DestinationCACertificate: "destCaCert",
+		},
+	}
+	route := test.NewRoute("route", "1", namespace, spec)
+	r := appMgr.addRoute(route)
+	require.True(r, "Route resource should be processed")
+
+	resources := appMgr.resources()
+	// Associate a service
+	fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+		[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+	r = appMgr.addService(fooSvc)
+	assert.True(r, "Service should be processed")
+	require.Equal(2, resources.Count())
+
+	rs, ok := resources.Get(
+		serviceKey{"foo", 443, "default"}, "openshift_default_https")
+	require.True(ok, "Route should be accessible")
+	require.NotNil(rs, "Route should be object")
+	assert.True(rs.MetaData.Active)
+	assert.Equal(1, len(rs.Policies[0].Rules))
+	assert.Equal(1, len(rs.Virtual.IRules))
+	expectedIRuleName := fmt.Sprintf("/%s/%s",
+		DEFAULT_PARTITION, sslPassthroughIRuleName)
+	assert.Equal(expectedIRuleName, rs.Virtual.IRules[0])
+	hostDgKey := nameRef{
+		Name:      reencryptHostsDgName,
+		Partition: DEFAULT_PARTITION,
+	}
+	hostDg, found := appMgr.appMgr.intDgMap[hostDgKey]
+	assert.True(found)
+	require.Equal(1, len(hostDg.Records))
+	assert.Equal(hostName, hostDg.Records[0].Name)
+	assert.Equal(formatRoutePoolName(route), hostDg.Records[0].Data)
+
+	customProfiles := appMgr.customProfiles()
+	require.Equal(2, len(customProfiles))
+	// should have 1 client ssl custom profile and 1 server ssl custom profile
+	haveClientSslProfile := false
+	haveServerSslProfile := false
+	for _, prof := range customProfiles {
+		switch prof.Context {
+		case customProfileClient:
+			haveClientSslProfile = true
+		case customProfileServer:
+			haveServerSslProfile = true
+		}
+	}
+	assert.True(haveClientSslProfile)
+	assert.True(haveServerSslProfile)
+
+	// and both should be referenced by the virtual
+	assert.Equal(1, rs.Virtual.GetProfileCountByContext(customProfileClient))
+	assert.Equal(1, rs.Virtual.GetProfileCountByContext(customProfileServer))
 }

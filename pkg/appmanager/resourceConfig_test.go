@@ -581,3 +581,135 @@ func TestSetAndRemoveInternalDataGroupRecords(t *testing.T) {
 		assert.Equal(expectedRecCt, idg.Records.Len())
 	}
 }
+
+func TestSetAndRemoveProfiles(t *testing.T) {
+	assert := assert.New(t)
+	virtual := Virtual{}
+	assert.Equal(0, virtual.Profiles.Len())
+
+	// Test add. Add items out of sort order and make sure order is maintained.
+	testData := []ProfileRef{
+		{Partition: "test1", Name: "second"},
+		{Partition: "test2", Name: "first"},
+		{Partition: "test1", Name: "first"},
+	}
+	for i, prof := range testData {
+		updated := virtual.AddOrUpdateProfile(prof)
+		assert.True(updated)
+		assert.Equal(i+1, virtual.Profiles.Len())
+	}
+	assert.True(sort.IsSorted(virtual.Profiles))
+
+	// Test updates of existing items.
+	for _, prof := range testData {
+		prof.Context = customProfileAll
+		updated := virtual.AddOrUpdateProfile(prof)
+		assert.True(updated)
+	}
+	// Make sure updates with same data does not indicate an update.
+	for _, prof := range testData {
+		prof.Context = customProfileAll
+		updated := virtual.AddOrUpdateProfile(prof)
+		assert.False(updated)
+	}
+
+	// Test remove for both existing and non-existing records.
+	expectedProfCt := len(testData)
+	for _, prof := range testData {
+		// remove existing.
+		updated := virtual.RemoveProfile(prof)
+		assert.True(updated)
+		expectedProfCt--
+		assert.Equal(expectedProfCt, virtual.Profiles.Len())
+		// remove non-existing.
+		updated = virtual.RemoveProfile(prof)
+		assert.False(updated)
+		assert.Equal(expectedProfCt, virtual.Profiles.Len())
+	}
+}
+
+func TestProfileContextCount(t *testing.T) {
+	assert := assert.New(t)
+	virtual := Virtual{}
+	assert.Equal(0, virtual.Profiles.Len())
+	assert.Equal(0, virtual.GetProfileCountByContext(customProfileAll))
+	assert.Equal(0, virtual.GetProfileCountByContext(customProfileClient))
+	assert.Equal(0, virtual.GetProfileCountByContext(customProfileServer))
+
+	// Test add. Add one profile of each type to Virtual.Profiles[].
+	testData := []ProfileRef{
+		{Partition: "test1", Name: "second", Context: customProfileAll},
+		{Partition: "test2", Name: "first", Context: customProfileClient},
+		{Partition: "test1", Name: "first", Context: customProfileServer},
+	}
+	for _, prof := range testData {
+		updated := virtual.AddOrUpdateProfile(prof)
+		assert.True(updated)
+	}
+	assert.Equal(1, virtual.GetProfileCountByContext(customProfileAll))
+	assert.Equal(1, virtual.GetProfileCountByContext(customProfileClient))
+	assert.Equal(1, virtual.GetProfileCountByContext(customProfileServer))
+
+	// Change existing items and check counts change correctly.
+	for _, prof := range testData {
+		prof.Context = customProfileServer
+		virtual.AddOrUpdateProfile(prof)
+	}
+	assert.Equal(0, virtual.GetProfileCountByContext(customProfileAll))
+	assert.Equal(0, virtual.GetProfileCountByContext(customProfileClient))
+	assert.Equal(3, virtual.GetProfileCountByContext(customProfileServer))
+	for _, prof := range testData {
+		prof.Context = customProfileClient
+		virtual.AddOrUpdateProfile(prof)
+	}
+	assert.Equal(0, virtual.GetProfileCountByContext(customProfileAll))
+	assert.Equal(3, virtual.GetProfileCountByContext(customProfileClient))
+	assert.Equal(0, virtual.GetProfileCountByContext(customProfileServer))
+
+	// Add some frontend client profiles.
+	virtual.AddFrontendSslProfileName("test3/firstprofile")
+	assert.Equal(4, virtual.GetProfileCountByContext(customProfileClient))
+	virtual.AddFrontendSslProfileName("test3/secondprofile")
+	assert.Equal(5, virtual.GetProfileCountByContext(customProfileClient))
+}
+
+func TestReferencesProfile(t *testing.T) {
+	assert := assert.New(t)
+	virtual := Virtual{}
+
+	testData := []ProfileRef{
+		{Partition: "test1", Name: "second", Context: customProfileAll},
+		{Partition: "test2", Name: "first", Context: customProfileClient},
+		{Partition: "test1", Name: "first", Context: customProfileServer},
+		{Partition: "test3", Name: "third", Context: customProfileClient},
+	}
+	for _, prof := range testData {
+		cprof := NewCustomProfile(prof, "")
+		refs := virtual.ReferencesProfile(cprof)
+		assert.False(refs)
+	}
+
+	// add profiles from 'test1' to Profiles[] and 'test3' to frontend.
+	for _, prof := range testData {
+		switch prof.Partition {
+		case "test1":
+			virtual.AddOrUpdateProfile(prof)
+		case "test3":
+			profName := fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
+			virtual.AddFrontendSslProfileName(profName)
+		}
+	}
+
+	for _, prof := range testData {
+		switch prof.Partition {
+		case "test1", "test3":
+			cprof := NewCustomProfile(prof, "")
+			refs := virtual.ReferencesProfile(cprof)
+			assert.True(refs)
+		case "test2":
+			cprof := NewCustomProfile(prof, "")
+			refs := virtual.ReferencesProfile(cprof)
+			assert.False(refs)
+		}
+	}
+}

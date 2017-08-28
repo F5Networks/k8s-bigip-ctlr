@@ -52,14 +52,17 @@
                 "pool": "/k8s/default_configmap",
                 "profiles": [
                     {
+                        "context": "clientside",
                         "name": "clientssl",
                         "partition": "Common"
                     },
                     {
+                        "context": "clientside",
                         "name": "clientssl-secure",
                         "partition": "Common"
                     },
                     {
+                        "context": "all",
                         "name": "http",
                         "partition": "Common"
                     }

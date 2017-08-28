@@ -46,6 +46,8 @@ func (r Rules) Len() int           { return len(r) }
 func (r Rules) Less(i, j int) bool { return r[i].FullURI < r[j].FullURI }
 func (r Rules) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
 
+type Routes []*routeapi.Route
+
 func createRule(uri, poolName, partition, routeName string) (*Rule, error) {
 	_u := "scheme://" + uri
 	_u = strings.TrimSuffix(_u, "/")
@@ -349,6 +351,18 @@ func updateDataGroupForPassthroughRoute(
 		partition, hostName, poolName)
 }
 
+// Update a data group map based on a reencrypt route object.
+func updateDataGroupForReencryptRoute(
+	route *routeapi.Route,
+	partition string,
+	dgMap InternalDataGroupMap,
+) {
+	hostName := route.Spec.Host
+	poolName := formatRoutePoolName(route)
+	updateDataGroup(dgMap, reencryptHostsDgName,
+		partition, hostName, poolName)
+}
+
 // Add or update a data group record
 func updateDataGroup(
 	intDgMap InternalDataGroupMap,
@@ -398,4 +412,30 @@ func (appMgr *Manager) updateRouteDataGroups(
 			appMgr.intDgMap[mapKey] = grp
 		}
 	}
+}
+
+func (slice Routes) Len() int {
+	return len(slice)
+}
+
+func (slice Routes) Less(i, j int) bool {
+	return (slice[i].Spec.Host < slice[j].Spec.Host) ||
+		(slice[i].Spec.Host == slice[j].Spec.Host &&
+			slice[i].Spec.Path < slice[j].Spec.Path)
+}
+
+func (slice Routes) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
+func (appInf *appInformer) getOrderedRoutes(namespace string) (Routes, error) {
+	routeByIndex, err := appInf.routeInformer.GetIndexer().ByIndex(
+		"namespace", namespace)
+	var routes Routes
+	for _, obj := range routeByIndex {
+		route := obj.(*routeapi.Route)
+		routes = append(routes, route)
+	}
+	sort.Sort(routes)
+	return routes, err
 }

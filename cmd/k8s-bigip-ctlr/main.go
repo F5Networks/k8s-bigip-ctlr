@@ -88,9 +88,8 @@ var (
 	openshiftSDNMode string
 	openshiftSDNName *string
 
-	routeVserverAddr       *string
-	routeDefaultServerCert *string
-	routeLabel             *string
+	routeVserverAddr *string
+	routeLabel       *string
 
 	// package variables
 	isNodePort         bool
@@ -175,12 +174,9 @@ func _init() {
 	// OpenShift Route flags
 	routeVserverAddr = osRouteFlags.String("route-vserver-addr", "",
 		"Optional, bind address for virtual server for Route objects.")
-	routeDefaultServerCert = osRouteFlags.String("route-default-server-cert", "",
-		"Optional, default server cert for Route objects.")
 	routeLabel = osRouteFlags.String("route-label", "",
 		"Optional, label for which Route objects to watch.")
 	osRouteFlags.MarkHidden("route-vserver-addr")
-	osRouteFlags.MarkHidden("route-default-server-cert")
 	osRouteFlags.MarkHidden("route-label")
 
 	osRouteFlags.Usage = func() {
@@ -392,10 +388,13 @@ func main() {
 		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
 	}
 	defer configWriter.Stop()
+
+	if len(*routeLabel) > 0 {
+		*routeLabel = fmt.Sprintf("f5type in (%s)", *routeLabel)
+	}
 	var routeConfig = appmanager.RouteConfig{
-		RouteVSAddr:     *routeVserverAddr,
-		RouteServerCert: *routeDefaultServerCert,
-		RouteLabel:      *routeLabel,
+		RouteVSAddr: *routeVserverAddr,
+		RouteLabel:  *routeLabel,
 	}
 
 	var appMgrParms = appmanager.Params{

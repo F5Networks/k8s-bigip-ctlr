@@ -699,7 +699,6 @@ func createRSConfigFromRoute(
 	resources Resources,
 	routeConfig RouteConfig,
 	pStruct portStruct,
-	backendPort int32,
 ) (ResourceConfig, error) {
 	var rsCfg ResourceConfig
 	var policyName, rsName string
@@ -710,6 +709,21 @@ func createRSConfigFromRoute(
 	} else {
 		policyName = "openshift_secure_routes"
 		rsName = formatRouteVSName(route, "https")
+	}
+	tls := route.Spec.TLS
+
+	var backendPort int32
+	if route.Spec.Port != nil {
+		backendPort = route.Spec.Port.TargetPort.IntVal
+	} else if tls != nil && len(tls.Termination) != 0 {
+		if tls.Termination == routeapi.TLSTerminationPassthrough ||
+			tls.Termination == routeapi.TLSTerminationReencrypt {
+			backendPort = 443
+		} else {
+			backendPort = 80
+		}
+	} else {
+		backendPort = 80
 	}
 
 	// Create the pool
@@ -727,7 +741,6 @@ func createRSConfigFromRoute(
 		err = fmt.Errorf("Error configuring rule for Route %s: %v", route.ObjectMeta.Name, err)
 		return rsCfg, err
 	}
-	tls := route.Spec.TLS
 
 	resources.Lock()
 	defer resources.Unlock()

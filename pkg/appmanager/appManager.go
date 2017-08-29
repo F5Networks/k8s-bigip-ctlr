@@ -115,9 +115,8 @@ type Params struct {
 
 // Configuration options for Routes in OpenShift
 type RouteConfig struct {
-	RouteVSAddr     string
-	RouteServerCert string
-	RouteLabel      string
+	RouteVSAddr string
+	RouteLabel  string
 }
 
 // Create and return a new app manager that meets the Manager interface
@@ -473,12 +472,22 @@ func (appMgr *Manager) newAppInformer(
 		),
 	}
 	if nil != appMgr.routeClientV1 {
+		var label labels.Selector
+		var err error
+		if len(appMgr.routeConfig.RouteLabel) == 0 {
+			label = labels.Everything()
+		} else {
+			label, err = labels.Parse(appMgr.routeConfig.RouteLabel)
+			if err != nil {
+				log.Errorf("Failed to parse Label Selector string: %v", err)
+			}
+		}
 		appInf.routeInformer = cache.NewSharedIndexInformer(
 			newListWatchWithLabelSelector(
 				appMgr.routeClientV1,
 				"routes",
 				namespace,
-				labels.Everything(),
+				label,
 			),
 			&routeapi.Route{},
 			resyncPeriod,
@@ -808,14 +817,11 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	// looping through the ConfigMaps. The value is not currently used.
 	svcPortMap := make(map[int32]bool)
 	var svc *v1.Service
-	var routePort int32
 	if svcFound {
 		svc = obj.(*v1.Service)
 		for _, portSpec := range svc.Spec.Ports {
 			svcPortMap[portSpec.Port] = false
 		}
-		// For Routes, we use the first svc port we see
-		routePort = svc.Spec.Ports[0].Port
 	}
 
 	// rsMap stores all resources currently in Resources matching sKey, indexed by port
@@ -831,8 +837,8 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	if nil != err {
 		return err
 	}
-	if nil != appInf.routeInformer && routePort != 0 {
-		err = appMgr.syncRoutes(&stats, sKey, rsMap, svcPortMap, svc, appInf, routePort)
+	if nil != appInf.routeInformer {
+		err = appMgr.syncRoutes(&stats, sKey, rsMap, svcPortMap, svc, appInf)
 		if nil != err {
 			return err
 		}
@@ -1049,7 +1055,6 @@ func (appMgr *Manager) syncRoutes(
 	svcPortMap map[int32]bool,
 	svc *v1.Service,
 	appInf *appInformer,
-	backendPort int32,
 ) error {
 	routeByIndex, err := appInf.getOrderedRoutes(sKey.Namespace)
 	if nil != err {
@@ -1081,7 +1086,7 @@ func (appMgr *Manager) syncRoutes(
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
 			rsCfg, err := createRSConfigFromRoute(route,
-				*appMgr.resources, appMgr.routeConfig, ps, backendPort)
+				*appMgr.resources, appMgr.routeConfig, ps)
 			if err != nil {
 				// We return err if there was an error creating a rule
 				log.Warningf("%v", err)

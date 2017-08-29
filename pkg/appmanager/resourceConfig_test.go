@@ -504,12 +504,12 @@ func TestRouteConfiguration(t *testing.T) {
 		protocol: "https",
 		port:     443,
 	}
-	cfg, _ := createRSConfigFromRoute(route, Resources{}, RouteConfig{}, ps, 443)
+	cfg, _ := createRSConfigFromRoute(route, Resources{}, RouteConfig{}, ps)
 
 	require.Equal("openshift_default_https", cfg.Virtual.VirtualServerName)
 	require.Equal("openshift_default_foo", cfg.Pools[0].Name)
 	require.Equal("foo", cfg.Pools[0].ServiceName)
-	require.Equal(int32(443), cfg.Pools[0].ServicePort)
+	require.Equal(int32(80), cfg.Pools[0].ServicePort)
 	require.Equal("openshift_secure_routes", cfg.Policies[0].Name)
 	require.Equal("openshift_route_default_route", cfg.Policies[0].Rules[0].Name)
 
@@ -526,7 +526,7 @@ func TestRouteConfiguration(t *testing.T) {
 		protocol: "http",
 		port:     80,
 	}
-	cfg, _ = createRSConfigFromRoute(route2, Resources{}, RouteConfig{}, ps, 80)
+	cfg, _ = createRSConfigFromRoute(route2, Resources{}, RouteConfig{}, ps)
 
 	require.Equal("openshift_default_http", cfg.Virtual.VirtualServerName)
 	require.Equal("openshift_default_bar", cfg.Pools[0].Name)

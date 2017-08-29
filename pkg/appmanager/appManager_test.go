@@ -3605,13 +3605,13 @@ func TestVirtualServerForRoute(t *testing.T) {
 	resources := appMgr.resources()
 	// Associate a service
 	fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-		[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
 	r = appMgr.addService(fooSvc)
 	assert.True(r, "Service should be processed")
 	require.Equal(2, resources.Count())
 
 	rs, ok := resources.Get(
-		serviceKey{"foo", 443, "default"}, "openshift_default_https")
+		serviceKey{"foo", 80, "default"}, "openshift_default_https")
 	require.True(ok, "Route should be accessible")
 	require.NotNil(rs, "Route should be object")
 	assert.True(rs.MetaData.Active)
@@ -3728,7 +3728,7 @@ func TestPassthroughRoute(t *testing.T) {
 	require.True(r, "Route resource should be processed")
 	resources = appMgr.resources()
 	barSvc := test.NewService(svcName2, "1", namespace, "NodePort",
-		[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+		[]v1.ServicePort{{Port: 443, NodePort: 37001}})
 	appMgr.addService(barSvc)
 	r = assert.True(r, "Service should be processed")
 	assert.Equal(4, resources.Count())
@@ -3757,7 +3757,7 @@ func TestPassthroughRoute(t *testing.T) {
 	assert.Equal(formatRoutePoolName(route2), hostDg.Records[0].Data)
 
 	rs, ok = resources.Get(
-		serviceKey{svcName2, 80, namespace}, "openshift_default_http")
+		serviceKey{svcName2, 443, namespace}, "openshift_default_http")
 	require.True(ok, "Route should be accessible")
 	require.NotNil(rs, "Route should be object")
 	assert.True(rs.MetaData.Active)

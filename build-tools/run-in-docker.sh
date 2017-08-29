@@ -22,8 +22,8 @@ mkdir -p $wkspace/$srcdir
 
 RUN_ARGS=( \
   --rm
-  -v $wkspace:/build
-  -v $PWD:/build/$srcdir:ro
+  -v $wkspace:/build:Z
+  -v $PWD:/build/$srcdir:ro,Z
   --workdir  /build/$srcdir
   -e GOPATH=/build
   -e CLEAN_BUILD="${CLEAN_BUILD}"

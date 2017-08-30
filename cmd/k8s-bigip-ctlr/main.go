@@ -151,7 +151,6 @@ func _init() {
 		"Optional, used to watch for namespaces with this label")
 	manageRoutes = kubeFlags.Bool("manage-routes", false,
 		"Optional, specify whether or not to manage Route resources")
-	kubeFlags.MarkHidden("manage-routes")
 
 	kubeFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsages())
@@ -176,8 +175,6 @@ func _init() {
 		"Optional, bind address for virtual server for Route objects.")
 	routeLabel = osRouteFlags.String("route-label", "",
 		"Optional, label for which Route objects to watch.")
-	osRouteFlags.MarkHidden("route-vserver-addr")
-	osRouteFlags.MarkHidden("route-label")
 
 	osRouteFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Openshift Routes:\n%s\n", osRouteFlags.FlagUsages())

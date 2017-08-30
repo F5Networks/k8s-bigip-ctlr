@@ -118,6 +118,26 @@ These configuration parameters are global to the controller.
 |                    |         |          |             | for access into the Openshift           |                |
 |                    |         |          |             | SDN and Pod network                     |                |
 +--------------------+---------+----------+-------------+-----------------------------------------+----------------+
+| manage-routes      | boolean | Optional | false       | Indicates if ``k8s-bigip-ctlr`` should  | true, false    |
+|                    |         |          |             | handle OpenShift Route objects.         |                |
+|                    |         |          |             |                                         |                |
+|                    |         |          |             | Only applicable in the OpenShift        |                |
+|                    |         |          |             | environment.                            |                |
++--------------------+---------+----------+-------------+-----------------------------------------+----------------+
+| route-vserver-addr | string  | Optional | n/a         | Bind address for virtual server for     |                |
+|                    |         |          |             | OpenShift Route objects.                |                |
+|                    |         |          |             |                                         |                |
+|                    |         |          |             | Only applicable in the OpenShift        |                |
+|                    |         |          |             | environment.                            |                |
++--------------------+---------+----------+-------------+-----------------------------------------+----------------+
+| route-label        | string  | Optional | n/a         | Tells the ``k8s-bigip-ctlr`` to only    |                |
+|                    |         |          |             | watch for OpenShift Route objects with  |                |
+|                    |         |          |             | a label named 'f5type' set to the       |                |
+|                    |         |          |             | specified value.                        |                |
+|                    |         |          |             |                                         |                |
+|                    |         |          |             | Only applicable in the OpenShift        |                |
+|                    |         |          |             | environment.                            |                |
++--------------------+---------+----------+-------------+-----------------------------------------+----------------+
 
 
 VirtualServer ConfigMap Properties
@@ -301,7 +321,7 @@ Backend
 
 Ingress Resources
 -----------------
-The |kctlr-long| supports Kubernetes Ingress resources as an alternative to F5 Resource ConfigMaps.
+The |kctlr-long| supports Kubernetes Ingress resources as an alternative to F5 Resource ConfigMaps and OpenShift Route Resources.
 
 Supported annotations
 `````````````````````
@@ -344,6 +364,40 @@ To configure health monitors on your Ingress resource, you need to use the appro
     }
 
 
+OpenShift Route Resources
+-------------------------
+The |kctlr-long| supports OpenShift Route resources as an alternative to F5 Resource ConfigMaps and Kubernetes Ingress Resources.
+
+Supported Route Configurations
+``````````````````````````````
+
++-------------------------+-------------------+-------------------+---------+-----------------+-------------------------------------------------------------------------+
+| Type                    | Client Connection | Server Connection | Path    | SSL Termination | Notes                                                                   |
+|                         | Encrypted         | Encrypted         | Support | on BIG-IP       |                                                                         |
++=========================+===================+===================+=========+=================+=========================================================================+
+| Unsecured               | No                | No                | Yes     | No              | The BIG-IP system forwards unsecured traffic from the client to the     |
+|                         |                   |                   |         |                 | endpoint.                                                               |
++-------------------------+-------------------+-------------------+---------+-----------------+-------------------------------------------------------------------------+
+| Edge Terminated         | Yes               | No                | Yes     | Yes             | The controller maintains a new client SSL profile on the BIG-IP system  |
+|                         |                   |                   |         |                 | based on the client certificate and key from the Route resource.        |
+|                         |                   |                   |         |                 | Set 'insecureEdgeTerminationPolicy' in the Route resource to 'Allow'    |
+|                         |                   |                   |         |                 | to enable support for insecure client connections.                      |
+|                         |                   |                   |         |                 | Set 'insecureEdgeTerminationPolicy' in the Route resource to 'Redirect' |
+|                         |                   |                   |         |                 | to redirect HTTP client connections to the HTTPS endpoint               |
++-------------------------+-------------------+-------------------+---------+-----------------+-------------------------------------------------------------------------+
+| Passthrough Terminated  | Yes               | Yes               | No      | No              | The BIG-IP system uses an iRule to select the destination pool based on |
+|                         |                   |                   |         |                 | SNI and forward the re-encrypted traffic.                               |
++-------------------------+-------------------+-------------------+---------+-----------------+-------------------------------------------------------------------------+
+| Re-encrypt Terminated   | Yes               | Yes               | Yes     | Yes             | The controller maintains a new client SSL profile on the BIG-IP based   |
+|                         |                   |                   |         |                 | on the client certificate and key from the Route resource.              |
+|                         |                   |                   |         |                 | The controller maintains a new server SSL profile on the BIG-IP based   |
+|                         |                   |                   |         |                 | on the server CA certificate from the Route resource for re-encrypting  |
+|                         |                   |                   |         |                 | the traffic.                                                            |
+|                         |                   |                   |         |                 | The BIG-IP system uses an iRule to select the destination pool based on |
+|                         |                   |                   |         |                 | SNI and forward the re-encrypted traffic.                               |
++-------------------------+-------------------+-------------------+---------+-----------------+-------------------------------------------------------------------------+
+
+
 Please see the example configuration files for more details.
 
 Example Configuration Files
@@ -360,6 +414,10 @@ Example Configuration Files
 - `name-based-ingress.yaml <./_static/config_examples/name-based-ingress.yaml>`_
 - `ingress-with-health-monitors.yaml <./_static/config_examples/ingress-with-health-monitors.yaml>`_
 - `sample-rbac.yaml <./_static/config_examples/sample-rbac.yaml>`_
+- `sample-unsecured-route.yaml <./_static/config_examples/sample-unsecured-route.yaml>`_
+- `sample-edge-route.yaml <./_static/config_examples/sample-edge-route.yaml>`_
+- `sample-passthrough-route.yaml <./_static/config_examples/sample-passthrough-route.yaml>`_
+- `sample-reencrypt-route.yaml <./_static/config_examples/sample-reencrypt-route.yaml>`_
 
 
 .. [#objectpartition]  The |kctlr-long| creates and manages objects in the BIG-IP partition defined in the `F5 resource </containers/v1/kubernetes/index.html#f5-resource-properties>`_ ConfigMap.

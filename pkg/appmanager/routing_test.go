@@ -18,98 +18,98 @@ package appmanager
 
 import (
 	"fmt"
-	"testing"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	routeapi "github.com/openshift/origin/pkg/route/api"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-func TestRouteOrdering(t *testing.T) {
-	mw := &test.MockWriter{
-		FailStyle: test.Success,
-		Sections:  make(map[string]interface{}),
-	}
-	require := require.New(t)
-	assert := assert.New(t)
-	fakeClient := fake.NewSimpleClientset()
-	require.NotNil(fakeClient, "Mock client should not be nil")
+var _ = Describe("Routing Tests", func() {
+	It("orders routes", func() {
+		mw := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
+		}
 
-	appMgr := newMockAppManager(&Params{
-		KubeClient:    fakeClient,
-		ConfigWriter:  mw,
-		restClient:    test.CreateFakeHTTPClient(),
-		RouteClientV1: test.CreateFakeHTTPClient(),
-		IsNodePort:    true,
-	})
-	err := appMgr.startNonLabelMode([]string{"test"})
-	require.Nil(err)
-	defer appMgr.shutdown()
+		fakeClient := fake.NewSimpleClientset()
+		Expect(fakeClient).ToNot(BeNil(), "Mock client should not be nil.")
 
-	namespace := "test"
-	type testData struct {
-		serviceName string
-		hostName    string
-		path        string
-	}
-	sortedTestData := []testData{
-		{
-			serviceName: "bar",
-			hostName:    "barfoo.com",
-			path:        "/bar",
-		}, {
-			serviceName: "foo",
-			hostName:    "foobar.com",
-			path:        "/foo",
-		}, {
-			serviceName: "foo",
-			hostName:    "foobar.com",
-			path:        "/foo/bar",
-		}, {
-			serviceName: "foo",
-			hostName:    "foobar.com",
-			path:        "/foo/bar/bay",
-		}, {
-			serviceName: "foo",
-			hostName:    "foobar.com",
-			path:        "/foo/bar/baz",
-		},
-	}
+		appMgr := newMockAppManager(&Params{
+			KubeClient:    fakeClient,
+			ConfigWriter:  mw,
+			restClient:    test.CreateFakeHTTPClient(),
+			RouteClientV1: test.CreateFakeHTTPClient(),
+			IsNodePort:    true,
+		})
+		err := appMgr.startNonLabelMode([]string{"test"})
+		Expect(err).To(BeNil())
+		defer appMgr.shutdown()
 
-	unsortedTestData := []testData{
-		sortedTestData[4],
-		sortedTestData[1],
-		sortedTestData[0],
-		sortedTestData[3],
-		sortedTestData[2],
-	}
-
-	for i, td := range unsortedTestData {
-		routeName := fmt.Sprintf("route%d", i)
-		spec := routeapi.RouteSpec{
-			Host: td.hostName,
-			Path: td.path,
-			To: routeapi.RouteTargetReference{
-				Kind: "Service",
-				Name: td.serviceName,
-			},
-			TLS: &routeapi.TLSConfig{
-				Termination: routeapi.TLSTerminationEdge,
+		namespace := "test"
+		type testData struct {
+			serviceName string
+			hostName    string
+			path        string
+		}
+		sortedTestData := []testData{
+			{
+				serviceName: "bar",
+				hostName:    "barfoo.com",
+				path:        "/bar",
+			}, {
+				serviceName: "foo",
+				hostName:    "foobar.com",
+				path:        "/foo",
+			}, {
+				serviceName: "foo",
+				hostName:    "foobar.com",
+				path:        "/foo/bar",
+			}, {
+				serviceName: "foo",
+				hostName:    "foobar.com",
+				path:        "/foo/bar/bay",
+			}, {
+				serviceName: "foo",
+				hostName:    "foobar.com",
+				path:        "/foo/bar/baz",
 			},
 		}
-		ok := appMgr.addRoute(test.NewRoute(routeName, "1", namespace, spec))
-		assert.True(ok, "Route resource should be processed")
-	}
 
-	appInf, _ := appMgr.appMgr.getNamespaceInformer(namespace)
-	routes, err := appInf.getOrderedRoutes(namespace)
-	assert.Nil(err)
-	assert.Equal(len(sortedTestData), len(routes))
-	for i, route := range routes {
-		assert.Equal(sortedTestData[i].hostName, route.Spec.Host)
-		assert.Equal(sortedTestData[i].path, route.Spec.Path)
-	}
-}
+		unsortedTestData := []testData{
+			sortedTestData[4],
+			sortedTestData[1],
+			sortedTestData[0],
+			sortedTestData[3],
+			sortedTestData[2],
+		}
+
+		for i, td := range unsortedTestData {
+			routeName := fmt.Sprintf("route%d", i)
+			spec := routeapi.RouteSpec{
+				Host: td.hostName,
+				Path: td.path,
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: td.serviceName,
+				},
+				TLS: &routeapi.TLSConfig{
+					Termination: routeapi.TLSTerminationEdge,
+				},
+			}
+			ok := appMgr.addRoute(test.NewRoute(routeName, "1", namespace, spec))
+			Expect(ok).To(BeTrue(), "Route resource should be processed.")
+		}
+
+		appInf, _ := appMgr.appMgr.getNamespaceInformer(namespace)
+		routes, err := appInf.getOrderedRoutes(namespace)
+		Expect(err).To(BeNil())
+		Expect(len(routes)).To(Equal(len(sortedTestData)))
+		for i, route := range routes {
+			Expect(route.Spec.Host).To(Equal(sortedTestData[i].hostName))
+			Expect(route.Spec.Path).To(Equal(sortedTestData[i].path))
+		}
+	})
+})

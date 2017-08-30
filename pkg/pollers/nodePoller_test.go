@@ -19,11 +19,11 @@ package pollers
 import (
 	"runtime"
 	"sync"
-	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/api/v1"
@@ -59,297 +59,294 @@ func newNode(
 	}
 }
 
-func initTestData(t *testing.T) (Poller, []nodeData) {
-	addressList := [][]v1.NodeAddress{
-		{
-			{"ExternalIP", "127.0.0.0"},
-		},
-		{
-			{"ExternalIP", "127.0.0.1"},
-			{"InternalIP", "127.1.0.1"},
-		},
-		{
-			{"ExternalIP", "127.0.0.2"},
-			{"InternalIP", "127.1.0.2"},
-		},
-		{
-			{"ExternalIP", "127.0.0.3"},
-			{"InternalIP", "127.1.0.3"},
-		},
-		{
-			{"InternalIP", "127.0.0.4"},
-		},
-		{
-			{"Hostname", "127.0.0.5"},
-		},
-	}
-
-	// Existing Node data
-	setNodes := []*v1.Node{
-		newNode("node0", "0", true, addressList[0]),
-		newNode("node1", "1", false, addressList[1]),
-		newNode("node2", "2", false, addressList[2]),
-		newNode("node3", "3", false, addressList[3]),
-		newNode("node4", "4", false, addressList[4]),
-		newNode("node5", "5", false, addressList[5]),
-	}
-
-	expectedNodes := []nodeData{
-		nodeData{
-			Name:          "node0",
-			Unschedulable: true,
-			Addresses:     addressList[0],
-		},
-		nodeData{
-			Name:          "node1",
-			Unschedulable: false,
-			Addresses:     addressList[1],
-		},
-		nodeData{
-			Name:          "node2",
-			Unschedulable: false,
-			Addresses:     addressList[2],
-		},
-		nodeData{
-			Name:          "node3",
-			Unschedulable: false,
-			Addresses:     addressList[3],
-		},
-		nodeData{
-			Name:          "node4",
-			Unschedulable: false,
-			Addresses:     addressList[4],
-		},
-		nodeData{
-			Name:          "node5",
-			Unschedulable: false,
-			Addresses:     addressList[5],
-		},
-	}
-
-	fake := fake.NewSimpleClientset()
-	require.NotNil(t, fake, "Mock client cannot be nil")
-
-	for _, setNode := range setNodes {
-		node, err := fake.Core().Nodes().Create(setNode)
-		assert.Nil(t, err, "Should not fail creating node")
-		assert.EqualValues(t, setNode, node, "Nodes should be equal")
-	}
-
-	np := NewNodePoller(fake, 1*time.Millisecond)
-	require.NotNil(t, np, "Node poller cannot be nil")
-
-	return np, expectedNodes
-}
-
-func assertRegister(
-	t *testing.T,
-	p Poller,
-	expectedNodes []nodeData,
-	stopped bool,
-) {
-	called := 0
-	err := p.RegisterListener(func(call *int) PollListener {
-		var p PollListener = func(obj interface{}, err error) {
-			if 0 == *call {
-				nl, ok := obj.([]v1.Node)
-				require.True(t, ok, "Should be called back with a nodeData")
-				assert.Equal(t, 6, len(nl))
-				assert.Nil(t, err, "Should not get an error")
-
-				for i, expected := range expectedNodes {
-					assert.Equal(t, expected.Name, nl[i].ObjectMeta.Name)
-					assert.Equal(t, expected.Unschedulable, nl[i].Spec.Unschedulable)
-					assert.Equal(t, expected.Addresses, nl[i].Status.Addresses)
-				}
-			}
-			(*call)++
+var _ = Describe("Node Poller Tests", func() {
+	initTestData := func() (Poller, []nodeData) {
+		addressList := [][]v1.NodeAddress{
+			{
+				{"ExternalIP", "127.0.0.0"},
+			},
+			{
+				{"ExternalIP", "127.0.0.1"},
+				{"InternalIP", "127.1.0.1"},
+			},
+			{
+				{"ExternalIP", "127.0.0.2"},
+				{"InternalIP", "127.1.0.2"},
+			},
+			{
+				{"ExternalIP", "127.0.0.3"},
+				{"InternalIP", "127.1.0.3"},
+			},
+			{
+				{"InternalIP", "127.0.0.4"},
+			},
+			{
+				{"Hostname", "127.0.0.5"},
+			},
 		}
-		return p
-	}(&called))
-	assert.Nil(t, err)
 
-	runtime.Gosched()
-	<-time.After(100 * time.Millisecond)
+		// Existing Node data
+		setNodes := []*v1.Node{
+			newNode("node0", "0", true, addressList[0]),
+			newNode("node1", "1", false, addressList[1]),
+			newNode("node2", "2", false, addressList[2]),
+			newNode("node3", "3", false, addressList[3]),
+			newNode("node4", "4", false, addressList[4]),
+			newNode("node5", "5", false, addressList[5]),
+		}
 
-	assert.Condition(t, func() bool {
+		expectedNodes := []nodeData{
+			nodeData{
+				Name:          "node0",
+				Unschedulable: true,
+				Addresses:     addressList[0],
+			},
+			nodeData{
+				Name:          "node1",
+				Unschedulable: false,
+				Addresses:     addressList[1],
+			},
+			nodeData{
+				Name:          "node2",
+				Unschedulable: false,
+				Addresses:     addressList[2],
+			},
+			nodeData{
+				Name:          "node3",
+				Unschedulable: false,
+				Addresses:     addressList[3],
+			},
+			nodeData{
+				Name:          "node4",
+				Unschedulable: false,
+				Addresses:     addressList[4],
+			},
+			nodeData{
+				Name:          "node5",
+				Unschedulable: false,
+				Addresses:     addressList[5],
+			},
+		}
+
+		fake := fake.NewSimpleClientset()
+		Expect(fake).ToNot(BeNil(), "Mock client cannot be nil.")
+
+		for _, setNode := range setNodes {
+			node, err := fake.Core().Nodes().Create(setNode)
+			Expect(err).To(BeNil(), "Should not fail creating node.")
+			Expect(node).To(Equal(setNode))
+		}
+
+		np := NewNodePoller(fake, 1*time.Millisecond)
+		Expect(np).ToNot(BeNil(), "Node poller cannot be nil.")
+
+		return np, expectedNodes
+	}
+
+	assertRegister := func(p Poller, expectedNodes []nodeData, stopped bool) {
+		called := 0
+		err := p.RegisterListener(func(call *int) PollListener {
+			var p PollListener = func(obj interface{}, err error) {
+				if 0 == *call {
+					nl, ok := obj.([]v1.Node)
+					Expect(ok).To(BeTrue(), "Should be called back with a nodeData.")
+					Expect(len(nl)).To(Equal(6))
+					Expect(err).To(BeNil())
+
+					for i, expected := range expectedNodes {
+						Expect(nl[i].ObjectMeta.Name).To(Equal(expected.Name))
+						Expect(nl[i].Spec.Unschedulable).To(Equal(expected.Unschedulable))
+						Expect(nl[i].Status.Addresses).To(Equal(expected.Addresses))
+					}
+				}
+				(*call)++
+			}
+			return p
+		}(&called))
+		Expect(err).To(BeNil())
+
+		runtime.Gosched()
+		<-time.After(100 * time.Millisecond)
+
 		var cond bool
 		if false == stopped {
 			cond = called > 0
 		} else {
 			cond = called == 0
 		}
-		return cond
-	}, "Listener should have been called 1 or more times")
-}
 
-func TestNodePollerStartStop(t *testing.T) {
-	fake := fake.NewSimpleClientset()
-	require.NotNil(t, fake, "Mock client cannot be nil")
+		Expect(cond).To(BeTrue(), "Listener should have been called 1 or more times.")
+	}
 
-	np := NewNodePoller(fake, 1*time.Millisecond)
-	require.NotNil(t, np, "Node poller cannot be nil")
+	It("starts and stops", func() {
+		fake := fake.NewSimpleClientset()
+		Expect(fake).ToNot(BeNil(), "Mock client cannot be nil.")
 
-	err := np.Run()
-	assert.Nil(t, err)
-	// call run a second time
-	err = np.Run()
-	assert.NotNil(t, err)
+		np := NewNodePoller(fake, 1*time.Millisecond)
+		Expect(np).ToNot(BeNil(), "Node poller cannot be nil.")
 
-	var called bool
-	err = np.RegisterListener(func(obj interface{}, err error) {
-		called = true
+		err := np.Run()
+		Expect(err).To(BeNil())
+		// call run a second time
+		err = np.Run()
+		Expect(err).ToNot(BeNil())
+
+		var called bool
+		err = np.RegisterListener(func(obj interface{}, err error) {
+			called = true
+		})
+
+		<-time.After(100 * time.Millisecond)
+		Expect(called).To(BeTrue())
+
+		err = np.Stop()
+		Expect(err).To(BeNil())
+
+		// after stop called should not be reset to true from a running
+		// listener
+		<-time.After(100 * time.Millisecond)
+		called = false
+		Expect(called).To(BeFalse())
+
+		// call stop a second time
+		err = np.Stop()
+		Expect(err).ToNot(BeNil())
 	})
 
-	<-time.After(100 * time.Millisecond)
-	assert.True(t, called)
+	It("polls nodes", func() {
+		np, expectedNodes := initTestData()
 
-	err = np.Stop()
-	assert.Nil(t, err)
+		err := np.Run()
+		Expect(err).To(BeNil())
 
-	// after stop called should not be reset to true from a running
-	// listener
-	<-time.After(100 * time.Millisecond)
-	called = false
-	assert.False(t, called)
+		for _ = range []int{1, 2, 3, 4, 5} {
+			// one is the magic number, 1 routine for the NodePoller
+			assertRegister(np, expectedNodes, false)
+		}
 
-	// call stop a second time
-	err = np.Stop()
-	assert.NotNil(t, err)
-}
+		err = np.Stop()
+		Expect(err).To(BeNil())
 
-func TestNodePoller(t *testing.T) {
-	np, expectedNodes := initTestData(t)
-
-	err := np.Run()
-	assert.Nil(t, err)
-
-	for _ = range []int{1, 2, 3, 4, 5} {
-		// one is the magic number, 1 routine for the NodePoller
-		assertRegister(t, np, expectedNodes, false)
-	}
-
-	err = np.Stop()
-	assert.NoError(t, err)
-
-	assertRegister(t, np, expectedNodes, true)
-}
-
-func TestNodePollerSlowReader(t *testing.T) {
-	np, expectedNodes := initTestData(t)
-
-	err := np.Run()
-	assert.Nil(t, err)
-
-	err = np.RegisterListener(func(obj interface{}, err error) {
-		<-time.After(500 * time.Millisecond)
+		assertRegister(np, expectedNodes, true)
 	})
 
-	for _ = range []int{1, 2, 3, 4, 5} {
-		// two is the magic number, 1 routine1 for the NodePoller
-		// plus the 1 slow reader
-		assertRegister(t, np, expectedNodes, false)
-	}
+	It("polls nodes - SlowReader", func() {
+		np, expectedNodes := initTestData()
 
-	err = np.Stop()
-	assert.NoError(t, err)
+		err := np.Run()
+		Expect(err).To(BeNil())
 
-	assertRegister(t, np, expectedNodes, true)
-}
+		err = np.RegisterListener(func(obj interface{}, err error) {
+			<-time.After(500 * time.Millisecond)
+		})
 
-func TestNodePollerConcurrent(t *testing.T) {
-	np, expectedNodes := initTestData(t)
+		for _ = range []int{1, 2, 3, 4, 5} {
+			// two is the magic number, 1 routine1 for the NodePoller
+			// plus the 1 slow reader
+			assertRegister(np, expectedNodes, false)
+		}
 
-	err := np.Run()
-	assert.Nil(t, err)
+		err = np.Stop()
+		Expect(err).To(BeNil())
 
-	var wg sync.WaitGroup
-	for _ = range []int{0, 1, 2, 3, 4} {
-		wg.Add(1)
-		go func() {
-			// don't test against number of go routines, for this
-			// test they are too transitory because of the concurrency
-			// routine we're using here
-			assertRegister(t, np, expectedNodes, false)
-			wg.Done()
-		}()
-	}
+		assertRegister(np, expectedNodes, true)
+	})
 
-	wg.Wait()
-	err = np.Stop()
-	assert.NoError(t, err)
+	It("polls nodes concurrently", func() {
+		np, expectedNodes := initTestData()
 
-	assertRegister(t, np, expectedNodes, true)
-}
+		err := np.Run()
+		Expect(err).To(BeNil())
 
-func TestNodePollerRegisterWhileStopped(t *testing.T) {
-	fake := fake.NewSimpleClientset()
-	require.NotNil(t, fake, "Mock client cannot be nil")
+		var wg sync.WaitGroup
+		for _ = range []int{0, 1, 2, 3, 4} {
+			wg.Add(1)
+			go func() {
+				defer GinkgoRecover()
+				// don't test against number of go routines, for this
+				// test they are too transitory because of the concurrency
+				// routine we're using here
+				assertRegister(np, expectedNodes, false)
+				wg.Done()
+			}()
+		}
 
-	np := NewNodePoller(fake, 1*time.Millisecond)
-	require.NotNil(t, np, "Node poller cannot be nil")
+		wg.Wait()
+		err = np.Stop()
+		Expect(err).To(BeNil())
 
-	calls := []bool{false, false, false, false, false}
-	for i := range calls {
-		err := np.RegisterListener(func(index int) PollListener {
-			var p PollListener = func(obj interface{}, err error) {
-				if false == calls[index] {
-					calls[index] = true
+		assertRegister(np, expectedNodes, true)
+	})
+
+	It("registers properly while stopped", func() {
+		fake := fake.NewSimpleClientset()
+		Expect(fake).ToNot(BeNil(), "Mock client cannot be nil.")
+
+		np := NewNodePoller(fake, 1*time.Millisecond)
+		Expect(np).ToNot(BeNil(), "Node poller cannot be nil.")
+
+		calls := []bool{false, false, false, false, false}
+		for i := range calls {
+			err := np.RegisterListener(func(index int) PollListener {
+				var p PollListener = func(obj interface{}, err error) {
+					if false == calls[index] {
+						calls[index] = true
+					}
 				}
-			}
-			return p
-		}(i))
-		assert.Nil(t, err)
-	}
+				return p
+			}(i))
+			Expect(err).To(BeNil())
+		}
 
-	err := np.Run()
-	assert.Nil(t, err)
+		err := np.Run()
+		Expect(err).To(BeNil())
 
-	runtime.Gosched()
-	<-time.After(100 * time.Millisecond)
+		runtime.Gosched()
+		<-time.After(100 * time.Millisecond)
 
-	for i := range calls {
-		assert.True(t, calls[i])
-	}
+		for i := range calls {
+			Expect(calls[i]).To(BeTrue())
+		}
 
-	err = np.Stop()
-	<-time.After(100 * time.Millisecond)
+		err = np.Stop()
+		<-time.After(100 * time.Millisecond)
 
-	calls = []bool{
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-	}
+		calls = []bool{
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+		}
 
-	for i := range calls[5:] {
-		err := np.RegisterListener(func(index int) PollListener {
-			var p PollListener = func(obj interface{}, err error) {
-				if false == calls[index] {
-					calls[index] = true
+		for i := range calls[5:] {
+			err := np.RegisterListener(func(index int) PollListener {
+				var p PollListener = func(obj interface{}, err error) {
+					if false == calls[index] {
+						calls[index] = true
+					}
 				}
-			}
-			return p
-		}(i + 5))
-		assert.Nil(t, err)
-	}
+				return p
+			}(i + 5))
+			Expect(err).To(BeNil())
+		}
 
-	err = np.Run()
-	assert.Nil(t, err)
+		err = np.Run()
+		Expect(err).To(BeNil())
 
-	runtime.Gosched()
-	<-time.After(100 * time.Millisecond)
+		runtime.Gosched()
+		<-time.After(100 * time.Millisecond)
 
-	for i := range calls {
-		assert.True(t, calls[i])
-	}
+		for i := range calls {
+			Expect(calls[i]).To(BeTrue())
+		}
 
-	err = np.Stop()
-	assert.NoError(t, err)
-}
+		err = np.Stop()
+		Expect(err).To(BeNil())
+	})
+})

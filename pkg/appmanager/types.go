@@ -19,9 +19,9 @@ package appmanager
 type (
 	// Config of all resources to configure on the BIG-IP
 	BigIPConfig struct {
-		Virtuals           []Virtual           `json:"virtualServers,omitempty"`
-		Pools              []Pool              `json:"pools,omitempty"`
-		Monitors           []Monitor           `json:"monitors,omitempty"`
+		Virtuals           Virtuals            `json:"virtualServers,omitempty"`
+		Pools              Pools               `json:"pools,omitempty"`
+		Monitors           Monitors            `json:"monitors,omitempty"`
 		Policies           []Policy            `json:"l7Policies,omitempty"`
 		CustomProfiles     []CustomProfile     `json:"customProfiles,omitempty"`
 		IRules             []IRule             `json:"iRules,omitempty"`
@@ -76,6 +76,7 @@ type (
 		IAppTables          map[string]iappTableEntry `json:"iappTables,omitempty"`
 		IAppVariables       map[string]string         `json:"iappVariables,omitempty"`
 	}
+	Virtuals []Virtual
 
 	// Pool config
 	Pool struct {
@@ -87,6 +88,7 @@ type (
 		PoolMemberAddrs []string `json:"poolMemberAddrs"`
 		MonitorNames    []string `json:"monitor"`
 	}
+	Pools []Pool
 
 	// Pool health monitor
 	Monitor struct {

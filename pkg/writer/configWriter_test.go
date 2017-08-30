@@ -23,11 +23,10 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -44,10 +43,10 @@ type pseudoFile struct {
 	BadFd     uintptr
 }
 
-func newPseudoFile(t *testing.T, failure int) *pseudoFile {
+func newPseudoFile(failure int) *pseudoFile {
 	f, err := ioutil.TempFile("/tmp", "config-writer-unit-test")
-	require.NoError(t, err)
-	require.NotNil(t, f)
+	Expect(err).To(BeNil())
+	Expect(f).ToNot(BeNil())
 
 	pf := &pseudoFile{
 		FailStyle: failure,
@@ -110,486 +109,406 @@ type simpleTest struct {
 	Test testSection `json:"simple-test"`
 }
 
-func pollError(t *testing.T, doneCh <-chan struct{}, errCh <-chan error) {
-	ticks := 0
-	tickLimit := 100
-	ticker := time.NewTicker(100 * time.Millisecond)
+var _ = Describe("Config Writer Tests", func() {
+	Context("General functionality", func() {
+		pollError := func(doneCh <-chan struct{}, errCh <-chan error) {
+			ticks := 0
+			tickLimit := 100
+			ticker := time.NewTicker(100 * time.Millisecond)
 
-loop:
-	for {
-		select {
-		case e := <-errCh:
-			assert.NotNil(t, e)
-			break loop
-		case <-ticker.C:
+		loop:
+			for {
+				select {
+				case e := <-errCh:
+					Expect(e).ToNot(BeNil())
+					break loop
+				case <-ticker.C:
+				}
+				ticks++
+				if tickLimit == ticks {
+					Fail("Did not receive expected error in 10s.")
+					break loop
+				}
+			}
+			select {
+			case <-doneCh:
+				Fail("Received unexpected done signal.")
+			default:
+			}
 		}
-		ticks++
-		if tickLimit == ticks {
-			assert.FailNow(t, "Did not receive expected error in 10s")
-			break loop
+
+		pollDone := func(doneCh <-chan struct{}, errCh <-chan error) {
+			ticks := 0
+			tickLimit := 100
+			ticker := time.NewTicker(100 * time.Millisecond)
+
+		loop:
+			for {
+				select {
+				case <-doneCh:
+					break loop
+				case <-ticker.C:
+				}
+				ticks++
+				if tickLimit == ticks {
+					Fail("Did not receive expected error in 10s.")
+					break loop
+				}
+			}
+			select {
+			case e := <-errCh:
+				Expect(e).To(BeNil(), "Received unexpected error from good transaction.")
+			default:
+			}
 		}
-	}
-	select {
-	case <-doneCh:
-		assert.False(t, true, "Received unexpected done signal")
-	default:
-	}
-}
 
-func pollDone(t *testing.T, doneCh <-chan struct{}, errCh <-chan error) {
-	ticks := 0
-	tickLimit := 100
-	ticker := time.NewTicker(100 * time.Millisecond)
+		testFile := func(f string, shouldExist bool) {
+			_, err := os.Stat(f)
 
-loop:
-	for {
-		select {
-		case <-doneCh:
-			break loop
-		case <-ticker.C:
+			if false == shouldExist {
+				Expect(err).ToNot(BeNil())
+				Expect(os.IsNotExist(err)).To(BeTrue())
+			} else {
+				Expect(err).To(BeNil())
+				if nil != err {
+					Expect(os.IsNotExist(err)).To(BeFalse())
+				}
+			}
 		}
-		ticks++
-		if tickLimit == ticks {
-			assert.FailNow(t, "Did not receive expected error in 10s")
-			break loop
-		}
-	}
-	select {
-	case e := <-errCh:
-		assert.Nil(t, e, "Received unexpected error from good transaction")
-	default:
-	}
-}
 
-func testFile(t *testing.T, f string, shouldExist bool) {
-	_, err := os.Stat(f)
+		var cw Writer
+		var err error
+		var f string
 
-	if false == shouldExist {
-		assert.NotNil(t, err)
-		assert.True(t, os.IsNotExist(err))
-	} else {
-		assert.Nil(t, err)
-		if nil != err {
-			assert.False(t, os.IsNotExist(err))
-		}
-	}
-}
+		BeforeEach(func() {
+			cw, err = NewConfigWriter()
+			Expect(err).To(BeNil())
+			Expect(cw).ToNot(BeNil())
 
-func TestConfigWriterGetters(t *testing.T) {
-	cw, err := NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, cw)
+			f = cw.GetOutputFilename()
+		})
 
-	defer cw.Stop()
+		AfterEach(func() {
+			cw.Stop()
+			_, err := os.Stat(f)
+			Expect(os.IsExist(err)).To(BeFalse())
+		})
 
-	f := cw.GetOutputFilename()
+		It("has functional getters", func() {
+			dir := filepath.Dir(f)
+			_, err = os.Stat(dir)
+			Expect(err).To(BeNil())
+		})
 
-	dir := filepath.Dir(f)
-	_, err = os.Stat(dir)
-	assert.NoError(t, err)
-}
+		It("doesn't write when stopped", func() {
+			testFile(f, false)
 
-func TestConfigWriterCreateStop(t *testing.T) {
-	cw, err := NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, cw)
+			doneCh, errCh, err := cw.SendSection("write-after-start", struct{}{})
+			Expect(err).To(BeNil())
 
-	f := cw.GetOutputFilename()
-	testFile(t, f, false)
+			pollDone(doneCh, errCh)
+			testFile(f, true)
 
-	doneCh, errCh, err := cw.SendSection("write-after-start", struct{}{})
-	assert.Nil(t, err)
+			cw.Stop()
+			testFile(f, false)
 
-	pollDone(t, doneCh, errCh)
-	testFile(t, f, true)
+			// Maybe overdone here but stopping and writing multiple times to ensure
+			// there isn't a deadlock lurking in the Stop functionality.
+			cw.SendSection("write-after-stop", struct{}{})
+			cw.Stop()
+			cw.SendSection("write-after-stop", struct{}{})
+			cw.Stop()
+			cw.SendSection("write-after-stop", struct{}{})
+			testFile(f, false)
+		})
 
-	cw.Stop()
-	testFile(t, f, false)
+		It("doesn't write bad json", func() {
+			badJSON := map[struct{ key string }]string{
+				struct{ key string }{
+					key: "one",
+				}: "something goes here",
+				struct{ key string }{
+					key: "two",
+				}: "some more here",
+				struct{ key string }{
+					key: "three",
+				}: "this really shouldn't marshal",
+			}
 
-	// Maybe overdone here but stopping and writing multiple times to ensure
-	// there isn't a deadlock lurking in the Stop functionality.
-	cw.SendSection("write-after-stop", struct{}{})
-	cw.Stop()
-	cw.SendSection("write-after-stop", struct{}{})
-	cw.Stop()
-	cw.SendSection("write-after-stop", struct{}{})
-	testFile(t, f, false)
-}
+			doneCh, errCh, err := cw.SendSection("bad", badJSON)
+			Expect(err).To(BeNil())
 
-func TestConfigWriterBadJson(t *testing.T) {
-	cw, err := NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, cw)
+			pollError(doneCh, errCh)
+		})
 
-	f := cw.GetOutputFilename()
+		It("handles simple writes", func() {
+			testData := simpleTest{
+				Test: testSection{
+					Field1: "test-field1",
+					Field2: 121232343,
+					Field3: &testSubSection{
+						SubField1: "test-sub-field1",
+						SubField2: 42,
+					},
+				},
+			}
 
-	defer func() {
-		cw.Stop()
-		_, err := os.Stat(f)
-		assert.False(t, os.IsExist(err))
-	}()
+			testFile(f, false)
 
-	badJSON := map[struct{ key string }]string{
-		struct{ key string }{
-			key: "one",
-		}: "something goes here",
-		struct{ key string }{
-			key: "two",
-		}: "some more here",
-		struct{ key string }{
-			key: "three",
-		}: "this really shouldn't marshal",
-	}
+			doneCh, errCh, err := cw.SendSection("", testData.Test)
+			Expect(doneCh).To(BeNil())
+			Expect(errCh).To(BeNil())
+			Expect(err).ToNot(BeNil())
 
-	doneCh, errCh, err := cw.SendSection("bad", badJSON)
-	assert.Nil(t, err)
+			testFile(f, false)
 
-	pollError(t, doneCh, errCh)
-}
+			doneCh, errCh, err = cw.SendSection("simple-test", testData.Test)
+			Expect(err).To(BeNil())
 
-func TestConfigWriterSimpleWrite(t *testing.T) {
-	cw, err := NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, cw)
+			pollDone(doneCh, errCh)
+			testFile(f, true)
 
-	f := cw.GetOutputFilename()
+			expected, err := json.Marshal(testData)
+			Expect(err).To(BeNil())
 
-	defer func() {
-		cw.Stop()
-		_, err := os.Stat(f)
-		assert.False(t, os.IsExist(err))
-	}()
+			written, err := ioutil.ReadFile(f)
+			Expect(err).To(BeNil())
+			Expect(written).To(Equal(expected))
 
-	testData := simpleTest{
-		Test: testSection{
-			Field1: "test-field1",
-			Field2: 121232343,
-			Field3: &testSubSection{
-				SubField1: "test-sub-field1",
-				SubField2: 42,
+			// test empty section and overwrite
+			empty := struct {
+				Section struct {
+					Field string `json:"field,omitempty"`
+				} `json:"simple-test"`
+			}{Section: struct {
+				Field string `json:"field,omitempty"`
+			}{
+				Field: "",
 			},
-		},
-	}
+			}
+			doneCh, errCh, err = cw.SendSection("simple-test", empty.Section)
+			Expect(err).To(BeNil())
 
-	testFile(t, f, false)
+			pollDone(doneCh, errCh)
+			testFile(f, true)
 
-	doneCh, errCh, err := cw.SendSection("", testData.Test)
-	assert.Nil(t, doneCh)
-	assert.Nil(t, errCh)
-	assert.NotNil(t, err)
+			expected, err = json.Marshal(empty)
+			Expect(err).To(BeNil())
 
-	testFile(t, f, false)
+			written, err = ioutil.ReadFile(f)
+			Expect(err).To(BeNil())
+			Expect(written).To(Equal(expected))
 
-	doneCh, errCh, err = cw.SendSection("simple-test", testData.Test)
-	assert.Nil(t, err)
+			// add section back
+			doneCh, errCh, err = cw.SendSection("simple-test", testData.Test)
+			Expect(err).To(BeNil())
 
-	pollDone(t, doneCh, errCh)
+			pollDone(doneCh, errCh)
+			testFile(f, true)
 
-	testFile(t, f, true)
+			expected, err = json.Marshal(testData)
+			Expect(err).To(BeNil())
 
-	expected, err := json.Marshal(testData)
-	assert.Nil(t, err)
+			written, err = ioutil.ReadFile(f)
+			Expect(err).To(BeNil())
+			Expect(written).To(Equal(expected))
+		})
 
-	written, err := ioutil.ReadFile(f)
-	assert.Nil(t, err)
+		It("can write concurrently", func() {
+			testData := map[string]testSection{
+				"concurrent-1": testSection{
+					Field1: "concur1-field1",
+					Field2: 121232343,
+					Field3: &testSubSection{
+						SubField1: "concur1-sub-field1",
+						SubField2: 42,
+					},
+				},
+				"concurrent-2": testSection{
+					Field1: "concur2-field1",
+					Field2: 9999,
+					Field3: &testSubSection{
+						SubField1: "concur2-sub-field1",
+						SubField2: 1111,
+					},
+				},
+				"concurrent-3": testSection{
+					Field1: "concur3-field1",
+					Field2: 2222,
+					Field3: &testSubSection{
+						SubField1: "concur3-sub-field1",
+						SubField2: 10101,
+					},
+				},
+				"concurrent-4": testSection{
+					Field1: "concur4-field1",
+					Field2: 333444,
+					Field3: &testSubSection{
+						SubField1: "concur4-sub-field1",
+						SubField2: 222211114,
+					},
+				},
+				"concurrent-5": testSection{
+					Field1: "concur5-field1",
+					Field2: 1,
+					Field3: &testSubSection{
+						SubField1: "concur5-sub-field1",
+						SubField2: 2,
+					},
+				},
+			}
 
-	assert.EqualValues(t, expected, written)
+			var wg sync.WaitGroup
+			for k, v := range testData {
+				wg.Add(1)
+				go func(field string, data interface{}) {
+					defer GinkgoRecover()
+					doneCh, errCh, err := cw.SendSection(field, data)
+					Expect(err).To(BeNil())
 
-	// test empty section and overwrite
-	empty := struct {
-		Section struct {
-			Field string `json:"field,omitempty"`
-		} `json:"simple-test"`
-	}{Section: struct {
-		Field string `json:"field,omitempty"`
-	}{
-		Field: "",
-	},
-	}
-	doneCh, errCh, err = cw.SendSection("simple-test", empty.Section)
-	assert.Nil(t, err)
+					pollDone(doneCh, errCh)
+					testFile(f, true)
 
-	pollDone(t, doneCh, errCh)
+					wg.Done()
+				}(k, v)
+			}
+			wg.Wait()
 
-	testFile(t, f, true)
+			expected, err := json.Marshal(testData)
+			Expect(err).To(BeNil())
 
-	expected, err = json.Marshal(empty)
-	assert.Nil(t, err)
+			written, err := ioutil.ReadFile(f)
+			Expect(err).To(BeNil())
 
-	written, err = ioutil.ReadFile(f)
-	assert.Nil(t, err)
-
-	assert.EqualValues(t, expected, written)
-
-	// add section back
-	doneCh, errCh, err = cw.SendSection("simple-test", testData.Test)
-	assert.Nil(t, err)
-
-	pollDone(t, doneCh, errCh)
-
-	testFile(t, f, true)
-
-	expected, err = json.Marshal(testData)
-	assert.Nil(t, err)
-
-	written, err = ioutil.ReadFile(f)
-	assert.Nil(t, err)
-
-	assert.EqualValues(t, expected, written)
-}
-
-func TestConfigWriterConcurrentWrite(t *testing.T) {
-	cw, err := NewConfigWriter()
-	assert.Nil(t, err)
-	require.NotNil(t, cw)
-
-	f := cw.GetOutputFilename()
-
-	defer func() {
-		cw.Stop()
-		_, err := os.Stat(f)
-		assert.True(t, os.IsNotExist(err))
-	}()
-
-	testData := map[string]testSection{
-		"concurrent-1": testSection{
-			Field1: "concur1-field1",
-			Field2: 121232343,
-			Field3: &testSubSection{
-				SubField1: "concur1-sub-field1",
-				SubField2: 42,
-			},
-		},
-		"concurrent-2": testSection{
-			Field1: "concur2-field1",
-			Field2: 9999,
-			Field3: &testSubSection{
-				SubField1: "concur2-sub-field1",
-				SubField2: 1111,
-			},
-		},
-		"concurrent-3": testSection{
-			Field1: "concur3-field1",
-			Field2: 2222,
-			Field3: &testSubSection{
-				SubField1: "concur3-sub-field1",
-				SubField2: 10101,
-			},
-		},
-		"concurrent-4": testSection{
-			Field1: "concur4-field1",
-			Field2: 333444,
-			Field3: &testSubSection{
-				SubField1: "concur4-sub-field1",
-				SubField2: 222211114,
-			},
-		},
-		"concurrent-5": testSection{
-			Field1: "concur5-field1",
-			Field2: 1,
-			Field3: &testSubSection{
-				SubField1: "concur5-sub-field1",
-				SubField2: 2,
-			},
-		},
-	}
-
-	var wg sync.WaitGroup
-	for k, v := range testData {
-		wg.Add(1)
-		go func(field string, data interface{}) {
-			doneCh, errCh, err := cw.SendSection(field, data)
-			assert.Nil(t, err)
-
-			pollDone(t, doneCh, errCh)
-
-			testFile(t, f, true)
-
-			wg.Done()
-		}(k, v)
-	}
-	wg.Wait()
-
-	expected, err := json.Marshal(testData)
-	assert.Nil(t, err)
-
-	written, err := ioutil.ReadFile(f)
-	assert.Nil(t, err)
-
-	assert.EqualValues(t, expected, written)
-}
-
-func TestConfigWriterWriteFailOpen(t *testing.T) {
-	cw := &configWriter{
-		configFile: "/this-file/really/probably/will/not/exist",
-		stopCh:     make(chan struct{}),
-		dataCh:     make(chan configSection),
-		sectionMap: make(map[string]interface{}),
-	}
-
-	var wrote bool
-	var err error
-	require.NotPanics(t, func() {
-		wrote, err = cw.lockAndWrite([]byte("hello"))
+			Expect(written).To(Equal(expected))
+		})
 	})
-	assert.False(t, wrote)
-	assert.Error(t, err)
 
-	expected := "open /this-file/really/probably/will/not/exist: no such file or directory"
-	assert.Equal(t, expected, err.Error())
-}
+	Context("Failures", func() {
+		var cw *configWriter
+		BeforeEach(func() {
+			cw = &configWriter{
+				configFile: "/this-file/really/probably/will/not/exist",
+				stopCh:     make(chan struct{}),
+				dataCh:     make(chan configSection),
+				sectionMap: make(map[string]interface{}),
+			}
+		})
 
-func TestConfigWriterFailLock(t *testing.T) {
-	cw := &configWriter{
-		configFile: "/this-file/really/probably/will/not/exist",
-		stopCh:     make(chan struct{}),
-		dataCh:     make(chan configSection),
-		sectionMap: make(map[string]interface{}),
-	}
+		Context("No file", func() {
+			It("fails to open non-existent files", func() {
+				var wrote bool
+				var err error
+				Expect(func() {
+					wrote, err = cw.lockAndWrite([]byte("hello"))
+				}).ToNot(Panic())
+				Expect(wrote).To(BeFalse())
+				Expect(err).ToNot(BeNil())
 
-	// go does not have an idea of a File interface, doing the best
-	// we can to try and create some negative behaviors
-	mockFile := newPseudoFile(t, failLock)
-	require.NotNil(t, mockFile)
-	defer func() {
-		err := mockFile.RealFile.Close()
-		assert.NoError(t, err)
+				expected := "open /this-file/really/probably/will/not/exist: no such file or directory"
+				Expect(err.Error()).To(Equal(expected))
+			})
+		})
 
-		os.Remove(mockFile.RealFile.Name())
-	}()
+		Context("With file", func() {
+			var mockFile *pseudoFile
 
-	var wrote bool
-	var err error
-	require.NotPanics(t, func() {
-		wrote, err = cw._lockAndWrite(mockFile, []byte("hello"))
+			AfterEach(func() {
+				err := mockFile.RealFile.Close()
+				Expect(err).To(BeNil())
+
+				os.Remove(mockFile.RealFile.Name())
+			})
+
+			It("FailLock ", func() {
+				// go does not have an idea of a File interface, doing the best
+				// we can to try and create some negative behaviors
+				mockFile = newPseudoFile(failLock)
+				Expect(mockFile).ToNot(BeNil())
+
+				var wrote bool
+				var err error
+				Expect(func() {
+					wrote, err = cw._lockAndWrite(mockFile, []byte("hello"))
+				}).ToNot(Panic())
+				Expect(wrote).To(BeFalse())
+				Expect(err).ToNot(BeNil())
+
+				expected := "bad file descriptor"
+				Expect(err.Error()).To(Equal(expected))
+			})
+
+			It("FailUnlock", func() {
+				// go does not have an idea of a File interface, doing the best
+				// we can to try and create some negative behaviors
+				mockFile = newPseudoFile(failUnlock)
+				Expect(mockFile).ToNot(BeNil())
+
+				var wrote bool
+				var err error
+				Expect(func() {
+					wrote, err = cw._lockAndWrite(mockFile, []byte("hello"))
+				}).ToNot(Panic())
+				Expect(wrote).To(BeFalse())
+				Expect(err).ToNot(BeNil())
+
+				expected := "bad file descriptor"
+				Expect(err.Error()).To(Equal(expected))
+			})
+
+			It("FailTrunc", func() {
+				// go does not have an idea of a File interface, doing the best
+				// we can to try and create some negative behaviors
+				mockFile = newPseudoFile(failTruncate)
+				Expect(mockFile).ToNot(BeNil())
+
+				var wrote bool
+				var err error
+				Expect(func() {
+					wrote, err = cw._lockAndWrite(mockFile, []byte("hello"))
+				}).ToNot(Panic())
+				Expect(wrote).To(BeFalse())
+				Expect(err).ToNot(BeNil())
+
+				expected := "mock file truncate error"
+				Expect(err.Error()).To(Equal(expected))
+			})
+
+			It("FailWrite", func() {
+				// go does not have an idea of a File interface, doing the best
+				// we can to try and create some negative behaviors
+				mockFile = newPseudoFile(failWrite)
+				Expect(mockFile).ToNot(BeNil())
+
+				var wrote bool
+				var err error
+				Expect(func() {
+					wrote, err = cw._lockAndWrite(mockFile, []byte("hello"))
+				}).ToNot(Panic())
+				Expect(wrote).To(BeFalse())
+				Expect(err).ToNot(BeNil())
+
+				expected := "mock file write error"
+				Expect(err.Error()).To(Equal(expected))
+			})
+
+			It("FailWrite", func() {
+				// go does not have an idea of a File interface, doing the best
+				// we can to try and create some negative behaviors
+				mockFile = newPseudoFile(failShortWrite)
+				Expect(mockFile).ToNot(BeNil())
+
+				var wrote bool
+				var err error
+				Expect(func() {
+					wrote, err = cw._lockAndWrite(mockFile, []byte("hello"))
+				}).ToNot(Panic())
+				Expect(wrote).To(BeTrue())
+				Expect(err).ToNot(BeNil())
+
+				expected := "mock file short write"
+				Expect(err.Error()).To(Equal(expected))
+			})
+		})
 	})
-	assert.False(t, wrote)
-	assert.Error(t, err)
-
-	expected := "bad file descriptor"
-	assert.Equal(t, expected, err.Error())
-}
-
-func TestConfigWriterFailUnlock(t *testing.T) {
-	cw := &configWriter{
-		configFile: "/this-file/really/probably/will/not/exist",
-		stopCh:     make(chan struct{}),
-		dataCh:     make(chan configSection),
-		sectionMap: make(map[string]interface{}),
-	}
-
-	// go does not have an idea of a File interface, doing the best
-	// we can to try and create some negative behaviors
-	mockFile := newPseudoFile(t, failUnlock)
-	require.NotNil(t, mockFile)
-	defer func() {
-		err := mockFile.RealFile.Close()
-		assert.NoError(t, err)
-
-		os.Remove(mockFile.RealFile.Name())
-	}()
-
-	var wrote bool
-	var err error
-	require.NotPanics(t, func() {
-		wrote, err = cw._lockAndWrite(mockFile, []byte("hello"))
-	})
-	assert.False(t, wrote)
-	assert.Error(t, err)
-
-	expected := "bad file descriptor"
-	assert.Equal(t, expected, err.Error())
-}
-
-func TestConfigWriterFailTrunc(t *testing.T) {
-	cw := &configWriter{
-		configFile: "/this-file/really/probably/will/not/exist",
-		stopCh:     make(chan struct{}),
-		dataCh:     make(chan configSection),
-		sectionMap: make(map[string]interface{}),
-	}
-
-	// go does not have an idea of a File interface, doing the best
-	// we can to try and create some negative behaviors
-	mockFile := newPseudoFile(t, failTruncate)
-	require.NotNil(t, mockFile)
-	defer func() {
-		err := mockFile.RealFile.Close()
-		assert.NoError(t, err)
-
-		os.Remove(mockFile.RealFile.Name())
-	}()
-
-	var wrote bool
-	var err error
-	require.NotPanics(t, func() {
-		wrote, err = cw._lockAndWrite(mockFile, []byte("hello"))
-	})
-	assert.False(t, wrote)
-	assert.Error(t, err)
-
-	expected := "mock file truncate error"
-	assert.Equal(t, expected, err.Error())
-}
-
-func TestConfigWriterFailWrite(t *testing.T) {
-	cw := &configWriter{
-		configFile: "/this-file/really/probably/will/not/exist",
-		stopCh:     make(chan struct{}),
-		dataCh:     make(chan configSection),
-		sectionMap: make(map[string]interface{}),
-	}
-
-	// go does not have an idea of a File interface, doing the best
-	// we can to try and create some negative behaviors
-	mockFile := newPseudoFile(t, failWrite)
-	require.NotNil(t, mockFile)
-	defer func() {
-		err := mockFile.RealFile.Close()
-		assert.NoError(t, err)
-
-		os.Remove(mockFile.RealFile.Name())
-	}()
-
-	var wrote bool
-	var err error
-	require.NotPanics(t, func() {
-		wrote, err = cw._lockAndWrite(mockFile, []byte("hello"))
-	})
-	assert.False(t, wrote)
-	assert.Error(t, err)
-
-	expected := "mock file write error"
-	assert.Equal(t, expected, err.Error())
-}
-
-func TestConfigWriterFailShortWrite(t *testing.T) {
-	cw := &configWriter{
-		configFile: "/this-file/really/probably/will/not/exist",
-		stopCh:     make(chan struct{}),
-		dataCh:     make(chan configSection),
-		sectionMap: make(map[string]interface{}),
-	}
-
-	// go does not have an idea of a File interface, doing the best
-	// we can to try and create some negative behaviors
-	mockFile := newPseudoFile(t, failShortWrite)
-	require.NotNil(t, mockFile)
-	defer func() {
-		err := mockFile.RealFile.Close()
-		assert.NoError(t, err)
-
-		os.Remove(mockFile.RealFile.Name())
-	}()
-
-	var wrote bool
-	var err error
-	require.NotPanics(t, func() {
-		wrote, err = cw._lockAndWrite(mockFile, []byte("hello"))
-	})
-	assert.True(t, wrote)
-	assert.Error(t, err)
-
-	expected := "mock file short write"
-	assert.Equal(t, expected, err.Error())
-}
+})

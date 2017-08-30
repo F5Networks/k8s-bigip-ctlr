@@ -33,6 +33,7 @@ coverage.out
 coverage.html
 python/.cache
 /venv.local
+*.coverprofile
 
 # Docs
 docs/_build*

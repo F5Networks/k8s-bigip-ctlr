@@ -30,7 +30,7 @@ RUN microdnf --enablerepo=rhel-7-server-rpms --enablerepo=rhel-7-server-optional
     source scl_source enable python27 && \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /tmp/k8s-runtime-requirements.txt && \
-    python -m pip uninstall -y pip setuptools && \
+    python -m pip uninstall -y pip && \
     microdnf remove golang-github-cpuguy83-go-md2man git fipscheck fipscheck-lib groff-base \
       less libedit libgnome-keyring openssh openssh-clients perl perl-Carp perl-Encode \
       perl-Error perl-Exporter perl-File-Path perl-File-Temp perl-Filter perl-Getopt-Long \

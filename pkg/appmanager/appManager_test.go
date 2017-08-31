@@ -667,7 +667,7 @@ func validateServiceIps(serviceName, namespace string, svcPorts []v1.ServicePort
 	for _, p := range svcPorts {
 		vsMap, ok := resources.GetAll(serviceKey{serviceName, p.Port, namespace})
 		Expect(ok).To(BeTrue())
-		Expect(vsMap).ToNot(BeNil())
+		Expect(vsMap).To(BeNil())
 		for _, rs := range vsMap {
 			var expectedIps []string
 			if ips != nil {

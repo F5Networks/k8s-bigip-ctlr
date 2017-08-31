@@ -4,6 +4,11 @@ pipeline {
   agent {
     label "rhel7"
   }
+  options {
+        ansiColor('xterm')
+        timestamps()
+        timeout(time: 150, unit: "MINUTES")
+  }
   stages {
     stage("build") {
       steps {

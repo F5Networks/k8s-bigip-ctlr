@@ -1,8 +1,8 @@
 {
     "ltm": {
+        "iRules": [],
         "iapps": [],
         "internalDataGroups": [],
-        "iRules": [],
         "l7Policies": [],
         "monitors": [],
         "pools": [
@@ -35,7 +35,6 @@
                 "enabled": true,
                 "ipProtocol": "tcp",
                 "name": "invalid_sslProfile0_configmap",
-                "policies": [],
                 "pool": "invalid_sslProfile0_configmap",
                 "profiles": [
                     {
@@ -44,25 +43,19 @@
                         "partition": "Common"
                     }
                 ],
-                "rules": [],
                 "sourceAddressTranslation": {
                     "type": "automap"
-                },
-                "virtual_address": "10.128.10.240"
+                }
             },
             {
                 "destination": "/k8s/10.128.10.241:5052",
                 "enabled": true,
                 "ipProtocol": "udp",
                 "name": "invalid_sslProfile1_configmap",
-                "policies": [],
                 "pool": "invalid_sslProfile1_configmap",
-                "profiles": [],
-                "rules": [],
                 "sourceAddressTranslation": {
                     "type": "automap"
-                },
-                "virtual_address": "10.128.10.241"
+                }
             }
         ]
     },

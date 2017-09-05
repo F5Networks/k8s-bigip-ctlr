@@ -18,7 +18,6 @@ from __future__ import absolute_import
 import argparse
 import fcntl
 import hashlib
-import ipaddress
 import json
 import logging
 import os
@@ -129,18 +128,6 @@ def log_sequence(prefix, sequence_to_log):
         log.debug(prefix + ': %s', (', '.join(sequence_to_log)))
 
 
-def get_protocol(protocol):
-    """Return the protocol (tcp or udp)."""
-    if str(protocol).lower() == 'tcp':
-        return 'tcp'
-    if str(protocol).lower() == 'http':
-        return 'tcp'
-    if str(protocol).lower() == 'udp':
-        return 'udp'
-    else:
-        return None
-
-
 DEFAULT_LOG_LEVEL = logging.INFO
 DEFAULT_VERIFY_INTERVAL = 30.0
 
@@ -183,19 +170,13 @@ class K8sCloudServiceManager():
         """ Return the managed partition."""
         return self._cccl.get_partition()
 
-    def _apply_config(self, config):
+    def _apply_ltm_config(self, config):
         """Apply the configuration to the BIG-IP.
 
         Args:
             config: BIG-IP config dict
         """
-        incomplete = 0
-        if 'ltm' in config:
-            incomplete = self._cccl.apply_config(config['ltm'])
-        if 'network' in config:
-            incomplete += self._apply_network_config(config['network'])
-
-        return incomplete
+        return self._cccl.apply_config(config)
 
     def _apply_network_config(self, config):
         """Apply the network configuration to the BIG-IP.
@@ -205,8 +186,8 @@ class K8sCloudServiceManager():
         """
         if 'fdb' in config:
             return self._apply_network_fdb_config(config['fdb'])
-
-        return 0
+        else:
+            return 0
 
     def _apply_network_fdb_config(self, fdb_config):
         """Apply the network fdb configuration to the BIG-IP.
@@ -356,21 +337,18 @@ class ConfigError(Exception):
         Exception.__init__(self, msg)
 
 
-def create_config_kubernetes(partition, config):
+def create_ltm_config_kubernetes(partition, config):
     """Create a BIG-IP configuration from the Kubernetes configuration.
 
     Args:
         config: Kubernetes BigIP config
     """
-    log.debug("Generating config for BIG-IP from Kubernetes state")
-    f5 = {'ltm': {}, 'network': {}}
-    if 'openshift-sdn' in config:
-        f5['network'] = create_network_config_kubernetes(config)
-    if 'resources' in config and 'virtualServers' in config['resources']:
-        f5['ltm'] = create_ltm_config_kubernetes(partition,
-                                                 config['resources'])
+    ltm = {}
+    if 'resources' in config and partition in config['resources']:
+        ltm = config['resources'][partition]
 
-    return f5
+    log.debug("Service Config: %s", json.dumps(ltm))
+    return ltm
 
 
 def create_network_config_kubernetes(config):
@@ -381,247 +359,9 @@ def create_network_config_kubernetes(config):
     """
     f5_network = {}
     if 'openshift-sdn' in config:
-        openshift_sdn = config['openshift-sdn']
-        f5_network['fdb'] = openshift_sdn
+        f5_network['fdb'] = config['openshift-sdn']
+
     return f5_network
-
-
-def append_ssl_profile(profiles, profName, context):
-    profile = (profName.split('/'))
-    if len(profile) != 2:
-        log.error("Could not parse partition and name "
-                  "from SSL profile: %s", profName)
-    else:
-        profiles.append({'partition': profile[0],
-                         'name': profile[1],
-                         'context': context})
-
-
-def create_ltm_config_kubernetes(partition, config):
-    """Create a BIG-IP LTM configuration from the Kubernetes configuration.
-
-    Args:
-        config: Kubernetes BigIP config which contains a svc list
-    """
-    # FIXME (darzins): Move all conversion for CCCL schema to the golang
-    # frontend so that we're doing conversion in one step, not two
-    configuration = {
-        'virtualServers': [],
-        'l7Policies': [],
-        'pools': [],
-        'monitors': [],
-        'iapps': [],
-        'iRules': [],
-        'internalDataGroups': []
-    }
-
-    f5_services = {}
-
-    # reformat policies
-    for policy in config.get('l7Policies', []):
-        if policy.get('partition', None) == partition:
-            del policy['partition']
-            configuration['l7Policies'].append(policy)
-
-    # reformat monitors
-    for monitor in config.get('monitors', []):
-        if monitor.get('partition', None) == partition:
-            if 'protocol' in monitor:
-                monitor['type'] = monitor['protocol']
-                del monitor['protocol']
-            del monitor['partition']
-
-            configuration['monitors'].append(monitor)
-
-    # reformat iRules
-    for irule in config.get('iRules', []):
-        if irule.get('partition', None) == partition:
-            del irule['partition']
-            configuration['iRules'].append(irule)
-
-    # reformat internalDataGroups
-    for idg in config.get('internalDataGroups', []):
-        if idg.get('partition', None) == partition:
-            del idg['partition']
-            configuration['internalDataGroups'].append(idg)
-
-    svcs = config['virtualServers']
-    for svc in svcs:
-        vs_partition = svc['partition']
-        # Only handle application if it's partition is one that this script
-        # is responsible for
-        if partition != vs_partition:
-            continue
-
-        f5_service = {}
-        vs_name = svc['name']
-
-        policies = svc.get('policies', [])
-        profiles = svc.get('profiles', [])
-
-        pool = {}
-
-        # No address for this port
-        if (('virtualAddress' not in svc or
-                'bindAddr' not in svc['virtualAddress']) and
-                'iapp' not in svc):
-            log.debug("Creating pool only for %s", vs_name)
-        elif ('iapp' not in svc and 'bindAddr' not in
-                svc['virtualAddress']):
-            continue
-
-        f5_service['name'] = vs_name
-        f5_service['rules'] = svc.get('rules', [])
-
-        if 'iapp' in svc:
-            cfg = {'tables': {}}
-            for k, v in {'template': 'iapp',
-                         'poolMemberTable': 'iappPoolMemberTable',
-                         'tables': 'iappTables',
-                         'variables': 'iappVariables',
-                         'options': 'iappOptions'}.iteritems():
-                if v in svc:
-                    cfg[k] = svc[v]
-
-            members = []
-            for pool in config.get('pools', []):
-                if pool['name'] == f5_service['name']:
-                    if 'poolMemberAddrs' in pool:
-                        for member in pool['poolMemberAddrs']:
-                            members.append({
-                                'address': member.split(':')[0],
-                                'port': int(member.split(':')[1])
-                            })
-
-            iapp = {
-                'name': f5_service['name'],
-                'template': cfg['template'],
-                'variables': cfg['variables'],
-                'tables': cfg['tables'],
-                'options': cfg['options']
-            }
-
-            # Add the poolMemberTable
-            if 'poolMemberTable' in cfg:
-                cfg['poolMemberTable']['members'] = members
-                iapp['poolMemberTable'] = cfg['poolMemberTable']
-
-            configuration['iapps'].append(iapp)
-        else:
-            # FIXME(garyr): profiles should be set properly the controller.
-            # Parse the SSL profile into partition and name
-            if 'sslProfile' in svc:
-                # The sslProfile item can be empty or have either
-                # 'f5ProfileName' or 'f5ProfileNames', not both.
-                if 'f5ProfileName' in svc['sslProfile']:
-                    append_ssl_profile(
-                        profiles, svc['sslProfile']['f5ProfileName'],
-                        'clientside')
-                elif 'f5ProfileNames' in svc['sslProfile']:
-                    for profName in svc['sslProfile']['f5ProfileNames']:
-                        append_ssl_profile(profiles, profName, 'clientside')
-
-            # Add appropriate profiles
-            profile_http = {
-                'partition': 'Common',
-                'name': 'http',
-                'context': 'all'
-                }
-            profile_tcp = {
-                'partition': 'Common',
-                'name': 'tcp',
-                'context': 'all'
-                }
-            if str(svc['mode']).lower() == 'http':
-                if profile_http not in profiles:
-                    profiles.append(profile_http)
-            elif get_protocol(svc['mode']) == 'tcp':
-                if profile_tcp not in profiles:
-                    profiles.append(profile_tcp)
-
-            if ('virtualAddress' in svc and
-                    'bindAddr' in svc['virtualAddress']):
-                f5_service['virtual_address'] = \
-                    svc['virtualAddress']['bindAddr']
-
-                addr = svc['virtualAddress']['bindAddr']
-                port = svc['virtualAddress']['port']
-                destination = None
-                if isinstance(ipaddress.ip_address(addr),
-                              ipaddress.IPv6Address):
-                    destination = ("/%s/%s.%d" %
-                                   (vs_partition, addr, port))
-                else:
-                    destination = ("/%s/%s:%d" %
-                                   (vs_partition, addr, port))
-
-                f5_service.update({
-                    'enabled': True,
-                    'ipProtocol': get_protocol(svc['mode']),
-                    'destination': destination,
-                    'sourceAddressTranslation': {'type': 'automap'},
-                    'profiles': profiles,
-                    'policies': policies
-                })
-                if 'pool' in svc:
-                    f5_service['pool'] = str(svc['pool'])
-            f5_services.update({vs_name: f5_service})
-
-            if f5_service.get('destination', None) is not None:
-                configuration['virtualServers'].append(f5_service)
-
-    # FIXME(garyr): CCCL presently expects pools slightly differently than
-    # we get from the controller, so convert to the expected format here.
-    for pool in config.get('pools', []):
-        found_svc = False
-        new_pool = {}
-        members = []
-        pname = pool['name']
-        new_pool['name'] = pname
-        if 'monitor' in pool and pool['monitor']:
-            new_pool['monitors'] = pool['monitor']
-        new_pool['loadBalancingMode'] = pool['loadBalancingMode']
-
-        # FIXME(berman): This is still very hacky until we fix the bug
-        # where pools are created for iapps; this conditional ensures we create
-        # pools in all cases except in the iapp case
-        vname = pname.rsplit('_', 1)[0]
-        if (pool['name'] in f5_services or vname in f5_services
-                or pool['name'].startswith('openshift_')):
-            if pool.get('poolMemberAddrs', None) is not None:
-                found_svc = True
-                for member in pool['poolMemberAddrs']:
-                    members.append({
-                        'address': member.split(':')[0],
-                        'port': int(member.split(':')[1]),
-                        'session': 'user-enabled'
-                    })
-                new_pool['members'] = members
-            configuration['pools'].append(new_pool)
-
-        if not found_svc:
-            log.info(
-                'Pool "{}" has service "{}", which is empty - '
-                'configuring 0 pool members.'.format(
-                    pname, pool['serviceName']))
-
-    # Append the protocol to the monitor names to differentiate them.
-    # Also add a monitor index to the name to be consistent with the
-    # marathon-bigip-ctlr. Since the monitor names are already unique here,
-    # appending a '0' is sufficient.
-    for monitor in configuration.get('monitors', []):
-        old_name = monitor['name']
-        old_path = '/' + partition + '/' + old_name
-        suffix = '_0_' + monitor['type']
-        monitor['name'] += suffix
-
-        for pool in configuration.get('pools', []):
-            if 'monitors' in pool:
-                pool['monitors'] = [mon + suffix if mon == old_path else mon
-                                    for mon in pool['monitors']]
-
-    log.debug("Service Config: %s", json.dumps(configuration))
-    return configuration
 
 
 def _create_custom_profiles(mgmt, partition, custom_profiles):
@@ -629,25 +369,23 @@ def _create_custom_profiles(mgmt, partition, custom_profiles):
 
     customProfiles = False
     for profile in custom_profiles:
-        if profile['partition'] == partition:
-            if profile['context'] == 'clientside':
-                incomplete += _create_client_ssl_profile(mgmt, profile)
-                customProfiles = True
-            elif profile['context'] == 'serverside':
-                incomplete += _create_server_ssl_profile(mgmt, profile)
-                customProfiles = True
-            else:
-                log.error(
-                    "Only client or server custom profiles are supported.")
+        if profile['context'] == 'clientside':
+            incomplete += _create_client_ssl_profile(mgmt, partition, profile)
+            customProfiles = True
+        elif profile['context'] == 'serverside':
+            incomplete += _create_server_ssl_profile(mgmt, partition, profile)
+            customProfiles = True
+        else:
+            log.error(
+                "Only client or server custom profiles are supported.")
 
     return customProfiles, incomplete
 
 
-def _create_client_ssl_profile(mgmt, profile):
+def _create_client_ssl_profile(mgmt, partition, profile):
     ssl_client_profile = mgmt.tm.ltm.profile.client_ssls.client_ssl
 
     name = profile['name']
-    partition = profile['partition']
 
     # No need to create if it exists
     if ssl_client_profile.exists(name=name, partition=partition):
@@ -686,11 +424,10 @@ def _create_client_ssl_profile(mgmt, profile):
     return incomplete
 
 
-def _create_server_ssl_profile(mgmt, profile):
+def _create_server_ssl_profile(mgmt, partition, profile):
     ssl_server_profile = mgmt.tm.ltm.profile.server_ssls.server_ssl
 
     name = profile['name']
-    partition = profile['partition']
 
     # No need to create if it exists
     if ssl_server_profile.exists(name=name, partition=partition):
@@ -723,7 +460,7 @@ def _delete_unused_ssl_profiles(mgmt, partition, config):
         client_profiles = mgmt.tm.ltm.profile.client_ssls.get_collection(
             requests_params={'params': '$filter=partition+eq+%s'
                              % partition})
-        incomplete += _delete_ssl_profiles(partition, config, client_profiles)
+        incomplete += _delete_ssl_profiles(config, client_profiles)
     except Exception as err:
         log.error("Error reading client SSL profiles from BIG-IP: %s" %
                   err.message)
@@ -734,7 +471,7 @@ def _delete_unused_ssl_profiles(mgmt, partition, config):
         server_profiles = mgmt.tm.ltm.profile.server_ssls.get_collection(
             requests_params={'params': '$filter=partition+eq+%s'
                              % partition})
-        incomplete += _delete_ssl_profiles(partition, config, server_profiles)
+        incomplete += _delete_ssl_profiles(config, server_profiles)
     except Exception as err:
         log.error("Error reading server SSL profiles from BIG-IP: %s" %
                   err.message)
@@ -743,7 +480,7 @@ def _delete_unused_ssl_profiles(mgmt, partition, config):
     return incomplete
 
 
-def _delete_ssl_profiles(partition, config, profiles):
+def _delete_ssl_profiles(config, profiles):
     incomplete = 0
 
     if 'customProfiles' not in config:
@@ -757,8 +494,7 @@ def _delete_ssl_profiles(partition, config, profiles):
     else:
         # delete profiles no longer in our config
         for prof in profiles:
-            if not any(d['name'] == prof.name and
-                       d['partition'] == partition
+            if not any(d['name'] == prof.name
                        for d in config['customProfiles']):
                 try:
                     prof.delete()
@@ -927,39 +663,41 @@ class ConfigHandler():
                 _handle_openshift_sdn_config(config)
                 self.set_interval_timer(verify_interval)
 
+                cfg_network = create_network_config_kubernetes(config)
                 incomplete = 0
 
                 for mgr in self._managers:
-                    cfg = create_config_kubernetes(mgr.get_partition(),
-                                                   config)
-
+                    partition = mgr.get_partition()
+                    cfg_ltm = create_ltm_config_kubernetes(partition, config)
                     try:
                         # Manually create custom profiles;
                         # CCCL doesn't yet do this
-                        if 'customProfiles' in config['resources']:
+                        if 'customProfiles' in cfg_ltm:
                             tmp = 0
                             customProfiles, tmp = _create_custom_profiles(
-                                    mgr.mgmt_root(),
-                                    mgr.get_partition(),
-                                    config['resources']['customProfiles'])
+                                mgr.mgmt_root(),
+                                partition,
+                                cfg_ltm['customProfiles'])
                             incomplete += tmp
 
                         # Apply the BIG-IP config after creating profiles
                         # and before deleting profiles
-                        incomplete += mgr._apply_config(cfg)
+                        incomplete += mgr._apply_ltm_config(cfg_ltm)
 
                         # Manually delete custom profiles (if needed)
                         if customProfiles:
                             _delete_unused_ssl_profiles(
                                 mgr.mgmt_root(),
-                                mgr.get_partition(),
-                                config['resources'])
+                                partition,
+                                cfg_ltm)
 
                     except F5CcclError as e:
                         # We created an invalid configuration, raise the
                         # exception and fail
                         log.error("CCCL Error: %s", e.msg)
                         raise e
+
+                incomplete += mgr._apply_network_config(cfg_network)
 
                 if incomplete:
                     # Error occurred, perform retries

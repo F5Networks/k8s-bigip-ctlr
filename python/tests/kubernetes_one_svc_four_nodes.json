@@ -1,32 +1,58 @@
 {
-  "resources": {
-    "virtualServers": [
-      {
-        "name": "default_configmap",
-        "partition": "k8s",
-        "mode": "http",
-        "balance": "round-robin",
-        "pool": "/k8s/default_configmap",
-        "virtualAddress": {
-          "bindAddr": "10.128.10.240",
-          "port": 5051
+    "resources": {
+        "k8s": {
+            "iRules": [],
+            "iapps": [],
+            "internalDataGroups": [],
+            "l7Policies": [],
+            "monitors": [],
+            "pools": [
+                {
+                    "loadBalancingMode": "round-robin",
+                    "members": [
+                        {
+                            "address": "172.16.0.5",
+                            "port": 30008,
+                            "session": "user-enabled"
+                        },
+                        {
+                            "address": "172.16.0.6",
+                            "port": 30008,
+                            "session": "user-enabled"
+                        },
+                        {
+                            "address": "172.16.0.7",
+                            "port": 30008,
+                            "session": "user-enabled"
+                        },
+                        {
+                            "address": "172.16.0.8",
+                            "port": 30008,
+                            "session": "user-enabled"
+                        }
+                    ],
+                    "name": "default_configmap"
+                }
+            ],
+            "virtualServers": [
+                {
+                    "destination": "/k8s/10.128.10.240:5051",
+                    "enabled": true,
+                    "ipProtocol": "tcp",
+                    "name": "default_configmap",
+                    "pool": "/k8s/default_configmap",
+                    "profiles": [
+                        {
+                            "context": "all",
+                            "name": "tcp",
+                            "partition": "Common"
+                        }
+                    ],
+                    "sourceAddressTranslation": {
+                        "type": "automap"
+                    }
+                }
+            ]
         }
-      }
-    ],
-    "pools": [
-      {
-        "name": "default_configmap",
-        "partition": "k8s",
-        "loadBalancingMode": "round-robin",
-        "poolMemberAddrs": [
-          "172.16.0.5:30008",
-          "172.16.0.6:30008",
-          "172.16.0.7:30008",
-          "172.16.0.8:30008"
-        ],
-        "serviceName": "foo",
-        "servicePort": 80
-      }
-    ]
-  }
+    }
 }

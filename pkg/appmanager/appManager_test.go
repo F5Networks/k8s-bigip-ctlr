@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
@@ -267,23 +266,23 @@ var configmapIApp2 string = string(`{
 
 var emptyConfig string = string(`{"resources":{}}`)
 
-var twoSvcsFourPortsThreeNodesConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}},{"name":"default_foomap8080","pool":"/velcro/default_foomap8080","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}},{"name":"default_foomap9090","pool":"/velcro/default_foomap9090","partition":"velcro","mode":"tcp","virtualAddress":{"bindAddr":"10.128.10.200","port":4041}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.1:37001","127.0.0.2:37001","127.0.0.3:37001"],"monitor":null},{"name":"default_foomap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.1:30001","127.0.0.2:30001","127.0.0.3:30001"],"monitor":["/velcro/default_foomap"]},{"name":"default_foomap8080","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":8080,"poolMemberAddrs":["127.0.0.1:38001","127.0.0.2:38001","127.0.0.3:38001"],"monitor":null},{"name":"default_foomap9090","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":9090,"poolMemberAddrs":["127.0.0.1:39001","127.0.0.2:39001","127.0.0.3:39001"],"monitor":null}],"monitors":[{"name":"default_foomap","partition":"velcro","interval":30,"protocol":"tcp","send":"GET /","timeout":20}]}}`)
+var twoSvcsFourPortsThreeNodesConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"}]},{"name":"default_foomap","pool":"/velcro/default_foomap","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"velcro","name":"testcert","context":"clientside"}]},{"name":"default_foomap8080","pool":"/velcro/default_foomap8080","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"}]},{"name":"default_foomap9090","pool":"/velcro/default_foomap9090","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.200:4041","profiles":[{"partition":"Common","name":"tcp","context":"all"}]}],"pools":[{"name":"default_barmap","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":37001,"session":"user-enabled"},{"address":"127.0.0.2","port":37001,"session":"user-enabled"},{"address":"127.0.0.3","port":37001,"session":"user-enabled"}],"monitors":null},{"name":"default_foomap","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":30001,"session":"user-enabled"},{"address":"127.0.0.2","port":30001,"session":"user-enabled"},{"address":"127.0.0.3","port":30001,"session":"user-enabled"}],"monitors":["/velcro/default_foomap_0_tcp"]},{"name":"default_foomap8080","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":38001,"session":"user-enabled"},{"address":"127.0.0.2","port":38001,"session":"user-enabled"},{"address":"127.0.0.3","port":38001,"session":"user-enabled"}],"monitors":null},{"name":"default_foomap9090","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":39001,"session":"user-enabled"},{"address":"127.0.0.2","port":39001,"session":"user-enabled"},{"address":"127.0.0.3","port":39001,"session":"user-enabled"}],"monitors":null}],"monitors":[{"name":"default_foomap_0_tcp","interval":30,"type":"tcp","send":"GET /","timeout":20}]}}}`)
 
-var twoSvcsTwoNodesConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.1:37001","127.0.0.2:37001"]},{"name":"default_foomap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.1:30001","127.0.0.2:30001"],"monitor":["/velcro/default_foomap"]}],"monitors":[{"name":"default_foomap","partition":"velcro","interval":30,"protocol":"tcp","send":"GET /","timeout":20}]}}`)
+var twoSvcsTwoNodesConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"}]},{"name":"default_foomap","pool":"/velcro/default_foomap","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"velcro","name":"testcert","context":"clientside"}]}],"pools":[{"name":"default_barmap","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":37001,"session":"user-enabled"},{"address":"127.0.0.2","port":37001,"session":"user-enabled"}]},{"name":"default_foomap","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":30001,"session":"user-enabled"},{"address":"127.0.0.2","port":30001,"session":"user-enabled"}],"monitors":["/velcro/default_foomap_0_tcp"]}],"monitors":[{"name":"default_foomap_0_tcp","interval":30,"type":"tcp","send":"GET /","timeout":20}]}}}`)
 
-var twoSvcsOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051},"sslProfile":{"f5ProfileName":"velcro/testcert"}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.3:37001"]},{"name":"default_foomap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":80,"poolMemberAddrs":["127.0.0.3:30001"],"monitor":["/velcro/default_foomap"]}],"monitors":[{"name":"default_foomap","partition":"velcro","interval":30,"protocol":"tcp","send":"GET /","timeout":20}]}}`)
+var twoSvcsOneNodeConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"}]},{"name":"default_foomap","pool":"/velcro/default_foomap","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"velcro","name":"testcert","context":"clientside"}]}],"pools":[{"name":"default_barmap","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.3","port":37001,"session":"user-enabled"}]},{"name":"default_foomap","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.3","port":30001,"session":"user-enabled"}],"monitors":["/velcro/default_foomap_0_tcp"]}],"monitors":[{"name":"default_foomap_0_tcp","interval":30,"type":"tcp","send":"GET /","timeout":20}]}}}`)
 
-var oneSvcOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["127.0.0.3:37001"]}]}}`)
+var oneSvcOneNodeConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"}]}],"pools":[{"name":"default_barmap","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.3","port":37001,"session":"user-enabled"}]}]}}}`)
 
-var twoIappsThreeNodesConfig string = string(`{"resources":{"virtualServers":[{"name":"default_iapp1map","pool":"/velcro/default_iapp1map","partition":"velcro","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 1"},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}},{"name":"default_iapp2map","pool":"/velcro/default_iapp2map","partition":"velcro","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}],"pools":[{"name":"default_iapp1map","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"iapp1","servicePort":80,"poolMemberAddrs":["192.168.0.1:10101","192.168.0.2:10101","192.168.0.4:10101"],"monitor":null},{"name":"default_iapp2map","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.1:20202","192.168.0.2:20202","192.168.0.4:20202"],"monitor":null}]}}`)
+var twoIappsThreeNodesConfig string = string(`{"resources":{"velcro":{"virtualServers":[],"pools":[],"iapps":[{"name":"default_iapp1map","template":"/Common/f5.http","options":{"description":"iApp 1"},"poolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}],"members":[{"address":"192.168.0.1","port":10101,"session":"user-enabled"},{"address":"192.168.0.2","port":10101,"session":"user-enabled"},{"address":"192.168.0.4","port":10101,"session":"user-enabled"}]},"variables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}},{"name":"default_iapp2map","template":"/Common/f5.http","options":{"description":"iApp 2"},"tables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"poolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}],"members":[{"address":"192.168.0.1","port":20202,"session":"user-enabled"},{"address":"192.168.0.2","port":20202,"session":"user-enabled"},{"address":"192.168.0.4","port":20202,"session":"user-enabled"}]},"variables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}]}}}`)
 
-var twoIappsOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_iapp1map","pool":"/velcro/default_iapp1map","partition":"velcro","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 1"},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}},{"name":"default_iapp2map","pool":"/velcro/default_iapp2map","partition":"velcro","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}],"pools":[{"name":"default_iapp1map","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"iapp1","servicePort":80,"poolMemberAddrs":["192.168.0.4:10101"],"monitor":null},{"name":"default_iapp2map","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.4:20202"],"monitor":null}]}}`)
+var twoIappsOneNodeConfig string = string(`{"resources":{"velcro":{"virtualServers":[],"pools":[],"iapps":[{"name":"default_iapp1map","template":"/Common/f5.http","options":{"description":"iApp 1"},"poolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}],"members":[{"address":"192.168.0.4","port":10101,"session":"user-enabled"}]},"variables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}},{"name":"default_iapp2map","template":"/Common/f5.http","options":{"description":"iApp 2"},"tables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"poolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}],"members":[{"address":"192.168.0.4","port":20202,"session":"user-enabled"}]},"variables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}]}}}`)
 
-var oneIappOneNodeConfig string = string(`{"resources":{"virtualServers":[{"name":"default_iapp2map","pool":"/velcro/default_iapp2map","partition":"velcro","mode":"tcp","iapp":"/Common/f5.http","iappOptions":{"description":"iApp 2"},"iappTables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"iappPoolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}]},"iappVariables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}],"pools":[{"name":"default_iapp2map","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"iapp2","servicePort":80,"poolMemberAddrs":["192.168.0.4:20202"],"monitor":null}]}}`)
+var oneIappOneNodeConfig string = string(`{"resources":{"velcro":{"virtualServers":[],"pools":[],"iapps":[{"name":"default_iapp2map","template":"/Common/f5.http","options":{"description":"iApp 2"},"tables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"poolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}],"members":[{"address":"192.168.0.4","port":20202,"session":"user-enabled"}]},"variables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}]}}}`)
 
-var twoSvcTwoPodsConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}},{"name":"default_foomap","pool":"/velcro/default_foomap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":5051}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]},{"name":"default_foomap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"foo","servicePort":8080,"poolMemberAddrs":["10.2.96.1:8080","10.2.96.2:8080"]}]}}`)
+var twoSvcTwoPodsConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"}]},{"name":"default_foomap","pool":"/velcro/default_foomap","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"}]}],"pools":[{"name":"default_barmap","loadBalancingMode":"round-robin","members":[{"address":"10.2.96.0","port":80,"session":"user-enabled"},{"address":"10.2.96.3","port":80,"session":"user-enabled"}]},{"name":"default_foomap","loadBalancingMode":"round-robin","members":[{"address":"10.2.96.1","port":8080,"session":"user-enabled"},{"address":"10.2.96.2","port":8080,"session":"user-enabled"}]}]}}}`)
 
-var oneSvcTwoPodsConfig string = string(`{"resources":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","partition":"velcro","mode":"http","virtualAddress":{"bindAddr":"10.128.10.240","port":6051}}],"pools":[{"name":"default_barmap","partition":"velcro","loadBalancingMode":"round-robin","serviceName":"bar","servicePort":80,"poolMemberAddrs":["10.2.96.0:80","10.2.96.3:80"]}]}}`)
+var oneSvcTwoPodsConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/default_barmap","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"}]}],"pools":[{"name":"default_barmap","loadBalancingMode":"round-robin","members":[{"address":"10.2.96.0","port":80,"session":"user-enabled"},{"address":"10.2.96.3","port":80,"session":"user-enabled"}]}]}}}`)
 
 type mockAppManager struct {
 	appMgr  *Manager
@@ -591,10 +590,15 @@ func (m *mockAppManager) addNamespace(ns *v1.Namespace) bool {
 	return found
 }
 
-func generateExpectedAddrs(port int32, ips []string) []string {
-	var ret []string
+func generateExpectedAddrs(port int32, ips []string) []Member {
+	var ret []Member
 	for _, ip := range ips {
-		ret = append(ret, ip+":"+strconv.Itoa(int(port)))
+		member := Member{
+			Address: ip,
+			Port:    port,
+			Session: "user-enabled",
+		}
+		ret = append(ret, member)
 	}
 	return ret
 }
@@ -617,21 +621,21 @@ func newServicePort(name string, svcPort int32) v1.ServicePort {
 
 func validateConfig(mw *test.MockWriter, expected string) {
 	mw.Lock()
-	_, ok := mw.Sections["resources"].(BigIPConfig)
+	_, ok := mw.Sections["resources"].(PartitionMap)
 	mw.Unlock()
 	Expect(ok).To(BeTrue())
 
 	resources := struct {
-		Resources BigIPConfig `json:"resources"`
+		Resources PartitionMap `json:"resources"`
 	}{
-		Resources: mw.Sections["resources"].(BigIPConfig),
+		Resources: mw.Sections["resources"].(PartitionMap),
 	}
 
 	// Read JSON from exepectedOutput into array of structs
 	expectedOutput := struct {
-		Resources BigIPConfig `json:"resources"`
+		Resources PartitionMap `json:"resources"`
 	}{
-		Resources: BigIPConfig{},
+		Resources: PartitionMap{},
 	}
 
 	err := json.Unmarshal([]byte(expected), &expectedOutput)
@@ -640,25 +644,31 @@ func validateConfig(mw *test.MockWriter, expected string) {
 		return
 	}
 
-	// Sort Resource Configs for comparison
-	resources.Resources.SortVirtuals()
-	resources.Resources.SortPools()
-	resources.Resources.SortMonitors()
-	expectedOutput.Resources.SortVirtuals()
-	expectedOutput.Resources.SortPools()
-	expectedOutput.Resources.SortMonitors()
+	for partition, config := range resources.Resources {
+		for expPartition, expCfg := range expectedOutput.Resources {
+			if partition == expPartition {
+				// Sort Resource Configs for comparison
+				config.SortVirtuals()
+				config.SortPools()
+				config.SortMonitors()
+				expCfg.SortVirtuals()
+				expCfg.SortPools()
+				expCfg.SortMonitors()
 
-	for i, rs := range expectedOutput.Resources.Virtuals {
-		ExpectWithOffset(1, i).To(BeNumerically("<", len(resources.Resources.Virtuals)))
-		ExpectWithOffset(1, rs).To(Equal(resources.Resources.Virtuals[i]))
-	}
-	for i, rs := range expectedOutput.Resources.Pools {
-		ExpectWithOffset(1, i).To(BeNumerically("<", len(resources.Resources.Pools)))
-		ExpectWithOffset(1, rs).To(Equal(resources.Resources.Pools[i]))
-	}
-	for i, rs := range expectedOutput.Resources.Monitors {
-		ExpectWithOffset(1, i).To(BeNumerically("<", len(resources.Resources.Monitors)))
-		ExpectWithOffset(1, rs).To(Equal(resources.Resources.Monitors[i]))
+				for i, rs := range expCfg.Virtuals {
+					ExpectWithOffset(1, i).To(BeNumerically("<", len(config.Virtuals)))
+					ExpectWithOffset(1, rs).To(Equal(config.Virtuals[i]))
+				}
+				for i, rs := range expCfg.Pools {
+					ExpectWithOffset(1, i).To(BeNumerically("<", len(config.Pools)))
+					ExpectWithOffset(1, rs).To(Equal(config.Pools[i]))
+				}
+				for i, rs := range expCfg.Monitors {
+					ExpectWithOffset(1, i).To(BeNumerically("<", len(config.Monitors)))
+					ExpectWithOffset(1, rs).To(Equal(config.Monitors[i]))
+				}
+			}
+		}
 	}
 }
 
@@ -669,15 +679,19 @@ func validateServiceIps(serviceName, namespace string, svcPorts []v1.ServicePort
 		Expect(ok).To(BeTrue())
 		Expect(vsMap).ToNot(BeNil())
 		for _, rs := range vsMap {
-			var expectedIps []string
+			var expectedIps []Member
 			if ips != nil {
-				expectedIps = []string{}
+				//expectedIps = []string{}
 				for _, ip := range ips {
-					ip = ip + ":" + strconv.Itoa(int(p.Port))
-					expectedIps = append(expectedIps, ip)
+					member := Member{
+						Address: ip,
+						Port:    p.Port,
+						Session: "user-enabled",
+					}
+					expectedIps = append(expectedIps, member)
 				}
 			}
-			Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(expectedIps))
+			Expect(rs.Pools[0].Members).To(Equal(expectedIps))
 		}
 	}
 }
@@ -1080,7 +1094,7 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok := resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(30001, addrs)),
 					"Existing NodePort should be set on address.")
 				rs, ok = resources.Get(
@@ -1107,13 +1121,13 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(20001, addrs)),
 					"Existing NodePort should be set on address.")
 				rs, ok = resources.Get(
 					serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(45454, addrs)),
 					"Existing NodePort should be set on address.")
 				rs, ok = resources.Get(
@@ -1450,7 +1464,7 @@ var _ = Describe("AppManager Tests", func() {
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(30001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, addrs)))
 
 				// Second Service ADDED
 				r = mockMgr.addService(bar)
@@ -1460,7 +1474,7 @@ var _ = Describe("AppManager Tests", func() {
 					serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(37001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addrs)))
 
 				// ConfigMap ADDED second foo port
 				r = mockMgr.addConfigMap(cfgFoo8080)
@@ -1470,17 +1484,17 @@ var _ = Describe("AppManager Tests", func() {
 					serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(38001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(38001, addrs)))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(30001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, addrs)))
 				rs, ok = resources.Get(
 					serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(37001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addrs)))
 
 				// ConfigMap ADDED third foo port
 				r = mockMgr.addConfigMap(cfgFoo9090)
@@ -1490,22 +1504,22 @@ var _ = Describe("AppManager Tests", func() {
 					serviceKey{"foo", 9090, namespace}, formatConfigMapVSName(cfgFoo9090))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(39001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(39001, addrs)))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(38001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(38001, addrs)))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(30001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, addrs)))
 				rs, ok = resources.Get(
 					serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(37001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addrs)))
 
 				// Nodes ADDED
 				_, err = fakeClient.Core().Nodes().Create(extraNode)
@@ -1518,25 +1532,25 @@ var _ = Describe("AppManager Tests", func() {
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(30001, append(addrs, "127.0.0.3"))))
 				rs, ok = resources.Get(
 					serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(37001, append(addrs, "127.0.0.3"))))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(38001, append(addrs, "127.0.0.3"))))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 9090, namespace}, formatConfigMapVSName(cfgFoo9090))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(39001, append(addrs, "127.0.0.3"))))
 				validateConfig(mw, twoSvcsFourPortsThreeNodesConfig)
 
@@ -1587,12 +1601,12 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(30001, []string{"127.0.0.3"})))
 				rs, ok = resources.Get(
 					serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
 				validateConfig(mw, twoSvcsOneNodeConfig)
 
@@ -1760,7 +1774,7 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok := resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue(), "Service should be accessible.")
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
 
 				r = mockMgr.addService(servBar)
 				Expect(r).To(BeFalse(), "Service should not be processed.")
@@ -1770,7 +1784,7 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue(), "Service should be accessible.")
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
 
 				r = mockMgr.updateService(servBar)
 				Expect(r).To(BeFalse(), "Service should not be processed.")
@@ -1780,14 +1794,14 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue(), "Service should be accessible.")
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
 
 				r = mockMgr.deleteService(servBar)
 				Expect(r).To(BeFalse(), "Service should not be processed.")
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue(), "Service should not have been deleted.")
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
 			})
 
 			It("processes Iapp updates - NodePort", func() {
@@ -1851,7 +1865,7 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(10101, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(10101, addrs)))
 
 				// Second Service ADDED
 				r = mockMgr.addService(iapp2)
@@ -1860,11 +1874,11 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(10101, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(10101, addrs)))
 				rs, ok = resources.Get(
 					serviceKey{"iapp2", 80, namespace}, formatConfigMapVSName(cfgIapp2))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(Equal(generateExpectedAddrs(20202, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(20202, addrs)))
 
 				// ConfigMap UPDATED
 				r = mockMgr.updateConfigMap(cfgIapp1)
@@ -1886,12 +1900,12 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(10101, append(addrs, "192.168.0.4"))))
 				rs, ok = resources.Get(
 					serviceKey{"iapp2", 80, namespace}, formatConfigMapVSName(cfgIapp2))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(20202, append(addrs, "192.168.0.4"))))
 				validateConfig(mw, twoIappsThreeNodesConfig)
 
@@ -1907,12 +1921,12 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(10101, []string{"192.168.0.4"})))
 				rs, ok = resources.Get(
 					serviceKey{"iapp2", 80, namespace}, formatConfigMapVSName(cfgIapp2))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].PoolMemberAddrs).To(
+				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(20202, []string{"192.168.0.4"})))
 				validateConfig(mw, twoIappsOneNodeConfig)
 
@@ -2077,7 +2091,7 @@ var _ = Describe("AppManager Tests", func() {
 					rs, ok := resources.Get(
 						serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 					Expect(ok).To(BeTrue())
-					Expect(rs.Pools[0].PoolMemberAddrs).To(Equal([]string(nil)))
+					Expect(rs.Pools[0].Members).To(Equal([]Member(nil)))
 				}
 
 				validateServiceIps(svcName, namespace, svcPorts, nil, resources)

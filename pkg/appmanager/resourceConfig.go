@@ -554,12 +554,12 @@ func copyConfigMap(cfg *ResourceConfig, cfgMap *ConfigMap) {
 	var monitorNames []string
 	var name string
 	for index, mon := range cfgMap.VirtualServer.Backend.HealthMonitors {
-		if index > 0 {
-			name = fmt.Sprintf("%s_%d", cfg.Virtual.VirtualServerName, index)
-		} else {
-			name = fmt.Sprintf("%s", cfg.Virtual.VirtualServerName)
-		}
+		name = fmt.Sprintf("%s_%d_%s", cfg.Virtual.VirtualServerName, index, mon.Protocol)
 		monitor := Monitor{
+			// Append the protocol to the monitor names to differentiate them.
+			// Also add a monitor index to the name to be consistent with the
+			// marathon-bigip-ctlr. Since the monitor names are already unique here,
+			// appending a '0' is sufficient.
 			Name:      name,
 			Partition: cfg.Virtual.Partition,
 			Interval:  mon.Interval,
@@ -568,17 +568,17 @@ func copyConfigMap(cfg *ResourceConfig, cfgMap *ConfigMap) {
 			Timeout:   mon.Timeout,
 		}
 		cfg.Monitors = append(cfg.Monitors, monitor)
-		fullName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, name)
+		fullName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, monitor.Name)
 		monitorNames = append(monitorNames, fullName)
 	}
 	pool := Pool{
-		Name:            cfg.Virtual.VirtualServerName,
-		Partition:       cfg.Virtual.Partition,
-		Balance:         balance,
-		ServiceName:     cfgMap.VirtualServer.Backend.ServiceName,
-		ServicePort:     cfgMap.VirtualServer.Backend.ServicePort,
-		PoolMemberAddrs: cfgMap.VirtualServer.Backend.PoolMemberAddrs,
-		MonitorNames:    monitorNames,
+		Name:         cfg.Virtual.VirtualServerName,
+		Partition:    cfg.Virtual.Partition,
+		Balance:      balance,
+		ServiceName:  cfgMap.VirtualServer.Backend.ServiceName,
+		ServicePort:  cfgMap.VirtualServer.Backend.ServicePort,
+		Members:      nil,
+		MonitorNames: monitorNames,
 	}
 	cfg.Pools = append(cfg.Pools, pool)
 	cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)

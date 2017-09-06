@@ -317,6 +317,7 @@ func reformatCustomProfiles(resources PartitionMap, partition string, wg *sync.W
 	defer wg.Done()
 	for i, _ := range resources[partition].CustomProfiles {
 		resources[partition].CustomProfiles[i].Partition = ""
+		resources[partition].CustomProfiles[i].VSName = ""
 	}
 }
 

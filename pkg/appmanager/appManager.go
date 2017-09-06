@@ -161,7 +161,9 @@ func NewManager(params *Params) *Manager {
 }
 
 func (appMgr *Manager) loadDefaultCert(
-	namespace string,
+	namespace,
+	serverName,
+	vsName string,
 ) (*ProfileRef, bool) {
 	// OpenShift will put the default server SSL cert on each pod. We create a
 	// server SSL profile for it and associate it to any reencrypt routes that
@@ -184,7 +186,15 @@ func (appMgr *Manager) loadDefaultCert(
 				path, err)
 			return nil, false
 		}
-		appMgr.customProfiles.profs[skey] = NewCustomProfile(profile, string(data))
+		appMgr.customProfiles.profs[skey] =
+			NewCustomProfile(
+				profile,
+				string(data),
+				"", // no key
+				serverName,
+				vsName,
+				appMgr.customProfiles,
+			)
 	}
 	return &profile, !found
 }
@@ -1145,14 +1155,20 @@ func (appMgr *Manager) setClientSslProfile(
 ) {
 	profileName := "Common/clientssl"
 	if "" != route.Spec.TLS.Certificate && "" != route.Spec.TLS.Key {
-		cp := CustomProfile{
-			Name:       route.ObjectMeta.Name + "-https-cert",
-			Partition:  rsCfg.Virtual.Partition,
-			Context:    customProfileClient,
-			Cert:       route.Spec.TLS.Certificate,
-			Key:        route.Spec.TLS.Key,
-			ServerName: route.Spec.Host,
+		profile := ProfileRef{
+			Name:      route.ObjectMeta.Name + "-https-cert",
+			Partition: rsCfg.Virtual.Partition,
+			Context:   customProfileClient,
 		}
+		cp := NewCustomProfile(
+			profile,
+			route.Spec.TLS.Certificate,
+			route.Spec.TLS.Key,
+			route.Spec.Host,
+			rsCfg.Virtual.VirtualServerName,
+			appMgr.customProfiles,
+		)
+
 		skey := secretKey{
 			Name:         cp.Name,
 			Namespace:    sKey.Namespace,
@@ -1185,7 +1201,15 @@ func (appMgr *Manager) setServerSslProfile(
 			Partition: rsCfg.Virtual.Partition,
 			Context:   customProfileServer,
 		}
-		cp := NewCustomProfile(profile, route.Spec.TLS.DestinationCACertificate)
+		cp := NewCustomProfile(
+			profile,
+			route.Spec.TLS.DestinationCACertificate,
+			"", // no key
+			route.Spec.Host,
+			rsCfg.Virtual.VirtualServerName,
+			appMgr.customProfiles,
+		)
+
 		skey := secretKey{
 			Name:         cp.Name,
 			Namespace:    sKey.Namespace,
@@ -1201,7 +1225,12 @@ func (appMgr *Manager) setServerSslProfile(
 		appMgr.customProfiles.profs[skey] = cp
 		rsCfg.Virtual.AddOrUpdateProfile(profile)
 	} else {
-		profile, added := appMgr.loadDefaultCert(sKey.Namespace)
+		profile, added :=
+			appMgr.loadDefaultCert(
+				sKey.Namespace,
+				route.Spec.Host,
+				rsCfg.Virtual.VirtualServerName,
+			)
 		if nil != profile {
 			rsCfg.Virtual.AddOrUpdateProfile(*profile)
 		}

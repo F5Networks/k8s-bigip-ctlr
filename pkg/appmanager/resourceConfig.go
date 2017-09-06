@@ -329,6 +329,22 @@ func NewCustomProfiles() CustomProfileStore {
 	return cps
 }
 
+// Return whether or not a there is an SNIDefault profile for a specific VS
+func (cps *CustomProfileStore) SNIDefault(
+	vsname,
+	partition,
+	context string,
+) (string, bool) {
+	for _, cp := range cps.profs {
+		if cp.VSName == vsname &&
+			cp.Partition == partition &&
+			cp.Context == context && cp.SNIDefault {
+			return cp.Name, true
+		}
+	}
+	return "", false
+}
+
 type ResourceConfigMap map[string]*ResourceConfig
 
 // Map of Resource configs
@@ -1070,11 +1086,32 @@ func (idg *InternalDataGroup) RemoveRecord(name string) bool {
 	return false
 }
 
-func NewCustomProfile(profile ProfileRef, cert string) CustomProfile {
+func NewCustomProfile(
+	profile ProfileRef,
+	cert,
+	key,
+	serverName,
+	vsName string,
+	cProfiles CustomProfileStore,
+) CustomProfile {
+	// Check to see if there is a custom profile set to SNI Default for this VS.
+	// If not, or if a profile with this name already is SNI Default, then set
+	// SNIDefault to true. (the latter is in the case that we are updating an already
+	// existing profile, so we have to keep SNIDefault to the same value)
+	var sni bool
+	name, found := cProfiles.SNIDefault(vsName, profile.Partition, profile.Context)
+	if !found || name == profile.Name {
+		sni = true
+	}
+
 	return CustomProfile{
-		Name:      profile.Name,
-		Partition: profile.Partition,
-		Context:   profile.Context,
-		Cert:      cert,
+		Name:       profile.Name,
+		Partition:  profile.Partition,
+		Context:    profile.Context,
+		Cert:       cert,
+		Key:        key,
+		ServerName: serverName,
+		SNIDefault: sni,
+		VSName:     vsName,
 	}
 }

@@ -36,7 +36,8 @@ We use [travis-ci](https://travis-ci.org/F5Networks/k8s-bigip-ctlr) to automatic
 * Formatting and linting checks are performed
 * Third party attributions are generated and checked
 * Product documentation is built
-* Container is built and pushed to dockerhub
+* Container is built
+* Container is pushed to dockerhub (only after the pull request is accepted)
 
 If you are submitting a pull request, you need to make sure that you have done a few things first.
 

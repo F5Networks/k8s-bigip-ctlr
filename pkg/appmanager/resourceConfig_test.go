@@ -659,7 +659,13 @@ var _ = Describe("Resource Config Tests", func() {
 				{Partition: "test3", Name: "third", Context: customProfileClient},
 			}
 			for _, prof := range testData {
-				cprof := NewCustomProfile(prof, "")
+				cprof := NewCustomProfile(
+					prof,
+					"crt",
+					"key",
+					"srver",
+					"vs",
+					CustomProfileStore{})
 				refs := virtual.ReferencesProfile(cprof)
 				Expect(refs).To(BeFalse())
 			}
@@ -678,11 +684,24 @@ var _ = Describe("Resource Config Tests", func() {
 			for _, prof := range testData {
 				switch prof.Partition {
 				case "test1", "test3":
-					cprof := NewCustomProfile(prof, "")
+					cprof := NewCustomProfile(
+						prof,
+						"crt",
+						"key",
+						"srver",
+						"vs",
+						CustomProfileStore{},
+					)
 					refs := virtual.ReferencesProfile(cprof)
 					Expect(refs).To(BeTrue())
 				case "test2":
-					cprof := NewCustomProfile(prof, "")
+					cprof := NewCustomProfile(
+						prof,
+						"crt",
+						"key",
+						"srver",
+						"vs",
+						CustomProfileStore{})
 					refs := virtual.ReferencesProfile(cprof)
 					Expect(refs).To(BeFalse())
 				}

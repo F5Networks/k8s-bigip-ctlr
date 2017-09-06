@@ -75,7 +75,7 @@ type (
 		Policies              []nameRef             `json:"policies,omitempty"`
 		IRules                []string              `json:"rules,omitempty"`
 		// FIXME: All profiles should reside in Profiles, just server ssl ones now.
-		Profiles              ProfileRefs           `json:"profiles,omitempty"`
+		Profiles ProfileRefs `json:"profiles,omitempty"`
 
 		// iApp parameters
 		IApp                string                    `json:"iapp,omitempty"`
@@ -235,6 +235,8 @@ type (
 		Cert       string `json:"cert"`
 		Key        string `json:"key"`
 		ServerName string `json:"serverName,omitempty"`
+		SNIDefault bool   `json:"sniDefault,omitempty"`
+		VSName     string `json:"-"` // virtual server that uses this profile
 	}
 
 	// Used to unmarshal ConfigMap data

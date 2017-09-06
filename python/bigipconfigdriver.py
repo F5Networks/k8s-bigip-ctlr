@@ -411,11 +411,12 @@ def _create_client_ssl_profile(mgmt, partition, profile):
                   'cert': '/Common/' + cert_name,
                   'key': '/Common/' + key_name}]
         serverName = profile.get('serverName', None)
+        sniDefault = profile.get('sniDefault', False)
         ssl_client_profile.create(name=name,
                                   partition=partition,
                                   certKeyChain=chain,
                                   serverName=serverName,
-                                  sniDefault=False,
+                                  sniDefault=sniDefault,
                                   defaultsFrom=None)
     except Exception as err:
         log.error("Error creating client SSL profile: %s" % err.message)
@@ -442,9 +443,13 @@ def _create_server_ssl_profile(mgmt, partition, profile):
 
     try:
         # create ssl-server profile
+        serverName = profile.get('serverName', None)
+        sniDefault = profile.get('sniDefault', False)
         ssl_server_profile.create(name=name,
                                   partition=partition,
-                                  chain=cert_name)
+                                  chain=cert_name,
+                                  serverName=serverName,
+                                  sniDefault=sniDefault)
     except Exception as err:
         incomplete += 1
         log.error("Error creating server SSL profile: %s" % err.message)

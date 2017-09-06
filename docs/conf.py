@@ -96,6 +96,8 @@ rst_epilog = '''
     <a href="http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/%(url_version)s/_static/ATTRIBUTIONS.html">Attributions</a>
 .. |kctlr| replace:: :code:`k8s-bigip-ctlr`
 .. |kctlr-long| replace:: F5 BIG-IP Controller for Kubernetes
+.. F5 Resource: /containers/latest/kubernetes/#f5-resource-properties
+.. Kubernetes Ingress: https://kubernetes.io/docs/concepts/services-networking/ingress/
 ''' % {
     'url_version': version
 }

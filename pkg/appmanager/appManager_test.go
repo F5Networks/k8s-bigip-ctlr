@@ -3169,6 +3169,95 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(len(rs.Policies[0].Rules)).To(Equal(2))
 				})
 			})
+
+			// Check that the provided host resolves into the expected addr.
+			// update parameter is only used to tell function to update an empty host
+			hostResolution := func(host, expAddr string, update bool) {
+				ingressConfig := v1beta1.IngressSpec{
+					Rules: []v1beta1.IngressRule{
+						{Host: host,
+							IngressRuleValue: v1beta1.IngressRuleValue{
+								HTTP: &v1beta1.HTTPIngressRuleValue{
+									Paths: []v1beta1.HTTPIngressPath{
+										{Path: "/foo",
+											Backend: v1beta1.IngressBackend{
+												ServiceName: "foo",
+												ServicePort: intstr.IntOrString{IntVal: 80},
+											},
+										},
+									},
+								},
+							},
+						},
+						{Host: "shouldBeIgnored",
+							IngressRuleValue: v1beta1.IngressRuleValue{
+								HTTP: &v1beta1.HTTPIngressRuleValue{
+									Paths: []v1beta1.HTTPIngressPath{
+										{Path: "/foo",
+											Backend: v1beta1.IngressBackend{
+												ServiceName: "foo",
+												ServicePort: intstr.IntOrString{IntVal: 80},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
+					map[string]string{
+						"virtual-server.f5.com/partition": "velcro",
+					})
+				r := mockMgr.addIngress(ingress)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+
+				resources := mockMgr.resources()
+				rs, ok := resources.Get(
+					serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
+				Expect(ok).To(BeTrue())
+				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal(expAddr))
+				// Verify addition of host name works as expected
+				if update {
+					ingress.Spec.Rules[0].Host = "f5.com"
+					mockMgr.updateIngress(ingress)
+					rs, ok := resources.Get(
+						serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
+					Expect(ok).To(BeTrue())
+					Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal("104.219.111.168"))
+				}
+				mockMgr.deleteIngress(ingress)
+			}
+
+			It("resolves ingress host names", func() {
+				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+				r := mockMgr.addService(fooSvc)
+				Expect(r).To(BeTrue(), "Service should be processed.")
+
+				// Set to LOOKUP mode, using local DNS
+				mockMgr.appMgr.resolveIng = "LOOKUP"
+				// Empty host (then add one)
+				hostResolution("", "", true)
+				// Bad host
+				hostResolution("doesn't.exist", "", false)
+				// Good host
+				hostResolution("f5.com", "104.219.111.168", false)
+
+				// Use a non-existent custom DNS server
+				mockMgr.appMgr.resolveIng = "BadCustomDNS"
+				// Good host; bad DNS
+				hostResolution("google.com", "", false)
+
+				// Use a valid custom DNS server (hostname)
+				mockMgr.appMgr.resolveIng = "pdns130.f5.com."
+				hostResolution("f5.com", "104.219.111.168", false)
+				// Use a valid custom DNS server (ip address)
+				mockMgr.appMgr.resolveIng = "193.221.113.53"
+				hostResolution("msn.com", "13.82.28.61", false)
+				// Good DNS, bad host
+				hostResolution("doesn't.exist", "", false)
+			})
 		})
 
 		Context("namespace related", func() {

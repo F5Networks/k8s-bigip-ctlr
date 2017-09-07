@@ -114,6 +114,21 @@ The configuration parameters below are global to the |kctlr|.
 |                     |         |          |                   |                                         | WARNING,       |
 |                     |         |          |                   |                                         | ERROR          |
 +---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| resolve-ingress-names | string  | Optional | n/a             | Tells the controller to resolve the     |                |
+|                       |         |          |                 | first Host in an Ingress resource to an |                |
+|                       |         |          |                 | IP address. This IP address will be     |                |
+|                       |         |          |                 | used as the virtual server address for  |                |
+|                       |         |          |                 | the Ingress resource.                   |                |
+|                       |         |          |                 |                                         |                |
+|                       |         |          |                 | A value of "LOOKUP" will use local DNS  |                |
+|                       |         |          |                 | to resolve the Host. Any other value    |                |
+|                       |         |          |                 | is a custom DNS server and the          |                |
+|                       |         |          |                 | controller sends resolution queries     |                |
+|                       |         |          |                 | through that server instead.            |                |
+|                       |         |          |                 |                                         |                |
+|                       |         |          |                 | Specifying the flag with no argument    |                |
+|                       |         |          |                 | will default to LOOKUP.                 |                |
++-----------------------+---------+----------+-----------------+-----------------------------------------+----------------+
 | pool-member-type    | string  | Optional | nodeport          | The type of BIG-IP pool members you want| cluster,       |
 |                     |         |          |                   | to create.                              | nodeport       |
 |                     |         |          |                   |                                         |                |

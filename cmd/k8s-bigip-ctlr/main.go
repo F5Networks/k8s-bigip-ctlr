@@ -34,6 +34,7 @@ import (
 	clog "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger/console"
 
 	"github.com/spf13/pflag"
+	"golang.org/x/crypto/ssh/terminal"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -80,6 +81,7 @@ var (
 	namespaceLabel    *string
 	manageRoutes      *bool
 	nodeLabelSelector *string
+	resolveIngNames   *string
 
 	bigIPURL        *string
 	bigIPUsername   *string
@@ -109,6 +111,17 @@ func _init() {
 	openshiftSDNFlags = pflag.NewFlagSet("Openshift SDN", pflag.ContinueOnError)
 	osRouteFlags = pflag.NewFlagSet("OpenShift Routes", pflag.ContinueOnError)
 
+	// Flag wrapping
+	var err error
+	var width int
+	fd := int(os.Stdout.Fd())
+	if terminal.IsTerminal(fd) {
+		width, _, err = terminal.GetSize(fd)
+		if nil != err {
+			width = 0
+		}
+	}
+
 	// Global flags
 	pythonBaseDir = globalFlags.String("python-basedir", "/app/python",
 		"Optional, directory location of python utilities")
@@ -120,7 +133,7 @@ func _init() {
 		"Optional, interval (in seconds) at which to poll for cluster nodes.")
 
 	globalFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsages())
+		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
 	}
 
 	// BigIP flags
@@ -134,7 +147,7 @@ func _init() {
 		"Required, partition(s) for the Big-IP kubernetes objects.")
 
 	bigIPFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsages())
+		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
 	}
 
 	// Kubernetes flags
@@ -158,9 +171,16 @@ func _init() {
 		"Optional, specify whether or not to manage Route resources")
 	nodeLabelSelector = kubeFlags.String("node-label-selector", "",
 		"Optional, used to watch only for nodes with this label")
+	resolveIngNames = kubeFlags.String("resolve-ingress-names", "",
+		"Optional, direct the controller to resolve host names in Ingresses into IP addresses. "+
+			"The 'LOOKUP' option will use the controller's built-in DNS. "+
+			"Any other string will be used as a custom DNS server, either by name or IP address.")
+
+	// If the flag is specified with no argument, default to LOOKUP
+	kubeFlags.Lookup("resolve-ingress-names").NoOptDefVal = "LOOKUP"
 
 	kubeFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsages())
+		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsagesWrapped(width))
 	}
 
 	// Openshift SDN flags
@@ -174,7 +194,7 @@ func _init() {
 		"Must be provided for BigIP SDN integration, full path of BigIP VxLAN Tunnel")
 
 	openshiftSDNFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, "  Openshift SDN:\n%s\n", openshiftSDNFlags.FlagUsages())
+		fmt.Fprintf(os.Stderr, "  Openshift SDN:\n%s\n", openshiftSDNFlags.FlagUsagesWrapped(width))
 	}
 
 	// OpenShift Route flags
@@ -194,7 +214,7 @@ func _init() {
 			" default for SNI for Route virtual servers")
 
 	osRouteFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, "  Openshift Routes:\n%s\n", osRouteFlags.FlagUsages())
+		fmt.Fprintf(os.Stderr, "  Openshift Routes:\n%s\n", osRouteFlags.FlagUsagesWrapped(width))
 	}
 
 	flags.AddFlagSet(globalFlags)
@@ -421,6 +441,7 @@ func main() {
 		IsNodePort:        isNodePort,
 		RouteConfig:       routeConfig,
 		NodeLabelSelector: *nodeLabelSelector,
+		ResolveIngress:    *resolveIngNames,
 	}
 
 	gs := globalSection{

@@ -397,6 +397,15 @@ Supported Route Configurations
 |                         |                   |                   |         |                 | SNI and forward the re-encrypted traffic.                               |
 +-------------------------+-------------------+-------------------+---------+-----------------+-------------------------------------------------------------------------+
 
+.. note::
+
+   By default, the controller configures any pool members for Passthrough or Re-encrypt Routes on port 443. The controller expects
+   a service running on 443 for these types of Routes.
+
+   For Edge and Unsecured Route types, the default port used for the backend is 80.
+
+   Services exposed on different ports than these defaults require you to specify the port in the Route config's "Port" 
+   field.
 
 Please see the example configuration files for more details.
 

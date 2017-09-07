@@ -2464,6 +2464,24 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 				Expect(resources.Count()).To(Equal(0))
 
+				// Shouldn't process Ingress with non-F5 class
+				// https://github.com/F5Networks/k8s-bigip-ctlr/issues/311
+				ingressNotf5 := test.NewIngress("ingress-bad", "1", namespace, ingressConfig,
+					map[string]string{
+						"kubernetes.io/ingress.class": "notf5",
+					})
+				r = mockMgr.addIngress(ingressNotf5)
+				Expect(r).To(BeFalse(), "Ingress resource should not be processed.")
+				Expect(resources.Count()).To(Equal(0))
+				ingressNotf5.Annotations["kubernetes.io/ingress.class"] = "f5"
+				r = mockMgr.updateIngress(ingressNotf5)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed when flipping from notf5 to f5.")
+				Expect(resources.Count()).To(Equal(1))
+				ingressNotf5.Annotations["kubernetes.io/ingress.class"] = "notf5again"
+				r = mockMgr.updateIngress(ingressNotf5)
+				Expect(r).To(BeFalse(), "Ingress resource should be destroyed when flipping from f5 to notf5again.")
+				Expect(resources.Count()).To(Equal(0))
+
 				// Multi-service Ingress
 				ingressConfig = v1beta1.IngressSpec{
 					Rules: []v1beta1.IngressRule{

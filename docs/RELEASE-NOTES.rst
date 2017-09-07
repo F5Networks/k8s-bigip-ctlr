@@ -4,6 +4,13 @@ Release Notes for BIG-IP Controller for Kubernetes
 |release|
 ---------
 
+Bug Fixes
+`````````
+* - Fix SIGSEV on non-"f5" valued class annotation `[#311] <https://github.com/F5Networks/k8s-bigip-ctlr/issues/311>`_
+
+v1.1.0
+------
+
 Added Functionality
 ```````````````````
 

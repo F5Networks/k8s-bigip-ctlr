@@ -6,7 +6,8 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 Bug Fixes
 `````````
-* - Fix SIGSEV on non-"f5" valued class annotation `[#311] <https://github.com/F5Networks/k8s-bigip-ctlr/issues/311>`_
+* Fix SIGSEV on non-"f5" valued class annotation `[#311] <https://github.com/F5Networks/k8s-bigip-ctlr/issues/311>`_
+* Remove default pool for Ingress and Routes `[#288] <https://github.com/F5Networks/k8s-bigip-ctlr/issues/288>`_
 
 v1.1.0
 ------

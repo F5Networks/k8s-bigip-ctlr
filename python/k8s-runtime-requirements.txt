@@ -1,4 +1,4 @@
--e git+https://github.com/f5devcentral/f5-cccl.git@e4c0cb9859aa6f0363b75d188644d2d8184f2c16#egg=f5-cccl
+-e git+https://github.com/f5devcentral/f5-cccl.git@6c59f69f2e24529d2e009c609982bc9d9662d4de#egg=f5-cccl
 f5-icontrol-rest==1.3.0
 f5-sdk==2.2.2
 pyinotify==0.9.6

@@ -108,7 +108,7 @@ func (appMgr *Manager) checkValidIngress(
 		var keyList []*serviceQueueKey
 		rsCfg := createRSConfigFromIngress(ing, namespace,
 			appInf.svcInformer.GetIndexer(), portStruct)
-		rsName := rsCfg.Virtual.VirtualServerName
+		rsName := formatIngressVSName(ing, portStruct.protocol)
 		if rsCfg == nil {
 			if nil == ing.Spec.Rules { //single-service
 				serviceName := ing.Spec.Backend.ServiceName
@@ -116,14 +116,15 @@ func (appMgr *Manager) checkValidIngress(
 				sKey := serviceKey{serviceName, servicePort, ing.ObjectMeta.Namespace}
 				if _, ok := appMgr.resources.Get(sKey, rsName); ok {
 					appMgr.resources.Delete(sKey, rsName)
+					appMgr.outputConfigLocked()
 				}
 			} else { //multi-service
 				_, keys := appMgr.resources.GetAllWithName(rsName)
 				for _, key := range keys {
 					appMgr.resources.Delete(key, rsName)
+					appMgr.outputConfigLocked()
 				}
 			}
-			appMgr.outputConfig()
 			return false, nil
 		}
 

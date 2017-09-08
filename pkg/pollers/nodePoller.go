@@ -48,11 +48,13 @@ type nodePoller struct {
 	regListeners []PollListener
 	nodeCache    []v1.Node
 	lastError    error
+	nodeLabel    string
 }
 
 func NewNodePoller(
 	kubeClient kubernetes.Interface,
 	pollInterval time.Duration,
+	nodeLabel string,
 ) Poller {
 	np := &nodePoller{
 		kubeClient:   kubeClient,
@@ -61,6 +63,7 @@ func NewNodePoller(
 		addCh:        make(chan pollListener),
 		running:      false,
 		runningLock:  &sync.Mutex{},
+		nodeLabel:    nodeLabel,
 	}
 
 	log.Debugf("NodePoller object created: %p", np)
@@ -171,7 +174,9 @@ func (np *nodePoller) poller() {
 
 		if true == doPoll {
 			doPoll = false
-			nodes, err := np.kubeClient.Core().Nodes().List(metav1.ListOptions{})
+
+			// LabelSelector
+			nodes, err := np.kubeClient.Core().Nodes().List(metav1.ListOptions{LabelSelector: np.nodeLabel})
 			np.nodeCache = nodes.Items
 			np.lastError = err
 

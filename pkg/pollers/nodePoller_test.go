@@ -17,7 +17,9 @@
 package pollers
 
 import (
+	"fmt"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -27,6 +29,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/api/v1"
+)
+
+const (
+	nodeLabel   = "node-role.io.kubernetes.io/node"
+	masterLabel = "node-role.io.kubernetes.io/master"
 )
 
 type nodeData struct {
@@ -40,6 +47,7 @@ func newNode(
 	rv string,
 	unsched bool,
 	addresses []v1.NodeAddress,
+	labels map[string]string,
 ) *v1.Node {
 	return &v1.Node{
 		TypeMeta: metav1.TypeMeta{
@@ -49,6 +57,7 @@ func newNode(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            id,
 			ResourceVersion: rv,
+			Labels:          labels,
 		},
 		Spec: v1.NodeSpec{
 			Unschedulable: unsched,
@@ -59,8 +68,18 @@ func newNode(
 	}
 }
 
+func hasNodeLabel(node *v1.Node, label string) bool {
+	if label == "" {
+		return true
+	}
+
+	_, ok := node.ObjectMeta.Labels[label]
+
+	return ok
+}
+
 var _ = Describe("Node Poller Tests", func() {
-	initTestData := func() (Poller, []nodeData) {
+	initTestData := func(nodeLabelSelector string) (Poller, []nodeData) {
 		addressList := [][]v1.NodeAddress{
 			{
 				{"ExternalIP", "127.0.0.0"},
@@ -85,47 +104,33 @@ var _ = Describe("Node Poller Tests", func() {
 			},
 		}
 
-		// Existing Node data
-		setNodes := []*v1.Node{
-			newNode("node0", "0", true, addressList[0]),
-			newNode("node1", "1", false, addressList[1]),
-			newNode("node2", "2", false, addressList[2]),
-			newNode("node3", "3", false, addressList[3]),
-			newNode("node4", "4", false, addressList[4]),
-			newNode("node5", "5", false, addressList[5]),
+		masterLabelMap := map[string]string{
+			masterLabel: "true",
+		}
+		nodeLabelMap := map[string]string{
+			nodeLabel: "true",
 		}
 
-		expectedNodes := []nodeData{
-			nodeData{
-				Name:          "node0",
-				Unschedulable: true,
-				Addresses:     addressList[0],
-			},
-			nodeData{
-				Name:          "node1",
-				Unschedulable: false,
-				Addresses:     addressList[1],
-			},
-			nodeData{
-				Name:          "node2",
-				Unschedulable: false,
-				Addresses:     addressList[2],
-			},
-			nodeData{
-				Name:          "node3",
-				Unschedulable: false,
-				Addresses:     addressList[3],
-			},
-			nodeData{
-				Name:          "node4",
-				Unschedulable: false,
-				Addresses:     addressList[4],
-			},
-			nodeData{
-				Name:          "node5",
-				Unschedulable: false,
-				Addresses:     addressList[5],
-			},
+		// Existing Node data
+		setNodes := []*v1.Node{
+			newNode("node0", "0", true, addressList[0], masterLabelMap),
+		}
+
+		for idx := 1; idx < 6; idx++ {
+			setNodes = append(setNodes, newNode(fmt.Sprintf("node%d", idx), strconv.Itoa(idx), false, addressList[idx], nodeLabelMap))
+		}
+
+		expectedNodes := []nodeData{}
+		for _, node := range setNodes {
+			if !hasNodeLabel(node, nodeLabelSelector) {
+				continue
+			}
+
+			expectedNodes = append(expectedNodes, nodeData{
+				Name:          node.ObjectMeta.Name,
+				Unschedulable: node.Spec.Unschedulable,
+				Addresses:     node.Status.Addresses,
+			})
 		}
 
 		fake := fake.NewSimpleClientset()
@@ -137,20 +142,20 @@ var _ = Describe("Node Poller Tests", func() {
 			Expect(node).To(Equal(setNode))
 		}
 
-		np := NewNodePoller(fake, 1*time.Millisecond)
+		np := NewNodePoller(fake, 1*time.Millisecond, nodeLabelSelector)
 		Expect(np).ToNot(BeNil(), "Node poller cannot be nil.")
 
 		return np, expectedNodes
 	}
 
-	assertRegister := func(p Poller, expectedNodes []nodeData, stopped bool) {
+	assertRegister := func(p Poller, expectedNodes []nodeData, stopped bool, countExpectedNodes int) {
 		called := 0
 		err := p.RegisterListener(func(call *int) PollListener {
 			var p PollListener = func(obj interface{}, err error) {
 				if 0 == *call {
 					nl, ok := obj.([]v1.Node)
 					Expect(ok).To(BeTrue(), "Should be called back with a nodeData.")
-					Expect(len(nl)).To(Equal(6))
+					Expect(len(nl)).To(Equal(countExpectedNodes))
 					Expect(err).To(BeNil())
 
 					for i, expected := range expectedNodes {
@@ -182,7 +187,7 @@ var _ = Describe("Node Poller Tests", func() {
 		fake := fake.NewSimpleClientset()
 		Expect(fake).ToNot(BeNil(), "Mock client cannot be nil.")
 
-		np := NewNodePoller(fake, 1*time.Millisecond)
+		np := NewNodePoller(fake, 1*time.Millisecond, "")
 		Expect(np).ToNot(BeNil(), "Node poller cannot be nil.")
 
 		err := np.Run()
@@ -214,24 +219,24 @@ var _ = Describe("Node Poller Tests", func() {
 	})
 
 	It("polls nodes", func() {
-		np, expectedNodes := initTestData()
+		np, expectedNodes := initTestData("")
 
 		err := np.Run()
 		Expect(err).To(BeNil())
 
 		for _ = range []int{1, 2, 3, 4, 5} {
 			// one is the magic number, 1 routine for the NodePoller
-			assertRegister(np, expectedNodes, false)
+			assertRegister(np, expectedNodes, false, len(expectedNodes))
 		}
 
 		err = np.Stop()
 		Expect(err).To(BeNil())
 
-		assertRegister(np, expectedNodes, true)
+		assertRegister(np, expectedNodes, true, len(expectedNodes))
 	})
 
 	It("polls nodes - SlowReader", func() {
-		np, expectedNodes := initTestData()
+		np, expectedNodes := initTestData("")
 
 		err := np.Run()
 		Expect(err).To(BeNil())
@@ -243,17 +248,17 @@ var _ = Describe("Node Poller Tests", func() {
 		for _ = range []int{1, 2, 3, 4, 5} {
 			// two is the magic number, 1 routine1 for the NodePoller
 			// plus the 1 slow reader
-			assertRegister(np, expectedNodes, false)
+			assertRegister(np, expectedNodes, false, len(expectedNodes))
 		}
 
 		err = np.Stop()
 		Expect(err).To(BeNil())
 
-		assertRegister(np, expectedNodes, true)
+		assertRegister(np, expectedNodes, true, len(expectedNodes))
 	})
 
 	It("polls nodes concurrently", func() {
-		np, expectedNodes := initTestData()
+		np, expectedNodes := initTestData("")
 
 		err := np.Run()
 		Expect(err).To(BeNil())
@@ -266,7 +271,7 @@ var _ = Describe("Node Poller Tests", func() {
 				// don't test against number of go routines, for this
 				// test they are too transitory because of the concurrency
 				// routine we're using here
-				assertRegister(np, expectedNodes, false)
+				assertRegister(np, expectedNodes, false, len(expectedNodes))
 				wg.Done()
 			}()
 		}
@@ -275,14 +280,14 @@ var _ = Describe("Node Poller Tests", func() {
 		err = np.Stop()
 		Expect(err).To(BeNil())
 
-		assertRegister(np, expectedNodes, true)
+		assertRegister(np, expectedNodes, true, len(expectedNodes))
 	})
 
 	It("registers properly while stopped", func() {
 		fake := fake.NewSimpleClientset()
 		Expect(fake).ToNot(BeNil(), "Mock client cannot be nil.")
 
-		np := NewNodePoller(fake, 1*time.Millisecond)
+		np := NewNodePoller(fake, 1*time.Millisecond, "")
 		Expect(np).ToNot(BeNil(), "Node poller cannot be nil.")
 
 		calls := []bool{false, false, false, false, false}
@@ -348,5 +353,31 @@ var _ = Describe("Node Poller Tests", func() {
 
 		err = np.Stop()
 		Expect(err).To(BeNil())
+	})
+
+	It("polls nodes with a nodeLabelSelector ", func() {
+		np, expectedNodes := initTestData(nodeLabel)
+
+		err := np.Run()
+		Expect(err).To(BeNil())
+
+		var wg sync.WaitGroup
+		for _ = range []int{0, 1, 2, 3, 4} {
+			wg.Add(1)
+			go func() {
+				defer GinkgoRecover()
+				// don't test against number of go routines, for this
+				// test they are too transitory because of the concurrency
+				// routine we're using here
+				assertRegister(np, expectedNodes, false, len(expectedNodes))
+				wg.Done()
+			}()
+		}
+
+		wg.Wait()
+		err = np.Stop()
+		Expect(err).To(BeNil())
+
+		assertRegister(np, expectedNodes, true, len(expectedNodes))
 	})
 })

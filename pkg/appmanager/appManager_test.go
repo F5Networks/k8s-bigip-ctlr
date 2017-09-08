@@ -3222,6 +3222,24 @@ func TestVirtualServerForIngress(t *testing.T) {
 	require.True(r, "Ingress resource should be processed")
 	require.Equal(0, resources.Count())
 
+	// Shouldn't process Ingress with non-F5 class
+	// https://github.com/F5Networks/k8s-bigip-ctlr/issues/311
+	ingressNotf5 := test.NewIngress("ingress-bad", "1", namespace, ingressConfig,
+		map[string]string{
+			"kubernetes.io/ingress.class": "notf5",
+		})
+	r = appMgr.addIngress(ingressNotf5)
+	require.False(r, "Ingress resource should not be processed.")
+	require.Equal(0, resources.Count())
+	ingressNotf5.Annotations["kubernetes.io/ingress.class"] = "f5"
+	r = appMgr.updateIngress(ingressNotf5)
+	require.True(r, "Ingress resource should be processed when flipping from notf5 to f5.")
+	require.Equal(1, resources.Count())
+	ingressNotf5.Annotations["kubernetes.io/ingress.class"] = "notf5again"
+	r = appMgr.updateIngress(ingressNotf5)
+	require.False(r, "Ingress resource should be destroyed when flipping from f5 to notf5again.")
+	require.Equal(0, resources.Count())
+
 	// Multi-service Ingress
 	ingressConfig = v1beta1.IngressSpec{
 		Rules: []v1beta1.IngressRule{

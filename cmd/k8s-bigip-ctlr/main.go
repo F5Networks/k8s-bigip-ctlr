@@ -398,10 +398,11 @@ func main() {
 	}
 
 	var appMgrParms = appmanager.Params{
-		ConfigWriter:    configWriter,
-		UseNodeInternal: *useNodeInternal,
-		IsNodePort:      isNodePort,
-		RouteConfig:     routeConfig,
+		ConfigWriter:      configWriter,
+		UseNodeInternal:   *useNodeInternal,
+		IsNodePort:        isNodePort,
+		RouteConfig:       routeConfig,
+		NodeLabelSelector: *nodeLabelSelector,
 	}
 
 	gs := globalSection{

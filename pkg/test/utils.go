@@ -165,8 +165,13 @@ func NewRoute(id, rv, namespace string, spec routeapi.RouteSpec) *routeapi.Route
 }
 
 // NewNode returns a new node object
-func NewNode(id, rv string, unsched bool,
-	addresses []v1.NodeAddress) *v1.Node {
+func NewNode(
+	id string,
+	rv string,
+	unsched bool,
+	addresses []v1.NodeAddress,
+	taints []v1.Taint,
+) *v1.Node {
 	return &v1.Node{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Node",
@@ -178,6 +183,7 @@ func NewNode(id, rv string, unsched bool,
 		},
 		Spec: v1.NodeSpec{
 			Unschedulable: unsched,
+			Taints:        taints,
 		},
 		Status: v1.NodeStatus{
 			Addresses: addresses,

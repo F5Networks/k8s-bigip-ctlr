@@ -97,19 +97,22 @@ type Manager struct {
 	eventSource   v1.EventSource
 	// Route configurations
 	routeConfig RouteConfig
+	// Currently configured node label selector
+	nodeLabelSelector string
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
 type Params struct {
-	KubeClient      kubernetes.Interface
-	restClient      rest.Interface // package local for unit testing only
-	RouteClientV1   rest.Interface
-	ConfigWriter    writer.Writer
-	UseNodeInternal bool
-	IsNodePort      bool
-	RouteConfig     RouteConfig
-	InitialState    bool                 // Unit testing only
-	EventRecorder   record.EventRecorder // Unit testing only
+	KubeClient        kubernetes.Interface
+	restClient        rest.Interface // package local for unit testing only
+	RouteClientV1     rest.Interface
+	ConfigWriter      writer.Writer
+	UseNodeInternal   bool
+	IsNodePort        bool
+	RouteConfig       RouteConfig
+	InitialState      bool                 // Unit testing only
+	EventRecorder     record.EventRecorder // Unit testing only
+	NodeLabelSelector string
 }
 
 // Configuration options for Routes in OpenShift
@@ -139,6 +142,7 @@ func NewManager(params *Params) *Manager {
 		initialState:      params.InitialState,
 		eventRecorder:     params.EventRecorder,
 		routeConfig:       params.RouteConfig,
+		nodeLabelSelector: params.NodeLabelSelector,
 		vsQueue:           vsQueue,
 		nsQueue:           nsQueue,
 		appInformers:      make(map[string]*appInformer),
@@ -2050,9 +2054,19 @@ func (appMgr *Manager) getNodeAddresses(
 		addrType = v1.NodeExternalIP
 	}
 
+	isUnSchedulable := func(node v1.Node) bool {
+		for _, t := range node.Spec.Taints {
+			if v1.TaintEffectNoSchedule == t.Effect {
+				return true
+			}
+		}
+		return node.Spec.Unschedulable
+	}
+
 	for _, node := range nodes {
-		if node.Spec.Unschedulable {
-			// Skip master node
+		if 0 == len(appMgr.nodeLabelSelector) && isUnSchedulable(node) {
+			// Skip unschedulable nodes only when there isn't a node
+			// selector
 			continue
 		} else {
 			nodeAddrs := node.Status.Addresses

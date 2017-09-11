@@ -100,6 +100,9 @@ doc-preview:
 _docs: docs/_static/ATTRIBUTIONS.md always-build
 	./build-tools/docker-docs.sh ./build-tools/make-docs.sh
 
+docker-test:
+	rm -rf docs/_build
+	./build-tools/docker-docs.sh ./build-tools/make-docs.sh
 
 #
 # Attributions Generation

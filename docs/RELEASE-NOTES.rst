@@ -4,6 +4,25 @@ Release Notes for BIG-IP Controller for Kubernetes
 |release|
 ---------
 
+Added Functionality
+```````````````````
+
+* Watch all nodes by default; watch a subset of nodes with a user-specified label.
+* Create BIG-IP SSL Profiles from Kubernetes Secrets via Ingress TLS.
+* Create BIG-IP objects from OpenShift Route resources.
+  - This includes unsecured, edge, passthrough, and re-encrypt Routes.
+
+* This is a feature-complete upgrade from the OpenShift F5Router. 
+  See `Replace the OpenShift F5 Router with the BIG-IP Controller <http://clouddocs.f5.com/containers/latest/openshift/replace-f5-router.html>`_ for more information.
+
+Bug Fixes
+`````````
+* Properly configure http redirect rules on v11.6.1 BIG-IP systems.
+* Failed configurations for objects do not prevent future configurations from happening.
+
+v1.1.1
+------
+
 Bug Fixes
 `````````
 * Fix SIGSEV on non-"f5" valued class annotation `[#311] <https://github.com/F5Networks/k8s-bigip-ctlr/issues/311>`_
@@ -22,9 +41,6 @@ Added Functionality
 * Create detached pools if virtual server bind addresses not specified.
 * Container image size reduced from 361MB to 123MB.
 * Can use local and non-local BIG-IP users.
-
-Removed Functionality
-`````````````````````
 
 Limitations
 ~~~~~~~~~~~
@@ -56,9 +72,6 @@ Added Functionality
 * Manages the following Network resource for the BIG-IP partition(s)
 
   * FDB tunnel records (Red Hat OpenShift)
-
-Removed Functionality
-`````````````````````
 
 Limitations
 ~~~~~~~~~~~

@@ -12,9 +12,8 @@ Added Functionality
 * Create BIG-IP objects from OpenShift Route resources.
   - This includes unsecured, edge, passthrough, and re-encrypt Routes.
 
-* This is a feature complete upgrade from the OpenShift F5Router. 
-  See `[Replace the OpenShift F5 Router with the BIG-IP Controller] <http://clouddocs.f5.com/containers/v1/openshift/replace-f5-router.html>`_ 
-  for more information.
+* This is a feature-complete upgrade from the OpenShift F5Router. 
+  See `Replace the OpenShift F5 Router with the BIG-IP Controller <http://clouddocs.f5.com/containers/latest/openshift/replace-f5-router.html>`_ for more information.
 
 Bug Fixes
 `````````

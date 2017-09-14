@@ -921,7 +921,7 @@ func (appMgr *Manager) syncConfigMaps(
 				Get(profile, metav1.GetOptions{})
 			if err != nil {
 				// No secret, so we assume the profile is a BIG-IP default
-				log.Infof("Couldn't find Secret with name '%s', parsing secretName as path.",
+				log.Debugf("No Secret with name '%s', parsing secretName as path instead.",
 					profile)
 				continue
 			}
@@ -1300,7 +1300,7 @@ func (appMgr *Manager) handleIngressTls(
 				Get(tls.SecretName, metav1.GetOptions{})
 			if err != nil {
 				// No secret, so we assume the profile is a BIG-IP default
-				log.Infof("Couldn't find Secret with name '%s': %s. Parsing secretName as path.",
+				log.Debugf("No Secret with name '%s': %s. Parsing secretName as path instead.",
 					tls.SecretName, err)
 				secretName := formatIngressSslProfileName(tls.SecretName)
 				rsCfg.Virtual.AddFrontendSslProfileName(secretName)

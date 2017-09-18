@@ -155,12 +155,36 @@ The configuration parameters below are global to the |kctlr|.
 |                     |         |          |                   |                                         |                |
 |                     |         |          |                   | **Only applicable in OpenShift.**       |                |
 +---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| default-client-ssl  | string  | Optional | n/a               | Specify the name of a user created      |                |
+|                     |         |          |                   | client ssl profile that will be         |                |
+|                     |         |          |                   | attached to the route https vserver and |                |
+|                     |         |          |                   | used as default for SNI. This profile   |                |
+|                     |         |          |                   | must have the Default for SNI field     |                |
+|                     |         |          |                   | enabled.                                |                |
+|                     |         |          |                   |                                         |                |
+|                     |         |          |                   | **Only applicable in OpenShift.**       |                |
++---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| default-server-ssl  | string  | Optional | n/a               | Specify the name of a user created      |                |
+|                     |         |          |                   | server ssl profile that will be         |                |
+|                     |         |          |                   | attached to the route https vserver and |                |
+|                     |         |          |                   | used as default for SNI. This profile   |                |
+|                     |         |          |                   | must have the Default for SNI field     |                |
+|                     |         |          |                   | enabled.                                |                |
+|                     |         |          |                   |                                         |                |
+|                     |         |          |                   | **Only applicable in OpenShift.**       |                |
++---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 
 .. note::
 
   Use the ``node-label-selector`` parameter if you only want the controller to manage specific nodes from the cluster.
   For example, the BIG-IP device may not be able to reach certain nodes, or the BIG-IP device already manages certain
   nodes. Therefore, the controller should only watch the nodes that match the environmental constraints (by using a label).
+  
+.. note::
+
+   If the ``default-client-ssl`` or ``default-server-ssl`` parameters are not provided, then the controller creates default
+   clientssl and serverssl profiles for the OpenShift Route HTTPS virtual server. The controller sets these profiles as
+   Default for SNI. 
 
 .. _f5 resource configmap properties:
 

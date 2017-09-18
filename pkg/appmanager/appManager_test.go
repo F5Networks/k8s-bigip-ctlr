@@ -2903,7 +2903,8 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
 
 					customProfiles := mockMgr.customProfiles()
-					Expect(len(customProfiles)).To(Equal(1))
+					// Should be 1 profile from Spec, and 1 default clientssl
+					Expect(len(customProfiles)).To(Equal(2))
 
 					spec = routeapi.RouteSpec{
 						Host: "barfoo.com",
@@ -2937,14 +2938,15 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(len(rs.Policies[0].Rules)).To(Equal(2))
 
 					customProfiles = mockMgr.customProfiles()
-					Expect(len(customProfiles)).To(Equal(2))
+					// Should be 2 profile from Spec, and 1 default clientssl
+					Expect(len(customProfiles)).To(Equal(3))
 
 					// Delete a Route resource
 					r = mockMgr.deleteRoute(route2)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
 					Expect(resources.Count()).To(Equal(2))
 					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-					Expect(len(customProfiles)).To(Equal(1))
+					Expect(len(customProfiles)).To(Equal(2))
 				})
 
 				It("configures passthrough routes", func() {
@@ -3089,7 +3091,9 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(hostDg.Records[0].Data).To(Equal(formatRoutePoolName(route)))
 
 					customProfiles := mockMgr.customProfiles()
-					Expect(len(customProfiles)).To(Equal(2))
+					// Should be 2 profiles from Spec, 2 defaults (clientssl and serverssl)
+					Expect(len(customProfiles)).To(Equal(4))
+					// should have 2 client ssl custom profile and 2 server ssl custom profile
 					// should have 1 client ssl custom profile and 1 server ssl custom profile
 					haveClientSslProfile := false
 					haveServerSslProfile := false
@@ -3105,8 +3109,8 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(haveServerSslProfile).To(BeTrue())
 
 					// and both should be referenced by the virtual
-					Expect(rs.Virtual.GetProfileCountByContext(customProfileClient)).To(Equal(1))
-					Expect(rs.Virtual.GetProfileCountByContext(customProfileServer)).To(Equal(1))
+					Expect(rs.Virtual.GetProfileCountByContext(customProfileClient)).To(Equal(2))
+					Expect(rs.Virtual.GetProfileCountByContext(customProfileServer)).To(Equal(2))
 				})
 			})
 		})

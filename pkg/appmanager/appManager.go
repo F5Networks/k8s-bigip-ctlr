@@ -121,6 +121,8 @@ type RouteConfig struct {
 	RouteLabel  string
 	HttpVs      string
 	HttpsVs     string
+	ClientSSL   string
+	ServerSSL   string
 }
 
 // Create and return a new app manager that meets the Manager interface
@@ -168,8 +170,7 @@ func NewManager(params *Params) *Manager {
 
 func (appMgr *Manager) loadDefaultCert(
 	namespace,
-	serverName,
-	vsName string,
+	serverName string,
 ) (*ProfileRef, bool) {
 	// OpenShift will put the default server SSL cert on each pod. We create a
 	// server SSL profile for it and associate it to any reencrypt routes that
@@ -182,7 +183,7 @@ func (appMgr *Manager) loadDefaultCert(
 	}
 	appMgr.customProfiles.Lock()
 	defer appMgr.customProfiles.Unlock()
-	skey := secretKey{Name: profileName, Namespace: namespace}
+	skey := secretKey{Name: profileName}
 	_, found := appMgr.customProfiles.profs[skey]
 	if !found {
 		path := "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
@@ -198,7 +199,7 @@ func (appMgr *Manager) loadDefaultCert(
 				string(data),
 				"", // no key
 				serverName,
-				vsName,
+				false,
 				appMgr.customProfiles,
 			)
 	}
@@ -927,7 +928,7 @@ func (appMgr *Manager) syncConfigMaps(
 					profile)
 				continue
 			}
-			err, updated := appMgr.handleSslProfile(rsCfg, secret, cm.ObjectMeta.Namespace)
+			err, updated := appMgr.handleSslProfile(rsCfg, secret)
 			if err != nil {
 				log.Warningf("%v", err)
 				continue
@@ -1159,6 +1160,30 @@ func (appMgr *Manager) setClientSslProfile(
 	rsCfg *ResourceConfig,
 	route *routeapi.Route,
 ) {
+	// First handle the Default for SNI profile
+	if appMgr.routeConfig.ClientSSL != "" {
+		// User has provided a name
+		rsCfg.Virtual.AddFrontendSslProfileName(appMgr.routeConfig.ClientSSL)
+	} else {
+		// No provided name, so we create a default
+		skey := secretKey{
+			Name:         "default-route-clientssl",
+			ResourceName: rsCfg.Virtual.VirtualServerName,
+		}
+		if _, ok := appMgr.customProfiles.profs[skey]; !ok {
+			profile := ProfileRef{
+				Name:      "default-route-clientssl",
+				Partition: rsCfg.Virtual.Partition,
+				Context:   customProfileClient,
+			}
+			// This is just a basic profile, so we don't need all the fields
+			cp := NewCustomProfile(profile, "", "", "", true, appMgr.customProfiles)
+			appMgr.customProfiles.profs[skey] = cp
+			pName := fmt.Sprintf("%s/%s", cp.Partition, cp.Name)
+			rsCfg.Virtual.AddFrontendSslProfileName(pName)
+		}
+	}
+	// Now handle the profile from the Route
 	profileName := "Common/clientssl"
 	if "" != route.Spec.TLS.Certificate && "" != route.Spec.TLS.Key {
 		profile := ProfileRef{
@@ -1171,13 +1196,12 @@ func (appMgr *Manager) setClientSslProfile(
 			route.Spec.TLS.Certificate,
 			route.Spec.TLS.Key,
 			route.Spec.Host,
-			rsCfg.Virtual.VirtualServerName,
+			false,
 			appMgr.customProfiles,
 		)
 
 		skey := secretKey{
 			Name:         cp.Name,
-			Namespace:    sKey.Namespace,
 			ResourceName: rsCfg.Virtual.VirtualServerName,
 		}
 		appMgr.customProfiles.Lock()
@@ -1199,6 +1223,33 @@ func (appMgr *Manager) setServerSslProfile(
 	rsCfg *ResourceConfig,
 	route *routeapi.Route,
 ) {
+	// First handle the Default for SNI profile
+	if appMgr.routeConfig.ServerSSL != "" {
+		// User has provided a name
+		profile := ProfileRef{
+			Name:      appMgr.routeConfig.ServerSSL,
+			Partition: rsCfg.Virtual.Partition,
+			Context:   customProfileServer,
+		}
+		rsCfg.Virtual.AddOrUpdateProfile(profile)
+	} else {
+		// No provided name, so we create a default
+		skey := secretKey{
+			Name:         "default-route-serverssl",
+			ResourceName: rsCfg.Virtual.VirtualServerName,
+		}
+		if _, ok := appMgr.customProfiles.profs[skey]; !ok {
+			profile := ProfileRef{
+				Name:      "default-route-serverssl",
+				Partition: rsCfg.Virtual.Partition,
+				Context:   customProfileServer,
+			}
+			// This is just a basic profile, so we don't need all the fields
+			cp := NewCustomProfile(profile, "", "", "", true, appMgr.customProfiles)
+			appMgr.customProfiles.profs[skey] = cp
+			rsCfg.Virtual.AddOrUpdateProfile(profile)
+		}
+	}
 	if "" != route.Spec.TLS.DestinationCACertificate {
 		// Create new SSL server profile with the provided CA Certificate.
 		ruleName := formatRouteRuleName(route)
@@ -1212,13 +1263,12 @@ func (appMgr *Manager) setServerSslProfile(
 			route.Spec.TLS.DestinationCACertificate,
 			"", // no key
 			route.Spec.Host,
-			rsCfg.Virtual.VirtualServerName,
+			false,
 			appMgr.customProfiles,
 		)
 
 		skey := secretKey{
 			Name:         cp.Name,
-			Namespace:    sKey.Namespace,
 			ResourceName: rsCfg.Virtual.VirtualServerName,
 		}
 		appMgr.customProfiles.Lock()
@@ -1232,11 +1282,7 @@ func (appMgr *Manager) setServerSslProfile(
 		rsCfg.Virtual.AddOrUpdateProfile(profile)
 	} else {
 		profile, added :=
-			appMgr.loadDefaultCert(
-				sKey.Namespace,
-				route.Spec.Host,
-				rsCfg.Virtual.VirtualServerName,
-			)
+			appMgr.loadDefaultCert(sKey.Namespace, route.Spec.Host)
 		if nil != profile {
 			rsCfg.Virtual.AddOrUpdateProfile(*profile)
 		}
@@ -1265,7 +1311,6 @@ func getBooleanAnnotation(
 
 type secretKey struct {
 	Name         string
-	Namespace    string
 	ResourceName string
 }
 
@@ -1308,7 +1353,7 @@ func (appMgr *Manager) handleIngressTls(
 				rsCfg.Virtual.AddFrontendSslProfileName(secretName)
 				continue
 			}
-			err, cpUpdated = appMgr.handleSslProfile(rsCfg, secret, ing.ObjectMeta.Namespace)
+			err, cpUpdated = appMgr.handleSslProfile(rsCfg, secret)
 			if err != nil {
 				log.Warningf("%v", err)
 				continue
@@ -1370,7 +1415,7 @@ func (appMgr *Manager) handleIngressTls(
 func (appMgr *Manager) handleSslProfile(
 	rsCfg *ResourceConfig,
 	secret *v1.Secret,
-	namespace string) (error, bool) {
+) (error, bool) {
 	if _, ok := secret.Data["tls.crt"]; !ok {
 		err := fmt.Errorf("Invalid Secret '%v': 'tls.crt' field not specified.",
 			secret.ObjectMeta.Name)
@@ -1391,7 +1436,6 @@ func (appMgr *Manager) handleSslProfile(
 	}
 	skey := secretKey{
 		Name:         cp.Name,
-		Namespace:    namespace,
 		ResourceName: rsCfg.Virtual.VirtualServerName,
 	}
 	appMgr.customProfiles.Lock()

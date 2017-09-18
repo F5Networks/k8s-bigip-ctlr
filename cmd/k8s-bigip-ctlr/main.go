@@ -93,6 +93,8 @@ var (
 	routeLabel       *string
 	routeHttpVs      *string
 	routeHttpsVs     *string
+	clientSSL        *string
+	serverSSL        *string
 
 	// package variables
 	isNodePort         bool
@@ -184,6 +186,12 @@ func _init() {
 		"Optional, the name to be used for the OpenShift Route http vserver")
 	routeHttpsVs = osRouteFlags.String("route-https-vserver", "https-ose-vserver",
 		"Optional, the name to be used for the OpenShift Route https vserver")
+	clientSSL = osRouteFlags.String("default-client-ssl", "",
+		"Optional, specify a user-created client ssl profile to be used as"+
+			" default for SNI for Route virtual servers")
+	serverSSL = osRouteFlags.String("default-server-ssl", "",
+		"Optional, specify a user-created server ssl profile to be used as"+
+			" default for SNI for Route virtual servers")
 
 	osRouteFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Openshift Routes:\n%s\n", osRouteFlags.FlagUsages())
@@ -403,6 +411,8 @@ func main() {
 		RouteLabel:  *routeLabel,
 		HttpVs:      *routeHttpVs,
 		HttpsVs:     *routeHttpsVs,
+		ClientSSL:   *clientSSL,
+		ServerSSL:   *serverSSL,
 	}
 
 	var appMgrParms = appmanager.Params{

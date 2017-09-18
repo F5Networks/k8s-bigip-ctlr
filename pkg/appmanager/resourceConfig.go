@@ -280,12 +280,6 @@ func formatIngressVSName(ing *v1beta1.Ingress, protocol string) string {
 		ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, protocol)
 }
 
-// format the namespace and name for use in the frontend definition
-func formatRouteVSName(route *routeapi.Route, protocol string) string {
-	return fmt.Sprintf("openshift_%s_%s",
-		route.ObjectMeta.Namespace, protocol)
-}
-
 // format the namespace and name for use in the backend definition
 func formatRoutePoolName(route *routeapi.Route) string {
 	return fmt.Sprintf("openshift_%s_%s",
@@ -704,10 +698,10 @@ func createRSConfigFromRoute(
 
 	if pStruct.protocol == "http" {
 		policyName = "openshift_insecure_routes"
-		rsName = formatRouteVSName(route, "http")
+		rsName = routeConfig.HttpVs
 	} else {
 		policyName = "openshift_secure_routes"
-		rsName = formatRouteVSName(route, "https")
+		rsName = routeConfig.HttpsVs
 	}
 	tls := route.Spec.TLS
 

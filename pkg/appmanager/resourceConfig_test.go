@@ -486,8 +486,12 @@ var _ = Describe("Resource Config Tests", func() {
 				protocol: "https",
 				port:     443,
 			}
-			cfg, _ := createRSConfigFromRoute(route, Resources{}, RouteConfig{}, ps)
-			Expect(cfg.Virtual.VirtualServerName).To(Equal("openshift_default_https"))
+			rc := RouteConfig{
+				HttpVs:  "ose-vserver",
+				HttpsVs: "https-ose-vserver",
+			}
+			cfg, _ := createRSConfigFromRoute(route, Resources{}, rc, ps)
+			Expect(cfg.Virtual.VirtualServerName).To(Equal("https-ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_foo"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("foo"))
 			Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))
@@ -507,8 +511,8 @@ var _ = Describe("Resource Config Tests", func() {
 				protocol: "http",
 				port:     80,
 			}
-			cfg, _ = createRSConfigFromRoute(route2, Resources{}, RouteConfig{}, ps)
-			Expect(cfg.Virtual.VirtualServerName).To(Equal("openshift_default_http"))
+			cfg, _ = createRSConfigFromRoute(route2, Resources{}, rc, ps)
+			Expect(cfg.Virtual.VirtualServerName).To(Equal("ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_bar"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("bar"))
 			Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))

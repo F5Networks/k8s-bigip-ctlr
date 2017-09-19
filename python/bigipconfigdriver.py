@@ -384,6 +384,7 @@ def _create_custom_profiles(mgmt, partition, custom_profiles):
 
 def _create_client_ssl_profile(mgmt, partition, profile):
     ssl_client_profile = mgmt.tm.ltm.profile.client_ssls.client_ssl
+    incomplete = 0
 
     name = profile['name']
 
@@ -393,31 +394,37 @@ def _create_client_ssl_profile(mgmt, partition, profile):
 
     cert = profile['cert']
     cert_name = name + '.crt'
-    incomplete = _install_certificate(mgmt, cert, cert_name)
+    if cert != "":
+        incomplete = _install_certificate(mgmt, cert, cert_name)
     if incomplete > 0:
         # Unable to install cert
         return incomplete
 
     key = profile['key']
     key_name = name + '.key'
-    incomplete = _install_key(mgmt, key, key_name)
+    if key != "":
+        incomplete = _install_key(mgmt, key, key_name)
     if incomplete > 0:
         # Unable to install key
         return incomplete
 
     try:
         # create ssl-client profile from cert/key pair
-        chain = [{'name': name,
-                  'cert': '/Common/' + cert_name,
-                  'key': '/Common/' + key_name}]
         serverName = profile.get('serverName', None)
         sniDefault = profile.get('sniDefault', False)
+        kwargs = {}
+        if cert != "" and key != "":
+            chain = [{'name': name,
+                      'cert': '/Common/' + cert_name,
+                      'key': '/Common/' + key_name}]
+            kwargs = {'certKeyChain': chain}
+
         ssl_client_profile.create(name=name,
                                   partition=partition,
-                                  certKeyChain=chain,
                                   serverName=serverName,
                                   sniDefault=sniDefault,
-                                  defaultsFrom=None)
+                                  defaultsFrom=None,
+                                  **kwargs)
     except Exception as err:
         log.error("Error creating client SSL profile: %s" % err.message)
         incomplete = 1
@@ -427,6 +434,7 @@ def _create_client_ssl_profile(mgmt, partition, profile):
 
 def _create_server_ssl_profile(mgmt, partition, profile):
     ssl_server_profile = mgmt.tm.ltm.profile.server_ssls.server_ssl
+    incomplete = 0
 
     name = profile['name']
 
@@ -436,7 +444,8 @@ def _create_server_ssl_profile(mgmt, partition, profile):
 
     cert = profile['cert']
     cert_name = name + '.crt'
-    incomplete = _install_certificate(mgmt, cert, cert_name)
+    if cert != "":
+        incomplete = _install_certificate(mgmt, cert, cert_name)
     if incomplete > 0:
         # Unable to install cert
         return incomplete
@@ -445,11 +454,15 @@ def _create_server_ssl_profile(mgmt, partition, profile):
         # create ssl-server profile
         serverName = profile.get('serverName', None)
         sniDefault = profile.get('sniDefault', False)
+        kwargs = {}
+        if cert != "":
+            kwargs = {'chain': cert_name}
+
         ssl_server_profile.create(name=name,
                                   partition=partition,
-                                  chain=cert_name,
                                   serverName=serverName,
-                                  sniDefault=sniDefault)
+                                  sniDefault=sniDefault,
+                                  **kwargs)
     except Exception as err:
         incomplete += 1
         log.error("Error creating server SSL profile: %s" % err.message)

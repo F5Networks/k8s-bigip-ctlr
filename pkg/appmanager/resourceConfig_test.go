@@ -668,7 +668,7 @@ var _ = Describe("Resource Config Tests", func() {
 					"crt",
 					"key",
 					"srver",
-					"vs",
+					false,
 					CustomProfileStore{})
 				refs := virtual.ReferencesProfile(cprof)
 				Expect(refs).To(BeFalse())
@@ -693,7 +693,7 @@ var _ = Describe("Resource Config Tests", func() {
 						"crt",
 						"key",
 						"srver",
-						"vs",
+						false,
 						CustomProfileStore{},
 					)
 					refs := virtual.ReferencesProfile(cprof)
@@ -704,7 +704,7 @@ var _ = Describe("Resource Config Tests", func() {
 						"crt",
 						"key",
 						"srver",
-						"vs",
+						false,
 						CustomProfileStore{})
 					refs := virtual.ReferencesProfile(cprof)
 					Expect(refs).To(BeFalse())

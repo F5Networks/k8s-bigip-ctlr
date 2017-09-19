@@ -236,7 +236,6 @@ type (
 		Key        string `json:"key"`
 		ServerName string `json:"serverName,omitempty"`
 		SNIDefault bool   `json:"sniDefault,omitempty"`
-		VSName     string `json:"-"` // virtual server that uses this profile
 	}
 
 	// Used to unmarshal ConfigMap data

@@ -91,6 +91,8 @@ var (
 
 	routeVserverAddr *string
 	routeLabel       *string
+	routeHttpVs      *string
+	routeHttpsVs     *string
 
 	// package variables
 	isNodePort         bool
@@ -178,6 +180,10 @@ func _init() {
 		"Optional, bind address for virtual server for Route objects.")
 	routeLabel = osRouteFlags.String("route-label", "",
 		"Optional, label for which Route objects to watch.")
+	routeHttpVs = osRouteFlags.String("route-http-vserver", "ose-vserver",
+		"Optional, the name to be used for the OpenShift Route http vserver")
+	routeHttpsVs = osRouteFlags.String("route-https-vserver", "https-ose-vserver",
+		"Optional, the name to be used for the OpenShift Route https vserver")
 
 	osRouteFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Openshift Routes:\n%s\n", osRouteFlags.FlagUsages())
@@ -395,6 +401,8 @@ func main() {
 	var routeConfig = appmanager.RouteConfig{
 		RouteVSAddr: *routeVserverAddr,
 		RouteLabel:  *routeLabel,
+		HttpVs:      *routeHttpVs,
+		HttpsVs:     *routeHttpsVs,
 	}
 
 	var appMgrParms = appmanager.Params{

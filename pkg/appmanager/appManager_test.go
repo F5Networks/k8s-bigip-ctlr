@@ -2861,244 +2861,253 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(len(customProfiles)).To(Equal(1))
 			})
 
-			It("configures virtual servers via Routes", func() {
-				spec := routeapi.RouteSpec{
-					Host: "foobar.com",
-					Path: "/foo",
-					To: routeapi.RouteTargetReference{
-						Kind: "Service",
-						Name: "foo",
-					},
-					TLS: &routeapi.TLSConfig{
-						Termination: "edge",
-						Certificate: "cert",
-						Key:         "key",
-					},
-				}
-				route := test.NewRoute("route", "1", namespace, spec)
-				r := mockMgr.addRoute(route)
-				Expect(r).To(BeTrue(), "Route resource should be processed.")
-
-				resources := mockMgr.resources()
-				// Associate a service
-				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				r = mockMgr.addService(fooSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(2))
-
-				rs, ok := resources.Get(
-					serviceKey{"foo", 80, "default"}, "openshift_default_https")
-				Expect(ok).To(BeTrue(), "Route should be accessible.")
-				Expect(rs).ToNot(BeNil(), "Route should be object.")
-				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-
-				customProfiles := mockMgr.customProfiles()
-				Expect(len(customProfiles)).To(Equal(1))
-
-				spec = routeapi.RouteSpec{
-					Host: "barfoo.com",
-					Path: "/bar",
-					To: routeapi.RouteTargetReference{
-						Kind: "Service",
-						Name: "bar",
-					},
-					TLS: &routeapi.TLSConfig{
-						Termination: "edge",
-						Certificate: "cert",
-						Key:         "key",
-					},
-				}
-				route2 := test.NewRoute("route2", "1", namespace, spec)
-				r = mockMgr.addRoute(route2)
-				Expect(r).To(BeTrue(), "Route resource should be processed.")
-				resources = mockMgr.resources()
-				// Associate a service
-				barSvc := test.NewService("bar", "1", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				mockMgr.addService(barSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(4))
-
-				rs, ok = resources.Get(
-					serviceKey{"bar", 80, "default"}, "openshift_default_https")
-				Expect(ok).To(BeTrue(), "Route should be accessible.")
-				Expect(rs).ToNot(BeNil(), "Route should be object.")
-				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
-
-				customProfiles = mockMgr.customProfiles()
-				Expect(len(customProfiles)).To(Equal(2))
-
-				// Delete a Route resource
-				r = mockMgr.deleteRoute(route2)
-				Expect(r).To(BeTrue(), "Route resource should be processed.")
-				Expect(resources.Count()).To(Equal(2))
-				Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-				Expect(len(customProfiles)).To(Equal(1))
-			})
-
-			It("configures passthrough routes", func() {
-				// create 2 services and routes
-				hostName1 := "foobar.com"
-				svcName1 := "foo"
-				spec := routeapi.RouteSpec{
-					Host: hostName1,
-					Path: "/foo",
-					To: routeapi.RouteTargetReference{
-						Kind: "Service",
-						Name: svcName1,
-					},
-					TLS: &routeapi.TLSConfig{
-						Termination: routeapi.TLSTerminationPassthrough,
-					},
-				}
-				route1 := test.NewRoute("rt1", "1", namespace, spec)
-				r := mockMgr.addRoute(route1)
-				Expect(r).To(BeTrue(), "Route resource should be processed.")
-
-				resources := mockMgr.resources()
-				fooSvc := test.NewService(svcName1, "1", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 443, NodePort: 37001}})
-				r = mockMgr.addService(fooSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(2))
-
-				hostName2 := "barfoo.com"
-				svcName2 := "bar"
-				spec = routeapi.RouteSpec{
-					Host: hostName2,
-					Path: "/bar",
-					To: routeapi.RouteTargetReference{
-						Kind: "Service",
-						Name: svcName2,
-					},
-					TLS: &routeapi.TLSConfig{
-						Termination:                   routeapi.TLSTerminationPassthrough,
-						InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyRedirect,
-					},
-				}
-				route2 := test.NewRoute("rt2", "1", namespace, spec)
-				r = mockMgr.addRoute(route2)
-				Expect(r).To(BeTrue(), "Route resource should be processed.")
-				resources = mockMgr.resources()
-				barSvc := test.NewService(svcName2, "1", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 443, NodePort: 37001}})
-				mockMgr.addService(barSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(4))
-
-				// Check state.
-				rs, ok := resources.Get(
-					serviceKey{svcName1, 443, namespace}, "openshift_default_https")
-				Expect(ok).To(BeTrue(), "Route should be accessible.")
-				Expect(rs).ToNot(BeNil(), "Route should be object.")
-				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(len(rs.Policies)).To(Equal(0))
-				Expect(len(rs.Virtual.IRules)).To(Equal(1))
-				expectedIRuleName := fmt.Sprintf("/%s/%s",
-					DEFAULT_PARTITION, sslPassthroughIRuleName)
-				Expect(rs.Virtual.IRules[0]).To(Equal(expectedIRuleName))
-
-				hostDgKey := nameRef{
-					Name:      passthroughHostsDgName,
-					Partition: DEFAULT_PARTITION,
-				}
-				hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
-				Expect(found).To(BeTrue())
-				Expect(len(hostDg.Records)).To(Equal(2))
-				Expect(hostDg.Records[1].Name).To(Equal(hostName1))
-				Expect(hostDg.Records[0].Name).To(Equal(hostName2))
-				Expect(hostDg.Records[1].Data).To(Equal(formatRoutePoolName(route1)))
-				Expect(hostDg.Records[0].Data).To(Equal(formatRoutePoolName(route2)))
-
-				rs, ok = resources.Get(
-					serviceKey{svcName2, 443, namespace}, "openshift_default_http")
-				Expect(ok).To(BeTrue(), "Route should be accessible.")
-				Expect(rs).ToNot(BeNil(), "Route should be object.")
-				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(len(rs.Virtual.IRules)).To(Equal(0))
-				Expect(len(rs.Policies)).To(Equal(0))
-
-				// Delete a Route resource and make sure the data groups are cleaned up.
-				r = mockMgr.deleteRoute(route2)
-				Expect(r).To(BeTrue(), "Route resource should be processed.")
-				Expect(resources.Count()).To(Equal(2))
-				hostDg, found = mockMgr.appMgr.intDgMap[hostDgKey]
-				Expect(found).To(BeTrue())
-				Expect(len(hostDg.Records)).To(Equal(1))
-				Expect(hostDg.Records[0].Name).To(Equal(hostName1))
-				Expect(hostDg.Records[0].Data).To(Equal(formatRoutePoolName(route1)))
-			})
-
-			It("configures reencrypt routes", func() {
-				hostName := "foobar.com"
-				spec := routeapi.RouteSpec{
-					Host: hostName,
-					Path: "/foo",
-					To: routeapi.RouteTargetReference{
-						Kind: "Service",
-						Name: "foo",
-					},
-					TLS: &routeapi.TLSConfig{
-						Termination: "reencrypt",
-						Certificate: "cert",
-						Key:         "key",
-						DestinationCACertificate: "destCaCert",
-					},
-				}
-				route := test.NewRoute("route", "1", namespace, spec)
-				r := mockMgr.addRoute(route)
-				Expect(r).To(BeTrue(), "Route resource should be processed.")
-
-				resources := mockMgr.resources()
-				// Associate a service
-				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 443, NodePort: 37001}})
-				r = mockMgr.addService(fooSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(2))
-
-				rs, ok := resources.Get(
-					serviceKey{"foo", 443, "default"}, "openshift_default_https")
-				Expect(ok).To(BeTrue(), "Route should be accessible.")
-				Expect(rs).ToNot(BeNil(), "Route should be object.")
-				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(len(rs.Policies[0].Rules)).To(Equal(1))
-				Expect(len(rs.Virtual.IRules)).To(Equal(1))
-				expectedIRuleName := fmt.Sprintf("/%s/%s",
-					DEFAULT_PARTITION, sslPassthroughIRuleName)
-				Expect(rs.Virtual.IRules[0]).To(Equal(expectedIRuleName))
-				hostDgKey := nameRef{
-					Name:      reencryptHostsDgName,
-					Partition: DEFAULT_PARTITION,
-				}
-				hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
-				Expect(found).To(BeTrue())
-				Expect(len(hostDg.Records)).To(Equal(1))
-				Expect(hostDg.Records[0].Name).To(Equal(hostName))
-				Expect(hostDg.Records[0].Data).To(Equal(formatRoutePoolName(route)))
-
-				customProfiles := mockMgr.customProfiles()
-				Expect(len(customProfiles)).To(Equal(2))
-				// should have 1 client ssl custom profile and 1 server ssl custom profile
-				haveClientSslProfile := false
-				haveServerSslProfile := false
-				for _, prof := range customProfiles {
-					switch prof.Context {
-					case customProfileClient:
-						haveClientSslProfile = true
-					case customProfileServer:
-						haveServerSslProfile = true
+			Context("Routes", func() {
+				BeforeEach(func() {
+					mockMgr.appMgr.routeConfig = RouteConfig{
+						HttpVs:  "ose-vserver",
+						HttpsVs: "https-ose-vserver",
 					}
-				}
-				Expect(haveClientSslProfile).To(BeTrue())
-				Expect(haveServerSslProfile).To(BeTrue())
+				})
 
-				// and both should be referenced by the virtual
-				Expect(rs.Virtual.GetProfileCountByContext(customProfileClient)).To(Equal(1))
-				Expect(rs.Virtual.GetProfileCountByContext(customProfileServer)).To(Equal(1))
+				It("configures virtual servers via Routes", func() {
+					spec := routeapi.RouteSpec{
+						Host: "foobar.com",
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: "cert",
+							Key:         "key",
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec)
+					r := mockMgr.addRoute(route)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+
+					resources := mockMgr.resources()
+					// Associate a service
+					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.Count()).To(Equal(2))
+
+					rs, ok := resources.Get(
+						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+
+					customProfiles := mockMgr.customProfiles()
+					Expect(len(customProfiles)).To(Equal(1))
+
+					spec = routeapi.RouteSpec{
+						Host: "barfoo.com",
+						Path: "/bar",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "bar",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: "cert",
+							Key:         "key",
+						},
+					}
+					route2 := test.NewRoute("route2", "1", namespace, spec)
+					r = mockMgr.addRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					resources = mockMgr.resources()
+					// Associate a service
+					barSvc := test.NewService("bar", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+					mockMgr.addService(barSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.Count()).To(Equal(4))
+
+					rs, ok = resources.Get(
+						serviceKey{"bar", 80, "default"}, "https-ose-vserver")
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+
+					customProfiles = mockMgr.customProfiles()
+					Expect(len(customProfiles)).To(Equal(2))
+
+					// Delete a Route resource
+					r = mockMgr.deleteRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					Expect(resources.Count()).To(Equal(2))
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+					Expect(len(customProfiles)).To(Equal(1))
+				})
+
+				It("configures passthrough routes", func() {
+					// create 2 services and routes
+					hostName1 := "foobar.com"
+					svcName1 := "foo"
+					spec := routeapi.RouteSpec{
+						Host: hostName1,
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: svcName1,
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: routeapi.TLSTerminationPassthrough,
+						},
+					}
+					route1 := test.NewRoute("rt1", "1", namespace, spec)
+					r := mockMgr.addRoute(route1)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+
+					resources := mockMgr.resources()
+					fooSvc := test.NewService(svcName1, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.Count()).To(Equal(2))
+
+					hostName2 := "barfoo.com"
+					svcName2 := "bar"
+					spec = routeapi.RouteSpec{
+						Host: hostName2,
+						Path: "/bar",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: svcName2,
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination:                   routeapi.TLSTerminationPassthrough,
+							InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyRedirect,
+						},
+					}
+					route2 := test.NewRoute("rt2", "1", namespace, spec)
+					r = mockMgr.addRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					resources = mockMgr.resources()
+					barSvc := test.NewService(svcName2, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+					mockMgr.addService(barSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.Count()).To(Equal(4))
+
+					// Check state.
+					rs, ok := resources.Get(
+						serviceKey{svcName1, 443, namespace}, "https-ose-vserver")
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Policies)).To(Equal(0))
+					Expect(len(rs.Virtual.IRules)).To(Equal(1))
+					expectedIRuleName := fmt.Sprintf("/%s/%s",
+						DEFAULT_PARTITION, sslPassthroughIRuleName)
+					Expect(rs.Virtual.IRules[0]).To(Equal(expectedIRuleName))
+
+					hostDgKey := nameRef{
+						Name:      passthroughHostsDgName,
+						Partition: DEFAULT_PARTITION,
+					}
+					hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
+					Expect(found).To(BeTrue())
+					Expect(len(hostDg.Records)).To(Equal(2))
+					Expect(hostDg.Records[1].Name).To(Equal(hostName1))
+					Expect(hostDg.Records[0].Name).To(Equal(hostName2))
+					Expect(hostDg.Records[1].Data).To(Equal(formatRoutePoolName(route1)))
+					Expect(hostDg.Records[0].Data).To(Equal(formatRoutePoolName(route2)))
+
+					rs, ok = resources.Get(
+						serviceKey{svcName2, 443, namespace}, "ose-vserver")
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Virtual.IRules)).To(Equal(0))
+					Expect(len(rs.Policies)).To(Equal(0))
+
+					// Delete a Route resource and make sure the data groups are cleaned up.
+					r = mockMgr.deleteRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					Expect(resources.Count()).To(Equal(2))
+					hostDg, found = mockMgr.appMgr.intDgMap[hostDgKey]
+					Expect(found).To(BeTrue())
+					Expect(len(hostDg.Records)).To(Equal(1))
+					Expect(hostDg.Records[0].Name).To(Equal(hostName1))
+					Expect(hostDg.Records[0].Data).To(Equal(formatRoutePoolName(route1)))
+				})
+
+				It("configures reencrypt routes", func() {
+					hostName := "foobar.com"
+					spec := routeapi.RouteSpec{
+						Host: hostName,
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "reencrypt",
+							Certificate: "cert",
+							Key:         "key",
+							DestinationCACertificate: "destCaCert",
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec)
+					r := mockMgr.addRoute(route)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+
+					resources := mockMgr.resources()
+					// Associate a service
+					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+					Expect(resources.Count()).To(Equal(2))
+
+					rs, ok := resources.Get(
+						serviceKey{"foo", 443, "default"}, "https-ose-vserver")
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.MetaData.Active).To(BeTrue())
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+					Expect(len(rs.Virtual.IRules)).To(Equal(1))
+					expectedIRuleName := fmt.Sprintf("/%s/%s",
+						DEFAULT_PARTITION, sslPassthroughIRuleName)
+					Expect(rs.Virtual.IRules[0]).To(Equal(expectedIRuleName))
+					hostDgKey := nameRef{
+						Name:      reencryptHostsDgName,
+						Partition: DEFAULT_PARTITION,
+					}
+					hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
+					Expect(found).To(BeTrue())
+					Expect(len(hostDg.Records)).To(Equal(1))
+					Expect(hostDg.Records[0].Name).To(Equal(hostName))
+					Expect(hostDg.Records[0].Data).To(Equal(formatRoutePoolName(route)))
+
+					customProfiles := mockMgr.customProfiles()
+					Expect(len(customProfiles)).To(Equal(2))
+					// should have 1 client ssl custom profile and 1 server ssl custom profile
+					haveClientSslProfile := false
+					haveServerSslProfile := false
+					for _, prof := range customProfiles {
+						switch prof.Context {
+						case customProfileClient:
+							haveClientSslProfile = true
+						case customProfileServer:
+							haveServerSslProfile = true
+						}
+					}
+					Expect(haveClientSslProfile).To(BeTrue())
+					Expect(haveServerSslProfile).To(BeTrue())
+
+					// and both should be referenced by the virtual
+					Expect(rs.Virtual.GetProfileCountByContext(customProfileClient)).To(Equal(1))
+					Expect(rs.Virtual.GetProfileCountByContext(customProfileServer)).To(Equal(1))
+				})
 			})
 		})
 

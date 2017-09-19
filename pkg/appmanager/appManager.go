@@ -119,6 +119,8 @@ type Params struct {
 type RouteConfig struct {
 	RouteVSAddr string
 	RouteLabel  string
+	HttpVs      string
+	HttpsVs     string
 }
 
 // Create and return a new app manager that meets the Manager interface
@@ -861,13 +863,13 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		// We get here when there are ports defined in the service that don't
 		// have a corresponding config map.
 		stats.vsDeleted = appMgr.deleteUnusedResources(sKey, rsMap)
-		appMgr.deleteUnusedRoutes(sKey.Namespace)
+		appMgr.deleteUnusedRoutes(sKey.Namespace, sKey.ServiceName)
 	}
 	log.Debugf("Updated %v of %v virtual server configs, deleted %v",
 		stats.vsUpdated, stats.vsFound, stats.vsDeleted)
 
 	// delete any custom profiles that are no longer referenced
-	appMgr.deleteUnusedProfiles(sKey.Namespace)
+	appMgr.deleteUnusedProfiles()
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
 		stats.dgUpdated > 0 {
@@ -1732,7 +1734,7 @@ func (appMgr *Manager) deleteUnusedResources(
 
 // If a route is deleted, loop through other route configs and delete pools/rules/profiles
 // for the deleted route.
-func (appMgr *Manager) deleteUnusedRoutes(namespace string) {
+func (appMgr *Manager) deleteUnusedRoutes(namespace, svc string) {
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
 	var routeName string
@@ -1742,13 +1744,15 @@ func (appMgr *Manager) deleteUnusedRoutes(namespace string) {
 				sKey := serviceKey{
 					ServiceName: pool.ServiceName,
 					ServicePort: pool.ServicePort,
-					Namespace:   key.Namespace,
+					Namespace:   namespace,
 				}
-				if _, ok := appMgr.resources.Get(sKey, cfg.Virtual.VirtualServerName); !ok {
+				_, ok := appMgr.resources.Get(sKey, cfg.Virtual.VirtualServerName)
+				if pool.ServiceName == svc && !ok {
 					poolName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
 					// Delete rule
 					for _, pol := range cfg.Policies {
 						if len(pol.Rules) == 1 {
+							routeName = strings.Split(pol.Rules[0].Name, "_")[3]
 							nr := nameRef{
 								Name:      pol.Name,
 								Partition: pol.Partition,
@@ -1791,7 +1795,7 @@ func (appMgr *Manager) deleteUnusedRoutes(namespace string) {
 	})
 }
 
-func (appMgr *Manager) deleteUnusedProfiles(namespace string) {
+func (appMgr *Manager) deleteUnusedProfiles() {
 	var found bool
 	appMgr.customProfiles.Lock()
 	defer appMgr.customProfiles.Unlock()
@@ -1799,10 +1803,8 @@ func (appMgr *Manager) deleteUnusedProfiles(namespace string) {
 		found = false
 		appMgr.resources.ForEach(func(k serviceKey, rsCfg *ResourceConfig) {
 			if key.ResourceName == rsCfg.Virtual.VirtualServerName &&
-				key.Namespace == namespace {
-				if rsCfg.Virtual.ReferencesProfile(profile) {
-					found = true
-				}
+				rsCfg.Virtual.ReferencesProfile(profile) {
+				found = true
 			}
 		})
 		if !found {

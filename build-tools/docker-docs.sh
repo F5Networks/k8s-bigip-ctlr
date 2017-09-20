@@ -10,6 +10,7 @@ RUN_ARGS=( \
   --workdir $PWD
   ${DOCKER_RUN_ARGS}
   -e "LOCAL_USER_ID=$(id -u)"
+  -e TRAVIS=$TRAVIS
 )
 
 # Add -it if caller is a terminal

@@ -292,6 +292,21 @@ func formatRouteRuleName(route *routeapi.Route) string {
 		route.ObjectMeta.Name)
 }
 
+// format the client ssl profile name for a Route
+func formatRouteClientSSLName(partition, namespace, name string) string {
+	if partition == "" {
+		return fmt.Sprintf("openshift_route_%s_%s-client-ssl",
+			namespace, name)
+	}
+	return fmt.Sprintf("%s/openshift_route_%s_%s-client-ssl",
+		partition, namespace, name)
+}
+
+// format the server ssl profile name for a Route
+func formatRouteServerSSLName(namespace, name string) string {
+	return fmt.Sprintf("openshift_route_%s_%s-server-ssl", namespace, name)
+}
+
 func formatIngressSslProfileName(secret string) string {
 	profName := strings.TrimSpace(strings.TrimPrefix(secret, "/"))
 	parts := strings.Split(profName, "/")

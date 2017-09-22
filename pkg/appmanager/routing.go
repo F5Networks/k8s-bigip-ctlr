@@ -399,13 +399,17 @@ func (appMgr *Manager) updateRouteDataGroups(
 	defer appMgr.intDgMutex.Unlock()
 
 	// If dgMap is empty, delete all records in our internal map for this namespace
+	var toRemove InternalDataGroupRecords
 	if len(dgMap) == 0 {
 		for _, dg := range appMgr.intDgMap {
 			for _, rec := range dg.Records {
 				ns := strings.Split(rec.Data, "_")[1]
 				if ns == namespace {
-					dg.RemoveRecord(rec.Name)
+					toRemove = append(toRemove, rec)
 				}
+			}
+			for _, rec := range toRemove {
+				dg.RemoveRecord(rec.Name)
 			}
 		}
 	}

@@ -20,6 +20,13 @@ Bug Fixes
 * Properly configure http redirect rules on v11.6.1 BIG-IP systems.
 * Failed configurations for objects do not prevent future configurations from happening.
 
+Limitations
+~~~~~~~~~~~
+
+* OpenShift - Does not currently support redirect for individual Routes. If a Route specifies 
+  "insecureEdgeTerminationPolicy" as "Redirect", the http virtual server will enable this policy for all Routes.
+  `[#341] <https://github.com/F5Networks/k8s-bigip-ctlr/issues/341>`_
+
 v1.1.1
 ------
 

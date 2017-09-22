@@ -1149,7 +1149,7 @@ func (appMgr *Manager) syncRoutes(
 	}
 
 	// Update internal data groups for routes if changed
-	appMgr.updateRouteDataGroups(stats, dgMap)
+	appMgr.updateRouteDataGroups(stats, dgMap, sKey.Namespace)
 
 	return nil
 }
@@ -1186,8 +1186,13 @@ func (appMgr *Manager) setClientSslProfile(
 	// Now handle the profile from the Route
 	profileName := "Common/clientssl"
 	if "" != route.Spec.TLS.Certificate && "" != route.Spec.TLS.Key {
+		profName := formatRouteClientSSLName(
+			"", // Creating the custom profile will add the partition
+			sKey.Namespace,
+			route.ObjectMeta.Name,
+		)
 		profile := ProfileRef{
-			Name:      route.ObjectMeta.Name + "-https-cert",
+			Name:      profName,
 			Partition: rsCfg.Virtual.Partition,
 			Context:   customProfileClient,
 		}
@@ -1252,9 +1257,9 @@ func (appMgr *Manager) setServerSslProfile(
 	}
 	if "" != route.Spec.TLS.DestinationCACertificate {
 		// Create new SSL server profile with the provided CA Certificate.
-		ruleName := formatRouteRuleName(route)
+		profName := formatRouteServerSSLName(sKey.Namespace, route.ObjectMeta.Name)
 		profile := ProfileRef{
-			Name:      ruleName + "-server-ssl",
+			Name:      profName,
 			Partition: rsCfg.Virtual.Partition,
 			Context:   customProfileServer,
 		}
@@ -1522,8 +1527,21 @@ func (appMgr *Manager) handleConfigForType(
 	var pool Pool
 	found := false
 	plIdx := 0
+	// Parses a pool name to see if it is in the expected namespace.
+	// We don't know if the pool is from a ConfigMap/Ingress or Route,
+	// so we parse in two different ways.
+	poolInNamespace := func(name, namespace string) bool {
+		if strings.HasPrefix(name, "openshift") &&
+			(strings.Split(name, "_")[1]) == namespace {
+			return true
+		} else if strings.HasPrefix(name, namespace) {
+			return true
+		}
+		return false
+	}
 	for i, pl := range rsCfg.Pools {
-		if pl.ServiceName == sKey.ServiceName {
+		if pl.ServiceName == sKey.ServiceName &&
+			poolInNamespace(pl.Name, sKey.Namespace) {
 			found = true
 			pool = pl
 			plIdx = i
@@ -1785,52 +1803,66 @@ func (appMgr *Manager) deleteUnusedRoutes(namespace, svc string) {
 	appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
 		if cfg.MetaData.ResourceType == "route" {
 			for i, pool := range cfg.Pools {
-				sKey := serviceKey{
-					ServiceName: pool.ServiceName,
-					ServicePort: pool.ServicePort,
-					Namespace:   namespace,
-				}
-				_, ok := appMgr.resources.Get(sKey, cfg.Virtual.VirtualServerName)
-				if pool.ServiceName == svc && !ok {
-					poolName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
-					// Delete rule
-					for _, pol := range cfg.Policies {
-						if len(pol.Rules) == 1 {
-							routeName = strings.Split(pol.Rules[0].Name, "_")[3]
-							nr := nameRef{
-								Name:      pol.Name,
-								Partition: pol.Partition,
-							}
-							cfg.RemovePolicy(nr)
-							continue
-						}
-						for i, rule := range pol.Rules {
-							if len(rule.Actions) > 0 && rule.Actions[0].Pool == poolName {
-								routeName = strings.Split(rule.Name, "_")[3]
-								if i >= len(pol.Rules)-1 {
-									pol.Rules = pol.Rules[:len(pol.Rules)-1]
-								} else {
-									copy(pol.Rules[i:], pol.Rules[i+1:])
-									pol.Rules[len(pol.Rules)-1] = &Rule{}
-									pol.Rules = pol.Rules[:len(pol.Rules)-1]
+				// Make sure we aren't processing empty pool
+				if pool.Name != "" {
+					sKey := serviceKey{
+						ServiceName: pool.ServiceName,
+						ServicePort: pool.ServicePort,
+						Namespace:   namespace,
+					}
+					poolNS := strings.Split(pool.Name, "_")[1]
+					_, ok := appMgr.resources.Get(sKey, cfg.Virtual.VirtualServerName)
+					if pool.ServiceName == svc && poolNS == namespace && !ok {
+						poolName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
+						// Delete rule
+						for _, pol := range cfg.Policies {
+							if len(pol.Rules) == 1 {
+								routeName = strings.Split(pol.Rules[0].Name, "_")[3]
+								nr := nameRef{
+									Name:      pol.Name,
+									Partition: pol.Partition,
 								}
-								cfg.SetPolicy(pol)
+								cfg.RemovePolicy(nr)
+								continue
+							}
+							for i, rule := range pol.Rules {
+								if len(rule.Actions) > 0 && rule.Actions[0].Pool == poolName {
+									routeName = strings.Split(rule.Name, "_")[3]
+									if i >= len(pol.Rules)-1 {
+										pol.Rules = pol.Rules[:len(pol.Rules)-1]
+									} else {
+										copy(pol.Rules[i:], pol.Rules[i+1:])
+										pol.Rules[len(pol.Rules)-1] = &Rule{}
+										pol.Rules = pol.Rules[:len(pol.Rules)-1]
+									}
+									cfg.SetPolicy(pol)
+								}
 							}
 						}
-					}
-					// Delete pool
-					if i >= len(cfg.Pools)-1 {
-						cfg.Pools = cfg.Pools[:len(cfg.Pools)-1]
-					} else {
-						copy(cfg.Pools[i:], cfg.Pools[i+1:])
-						cfg.Pools[len(cfg.Pools)-1] = Pool{}
-						cfg.Pools = cfg.Pools[:len(cfg.Pools)-1]
-					}
-					// Delete profile
-					if routeName != "" {
-						profileName := fmt.Sprintf("%s/%s-https-cert",
-							cfg.Virtual.Partition, routeName)
-						cfg.Virtual.RemoveFrontendSslProfileName(profileName)
+						// Delete pool
+						if i >= len(cfg.Pools)-1 {
+							cfg.Pools = cfg.Pools[:len(cfg.Pools)-1]
+						} else {
+							copy(cfg.Pools[i:], cfg.Pools[i+1:])
+							cfg.Pools[len(cfg.Pools)-1] = Pool{}
+							cfg.Pools = cfg.Pools[:len(cfg.Pools)-1]
+						}
+						// Delete profile
+						if routeName != "" {
+							client := formatRouteClientSSLName(
+								cfg.Virtual.Partition,
+								namespace,
+								routeName,
+							)
+							cfg.Virtual.RemoveFrontendSslProfileName(client)
+							server := formatRouteServerSSLName(namespace, routeName)
+							serverProfile := ProfileRef{
+								Name:      server,
+								Partition: cfg.Virtual.Partition,
+								Context:   customProfileServer,
+							}
+							cfg.Virtual.RemoveProfile(serverProfile)
+						}
 					}
 				}
 			}

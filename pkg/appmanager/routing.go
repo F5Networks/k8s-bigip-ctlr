@@ -388,14 +388,27 @@ func updateDataGroup(
 	}
 }
 
-// Update the appMgr datagroup cache for passthrough routes, indicating if
-// something had changed by updating 'stats', which should rewrite the config.
+// Update the appMgr datagroup cache for routes, indicating if something
+// had changed by updating 'stats', which should rewrite the config.
 func (appMgr *Manager) updateRouteDataGroups(
 	stats *vsSyncStats,
 	dgMap InternalDataGroupMap,
+	namespace string,
 ) {
 	appMgr.intDgMutex.Lock()
 	defer appMgr.intDgMutex.Unlock()
+
+	// If dgMap is empty, delete all records in our internal map for this namespace
+	if len(dgMap) == 0 {
+		for _, dg := range appMgr.intDgMap {
+			for _, rec := range dg.Records {
+				ns := strings.Split(rec.Data, "_")[1]
+				if ns == namespace {
+					dg.RemoveRecord(rec.Name)
+				}
+			}
+		}
+	}
 
 	for _, grp := range dgMap {
 		mapKey := nameRef{
@@ -404,8 +417,28 @@ func (appMgr *Manager) updateRouteDataGroups(
 		}
 		dg, found := appMgr.intDgMap[mapKey]
 		if found {
-			if !reflect.DeepEqual(dg.Records, grp.Records) {
+			// Make sure we are only looking at records for this namespace,
+			// or else our records will never match, since dgMap only contains
+			// records for the current namespace, while intDgMap has records
+			// for all namespaces
+			var nonNSRecords, NSRecords InternalDataGroupRecords
+			for _, rec := range dg.Records {
+				ns := strings.Split(rec.Data, "_")[1]
+				if ns != namespace {
+					// Save off a list of records for other namespaces
+					nonNSRecords = append(nonNSRecords, rec)
+				} else {
+					// Save a list of records for this namespace (used for comparison)
+					NSRecords = append(NSRecords, rec)
+				}
+			}
+			if !reflect.DeepEqual(NSRecords, grp.Records) {
+				// current namespace records aren't equal
 				dg.Records = grp.Records
+				for _, rec := range nonNSRecords {
+					// Add other namespace records back in
+					dg.AddOrUpdateRecord(rec.Name, rec.Data)
+				}
 				stats.dgUpdated += 1
 			}
 		} else {

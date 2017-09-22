@@ -740,7 +740,8 @@ func createRSConfigFromRoute(
 	cfgs, _ := resources.GetAllWithName(rsName)
 	if len(cfgs) > 0 {
 		// If we do, use an existing config
-		rsCfg = *cfgs[0]
+		rsCfg.copyConfig(cfgs[0])
+
 		// If this pool doesn't already exist, add it
 		var found bool
 		for _, pl := range rsCfg.Pools {
@@ -780,6 +781,18 @@ func createRSConfigFromRoute(
 	}
 
 	return rsCfg, nil
+}
+
+// Copies from an existing config into our new config
+func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
+	rc.MetaData = cfg.MetaData
+	rc.Virtual = cfg.Virtual
+	rc.Pools = make(Pools, len(cfg.Pools))
+	copy(rc.Pools, cfg.Pools)
+	rc.Monitors = make(Monitors, len(cfg.Monitors))
+	copy(rc.Monitors, cfg.Monitors)
+	rc.Policies = make([]Policy, len(cfg.Policies))
+	copy(rc.Policies, cfg.Policies)
 }
 
 func (rc *ResourceConfig) HandleRouteTls(

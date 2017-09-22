@@ -2945,6 +2945,8 @@ var _ = Describe("AppManager Tests", func() {
 					r = mockMgr.deleteRoute(route2)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
 					Expect(resources.Count()).To(Equal(2))
+					rs, ok = resources.Get(
+						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
 					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
 					Expect(len(customProfiles)).To(Equal(2))
 				})

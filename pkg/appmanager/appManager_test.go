@@ -3127,6 +3127,47 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(rs.Virtual.GetProfileCountByContext(customProfileClient)).To(Equal(2))
 					Expect(rs.Virtual.GetProfileCountByContext(customProfileServer)).To(Equal(2))
 				})
+
+				// Note: Once we move to the single config per virtual model, this test
+				// can be removed
+				It("doesn't update stored route configs during processing", func() {
+					spec := routeapi.RouteSpec{
+						Host: "foo.com",
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: "cert",
+							Key:         "key",
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec)
+					mockMgr.addRoute(route)
+
+					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+					mockMgr.addService(fooSvc)
+
+					resources := mockMgr.resources()
+					rs, ok := resources.Get(
+						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+
+					// Add a new route, our stored config (rs), should not have been
+					// updated locally. It should only update when we get it again.
+					// This confirms that we aren't updating a pointer.
+					route2 := test.NewRoute("route2", "1", namespace, spec)
+					mockMgr.addRoute(route2)
+					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+					rs, _ = resources.Get(
+						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
+					Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+				})
 			})
 		})
 
@@ -3396,6 +3437,95 @@ var _ = Describe("AppManager Tests", func() {
 					formatConfigMapVSName(cfgNs3))
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs.MetaData.Active).To(BeTrue())
+			})
+
+			It("handles routes and services in multiple namespaces", func() {
+				mockMgr.appMgr.routeConfig = RouteConfig{
+					HttpVs:  "ose-vserver",
+					HttpsVs: "https-ose-vserver",
+				}
+				ns1 := "default"
+				ns2 := "kube-system"
+
+				cfgMapSelector, err := labels.Parse(DefaultConfigMapLabel)
+				Expect(err).To(BeNil())
+				err = mockMgr.appMgr.AddNamespace("", cfgMapSelector, 0)
+				Expect(err).To(BeNil())
+
+				mockMgr.appMgr.useNodeInternal = true
+				nodeSet := []v1.Node{
+					*test.NewNode("node0", "0", false, []v1.NodeAddress{
+						{"InternalIP", "127.0.0.0"}}, []v1.Taint{}),
+				}
+				mockMgr.processNodeUpdate(nodeSet, nil)
+
+				// Create two services with same name in different namespaces
+				svcNs1 := test.NewService("foo", "1", ns1, "NodePort",
+					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+				svcNs2 := test.NewService("foo", "2", ns2, "NodePort",
+					[]v1.ServicePort{{Port: 80, NodePort: 38001}})
+				mockMgr.addService(svcNs1)
+				mockMgr.addService(svcNs2)
+
+				spec := routeapi.RouteSpec{
+					Host: "foobar.com",
+					Path: "/foo",
+					Port: &routeapi.RoutePort{
+						TargetPort: intstr.IntOrString{IntVal: 80},
+					},
+					To: routeapi.RouteTargetReference{
+						Kind: "Service",
+						Name: "foo",
+					},
+					TLS: &routeapi.TLSConfig{
+						Termination: "edge",
+						Certificate: "cert",
+						Key:         "key",
+					},
+				}
+				// Create two routes with same name in different namespaces
+				route := test.NewRoute("route", "1", ns1, spec)
+				r := mockMgr.addRoute(route)
+				Expect(r).To(BeTrue(), "Route resource should be processed.")
+				route2 := test.NewRoute("route", "2", ns2, spec)
+				r = mockMgr.addRoute(route2)
+				Expect(r).To(BeTrue(), "Route resource should be processed.")
+				resources := mockMgr.resources()
+				Expect(resources.Count()).To(Equal(4))
+
+				rs, ok := resources.Get(
+					serviceKey{"foo", 80, ns1}, "https-ose-vserver")
+				Expect(ok).To(BeTrue(), "Route should be accessible.")
+				Expect(rs).ToNot(BeNil(), "Route should be object.")
+				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+				Expect(len(rs.Virtual.SslProfile.F5ProfileNames)).To(Equal(3))
+				addr := []string{"127.0.0.0"}
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addr)))
+				Expect(rs.Pools[1].Members).To(Equal(generateExpectedAddrs(38001, addr)))
+
+				rs, ok = resources.Get(
+					serviceKey{"foo", 80, ns2}, "https-ose-vserver")
+				Expect(ok).To(BeTrue(), "Route should be accessible.")
+				Expect(rs).ToNot(BeNil(), "Route should be object.")
+				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+				Expect(len(rs.Pools)).To(Equal(2))
+				Expect(len(rs.Virtual.SslProfile.F5ProfileNames)).To(Equal(3))
+				addr = []string{"127.0.0.0"}
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addr)))
+				Expect(rs.Pools[1].Members).To(Equal(generateExpectedAddrs(38001, addr)))
+
+				// Delete a route
+				mockMgr.deleteRoute(route2)
+				Expect(resources.Count()).To(Equal(2))
+				rs, ok = resources.Get(
+					serviceKey{"foo", 80, ns1}, "https-ose-vserver")
+				Expect(ok).To(BeTrue(), "Route should be accessible.")
+				Expect(rs).ToNot(BeNil(), "Route should be object.")
+				Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+				Expect(len(rs.Pools)).To(Equal(1))
+				Expect(len(rs.Virtual.SslProfile.F5ProfileNames)).To(Equal(2))
+				addr = []string{"127.0.0.0"}
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addr)))
 			})
 		})
 	})

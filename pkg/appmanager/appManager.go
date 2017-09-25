@@ -1128,7 +1128,11 @@ func (appMgr *Manager) syncRoutes(
 			for i, cfg := range cfgs {
 				if cfg.Virtual.Partition == rsCfg.Virtual.Partition &&
 					!reflect.DeepEqual(cfg, rsCfg) {
+					mdActive := cfg.MetaData.Active
 					cfg = &rsCfg
+					// If the current rsCfg is inactive, we shouldn't deactivate
+					// other configs for other pools. Only this pool (rsCfg) will be disabled.
+					cfg.MetaData.Active = mdActive
 					appMgr.resources.Assign(keys[i], cfg.Virtual.VirtualServerName, cfg)
 				}
 			}

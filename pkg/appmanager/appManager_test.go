@@ -2873,6 +2873,9 @@ var _ = Describe("AppManager Tests", func() {
 					spec := routeapi.RouteSpec{
 						Host: "foobar.com",
 						Path: "/foo",
+						Port: &routeapi.RoutePort{
+							TargetPort: intstr.IntOrString{IntVal: 80},
+						},
 						To: routeapi.RouteTargetReference{
 							Kind: "Service",
 							Name: "foo",
@@ -2949,6 +2952,16 @@ var _ = Describe("AppManager Tests", func() {
 						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
 					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
 					Expect(len(customProfiles)).To(Equal(2))
+
+					// Update Route1 port
+					route.Spec.Port.TargetPort = intstr.IntOrString{IntVal: 443}
+					mockMgr.updateRoute(route)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					rs, ok = resources.Get(
+						serviceKey{"foo", 443, "default"}, "https-ose-vserver")
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.Pools[0].ServicePort).To(Equal(int32(443)))
 				})
 
 				It("configures passthrough routes", func() {

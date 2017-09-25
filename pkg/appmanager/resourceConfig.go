@@ -744,8 +744,12 @@ func createRSConfigFromRoute(
 
 		// If this pool doesn't already exist, add it
 		var found bool
-		for _, pl := range rsCfg.Pools {
+		for i, pl := range rsCfg.Pools {
 			if pl.Name == pool.Name {
+				// If port has changed, update it
+				if pl.ServicePort != pool.ServicePort {
+					rsCfg.Pools[i].ServicePort = pool.ServicePort
+				}
 				found = true
 			}
 		}

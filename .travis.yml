@@ -44,10 +44,10 @@ deploy:
   - provider: script
     skip_cleanup: true
     on:
-      branch: 1.1-stable
+      branch: 1.2-stable
       repo: F5Networks/k8s-bigip-ctlr
     script:
-      - ./build-tools/deploy-docs.sh publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.1
+      - ./build-tools/deploy-docs.sh publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.2
 
 notifications:
   slack:

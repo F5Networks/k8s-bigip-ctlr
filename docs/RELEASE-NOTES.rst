@@ -7,6 +7,7 @@ Release Notes for BIG-IP Controller for Kubernetes
 Added Functionality
 ```````````````````
 
+* Introduced support for Kubernetes 1.6 and 1.7.
 * Watch all nodes by default; watch a subset of nodes with a user-specified label.
 * Create BIG-IP SSL Profiles from Kubernetes Secrets via Ingress TLS.
 * Create BIG-IP objects from OpenShift Route resources.

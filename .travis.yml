@@ -26,7 +26,6 @@ script:
   - export CLEAN_BUILD=true
   - export BASE_OS=alpine
   - ./build-tools/build-devel-image.sh
-  - ./build-tools/run-in-docker.sh make verify
   - ./build-tools/build-debug-artifacts.sh
   - ./build-tools/build-release-artifacts.sh
   - ./build-tools/build-release-images.sh

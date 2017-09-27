@@ -44,10 +44,12 @@ deploy:
   - provider: script
     skip_cleanup: true
     on:
-      branch: 1.2-stable
+      all_branches: true
       repo: F5Networks/k8s-bigip-ctlr
+      condition: $TRAVIS_BRANCH == *"-stable"
     script:
-      - ./build-tools/deploy-docs.sh publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.2
+      - ctlr_ver=$(echo $TRAVIS_BRANCH | sed s/-stable//g)
+      - ./build-tools/deploy-docs.sh publish-product-docs-to-prod connectors/k8s-bigip-ctlr $ctlr_ver
 
 notifications:
   slack:

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"reflect"
 	"sort"
 	"strconv"
@@ -47,6 +48,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/miekg/dns"
 	routeapi "github.com/openshift/origin/pkg/route/api"
 )
 
@@ -99,6 +101,8 @@ type Manager struct {
 	routeConfig RouteConfig
 	// Currently configured node label selector
 	nodeLabelSelector string
+	// Strategy for resolving Ingress Hosts into IP addresses (LOOKUP or custom DNS)
+	resolveIng string
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -110,6 +114,7 @@ type Params struct {
 	UseNodeInternal   bool
 	IsNodePort        bool
 	RouteConfig       RouteConfig
+	ResolveIngress    string
 	InitialState      bool                 // Unit testing only
 	EventRecorder     record.EventRecorder // Unit testing only
 	NodeLabelSelector string
@@ -147,6 +152,7 @@ func NewManager(params *Params) *Manager {
 		eventRecorder:     params.EventRecorder,
 		routeConfig:       params.RouteConfig,
 		nodeLabelSelector: params.NodeLabelSelector,
+		resolveIng:        params.ResolveIngress,
 		vsQueue:           vsQueue,
 		nsQueue:           nsQueue,
 		appInformers:      make(map[string]*appInformer),
@@ -985,6 +991,12 @@ func (appMgr *Manager) syncIngresses(
 		ing := obj.(*v1beta1.Ingress)
 		if ing.ObjectMeta.Namespace != sKey.Namespace {
 			continue
+		}
+
+		// Resolve first Ingress Host name (if required)
+		_, exists := ing.ObjectMeta.Annotations["virtual-server.f5.com/ip"]
+		if !exists && appMgr.resolveIng != "" {
+			appMgr.resolveIngressHost(ing, sKey.Namespace)
 		}
 
 		for _, portStruct := range appMgr.virtualPorts(ing) {
@@ -1976,6 +1988,101 @@ func (appMgr *Manager) recordIngressEvent(ing *v1beta1.Ingress,
 
 	// Create the event
 	appMgr.eventRecorder.Event(ing, v1.EventTypeNormal, reason, message)
+}
+
+// Resolve the first host name in an Ingress and use the IP address as the VS address
+func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string) {
+	var host, ipAddress string
+	var err error
+	var netIPs []net.IP
+	logDNSError := func(msg string) {
+		log.Warning(msg)
+		appMgr.recordIngressEvent(ing, "DNSResolutionError", msg, "")
+	}
+
+	if nil != ing.Spec.Rules {
+		// Use the host from the first rule
+		host = ing.Spec.Rules[0].Host
+		if host == "" {
+			// Host field is empty
+			logDNSError(fmt.Sprintf("First host is empty on Ingress '%s'; cannot resolve.",
+				ing.ObjectMeta.Name))
+			return
+		}
+	} else {
+		logDNSError(fmt.Sprintf("No host found for DNS resolution on Ingress '%s'",
+			ing.ObjectMeta.Name))
+		return
+	}
+
+	if appMgr.resolveIng == "LOOKUP" {
+		// Use local DNS
+		netIPs, err = net.LookupIP(host)
+		if nil != err {
+			logDNSError(fmt.Sprintf("Error while resolving host '%s': %s", host, err))
+			return
+		} else {
+			if len(netIPs) > 1 {
+				log.Warningf(
+					"Resolved multiple IP addresses for host '%s', "+
+						"choosing first resolved address.", host)
+			}
+			ipAddress = netIPs[0].String()
+		}
+	} else {
+		// Use custom DNS server
+		port := "53"
+		customDNS := appMgr.resolveIng
+		// Grab the port if it exists
+		slice := strings.Split(customDNS, ":")
+		if _, err := strconv.Atoi(slice[len(slice)-1]); err == nil {
+			port = slice[len(slice)-1]
+		}
+		isIP := net.ParseIP(customDNS)
+		if isIP == nil {
+			// customDNS is not an IPAddress, it is a hostname that we need to resolve first
+			netIPs, err = net.LookupIP(customDNS)
+			if nil != err {
+				logDNSError(fmt.Sprintf("Error while resolving host '%s': %s",
+					appMgr.resolveIng, err))
+				return
+			}
+			customDNS = netIPs[0].String()
+		}
+		client := dns.Client{}
+		msg := dns.Msg{}
+		msg.SetQuestion(host+".", dns.TypeA)
+		res, _, err := client.Exchange(&msg, customDNS+":"+port)
+		if nil != err {
+			logDNSError(fmt.Sprintf("Error while resolving host '%s' "+
+				"using DNS server '%s': %s", host, appMgr.resolveIng, err))
+			return
+		} else if len(res.Answer) == 0 {
+			logDNSError(fmt.Sprintf("No results for host '%s' "+
+				"using DNS server '%s'", host, appMgr.resolveIng))
+			return
+		}
+		Arecord := res.Answer[0].(*dns.A)
+		ipAddress = Arecord.A.String()
+	}
+
+	// Update the virtual-server annotation with the resolved IP Address
+	if ing.ObjectMeta.Annotations == nil {
+		ing.ObjectMeta.Annotations = make(map[string]string)
+	}
+	ing.ObjectMeta.Annotations["virtual-server.f5.com/ip"] = ipAddress
+	_, err = appMgr.kubeClient.ExtensionsV1beta1().Ingresses(namespace).Update(ing)
+	if nil != err {
+		msg := fmt.Sprintf("Error while setting virtual-server IP for Ingress '%s': %s",
+			ing.ObjectMeta.Name, err)
+		log.Warning(msg)
+		appMgr.recordIngressEvent(ing, "IPAnnotationError", msg, "")
+	} else {
+		msg := fmt.Sprintf("Resolved host '%s' as '%s'; "+
+			"set 'virtual-server.f5.com/ip' annotation with address.", host, ipAddress)
+		log.Info(msg)
+		appMgr.recordIngressEvent(ing, "HostResolvedSuccessfully", msg, "")
+	}
 }
 
 func getEndpointsForService(

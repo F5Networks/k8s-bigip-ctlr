@@ -113,10 +113,9 @@ _expected_bigip_config = {
 }
 
 
-class MockMgr(bigipconfigdriver.K8sCloudServiceManager):
+class MockMgr(bigipconfigdriver.CloudServiceManager):
     def __init__(self, fail=False, notify_event=None, notify_after=0,
                  handle_results=None):
-        self._cloud = 'k8s'
         self._partition = _cloud_config['bigip']['partition']
         self.calls = 0
         self._fail = fail
@@ -1245,7 +1244,7 @@ def test_confighandler_backoff_time(request):
         assert handler._interval.is_running() is False
 
 
-class MockApplyConfigMgr(bigipconfigdriver.K8sCloudServiceManager):
+class MockApplyConfigMgr(bigipconfigdriver.CloudServiceManager):
 
     def __init__(self, returns):
         self._returns = returns

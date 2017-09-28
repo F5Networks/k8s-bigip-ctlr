@@ -49,7 +49,7 @@ deploy:
       repo: F5Networks/k8s-bigip-ctlr
       condition: $TRAVIS_BRANCH == *"-stable"
     script:
-      - ./build-tools/deploy-docs.sh publish-product-docs-to-prod connectors/k8s-bigip-ctlr $CTLR_VERSION
+      - ./build-tools/deploy-docs.sh publish-product-docs-to-prod connectors/k8s-bigip-ctlr v$CTLR_VERSION
 
 notifications:
   slack:

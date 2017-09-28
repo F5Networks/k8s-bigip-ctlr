@@ -3,6 +3,7 @@
 # This script packages up artifacts produced by ./build-release-artifacts.sh
 # into an official container.
 
+
 set -e
 set -x
 
@@ -26,14 +27,18 @@ cp $CURDIR/help.md $WKDIR/help.md
 echo "Docker build context:"
 ls -la $WKDIR
 
-## TODO: add versioning labels to build command (major, minor, commit sha, etc.)
-
+VERSION_BUILD_ARGS=$(${CURDIR}/version-tool docker-build-args)
 docker build --force-rm ${NO_CACHE_ARGS} \
   -t $IMG_TAG \
+  ${VERSION_BUILD_ARGS} \
   -f $WKDIR/Dockerfile.runtime \
   $WKDIR
 
 docker history $IMG_TAG
+docker inspect -f '{{ range $k, $v := .ContainerConfig.Labels -}}
+{{ $k }}={{ $v }}
+{{ end -}}' "$IMG_TAG"
+
 echo "Built docker image $IMG_TAG"
 
 rm -rf docker-build.????

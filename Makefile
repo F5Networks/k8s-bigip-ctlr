@@ -5,7 +5,10 @@ GOOS     = $(shell go env GOOS)
 GOARCH   = $(shell go env GOARCH)
 GOBIN    = $(GOPATH)/bin/$(GOOS)-$(GOARCH)
 
-GO_BUILD_FLAGS=-v
+export BUILD_VERSION := $(shell ./build-tools/version-tool version)
+export BUILD_INFO := $(shell ./build-tools/version-tool build-info)
+
+GO_BUILD_FLAGS=-v -ldflags "-extldflags \"-static\" -X main.version=$(BUILD_VERSION) -X main.buildInfo=$(BUILD_INFO)"
 
 # Allow users to pass in BASE_OS build options (alpine or rhel7)
 BASE_OS ?= alpine
@@ -17,7 +20,7 @@ test: local-go-test local-python-test
 
 prod: prod-build
 
-debug: dbg-unit-test
+debug: dbg-build
 
 verify: fmt
 
@@ -38,6 +41,9 @@ clean:
 	rm -f *_attributions.json
 	rm -f docs/_static/ATTRIBUTIONS.md
 	@echo "Did not clean local go workspace"
+
+info:
+	env
 
 
 ############################################################################
@@ -76,11 +82,7 @@ prod-build: pre-build
 
 dbg-build: pre-build
 	@echo "Building with race detection instrumentation..."
-	go build -race $(GO_BUILD_OPTS) ./...
-
-dbg-unit-test: dbg-build
-	@echo "Running unit tests on 'debug' build..."
-	$(CURDIR)/build-tools/dbg-build.sh
+	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-debug-artifacts.sh
 
 fmt:
 	@echo "Enforcing code formatting using 'go fmt'..."

@@ -1,4 +1,4 @@
-language: bash
+language: go
 sudo: required
 services:
   - docker
@@ -25,11 +25,9 @@ script:
   - export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${TRAVIS_COMMIT}"
   - export CLEAN_BUILD=true
   - export BASE_OS=alpine
-  - ./build-tools/build-devel-image.sh
-  - ./build-tools/run-in-docker.sh make verify
-  - ./build-tools/build-debug-artifacts.sh
-  - ./build-tools/build-release-artifacts.sh
-  - ./build-tools/build-release-images.sh
+  - make verify
+  - make debug
+  - make prod
   - docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
   - docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID"
   - |

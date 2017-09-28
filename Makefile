@@ -71,6 +71,7 @@ pre-build:
 
 prod-build: pre-build
 	@echo "Building with minimal instrumentation..."
+	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
 	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
 	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
 

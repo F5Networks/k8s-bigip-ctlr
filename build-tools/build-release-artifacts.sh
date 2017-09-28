@@ -9,9 +9,6 @@ CURDIR="$(dirname $BASH_SOURCE)"
 
 . $CURDIR/_build-lib.sh
 
-# Build the builder image.
-$CURDIR/build-devel-image.sh
-
 # Build artifacts using the build image
 $CURDIR/run-in-docker.sh ./build-tools/rel-build.sh
 

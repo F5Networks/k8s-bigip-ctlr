@@ -22,7 +22,6 @@ pipeline {
           export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${GIT_COMMIT}-$BASE_OS"
           export CLEAN_BUILD=true
           build-tools/build-devel-image.sh
-          build-tools/run-in-docker.sh make verify
           build-tools/build-debug-artifacts.sh
           build-tools/build-release-artifacts.sh
           build-tools/build-release-images.sh

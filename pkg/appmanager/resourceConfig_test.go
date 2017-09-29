@@ -481,7 +481,7 @@ var _ = Describe("Resource Config Tests", func() {
 					Key:         "key",
 				},
 			}
-			route := test.NewRoute("route", "1", namespace, spec)
+			route := test.NewRoute("route", "1", namespace, spec, nil)
 			ps := portStruct{
 				protocol: "https",
 				port:     443,
@@ -506,7 +506,7 @@ var _ = Describe("Resource Config Tests", func() {
 					Name: "bar",
 				},
 			}
-			route2 := test.NewRoute("route2", "1", namespace, spec)
+			route2 := test.NewRoute("route2", "1", namespace, spec, nil)
 			ps = portStruct{
 				protocol: "http",
 				port:     80,

@@ -173,6 +173,7 @@ func (appMgr *Manager) outputConfigLocked() {
 				log.Infof("Wrote %v Virtual Server configs", virtualCount)
 				if log.LL_DEBUG == log.GetLogLevel() {
 					// Remove customProfiles from output
+					// FIXME (sberman): Issue #365
 					for partition, _ := range resources {
 						resources[partition].CustomProfiles = []CustomProfile{}
 					}

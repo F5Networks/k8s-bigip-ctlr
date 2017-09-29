@@ -25,6 +25,7 @@ script:
   - export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${TRAVIS_COMMIT}"
   - export CLEAN_BUILD=true
   - export BASE_OS=alpine
+  - export CTLR_VERSION=$(echo $TRAVIS_BRANCH | sed s/-stable//g)
   - ./build-tools/build-devel-image.sh
   - ./build-tools/run-in-docker.sh make verify
   - ./build-tools/build-debug-artifacts.sh
@@ -44,10 +45,11 @@ deploy:
   - provider: script
     skip_cleanup: true
     on:
-      branch: 1.2-stable
+      all_branches: true
       repo: F5Networks/k8s-bigip-ctlr
+      condition: $TRAVIS_BRANCH == *"-stable"
     script:
-      - ./build-tools/deploy-docs.sh publish-product-docs-to-prod connectors/k8s-bigip-ctlr v1.2
+      - ./build-tools/deploy-docs.sh publish-product-docs-to-prod connectors/k8s-bigip-ctlr v$CTLR_VERSION
 
 notifications:
   slack:

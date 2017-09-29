@@ -3172,7 +3172,7 @@ var _ = Describe("AppManager Tests", func() {
 
 			// Check that the provided host resolves into the expected addr.
 			// update parameter is only used to tell function to update an empty host
-			hostResolution := func(host, expAddr string, update bool) {
+			hostResolution := func(host string, expAddr, update bool) {
 				ingressConfig := v1beta1.IngressSpec{
 					Rules: []v1beta1.IngressRule{
 						{Host: host,
@@ -3216,7 +3216,11 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok := resources.Get(
 					serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
 				Expect(ok).To(BeTrue())
-				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal(expAddr))
+				if expAddr {
+					Expect(len(rs.Virtual.VirtualAddress.BindAddr)).To(BeNumerically(">", 0))
+				} else {
+					Expect(len(rs.Virtual.VirtualAddress.BindAddr)).To(Equal(0))
+				}
 				// Verify addition of host name works as expected
 				if update {
 					ingress.Spec.Rules[0].Host = "f5.com"
@@ -3224,7 +3228,7 @@ var _ = Describe("AppManager Tests", func() {
 					rs, ok := resources.Get(
 						serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
 					Expect(ok).To(BeTrue())
-					Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal("104.219.111.168"))
+					Expect(len(rs.Virtual.VirtualAddress.BindAddr)).To(BeNumerically(">", 0))
 				}
 				mockMgr.deleteIngress(ingress)
 			}
@@ -3238,25 +3242,25 @@ var _ = Describe("AppManager Tests", func() {
 				// Set to LOOKUP mode, using local DNS
 				mockMgr.appMgr.resolveIng = "LOOKUP"
 				// Empty host (then add one)
-				hostResolution("", "", true)
+				hostResolution("", false, true)
 				// Bad host
-				hostResolution("doesn't.exist", "", false)
+				hostResolution("doesn't.exist", false, false)
 				// Good host
-				hostResolution("f5.com", "104.219.111.168", false)
+				hostResolution("f5.com", true, false)
 
 				// Use a non-existent custom DNS server
 				mockMgr.appMgr.resolveIng = "BadCustomDNS"
 				// Good host; bad DNS
-				hostResolution("google.com", "", false)
+				hostResolution("google.com", false, false)
 
 				// Use a valid custom DNS server (hostname)
 				mockMgr.appMgr.resolveIng = "pdns130.f5.com."
-				hostResolution("f5.com", "104.219.111.168", false)
+				hostResolution("f5.com", true, false)
 				// Use a valid custom DNS server (ip address)
 				mockMgr.appMgr.resolveIng = "193.221.113.53"
-				hostResolution("msn.com", "13.82.28.61", false)
+				hostResolution("msn.com", true, false)
 				// Good DNS, bad host
-				hostResolution("doesn't.exist", "", false)
+				hostResolution("doesn't.exist", false, false)
 			})
 		})
 

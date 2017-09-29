@@ -79,7 +79,7 @@ ginkgo_test_with_coverage () {
   (
     export GOBIN="$BUILDDIR/bin"
     cd "$WKDIR/src/$PKGIMPORT"
-    ginkgo -r -keepGoing -trace -randomizeAllSpecs -progress --nodes 4 -cover
+    ginkgo -r -compilers 1 -keepGoing -trace -randomizeAllSpecs -progress --nodes 4 -cover
     echo "Gathering unit test code coverage for 'release' build..."
     gather_coverage $WKDIR
     rm -rf $WKDIR
@@ -95,7 +95,7 @@ ginkgo_test_with_profile () {
   (
     export GOBIN="$BUILDDIR/bin"
     cd "$WKDIR/src/$PKGIMPORT"
-    ginkgo -r -keepGoing -randomizeAllSpecs -progress --nodes 4 \
+    ginkgo -r -compilers 1 -keepGoing -randomizeAllSpecs -progress --nodes 4 \
             ${BUILD_VARIANT_FLAGS} -- \
             -test.cpuprofile profile.cpu \
             -test.blockprofile profile.block \

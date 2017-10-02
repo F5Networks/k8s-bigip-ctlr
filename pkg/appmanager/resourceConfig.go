@@ -61,9 +61,9 @@ const customProfileServer string = "serverside"
 
 // Wrappers around the ssl profile name to simplify its use due to the
 // pointer and nested depth.
-func (v *Virtual) AddFrontendSslProfileName(name string) {
+func (v *Virtual) AddFrontendSslProfileName(name string) bool {
 	if 0 == len(name) {
-		return
+		return false
 	}
 	if nil == v.SslProfile {
 		// the pointer is nil, need to create the nested object
@@ -75,12 +75,12 @@ func (v *Virtual) AddFrontendSslProfileName(name string) {
 	if nbrProfs == 0 {
 		if sslProf.F5ProfileName == name {
 			// Adding same profile is a no-op.
-			return
+			return false
 		}
 		if sslProf.F5ProfileName == "" {
 			// We only have one profile currently.
 			sslProf.F5ProfileName = name
-			return
+			return true
 		}
 		// # profiles will be > 1, switch to array.
 		insertProfileName(sslProf, sslProf.F5ProfileName, 0)
@@ -91,9 +91,11 @@ func (v *Virtual) AddFrontendSslProfileName(name string) {
 	i := sort.SearchStrings(sslProf.F5ProfileNames, name)
 	if i < len(sslProf.F5ProfileNames) && sslProf.F5ProfileNames[i] == name {
 		// found, don't add a duplicate.
+		return false
 	} else {
 		// Insert into the correct position.
 		insertProfileName(sslProf, name, i)
+		return true
 	}
 }
 
@@ -693,6 +695,7 @@ func createRSConfigFromRoute(
 	pStruct portStruct,
 ) (ResourceConfig, error) {
 	var rsCfg ResourceConfig
+	rsCfg.MetaData.RouteProfs = make(map[routeKey]string)
 	var policyName, rsName string
 
 	if pStruct.protocol == "http" {

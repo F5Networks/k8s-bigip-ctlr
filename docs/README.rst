@@ -543,6 +543,21 @@ Supported Route Configurations
 
    - To expose a Service on any other ports. **specify the port in the Route config's "Port" field**.
 
+Supported annotations
+`````````````````````
+
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| Annotation                         | Type        | Required  | Description                                                                         | Default     |
++====================================+=============+===========+=====================================================================================+=============+
+| virtual-server.f5.com/clientssl    | string      | Optional  | The name of a pre-configured client ssl profile on the BIG-IP system.               | N/A         |
+|                                    |             |           | The controller uses this profile instead of the certificate and key within the      |             |
+|                                    |             |           | Route's configuration.                                                              |             |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| virtual-server.f5.com/serverssl    | string      | Optional  | The name of a pre-configured server ssl profile on the BIG-IP system.               | N/A         |
+|                                    |             |           | The controller uses this profile instead of the certificate within the              |             |
+|                                    |             |           | Route's configuration.                                                              |             |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+
 Please see the example configuration files for more details.
 
 Example Configuration Files

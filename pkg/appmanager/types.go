@@ -32,7 +32,7 @@ type (
 		IApps              []IApp              `json:"iapps,omitempty"`
 	}
 
-	// Config for a single resource (ConfigMap or Ingress)
+	// Config for a single resource (ConfigMap, Ingress, or Route)
 	ResourceConfig struct {
 		MetaData metaData `json:"-"`
 		Virtual  Virtual  `json:"virtual,omitempty"`
@@ -46,6 +46,15 @@ type (
 		Active       bool
 		NodePort     int32
 		ResourceType string
+		// Only used for Routes (for keeping track of annotated profiles)
+		RouteProfs map[routeKey]string
+	}
+
+	// Key used to store annotated profiles for a route
+	routeKey struct {
+		Name      string
+		Namespace string
+		Context   string
 	}
 
 	// Reference to pre-existing profiles

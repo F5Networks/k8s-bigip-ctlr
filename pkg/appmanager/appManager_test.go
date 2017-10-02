@@ -2886,7 +2886,7 @@ var _ = Describe("AppManager Tests", func() {
 							Key:         "key",
 						},
 					}
-					route := test.NewRoute("route", "1", namespace, spec)
+					route := test.NewRoute("route", "1", namespace, spec, nil)
 					r := mockMgr.addRoute(route)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
 
@@ -2922,7 +2922,7 @@ var _ = Describe("AppManager Tests", func() {
 							Key:         "key",
 						},
 					}
-					route2 := test.NewRoute("route2", "1", namespace, spec)
+					route2 := test.NewRoute("route2", "1", namespace, spec, nil)
 					r = mockMgr.addRoute(route2)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
 					resources = mockMgr.resources()
@@ -2979,7 +2979,7 @@ var _ = Describe("AppManager Tests", func() {
 							Termination: routeapi.TLSTerminationPassthrough,
 						},
 					}
-					route1 := test.NewRoute("rt1", "1", namespace, spec)
+					route1 := test.NewRoute("rt1", "1", namespace, spec, nil)
 					r := mockMgr.addRoute(route1)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
 
@@ -3004,7 +3004,7 @@ var _ = Describe("AppManager Tests", func() {
 							InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyRedirect,
 						},
 					}
-					route2 := test.NewRoute("rt2", "1", namespace, spec)
+					route2 := test.NewRoute("rt2", "1", namespace, spec, nil)
 					r = mockMgr.addRoute(route2)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
 					resources = mockMgr.resources()
@@ -3073,7 +3073,7 @@ var _ = Describe("AppManager Tests", func() {
 							DestinationCACertificate: "destCaCert",
 						},
 					}
-					route := test.NewRoute("route", "1", namespace, spec)
+					route := test.NewRoute("route", "1", namespace, spec, nil)
 					r := mockMgr.addRoute(route)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
 
@@ -3144,7 +3144,7 @@ var _ = Describe("AppManager Tests", func() {
 							Key:         "key",
 						},
 					}
-					route := test.NewRoute("route", "1", namespace, spec)
+					route := test.NewRoute("route", "1", namespace, spec, nil)
 					mockMgr.addRoute(route)
 
 					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
@@ -3161,12 +3161,100 @@ var _ = Describe("AppManager Tests", func() {
 					// Add a new route, our stored config (rs), should not have been
 					// updated locally. It should only update when we get it again.
 					// This confirms that we aren't updating a pointer.
-					route2 := test.NewRoute("route2", "1", namespace, spec)
+					route2 := test.NewRoute("route2", "1", namespace, spec, nil)
 					mockMgr.addRoute(route2)
 					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
 					rs, _ = resources.Get(
 						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
 					Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+				})
+
+				It("uses annotated profiles for Routes", func() {
+					spec := routeapi.RouteSpec{
+						Host: "foo.com",
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "reencrypt",
+							Certificate: "cert",
+							Key:         "key",
+							DestinationCACertificate: "destCaCert",
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec,
+						map[string]string{
+							"virtual-server.f5.com/clientssl": "Common/client",
+							"virtual-server.f5.com/serverssl": "Common/server",
+						})
+					r := mockMgr.addRoute(route)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+
+					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+					mockMgr.addService(fooSvc)
+
+					resources := mockMgr.resources()
+					rs, ok := resources.Get(
+						serviceKey{"foo", 443, "default"}, "https-ose-vserver")
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+
+					// customProfiles should only contain the 2 default profiles
+					Expect(len(mockMgr.customProfiles())).To(Equal(2))
+					Expect(rs.Virtual.SslProfile.F5ProfileNames).
+						To(ContainElement("Common/client"))
+					Expect(rs.Virtual.SslProfile.F5ProfileNames).
+						ToNot(ContainElement("velcro/openshift_route_default_route-client-ssl"))
+					pRef := ProfileRef{
+						Name:      "server",
+						Partition: "Common",
+						Context:   "serverside",
+					}
+					Expect(rs.Virtual.Profiles).To(ContainElement(pRef))
+					customPRef := ProfileRef{
+						Name:      "openshift_route_default_route-server-ssl",
+						Partition: "velcro",
+						Context:   "serverside",
+					}
+					Expect(rs.Virtual.Profiles).ToNot(ContainElement(customPRef))
+
+					// Remove profiles
+					delete(route.Annotations, "virtual-server.f5.com/clientssl")
+					delete(route.Annotations, "virtual-server.f5.com/serverssl")
+					mockMgr.updateRoute(route)
+
+					rs, _ = resources.Get(
+						serviceKey{"foo", 443, "default"}, "https-ose-vserver")
+					Expect(len(mockMgr.customProfiles())).To(Equal(4))
+					Expect(rs.Virtual.SslProfile.F5ProfileNames).
+						ToNot(ContainElement("Common/client"))
+					Expect(rs.Virtual.SslProfile.F5ProfileNames).
+						To(ContainElement("velcro/openshift_route_default_route-client-ssl"))
+					Expect(rs.Virtual.Profiles).ToNot(ContainElement(pRef))
+					Expect(rs.Virtual.Profiles).To(ContainElement(customPRef))
+
+					// Re-add the profiles
+					route.Annotations["virtual-server.f5.com/clientssl"] = "Common/newClient"
+					route.Annotations["virtual-server.f5.com/serverssl"] = "Common/newServer"
+					mockMgr.updateRoute(route)
+
+					rs, _ = resources.Get(
+						serviceKey{"foo", 443, "default"}, "https-ose-vserver")
+					Expect(len(mockMgr.customProfiles())).To(Equal(2))
+					Expect(rs.Virtual.SslProfile.F5ProfileNames).
+						To(ContainElement("Common/newClient"))
+					Expect(rs.Virtual.SslProfile.F5ProfileNames).
+						ToNot(ContainElement("velcro/openshift_route_default_route-client-ssl"))
+					pRef = ProfileRef{
+						Name:      "newServer",
+						Partition: "Common",
+						Context:   "serverside",
+					}
+					Expect(rs.Virtual.Profiles).To(ContainElement(pRef))
+					Expect(rs.Virtual.Profiles).ToNot(ContainElement(customPRef))
 				})
 			})
 
@@ -3577,10 +3665,10 @@ var _ = Describe("AppManager Tests", func() {
 					},
 				}
 				// Create two routes with same name in different namespaces
-				route := test.NewRoute("route", "1", ns1, spec)
+				route := test.NewRoute("route", "1", ns1, spec, nil)
 				r := mockMgr.addRoute(route)
 				Expect(r).To(BeTrue(), "Route resource should be processed.")
-				route2 := test.NewRoute("route", "2", ns2, spec)
+				route2 := test.NewRoute("route", "2", ns2, spec, nil)
 				r = mockMgr.addRoute(route2)
 				Expect(r).To(BeTrue(), "Route resource should be processed.")
 				resources := mockMgr.resources()

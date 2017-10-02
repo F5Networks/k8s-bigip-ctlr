@@ -149,7 +149,13 @@ func NewIngress(id, rv, namespace string,
 }
 
 // NewRoute returns a new route object
-func NewRoute(id, rv, namespace string, spec routeapi.RouteSpec) *routeapi.Route {
+func NewRoute(
+	id,
+	rv,
+	namespace string,
+	spec routeapi.RouteSpec,
+	annotations map[string]string,
+) *routeapi.Route {
 	return &routeapi.Route{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Route",
@@ -159,6 +165,7 @@ func NewRoute(id, rv, namespace string, spec routeapi.RouteSpec) *routeapi.Route
 			Name:            id,
 			ResourceVersion: rv,
 			Namespace:       namespace,
+			Annotations:     annotations,
 		},
 		Spec: spec,
 	}

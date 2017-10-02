@@ -99,7 +99,7 @@ var _ = Describe("Routing Tests", func() {
 					Termination: routeapi.TLSTerminationEdge,
 				},
 			}
-			ok := appMgr.addRoute(test.NewRoute(routeName, "1", namespace, spec))
+			ok := appMgr.addRoute(test.NewRoute(routeName, "1", namespace, spec, nil))
 			Expect(ok).To(BeTrue(), "Route resource should be processed.")
 		}
 

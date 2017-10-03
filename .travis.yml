@@ -23,6 +23,7 @@ script:
     fi
   - export IMG_TAG="${BASE_PUSH_TARGET}:${TRAVIS_COMMIT}"
   - export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${TRAVIS_COMMIT}"
+  - export BUILD_STAMP=devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID-$(date +%s)
   - export CLEAN_BUILD=true
   - export BASE_OS=alpine
   - export CTLR_VERSION=$(echo $TRAVIS_BRANCH | sed s/-stable//g)
@@ -30,13 +31,14 @@ script:
   - ./build-tools/build-debug-artifacts.sh
   - ./build-tools/build-release-artifacts.sh
   - ./build-tools/build-release-images.sh
-  - docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
-  - docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID"
   - |
     if [ "$DOCKER_READY" ]; then
+      docker tag "$IMG_TAG" "$BASE_PUSH_TARGET"
+      docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
+      docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_STAMP"
       docker push "$IMG_TAG"
       docker push "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
-      docker push "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID"
+      docker push "$BASE_PUSH_TARGET:$BUILD_STAMP"
     fi
   - make docs
 

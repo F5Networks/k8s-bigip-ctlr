@@ -26,14 +26,17 @@ import sys
 import time
 import threading
 import signal
-import urllib
 
 import pyinotify
 
 from urlparse import urlparse
-from f5.bigip import ManagementRoot
 from f5_cccl.api import F5CloudServiceManager
 from f5_cccl.exceptions import F5CcclError
+from f5_cccl.utils.mgmt import mgmt_root
+from f5_cccl.utils.network import apply_network_fdb_config
+from f5_cccl.utils.profile import (delete_unused_ssl_profiles,
+                                   create_client_ssl_profile,
+                                   create_server_ssl_profile)
 
 log = logging.getLogger(__name__)
 console = logging.StreamHandler()
@@ -41,24 +44,6 @@ console.setFormatter(
     logging.Formatter("[%(asctime)s %(name)s %(levelname)s] %(message)s"))
 root_logger = logging.getLogger()
 root_logger.addHandler(console)
-
-SCHEMA_PATH = "./src/f5-cccl/f5_cccl/schemas/cccl-api-schema.yml"
-
-
-class PartitionNameError(Exception):
-    """Exception type for F5 resource name."""
-
-    def __init__(self, msg):
-        """Create partition name exception object."""
-        Exception.__init__(self, msg)
-
-
-class IPV4FormatError(Exception):
-    """Exception type for improperly formatted IPv4 address."""
-
-    def __init__(self, msg):
-        """Create ipv4 format exception object."""
-        Exception.__init__(self, msg)
 
 
 class ResponseStatusFilter(logging.Filter):
@@ -81,86 +66,27 @@ root_logger.addFilter(CertFilter())
 root_logger.addFilter(KeyFilter())
 
 
-def list_diff_exclusive(list1, list2):
-    """Return items found only in list1 or list2."""
-    return list(set(list1) ^ set(list2))
-
-
-def ipv4_to_mac(ip_str):
-    """Convert an IPV4 string to a fake MAC address."""
-    ip = ip_str.split('.')
-    if len(ip) != 4:
-        raise IPV4FormatError('Bad IPv4 address format specified for '
-                              'FDB record: {}'.format(ip_str))
-
-    return "0a:0a:%02x:%02x:%02x:%02x" % (
-        int(ip[0]), int(ip[1]), int(ip[2]), int(ip[3]))
-
-
-def extract_partition_and_name(f5_partition_name):
-    """Separate partition and name components for a Big-IP resource."""
-    parts = f5_partition_name.split('/')
-    count = len(parts)
-    if f5_partition_name[0] == '/' and count == 3:
-        # leading slash
-        partition = parts[1]
-        name = parts[2]
-    elif f5_partition_name[0] != '/' and count == 2:
-        # leading slash missing
-        partition = parts[0]
-        name = parts[1]
-    else:
-        raise PartitionNameError('Bad F5 resource name encountered: '
-                                 '{}'.format(f5_partition_name))
-    return partition, name
-
-
-def log_sequence(prefix, sequence_to_log):
-    """Helper function to log a sequence.
-
-    Dump a sequence to the logger, skip if it is empty
-
-    Args:
-        prefix: The prefix string to describe what's being logged
-        sequence_to_log: The sequence being logged
-    """
-    if sequence_to_log:
-        log.debug(prefix + ': %s', (', '.join(sequence_to_log)))
-
-
 DEFAULT_LOG_LEVEL = logging.INFO
 DEFAULT_VERIFY_INTERVAL = 30.0
 
 
-class K8sCloudServiceManager():
-    """K8sCloudServiceManager class.
+class CloudServiceManager():
+    """CloudServiceManager class.
 
-    Generates a configuration for a BigIP based upon the apps/tasks managed
-    by services/pods/nodes in Kubernetes.
-
-    - Matches apps/sevices by BigIP partition
-    - Creates a Virtual Server and pool for each service type that matches a
-      BigIP partition
-    - For each backend (task, node, or pod), it creates a pool member and adds
-      the member to the pool
-    - Token-based authentication is used by specifying a token named 'tmos'.
-      This will allow non-admin users to use the API (BIG-IP must configure
-      the accounts with proper permissions, for either local or remote auth).
+    Applies a configuration to a BigIP
 
     Args:
         bigip: ManagementRoot object
         partition: BIG-IP partition to manage
-        schema_path: Path to the CCCL schema
     """
 
-    def __init__(self, bigip, partition, schema_path):
-        """Initialize the K8sCloudServiceManager object."""
+    def __init__(self, bigip, partition):
+        """Initialize the CloudServiceManager object."""
         self._mgmt_root = bigip
         self._cccl = F5CloudServiceManager(
             bigip,
             partition,
-            prefix="",
-            schema_path=schema_path)
+            prefix="")
 
     def mgmt_root(self):
         """ Return the BIG-IP ManagementRoot object"""
@@ -177,88 +103,6 @@ class K8sCloudServiceManager():
             config: BIG-IP config dict
         """
         return self._cccl.apply_config(config)
-
-    def _apply_network_config(self, config):
-        """Apply the network configuration to the BIG-IP.
-
-        Args:
-            config: BIG-IP network config dict
-        """
-        if 'fdb' in config:
-            return self._apply_network_fdb_config(config['fdb'])
-        else:
-            return 0
-
-    def _apply_network_fdb_config(self, fdb_config):
-        """Apply the network fdb configuration to the BIG-IP.
-
-        Args:
-            config: BIG-IP network fdb config dict
-        """
-        req_vxlan_name = fdb_config['vxlan-name']
-        req_fdb_record_endpoint_list = fdb_config['vxlan-node-ips']
-        try:
-            f5_fdb_record_endpoint_list = self.get_fdb_records(req_vxlan_name)
-
-            log_sequence('req_fdb_record_list', req_fdb_record_endpoint_list)
-            log_sequence('f5_fdb_record_list', f5_fdb_record_endpoint_list)
-
-            # See if the list of records is different.
-            # If so, update with new list.
-            if list_diff_exclusive(f5_fdb_record_endpoint_list,
-                                   req_fdb_record_endpoint_list):
-                self.fdb_records_update(req_vxlan_name,
-                                        req_fdb_record_endpoint_list)
-            return 0
-        except (PartitionNameError, IPV4FormatError) as e:
-            log.error(e)
-            return 0
-        except Exception as e:
-            log.error('Failed to configure the FDB for VxLAN tunnel '
-                      '{}: {}'.format(req_vxlan_name, e))
-            return 1
-
-    def get_vxlan_tunnel(self, vxlan_name):
-        """Get a vxlan tunnel object.
-
-        Args:
-            vxlan_name: Name of the vxlan tunnel
-        """
-        partition, name = extract_partition_and_name(vxlan_name)
-        vxlan_tunnel = self._mgmt_root.tm.net.fdb.tunnels.tunnel.load(
-            partition=partition, name=urllib.quote(name))
-        return vxlan_tunnel
-
-    def get_fdb_records(self, vxlan_name):
-        """Get a list of FDB records (just the endpoint list) for the vxlan.
-
-        Args:
-            vxlan_name: Name of the vxlan tunnel
-        """
-        endpoint_list = []
-        vxlan_tunnel = self.get_vxlan_tunnel(vxlan_name)
-        if hasattr(vxlan_tunnel, 'records'):
-            for record in vxlan_tunnel.records:
-                endpoint_list.append(record['endpoint'])
-
-        return endpoint_list
-
-    def fdb_records_update(self, vxlan_name, endpoint_list):
-        """Update the fdb records for a vxlan tunnel.
-
-        Args:
-            vxlan_name: Name of the vxlan tunnel
-            fdb_record_list: IP address associated with the fdb record
-        """
-        vxlan_tunnel = self.get_vxlan_tunnel(vxlan_name)
-        data = {'records': []}
-        records = data['records']
-        for endpoint in endpoint_list:
-            record = {'name': ipv4_to_mac(endpoint), 'endpoint': endpoint}
-            records.append(record)
-        log.debug("Updating records for vxlan tunnel {}: {}".format(
-            vxlan_name, data['records']))
-        vxlan_tunnel.update(**data)
 
 
 class IntervalTimerError(Exception):
@@ -337,11 +181,11 @@ class ConfigError(Exception):
         Exception.__init__(self, msg)
 
 
-def create_ltm_config_kubernetes(partition, config):
-    """Create a BIG-IP configuration from the Kubernetes configuration.
+def create_ltm_config(partition, config):
+    """Extract a BIG-IP configuration from the LTM configuration.
 
     Args:
-        config: Kubernetes BigIP config
+        config: BigIP config
     """
     ltm = {}
     if 'resources' in config and partition in config['resources']:
@@ -351,11 +195,11 @@ def create_ltm_config_kubernetes(partition, config):
     return ltm
 
 
-def create_network_config_kubernetes(config):
-    """Create a BIG-IP Network configuration from the Kubernetes config.
+def create_network_config(config):
+    """Extract a BIG-IP Network configuration from the network config.
 
     Args:
-        config: Kubernetes BigIP config which contains openshift-sdn defs
+        config: BigIP config which contains openshift-sdn defs
     """
     f5_network = {}
     if 'openshift-sdn' in config:
@@ -370,10 +214,10 @@ def _create_custom_profiles(mgmt, partition, custom_profiles):
     customProfiles = False
     for profile in custom_profiles:
         if profile['context'] == 'clientside':
-            incomplete += _create_client_ssl_profile(mgmt, partition, profile)
+            incomplete += create_client_ssl_profile(mgmt, partition, profile)
             customProfiles = True
         elif profile['context'] == 'serverside':
-            incomplete += _create_server_ssl_profile(mgmt, partition, profile)
+            incomplete += create_server_ssl_profile(mgmt, partition, profile)
             customProfiles = True
         else:
             log.error(
@@ -382,225 +226,8 @@ def _create_custom_profiles(mgmt, partition, custom_profiles):
     return customProfiles, incomplete
 
 
-def _create_client_ssl_profile(mgmt, partition, profile):
-    ssl_client_profile = mgmt.tm.ltm.profile.client_ssls.client_ssl
-    incomplete = 0
-
-    name = profile['name']
-
-    # No need to create if it exists
-    if ssl_client_profile.exists(name=name, partition=partition):
-        return 0
-
-    cert = profile['cert']
-    cert_name = name + '.crt'
-    if cert != "":
-        incomplete = _install_certificate(mgmt, cert, cert_name)
-    if incomplete > 0:
-        # Unable to install cert
-        return incomplete
-
-    key = profile['key']
-    key_name = name + '.key'
-    if key != "":
-        incomplete = _install_key(mgmt, key, key_name)
-    if incomplete > 0:
-        # Unable to install key
-        return incomplete
-
-    try:
-        # create ssl-client profile from cert/key pair
-        serverName = profile.get('serverName', None)
-        sniDefault = profile.get('sniDefault', False)
-        kwargs = {}
-        if cert != "" and key != "":
-            chain = [{'name': name,
-                      'cert': '/Common/' + cert_name,
-                      'key': '/Common/' + key_name}]
-            kwargs = {'certKeyChain': chain}
-
-        ssl_client_profile.create(name=name,
-                                  partition=partition,
-                                  serverName=serverName,
-                                  sniDefault=sniDefault,
-                                  defaultsFrom=None,
-                                  **kwargs)
-    except Exception as err:
-        log.error("Error creating client SSL profile: %s" % err.message)
-        incomplete = 1
-
-    return incomplete
-
-
-def _create_server_ssl_profile(mgmt, partition, profile):
-    ssl_server_profile = mgmt.tm.ltm.profile.server_ssls.server_ssl
-    incomplete = 0
-
-    name = profile['name']
-
-    # No need to create if it exists
-    if ssl_server_profile.exists(name=name, partition=partition):
-        return 0
-
-    cert = profile['cert']
-    cert_name = name + '.crt'
-    if cert != "":
-        incomplete = _install_certificate(mgmt, cert, cert_name)
-    if incomplete > 0:
-        # Unable to install cert
-        return incomplete
-
-    try:
-        # create ssl-server profile
-        serverName = profile.get('serverName', None)
-        sniDefault = profile.get('sniDefault', False)
-        kwargs = {}
-        if cert != "":
-            kwargs = {'chain': cert_name}
-
-        ssl_server_profile.create(name=name,
-                                  partition=partition,
-                                  serverName=serverName,
-                                  sniDefault=sniDefault,
-                                  **kwargs)
-    except Exception as err:
-        incomplete += 1
-        log.error("Error creating server SSL profile: %s" % err.message)
-
-    return incomplete
-
-
 def _delete_unused_ssl_profiles(mgmt, partition, config):
-    incomplete = 0
-
-    # client profiles
-    try:
-        client_profiles = mgmt.tm.ltm.profile.client_ssls.get_collection(
-            requests_params={'params': '$filter=partition+eq+%s'
-                             % partition})
-        incomplete += _delete_ssl_profiles(config, client_profiles)
-    except Exception as err:
-        log.error("Error reading client SSL profiles from BIG-IP: %s" %
-                  err.message)
-        incomplete += 1
-
-    # server profiles
-    try:
-        server_profiles = mgmt.tm.ltm.profile.server_ssls.get_collection(
-            requests_params={'params': '$filter=partition+eq+%s'
-                             % partition})
-        incomplete += _delete_ssl_profiles(config, server_profiles)
-    except Exception as err:
-        log.error("Error reading server SSL profiles from BIG-IP: %s" %
-                  err.message)
-        incomplete += 1
-
-    return incomplete
-
-
-def _delete_ssl_profiles(config, profiles):
-    incomplete = 0
-
-    if 'customProfiles' not in config:
-        # delete any profiles in managed partition
-        for prof in profiles:
-            try:
-                prof.delete()
-            except Exception as err:
-                log.error("Error deleting SSL profile: %s" % err.message)
-                incomplete += 1
-    else:
-        # delete profiles no longer in our config
-        for prof in profiles:
-            if not any(d['name'] == prof.name
-                       for d in config['customProfiles']):
-                try:
-                    prof.delete()
-                except Exception as err:
-                    log.error("Error deleting SSL profile: %s" % err.message)
-                    incomplete += 1
-
-    return incomplete
-
-
-def _upload_crypto_file(mgmt, file_data, file_name):
-    # bigip object is of type f5.bigip.tm;
-    # we need f5.bigip.shared for the uploader
-    uploader = mgmt.shared.file_transfer.uploads
-
-    # In-memory upload -- data not written to local file system but
-    # is saved as a file on the BIG-IP
-    uploader.upload_bytes(file_data, file_name)
-
-
-def _import_certificate(mgmt, cert_name):
-    cert_registrar = mgmt.tm.sys.crypto.certs
-    param_set = {}
-    param_set['name'] = cert_name
-    param_set['from-local-file'] = os.path.join(
-        '/var/config/rest/downloads', cert_name)
-    cert_registrar.exec_cmd('install', **param_set)
-
-
-def _import_key(mgmt, key_name):
-    key_registrar = mgmt.tm.sys.crypto.keys
-    param_set = {}
-    param_set['name'] = key_name
-    param_set['from-local-file'] = os.path.join(
-        '/var/config/rest/downloads', key_name)
-    key_registrar.exec_cmd('install', **param_set)
-
-
-def _install_certificate(mgmt, cert_data, cert_name):
-    incomplete = 0
-
-    try:
-        if not _certificate_exists(mgmt, cert_name):
-            # Upload and install cert
-            _upload_crypto_file(mgmt, cert_data, cert_name)
-            _import_certificate(mgmt, cert_name)
-
-    except Exception as err:
-        incomplete += 1
-        log.error("Error uploading certificate %s: %s" %
-                  (cert_name, err.message))
-
-    return incomplete
-
-
-def _install_key(mgmt, key_data, key_name):
-    incomplete = 0
-
-    try:
-        if not _key_exists(mgmt, key_name):
-            # Upload and install cert
-            _upload_crypto_file(mgmt, key_data, key_name)
-            _import_key(mgmt, key_name)
-
-    except Exception as err:
-        incomplete += 1
-        log.error("Error uploading key %s: %s" %
-                  (key_name, err.message))
-
-    return incomplete
-
-
-def _certificate_exists(mgmt, cert_name):
-    # All certs are in the Common partition
-    name_to_find = "/Common/{}".format(cert_name)
-    for cert in mgmt.tm.sys.crypto.certs.get_collection():
-        if cert.name == name_to_find:
-            return True
-    return False
-
-
-def _key_exists(mgmt, key_name):
-    # All keys are in the Common partition
-    name_to_find = "/Common/{}".format(key_name)
-    for key in mgmt.tm.sys.crypto.keys.get_collection():
-        if key.name == name_to_find:
-            return True
-    return False
+    return delete_unused_ssl_profiles(mgmt, partition, config)
 
 
 class ConfigHandler():
@@ -681,12 +308,12 @@ class ConfigHandler():
                 _handle_openshift_sdn_config(config)
                 self.set_interval_timer(verify_interval)
 
-                cfg_network = create_network_config_kubernetes(config)
+                cfg_network = create_network_config(config)
                 incomplete = 0
 
                 for mgr in self._managers:
                     partition = mgr.get_partition()
-                    cfg_ltm = create_ltm_config_kubernetes(partition, config)
+                    cfg_ltm = create_ltm_config(partition, config)
                     try:
                         # Manually create custom profiles;
                         # CCCL doesn't yet do this
@@ -715,7 +342,10 @@ class ConfigHandler():
                         log.error("CCCL Error: %s", e.msg)
                         raise e
 
-                incomplete += mgr._apply_network_config(cfg_network)
+                if 'fdb' in cfg_network:
+                    incomplete += apply_network_fdb_config(
+                        self._managers[0].mgmt_root(),
+                        cfg_network['fdb'])
 
                 if incomplete:
                     # Error occurred, perform retries
@@ -1056,24 +686,23 @@ def main():
         #               may want to make the changes dynamic in the future.
 
         # BIG-IP to manage
-        bigip = ManagementRoot(
+        bigip = mgmt_root(
             host,
             config['bigip']['username'],
             config['bigip']['password'],
-            port=port,
-            token="tmos")
+            port,
+            "tmos")
 
-        k8s_managers = []
+        managers = []
         for partition in config['bigip']['partitions']:
             # Management for the BIG-IP partitions
-            manager = K8sCloudServiceManager(
+            manager = CloudServiceManager(
                 bigip,
-                partition,
-                schema_path=SCHEMA_PATH)
-            k8s_managers.append(manager)
+                partition)
+            managers.append(manager)
 
         handler = ConfigHandler(args.config_file,
-                                k8s_managers,
+                                managers,
                                 verify_interval)
 
         if os.path.exists(args.config_file):

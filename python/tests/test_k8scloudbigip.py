@@ -14,7 +14,7 @@
 
 """Controller Unit Tests.
 
-Units tests for testing BIG-IP resource management in Kubernetes and OpenShift.
+Units tests for testing BIG-IP resource management.
 
 """
 from __future__ import absolute_import
@@ -22,16 +22,15 @@ from __future__ import absolute_import
 import unittest
 import json
 from mock import Mock, patch
-from f5.bigip import ManagementRoot
+from f5_cccl.utils.mgmt import ManagementRoot
+from f5_cccl.utils.mgmt import mgmt_root
+from f5_cccl.utils.network import apply_network_fdb_config
 from f5_cccl.exceptions import F5CcclValidationError
-from f5_cccl.exceptions import F5CcclSchemaError
 from .. import bigipconfigdriver as ctlr
 
-SCHEMA_PATH = "/go/src/f5-cccl/f5_cccl/schemas/cccl-api-schema.yml"
 
-
-# Kuberentes app data
-kubernetes_test_data = [
+# Cloud app data
+cloud_test_data = [
     'tests/kubernetes_one_svc_two_nodes.json',
     'tests/kubernetes_invalid_svcs.json',
     'tests/kubernetes_one_svc_one_node.json',
@@ -77,10 +76,10 @@ class VxLANTunnel():
             self.records = kwargs['records']
 
 
-class KubernetesTest(unittest.TestCase):
-    """Kubernetes/Big-IP configuration tests.
+class CloudTest(unittest.TestCase):
+    """Cloud/Big-IP configuration tests.
 
-    Test BIG-IP configuration given various Kubernetes states and existing
+    Test BIG-IP configuration given various cloud states and existing
     BIG-IP states
     """
 
@@ -90,12 +89,11 @@ class KubernetesTest(unittest.TestCase):
         # connection
         partition = 'k8s'
         with patch.object(ManagementRoot, '_get_tmos_version'):
-            bigip = ManagementRoot('1.2.3.4', 'admin', 'default')
+            bigip = mgmt_root('1.2.3.4', 'admin', 'default', 443, 'tmos')
 
-            self.mgr = ctlr.K8sCloudServiceManager(
+            self.mgr = ctlr.CloudServiceManager(
                 bigip,
-                partition,
-                schema_path=SCHEMA_PATH)
+                partition)
 
         self.cccl = self.mgr._cccl
         self.cccl._service_manager._service_deployer._bigip.refresh = Mock()
@@ -114,7 +112,7 @@ class KubernetesTest(unittest.TestCase):
 
     def read_test_vectors(self, cloud_state, network_state=None):
         """Read test vectors for the various states."""
-        # Read the Kubernetes state
+        # Read the cloud state
         if cloud_state:
             with open(cloud_state) as json_data:
                 self.cloud_data = json.load(json_data)
@@ -131,14 +129,13 @@ class KubernetesTest(unittest.TestCase):
             self.vxlan_tunnel = VxLANTunnel(partition, name, self.network_data)
         return self.vxlan_tunnel
 
-    def verify_kubernetes_config(self, cloud_state, expected_state):
-        """Test: Verify expected config created from the Kubernetes state."""
+    def verify_cloud_config(self, cloud_state, expected_state):
+        """Test: Verify expected config created from the cloud state."""
         # Get the test data
         self.read_test_vectors(cloud_state)
 
         # Do the BIG-IP configuration
-        cfg = ctlr.create_ltm_config_kubernetes(self.mgr.get_partition(),
-                                                self.cloud_data)
+        cfg = ctlr.create_ltm_config(self.mgr.get_partition(), self.cloud_data)
 
         with open(expected_state) as json_data:
                 exp = json.load(json_data)
@@ -150,18 +147,6 @@ class KubernetesTest(unittest.TestCase):
             self,
             cloud_state='tests/kubernetes_one_svc_two_nodes.json'):
         """Test: CCCL exceptions."""
-        with patch.object(ManagementRoot, '_get_tmos_version'):
-            bigip = ManagementRoot(
-                '1.2.3.4',
-                'admin',
-                'default',
-                port=443,
-                token='tmos')
-            self.assertRaises(F5CcclSchemaError, ctlr.K8sCloudServiceManager,
-                              bigip,
-                              'test',
-                              schema_path='not/a/valid/path.json')
-
         cfg = {"not valid json"}
         self.assertRaises(F5CcclValidationError, self.mgr._apply_ltm_config,
                           cfg)
@@ -170,31 +155,29 @@ class KubernetesTest(unittest.TestCase):
         self.read_test_vectors(cloud_state)
 
         # Do the BIG-IP configuration
-        cfg = ctlr.create_ltm_config_kubernetes(self.mgr.get_partition(),
-                                                self.cloud_data)
+        cfg = ctlr.create_ltm_config(self.mgr.get_partition(), self.cloud_data)
 
         # Corrupt the config
         del cfg['virtualServers'][0]['name']
         self.assertRaises(F5CcclValidationError, self.mgr._apply_ltm_config,
                           cfg)
 
-    def test_kubernetes_configs(self):
-        """Test: Verify expected BIG-IP config created from Marathon state."""
+    def test_cloud_configs(self):
+        """Test: Verify expected BIG-IP config created from cloud state."""
         # Verify configuration
-        for data_file in kubernetes_test_data:
+        for data_file in cloud_test_data:
             expected_file = data_file.replace('.json', '_expected.json')
-            self.verify_kubernetes_config(data_file, expected_file)
+            self.verify_cloud_config(data_file, expected_file)
 
     def test_pool_only_to_virtual_server(
             self,
             cloud_state='tests/kubernetes_one_svc_two_nodes_pool_only.json'):
-        """Test: Kubernetes app without virtual server gets virtual server."""
+        """Test: Cloud app without virtual server gets virtual server."""
         # Get the test data
         self.read_test_vectors(cloud_state)
 
         # Do the BIG-IP configuration
-        cfg = ctlr.create_ltm_config_kubernetes(self.mgr.get_partition(),
-                                                self.cloud_data)
+        cfg = ctlr.create_ltm_config(self.mgr.get_partition(), self.cloud_data)
         self.mgr._apply_ltm_config(cfg)
 
         # Reconfigure BIG-IP by adding virtual server to existing pool
@@ -206,26 +189,23 @@ class KubernetesTest(unittest.TestCase):
             "pool": "/k8s/default_configmap"
         }
         self.cloud_data['resources']['k8s']['virtualServers'].append(vs)
-        cfg = ctlr.create_ltm_config_kubernetes(self.mgr.get_partition(),
-                                                self.cloud_data)
+        cfg = ctlr.create_ltm_config(self.mgr.get_partition(), self.cloud_data)
         self.mgr._apply_ltm_config(cfg)
 
     def test_virtual_server_to_pool_only(
             self,
             cloud_state='tests/kubernetes_one_svc_two_nodes.json'):
-        """Test: Kubernetes app with virtual server removes virtual server."""
+        """Test: Cloud app with virtual server removes virtual server."""
         # Get the test data
         self.read_test_vectors(cloud_state)
 
         # Do the BIG-IP configuration
-        cfg = ctlr.create_ltm_config_kubernetes(self.mgr.get_partition(),
-                                                self.cloud_data)
+        cfg = ctlr.create_ltm_config(self.mgr.get_partition(), self.cloud_data)
         self.mgr._apply_ltm_config(cfg)
 
         # Reconfigure BIG-IP by removing virtual server
         self.cloud_data['resources']['k8s']['virtualServers'].pop()
-        cfg = ctlr.create_ltm_config_kubernetes(self.mgr.get_partition(),
-                                                self.cloud_data)
+        cfg = ctlr.create_ltm_config(self.mgr.get_partition(), self.cloud_data)
         self.mgr._apply_ltm_config(cfg)
 
     def test_network_0_existing_vxlan_nodes_0_requested_vxlan_nodes(
@@ -238,8 +218,8 @@ class KubernetesTest(unittest.TestCase):
                                network_state=network_state)
 
         # Do the BIG-IP configuration
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
 
         # Verify we only query bigip once for the initial state and
         # don't try to write an update if nothing has changed.
@@ -259,8 +239,8 @@ class KubernetesTest(unittest.TestCase):
                                network_state=network_state)
 
         # Do the BIG-IP configuration
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
 
         # Verify we only query bigip once for the initial state and
         # don't try to write an update if nothing has changed.
@@ -280,8 +260,8 @@ class KubernetesTest(unittest.TestCase):
                                network_state=network_state)
 
         # Do the BIG-IP configuration
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
 
         # Verify we first query bigip once for the initial state and
         # then perform an update due to differences
@@ -301,8 +281,8 @@ class KubernetesTest(unittest.TestCase):
                                network_state=network_state)
 
         # Do the BIG-IP configuration
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
 
         # Verify we first query bigip once for the initial state and
         # then perform an update due to differences
@@ -316,14 +296,14 @@ class KubernetesTest(unittest.TestCase):
             self,
             network_state='tests/bigip_test_vxlan_1_record.json',
             cloud_state='tests/kubernetes_openshift_3_nodes.json'):
-        """Test: Kubernetes openshift environment with 0 nodes."""
+        """Test: Cloud openshift environment with 0 nodes."""
         # Get the test data
         self.read_test_vectors(cloud_state=cloud_state,
                                network_state=network_state)
 
         # Do the BIG-IP configuration
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
 
         # Verify we first query bigip once for the initial state and
         # then perform an update due to differences
@@ -337,14 +317,14 @@ class KubernetesTest(unittest.TestCase):
             self,
             network_state='tests/bigip_test_vxlan_3_records.json',
             cloud_state='tests/kubernetes_openshift_1_node.json'):
-        """Test: Kubernetes openshift environment with 0 nodes."""
+        """Test: Cloud openshift environment with 0 nodes."""
         # Get the test data
         self.read_test_vectors(cloud_state=cloud_state,
                                network_state=network_state)
 
         # Do the BIG-IP configuration
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
 
         # Verify we first query bigip once for the initial state and
         # then perform an update due to differences
@@ -365,18 +345,18 @@ class KubernetesTest(unittest.TestCase):
         # Verify original configuration is untouched if we have errors
         # in the cloud config file
         self.cloud_data['openshift-sdn']['vxlan-node-ips'][0] = '55'
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
         self.assertEqual(self.network_data, self.vxlan_tunnel.records)
 
         self.cloud_data['openshift-sdn']['vxlan-node-ips'][0] = 55
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
         self.assertEqual(self.network_data, self.vxlan_tunnel.records)
 
         self.cloud_data['openshift-sdn']['vxlan-node-ips'][0] = 'myaddr'
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
         self.assertEqual(self.network_data, self.vxlan_tunnel.records)
 
     def test_network_bad_partition_name(
@@ -391,19 +371,19 @@ class KubernetesTest(unittest.TestCase):
         # in the cloud config file
         self.cloud_data['openshift-sdn']['vxlan-name'] = \
             '/bad/partition/name/idf/'
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
         self.assertFalse(hasattr(self, 'vxlan_tunnel'))
 
         self.cloud_data['openshift-sdn']['vxlan-name'] = \
             'bad/partition/name'
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
         self.assertFalse(hasattr(self, 'vxlan_tunnel'))
 
         self.cloud_data['openshift-sdn']['vxlan-name'] = ''
-        cfg = ctlr.create_network_config_kubernetes(self.cloud_data)
-        self.mgr._apply_network_config(cfg)
+        cfg = ctlr.create_network_config(self.cloud_data)
+        apply_network_fdb_config(self.mgr.mgmt_root(), cfg['fdb'])
         self.assertFalse(hasattr(self, 'vxlan_tunnel'))
 
     def compute_fdb_records(self):

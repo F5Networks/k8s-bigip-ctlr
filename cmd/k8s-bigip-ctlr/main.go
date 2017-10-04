@@ -82,6 +82,7 @@ var (
 	manageRoutes      *bool
 	nodeLabelSelector *string
 	resolveIngNames   *string
+	useSecrets        *bool
 
 	bigIPURL        *string
 	bigIPUsername   *string
@@ -162,7 +163,8 @@ func _init() {
 			"'cluster' will use service endpoints. "+
 			"The BIG-IP must be able access the cluster network")
 	inCluster = kubeFlags.Bool("running-in-cluster", true,
-		"Optional, if this controller is running in a kubernetes cluster, use the pod secrets for creating a Kubernetes client.")
+		"Optional, if this controller is running in a kubernetes cluster,"+
+			"use the pod secrets for creating a Kubernetes client.")
 	kubeConfig = kubeFlags.String("kubeconfig", "./config",
 		"Optional, absolute path to the kubeconfig file")
 	namespaceLabel = kubeFlags.String("namespace-label", "",
@@ -175,6 +177,8 @@ func _init() {
 		"Optional, direct the controller to resolve host names in Ingresses into IP addresses. "+
 			"The 'LOOKUP' option will use the controller's built-in DNS. "+
 			"Any other string will be used as a custom DNS server, either by name or IP address.")
+	useSecrets = kubeFlags.Bool("use-secrets", true,
+		"Optional, enable/disable use of Secrets for Ingress or ConfigMap SSL Profiles.")
 
 	// If the flag is specified with no argument, default to LOOKUP
 	kubeFlags.Lookup("resolve-ingress-names").NoOptDefVal = "LOOKUP"
@@ -442,6 +446,7 @@ func main() {
 		RouteConfig:       routeConfig,
 		NodeLabelSelector: *nodeLabelSelector,
 		ResolveIngress:    *resolveIngNames,
+		UseSecrets:        *useSecrets,
 	}
 
 	gs := globalSection{

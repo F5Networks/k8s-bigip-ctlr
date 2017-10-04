@@ -103,6 +103,8 @@ type Manager struct {
 	nodeLabelSelector string
 	// Strategy for resolving Ingress Hosts into IP addresses (LOOKUP or custom DNS)
 	resolveIng string
+	// Use Secrets for SSL Profiles
+	useSecrets bool
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -118,6 +120,7 @@ type Params struct {
 	InitialState      bool                 // Unit testing only
 	EventRecorder     record.EventRecorder // Unit testing only
 	NodeLabelSelector string
+	UseSecrets        bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -153,6 +156,7 @@ func NewManager(params *Params) *Manager {
 		routeConfig:       params.RouteConfig,
 		nodeLabelSelector: params.NodeLabelSelector,
 		resolveIng:        params.ResolveIngress,
+		useSecrets:        params.UseSecrets,
 		vsQueue:           vsQueue,
 		nsQueue:           nsQueue,
 		appInformers:      make(map[string]*appInformer),
@@ -924,30 +928,32 @@ func (appMgr *Manager) syncConfigMaps(
 		}
 
 		// Check if SSLProfile(s) are contained in Secrets
-		for _, profile := range rsCfg.Virtual.GetFrontendSslProfileNames() {
-			// Check if profile is contained in a Secret
-			secret, err := appMgr.kubeClient.Core().Secrets(cm.ObjectMeta.Namespace).
-				Get(profile, metav1.GetOptions{})
-			if err != nil {
-				// No secret, so we assume the profile is a BIG-IP default
-				log.Debugf("No Secret with name '%s', parsing secretName as path instead.",
-					profile)
-				continue
+		if appMgr.useSecrets {
+			for _, profile := range rsCfg.Virtual.GetFrontendSslProfileNames() {
+				// Check if profile is contained in a Secret
+				secret, err := appMgr.kubeClient.Core().Secrets(cm.ObjectMeta.Namespace).
+					Get(profile, metav1.GetOptions{})
+				if err != nil {
+					// No secret, so we assume the profile is a BIG-IP default
+					log.Debugf("No Secret with name '%s', parsing secretName as path instead.",
+						profile)
+					continue
+				}
+				err, updated := appMgr.handleSslProfile(rsCfg, secret)
+				if err != nil {
+					log.Warningf("%v", err)
+					continue
+				}
+				if updated {
+					stats.cpUpdated += 1
+				}
+				// Replace the current stored sslProfile with a correctly formatted
+				// profile (since this profile is just a secret name)
+				rsCfg.Virtual.RemoveFrontendSslProfileName(profile)
+				secretName := formatIngressSslProfileName(
+					rsCfg.Virtual.Partition + "/" + profile)
+				rsCfg.Virtual.AddFrontendSslProfileName(secretName)
 			}
-			err, updated := appMgr.handleSslProfile(rsCfg, secret)
-			if err != nil {
-				log.Warningf("%v", err)
-				continue
-			}
-			if updated {
-				stats.cpUpdated += 1
-			}
-			// Replace the current stored sslProfile with a correctly formatted
-			// profile (since this profile is just a secret name)
-			rsCfg.Virtual.RemoveFrontendSslProfileName(profile)
-			secretName := formatIngressSslProfileName(
-				rsCfg.Virtual.Partition + "/" + profile)
-			rsCfg.Virtual.AddFrontendSslProfileName(secretName)
 		}
 
 		rsName := rsCfg.Virtual.VirtualServerName
@@ -1454,25 +1460,30 @@ func (appMgr *Manager) handleIngressTls(
 		var cpUpdated, updateState bool
 		for _, tls := range ing.Spec.TLS {
 			// Check if profile is contained in a Secret
-			secret, err := appMgr.kubeClient.Core().Secrets(ing.ObjectMeta.Namespace).
-				Get(tls.SecretName, metav1.GetOptions{})
-			if err != nil {
-				// No secret, so we assume the profile is a BIG-IP default
-				log.Debugf("No Secret with name '%s': %s. Parsing secretName as path instead.",
-					tls.SecretName, err)
+			if appMgr.useSecrets {
+				secret, err := appMgr.kubeClient.Core().Secrets(ing.ObjectMeta.Namespace).
+					Get(tls.SecretName, metav1.GetOptions{})
+				if err != nil {
+					// No secret, so we assume the profile is a BIG-IP default
+					log.Debugf("No Secret with name '%s': %s. Parsing secretName as path instead.",
+						tls.SecretName, err)
+					secretName := formatIngressSslProfileName(tls.SecretName)
+					rsCfg.Virtual.AddFrontendSslProfileName(secretName)
+					continue
+				}
+				err, cpUpdated = appMgr.handleSslProfile(rsCfg, secret)
+				if err != nil {
+					log.Warningf("%v", err)
+					continue
+				}
+				updateState = updateState || cpUpdated
+				secretName := formatIngressSslProfileName(
+					rsCfg.Virtual.Partition + "/" + tls.SecretName)
+				rsCfg.Virtual.AddFrontendSslProfileName(secretName)
+			} else {
 				secretName := formatIngressSslProfileName(tls.SecretName)
 				rsCfg.Virtual.AddFrontendSslProfileName(secretName)
-				continue
 			}
-			err, cpUpdated = appMgr.handleSslProfile(rsCfg, secret)
-			if err != nil {
-				log.Warningf("%v", err)
-				continue
-			}
-			updateState = updateState || cpUpdated
-			secretName := formatIngressSslProfileName(
-				rsCfg.Virtual.Partition + "/" + tls.SecretName)
-			rsCfg.Virtual.AddFrontendSslProfileName(secretName)
 		}
 		return cpUpdated
 	}

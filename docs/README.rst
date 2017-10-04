@@ -64,130 +64,136 @@ Controller Configuration Parameters
 -----------------------------------
 The configuration parameters below are global to the |kctlr|.
 
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| Parameter           | Type    | Required | Default           | Description                             | Allowed Values |
-+=====================+=========+==========+===================+=========================================+================+
-| bigip-username      | string  | Required | n/a               | BIG-IP iControl REST username           |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| bigip-password      | string  | Required | n/a               | BIG-IP iControl REST password           |                |
-|                     |         |          |                   | [#secrets]_                             |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| bigip-url           | string  | Required | n/a               | BIG-IP admin IP address                 |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| bigip-partition     | string  | Required | n/a               | The BIG-IP partition in which           |                |
-|                     |         |          |                   | to configure objects.                   |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| namespace           | string  | Optional | All               | Kubernetes namespace(s) to watch        |                |
-|                     |         |          |                   |                                         |                |
-|                     |         |          |                   | - may be a comma-separated list         |                |
-|                     |         |          |                   | - watches all namespaces by default     |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| namespace-label     | string  | Optional | n/a               | Tells the ``k8s-bigip-ctlr`` to watch   |                |
-|                     |         |          |                   | any namespace with this label           |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| kubeconfig          | string  | Optional | ./config          | Path to the *kubeconfig* file           |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| python-basedir      | string  | Optional | /app/python       | Path to python utilities                |                |
-|                     |         |          |                   | directory                               |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| running-in-cluster  | boolean | Optional | true              | Indicates whether or not a              | true, false    |
-|                     |         |          |                   | kubernetes cluster started              |                |
-|                     |         |          |                   | ``k8s-bigip-ctlr``                      |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| use-node-internal   | boolean | Optional | true              | filter Kubernetes InternalIP            | true, false    |
-|                     |         |          |                   | addresses for pool members              |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| verify-interval     | integer | Optional | 30                | In seconds, interval at which           |                |
-|                     |         |          |                   | to verify the BIG-IP                    |                |
-|                     |         |          |                   | configuration.                          |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| node-poll-interval  | integer | Optional | 30                | In seconds, interval at which           |                |
-|                     |         |          |                   | to poll the cluster for its             |                |
-|                     |         |          |                   | node members.                           |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| node-label-selector | string  | Optional | n/a               | Tells the ``k8s-bigip-ctlr`` to watch   |                |
-|                     |         |          |                   | only nodes with this label              |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| log-level           | string  | Optional | INFO              | Log level                               | INFO,          |
-|                     |         |          |                   |                                         | DEBUG,         |
-|                     |         |          |                   |                                         | CRITICAL,      |
-|                     |         |          |                   |                                         | WARNING,       |
-|                     |         |          |                   |                                         | ERROR          |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| resolve-ingress-names | string  | Optional | n/a             | Tells the controller to resolve the     |                |
-|                       |         |          |                 | first Host in an Ingress resource to an |                |
-|                       |         |          |                 | IP address. This IP address will be     |                |
-|                       |         |          |                 | used as the virtual server address for  |                |
-|                       |         |          |                 | the Ingress resource.                   |                |
-|                       |         |          |                 |                                         |                |
-|                       |         |          |                 | A value of "LOOKUP" will use local DNS  |                |
-|                       |         |          |                 | to resolve the Host. Any other value    |                |
-|                       |         |          |                 | is a custom DNS server and the          |                |
-|                       |         |          |                 | controller sends resolution queries     |                |
-|                       |         |          |                 | through that server instead.            |                |
-|                       |         |          |                 |                                         |                |
-|                       |         |          |                 | Specifying the flag with no argument    |                |
-|                       |         |          |                 | will default to LOOKUP.                 |                |
-+-----------------------+---------+----------+-----------------+-----------------------------------------+----------------+
-| pool-member-type    | string  | Optional | nodeport          | The type of BIG-IP pool members you want| cluster,       |
-|                     |         |          |                   | to create.                              | nodeport       |
-|                     |         |          |                   |                                         |                |
-|                     |         |          |                   | Use ``cluster`` to create pool members  |                |
-|                     |         |          |                   | for each of the endpoints for the       |                |
-|                     |         |          |                   | Service (the pod's InternalIP)          |                |
-|                     |         |          |                   |                                         |                |
-|                     |         |          |                   | Use ``nodeport`` to create pool members |                |
-|                     |         |          |                   | for each schedulable node using the     |                |
-|                     |         |          |                   | Service's NodePort.                     |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| openshift-sdn-name  | string  | Optional | n/a               | Name of the VXLAN set up on the BIG-IP  |                |
-|                     |         |          |                   | system that corresponds to an Openshift |                |
-|                     |         |          |                   | SDN HostSubnet.                         |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| manage-routes       | boolean | Optional | false             | Indicates if ``k8s-bigip-ctlr`` should  | true, false    |
-|                     |         |          |                   | handle OpenShift Route objects.         |                |
-|                     |         |          |                   |                                         |                |
-|                     |         |          |                   | **Only applicable in OpenShift.**       |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| route-vserver-addr  | string  | Optional | n/a               | Bind address for virtual server for     |                |
-|                     |         |          |                   | OpenShift Route objects.                |                |
-|                     |         |          |                   |                                         |                |
-|                     |         |          |                   | **Only applicable in OpenShift.**       |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| route-label         | string  | Optional | n/a               | Tells the ``k8s-bigip-ctlr`` to only    |                |
-|                     |         |          |                   | watch for OpenShift Route objects with  |                |
-|                     |         |          |                   | the ``f5type`` label set to this value. |                |
-|                     |         |          |                   |                                         |                |
-|                     |         |          |                   | **Only applicable in OpenShift.**       |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| route-http-vserver  | string  | Optional | ose-vserver       | The name of the http virtual server for |                |
-|                     |         |          |                   | OpenShift Routes.                       |                |
-|                     |         |          |                   |                                         |                |
-|                     |         |          |                   | **Only applicable in OpenShift.**       |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| route-https-vserver | string  | Optional | https-ose-vserver | The name of the https virtual server    |                |
-|                     |         |          |                   | for OpenShift Routes.                   |                |
-|                     |         |          |                   |                                         |                |
-|                     |         |          |                   | **Only applicable in OpenShift.**       |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| default-client-ssl  | string  | Optional | n/a               | Specify the name of a user created      |                |
-|                     |         |          |                   | client ssl profile that will be         |                |
-|                     |         |          |                   | attached to the route https vserver and |                |
-|                     |         |          |                   | used as default for SNI. This profile   |                |
-|                     |         |          |                   | must have the Default for SNI field     |                |
-|                     |         |          |                   | enabled.                                |                |
-|                     |         |          |                   |                                         |                |
-|                     |         |          |                   | **Only applicable in OpenShift.**       |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| default-server-ssl  | string  | Optional | n/a               | Specify the name of a user created      |                |
-|                     |         |          |                   | server ssl profile that will be         |                |
-|                     |         |          |                   | attached to the route https vserver and |                |
-|                     |         |          |                   | used as default for SNI. This profile   |                |
-|                     |         |          |                   | must have the Default for SNI field     |                |
-|                     |         |          |                   | enabled.                                |                |
-|                     |         |          |                   |                                         |                |
-|                     |         |          |                   | **Only applicable in OpenShift.**       |                |
-+---------------------+---------+----------+-------------------+-----------------------------------------+----------------+
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| Parameter             | Type    | Required | Default           | Description                             | Allowed Values |
++=======================+=========+==========+===================+=========================================+================+
+| bigip-username        | string  | Required | n/a               | BIG-IP iControl REST username           |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| bigip-password        | string  | Required | n/a               | BIG-IP iControl REST password           |                |
+|                       |         |          |                   | [#secrets]_                             |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| bigip-url             | string  | Required | n/a               | BIG-IP admin IP address                 |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| bigip-partition       | string  | Required | n/a               | The BIG-IP partition in which           |                |
+|                       |         |          |                   | to configure objects.                   |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| namespace             | string  | Optional | All               | Kubernetes namespace(s) to watch        |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | - may be a comma-separated list         |                |
+|                       |         |          |                   | - watches all namespaces by default     |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| namespace-label       | string  | Optional | n/a               | Tells the ``k8s-bigip-ctlr`` to watch   |                |
+|                       |         |          |                   | any namespace with this label           |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| kubeconfig            | string  | Optional | ./config          | Path to the *kubeconfig* file           |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| python-basedir        | string  | Optional | /app/python       | Path to python utilities                |                |
+|                       |         |          |                   | directory                               |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| running-in-cluster    | boolean | Optional | true              | Indicates whether or not a              | true, false    |
+|                       |         |          |                   | kubernetes cluster started              |                |
+|                       |         |          |                   | ``k8s-bigip-ctlr``                      |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| use-node-internal     | boolean | Optional | true              | filter Kubernetes InternalIP            | true, false    |
+|                       |         |          |                   | addresses for pool members              |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| verify-interval       | integer | Optional | 30                | In seconds, interval at which           |                |
+|                       |         |          |                   | to verify the BIG-IP                    |                |
+|                       |         |          |                   | configuration.                          |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| node-poll-interval    | integer | Optional | 30                | In seconds, interval at which           |                |
+|                       |         |          |                   | to poll the cluster for its             |                |
+|                       |         |          |                   | node members.                           |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| node-label-selector   | string  | Optional | n/a               | Tells the ``k8s-bigip-ctlr`` to watch   |                |
+|                       |         |          |                   | only nodes with this label              |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| log-level             | string  | Optional | INFO              | Log level                               | INFO,          |
+|                       |         |          |                   |                                         | DEBUG,         |
+|                       |         |          |                   |                                         | CRITICAL,      |
+|                       |         |          |                   |                                         | WARNING,       |
+|                       |         |          |                   |                                         | ERROR          |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| resolve-ingress-names | string  | Optional | n/a               | Tells the controller to resolve the     |                |
+|                       |         |          |                   | first Host in an Ingress resource to an |                |
+|                       |         |          |                   | IP address. This IP address will be     |                |
+|                       |         |          |                   | used as the virtual server address for  |                |
+|                       |         |          |                   | the Ingress resource.                   |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | A value of "LOOKUP" will use local DNS  |                |
+|                       |         |          |                   | to resolve the Host. Any other value    |                |
+|                       |         |          |                   | is a custom DNS server and the          |                |
+|                       |         |          |                   | controller sends resolution queries     |                |
+|                       |         |          |                   | through that server instead.            |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | Specifying the flag with no argument    |                |
+|                       |         |          |                   | will default to LOOKUP.                 |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| pool-member-type      | string  | Optional | nodeport          | The type of BIG-IP pool members you want| cluster,       |
+|                       |         |          |                   | to create.                              | nodeport       |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | Use ``cluster`` to create pool members  |                |
+|                       |         |          |                   | for each of the endpoints for the       |                |
+|                       |         |          |                   | Service (the pod's InternalIP)          |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | Use ``nodeport`` to create pool members |                |
+|                       |         |          |                   | for each schedulable node using the     |                |
+|                       |         |          |                   | Service's NodePort.                     |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| openshift-sdn-name    | string  | Optional | n/a               | Name of the VXLAN set up on the BIG-IP  |                |
+|                       |         |          |                   | system that corresponds to an Openshift |                |
+|                       |         |          |                   | SDN HostSubnet.                         |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| manage-routes         | boolean | Optional | false             | Indicates if ``k8s-bigip-ctlr`` should  | true, false    |
+|                       |         |          |                   | handle OpenShift Route objects.         |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| route-vserver-addr    | string  | Optional | n/a               | Bind address for virtual server for     |                |
+|                       |         |          |                   | OpenShift Route objects.                |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| route-label           | string  | Optional | n/a               | Tells the ``k8s-bigip-ctlr`` to only    |                |
+|                       |         |          |                   | watch for OpenShift Route objects with  |                |
+|                       |         |          |                   | the ``f5type`` label set to this value. |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| route-http-vserver    | string  | Optional | ose-vserver       | The name of the http virtual server for |                |
+|                       |         |          |                   | OpenShift Routes.                       |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| route-https-vserver   | string  | Optional | https-ose-vserver | The name of the https virtual server    |                |
+|                       |         |          |                   | for OpenShift Routes.                   |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| default-client-ssl    | string  | Optional | n/a               | Specify the name of a user created      |                |
+|                       |         |          |                   | client ssl profile that will be         |                |
+|                       |         |          |                   | attached to the route https vserver and |                |
+|                       |         |          |                   | used as default for SNI. This profile   |                |
+|                       |         |          |                   | must have the Default for SNI field     |                |
+|                       |         |          |                   | enabled.                                |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| default-server-ssl    | string  | Optional | n/a               | Specify the name of a user created      |                |
+|                       |         |          |                   | server ssl profile that will be         |                |
+|                       |         |          |                   | attached to the route https vserver and |                |
+|                       |         |          |                   | used as default for SNI. This profile   |                |
+|                       |         |          |                   | must have the Default for SNI field     |                |
+|                       |         |          |                   | enabled.                                |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| use-secrets           | boolean | Optional | true              | Tells the controller whether or not     | true, false    |
+|                       |         |          |                   | to load SSL profiles from Kubernetes    |                |
+|                       |         |          |                   | Secrets for Ingresses and ConfigMaps.   |                |
+|                       |         |          |                   | If false, the controller will only use  |                |
+|                       |         |          |                   | profiles from the BIG-IP system.        |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 
 .. note::
 

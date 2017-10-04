@@ -20,16 +20,17 @@ pipeline {
           BASE_PUSH_TARGET="$DOCKER_NAMESPACE/k8s-bigip-ctlr"
           export IMG_TAG="${BASE_PUSH_TARGET}:${GIT_COMMIT}-$BASE_OS"
           export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${GIT_COMMIT}-$BASE_OS"
+          export BUILD_STAMP="devel-$GIT_BRANCH-n-$BUILD_NUMBER-id-$BUILD_ID-$BASE_OS"
           export CLEAN_BUILD=true
           build-tools/build-devel-image.sh
           build-tools/build-debug-artifacts.sh
           build-tools/build-release-artifacts.sh
           build-tools/build-release-images.sh
           docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$GIT_BRANCH-$BASE_OS"
-          docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$GIT_BRANCH-n-$BUILD_NUMBER-id-$BUILD_ID-$BASE_OS"
+          docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD-STAMP"
           docker push "$IMG_TAG"
           docker push "$BASE_PUSH_TARGET:devel-$GIT_BRANCH-$BASE_OS"
-          docker push "$BASE_PUSH_TARGET:devel-$GIT_BRANCH-n-$BUILD_NUMBER-id-$BUILD_ID-$BASE_OS"
+          docker push "$BASE_PUSH_TARGET:$BUILD_STAMP"
         '''
       }
     }

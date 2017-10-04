@@ -429,7 +429,7 @@ Supported annotations
 +====================================+=============+===========+=====================================================================================+=============+
 | virtual-server.f5.com/ip           | string      | Required  | The IP address you want to assign to the virtual server.                            | N/A         |
 +------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/partition    | string      | Required  | The BIG-IP partition in which the Controller should create/update/delete            | N/A         |
+| virtual-server.f5.com/partition    | string      | Optional  | The BIG-IP partition in which the Controller should create/update/delete            | N/A         |
 |                                    |             |           | objects for this Ingress.                                                           |             |
 +------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
 | kubernetes.io/ingress.class        | string      | Optional  | Tells the Controller it should only manage Ingress resources in the ``f5`` class.   | f5          |
@@ -541,7 +541,7 @@ Supported Route Configurations
 
    - For Edge and Unsecured Route types, the default backend port is 80.
 
-   - To expose a Service on any other ports. **specify the port in the Route config's "Port" field**.
+   - To expose a Service on any other port, **specify the port number in the Route config's "Port: TargetPort" field**.
 
 Supported annotations
 `````````````````````

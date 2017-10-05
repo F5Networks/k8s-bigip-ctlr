@@ -27,7 +27,7 @@ pipeline {
           build-tools/build-release-artifacts.sh
           build-tools/build-release-images.sh
           docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$GIT_BRANCH-$BASE_OS"
-          docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD-STAMP"
+          docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_STAMP"
           docker push "$IMG_TAG"
           docker push "$BASE_PUSH_TARGET:devel-$GIT_BRANCH-$BASE_OS"
           docker push "$BASE_PUSH_TARGET:$BUILD_STAMP"

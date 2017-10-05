@@ -2797,6 +2797,7 @@ var _ = Describe("AppManager Tests", func() {
 			})
 
 			It("creates ssl profiles from Secrets", func() {
+				mockMgr.appMgr.useSecrets = true
 				// Create a secret
 				secret := &v1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
@@ -2859,6 +2860,11 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(len(customProfiles)).To(Equal(2))
 				mockMgr.deleteConfigMap(secretCfg)
 				Expect(len(customProfiles)).To(Equal(1))
+
+				// Turn off secret loading; should remove the customProfile
+				mockMgr.appMgr.useSecrets = false
+				mockMgr.updateIngress(ingress)
+				Expect(len(customProfiles)).To(Equal(0))
 			})
 
 			Context("Routes", func() {

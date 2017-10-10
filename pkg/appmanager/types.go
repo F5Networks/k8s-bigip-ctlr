@@ -263,23 +263,23 @@ type (
 	}
 
 	// This is the format for each item in the health monitor annotation used
-	// in the Ingress object.
-	IngressHealthMonitor struct {
+	// in the Ingress and Route objects.
+	AnnotationHealthMonitor struct {
 		Path     string `json:"path"`
 		Interval int    `json:"interval"`
 		Send     string `json:"send"`
 		Timeout  int    `json:"timeout"`
 	}
-	IngressHealthMonitors []IngressHealthMonitor
+	AnnotationHealthMonitors []AnnotationHealthMonitor
 
-	ingressRuleData struct {
+	ruleData struct {
 		svcName   string
 		svcPort   int32
-		healthMon IngressHealthMonitor
+		healthMon AnnotationHealthMonitor
 		assigned  bool
 	}
-	ingressPathToRuleMap map[string]*ingressRuleData
-	ingressHostToPathMap map[string]ingressPathToRuleMap
+	pathToRuleMap map[string]*ruleData
+	hostToPathMap map[string]pathToRuleMap
 
 	// Virtual Server Key - unique server is Name + Port
 	serviceKey struct {

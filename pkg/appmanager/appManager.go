@@ -56,7 +56,7 @@ const DefaultConfigMapLabel = "f5type in (virtual-server)"
 const vsBindAddrAnnotation = "status.virtual-server.f5.com/ip"
 const ingressSslRedirect = "ingress.kubernetes.io/ssl-redirect"
 const ingressAllowHttp = "ingress.kubernetes.io/allow-http"
-const ingHealthMonitorAnnotation = "virtual-server.f5.com/health"
+const healthMonitorAnnotation = "virtual-server.f5.com/health"
 
 type ResourceMap map[int32][]*ResourceConfig
 
@@ -1022,9 +1022,9 @@ func (appMgr *Manager) syncIngresses(
 
 			// Handle Ingress health monitors
 			rsName := rsCfg.Virtual.VirtualServerName
-			hmStr, found := ing.ObjectMeta.Annotations[ingHealthMonitorAnnotation]
+			hmStr, found := ing.ObjectMeta.Annotations[healthMonitorAnnotation]
 			if found {
-				var monitors IngressHealthMonitors
+				var monitors AnnotationHealthMonitors
 				err := json.Unmarshal([]byte(hmStr), &monitors)
 				if err != nil {
 					msg := fmt.Sprintf(
@@ -1119,7 +1119,7 @@ func (appMgr *Manager) syncRoutes(
 		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
-			rsCfg, err := createRSConfigFromRoute(route,
+			rsCfg, err, pool := createRSConfigFromRoute(route,
 				*appMgr.resources, appMgr.routeConfig, ps)
 			if err != nil {
 				// We return err if there was an error creating a rule
@@ -1136,6 +1136,20 @@ func (appMgr *Manager) syncRoutes(
 			} else {
 				stats.vsFound += found
 				stats.vsUpdated += updated
+			}
+
+			// Handle Route health monitors
+			hmStr, found := route.ObjectMeta.Annotations[healthMonitorAnnotation]
+			if found {
+				var monitors AnnotationHealthMonitors
+				err := json.Unmarshal([]byte(hmStr), &monitors)
+				if err != nil {
+					log.Errorf("Unable to parse health monitor JSON array '%v': %v",
+						hmStr, err)
+				} else {
+					appMgr.handleRouteHealthMonitors(rsName, pool, &rsCfg, monitors, stats)
+				}
+				rsCfg.SortMonitors()
 			}
 
 			// TLS Cert/Key

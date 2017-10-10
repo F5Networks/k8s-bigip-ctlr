@@ -563,6 +563,20 @@ Supported annotations
 |                                    |             |           | The controller uses this profile instead of the certificate within the              |             |
 |                                    |             |           | Route's configuration.                                                              |             |
 +------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+| virtual-server.f5.com/health       | JSON object | Optional  | Defines a health monitor for the Route resource.                                    | N/A         |
++----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+|                      | path        | string      | Required  | The path for the Service specified in the Route resource.                           | N/A         |
+|                      |             |             | [#hm1]_   |                                                                                     |             |
++----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+|                      | send        | string      | Required  | The send string to set in the health monitor. [#hm2]_                               | N/A         |
+|                      |             |             | [#hm1]_   |                                                                                     |             |
++----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+|                      | interval    | integer     | Required  | The interval at which to check the health of the virtual server.                    | N/A         |
+|                      |             |             | [#hm1]_   |                                                                                     |             |
++----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+|                      | timeout     | integer     | Required  | Number of seconds before the check times out.                                       | N/A         |
+|                      |             |             | [#hm1]_   |                                                                                     |             |
++----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
 
 Please see the example configuration files for more details.
 
@@ -590,7 +604,7 @@ Example Configuration Files
 .. [#objectpartition] The |kctlr| creates and manages objects in the BIG-IP partition defined in the `F5 resource </containers/latest/kubernetes/index.html#f5-resource-properties>`_ ConfigMap. **It cannot manage objects in the** ``/Common`` **partition**.
 .. [#nodeport] The |kctlr| forwards traffic to the NodePort assigned to the Service by Kubernetes. See the Kubernetes `Services <http://kubernetes.io/docs/user-guide/services/>`_ documentation for more information.
 .. [#secrets] You can `secure your BIG-IP credentials </containers/latest/kubernetes/kctlr-secrets.html#secure-your-BIG-IP-credentials>`_ using a Kubernetes Secret.
-.. [#hm1] Required if defining the ``virtual-server.f5.com/health`` Ingress annotation.
+.. [#hm1] Required if defining the ``virtual-server.f5.com/health`` Ingress/Route annotation.
 .. [#hm2] See the **HTTP monitor settings** section of the `BIG-IP LTM Monitors Reference Guide <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/bigip-local-traffic-manager-monitors-reference-13-0-0/3.html>`_ for more information about defining send strings.
 
 

@@ -693,7 +693,7 @@ func createRSConfigFromRoute(
 	resources Resources,
 	routeConfig RouteConfig,
 	pStruct portStruct,
-) (ResourceConfig, error) {
+) (ResourceConfig, error, Pool) {
 	var rsCfg ResourceConfig
 	rsCfg.MetaData.RouteProfs = make(map[routeKey]string)
 	var policyName, rsName string
@@ -734,7 +734,7 @@ func createRSConfigFromRoute(
 	rule, err := createRule(uri, pool.Name, pool.Partition, formatRouteRuleName(route))
 	if nil != err {
 		err = fmt.Errorf("Error configuring rule for Route %s: %v", route.ObjectMeta.Name, err)
-		return rsCfg, err
+		return rsCfg, err, Pool{}
 	}
 
 	resources.Lock()
@@ -787,7 +787,7 @@ func createRSConfigFromRoute(
 		rsCfg.HandleRouteTls(tls, pStruct.protocol, policyName, rule)
 	}
 
-	return rsCfg, nil
+	return rsCfg, nil, pool
 }
 
 // Copies from an existing config into our new config
@@ -919,8 +919,8 @@ func (rc *ResourceConfig) FindPolicy(controlType string) *Policy {
 	return nil
 }
 
-func (rc *ResourceConfig) SetMonitor(pool *Pool, monitor Monitor) {
-	found := false
+func (rc *ResourceConfig) SetMonitor(pool *Pool, monitor Monitor) bool {
+	var updated, found bool
 	toFind := fmt.Sprintf("/%s/%s", monitor.Partition, monitor.Name)
 	for _, name := range pool.MonitorNames {
 		if name == toFind {
@@ -931,14 +931,56 @@ func (rc *ResourceConfig) SetMonitor(pool *Pool, monitor Monitor) {
 
 	if !found {
 		pool.MonitorNames = append(pool.MonitorNames, toFind)
+		updated = true
 	}
 	for i, mon := range rc.Monitors {
 		if mon.Name == monitor.Name && mon.Partition == monitor.Partition {
-			rc.Monitors[i] = monitor
-			return
+			if !reflect.DeepEqual(rc.Monitors[i], monitor) {
+				rc.Monitors[i] = monitor
+				updated = true
+			}
+			return updated
 		}
 	}
 	rc.Monitors = append(rc.Monitors, monitor)
+	return updated
+}
+
+func (rc *ResourceConfig) RemoveMonitor(pool, monitor string) bool {
+	var removed bool
+	for i, pl := range rc.Pools {
+		if pl.Name == pool {
+			for j, mon := range pl.MonitorNames {
+				if mon == monitor {
+					if j >= len(pl.MonitorNames)-1 {
+						pl.MonitorNames = pl.MonitorNames[:len(pl.MonitorNames)-1]
+					} else {
+						copy(pl.MonitorNames[j:], pl.MonitorNames[j+1:])
+						pl.MonitorNames[len(pl.MonitorNames)-1] = ""
+						pl.MonitorNames = pl.MonitorNames[:len(pl.MonitorNames)-1]
+					}
+					rc.Pools[i].MonitorNames = pl.MonitorNames
+					removed = true
+					break
+				}
+			}
+		}
+	}
+	for i, mon := range rc.Monitors {
+		name := strings.Split(monitor, "/")[2]
+		if mon.Name == name {
+			if i >= len(rc.Monitors)-1 {
+				rc.Monitors = rc.Monitors[:len(rc.Monitors)-1]
+			} else {
+				copy(rc.Monitors[i:], rc.Monitors[i+1:])
+				rc.Monitors[len(rc.Monitors)-1] = Monitor{}
+				rc.Monitors = rc.Monitors[:len(rc.Monitors)-1]
+			}
+			removed = true
+			break
+		}
+	}
+	return removed
 }
 
 // Sorting methods for unit testing

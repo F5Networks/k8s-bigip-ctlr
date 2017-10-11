@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// Configures Health Monitors for Ingresses and Routes, supplied by annotations
+
 package appmanager
 
 import (
@@ -27,12 +29,12 @@ import (
 
 func (appMgr *Manager) assignHealthMonitorsByPath(
 	rsName string,
-	ing *v1beta1.Ingress,
-	rulesMap ingressHostToPathMap,
-	monitors IngressHealthMonitors,
+	ing *v1beta1.Ingress, // used in Ingress case for logging events
+	rulesMap hostToPathMap,
+	monitors AnnotationHealthMonitors,
 ) error {
 	// The returned error is used for 'fatal' errors only, meaning abandon
-	// any further processing of health monitors for this Ingress.
+	// any further processing of health monitors for this resource.
 	for _, mon := range monitors {
 		slashPos := strings.Index(mon.Path, "/")
 		if slashPos == -1 {
@@ -48,7 +50,9 @@ func (appMgr *Manager) assignHealthMonitorsByPath(
 		if false == found {
 			msg := fmt.Sprintf("Rule not found for Health Monitor host '%v'", host)
 			log.Warningf("%s", msg)
-			appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg, rsName)
+			if ing != nil {
+				appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg, rsName)
+			}
 			continue
 		}
 		ruleData, found := pm[path]
@@ -56,7 +60,9 @@ func (appMgr *Manager) assignHealthMonitorsByPath(
 			msg := fmt.Sprintf("Rule not found for Health Monitor path '%v'",
 				mon.Path)
 			log.Warningf("%s", msg)
-			appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg, rsName)
+			if ing != nil {
+				appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg, rsName)
+			}
 			continue
 		}
 		ruleData.healthMon = mon
@@ -67,8 +73,9 @@ func (appMgr *Manager) assignHealthMonitorsByPath(
 func (appMgr *Manager) assignMonitorToPool(
 	cfg *ResourceConfig,
 	fullPoolPath string,
-	ruleData *ingressRuleData,
-) {
+	ruleData *ruleData,
+) bool {
+	var updated bool
 	partition, poolName := splitBigipPath(fullPoolPath, false)
 	for poolNdx, pool := range cfg.Pools {
 		if pool.Partition == partition && pool.Name == poolName {
@@ -85,17 +92,18 @@ func (appMgr *Manager) assignMonitorToPool(
 				Send:      ruleData.healthMon.Send,
 				Timeout:   ruleData.healthMon.Timeout,
 			}
-			cfg.SetMonitor(&cfg.Pools[poolNdx], monitor)
+			updated = cfg.SetMonitor(&cfg.Pools[poolNdx], monitor)
 		}
 	}
+	return updated
 }
 
 func (appMgr *Manager) notifyUnusedHealthMonitorRules(
 	rsName string,
 	ing *v1beta1.Ingress,
-	hostToPathMap ingressHostToPathMap,
+	htpMap hostToPathMap,
 ) {
-	for _, paths := range hostToPathMap {
+	for _, paths := range htpMap {
 		for _, ruleData := range paths {
 			if false == ruleData.assigned {
 				msg := fmt.Sprintf(
@@ -111,19 +119,19 @@ func (appMgr *Manager) handleSingleServiceHealthMonitors(
 	rsName string,
 	cfg *ResourceConfig,
 	ing *v1beta1.Ingress,
-	monitors IngressHealthMonitors,
+	monitors AnnotationHealthMonitors,
 ) {
 	// Setup the rule-to-pool map from the ingress
-	ruleItem := make(ingressPathToRuleMap)
-	ruleItem["/"] = &ingressRuleData{
+	ruleItem := make(pathToRuleMap)
+	ruleItem["/"] = &ruleData{
 		svcName: ing.Spec.Backend.ServiceName,
 		svcPort: ing.Spec.Backend.ServicePort.IntVal,
 	}
-	hostToPathMap := make(ingressHostToPathMap)
-	hostToPathMap["*"] = ruleItem
+	htpMap := make(hostToPathMap)
+	htpMap["*"] = ruleItem
 
 	err := appMgr.assignHealthMonitorsByPath(
-		rsName, ing, hostToPathMap, monitors)
+		rsName, ing, htpMap, monitors)
 	if nil != err {
 		log.Errorf("%s", err.Error())
 		appMgr.recordIngressEvent(ing, "MonitorError", err.Error(), rsName)
@@ -132,23 +140,23 @@ func (appMgr *Manager) handleSingleServiceHealthMonitors(
 
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
-	for _, paths := range hostToPathMap {
+	for _, paths := range htpMap {
 		for _, ruleData := range paths {
 			appMgr.assignMonitorToPool(cfg, cfg.Virtual.PoolName, ruleData)
 		}
 	}
 
-	appMgr.notifyUnusedHealthMonitorRules(rsName, ing, hostToPathMap)
+	appMgr.notifyUnusedHealthMonitorRules(rsName, ing, htpMap)
 }
 
 func (appMgr *Manager) handleMultiServiceHealthMonitors(
 	rsName string,
 	cfg *ResourceConfig,
 	ing *v1beta1.Ingress,
-	monitors IngressHealthMonitors,
+	monitors AnnotationHealthMonitors,
 ) {
 	// Setup the rule-to-pool map from the ingress
-	hostToPathMap := make(ingressHostToPathMap)
+	htpMap := make(hostToPathMap)
 	for _, rule := range ing.Spec.Rules {
 		if nil == rule.IngressRuleValue.HTTP {
 			continue
@@ -157,10 +165,10 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 		if host == "" {
 			host = "*"
 		}
-		ruleItem, found := hostToPathMap[host]
+		ruleItem, found := htpMap[host]
 		if !found {
-			ruleItem = make(ingressPathToRuleMap)
-			hostToPathMap[host] = ruleItem
+			ruleItem = make(pathToRuleMap)
+			htpMap[host] = ruleItem
 		}
 		for _, path := range rule.IngressRuleValue.HTTP.Paths {
 			pathKey := path.Path
@@ -175,7 +183,7 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 				log.Warningf("%s", msg)
 				appMgr.recordIngressEvent(ing, "DuplicatePath", msg, rsName)
 			} else {
-				pathItem = &ingressRuleData{
+				pathItem = &ruleData{
 					svcName: path.Backend.ServiceName,
 					svcPort: path.Backend.ServicePort.IntVal,
 				}
@@ -183,8 +191,8 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 			}
 		}
 	}
-	if _, found := hostToPathMap["*"]; found {
-		for key, _ := range hostToPathMap {
+	if _, found := htpMap["*"]; found {
+		for key, _ := range htpMap {
 			if key == "*" {
 				continue
 			}
@@ -197,7 +205,7 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 	}
 
 	err := appMgr.assignHealthMonitorsByPath(
-		rsName, ing, hostToPathMap, monitors)
+		rsName, ing, htpMap, monitors)
 	if nil != err {
 		log.Errorf("%s", err.Error())
 		appMgr.recordIngressEvent(ing, "MonitorError", err.Error(), rsName)
@@ -206,10 +214,10 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
-	for host, paths := range hostToPathMap {
+	for host, paths := range htpMap {
 		for path, ruleData := range paths {
 			if 0 == len(ruleData.healthMon.Path) {
-				// hostToPathMap has an entry for each rule, but not necessarily an
+				// htpMap has an entry for each rule, but not necessarily an
 				// associated health monitor.
 				continue
 			}
@@ -239,5 +247,48 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 		}
 	}
 
-	appMgr.notifyUnusedHealthMonitorRules(rsName, ing, hostToPathMap)
+	appMgr.notifyUnusedHealthMonitorRules(rsName, ing, htpMap)
+}
+
+func (appMgr *Manager) handleRouteHealthMonitors(
+	rsName string,
+	pool Pool,
+	cfg *ResourceConfig,
+	monitors AnnotationHealthMonitors, // Only one monitor in this list
+	stats *vsSyncStats,
+) {
+	poolPath := fmt.Sprintf("/%s/%s", pool.Partition, pool.Name)
+
+	// Setup the rule-to-pool map from the route
+	ruleItem := make(pathToRuleMap)
+	ruleItem["/"] = &ruleData{
+		svcName: pool.ServiceName,
+		svcPort: pool.ServicePort,
+	}
+	htpMap := make(hostToPathMap)
+	htpMap["*"] = ruleItem
+
+	err := appMgr.assignHealthMonitorsByPath(rsName, nil, htpMap, monitors)
+	if nil != err {
+		log.Errorf("%s", err.Error())
+		// If this monitor exists already, remove it
+		monitorName := poolPath + "_0_http"
+		if removed := cfg.RemoveMonitor(pool.Name, monitorName); removed {
+			stats.vsUpdated += 1
+		}
+		return
+	}
+
+	appMgr.resources.Lock()
+	defer appMgr.resources.Unlock()
+	var updated, updateState bool
+	for _, paths := range htpMap {
+		for _, ruleData := range paths {
+			updateState = appMgr.assignMonitorToPool(cfg, poolPath, ruleData)
+			updated = updated || updateState
+		}
+	}
+	if updated {
+		stats.vsUpdated += 1
+	}
 }

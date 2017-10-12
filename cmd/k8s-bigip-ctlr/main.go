@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -26,12 +27,15 @@ import (
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	clog "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger/console"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/spf13/pflag"
 	"golang.org/x/crypto/ssh/terminal"
@@ -78,6 +82,7 @@ var (
 	verifyInterval   *int
 	nodePollInterval *int
 	printVersion     *bool
+	httpAddress      *string
 
 	namespaces        *[]string
 	useNodeInternal   *bool
@@ -144,6 +149,8 @@ func _init() {
 		"Optional, interval (in seconds) at which to poll for cluster nodes.")
 	printVersion = globalFlags.Bool("version", false,
 		"Optional, print version and exit.")
+	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:80",
+		"The address to serve http based informations (/metrics and /health).")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
@@ -319,6 +326,11 @@ func verifyArgs() error {
 	if len(u.Path) > 0 && u.Path != "/" {
 		return fmt.Errorf("BIGIP-URL path must be empty or '/'; check URL formatting and/or remove %s from path",
 			u.Path)
+	}
+
+	_, err = url.Parse(*httpAddress)
+	if err != nil {
+		return fmt.Errorf("Error parsing url: %s", err)
 	}
 
 	if *poolMemberType == "nodeport" {
@@ -602,6 +614,17 @@ func main() {
 	}
 
 	setupWatchers(appMgr, 30*time.Second)
+	// Expose Prometheus metrics
+	http.Handle("/metrics", promhttp.Handler())
+	// Add health check e.g. is Python process still there?
+	hc := &health.HealthChecker{
+		SubPID: subPid,
+	}
+	http.Handle("/health", hc.HealthCheckHandler())
+	bigIPPrometheus.RegisterMetrics()
+	go func() {
+		log.Fatal(http.ListenAndServe(*httpAddress, nil).Error())
+	}()
 
 	stopCh := make(chan struct{})
 

@@ -34,7 +34,7 @@ coverage.html
 python/.cache
 /venv.local
 *.coverprofile
-
+docker-build.*
 # Docs
 docs/_build*
 docs/errors.txt

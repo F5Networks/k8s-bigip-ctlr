@@ -7,6 +7,19 @@ Release Notes for BIG-IP Controller for Kubernetes
 Added Functionality
 ```````````````````
 
+* Create health monitors for OpenShift Routes via an annotation.
+* Optionally disable loading of certificates and keys from Routes in preference of using pre-existing
+  profiles on the BIG-IP system.
+* Optionally disable loading of Kubernetes Secrets on an Ingress.
+* Resolve the first host name in an Ingress to an IP address using a local or custom DNS server. The controller
+  configures the virtual server with this address.
+
+v1.2.0
+------
+
+Added Functionality
+```````````````````
+
 * Introduced support for Kubernetes 1.6 and 1.7.
 * Watch all nodes by default; watch a subset of nodes with a user-specified label.
 * Create BIG-IP SSL Profiles from Kubernetes Secrets via Ingress TLS.

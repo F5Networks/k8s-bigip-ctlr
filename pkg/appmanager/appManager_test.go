@@ -2879,12 +2879,12 @@ var _ = Describe("AppManager Tests", func() {
 					spec := routeapi.RouteSpec{
 						Host: "foobar.com",
 						Path: "/foo",
-						Port: &routeapi.RoutePort{
-							TargetPort: intstr.IntOrString{IntVal: 80},
-						},
 						To: routeapi.RouteTargetReference{
 							Kind: "Service",
 							Name: "foo",
+						},
+						Port: &routeapi.RoutePort{
+							TargetPort: intstr.FromString("foo-80"),
 						},
 						TLS: &routeapi.TLSConfig{
 							Termination: "edge",
@@ -2899,7 +2899,7 @@ var _ = Describe("AppManager Tests", func() {
 					resources := mockMgr.resources()
 					// Associate a service
 					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+						[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
 					r = mockMgr.addService(fooSvc)
 					Expect(r).To(BeTrue(), "Service should be processed.")
 					Expect(resources.Count()).To(Equal(2))

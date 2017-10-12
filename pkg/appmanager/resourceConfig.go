@@ -693,6 +693,7 @@ func createRSConfigFromRoute(
 	resources Resources,
 	routeConfig RouteConfig,
 	pStruct portStruct,
+	svcIndexer cache.Indexer,
 ) (ResourceConfig, error, Pool) {
 	var rsCfg ResourceConfig
 	rsCfg.MetaData.RouteProfs = make(map[routeKey]string)
@@ -708,17 +709,22 @@ func createRSConfigFromRoute(
 	tls := route.Spec.TLS
 
 	var backendPort int32
+	var err error
 	if route.Spec.Port != nil {
-		backendPort = route.Spec.Port.TargetPort.IntVal
-	} else if tls != nil && len(tls.Termination) != 0 {
-		if tls.Termination == routeapi.TLSTerminationPassthrough ||
-			tls.Termination == routeapi.TLSTerminationReencrypt {
-			backendPort = 443
+		strVal := route.Spec.Port.TargetPort.StrVal
+		if strVal == "" {
+			backendPort = route.Spec.Port.TargetPort.IntVal
 		} else {
-			backendPort = 80
+			backendPort, err = getServicePort(route, svcIndexer, strVal)
+			if nil != err {
+				log.Warningf("%v", err)
+			}
 		}
 	} else {
-		backendPort = 80
+		backendPort, err = getServicePort(route, svcIndexer, "")
+		if nil != err {
+			log.Warningf("%v", err)
+		}
 	}
 
 	// Create the pool
@@ -1158,4 +1164,36 @@ func NewCustomProfile(
 		ServerName: serverName,
 		SNIDefault: sni,
 	}
+}
+
+// If name is provided, return port number for that port name,
+// else return the first port found from a Route's service.
+func getServicePort(
+	route *routeapi.Route,
+	svcIndexer cache.Indexer,
+	name string,
+) (int32, error) {
+	ns := route.ObjectMeta.Namespace
+	svcName := route.Spec.To.Name
+	key := ns + "/" + svcName
+
+	obj, found, err := svcIndexer.GetByKey(key)
+	if nil != err {
+		return 0, fmt.Errorf("Error looking for service '%s': %v", key, err)
+	}
+	if found {
+		svc := obj.(*v1.Service)
+		if name != "" {
+			for _, port := range svc.Spec.Ports {
+				if port.Name == name {
+					return port.Port, nil
+				}
+			}
+			return 0,
+				fmt.Errorf("Could not find service port '%s' on service '%s'", name, key)
+		} else {
+			return svc.Spec.Ports[0].Port, nil
+		}
+	}
+	return 0, fmt.Errorf("Could not find service ports for service '%s'", key)
 }

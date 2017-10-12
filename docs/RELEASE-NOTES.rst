@@ -14,6 +14,17 @@ Added Functionality
 * Resolve the first host name in an Ingress to an IP address using a local or custom DNS server. The controller
   configures the virtual server with this address.
 
+Bug Fixes
+`````````
+* OpenShift Route targetPort field is no longer required if the port is not 80 or 443.
+* Properly configures named targetPorts in OpenShift Route configurations.
+
+Limitations
+~~~~~~~~~~~
+
+* If a Route configuration contains no targetPort, the controller uses the first port it sees
+  on the referenced Service. The controller does not use all ports.
+
 v1.2.0
 ------
 

@@ -475,6 +475,9 @@ var _ = Describe("Resource Config Tests", func() {
 					Kind: "Service",
 					Name: "foo",
 				},
+				Port: &routeapi.RoutePort{
+					TargetPort: intstr.FromInt(80),
+				},
 				TLS: &routeapi.TLSConfig{
 					Termination: "edge",
 					Certificate: "cert",
@@ -490,7 +493,7 @@ var _ = Describe("Resource Config Tests", func() {
 				HttpVs:  "ose-vserver",
 				HttpsVs: "https-ose-vserver",
 			}
-			cfg, _, _ := createRSConfigFromRoute(route, Resources{}, rc, ps)
+			cfg, _, _ := createRSConfigFromRoute(route, Resources{}, rc, ps, nil)
 			Expect(cfg.Virtual.VirtualServerName).To(Equal("https-ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_foo"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("foo"))
@@ -505,13 +508,16 @@ var _ = Describe("Resource Config Tests", func() {
 					Kind: "Service",
 					Name: "bar",
 				},
+				Port: &routeapi.RoutePort{
+					TargetPort: intstr.FromInt(80),
+				},
 			}
 			route2 := test.NewRoute("route2", "1", namespace, spec, nil)
 			ps = portStruct{
 				protocol: "http",
 				port:     80,
 			}
-			cfg, _, _ = createRSConfigFromRoute(route2, Resources{}, rc, ps)
+			cfg, _, _ = createRSConfigFromRoute(route2, Resources{}, rc, ps, nil)
 			Expect(cfg.Virtual.VirtualServerName).To(Equal("ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_bar"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("bar"))

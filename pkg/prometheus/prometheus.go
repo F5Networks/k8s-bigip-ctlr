@@ -14,6 +14,22 @@ var MonitoredNodes = prometheus.NewGaugeVec(
 	[]string{"nodeselector"},
 )
 
+var FoundConfigMaps = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "bigip_configmaps",
+		Help: "Total count of configmaps found to configure services of the BigIP k8s CTLR",
+	},
+	[]string{},
+)
+
+var FoundConfigMapErrors = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "bigip_configmap_errors",
+		Help: "Total count of configmaps to configure services og the BigIP k8s CTLR",
+	},
+	[]string{},
+)
+
 var MonitoredServices = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "bigip_monitored_services",

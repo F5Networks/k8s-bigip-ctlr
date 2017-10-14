@@ -150,7 +150,7 @@ func _init() {
 	printVersion = globalFlags.Bool("version", false,
 		"Optional, print version and exit.")
 	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:80",
-		"The address to serve http based informations (/metrics and /health).")
+		"Optional, address to serve http based informations (/metrics and /health).")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))

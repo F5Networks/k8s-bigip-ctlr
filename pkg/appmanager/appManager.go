@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
@@ -904,6 +905,10 @@ func (appMgr *Manager) syncConfigMaps(
 			sKey.Namespace, err)
 		return err
 	}
+
+	bigIPPrometheus.FoundConfigMaps.WithLabelValues().Set(float64(len(cfgMapsByIndex)))
+	cmErrors := 0
+
 	for _, obj := range cfgMapsByIndex {
 		// We need to look at all config maps in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
@@ -913,9 +918,10 @@ func (appMgr *Manager) syncConfigMaps(
 		}
 		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal)
 		if nil != err {
+			cmErrors += 1
 			// Ignore this config map for the time being. When the user updates it
 			// so that it is valid it will be requeued.
-			fmt.Errorf("Error parsing ConfigMap %v_%v",
+			log.Errorf("Error parsing ConfigMap %v_%v",
 				cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
 			continue
 		}
@@ -965,6 +971,8 @@ func (appMgr *Manager) syncConfigMaps(
 			appMgr.setBindAddrAnnotation(cm, sKey, rsCfg)
 		}
 	}
+
+	bigIPPrometheus.FoundConfigMapErrors.WithLabelValues().Set(float64(cmErrors))
 	return nil
 }
 

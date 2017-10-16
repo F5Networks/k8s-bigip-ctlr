@@ -1120,7 +1120,7 @@ func (appMgr *Manager) syncRoutes(
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
 			rsCfg, err, pool := createRSConfigFromRoute(route,
-				*appMgr.resources, appMgr.routeConfig, ps)
+				*appMgr.resources, appMgr.routeConfig, ps, appInf.svcInformer.GetIndexer())
 			if err != nil {
 				// We return err if there was an error creating a rule
 				log.Warningf("%v", err)
@@ -1176,7 +1176,8 @@ func (appMgr *Manager) syncRoutes(
 					cfg = &rsCfg
 					// If the current rsCfg is inactive, we shouldn't deactivate
 					// other configs for other pools. Only this pool (rsCfg) will be disabled.
-					cfg.MetaData.Active = mdActive
+					// If the rsCfg IS active, then stored cfg should be active
+					cfg.MetaData.Active = mdActive || rsCfg.MetaData.Active
 					appMgr.resources.Assign(keys[i], cfg.Virtual.VirtualServerName, cfg)
 				}
 			}

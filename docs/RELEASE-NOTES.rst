@@ -17,7 +17,8 @@ Added Functionality
 Bug Fixes
 `````````
 * OpenShift Route targetPort field is no longer required if the port is not 80 or 443.
-* Properly configures named targetPorts in OpenShift Route configurations.
+* Properly configure named targetPorts in OpenShift Route configurations.
+* Remove ssl certificate lists for deleted custom profiles.
 
 Limitations
 ~~~~~~~~~~~

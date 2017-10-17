@@ -17,6 +17,34 @@
 
 const fs = require('fs');
 const Validator = require('jsonschema').Validator;
+const ValidatorHelpers = require('jsonschema/lib/helpers');
+
+
+Validator.prototype.customFormats.bigipv4 = function(input) {
+   let parts = input.split("%");
+   let ip = parts[0];
+   if (parts.length === 2) {
+     let rd = parts[1];
+     if (isNaN(rd)) {
+       return false;
+     }
+   }
+
+   return ValidatorHelpers.isFormat(ip, 'ip-address');
+}
+
+Validator.prototype.customFormats.bigipv6 = function(input) {
+   let parts = input.split("%");
+   let ip = parts[0];
+   if (parts.length === 2) {
+     let rd = parts[1];
+     if (isNaN(rd)) {
+       return false;
+     }
+   }
+   return ValidatorHelpers.isFormat(ip, 'ipv6');
+}
+
 
 class SchemaHandler {
   constructor(uriRoot) {

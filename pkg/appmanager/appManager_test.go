@@ -1001,6 +1001,8 @@ var _ = Describe("AppManager Tests", func() {
 		var mockMgr *mockAppManager
 		var mw *test.MockWriter
 		BeforeEach(func() {
+			RegisterBigIPSchemaTypes()
+
 			mw = &test.MockWriter{
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),

@@ -292,6 +292,39 @@ exports.bigipVirtualServer.invalidBindAddr = t => {
   });
 };
 
+exports.bigipVirtualServer.validBindAddr = t => {
+  let data = Object.assign({}, this.baseValidConfig);
+  data.virtualServer.frontend.virtualAddress.bindAddr = '127.1.1.1';
+
+  this.sUtil.loadSchemas(testSchema, () => {
+    let result = this.sUtil.runValidate(data, testSchema);
+    t.ok(result.valid, 'Should have been valid');
+    t.done();
+  });
+};
+
+exports.bigipVirtualServer.validBindAddrRouteDomain = t => {
+  let data = Object.assign({}, this.baseValidConfig);
+  data.virtualServer.frontend.virtualAddress.bindAddr = '127.1.1.1%44';
+
+  this.sUtil.loadSchemas(testSchema, () => {
+    let result = this.sUtil.runValidate(data, testSchema);
+    t.ok(result.valid, 'Should have been valid');
+    t.done();
+  });
+};
+
+exports.bigipVirtualServer.invalidBindAddrRouteDomain = t => {
+  let data = Object.assign({}, this.baseValidConfig);
+  data.virtualServer.frontend.virtualAddress.bindAddr = '127%44';
+
+  this.sUtil.loadSchemas(testSchema, () => {
+    let result = this.sUtil.runValidate(data, testSchema);
+    t.ok(!result.valid, 'Should have a failure');
+    t.done();
+  });
+};
+
 exports.bigipVirtualServer.invalidPort = t => {
   let data = Object.assign({}, this.baseValidConfig);
   data.virtualServer.frontend.virtualAddress.port = 0;

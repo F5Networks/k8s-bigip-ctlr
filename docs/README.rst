@@ -58,6 +58,12 @@ For example, when run in `NodePort mode`_, the |kctlr| does the following:
 The BIG-IP system handles traffic for the Service at the specified virtual address and load balances to all nodes in the cluster.
 Within the cluster, the allocated NodePort load balances traffic to all pods.
 
+.. danger::
+ 
+   The |kctlr| monitors the BIG-IP partition it manages for configuration changes. If it discovers changes, the Controller reapplies its own configuration to the BIG-IP system.
+   
+   F5 does not recommend making configuration changes to objects in any partition managed by the |kctlr| via any other means (for example, the configuration utility, TMOS, or by syncing configuration with another device or service group). Doing so may result in disruption of service or unexpected behavior.
+
 .. _configuration parameters:
 
 Controller Configuration Parameters

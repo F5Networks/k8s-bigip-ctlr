@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/openshift"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -50,6 +50,7 @@ import (
 type globalSection struct {
 	LogLevel       string `json:"log-level,omitempty"`
 	VerifyInterval int    `json:"verify-interval,omitempty"`
+	VXLANPartition string `json:"vxlan-partition,omitempty"`
 }
 
 type bigIPSection struct {
@@ -61,12 +62,12 @@ type bigIPSection struct {
 
 var (
 	// Flag sets and supported flags
-	flags             *pflag.FlagSet
-	globalFlags       *pflag.FlagSet
-	bigIPFlags        *pflag.FlagSet
-	kubeFlags         *pflag.FlagSet
-	openshiftSDNFlags *pflag.FlagSet
-	osRouteFlags      *pflag.FlagSet
+	flags        *pflag.FlagSet
+	globalFlags  *pflag.FlagSet
+	bigIPFlags   *pflag.FlagSet
+	kubeFlags    *pflag.FlagSet
+	vxlanFlags   *pflag.FlagSet
+	osRouteFlags *pflag.FlagSet
 
 	pythonBaseDir    *string
 	logLevel         *string
@@ -89,8 +90,9 @@ var (
 	bigIPPassword   *string
 	bigIPPartitions *[]string
 
-	openshiftSDNMode string
+	vxlanMode        string
 	openshiftSDNName *string
+	flannelName      *string
 
 	routeVserverAddr *string
 	routeLabel       *string
@@ -102,6 +104,7 @@ var (
 	// package variables
 	isNodePort         bool
 	watchAllNamespaces bool
+	vxlanName          string
 )
 
 func _init() {
@@ -109,7 +112,7 @@ func _init() {
 	globalFlags = pflag.NewFlagSet("Global", pflag.ContinueOnError)
 	bigIPFlags = pflag.NewFlagSet("BigIP", pflag.ContinueOnError)
 	kubeFlags = pflag.NewFlagSet("Kubernetes", pflag.ContinueOnError)
-	openshiftSDNFlags = pflag.NewFlagSet("Openshift SDN", pflag.ContinueOnError)
+	vxlanFlags = pflag.NewFlagSet("VXLAN", pflag.ContinueOnError)
 	osRouteFlags = pflag.NewFlagSet("OpenShift Routes", pflag.ContinueOnError)
 
 	// Flag wrapping
@@ -187,18 +190,22 @@ func _init() {
 		fmt.Fprintf(os.Stderr, "  Kubernetes:\n%s\n", kubeFlags.FlagUsagesWrapped(width))
 	}
 
-	// Openshift SDN flags
+	// VXLAN flags
 	// FIXME(yacobucci) for now the mode cannot be provided by the user.
 	// If the vxlan name is provided it will be set to "maintain" as all
 	// we support is updating VTEP entries in the FDB. When we support
 	// management of all network objects a flag will be added to support
 	// both "maintain" and "manage".
-	openshiftSDNMode = ""
-	openshiftSDNName = openshiftSDNFlags.String("openshift-sdn-name", "",
-		"Must be provided for BigIP SDN integration, full path of BigIP VxLAN Tunnel")
+	vxlanMode = ""
+	openshiftSDNName = vxlanFlags.String("openshift-sdn-name", "",
+		"Must be provided for BigIP SDN integration, "+
+			"full path of BigIP OpenShift SDN VxLAN Tunnel")
+	flannelName = vxlanFlags.String("flannel-name", "",
+		"Must be provided for BigIP Flannel integration, "+
+			"full path of BigIP Flannel VxLAN Tunnel")
 
-	openshiftSDNFlags.Usage = func() {
-		fmt.Fprintf(os.Stderr, "  Openshift SDN:\n%s\n", openshiftSDNFlags.FlagUsagesWrapped(width))
+	vxlanFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "  Openshift SDN:\n%s\n", vxlanFlags.FlagUsagesWrapped(width))
 	}
 
 	// OpenShift Route flags
@@ -224,7 +231,7 @@ func _init() {
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(bigIPFlags)
 	flags.AddFlagSet(kubeFlags)
-	flags.AddFlagSet(openshiftSDNFlags)
+	flags.AddFlagSet(vxlanFlags)
 	flags.AddFlagSet(osRouteFlags)
 
 	flags.Usage = func() {
@@ -232,7 +239,7 @@ func _init() {
 		globalFlags.Usage()
 		bigIPFlags.Usage()
 		kubeFlags.Usage()
-		openshiftSDNFlags.Usage()
+		vxlanFlags.Usage()
 		osRouteFlags.Usage()
 	}
 }
@@ -308,11 +315,30 @@ func verifyArgs() error {
 		return fmt.Errorf("'%v' is not a valid Pool Member Type", *poolMemberType)
 	}
 
+	if len(*openshiftSDNName) > 0 && len(*flannelName) > 0 {
+		return fmt.Errorf("Cannot have both openshift-sdn-name and flannel-name specified.")
+	}
+
 	if flags.Changed("openshift-sdn-name") {
 		if len(*openshiftSDNName) == 0 {
 			return fmt.Errorf("Missing required parameter openshift-sdn-name")
 		}
-		openshiftSDNMode = "maintain"
+		if isNodePort {
+			return fmt.Errorf("Cannot run NodePort mode while supplying openshift-sdn-name. " +
+				"Must be in Cluster mode if using VXLAN.")
+		}
+		vxlanMode = "maintain"
+		vxlanName = *openshiftSDNName
+	} else if flags.Changed("flannel-name") {
+		if len(*flannelName) == 0 {
+			return fmt.Errorf("Missing required parameter flannel-name")
+		}
+		if isNodePort {
+			return fmt.Errorf("Cannot run NodePort mode while supplying flannel-name. " +
+				"Must be in Cluster mode if using VXLAN.")
+		}
+		vxlanMode = "maintain"
+		vxlanName = *flannelName
 	}
 
 	return nil
@@ -321,8 +347,9 @@ func verifyArgs() error {
 func setupNodePolling(
 	appMgr *appmanager.Manager,
 	np pollers.Poller,
+	eventChan <-chan interface{},
+	kubeClient kubernetes.Interface,
 ) error {
-
 	if appMgr.IsNodePort() {
 		err := np.RegisterListener(appMgr.ProcessNodeUpdate)
 		if nil != err {
@@ -331,21 +358,32 @@ func setupNodePolling(
 		}
 	}
 
-	if 0 != len(openshiftSDNMode) {
-		osMgr, err := openshift.NewOpenshiftSDNMgr(
-			openshiftSDNMode,
-			*openshiftSDNName,
+	if 0 != len(vxlanMode) {
+		// If partition is part of vxlanName, extract just the tunnel name
+		tunnelName := vxlanName
+		cleanPath := strings.TrimLeft(vxlanName, "/")
+		slashPos := strings.Index(cleanPath, "/")
+		if slashPos != -1 {
+			tunnelName = cleanPath[slashPos+1:]
+		}
+		vxMgr, err := vxlan.NewVxlanMgr(
+			vxlanMode,
+			tunnelName,
 			appMgr.UseNodeInternal(),
 			appMgr.ConfigWriter(),
+			eventChan,
 		)
 		if nil != err {
-			return fmt.Errorf("error creating openshift sdn manager: %v", err)
+			return fmt.Errorf("error creating vxlan manager: %v", err)
 		}
 
-		err = np.RegisterListener(osMgr.ProcessNodeUpdate)
+		err = np.RegisterListener(vxMgr.ProcessNodeUpdate)
 		if nil != err {
-			return fmt.Errorf("error registering node update listener for openshift mode: %v",
+			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
 				err)
+		}
+		if eventChan != nil {
+			vxMgr.ProcessAppmanagerEvents(kubeClient)
 		}
 	}
 
@@ -450,9 +488,33 @@ func main() {
 		UseSecrets:        *useSecrets,
 	}
 
+	// If running with Flannel, create an event channel that the appManager
+	// uses to send endpoints to the VxlanManager
+	var eventChan chan interface{}
+	if len(*flannelName) > 0 {
+		eventChan = make(chan interface{})
+		appMgrParms.EventChan = eventChan
+	}
+
+	// If running in VXLAN mode, extract the partition name from the tunnel
+	// to be used in configuring a net instance of CCCL for that partition
+	var vxlanPartition string
+	if len(vxlanName) > 0 {
+		cleanPath := strings.TrimLeft(vxlanName, "/")
+		slashPos := strings.Index(cleanPath, "/")
+		if slashPos == -1 {
+			// No partition
+			vxlanPartition = "Common"
+		} else {
+			// Partition and name
+			vxlanPartition = cleanPath[:slashPos]
+		}
+	}
+
 	gs := globalSection{
 		LogLevel:       *logLevel,
 		VerifyInterval: *verifyInterval,
+		VXLANPartition: vxlanPartition,
 	}
 	bs := bigIPSection{
 		BigIPUsername:   *bigIPUsername,
@@ -503,10 +565,10 @@ func main() {
 
 	appMgr := appmanager.NewManager(&appMgrParms)
 
-	if isNodePort || 0 != len(openshiftSDNMode) {
+	if isNodePort || 0 != len(vxlanMode) {
 		intervalFactor := time.Duration(*nodePollInterval)
 		np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
-		err := setupNodePolling(appMgr, np)
+		err := setupNodePolling(appMgr, np, eventChan, appMgrParms.KubeClient)
 		if nil != err {
 			log.Fatalf("Required polling utility for node updates failed setup: %v",
 				err)

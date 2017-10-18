@@ -1,4 +1,4 @@
-package openshift_test
+package vxlan_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestOpenshift(t *testing.T) {
+func TestVxlan(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Openshift Suite")
+	RunSpecs(t, "Vxlan Suite")
 }

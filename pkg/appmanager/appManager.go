@@ -105,6 +105,8 @@ type Manager struct {
 	resolveIng string
 	// Use Secrets for SSL Profiles
 	useSecrets bool
+	// Channel for emitting events
+	eventChan chan interface{}
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -121,6 +123,7 @@ type Params struct {
 	EventRecorder     record.EventRecorder // Unit testing only
 	NodeLabelSelector string
 	UseSecrets        bool
+	EventChan         chan interface{}
 }
 
 // Configuration options for Routes in OpenShift
@@ -157,6 +160,7 @@ func NewManager(params *Params) *Manager {
 		nodeLabelSelector: params.NodeLabelSelector,
 		resolveIng:        params.ResolveIngress,
 		useSecrets:        params.UseSecrets,
+		eventChan:         params.EventChan,
 		vsQueue:           vsQueue,
 		nsQueue:           nsQueue,
 		appInformers:      make(map[string]*appInformer),

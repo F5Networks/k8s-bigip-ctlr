@@ -415,6 +415,7 @@ func main() {
 	}
 
 	appmanager.DEFAULT_PARTITION = (*bigIPPartitions)[0]
+  appmanager.RegisterBigIPSchemaTypes()
 
 	if _, isSet := os.LookupEnv("SCALE_PERF_ENABLE"); isSet {
 		now := time.Now()

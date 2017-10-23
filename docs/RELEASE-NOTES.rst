@@ -13,6 +13,7 @@ Added Functionality
 * Optionally disable loading of Kubernetes Secrets on an Ingress.
 * Resolve the first host name in an Ingress to an IP address using a local or custom DNS server. The controller
   configures the virtual server with this address.
+* Support for BIG-IP partitions with non-zero default route domains.
 
 Bug Fixes
 `````````
@@ -25,6 +26,8 @@ Limitations
 
 * If a Route configuration contains no targetPort, the controller uses the first port it sees
   on the referenced Service. The controller does not use all ports.
+* The default route domain for a partition managed by an F5 controller cannot be changed once a
+  controller has been deployed.  To specify a new default route domain, a new partition should be used.
 
 v1.2.0
 ------

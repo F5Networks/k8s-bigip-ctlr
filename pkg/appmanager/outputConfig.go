@@ -72,18 +72,23 @@ func (appMgr *Manager) outputConfigLocked() {
 				// If it's not an IApp, then it's a Virtual Server
 				if nil != cfg.Virtual.VirtualAddress {
 					// Validate the IP address, and create the destination
-					addr := net.ParseIP(cfg.Virtual.VirtualAddress.BindAddr)
+					ip, rd := split_ip_with_route_domain(cfg.Virtual.VirtualAddress.BindAddr)
+					if len(rd) > 0 {
+						rd = "%" + rd
+					}
+					addr := net.ParseIP(ip)
 					if nil != addr {
 						var format string
 						if nil != addr.To4() {
-							format = "/%s/%s:%d"
+							format = "/%s/%s%s:%d"
 						} else {
-							format = "/%s/%s.%d"
+							format = "/%s/%s%s.%d"
 						}
 						cfg.Virtual.Destination = fmt.Sprintf(
 							format,
 							cfg.Virtual.Partition,
-							cfg.Virtual.VirtualAddress.BindAddr,
+							ip,
+							rd,
 							cfg.Virtual.VirtualAddress.Port)
 						resources[cfg.Virtual.Partition].Virtuals =
 							appendVirtual(resources[cfg.Virtual.Partition].Virtuals, cfg.Virtual)

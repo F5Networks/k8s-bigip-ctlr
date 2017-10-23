@@ -182,7 +182,7 @@
       "type": "object",
       "properties": {
         "bindAddr": {
-          "anyOf": [ { "format": "ipv4" }, { "format": "ipv6" } ]
+          "anyOf": [ { "format": "bigipv4" }, { "format": "bigipv6" } ]
         },
         "port": { "$ref": "#/definitions/portType" }
       },

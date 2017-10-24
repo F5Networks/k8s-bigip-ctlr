@@ -26,8 +26,7 @@ Limitations
 
 * If a Route configuration contains no targetPort, the controller uses the first port it sees
   on the referenced Service. The controller does not use all ports.
-* The default route domain for a partition managed by an F5 controller cannot be changed once a
-  controller has been deployed.  To specify a new default route domain, a new partition should be used.
+* You cannot change the default route domain for a partition managed by an F5 controller after the controller has deployed. To specify a new default route domain, use a different partition.
 
 v1.2.0
 ------

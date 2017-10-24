@@ -1560,3 +1560,13 @@
     THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+# The urllib3 module has an MIT license
+- name: urllib3
+  version: 1.13.1
+  license: MIT
+
+# The chardet module has an LGPL v2.1 license
+- name: chardet
+  version: 2.3.0
+  license: LGPL v2.1

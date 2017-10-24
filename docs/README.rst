@@ -259,7 +259,12 @@ See the `Integration Overview </containers/latest/kubernetes/>`_ for more inform
 | f5type        | Tells ``k8s-bigip-ctlr`` about resources it       |                                               |
 |               | should watch                                      |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
-| schema        | Verifies the ``data`` blob                        | f5schemadb://bigip-virtual-server_v0.1.3.json |
+| schema        | Verifies the ``data`` blob                        | f5schemadb://bigip-virtual-server_v0.1.4.json |
+|               |                                                   | [#schemaRecommendation]_                      |
+|               |                                                   |                                               |
+|               |                                                   | f5schemadb://bigip-virtual-server_v0.1.3.json |
+|               |                                                   |                                               |
+|               |                                                   | f5schemadb://bigip-virtual-server_v0.1.2.json |
 +---------------+---------------------------------------------------+-----------------------------------------------+
 | data          | Defines the F5 resource                           |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
@@ -268,6 +273,8 @@ See the `Integration Overview </containers/latest/kubernetes/>`_ for more inform
 | backend       | Identifes the Kubernets Service acting as the     | See :ref:`backend`                            |
 |               | server pool                                       |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
+
+.. [#schemaRecommendation] Schemas are backwards compatible. F5 recommends using the latest schema in order to make use of the new features available in the controller.
 
 .. _frontend:
 
@@ -286,7 +293,7 @@ partition            string            Required                   Define the BIG
 
 virtualAddress       JSON object       Optional                   Allocate a virtual address from the BIG-IP
 
-- bindAddr           string            Required                   Virtual IP address
+- bindAddr [#ba]_    string            Required                   Virtual IP address
 - port               integer           Required                   Port number
 
 mode                 string            Optional       tcp         Set the proxy mode                                    http, tcp
@@ -315,6 +322,9 @@ sslProfile [#ssl]_   JSON object       Optional                   BIG-IP SSL pro
 
 ==================== ================= ============== =========== ===================================================== ======================
 
+.. [#ba] The controller supports BIG-IP `route domain`_ specific addresses.
+.. [#ssl] If you want to configure multiple SSL profiles, use ``f5ProfileNames`` instead of ``f5ProfileName``. The two parameters are mutually exclusive.
+
 \
 
 If you don't define ``bindAddr`` in the Frontend configuration, you must include it in a `Kubernetes Annotation`_ to the ConfigMap.
@@ -333,8 +343,6 @@ For example: :code:`default_myService`.
 .. seealso::
 
    See `Manage pools without virtual servers </containers/latest/kubernetes/kctlr-manage-bigip-objects.html#manage-pools-without-virtual-servers>`_ for more information.
-
-.. [#ssl] If you want to configure multiple SSL profiles, use ``f5ProfileNames`` instead of ``f5ProfileName``. The two parameters are mutually exclusive.
 
 .. _iapp f5 resource:
 
@@ -654,3 +662,4 @@ Example Configuration Files
 .. _replace the OpenShift F5 Router with the BIG-IP Controller: /containers/latest/openshift/replace-f5-router.html
 .. _NodePort mode: /containers/latest/kubernetes/kctlr-modes.html
 .. _OpenShift Route: https://docs.openshift.org/1.4/dev_guide/routes.html
+.. _route domain: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-routing-administration-12-0-0/9.html

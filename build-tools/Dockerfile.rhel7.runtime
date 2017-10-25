@@ -26,6 +26,7 @@ COPY k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
 RUN microdnf --enablerepo=rhel-7-server-rpms --enablerepo=rhel-7-server-optional-rpms \
       --enablerepo=rhel-server-rhscl-7-rpms install --nodocs \
       golang-github-cpuguy83-go-md2man python27-python-pip git && \
+    microdnf update && \
     go-md2man -in /tmp/help.md -out /help.1 && rm -f /tmp/help.md && \
     source scl_source enable python27 && \
     pip install --no-cache-dir --upgrade pip && \

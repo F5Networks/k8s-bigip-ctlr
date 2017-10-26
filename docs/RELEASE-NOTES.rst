@@ -1,8 +1,8 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-|release|
----------
+v1.3.0
+------
 
 Added Functionality
 ```````````````````
@@ -22,7 +22,7 @@ Bug Fixes
 * Remove ssl certificate lists for deleted custom profiles.
 
 Limitations
-~~~~~~~~~~~
+```````````
 
 * If a Route configuration contains no targetPort, the controller uses the first port it sees
   on the referenced Service. The controller does not use all ports.
@@ -49,7 +49,7 @@ Bug Fixes
 * Failed configurations for objects do not prevent future configurations from happening.
 
 Limitations
-~~~~~~~~~~~
+```````````
 
 * OpenShift - Does not currently support redirect for individual Routes. If a Route specifies 
   "insecureEdgeTerminationPolicy" as "Redirect", the http virtual server will enable this policy for all Routes.
@@ -78,7 +78,7 @@ Added Functionality
 * Can use local and non-local BIG-IP users.
 
 Limitations
-~~~~~~~~~~~
+```````````
 
 * The SSL Profiles referenced in Ingress resources must already exist on the BIG-IP device.
   Any Secret resources configured in Kubernetes are not used.
@@ -109,7 +109,7 @@ Added Functionality
   * FDB tunnel records (Red Hat OpenShift)
 
 Limitations
-~~~~~~~~~~~
+```````````
 
 * Cannot share endpoints managed in a partition controlled by the K8S BIG-IP Controller with endpoints managed in another partition.
 * Kubernetes allows a service to name the individual service ports within a particular service.  However, the K8S BIG-IP Controller requires the virtual server section within the configmap to refer to the port number for the service port, not the name.

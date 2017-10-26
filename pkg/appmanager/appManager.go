@@ -929,14 +929,18 @@ func (appMgr *Manager) syncConfigMaps(
 
 		// Check if SSLProfile(s) are contained in Secrets
 		if appMgr.useSecrets {
-			for _, profile := range rsCfg.Virtual.GetFrontendSslProfileNames() {
+			for _, profile := range rsCfg.Virtual.Profiles {
+				if profile.Context != customProfileClient {
+					continue
+				}
+				profileName := fmt.Sprintf("%s/%s", profile.Partition, profile.Name)
 				// Check if profile is contained in a Secret
 				secret, err := appMgr.kubeClient.Core().Secrets(cm.ObjectMeta.Namespace).
-					Get(profile, metav1.GetOptions{})
+					Get(profileName, metav1.GetOptions{})
 				if err != nil {
 					// No secret, so we assume the profile is a BIG-IP default
 					log.Debugf("No Secret with name '%s', parsing secretName as path instead.",
-						profile)
+						profileName)
 					continue
 				}
 				err, updated := appMgr.handleSslProfile(rsCfg, secret)
@@ -947,16 +951,10 @@ func (appMgr *Manager) syncConfigMaps(
 				if updated {
 					stats.cpUpdated += 1
 				}
-				// Replace the current stored sslProfile with a correctly formatted
-				// profile (since this profile is just a secret name)
-				rsCfg.Virtual.RemoveFrontendSslProfileName(profile)
-				secretName := formatIngressSslProfileName(
-					rsCfg.Virtual.Partition + "/" + profile)
-				rsCfg.Virtual.AddFrontendSslProfileName(secretName)
 			}
 		}
 
-		rsName := rsCfg.Virtual.VirtualServerName
+		rsName := rsCfg.GetName()
 		if ok, found, updated := appMgr.handleConfigForType(
 			rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf, ""); !ok {
 			stats.vsUpdated += updated
@@ -967,7 +965,7 @@ func (appMgr *Manager) syncConfigMaps(
 		}
 
 		// Set a status annotation to contain the virtualAddress bindAddr
-		if rsCfg.Virtual.IApp == "" &&
+		if rsCfg.MetaData.ResourceType != "iapp" &&
 			rsCfg.Virtual.VirtualAddress != nil &&
 			rsCfg.Virtual.VirtualAddress.BindAddr != "" {
 			appMgr.setBindAddrAnnotation(cm, sKey, rsCfg)
@@ -1021,7 +1019,7 @@ func (appMgr *Manager) syncIngresses(
 			}
 
 			// Handle Ingress health monitors
-			rsName := rsCfg.Virtual.VirtualServerName
+			rsName := rsCfg.GetName()
 			hmStr, found := ing.ObjectMeta.Annotations[healthMonitorAnnotation]
 			if found {
 				var monitors AnnotationHealthMonitors
@@ -1043,27 +1041,13 @@ func (appMgr *Manager) syncIngresses(
 				rsCfg.SortMonitors()
 			}
 
-			// make sure all policies across configs for this Ingress match each other
-			appMgr.resources.Lock()
-			cfgs, keys := appMgr.resources.GetAllWithName(rsCfg.Virtual.VirtualServerName)
-
-			for i, cfg := range cfgs {
-				for _, policy := range rsCfg.Policies {
-					if policy.Name == rsCfg.Virtual.VirtualServerName {
-						cfg.SetPolicy(policy)
-					}
-				}
-				appMgr.resources.Assign(keys[i], rsCfg.Virtual.VirtualServerName, cfg)
-			}
-			appMgr.resources.Unlock()
-
 			if ok, found, updated := appMgr.handleConfigForType(
 				rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf, ""); !ok {
 				stats.vsUpdated += updated
 				continue
 			} else {
 				if updated > 0 && !appMgr.processAllMultiSvc(len(rsCfg.Pools),
-					rsCfg.Virtual.VirtualServerName) {
+					rsCfg.GetName()) {
 					updated -= 1
 				}
 				stats.vsFound += found
@@ -1071,7 +1055,7 @@ func (appMgr *Manager) syncIngresses(
 				if updated > 0 {
 					msg := fmt.Sprintf(
 						"Created a ResourceConfig '%v' for the Ingress.",
-						rsCfg.Virtual.VirtualServerName)
+						rsCfg.GetName())
 					appMgr.recordIngressEvent(ing, "ResourceConfigured", msg, "")
 				}
 			}
@@ -1127,20 +1111,11 @@ func (appMgr *Manager) syncRoutes(
 				continue
 			}
 
-			rsName := rsCfg.Virtual.VirtualServerName
-			if ok, found, updated := appMgr.handleConfigForType(
-				&rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf,
-				route.Spec.To.Name); !ok {
-				stats.vsUpdated += updated
-				continue
-			} else {
-				stats.vsFound += found
-				stats.vsUpdated += updated
-			}
+			rsName := rsCfg.GetName()
 
 			// Handle Route health monitors
-			hmStr, found := route.ObjectMeta.Annotations[healthMonitorAnnotation]
-			if found {
+			hmStr, exists := route.ObjectMeta.Annotations[healthMonitorAnnotation]
+			if exists {
 				var monitors AnnotationHealthMonitors
 				err := json.Unmarshal([]byte(hmStr), &monitors)
 				if err != nil {
@@ -1164,24 +1139,10 @@ func (appMgr *Manager) syncRoutes(
 				}
 			}
 
-			// We store this same config on every route that has the same protocol, but it is only
-			// written to the BIG-IP once. This block guarantees that all of these configs
-			// are in the same state.
-			appMgr.resources.Lock()
-			cfgs, keys := appMgr.resources.GetAllWithName(rsCfg.Virtual.VirtualServerName)
-			for i, cfg := range cfgs {
-				if cfg.Virtual.Partition == rsCfg.Virtual.Partition &&
-					!reflect.DeepEqual(cfg, rsCfg) {
-					mdActive := cfg.MetaData.Active
-					cfg = &rsCfg
-					// If the current rsCfg is inactive, we shouldn't deactivate
-					// other configs for other pools. Only this pool (rsCfg) will be disabled.
-					// If the rsCfg IS active, then stored cfg should be active
-					cfg.MetaData.Active = mdActive || rsCfg.MetaData.Active
-					appMgr.resources.Assign(keys[i], cfg.Virtual.VirtualServerName, cfg)
-				}
-			}
-			appMgr.resources.Unlock()
+			_, found, updated := appMgr.handleConfigForType(&rsCfg, sKey, rsMap,
+				rsName, svcPortMap, svc, appInf, route.Spec.To.Name)
+			stats.vsFound += found
+			stats.vsUpdated += updated
 		}
 	}
 
@@ -1200,12 +1161,14 @@ func (appMgr *Manager) setClientSslProfile(
 	// First handle the Default for SNI profile
 	if appMgr.routeConfig.ClientSSL != "" {
 		// User has provided a name
-		rsCfg.Virtual.AddFrontendSslProfileName(appMgr.routeConfig.ClientSSL)
+		prof := convertStringToProfileRef(
+			appMgr.routeConfig.ClientSSL, customProfileClient)
+		rsCfg.Virtual.AddOrUpdateProfile(prof)
 	} else {
 		// No provided name, so we create a default
 		skey := secretKey{
 			Name:         "default-route-clientssl",
-			ResourceName: rsCfg.Virtual.VirtualServerName,
+			ResourceName: rsCfg.GetName(),
 		}
 		if _, ok := appMgr.customProfiles.profs[skey]; !ok {
 			profile := ProfileRef{
@@ -1216,8 +1179,7 @@ func (appMgr *Manager) setClientSslProfile(
 			// This is just a basic profile, so we don't need all the fields
 			cp := NewCustomProfile(profile, "", "", "", true, appMgr.customProfiles)
 			appMgr.customProfiles.profs[skey] = cp
-			pName := fmt.Sprintf("%s/%s", cp.Partition, cp.Name)
-			rsCfg.Virtual.AddFrontendSslProfileName(pName)
+			rsCfg.Virtual.AddOrUpdateProfile(profile)
 		}
 	}
 	// Now handle the profile from the Route.
@@ -1227,14 +1189,12 @@ func (appMgr *Manager) setClientSslProfile(
 			log.Debugf("Both clientssl annotation and cert/key provided for Route: %s, "+
 				"using annotation.", route.ObjectMeta.Name)
 			// Delete existing Route profile if it exists
-			profName := formatRouteClientSSLName(
-				rsCfg.Virtual.Partition,
-				sKey.Namespace,
-				route.ObjectMeta.Name,
-			)
-			rsCfg.Virtual.RemoveFrontendSslProfileName(profName)
+			profRef := makeRouteClientSSLProfileRef(
+				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
+			rsCfg.Virtual.RemoveProfile(profRef)
 		}
-		if add := rsCfg.Virtual.AddFrontendSslProfileName(prof); add {
+		profRef := convertStringToProfileRef(prof, customProfileClient)
+		if add := rsCfg.Virtual.AddOrUpdateProfile(profRef); add {
 			// Store this annotated profile in the metadata for future reference
 			// if it gets deleted.
 			rKey := routeKey{
@@ -1246,19 +1206,16 @@ func (appMgr *Manager) setClientSslProfile(
 			stats.vsUpdated += 1
 		}
 	} else {
-		profileName := "Common/clientssl"
+		profRef := ProfileRef{
+			Partition: "Common",
+			Name:      "clientssl",
+			Context:   customProfileClient,
+		}
 		// We process the profile from the Route
 		if "" != route.Spec.TLS.Certificate && "" != route.Spec.TLS.Key {
-			profName := formatRouteClientSSLName(
-				"", // Creating the custom profile will add the partition
-				sKey.Namespace,
-				route.ObjectMeta.Name,
-			)
-			profile := ProfileRef{
-				Name:      profName,
-				Partition: rsCfg.Virtual.Partition,
-				Context:   customProfileClient,
-			}
+			profile := makeRouteClientSSLProfileRef(
+				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
+
 			cp := NewCustomProfile(
 				profile,
 				route.Spec.TLS.Certificate,
@@ -1270,7 +1227,7 @@ func (appMgr *Manager) setClientSslProfile(
 
 			skey := secretKey{
 				Name:         cp.Name,
-				ResourceName: rsCfg.Virtual.VirtualServerName,
+				ResourceName: rsCfg.GetName(),
 			}
 			appMgr.customProfiles.Lock()
 			defer appMgr.customProfiles.Unlock()
@@ -1280,18 +1237,20 @@ func (appMgr *Manager) setClientSslProfile(
 				}
 			}
 			appMgr.customProfiles.profs[skey] = cp
-			profileName = fmt.Sprintf("%s/%s", cp.Partition, cp.Name)
+			profRef.Partition = cp.Partition
+			profRef.Name = cp.Name
 		}
-		if add := rsCfg.Virtual.AddFrontendSslProfileName(profileName); add {
+		if add := rsCfg.Virtual.AddOrUpdateProfile(profRef); add {
 			// Remove annotation profile if it exists
 			rKey := routeKey{
 				Name:      route.ObjectMeta.Name,
 				Namespace: route.ObjectMeta.Namespace,
 				Context:   customProfileClient,
 			}
-			if prof, ok := rsCfg.MetaData.RouteProfs[rKey]; ok {
+			if profName, ok := rsCfg.MetaData.RouteProfs[rKey]; ok {
 				delete(rsCfg.MetaData.RouteProfs, rKey)
-				rsCfg.Virtual.RemoveFrontendSslProfileName(prof)
+				profRef := convertStringToProfileRef(profName, customProfileClient)
+				rsCfg.Virtual.RemoveProfile(profRef)
 			}
 			stats.vsUpdated += 1
 		}
@@ -1317,7 +1276,7 @@ func (appMgr *Manager) setServerSslProfile(
 		// No provided name, so we create a default
 		skey := secretKey{
 			Name:         "default-route-serverssl",
-			ResourceName: rsCfg.Virtual.VirtualServerName,
+			ResourceName: rsCfg.GetName(),
 		}
 		if _, ok := appMgr.customProfiles.profs[skey]; !ok {
 			profile := ProfileRef{
@@ -1335,12 +1294,9 @@ func (appMgr *Manager) setServerSslProfile(
 		if nil != route.Spec.TLS {
 			log.Debugf("Both serverssl annotation and CA cert provided for Route: %s, "+
 				"using annotation.", route.ObjectMeta.Name)
-			profName := formatRouteServerSSLName(sKey.Namespace, route.ObjectMeta.Name)
-			rsCfg.Virtual.RemoveProfile(ProfileRef{
-				Name:      profName,
-				Partition: rsCfg.Virtual.Partition,
-				Context:   customProfileServer,
-			})
+			profRef := makeRouteServerSSLProfileRef(
+				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
+			rsCfg.Virtual.RemoveProfile(profRef)
 		}
 		partition, name := splitBigipPath(prof, false)
 		if partition == "" {
@@ -1366,12 +1322,8 @@ func (appMgr *Manager) setServerSslProfile(
 	} else {
 		if "" != route.Spec.TLS.DestinationCACertificate {
 			// Create new SSL server profile with the provided CA Certificate.
-			profName := formatRouteServerSSLName(sKey.Namespace, route.ObjectMeta.Name)
-			profile := ProfileRef{
-				Name:      profName,
-				Partition: rsCfg.Virtual.Partition,
-				Context:   customProfileServer,
-			}
+			profile := makeRouteServerSSLProfileRef(
+				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
 			cp := NewCustomProfile(
 				profile,
 				route.Spec.TLS.DestinationCACertificate,
@@ -1383,7 +1335,7 @@ func (appMgr *Manager) setServerSslProfile(
 
 			skey := secretKey{
 				Name:         cp.Name,
-				ResourceName: rsCfg.Virtual.VirtualServerName,
+				ResourceName: rsCfg.GetName(),
 			}
 			appMgr.customProfiles.Lock()
 			defer appMgr.customProfiles.Unlock()
@@ -1482,8 +1434,9 @@ func (appMgr *Manager) handleIngressTls(
 					// No secret, so we assume the profile is a BIG-IP default
 					log.Debugf("No Secret with name '%s': %s. Parsing secretName as path instead.",
 						tls.SecretName, err)
-					secretName := formatIngressSslProfileName(tls.SecretName)
-					rsCfg.Virtual.AddFrontendSslProfileName(secretName)
+					profRef := convertStringToProfileRef(
+						tls.SecretName, customProfileClient)
+					rsCfg.Virtual.AddOrUpdateProfile(profRef)
 					continue
 				}
 				err, cpUpdated = appMgr.handleSslProfile(rsCfg, secret)
@@ -1492,12 +1445,16 @@ func (appMgr *Manager) handleIngressTls(
 					continue
 				}
 				updateState = updateState || cpUpdated
-				secretName := formatIngressSslProfileName(
-					rsCfg.Virtual.Partition + "/" + tls.SecretName)
-				rsCfg.Virtual.AddFrontendSslProfileName(secretName)
+				profRef := ProfileRef{
+					Partition: rsCfg.Virtual.Partition,
+					Name:      tls.SecretName,
+					Context:   customProfileClient,
+				}
+				rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			} else {
 				secretName := formatIngressSslProfileName(tls.SecretName)
-				rsCfg.Virtual.AddFrontendSslProfileName(secretName)
+				profRef := convertStringToProfileRef(secretName, customProfileClient)
+				rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			}
 		}
 		return cpUpdated
@@ -1573,7 +1530,7 @@ func (appMgr *Manager) handleSslProfile(
 	}
 	skey := secretKey{
 		Name:         cp.Name,
-		ResourceName: rsCfg.Virtual.VirtualServerName,
+		ResourceName: rsCfg.GetName(),
 	}
 	appMgr.customProfiles.Lock()
 	defer appMgr.customProfiles.Unlock()
@@ -1681,24 +1638,16 @@ func (appMgr *Manager) handleConfigForType(
 		}
 	}
 	if !found {
-		// If the current cfg has no pool for this service,
-		// remove any pools associated with the service,
-		// across all stored keys for the resource
-		appMgr.resources.Lock()
-		defer appMgr.resources.Unlock()
-		cfgs, keys := appMgr.resources.GetAllWithName(rsName)
-		for i, cfg := range cfgs {
-			for j, pool := range cfg.Pools {
-				if pool.ServiceName == sKey.ServiceName {
-					copy(cfg.Pools[j:], cfg.Pools[j+1:])
-					cfg.Pools[len(cfg.Pools)-1] = Pool{}
-					cfg.Pools = cfg.Pools[:len(cfg.Pools)-1]
-				}
-			}
-			appMgr.resources.Assign(keys[i], rsName, cfg)
-		}
+		// If the current cfg has no pool for this service, remove any pools
+		// associated with the service.
+		appMgr.removePoolsForService(rsName, sKey.ServiceName)
 		return false, vsFound, vsUpdated
 	}
+
+	// Make sure pool members from the old config are applied to the new
+	// config pools.
+	appMgr.syncPoolMembers(rsName, rsCfg)
+
 	svcKey := serviceKey{
 		Namespace:   sKey.Namespace,
 		ServiceName: pool.ServiceName,
@@ -1716,7 +1665,7 @@ func (appMgr *Manager) handleConfigForType(
 			delete(rsMap, pool.ServicePort)
 		} else if len(cfgList) > 1 {
 			for index, val := range cfgList {
-				if val.Virtual.VirtualServerName == rsName {
+				if val.GetName() == rsName {
 					cfgList = append(cfgList[:index], cfgList[index+1:]...)
 				}
 			}
@@ -1724,6 +1673,7 @@ func (appMgr *Manager) handleConfigForType(
 		}
 	}
 
+	deactivated := false
 	if _, ok := svcPortMap[pool.ServicePort]; !ok {
 		log.Debugf("Process Service delete - name: %v namespace: %v",
 			pool.ServiceName, svcKey.Namespace)
@@ -1732,13 +1682,17 @@ func (appMgr *Manager) handleConfigForType(
 		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
 			vsUpdated += 1
 		}
+		deactivated = true
 	}
 
 	if nil == svc {
 		// The service is gone, de-activate it in the config.
 		log.Infof("Service '%v' has not been found.", pool.ServiceName)
-		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
-			vsUpdated += 1
+		if !deactivated {
+			deactivated = true
+			if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
+				vsUpdated += 1
+			}
 		}
 
 		// If this is an Ingress resource, add an event that the service wasn't found
@@ -1755,6 +1709,7 @@ func (appMgr *Manager) handleConfigForType(
 	correctBackend := true
 	var reason string
 	var msg string
+
 	if appMgr.IsNodePort() {
 		correctBackend, reason, msg =
 			appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
@@ -1769,14 +1724,67 @@ func (appMgr *Manager) handleConfigForType(
 
 		// If this is an Ingress resource, add an event if there was a backend error
 		if !correctBackend {
-			if strings.HasSuffix(rsCfg.Virtual.VirtualServerName, "ingress") {
-				appMgr.recordIngressEvent(nil, reason, msg,
-					rsCfg.Virtual.VirtualServerName)
+			if strings.HasSuffix(rsCfg.GetName(), "ingress") {
+				appMgr.recordIngressEvent(nil, reason, msg, rsCfg.GetName())
 			}
 		}
 	}
 
 	return true, vsFound, vsUpdated
+}
+
+func (appMgr *Manager) removePoolsForService(rsName, serviceName string) {
+	appMgr.resources.Lock()
+	defer appMgr.resources.Unlock()
+	cfg, exists := appMgr.resources.GetByName(rsName)
+	if !exists {
+		return
+	}
+	fwdPolicy := cfg.FindPolicy("forwarding")
+	fwdPolicyChanged := false
+	for i, pool := range cfg.Pools {
+		if pool.ServiceName == serviceName {
+			cfg.RemovePoolAt(i)
+			poolName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
+			if nil != fwdPolicy {
+				ruleOffsets := []int{}
+				for j, rule := range fwdPolicy.Rules {
+					for _, action := range rule.Actions {
+						if action.Forward && action.Pool == poolName {
+							ruleOffsets = append(ruleOffsets, j)
+						}
+					}
+				}
+				if len(ruleOffsets) > 0 {
+					for j := len(ruleOffsets) - 1; j >= 0; j-- {
+						fwdPolicy.RemoveRuleAt(ruleOffsets[j])
+						fwdPolicyChanged = true
+					}
+					for j, rule := range fwdPolicy.Rules {
+						rule.Name = fmt.Sprintf("%d", j)
+						rule.Ordinal = j
+					}
+				}
+				if fwdPolicyChanged {
+					cfg.SetPolicy(*fwdPolicy)
+				}
+			}
+		}
+	}
+}
+
+func (appMgr *Manager) syncPoolMembers(rsName string, rsCfg *ResourceConfig) {
+	appMgr.resources.Lock()
+	defer appMgr.resources.Unlock()
+	if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
+		for i, newPool := range rsCfg.Pools {
+			for _, oldPool := range oldCfg.Pools {
+				if oldPool.Name == newPool.Name {
+					rsCfg.Pools[i].Members = oldPool.Members
+				}
+			}
+		}
+	}
 }
 
 func (appMgr *Manager) updatePoolMembersForNodePort(
@@ -1917,7 +1925,7 @@ func (appMgr *Manager) deleteUnusedResources(
 			ServicePort: port,
 		}
 		for _, cfg := range cfgList {
-			rsName := cfg.Virtual.VirtualServerName
+			rsName := cfg.GetName()
 			if appMgr.resources.Delete(tmpKey, rsName) {
 				rsDeleted += 1
 			}
@@ -1932,75 +1940,56 @@ func (appMgr *Manager) deleteUnusedRoutes(namespace, svc string) {
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
 	var routeName string
-	appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
-		if cfg.MetaData.ResourceType == "route" {
-			for i, pool := range cfg.Pools {
-				// Make sure we aren't processing empty pool
-				if pool.Name != "" {
-					sKey := serviceKey{
-						ServiceName: pool.ServiceName,
-						ServicePort: pool.ServicePort,
-						Namespace:   namespace,
+	for _, cfg := range appMgr.resources.GetAllResources() {
+		if cfg.MetaData.ResourceType != "route" {
+			continue
+		}
+		for i, pool := range cfg.Pools {
+			// Make sure we aren't processing empty pool
+			if pool.Name != "" {
+				sKey := serviceKey{
+					ServiceName: pool.ServiceName,
+					ServicePort: pool.ServicePort,
+					Namespace:   namespace,
+				}
+				poolNS := strings.Split(pool.Name, "_")[1]
+				_, ok := appMgr.resources.Get(sKey, cfg.GetName())
+				if pool.ServiceName == svc && poolNS == namespace && !ok {
+					poolName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
+					// Delete rule
+					for _, pol := range cfg.Policies {
+						if len(pol.Rules) == 1 {
+							routeName = strings.Split(pol.Rules[0].Name, "_")[3]
+							nr := nameRef{
+								Name:      pol.Name,
+								Partition: pol.Partition,
+							}
+							cfg.RemovePolicy(nr)
+							continue
+						}
+						for i, rule := range pol.Rules {
+							if len(rule.Actions) > 0 && rule.Actions[0].Pool == poolName {
+								routeName = strings.Split(rule.Name, "_")[3]
+								pol.RemoveRuleAt(i)
+								cfg.SetPolicy(pol)
+							}
+						}
 					}
-					poolNS := strings.Split(pool.Name, "_")[1]
-					_, ok := appMgr.resources.Get(sKey, cfg.Virtual.VirtualServerName)
-					if pool.ServiceName == svc && poolNS == namespace && !ok {
-						poolName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
-						// Delete rule
-						for _, pol := range cfg.Policies {
-							if len(pol.Rules) == 1 {
-								routeName = strings.Split(pol.Rules[0].Name, "_")[3]
-								nr := nameRef{
-									Name:      pol.Name,
-									Partition: pol.Partition,
-								}
-								cfg.RemovePolicy(nr)
-								continue
-							}
-							for i, rule := range pol.Rules {
-								if len(rule.Actions) > 0 && rule.Actions[0].Pool == poolName {
-									routeName = strings.Split(rule.Name, "_")[3]
-									if i >= len(pol.Rules)-1 {
-										pol.Rules = pol.Rules[:len(pol.Rules)-1]
-									} else {
-										copy(pol.Rules[i:], pol.Rules[i+1:])
-										pol.Rules[len(pol.Rules)-1] = &Rule{}
-										pol.Rules = pol.Rules[:len(pol.Rules)-1]
-									}
-									cfg.SetPolicy(pol)
-								}
-							}
-						}
-						// Delete pool
-						if i >= len(cfg.Pools)-1 {
-							cfg.Pools = cfg.Pools[:len(cfg.Pools)-1]
-						} else {
-							copy(cfg.Pools[i:], cfg.Pools[i+1:])
-							cfg.Pools[len(cfg.Pools)-1] = Pool{}
-							cfg.Pools = cfg.Pools[:len(cfg.Pools)-1]
-						}
+					// Delete pool
+					cfg.RemovePoolAt(i)
+					if routeName != "" {
 						// Delete profile
-						if routeName != "" {
-							client := formatRouteClientSSLName(
-								cfg.Virtual.Partition,
-								namespace,
-								routeName,
-							)
-							cfg.Virtual.RemoveFrontendSslProfileName(client)
-							server := formatRouteServerSSLName(namespace, routeName)
-							serverProfile := ProfileRef{
-								Name:      server,
-								Partition: cfg.Virtual.Partition,
-								Context:   customProfileServer,
-							}
-							cfg.Virtual.RemoveProfile(serverProfile)
-						}
+						profRef := makeRouteClientSSLProfileRef(
+							cfg.Virtual.Partition, namespace, routeName)
+						cfg.Virtual.RemoveProfile(profRef)
+						serverProfile := makeRouteServerSSLProfileRef(
+							cfg.Virtual.Partition, namespace, routeName)
+						cfg.Virtual.RemoveProfile(serverProfile)
 					}
 				}
 			}
-			appMgr.resources.Assign(key, cfg.Virtual.VirtualServerName, cfg)
 		}
-	})
+	}
 }
 
 func (appMgr *Manager) deleteUnusedProfiles() {
@@ -2009,12 +1998,12 @@ func (appMgr *Manager) deleteUnusedProfiles() {
 	defer appMgr.customProfiles.Unlock()
 	for key, profile := range appMgr.customProfiles.profs {
 		found = false
-		appMgr.resources.ForEach(func(k serviceKey, rsCfg *ResourceConfig) {
-			if key.ResourceName == rsCfg.Virtual.VirtualServerName &&
-				rsCfg.Virtual.ReferencesProfile(profile) {
+		for _, cfg := range appMgr.resources.GetAllResources() {
+			if key.ResourceName == cfg.GetName() &&
+				cfg.Virtual.ReferencesProfile(profile) {
 				found = true
 			}
-		})
+		}
 		if !found {
 			delete(appMgr.customProfiles.profs, key)
 		}
@@ -2069,7 +2058,7 @@ func (appMgr *Manager) setIngressStatus(
 		}
 		warning := fmt.Sprintf(
 			"Error when setting Ingress status IP for virtual server %v: %v",
-			rsCfg.Virtual.VirtualServerName, updateErr)
+			rsCfg.GetName(), updateErr)
 		log.Warning(warning)
 		appMgr.recordIngressEvent(ing, "StatusIPError", warning, "")
 	}
@@ -2306,7 +2295,7 @@ func (appMgr *Manager) ProcessNodeUpdate(
 		// Compare last set of nodes with new one
 		if !reflect.DeepEqual(newNodes, appMgr.oldNodes) {
 			log.Infof("ProcessNodeUpdate: Change in Node state detected")
-			appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
+			for _, cfg := range appMgr.resources.GetAllResources() {
 				var members []Member
 				for _, node := range newNodes {
 					member := Member{
@@ -2317,7 +2306,7 @@ func (appMgr *Manager) ProcessNodeUpdate(
 					members = append(members, member)
 				}
 				cfg.Pools[0].Members = members
-			})
+			}
 			// Output the Big-IP config
 			appMgr.outputConfigLocked()
 

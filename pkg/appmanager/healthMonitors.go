@@ -87,7 +87,7 @@ func (appMgr *Manager) assignMonitorToPool(
 				// appending a '0' is sufficient.
 				Name:      poolName + "_0_http",
 				Partition: partition,
-				Protocol:  "http",
+				Type:      "http",
 				Interval:  ruleData.healthMon.Interval,
 				Send:      ruleData.healthMon.Send,
 				Timeout:   ruleData.healthMon.Timeout,
@@ -222,7 +222,7 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 				continue
 			}
 			for _, pol := range cfg.Policies {
-				if pol.Name != cfg.Virtual.VirtualServerName {
+				if pol.Name != cfg.Virtual.Name {
 					continue
 				}
 				for _, rule := range pol.Rules {

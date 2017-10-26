@@ -36,9 +36,10 @@ type (
 	ResourceConfig struct {
 		MetaData metaData `json:"-"`
 		Virtual  Virtual  `json:"virtual,omitempty"`
-		Pools    []Pool   `json:"pools,omitempty"`
+		IApp     IApp     `json:"iapp,omitempty"`
+		Pools    Pools    `json:"pools,omitempty"`
 		Monitors Monitors `json:"monitors,omitempty"`
-		Policies []Policy `json:"policies,omitempty"`
+		Policies Policies `json:"policies,omitempty"`
 	}
 	ResourceConfigs []*ResourceConfig
 
@@ -67,38 +68,25 @@ type (
 
 	// Virtual server config
 	Virtual struct {
-		VirtualServerName string `json:"name"`
-		PoolName          string `json:"pool,omitempty"`
-		// Mutual parameter, partition
-		Partition string `json:"partition,omitempty"`
-
-		// VirtualServer parameters
-		Balance               string                `json:"balance,omitempty"`
-		Mode                  string                `json:"mode,omitempty"`
-		VirtualAddress        *virtualAddress       `json:"virtualAddress,omitempty"`
-		Destination           string                `json:"destination,omitempty"`
-		Enabled               bool                  `json:"enabled,omitempty"`
+		Name                  string                `json:"name"`
+		PoolName              string                `json:"pool,omitempty"`
+		Partition             string                `-"`
+		Destination           string                `json:"destination"`
+		Enabled               bool                  `json:"enabled"`
 		IpProtocol            string                `json:"ipProtocol,omitempty"`
 		SourceAddrTranslation sourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
-		SslProfile            *sslProfile           `json:"sslProfile,omitempty"`
 		Policies              []nameRef             `json:"policies,omitempty"`
 		IRules                []string              `json:"rules,omitempty"`
-		// FIXME: All profiles should reside in Profiles, just server ssl ones now.
-		Profiles ProfileRefs `json:"profiles,omitempty"`
-
-		// iApp parameters
-		IApp                string                    `json:"iapp,omitempty"`
-		IAppPoolMemberTable *iappPoolMemberTable      `json:"iappPoolMemberTable,omitempty"`
-		IAppOptions         map[string]string         `json:"iappOptions,omitempty"`
-		IAppTables          map[string]iappTableEntry `json:"iappTables,omitempty"`
-		IAppVariables       map[string]string         `json:"iappVariables,omitempty"`
+		Profiles              ProfileRefs           `json:"profiles,omitempty"`
+		Description           string                `json:"description,omitempty"`
+		VirtualAddress        *virtualAddress       `json:"-"`
 	}
 	Virtuals []Virtual
 
 	// IApp
 	IApp struct {
 		Name                string                    `json:"name"`
-		Partition           string                    `json:"partition,omitempty"`
+		Partition           string                    `json:"-"`
 		IApp                string                    `json:"template"`
 		IAppPoolMemberTable *iappPoolMemberTable      `json:"poolMemberTable,omitempty"`
 		IAppOptions         map[string]string         `json:"options,omitempty"`
@@ -116,10 +104,10 @@ type (
 	// Pool config
 	Pool struct {
 		Name         string   `json:"name"`
-		Partition    string   `json:"partition,omitempty"`
+		Partition    string   `json:"-"`
+		ServiceName  string   `json:"-"`
+		ServicePort  int32    `json:"-"`
 		Balance      string   `json:"loadBalancingMode"`
-		ServiceName  string   `json:"serviceName,omitempty"`
-		ServicePort  int32    `json:"servicePort,omitempty"`
 		Members      []Member `json:"members"`
 		MonitorNames []string `json:"monitors,omitempty"`
 	}
@@ -128,9 +116,8 @@ type (
 	// Pool health monitor
 	Monitor struct {
 		Name      string `json:"name"`
-		Partition string `json:"partition,omitempty"`
+		Partition string `json:"-"`
 		Interval  int    `json:"interval,omitempty"`
-		Protocol  string `json:"protocol,omitempty"`
 		Type      string `json:"type,omitempty"`
 		Send      string `json:"send,omitempty"`
 		Timeout   int    `json:"timeout,omitempty"`
@@ -145,7 +132,7 @@ type (
 	// Virtual policy
 	Policy struct {
 		Name        string   `json:"name"`
-		Partition   string   `json:"partition,omitempty"`
+		Partition   string   `json:"-"`
 		SubPath     string   `json:"subPath,omitempty"`
 		Controls    []string `json:"controls,omitempty"`
 		Description string   `json:"description,omitempty"`
@@ -154,6 +141,7 @@ type (
 		Rules       []*Rule  `json:"rules,omitempty"`
 		Strategy    string   `json:"strategy,omitempty"`
 	}
+	Policies []Policy
 
 	// Rule config for a Policy
 	Rule struct {
@@ -239,7 +227,7 @@ type (
 	// SSL Profile loaded from Secret or Route object
 	CustomProfile struct {
 		Name       string `json:"name"`
-		Partition  string `json:"partition,omitempty"`
+		Partition  string `json:"-"`
 		Context    string `json:"context"` // 'clientside', 'serverside', or 'all'
 		Cert       string `json:"cert"`
 		Key        string `json:"key"`
@@ -250,16 +238,52 @@ type (
 	// Used to unmarshal ConfigMap data
 	ConfigMap struct {
 		VirtualServer struct {
-			Backend  configMapBackend `json:"backend"`
-			Frontend Virtual          `json:"frontend"`
+			Backend  configMapBackend  `json:"backend"`
+			Frontend configMapFrontend `json:"frontend"`
 		} `json:"virtualServer"`
 	}
 
+	configMapMonitor struct {
+		Name      string `json:"name"`
+		Partition string `json:"partition,omitempty"`
+		Interval  int    `json:"interval,omitempty"`
+		Protocol  string `json:"protocol,omitempty"`
+		Send      string `json:"send,omitempty"`
+		Timeout   int    `json:"timeout,omitempty"`
+	}
+
 	configMapBackend struct {
-		ServiceName     string    `json:"serviceName"`
-		ServicePort     int32     `json:"servicePort"`
-		PoolMemberAddrs []string  `json:"poolMemberAddrs"`
-		HealthMonitors  []Monitor `json:"healthMonitors,omitempty"`
+		ServiceName     string             `json:"serviceName"`
+		ServicePort     int32              `json:"servicePort"`
+		PoolMemberAddrs []string           `json:"poolMemberAddrs"`
+		HealthMonitors  []configMapMonitor `json:"healthMonitors,omitempty"`
+	}
+
+	configMapFrontend struct {
+		Name     string `json:"name"`
+		PoolName string `json:"pool,omitempty"`
+		// Mutual parameter, partition
+		Partition string `json:"partition,omitempty"`
+
+		// VirtualServer parameters
+		Balance               string                `json:"balance,omitempty"`
+		Mode                  string                `json:"mode,omitempty"`
+		VirtualAddress        *virtualAddress       `json:"virtualAddress,omitempty"`
+		Destination           string                `json:"destination,omitempty"`
+		Enabled               bool                  `json:"enabled,omitempty"`
+		IpProtocol            string                `json:"ipProtocol,omitempty"`
+		SourceAddrTranslation sourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
+		SslProfile            *sslProfile           `json:"sslProfile,omitempty"`
+		Policies              []nameRef             `json:"policies,omitempty"`
+		IRules                []string              `json:"rules,omitempty"`
+		Profiles              ProfileRefs           `json:"profiles,omitempty"`
+
+		// iApp parameters
+		IApp                string                    `json:"iapp,omitempty"`
+		IAppPoolMemberTable *iappPoolMemberTable      `json:"iappPoolMemberTable,omitempty"`
+		IAppOptions         map[string]string         `json:"iappOptions,omitempty"`
+		IAppTables          map[string]iappTableEntry `json:"iappTables,omitempty"`
+		IAppVariables       map[string]string         `json:"iappVariables,omitempty"`
 	}
 
 	// This is the format for each item in the health monitor annotation used
@@ -291,7 +315,7 @@ type (
 	// iRules
 	IRule struct {
 		Name      string `json:"name"`
-		Partition string `json:"partition,omitempty"`
+		Partition string `json:"-"`
 		Code      string `json:"apiAnonymous"`
 	}
 
@@ -299,7 +323,7 @@ type (
 
 	InternalDataGroup struct {
 		Name      string                   `json:"name"`
-		Partition string                   `json:"partition,omitempty"`
+		Partition string                   `json:"-"`
 		Records   InternalDataGroupRecords `json:"records"`
 	}
 

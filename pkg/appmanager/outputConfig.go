@@ -18,10 +18,7 @@ package appmanager
 
 import (
 	"encoding/json"
-	"fmt"
-	"net"
 	"strings"
-	"sync"
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -44,55 +41,24 @@ func (appMgr *Manager) outputConfigLocked() {
 	resources := PartitionMap{}
 
 	// Filter the configs to only those that have active services
-	appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
+	for _, cfg := range appMgr.resources.GetAllResources() {
 		if cfg.MetaData.Active == true {
-			initPartitionData(resources, cfg.Virtual.Partition)
+			initPartitionData(resources, cfg.GetPartition())
 
-			// The data for Virtual Servers and IApps are commingled,
-			// separate them here
-			if cfg.Virtual.IApp != "" {
-				// Create the IApp from the data in the Virtual Server
-				iapp := IApp{
-					Name:                cfg.Virtual.VirtualServerName,
-					Partition:           cfg.Virtual.Partition,
-					IApp:                cfg.Virtual.IApp,
-					IAppPoolMemberTable: cfg.Virtual.IAppPoolMemberTable,
-					IAppOptions:         cfg.Virtual.IAppOptions,
-					IAppTables:          cfg.Virtual.IAppTables,
-					IAppVariables:       cfg.Virtual.IAppVariables,
-				}
+			// Each cfg identifies either a Virtual Server or an IApp.
+			if cfg.MetaData.ResourceType == "iapp" {
 				for _, p := range cfg.Pools {
-					if iapp.Name == p.Name {
-						iapp.IAppPoolMemberTable.Members = p.Members
+					if cfg.IApp.Name == p.Name {
+						cfg.IApp.IAppPoolMemberTable.Members = p.Members
 					}
 				}
-				resources[cfg.Virtual.Partition].IApps =
-					appendIApp(resources[cfg.Virtual.Partition].IApps, iapp)
+				resources[cfg.GetPartition()].IApps =
+					append(resources[cfg.GetPartition()].IApps, cfg.IApp)
 			} else {
 				// If it's not an IApp, then it's a Virtual Server
-				if nil != cfg.Virtual.VirtualAddress {
-					// Validate the IP address, and create the destination
-					ip, rd := split_ip_with_route_domain(cfg.Virtual.VirtualAddress.BindAddr)
-					if len(rd) > 0 {
-						rd = "%" + rd
-					}
-					addr := net.ParseIP(ip)
-					if nil != addr {
-						var format string
-						if nil != addr.To4() {
-							format = "/%s/%s%s:%d"
-						} else {
-							format = "/%s/%s%s.%d"
-						}
-						cfg.Virtual.Destination = fmt.Sprintf(
-							format,
-							cfg.Virtual.Partition,
-							ip,
-							rd,
-							cfg.Virtual.VirtualAddress.Port)
-						resources[cfg.Virtual.Partition].Virtuals =
-							appendVirtual(resources[cfg.Virtual.Partition].Virtuals, cfg.Virtual)
-					}
+				if "" != cfg.Virtual.Destination {
+					resources[cfg.GetPartition()].Virtuals =
+						append(resources[cfg.GetPartition()].Virtuals, cfg.Virtual)
 				}
 			}
 
@@ -101,7 +67,7 @@ func (appMgr *Manager) outputConfigLocked() {
 				initPartitionData(resources, p.Partition)
 				// Differentiate pools that belong to IApps, don't create the pool
 				// independently from the iApp that owns it
-				for _, i := range resources[cfg.Virtual.Partition].IApps {
+				for _, i := range resources[cfg.GetPartition()].IApps {
 					if p.Name == i.Name {
 						found = true
 					}
@@ -119,7 +85,7 @@ func (appMgr *Manager) outputConfigLocked() {
 				resources[p.Partition].Policies = appendPolicy(resources[p.Partition].Policies, p)
 			}
 		}
-	})
+	}
 
 	// To allow the ssl passthrough iRule to be associated with a virtual,
 	// it must have at least one client or server SSL profile associated with
@@ -132,8 +98,12 @@ func (appMgr *Manager) outputConfigLocked() {
 					clientProfCt := virtual.GetProfileCountByContext(customProfileClient)
 					serverProfCt := virtual.GetProfileCountByContext(customProfileServer)
 					if 0 == clientProfCt && 0 == serverProfCt {
-						sslProf := "Common/clientssl"
-						resources[partition].Virtuals[vKey].AddFrontendSslProfileName(sslProf)
+						sslProf := ProfileRef{
+							Partition: "Common",
+							Name:      "clientssl",
+							Context:   customProfileClient,
+						}
+						resources[partition].Virtuals[vKey].AddOrUpdateProfile(sslProf)
 					}
 				}
 			}
@@ -153,16 +123,6 @@ func (appMgr *Manager) outputConfigLocked() {
 		resources[intDg.Partition].InternalDataGroups = append(resources[intDg.Partition].InternalDataGroups, *intDg)
 	}
 
-	// Update resources to conform to the CCCL schema and empty out unneeded fields
-	// so they will be stripped out by the JSON marshaller.
-	// Since these are independent chunks of data, the reformating can be parallelized
-	var wg sync.WaitGroup
-	wg.Add(len(resources))
-	for partition, _ := range resources {
-		go reformatPartitionResources(resources, partition, &wg)
-	}
-	wg.Wait()
-
 	if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 ||
 		appMgr.initialState == true {
 		doneCh, errCh, err := appMgr.ConfigWriter().SendSection("resources", resources)
@@ -172,10 +132,13 @@ func (appMgr *Manager) outputConfigLocked() {
 			select {
 			case <-doneCh:
 				virtualCount := 0
+				iappCount := 0
 				for _, partitionConfig := range resources {
 					virtualCount += len(partitionConfig.Virtuals)
+					iappCount += len(partitionConfig.IApps)
 				}
-				log.Infof("Wrote %v Virtual Server configs", virtualCount)
+				log.Infof("Wrote %v Virtual Server and %v IApp configs",
+					virtualCount, iappCount)
 				if log.LL_DEBUG == log.GetLogLevel() {
 					// Remove customProfiles from output
 					// FIXME (sberman): Issue #365
@@ -218,28 +181,6 @@ func initPartitionData(resources PartitionMap, partition string) {
 }
 
 // Only append to the list if it isn't already in the list
-func appendIApp(rsIApps []IApp, i IApp) []IApp {
-	for _, ri := range rsIApps {
-		if ri.Name == i.Name &&
-			ri.Partition == i.Partition {
-			return rsIApps
-		}
-	}
-	return append(rsIApps, i)
-}
-
-// Only append to the list if it isn't already in the list
-func appendVirtual(rsVirtuals []Virtual, v Virtual) []Virtual {
-	for _, rv := range rsVirtuals {
-		if rv.VirtualServerName == v.VirtualServerName &&
-			rv.Partition == v.Partition {
-			return rsVirtuals
-		}
-	}
-	return append(rsVirtuals, v)
-}
-
-// Only append to the list if it isn't already in the list
 func appendPool(rsPools []Pool, p Pool) []Pool {
 	for i, rp := range rsPools {
 		if rp.Name == p.Name &&
@@ -273,120 +214,4 @@ func appendPolicy(rsPolicies []Policy, p Policy) []Policy {
 		}
 	}
 	return append(rsPolicies, p)
-}
-
-// Reformat the resources for a partition to be CCCL-schema compliant
-func reformatPartitionResources(resources PartitionMap, partition string, wgp *sync.WaitGroup) {
-	defer wgp.Done()
-
-	var wg sync.WaitGroup
-	wg.Add(8)
-	go reformatVirtuals(resources, partition, &wg)
-	go reformatIApps(resources, partition, &wg)
-	go reformatMonitors(resources, partition, &wg)
-	go reformatPolicies(resources, partition, &wg)
-	go reformatCustomProfiles(resources, partition, &wg)
-	go reformatIRules(resources, partition, &wg)
-	go reformatInternalDataGroups(resources, partition, &wg)
-	go reformatPools(resources, partition, &wg)
-	wg.Wait()
-}
-
-// Reformat the IApps for a partition to be CCCL-schema compliant
-func reformatIApps(resources PartitionMap, partition string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for i, _ := range resources[partition].IApps {
-		resources[partition].IApps[i].Partition = ""
-	}
-}
-
-// Reformat the Monitors for a partition to be CCCL-schema compliant
-func reformatMonitors(resources PartitionMap, partition string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for i, _ := range resources[partition].Monitors {
-		resources[partition].Monitors[i].Partition = ""
-		resources[partition].Monitors[i].Type = resources[partition].Monitors[i].Protocol
-		resources[partition].Monitors[i].Protocol = ""
-	}
-}
-
-// Reformat the Policies for a partition to be CCCL-schema compliant
-func reformatPolicies(resources PartitionMap, partition string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for i, _ := range resources[partition].Policies {
-		resources[partition].Policies[i].Partition = ""
-	}
-}
-
-// Reformat the Custom Profiles for a partition to be CCCL-schema compliant
-func reformatCustomProfiles(resources PartitionMap, partition string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for i, _ := range resources[partition].CustomProfiles {
-		resources[partition].CustomProfiles[i].Partition = ""
-	}
-}
-
-// Reformat the IRules for a partition to be CCCL-schema compliant
-func reformatIRules(resources PartitionMap, partition string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for i, _ := range resources[partition].IRules {
-		resources[partition].IRules[i].Partition = ""
-	}
-}
-
-// Reformat the Internal Data Groups for a partition to be CCCL-schema compliant
-func reformatInternalDataGroups(resources PartitionMap, partition string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for i, _ := range resources[partition].InternalDataGroups {
-		resources[partition].InternalDataGroups[i].Partition = ""
-	}
-}
-
-// Reformat the Pools for a partition to be CCCL-schema compliant
-func reformatPools(resources PartitionMap, partition string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for i, _ := range resources[partition].Pools {
-		resources[partition].Pools[i].Partition = ""
-		resources[partition].Pools[i].ServicePort = 0
-		resources[partition].Pools[i].ServiceName = ""
-	}
-}
-
-// Reformat the Virtuals for a partition to be CCCL-schema compliant
-func reformatVirtuals(resources PartitionMap, partition string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for i, _ := range resources[partition].Virtuals {
-		resources[partition].Virtuals[i].Enabled = true
-
-		// Add the profiles to the Virtual Server
-		mode := strings.ToLower(resources[partition].Virtuals[i].Mode)
-		if mode == "http" {
-			resources[partition].Virtuals[i].IpProtocol = "tcp"
-			profile := ProfileRef{Partition: "Common", Name: "http", Context: "all"}
-			resources[partition].Virtuals[i].Profiles =
-				append(resources[partition].Virtuals[i].Profiles, profile)
-		} else if mode == "tcp" {
-			resources[partition].Virtuals[i].IpProtocol = "tcp"
-			profile := ProfileRef{Partition: "Common", Name: "tcp", Context: "all"}
-			resources[partition].Virtuals[i].Profiles =
-				append(resources[partition].Virtuals[i].Profiles, profile)
-		} else if mode == "udp" {
-			resources[partition].Virtuals[i].IpProtocol = "udp"
-		}
-
-		// Parse the SSL profile into partition and name
-		for _, p := range resources[partition].Virtuals[i].GetFrontendSslProfileNames() {
-			resources[partition].Virtuals[i].Profiles =
-				appendSslProfile(resources[partition].Virtuals[i].Profiles, p, customProfileClient)
-		}
-
-		resources[partition].Virtuals[i].SourceAddrTranslation.Type = "automap"
-
-		resources[partition].Virtuals[i].Partition = ""
-		resources[partition].Virtuals[i].VirtualAddress = nil
-		resources[partition].Virtuals[i].Balance = ""
-		resources[partition].Virtuals[i].Mode = ""
-		resources[partition].Virtuals[i].SslProfile = nil
-		resources[partition].Virtuals[i].IAppPoolMemberTable = nil
-	}
 }

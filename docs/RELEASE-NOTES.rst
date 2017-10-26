@@ -7,6 +7,12 @@ Release Notes for BIG-IP Controller for Kubernetes
 Added Functionality
 ```````````````````
 
+v1.3.0
+------
+
+Added Functionality
+```````````````````
+
 * Create health monitors for OpenShift Routes via an annotation.
 * Optionally disable loading of certificates and keys from Routes in preference of using pre-existing
   profiles on the BIG-IP system.
@@ -22,7 +28,7 @@ Bug Fixes
 * Remove ssl certificate lists for deleted custom profiles.
 
 Limitations
-~~~~~~~~~~~
+```````````
 
 * If a Route configuration contains no targetPort, the controller uses the first port it sees
   on the referenced Service. The controller does not use all ports.
@@ -49,7 +55,7 @@ Bug Fixes
 * Failed configurations for objects do not prevent future configurations from happening.
 
 Limitations
-~~~~~~~~~~~
+```````````
 
 * OpenShift - Does not currently support redirect for individual Routes. If a Route specifies 
   "insecureEdgeTerminationPolicy" as "Redirect", the http virtual server will enable this policy for all Routes.

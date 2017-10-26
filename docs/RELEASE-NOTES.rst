@@ -84,7 +84,7 @@ Added Functionality
 * Can use local and non-local BIG-IP users.
 
 Limitations
-~~~~~~~~~~~
+```````````
 
 * The SSL Profiles referenced in Ingress resources must already exist on the BIG-IP device.
   Any Secret resources configured in Kubernetes are not used.
@@ -115,7 +115,7 @@ Added Functionality
   * FDB tunnel records (Red Hat OpenShift)
 
 Limitations
-~~~~~~~~~~~
+```````````
 
 * Cannot share endpoints managed in a partition controlled by the K8S BIG-IP Controller with endpoints managed in another partition.
 * Kubernetes allows a service to name the individual service ports within a particular service.  However, the K8S BIG-IP Controller requires the virtual server section within the configmap to refer to the port number for the service port, not the name.

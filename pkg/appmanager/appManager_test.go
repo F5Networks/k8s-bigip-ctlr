@@ -619,6 +619,34 @@ func newServicePort(name string, svcPort int32) v1.ServicePort {
 	}
 }
 
+func compareVirtuals(vs, expected Virtual) {
+	Expect(vs.Name).To(Equal(expected.Name))
+	Expect(vs.PoolName).To(Equal(expected.PoolName))
+	Expect(vs.Destination).To(Equal(expected.Destination))
+	Expect(vs.Enabled).To(Equal(expected.Enabled))
+	Expect(vs.IpProtocol).To(Equal(expected.IpProtocol))
+	Expect(vs.SourceAddrTranslation).To(Equal(expected.SourceAddrTranslation))
+	Expect(vs.Policies).To(Equal(expected.Policies))
+	Expect(vs.IRules).To(Equal(expected.IRules))
+	Expect(vs.Profiles).To(Equal(expected.Profiles))
+	Expect(vs.Description).To(Equal(expected.Description))
+}
+
+func comparePools(pool, expected Pool) {
+	Expect(pool.Name).To(Equal(expected.Name))
+	Expect(pool.Balance).To(Equal(expected.Balance))
+	Expect(pool.Members).To(Equal(expected.Members))
+	Expect(pool.MonitorNames).To(Equal(expected.MonitorNames))
+}
+
+func compareMonitors(mon, expected Monitor) {
+	Expect(mon.Name).To(Equal(expected.Name))
+	Expect(mon.Interval).To(Equal(expected.Interval))
+	Expect(mon.Type).To(Equal(expected.Type))
+	Expect(mon.Send).To(Equal(expected.Send))
+	Expect(mon.Timeout).To(Equal(expected.Timeout))
+}
+
 func validateConfig(mw *test.MockWriter, expected string) {
 	mw.Lock()
 	_, ok := mw.Sections["resources"].(PartitionMap)
@@ -657,15 +685,15 @@ func validateConfig(mw *test.MockWriter, expected string) {
 
 				for i, rs := range expCfg.Virtuals {
 					ExpectWithOffset(1, i).To(BeNumerically("<", len(config.Virtuals)))
-					ExpectWithOffset(1, rs).To(Equal(config.Virtuals[i]))
+					compareVirtuals(rs, config.Virtuals[i])
 				}
 				for i, rs := range expCfg.Pools {
 					ExpectWithOffset(1, i).To(BeNumerically("<", len(config.Pools)))
-					ExpectWithOffset(1, rs).To(Equal(config.Pools[i]))
+					comparePools(rs, config.Pools[i])
 				}
 				for i, rs := range expCfg.Monitors {
 					ExpectWithOffset(1, i).To(BeNumerically("<", len(config.Monitors)))
-					ExpectWithOffset(1, rs).To(Equal(config.Monitors[i]))
+					compareMonitors(rs, config.Monitors[i])
 				}
 			}
 		}
@@ -675,13 +703,11 @@ func validateConfig(mw *test.MockWriter, expected string) {
 func validateServiceIps(serviceName, namespace string, svcPorts []v1.ServicePort,
 	ips []string, resources *Resources) {
 	for _, p := range svcPorts {
-		vsMap, ok := resources.GetAll(serviceKey{serviceName, p.Port, namespace})
-		Expect(ok).To(BeTrue())
-		Expect(vsMap).ToNot(BeNil())
-		for _, rs := range vsMap {
+		cfgs := resources.GetAll(serviceKey{serviceName, p.Port, namespace})
+		Expect(cfgs).ToNot(BeNil())
+		for _, cfg := range cfgs {
 			var expectedIps []Member
 			if ips != nil {
-				//expectedIps = []string{}
 				for _, ip := range ips {
 					member := Member{
 						Address: ip,
@@ -691,7 +717,7 @@ func validateServiceIps(serviceName, namespace string, svcPorts []v1.ServicePort
 					expectedIps = append(expectedIps, member)
 				}
 			}
-			Expect(rs.Pools[0].Members).To(Equal(expectedIps))
+			Expect(cfg.Pools[0].Members).To(Equal(expectedIps))
 		}
 	}
 }
@@ -1046,10 +1072,9 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.Count()).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1),
 					"Virtual servers should have entry.")
-				rs, ok := resources.Get(
+				_, ok := resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Virtual.Mode).To(Equal("http"))
 
 				cfgFoo = test.NewConfigMap("foomap", "1", namespace, map[string]string{
 					"schema": schemaUrl,
@@ -1060,10 +1085,9 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.Count()).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1),
 					"Virtual servers should have entry.")
-				rs, ok = resources.Get(
+				_, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Virtual.Mode).To(Equal("tcp"))
 			}
 
 			It("should overwrite add - NodePort", func() {
@@ -1778,7 +1802,6 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs).ToNot(BeNil(), "Config map should be object.")
 
 				Expect(rs.Pools[0].Balance).To(Equal("round-robin"))
-				Expect(rs.Virtual.Mode).To(Equal("tcp"))
 				Expect(rs.Virtual.Partition).To(Equal("velcro"))
 				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal("10.128.10.240"))
 				Expect(rs.Virtual.VirtualAddress.Port).To(Equal(int32(80)))
@@ -2063,7 +2086,6 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs).ToNot(BeNil(), "Config map should be object.")
 
 				Expect(rs.Pools[0].Balance).To(Equal("round-robin"))
-				Expect(rs.Virtual.Mode).To(Equal("http"))
 				Expect(rs.Virtual.Partition).To(Equal("velcro"))
 				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal(""))
 				Expect(rs.Virtual.VirtualAddress.Port).To(Equal(int32(10000)))
@@ -2106,7 +2128,6 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs).ToNot(BeNil(), "Config map should be object.")
 
 				Expect(rs.Pools[0].Balance).To(Equal("round-robin"))
-				Expect(rs.Virtual.Mode).To(Equal("http"))
 				Expect(rs.Virtual.Partition).To(Equal("velcro"))
 				Expect(rs.Virtual.VirtualAddress).To(BeNil())
 
@@ -2516,7 +2537,6 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs.MetaData.Active).To(BeTrue())
 
 				Expect(rs.Pools[0].Balance).To(Equal("round-robin"))
-				Expect(rs.Virtual.Mode).To(Equal("http"))
 				Expect(rs.Virtual.Partition).To(Equal("velcro"))
 				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
 				Expect(rs.Virtual.VirtualAddress.Port).To(Equal(int32(80)))
@@ -2735,7 +2755,15 @@ var _ = Describe("AppManager Tests", func() {
 					formatIngressSslProfileName(sslProfileName2),
 				}
 				sort.Strings(secretArray)
-				Expect(httpsCfg.Virtual.GetFrontendSslProfileNames()).To(Equal(secretArray))
+				clientProfileNames := []string{}
+				for _, prof := range httpsCfg.Virtual.Profiles {
+					if prof.Context == customProfileClient {
+						profName := fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
+						clientProfileNames = append(clientProfileNames, profName)
+					}
+				}
+				sort.Strings(clientProfileNames)
+				Expect(clientProfileNames).To(Equal(secretArray))
 
 				// No annotations were specified to control http redirect, check that
 				// we are in the default state 2.
@@ -2768,7 +2796,15 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.Count()).To(Equal(1))
 				Expect(resources.CountOf(svcKey)).To(Equal(1))
 				Expect(len(httpsCfg.Policies)).To(Equal(0))
-				Expect(httpsCfg.Virtual.GetFrontendSslProfileNames()).To(Equal(secretArray))
+				clientProfileNames = clientProfileNames[:0]
+				for _, prof := range httpsCfg.Virtual.Profiles {
+					if prof.Context == customProfileClient {
+						profName := fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
+						clientProfileNames = append(clientProfileNames, profName)
+					}
+				}
+				sort.Strings(clientProfileNames)
+				Expect(clientProfileNames).To(Equal(secretArray))
 
 				// Now test state 3.
 				fooIng.ObjectMeta.Annotations[ingressSslRedirect] = "false"
@@ -2803,7 +2839,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Create a secret
 				secret := &v1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "secret",
+						Name:      "secret1",
 						Namespace: namespace,
 					},
 					Data: map[string][]byte{
@@ -2831,6 +2867,7 @@ var _ = Describe("AppManager Tests", func() {
 						"virtual-server.f5.com/ip":        "1.2.3.4",
 						"virtual-server.f5.com/partition": "velcro",
 					})
+				// This should create a custom profile from the ingress secret.
 				mockMgr.addIngress(ingress)
 
 				customProfiles := mockMgr.customProfiles()
@@ -2849,7 +2886,7 @@ var _ = Describe("AppManager Tests", func() {
 					        "port": 10000
 					      },
 					      "sslProfile": {
-					        "f5ProfileName": "secret"
+					        "f5ProfileName": "secret2"
 					      }
 					    }
 					  }
@@ -2858,13 +2895,17 @@ var _ = Describe("AppManager Tests", func() {
 					"schema": schemaUrl,
 					"data":   configmapSecret,
 				})
+				// This should NOT create a custom profile - it just references a
+				// pre-configured one.
 				mockMgr.addConfigMap(secretCfg)
-				Expect(len(customProfiles)).To(Equal(2))
+				Expect(len(customProfiles)).To(Equal(1))
+				// This should not affect any custom profiles.
 				mockMgr.deleteConfigMap(secretCfg)
 				Expect(len(customProfiles)).To(Equal(1))
 
 				// Turn off secret loading; should remove the customProfile
 				mockMgr.appMgr.useSecrets = false
+				// This should remove the custom profile.
 				mockMgr.updateIngress(ingress)
 				Expect(len(customProfiles)).To(Equal(0))
 			})
@@ -3210,12 +3251,18 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(ok).To(BeTrue(), "Route should be accessible.")
 					Expect(rs).ToNot(BeNil(), "Route should be object.")
 
-					// customProfiles should only contain the 2 default profiles
-					Expect(len(mockMgr.customProfiles())).To(Equal(2))
-					Expect(rs.Virtual.SslProfile.F5ProfileNames).
-						To(ContainElement("Common/client"))
-					Expect(rs.Virtual.SslProfile.F5ProfileNames).
-						ToNot(ContainElement("velcro/openshift_route_default_route-client-ssl"))
+					Expect(rs.Virtual.Profiles).To(ContainElement(
+						ProfileRef{
+							Partition: "Common",
+							Name:      "client",
+							Context:   customProfileClient,
+						}))
+					Expect(rs.Virtual.Profiles).ToNot(ContainElement(
+						ProfileRef{
+							Partition: "velcro",
+							Name:      "/openshift_route_default_route-client-ssl",
+							Context:   customProfileClient,
+						}))
 					pRef := ProfileRef{
 						Name:      "server",
 						Partition: "Common",
@@ -3236,11 +3283,18 @@ var _ = Describe("AppManager Tests", func() {
 
 					rs, _ = resources.Get(
 						serviceKey{"foo", 443, "default"}, "https-ose-vserver")
-					Expect(len(mockMgr.customProfiles())).To(Equal(4))
-					Expect(rs.Virtual.SslProfile.F5ProfileNames).
-						ToNot(ContainElement("Common/client"))
-					Expect(rs.Virtual.SslProfile.F5ProfileNames).
-						To(ContainElement("velcro/openshift_route_default_route-client-ssl"))
+					Expect(rs.Virtual.Profiles).ToNot(ContainElement(
+						ProfileRef{
+							Partition: "Common",
+							Name:      "client",
+							Context:   customProfileClient,
+						}))
+					Expect(rs.Virtual.Profiles).To(ContainElement(
+						ProfileRef{
+							Partition: "velcro",
+							Name:      "openshift_route_default_route-client-ssl",
+							Context:   customProfileClient,
+						}))
 					Expect(rs.Virtual.Profiles).ToNot(ContainElement(pRef))
 					Expect(rs.Virtual.Profiles).To(ContainElement(customPRef))
 
@@ -3251,11 +3305,18 @@ var _ = Describe("AppManager Tests", func() {
 
 					rs, _ = resources.Get(
 						serviceKey{"foo", 443, "default"}, "https-ose-vserver")
-					Expect(len(mockMgr.customProfiles())).To(Equal(2))
-					Expect(rs.Virtual.SslProfile.F5ProfileNames).
-						To(ContainElement("Common/newClient"))
-					Expect(rs.Virtual.SslProfile.F5ProfileNames).
-						ToNot(ContainElement("velcro/openshift_route_default_route-client-ssl"))
+					Expect(rs.Virtual.Profiles).To(ContainElement(
+						ProfileRef{
+							Partition: "Common",
+							Name:      "newClient",
+							Context:   customProfileClient,
+						}))
+					Expect(rs.Virtual.Profiles).ToNot(ContainElement(
+						ProfileRef{
+							Partition: "velcro",
+							Name:      "openshift_route_default_route-client-ssl",
+							Context:   customProfileClient,
+						}))
 					pRef = ProfileRef{
 						Name:      "newServer",
 						Partition: "Common",
@@ -3687,7 +3748,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(ok).To(BeTrue(), "Route should be accessible.")
 				Expect(rs).ToNot(BeNil(), "Route should be object.")
 				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
-				Expect(len(rs.Virtual.SslProfile.F5ProfileNames)).To(Equal(3))
+				Expect(rs.Virtual.GetProfileCountByContext(customProfileClient)).To(Equal(3))
 				addr := []string{"127.0.0.0"}
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addr)))
 				Expect(rs.Pools[1].Members).To(Equal(generateExpectedAddrs(38001, addr)))
@@ -3698,7 +3759,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs).ToNot(BeNil(), "Route should be object.")
 				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
 				Expect(len(rs.Pools)).To(Equal(2))
-				Expect(len(rs.Virtual.SslProfile.F5ProfileNames)).To(Equal(3))
+				Expect(rs.Virtual.GetProfileCountByContext(customProfileClient)).To(Equal(3))
 				addr = []string{"127.0.0.0"}
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addr)))
 				Expect(rs.Pools[1].Members).To(Equal(generateExpectedAddrs(38001, addr)))
@@ -3712,7 +3773,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs).ToNot(BeNil(), "Route should be object.")
 				Expect(len(rs.Policies[0].Rules)).To(Equal(1))
 				Expect(len(rs.Pools)).To(Equal(1))
-				Expect(len(rs.Virtual.SslProfile.F5ProfileNames)).To(Equal(2))
+				Expect(rs.Virtual.GetProfileCountByContext(customProfileClient)).To(Equal(2))
 				addr = []string{"127.0.0.0"}
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addr)))
 			})

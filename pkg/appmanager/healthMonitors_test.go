@@ -68,7 +68,7 @@ var _ = Describe("Health Monitor Tests", func() {
 		Expect(len(rc.Pools)).To(BeNumerically(">", 0))
 		poolNdx := -1
 		for i, pool := range rc.Pools {
-			if pool.Partition == rc.Virtual.Partition &&
+			if pool.Partition == rc.GetPartition() &&
 				pool.ServiceName == svcName &&
 				pool.ServicePort == int32(svcPort) {
 				poolNdx = i
@@ -212,8 +212,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(len(rc.Pools)).To(BeNumerically(">", 0))
 			policyNdx := -1
 			for i, pol := range rc.Policies {
-				if pol.Name == rc.Virtual.VirtualServerName &&
-					pol.Partition == rc.Virtual.Partition {
+				if pol.Name == rc.Virtual.Name &&
+					pol.Partition == rc.GetPartition() {
 					policyNdx = i
 					break
 				}
@@ -222,7 +222,7 @@ var _ = Describe("Health Monitor Tests", func() {
 
 			poolNdx := -1
 			for i, pool := range rc.Pools {
-				if pool.Partition == rc.Virtual.Partition &&
+				if pool.Partition == rc.GetPartition() &&
 					pool.ServiceName == svcName &&
 					pool.ServicePort == int32(svcPort) {
 					poolNdx = i

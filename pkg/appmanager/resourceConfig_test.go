@@ -51,10 +51,8 @@ func newResourceConfig(
 	cfg.Pools = append(cfg.Pools, Pool{})
 	cfg.Pools[0].ServiceName = key.ServiceName
 	cfg.Pools[0].ServicePort = key.ServicePort
-	cfg.Virtual.VirtualServerName = rsName
-	cfg.Virtual.VirtualAddress = new(virtualAddress)
-	cfg.Virtual.VirtualAddress.BindAddr = bindAddr
-	cfg.Virtual.VirtualAddress.Port = bindPort
+	cfg.Virtual.Name = rsName
+	cfg.Virtual.SetVirtualAddress(bindAddr, bindPort)
 	return &cfg
 }
 
@@ -107,31 +105,31 @@ var _ = Describe("Resource Config Tests", func() {
 
 			v := Virtual{}
 			v.Partition = "a"
-			v.VirtualServerName = "foo"
+			v.Name = "foo"
 			virtuals = append(virtuals, v)
 			expectedList[1] = v
 
 			v = Virtual{}
 			v.Partition = "a"
-			v.VirtualServerName = "bar"
+			v.Name = "bar"
 			virtuals = append(virtuals, v)
 			expectedList[0] = v
 
 			v = Virtual{}
 			v.Partition = "c"
-			v.VirtualServerName = "bar"
+			v.Name = "bar"
 			virtuals = append(virtuals, v)
 			expectedList[3] = v
 
 			v = Virtual{}
 			v.Partition = "c"
-			v.VirtualServerName = "foo"
+			v.Name = "foo"
 			virtuals = append(virtuals, v)
 			expectedList[4] = v
 
 			v = Virtual{}
 			v.Partition = "b"
-			v.VirtualServerName = "bar"
+			v.Name = "bar"
 			virtuals = append(virtuals, v)
 			expectedList[2] = v
 
@@ -288,7 +286,7 @@ var _ = Describe("Resource Config Tests", func() {
 				Expect(testObj).ToNot(BeNil())
 				found := false
 				for _, val := range testObj {
-					if val.name == cfg.Virtual.VirtualServerName {
+					if val.name == cfg.Virtual.Name {
 						found = true
 					}
 				}
@@ -313,48 +311,59 @@ var _ = Describe("Resource Config Tests", func() {
 		It("can get all configs", func() {
 			// Test GetAll() to make sure we can get all configs.
 			for key, _ := range *rm {
-				rsCfgMap, ok := rs.GetAll(key)
-				Expect(ok).To(BeTrue())
-				Expect(rsCfgMap).ToNot(BeNil())
-				Expect(len(rsCfgMap)).To(Equal(nbrCfgsPer))
+				rsCfgs := rs.GetAll(key)
+				Expect(rsCfgs).ToNot(BeNil())
+				Expect(len(rsCfgs)).To(Equal(nbrCfgsPer))
 			}
 		})
 	})
 
 	Describe("Config Manipulation", func() {
 		It("configures ssl profile names", func() {
+			getClientProfileNames := func(vs Virtual) []string {
+				clientProfs := []string{}
+				for _, prof := range vs.Profiles {
+					if prof.Context == customProfileClient {
+						var profName string
+						if len(prof.Partition) > 0 {
+							profName = fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
+						} else {
+							profName = prof.Name
+						}
+						clientProfs = append(clientProfs, profName)
+					}
+				}
+				return clientProfs
+			}
 			var rs ResourceConfig
 			// verify initial state
-			Expect(rs.Virtual.SslProfile).To(BeNil())
 			empty := []string{}
-			Expect(rs.Virtual.GetFrontendSslProfileNames()).To(Equal(empty))
+			Expect(getClientProfileNames(rs.Virtual)).To(Equal(empty))
 
 			// set a name and make sure it is saved
 			profileName := "profileName"
-			rs.Virtual.AddFrontendSslProfileName(profileName)
-			Expect(rs.Virtual.SslProfile).ToNot(BeNil())
-			Expect(rs.Virtual.SslProfile.F5ProfileName).To(Equal(profileName))
-			Expect(rs.Virtual.GetFrontendSslProfileNames()).To(Equal([]string{profileName}))
+			rs.Virtual.AddOrUpdateProfile(
+				ProfileRef{Name: profileName, Context: customProfileClient})
+			Expect(getClientProfileNames(rs.Virtual)).To(
+				Equal([]string{profileName}))
 
 			// add a second profile
 			newProfileName := "newProfileName"
-			rs.Virtual.AddFrontendSslProfileName(newProfileName)
-			Expect(rs.Virtual.SslProfile).ToNot(BeNil())
-			Expect(rs.Virtual.SslProfile.F5ProfileName).To(Equal(""))
-			Expect(rs.Virtual.SslProfile.F5ProfileNames).To(
-				Equal([]string{newProfileName, profileName}))
-			Expect(rs.Virtual.GetFrontendSslProfileNames()).To(
+			rs.Virtual.AddOrUpdateProfile(
+				ProfileRef{Name: newProfileName, Context: customProfileClient})
+			Expect(getClientProfileNames(rs.Virtual)).To(
 				Equal([]string{newProfileName, profileName}))
 
 			// Remove both profiles and make sure the pointer goes back to nil
-			r := rs.Virtual.RemoveFrontendSslProfileName(profileName)
+			r := rs.Virtual.RemoveProfile(
+				ProfileRef{Name: profileName, Context: customProfileClient})
 			Expect(r).To(BeTrue())
-			Expect(rs.Virtual.SslProfile.F5ProfileName).To(Equal(newProfileName))
-			Expect(rs.Virtual.GetFrontendSslProfileNames()).To(Equal([]string{newProfileName}))
-			r = rs.Virtual.RemoveFrontendSslProfileName(newProfileName)
+			Expect(getClientProfileNames(rs.Virtual)).To(
+				Equal([]string{newProfileName}))
+			r = rs.Virtual.RemoveProfile(
+				ProfileRef{Name: newProfileName, Context: customProfileClient})
 			Expect(r).To(BeTrue())
-			Expect(rs.Virtual.SslProfile).To(BeNil())
-			Expect(rs.Virtual.GetFrontendSslProfileNames()).To(Equal(empty))
+			Expect(getClientProfileNames(rs.Virtual)).To(Equal(empty))
 		})
 
 		It("sets and removes policies", func() {
@@ -437,7 +446,6 @@ var _ = Describe("Resource Config Tests", func() {
 			}
 			cfg := createRSConfigFromIngress(ingress, namespace, nil, ps)
 			Expect(cfg.Pools[0].Balance).To(Equal("round-robin"))
-			Expect(cfg.Virtual.Mode).To(Equal("http"))
 			Expect(cfg.Virtual.Partition).To(Equal("velcro"))
 			Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
 			Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(80)))
@@ -494,7 +502,7 @@ var _ = Describe("Resource Config Tests", func() {
 				HttpsVs: "https-ose-vserver",
 			}
 			cfg, _, _ := createRSConfigFromRoute(route, Resources{}, rc, ps, nil)
-			Expect(cfg.Virtual.VirtualServerName).To(Equal("https-ose-vserver"))
+			Expect(cfg.Virtual.Name).To(Equal("https-ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_foo"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("foo"))
 			Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))
@@ -518,7 +526,7 @@ var _ = Describe("Resource Config Tests", func() {
 				port:     80,
 			}
 			cfg, _, _ = createRSConfigFromRoute(route2, Resources{}, rc, ps, nil)
-			Expect(cfg.Virtual.VirtualServerName).To(Equal("ose-vserver"))
+			Expect(cfg.Virtual.Name).To(Equal("ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_bar"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("bar"))
 			Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))
@@ -653,9 +661,19 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(virtual.GetProfileCountByContext(customProfileServer)).To(Equal(0))
 
 			// Add some frontend client profiles.
-			virtual.AddFrontendSslProfileName("test3/firstprofile")
+			virtual.AddOrUpdateProfile(
+				ProfileRef{
+					Partition: "test3",
+					Name:      "firstprofile",
+					Context:   customProfileClient,
+				})
 			Expect(virtual.GetProfileCountByContext(customProfileClient)).To(Equal(4))
-			virtual.AddFrontendSslProfileName("test3/secondprofile")
+			virtual.AddOrUpdateProfile(
+				ProfileRef{
+					Partition: "test3",
+					Name:      "secondprofile",
+					Context:   customProfileClient,
+				})
 			Expect(virtual.GetProfileCountByContext(customProfileClient)).To(Equal(5))
 		})
 
@@ -666,7 +684,7 @@ var _ = Describe("Resource Config Tests", func() {
 				{Partition: "test1", Name: "second", Context: customProfileAll},
 				{Partition: "test2", Name: "first", Context: customProfileClient},
 				{Partition: "test1", Name: "first", Context: customProfileServer},
-				{Partition: "test3", Name: "third", Context: customProfileClient},
+				{Partition: "test2", Name: "second", Context: customProfileClient},
 			}
 			for _, prof := range testData {
 				cprof := NewCustomProfile(
@@ -680,20 +698,16 @@ var _ = Describe("Resource Config Tests", func() {
 				Expect(refs).To(BeFalse())
 			}
 
-			// add profiles from 'test1' to Profiles[] and 'test3' to frontend.
+			// add profiles to virtual.
 			for _, prof := range testData {
-				switch prof.Partition {
-				case "test1":
+				if prof.Partition == "test1" {
 					virtual.AddOrUpdateProfile(prof)
-				case "test3":
-					profName := fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
-					virtual.AddFrontendSslProfileName(profName)
 				}
 			}
 
 			for _, prof := range testData {
 				switch prof.Partition {
-				case "test1", "test3":
+				case "test1":
 					cprof := NewCustomProfile(
 						prof,
 						"crt",

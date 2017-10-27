@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"reflect"
 	"sort"
 	"strings"
@@ -59,94 +60,6 @@ const customProfileAll string = "all"
 const customProfileClient string = "clientside"
 const customProfileServer string = "serverside"
 
-// Wrappers around the ssl profile name to simplify its use due to the
-// pointer and nested depth.
-func (v *Virtual) AddFrontendSslProfileName(name string) bool {
-	if 0 == len(name) {
-		return false
-	}
-	if nil == v.SslProfile {
-		// the pointer is nil, need to create the nested object
-		v.SslProfile = &sslProfile{}
-	}
-	// Use a variable with a shorter name to make this code more readable.
-	sslProf := v.SslProfile
-	nbrProfs := len(sslProf.F5ProfileNames)
-	if nbrProfs == 0 {
-		if sslProf.F5ProfileName == name {
-			// Adding same profile is a no-op.
-			return false
-		}
-		if sslProf.F5ProfileName == "" {
-			// We only have one profile currently.
-			sslProf.F5ProfileName = name
-			return true
-		}
-		// # profiles will be > 1, switch to array.
-		insertProfileName(sslProf, sslProf.F5ProfileName, 0)
-		sslProf.F5ProfileName = ""
-	}
-
-	// The ssl profile names are maintained as a sorted array.
-	i := sort.SearchStrings(sslProf.F5ProfileNames, name)
-	if i < len(sslProf.F5ProfileNames) && sslProf.F5ProfileNames[i] == name {
-		// found, don't add a duplicate.
-		return false
-	} else {
-		// Insert into the correct position.
-		insertProfileName(sslProf, name, i)
-		return true
-	}
-}
-
-func insertProfileName(sslProf *sslProfile, name string, i int) {
-	sslProf.F5ProfileNames = append(sslProf.F5ProfileNames, "")
-	copy(sslProf.F5ProfileNames[i+1:], sslProf.F5ProfileNames[i:])
-	sslProf.F5ProfileNames[i] = name
-}
-
-func (v *Virtual) RemoveFrontendSslProfileName(name string) bool {
-	if 0 == len(name) || nil == v.SslProfile {
-		return false
-	}
-	// Use a variable with a shorter name to make this code more readable.
-	sslProf := v.SslProfile
-	nbrProfs := len(sslProf.F5ProfileNames)
-	if nbrProfs == 0 {
-		if sslProf.F5ProfileName == name {
-			v.SslProfile = nil
-			return true
-		}
-		return false
-	}
-	// The ssl profile names are maintained as a sorted array.
-	i := sort.SearchStrings(sslProf.F5ProfileNames, name)
-	if i < nbrProfs && sslProf.F5ProfileNames[i] == name {
-		// found, remove it and adjust the array.
-		nbrProfs -= 1
-		copy(sslProf.F5ProfileNames[i:], sslProf.F5ProfileNames[i+1:])
-		sslProf.F5ProfileNames[nbrProfs] = ""
-		sslProf.F5ProfileNames = sslProf.F5ProfileNames[:nbrProfs]
-		if nbrProfs == 1 {
-			// Stop using array.
-			sslProf.F5ProfileName = sslProf.F5ProfileNames[0]
-			sslProf.F5ProfileNames = []string{}
-		}
-		return true
-	}
-	return false
-}
-
-func (v *Virtual) GetFrontendSslProfileNames() []string {
-	if nil == v.SslProfile {
-		return []string{}
-	}
-	if "" != v.SslProfile.F5ProfileName {
-		return []string{v.SslProfile.F5ProfileName}
-	}
-	return v.SslProfile.F5ProfileNames
-}
-
 func (v *Virtual) GetProfileCountByContext(context string) int {
 	// Valid values of context are 'clientside', serverside', and 'all'.
 	// 'all' does not mean all profiles, but profiles that can be used in
@@ -160,12 +73,6 @@ func (v *Virtual) GetProfileCountByContext(context string) int {
 		}
 	}
 
-	if context == customProfileClient {
-		// Until client SSL profiles are stored exclusively within v.Profiles we
-		// need to to count the ones in the frontend struct as well.
-		profCt += len(v.GetFrontendSslProfileNames())
-	}
-
 	return profCt
 }
 
@@ -177,17 +84,6 @@ func (v *Virtual) ReferencesProfile(profile CustomProfile) bool {
 			return true
 		}
 	}
-	if profile.Context == customProfileClient {
-		// Until client SSL profiles are stored exclusively within v.Profiles we
-		// need to look in frontend as well.
-		nameToFind := fmt.Sprintf("%s/%s", profile.Partition, profile.Name)
-		for _, profName := range v.GetFrontendSslProfileNames() {
-			if profName == nameToFind {
-				return true
-			}
-		}
-	}
-
 	return false
 }
 
@@ -271,6 +167,33 @@ func (v *Virtual) RemoveProfile(prof ProfileRef) bool {
 	return false
 }
 
+func (v *Virtual) SetVirtualAddress(bindAddr string, port int32) {
+	v.Destination = ""
+	if bindAddr == "" && port == 0 {
+		v.VirtualAddress = nil
+	} else {
+		v.VirtualAddress = &virtualAddress{
+			BindAddr: bindAddr,
+			Port:     port,
+		}
+		// Validate the IP address, and create the destination
+		ip, rd := split_ip_with_route_domain(bindAddr)
+		if len(rd) > 0 {
+			rd = "%" + rd
+		}
+		addr := net.ParseIP(ip)
+		if nil != addr {
+			var format string
+			if nil != addr.To4() {
+				format = "/%s/%s%s:%d"
+			} else {
+				format = "/%s/%s%s.%d"
+			}
+			v.Destination = fmt.Sprintf(format, v.Partition, ip, rd, port)
+		}
+	}
+}
+
 // format the namespace and name for use in the frontend definition
 func formatConfigMapVSName(cm *v1.ConfigMap) string {
 	return fmt.Sprintf("%v_%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
@@ -295,18 +218,21 @@ func formatRouteRuleName(route *routeapi.Route) string {
 }
 
 // format the client ssl profile name for a Route
-func formatRouteClientSSLName(partition, namespace, name string) string {
-	if partition == "" {
-		return fmt.Sprintf("openshift_route_%s_%s-client-ssl",
-			namespace, name)
+func makeRouteClientSSLProfileRef(partition, namespace, name string) ProfileRef {
+	return ProfileRef{
+		Partition: partition,
+		Name:      fmt.Sprintf("openshift_route_%s_%s-client-ssl", namespace, name),
+		Context:   customProfileClient,
 	}
-	return fmt.Sprintf("%s/openshift_route_%s_%s-client-ssl",
-		partition, namespace, name)
 }
 
 // format the server ssl profile name for a Route
-func formatRouteServerSSLName(namespace, name string) string {
-	return fmt.Sprintf("openshift_route_%s_%s-server-ssl", namespace, name)
+func makeRouteServerSSLProfileRef(partition, namespace, name string) ProfileRef {
+	return ProfileRef{
+		Partition: partition,
+		Name:      fmt.Sprintf("openshift_route_%s_%s-server-ssl", namespace, name),
+		Context:   customProfileServer,
+	}
 }
 
 func formatIngressSslProfileName(secret string) string {
@@ -327,6 +253,27 @@ func formatIngressSslProfileName(secret string) string {
 	return profName
 }
 
+func convertStringToProfileRef(profileName, context string) ProfileRef {
+	profName := strings.TrimSpace(strings.TrimPrefix(profileName, "/"))
+	parts := strings.Split(profName, "/")
+	profRef := ProfileRef{Context: context}
+	switch len(parts) {
+	case 2:
+		profRef.Partition = parts[0]
+		profRef.Name = parts[1]
+	case 1:
+		// This is technically supported on the Big-IP, but will fail in the
+		// python driver. Issue a warning here for better context.
+		log.Warningf("Profile name '%v' does not contain a full path.", profileName)
+		profRef.Name = profileName
+	default:
+		// This is almost certainly an error, but again issue a warning for
+		// improved context here and pass it through to be handled elsewhere.
+		log.Warningf("Profile name '%v' is formatted incorrectly.", profileName)
+	}
+	return profRef
+}
+
 // Store of CustomProfiles
 type CustomProfileStore struct {
 	sync.Mutex
@@ -340,12 +287,20 @@ func NewCustomProfiles() CustomProfileStore {
 	return cps
 }
 
+// Key is resource name, value is unused (since go doesn't have set objects).
+type resourceList map[string]bool
+
+// Key is namespace/servicename/serviceport, value is map of resources.
+type resourceKeyMap map[serviceKey]resourceList
+
+// Key is resource name, value is pointer to config. May be shared.
 type ResourceConfigMap map[string]*ResourceConfig
 
 // Map of Resource configs
 type Resources struct {
 	sync.Mutex
-	rm map[serviceKey]ResourceConfigMap
+	rm    resourceKeyMap
+	rsMap ResourceConfigMap
 }
 
 type ResourceInterface interface {
@@ -354,8 +309,9 @@ type ResourceInterface interface {
 	Count() int
 	CountOf(key serviceKey) int
 	Get(key serviceKey, name string) (*ResourceConfig, bool)
-	GetAll(key serviceKey) (ResourceConfigMap, bool)
+	GetAll(key serviceKey) ResourceConfigs
 	GetAllWithName(name string) (ResourceConfigs, []serviceKey)
+	GetAllResources() ResourceConfigs
 	Delete(key serviceKey, name string) bool
 	ForEach(f ResourceEnumFunc)
 }
@@ -369,54 +325,100 @@ func NewResources() *Resources {
 
 // Receiver to initialize the object.
 func (rs *Resources) Init() {
-	rs.rm = make(map[serviceKey]ResourceConfigMap)
+	rs.rm = make(resourceKeyMap)
+	rs.rsMap = make(ResourceConfigMap)
 }
 
 // callback type for ForEach()
 type ResourceEnumFunc func(key serviceKey, cfg *ResourceConfig)
 
 // Add or update a Resource config, identified by key.
-func (rs *Resources) Assign(key serviceKey, name string, cfg *ResourceConfig) {
-	rsMap, ok := rs.rm[key]
+func (rs *Resources) Assign(svcKey serviceKey, name string, cfg *ResourceConfig) {
+	rsList, ok := rs.rm[svcKey]
 	if !ok {
-		rsMap = make(map[string]*ResourceConfig)
-		rs.rm[key] = rsMap
+		rsList = make(resourceList)
+		rs.rm[svcKey] = rsList
 	}
-	rsMap[name] = cfg
+	rsList[name] = true
+	rs.rsMap[name] = cfg
+}
+
+func (cfg *ResourceConfig) GetName() string {
+	if cfg.MetaData.ResourceType == "iapp" {
+		return cfg.IApp.Name
+	}
+	return cfg.Virtual.Name
+}
+
+func (cfg *ResourceConfig) GetPartition() string {
+	if cfg.MetaData.ResourceType == "iapp" {
+		return cfg.IApp.Partition
+	}
+	return cfg.Virtual.Partition
 }
 
 // Count of all configurations currently stored.
 func (rs *Resources) Count() int {
 	var ct int = 0
-	for _, cfgs := range rs.rm {
-		ct += len(cfgs)
+	for _, rsList := range rs.rm {
+		ct += len(rsList)
 	}
 	return ct
 }
 
 // Count of all configurations for a specific backend.
-func (rs *Resources) CountOf(key serviceKey) int {
-	if rsMap, ok := rs.rm[key]; ok {
-		return len(rsMap)
+func (rs *Resources) CountOf(svcKey serviceKey) int {
+	if rsList, ok := rs.rm[svcKey]; ok {
+		return len(rsList)
 	}
 	return 0
 }
 
+func (rs *Resources) deleteImpl(
+	rsList resourceList,
+	rsName string,
+	svcKey serviceKey,
+) {
+	// Remove mapping for a backend -> virtual/iapp
+	delete(rsList, rsName)
+	if len(rsList) == 0 {
+		// Remove backend since no virtuals/iapps remain
+		delete(rs.rm, svcKey)
+	}
+
+	// Look at all service keys to see if another references rsName
+	useCt := 0
+	for _, otherList := range rs.rm {
+		for otherName, _ := range otherList {
+			if otherName == rsName {
+				// Found one, can't delete this resource yet.
+				useCt += 1
+				break
+			}
+		}
+	}
+	if useCt == 0 {
+		delete(rs.rsMap, rsName)
+	}
+}
+
 // Remove a specific resource configuration.
-func (rs *Resources) Delete(key serviceKey, name string) bool {
-	rsMap, ok := rs.rm[key]
+func (rs *Resources) Delete(svcKey serviceKey, name string) bool {
+	rsList, ok := rs.rm[svcKey]
 	if !ok {
+		// svcKey not found
 		return false
 	}
 	if name == "" {
-		delete(rs.rm, key)
+		// Delete all resources for svcKey
+		for rsName, _ := range rsList {
+			rs.deleteImpl(rsList, rsName, svcKey)
+		}
 		return true
 	}
-	if _, ok := rsMap[name]; ok {
-		delete(rsMap, name)
-		if len(rsMap) == 0 {
-			delete(rs.rm, key)
-		}
+	if _, ok = rsList[name]; ok {
+		// Delete specific named resource for svcKey
+		rs.deleteImpl(rsList, name, svcKey)
 		return true
 	}
 	return false
@@ -424,27 +426,44 @@ func (rs *Resources) Delete(key serviceKey, name string) bool {
 
 // Iterate over all configurations, calling the supplied callback with each.
 func (rs *Resources) ForEach(f ResourceEnumFunc) {
-	for key, cfgs := range rs.rm {
-		for _, cfg := range cfgs {
-			f(key, cfg)
+	for svcKey, rsList := range rs.rm {
+		for rsName, _ := range rsList {
+			cfg, _ := rs.rsMap[rsName]
+			f(svcKey, cfg)
 		}
 	}
 }
 
 // Get a specific Resource cfg
-func (rs *Resources) Get(key serviceKey, name string) (*ResourceConfig, bool) {
-	rsMap, ok := rs.rm[key]
+func (rs *Resources) Get(svcKey serviceKey, name string) (*ResourceConfig, bool) {
+	rsList, ok := rs.rm[svcKey]
 	if !ok {
 		return nil, ok
 	}
-	resource, ok := rsMap[name]
+	_, ok = rsList[name]
+	if !ok {
+		return nil, ok
+	}
+	resource, ok := rs.rsMap[name]
+	return resource, ok
+}
+
+// Get a specific Resource cfg
+func (rs *Resources) GetByName(name string) (*ResourceConfig, bool) {
+	resource, ok := rs.rsMap[name]
 	return resource, ok
 }
 
 // Get all configurations for a specific backend
-func (rs *Resources) GetAll(key serviceKey) (ResourceConfigMap, bool) {
-	rsMap, ok := rs.rm[key]
-	return rsMap, ok
+func (rs *Resources) GetAll(svcKey serviceKey) ResourceConfigs {
+	var cfgs ResourceConfigs
+	rsList, ok := rs.rm[svcKey]
+	if ok {
+		for rsKey, _ := range rsList {
+			cfgs = append(cfgs, rs.rsMap[rsKey])
+		}
+	}
+	return cfgs
 }
 
 // Get all configurations with a specific name, spanning multiple backends
@@ -453,12 +472,20 @@ func (rs *Resources) GetAllWithName(name string) (ResourceConfigs, []serviceKey)
 	var cfgs ResourceConfigs
 	var keys []serviceKey
 	rs.ForEach(func(key serviceKey, cfg *ResourceConfig) {
-		if name == cfg.Virtual.VirtualServerName {
+		if name == cfg.Virtual.Name {
 			cfgs = append(cfgs, cfg)
 			keys = append(keys, key)
 		}
 	})
 	return cfgs, keys
+}
+
+func (rs *Resources) GetAllResources() ResourceConfigs {
+	var cfgs ResourceConfigs
+	for _, cfg := range rs.rsMap {
+		cfgs = append(cfgs, cfg)
+	}
+	return cfgs
 }
 
 // Unmarshal an expected ConfigMap object
@@ -499,11 +526,10 @@ func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
 				return &cfg, errors.New(errStr)
 			}
 			if result.Valid() {
-				cfg.Virtual.VirtualServerName = formatConfigMapVSName(cm)
-				copyConfigMap(&cfg, &cfgMap)
+				copyConfigMap(formatConfigMapVSName(cm), &cfg, &cfgMap)
 
 				// Checking for annotation in VS, not iApp
-				if cfg.Virtual.IApp == "" && cfg.Virtual.VirtualAddress != nil {
+				if cfg.MetaData.ResourceType != "iapp" && cfg.Virtual.VirtualAddress != nil {
 					// Precedence to configmap bindAddr if annotation is also set
 					if cfg.Virtual.VirtualAddress.BindAddr != "" &&
 						cm.ObjectMeta.Annotations["virtual-server.f5.com/ip"] != "" {
@@ -513,7 +539,7 @@ func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
 					} else if cfg.Virtual.VirtualAddress.BindAddr == "" {
 						// Check for IP annotation provided by IPAM system
 						if addr, ok := cm.ObjectMeta.Annotations["virtual-server.f5.com/ip"]; ok == true {
-							cfg.Virtual.VirtualAddress.BindAddr = addr
+							cfg.Virtual.SetVirtualAddress(addr, 0)
 						} else {
 							log.Infof("No virtual IP was specified for the virtual server %s creating pool only.", cm.ObjectMeta.Name)
 						}
@@ -538,13 +564,79 @@ func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
 	return &cfg, nil
 }
 
-func copyConfigMap(cfg *ResourceConfig, cfgMap *ConfigMap) {
-	// If mode not set, use default
-	if cfgMap.VirtualServer.Frontend.Mode == "" {
-		cfg.Virtual.Mode = DEFAULT_MODE
-	} else {
-		cfg.Virtual.Mode = cfgMap.VirtualServer.Frontend.Mode
+func setProfilesForMode(mode string, cfg *ResourceConfig) {
+	switch mode {
+	case "http":
+		cfg.Virtual.IpProtocol = "tcp"
+		cfg.Virtual.AddOrUpdateProfile(
+			ProfileRef{
+				Partition: "Common",
+				Name:      "http",
+				Context:   customProfileAll,
+			})
+	case "tcp":
+		cfg.Virtual.IpProtocol = "tcp"
+		cfg.Virtual.AddOrUpdateProfile(
+			ProfileRef{
+				Partition: "Common",
+				Name:      "tcp",
+				Context:   customProfileAll,
+			})
+	case "udp":
+		cfg.Virtual.IpProtocol = "udp"
 	}
+}
+
+func copyConfigMap(cmName string, cfg *ResourceConfig, cfgMap *ConfigMap) {
+	if cfgMap.VirtualServer.Frontend.IApp == "" {
+		// Handle virtual server specific config.
+		cfg.MetaData.ResourceType = "virtual"
+		cfg.Virtual.Name = cmName
+		cfg.Virtual.Partition = cfgMap.VirtualServer.Frontend.Partition
+		cfg.Virtual.Enabled = true
+		cfg.Virtual.SourceAddrTranslation.Type = "automap"
+		cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, cmName)
+
+		// If mode not set, use default
+		mode := DEFAULT_MODE
+		if cfgMap.VirtualServer.Frontend.Mode != "" {
+			mode = strings.ToLower(cfgMap.VirtualServer.Frontend.Mode)
+		}
+		setProfilesForMode(mode, cfg)
+
+		if nil != cfgMap.VirtualServer.Frontend.VirtualAddress {
+			cfg.Virtual.SetVirtualAddress(
+				cfgMap.VirtualServer.Frontend.VirtualAddress.BindAddr,
+				cfgMap.VirtualServer.Frontend.VirtualAddress.Port)
+		} else {
+			// Pool-only
+			cfg.Virtual.SetVirtualAddress("", 0)
+		}
+		if nil != cfgMap.VirtualServer.Frontend.SslProfile {
+			if len(cfgMap.VirtualServer.Frontend.SslProfile.F5ProfileName) > 0 {
+				profRef := convertStringToProfileRef(
+					cfgMap.VirtualServer.Frontend.SslProfile.F5ProfileName,
+					customProfileClient)
+				cfg.Virtual.AddOrUpdateProfile(profRef)
+			} else {
+				for _, profName := range cfgMap.VirtualServer.Frontend.SslProfile.F5ProfileNames {
+					profRef := convertStringToProfileRef(profName, customProfileClient)
+					cfg.Virtual.AddOrUpdateProfile(profRef)
+				}
+			}
+		}
+	} else {
+		// Handle IApp specific config.
+		cfg.MetaData.ResourceType = "iapp"
+		cfg.IApp.Name = cmName
+		cfg.IApp.Partition = cfgMap.VirtualServer.Frontend.Partition
+		cfg.IApp.IApp = cfgMap.VirtualServer.Frontend.IApp
+		cfg.IApp.IAppPoolMemberTable = cfgMap.VirtualServer.Frontend.IAppPoolMemberTable
+		cfg.IApp.IAppOptions = cfgMap.VirtualServer.Frontend.IAppOptions
+		cfg.IApp.IAppTables = cfgMap.VirtualServer.Frontend.IAppTables
+		cfg.IApp.IAppVariables = cfgMap.VirtualServer.Frontend.IAppVariables
+	}
+
 	// If balance not set, use default
 	var balance string
 	if cfgMap.VirtualServer.Frontend.Balance == "" {
@@ -552,39 +644,28 @@ func copyConfigMap(cfg *ResourceConfig, cfgMap *ConfigMap) {
 	} else {
 		balance = cfgMap.VirtualServer.Frontend.Balance
 	}
-
-	cfg.Virtual.Partition = cfgMap.VirtualServer.Frontend.Partition
-	cfg.Virtual.VirtualAddress = cfgMap.VirtualServer.Frontend.VirtualAddress
-	cfg.Virtual.SslProfile = cfgMap.VirtualServer.Frontend.SslProfile
-	cfg.Virtual.IApp = cfgMap.VirtualServer.Frontend.IApp
-	cfg.Virtual.IAppPoolMemberTable = cfgMap.VirtualServer.Frontend.IAppPoolMemberTable
-	cfg.Virtual.IAppOptions = cfgMap.VirtualServer.Frontend.IAppOptions
-	cfg.Virtual.IAppTables = cfgMap.VirtualServer.Frontend.IAppTables
-	cfg.Virtual.IAppVariables = cfgMap.VirtualServer.Frontend.IAppVariables
-
 	var monitorNames []string
-	var name string
 	for index, mon := range cfgMap.VirtualServer.Backend.HealthMonitors {
-		name = fmt.Sprintf("%s_%d_%s", cfg.Virtual.VirtualServerName, index, mon.Protocol)
 		monitor := Monitor{
 			// Append the protocol to the monitor names to differentiate them.
 			// Also add a monitor index to the name to be consistent with the
 			// marathon-bigip-ctlr. Since the monitor names are already unique here,
 			// appending a '0' is sufficient.
-			Name:      name,
-			Partition: cfg.Virtual.Partition,
+			Name:      fmt.Sprintf("%s_%d_%s", cmName, index, mon.Protocol),
+			Partition: cfgMap.VirtualServer.Frontend.Partition,
 			Interval:  mon.Interval,
-			Protocol:  mon.Protocol,
+			Type:      mon.Protocol,
 			Send:      mon.Send,
 			Timeout:   mon.Timeout,
 		}
 		cfg.Monitors = append(cfg.Monitors, monitor)
-		fullName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, monitor.Name)
+		fullName := fmt.Sprintf("/%s/%s",
+			cfgMap.VirtualServer.Frontend.Partition, monitor.Name)
 		monitorNames = append(monitorNames, fullName)
 	}
 	pool := Pool{
-		Name:         cfg.Virtual.VirtualServerName,
-		Partition:    cfg.Virtual.Partition,
+		Name:         cmName,
+		Partition:    cfgMap.VirtualServer.Frontend.Partition,
 		Balance:      balance,
 		ServiceName:  cfgMap.VirtualServer.Backend.ServiceName,
 		ServicePort:  cfgMap.VirtualServer.Backend.ServicePort,
@@ -592,11 +673,11 @@ func copyConfigMap(cfg *ResourceConfig, cfgMap *ConfigMap) {
 		MonitorNames: monitorNames,
 	}
 	cfg.Pools = append(cfg.Pools, pool)
-	cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
 }
 
 // Create a ResourceConfig based on an Ingress resource config
-func createRSConfigFromIngress(ing *v1beta1.Ingress,
+func createRSConfigFromIngress(
+	ing *v1beta1.Ingress,
 	ns string,
 	svcIndexer cache.Indexer,
 	pStruct portStruct,
@@ -608,16 +689,16 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress,
 			return nil
 		}
 	}
-	cfg.Virtual.VirtualServerName = formatIngressVSName(ing, pStruct.protocol)
-	cfg.Virtual.Mode = "http"
+	cfg.Virtual.Name = formatIngressVSName(ing, pStruct.protocol)
+	cfg.Virtual.Enabled = true
+	setProfilesForMode("http", &cfg)
+	cfg.Virtual.SourceAddrTranslation.Type = "automap"
 	var balance string
 	if bal, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/balance"]; ok == true {
 		balance = bal
 	} else {
 		balance = DEFAULT_BALANCE
 	}
-	cfg.Virtual.VirtualAddress = &virtualAddress{}
-	cfg.Virtual.VirtualAddress.Port = pStruct.port
 
 	if partition, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/partition"]; ok == true {
 		cfg.Virtual.Partition = partition
@@ -625,16 +706,18 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress,
 		cfg.Virtual.Partition = DEFAULT_PARTITION
 	}
 
+	bindAddr := ""
 	if addr, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/ip"]; ok == true {
-		cfg.Virtual.VirtualAddress.BindAddr = addr
+		bindAddr = addr
 	} else {
 		log.Infof("No virtual IP was specified for the virtual server %s, creating pool only.",
 			ing.ObjectMeta.Name)
 	}
+	cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
 
 	if nil != ing.Spec.Rules { //multi-service
 		index := 0
-		poolName := cfg.Virtual.VirtualServerName
+		poolName := cfg.Virtual.Name
 		for _, rule := range ing.Spec.Rules {
 			if nil != rule.IngressRuleValue.HTTP {
 				for _, path := range rule.IngressRuleValue.HTTP.Paths {
@@ -656,7 +739,7 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress,
 						continue
 					}
 					if index > 0 {
-						poolName = fmt.Sprintf("%s_%d", cfg.Virtual.VirtualServerName, index)
+						poolName = fmt.Sprintf("%s_%d", cfg.Virtual.Name, index)
 					}
 					pool := Pool{
 						Name:        poolName,
@@ -671,11 +754,11 @@ func createRSConfigFromIngress(ing *v1beta1.Ingress,
 			}
 		}
 		rules := processIngressRules(&ing.Spec, cfg.Pools, cfg.Virtual.Partition)
-		plcy := createPolicy(*rules, cfg.Virtual.VirtualServerName, cfg.Virtual.Partition)
+		plcy := createPolicy(*rules, cfg.Virtual.Name, cfg.Virtual.Partition)
 		cfg.SetPolicy(*plcy)
 	} else { // single-service
 		pool := Pool{
-			Name:        cfg.Virtual.VirtualServerName,
+			Name:        cfg.Virtual.Name,
 			Partition:   cfg.Virtual.Partition,
 			Balance:     balance,
 			ServiceName: ing.Spec.Backend.ServiceName,
@@ -746,10 +829,9 @@ func createRSConfigFromRoute(
 	resources.Lock()
 	defer resources.Unlock()
 	// Check to see if we have any Routes already saved for this VS type
-	cfgs, _ := resources.GetAllWithName(rsName)
-	if len(cfgs) > 0 {
+	if oldCfg, exists := resources.GetByName(rsName); exists {
 		// If we do, use an existing config
-		rsCfg.copyConfig(cfgs[0])
+		rsCfg.copyConfig(oldCfg)
 
 		// If this pool doesn't already exist, add it
 		var found bool
@@ -780,14 +862,16 @@ func createRSConfigFromRoute(
 		}
 	} else { // This is a new VS for a Route
 		rsCfg.MetaData.ResourceType = "route"
-		rsCfg.Virtual.VirtualServerName = rsName
-		rsCfg.Virtual.Mode = "http"
+		rsCfg.Virtual.Name = rsName
+		rsCfg.Virtual.Enabled = true
+		setProfilesForMode("http", &rsCfg)
+		rsCfg.Virtual.SourceAddrTranslation.Type = "automap"
 		rsCfg.Virtual.Partition = DEFAULT_PARTITION
-		rsCfg.Virtual.VirtualAddress = &virtualAddress{}
-		rsCfg.Virtual.VirtualAddress.Port = pStruct.port
+		bindAddr := ""
 		if routeConfig.RouteVSAddr != "" {
-			rsCfg.Virtual.VirtualAddress.BindAddr = routeConfig.RouteVSAddr
+			bindAddr = routeConfig.RouteVSAddr
 		}
+		rsCfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 
 		rsCfg.HandleRouteTls(tls, pStruct.protocol, policyName, rule)
@@ -989,6 +1073,26 @@ func (rc *ResourceConfig) RemoveMonitor(pool, monitor string) bool {
 	return removed
 }
 
+func (rc *ResourceConfig) RemovePoolAt(offset int) bool {
+	if offset >= len(rc.Pools) {
+		return false
+	}
+	copy(rc.Pools[offset:], rc.Pools[offset+1:])
+	rc.Pools[len(rc.Pools)-1] = Pool{}
+	rc.Pools = rc.Pools[:len(rc.Pools)-1]
+	return true
+}
+
+func (pol *Policy) RemoveRuleAt(offset int) bool {
+	if offset >= len(pol.Rules) {
+		return false
+	}
+	copy(pol.Rules[offset:], pol.Rules[offset+1:])
+	pol.Rules[len(pol.Rules)-1] = &Rule{}
+	pol.Rules = pol.Rules[:len(pol.Rules)-1]
+	return true
+}
+
 // Sorting methods for unit testing
 func (slice Virtuals) Len() int {
 	return len(slice)
@@ -997,7 +1101,7 @@ func (slice Virtuals) Len() int {
 func (slice Virtuals) Less(i, j int) bool {
 	return slice[i].Partition < slice[j].Partition ||
 		(slice[i].Partition == slice[j].Partition &&
-			slice[i].VirtualServerName < slice[j].VirtualServerName)
+			slice[i].Name < slice[j].Name)
 }
 
 func (slice Virtuals) Swap(i, j int) {
@@ -1006,6 +1110,9 @@ func (slice Virtuals) Swap(i, j int) {
 
 func (cfg *BigIPConfig) SortVirtuals() {
 	sort.Sort(cfg.Virtuals)
+	for _, vs := range cfg.Virtuals {
+		sort.Sort(vs.Profiles)
+	}
 }
 
 func (slice Pools) Len() int {

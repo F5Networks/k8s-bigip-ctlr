@@ -207,104 +207,105 @@ func httpRedirectIRule(port int32) string {
 }
 
 func sslPassthroughIRule() string {
-	iRuleCode := `when CLIENT_ACCEPTED {
-	TCP::collect
-}
+	iRuleCode :=
+		`when CLIENT_ACCEPTED {
+			TCP::collect
+		}
 
-when CLIENT_DATA {
-	# Byte 0 is the content type.
-	# Bytes 1-2 are the TLS version.
-	# Bytes 3-4 are the TLS payload length.
-	# Bytes 5-$tls_payload_len are the TLS payload.
-	binary scan [TCP::payload] cSS tls_content_type tls_version tls_payload_len
+		when CLIENT_DATA {
+			# Byte 0 is the content type.
+			# Bytes 1-2 are the TLS version.
+			# Bytes 3-4 are the TLS payload length.
+			# Bytes 5-$tls_payload_len are the TLS payload.
+			binary scan [TCP::payload] cSS tls_content_type tls_version tls_payload_len
 
-	switch $tls_version {
-		"769" -
-		"770" -
-		"771" {
-			# Content type of 22 indicates the TLS payload contains a handshake.
-			if { $tls_content_type == 22 } {
-				# Byte 5 (the first byte of the handshake) indicates the handshake
-				# record type, and a value of 1 signifies that the handshake record is
-				# a ClientHello.
-				binary scan [TCP::payload] @5c tls_handshake_record_type
-				if { $tls_handshake_record_type == 1 } {
-					# Bytes 6-8 are the handshake length (which we ignore).
-					# Bytes 9-10 are the TLS version (which we ignore).
-					# Bytes 11-42 are random data (which we ignore).
+			switch $tls_version {
+				"769" -
+				"770" -
+				"771" {
+					# Content type of 22 indicates the TLS payload contains a handshake.
+					if { $tls_content_type == 22 } {
+						# Byte 5 (the first byte of the handshake) indicates the handshake
+						# record type, and a value of 1 signifies that the handshake record is
+						# a ClientHello.
+						binary scan [TCP::payload] @5c tls_handshake_record_type
+						if { $tls_handshake_record_type == 1 } {
+							# Bytes 6-8 are the handshake length (which we ignore).
+							# Bytes 9-10 are the TLS version (which we ignore).
+							# Bytes 11-42 are random data (which we ignore).
 
-					# Byte 43 is the session ID length.  Following this are three
-					# variable-length fields which we shall skip over.
-					set record_offset 43
+							# Byte 43 is the session ID length.  Following this are three
+							# variable-length fields which we shall skip over.
+							set record_offset 43
 
-					# Skip the session ID.
-					binary scan [TCP::payload] @${record_offset}c tls_session_id_len
-					incr record_offset [expr {1 + $tls_session_id_len}]
+							# Skip the session ID.
+							binary scan [TCP::payload] @${record_offset}c tls_session_id_len
+							incr record_offset [expr {1 + $tls_session_id_len}]
 
-					# Skip the cipher_suites field.
-					binary scan [TCP::payload] @${record_offset}S tls_cipher_suites_len
-					incr record_offset [expr {2 + $tls_cipher_suites_len}]
+							# Skip the cipher_suites field.
+							binary scan [TCP::payload] @${record_offset}S tls_cipher_suites_len
+							incr record_offset [expr {2 + $tls_cipher_suites_len}]
 
-					# Skip the compression_methods field.
-					binary scan [TCP::payload] @${record_offset}c tls_compression_methods_len
-					incr record_offset [expr {1 + $tls_compression_methods_len}]
+							# Skip the compression_methods field.
+							binary scan [TCP::payload] @${record_offset}c tls_compression_methods_len
+							incr record_offset [expr {1 + $tls_compression_methods_len}]
 
-					# Get the number of extensions, and store the extensions.
-					binary scan [TCP::payload] @${record_offset}S tls_extensions_len
-					incr record_offset 2
-					binary scan [TCP::payload] @${record_offset}a* tls_extensions
+							# Get the number of extensions, and store the extensions.
+							binary scan [TCP::payload] @${record_offset}S tls_extensions_len
+							incr record_offset 2
+							binary scan [TCP::payload] @${record_offset}a* tls_extensions
 
-					for { set extension_start 0 }
-							{ $tls_extensions_len - $extension_start == abs($tls_extensions_len - $extension_start) }
-							{ incr extension_start 4 } {
-						# Bytes 0-1 of the extension are the extension type.
-						# Bytes 2-3 of the extension are the extension length.
-						binary scan $tls_extensions @${extension_start}SS extension_type extension_len
+							for { set extension_start 0 }
+									{ $tls_extensions_len - $extension_start == abs($tls_extensions_len - $extension_start) }
+									{ incr extension_start 4 } {
+								# Bytes 0-1 of the extension are the extension type.
+								# Bytes 2-3 of the extension are the extension length.
+								binary scan $tls_extensions @${extension_start}SS extension_type extension_len
 
-						# Extension type 00 is the ServerName extension.
-						if { $extension_type == "00" } {
-							# Bytes 4-5 of the extension are the SNI length (we ignore this).
+								# Extension type 00 is the ServerName extension.
+								if { $extension_type == "00" } {
+									# Bytes 4-5 of the extension are the SNI length (we ignore this).
 
-							# Byte 6 of the extension is the SNI type.
-							set sni_type_offset [expr {$extension_start + 6}]
-							binary scan $tls_extensions @${sni_type_offset}S sni_type
+									# Byte 6 of the extension is the SNI type.
+									set sni_type_offset [expr {$extension_start + 6}]
+									binary scan $tls_extensions @${sni_type_offset}S sni_type
 
-							# Type 0 is host_name.
-							if { $sni_type == "0" } {
-								# Bytes 7-8 of the extension are the SNI data (host_name)
-								# length.
-								set sni_len_offset [expr {$extension_start + 7}]
-								binary scan $tls_extensions @${sni_len_offset}S sni_len
+									# Type 0 is host_name.
+									if { $sni_type == "0" } {
+										# Bytes 7-8 of the extension are the SNI data (host_name)
+										# length.
+										set sni_len_offset [expr {$extension_start + 7}]
+										binary scan $tls_extensions @${sni_len_offset}S sni_len
 
-								# Bytes 9-$sni_len are the SNI data (host_name).
-								set sni_start [expr {$extension_start + 9}]
-								binary scan $tls_extensions @${sni_start}A${sni_len} tls_servername
+										# Bytes 9-$sni_len are the SNI data (host_name).
+										set sni_start [expr {$extension_start + 9}]
+										binary scan $tls_extensions @${sni_start}A${sni_len} tls_servername
+									}
+								}
+
+								incr extension_start $extension_len
 							}
-						}
 
-						incr extension_start $extension_len
-					}
-
-					if { [info exists tls_servername] } {
-						set servername_lower [string tolower $tls_servername]
-						SSL::disable serverside
-						if { [class match $servername_lower equals ssl_passthrough_servername_dg] } {
-							pool [class match -value $servername_lower equals ssl_passthrough_servername_dg]
-							SSL::disable
-							HTTP::disable
-						}
-						elseif { [class match $servername_lower equals ssl_reencrypt_servername_dg] } {
-							pool [class match -value $servername_lower equals ssl_reencrypt_servername_dg]
-							SSL::enable serverside
+							if { [info exists tls_servername] } {
+								set servername_lower [string tolower $tls_servername]
+								SSL::disable serverside
+								if { [class match $servername_lower equals ssl_passthrough_servername_dg] } {
+									pool [class match -value $servername_lower equals ssl_passthrough_servername_dg]
+									SSL::disable
+									HTTP::disable
+								}
+								elseif { [class match $servername_lower equals ssl_reencrypt_servername_dg] } {
+									pool [class match -value $servername_lower equals ssl_reencrypt_servername_dg]
+									SSL::enable serverside
+								}
+							}
 						}
 					}
 				}
 			}
-		}
-	}
 
-	TCP::release
-}`
+			TCP::release
+		}`
 	return iRuleCode
 }
 

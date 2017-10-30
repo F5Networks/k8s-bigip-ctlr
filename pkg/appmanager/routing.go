@@ -198,8 +198,8 @@ func processIngressRules(
 }
 
 func httpRedirectIRule(port int32) string {
-	iRuleCode := fmt.Sprintf(`
-	when HTTP_REQUEST {
+	iRuleCode := fmt.Sprintf(
+		`when HTTP_REQUEST {
        HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]
     }`, port)
 
@@ -207,8 +207,7 @@ func httpRedirectIRule(port int32) string {
 }
 
 func sslPassthroughIRule() string {
-	iRuleCode := `
-when CLIENT_ACCEPTED {
+	iRuleCode := `when CLIENT_ACCEPTED {
 	TCP::collect
 }
 
@@ -305,8 +304,7 @@ when CLIENT_DATA {
 	}
 
 	TCP::release
-}
-`
+}`
 	return iRuleCode
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 
 	routeapi "github.com/openshift/origin/pkg/route/api"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -95,6 +96,68 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(monitorFound).To(BeFalse())
 		}
 	}
+
+	Context("health monitor properties", func() {
+		It("confirms health Monitor properties", func() {
+			hm := Monitor{}
+			hm.Name = "svc"
+			hm.Partition = "f5"
+			hm.Interval = 10
+			hm.Type = "http"
+			hm.Send = "GET / HTTP/1.0"
+			hm.Recv = "Hello from"
+			hm.Timeout = 5
+
+			Expect(hm).To(MatchAllFields(Fields{
+				"Name":      Equal("svc"),
+				"Partition": Equal("f5"),
+				"Interval":  Equal(10),
+				"Type":      Equal("http"),
+				"Send":      Equal("GET / HTTP/1.0"),
+				"Recv":      Equal("Hello from"),
+				"Timeout":   Equal(5),
+			}))
+		})
+
+		It("confirms ConfigMapMonitor properties", func() {
+			cmm := configMapMonitor{}
+			cmm.Name = "svc"
+			cmm.Partition = "f5"
+			cmm.Interval = 10
+			cmm.Protocol = "http"
+			cmm.Send = "GET / HTTP/1.0"
+			cmm.Recv = "Hello from"
+			cmm.Timeout = 5
+
+			Expect(cmm).To(MatchAllFields(Fields{
+				"Name":      Equal("svc"),
+				"Partition": Equal("f5"),
+				"Interval":  Equal(10),
+				"Protocol":  Equal("http"),
+				"Send":      Equal("GET / HTTP/1.0"),
+				"Recv":      Equal("Hello from"),
+				"Timeout":   Equal(5),
+			}))
+		})
+
+		It("confirms AnnotationHealthMonitor properties", func() {
+			ahm := AnnotationHealthMonitor{}
+			ahm.Path = "/foo"
+			ahm.Interval = 10
+			ahm.Send = "GET / HTTP/1.0"
+			ahm.Recv = "Hello from"
+			ahm.Timeout = 5
+
+			Expect(ahm).To(MatchAllFields(Fields{
+				"Path":     Equal("/foo"),
+				"Interval": Equal(10),
+				"Send":     Equal("GET / HTTP/1.0"),
+				"Recv":     Equal("Hello from"),
+				"Timeout":  Equal(5),
+			}))
+		})
+
+	})
 
 	Context("ingress health monitors", func() {
 		It("configures single service ingress health checks", func() {
@@ -901,6 +964,7 @@ var _ = Describe("Health Monitor Tests", func() {
 					{
 						"path":     "svc1/",
 						"send":     "HTTP GET /test1",
+						"recv":     "Hello from",
 						"interval": 5,
 						"timeout":  10
 					}

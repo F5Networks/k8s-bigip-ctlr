@@ -682,6 +682,7 @@ func copyConfigMap(cmName string, cfg *ResourceConfig, cfgMap *ConfigMap) {
 			Interval:  mon.Interval,
 			Type:      mon.Protocol,
 			Send:      mon.Send,
+			Recv:      mon.Recv,
 			Timeout:   mon.Timeout,
 		}
 		cfg.Monitors = append(cfg.Monitors, monitor)

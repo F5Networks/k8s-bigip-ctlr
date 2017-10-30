@@ -369,6 +369,16 @@
 			"Rev": "c893efa28eb45626cdaa76c9f653b62488858837"
 		},
 		{
+			"ImportPath": "github.com/onsi/gomega/gstruct",
+			"Comment": "v1.2.0",
+			"Rev": "c893efa28eb45626cdaa76c9f653b62488858837"
+		},
+		{
+			"ImportPath": "github.com/onsi/gomega/gstruct/errors",
+			"Comment": "v1.2.0",
+			"Rev": "c893efa28eb45626cdaa76c9f653b62488858837"
+		},
+		{
 			"ImportPath": "github.com/onsi/gomega/internal/assertion",
 			"Comment": "v1.2.0",
 			"Rev": "c893efa28eb45626cdaa76c9f653b62488858837"

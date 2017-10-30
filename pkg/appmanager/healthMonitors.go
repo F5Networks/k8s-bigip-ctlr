@@ -90,6 +90,7 @@ func (appMgr *Manager) assignMonitorToPool(
 				Type:      "http",
 				Interval:  ruleData.healthMon.Interval,
 				Send:      ruleData.healthMon.Send,
+				Recv:      ruleData.healthMon.Recv,
 				Timeout:   ruleData.healthMon.Timeout,
 			}
 			updated = cfg.SetMonitor(&cfg.Pools[poolNdx], monitor)

@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/F5Networks/k8s-bigip-ctlr.svg?branch=master)](https://travis-ci.org/F5Networks/k8s-bigip-ctlr) [![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg?branch=HEAD)](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr?branch=HEAD)
+[![Build Status](https://travis-ci.org/F5Networks/k8s-bigip-ctlr.svg?branch=master)](https://travis-ci.org/F5Networks/k8s-bigip-ctlr) [![Slack](https://f5cloudsolutions.herokuapp.com/badge.svg)](https://f5cloudsolutions.herokuapp.com) [![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg?branch=HEAD)](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr?branch=HEAD)
 
 F5 BIG-IP Controller for Kubernetes
 ===================================
@@ -16,6 +16,16 @@ for F5 BIG-IP Controller for Kubernetes.
 
 For guides on this and other solutions for Kubernetes, see the
 [F5 Solution Guides for Kubernetes](http://clouddocs.f5.com/containers/latest/kubernetes).
+
+Getting Help
+------------
+
+We encourage you to use the cc-kubernetes channel in our [f5CloudSolutions Slack workspace](https://f5cloudsolutions.herokuapp.com/) for discussion and assistance on this
+controller. This channel is typically monitored Monday-Friday 9am-5pm MST by F5
+employees who will offer best-effort support.
+
+Contact F5 Technical support via your typical method for more time sensitive
+changes and other issues requiring immediate support.
 
 
 Running

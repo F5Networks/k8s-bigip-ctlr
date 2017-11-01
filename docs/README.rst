@@ -1,6 +1,8 @@
 F5 BIG-IP Controller for Kubernetes
 ===================================
 
+|Slack|
+
 .. toctree::
     :hidden:
     :maxdepth: 2
@@ -663,3 +665,6 @@ Example Configuration Files
 .. _NodePort mode: /containers/latest/kubernetes/kctlr-modes.html
 .. _OpenShift Route: https://docs.openshift.org/1.4/dev_guide/routes.html
 .. _route domain: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-routing-administration-12-0-0/9.html
+.. |Slack| image:: https://f5cloudsolutions.herokuapp.com/badge.svg
+   :target: https://f5cloudsolutions.herokuapp.com
+   :alt: Slack

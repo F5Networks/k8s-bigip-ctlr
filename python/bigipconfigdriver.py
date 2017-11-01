@@ -229,13 +229,25 @@ def _create_custom_profiles(mgmt, partition, custom_profiles):
     incomplete = 0
 
     customProfiles = False
+
+    # Server profiles may reference a CA cert in another server profile.
+    # These need to be loaded first.
+    for profile in custom_profiles:
+        caFile = profile.get('caFile', '')
+        if profile['context'] == 'serverside' and caFile == "self":
+            incomplete += create_server_ssl_profile(mgmt, partition, profile)
+            customProfiles = True
+
     for profile in custom_profiles:
         if profile['context'] == 'clientside':
             incomplete += create_client_ssl_profile(mgmt, partition, profile)
             customProfiles = True
         elif profile['context'] == 'serverside':
-            incomplete += create_server_ssl_profile(mgmt, partition, profile)
-            customProfiles = True
+            caFile = profile.get('caFile', '')
+            if caFile != "self":
+                incomplete += create_server_ssl_profile(
+                    mgmt, partition, profile)
+                customProfiles = True
         else:
             log.error(
                 "Only client or server custom profiles are supported.")

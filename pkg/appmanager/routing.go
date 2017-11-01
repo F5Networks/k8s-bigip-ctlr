@@ -39,8 +39,11 @@ const sslPassthroughIRuleName = "openshift_passthrough_irule"
 const passthroughHostsDgName = "ssl_passthrough_servername_dg"
 
 // Internal data group for reencrypt routes.
-// FIXME: Only used by the iRule below until reencrypt is supported.
 const reencryptHostsDgName = "ssl_reencrypt_servername_dg"
+
+// Internal data group for reencrypt routes that maps the host name to the
+// server ssl profile.
+const reencryptServerSslDgName = "ssl_reencrypt_serverssl_dg"
 
 func (r Rules) Len() int           { return len(r) }
 func (r Rules) Less(i, j int) bool { return r[i].FullURI < r[j].FullURI }
@@ -305,6 +308,13 @@ func sslPassthroughIRule() string {
 			}
 
 			TCP::release
+		}
+
+		when SERVER_CONNECTED {
+			if { [class match $servername_lower equals ssl_reencrypt_serverssl_dg] } {
+				set profile [class match -value $servername_lower equals ssl_reencrypt_serverssl_dg]
+				SSL::profile $profile
+			}
 		}`
 	return iRuleCode
 }
@@ -313,6 +323,7 @@ func sslPassthroughIRule() string {
 // something had changed.
 func (appMgr *Manager) updatePassthroughRouteDataGroups(
 	partition string,
+	namespace string,
 	poolName string,
 	hostName string,
 ) (bool, error) {
@@ -325,12 +336,17 @@ func (appMgr *Manager) updatePassthroughRouteDataGroups(
 
 	appMgr.intDgMutex.Lock()
 	defer appMgr.intDgMutex.Unlock()
-	hostDg, found := appMgr.intDgMap[key]
+	nsHostDg, found := appMgr.intDgMap[key]
 	if false == found {
 		return false, fmt.Errorf("Internal Data-group /%s/%s does not exist.",
 			partition, passthroughHostsDgName)
 	}
 
+	hostDg, found := nsHostDg[namespace]
+	if !found {
+		hostDg = &InternalDataGroup{}
+		nsHostDg[namespace] = hostDg
+	}
 	if hostDg.AddOrUpdateRecord(hostName, poolName) {
 		changed = true
 	}
@@ -342,24 +358,26 @@ func (appMgr *Manager) updatePassthroughRouteDataGroups(
 func updateDataGroupForPassthroughRoute(
 	route *routeapi.Route,
 	partition string,
+	namespace string,
 	dgMap InternalDataGroupMap,
 ) {
 	hostName := route.Spec.Host
 	poolName := formatRoutePoolName(route)
 	updateDataGroup(dgMap, passthroughHostsDgName,
-		partition, hostName, poolName)
+		partition, namespace, hostName, poolName)
 }
 
 // Update a data group map based on a reencrypt route object.
 func updateDataGroupForReencryptRoute(
 	route *routeapi.Route,
 	partition string,
+	namespace string,
 	dgMap InternalDataGroupMap,
 ) {
 	hostName := route.Spec.Host
 	poolName := formatRoutePoolName(route)
 	updateDataGroup(dgMap, reencryptHostsDgName,
-		partition, hostName, poolName)
+		partition, namespace, hostName, poolName)
 }
 
 // Add or update a data group record
@@ -367,6 +385,7 @@ func updateDataGroup(
 	intDgMap InternalDataGroupMap,
 	name string,
 	partition string,
+	namespace string,
 	key string,
 	value string,
 ) {
@@ -374,7 +393,12 @@ func updateDataGroup(
 		Name:      name,
 		Partition: partition,
 	}
-	dg, found := intDgMap[mapKey]
+	nsDg, found := intDgMap[mapKey]
+	if !found {
+		nsDg = make(DataGroupNamespaceMap)
+		intDgMap[mapKey] = nsDg
+	}
+	dg, found := nsDg[namespace]
 	if found {
 		dg.AddOrUpdateRecord(key, value)
 	} else {
@@ -383,7 +407,7 @@ func updateDataGroup(
 			Partition: partition,
 		}
 		newDg.AddOrUpdateRecord(key, value)
-		intDgMap[mapKey] = &newDg
+		nsDg[namespace] = &newDg
 	}
 }
 
@@ -398,50 +422,21 @@ func (appMgr *Manager) updateRouteDataGroups(
 	defer appMgr.intDgMutex.Unlock()
 
 	// If dgMap is empty, delete all records in our internal map for this namespace
-	var toRemove InternalDataGroupRecords
 	if len(dgMap) == 0 {
-		for _, dg := range appMgr.intDgMap {
-			for _, rec := range dg.Records {
-				ns := strings.Split(rec.Data, "_")[1]
-				if ns == namespace {
-					toRemove = append(toRemove, rec)
-				}
-			}
-			for _, rec := range toRemove {
-				dg.RemoveRecord(rec.Name)
+		for _, nsDg := range appMgr.intDgMap {
+			if _, found := nsDg[namespace]; found {
+				delete(nsDg, namespace)
+				stats.dgUpdated += 1
 			}
 		}
 	}
 
-	for _, grp := range dgMap {
-		mapKey := nameRef{
-			Name:      grp.Name,
-			Partition: grp.Partition,
-		}
-		dg, found := appMgr.intDgMap[mapKey]
+	for mapKey, grp := range dgMap {
+		nsDg, found := appMgr.intDgMap[mapKey]
 		if found {
-			// Make sure we are only looking at records for this namespace,
-			// or else our records will never match, since dgMap only contains
-			// records for the current namespace, while intDgMap has records
-			// for all namespaces
-			var nonNSRecords, NSRecords InternalDataGroupRecords
-			for _, rec := range dg.Records {
-				ns := strings.Split(rec.Data, "_")[1]
-				if ns != namespace {
-					// Save off a list of records for other namespaces
-					nonNSRecords = append(nonNSRecords, rec)
-				} else {
-					// Save a list of records for this namespace (used for comparison)
-					NSRecords = append(NSRecords, rec)
-				}
-			}
-			if !reflect.DeepEqual(NSRecords, grp.Records) {
+			if !reflect.DeepEqual(nsDg[namespace], grp[namespace]) {
 				// current namespace records aren't equal
-				dg.Records = grp.Records
-				for _, rec := range nonNSRecords {
-					// Add other namespace records back in
-					dg.AddOrUpdateRecord(rec.Name, rec.Data)
-				}
+				nsDg[namespace] = grp[namespace]
 				stats.dgUpdated += 1
 			}
 		} else {

@@ -60,6 +60,11 @@ const customProfileAll string = "all"
 const customProfileClient string = "clientside"
 const customProfileServer string = "serverside"
 
+// Constants for CustomProfile.PeerCertMode
+const peerCertRequired = "require"
+const peerCertIgnored = "ignore"
+const peerCertDefault = peerCertIgnored
+
 func (v *Virtual) GetProfileCountByContext(context string) int {
 	// Valid values of context are 'clientside', serverside', and 'all'.
 	// 'all' does not mean all profiles, but profiles that can be used in
@@ -233,6 +238,20 @@ func makeRouteServerSSLProfileRef(partition, namespace, name string) ProfileRef 
 		Name:      fmt.Sprintf("openshift_route_%s_%s-server-ssl", namespace, name),
 		Context:   customProfileServer,
 	}
+}
+
+func makeCertificateFileName(name string) string {
+	// All certificates are currently in the Common partition
+	return joinBigipPath("Common", name) + ".crt"
+}
+
+func extractCertificateName(fn string) string {
+	// performs the reverse of makeCertificateFileName
+	_, name := splitBigipPath(fn, false)
+	if strings.HasSuffix(name, ".crt") {
+		name = name[:len(name)-4]
+	}
+	return name
 }
 
 func formatIngressSslProfileName(secret string) string {
@@ -532,13 +551,13 @@ func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
 				if cfg.MetaData.ResourceType != "iapp" && cfg.Virtual.VirtualAddress != nil {
 					// Precedence to configmap bindAddr if annotation is also set
 					if cfg.Virtual.VirtualAddress.BindAddr != "" &&
-						cm.ObjectMeta.Annotations["virtual-server.f5.com/ip"] != "" {
-						log.Warning(
-							"Both configmap bindAddr and virtual-server.f5.com/ip annotation are set. " +
-								"Choosing configmap's bindAddr...")
+						cm.ObjectMeta.Annotations[f5VsBindAddrAnnotation] != "" {
+						log.Warningf(
+							"Both configmap bindAddr and %s annotation are set. "+
+								"Choosing configmap's bindAddr...", f5VsBindAddrAnnotation)
 					} else if cfg.Virtual.VirtualAddress.BindAddr == "" {
 						// Check for IP annotation provided by IPAM system
-						if addr, ok := cm.ObjectMeta.Annotations["virtual-server.f5.com/ip"]; ok == true {
+						if addr, ok := cm.ObjectMeta.Annotations[f5VsBindAddrAnnotation]; ok == true {
 							cfg.Virtual.SetVirtualAddress(addr, 0)
 						} else {
 							log.Infof("No virtual IP was specified for the virtual server %s creating pool only.", cm.ObjectMeta.Name)
@@ -690,7 +709,7 @@ func createRSConfigFromIngress(
 ) *ResourceConfig {
 	var cfg ResourceConfig
 
-	if class, ok := ing.ObjectMeta.Annotations["kubernetes.io/ingress.class"]; ok == true {
+	if class, ok := ing.ObjectMeta.Annotations[k8sIngressClass]; ok == true {
 		if class != "f5" {
 			return nil
 		}
@@ -700,20 +719,20 @@ func createRSConfigFromIngress(
 	setProfilesForMode("http", &cfg)
 	cfg.Virtual.SourceAddrTranslation.Type = "automap"
 	var balance string
-	if bal, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/balance"]; ok == true {
+	if bal, ok := ing.ObjectMeta.Annotations[f5VsBalanceAnnotation]; ok == true {
 		balance = bal
 	} else {
 		balance = DEFAULT_BALANCE
 	}
 
-	if partition, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/partition"]; ok == true {
+	if partition, ok := ing.ObjectMeta.Annotations[f5VsPartitionAnnotation]; ok == true {
 		cfg.Virtual.Partition = partition
 	} else {
 		cfg.Virtual.Partition = DEFAULT_PARTITION
 	}
 
 	bindAddr := ""
-	if addr, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/ip"]; ok == true {
+	if addr, ok := ing.ObjectMeta.Annotations[f5VsBindAddrAnnotation]; ok == true {
 		bindAddr = addr
 	} else {
 		log.Infof("No virtual IP was specified for the virtual server %s, creating pool only.",
@@ -1266,17 +1285,23 @@ func NewCustomProfile(
 	key,
 	serverName string,
 	sni bool,
-	cProfiles CustomProfileStore,
+	peerCertMode,
+	caFile string,
 ) CustomProfile {
-	return CustomProfile{
-		Name:       profile.Name,
-		Partition:  profile.Partition,
-		Context:    profile.Context,
-		Cert:       cert,
-		Key:        key,
-		ServerName: serverName,
-		SNIDefault: sni,
+	cp := CustomProfile{
+		Name:         profile.Name,
+		Partition:    profile.Partition,
+		Context:      profile.Context,
+		Cert:         cert,
+		Key:          key,
+		ServerName:   serverName,
+		SNIDefault:   sni,
+		PeerCertMode: peerCertMode,
 	}
+	if peerCertMode == peerCertRequired {
+		cp.CAFile = caFile
+	}
+	return cp
 }
 
 // If name is provided, return port number for that port name,

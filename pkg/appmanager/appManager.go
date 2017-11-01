@@ -19,7 +19,6 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"reflect"
 	"sort"
@@ -53,10 +52,20 @@ import (
 )
 
 const DefaultConfigMapLabel = "f5type in (virtual-server)"
-const vsBindAddrAnnotation = "status.virtual-server.f5.com/ip"
+const vsStatusBindAddrAnnotation = "status.virtual-server.f5.com/ip"
 const ingressSslRedirect = "ingress.kubernetes.io/ssl-redirect"
 const ingressAllowHttp = "ingress.kubernetes.io/allow-http"
 const healthMonitorAnnotation = "virtual-server.f5.com/health"
+const k8sIngressClass = "kubernetes.io/ingress.class"
+const f5VsBindAddrAnnotation = "virtual-server.f5.com/ip"
+const f5VsHttpPortAnnotation = "virtual-server.f5.com/http-port"
+const f5VsHttpsPortAnnotation = "virtual-server.f5.com/https-port"
+const f5VsBalanceAnnotation = "virtual-server.f5.com/balance"
+const f5VsPartitionAnnotation = "virtual-server.f5.com/partition"
+const f5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
+const f5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"
+const f5ServerSslSecureAnnotation = "virtual-server.f5.com/secure-serverssl"
+const defaultSslServerCAName = "openshift_route_cluster_default-ca"
 
 type ResourceMap map[int32][]*ResourceConfig
 
@@ -182,44 +191,6 @@ func NewManager(params *Params) *Manager {
 	return &manager
 }
 
-func (appMgr *Manager) loadDefaultCert(
-	namespace,
-	serverName string,
-) (*ProfileRef, bool) {
-	// OpenShift will put the default server SSL cert on each pod. We create a
-	// server SSL profile for it and associate it to any reencrypt routes that
-	// have not explicitly set a certificate.
-	profileName := "openshift_route_cluster_default-server-ssl"
-	profile := ProfileRef{
-		Name:      profileName,
-		Partition: DEFAULT_PARTITION,
-		Context:   customProfileServer,
-	}
-	appMgr.customProfiles.Lock()
-	defer appMgr.customProfiles.Unlock()
-	skey := secretKey{Name: profileName}
-	_, found := appMgr.customProfiles.profs[skey]
-	if !found {
-		path := "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
-		data, err := ioutil.ReadFile(path)
-		if nil != err {
-			log.Errorf("Unable to load default cluster certificate '%v': %v",
-				path, err)
-			return nil, false
-		}
-		appMgr.customProfiles.profs[skey] =
-			NewCustomProfile(
-				profile,
-				string(data),
-				"", // no key
-				serverName,
-				false,
-				appMgr.customProfiles,
-			)
-	}
-	return &profile, !found
-}
-
 func (appMgr *Manager) addIRule(name, partition, rule string) {
 	appMgr.irulesMutex.Lock()
 	defer appMgr.irulesMutex.Unlock()
@@ -239,7 +210,7 @@ func (appMgr *Manager) addInternalDataGroup(name, partition string) {
 		Name:      name,
 		Partition: partition,
 	}
-	appMgr.intDgMap[key] = NewInternalDataGroup(name, partition)
+	appMgr.intDgMap[key] = make(DataGroupNamespaceMap)
 }
 
 func (appMgr *Manager) watchingAllNamespacesLocked() bool {
@@ -502,6 +473,9 @@ func (appMgr *Manager) newAppInformer(
 		),
 	}
 	if nil != appMgr.routeClientV1 {
+		// Ensure the default server cert is loaded
+		appMgr.loadDefaultCert()
+
 		var label labels.Selector
 		var err error
 		if len(appMgr.routeConfig.RouteLabel) == 0 {
@@ -724,6 +698,7 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 			sslPassthroughIRuleName, DEFAULT_PARTITION, sslPassthroughIRule())
 		appMgr.addInternalDataGroup(passthroughHostsDgName, DEFAULT_PARTITION)
 		appMgr.addInternalDataGroup(reencryptHostsDgName, DEFAULT_PARTITION)
+		appMgr.addInternalDataGroup(reencryptServerSslDgName, DEFAULT_PARTITION)
 	}
 
 	if nil != appMgr.nsInformer {
@@ -1002,7 +977,7 @@ func (appMgr *Manager) syncIngresses(
 		}
 
 		// Resolve first Ingress Host name (if required)
-		_, exists := ing.ObjectMeta.Annotations["virtual-server.f5.com/ip"]
+		_, exists := ing.ObjectMeta.Annotations[f5VsBindAddrAnnotation]
 		if !exists && appMgr.resolveIng != "" {
 			appMgr.resolveIngressHost(ing, sKey.Namespace)
 		}
@@ -1088,21 +1063,18 @@ func (appMgr *Manager) syncRoutes(
 	// Rebuild all internal data groups for routes as we process each
 	dgMap := make(InternalDataGroupMap)
 	for _, route := range routeByIndex {
-		// We need to look at all routes in the store, parse the data blob,
-		// and see if it belongs to the service that has changed.
-		if nil != route.Spec.TLS {
-			// The information stored in the internal data groups can span multiple
-			// namespaces, so we need to keep them updated with all current routes
-			// regardless of anything that happens below.
-			switch route.Spec.TLS.Termination {
-			case routeapi.TLSTerminationPassthrough:
-				updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION, dgMap)
-			case routeapi.TLSTerminationReencrypt:
-				updateDataGroupForReencryptRoute(route, DEFAULT_PARTITION, dgMap)
-			}
-		}
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
+		}
+		if nil != route.Spec.TLS {
+			switch route.Spec.TLS.Termination {
+			case routeapi.TLSTerminationPassthrough:
+				updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION,
+					sKey.Namespace, dgMap)
+			case routeapi.TLSTerminationReencrypt:
+				updateDataGroupForReencryptRoute(route, DEFAULT_PARTITION,
+					sKey.Namespace, dgMap)
+			}
 		}
 		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
@@ -1139,7 +1111,11 @@ func (appMgr *Manager) syncRoutes(
 					appMgr.setClientSslProfile(stats, sKey, &rsCfg, route)
 				case routeapi.TLSTerminationReencrypt:
 					appMgr.setClientSslProfile(stats, sKey, &rsCfg, route)
-					appMgr.setServerSslProfile(stats, sKey, &rsCfg, route)
+					serverSsl := appMgr.setServerSslProfile(stats, sKey, &rsCfg, route)
+					if "" != serverSsl {
+						updateDataGroup(dgMap, reencryptServerSslDgName,
+							DEFAULT_PARTITION, sKey.Namespace, route.Spec.Host, serverSsl)
+					}
 				}
 			}
 
@@ -1154,230 +1130,6 @@ func (appMgr *Manager) syncRoutes(
 	appMgr.updateRouteDataGroups(stats, dgMap, sKey.Namespace)
 
 	return nil
-}
-
-func (appMgr *Manager) setClientSslProfile(
-	stats *vsSyncStats,
-	sKey serviceQueueKey,
-	rsCfg *ResourceConfig,
-	route *routeapi.Route,
-) {
-	// First handle the Default for SNI profile
-	if appMgr.routeConfig.ClientSSL != "" {
-		// User has provided a name
-		prof := convertStringToProfileRef(
-			appMgr.routeConfig.ClientSSL, customProfileClient)
-		rsCfg.Virtual.AddOrUpdateProfile(prof)
-	} else {
-		// No provided name, so we create a default
-		skey := secretKey{
-			Name:         "default-route-clientssl",
-			ResourceName: rsCfg.GetName(),
-		}
-		if _, ok := appMgr.customProfiles.profs[skey]; !ok {
-			profile := ProfileRef{
-				Name:      "default-route-clientssl",
-				Partition: rsCfg.Virtual.Partition,
-				Context:   customProfileClient,
-			}
-			// This is just a basic profile, so we don't need all the fields
-			cp := NewCustomProfile(profile, "", "", "", true, appMgr.customProfiles)
-			appMgr.customProfiles.profs[skey] = cp
-			rsCfg.Virtual.AddOrUpdateProfile(profile)
-		}
-	}
-	// Now handle the profile from the Route.
-	// If annotation is set, use that profile instead of Route profile.
-	if prof, ok := route.ObjectMeta.Annotations["virtual-server.f5.com/clientssl"]; ok {
-		if nil != route.Spec.TLS {
-			log.Debugf("Both clientssl annotation and cert/key provided for Route: %s, "+
-				"using annotation.", route.ObjectMeta.Name)
-			// Delete existing Route profile if it exists
-			profRef := makeRouteClientSSLProfileRef(
-				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
-			rsCfg.Virtual.RemoveProfile(profRef)
-		}
-		profRef := convertStringToProfileRef(prof, customProfileClient)
-		if add := rsCfg.Virtual.AddOrUpdateProfile(profRef); add {
-			// Store this annotated profile in the metadata for future reference
-			// if it gets deleted.
-			rKey := routeKey{
-				Name:      route.ObjectMeta.Name,
-				Namespace: route.ObjectMeta.Namespace,
-				Context:   customProfileClient,
-			}
-			rsCfg.MetaData.RouteProfs[rKey] = prof
-			stats.vsUpdated += 1
-		}
-	} else {
-		profRef := ProfileRef{
-			Partition: "Common",
-			Name:      "clientssl",
-			Context:   customProfileClient,
-		}
-		// We process the profile from the Route
-		if "" != route.Spec.TLS.Certificate && "" != route.Spec.TLS.Key {
-			profile := makeRouteClientSSLProfileRef(
-				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
-
-			cp := NewCustomProfile(
-				profile,
-				route.Spec.TLS.Certificate,
-				route.Spec.TLS.Key,
-				route.Spec.Host,
-				false,
-				appMgr.customProfiles,
-			)
-
-			skey := secretKey{
-				Name:         cp.Name,
-				ResourceName: rsCfg.GetName(),
-			}
-			appMgr.customProfiles.Lock()
-			defer appMgr.customProfiles.Unlock()
-			if prof, ok := appMgr.customProfiles.profs[skey]; ok {
-				if !reflect.DeepEqual(prof, cp) {
-					stats.cpUpdated += 1
-				}
-			}
-			appMgr.customProfiles.profs[skey] = cp
-			profRef.Partition = cp.Partition
-			profRef.Name = cp.Name
-		}
-		if add := rsCfg.Virtual.AddOrUpdateProfile(profRef); add {
-			// Remove annotation profile if it exists
-			rKey := routeKey{
-				Name:      route.ObjectMeta.Name,
-				Namespace: route.ObjectMeta.Namespace,
-				Context:   customProfileClient,
-			}
-			if profName, ok := rsCfg.MetaData.RouteProfs[rKey]; ok {
-				delete(rsCfg.MetaData.RouteProfs, rKey)
-				profRef := convertStringToProfileRef(profName, customProfileClient)
-				rsCfg.Virtual.RemoveProfile(profRef)
-			}
-			stats.vsUpdated += 1
-		}
-	}
-}
-
-func (appMgr *Manager) setServerSslProfile(
-	stats *vsSyncStats,
-	sKey serviceQueueKey,
-	rsCfg *ResourceConfig,
-	route *routeapi.Route,
-) {
-	// First handle the Default for SNI profile
-	if appMgr.routeConfig.ServerSSL != "" {
-		// User has provided a name
-		profile := ProfileRef{
-			Name:      appMgr.routeConfig.ServerSSL,
-			Partition: rsCfg.Virtual.Partition,
-			Context:   customProfileServer,
-		}
-		rsCfg.Virtual.AddOrUpdateProfile(profile)
-	} else {
-		// No provided name, so we create a default
-		skey := secretKey{
-			Name:         "default-route-serverssl",
-			ResourceName: rsCfg.GetName(),
-		}
-		if _, ok := appMgr.customProfiles.profs[skey]; !ok {
-			profile := ProfileRef{
-				Name:      "default-route-serverssl",
-				Partition: rsCfg.Virtual.Partition,
-				Context:   customProfileServer,
-			}
-			// This is just a basic profile, so we don't need all the fields
-			cp := NewCustomProfile(profile, "", "", "", true, appMgr.customProfiles)
-			appMgr.customProfiles.profs[skey] = cp
-			rsCfg.Virtual.AddOrUpdateProfile(profile)
-		}
-	}
-	if prof, ok := route.ObjectMeta.Annotations["virtual-server.f5.com/serverssl"]; ok {
-		if nil != route.Spec.TLS {
-			log.Debugf("Both serverssl annotation and CA cert provided for Route: %s, "+
-				"using annotation.", route.ObjectMeta.Name)
-			profRef := makeRouteServerSSLProfileRef(
-				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
-			rsCfg.Virtual.RemoveProfile(profRef)
-		}
-		partition, name := splitBigipPath(prof, false)
-		if partition == "" {
-			log.Warningf("No partition provided in profile name: %v, skipping...", prof)
-			return
-		}
-		profile := ProfileRef{
-			Name:      name,
-			Partition: partition,
-			Context:   customProfileServer,
-		}
-		if updated := rsCfg.Virtual.AddOrUpdateProfile(profile); updated {
-			// Store this annotated profile in the metadata for future reference
-			// if it gets deleted.
-			rKey := routeKey{
-				Name:      route.ObjectMeta.Name,
-				Namespace: route.ObjectMeta.Namespace,
-				Context:   customProfileServer,
-			}
-			rsCfg.MetaData.RouteProfs[rKey] = prof
-			stats.vsUpdated += 1
-		}
-	} else {
-		if "" != route.Spec.TLS.DestinationCACertificate {
-			// Create new SSL server profile with the provided CA Certificate.
-			profile := makeRouteServerSSLProfileRef(
-				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
-			cp := NewCustomProfile(
-				profile,
-				route.Spec.TLS.DestinationCACertificate,
-				"", // no key
-				route.Spec.Host,
-				false,
-				appMgr.customProfiles,
-			)
-
-			skey := secretKey{
-				Name:         cp.Name,
-				ResourceName: rsCfg.GetName(),
-			}
-			appMgr.customProfiles.Lock()
-			defer appMgr.customProfiles.Unlock()
-			if prof, ok := appMgr.customProfiles.profs[skey]; ok {
-				if !reflect.DeepEqual(prof, cp) {
-					stats.cpUpdated += 1
-				}
-			}
-			appMgr.customProfiles.profs[skey] = cp
-			if updated := rsCfg.Virtual.AddOrUpdateProfile(profile); updated {
-				// Remove annotation profile if it exists
-				rKey := routeKey{
-					Name:      route.ObjectMeta.Name,
-					Namespace: route.ObjectMeta.Namespace,
-					Context:   customProfileServer,
-				}
-				if prof, ok := rsCfg.MetaData.RouteProfs[rKey]; ok {
-					delete(rsCfg.MetaData.RouteProfs, rKey)
-					partition, name := splitBigipPath(prof, false)
-					rsCfg.Virtual.RemoveProfile(ProfileRef{
-						Name:      name,
-						Partition: partition,
-						Context:   customProfileServer,
-					})
-				}
-				stats.vsUpdated += 1
-			}
-		} else {
-			profile, added :=
-				appMgr.loadDefaultCert(sKey.Namespace, route.Spec.Host)
-			if nil != profile {
-				rsCfg.Virtual.AddOrUpdateProfile(*profile)
-			}
-			if added {
-				stats.cpUpdated += 1
-			}
-		}
-	}
 }
 
 func getBooleanAnnotation(
@@ -1419,7 +1171,7 @@ func (appMgr *Manager) handleIngressTls(
 
 	var httpsPort int32
 	if port, ok :=
-		ing.ObjectMeta.Annotations["virtual-server.f5.com/https-port"]; ok == true {
+		ing.ObjectMeta.Annotations[f5VsHttpsPortAnnotation]; ok == true {
 		p, _ := strconv.ParseInt(port, 10, 32)
 		httpsPort = int32(p)
 	} else {
@@ -1485,7 +1237,7 @@ func (appMgr *Manager) handleIngressTls(
 	if sslRedirect {
 		// State 2, set HTTP redirect iRule
 		log.Debugf("TLS: Applying HTTP redirect iRule.")
-		ruleName := fmt.Sprintf("/%s/%s", DEFAULT_PARTITION, httpRedirectIRuleName)
+		ruleName := joinBigipPath(DEFAULT_PARTITION, httpRedirectIRuleName)
 		if httpsPort != DEFAULT_HTTPS_PORT {
 			ruleName = fmt.Sprintf("%s_%d", ruleName, httpsPort)
 			appMgr.addIRule(ruleName, DEFAULT_PARTITION,
@@ -1510,46 +1262,6 @@ func (appMgr *Manager) handleIngressTls(
 	return false
 }
 
-func (appMgr *Manager) handleSslProfile(
-	rsCfg *ResourceConfig,
-	secret *v1.Secret,
-) (error, bool) {
-	if _, ok := secret.Data["tls.crt"]; !ok {
-		err := fmt.Errorf("Invalid Secret '%v': 'tls.crt' field not specified.",
-			secret.ObjectMeta.Name)
-		return err, false
-	}
-	if _, ok := secret.Data["tls.key"]; !ok {
-		err := fmt.Errorf("Invalid Secret '%v': 'tls.key' field not specified.",
-			secret.ObjectMeta.Name)
-		return err, false
-	}
-
-	cp := CustomProfile{
-		Name:      secret.ObjectMeta.Name,
-		Partition: rsCfg.Virtual.Partition,
-		Context:   customProfileClient,
-		Cert:      string(secret.Data["tls.crt"]),
-		Key:       string(secret.Data["tls.key"]),
-	}
-	skey := secretKey{
-		Name:         cp.Name,
-		ResourceName: rsCfg.GetName(),
-	}
-	appMgr.customProfiles.Lock()
-	defer appMgr.customProfiles.Unlock()
-	if prof, ok := appMgr.customProfiles.profs[skey]; ok {
-		if !reflect.DeepEqual(prof, cp) {
-			appMgr.customProfiles.profs[skey] = cp
-			return nil, true
-		} else {
-			return nil, false
-		}
-	}
-	appMgr.customProfiles.profs[skey] = cp
-	return nil, false
-}
-
 type portStruct struct {
 	protocol string
 	port     int32
@@ -1559,13 +1271,13 @@ type portStruct struct {
 func (appMgr *Manager) virtualPorts(ing *v1beta1.Ingress) []portStruct {
 	var httpPort int32
 	var httpsPort int32
-	if port, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/http-port"]; ok == true {
+	if port, ok := ing.ObjectMeta.Annotations[f5VsHttpPortAnnotation]; ok == true {
 		p, _ := strconv.ParseInt(port, 10, 32)
 		httpPort = int32(p)
 	} else {
 		httpPort = DEFAULT_HTTP_PORT
 	}
-	if port, ok := ing.ObjectMeta.Annotations["virtual-server.f5.com/https-port"]; ok == true {
+	if port, ok := ing.ObjectMeta.Annotations[f5VsHttpsPortAnnotation]; ok == true {
 		p, _ := strconv.ParseInt(port, 10, 32)
 		httpsPort = int32(p)
 	} else {
@@ -1749,7 +1461,7 @@ func (appMgr *Manager) removePoolsForService(rsName, serviceName string) {
 	for i, pool := range cfg.Pools {
 		if pool.ServiceName == serviceName {
 			cfg.RemovePoolAt(i)
-			poolName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
+			poolName := joinBigipPath(cfg.Virtual.Partition, pool.Name)
 			if nil != fwdPolicy {
 				ruleOffsets := []int{}
 				for j, rule := range fwdPolicy.Rules {
@@ -1959,7 +1671,7 @@ func (appMgr *Manager) deleteUnusedRoutes(namespace, svc string) {
 				poolNS := strings.Split(pool.Name, "_")[1]
 				_, ok := appMgr.resources.Get(sKey, cfg.GetName())
 				if pool.ServiceName == svc && poolNS == namespace && !ok {
-					poolName := fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
+					poolName := joinBigipPath(cfg.Virtual.Partition, pool.Name)
 					// Delete rule
 					for _, pol := range cfg.Policies {
 						if len(pol.Rules) == 1 {
@@ -1996,24 +1708,6 @@ func (appMgr *Manager) deleteUnusedRoutes(namespace, svc string) {
 	}
 }
 
-func (appMgr *Manager) deleteUnusedProfiles() {
-	var found bool
-	appMgr.customProfiles.Lock()
-	defer appMgr.customProfiles.Unlock()
-	for key, profile := range appMgr.customProfiles.profs {
-		found = false
-		for _, cfg := range appMgr.resources.GetAllResources() {
-			if key.ResourceName == cfg.GetName() &&
-				cfg.Virtual.ReferencesProfile(profile) {
-				found = true
-			}
-		}
-		if !found {
-			delete(appMgr.customProfiles.profs, key)
-		}
-	}
-}
-
 func (appMgr *Manager) setBindAddrAnnotation(
 	cm *v1.ConfigMap,
 	sKey serviceQueueKey,
@@ -2023,19 +1717,19 @@ func (appMgr *Manager) setBindAddrAnnotation(
 	if cm.ObjectMeta.Annotations == nil {
 		cm.ObjectMeta.Annotations = make(map[string]string)
 		doUpdate = true
-	} else if cm.ObjectMeta.Annotations[vsBindAddrAnnotation] !=
+	} else if cm.ObjectMeta.Annotations[vsStatusBindAddrAnnotation] !=
 		rsCfg.Virtual.VirtualAddress.BindAddr {
 		doUpdate = true
 	}
 	if doUpdate {
-		cm.ObjectMeta.Annotations[vsBindAddrAnnotation] =
+		cm.ObjectMeta.Annotations[vsStatusBindAddrAnnotation] =
 			rsCfg.Virtual.VirtualAddress.BindAddr
 		_, err := appMgr.kubeClient.CoreV1().ConfigMaps(sKey.Namespace).Update(cm)
 		if nil != err {
 			log.Warningf("Error when creating status IP annotation: %s", err)
 		} else {
 			log.Debugf("Updating ConfigMap %+v annotation - %v: %v",
-				sKey, vsBindAddrAnnotation,
+				sKey, vsStatusBindAddrAnnotation,
 				rsCfg.Virtual.VirtualAddress.BindAddr)
 		}
 	}
@@ -2179,7 +1873,7 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 	if ing.ObjectMeta.Annotations == nil {
 		ing.ObjectMeta.Annotations = make(map[string]string)
 	}
-	ing.ObjectMeta.Annotations["virtual-server.f5.com/ip"] = ipAddress
+	ing.ObjectMeta.Annotations[f5VsBindAddrAnnotation] = ipAddress
 	_, err = appMgr.kubeClient.ExtensionsV1beta1().Ingresses(namespace).Update(ing)
 	if nil != err {
 		msg := fmt.Sprintf("Error while setting virtual-server IP for Ingress '%s': %s",
@@ -2188,7 +1882,7 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 		appMgr.recordIngressEvent(ing, "IPAnnotationError", msg, "")
 	} else {
 		msg := fmt.Sprintf("Resolved host '%s' as '%s'; "+
-			"set 'virtual-server.f5.com/ip' annotation with address.", host, ipAddress)
+			"set '%s' annotation with address.", host, ipAddress, f5VsBindAddrAnnotation)
 		log.Info(msg)
 		appMgr.recordIngressEvent(ing, "HostResolvedSuccessfully", msg, "")
 	}
@@ -2263,7 +1957,7 @@ func handleConfigMapParseFailure(
 			appMgr.resources.Lock()
 			defer appMgr.resources.Unlock()
 			appMgr.resources.Delete(sKey, rsName)
-			delete(cm.ObjectMeta.Annotations, vsBindAddrAnnotation)
+			delete(cm.ObjectMeta.Annotations, vsStatusBindAddrAnnotation)
 			appMgr.kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
 			log.Warningf("Deleted virtual server associated with ConfigMap: %v",
 				cm.ObjectMeta.Name)

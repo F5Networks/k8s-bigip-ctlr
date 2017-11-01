@@ -2557,8 +2557,8 @@ var _ = Describe("AppManager Tests", func() {
 				// Add a new Ingress
 				ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
 					map[string]string{
-						"virtual-server.f5.com/ip":        "1.2.3.4",
-						"virtual-server.f5.com/partition": "velcro",
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: "velcro",
 					})
 				r := mockMgr.addIngress(ingress)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -2583,9 +2583,9 @@ var _ = Describe("AppManager Tests", func() {
 				// Update the Ingress resource
 				ingress2 := test.NewIngress("ingress", "1", namespace, ingressConfig,
 					map[string]string{
-						"virtual-server.f5.com/ip":        "5.6.7.8",
-						"virtual-server.f5.com/partition": "velcro2",
-						"virtual-server.f5.com/http-port": "443",
+						f5VsBindAddrAnnotation:  "5.6.7.8",
+						f5VsPartitionAnnotation: "velcro2",
+						f5VsHttpPortAnnotation:  "443",
 					})
 				r = mockMgr.updateIngress(ingress2)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -2608,16 +2608,16 @@ var _ = Describe("AppManager Tests", func() {
 				// https://github.com/F5Networks/k8s-bigip-ctlr/issues/311
 				ingressNotf5 := test.NewIngress("ingress-bad", "1", namespace, ingressConfig,
 					map[string]string{
-						"kubernetes.io/ingress.class": "notf5",
+						k8sIngressClass: "notf5",
 					})
 				r = mockMgr.addIngress(ingressNotf5)
 				Expect(r).To(BeFalse(), "Ingress resource should not be processed.")
 				Expect(resources.Count()).To(Equal(0))
-				ingressNotf5.Annotations["kubernetes.io/ingress.class"] = "f5"
+				ingressNotf5.Annotations[k8sIngressClass] = "f5"
 				r = mockMgr.updateIngress(ingressNotf5)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed when flipping from notf5 to f5.")
 				Expect(resources.Count()).To(Equal(1))
-				ingressNotf5.Annotations["kubernetes.io/ingress.class"] = "notf5again"
+				ingressNotf5.Annotations[k8sIngressClass] = "notf5again"
 				r = mockMgr.updateIngress(ingressNotf5)
 				Expect(r).To(BeFalse(), "Ingress resource should be destroyed when flipping from f5 to notf5again.")
 				Expect(resources.Count()).To(Equal(0))
@@ -2678,8 +2678,8 @@ var _ = Describe("AppManager Tests", func() {
 
 				ingress3 := test.NewIngress("ingress", "2", namespace, ingressConfig,
 					map[string]string{
-						"virtual-server.f5.com/ip":        "1.2.3.4",
-						"virtual-server.f5.com/partition": "velcro",
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: "velcro",
 					})
 				r = mockMgr.addIngress(ingress3)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -2723,8 +2723,8 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				ingress4 := test.NewIngress("ingress", "3", namespace, ingressConfig,
 					map[string]string{
-						"virtual-server.f5.com/ip":        "1.2.3.4",
-						"virtual-server.f5.com/partition": "velcro",
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: "velcro",
 					})
 				r = mockMgr.addIngress(ingress4)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -2761,8 +2761,8 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				fooIng := test.NewIngress("ingress", "1", namespace, spec,
 					map[string]string{
-						"virtual-server.f5.com/ip":        "1.2.3.4",
-						"virtual-server.f5.com/partition": "velcro",
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: "velcro",
 					})
 				svcPorts := []v1.ServicePort{newServicePort("port0", svcPort)}
 				fooSvc := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP,
@@ -2904,8 +2904,8 @@ var _ = Describe("AppManager Tests", func() {
 				// Test for Ingress
 				ingress := test.NewIngress("ingress", "1", namespace, spec,
 					map[string]string{
-						"virtual-server.f5.com/ip":        "1.2.3.4",
-						"virtual-server.f5.com/partition": "velcro",
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: "velcro",
 					})
 				// This should create a custom profile from the ingress secret.
 				mockMgr.addIngress(ingress)
@@ -3121,11 +3121,11 @@ var _ = Describe("AppManager Tests", func() {
 					}
 					hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
 					Expect(found).To(BeTrue())
-					Expect(len(hostDg.Records)).To(Equal(2))
-					Expect(hostDg.Records[1].Name).To(Equal(hostName1))
-					Expect(hostDg.Records[0].Name).To(Equal(hostName2))
-					Expect(hostDg.Records[1].Data).To(Equal(formatRoutePoolName(route1)))
-					Expect(hostDg.Records[0].Data).To(Equal(formatRoutePoolName(route2)))
+					Expect(len(hostDg[namespace].Records)).To(Equal(2))
+					Expect(hostDg[namespace].Records[1].Name).To(Equal(hostName1))
+					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName2))
+					Expect(hostDg[namespace].Records[1].Data).To(Equal(formatRoutePoolName(route1)))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(route2)))
 
 					rs, ok = resources.Get(
 						serviceKey{svcName2, 443, namespace}, "ose-vserver")
@@ -3141,9 +3141,9 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(resources.Count()).To(Equal(2))
 					hostDg, found = mockMgr.appMgr.intDgMap[hostDgKey]
 					Expect(found).To(BeTrue())
-					Expect(len(hostDg.Records)).To(Equal(1))
-					Expect(hostDg.Records[0].Name).To(Equal(hostName1))
-					Expect(hostDg.Records[0].Data).To(Equal(formatRoutePoolName(route1)))
+					Expect(len(hostDg[namespace].Records)).To(Equal(1))
+					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName1))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(route1)))
 				})
 
 				It("configures reencrypt routes", func() {
@@ -3190,9 +3190,9 @@ var _ = Describe("AppManager Tests", func() {
 					}
 					hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
 					Expect(found).To(BeTrue())
-					Expect(len(hostDg.Records)).To(Equal(1))
-					Expect(hostDg.Records[0].Name).To(Equal(hostName))
-					Expect(hostDg.Records[0].Data).To(Equal(formatRoutePoolName(route)))
+					Expect(len(hostDg[namespace].Records)).To(Equal(1))
+					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(route)))
 
 					customProfiles := mockMgr.customProfiles()
 					// Should be 2 profiles from Spec, 2 defaults (clientssl and serverssl)
@@ -3275,8 +3275,8 @@ var _ = Describe("AppManager Tests", func() {
 					}
 					route := test.NewRoute("route", "1", namespace, spec,
 						map[string]string{
-							"virtual-server.f5.com/clientssl": "Common/client",
-							"virtual-server.f5.com/serverssl": "Common/server",
+							f5ClientSslProfileAnnotation: "Common/client",
+							f5ServerSslProfileAnnotation: "Common/server",
 						})
 					r := mockMgr.addRoute(route)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
@@ -3317,8 +3317,8 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(rs.Virtual.Profiles).ToNot(ContainElement(customPRef))
 
 					// Remove profiles
-					delete(route.Annotations, "virtual-server.f5.com/clientssl")
-					delete(route.Annotations, "virtual-server.f5.com/serverssl")
+					delete(route.Annotations, f5ClientSslProfileAnnotation)
+					delete(route.Annotations, f5ServerSslProfileAnnotation)
 					mockMgr.updateRoute(route)
 
 					rs, _ = resources.Get(
@@ -3339,8 +3339,8 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(rs.Virtual.Profiles).To(ContainElement(customPRef))
 
 					// Re-add the profiles
-					route.Annotations["virtual-server.f5.com/clientssl"] = "Common/newClient"
-					route.Annotations["virtual-server.f5.com/serverssl"] = "Common/newServer"
+					route.Annotations[f5ClientSslProfileAnnotation] = "Common/newClient"
+					route.Annotations[f5ServerSslProfileAnnotation] = "Common/newServer"
 					mockMgr.updateRoute(route)
 
 					rs, _ = resources.Get(
@@ -3404,7 +3404,7 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
 					map[string]string{
-						"virtual-server.f5.com/partition": "velcro",
+						f5VsPartitionAnnotation: "velcro",
 					})
 				r := mockMgr.addIngress(ingress)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")

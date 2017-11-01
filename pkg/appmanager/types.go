@@ -226,13 +226,15 @@ type (
 
 	// SSL Profile loaded from Secret or Route object
 	CustomProfile struct {
-		Name       string `json:"name"`
-		Partition  string `json:"-"`
-		Context    string `json:"context"` // 'clientside', 'serverside', or 'all'
-		Cert       string `json:"cert"`
-		Key        string `json:"key"`
-		ServerName string `json:"serverName,omitempty"`
-		SNIDefault bool   `json:"sniDefault,omitempty"`
+		Name         string `json:"name"`
+		Partition    string `json:"-"`
+		Context      string `json:"context"` // 'clientside', 'serverside', or 'all'
+		Cert         string `json:"cert"`
+		Key          string `json:"key"`
+		ServerName   string `json:"serverName,omitempty"`
+		SNIDefault   bool   `json:"sniDefault,omitempty"`
+		PeerCertMode string `json:"peerCertMode,omitempty"`
+		CAFile       string `json:"caFile,omitempty"`
 	}
 
 	// Used to unmarshal ConfigMap data
@@ -333,5 +335,6 @@ type (
 	}
 	InternalDataGroupRecords []InternalDataGroupRecord
 
-	InternalDataGroupMap map[nameRef]*InternalDataGroup
+	DataGroupNamespaceMap map[string]*InternalDataGroup
+	InternalDataGroupMap  map[nameRef]DataGroupNamespaceMap
 )

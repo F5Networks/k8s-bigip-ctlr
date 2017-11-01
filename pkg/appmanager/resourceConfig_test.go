@@ -437,8 +437,8 @@ var _ = Describe("Resource Config Tests", func() {
 			}
 			ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
 				map[string]string{
-					"virtual-server.f5.com/ip":        "1.2.3.4",
-					"virtual-server.f5.com/partition": "velcro",
+					f5VsBindAddrAnnotation:  "1.2.3.4",
+					f5VsPartitionAnnotation: "velcro",
 				})
 			ps := portStruct{
 				protocol: "http",
@@ -452,11 +452,11 @@ var _ = Describe("Resource Config Tests", func() {
 
 			ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
 				map[string]string{
-					"virtual-server.f5.com/ip":        "1.2.3.4",
-					"virtual-server.f5.com/partition": "velcro",
-					"virtual-server.f5.com/http-port": "100",
-					"virtual-server.f5.com/balance":   "foobar",
-					"kubernetes.io/ingress.class":     "f5",
+					f5VsBindAddrAnnotation:  "1.2.3.4",
+					f5VsPartitionAnnotation: "velcro",
+					f5VsHttpPortAnnotation:  "100",
+					f5VsBalanceAnnotation:   "foobar",
+					k8sIngressClass:         "f5",
 				})
 			ps = portStruct{
 				protocol: "http",
@@ -468,7 +468,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 			ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
 				map[string]string{
-					"kubernetes.io/ingress.class": "notf5",
+					k8sIngressClass: "notf5",
 				})
 			cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
 			Expect(cfg).To(BeNil())
@@ -693,7 +693,8 @@ var _ = Describe("Resource Config Tests", func() {
 					"key",
 					"srver",
 					false,
-					CustomProfileStore{})
+					peerCertDefault,
+					"")
 				refs := virtual.ReferencesProfile(cprof)
 				Expect(refs).To(BeFalse())
 			}
@@ -714,8 +715,8 @@ var _ = Describe("Resource Config Tests", func() {
 						"key",
 						"srver",
 						false,
-						CustomProfileStore{},
-					)
+						peerCertDefault,
+						"")
 					refs := virtual.ReferencesProfile(cprof)
 					Expect(refs).To(BeTrue())
 				case "test2":
@@ -725,7 +726,8 @@ var _ = Describe("Resource Config Tests", func() {
 						"key",
 						"srver",
 						false,
-						CustomProfileStore{})
+						peerCertDefault,
+						"")
 					refs := virtual.ReferencesProfile(cprof)
 					Expect(refs).To(BeFalse())
 				}

@@ -133,9 +133,16 @@ func (appMgr *Manager) outputConfigLocked() {
 		initPartitionData(resources, irule.Partition)
 		resources[irule.Partition].IRules = append(resources[irule.Partition].IRules, *irule)
 	}
-	for _, intDg := range appMgr.intDgMap {
-		initPartitionData(resources, intDg.Partition)
-		resources[intDg.Partition].InternalDataGroups = append(resources[intDg.Partition].InternalDataGroups, *intDg)
+	for intDgKey, intDgMap := range appMgr.intDgMap {
+		initPartitionData(resources, intDgKey.Partition)
+		if len(intDgMap) > 0 {
+			for _, intDg := range intDgMap {
+				resources[intDgKey.Partition].InternalDataGroups = append(resources[intDgKey.Partition].InternalDataGroups, *intDg)
+			}
+		} else {
+			// The data group is required, but we have no information.
+			resources[intDgKey.Partition].InternalDataGroups = append(resources[intDgKey.Partition].InternalDataGroups, *NewInternalDataGroup(intDgKey.Name, intDgKey.Partition))
+		}
 	}
 
 	if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 ||
@@ -154,6 +161,8 @@ func (appMgr *Manager) outputConfigLocked() {
 				}
 				log.Infof("Wrote %v Virtual Server and %v IApp configs",
 					virtualCount, iappCount)
+				grout, _ := json.MarshalIndent(resources, "", "  ")
+				log.Infof("%s", string(grout))
 				if log.LL_DEBUG == log.GetLogLevel() {
 					// Remove customProfiles from output
 					// FIXME (sberman): Issue #365

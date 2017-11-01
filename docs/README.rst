@@ -600,31 +600,34 @@ Supported Route Configurations
 Supported annotations
 `````````````````````
 
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| Annotation                         | Type        | Required  | Description                                                                         | Default     |
-+====================================+=============+===========+=====================================================================================+=============+
-| virtual-server.f5.com/clientssl    | string      | Optional  | The name of a pre-configured client ssl profile on the BIG-IP system.               | N/A         |
-|                                    |             |           | The controller uses this profile instead of the certificate and key within the      |             |
-|                                    |             |           | Route's configuration.                                                              |             |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/serverssl    | string      | Optional  | The name of a pre-configured server ssl profile on the BIG-IP system.               | N/A         |
-|                                    |             |           | The controller uses this profile instead of the certificate within the              |             |
-|                                    |             |           | Route's configuration.                                                              |             |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/health       | JSON object | Optional  | Defines a health monitor for the Route resource.                                    | N/A         |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-|                      | path        | string      | Required  | The path for the Service specified in the Route resource.                           | N/A         |
-|                      |             |             | [#hm1]_   |                                                                                     |             |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-|                      | send        | string      | Required  | The send string to set in the health monitor. [#hm2]_                               | N/A         |
-|                      |             |             | [#hm1]_   |                                                                                     |             |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-|                      | interval    | integer     | Required  | The interval at which to check the health of the virtual server.                    | N/A         |
-|                      |             |             | [#hm1]_   |                                                                                     |             |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-|                      | timeout     | integer     | Required  | Number of seconds before the check times out.                                       | N/A         |
-|                      |             |             | [#hm1]_   |                                                                                     |             |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
++----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
+| Annotation                             | Type        | Required  | Description                                                                    | Default     |
++========================================+=============+===========+================================================================================+=============+
+| virtual-server.f5.com/clientssl        | string      | Optional  | The name of a pre-configured client ssl profile on the BIG-IP system.          | N/A         |
+|                                        |             |           | The controller uses this profile instead of the certificate and key within the |             |
+|                                        |             |           | Route's configuration.                                                         |             |
++----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
+| virtual-server.f5.com/serverssl        | string      | Optional  | The name of a pre-configured server ssl profile on the BIG-IP system.          | N/A         |
+|                                        |             |           | The controller uses this profile instead of the certificate within the         |             |
+|                                        |             |           | Route's configuration.                                                         |             |
++----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
+| virtual-server.f5.com/health           | JSON object | Optional  | Defines a health monitor for the Route resource.                               | N/A         |
++----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
+|                      | path            | string      | Required  | The path for the Service specified in the Route resource.                      | N/A         |
+|                      |                 |             | [#hm1]_   |                                                                                |             |
++----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
+|                      | send            | string      | Required  | The send string to set in the health monitor. [#hm2]_                          | N/A         |
+|                      |                 |             | [#hm1]_   |                                                                                |             |
++----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
+|                      | interval        | integer     | Required  | The interval at which to check the health of the virtual server.               | N/A         |
+|                      |                 |             | [#hm1]_   |                                                                                |             |
++----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
+|                      | timeout         | integer     | Required  | Number of seconds before the check times out.                                  | N/A         |
+|                      |                 |             | [#hm1]_   |                                                                                |             |
++----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
+| virtual-server.f5.com/secure-serverssl | boolean     | Optional  | Specifies to validate the server-side SSL certificate of Re-encrypt            | false       |
+|                                        |             |           | terminated routes.                                                             |             |
++----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
 
 Please see the example configuration files for more details.
 

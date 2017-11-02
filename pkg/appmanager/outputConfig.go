@@ -140,9 +140,10 @@ func (appMgr *Manager) outputConfigLocked() {
 				log.Infof("Wrote %v Virtual Server and %v IApp configs",
 					virtualCount, iappCount)
 				if log.LL_DEBUG == log.GetLogLevel() {
-					// Remove customProfiles from output
-					// FIXME (sberman): Issue #365
+					// Remove customProfiles from output (save for later)
+					savedProfs := make(map[string][]CustomProfile)
 					for partition, _ := range resources {
+						savedProfs[partition] = resources[partition].CustomProfiles
 						resources[partition].CustomProfiles = []CustomProfile{}
 					}
 					output, err := json.Marshal(resources)
@@ -150,6 +151,10 @@ func (appMgr *Manager) outputConfigLocked() {
 						log.Warningf("Failed creating output debug log: %v", err)
 					} else {
 						log.Debugf("Resources: %s", output)
+					}
+					// Repopulate resources with the removed profiles
+					for partition, profs := range savedProfs {
+						resources[partition].CustomProfiles = profs
 					}
 				}
 			case e := <-errCh:

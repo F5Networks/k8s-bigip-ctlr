@@ -584,6 +584,12 @@ func setProfilesForMode(mode string, cfg *ResourceConfig) {
 			})
 	case "udp":
 		cfg.Virtual.IpProtocol = "udp"
+		cfg.Virtual.AddOrUpdateProfile(
+			ProfileRef{
+				Partition: "Common",
+				Name:      "udp",
+				Context:   customProfileAll,
+			})
 	}
 }
 

@@ -32,6 +32,7 @@ from .. import bigipconfigdriver as ctlr
 # Cloud app data
 cloud_test_data = [
     'tests/kubernetes_one_svc_two_nodes.json',
+    'tests/kubernetes_one_udp_svc_two_nodes.json',
     'tests/kubernetes_invalid_svcs.json',
     'tests/kubernetes_one_svc_one_node.json',
     'tests/kubernetes_one_svc_four_nodes.json',

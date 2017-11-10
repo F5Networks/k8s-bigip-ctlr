@@ -40,7 +40,7 @@ import (
 
 func init() {
 	workingDir, _ := os.Getwd()
-	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.4.json"
+	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.5.json"
 	DEFAULT_PARTITION = "velcro"
 }
 
@@ -119,6 +119,31 @@ var configmapFooTcp string = string(`{
     "frontend": {
       "balance": "round-robin",
       "mode": "tcp",
+      "partition": "velcro",
+      "virtualAddress": {
+        "bindAddr": "10.128.10.240",
+        "port": 5051
+      }
+    }
+  }
+}`)
+
+var configmapFooUdp string = string(`{
+  "virtualServer": {
+    "backend": {
+      "serviceName": "foo",
+      "servicePort": 80,
+      "healthMonitors": [ {
+        "interval": 30,
+        "timeout": 20,
+        "send": "GET /",
+        "protocol": "udp"
+        }
+      ]
+    },
+    "frontend": {
+      "balance": "round-robin",
+      "mode": "udp",
       "partition": "velcro",
       "virtualAddress": {
         "bindAddr": "10.128.10.240",
@@ -1076,9 +1101,24 @@ var _ = Describe("AppManager Tests", func() {
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
 
+				// ConfigMap with TCP
 				cfgFoo = test.NewConfigMap("foomap", "1", namespace, map[string]string{
 					"schema": schemaUrl,
 					"data":   configmapFooTcp})
+
+				r = mockMgr.addConfigMap(cfgFoo)
+				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
+				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1),
+					"Virtual servers should have entry.")
+				_, ok = resources.Get(
+					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
+				Expect(ok).To(BeTrue())
+
+				// ConfigMap with UDP
+				cfgFoo = test.NewConfigMap("foomap", "1", namespace, map[string]string{
+					"schema": schemaUrl,
+					"data":   configmapFooUdp})
 
 				r = mockMgr.addConfigMap(cfgFoo)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")

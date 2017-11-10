@@ -102,7 +102,7 @@ class CloudServiceManager():
         Args:
             config: BIG-IP config dict
         """
-        return self._cccl.apply_config(config)
+        return self._cccl.apply_ltm_config(config)
 
 
 class IntervalTimerError(Exception):

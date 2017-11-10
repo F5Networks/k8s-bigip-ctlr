@@ -40,13 +40,11 @@ import (
 
 func init() {
 	workingDir, _ := os.Getwd()
-	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.4.json"
-	schemaUrl5 = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.5.json"
+	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.5.json"
 	DEFAULT_PARTITION = "velcro"
 }
 
 var schemaUrl string
-var schemaUrl5 string
 
 var configmapFoo string = string(`{
   "virtualServer": {
@@ -1119,7 +1117,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				// ConfigMap with UDP
 				cfgFoo = test.NewConfigMap("foomap", "1", namespace, map[string]string{
-					"schema": schemaUrl5,
+					"schema": schemaUrl,
 					"data":   configmapFooUdp})
 
 				r = mockMgr.addConfigMap(cfgFoo)

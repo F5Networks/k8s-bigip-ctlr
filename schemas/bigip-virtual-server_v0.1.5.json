@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema/org/schema#",
-  "id": "f5schemadb://bigip-virtual-server_v0.1.4.json",
+  "id": "f5schemadb://bigip-virtual-server_v0.1.5.json",
 
   "type": "object",
 

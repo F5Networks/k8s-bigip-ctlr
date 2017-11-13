@@ -261,8 +261,10 @@ See the `Integration Overview </containers/latest/kubernetes/>`_ for more inform
 | f5type        | Tells ``k8s-bigip-ctlr`` about resources it       |                                               |
 |               | should watch                                      |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
-| schema        | Verifies the ``data`` blob                        | f5schemadb://bigip-virtual-server_v0.1.4.json |
+| schema        | Verifies the ``data`` blob                        | f5schemadb://bigip-virtual-server_v0.1.5.json |
 |               |                                                   | [#schemaRecommendation]_                      |
+|               |                                                   |                                               |
+|               |                                                   | f5schemadb://bigip-virtual-server_v0.1.4.json |
 |               |                                                   |                                               |
 |               |                                                   | f5schemadb://bigip-virtual-server_v0.1.3.json |
 |               |                                                   |                                               |
@@ -298,7 +300,7 @@ virtualAddress       JSON object       Optional                   Allocate a vir
 - bindAddr [#ba]_    string            Required                   Virtual IP address
 - port               integer           Required                   Port number
 
-mode                 string            Optional       tcp         Set the proxy mode                                    http, tcp
+mode                 string            Optional       tcp         Set the proxy mode                                    http, tcp, udp
 
 balance              string            Optional       round-robin Set the load balancing mode                           round-robin
 
@@ -462,8 +464,8 @@ The ``backend`` section tells the |kctlr| about the Service you want to manage.
 | ServicePort   | integer   | Required  | none      | Kubernetes Service port       |                           |
 |               |           |           |           | number                        |                           |
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| healthMonitors| JSON      | Optional  | none      | Array of TCP or HTTP Health   |                           |
-|               | object    |           |           | Monitors.                     |                           |
+| healthMonitors| JSON      | Optional  | none      | Array of TCP, UDP or HTTP     |                           |
+|               | object    |           |           | Health Monitors.              |                           |
 |               | array     |           |           |                               |                           |
 +---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
 

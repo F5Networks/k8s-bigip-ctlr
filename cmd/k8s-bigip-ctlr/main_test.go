@@ -410,7 +410,7 @@ var _ = Describe("Main Tests", func() {
 			ConfigWriter: configWriter,
 			IsNodePort:   true,
 		})
-		err = setupNodePolling(vsm, nodePoller)
+		err = setupNodePolling(vsm, nodePoller, nil, nil)
 		Expect(err).To(BeNil())
 
 		nodePoller = &test.MockPoller{
@@ -418,7 +418,7 @@ var _ = Describe("Main Tests", func() {
 		}
 		Expect(nodePoller).ToNot(BeNil(), "Mock poller cannot be nil.")
 
-		err = setupNodePolling(vsm, nodePoller)
+		err = setupNodePolling(vsm, nodePoller, nil, nil)
 		Expect(err).ToNot(BeNil())
 	})
 
@@ -458,7 +458,7 @@ var _ = Describe("Main Tests", func() {
 			KubeClient:   fake,
 			ConfigWriter: configWriter,
 		})
-		err = setupNodePolling(vsm, nodePoller)
+		err = setupNodePolling(vsm, nodePoller, nil, nil)
 		Expect(err).To(BeNil())
 		// Fail case from config writer
 		nodePoller = &test.MockPoller{
@@ -466,20 +466,20 @@ var _ = Describe("Main Tests", func() {
 		}
 		Expect(nodePoller).ToNot(BeNil(), "Mock poller cannot be nil.")
 
-		err = setupNodePolling(vsm, nodePoller)
+		err = setupNodePolling(vsm, nodePoller, nil, nil)
 		Expect(err).ToNot(BeNil())
 		// Fail case from NewOpenshiftSDNMgr
-		*openshiftSDNName = ""
+		vxlanName = ""
 		nodePoller = &test.MockPoller{
 			FailStyle: test.Success,
 		}
 		Expect(nodePoller).ToNot(BeNil(), "Mock poller cannot be nil.")
 
-		err = setupNodePolling(vsm, nodePoller)
+		err = setupNodePolling(vsm, nodePoller, nil, nil)
 		Expect(err).ToNot(BeNil())
 	})
 
-	It("handles openshift sdn flags", func() {
+	It("handles vxlan flags", func() {
 		defer _init()
 		os.Args = []string{
 			"./bin/k8s-bigip-ctlr",
@@ -495,8 +495,10 @@ var _ = Describe("Main Tests", func() {
 		err := verifyArgs()
 		Expect(err).To(BeNil())
 
-		Expect(len(openshiftSDNMode)).To(Equal(0), "Mode variable should not be set.")
-		Expect(len(*openshiftSDNName)).To(Equal(0), "Name variable should not be set.")
+		Expect(len(vxlanMode)).To(Equal(0), "Mode variable should not be set.")
+		Expect(len(*openshiftSDNName)).To(Equal(0),
+			"Openshift sdn name variable should not be set.")
+		Expect(len(*flannelName)).To(Equal(0), "Flannel name variable should not be set.")
 
 		os.Args = []string{
 			"./bin/k8s-bigip-ctlr",
@@ -507,17 +509,35 @@ var _ = Describe("Main Tests", func() {
 			"--bigip-url=bigip.example.com",
 			"--bigip-username=admin",
 			"--openshift-sdn-name=vxlan500",
+			"--pool-member-type=cluster",
 		}
 
 		flags.Parse(os.Args)
 		err = verifyArgs()
 		Expect(err).To(BeNil())
 
-		Expect(openshiftSDNMode).To(Equal("maintain"))
+		Expect(vxlanMode).To(Equal("maintain"))
 		Expect(*openshiftSDNName).To(Equal("vxlan500"))
+
+		os.Args = []string{
+			"./bin/k8s-bigip-ctlr",
+			"--namespace=testing",
+			"--bigip-partition=velcro1",
+			"--bigip-partition=velcro2",
+			"--bigip-password=admin",
+			"--bigip-url=bigip.example.com",
+			"--bigip-username=admin",
+			"--openshift-sdn-name=vxlan500",
+			"--flannel-name=vxlan500",
+		}
+
+		flags.Parse(os.Args)
+		err = verifyArgs()
+		Expect(err).ToNot(BeNil())
+		Expect(err.Error()).To(Equal("Cannot have both openshift-sdn-name and flannel-name specified."))
 	})
 
-	It("handles empty openshift sdn flags", func() {
+	It("handles empty vxlan flags", func() {
 		defer _init()
 		os.Args = []string{
 			"./bin/k8s-bigip-ctlr",

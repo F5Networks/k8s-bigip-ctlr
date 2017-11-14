@@ -33,7 +33,6 @@ from urlparse import urlparse
 from f5_cccl.api import F5CloudServiceManager
 from f5_cccl.exceptions import F5CcclError
 from f5_cccl.utils.mgmt import mgmt_root
-from f5_cccl.utils.network import apply_network_fdb_config
 from f5_cccl.utils.profile import (delete_unused_ssl_profiles,
                                    create_client_ssl_profile,
                                    create_server_ssl_profile)
@@ -68,6 +67,7 @@ root_logger.addFilter(KeyFilter())
 
 DEFAULT_LOG_LEVEL = logging.INFO
 DEFAULT_VERIFY_INTERVAL = 30.0
+NET_SCHEMA = '/app/src/f5-cccl/f5_cccl/schemas/cccl-net-api-schema.yml'
 
 
 class CloudServiceManager():
@@ -80,13 +80,15 @@ class CloudServiceManager():
         partition: BIG-IP partition to manage
     """
 
-    def __init__(self, bigip, partition):
+    def __init__(self, bigip, partition, prefix=None, schema_path=None):
         """Initialize the CloudServiceManager object."""
         self._mgmt_root = bigip
+        self._schema = schema_path
         self._cccl = F5CloudServiceManager(
             bigip,
             partition,
-            prefix="")
+            prefix=prefix,
+            schema_path=schema_path)
 
     def mgmt_root(self):
         """ Return the BIG-IP ManagementRoot object"""
@@ -96,13 +98,24 @@ class CloudServiceManager():
         """ Return the managed partition."""
         return self._cccl.get_partition()
 
+    def get_schema_type(self):
+        """Return 'ltm' or 'net', based on schema type."""
+        if self._schema is None:
+            return 'ltm'
+        elif 'net' in self._schema:
+            return 'net'
+
     def _apply_ltm_config(self, config):
-        """Apply the configuration to the BIG-IP.
+        """Apply the ltm configuration to the BIG-IP.
 
         Args:
             config: BIG-IP config dict
         """
         return self._cccl.apply_ltm_config(config)
+
+    def _apply_net_config(self, config):
+        """Apply the net configuration to the BIG-IP."""
+        return self._cccl.apply_net_config(config)
 
 
 class IntervalTimerError(Exception):
@@ -191,7 +204,7 @@ def create_ltm_config(partition, config):
     if 'resources' in config and partition in config['resources']:
         ltm = config['resources'][partition]
 
-    log.debug("Service Config: %s", json.dumps(ltm))
+    log.debug("LTM Config: %s", json.dumps(ltm))
     return ltm
 
 
@@ -199,13 +212,17 @@ def create_network_config(config):
     """Extract a BIG-IP Network configuration from the network config.
 
     Args:
-        config: BigIP config which contains openshift-sdn defs
+        config: BigIP config which contains vxlan defs
     """
-    f5_network = {}
-    if 'openshift-sdn' in config:
-        f5_network['fdb'] = config['openshift-sdn']
+    net = {}
+    if 'vxlan-fdb' in config:
+        net['userFdbTunnels'] = [config['vxlan-fdb']]
+    if ('vxlan-arp' in config and 'arps' in config['vxlan-arp']
+            and config['vxlan-arp']['arps'] is not None):
+        net['arps'] = config['vxlan-arp']['arps']
 
-    return f5_network
+    log.debug("NET Config: %s", json.dumps(net))
+    return net
 
 
 def _create_custom_profiles(mgmt, partition, custom_profiles):
@@ -243,22 +260,10 @@ class ConfigHandler():
         self._backoff_timer = None
         self._max_backoff_time = 128
 
-        self._interval = None
-        self._verify_interval = 0
-        self.set_interval_timer(verify_interval)
-
+        self._verify_interval = verify_interval
+        self._interval = IntervalTimer(self._verify_interval,
+                                       self.notify_reset)
         self._thread.start()
-
-    def set_interval_timer(self, verify_interval):
-        if verify_interval != self._verify_interval:
-            if self._interval is not None:
-                self._interval.stop()
-                self._interval = None
-
-            self._verify_interval = verify_interval
-            if self._verify_interval > 0:
-                self._interval = IntervalTimer(self._verify_interval,
-                                               self.notify_reset)
 
     def stop(self):
         self._condition.acquire()
@@ -304,13 +309,10 @@ class ConfigHandler():
                 # yet ready -- it does not mean to apply an empty config
                 if 'resources' not in config:
                     continue
-                verify_interval, _ = _handle_global_config(config)
-                _handle_openshift_sdn_config(config)
-                self.set_interval_timer(verify_interval)
 
-                cfg_network = create_network_config(config)
+                _handle_vxlan_config(config)
+                cfg_net = create_network_config(config)
                 incomplete = 0
-
                 for mgr in self._managers:
                     partition = mgr.get_partition()
                     cfg_ltm = create_ltm_config(partition, config)
@@ -327,7 +329,10 @@ class ConfigHandler():
 
                         # Apply the BIG-IP config after creating profiles
                         # and before deleting profiles
-                        incomplete += mgr._apply_ltm_config(cfg_ltm)
+                        if mgr.get_schema_type() == 'net':
+                            incomplete += mgr._apply_net_config(cfg_net)
+                        else:
+                            incomplete += mgr._apply_ltm_config(cfg_ltm)
 
                         # Manually delete custom profiles (if needed)
                         if customProfiles:
@@ -341,11 +346,6 @@ class ConfigHandler():
                         # exception and fail
                         log.error("CCCL Error: %s", e.msg)
                         raise e
-
-                if 'fdb' in cfg_network:
-                    incomplete += apply_network_fdb_config(
-                        self._managers[0].mgmt_root(),
-                        cfg_network['fdb'])
 
                 if incomplete:
                     # Error occurred, perform retries
@@ -619,6 +619,8 @@ def _handle_global_config(config):
                 log.warn('The "global:verify-interval" field in the '
                          'configuration file should be a number')
 
+        vxlan_partition = global_cfg.get('vxlan-partition')
+
     try:
         root_logger.setLevel(level)
         if level > logging.DEBUG:
@@ -634,7 +636,7 @@ def _handle_global_config(config):
                  '"global:log-level" field in the configuration file')
 
     # level only is needed for unit tests
-    return verify_interval, level
+    return verify_interval, level, vxlan_partition
 
 
 def _handle_bigip_config(config):
@@ -662,15 +664,20 @@ def _handle_bigip_config(config):
     return host, port
 
 
-def _handle_openshift_sdn_config(config):
-    if config and 'openshift-sdn' in config:
-        sdn = config['openshift-sdn']
-        if 'vxlan-name' not in sdn:
+def _handle_vxlan_config(config):
+    if config and 'vxlan-fdb' in config:
+        fdb = config['vxlan-fdb']
+        if 'name' not in fdb:
             raise ConfigError('Configuration file missing '
-                              '"openshift-sdn:vxlan-name" section')
-        if 'vxlan-node-ips' not in sdn:
+                              '"vxlan-fdb:name" section')
+        if 'records' not in fdb:
             raise ConfigError('Configuration file missing '
-                              '"openshift-sdn:vxlan-node-ips" section')
+                              '"vxlan-fdb:records" section')
+    if config and 'vxlan-arp' in config:
+        arp = config['vxlan-arp']
+        if 'arps' not in arp:
+            raise ConfigError('Configuration file missing '
+                              '"vxlan-arp:arps" section')
 
 
 def main():
@@ -678,7 +685,7 @@ def main():
         args = _handle_args()
 
         config = _parse_config(args.config_file)
-        verify_interval, _ = _handle_global_config(config)
+        verify_interval, _, vxlan_partition = _handle_global_config(config)
         host, port = _handle_bigip_config(config)
 
         # FIXME (kenr): Big-IP settings are currently static (we ignore any
@@ -699,6 +706,14 @@ def main():
             manager = CloudServiceManager(
                 bigip,
                 partition)
+            managers.append(manager)
+        if vxlan_partition:
+            # Management for net resources (VXLAN)
+            manager = CloudServiceManager(
+                bigip,
+                vxlan_partition,
+                prefix="k8s",
+                schema_path=NET_SCHEMA)
             managers.append(manager)
 
         handler = ConfigHandler(args.config_file,

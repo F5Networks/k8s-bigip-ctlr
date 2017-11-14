@@ -87,6 +87,21 @@ func (appMgr *Manager) outputConfigLocked() {
 		}
 	}
 
+	if appMgr.eventChan != nil {
+		// Get all pool members and write them to VxlanMgr to configure ARP entries
+		var allPoolMembers []Member
+		for _, cfg := range resources {
+			for _, pool := range cfg.Pools {
+				allPoolMembers = append(allPoolMembers, pool.Members...)
+			}
+		}
+		select {
+		case appMgr.eventChan <- allPoolMembers:
+			log.Debugf("AppManager wrote endpoints to VxlanMgr.")
+		case <-time.After(3 * time.Second):
+		}
+	}
+
 	// To allow the ssl passthrough iRule to be associated with a virtual,
 	// it must have at least one client or server SSL profile associated with
 	// it. If the virtual doesn't have any of either type, we force it to take

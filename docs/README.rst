@@ -178,17 +178,22 @@ Kubernetes
   For example, the BIG-IP device may not be able to reach certain nodes, or the BIG-IP device already manages certain
   nodes. Therefore, the controller should only watch the nodes that match the environmental constraints (by using a label).
 
-OpenShift SDN
+VXLAN
 `````````````
 
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | Parameter             | Type    | Required | Default           | Description                             | Allowed Values |
 +=======================+=========+==========+===================+=========================================+================+
-| openshift-sdn-name    | string  | Optional | n/a               | Name of the VXLAN set up on the BIG-IP  |                |
+| openshift-sdn-name    | string  | Optional | n/a               | Name of the VXLAN tunnel on the BIG-IP  |                |
 |                       |         |          |                   | system that corresponds to an Openshift |                |
 |                       |         |          |                   | SDN HostSubnet.                         |                |
 |                       |         |          |                   |                                         |                |
 |                       |         |          |                   | **Only applicable in OpenShift.**       |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| flannel-name          | string  | Optional | n/a               | Name of the VXLAN tunnel on the BIG-IP  |                |
+|                       |         |          |                   | system that corresponds to a Flannel    |                |
+|                       |         |          |                   | subnet.                                 |                |
+|                       |         |          |                   |                                         |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 
 OpenShift Routes

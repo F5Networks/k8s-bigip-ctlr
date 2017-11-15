@@ -5,6 +5,9 @@ metadata:
     name: svc1
   name: svc1-route-reencrypt
   namespace: default
+  annotations:
+    # Validate the server-side SSL connection.
+    virtual-server.f5.com/secure-serverssl: "true"
 spec:
   host: svc1-route.local
   path: "/test"

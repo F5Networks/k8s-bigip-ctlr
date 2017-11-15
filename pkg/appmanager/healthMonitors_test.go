@@ -111,10 +111,10 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			ing := test.NewIngress("ingress", "1", namespace, spec,
 				map[string]string{
-					"virtual-server.f5.com/ip":        "1.2.3.4",
-					"virtual-server.f5.com/partition": "velcro",
-					"virtual-server.f5.com/http-port": "443",
-					"virtual-server.f5.com/health": `[
+					f5VsBindAddrAnnotation:  "1.2.3.4",
+					f5VsPartitionAnnotation: "velcro",
+					f5VsHttpPortAnnotation:  "443",
+					healthMonitorAnnotation: `[
 					{
 						"path":     "svc1/",
 						"send":     "HTTP GET /test1",
@@ -322,11 +322,11 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			ing := test.NewIngress("ingress", "1", namespace, spec,
 				map[string]string{
-					ingressSslRedirect:                "true",
-					"virtual-server.f5.com/ip":        "1.2.3.4",
-					"virtual-server.f5.com/partition": "velcro",
-					"virtual-server.f5.com/http-port": "443",
-					"virtual-server.f5.com/health": `[
+					ingressSslRedirect:      "true",
+					f5VsBindAddrAnnotation:  "1.2.3.4",
+					f5VsPartitionAnnotation: "velcro",
+					f5VsHttpPortAnnotation:  "443",
+					healthMonitorAnnotation: `[
 					{
 						"path":     "svc2.bar.com/bar",
 						"send":     "HTTP GET /health/bar",
@@ -478,9 +478,9 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			ing := test.NewIngress("ingress", "1", namespace, spec,
 				map[string]string{
-					"virtual-server.f5.com/ip":        "172.16.3.2",
-					"virtual-server.f5.com/partition": "velcro",
-					"virtual-server.f5.com/health": `[
+					f5VsBindAddrAnnotation:  "172.16.3.2",
+					f5VsPartitionAnnotation: "velcro",
+					healthMonitorAnnotation: `[
 					{
 						"path":     "foo.bar.com/foo",
 						"send":     "HTTP GET /health/foo",
@@ -631,11 +631,11 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			ing := test.NewIngress("ingress", "1", namespace, spec,
 				map[string]string{
-					ingressSslRedirect:                "true",
-					"virtual-server.f5.com/ip":        "1.2.3.4",
-					"virtual-server.f5.com/partition": "velcro",
-					"virtual-server.f5.com/http-port": "443",
-					"virtual-server.f5.com/health": `[
+					ingressSslRedirect:      "true",
+					f5VsBindAddrAnnotation:  "1.2.3.4",
+					f5VsPartitionAnnotation: "velcro",
+					f5VsHttpPortAnnotation:  "443",
+					healthMonitorAnnotation: `[
 					{
 						"path":     "foo.bar.com/foo",
 						"send":     "HTTP GET /health/foo",
@@ -767,11 +767,11 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			ing := test.NewIngress("ingress", "1", namespace, spec,
 				map[string]string{
-					ingressSslRedirect:                "true",
-					"virtual-server.f5.com/ip":        "1.2.3.4",
-					"virtual-server.f5.com/partition": "velcro",
-					"virtual-server.f5.com/http-port": "443",
-					"virtual-server.f5.com/health": `[
+					ingressSslRedirect:      "true",
+					f5VsBindAddrAnnotation:  "1.2.3.4",
+					f5VsPartitionAnnotation: "velcro",
+					f5VsHttpPortAnnotation:  "443",
+					healthMonitorAnnotation: `[
 					{
 						"path":     "*/bar",
 						"send":     "HTTP GET /health/bar",
@@ -900,7 +900,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			route := test.NewRoute("route", "1", namespace, spec,
 				map[string]string{
-					"virtual-server.f5.com/health": `[
+					healthMonitorAnnotation: `[
 					{
 						"path":     "svc1/",
 						"send":     "HTTP GET /test1",

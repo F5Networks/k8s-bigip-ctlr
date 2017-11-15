@@ -161,8 +161,6 @@ func (appMgr *Manager) outputConfigLocked() {
 				}
 				log.Infof("Wrote %v Virtual Server and %v IApp configs",
 					virtualCount, iappCount)
-				grout, _ := json.MarshalIndent(resources, "", "  ")
-				log.Infof("%s", string(grout))
 				if log.LL_DEBUG == log.GetLogLevel() {
 					// Remove customProfiles from output
 					// FIXME (sberman): Issue #365

@@ -625,7 +625,7 @@ Supported annotations
 |                      | timeout         | integer     | Required  | Number of seconds before the check times out.                                  | N/A         |
 |                      |                 |             | [#hm1]_   |                                                                                |             |
 +----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/secure-serverssl | boolean     | Optional  | Specifies to validate the server-side SSL certificate of Re-encrypt            | false       |
+| virtual-server.f5.com/secure-serverssl | boolean     | Optional  | Specify to validate the server-side SSL certificate of Re-encrypt              | false       |
 |                                        |             |           | terminated routes.                                                             |             |
 +----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
 

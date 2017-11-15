@@ -23,7 +23,7 @@ const handleError = require('./util').handleError;
 
 handleError();
 
-const CURRENT_VERSION="v0.1.5";
+const CURRENT_VERSION="v0.1.6";
 const testSchema = `f5schemadb://bigip-virtual-server_${CURRENT_VERSION}.json`;
 
 exports.bigipVirtualServer = {
@@ -52,7 +52,8 @@ exports.bigipVirtualServer = {
             "interval": 30,
             "timeout": 10,
             "protocol": "tcp",
-            "send": "/"
+            "send": "/",
+            "recv": "/"
           } ]
         }
       }
@@ -620,6 +621,37 @@ exports.bigipVirtualServer.invalidHealthMonitor = t => {
         data.virtualServer.backend.healthMonitors[1].send = "GET /";
     } catch (err) {
         t.strictEqual(err.message, 'Cannot set property \'send\' of undefined');
+    }
+
+    data.virtualServer.backend.healthMonitors[0].recv = "";
+    result = this.sUtil.runValidate(data, testSchema);
+    t.ok(!result.valid, 'Should have a failure');
+
+    t.strictEqual(result.errors.length, 1, 'Should have one error');
+    t.strictEqual(result.errors[0].property,
+        'instance.virtualServer.backend.healthMonitors[0].recv',
+        'Should have send error');
+    t.strictEqual(result.errors[0].message,
+        'does not meet minimum length of 1', 'Should have min length error');
+
+    data.virtualServer.backend.healthMonitors[0].recv = 1;
+    result = this.sUtil.runValidate(data, testSchema);
+    t.ok(!result.valid, 'Should have a failure');
+
+    t.strictEqual(result.errors.length, 1, 'Should have one error');
+    t.strictEqual(result.errors[0].property,
+        'instance.virtualServer.backend.healthMonitors[0].recv',
+        'Should have send error');
+    t.strictEqual(result.errors[0].message,
+        'is not of a type(s) string', 'Should have non string error');
+
+    data.virtualServer.backend.healthMonitors[0].recv = "/";
+
+    // Undefined index
+    try {
+        data.virtualServer.backend.healthMonitors[1].recv = "/";
+    } catch (err) {
+        t.strictEqual(err.message, 'Cannot set property \'recv\' of undefined');
     }
 
     // Add a second health monitor, missing protocol

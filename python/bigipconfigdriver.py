@@ -204,7 +204,6 @@ def create_ltm_config(partition, config):
     if 'resources' in config and partition in config['resources']:
         ltm = config['resources'][partition]
 
-    log.debug("LTM Config: %s", json.dumps(ltm))
     return ltm
 
 

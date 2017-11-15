@@ -87,6 +87,26 @@ func (appMgr *Manager) outputConfigLocked() {
 		}
 	}
 
+	for _, profile := range appMgr.customProfiles.profs {
+		initPartitionData(resources, profile.Partition)
+		resources[profile.Partition].CustomProfiles = append(resources[profile.Partition].CustomProfiles, profile)
+	}
+	for _, irule := range appMgr.irulesMap {
+		initPartitionData(resources, irule.Partition)
+		resources[irule.Partition].IRules = append(resources[irule.Partition].IRules, *irule)
+	}
+	for intDgKey, intDgMap := range appMgr.intDgMap {
+		initPartitionData(resources, intDgKey.Partition)
+		if len(intDgMap) > 0 {
+			for _, intDg := range intDgMap {
+				resources[intDgKey.Partition].InternalDataGroups = append(resources[intDgKey.Partition].InternalDataGroups, *intDg)
+			}
+		} else {
+			// The data group is required, but we have no information.
+			resources[intDgKey.Partition].InternalDataGroups = append(resources[intDgKey.Partition].InternalDataGroups, *NewInternalDataGroup(intDgKey.Name, intDgKey.Partition))
+		}
+	}
+
 	if appMgr.eventChan != nil {
 		// Get all pool members and write them to VxlanMgr to configure ARP entries
 		var allPoolMembers []Member
@@ -125,26 +145,6 @@ func (appMgr *Manager) outputConfigLocked() {
 		}
 	}
 
-	for _, profile := range appMgr.customProfiles.profs {
-		initPartitionData(resources, profile.Partition)
-		resources[profile.Partition].CustomProfiles = append(resources[profile.Partition].CustomProfiles, profile)
-	}
-	for _, irule := range appMgr.irulesMap {
-		initPartitionData(resources, irule.Partition)
-		resources[irule.Partition].IRules = append(resources[irule.Partition].IRules, *irule)
-	}
-	for intDgKey, intDgMap := range appMgr.intDgMap {
-		initPartitionData(resources, intDgKey.Partition)
-		if len(intDgMap) > 0 {
-			for _, intDg := range intDgMap {
-				resources[intDgKey.Partition].InternalDataGroups = append(resources[intDgKey.Partition].InternalDataGroups, *intDg)
-			}
-		} else {
-			// The data group is required, but we have no information.
-			resources[intDgKey.Partition].InternalDataGroups = append(resources[intDgKey.Partition].InternalDataGroups, *NewInternalDataGroup(intDgKey.Name, intDgKey.Partition))
-		}
-	}
-
 	if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 ||
 		appMgr.initialState == true {
 		doneCh, errCh, err := appMgr.ConfigWriter().SendSection("resources", resources)
@@ -162,16 +162,14 @@ func (appMgr *Manager) outputConfigLocked() {
 				log.Infof("Wrote %v Virtual Server and %v IApp configs",
 					virtualCount, iappCount)
 				if log.LL_DEBUG == log.GetLogLevel() {
-					// Remove customProfiles from output
-					// FIXME (sberman): Issue #365
-					for partition, _ := range resources {
-						resources[partition].CustomProfiles = []CustomProfile{}
-					}
-					output, err := json.Marshal(resources)
+					// Copy everything from resources except CustomProfiles
+					// to be used for debug logging
+					resourceLog := copyResourceData(resources)
+					output, err := json.Marshal(resourceLog)
 					if nil != err {
 						log.Warningf("Failed creating output debug log: %v", err)
 					} else {
-						log.Debugf("Resources: %s", output)
+						log.Debugf("LTM Resources: %s", output)
 					}
 				}
 			case e := <-errCh:
@@ -236,4 +234,30 @@ func appendPolicy(rsPolicies []Policy, p Policy) []Policy {
 		}
 	}
 	return append(rsPolicies, p)
+}
+
+func copyResourceData(resources PartitionMap) PartitionMap {
+	resourceLog := PartitionMap{}
+	for partition, cfg := range resources {
+		initPartitionData(resourceLog, partition)
+
+		resourceLog[partition].Virtuals = make([]Virtual, len(cfg.Virtuals))
+		copy(resourceLog[partition].Virtuals, cfg.Virtuals)
+
+		resourceLog[partition].Pools = make(Pools, len(cfg.Pools))
+		copy(resourceLog[partition].Pools, cfg.Pools)
+
+		resourceLog[partition].Monitors = make(Monitors, len(cfg.Monitors))
+		copy(resourceLog[partition].Monitors, cfg.Monitors)
+
+		resourceLog[partition].Policies = make([]Policy, len(cfg.Policies))
+		copy(resourceLog[partition].Policies, cfg.Policies)
+
+		resourceLog[partition].IRules = make([]IRule, len(cfg.IRules))
+		copy(resourceLog[partition].IRules, cfg.IRules)
+
+		resourceLog[partition].InternalDataGroups = make([]InternalDataGroup, len(cfg.InternalDataGroups))
+		copy(resourceLog[partition].InternalDataGroups, cfg.InternalDataGroups)
+	}
+	return resourceLog
 }

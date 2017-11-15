@@ -40,11 +40,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	watch "k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/kubernetes/scheme"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	rest "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/miekg/dns"
@@ -102,10 +99,8 @@ type Manager struct {
 	// Namespace informer support (namespace labels)
 	nsQueue    workqueue.RateLimitingInterface
 	nsInformer cache.SharedIndexInformer
-	// Event recorder
-	broadcaster   record.EventBroadcaster
-	eventRecorder record.EventRecorder
-	eventSource   v1.EventSource
+	// Event notifier
+	eventNotifier *EventNotifier
 	// Route configurations
 	routeConfig RouteConfig
 	// Currently configured node label selector
@@ -121,18 +116,19 @@ type Manager struct {
 // Struct to allow NewManager to receive all or only specific parameters.
 type Params struct {
 	KubeClient        kubernetes.Interface
-	restClient        rest.Interface // package local for unit testing only
 	RouteClientV1     rest.Interface
 	ConfigWriter      writer.Writer
 	UseNodeInternal   bool
 	IsNodePort        bool
 	RouteConfig       RouteConfig
 	ResolveIngress    string
-	InitialState      bool                 // Unit testing only
-	EventRecorder     record.EventRecorder // Unit testing only
 	NodeLabelSelector string
 	UseSecrets        bool
 	EventChan         chan interface{}
+	// Package local for unit testing only
+	restClient      rest.Interface
+	initialState    bool
+	broadcasterFunc NewBroadcasterFunc
 }
 
 // Configuration options for Routes in OpenShift
@@ -163,8 +159,7 @@ func NewManager(params *Params) *Manager {
 		configWriter:      params.ConfigWriter,
 		useNodeInternal:   params.UseNodeInternal,
 		isNodePort:        params.IsNodePort,
-		initialState:      params.InitialState,
-		eventRecorder:     params.EventRecorder,
+		initialState:      params.initialState,
 		routeConfig:       params.RouteConfig,
 		nodeLabelSelector: params.NodeLabelSelector,
 		resolveIng:        params.ResolveIngress,
@@ -173,6 +168,7 @@ func NewManager(params *Params) *Manager {
 		vsQueue:           vsQueue,
 		nsQueue:           nsQueue,
 		appInformers:      make(map[string]*appInformer),
+		eventNotifier:     NewEventNotifier(params.broadcasterFunc),
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -181,11 +177,6 @@ func NewManager(params *Params) *Manager {
 	if nil != manager.kubeClient && nil == manager.restClientv1beta1 {
 		// This is the normal production case, but need the checks for unit tests.
 		manager.restClientv1beta1 = manager.kubeClient.Extensions().RESTClient()
-	}
-	manager.eventSource = v1.EventSource{Component: "k8s-bigip-ctlr"}
-	manager.broadcaster = record.NewBroadcaster()
-	if nil == manager.eventRecorder {
-		manager.eventRecorder = manager.broadcaster.NewRecorder(scheme.Scheme, manager.eventSource)
 	}
 
 	return &manager
@@ -372,6 +363,7 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 		// Clean up all resources that reference a removed namespace
 		appInf.stopInformers()
 		appMgr.removeNamespaceLocked(nsName)
+		appMgr.eventNotifier.deleteNotifierForNamespace(nsName)
 		appMgr.resources.Lock()
 		defer appMgr.resources.Unlock()
 		rsDeleted := 0
@@ -1760,37 +1752,6 @@ func (appMgr *Manager) setIngressStatus(
 		log.Warning(warning)
 		appMgr.recordIngressEvent(ing, "StatusIPError", warning, "")
 	}
-}
-
-// This function expects either an Ingress resource or the name of a VS for an Ingress
-func (appMgr *Manager) recordIngressEvent(ing *v1beta1.Ingress,
-	reason,
-	message,
-	rsName string) {
-	var namespace string
-	var name string
-	if ing != nil {
-		namespace = ing.ObjectMeta.Namespace
-	} else {
-		namespace = strings.Split(rsName, "_")[0]
-		name = rsName[len(namespace)+1 : len(rsName)-len("-ingress")]
-	}
-	appMgr.broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{
-		Interface: appMgr.kubeClient.Core().Events(namespace)})
-
-	// If we aren't given an Ingress resource, we use the name to find it
-	var err error
-	if ing == nil {
-		ing, err = appMgr.kubeClient.Extensions().Ingresses(namespace).
-			Get(name, metav1.GetOptions{})
-		if nil != err {
-			log.Warningf("Could not find Ingress resource '%v'.", name)
-			return
-		}
-	}
-
-	// Create the event
-	appMgr.eventRecorder.Event(ing, v1.EventTypeNormal, reason, message)
 }
 
 // Resolve the first host name in an Ingress and use the IP address as the VS address

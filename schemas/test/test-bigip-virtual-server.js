@@ -23,7 +23,7 @@ const handleError = require('./util').handleError;
 
 handleError();
 
-const CURRENT_VERSION="v0.1.4";
+const CURRENT_VERSION="v0.1.5";
 const testSchema = `f5schemadb://bigip-virtual-server_${CURRENT_VERSION}.json`;
 
 exports.bigipVirtualServer = {
@@ -588,7 +588,7 @@ exports.bigipVirtualServer.invalidHealthMonitor = t => {
         'instance.virtualServer.backend.healthMonitors[0].protocol',
         'Should have protocol error');
     t.strictEqual(result.errors[0].message,
-        'is not one of enum values: http,tcp', 'Should have non enum error');
+        'is not one of enum values: http,tcp,udp', 'Should have non enum error');
 
     data.virtualServer.backend.healthMonitors[0].protocol = "tcp";
     data.virtualServer.backend.healthMonitors[0].send = "";

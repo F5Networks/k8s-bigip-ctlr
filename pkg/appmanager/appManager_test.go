@@ -34,7 +34,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/tools/record"
 )
 
 func init() {
@@ -520,7 +519,9 @@ func (m *mockAppManager) deleteEndpoints(ep *v1.Endpoints) bool {
 func (m *mockAppManager) addIngress(ing *v1beta1.Ingress) bool {
 	ok, keys := m.appMgr.checkValidIngress(ing)
 	if ok {
-		appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
+		ns := ing.ObjectMeta.Namespace
+		m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Create(ing)
+		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Add(ing)
 		for _, vsKey := range keys {
 			mtx := m.getVsMutex(*vsKey)
@@ -535,7 +536,14 @@ func (m *mockAppManager) addIngress(ing *v1beta1.Ingress) bool {
 func (m *mockAppManager) updateIngress(ing *v1beta1.Ingress) bool {
 	ok, keys := m.appMgr.checkValidIngress(ing)
 	if ok {
-		appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
+		ns := ing.ObjectMeta.Namespace
+		_, err := m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Update(ing)
+		if nil != err {
+			// This can happen when an ingress is ignored by checkValidIngress
+			// before, but now has been updated to be accepted.
+			m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Create(ing)
+		}
+		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Update(ing)
 		for _, vsKey := range keys {
 			mtx := m.getVsMutex(*vsKey)
@@ -550,7 +558,10 @@ func (m *mockAppManager) updateIngress(ing *v1beta1.Ingress) bool {
 func (m *mockAppManager) deleteIngress(ing *v1beta1.Ingress) bool {
 	ok, keys := m.appMgr.checkValidIngress(ing)
 	if ok {
-		appInf, _ := m.appMgr.getNamespaceInformer(ing.ObjectMeta.Namespace)
+		name := ing.ObjectMeta.Name
+		ns := ing.ObjectMeta.Namespace
+		m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Delete(name, nil)
+		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Delete(ing)
 		for _, vsKey := range keys {
 			mtx := m.getVsMutex(*vsKey)
@@ -612,6 +623,15 @@ func (m *mockAppManager) addNamespace(ns *v1.Namespace) bool {
 		m.appMgr.syncNamespace(ns.ObjectMeta.Name)
 	}
 	return found
+}
+
+func (m *mockAppManager) getFakeEvents(ns string) []FakeEvent {
+	nen := m.appMgr.eventNotifier.getNotifierForNamespace(ns)
+	if nil != nen {
+		fakeRecorder := nen.recorder.(*FakeEventRecorder)
+		return fakeRecorder.Events
+	}
+	return []FakeEvent{}
 }
 
 func generateExpectedAddrs(port int32, ips []string) []Member {
@@ -790,7 +810,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr = NewManager(&Params{
 				ConfigWriter: mw,
 				IsNodePort:   true,
-				InitialState: true,
+				initialState: true,
 			})
 		})
 
@@ -799,7 +819,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr = NewManager(&Params{
 				ConfigWriter:      mw,
 				IsNodePort:        true,
-				InitialState:      true,
+				initialState:      true,
 				NodeLabelSelector: "label",
 				UseNodeInternal:   false,
 			})
@@ -1058,17 +1078,15 @@ var _ = Describe("AppManager Tests", func() {
 				Sections:  make(map[string]interface{}),
 			}
 			fakeClient := fake.NewSimpleClientset()
-			fakeRecorder := record.NewFakeRecorder(100)
 			Expect(fakeClient).ToNot(BeNil())
-			Expect(fakeRecorder).ToNot(BeNil())
 
 			mockMgr = newMockAppManager(&Params{
-				KubeClient:    fakeClient,
-				ConfigWriter:  mw,
-				restClient:    test.CreateFakeHTTPClient(),
-				RouteClientV1: test.CreateFakeHTTPClient(),
-				IsNodePort:    true,
-				EventRecorder: fakeRecorder,
+				KubeClient:      fakeClient,
+				ConfigWriter:    mw,
+				restClient:      test.CreateFakeHTTPClient(),
+				RouteClientV1:   test.CreateFakeHTTPClient(),
+				IsNodePort:      true,
+				broadcasterFunc: NewFakeEventBroadcaster,
 			})
 		})
 		AfterEach(func() {
@@ -2568,6 +2586,11 @@ var _ = Describe("AppManager Tests", func() {
 					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
 				r = mockMgr.addService(fooSvc)
 				Expect(r).To(BeTrue(), "Service should be processed.")
+				events := mockMgr.getFakeEvents(namespace)
+				Expect(len(events)).To(Equal(1))
+				Expect(events[0].Namespace).To(Equal(namespace))
+				Expect(events[0].Name).To(Equal("ingress"))
+				Expect(events[0].Reason).To(Equal("ResourceConfigured"))
 
 				rs, ok := resources.Get(
 					serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
@@ -2589,6 +2612,11 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.updateIngress(ingress2)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 				Expect(resources.Count()).To(Equal(1))
+				events = mockMgr.getFakeEvents(namespace)
+				Expect(len(events)).To(Equal(2))
+				Expect(events[1].Namespace).To(Equal(namespace))
+				Expect(events[1].Name).To(Equal("ingress"))
+				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
 
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
@@ -2602,6 +2630,8 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.deleteIngress(ingress2)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 				Expect(resources.Count()).To(Equal(0))
+				events = mockMgr.getFakeEvents(namespace)
+				Expect(len(events)).To(Equal(2))
 
 				// Shouldn't process Ingress with non-F5 class
 				// https://github.com/F5Networks/k8s-bigip-ctlr/issues/311
@@ -2616,10 +2646,14 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.updateIngress(ingressNotf5)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed when flipping from notf5 to f5.")
 				Expect(resources.Count()).To(Equal(1))
+				events = mockMgr.getFakeEvents(namespace)
+				Expect(len(events)).To(Equal(3))
 				ingressNotf5.Annotations[k8sIngressClass] = "notf5again"
 				r = mockMgr.updateIngress(ingressNotf5)
 				Expect(r).To(BeFalse(), "Ingress resource should be destroyed when flipping from f5 to notf5again.")
 				Expect(resources.Count()).To(Equal(0))
+				events = mockMgr.getFakeEvents(namespace)
+				Expect(len(events)).To(Equal(3))
 
 				// Multi-service Ingress
 				ingressConfig = v1beta1.IngressSpec{
@@ -2682,6 +2716,8 @@ var _ = Describe("AppManager Tests", func() {
 					})
 				r = mockMgr.addIngress(ingress3)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+				events = mockMgr.getFakeEvents(namespace)
+				Expect(len(events)).To(Equal(4))
 				// 4 rules, but only 3 backends specified. We should have 3 keys stored, one for
 				// each backend
 				Expect(resources.Count()).To(Equal(3))
@@ -2731,6 +2767,8 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
 				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+				events = mockMgr.getFakeEvents(namespace)
+				Expect(len(events)).To(Equal(5))
 			})
 
 			Context("Routes", func() {
@@ -3115,24 +3153,72 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.appMgr.resolveIng = "LOOKUP"
 				// Empty host (then add one)
 				hostResolution("", false, true)
+				expectedEventCt := 4 // # expected events
+				events := mockMgr.getFakeEvents(namespace)
+				Expect(len(events)).To(Equal(expectedEventCt))
+				Expect(events[0].Reason).To(Equal("DNSResolutionError"))
+				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
+				Expect(events[2].Reason).To(Equal("HostResolvedSuccessfully"))
+				Expect(events[3].Reason).To(Equal("ResourceConfigured"))
+				// each following test will skip events handled here
+				ignoreEventCt := expectedEventCt
+
 				// Bad host
 				hostResolution("doesn't.exist", false, false)
+				expectedEventCt = 2
+				events = mockMgr.getFakeEvents(namespace)
+				events = events[ignoreEventCt:]
+				Expect(events[0].Reason).To(Equal("DNSResolutionError"))
+				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
+				ignoreEventCt += expectedEventCt
+
 				// Good host
 				hostResolution("f5.com", true, false)
+				expectedEventCt = 2
+				events = mockMgr.getFakeEvents(namespace)
+				events = events[ignoreEventCt:]
+				Expect(events[0].Reason).To(Equal("HostResolvedSuccessfully"))
+				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
+				ignoreEventCt += expectedEventCt
 
 				// Use a non-existent custom DNS server
 				mockMgr.appMgr.resolveIng = "BadCustomDNS"
 				// Good host; bad DNS
 				hostResolution("google.com", false, false)
+				events = mockMgr.getFakeEvents(namespace)
+				events = events[ignoreEventCt:]
+				ignoreEventCt += expectedEventCt
+				Expect(events[0].Reason).To(Equal("DNSResolutionError"))
+				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
+				expectedEventCt = 2
 
 				// Use a valid custom DNS server (hostname)
 				mockMgr.appMgr.resolveIng = "pdns130.f5.com."
 				hostResolution("f5.com", true, false)
+				events = mockMgr.getFakeEvents(namespace)
+				events = events[ignoreEventCt:]
+				ignoreEventCt += expectedEventCt
+				Expect(events[0].Reason).To(Equal("HostResolvedSuccessfully"))
+				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
+				expectedEventCt = 2
+
 				// Use a valid custom DNS server (ip address)
 				mockMgr.appMgr.resolveIng = "193.221.113.53"
 				hostResolution("msn.com", true, false)
+				events = mockMgr.getFakeEvents(namespace)
+				events = events[ignoreEventCt:]
+				ignoreEventCt += expectedEventCt
+				Expect(events[0].Reason).To(Equal("HostResolvedSuccessfully"))
+				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
+				expectedEventCt = 2
+
 				// Good DNS, bad host
 				hostResolution("doesn't.exist", false, false)
+				events = mockMgr.getFakeEvents(namespace)
+				events = events[ignoreEventCt:]
+				ignoreEventCt += expectedEventCt
+				Expect(events[0].Reason).To(Equal("DNSResolutionError"))
+				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
 			})
 		})
 

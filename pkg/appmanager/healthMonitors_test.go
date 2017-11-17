@@ -26,7 +26,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/tools/record"
 )
 
 var _ = Describe("Health Monitor Tests", func() {
@@ -39,17 +38,15 @@ var _ = Describe("Health Monitor Tests", func() {
 			Sections:  make(map[string]interface{}),
 		}
 		fakeClient := fake.NewSimpleClientset()
-		fakeRecorder := record.NewFakeRecorder(100)
 		Expect(fakeClient).ToNot(BeNil())
-		Expect(fakeRecorder).ToNot(BeNil())
 
 		mockMgr = newMockAppManager(&Params{
-			KubeClient:    fakeClient,
-			ConfigWriter:  mw,
-			restClient:    test.CreateFakeHTTPClient(),
-			RouteClientV1: test.CreateFakeHTTPClient(),
-			IsNodePort:    true,
-			EventRecorder: fakeRecorder,
+			KubeClient:      fakeClient,
+			ConfigWriter:    mw,
+			restClient:      test.CreateFakeHTTPClient(),
+			RouteClientV1:   test.CreateFakeHTTPClient(),
+			IsNodePort:      true,
+			broadcasterFunc: NewFakeEventBroadcaster,
 		})
 		namespace = "default"
 		err := mockMgr.startNonLabelMode([]string{namespace})

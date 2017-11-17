@@ -626,7 +626,7 @@ func (m *mockAppManager) addNamespace(ns *v1.Namespace) bool {
 }
 
 func (m *mockAppManager) getFakeEvents(ns string) []FakeEvent {
-	nen := m.appMgr.eventNotifier.getNotifierForNamespace(ns, nil)
+	nen := m.appMgr.eventNotifier.getNotifierForNamespace(ns)
 	if nil != nen {
 		fakeRecorder := nen.recorder.(*FakeEventRecorder)
 		return fakeRecorder.Events

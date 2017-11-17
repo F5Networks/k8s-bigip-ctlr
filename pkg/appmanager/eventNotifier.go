@@ -58,7 +58,8 @@ func NewEventNotifier(bfunc NewBroadcasterFunc) *EventNotifier {
 	}
 }
 
-func (en *EventNotifier) getNotifierForNamespace(
+// Create a notifier for a namespace, or return the existing one
+func (en *EventNotifier) createNotifierForNamespace(
 	namespace string,
 	coreIntf corev1.CoreV1Interface,
 ) *NamespaceEventNotifier {
@@ -68,10 +69,6 @@ func (en *EventNotifier) getNotifierForNamespace(
 
 	evNotifier, found := en.notifierMap[namespace]
 	if !found {
-		if nil == coreIntf {
-			// Don't create notifier for this namespace (unit testing)
-			return nil
-		}
 		source := v1.EventSource{Component: "k8s-bigip-ctlr"}
 		broadcaster := en.broadcasterFunc()
 		recorder := broadcaster.NewRecorder(scheme.Scheme, source)
@@ -83,6 +80,21 @@ func (en *EventNotifier) getNotifierForNamespace(
 		broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{
 			Interface: coreIntf.Events(namespace),
 		})
+	}
+	return evNotifier
+}
+
+// Get the notifier for a namespace
+func (en *EventNotifier) getNotifierForNamespace(
+	namespace string,
+) *NamespaceEventNotifier {
+
+	en.mutex.Lock()
+	defer en.mutex.Unlock()
+
+	evNotifier, found := en.notifierMap[namespace]
+	if !found {
+		return nil
 	}
 	return evNotifier
 }
@@ -104,7 +116,8 @@ func (nen *NamespaceEventNotifier) recordEvent(
 
 // This function expects either an Ingress resource or the name of a VS for
 // an Ingress.
-func (appMgr *Manager) recordIngressEvent(ing *v1beta1.Ingress,
+func (appMgr *Manager) recordIngressEvent(
+	ing *v1beta1.Ingress,
 	reason,
 	message,
 	rsName string) {
@@ -127,7 +140,7 @@ func (appMgr *Manager) recordIngressEvent(ing *v1beta1.Ingress,
 	}
 
 	// Create the event
-	evNotifier := appMgr.eventNotifier.getNotifierForNamespace(
+	evNotifier := appMgr.eventNotifier.createNotifierForNamespace(
 		namespace, appMgr.kubeClient.Core())
 	evNotifier.recordEvent(ing, v1.EventTypeNormal, reason, message)
 }

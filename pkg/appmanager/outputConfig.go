@@ -114,6 +114,9 @@ func (appMgr *Manager) outputConfigLocked() {
 			for _, pool := range cfg.Pools {
 				allPoolMembers = append(allPoolMembers, pool.Members...)
 			}
+			for _, iapp := range cfg.IApps {
+				allPoolMembers = append(allPoolMembers, iapp.IAppPoolMemberTable.Members...)
+			}
 		}
 		select {
 		case appMgr.eventChan <- allPoolMembers:

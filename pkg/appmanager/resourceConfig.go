@@ -584,6 +584,11 @@ func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
 }
 
 func setProfilesForMode(mode string, cfg *ResourceConfig) {
+	tcpProf := ProfileRef{
+		Partition: "Common",
+		Name:      "tcp",
+		Context:   customProfileAll,
+	}
 	switch mode {
 	case "http":
 		cfg.Virtual.IpProtocol = "tcp"
@@ -593,14 +598,10 @@ func setProfilesForMode(mode string, cfg *ResourceConfig) {
 				Name:      "http",
 				Context:   customProfileAll,
 			})
+		cfg.Virtual.AddOrUpdateProfile(tcpProf)
 	case "tcp":
 		cfg.Virtual.IpProtocol = "tcp"
-		cfg.Virtual.AddOrUpdateProfile(
-			ProfileRef{
-				Partition: "Common",
-				Name:      "tcp",
-				Context:   customProfileAll,
-			})
+		cfg.Virtual.AddOrUpdateProfile(tcpProf)
 	case "udp":
 		cfg.Virtual.IpProtocol = "udp"
 		cfg.Virtual.AddOrUpdateProfile(

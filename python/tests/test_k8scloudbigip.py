@@ -23,6 +23,7 @@ import unittest
 import json
 from mock import Mock, mock_open, patch
 from f5_cccl.utils.mgmt import ManagementRoot
+from f5_cccl.bigip import BigIPProxy
 from f5_cccl.utils.mgmt import mgmt_root
 from f5_cccl.exceptions import F5CcclValidationError
 from .. import bigipconfigdriver as ctlr
@@ -89,7 +90,10 @@ class CloudTest(unittest.TestCase):
                 exp = json.load(json_data)
         self.assertEqual(cfg, exp['ltm'])
 
-        self.mgr._apply_ltm_config(cfg)
+        with patch.object(BigIPProxy, 'get_default_route_domain') as \
+                mock_bigip_gdrd:
+            mock_bigip_gdrd.return_value = 0
+            self.mgr._apply_ltm_config(cfg)
 
     def test_cccl_exceptions(
             self,

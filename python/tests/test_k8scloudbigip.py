@@ -21,7 +21,7 @@ from __future__ import absolute_import
 
 import unittest
 import json
-from mock import Mock, patch
+from mock import Mock, mock_open, patch
 from f5_cccl.utils.mgmt import ManagementRoot
 from f5_cccl.utils.mgmt import mgmt_root
 from f5_cccl.exceptions import F5CcclValidationError
@@ -59,6 +59,7 @@ class CloudTest(unittest.TestCase):
                 bigip,
                 partition)
 
+        self.bigip = bigip
         self.cccl = self.mgr._cccl
         self.cccl._service_manager._service_deployer._bigip.refresh_ltm = \
             Mock()
@@ -115,6 +116,27 @@ class CloudTest(unittest.TestCase):
         for data_file in cloud_test_data:
             expected_file = data_file.replace('.json', '_expected.json')
             self.verify_cloud_config(data_file, expected_file)
+
+    def test_user_agent(self):
+        """Test: Setting ICR session user-agent from build info."""
+        user_agent_orig = self.bigip.icrs.session.headers['User-Agent']
+
+        # Invalid build info
+        with patch('__builtin__.open',
+                   mock_open(read_data="This is not valid build info")):
+            ctlr._set_user_agent(self.bigip)
+            assert 'k8s-bigip-ctlr-VERSION-UNKNOWN' in \
+                self.bigip.icrs.session.headers['User-Agent']
+
+        # Reset user-agent
+        self.bigip.icrs.session.headers['User-Agent'] = user_agent_orig
+
+        # Valid build info
+        version_info = '{\"version\":\"1.3.0\",\"build\":\"abcdef0123456\"}'
+        with patch('__builtin__.open', mock_open(read_data=version_info)):
+            ctlr._set_user_agent(self.bigip)
+            assert 'k8s-bigip-ctlr-1.3.0-abcdef0123456' in \
+                self.bigip.icrs.session.headers['User-Agent']
 
 
 if __name__ == '__main__':

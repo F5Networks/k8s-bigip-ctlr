@@ -77,10 +77,12 @@ author = u'F5 Networks'
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
-# The short X.Y version.
-version = u'v1.4'
-# The full version, including alpha/beta/rc tags.
-release = u'v1.4.0-dev'
+with open('../next-version.txt') as verfile:
+    v = verfile.readline().strip().split('.')
+    # The short X.Y version.
+    version = u'v{}.{}'.format(v[0], v[1])
+    # The full version, including alpha/beta/rc tags.
+    release = u'v{}.{}.{}-dev'.format(v[0], v[1], v[2])
 
 # def setup(app):
 #    app.add_config_value('versionlevel', '', 'env')

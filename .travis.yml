@@ -1,4 +1,4 @@
-language: bash
+language: go
 sudo: required
 services:
   - docker
@@ -21,24 +21,30 @@ script:
       docker login -u="$DOCKER_U" -p="$DOCKER_P"
       DOCKER_READY="true"
     fi
+  - export BUILD_VERSION=$(build-tools/version-tool version)
+  - export BUILD_INFO=$(build-tools/version-tool build-info)
   - export IMG_TAG="${BASE_PUSH_TARGET}:${TRAVIS_COMMIT}"
   - export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${TRAVIS_COMMIT}"
   - export BUILD_STAMP=devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID-$(date +%s)
   - export CLEAN_BUILD=true
   - export BASE_OS=alpine
-  - export CTLR_VERSION=$(echo $TRAVIS_BRANCH | sed s/-stable//g)
-  - ./build-tools/build-devel-image.sh
-  - ./build-tools/build-debug-artifacts.sh
-  - ./build-tools/build-release-artifacts.sh
-  - ./build-tools/build-release-images.sh
+  - make verify
+  - make prod
+  - docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
+  - docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID"
+  - if [ "$TRAVIS_TAG" == "$TRAVIS_BRANCH" ]; then BUILD_VERSION=$TRAVIS_TAG; fi
   - |
     if [ "$DOCKER_READY" ]; then
       docker tag "$IMG_TAG" "$BASE_PUSH_TARGET"
       docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
       docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_STAMP"
+      docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_VERSION"
+      docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_VERSION-$BUILD_INFO"
       docker push "$IMG_TAG"
       docker push "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
       docker push "$BASE_PUSH_TARGET:$BUILD_STAMP"
+      docker push "$BASE_PUSH_TARGET:$BUILD_VERSION"
+      docker push "$BASE_PUSH_TARGET:$BUILD_VERSION-$BUILD_INFO"
       docker push "$BASE_PUSH_TARGET:latest"
     fi
   - make docs

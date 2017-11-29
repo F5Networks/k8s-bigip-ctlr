@@ -61,6 +61,10 @@ type bigIPSection struct {
 }
 
 var (
+	// To be set by build
+	version   string
+	buildInfo string
+
 	// Flag sets and supported flags
 	flags        *pflag.FlagSet
 	globalFlags  *pflag.FlagSet
@@ -73,6 +77,7 @@ var (
 	logLevel         *string
 	verifyInterval   *int
 	nodePollInterval *int
+	printVersion     *bool
 
 	namespaces        *[]string
 	useNodeInternal   *bool
@@ -135,6 +140,8 @@ func _init() {
 		"Optional, interval (in seconds) at which to verify the BIG-IP configuration.")
 	nodePollInterval = globalFlags.Int("node-poll-interval", 30,
 		"Optional, interval (in seconds) at which to poll for cluster nodes.")
+	printVersion = globalFlags.Bool("version", false,
+		"Optional, print version and exit.")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
@@ -443,6 +450,11 @@ func main() {
 	err := flags.Parse(os.Args)
 	if nil != err {
 		os.Exit(1)
+	}
+
+	if *printVersion {
+		fmt.Printf("%s\n Build: %s\n", version, buildInfo)
+		os.Exit(0)
 	}
 
 	err = verifyArgs()

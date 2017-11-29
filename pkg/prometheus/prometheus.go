@@ -1,11 +1,12 @@
 package prometheus
 
 import (
-	"log"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+//TODO use as Counter not Gauge
 var MonitoredNodes = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "bigip_monitored_nodes",
@@ -14,28 +15,12 @@ var MonitoredNodes = prometheus.NewGaugeVec(
 	[]string{"nodeselector"},
 )
 
-var FoundConfigMaps = prometheus.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: "bigip_configmaps",
-		Help: "Total count of configmaps found to configure services of the BigIP k8s CTLR",
-	},
-	[]string{},
-)
-
-var FoundConfigMapErrors = prometheus.NewGaugeVec(
-	prometheus.GaugeOpts{
-		Name: "bigip_configmap_errors",
-		Help: "Total count of configmaps to configure services og the BigIP k8s CTLR",
-	},
-	[]string{},
-)
-
 var MonitoredServices = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "bigip_monitored_services",
 		Help: "Total count of monitored services by the BigIP k8s CTLR",
 	},
-	[]string{},
+	[]string{"namespace", "name", "status"},
 )
 
 var CurrentErrors = prometheus.NewGaugeVec(
@@ -47,11 +32,10 @@ var CurrentErrors = prometheus.NewGaugeVec(
 )
 
 // further metrics? todo think about
-
+// RegisterMetrics registers all Prometheus metrics defined above
 func RegisterMetrics() {
-	log.Println("Registered BigIP Metrics")
+	log.Info("Registered BigIP Metrics")
 	prometheus.MustRegister(MonitoredNodes)
 	prometheus.MustRegister(MonitoredServices)
 	prometheus.MustRegister(CurrentErrors)
-	//prometheus.MustRegister(redisSlavesHealthyTotal)
 }

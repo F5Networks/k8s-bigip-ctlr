@@ -328,11 +328,6 @@ func verifyArgs() error {
 			u.Path)
 	}
 
-	_, err = url.Parse(*httpAddress)
-	if err != nil {
-		return fmt.Errorf("Error parsing url: %s", err)
-	}
-
 	if *poolMemberType == "nodeport" {
 		isNodePort = true
 	} else if *poolMemberType == "cluster" {

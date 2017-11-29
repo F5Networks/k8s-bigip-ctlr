@@ -149,7 +149,7 @@ func _init() {
 		"Optional, interval (in seconds) at which to poll for cluster nodes.")
 	printVersion = globalFlags.Bool("version", false,
 		"Optional, print version and exit.")
-	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:80",
+	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:8080",
 		"Optional, address to serve http based informations (/metrics and /health).")
 
 	globalFlags.Usage = func() {

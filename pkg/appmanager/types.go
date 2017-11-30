@@ -120,6 +120,7 @@ type (
 		Interval  int    `json:"interval,omitempty"`
 		Type      string `json:"type,omitempty"`
 		Send      string `json:"send,omitempty"`
+		Recv      string `json:"recv,omitempty"`
 		Timeout   int    `json:"timeout,omitempty"`
 	}
 	Monitors []Monitor
@@ -251,6 +252,7 @@ type (
 		Interval  int    `json:"interval,omitempty"`
 		Protocol  string `json:"protocol,omitempty"`
 		Send      string `json:"send,omitempty"`
+		Recv      string `json:"recv,omitempty"`
 		Timeout   int    `json:"timeout,omitempty"`
 	}
 
@@ -294,6 +296,7 @@ type (
 		Path     string `json:"path"`
 		Interval int    `json:"interval"`
 		Send     string `json:"send"`
+		Recv     string `json:"recv"`
 		Timeout  int    `json:"timeout"`
 	}
 	AnnotationHealthMonitors []AnnotationHealthMonitor

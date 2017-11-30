@@ -334,7 +334,7 @@ If you don't define ``bindAddr`` in the Frontend configuration, you must include
 The Controller watches for the annotation key ``virtual-server.f5.com/ip``.
 This annotation must contain the IP address you want to assign to the virtual server.
 
-- You can `configure an IPAM system </containers/latest/kubernetes/ktclr-manage-bigip-objects.html#use-ipam-to-assign-ip-addresses-to-big-ip-LTM-virtual-servers>`_ to write out an annotation containing the selected IP address.
+- You can `configure an IPAM system </containers/latest/kubernetes/kctlr-manage-bigip-objects.html#assign-ip-addresses-to-big-ip-virtual-servers-using-ipam>`_ to write out an annotation containing the selected IP address.
 -  You can check the ``status.virtual-server.f5.com/ip`` annotation set by the Controller via the Kubernetes API.
    This allows you to see the ``bindAddr`` assigned to the virtual server.
 

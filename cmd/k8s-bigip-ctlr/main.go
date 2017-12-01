@@ -453,7 +453,7 @@ func main() {
 	}
 
 	if *printVersion {
-		fmt.Printf("%s\n Build: %s\n", version, buildInfo)
+		fmt.Printf("Version: %s\nBuild: %s\n", version, buildInfo)
 		os.Exit(0)
 	}
 
@@ -463,6 +463,8 @@ func main() {
 		flags.Usage()
 		os.Exit(1)
 	}
+
+	log.Infof("Starting: Version: %s, BuildInfo: %s", version, buildInfo)
 
 	appmanager.DEFAULT_PARTITION = (*bigIPPartitions)[0]
 	appmanager.RegisterBigIPSchemaTypes()

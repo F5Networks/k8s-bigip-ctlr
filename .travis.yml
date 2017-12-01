@@ -23,6 +23,7 @@ script:
     fi
   - export BUILD_VERSION=$(build-tools/version-tool version)
   - export BUILD_INFO=$(build-tools/version-tool build-info)
+  - if [ "$TRAVIS_TAG" == "$TRAVIS_BRANCH" ]; then BUILD_VERSION=$TRAVIS_TAG; fi
   - export IMG_TAG="${BASE_PUSH_TARGET}:${TRAVIS_COMMIT}"
   - export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${TRAVIS_COMMIT}"
   - export BUILD_STAMP=devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID-$(date +%s)
@@ -32,7 +33,6 @@ script:
   - make prod
   - docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
   - docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID"
-  - if [ "$TRAVIS_TAG" == "$TRAVIS_BRANCH" ]; then BUILD_VERSION=$TRAVIS_TAG; fi
   - |
     if [ "$DOCKER_READY" ]; then
       docker tag "$IMG_TAG" "$BASE_PUSH_TARGET"

@@ -7,6 +7,11 @@ When doing code reviews, here are some things to be considered.
 * Do the appropriate unit tests exist?
 * Is this a backwards-compatible change; Which branches should it go into?
 
+# Python Development Guidelines
+* Unit test all public interfaces
+* Format code according to the [PEP8 standard](https://www.python.org/dev/peps/pep-0008).
+* Code format is enforced in the build using [flake8](http://flake8.pycqa.org/en/latest/).
+
 # Golang Development Guidelines
 * Unit test all public interfaces.
 * Format code according to the [go standards](https://blog.golang.org/go-fmt-your-code).

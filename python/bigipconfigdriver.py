@@ -80,13 +80,15 @@ class CloudServiceManager():
         partition: BIG-IP partition to manage
     """
 
-    def __init__(self, bigip, partition, prefix=None, schema_path=None):
+    def __init__(self, bigip, partition, user_agent=None, prefix=None,
+                 schema_path=None):
         """Initialize the CloudServiceManager object."""
         self._mgmt_root = bigip
         self._schema = schema_path
         self._cccl = F5CloudServiceManager(
             bigip,
             partition,
+            user_agent=user_agent,
             prefix=prefix,
             schema_path=schema_path)
 
@@ -691,15 +693,17 @@ def _handle_vxlan_config(config):
                               '"vxlan-arp:arps" section')
 
 
-def _set_user_agent(bigip):
+def _set_user_agent():
     try:
         with open('VERSION_BUILD.json', 'r') as version_file:
             data = json.load(version_file)
-            bigip.icrs.append_user_agent(
-                "k8s-bigip-ctlr-" + data['version'] + '-' + data['build'])
+            user_agent = \
+                "k8s-bigip-ctlr-" + data['version'] + '-' + data['build']
     except Exception as e:
-        bigip.icrs.append_user_agent("k8s-bigip-ctlr-VERSION-UNKNOWN")
-        log.error("Could not set iControl REST User-Agent: %s", e)
+        user_agent = "k8s-bigip-ctlr-VERSION-UNKNOWN"
+        log.error("Could not read version file: %s", e)
+
+    return user_agent
 
 
 def main():
@@ -723,20 +727,22 @@ def main():
             "tmos")
 
         # Read version and build info, set user-agent for ICR session
-        _set_user_agent(bigip)
+        user_agent = _set_user_agent()
 
         managers = []
         for partition in config['bigip']['partitions']:
             # Management for the BIG-IP partitions
             manager = CloudServiceManager(
                 bigip,
-                partition)
+                partition,
+                user_agent=user_agent)
             managers.append(manager)
         if vxlan_partition:
             # Management for net resources (VXLAN)
             manager = CloudServiceManager(
                 bigip,
                 vxlan_partition,
+                user_agent=user_agent,
                 prefix="k8s",
                 schema_path=NET_SCHEMA)
             managers.append(manager)

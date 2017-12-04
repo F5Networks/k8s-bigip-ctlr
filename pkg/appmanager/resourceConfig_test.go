@@ -501,7 +501,9 @@ var _ = Describe("Resource Config Tests", func() {
 				HttpVs:  "ose-vserver",
 				HttpsVs: "https-ose-vserver",
 			}
-			cfg, _, _ := createRSConfigFromRoute(route, Resources{}, rc, ps, nil)
+			svcFwdRulesMap := NewServiceFwdRuleMap()
+			cfg, _, _ := createRSConfigFromRoute(route, Resources{}, rc, ps, nil,
+				svcFwdRulesMap)
 			Expect(cfg.Virtual.Name).To(Equal("https-ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_foo"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("foo"))
@@ -525,7 +527,8 @@ var _ = Describe("Resource Config Tests", func() {
 				protocol: "http",
 				port:     80,
 			}
-			cfg, _, _ = createRSConfigFromRoute(route2, Resources{}, rc, ps, nil)
+			cfg, _, _ = createRSConfigFromRoute(route2, Resources{}, rc, ps, nil,
+				svcFwdRulesMap)
 			Expect(cfg.Virtual.Name).To(Equal("ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_bar"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("bar"))

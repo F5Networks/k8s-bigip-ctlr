@@ -819,6 +819,7 @@ func createRSConfigFromRoute(
 	routeConfig RouteConfig,
 	pStruct portStruct,
 	svcIndexer cache.Indexer,
+	svcFwdRulesMap ServiceFwdRuleMap,
 ) (ResourceConfig, error, Pool) {
 	var rsCfg ResourceConfig
 	rsCfg.MetaData.RouteProfs = make(map[routeKey]string)
@@ -831,7 +832,6 @@ func createRSConfigFromRoute(
 		policyName = "openshift_secure_routes"
 		rsName = routeConfig.HttpsVs
 	}
-	tls := route.Spec.TLS
 
 	var backendPort int32
 	var err error
@@ -899,9 +899,6 @@ func createRSConfigFromRoute(
 				}
 			}
 		}
-		if !found {
-			rsCfg.HandleRouteTls(tls, pStruct.protocol, policyName, rule)
-		}
 	} else { // This is a new VS for a Route
 		rsCfg.MetaData.ResourceType = "route"
 		rsCfg.Virtual.Name = rsName
@@ -915,9 +912,10 @@ func createRSConfigFromRoute(
 		}
 		rsCfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
 		rsCfg.Pools = append(rsCfg.Pools, pool)
-
-		rsCfg.HandleRouteTls(tls, pStruct.protocol, policyName, rule)
 	}
+
+	rsCfg.HandleRouteTls(route, pStruct.protocol, policyName, rule,
+		svcFwdRulesMap)
 
 	return rsCfg, nil, pool
 }
@@ -935,11 +933,13 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 }
 
 func (rc *ResourceConfig) HandleRouteTls(
-	tls *routeapi.TLSConfig,
+	route *routeapi.Route,
 	protocol string,
 	policyName string,
 	rule *Rule,
+	svcFwdRulesMap ServiceFwdRuleMap,
 ) {
+	tls := route.Spec.TLS
 	if protocol == "http" {
 		if nil == tls || len(tls.Termination) == 0 {
 			rc.AddRuleToPolicy(policyName, rule)
@@ -955,6 +955,13 @@ func (rc *ResourceConfig) HandleRouteTls(
 					redirectIRuleName := fmt.Sprintf("/%s/%s",
 						DEFAULT_PARTITION, httpRedirectIRuleName)
 					rc.Virtual.AddIRule(redirectIRuleName)
+					// TLS config indicates to forward http to https.
+					path := "/"
+					if route.Spec.Path != "" {
+						path = route.Spec.Path
+					}
+					svcFwdRulesMap.AddEntry(route.ObjectMeta.Namespace, route.Spec.To.Name,
+						route.Spec.Host, path)
 				}
 			}
 		}
@@ -983,7 +990,20 @@ func (rc *ResourceConfig) AddRuleToPolicy(
 	// We currently have at most 1 policy, 'forwarding'
 	policy := rc.FindPolicy("forwarding")
 	if nil != policy {
-		policy.Rules = append(policy.Rules, rule)
+		foundMatch := false
+		for i, r := range policy.Rules {
+			if r.Name == rule.Name && r.FullURI == rule.FullURI {
+				// Replace old rule with new rule, but make sure Ordinal is correct.
+				foundMatch = true
+				rule.Ordinal = r.Ordinal
+				policy.Rules[i] = rule
+				break
+			}
+		}
+		if !foundMatch {
+			// Rule not found, add.
+			policy.Rules = append(policy.Rules, rule)
+		}
 	} else {
 		policy = createPolicy(Rules{rule}, policyName, rc.Virtual.Partition)
 	}

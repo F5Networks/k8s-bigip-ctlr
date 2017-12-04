@@ -45,6 +45,19 @@ const reencryptHostsDgName = "ssl_reencrypt_servername_dg"
 // server ssl profile.
 const reencryptServerSslDgName = "ssl_reencrypt_serverssl_dg"
 
+// Internal data group for https redirect
+const httpsRedirectDgName = "https_redirect_dg"
+
+// DataGroup flattening.
+type FlattenConflictFunc func(key, oldVal, newVal string) string
+
+var groupFlattenFuncMap = map[string]FlattenConflictFunc{
+	passthroughHostsDgName:   flattenConflictWarn,
+	reencryptHostsDgName:     flattenConflictWarn,
+	reencryptServerSslDgName: flattenConflictWarn,
+	httpsRedirectDgName:      flattenConflictConcat,
+}
+
 func (r Rules) Len() int           { return len(r) }
 func (r Rules) Less(i, j int) bool { return r[i].FullURI < r[j].FullURI }
 func (r Rules) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
@@ -201,10 +214,29 @@ func processIngressRules(
 }
 
 func httpRedirectIRule(port int32) string {
+	// The key in the data group is the host name or * to match all.
+	// The data is a list of paths for the host delimited by '|' or '/' for all.
 	iRuleCode := fmt.Sprintf(
 		`when HTTP_REQUEST {
-       HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]
-    }`, port)
+			# Look for exact match for host name
+			set paths [class match -value [HTTP::host] equals https_redirect_dg]
+			if {$paths == ""} {
+				# See if there's an entry that matches all hosts
+				set paths [class match -value "*" equals https_redirect_dg]
+			}
+			if {$paths != ""} {
+				set redir 0
+				foreach s [split $paths "|"] {
+					if {[HTTP::path] matches_regex $s} {
+						set redir 1
+						break
+					}
+				}
+				if {$redir == 1} {
+					HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]
+				}
+			}
+		}`, port)
 
 	return iRuleCode
 }
@@ -469,4 +501,157 @@ func (appInf *appInformer) getOrderedRoutes(namespace string) (Routes, error) {
 	}
 	sort.Sort(routes)
 	return routes, err
+}
+
+func NewServiceFwdRuleMap() ServiceFwdRuleMap {
+	return make(ServiceFwdRuleMap)
+}
+
+// key is namespace/serviceName, data is map of host to paths.
+type ServiceFwdRuleMap map[serviceQueueKey]HostFwdRuleMap
+
+// key is fqdn host name, data is map of paths.
+type HostFwdRuleMap map[string]FwdRuleMap
+
+// key is path regex, data unused. Using a map as go doesn't have a set type.
+type FwdRuleMap map[string]bool
+
+func (sfrm ServiceFwdRuleMap) AddEntry(ns, svc, host, path string) {
+	if path == "" {
+		path = "/"
+	}
+	sKey := serviceQueueKey{Namespace: ns, ServiceName: svc}
+	hfrm, found := sfrm[sKey]
+	if !found {
+		hfrm = make(HostFwdRuleMap)
+		sfrm[sKey] = hfrm
+	}
+	frm, found := hfrm[host]
+	if !found {
+		frm = make(FwdRuleMap)
+		hfrm[host] = frm
+	}
+	if _, found = frm[path]; !found {
+		frm[path] = true
+	}
+}
+
+func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap) {
+	// Multiple service keys may reference the same host, so flatten those first
+	for skey, hostMap := range sfrm {
+		nsGrp, found := dgMap[skey.Namespace]
+		if !found {
+			nsGrp = &InternalDataGroup{
+				Name:      httpsRedirectDgName,
+				Partition: DEFAULT_PARTITION,
+			}
+			dgMap[skey.Namespace] = nsGrp
+		}
+		for host, pathMap := range hostMap {
+			paths := []string{}
+			for path, _ := range pathMap {
+				paths = append(paths, path)
+			}
+			// Need to sort the paths to have consistent ordering
+			sort.Strings(paths)
+			var buf bytes.Buffer
+			for i, path := range paths {
+				if i > 0 {
+					buf.WriteString("|")
+				}
+				buf.WriteString(path)
+			}
+			nsGrp.AddOrUpdateRecord(host, buf.String())
+		}
+	}
+}
+
+func flattenConflictWarn(key, oldVal, newVal string) string {
+	fmt.Printf("Found mismatch for key '%v' old value: '%v' new value: '%v'\n", key, oldVal, newVal)
+	return oldVal
+}
+
+func flattenConflictConcat(key, oldVal, newVal string) string {
+	// Tokenize both values and add to a map to ensure uniqueness
+	pathMap := make(map[string]bool)
+	for _, token := range strings.Split(oldVal, "|") {
+		pathMap[token] = true
+	}
+	for _, token := range strings.Split(newVal, "|") {
+		pathMap[token] = true
+	}
+
+	// Convert back to an array
+	paths := []string{}
+	for path, _ := range pathMap {
+		paths = append(paths, path)
+	}
+
+	// Sort the paths to have consistent ordering
+	sort.Strings(paths)
+
+	// Write back out to a delimited string
+	var buf bytes.Buffer
+	for i, path := range paths {
+		if i > 0 {
+			buf.WriteString("|")
+		}
+		buf.WriteString(path)
+	}
+
+	return buf.String()
+}
+
+func (dgnm DataGroupNamespaceMap) FlattenNamespaces() *InternalDataGroup {
+
+	// Try to be efficient in these common cases.
+	if len(dgnm) == 0 {
+		// No namespaces.
+		return nil
+	} else if len(dgnm) == 1 {
+		// Only 1 namespace, just return its dg - no flattening needed.
+		for _, dg := range dgnm {
+			return dg
+		}
+	}
+
+	// Use a map to identify duplicates across namespaces
+	var partition, name string
+	flatMap := make(map[string]string)
+	for _, dg := range dgnm {
+		if partition == "" {
+			partition = dg.Partition
+		}
+		if name == "" {
+			name = dg.Name
+		}
+		for _, rec := range dg.Records {
+			item, found := flatMap[rec.Name]
+			if found {
+				if item != rec.Data {
+					conflictFunc, ok := groupFlattenFuncMap[dg.Name]
+					if !ok {
+						log.Warningf("No DataGroup conflict handler defined for '%v'",
+							dg.Name)
+						conflictFunc = flattenConflictWarn
+					}
+					newVal := conflictFunc(rec.Name, item, rec.Data)
+					flatMap[rec.Name] = newVal
+				}
+			} else {
+				flatMap[rec.Name] = rec.Data
+			}
+		}
+	}
+
+	// Create a new datagroup to hold the flattened results
+	newDg := InternalDataGroup{
+		Partition: partition,
+		Name:      name,
+	}
+	for name, data := range flatMap {
+		newDg.AddOrUpdateRecord(name, data)
+	}
+
+	return &newDg
 }

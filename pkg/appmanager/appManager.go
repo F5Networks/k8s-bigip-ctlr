@@ -1324,21 +1324,20 @@ func (appMgr *Manager) handleConfigForType(
 	var pool Pool
 	found := false
 	plIdx := 0
-	// Parses a pool name to see if it is in the expected namespace.
-	// We don't know if the pool is from a ConfigMap/Ingress or Route,
-	// so we parse in two different ways.
-	poolInNamespace := func(name, namespace string) bool {
-		if strings.HasPrefix(name, "openshift") &&
-			(strings.Split(name, "_")[1]) == namespace {
-			return true
-		} else if strings.HasPrefix(name, namespace) {
+	poolInNamespace := func(cfg *ResourceConfig, name, namespace string) bool {
+		split := strings.Split(name, "_")
+		if cfg.MetaData.ResourceType == "iapp" {
+			if split[0] == namespace {
+				return true
+			}
+		} else if split[1] == namespace {
 			return true
 		}
 		return false
 	}
 	for i, pl := range rsCfg.Pools {
 		if pl.ServiceName == sKey.ServiceName &&
-			poolInNamespace(pl.Name, sKey.Namespace) {
+			poolInNamespace(rsCfg, pl.Name, sKey.Namespace) {
 			found = true
 			pool = pl
 			plIdx = i

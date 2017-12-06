@@ -461,19 +461,31 @@ Backend
 
 The ``backend`` section tells the |kctlr| about the Service you want to manage.
 
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| Property      | Type      | Required  | Default   | Description                   | Allowed Values            |
-+===============+===========+===========+===========+===============================+===========================+
-| ServiceName   | string    | Required  | none      | The `Kubernetes Service`_     |                           |
-|               |           |           |           | representing the server pool. |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| ServicePort   | integer   | Required  | none      | Kubernetes Service port       |                           |
-|               |           |           |           | number                        |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
-| healthMonitors| JSON      | Optional  | none      | Array of TCP, UDP or HTTP     |                           |
-|               | object    |           |           | Health Monitors.              |                           |
-|               | array     |           |           |                               |                           |
-+---------------+-----------+-----------+-----------+-------------------------------+---------------------------+
++---------------------------+-----------+-----------+-------------+---------------------------------+---------------------------+
+| Property                  | Type      | Required  | Default     | Description                     | Allowed Values            |
++===========================+===========+===========+=============+=================================+===========================+
+| ServiceName               | string    | Required  | none        | The `Kubernetes Service`_       |                           |
+|                           |           |           |             | representing the server pool.   |                           |
++---------------------------+-----------+-----------+-------------+---------------------------------+---------------------------+
+| ServicePort               | integer   | Required  | none        | Kubernetes Service port         |                           |
+|                           |           |           |             | number                          |                           |
++---------------------------+-----------+-----------+-------------+---------------------------------+---------------------------+
+| healthMonitors            | JSON      | Optional  | none        | Array of TCP, UDP or HTTP       |                           |
+|                           | object    |           |             | Health Monitors.                |                           |
+|                           | array     |           |             |                                 |                           |
++---------------+-----------+-----------+-----------+-------------+---------------------------------+---------------------------+
+|               | protocol  | string    | Required  | N/A         | Protocol used to confim health. | http, tcp, udp            |
++---------------+-----------+-----------+-----------+-------------+---------------------------------+---------------------------+
+|               | interval  | integer   | Optional  | 5           | Seconds between health queries. | 1 to 86,400.              |
++---------------+-----------+-----------+-----------+-------------+---------------------------------+---------------------------+
+|               | timeout   | integer   | Optional  | 16          | Seconds before query fails.     | Integer from 1 to 86,400. |
++---------------+-----------+-----------+-----------+-------------+---------------------------------+---------------------------+
+|               | send      | string    | Optional  | "GET /\r\n" | HTTP request string to send.    | String values.            |
++---------------+-----------+-----------+-----------+-------------+---------------------------------+---------------------------+
+|               | recv      | string    | Optional  | none        | String or RegEx pattern to      | String or valid RegEx.    |
+|               |           |           |           |             | match in first 5,120 bytes of   |                           |
+|               |           |           |           |             | backend response.               |                           |
++---------------+-----------+-----------+-----------+-------------+---------------------------------+---------------------------+
 
 .. _ingress resources:
 
@@ -509,14 +521,16 @@ Supported annotations
 |                      | path        | string      | Required  | The path for the Service specified in the Ingress resource.                         | N/A         |
 |                      |             |             | [#hm1]_   |                                                                                     |             |
 +----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-|                      | send        | string      | Required  | The send string to set in the health monitor. [#hm2]_                               | N/A         |
-|                      |             |             | [#hm1]_   |                                                                                     |             |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
 |                      | interval    | integer     | Required  | The interval at which to check the health of the virtual server.                    | N/A         |
 |                      |             |             | [#hm1]_   |                                                                                     |             |
 +----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
 |                      | timeout     | integer     | Required  | Number of seconds before the check times out.                                       | N/A         |
 |                      |             |             | [#hm1]_   |                                                                                     |             |
++----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+|                      | send        | string      | Required  | The send string to set in the health monitor. [#hm2]_                               | N/A         |
+|                      |             |             | [#hm1]_   |                                                                                     |             |
++----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
+|                      | recv        | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.          | N/A         |
 +----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
 | ingress.kubernetes.io/allow-http   | boolean     | Optional  | Tells the Controller to allow HTTP traffic for HTTPS Ingress resources.             | false       |
 +------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
@@ -617,14 +631,16 @@ Supported annotations
 |                      | path            | string      | Required  | The path for the Service specified in the Route resource.                      | N/A         |
 |                      |                 |             | [#hm1]_   |                                                                                |             |
 +----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-|                      | send            | string      | Required  | The send string to set in the health monitor. [#hm2]_                          | N/A         |
-|                      |                 |             | [#hm1]_   |                                                                                |             |
-+----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
 |                      | interval        | integer     | Required  | The interval at which to check the health of the virtual server.               | N/A         |
 |                      |                 |             | [#hm1]_   |                                                                                |             |
 +----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
 |                      | timeout         | integer     | Required  | Number of seconds before the check times out.                                  | N/A         |
 |                      |                 |             | [#hm1]_   |                                                                                |             |
++----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
+|                      | send            | string      | Required  | The send string to set in the health monitor. [#hm2]_                          | N/A         |
+|                      |                 |             | [#hm1]_   |                                                                                |             |
++----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
+|                      | recv            | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.     | N/A         |
 +----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
 | virtual-server.f5.com/secure-serverssl | boolean     | Optional  | Specify to validate the server-side SSL certificate of Re-encrypt              | false       |
 |                                        |             |           | terminated routes.                                                             |             |

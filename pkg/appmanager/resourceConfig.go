@@ -199,18 +199,28 @@ func (v *Virtual) SetVirtualAddress(bindAddr string, port int32) {
 	}
 }
 
-// format the namespace and name for use in the frontend definition
+// format the virtual server name for a ConfigMap
 func formatConfigMapVSName(cm *v1.ConfigMap) string {
-	return fmt.Sprintf("%v_%v", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
+	return fmt.Sprintf("%s_%s", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
 }
 
-// format the namespace and name for use in the frontend definition
+// format the pool name for a ConfigMap
+func formatConfigMapPoolName(namespace, cmName, svc string) string {
+	return fmt.Sprintf("cfgmap_%s_%s_%s", namespace, cmName, svc)
+}
+
+// format the virtual server name for an Ingress
 func formatIngressVSName(ing *v1beta1.Ingress, protocol string) string {
-	return fmt.Sprintf("%v_%v-ingress_%s",
+	return fmt.Sprintf("%s_%s-ingress_%s",
 		ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, protocol)
 }
 
-// format the namespace and name for use in the backend definition
+// format the pool name for an Ingress
+func formatIngressPoolName(namespace, ingName, svc string) string {
+	return fmt.Sprintf("ingress_%s_%s_%s", namespace, ingName, svc)
+}
+
+// format the pool name for a Route
 func formatRoutePoolName(route *routeapi.Route) string {
 	return fmt.Sprintf("openshift_%s_%s",
 		route.ObjectMeta.Namespace, route.Spec.To.Name)
@@ -507,6 +517,36 @@ func (rs *Resources) GetAllResources() ResourceConfigs {
 	return cfgs
 }
 
+func setProfilesForMode(mode string, cfg *ResourceConfig) {
+	tcpProf := ProfileRef{
+		Partition: "Common",
+		Name:      "tcp",
+		Context:   customProfileAll,
+	}
+	switch mode {
+	case "http":
+		cfg.Virtual.IpProtocol = "tcp"
+		cfg.Virtual.AddOrUpdateProfile(
+			ProfileRef{
+				Partition: "Common",
+				Name:      "http",
+				Context:   customProfileAll,
+			})
+		cfg.Virtual.AddOrUpdateProfile(tcpProf)
+	case "tcp":
+		cfg.Virtual.IpProtocol = "tcp"
+		cfg.Virtual.AddOrUpdateProfile(tcpProf)
+	case "udp":
+		cfg.Virtual.IpProtocol = "udp"
+		cfg.Virtual.AddOrUpdateProfile(
+			ProfileRef{
+				Partition: "Common",
+				Name:      "udp",
+				Context:   customProfileAll,
+			})
+	}
+}
+
 // Unmarshal an expected ConfigMap object
 func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
 	var cfg ResourceConfig
@@ -545,7 +585,8 @@ func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
 				return &cfg, errors.New(errStr)
 			}
 			if result.Valid() {
-				copyConfigMap(formatConfigMapVSName(cm), &cfg, &cfgMap)
+				ns := cm.ObjectMeta.Namespace
+				copyConfigMap(formatConfigMapVSName(cm), ns, &cfg, &cfgMap)
 
 				// Checking for annotation in VS, not iApp
 				if cfg.MetaData.ResourceType != "iapp" && cfg.Virtual.VirtualAddress != nil {
@@ -583,45 +624,17 @@ func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
 	return &cfg, nil
 }
 
-func setProfilesForMode(mode string, cfg *ResourceConfig) {
-	tcpProf := ProfileRef{
-		Partition: "Common",
-		Name:      "tcp",
-		Context:   customProfileAll,
-	}
-	switch mode {
-	case "http":
-		cfg.Virtual.IpProtocol = "tcp"
-		cfg.Virtual.AddOrUpdateProfile(
-			ProfileRef{
-				Partition: "Common",
-				Name:      "http",
-				Context:   customProfileAll,
-			})
-		cfg.Virtual.AddOrUpdateProfile(tcpProf)
-	case "tcp":
-		cfg.Virtual.IpProtocol = "tcp"
-		cfg.Virtual.AddOrUpdateProfile(tcpProf)
-	case "udp":
-		cfg.Virtual.IpProtocol = "udp"
-		cfg.Virtual.AddOrUpdateProfile(
-			ProfileRef{
-				Partition: "Common",
-				Name:      "udp",
-				Context:   customProfileAll,
-			})
-	}
-}
-
-func copyConfigMap(cmName string, cfg *ResourceConfig, cfgMap *ConfigMap) {
+func copyConfigMap(virtualName, ns string, cfg *ResourceConfig, cfgMap *ConfigMap) {
+	cmName := strings.Split(virtualName, "_")[1]
+	poolName := formatConfigMapPoolName(ns, cmName, cfgMap.VirtualServer.Backend.ServiceName)
 	if cfgMap.VirtualServer.Frontend.IApp == "" {
 		// Handle virtual server specific config.
 		cfg.MetaData.ResourceType = "virtual"
-		cfg.Virtual.Name = cmName
+		cfg.Virtual.Name = virtualName
 		cfg.Virtual.Partition = cfgMap.VirtualServer.Frontend.Partition
 		cfg.Virtual.Enabled = true
 		cfg.Virtual.SourceAddrTranslation.Type = "automap"
-		cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, cmName)
+		cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, poolName)
 
 		// If mode not set, use default
 		mode := DEFAULT_MODE
@@ -654,13 +667,14 @@ func copyConfigMap(cmName string, cfg *ResourceConfig, cfgMap *ConfigMap) {
 	} else {
 		// Handle IApp specific config.
 		cfg.MetaData.ResourceType = "iapp"
-		cfg.IApp.Name = cmName
+		cfg.IApp.Name = virtualName
 		cfg.IApp.Partition = cfgMap.VirtualServer.Frontend.Partition
 		cfg.IApp.IApp = cfgMap.VirtualServer.Frontend.IApp
 		cfg.IApp.IAppPoolMemberTable = cfgMap.VirtualServer.Frontend.IAppPoolMemberTable
 		cfg.IApp.IAppOptions = cfgMap.VirtualServer.Frontend.IAppOptions
 		cfg.IApp.IAppTables = cfgMap.VirtualServer.Frontend.IAppTables
 		cfg.IApp.IAppVariables = cfgMap.VirtualServer.Frontend.IAppVariables
+		poolName = virtualName
 	}
 
 	// If balance not set, use default
@@ -677,7 +691,7 @@ func copyConfigMap(cmName string, cfg *ResourceConfig, cfgMap *ConfigMap) {
 			// Also add a monitor index to the name to be consistent with the
 			// marathon-bigip-ctlr. Since the monitor names are already unique here,
 			// appending a '0' is sufficient.
-			Name:      fmt.Sprintf("%s_%d_%s", cmName, index, mon.Protocol),
+			Name:      fmt.Sprintf("%s_%d_%s", poolName, index, mon.Protocol),
 			Partition: cfgMap.VirtualServer.Frontend.Partition,
 			Interval:  mon.Interval,
 			Type:      mon.Protocol,
@@ -691,7 +705,7 @@ func copyConfigMap(cmName string, cfg *ResourceConfig, cfgMap *ConfigMap) {
 		monitorNames = append(monitorNames, fullName)
 	}
 	pool := Pool{
-		Name:         cmName,
+		Name:         poolName,
 		Partition:    cfgMap.VirtualServer.Frontend.Partition,
 		Balance:      balance,
 		ServiceName:  cfgMap.VirtualServer.Backend.ServiceName,
@@ -743,8 +757,6 @@ func createRSConfigFromIngress(
 	cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
 
 	if nil != ing.Spec.Rules { //multi-service
-		index := 0
-		poolName := cfg.Virtual.Name
 		for _, rule := range ing.Spec.Rules {
 			if nil != rule.IngressRuleValue.HTTP {
 				for _, path := range rule.IngressRuleValue.HTTP.Paths {
@@ -762,21 +774,20 @@ func createRSConfigFromIngress(
 					sKey := ns + "/" + path.Backend.ServiceName
 					_, svcFound, _ := svcIndexer.GetByKey(sKey)
 					if !svcFound {
-						index++
 						continue
 					}
-					if index > 0 {
-						poolName = fmt.Sprintf("%s_%d", cfg.Virtual.Name, index)
-					}
 					pool := Pool{
-						Name:        poolName,
+						Name: formatIngressPoolName(
+							ing.ObjectMeta.Namespace,
+							ing.ObjectMeta.Name,
+							path.Backend.ServiceName,
+						),
 						Partition:   cfg.Virtual.Partition,
 						Balance:     balance,
 						ServiceName: path.Backend.ServiceName,
 						ServicePort: path.Backend.ServicePort.IntVal,
 					}
 					cfg.Pools = append(cfg.Pools, pool)
-					index++
 				}
 			}
 		}
@@ -785,7 +796,11 @@ func createRSConfigFromIngress(
 		cfg.SetPolicy(*plcy)
 	} else { // single-service
 		pool := Pool{
-			Name:        cfg.Virtual.Name,
+			Name: formatIngressPoolName(
+				ing.ObjectMeta.Namespace,
+				ing.ObjectMeta.Name,
+				ing.Spec.Backend.ServiceName,
+			),
 			Partition:   cfg.Virtual.Partition,
 			Balance:     balance,
 			ServiceName: ing.Spec.Backend.ServiceName,

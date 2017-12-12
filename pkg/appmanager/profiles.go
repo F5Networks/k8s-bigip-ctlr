@@ -20,10 +20,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"reflect"
+	"strings"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	routeapi "github.com/openshift/origin/pkg/route/api"
 )
@@ -370,10 +373,73 @@ func (appMgr *Manager) handleSslProfile(
 	return nil, false
 }
 
-func (appMgr *Manager) deleteUnusedProfiles() {
+func (appMgr *Manager) deleteUnusedProfiles(
+	appInf *appInformer,
+	namespace string,
+) {
+	// Loop through and delete any profileRefs for Ingress cfgs that are
+	// no longer referenced, or have been deleted
+	for _, cfg := range appMgr.resources.GetAllResources() {
+		if cfg.MetaData.ResourceType != "ingress" {
+			continue
+		}
+		if nil == cfg.Virtual.VirtualAddress ||
+			cfg.Virtual.VirtualAddress.BindAddr == "" {
+			// Nothing to do for pool-only mode
+			continue
+		}
+
+		ingresses, _ := appInf.ingInformer.GetIndexer().ByIndex(
+			"namespace", namespace)
+		for _, prof := range cfg.Virtual.Profiles {
+			// Don't process our default profiles
+			if prof.Name == "http" || prof.Name == "tcp" {
+				continue
+			}
+			referenced := false
+			for _, obj := range ingresses {
+				ing := obj.(*v1beta1.Ingress)
+				if 0 == len(ing.Spec.TLS) {
+					// Nothing to do if no TLS section
+					continue
+				}
+				for _, tls := range ing.Spec.TLS {
+					var profName string
+					secretName := formatIngressSslProfileName(tls.SecretName)
+					if strings.ContainsAny(secretName, "/") {
+						profName = fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
+					} else {
+						profName = prof.Name
+					}
+					if profName == secretName {
+						referenced = true
+						// Ingress may reference a secret that no longer exists
+						if appMgr.useSecrets {
+							_, err := appMgr.kubeClient.Core().
+								Secrets(ing.ObjectMeta.Namespace).
+								Get(tls.SecretName, metav1.GetOptions{})
+							if nil != err && !strings.ContainsAny(secretName, "/") {
+								// No secret with this name, and name does not
+								// contain "/", meaning it isn't a valid BIG-IP profile
+								cfg.Virtual.RemoveProfile(prof)
+							}
+						}
+					}
+				}
+				if referenced {
+					break
+				}
+			}
+			if !referenced {
+				cfg.Virtual.RemoveProfile(prof)
+			}
+		}
+	}
+
 	var found bool
 	appMgr.customProfiles.Lock()
 	defer appMgr.customProfiles.Unlock()
+
 	// Build a map of CA files and maintain a reference count.
 	caRefs := make(map[string]int)
 	for key, profile := range appMgr.customProfiles.profs {
@@ -382,6 +448,8 @@ func (appMgr *Manager) deleteUnusedProfiles() {
 			caRefs[caKey] = 0
 		}
 	}
+
+	// Now look to delete any created customProfiles
 	for key, profile := range appMgr.customProfiles.profs {
 		if profile.SNIDefault || profile.CAFile == "self" {
 			// Don't touch SNI default or CA profiles

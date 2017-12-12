@@ -849,14 +849,17 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	if len(rsMap) > 0 {
 		// We get here when there are ports defined in the service that don't
 		// have a corresponding config map.
-		stats.vsDeleted = appMgr.deleteUnusedResources(sKey, rsMap)
-		appMgr.deleteUnusedRoutes(sKey.Namespace, sKey.ServiceName)
+		stats.vsDeleted += appMgr.deleteUnusedConfigs(sKey, rsMap)
+		stats.vsUpdated += appMgr.deleteUnusedResources(sKey, svcFound, appInf)
+	} else if !svcFound {
+		stats.vsUpdated += appMgr.deleteUnusedResources(sKey, svcFound, appInf)
 	}
+
 	log.Debugf("Updated %v of %v virtual server configs, deleted %v",
 		stats.vsUpdated, stats.vsFound, stats.vsDeleted)
 
 	// delete any custom profiles that are no longer referenced
-	appMgr.deleteUnusedProfiles()
+	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace)
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
 		stats.dgUpdated > 0 {
@@ -932,7 +935,8 @@ func (appMgr *Manager) syncConfigMaps(
 
 		rsName := rsCfg.GetName()
 		if ok, found, updated := appMgr.handleConfigForType(
-			rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf, ""); !ok {
+			rsCfg, sKey, rsMap, rsName, svcPortMap,
+			svc, appInf, []string{}, nil); !ok {
 			stats.vsUpdated += updated
 			continue
 		} else {
@@ -982,8 +986,8 @@ func (appMgr *Manager) syncIngresses(
 		}
 
 		for _, portStruct := range appMgr.virtualPorts(ing) {
-			rsCfg := createRSConfigFromIngress(ing, sKey.Namespace,
-				appInf.svcInformer.GetIndexer(), portStruct)
+			rsCfg := createRSConfigFromIngress(ing, appMgr.resources,
+				sKey.Namespace, appInf.svcInformer.GetIndexer(), portStruct)
 			if rsCfg == nil {
 				// Currently, an error is returned only if the Ingress is one we
 				// do not care about
@@ -1006,7 +1010,7 @@ func (appMgr *Manager) syncIngresses(
 					msg := fmt.Sprintf(
 						"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
 					log.Errorf("%s", msg)
-					appMgr.recordIngressEvent(ing, "InvalidData", msg, rsName)
+					appMgr.recordIngressEvent(ing, "InvalidData", msg)
 				} else {
 					if nil != ing.Spec.Backend {
 						appMgr.handleSingleServiceHealthMonitors(
@@ -1019,8 +1023,24 @@ func (appMgr *Manager) syncIngresses(
 				rsCfg.SortMonitors()
 			}
 
+			// Collect all service names on this Ingress.
+			// Used in handleConfigForType.
+			var svcs []string
+			if nil != ing.Spec.Rules { // multi-service
+				for _, rl := range ing.Spec.Rules {
+					if nil != rl.IngressRuleValue.HTTP {
+						for _, pth := range rl.IngressRuleValue.HTTP.Paths {
+							svcs = append(svcs, pth.Backend.ServiceName)
+						}
+					}
+				}
+			} else { // single-service
+				svcs = append(svcs, ing.Spec.Backend.ServiceName)
+			}
+
 			if ok, found, updated := appMgr.handleConfigForType(
-				rsCfg, sKey, rsMap, rsName, svcPortMap, svc, appInf, ""); !ok {
+				rsCfg, sKey, rsMap, rsName, svcPortMap,
+				svc, appInf, svcs, ing); !ok {
 				stats.vsUpdated += updated
 				continue
 			} else {
@@ -1034,7 +1054,7 @@ func (appMgr *Manager) syncIngresses(
 					msg := fmt.Sprintf(
 						"Created a ResourceConfig '%v' for the Ingress.",
 						rsCfg.GetName())
-					appMgr.recordIngressEvent(ing, "ResourceConfigured", msg, "")
+					appMgr.recordIngressEvent(ing, "ResourceConfigured", msg)
 				}
 			}
 			// Set the Ingress Status IP address
@@ -1130,8 +1150,9 @@ func (appMgr *Manager) syncRoutes(
 				}
 			}
 
-			_, found, updated := appMgr.handleConfigForType(&rsCfg, sKey, rsMap,
-				rsName, svcPortMap, svc, appInf, route.Spec.To.Name)
+			_, found, updated := appMgr.handleConfigForType(
+				&rsCfg, sKey, rsMap, rsName, svcPortMap,
+				svc, appInf, []string{route.Spec.To.Name}, nil)
 			stats.vsFound += found
 			stats.vsUpdated += updated
 		}
@@ -1344,11 +1365,13 @@ func (appMgr *Manager) handleConfigForType(
 	svcPortMap map[int32]bool,
 	svc *v1.Service,
 	appInf *appInformer,
-	currRouteSvc string, // Only used for Routes
+	currResourceSvcs []string, // Used for Ingress/Routes
+	ing *v1beta1.Ingress, // Used for writing events
 ) (bool, int, int) {
 	vsFound := 0
 	vsUpdated := 0
 
+	// Get the pool that matches the sKey we are processing
 	var pool Pool
 	found := false
 	plIdx := 0
@@ -1373,9 +1396,6 @@ func (appMgr *Manager) handleConfigForType(
 		}
 	}
 	if !found {
-		// If the current cfg has no pool for this service, remove any pools
-		// associated with the service.
-		appMgr.removePoolsForService(rsName, sKey.ServiceName)
 		return false, vsFound, vsUpdated
 	}
 
@@ -1389,14 +1409,29 @@ func (appMgr *Manager) handleConfigForType(
 		ServicePort: pool.ServicePort,
 	}
 
-	// Match, remove from rsMap so we don't delete it at the end.
-	// In the case of Routes: If the svc of the currently processed route doesn't match
-	// the svc in our serviceKey, then we don't want to delete it from the map (all routes
-	// with the same protocol have the same VS name, so we don't want to ignore a route that
-	// was actually deleted).
+	// Match, remove config from rsMap so we don't delete it at the end.
+	// (rsMap contains configs we want to delete).
+	// In the case of Ingress/Routes: If the svc(s) of the currently processed ingress/route
+	// doesn't match the svc in our serviceKey, then we don't want to remove the config from the map.
+	// Multiple Ingress/Routes can share a config, so if one Ingress/Route is deleted, then just
+	// the pools for that resource should be deleted from our config. By keeping the config in the map,
+	// we delete the necessary pools later on, while leaving everything else intact.
+	serviceMatch := func(svcs []string, sKey serviceQueueKey) bool {
+		// ConfigMap case (svc will always match sKey)
+		if len(svcs) == 0 {
+			return true
+		}
+		// Ingress/Route case
+		for _, svc := range svcs {
+			if svc == sKey.ServiceName {
+				return true
+			}
+		}
+		return false
+	}
 	cfgList := rsMap[pool.ServicePort]
-	if currRouteSvc == "" || currRouteSvc == sKey.ServiceName {
-		if len(cfgList) == 1 {
+	if serviceMatch(currResourceSvcs, sKey) {
+		if len(cfgList) == 1 && cfgList[0].GetName() == rsName {
 			delete(rsMap, pool.ServicePort)
 		} else if len(cfgList) > 1 {
 			for index, val := range cfgList {
@@ -1431,10 +1466,10 @@ func (appMgr *Manager) handleConfigForType(
 		}
 
 		// If this is an Ingress resource, add an event that the service wasn't found
-		if strings.HasSuffix(rsName, "ingress") {
+		if ing != nil {
 			msg := fmt.Sprintf("Service '%v' has not been found.",
 				pool.ServiceName)
-			appMgr.recordIngressEvent(nil, "ServiceNotFound", msg, rsName)
+			appMgr.recordIngressEvent(ing, "ServiceNotFound", msg)
 		}
 		return false, vsFound, vsUpdated
 	}
@@ -1459,53 +1494,13 @@ func (appMgr *Manager) handleConfigForType(
 
 		// If this is an Ingress resource, add an event if there was a backend error
 		if !correctBackend {
-			if strings.HasSuffix(rsCfg.GetName(), "ingress") {
-				appMgr.recordIngressEvent(nil, reason, msg, rsCfg.GetName())
+			if ing != nil {
+				appMgr.recordIngressEvent(ing, reason, msg)
 			}
 		}
 	}
 
 	return true, vsFound, vsUpdated
-}
-
-func (appMgr *Manager) removePoolsForService(rsName, serviceName string) {
-	appMgr.resources.Lock()
-	defer appMgr.resources.Unlock()
-	cfg, exists := appMgr.resources.GetByName(rsName)
-	if !exists {
-		return
-	}
-	fwdPolicy := cfg.FindPolicy("forwarding")
-	fwdPolicyChanged := false
-	for i, pool := range cfg.Pools {
-		if pool.ServiceName == serviceName {
-			cfg.RemovePoolAt(i)
-			poolName := joinBigipPath(cfg.Virtual.Partition, pool.Name)
-			if nil != fwdPolicy {
-				ruleOffsets := []int{}
-				for j, rule := range fwdPolicy.Rules {
-					for _, action := range rule.Actions {
-						if action.Forward && action.Pool == poolName {
-							ruleOffsets = append(ruleOffsets, j)
-						}
-					}
-				}
-				if len(ruleOffsets) > 0 {
-					for j := len(ruleOffsets) - 1; j >= 0; j-- {
-						fwdPolicy.RemoveRuleAt(ruleOffsets[j])
-						fwdPolicyChanged = true
-					}
-					for j, rule := range fwdPolicy.Rules {
-						rule.Name = fmt.Sprintf("%d", j)
-						rule.Ordinal = j
-					}
-				}
-				if fwdPolicyChanged {
-					cfg.SetPolicy(*fwdPolicy)
-				}
-			}
-		}
-	}
 }
 
 func (appMgr *Manager) syncPoolMembers(rsName string, rsCfg *ResourceConfig) {
@@ -1647,12 +1642,15 @@ func (appMgr *Manager) processAllMultiSvc(numPools int, rsName string) bool {
 	return true
 }
 
-func (appMgr *Manager) deleteUnusedResources(
+func (appMgr *Manager) deleteUnusedConfigs(
 	sKey serviceQueueKey,
-	rsMap ResourceMap) int {
+	rsMap ResourceMap,
+) int {
 	rsDeleted := 0
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
+	// First delete any configs that we have left over from processing
+	// (Configs that are still valid aren't left over)
 	for port, cfgList := range rsMap {
 		tmpKey := serviceKey{
 			Namespace:   sKey.Namespace,
@@ -1669,32 +1667,42 @@ func (appMgr *Manager) deleteUnusedResources(
 	return rsDeleted
 }
 
-// If a route is deleted, loop through other route configs and delete pools/rules/profiles
-// for the deleted route.
-func (appMgr *Manager) deleteUnusedRoutes(namespace, svc string) {
-	appMgr.resources.Lock()
-	defer appMgr.resources.Unlock()
-	var routeName string
+// Delete any pools/rules/profileRefs that no longer exist
+// for a deleted Ingress/Route or associated Service
+func (appMgr *Manager) deleteUnusedResources(
+	sKey serviceQueueKey,
+	svcFound bool,
+	appInf *appInformer,
+) int {
+	rsUpdated := 0
+	namespace := sKey.Namespace
+	svcName := sKey.ServiceName
+	var resourceName string
 	for _, cfg := range appMgr.resources.GetAllResources() {
-		if cfg.MetaData.ResourceType != "route" {
+		if cfg.MetaData.ResourceType == "configmap" ||
+			cfg.MetaData.ResourceType == "iapp" {
 			continue
 		}
 		for i, pool := range cfg.Pools {
 			// Make sure we aren't processing empty pool
 			if pool.Name != "" {
-				sKey := serviceKey{
+				key := serviceKey{
 					ServiceName: pool.ServiceName,
 					ServicePort: pool.ServicePort,
 					Namespace:   namespace,
 				}
 				poolNS := strings.Split(pool.Name, "_")[1]
-				_, ok := appMgr.resources.Get(sKey, cfg.GetName())
-				if pool.ServiceName == svc && poolNS == namespace && !ok {
+				_, ok := appMgr.resources.Get(key, cfg.GetName())
+				if pool.ServiceName == svcName && poolNS == namespace && (!ok || !svcFound) {
 					poolName := joinBigipPath(cfg.Virtual.Partition, pool.Name)
 					// Delete rule
 					for _, pol := range cfg.Policies {
+						polChanged := false
+						// If only one rule left, then just remove the policy
 						if len(pol.Rules) == 1 {
-							routeName = strings.Split(pol.Rules[0].Name, "_")[3]
+							if cfg.MetaData.ResourceType == "route" {
+								resourceName = strings.Split(pol.Rules[0].Name, "_")[3]
+							}
 							nr := nameRef{
 								Name:      pol.Name,
 								Partition: pol.Partition,
@@ -1702,29 +1710,51 @@ func (appMgr *Manager) deleteUnusedRoutes(namespace, svc string) {
 							cfg.RemovePolicy(nr)
 							continue
 						}
+						// Else loop through rules to find which one to remove
+						ruleOffsets := []int{}
 						for i, rule := range pol.Rules {
 							if len(rule.Actions) > 0 && rule.Actions[0].Pool == poolName {
-								routeName = strings.Split(rule.Name, "_")[3]
-								pol.RemoveRuleAt(i)
-								cfg.SetPolicy(pol)
+								if cfg.MetaData.ResourceType == "route" {
+									resourceName = strings.Split(rule.Name, "_")[3]
+								}
+								ruleOffsets = append(ruleOffsets, i)
 							}
+						}
+						// Fix the ordinals on the remaining rules
+						if len(ruleOffsets) > 0 {
+							for i := len(ruleOffsets) - 1; i >= 0; i-- {
+								pol.RemoveRuleAt(ruleOffsets[i])
+								polChanged = true
+							}
+							for i, rule := range pol.Rules {
+								rule.Ordinal = i
+							}
+						}
+						// Update the policy
+						if polChanged {
+							cfg.SetPolicy(pol)
 						}
 					}
 					// Delete pool
 					cfg.RemovePoolAt(i)
-					if routeName != "" {
-						// Delete profile
-						profRef := makeRouteClientSSLProfileRef(
-							cfg.Virtual.Partition, namespace, routeName)
-						cfg.Virtual.RemoveProfile(profRef)
-						serverProfile := makeRouteServerSSLProfileRef(
-							cfg.Virtual.Partition, namespace, routeName)
-						cfg.Virtual.RemoveProfile(serverProfile)
+					appMgr.resources.DeleteKeyRef(key, cfg.GetName())
+					if resourceName != "" {
+						// Delete profileRef (Route)
+						if cfg.MetaData.ResourceType == "route" {
+							profRef := makeRouteClientSSLProfileRef(
+								cfg.Virtual.Partition, namespace, resourceName)
+							cfg.Virtual.RemoveProfile(profRef)
+							serverProfile := makeRouteServerSSLProfileRef(
+								cfg.Virtual.Partition, namespace, resourceName)
+							cfg.Virtual.RemoveProfile(serverProfile)
+						}
 					}
+					rsUpdated += 1
 				}
 			}
 		}
 	}
+	return rsUpdated
 }
 
 func (appMgr *Manager) setBindAddrAnnotation(
@@ -1777,7 +1807,7 @@ func (appMgr *Manager) setIngressStatus(
 			"Error when setting Ingress status IP for virtual server %v: %v",
 			rsCfg.GetName(), updateErr)
 		log.Warning(warning)
-		appMgr.recordIngressEvent(ing, "StatusIPError", warning, "")
+		appMgr.recordIngressEvent(ing, "StatusIPError", warning)
 	}
 }
 
@@ -1788,7 +1818,7 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 	var netIPs []net.IP
 	logDNSError := func(msg string) {
 		log.Warning(msg)
-		appMgr.recordIngressEvent(ing, "DNSResolutionError", msg, "")
+		appMgr.recordIngressEvent(ing, "DNSResolutionError", msg)
 	}
 
 	if nil != ing.Spec.Rules {
@@ -1867,12 +1897,12 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 		msg := fmt.Sprintf("Error while setting virtual-server IP for Ingress '%s': %s",
 			ing.ObjectMeta.Name, err)
 		log.Warning(msg)
-		appMgr.recordIngressEvent(ing, "IPAnnotationError", msg, "")
+		appMgr.recordIngressEvent(ing, "IPAnnotationError", msg)
 	} else {
 		msg := fmt.Sprintf("Resolved host '%s' as '%s'; "+
 			"set '%s' annotation with address.", host, ipAddress, f5VsBindAddrAnnotation)
 		log.Info(msg)
-		appMgr.recordIngressEvent(ing, "HostResolvedSuccessfully", msg, "")
+		appMgr.recordIngressEvent(ing, "HostResolvedSuccessfully", msg)
 	}
 }
 

@@ -1114,7 +1114,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1),
 					"Virtual servers should have entry.")
 				_, ok := resources.Get(
@@ -1128,7 +1128,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				r = mockMgr.addConfigMap(cfgFoo)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1),
 					"Virtual servers should have entry.")
 				_, ok = resources.Get(
@@ -1142,7 +1142,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				r = mockMgr.addConfigMap(cfgFoo)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1),
 					"Virtual servers should have entry.")
 				_, ok = resources.Get(
@@ -1168,7 +1168,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1),
 					"Virtual servers should have entry.")
 
@@ -1233,7 +1233,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(3))
+				Expect(resources.PoolCount()).To(Equal(3))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 8080, namespace})).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 9090, namespace})).To(Equal(1))
@@ -1245,7 +1245,7 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.updateService(newFoo)
 				Expect(r).To(BeTrue(), "Service should be processed.")
 
-				Expect(resources.Count()).To(Equal(3))
+				Expect(resources.PoolCount()).To(Equal(3))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 8080, namespace})).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 9090, namespace})).To(Equal(1))
@@ -1277,7 +1277,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				r = mockMgr.updateService(newFoo2)
 				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(3))
+				Expect(resources.PoolCount()).To(Equal(3))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 8080, namespace})).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 9090, namespace})).To(Equal(1))
@@ -1401,7 +1401,7 @@ var _ = Describe("AppManager Tests", func() {
 					defer GinkgoRecover()
 					r := mockMgr.deleteConfigMap(cfgFoo)
 					Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-					Expect(resources.Count()).To(Equal(1))
+					Expect(resources.PoolCount()).To(Equal(1))
 
 					mapCh <- struct{}{}
 				}()
@@ -1551,7 +1551,7 @@ var _ = Describe("AppManager Tests", func() {
 				case <-time.After(time.Second * 30):
 					Fail("Timed out expecting service channel notification.")
 				}
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				validateConfig(mw, oneSvcTwoPodsConfig)
 			})
 
@@ -1602,7 +1602,7 @@ var _ = Describe("AppManager Tests", func() {
 				r := mockMgr.addConfigMap(cfgFoo)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				rs, ok := resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
@@ -1610,7 +1610,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Second ConfigMap added
 				r = mockMgr.addConfigMap(cfgBar)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
@@ -1623,7 +1623,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Service ADDED
 				r = mockMgr.addService(foo)
 				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
@@ -1633,7 +1633,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Second Service ADDED
 				r = mockMgr.addService(bar)
 				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					serviceKey{"bar", 80, namespace}, formatConfigMapVSName(cfgBar))
 				Expect(ok).To(BeTrue())
@@ -1643,7 +1643,7 @@ var _ = Describe("AppManager Tests", func() {
 				// ConfigMap ADDED second foo port
 				r = mockMgr.addConfigMap(cfgFoo8080)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(3))
+				Expect(resources.PoolCount()).To(Equal(3))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 8080, namespace}, formatConfigMapVSName(cfgFoo8080))
 				Expect(ok).To(BeTrue())
@@ -1663,7 +1663,7 @@ var _ = Describe("AppManager Tests", func() {
 				// ConfigMap ADDED third foo port
 				r = mockMgr.addConfigMap(cfgFoo9090)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(4))
+				Expect(resources.PoolCount()).To(Equal(4))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 9090, namespace}, formatConfigMapVSName(cfgFoo9090))
 				Expect(ok).To(BeTrue())
@@ -1691,7 +1691,7 @@ var _ = Describe("AppManager Tests", func() {
 				n, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
-				Expect(resources.Count()).To(Equal(4))
+				Expect(resources.PoolCount()).To(Equal(4))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
@@ -1721,7 +1721,7 @@ var _ = Describe("AppManager Tests", func() {
 				// ConfigMap DELETED third foo port
 				r = mockMgr.deleteConfigMap(cfgFoo9090)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(3))
+				Expect(resources.PoolCount()).To(Equal(3))
 				Expect(resources.CountOf(serviceKey{"foo", 9090, namespace})).To(
 					Equal(0), "Virtual servers should not contain removed port.")
 				Expect(resources.CountOf(serviceKey{"foo", 8080, namespace})).To(
@@ -1734,7 +1734,7 @@ var _ = Describe("AppManager Tests", func() {
 				// ConfigMap UPDATED second foo port
 				r = mockMgr.updateConfigMap(cfgFoo8080)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(3))
+				Expect(resources.PoolCount()).To(Equal(3))
 				Expect(resources.CountOf(serviceKey{"foo", 8080, namespace})).To(
 					Equal(1), "Virtual servers should contain remaining ports.")
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(
@@ -1745,7 +1745,7 @@ var _ = Describe("AppManager Tests", func() {
 				// ConfigMap DELETED second foo port
 				r = mockMgr.deleteConfigMap(cfgFoo8080)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				Expect(resources.CountOf(serviceKey{"foo", 8080, namespace})).To(
 					Equal(0), "Virtual servers should not contain removed port.")
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(
@@ -1761,7 +1761,7 @@ var _ = Describe("AppManager Tests", func() {
 				n, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
@@ -1777,7 +1777,7 @@ var _ = Describe("AppManager Tests", func() {
 				// ConfigMap DELETED
 				r = mockMgr.deleteConfigMap(cfgFoo)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(
 					Equal(0), "Config map should be removed after delete.")
 				validateConfig(mw, oneSvcOneNodeConfig)
@@ -1785,7 +1785,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Service deleted
 				r = mockMgr.deleteService(bar)
 				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				validateConfig(mw, emptyConfig)
 			})
 
@@ -1801,7 +1801,7 @@ var _ = Describe("AppManager Tests", func() {
 				r := mockMgr.addConfigMap(noschemakey)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(0))
+				Expect(resources.PoolCount()).To(Equal(0))
 
 				// Config map with no data key
 				nodatakey := test.NewConfigMap("nodata", "1", namespace, map[string]string{
@@ -1813,7 +1813,7 @@ var _ = Describe("AppManager Tests", func() {
 					"Should receive 'no data' error.")
 				r = mockMgr.addConfigMap(nodatakey)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
-				Expect(resources.Count()).To(Equal(0))
+				Expect(resources.PoolCount()).To(Equal(0))
 
 				// Config map with bad json
 				badjson := test.NewConfigMap("badjson", "1", namespace, map[string]string{
@@ -1826,7 +1826,7 @@ var _ = Describe("AppManager Tests", func() {
 					"invalid character '/' looking for beginning of value"))
 				r = mockMgr.addConfigMap(badjson)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
-				Expect(resources.Count()).To(Equal(0))
+				Expect(resources.PoolCount()).To(Equal(0))
 
 				// Config map with extra keys
 				extrakeys := test.NewConfigMap("extrakeys", "1", namespace, map[string]string{
@@ -1840,7 +1840,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil(), "Should not receive errors.")
 				r = mockMgr.addConfigMap(extrakeys)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				resources.Delete(serviceKey{"foo", 80, namespace},
 					formatConfigMapVSName(extrakeys))
 
@@ -1854,7 +1854,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil(), "Should not receive errors.")
 				r = mockMgr.addConfigMap(defaultModeAndBalance)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 
 				rs, ok := resources.Get(
 					serviceKey{"bar", 80, namespace}, formatConfigMapVSName(defaultModeAndBalance))
@@ -1912,7 +1912,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(ok).To(BeFalse(), "Config map should not be added if namespace does not match flag.")
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(
 					Equal(1), "Virtual servers should contain original config.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 
 				r = mockMgr.updateConfigMap(cfgBar)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
@@ -1921,7 +1921,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(ok).To(BeFalse(), "Config map should not be added if namespace does not match flag.")
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(
 					Equal(1), "Virtual servers should contain original config.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 
 				r = mockMgr.deleteConfigMap(cfgBar)
 				Expect(r).To(BeFalse(), "Config map should not be processed.")
@@ -2008,7 +2008,7 @@ var _ = Describe("AppManager Tests", func() {
 				r := mockMgr.addConfigMap(cfgIapp1)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				rs, ok := resources.Get(
 					serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
@@ -2016,7 +2016,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Second ConfigMap ADDED
 				r = mockMgr.addConfigMap(cfgIapp2)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
@@ -2024,7 +2024,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Service ADDED
 				r = mockMgr.addService(iapp1)
 				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
@@ -2033,7 +2033,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Second Service ADDED
 				r = mockMgr.addService(iapp2)
 				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
@@ -2046,12 +2046,12 @@ var _ = Describe("AppManager Tests", func() {
 				// ConfigMap UPDATED
 				r = mockMgr.updateConfigMap(cfgIapp1)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 
 				// Service UPDATED
 				r = mockMgr.updateService(iapp1)
 				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 
 				// Nodes ADDED
 				_, err = fakeClient.Core().Nodes().Create(extraNode)
@@ -2059,7 +2059,7 @@ var _ = Describe("AppManager Tests", func() {
 				n, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
@@ -2080,7 +2080,7 @@ var _ = Describe("AppManager Tests", func() {
 				n, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
@@ -2096,7 +2096,7 @@ var _ = Describe("AppManager Tests", func() {
 				// ConfigMap DELETED
 				r = mockMgr.deleteConfigMap(cfgIapp1)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"iapp1", 80, namespace})).To(
 					Equal(0), "Config map should be removed after delete.")
 				validateConfig(mw, oneIappOneNodeConfig)
@@ -2104,7 +2104,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Service DELETED
 				r = mockMgr.deleteService(iapp2)
 				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				validateConfig(mw, emptyConfig)
 			})
 
@@ -2138,7 +2138,7 @@ var _ = Describe("AppManager Tests", func() {
 				r := mockMgr.addConfigMap(noBindAddr)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 
 				rs, ok := resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(noBindAddr))
@@ -2180,7 +2180,7 @@ var _ = Describe("AppManager Tests", func() {
 				r := mockMgr.addConfigMap(noVirtualAddress)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 
 				rs, ok := resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(noVirtualAddress))
@@ -2246,7 +2246,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Service should be processed.")
 
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(len(svcPorts)))
+				Expect(resources.PoolCount()).To(Equal(len(svcPorts)))
 				for _, p := range svcPorts {
 					Expect(resources.CountOf(serviceKey{"foo", p.Port, namespace})).To(Equal(1))
 					rs, ok := resources.Get(
@@ -2313,7 +2313,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Service should be processed.")
 
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(len(svcPorts)))
+				Expect(resources.PoolCount()).To(Equal(len(svcPorts)))
 				for _, p := range svcPorts {
 					Expect(resources.CountOf(serviceKey{"foo", p.Port, namespace})).To(Equal(1))
 				}
@@ -2401,20 +2401,20 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(len(svcPorts)))
+				Expect(resources.PoolCount()).To(Equal(len(svcPorts)))
 				validateServiceIps(svcName, namespace, svcPorts, svcPodIps, resources)
 
 				// delete the service and make sure the IPs go away on the VS
 				r = mockMgr.deleteService(foo)
 				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(len(svcPorts)))
+				Expect(resources.PoolCount()).To(Equal(len(svcPorts)))
 				validateServiceIps(svcName, namespace, svcPorts, nil, resources)
 
 				// re-add the service
 				foo.ObjectMeta.ResourceVersion = "2"
 				r = mockMgr.addService(foo)
 				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(len(svcPorts)))
+				Expect(resources.PoolCount()).To(Equal(len(svcPorts)))
 				validateServiceIps(svcName, namespace, svcPorts, svcPodIps, resources)
 			})
 
@@ -2441,7 +2441,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				// no virtual servers yet
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(0))
+				Expect(resources.PoolCount()).To(Equal(0))
 
 				// add a config map
 				cfgFoo := test.NewConfigMap("foomap", "1", namespace, map[string]string{
@@ -2449,7 +2449,7 @@ var _ = Describe("AppManager Tests", func() {
 					"data":   configmapFoo})
 				r = mockMgr.addConfigMap(cfgFoo)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				validateServiceIps(svcName, namespace, svcPorts[:1], svcPodIps, resources)
 
 				// add another
@@ -2458,13 +2458,13 @@ var _ = Describe("AppManager Tests", func() {
 					"data":   configmapFoo8080})
 				r = mockMgr.addConfigMap(cfgFoo8080)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				validateServiceIps(svcName, namespace, svcPorts[:2], svcPodIps, resources)
 
 				// remove first one
 				r = mockMgr.deleteConfigMap(cfgFoo)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				validateServiceIps(svcName, namespace, svcPorts[1:2], svcPodIps, resources)
 			})
 
@@ -2491,7 +2491,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
 
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1),
 					"Virtual servers should have an entry.")
 
@@ -2505,7 +2505,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				r = mockMgr.addService(foo)
 				Expect(r).To(BeTrue(), "Service should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 80, namespace})).To(Equal(1),
 					"Virtual servers should have an entry.")
 			})
@@ -2547,28 +2547,34 @@ var _ = Describe("AppManager Tests", func() {
 				}`
 
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(0))
+				Expect(resources.PoolCount()).To(Equal(0))
 				r = mockMgr.addConfigMap(test.NewConfigMap("cmap-1", "1", namespace, map[string]string{
 					"schema": schemaUrl,
 					"data":   fmt.Sprintf(vsTemplate, 5, 80),
 				}))
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				r = mockMgr.updateConfigMap(test.NewConfigMap("cmap-1", "2", namespace, map[string]string{
 					"schema": schemaUrl,
 					"data":   fmt.Sprintf(vsTemplate, 5, 80),
 				}))
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				r = mockMgr.addConfigMap(test.NewConfigMap("cmap-2", "1", namespace, map[string]string{
 					"schema": schemaUrl,
 					"data":   fmt.Sprintf(vsTemplate, 5, 8080),
 				}))
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 			})
 
 			It("configures virtual servers via Ingress", func() {
+				// Add a service
+				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+				r := mockMgr.addService(fooSvc)
+				Expect(r).To(BeTrue(), "Service should be processed.")
+
 				ingressConfig := v1beta1.IngressSpec{
 					Backend: &v1beta1.IngressBackend{
 						ServiceName: "foo",
@@ -2581,23 +2587,19 @@ var _ = Describe("AppManager Tests", func() {
 						f5VsBindAddrAnnotation:  "1.2.3.4",
 						f5VsPartitionAnnotation: "velcro",
 					})
-				r := mockMgr.addIngress(ingress)
+				r = mockMgr.addIngress(ingress)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(1))
-				// Associate a service
-				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
-				r = mockMgr.addService(fooSvc)
-				Expect(r).To(BeTrue(), "Service should be processed.")
+
 				events := mockMgr.getFakeEvents(namespace)
 				Expect(len(events)).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				Expect(events[0].Namespace).To(Equal(namespace))
 				Expect(events[0].Name).To(Equal("ingress"))
 				Expect(events[0].Reason).To(Equal("ResourceConfigured"))
 
 				rs, ok := resources.Get(
-					serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
+					serviceKey{"foo", 80, "default"}, formatIngressVSName("1.2.3.4", 80))
 				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 				Expect(rs).ToNot(BeNil(), "Ingress should be object.")
 				Expect(rs.MetaData.Active).To(BeTrue())
@@ -2615,7 +2617,7 @@ var _ = Describe("AppManager Tests", func() {
 					})
 				r = mockMgr.updateIngress(ingress2)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				events = mockMgr.getFakeEvents(namespace)
 				Expect(len(events)).To(Equal(2))
 				Expect(events[1].Namespace).To(Equal(namespace))
@@ -2623,7 +2625,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
 
 				rs, ok = resources.Get(
-					serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
+					serviceKey{"foo", 80, "default"}, formatIngressVSName("5.6.7.8", 443))
 				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 				Expect(rs).ToNot(BeNil(), "Ingress should be object.")
 
@@ -2633,7 +2635,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Delete the Ingress resource
 				r = mockMgr.deleteIngress(ingress2)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				Expect(resources.Count()).To(Equal(0))
+				Expect(resources.PoolCount()).To(Equal(0))
 				events = mockMgr.getFakeEvents(namespace)
 				Expect(len(events)).To(Equal(2))
 
@@ -2645,17 +2647,17 @@ var _ = Describe("AppManager Tests", func() {
 					})
 				r = mockMgr.addIngress(ingressNotf5)
 				Expect(r).To(BeFalse(), "Ingress resource should not be processed.")
-				Expect(resources.Count()).To(Equal(0))
+				Expect(resources.PoolCount()).To(Equal(0))
 				ingressNotf5.Annotations[k8sIngressClass] = "f5"
 				r = mockMgr.updateIngress(ingressNotf5)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed when flipping from notf5 to f5.")
-				Expect(resources.Count()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(1))
 				events = mockMgr.getFakeEvents(namespace)
 				Expect(len(events)).To(Equal(3))
 				ingressNotf5.Annotations[k8sIngressClass] = "notf5again"
 				r = mockMgr.updateIngress(ingressNotf5)
 				Expect(r).To(BeFalse(), "Ingress resource should be destroyed when flipping from f5 to notf5again.")
-				Expect(resources.Count()).To(Equal(0))
+				Expect(resources.PoolCount()).To(Equal(0))
 				events = mockMgr.getFakeEvents(namespace)
 				Expect(len(events)).To(Equal(3))
 
@@ -2724,14 +2726,14 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(len(events)).To(Equal(4))
 				// 4 rules, but only 3 backends specified. We should have 3 keys stored, one for
 				// each backend
-				Expect(resources.Count()).To(Equal(3))
+				Expect(resources.PoolCount()).To(Equal(3))
 				rs, ok = resources.Get(
-					serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
+					serviceKey{"foo", 80, "default"}, formatIngressVSName("1.2.3.4", 80))
 				Expect(len(rs.Policies[0].Rules)).To(Equal(4))
 				mockMgr.deleteService(fooSvc)
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
-					serviceKey{"bar", 80, "default"}, "default_ingress-ingress_http")
+					serviceKey{"bar", 80, "default"}, formatIngressVSName("1.2.3.4", 80))
 				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
 
 				mockMgr.deleteIngress(ingress3)
@@ -2765,14 +2767,35 @@ var _ = Describe("AppManager Tests", func() {
 						f5VsBindAddrAnnotation:  "1.2.3.4",
 						f5VsPartitionAnnotation: "velcro",
 					})
+				// Add ingress with same ip (should use shared virtual)
+				ingress5 := test.NewIngress("ingressShared", "3", namespace,
+					v1beta1.IngressSpec{
+						Backend: &v1beta1.IngressBackend{
+							ServiceName: "foobar",
+							ServicePort: intstr.IntOrString{IntVal: 80},
+						},
+					},
+					map[string]string{
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: "velcro",
+					})
 				r = mockMgr.addIngress(ingress4)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-				Expect(resources.Count()).To(Equal(2))
+				r = mockMgr.addIngress(ingress5)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+				Expect(resources.VirtualCount()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(3))
 				rs, ok = resources.Get(
-					serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
+					serviceKey{"foo", 80, "default"}, formatIngressVSName("1.2.3.4", 80))
 				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
 				events = mockMgr.getFakeEvents(namespace)
-				Expect(len(events)).To(Equal(5))
+				Expect(len(events)).To(Equal(8))
+
+				mockMgr.deleteIngress(ingress5)
+				Expect(resources.VirtualCount()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(2))
+				mockMgr.deleteService(fooSvc)
+				Expect(resources.PoolCount()).To(Equal(1))
 			})
 
 			It("properly configures redirect data group for ingress", func() {
@@ -2968,7 +2991,7 @@ var _ = Describe("AppManager Tests", func() {
 						[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
 					r = mockMgr.addService(fooSvc)
 					Expect(r).To(BeTrue(), "Service should be processed.")
-					Expect(resources.Count()).To(Equal(2))
+					Expect(resources.PoolCount()).To(Equal(2))
 
 					rs, ok := resources.Get(
 						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
@@ -3003,7 +3026,7 @@ var _ = Describe("AppManager Tests", func() {
 						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
 					mockMgr.addService(barSvc)
 					Expect(r).To(BeTrue(), "Service should be processed.")
-					Expect(resources.Count()).To(Equal(4))
+					Expect(resources.PoolCount()).To(Equal(4))
 
 					rs, ok = resources.Get(
 						serviceKey{"bar", 80, "default"}, "https-ose-vserver")
@@ -3019,7 +3042,7 @@ var _ = Describe("AppManager Tests", func() {
 					// Delete a Route resource
 					r = mockMgr.deleteRoute(route2)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
-					Expect(resources.Count()).To(Equal(2))
+					Expect(resources.PoolCount()).To(Equal(2))
 					rs, ok = resources.Get(
 						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
 					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
@@ -3060,7 +3083,7 @@ var _ = Describe("AppManager Tests", func() {
 						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
 					r = mockMgr.addService(fooSvc)
 					Expect(r).To(BeTrue(), "Service should be processed.")
-					Expect(resources.Count()).To(Equal(2))
+					Expect(resources.PoolCount()).To(Equal(2))
 
 					hostName2 := "barfoo.com"
 					svcName2 := "bar"
@@ -3084,7 +3107,7 @@ var _ = Describe("AppManager Tests", func() {
 						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
 					mockMgr.addService(barSvc)
 					Expect(r).To(BeTrue(), "Service should be processed.")
-					Expect(resources.Count()).To(Equal(4))
+					Expect(resources.PoolCount()).To(Equal(4))
 
 					// Check state.
 					rs, ok := resources.Get(
@@ -3121,7 +3144,7 @@ var _ = Describe("AppManager Tests", func() {
 					// Delete a Route resource and make sure the data groups are cleaned up.
 					r = mockMgr.deleteRoute(route2)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
-					Expect(resources.Count()).To(Equal(2))
+					Expect(resources.PoolCount()).To(Equal(2))
 					hostDg, found = mockMgr.appMgr.intDgMap[hostDgKey]
 					Expect(found).To(BeTrue())
 					Expect(len(hostDg[namespace].Records)).To(Equal(1))
@@ -3155,7 +3178,7 @@ var _ = Describe("AppManager Tests", func() {
 						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
 					r = mockMgr.addService(fooSvc)
 					Expect(r).To(BeTrue(), "Service should be processed.")
-					Expect(resources.Count()).To(Equal(2))
+					Expect(resources.PoolCount()).To(Equal(2))
 
 					rs, ok := resources.Get(
 						serviceKey{"foo", 443, "default"}, "https-ose-vserver")
@@ -3200,10 +3223,8 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(rs.Virtual.GetProfileCountByContext(customProfileServer)).To(Equal(2))
 				})
 
-				// Note: Once we move to the single config per virtual model, this test
-				// can be removed
 				It("doesn't update stored route configs during processing", func() {
-					spec := routeapi.RouteSpec{
+					spec1 := routeapi.RouteSpec{
 						Host: "foo.com",
 						Path: "/foo",
 						To: routeapi.RouteTargetReference{
@@ -3216,7 +3237,20 @@ var _ = Describe("AppManager Tests", func() {
 							Key:         "key",
 						},
 					}
-					route := test.NewRoute("route", "1", namespace, spec, nil)
+					spec2 := routeapi.RouteSpec{
+						Host: "foo.com",
+						Path: "/bar",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: "cert",
+							Key:         "key",
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec1, nil)
 					mockMgr.addRoute(route)
 
 					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
@@ -3233,7 +3267,7 @@ var _ = Describe("AppManager Tests", func() {
 					// Add a new route, our stored config (rs), should not have been
 					// updated locally. It should only update when we get it again.
 					// This confirms that we aren't updating a pointer.
-					route2 := test.NewRoute("route2", "1", namespace, spec, nil)
+					route2 := test.NewRoute("route2", "1", namespace, spec2, nil)
 					mockMgr.addRoute(route2)
 					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
 					rs, _ = resources.Get(
@@ -3398,22 +3432,25 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 
 				resources := mockMgr.resources()
-				rs, ok := resources.Get(
-					serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
-				Expect(ok).To(BeTrue())
+				Expect(resources.PoolCount()).To(Equal(1))
+				var bindAddr string
+				for _, cfg := range resources.GetAllResources() {
+					bindAddr = cfg.Virtual.VirtualAddress.BindAddr
+				}
 				if expAddr {
-					Expect(len(rs.Virtual.VirtualAddress.BindAddr)).To(BeNumerically(">", 0))
+					Expect(len(bindAddr)).To(BeNumerically(">", 0))
 				} else {
-					Expect(len(rs.Virtual.VirtualAddress.BindAddr)).To(Equal(0))
+					Expect(len(bindAddr)).To(Equal(0))
 				}
 				// Verify addition of host name works as expected
 				if update {
 					ingress.Spec.Rules[0].Host = "f5.com"
 					mockMgr.updateIngress(ingress)
-					rs, ok := resources.Get(
-						serviceKey{"foo", 80, "default"}, "default_ingress-ingress_http")
-					Expect(ok).To(BeTrue())
-					Expect(len(rs.Virtual.VirtualAddress.BindAddr)).To(BeNumerically(">", 0))
+					Expect(resources.PoolCount()).To(Equal(1))
+					for _, cfg := range resources.GetAllResources() {
+						bindAddr = cfg.Virtual.VirtualAddress.BindAddr
+					}
+					Expect(len(bindAddr)).To(BeNumerically(">", 0))
 				}
 				mockMgr.deleteIngress(ingress)
 			}
@@ -3793,7 +3830,7 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.addService(svcNs1)
 				mockMgr.addService(svcNs2)
 
-				spec := routeapi.RouteSpec{
+				spec1 := routeapi.RouteSpec{
 					Host: "foobar.com",
 					Path: "/foo",
 					Port: &routeapi.RoutePort{
@@ -3809,15 +3846,31 @@ var _ = Describe("AppManager Tests", func() {
 						Key:         "key",
 					},
 				}
+				spec2 := routeapi.RouteSpec{
+					Host: "foobar.com",
+					Path: "/bar",
+					Port: &routeapi.RoutePort{
+						TargetPort: intstr.IntOrString{IntVal: 80},
+					},
+					To: routeapi.RouteTargetReference{
+						Kind: "Service",
+						Name: "foo",
+					},
+					TLS: &routeapi.TLSConfig{
+						Termination: "edge",
+						Certificate: "cert",
+						Key:         "key",
+					},
+				}
 				// Create two routes with same name in different namespaces
-				route := test.NewRoute("route", "1", ns1, spec, nil)
+				route := test.NewRoute("route", "1", ns1, spec1, nil)
 				r := mockMgr.addRoute(route)
 				Expect(r).To(BeTrue(), "Route resource should be processed.")
-				route2 := test.NewRoute("route", "2", ns2, spec, nil)
+				route2 := test.NewRoute("route", "2", ns2, spec2, nil)
 				r = mockMgr.addRoute(route2)
 				Expect(r).To(BeTrue(), "Route resource should be processed.")
 				resources := mockMgr.resources()
-				Expect(resources.Count()).To(Equal(4))
+				Expect(resources.PoolCount()).To(Equal(4))
 
 				rs, ok := resources.Get(
 					serviceKey{"foo", 80, ns1}, "https-ose-vserver")
@@ -3842,7 +3895,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				// Delete a route
 				mockMgr.deleteRoute(route2)
-				Expect(resources.Count()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, ns1}, "https-ose-vserver")
 				Expect(ok).To(BeTrue(), "Route should be accessible.")

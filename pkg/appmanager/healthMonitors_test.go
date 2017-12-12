@@ -175,13 +175,13 @@ var _ = Describe("Health Monitor Tests", func() {
 					f5VsPartitionAnnotation: "velcro",
 					f5VsHttpPortAnnotation:  "443",
 					healthMonitorAnnotation: `[
-					{
-						"path":     "svc1/",
-						"send":     "HTTP GET /test1",
-						"interval": 5,
+						{
+							"path":     "svc1/",
+							"send":     "HTTP GET /test1",
+							"interval": 5,
 							"timeout":  10
-					}
-				]`,
+						}
+					]`,
 				})
 			emptyIps := []string{}
 			svcKey := serviceKey{
@@ -205,11 +205,11 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.addEndpoints(endpts)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 			resources := mockMgr.resources()
-			Expect(resources.Count()).To(Equal(1))
+			Expect(resources.PoolCount()).To(Equal(1))
 
 			// The first test uses an explicit server name
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svcKey, formatIngressVSName(ing, "http"))
+			vsCfgFoo, found := resources.Get(svcKey, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
@@ -225,7 +225,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.updateIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName(ing, "http"))
+			vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
@@ -241,7 +241,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.updateIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName(ing, "http"))
+			vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
@@ -256,7 +256,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.updateIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName(ing, "http"))
+			vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, false)
@@ -422,7 +422,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.addEndpoints(endpts1)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 			resources := mockMgr.resources()
-			Expect(resources.Count()).To(Equal(1))
+			Expect(resources.PoolCount()).To(Equal(1))
 
 			svc1Key := serviceKey{
 				Namespace:   namespace,
@@ -430,7 +430,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1Port),
 			}
 			Expect(resources.CountOf(svc1Key)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1Key, formatIngressVSName(ing, "http"))
+			vsCfgFoo, found := resources.Get(svc1Key, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -445,7 +445,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Service should be processed.")
 			r = mockMgr.addEndpoints(endpts2)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
-			Expect(resources.Count()).To(Equal(2))
+			Expect(resources.PoolCount()).To(Equal(2))
 
 			svc2Key := serviceKey{
 				Namespace:   namespace,
@@ -453,7 +453,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc2Key, formatIngressVSName(ing, "http"))
+			vsCfgBar, found := resources.Get(svc2Key, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -468,7 +468,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Service should be processed.")
 			r = mockMgr.addEndpoints(endpts3)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
-			Expect(resources.Count()).To(Equal(3))
+			Expect(resources.PoolCount()).To(Equal(3))
 
 			svc3Key := serviceKey{
 				Namespace:   namespace,
@@ -476,7 +476,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc3Port),
 			}
 			Expect(resources.CountOf(svc3Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc3Key, formatIngressVSName(ing, "http"))
+			vsCfgBaz, found := resources.Get(svc3Key, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -601,7 +601,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 
 			resources := mockMgr.resources()
-			Expect(resources.Count()).To(Equal(3))
+			Expect(resources.PoolCount()).To(Equal(3))
 
 			svc1aKey := serviceKey{
 				Namespace:   namespace,
@@ -609,7 +609,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1aPort),
 			}
 			Expect(resources.CountOf(svc1aKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1aKey, formatIngressVSName(ing, "http"))
+			vsCfgFoo, found := resources.Get(svc1aKey, formatIngressVSName("172.16.3.2", 80))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -619,7 +619,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1bPort),
 			}
 			Expect(resources.CountOf(svc1bKey)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc1bKey, formatIngressVSName(ing, "http"))
+			vsCfgBar, found := resources.Get(svc1bKey, formatIngressVSName("172.16.3.2", 80))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -629,7 +629,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc2Key, formatIngressVSName(ing, "http"))
+			vsCfgBaz, found := resources.Get(svc2Key, formatIngressVSName("172.16.3.2", 80))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -721,7 +721,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.addEndpoints(endpts1a)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 			resources := mockMgr.resources()
-			Expect(resources.Count()).To(Equal(1))
+			Expect(resources.PoolCount()).To(Equal(1))
 
 			svc1aKey := serviceKey{
 				Namespace:   namespace,
@@ -729,7 +729,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1aPort),
 			}
 			Expect(resources.CountOf(svc1aKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1aKey, formatIngressVSName(ing, "http"))
+			vsCfgFoo, found := resources.Get(svc1aKey, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -744,7 +744,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Service should be processed.")
 			r = mockMgr.addEndpoints(endpts1b)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
-			Expect(resources.Count()).To(Equal(2))
+			Expect(resources.PoolCount()).To(Equal(2))
 
 			svc1bKey := serviceKey{
 				Namespace:   namespace,
@@ -752,7 +752,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1bPort),
 			}
 			Expect(resources.CountOf(svc1bKey)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc1bKey, formatIngressVSName(ing, "http"))
+			vsCfgBar, found := resources.Get(svc1bKey, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -767,7 +767,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Service should be processed.")
 			r = mockMgr.addEndpoints(endpts2)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
-			Expect(resources.Count()).To(Equal(3))
+			Expect(resources.PoolCount()).To(Equal(3))
 
 			svc2Key := serviceKey{
 				Namespace:   namespace,
@@ -775,7 +775,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc2Key, formatIngressVSName(ing, "http"))
+			vsCfgBaz, found := resources.Get(svc2Key, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -867,7 +867,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.addEndpoints(endpts1)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 			resources := mockMgr.resources()
-			Expect(resources.Count()).To(Equal(1))
+			Expect(resources.PoolCount()).To(Equal(1))
 
 			svc1Key := serviceKey{
 				Namespace:   namespace,
@@ -875,7 +875,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1Port),
 			}
 			Expect(resources.CountOf(svc1Key)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1Key, formatIngressVSName(ing, "http"))
+			vsCfgFoo, found := resources.Get(svc1Key, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -890,7 +890,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Service should be processed.")
 			r = mockMgr.addEndpoints(endpts2)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
-			Expect(resources.Count()).To(Equal(2))
+			Expect(resources.PoolCount()).To(Equal(2))
 
 			svc2Key := serviceKey{
 				Namespace:   namespace,
@@ -898,7 +898,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc2Key, formatIngressVSName(ing, "http"))
+			vsCfgBar, found := resources.Get(svc2Key, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -913,7 +913,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Service should be processed.")
 			r = mockMgr.addEndpoints(endpts3)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
-			Expect(resources.Count()).To(Equal(3))
+			Expect(resources.PoolCount()).To(Equal(3))
 
 			svc3Key := serviceKey{
 				Namespace:   namespace,
@@ -921,7 +921,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc3Port),
 			}
 			Expect(resources.CountOf(svc3Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc3Key, formatIngressVSName(ing, "http"))
+			vsCfgBaz, found := resources.Get(svc3Key, formatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -986,7 +986,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.addService(fooSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")
 			resources := mockMgr.resources()
-			Expect(resources.Count()).To(Equal(2))
+			Expect(resources.PoolCount()).To(Equal(2))
 
 			// The first test uses an explicit server name
 			vsCfgFoo, found := resources.Get(svcKey, "https-ose-vserver")

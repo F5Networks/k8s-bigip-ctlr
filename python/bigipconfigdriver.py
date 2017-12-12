@@ -332,7 +332,8 @@ class ConfigHandler():
                     try:
                         # Manually create custom profiles;
                         # CCCL doesn't yet do this
-                        if 'customProfiles' in cfg_ltm:
+                        if 'customProfiles' in cfg_ltm and \
+                                mgr.get_schema_type() == 'ltm':
                             tmp = 0
                             customProfiles, tmp = _create_custom_profiles(
                                 mgr.mgmt_root(),
@@ -348,7 +349,8 @@ class ConfigHandler():
                             incomplete += mgr._apply_ltm_config(cfg_ltm)
 
                         # Manually delete custom profiles (if needed)
-                        if customProfiles:
+                        if customProfiles and \
+                                mgr.get_schema_type() == 'ltm':
                             _delete_unused_ssl_profiles(
                                 mgr.mgmt_root(),
                                 partition,

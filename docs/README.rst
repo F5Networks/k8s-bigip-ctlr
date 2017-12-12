@@ -654,6 +654,7 @@ Example Configuration Files
 - :fonticon:`fa fa-download` :download:`sample-k8s-bigip-ctlr-secrets.yaml <./_static/config_examples/sample-k8s-bigip-ctlr-secrets.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-bigip-credentials-secret.yaml <./_static/config_examples/sample-bigip-credentials-secret.yaml>`
 - :fonticon:`fa fa-download` :download:`example-vs-resource.configmap.yaml <./_static/config_examples/example-vs-resource.configmap.yaml>`
+- :fonticon:`fa fa-download` :download:`example-vs-resource-udp.configmap.yaml <./_static/config_examples/example-vs-resource-udp.configmap.yaml>`
 - :fonticon:`fa fa-download` :download:`example-vs-resource.json <./_static/config_examples/example-vs-resource.json>`
 - :fonticon:`fa fa-download` :download:`example-vs-resource-iapp.json <./_static/config_examples/example-vs-resource-iapp.json>`
 - :fonticon:`fa fa-download` :download:`example-advanced-vs-resource-iapp.json <./_static/config_examples/example-advanced-vs-resource-iapp.json>`

@@ -97,10 +97,10 @@ func (appMgr *Manager) outputConfigLocked() {
 	}
 	for intDgKey, intDgMap := range appMgr.intDgMap {
 		initPartitionData(resources, intDgKey.Partition)
-		if len(intDgMap) > 0 {
-			for _, intDg := range intDgMap {
-				resources[intDgKey.Partition].InternalDataGroups = append(resources[intDgKey.Partition].InternalDataGroups, *intDg)
-			}
+		// Join all namespace DG's into one DG before adding.
+		flatDg := intDgMap.FlattenNamespaces()
+		if nil != flatDg {
+			resources[intDgKey.Partition].InternalDataGroups = append(resources[intDgKey.Partition].InternalDataGroups, *flatDg)
 		} else {
 			// The data group is required, but we have no information.
 			resources[intDgKey.Partition].InternalDataGroups = append(resources[intDgKey.Partition].InternalDataGroups, *NewInternalDataGroup(intDgKey.Name, intDgKey.Partition))

@@ -2775,6 +2775,164 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(len(events)).To(Equal(5))
 			})
 
+			It("properly configures redirect data group for ingress", func() {
+				ns1 := "ns1"
+				ns2 := "ns2"
+				host := "foo.com"
+				svcName := "foo"
+				fooPath := "/foo"
+				barPath := "/bar"
+				err := mockMgr.startNonLabelMode([]string{ns1, ns2})
+				Expect(err).To(BeNil())
+				httpFoo := v1beta1.HTTPIngressRuleValue{
+					Paths: []v1beta1.HTTPIngressPath{
+						{Path: fooPath,
+							Backend: v1beta1.IngressBackend{
+								ServiceName: svcName,
+								ServicePort: intstr.IntOrString{IntVal: 80},
+							},
+						},
+					},
+				}
+				httpBar := v1beta1.HTTPIngressRuleValue{
+					Paths: []v1beta1.HTTPIngressPath{
+						{Path: barPath,
+							Backend: v1beta1.IngressBackend{
+								ServiceName: svcName,
+								ServicePort: intstr.IntOrString{IntVal: 80},
+							},
+						},
+					},
+				}
+				tlsArray := []v1beta1.IngressTLS{
+					{
+						SecretName: "/Common/clientssl",
+					},
+				}
+				specFoo := v1beta1.IngressSpec{
+					Rules: []v1beta1.IngressRule{
+						{Host: host,
+							IngressRuleValue: v1beta1.IngressRuleValue{
+								HTTP: &httpFoo,
+							},
+						},
+					},
+					TLS: tlsArray,
+				}
+				specBar := v1beta1.IngressSpec{
+					Rules: []v1beta1.IngressRule{
+						{Host: host,
+							IngressRuleValue: v1beta1.IngressRuleValue{
+								HTTP: &httpBar,
+							},
+						},
+					},
+					TLS: tlsArray,
+				}
+
+				// Create the first ingress and associate a service
+				ing1a := test.NewIngress("ing1a", "1", ns1, specFoo,
+					map[string]string{
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: DEFAULT_PARTITION,
+						ingressSslRedirect:      "true",
+					})
+				r := mockMgr.addIngress(ing1a)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+				fooSvc1 := test.NewService(svcName, "1", ns1, "NodePort",
+					[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
+				r = mockMgr.addService(fooSvc1)
+				Expect(r).To(BeTrue(), "Service should be processed.")
+
+				// Create identical ingress and service in another namespace
+				ing2 := test.NewIngress("ing2", "1", ns2, specFoo,
+					map[string]string{
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: DEFAULT_PARTITION,
+						ingressSslRedirect:      "true",
+					})
+				r = mockMgr.addIngress(ing2)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+				fooSvc2 := test.NewService(svcName, "1", ns2, "NodePort",
+					[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
+				r = mockMgr.addService(fooSvc2)
+				Expect(r).To(BeTrue(), "Service should be processed.")
+
+				// Make sure the entry isn't duplicated in the dg
+				grpRef := nameRef{
+					Partition: DEFAULT_PARTITION,
+					Name:      httpsRedirectDgName,
+				}
+				nsMap, found := mockMgr.appMgr.intDgMap[grpRef]
+				Expect(found).To(BeTrue(), "redirect group not found")
+				flatDg := nsMap.FlattenNamespaces()
+				Expect(flatDg).ToNot(BeNil(), "should have data")
+				Expect(len(flatDg.Records)).To(Equal(1))
+				Expect(flatDg.Records[0].Name).To(Equal(host))
+				Expect(flatDg.Records[0].Data).To(Equal(fooPath))
+
+				// Add a route for the same host but different path
+				ing1b := test.NewIngress("ing1b", "1", ns1, specBar,
+					map[string]string{
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: "velcro",
+						ingressSslRedirect:      "true",
+					})
+				r = mockMgr.addIngress(ing1b)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+				nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+				Expect(found).To(BeTrue(), "redirect group not found")
+				flatDg = nsMap.FlattenNamespaces()
+				Expect(flatDg).ToNot(BeNil(), "should have data")
+				Expect(len(flatDg.Records)).To(Equal(1))
+				Expect(flatDg.Records[0].Name).To(Equal(host))
+				fooAndBarPath := fmt.Sprintf("%s|%s", barPath, fooPath)
+				Expect(flatDg.Records[0].Data).To(Equal(fooAndBarPath))
+
+				// Delete one of the duplicates for foo.com/foo, should not change dg
+				r = mockMgr.deleteIngress(ing2)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+				nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+				Expect(found).To(BeTrue(), "redirect group not found")
+				flatDg = nsMap.FlattenNamespaces()
+				Expect(flatDg).ToNot(BeNil(), "should have data")
+				Expect(len(flatDg.Records)).To(Equal(1))
+				Expect(flatDg.Records[0].Name).To(Equal(host))
+				Expect(flatDg.Records[0].Data).To(Equal(fooAndBarPath))
+
+				// Delete the second duplicate for foo.com/foo, should change dg
+				r = mockMgr.deleteIngress(ing1a)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+				nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+				Expect(found).To(BeTrue(), "redirect group not found")
+				flatDg = nsMap.FlattenNamespaces()
+				Expect(flatDg).ToNot(BeNil(), "should have data")
+				Expect(len(flatDg.Records)).To(Equal(1))
+				Expect(flatDg.Records[0].Name).To(Equal(host))
+				Expect(flatDg.Records[0].Data).To(Equal(barPath))
+
+				// Delete last route, should produce a nil dg
+				r = mockMgr.deleteIngress(ing1b)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+				flatDg = nsMap.FlattenNamespaces()
+				Expect(flatDg).To(BeNil(), "should not have data")
+
+				// Re-create the first ingress without ssl-redirect = true, should not
+				// be in the dg
+				ing1a = test.NewIngress("ing1a", "1", ns1, specFoo,
+					map[string]string{
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: DEFAULT_PARTITION,
+						ingressSslRedirect:      "false",
+					})
+				r = mockMgr.addIngress(ing1a)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+				nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+				Expect(found).To(BeTrue(), "redirect group not found")
+				flatDg = nsMap.FlattenNamespaces()
+				Expect(flatDg).To(BeNil(), "should not have data")
+			})
+
 			Context("Routes", func() {
 				BeforeEach(func() {
 					mockMgr.appMgr.routeConfig = RouteConfig{
@@ -3081,6 +3239,119 @@ var _ = Describe("AppManager Tests", func() {
 					rs, _ = resources.Get(
 						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
 					Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+				})
+
+				It("properly configures redirect data group for routes", func() {
+					ns1 := "ns1"
+					ns2 := "ns2"
+					host := "foo.com"
+					svcName := "foo"
+					fooPath := "/foo"
+					barPath := "/bar"
+					err := mockMgr.startNonLabelMode([]string{ns1, ns2})
+					Expect(err).To(BeNil())
+					spec := routeapi.RouteSpec{
+						Host: host,
+						Path: fooPath,
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: svcName,
+						},
+						Port: &routeapi.RoutePort{
+							TargetPort: intstr.FromInt(80),
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: "cert",
+							Key:         "key",
+							InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyRedirect,
+						},
+					}
+
+					// Create the first route and associate a service
+					route1a := test.NewRoute("route1a", "1", ns1, spec, nil)
+					r := mockMgr.addRoute(route1a)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					fooSvc1 := test.NewService(svcName, "1", ns1, "NodePort",
+						[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc1)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+
+					// Create identical route and service in another namespace
+					route2 := test.NewRoute("route", "1", ns2, spec, nil)
+					r = mockMgr.addRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					fooSvc2 := test.NewService(svcName, "1", ns2, "NodePort",
+						[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
+					r = mockMgr.addService(fooSvc2)
+					Expect(r).To(BeTrue(), "Service should be processed.")
+
+					// Make sure the entry isn't duplicated in the dg
+					grpRef := nameRef{
+						Partition: DEFAULT_PARTITION,
+						Name:      httpsRedirectDgName,
+					}
+					nsMap, found := mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "redirect group not found")
+					flatDg := nsMap.FlattenNamespaces()
+					Expect(flatDg).ToNot(BeNil(), "should have data")
+					Expect(len(flatDg.Records)).To(Equal(1))
+					Expect(flatDg.Records[0].Name).To(Equal(host))
+					Expect(flatDg.Records[0].Data).To(Equal(fooPath))
+
+					// Add a route for the same host but different path
+					route1b := test.NewRoute("route1b", "1", ns1, spec, nil)
+					route1b.Spec.Path = barPath
+					r = mockMgr.addRoute(route1b)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "redirect group not found")
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).ToNot(BeNil(), "should have data")
+					Expect(len(flatDg.Records)).To(Equal(1))
+					Expect(flatDg.Records[0].Name).To(Equal(host))
+					fooAndBarPath := fmt.Sprintf("%s|%s", barPath, fooPath)
+					Expect(flatDg.Records[0].Data).To(Equal(fooAndBarPath))
+
+					// Delete one of the duplicates for foo.com/foo, should not change dg
+					r = mockMgr.deleteRoute(route2)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "redirect group not found")
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).ToNot(BeNil(), "should have data")
+					Expect(len(flatDg.Records)).To(Equal(1))
+					Expect(flatDg.Records[0].Name).To(Equal(host))
+					Expect(flatDg.Records[0].Data).To(Equal(fooAndBarPath))
+
+					// Delete the second duplicate for foo.com/foo, should change dg
+					r = mockMgr.deleteRoute(route1a)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "redirect group not found")
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).ToNot(BeNil(), "should have data")
+					Expect(len(flatDg.Records)).To(Equal(1))
+					Expect(flatDg.Records[0].Name).To(Equal(host))
+					Expect(flatDg.Records[0].Data).To(Equal(barPath))
+
+					// Delete last route, should produce a nil dg
+					r = mockMgr.deleteRoute(route1b)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "redirect group not found")
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).To(BeNil(), "should not have data")
+
+					// Re-create the first route without redirect, should not be in dg
+					spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyAllow
+					route1a = test.NewRoute("route1a", "1", ns1, spec, nil)
+					r = mockMgr.addRoute(route1a)
+					Expect(r).To(BeTrue(), "Route resource should be processed.")
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "redirect group not found")
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).To(BeNil(), "should not have data")
 				})
 			})
 

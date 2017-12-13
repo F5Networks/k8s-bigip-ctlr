@@ -684,6 +684,7 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 
 	appMgr.addIRule(httpRedirectIRuleName, DEFAULT_PARTITION,
 		httpRedirectIRule(DEFAULT_HTTPS_PORT))
+	appMgr.addInternalDataGroup(httpsRedirectDgName, DEFAULT_PARTITION)
 
 	if nil != appMgr.routeClientV1 {
 		appMgr.addIRule(
@@ -824,22 +825,26 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	// rsMap stores all resources currently in Resources matching sKey, indexed by port
 	rsMap := appMgr.getResourcesForKey(sKey)
 
+	dgMap := make(InternalDataGroupMap)
 	var stats vsSyncStats
 	err = appMgr.syncConfigMaps(&stats, sKey, rsMap, svcPortMap, svc, appInf)
 	if nil != err {
 		return err
 	}
 
-	err = appMgr.syncIngresses(&stats, sKey, rsMap, svcPortMap, svc, appInf)
+	err = appMgr.syncIngresses(&stats, sKey, rsMap, svcPortMap, svc, appInf, dgMap)
 	if nil != err {
 		return err
 	}
 	if nil != appInf.routeInformer {
-		err = appMgr.syncRoutes(&stats, sKey, rsMap, svcPortMap, svc, appInf)
+		err = appMgr.syncRoutes(&stats, sKey, rsMap, svcPortMap, svc, appInf, dgMap)
 		if nil != err {
 			return err
 		}
 	}
+
+	// Update internal data groups if changed
+	appMgr.updateRouteDataGroups(&stats, dgMap, sKey.Namespace)
 
 	if len(rsMap) > 0 {
 		// We get here when there are ports defined in the service that don't
@@ -952,6 +957,7 @@ func (appMgr *Manager) syncIngresses(
 	svcPortMap map[int32]bool,
 	svc *v1.Service,
 	appInf *appInformer,
+	dgMap InternalDataGroupMap,
 ) error {
 	ingByIndex, err := appInf.ingInformer.GetIndexer().ByIndex(
 		"namespace", sKey.Namespace)
@@ -960,6 +966,7 @@ func (appMgr *Manager) syncIngresses(
 			sKey.Namespace, err)
 		return err
 	}
+	svcFwdRulesMap := NewServiceFwdRuleMap()
 	for _, obj := range ingByIndex {
 		// We need to look at all ingresses in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
@@ -984,7 +991,7 @@ func (appMgr *Manager) syncIngresses(
 			}
 
 			// Handle TLS configuration
-			updated := appMgr.handleIngressTls(rsCfg, ing)
+			updated := appMgr.handleIngressTls(rsCfg, ing, svcFwdRulesMap)
 			if updated {
 				stats.cpUpdated += 1
 			}
@@ -1034,6 +1041,16 @@ func (appMgr *Manager) syncIngresses(
 			appMgr.setIngressStatus(ing, rsCfg)
 		}
 	}
+	if len(svcFwdRulesMap) > 0 {
+		httpsRedirectDg := nameRef{
+			Name:      httpsRedirectDgName,
+			Partition: DEFAULT_PARTITION,
+		}
+		if _, found := dgMap[httpsRedirectDg]; !found {
+			dgMap[httpsRedirectDg] = make(DataGroupNamespaceMap)
+		}
+		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
+	}
 	return nil
 }
 
@@ -1044,6 +1061,7 @@ func (appMgr *Manager) syncRoutes(
 	svcPortMap map[int32]bool,
 	svc *v1.Service,
 	appInf *appInformer,
+	dgMap InternalDataGroupMap,
 ) error {
 	routeByIndex, err := appInf.getOrderedRoutes(sKey.Namespace)
 	if nil != err {
@@ -1053,7 +1071,7 @@ func (appMgr *Manager) syncRoutes(
 	}
 
 	// Rebuild all internal data groups for routes as we process each
-	dgMap := make(InternalDataGroupMap)
+	svcFwdRulesMap := NewServiceFwdRuleMap()
 	for _, route := range routeByIndex {
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
@@ -1072,7 +1090,8 @@ func (appMgr *Manager) syncRoutes(
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
 			rsCfg, err, pool := createRSConfigFromRoute(route,
-				*appMgr.resources, appMgr.routeConfig, ps, appInf.svcInformer.GetIndexer())
+				*appMgr.resources, appMgr.routeConfig, ps,
+				appInf.svcInformer.GetIndexer(), svcFwdRulesMap)
 			if err != nil {
 				// We return err if there was an error creating a rule
 				log.Warningf("%v", err)
@@ -1118,8 +1137,16 @@ func (appMgr *Manager) syncRoutes(
 		}
 	}
 
-	// Update internal data groups for routes if changed
-	appMgr.updateRouteDataGroups(stats, dgMap, sKey.Namespace)
+	if len(svcFwdRulesMap) > 0 {
+		httpsRedirectDg := nameRef{
+			Name:      httpsRedirectDgName,
+			Partition: DEFAULT_PARTITION,
+		}
+		if _, found := dgMap[httpsRedirectDg]; !found {
+			dgMap[httpsRedirectDg] = make(DataGroupNamespaceMap)
+		}
+		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
+	}
 
 	return nil
 }
@@ -1150,6 +1177,7 @@ type secretKey struct {
 func (appMgr *Manager) handleIngressTls(
 	rsCfg *ResourceConfig,
 	ing *v1beta1.Ingress,
+	svcFwdRulesMap ServiceFwdRuleMap,
 ) bool {
 	if 0 == len(ing.Spec.TLS) {
 		// Nothing to do if no TLS section
@@ -1224,8 +1252,6 @@ func (appMgr *Manager) handleIngressTls(
 	// -----------------------------------------------------------------
 	// |   3   |     F       |    T      | Both HTTP and HTTPS         |
 	// -----------------------------------------------------------------
-	var rule *Rule
-	var policyName string
 	if sslRedirect {
 		// State 2, set HTTP redirect iRule
 		log.Debugf("TLS: Applying HTTP redirect iRule.")
@@ -1236,20 +1262,22 @@ func (appMgr *Manager) handleIngressTls(
 				httpRedirectIRule(httpsPort))
 		}
 		rsCfg.Virtual.AddIRule(ruleName)
+		if nil != ing.Spec.Backend {
+			svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
+				ing.Spec.Backend.ServiceName, "*", "/")
+		}
+		for _, rul := range ing.Spec.Rules {
+			if nil != rul.HTTP {
+				host := rul.Host
+				for _, path := range rul.HTTP.Paths {
+					svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
+						path.Backend.ServiceName, host, path.Path)
+				}
+			}
+		}
 	} else if allowHttp {
 		// State 3, do not apply any policy
 		log.Debugf("TLS: Not applying any policies.")
-	}
-
-	if nil != rule && "" != policyName {
-		policy := rsCfg.FindPolicy("forwarding")
-		if nil == policy {
-			policy = createPolicy(Rules{rule}, policyName, rsCfg.Virtual.Partition)
-		} else {
-			rule.Ordinal = len(policy.Rules)
-			policy.Rules = append(policy.Rules, rule)
-		}
-		rsCfg.SetPolicy(*policy)
 	}
 	return false
 }

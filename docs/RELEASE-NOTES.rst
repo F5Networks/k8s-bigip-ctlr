@@ -6,6 +6,17 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 Added Functionality
 ```````````````````
+* Added route domain support for the VxLAN forwarding data base addresses (FDB).
+  Also, Removed the restriction on setting the default route domain
+
+Limitations
+```````````
+* If you are using F5-supported iapps, you must first install the
+  latest release candidate of the iapp available at downloads.f5.com and
+  manually switch to using the new version of the iapp.  For instance,
+  the minimum version you need to use for the f5.http iapp is f5.http.v1.3.0rc3.
+  This version is available in the package iapps-1.0.0.492.0.  Note that
+  installing a new version of an iapp does not replace the existing version.
 
 v1.3.0
 ------

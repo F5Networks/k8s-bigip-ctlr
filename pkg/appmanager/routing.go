@@ -64,7 +64,7 @@ func (r Rules) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
 
 type Routes []*routeapi.Route
 
-func createRule(uri, poolName, partition, routeName string) (*Rule, error) {
+func createRule(uri, poolName, partition, ruleName string) (*Rule, error) {
 	_u := "scheme://" + uri
 	_u = strings.TrimSuffix(_u, "/")
 	u, err := url.Parse(_u)
@@ -123,7 +123,7 @@ func createRule(uri, poolName, partition, routeName string) (*Rule, error) {
 	}
 
 	rl := Rule{
-		Name:       routeName,
+		Name:       ruleName,
 		FullURI:    uri,
 		Actions:    []*action{&a},
 		Conditions: c,
@@ -172,8 +172,9 @@ func processIngressRules(
 				if poolName == "" {
 					continue
 				}
+				ruleName := formatIngressRuleName(rule.Host, path.Path, poolName)
 				// This blank name gets overridden by an ordinal later on
-				rl, err = createRule(uri, poolName, partition, "")
+				rl, err = createRule(uri, poolName, partition, ruleName)
 				if nil != err {
 					log.Warningf("Error configuring rule: %v", err)
 					return nil
@@ -196,7 +197,6 @@ func processIngressRules(
 		sort.Sort(sort.Reverse(*rls))
 		for _, v := range *rls {
 			v.Ordinal = ordinal
-			v.Name = strconv.Itoa(ordinal)
 			ordinal++
 		}
 		wg.Done()

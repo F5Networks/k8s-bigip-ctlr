@@ -17,11 +17,8 @@
 package appmanager
 
 import (
-	"strings"
 	"sync"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -119,26 +116,9 @@ func (nen *NamespaceEventNotifier) recordEvent(
 func (appMgr *Manager) recordIngressEvent(
 	ing *v1beta1.Ingress,
 	reason,
-	message,
-	rsName string) {
-	var namespace string
-	if ing != nil {
-		namespace = ing.ObjectMeta.Namespace
-	} else {
-		namespace = strings.Split(rsName, "_")[0]
-		name := rsName[len(namespace)+1 : len(rsName)-len("-ingress")]
-		// If we aren't given an Ingress resource, we use the name to find it
-		var err error
-		if ing == nil {
-			ing, err = appMgr.kubeClient.Extensions().Ingresses(namespace).
-				Get(name, metav1.GetOptions{})
-			if nil != err {
-				log.Warningf("Could not find Ingress resource '%v'.", name)
-				return
-			}
-		}
-	}
-
+	message string,
+) {
+	namespace := ing.ObjectMeta.Namespace
 	// Create the event
 	evNotifier := appMgr.eventNotifier.createNotifierForNamespace(
 		namespace, appMgr.kubeClient.Core())

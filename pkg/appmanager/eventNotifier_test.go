@@ -192,8 +192,9 @@ var _ = Describe("Event Notifier Tests", func() {
 			// Make sure the ingress events are in the correct namespace.
 			for _, ns := range namespaces {
 				events := mockMgr.getFakeEvents(ns)
-				// This use case currently only creates 1 event.
-				Expect(len(events)).To(Equal(1))
+				// This use case currently creates 2 events
+				// (ResourceConfigured and ServiceNotFound)
+				Expect(len(events)).To(Equal(2))
 				for _, event := range events {
 					// Regardless of length test, make sure all events match ns.
 					Expect(event.Namespace).To(Equal(ns))

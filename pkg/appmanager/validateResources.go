@@ -101,19 +101,23 @@ func (appMgr *Manager) checkValidIngress(
 		// Not watching this namespace
 		return false, nil
 	}
-	var allKeys []*serviceQueueKey
-	appMgr.resources.Lock()
-	defer appMgr.resources.Unlock()
+
+	bindAddr := ""
+	if addr, ok := ing.ObjectMeta.Annotations[f5VsBindAddrAnnotation]; ok {
+		bindAddr = addr
+	}
+	var keyList []*serviceQueueKey
+	// Depending on the Ingress, we may loop twice here, once for http and once for https
 	for _, portStruct := range appMgr.virtualPorts(ing) {
-		var keyList []*serviceQueueKey
-		rsCfg := createRSConfigFromIngress(ing, namespace,
-			appInf.svcInformer.GetIndexer(), portStruct)
-		rsName := formatIngressVSName(ing, portStruct.protocol)
+		rsCfg := createRSConfigFromIngress(ing, appMgr.resources,
+			namespace, appInf.svcInformer.GetIndexer(), portStruct)
+		rsName := formatIngressVSName(bindAddr, portStruct.port)
+		// If rsCfg is nil, delete any resources tied to this Ingress
 		if rsCfg == nil {
 			if nil == ing.Spec.Rules { //single-service
 				serviceName := ing.Spec.Backend.ServiceName
 				servicePort := ing.Spec.Backend.ServicePort.IntVal
-				sKey := serviceKey{serviceName, servicePort, ing.ObjectMeta.Namespace}
+				sKey := serviceKey{serviceName, servicePort, namespace}
 				if _, ok := appMgr.resources.Get(sKey, rsName); ok {
 					appMgr.resources.Delete(sKey, rsName)
 					appMgr.outputConfigLocked()
@@ -128,52 +132,26 @@ func (appMgr *Manager) checkValidIngress(
 			return false, nil
 		}
 
+		// Create a list of keys for all pools
 		for _, pool := range rsCfg.Pools {
 			key := &serviceQueueKey{
 				ServiceName: pool.ServiceName,
 				Namespace:   namespace,
 			}
-			keyList = append(keyList, key)
-		}
-		// Check if we have a key that contains this config that is no longer
-		// being used; if so, delete the config for that key
-		_, keys := appMgr.resources.GetAllWithName(rsName)
-		found := false
-		if len(keys) > len(keyList) {
-			for _, key := range keys {
-				for _, sKey := range keyList {
-					if sKey.ServiceName == key.ServiceName &&
-						sKey.Namespace == key.Namespace {
-						found = true
-						break
-					}
-				}
-				if found == false {
-					appMgr.resources.Delete(key, rsName)
-				}
-				found = false
-			}
-		}
-		if len(allKeys) > 0 {
-			// Append if not in list
+			exists := false
 			for _, k := range keyList {
-				var keyFound bool
-				for _, ele := range allKeys {
-					if ele.Namespace == k.Namespace &&
-						ele.ServiceName == k.ServiceName {
-						keyFound = true
-						break
-					}
-				}
-				if !keyFound {
-					allKeys = append(allKeys, k)
+				if k.ServiceName == key.ServiceName &&
+					k.Namespace == key.Namespace {
+					exists = true
+					break
 				}
 			}
-		} else {
-			allKeys = append(allKeys, keyList...)
+			if !exists {
+				keyList = append(keyList, key)
+			}
 		}
 	}
-	return true, allKeys
+	return true, keyList
 }
 
 func (appMgr *Manager) checkValidRoute(

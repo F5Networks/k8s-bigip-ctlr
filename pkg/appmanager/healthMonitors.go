@@ -51,7 +51,7 @@ func (appMgr *Manager) assignHealthMonitorsByPath(
 			msg := fmt.Sprintf("Rule not found for Health Monitor host '%v'", host)
 			log.Warningf("%s", msg)
 			if ing != nil {
-				appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg, rsName)
+				appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg)
 			}
 			continue
 		}
@@ -61,7 +61,7 @@ func (appMgr *Manager) assignHealthMonitorsByPath(
 				mon.Path)
 			log.Warningf("%s", msg)
 			if ing != nil {
-				appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg, rsName)
+				appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg)
 			}
 			continue
 		}
@@ -110,7 +110,7 @@ func (appMgr *Manager) notifyUnusedHealthMonitorRules(
 				msg := fmt.Sprintf(
 					"Health Monitor path '%v' does not match any Ingress paths.",
 					ruleData.healthMon.Path)
-				appMgr.recordIngressEvent(ing, "MonitorRuleNotUsed", msg, rsName)
+				appMgr.recordIngressEvent(ing, "MonitorRuleNotUsed", msg)
 			}
 		}
 	}
@@ -135,7 +135,10 @@ func (appMgr *Manager) handleSingleServiceHealthMonitors(
 		rsName, ing, htpMap, monitors)
 	if nil != err {
 		log.Errorf("%s", err.Error())
-		appMgr.recordIngressEvent(ing, "MonitorError", err.Error(), rsName)
+		appMgr.recordIngressEvent(ing, "MonitorError", err.Error())
+		mon := cfg.Virtual.PoolName + "_0_http"
+		_, pool := splitBigipPath(cfg.Virtual.PoolName, false)
+		cfg.RemoveMonitor(pool, mon)
 		return
 	}
 
@@ -182,7 +185,7 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 					"Health Monitor path '%v' already exists for host '%v'",
 					path, rule.Host)
 				log.Warningf("%s", msg)
-				appMgr.recordIngressEvent(ing, "DuplicatePath", msg, rsName)
+				appMgr.recordIngressEvent(ing, "DuplicatePath", msg)
 			} else {
 				pathItem = &ruleData{
 					svcName: path.Backend.ServiceName,
@@ -201,7 +204,7 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 				"Health Monitor rule for host '%v' conflicts with rule for all hosts.",
 				key)
 			log.Warningf("%s", msg)
-			appMgr.recordIngressEvent(ing, "DuplicatePath", msg, rsName)
+			appMgr.recordIngressEvent(ing, "DuplicatePath", msg)
 		}
 	}
 
@@ -209,7 +212,7 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 		rsName, ing, htpMap, monitors)
 	if nil != err {
 		log.Errorf("%s", err.Error())
-		appMgr.recordIngressEvent(ing, "MonitorError", err.Error(), rsName)
+		appMgr.recordIngressEvent(ing, "MonitorError", err.Error())
 		return
 	}
 

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -210,14 +211,30 @@ func formatConfigMapPoolName(namespace, cmName, svc string) string {
 }
 
 // format the virtual server name for an Ingress
-func formatIngressVSName(ing *v1beta1.Ingress, protocol string) string {
-	return fmt.Sprintf("%s_%s-ingress_%s",
-		ing.ObjectMeta.Namespace, ing.ObjectMeta.Name, protocol)
+func formatIngressVSName(ip string, port int32) string {
+	// Strip any bracket characters; replace special characters ". : /"
+	// with "-" for naming purposes
+	ip = strings.Trim(ip, "[]")
+	re := regexp.MustCompile("[^a-zA-Z0-9]+")
+	ip = re.ReplaceAllString(ip, "-")
+	return fmt.Sprintf("ingress_%s_%d", ip, port)
 }
 
 // format the pool name for an Ingress
 func formatIngressPoolName(namespace, ingName, svc string) string {
-	return fmt.Sprintf("ingress_%s_%s_%s", namespace, ingName, svc)
+	return fmt.Sprintf("ingress_%s_%s", namespace, svc)
+}
+
+// format the rule name for an Ingress
+func formatIngressRuleName(host, path, pool string) string {
+	var rule string
+	if path == "" {
+		rule = fmt.Sprintf("ingress_%s_%s", host, pool)
+	} else {
+		path = strings.TrimPrefix(path, "/")
+		rule = fmt.Sprintf("ingress_%s_%s_%s", host, path, pool)
+	}
+	return rule
 }
 
 // format the pool name for a Route
@@ -386,13 +403,18 @@ func (cfg *ResourceConfig) GetPartition() string {
 	return cfg.Virtual.Partition
 }
 
-// Count of all configurations currently stored.
-func (rs *Resources) Count() int {
+// Count of all pools (svcKeys) currently stored.
+func (rs *Resources) PoolCount() int {
 	var ct int = 0
 	for _, rsList := range rs.rm {
 		ct += len(rsList)
 	}
 	return ct
+}
+
+// Count of all virtuals currently stored.
+func (rs *Resources) VirtualCount() int {
+	return len(rs.rsMap)
 }
 
 // Count of all configurations for a specific backend.
@@ -448,6 +470,20 @@ func (rs *Resources) Delete(svcKey serviceKey, name string) bool {
 	if _, ok = rsList[name]; ok {
 		// Delete specific named resource for svcKey
 		rs.deleteImpl(rsList, name, svcKey)
+		return true
+	}
+	return false
+}
+
+// Remove a svcKey's reference to a config (pool was removed)
+func (rs *Resources) DeleteKeyRef(sKey serviceKey, name string) bool {
+	rsList, ok := rs.rm[sKey]
+	if !ok {
+		// sKey not found
+		return false
+	}
+	if _, ok = rsList[name]; ok {
+		delete(rsList, name)
 		return true
 	}
 	return false
@@ -629,7 +665,7 @@ func copyConfigMap(virtualName, ns string, cfg *ResourceConfig, cfgMap *ConfigMa
 	poolName := formatConfigMapPoolName(ns, cmName, cfgMap.VirtualServer.Backend.ServiceName)
 	if cfgMap.VirtualServer.Frontend.IApp == "" {
 		// Handle virtual server specific config.
-		cfg.MetaData.ResourceType = "virtual"
+		cfg.MetaData.ResourceType = "configmap"
 		cfg.Virtual.Name = virtualName
 		cfg.Virtual.Partition = cfgMap.VirtualServer.Frontend.Partition
 		cfg.Virtual.Enabled = true
@@ -719,21 +755,18 @@ func copyConfigMap(virtualName, ns string, cfg *ResourceConfig, cfgMap *ConfigMa
 // Create a ResourceConfig based on an Ingress resource config
 func createRSConfigFromIngress(
 	ing *v1beta1.Ingress,
+	resources *Resources,
 	ns string,
 	svcIndexer cache.Indexer,
 	pStruct portStruct,
 ) *ResourceConfig {
-	var cfg ResourceConfig
-
 	if class, ok := ing.ObjectMeta.Annotations[k8sIngressClass]; ok == true {
 		if class != "f5" {
 			return nil
 		}
 	}
-	cfg.Virtual.Name = formatIngressVSName(ing, pStruct.protocol)
-	cfg.Virtual.Enabled = true
-	setProfilesForMode("http", &cfg)
-	cfg.Virtual.SourceAddrTranslation.Type = "automap"
+
+	var cfg ResourceConfig
 	var balance string
 	if bal, ok := ing.ObjectMeta.Annotations[f5VsBalanceAnnotation]; ok == true {
 		balance = bal
@@ -754,14 +787,18 @@ func createRSConfigFromIngress(
 		log.Infof("No virtual IP was specified for the virtual server %s, creating pool only.",
 			ing.ObjectMeta.Name)
 	}
-	cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
+	cfg.Virtual.Name = formatIngressVSName(bindAddr, pStruct.port)
 
+	// Create our pools and policy/rules based on the Ingress
+	var pools Pools
+	var plcy *Policy
+	var rules *Rules
 	if nil != ing.Spec.Rules { //multi-service
 		for _, rule := range ing.Spec.Rules {
 			if nil != rule.IngressRuleValue.HTTP {
 				for _, path := range rule.IngressRuleValue.HTTP.Paths {
 					exists := false
-					for _, pl := range cfg.Pools {
+					for _, pl := range pools {
 						if pl.ServiceName == path.Backend.ServiceName &&
 							pl.ServicePort == path.Backend.ServicePort.IntVal {
 							exists = true
@@ -787,13 +824,12 @@ func createRSConfigFromIngress(
 						ServiceName: path.Backend.ServiceName,
 						ServicePort: path.Backend.ServicePort.IntVal,
 					}
-					cfg.Pools = append(cfg.Pools, pool)
+					pools = append(pools, pool)
 				}
 			}
 		}
-		rules := processIngressRules(&ing.Spec, cfg.Pools, cfg.Virtual.Partition)
-		plcy := createPolicy(*rules, cfg.Virtual.Name, cfg.Virtual.Partition)
-		cfg.SetPolicy(*plcy)
+		rules = processIngressRules(&ing.Spec, pools, cfg.Virtual.Partition)
+		plcy = createPolicy(*rules, cfg.Virtual.Name, cfg.Virtual.Partition)
 	} else { // single-service
 		pool := Pool{
 			Name: formatIngressPoolName(
@@ -806,8 +842,60 @@ func createRSConfigFromIngress(
 			ServiceName: ing.Spec.Backend.ServiceName,
 			ServicePort: ing.Spec.Backend.ServicePort.IntVal,
 		}
-		cfg.Pools = append(cfg.Pools, pool)
-		cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, pool.Name)
+		pools = append(pools, pool)
+		cfg.Virtual.PoolName = joinBigipPath(cfg.Virtual.Partition, pool.Name)
+	}
+
+	resources.Lock()
+	defer resources.Unlock()
+	// Check to see if we already have any Ingresses for this IP:Port
+	if oldCfg, exists := resources.GetByName(cfg.Virtual.Name); exists {
+		// If we do, use an existing config
+		cfg.copyConfig(oldCfg)
+
+		// If any of the new pools don't already exist, add them
+		for _, newPool := range pools {
+			found := false
+			for _, pl := range cfg.Pools {
+				if pl.Name == newPool.Name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				cfg.Pools = append(cfg.Pools, newPool)
+			}
+		}
+		if len(cfg.Pools) > 1 {
+			cfg.Virtual.PoolName = ""
+		}
+		// If any of the new rules already exist, update them; else add them
+		if len(cfg.Policies) > 0 && rules != nil {
+			policy := cfg.Policies[0]
+			for _, newRule := range *rules {
+				found := false
+				for i, rl := range policy.Rules {
+					if rl.Name == newRule.Name || rl.FullURI == newRule.FullURI {
+						found = true
+						policy.Rules[i] = newRule
+						break
+					}
+				}
+				if !found {
+					cfg.AddRuleToPolicy(policy.Name, newRule)
+				}
+			}
+		}
+	} else { // This is a new VS for an Ingress
+		cfg.MetaData.ResourceType = "ingress"
+		cfg.Virtual.Enabled = true
+		setProfilesForMode("http", &cfg)
+		cfg.Virtual.SourceAddrTranslation.Type = "automap"
+		cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
+		cfg.Pools = append(cfg.Pools, pools...)
+		if plcy != nil {
+			cfg.SetPolicy(*plcy)
+		}
 	}
 
 	return &cfg
@@ -893,7 +981,7 @@ func createRSConfigFromRoute(
 		found = false
 		if len(rsCfg.Policies) > 0 {
 			for i, rl := range rsCfg.Policies[0].Rules {
-				if rl.Name == rule.Name {
+				if rl.Name == rule.Name || rl.FullURI == rule.FullURI {
 					found = true
 					rsCfg.Policies[0].Rules[i] = rule
 				}

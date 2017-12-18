@@ -242,9 +242,14 @@ var _ = Describe("Resource Config Tests", func() {
 			}
 		})
 
-		It("can count all resources", func() {
-			// Test Count() to make sure we count all items
-			Expect(rs.Count()).To(Equal(nbrBackends * nbrCfgsPer))
+		It("can count all pool resources", func() {
+			// Test PoolCount() to make sure we count all items
+			Expect(rs.PoolCount()).To(Equal(nbrBackends * nbrCfgsPer))
+		})
+
+		It("can count all virtual resources", func() {
+			// Test VirtualCount() to make sure we count all items
+			Expect(rs.VirtualCount()).To(Equal(nbrBackends * nbrCfgsPer))
 		})
 
 		It("can count configs per backend", func() {
@@ -444,7 +449,7 @@ var _ = Describe("Resource Config Tests", func() {
 				protocol: "http",
 				port:     80,
 			}
-			cfg := createRSConfigFromIngress(ingress, namespace, nil, ps)
+			cfg := createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps)
 			Expect(cfg.Pools[0].Balance).To(Equal("round-robin"))
 			Expect(cfg.Virtual.Partition).To(Equal("velcro"))
 			Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
@@ -462,7 +467,7 @@ var _ = Describe("Resource Config Tests", func() {
 				protocol: "http",
 				port:     100,
 			}
-			cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
+			cfg = createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps)
 			Expect(cfg.Pools[0].Balance).To(Equal("foobar"))
 			Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(100)))
 
@@ -470,7 +475,7 @@ var _ = Describe("Resource Config Tests", func() {
 				map[string]string{
 					k8sIngressClass: "notf5",
 				})
-			cfg = createRSConfigFromIngress(ingress, namespace, nil, ps)
+			cfg = createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps)
 			Expect(cfg).To(BeNil())
 		})
 

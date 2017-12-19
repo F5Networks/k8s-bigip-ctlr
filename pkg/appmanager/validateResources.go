@@ -109,8 +109,14 @@ func (appMgr *Manager) checkValidIngress(
 	var keyList []*serviceQueueKey
 	// Depending on the Ingress, we may loop twice here, once for http and once for https
 	for _, portStruct := range appMgr.virtualPorts(ing) {
-		rsCfg := createRSConfigFromIngress(ing, appMgr.resources,
-			namespace, appInf.svcInformer.GetIndexer(), portStruct)
+		rsCfg := createRSConfigFromIngress(
+			ing,
+			appMgr.resources,
+			namespace,
+			appInf.svcInformer.GetIndexer(),
+			portStruct,
+			appMgr.defaultIngIP,
+		)
 		rsName := formatIngressVSName(bindAddr, portStruct.port)
 		// If rsCfg is nil, delete any resources tied to this Ingress
 		if rsCfg == nil {

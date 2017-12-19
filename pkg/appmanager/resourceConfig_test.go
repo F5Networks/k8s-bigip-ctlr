@@ -449,7 +449,7 @@ var _ = Describe("Resource Config Tests", func() {
 				protocol: "http",
 				port:     80,
 			}
-			cfg := createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps)
+			cfg := createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps, "")
 			Expect(cfg.Pools[0].Balance).To(Equal("round-robin"))
 			Expect(cfg.Virtual.Partition).To(Equal("velcro"))
 			Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
@@ -467,7 +467,7 @@ var _ = Describe("Resource Config Tests", func() {
 				protocol: "http",
 				port:     100,
 			}
-			cfg = createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps)
+			cfg = createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps, "")
 			Expect(cfg.Pools[0].Balance).To(Equal("foobar"))
 			Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(100)))
 
@@ -475,8 +475,17 @@ var _ = Describe("Resource Config Tests", func() {
 				map[string]string{
 					k8sIngressClass: "notf5",
 				})
-			cfg = createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps)
+			cfg = createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps, "")
 			Expect(cfg).To(BeNil())
+
+			// Use controller default IP
+			defaultIng := test.NewIngress("ingress", "1", namespace, ingressConfig,
+				map[string]string{
+					f5VsBindAddrAnnotation:  "controller-default",
+					f5VsPartitionAnnotation: "velcro",
+				})
+			cfg = createRSConfigFromIngress(defaultIng, &Resources{}, namespace, nil, ps, "5.6.7.8")
+			Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("5.6.7.8"))
 		})
 
 		It("properly configures route resources", func() {

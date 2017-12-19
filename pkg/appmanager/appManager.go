@@ -107,6 +107,8 @@ type Manager struct {
 	nodeLabelSelector string
 	// Strategy for resolving Ingress Hosts into IP addresses (LOOKUP or custom DNS)
 	resolveIng string
+	// Default IP for any Ingress with the 'controller-default' ip annotation
+	defaultIngIP string
 	// Use Secrets for SSL Profiles
 	useSecrets bool
 	// Channel for emitting events
@@ -122,6 +124,7 @@ type Params struct {
 	IsNodePort        bool
 	RouteConfig       RouteConfig
 	ResolveIngress    string
+	DefaultIngIP      string
 	NodeLabelSelector string
 	UseSecrets        bool
 	EventChan         chan interface{}
@@ -163,6 +166,7 @@ func NewManager(params *Params) *Manager {
 		routeConfig:       params.RouteConfig,
 		nodeLabelSelector: params.NodeLabelSelector,
 		resolveIng:        params.ResolveIngress,
+		defaultIngIP:      params.DefaultIngIP,
 		useSecrets:        params.UseSecrets,
 		eventChan:         params.EventChan,
 		vsQueue:           vsQueue,
@@ -986,8 +990,14 @@ func (appMgr *Manager) syncIngresses(
 		}
 
 		for _, portStruct := range appMgr.virtualPorts(ing) {
-			rsCfg := createRSConfigFromIngress(ing, appMgr.resources,
-				sKey.Namespace, appInf.svcInformer.GetIndexer(), portStruct)
+			rsCfg := createRSConfigFromIngress(
+				ing,
+				appMgr.resources,
+				sKey.Namespace,
+				appInf.svcInformer.GetIndexer(),
+				portStruct,
+				appMgr.defaultIngIP,
+			)
 			if rsCfg == nil {
 				// Currently, an error is returned only if the Ingress is one we
 				// do not care about
@@ -1013,8 +1023,10 @@ func (appMgr *Manager) syncIngresses(
 					appMgr.recordIngressEvent(ing, "InvalidData", msg)
 				} else {
 					if nil != ing.Spec.Backend {
+						fullPoolName := fmt.Sprintf("/%s/%s", rsCfg.Virtual.Partition,
+							formatIngressPoolName(sKey.Namespace, sKey.ServiceName))
 						appMgr.handleSingleServiceHealthMonitors(
-							rsName, rsCfg, ing, monitors)
+							rsName, fullPoolName, rsCfg, ing, monitors)
 					} else {
 						appMgr.handleMultiServiceHealthMonitors(
 							rsName, rsCfg, ing, monitors)
@@ -1789,10 +1801,11 @@ func (appMgr *Manager) setIngressStatus(
 	rsCfg *ResourceConfig,
 ) {
 	// Set the ingress status to include the virtual IP
-	lbIngress := v1.LoadBalancerIngress{IP: rsCfg.Virtual.VirtualAddress.BindAddr}
+	ip, _ := split_ip_with_route_domain(rsCfg.Virtual.VirtualAddress.BindAddr)
+	lbIngress := v1.LoadBalancerIngress{IP: ip}
 	if len(ing.Status.LoadBalancer.Ingress) == 0 {
 		ing.Status.LoadBalancer.Ingress = append(ing.Status.LoadBalancer.Ingress, lbIngress)
-	} else if ing.Status.LoadBalancer.Ingress[0].IP != rsCfg.Virtual.VirtualAddress.BindAddr {
+	} else if ing.Status.LoadBalancer.Ingress[0].IP != ip {
 		ing.Status.LoadBalancer.Ingress[0] = lbIngress
 	}
 	_, updateErr := appMgr.kubeClient.ExtensionsV1beta1().

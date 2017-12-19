@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -213,15 +212,15 @@ func formatConfigMapPoolName(namespace, cmName, svc string) string {
 // format the virtual server name for an Ingress
 func formatIngressVSName(ip string, port int32) string {
 	// Strip any bracket characters; replace special characters ". : /"
-	// with "-" for naming purposes
+	// with "-" and "%" with ".", for naming purposes
 	ip = strings.Trim(ip, "[]")
-	re := regexp.MustCompile("[^a-zA-Z0-9]+")
-	ip = re.ReplaceAllString(ip, "-")
+	var replacer = strings.NewReplacer(".", "-", ":", "-", "/", "-", "%", ".")
+	ip = replacer.Replace(ip)
 	return fmt.Sprintf("ingress_%s_%d", ip, port)
 }
 
 // format the pool name for an Ingress
-func formatIngressPoolName(namespace, ingName, svc string) string {
+func formatIngressPoolName(namespace, svc string) string {
 	return fmt.Sprintf("ingress_%s_%s", namespace, svc)
 }
 
@@ -759,6 +758,7 @@ func createRSConfigFromIngress(
 	ns string,
 	svcIndexer cache.Indexer,
 	pStruct portStruct,
+	defaultIP string,
 ) *ResourceConfig {
 	if class, ok := ing.ObjectMeta.Annotations[k8sIngressClass]; ok == true {
 		if class != "f5" {
@@ -782,7 +782,11 @@ func createRSConfigFromIngress(
 
 	bindAddr := ""
 	if addr, ok := ing.ObjectMeta.Annotations[f5VsBindAddrAnnotation]; ok == true {
-		bindAddr = addr
+		if addr == "controller-default" {
+			bindAddr = defaultIP
+		} else {
+			bindAddr = addr
+		}
 	} else {
 		log.Infof("No virtual IP was specified for the virtual server %s, creating pool only.",
 			ing.ObjectMeta.Name)
@@ -816,7 +820,6 @@ func createRSConfigFromIngress(
 					pool := Pool{
 						Name: formatIngressPoolName(
 							ing.ObjectMeta.Namespace,
-							ing.ObjectMeta.Name,
 							path.Backend.ServiceName,
 						),
 						Partition:   cfg.Virtual.Partition,
@@ -834,7 +837,6 @@ func createRSConfigFromIngress(
 		pool := Pool{
 			Name: formatIngressPoolName(
 				ing.ObjectMeta.Namespace,
-				ing.ObjectMeta.Name,
 				ing.Spec.Backend.ServiceName,
 			),
 			Partition:   cfg.Virtual.Partition,
@@ -885,6 +887,8 @@ func createRSConfigFromIngress(
 					cfg.AddRuleToPolicy(policy.Name, newRule)
 				}
 			}
+		} else if len(cfg.Policies) == 0 && plcy != nil {
+			cfg.SetPolicy(*plcy)
 		}
 	} else { // This is a new VS for an Ingress
 		cfg.MetaData.ResourceType = "ingress"

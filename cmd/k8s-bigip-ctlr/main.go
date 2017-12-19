@@ -88,6 +88,7 @@ var (
 	manageRoutes      *bool
 	nodeLabelSelector *string
 	resolveIngNames   *string
+	defaultIngIP      *string
 	useSecrets        *bool
 
 	bigIPURL        *string
@@ -187,6 +188,9 @@ func _init() {
 		"Optional, direct the controller to resolve host names in Ingresses into IP addresses. "+
 			"The 'LOOKUP' option will use the controller's built-in DNS. "+
 			"Any other string will be used as a custom DNS server, either by name or IP address.")
+	defaultIngIP = kubeFlags.String("default-ingress-ip", "",
+		"Optional, the controller will configure a virtual server with this IP address for "+
+			"any Ingress with the annotation 'virtual-server.f5.com/ip:controller-default'.")
 	useSecrets = kubeFlags.Bool("use-secrets", true,
 		"Optional, enable/disable use of Secrets for Ingress or ConfigMap SSL Profiles.")
 
@@ -499,6 +503,7 @@ func main() {
 		RouteConfig:       routeConfig,
 		NodeLabelSelector: *nodeLabelSelector,
 		ResolveIngress:    *resolveIngNames,
+		DefaultIngIP:      *defaultIngIP,
 		UseSecrets:        *useSecrets,
 	}
 

@@ -247,7 +247,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			mockMgr.addService(fooSvc)
 
 			customProfiles := mockMgr.customProfiles()
-			Expect(len(customProfiles)).To(Equal(1))
+			Expect(len(customProfiles)).To(Equal(2))
 
 			// Test for ConfigMap
 			var configmapSecret string = string(`{
@@ -274,10 +274,10 @@ var _ = Describe("AppManager Profile Tests", func() {
 			// This should NOT create a custom profile - it just references a
 			// pre-configured one.
 			mockMgr.addConfigMap(secretCfg)
-			Expect(len(customProfiles)).To(Equal(1))
+			Expect(len(customProfiles)).To(Equal(2))
 			// This should not affect any custom profiles.
 			mockMgr.deleteConfigMap(secretCfg)
-			Expect(len(customProfiles)).To(Equal(1))
+			Expect(len(customProfiles)).To(Equal(2))
 
 			// This should remove the custom profile.
 			mockMgr.deleteIngress(ingress)

@@ -326,7 +326,8 @@ func (appMgr *Manager) handleDestCACert(
 	return joinBigipPath(svrProfRef.Partition, svrProfRef.Name)
 }
 
-func (appMgr *Manager) handleSslProfile(
+// Creates a default SNI profile (if needed) and a new profile from a Secret
+func (appMgr *Manager) createSecretSslProfile(
 	rsCfg *ResourceConfig,
 	secret *v1.Secret,
 ) (error, bool) {
@@ -341,6 +342,24 @@ func (appMgr *Manager) handleSslProfile(
 		return err, false
 	}
 
+	// Create Default for SNI profile
+	skey := secretKey{
+		Name:         fmt.Sprintf("default-clientssl-%s", rsCfg.GetName()),
+		ResourceName: rsCfg.GetName(),
+	}
+	if _, ok := appMgr.customProfiles.profs[skey]; !ok {
+		profile := ProfileRef{
+			Name:      skey.Name,
+			Partition: rsCfg.Virtual.Partition,
+			Context:   customProfileClient,
+		}
+		// This is just a basic profile, so we don't need all the fields
+		cp := NewCustomProfile(profile, "", "", "", true, "", "")
+		appMgr.customProfiles.profs[skey] = cp
+		rsCfg.Virtual.AddOrUpdateProfile(profile)
+	}
+
+	// Now add the Ingress profile
 	profRef := ProfileRef{
 		Name:      secret.ObjectMeta.Name,
 		Partition: rsCfg.Virtual.Partition,
@@ -355,7 +374,7 @@ func (appMgr *Manager) handleSslProfile(
 		"",    // peerCertMode
 		"",    // caFile
 	)
-	skey := secretKey{
+	skey = secretKey{
 		Name:         cp.Name,
 		ResourceName: rsCfg.GetName(),
 	}
@@ -392,8 +411,12 @@ func (appMgr *Manager) deleteUnusedProfiles(
 		ingresses, _ := appInf.ingInformer.GetIndexer().ByIndex(
 			"namespace", namespace)
 		for _, prof := range cfg.Virtual.Profiles {
-			// Don't process our default profiles
-			if prof.Name == "http" || prof.Name == "tcp" {
+			// Don't process our default profiles (they'll be deleted when the VS is deleted)
+			if prof.Name == "http" ||
+				prof.Name == "tcp" ||
+				prof.Name == fmt.Sprintf("default-clientssl-%s", cfg.GetName()) ||
+				prof.Name == "default-route-clientssl" ||
+				prof.Name == "default-route-serverssl" {
 				continue
 			}
 			referenced := false
@@ -405,7 +428,9 @@ func (appMgr *Manager) deleteUnusedProfiles(
 				}
 				for _, tls := range ing.Spec.TLS {
 					var profName string
-					secretName := formatIngressSslProfileName(tls.SecretName)
+					// Trim leading "/" from secret name (if it exists)
+					secretName := strings.TrimSpace(strings.TrimPrefix(tls.SecretName, "/"))
+					// If another slash remains, then we know a partition is in the name
 					if strings.ContainsAny(secretName, "/") {
 						profName = fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
 					} else {
@@ -451,8 +476,8 @@ func (appMgr *Manager) deleteUnusedProfiles(
 
 	// Now look to delete any created customProfiles
 	for key, profile := range appMgr.customProfiles.profs {
-		if profile.SNIDefault || profile.CAFile == "self" {
-			// Don't touch SNI default or CA profiles
+		if profile.CAFile == "self" {
+			// Don't touch CA profile
 			continue
 		}
 		found = false

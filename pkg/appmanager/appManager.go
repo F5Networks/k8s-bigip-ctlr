@@ -922,7 +922,7 @@ func (appMgr *Manager) syncConfigMaps(
 						profileName)
 					continue
 				}
-				err, updated := appMgr.handleSslProfile(rsCfg, secret)
+				err, updated := appMgr.createSecretSslProfile(rsCfg, secret)
 				if err != nil {
 					log.Warningf("%v", err)
 					continue
@@ -1236,7 +1236,7 @@ func (appMgr *Manager) handleIngressTls(
 					rsCfg.Virtual.AddOrUpdateProfile(profRef)
 					continue
 				}
-				err, cpUpdated = appMgr.handleSslProfile(rsCfg, secret)
+				err, cpUpdated = appMgr.createSecretSslProfile(rsCfg, secret)
 				if err != nil {
 					log.Warningf("%v", err)
 					continue

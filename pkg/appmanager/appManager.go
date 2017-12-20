@@ -1541,7 +1541,6 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 				log.Debugf("Service backend matched %+v: using node port %v",
 					svcKey, portSpec.NodePort)
 				rsCfg.MetaData.Active = true
-				rsCfg.MetaData.NodePort = portSpec.NodePort
 				rsCfg.Pools[index].Members =
 					appMgr.getEndpointsForNodePort(portSpec.NodePort)
 			}
@@ -2024,20 +2023,20 @@ func (appMgr *Manager) ProcessNodeUpdate(
 		// Compare last set of nodes with new one
 		if !reflect.DeepEqual(newNodes, appMgr.oldNodes) {
 			log.Infof("ProcessNodeUpdate: Change in Node state detected")
-			for _, cfg := range appMgr.resources.GetAllResources() {
-				var members []Member
-				for _, node := range newNodes {
-					member := Member{
-						Address: node,
-						Port:    cfg.MetaData.NodePort,
-						Session: "user-enabled",
-					}
-					members = append(members, member)
+			// serviceKey contains a service port in addition to namespace service
+			// name, while the work queue does not use service port. Create a list
+			// of unique work queue keys using a map.
+			items := make(map[serviceQueueKey]int)
+			appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
+				queueKey := serviceQueueKey{
+					Namespace:   key.Namespace,
+					ServiceName: key.ServiceName,
 				}
-				cfg.Pools[0].Members = members
+				items[queueKey]++
+			})
+			for queueKey := range items {
+				appMgr.vsQueue.Add(queueKey)
 			}
-			// Output the Big-IP config
-			appMgr.outputConfigLocked()
 
 			// Update node cache
 			appMgr.oldNodes = newNodes

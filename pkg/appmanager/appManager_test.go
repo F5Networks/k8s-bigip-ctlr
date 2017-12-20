@@ -381,6 +381,11 @@ func (m *mockAppManager) getVsMutex(sKey serviceQueueKey) *sync.Mutex {
 
 func (m *mockAppManager) processNodeUpdate(obj interface{}, err error) {
 	m.appMgr.ProcessNodeUpdate(obj, err)
+	// Consume all of the work queue entries added by ProcessNodeUpdate
+	queueLen := m.appMgr.vsQueue.Len()
+	for i := 0; i < queueLen; i++ {
+		m.appMgr.processNextVirtualServer()
+	}
 }
 
 func (m *mockAppManager) addConfigMap(cm *v1.ConfigMap) bool {
@@ -988,7 +993,6 @@ var _ = Describe("AppManager Tests", func() {
 			nodes, err := fakeClient.Core().Nodes().List(metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
 			appMgr.ProcessNodeUpdate(nodes.Items, err)
-			validateConfig(mw, emptyConfig)
 			Expect(appMgr.oldNodes).To(Equal(expectedOgSet))
 
 			cachedNodes := appMgr.getNodesFromCache()
@@ -1004,7 +1008,6 @@ var _ = Describe("AppManager Tests", func() {
 			nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
 			appMgr.ProcessNodeUpdate(nodes.Items, err)
-			validateConfig(mw, emptyConfig)
 			Expect(appMgr.oldNodes).To(Equal(expectedInternal))
 
 			cachedNodes = appMgr.getNodesFromCache()
@@ -1023,7 +1026,6 @@ var _ = Describe("AppManager Tests", func() {
 			nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
 			appMgr.ProcessNodeUpdate(nodes.Items, err)
-			validateConfig(mw, emptyConfig)
 			expectedAddSet := append(expectedOgSet, "127.0.0.6")
 
 			Expect(appMgr.oldNodes).To(Equal(expectedAddSet))
@@ -1037,7 +1039,6 @@ var _ = Describe("AppManager Tests", func() {
 			nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
 			appMgr.ProcessNodeUpdate(nodes.Items, err)
-			validateConfig(mw, emptyConfig)
 			expectedAddSet = append(expectedOgSet, "127.0.0.6")
 
 			Expect(appMgr.oldNodes).To(Equal(expectedAddSet))
@@ -1060,7 +1061,6 @@ var _ = Describe("AppManager Tests", func() {
 			nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
 			appMgr.ProcessNodeUpdate(nodes.Items, err)
-			validateConfig(mw, emptyConfig)
 
 			Expect(appMgr.oldNodes).To(Equal(expectedDelSet))
 
@@ -2789,7 +2789,7 @@ var _ = Describe("AppManager Tests", func() {
 					serviceKey{"foo", 80, "default"}, formatIngressVSName("1.2.3.4", 80))
 				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
 				events = mockMgr.getFakeEvents(namespace)
-				Expect(len(events)).To(Equal(8))
+				Expect(len(events)).To(Equal(7))
 
 				mockMgr.deleteIngress(ingress5)
 				Expect(resources.VirtualCount()).To(Equal(1))

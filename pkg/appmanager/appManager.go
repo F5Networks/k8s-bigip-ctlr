@@ -1072,68 +1072,73 @@ func (appMgr *Manager) syncRoutes(
 
 	// Rebuild all internal data groups for routes as we process each
 	svcFwdRulesMap := NewServiceFwdRuleMap()
+	pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
+		{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 	for _, route := range routeByIndex {
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
-		if nil != route.Spec.TLS {
-			switch route.Spec.TLS.Termination {
-			case routeapi.TLSTerminationPassthrough:
-				updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION,
-					sKey.Namespace, dgMap)
-			case routeapi.TLSTerminationReencrypt:
-				updateDataGroupForReencryptRoute(route, DEFAULT_PARTITION,
-					sKey.Namespace, dgMap)
-			}
-		}
-		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
-			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
-		for _, ps := range pStructs {
-			rsCfg, err, pool := createRSConfigFromRoute(route,
-				*appMgr.resources, appMgr.routeConfig, ps,
-				appInf.svcInformer.GetIndexer(), svcFwdRulesMap)
-			if err != nil {
-				// We return err if there was an error creating a rule
-				log.Warningf("%v", err)
-				continue
-			}
 
-			rsName := rsCfg.GetName()
+		svcNames := getRouteServiceNames(route)
+		for  _, svcName := range svcNames {
+			if nil != route.Spec.TLS {
+			  switch route.Spec.TLS.Termination {
+			  case routeapi.TLSTerminationPassthrough:
+				  updateDataGroupForPassthroughRoute(route, svcName, DEFAULT_PARTITION,
+					  sKey.Namespace, dgMap)
+			  case routeapi.TLSTerminationReencrypt:
+				  updateDataGroupForReencryptRoute(route, svcName, DEFAULT_PARTITION,
+					  sKey.Namespace, dgMap)
+			  }
+		  }
 
-			// Handle Route health monitors
-			hmStr, exists := route.ObjectMeta.Annotations[healthMonitorAnnotation]
-			if exists {
-				var monitors AnnotationHealthMonitors
-				err := json.Unmarshal([]byte(hmStr), &monitors)
+		  for _, ps := range pStructs {
+				rsCfg, err, pool := createRSConfigFromRoute(route, svcName,
+					*appMgr.resources, appMgr.routeConfig, ps,
+					appInf.svcInformer.GetIndexer(), svcFwdRulesMap)
 				if err != nil {
-					log.Errorf("Unable to parse health monitor JSON array '%v': %v",
-						hmStr, err)
-				} else {
-					appMgr.handleRouteHealthMonitors(rsName, pool, &rsCfg, monitors, stats)
+					// We return err if there was an error creating a rule
+					log.Warningf("%v", err)
+					continue
 				}
-				rsCfg.SortMonitors()
-			}
 
-			// TLS Cert/Key
-			if nil != route.Spec.TLS &&
-				rsCfg.Virtual.VirtualAddress.Port == DEFAULT_HTTPS_PORT {
-				switch route.Spec.TLS.Termination {
-				case routeapi.TLSTerminationEdge:
-					appMgr.setClientSslProfile(stats, sKey, &rsCfg, route)
-				case routeapi.TLSTerminationReencrypt:
-					appMgr.setClientSslProfile(stats, sKey, &rsCfg, route)
-					serverSsl := appMgr.setServerSslProfile(stats, sKey, &rsCfg, route)
-					if "" != serverSsl {
-						updateDataGroup(dgMap, reencryptServerSslDgName,
-							DEFAULT_PARTITION, sKey.Namespace, route.Spec.Host, serverSsl)
+				rsName := rsCfg.GetName()
+
+				// Handle Route health monitors
+				hmStr, exists := route.ObjectMeta.Annotations[healthMonitorAnnotation]
+				if exists {
+					var monitors AnnotationHealthMonitors
+					err := json.Unmarshal([]byte(hmStr), &monitors)
+					if err != nil {
+						log.Errorf("Unable to parse health monitor JSON array '%v': %v",
+							hmStr, err)
+					} else {
+						appMgr.handleRouteHealthMonitors(rsName, pool, &rsCfg, monitors, stats)
+					}
+					rsCfg.SortMonitors()
+				}
+
+				// TLS Cert/Key
+				if nil != route.Spec.TLS &&
+					rsCfg.Virtual.VirtualAddress.Port == DEFAULT_HTTPS_PORT {
+					switch route.Spec.TLS.Termination {
+					case routeapi.TLSTerminationEdge:
+						appMgr.setClientSslProfile(stats, sKey, &rsCfg, route)
+					case routeapi.TLSTerminationReencrypt:
+						appMgr.setClientSslProfile(stats, sKey, &rsCfg, route)
+						serverSsl := appMgr.setServerSslProfile(stats, sKey, &rsCfg, route)
+						if "" != serverSsl {
+							updateDataGroup(dgMap, reencryptServerSslDgName,
+								DEFAULT_PARTITION, sKey.Namespace, route.Spec.Host, serverSsl)
+						}
 					}
 				}
-			}
 
-			_, found, updated := appMgr.handleConfigForType(&rsCfg, sKey, rsMap,
-				rsName, svcPortMap, svc, appInf, route.Spec.To.Name)
-			stats.vsFound += found
-			stats.vsUpdated += updated
+				_, found, updated := appMgr.handleConfigForType(&rsCfg, sKey, rsMap,
+					rsName, svcPortMap, svc, appInf, svcName)
+				stats.vsFound += found
+				stats.vsUpdated += updated
+			}
 		}
 	}
 

@@ -220,10 +220,27 @@ func formatIngressPoolName(namespace, ingName, svc string) string {
 	return fmt.Sprintf("ingress_%s_%s_%s", namespace, ingName, svc)
 }
 
+// return the services associated with a route
+func getRouteServiceNames(route *routeapi.Route) []string {
+	numOfSvcs := 1
+	if route.Spec.AlternateBackends != nil {
+	  numOfSvcs += len(route.Spec.AlternateBackends)
+	}
+
+	svcs := make([]string, numOfSvcs)
+
+	svcs[0] = route.Spec.To.Name
+	if route.Spec.AlternateBackends != nil {
+	  for i, svc := range route.Spec.AlternateBackends {
+      svcs[i+1] = svc.Name
+		}
+	}
+	return svcs
+}
+
 // format the pool name for a Route
-func formatRoutePoolName(route *routeapi.Route) string {
-	return fmt.Sprintf("openshift_%s_%s",
-		route.ObjectMeta.Namespace, route.Spec.To.Name)
+func formatRoutePoolName(namespace, svc string) string {
+	return fmt.Sprintf("openshift_%s_%s", namespace, svc)
 }
 
 // format the Rule name for a Route
@@ -815,6 +832,7 @@ func createRSConfigFromIngress(
 
 func createRSConfigFromRoute(
 	route *routeapi.Route,
+	svcName string,
 	resources Resources,
 	routeConfig RouteConfig,
 	pStruct portStruct,
@@ -840,13 +858,13 @@ func createRSConfigFromRoute(
 		if strVal == "" {
 			backendPort = route.Spec.Port.TargetPort.IntVal
 		} else {
-			backendPort, err = getServicePort(route, svcIndexer, strVal)
+			backendPort, err = getServicePort(route, svcName, svcIndexer, strVal)
 			if nil != err {
 				log.Warningf("%v", err)
 			}
 		}
 	} else {
-		backendPort, err = getServicePort(route, svcIndexer, "")
+		backendPort, err = getServicePort(route, svcName, svcIndexer, "")
 		if nil != err {
 			log.Warningf("%v", err)
 		}
@@ -854,10 +872,10 @@ func createRSConfigFromRoute(
 
 	// Create the pool
 	pool := Pool{
-		Name:        formatRoutePoolName(route),
+		Name:        formatRoutePoolName(route.ObjectMeta.Namespace, svcName),
 		Partition:   DEFAULT_PARTITION,
 		Balance:     DEFAULT_BALANCE,
-		ServiceName: route.Spec.To.Name,
+		ServiceName: svcName,
 		ServicePort: backendPort,
 	}
 	// Create the rule
@@ -914,7 +932,7 @@ func createRSConfigFromRoute(
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 	}
 
-	rsCfg.HandleRouteTls(route, pStruct.protocol, policyName, rule,
+	rsCfg.HandleRouteTls(route, svcName, pStruct.protocol, policyName, rule,
 		svcFwdRulesMap)
 
 	return rsCfg, nil, pool
@@ -934,6 +952,7 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 
 func (rc *ResourceConfig) HandleRouteTls(
 	route *routeapi.Route,
+	svcName string,
 	protocol string,
 	policyName string,
 	rule *Rule,
@@ -960,7 +979,7 @@ func (rc *ResourceConfig) HandleRouteTls(
 					if route.Spec.Path != "" {
 						path = route.Spec.Path
 					}
-					svcFwdRulesMap.AddEntry(route.ObjectMeta.Namespace, route.Spec.To.Name,
+					svcFwdRulesMap.AddEntry(route.ObjectMeta.Namespace, svcName,
 						route.Spec.Host, path)
 				}
 			}
@@ -1345,11 +1364,11 @@ func NewCustomProfile(
 // else return the first port found from a Route's service.
 func getServicePort(
 	route *routeapi.Route,
+	svcName string,
 	svcIndexer cache.Indexer,
 	name string,
 ) (int32, error) {
 	ns := route.ObjectMeta.Namespace
-	svcName := route.Spec.To.Name
 	key := ns + "/" + svcName
 
 	obj, found, err := svcIndexer.GetByKey(key)

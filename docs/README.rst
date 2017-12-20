@@ -120,6 +120,12 @@ Kubernetes
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | Parameter             | Type    | Required | Default           | Description                             | Allowed Values |
 +=======================+=========+==========+===================+=========================================+================+
+| default-ingress-ip    | string  | Optional | n/a               | The controller configures a virtual     |                |
+|                       |         |          |                   | server at this IP address for all       |                |
+|                       |         |          |                   | Ingresses with the annotation:          |                |
+|                       |         |          |                   | ``virtual-server.f5.com/ip:             |                |
+|                       |         |          |                   | 'controller-default'``                  |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | kubeconfig            | string  | Optional | ./config          | Path to the *kubeconfig* file           |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | namespace             | string  | Optional | All               | Kubernetes namespace(s) to watch        |                |
@@ -502,7 +508,9 @@ Supported annotations
 +------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
 | Annotation                         | Type        | Required  | Description                                                                         | Default     |
 +====================================+=============+===========+=====================================================================================+=============+
-| virtual-server.f5.com/ip           | string      | Required  | The IP address you want to assign to the virtual server.                            | N/A         |
+| virtual-server.f5.com/ip           | string      | Required  | The IP address you want to assign to the virtual server. Can also set the           | N/A         |
+|                                    |             |           | annotation value as "controller-default" to use the ``default-ingress-ip``          |             |
+|                                    |             |           | specified in the Configuration Parameters above.                                    |             |
 +------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
 | virtual-server.f5.com/partition    | string      | Optional  | The BIG-IP partition in which the Controller should create/update/delete            | N/A         |
 |                                    |             |           | objects for this Ingress.                                                           |             |

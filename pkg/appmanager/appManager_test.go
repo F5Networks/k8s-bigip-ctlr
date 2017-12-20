@@ -2798,6 +2798,53 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(1))
 			})
 
+			It("properly uses the default Ingress IP", func() {
+				mockMgr.appMgr.defaultIngIP = "10.1.2.3"
+
+				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+				barSvc := test.NewService("bar", "1", namespace, "NodePort",
+					[]v1.ServicePort{{Port: 80, NodePort: 37002}})
+				mockMgr.addService(fooSvc)
+				mockMgr.addService(barSvc)
+
+				ingCfg1 := v1beta1.IngressSpec{
+					Backend: &v1beta1.IngressBackend{
+						ServiceName: "foo",
+						ServicePort: intstr.IntOrString{IntVal: 80},
+					},
+				}
+				ingCfg2 := v1beta1.IngressSpec{
+					Backend: &v1beta1.IngressBackend{
+						ServiceName: "bar",
+						ServicePort: intstr.IntOrString{IntVal: 80},
+					},
+				}
+				ingress1 := test.NewIngress("ingress1", "1", namespace, ingCfg1,
+					map[string]string{
+						f5VsBindAddrAnnotation:  "controller-default",
+						f5VsPartitionAnnotation: "velcro",
+					})
+				ingress2 := test.NewIngress("ingress2", "2", namespace, ingCfg2,
+					map[string]string{
+						f5VsBindAddrAnnotation:  "controller-default",
+						f5VsPartitionAnnotation: "velcro",
+					})
+				mockMgr.addIngress(ingress1)
+				mockMgr.addIngress(ingress2)
+				resources := mockMgr.resources()
+				Expect(resources.VirtualCount()).To(Equal(1))
+				Expect(resources.PoolCount()).To(Equal(2))
+				_, ok := resources.Get(
+					serviceKey{"foo", 80, "default"}, formatIngressVSName("10.1.2.3", 80))
+				Expect(ok).To(BeTrue())
+
+				ingress2.Annotations[f5VsBindAddrAnnotation] = "1.2.3.4"
+				mockMgr.updateIngress(ingress2)
+				Expect(resources.VirtualCount()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(2))
+			})
+
 			It("properly configures redirect data group for ingress", func() {
 				ns1 := "ns1"
 				ns2 := "ns2"

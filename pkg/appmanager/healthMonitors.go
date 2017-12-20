@@ -117,7 +117,8 @@ func (appMgr *Manager) notifyUnusedHealthMonitorRules(
 }
 
 func (appMgr *Manager) handleSingleServiceHealthMonitors(
-	rsName string,
+	rsName,
+	poolName string,
 	cfg *ResourceConfig,
 	ing *v1beta1.Ingress,
 	monitors AnnotationHealthMonitors,
@@ -136,8 +137,8 @@ func (appMgr *Manager) handleSingleServiceHealthMonitors(
 	if nil != err {
 		log.Errorf("%s", err.Error())
 		appMgr.recordIngressEvent(ing, "MonitorError", err.Error())
-		mon := cfg.Virtual.PoolName + "_0_http"
-		_, pool := splitBigipPath(cfg.Virtual.PoolName, false)
+		mon := poolName + "_0_http"
+		_, pool := splitBigipPath(poolName, false)
 		cfg.RemoveMonitor(pool, mon)
 		return
 	}
@@ -146,7 +147,7 @@ func (appMgr *Manager) handleSingleServiceHealthMonitors(
 	defer appMgr.resources.Unlock()
 	for _, paths := range htpMap {
 		for _, ruleData := range paths {
-			appMgr.assignMonitorToPool(cfg, cfg.Virtual.PoolName, ruleData)
+			appMgr.assignMonitorToPool(cfg, poolName, ruleData)
 		}
 	}
 

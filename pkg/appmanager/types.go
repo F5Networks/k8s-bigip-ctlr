@@ -45,7 +45,6 @@ type (
 
 	metaData struct {
 		Active       bool
-		NodePort     int32
 		ResourceType string
 		// Only used for Routes (for keeping track of annotated profiles)
 		RouteProfs map[routeKey]string

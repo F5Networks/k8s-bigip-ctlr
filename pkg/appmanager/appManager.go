@@ -605,8 +605,10 @@ func (appMgr *Manager) enqueueIngress(obj interface{}) {
 }
 
 func (appMgr *Manager) enqueueRoute(obj interface{}) {
-	if ok, key := appMgr.checkValidRoute(obj); ok {
-		appMgr.vsQueue.Add(*key)
+	if ok, keys := appMgr.checkValidRoute(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
 	}
 }
 

@@ -162,7 +162,8 @@ func (appMgr *Manager) checkValidIngress(
 
 func (appMgr *Manager) checkValidRoute(
 	obj interface{},
-) (bool, *serviceQueueKey) {
+) (bool, []*serviceQueueKey) {
+	var allKeys []*serviceQueueKey
 	route := obj.(*routeapi.Route)
 	namespace := route.ObjectMeta.Namespace
 	_, ok := appMgr.getNamespaceInformer(namespace)
@@ -170,9 +171,13 @@ func (appMgr *Manager) checkValidRoute(
 		// Not watching this namespace
 		return false, nil
 	}
-	key := &serviceQueueKey{
-		ServiceName: route.Spec.To.Name,
-		Namespace:   namespace,
+	svcNames := getRouteServiceNames(route)
+	for _, svcName := range svcNames {
+		key := &serviceQueueKey{
+			ServiceName: svcName,
+			Namespace:   namespace,
+		}
+		allKeys = append(allKeys, key)
 	}
-	return true, key
+	return true, allKeys
 }

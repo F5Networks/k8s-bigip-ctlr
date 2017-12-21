@@ -678,7 +678,7 @@ Example Configuration Files
 - :fonticon:`fa fa-download` :download:`sample-reencrypt-route.yaml <./_static/config_examples/sample-reencrypt-route.yaml>`
 
 .. rubric:: Footnotes
-.. [#objectpartition] The |kctlr| creates and manages objects in the BIG-IP partition defined in the `F5 resource </containers/latest/kubernetes/index.html#f5-resource-properties>`_ ConfigMap. **It cannot manage objects in the** ``/Common`` **partition**.
+.. [#objectpartition] The |kctlr| creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap. **It cannot manage objects in the** ``/Common`` **partition**.
 .. [#nodeport] The |kctlr| forwards traffic to the NodePort assigned to the Service by Kubernetes. See the Kubernetes `Services <http://kubernetes.io/docs/user-guide/services/>`_ documentation for more information.
 .. [#secrets] You can `secure your BIG-IP credentials </containers/latest/kubernetes/kctlr-secrets.html#secure-your-BIG-IP-credentials>`_ using a Kubernetes Secret.
 .. [#username] The BIG-IP user account must have an appropriate role defined.  For ``nodeport`` type pool members, this role must be either ``Administrator``, ``Resource Administrator``, or ``Manager``. For ``cluster`` type pool members, the user account must have either the ``Administrator`` or ``Resource Manager`` role. See `BIG-IP Users <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-concepts-11-5-0/10.html>`_ for further details.

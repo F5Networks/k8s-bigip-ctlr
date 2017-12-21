@@ -108,6 +108,12 @@ docker-test:
 	rm -rf docs/_build
 	./build-tools/docker-docs.sh ./build-tools/make-docs.sh
 
+# one-time html build using a docker container
+.PHONY: docker-html
+docker-html:
+	rm -rf docs/_build
+	./build-tools/docker-docs.sh make -C docs/ html
+
 #
 # Attributions Generation
 #

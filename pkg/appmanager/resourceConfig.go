@@ -220,6 +220,29 @@ func formatIngressPoolName(namespace, ingName, svc string) string {
 	return fmt.Sprintf("ingress_%s_%s_%s", namespace, ingName, svc)
 }
 
+func getRouteCanonicalService(route *routeapi.Route) string {
+	return route.Spec.To.Name
+}
+
+// return the services associated with a route
+func getRouteServiceNames(route *routeapi.Route) []string {
+	numOfSvcs := 1
+	if route.Spec.AlternateBackends != nil {
+		numOfSvcs += len(route.Spec.AlternateBackends)
+	}
+	svcs := make([]string, numOfSvcs)
+
+	svcIndex := 0
+	if route.Spec.AlternateBackends != nil {
+		for _, svc := range route.Spec.AlternateBackends {
+			svcs[svcIndex], svcIndex = svc.Name, svcIndex+1
+		}
+	}
+	svcs[svcIndex] = getRouteCanonicalService(route)
+
+	return svcs
+}
+
 // format the pool name for a Route
 func formatRoutePoolName(route *routeapi.Route) string {
 	return fmt.Sprintf("openshift_%s_%s",

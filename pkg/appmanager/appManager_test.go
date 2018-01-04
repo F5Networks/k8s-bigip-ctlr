@@ -576,41 +576,46 @@ func (m *mockAppManager) deleteIngress(ing *v1beta1.Ingress) bool {
 }
 
 func (m *mockAppManager) addRoute(route *routeapi.Route) bool {
-	ok, vsKey := m.appMgr.checkValidRoute(route)
+	ok, keys := m.appMgr.checkValidRoute(route)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(route.ObjectMeta.Namespace)
 		appInf.routeInformer.GetStore().Add(route)
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		m.appMgr.syncVirtualServer(*vsKey)
-
+		for _, vsKey := range keys {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) updateRoute(route *routeapi.Route) bool {
-	ok, vsKey := m.appMgr.checkValidRoute(route)
+	ok, keys := m.appMgr.checkValidRoute(route)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(route.ObjectMeta.Namespace)
 		appInf.routeInformer.GetStore().Update(route)
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		m.appMgr.syncVirtualServer(*vsKey)
+		for _, vsKey := range keys {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) deleteRoute(route *routeapi.Route) bool {
-	ok, vsKey := m.appMgr.checkValidRoute(route)
+	ok, keys := m.appMgr.checkValidRoute(route)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(route.ObjectMeta.Namespace)
 		appInf.routeInformer.GetStore().Delete(route)
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		m.appMgr.syncVirtualServer(*vsKey)
+		for _, vsKey := range keys {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }

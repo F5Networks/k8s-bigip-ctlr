@@ -394,7 +394,8 @@ func updateDataGroupForPassthroughRoute(
 	dgMap InternalDataGroupMap,
 ) {
 	hostName := route.Spec.Host
-	poolName := formatRoutePoolName(route)
+	svcName := getRouteCanonicalService(route)
+	poolName := formatRoutePoolName(route, svcName)
 	updateDataGroup(dgMap, passthroughHostsDgName,
 		partition, namespace, hostName, poolName)
 }
@@ -407,7 +408,8 @@ func updateDataGroupForReencryptRoute(
 	dgMap InternalDataGroupMap,
 ) {
 	hostName := route.Spec.Host
-	poolName := formatRoutePoolName(route)
+	svcName := getRouteCanonicalService(route)
+	poolName := formatRoutePoolName(route, svcName)
 	updateDataGroup(dgMap, reencryptHostsDgName,
 		partition, namespace, hostName, poolName)
 }

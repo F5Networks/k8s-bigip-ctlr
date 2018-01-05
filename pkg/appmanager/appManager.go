@@ -1110,6 +1110,17 @@ func (appMgr *Manager) syncRoutes(
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
+
+		//FIXME(kenr): why do we process services that aren't associated
+		//             with a route?
+		svcName := getRouteCanonicalService(route)
+		if existsRouteServiceName(route, sKey.ServiceName) {
+			svcName = sKey.ServiceName
+		}
+
+		// Collect all service names for this Route.
+		svcs := getRouteServiceNames(route)
+
 		if nil != route.Spec.TLS {
 			switch route.Spec.TLS.Termination {
 			case routeapi.TLSTerminationPassthrough:
@@ -1120,10 +1131,11 @@ func (appMgr *Manager) syncRoutes(
 					sKey.Namespace, dgMap)
 			}
 		}
+
 		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
-			rsCfg, err, pool := createRSConfigFromRoute(route,
+			rsCfg, err, pool := createRSConfigFromRoute(route, svcName,
 				*appMgr.resources, appMgr.routeConfig, ps,
 				appInf.svcInformer.GetIndexer(), svcFwdRulesMap)
 			if err != nil {
@@ -1166,7 +1178,7 @@ func (appMgr *Manager) syncRoutes(
 
 			_, found, updated := appMgr.handleConfigForType(
 				&rsCfg, sKey, rsMap, rsName, svcPortMap,
-				svc, appInf, []string{route.Spec.To.Name}, nil)
+				svc, appInf, svcs, nil)
 			stats.vsFound += found
 			stats.vsUpdated += updated
 		}

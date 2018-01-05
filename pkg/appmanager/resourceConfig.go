@@ -243,10 +243,22 @@ func getRouteServiceNames(route *routeapi.Route) []string {
 	return svcs
 }
 
+// Verify if the service is associated with the route
+func existsRouteServiceName(route *routeapi.Route, expSvcName string) bool {
+	// We don't expect an extensive list, so we're not using a map
+	svcNames := getRouteServiceNames(route)
+	for _, svcName := range svcNames {
+		if expSvcName == svcName {
+			return true
+		}
+	}
+	return false
+}
+
 // format the pool name for a Route
-func formatRoutePoolName(route *routeapi.Route) string {
+func formatRoutePoolName(route *routeapi.Route, svcName string) string {
 	return fmt.Sprintf("openshift_%s_%s",
-		route.ObjectMeta.Namespace, route.Spec.To.Name)
+		route.ObjectMeta.Namespace, svcName)
 }
 
 // format the Rule name for a Route
@@ -838,6 +850,7 @@ func createRSConfigFromIngress(
 
 func createRSConfigFromRoute(
 	route *routeapi.Route,
+	svcName string,
 	resources Resources,
 	routeConfig RouteConfig,
 	pStruct portStruct,
@@ -877,10 +890,10 @@ func createRSConfigFromRoute(
 
 	// Create the pool
 	pool := Pool{
-		Name:        formatRoutePoolName(route),
+		Name:        formatRoutePoolName(route, svcName),
 		Partition:   DEFAULT_PARTITION,
 		Balance:     DEFAULT_BALANCE,
-		ServiceName: route.Spec.To.Name,
+		ServiceName: svcName,
 		ServicePort: backendPort,
 	}
 	// Create the rule
@@ -911,6 +924,7 @@ func createRSConfigFromRoute(
 		}
 		if !found {
 			rsCfg.Pools = append(rsCfg.Pools, pool)
+		} else {
 		}
 		// If rule already exists, update it; else add it
 		found = false

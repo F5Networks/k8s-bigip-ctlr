@@ -394,7 +394,7 @@ func updateDataGroupForPassthroughRoute(
 	dgMap InternalDataGroupMap,
 ) {
 	hostName := route.Spec.Host
-	poolName := formatRoutePoolName(route)
+	poolName := formatRoutePoolName(route, route.Spec.To.Name) // TODO(kenr): Do we need to make this svcName? (same below)
 	updateDataGroup(dgMap, passthroughHostsDgName,
 		partition, namespace, hostName, poolName)
 }
@@ -407,7 +407,7 @@ func updateDataGroupForReencryptRoute(
 	dgMap InternalDataGroupMap,
 ) {
 	hostName := route.Spec.Host
-	poolName := formatRoutePoolName(route)
+	poolName := formatRoutePoolName(route, route.Spec.To.Name)
 	updateDataGroup(dgMap, reencryptHostsDgName,
 		partition, namespace, hostName, poolName)
 }

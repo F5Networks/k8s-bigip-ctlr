@@ -1078,6 +1078,13 @@ func (appMgr *Manager) syncRoutes(
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
+
+		//TODO(kenr): understand this and how svcName affects pool lifetime
+		svcName := route.Spec.To.Name
+		if existsRouteServiceName(route, sKey.ServiceName) {
+			svcName = sKey.ServiceName
+		}
+
 		if nil != route.Spec.TLS {
 			switch route.Spec.TLS.Termination {
 			case routeapi.TLSTerminationPassthrough:
@@ -1091,7 +1098,7 @@ func (appMgr *Manager) syncRoutes(
 		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
-			rsCfg, err, pool := createRSConfigFromRoute(route,
+			rsCfg, err, pool := createRSConfigFromRoute(route, svcName,
 				*appMgr.resources, appMgr.routeConfig, ps,
 				appInf.svcInformer.GetIndexer(), svcFwdRulesMap)
 			if err != nil {
@@ -1117,6 +1124,7 @@ func (appMgr *Manager) syncRoutes(
 			}
 
 			// TLS Cert/Key
+			// TODO(kenr): sKey here is using route.Spec.To.Name, do we need it to use alt backend name
 			if nil != route.Spec.TLS &&
 				rsCfg.Virtual.VirtualAddress.Port == DEFAULT_HTTPS_PORT {
 				switch route.Spec.TLS.Termination {
@@ -1133,7 +1141,7 @@ func (appMgr *Manager) syncRoutes(
 			}
 
 			_, found, updated := appMgr.handleConfigForType(&rsCfg, sKey, rsMap,
-				rsName, svcPortMap, svc, appInf, route.Spec.To.Name)
+				rsName, svcPortMap, svc, appInf, svcName)
 			stats.vsFound += found
 			stats.vsUpdated += updated
 		}

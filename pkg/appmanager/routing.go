@@ -389,12 +389,13 @@ func (appMgr *Manager) updatePassthroughRouteDataGroups(
 // Update a data group map based on a passthrough route object.
 func updateDataGroupForPassthroughRoute(
 	route *routeapi.Route,
+	svcName string,
 	partition string,
 	namespace string,
 	dgMap InternalDataGroupMap,
 ) {
 	hostName := route.Spec.Host
-	poolName := formatRoutePoolName(route)
+	poolName := formatRoutePoolName(route, svcName)
 	updateDataGroup(dgMap, passthroughHostsDgName,
 		partition, namespace, hostName, poolName)
 }
@@ -402,12 +403,13 @@ func updateDataGroupForPassthroughRoute(
 // Update a data group map based on a reencrypt route object.
 func updateDataGroupForReencryptRoute(
 	route *routeapi.Route,
+	svcName string,
 	partition string,
 	namespace string,
 	dgMap InternalDataGroupMap,
 ) {
 	hostName := route.Spec.Host
-	poolName := formatRoutePoolName(route)
+	poolName := formatRoutePoolName(route, svcName)
 	updateDataGroup(dgMap, reencryptHostsDgName,
 		partition, namespace, hostName, poolName)
 }

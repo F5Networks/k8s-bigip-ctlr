@@ -1016,7 +1016,6 @@ func createRSConfigFromRoute(
 		}
 		if !found {
 			rsCfg.Pools = append(rsCfg.Pools, pool)
-		} else {
 		}
 		// If rule already exists, update it; else add it
 		found = false

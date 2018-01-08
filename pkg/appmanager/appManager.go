@@ -1113,7 +1113,7 @@ func (appMgr *Manager) syncRoutes(
 
 		//FIXME(kenr): why do we process services that aren't associated
 		//             with a route?
-		svcName := route.Spec.To.Name
+		svcName := getRouteCanonicalService(route)
 		if existsRouteServiceName(route, sKey.ServiceName) {
 			svcName = sKey.ServiceName
 		}
@@ -1121,10 +1121,10 @@ func (appMgr *Manager) syncRoutes(
 		if nil != route.Spec.TLS {
 			switch route.Spec.TLS.Termination {
 			case routeapi.TLSTerminationPassthrough:
-				updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION,
+				updateDataGroupForPassthroughRoute(route, svcName, DEFAULT_PARTITION,
 					sKey.Namespace, dgMap)
 			case routeapi.TLSTerminationReencrypt:
-				updateDataGroupForReencryptRoute(route, DEFAULT_PARTITION,
+				updateDataGroupForReencryptRoute(route, svcName, DEFAULT_PARTITION,
 					sKey.Namespace, dgMap)
 			}
 		}
@@ -1471,7 +1471,6 @@ func (appMgr *Manager) handleConfigForType(
 
 	deactivated := false
 	if _, ok := svcPortMap[pool.ServicePort]; !ok {
-			pool.ServiceName, svcKey.Namespace)
 		log.Debugf("Process Service delete - name: %v namespace: %v",
 			pool.ServiceName, svcKey.Namespace)
 		log.Infof("Port '%v' for service '%v' was not found.",

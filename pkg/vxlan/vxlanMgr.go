@@ -173,7 +173,7 @@ func ipv4ToMac(addr string) string {
 	for i, val := range ip {
 		intIP[i], _ = strconv.Atoi(val)
 	}
-	return fmt.Sprintf("0a:0a:%x:%x:%x:%x", intIP[0], intIP[1], intIP[2], intIP[3])
+	return fmt.Sprintf("0a:0a:%02x:%02x:%02x:%02x", intIP[0], intIP[1], intIP[2], intIP[3])
 }
 
 // Listen for updates from appmanager containing pod names (for arp entries)

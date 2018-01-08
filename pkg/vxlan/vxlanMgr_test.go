@@ -162,19 +162,19 @@ var _ = Describe("VxlanMgr Tests", func() {
 			TunnelName: "vxlan500",
 			Records: []fdbRecord{
 				fdbRecord{
-					Name:     "0a:0a:7f:1:1:2",
+					Name:     "0a:0a:7f:01:01:02",
 					Endpoint: "127.1.1.2",
 				},
 				fdbRecord{
-					Name:     "0a:0a:7f:0:0:4",
+					Name:     "0a:0a:7f:00:00:04",
 					Endpoint: "127.0.0.4",
 				},
 				fdbRecord{
-					Name:     "0a:0a:7f:1:1:5",
+					Name:     "0a:0a:7f:01:01:05",
 					Endpoint: "127.1.1.5",
 				},
 				fdbRecord{
-					Name:     "0a:0a:7f:0:0:7",
+					Name:     "0a:0a:7f:00:00:07",
 					Endpoint: "127.0.0.7",
 				},
 			},
@@ -201,23 +201,23 @@ var _ = Describe("VxlanMgr Tests", func() {
 			TunnelName: "vxlan500",
 			Records: []fdbRecord{
 				fdbRecord{
-					Name:     "0a:0a:7f:0:0:0",
+					Name:     "0a:0a:7f:00:00:00",
 					Endpoint: "127.0.0.0",
 				},
 				fdbRecord{
-					Name:     "0a:0a:7f:0:0:1",
+					Name:     "0a:0a:7f:00:00:01",
 					Endpoint: "127.0.0.1",
 				},
 				fdbRecord{
-					Name:     "0a:0a:7f:0:0:2",
+					Name:     "0a:0a:7f:00:00:02",
 					Endpoint: "127.0.0.2",
 				},
 				fdbRecord{
-					Name:     "0a:0a:7f:0:0:3",
+					Name:     "0a:0a:7f:00:00:03",
 					Endpoint: "127.0.0.3",
 				},
 				fdbRecord{
-					Name:     "0a:0a:7f:0:0:6",
+					Name:     "0a:0a:7f:00:00:06",
 					Endpoint: "127.0.0.6",
 				},
 			},

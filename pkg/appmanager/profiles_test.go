@@ -114,7 +114,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			r = mockMgr.addEndpoints(endpts)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 			resources := mockMgr.resources()
-			Expect(resources.PoolCount()).To(Equal(2))
+			Expect(resources.PoolCount()).To(Equal(1))
 			Expect(resources.CountOf(svcKey)).To(Equal(2))
 			httpCfg, found := resources.Get(svcKey, formatIngressVSName("1.2.3.4", 80))
 			Expect(found).To(BeTrue())

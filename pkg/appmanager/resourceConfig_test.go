@@ -244,7 +244,8 @@ var _ = Describe("Resource Config Tests", func() {
 
 		It("can count all pool resources", func() {
 			// Test PoolCount() to make sure we count all items
-			Expect(rs.PoolCount()).To(Equal(nbrBackends * nbrCfgsPer))
+			// Only one pool gets created for all configs
+			Expect(rs.PoolCount()).To(Equal(1))
 		})
 
 		It("can count all virtual resources", func() {

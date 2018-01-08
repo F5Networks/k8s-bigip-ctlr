@@ -414,7 +414,8 @@ type Resources struct {
 type ResourceInterface interface {
 	Init()
 	Assign(key serviceKey, name string, cfg *ResourceConfig)
-	Count() int
+	PoolCount() int
+	VirtualCount() int
 	CountOf(key serviceKey) int
 	Get(key serviceKey, name string) (*ResourceConfig, bool)
 	GetAll(key serviceKey) ResourceConfigs
@@ -467,11 +468,22 @@ func (cfg *ResourceConfig) GetPartition() string {
 
 // Count of all pools (svcKeys) currently stored.
 func (rs *Resources) PoolCount() int {
-	var ct int = 0
-	for _, rsList := range rs.rm {
-		ct += len(rsList)
+	var pools []Pool
+	appendPool := func(rsPools []Pool, p Pool) []Pool {
+		for _, rp := range rsPools {
+			if rp.Name == p.Name && rp.Partition == p.Partition {
+				return rsPools
+			}
+		}
+		return append(rsPools, p)
 	}
-	return ct
+	cfgs := rs.GetAllResources()
+	for _, cfg := range cfgs {
+		for _, pool := range cfg.Pools {
+			pools = appendPool(pools, pool)
+		}
+	}
+	return len(pools)
 }
 
 // Count of all virtuals currently stored.

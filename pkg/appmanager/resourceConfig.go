@@ -236,39 +236,67 @@ func formatIngressRuleName(host, path, pool string) string {
 	return rule
 }
 
-func getRouteCanonicalService(route *routeapi.Route) string {
+func getRouteCanonicalServiceName(route *routeapi.Route) string {
 	return route.Spec.To.Name
 }
 
-// return the services associated with a route
-func getRouteServiceNames(route *routeapi.Route) []string {
+type RouteService struct {
+	weight int
+	name   string
+}
+
+// return the services associated with a route (names + weight)
+func getRouteServices(route *routeapi.Route) []RouteService {
 	numOfSvcs := 1
 	if route.Spec.AlternateBackends != nil {
 		numOfSvcs += len(route.Spec.AlternateBackends)
 	}
-	svcs := make([]string, numOfSvcs)
+	svcs := make([]RouteService, numOfSvcs)
 
 	svcIndex := 0
 	if route.Spec.AlternateBackends != nil {
 		for _, svc := range route.Spec.AlternateBackends {
-			svcs[svcIndex], svcIndex = svc.Name, svcIndex+1
+			svcs[svcIndex].name = svc.Name
+			svcs[svcIndex].weight = int(*(svc.Weight))
+			svcIndex = svcIndex + 1
 		}
 	}
-	svcs[svcIndex] = getRouteCanonicalService(route)
+	svcs[svcIndex].name = route.Spec.To.Name
+	if route.Spec.To.Weight != nil {
+		svcs[svcIndex].weight = int(*(route.Spec.To.Weight))
+	} else {
+		// Older versions of openshift do not have a weight field
+		// so we will basically ignore it.
+		svcs[svcIndex].weight = 0
+	}
 
 	return svcs
+}
+
+// return the service names associated with a route
+func getRouteServiceNames(route *routeapi.Route) []string {
+	svcs := getRouteServices(route)
+	svcNames := make([]string, len(svcs))
+	for idx, svc := range svcs {
+		svcNames[idx] = svc.name
+	}
+	return svcNames
 }
 
 // Verify if the service is associated with the route
 func existsRouteServiceName(route *routeapi.Route, expSvcName string) bool {
 	// We don't expect an extensive list, so we're not using a map
-	svcNames := getRouteServiceNames(route)
-	for _, svcName := range svcNames {
-		if expSvcName == svcName {
+	svcs := getRouteServices(route)
+	for _, svc := range svcs {
+		if expSvcName == svc.name {
 			return true
 		}
 	}
 	return false
+}
+
+func isRouteABDeployment(route *routeapi.Route) bool {
+	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0
 }
 
 // format the pool name for a Route
@@ -1040,6 +1068,14 @@ func createRSConfigFromRoute(
 		}
 		rsCfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
 		rsCfg.Pools = append(rsCfg.Pools, pool)
+	}
+
+	if pStruct.protocol == "http" {
+		if isRouteABDeployment(route) {
+			ruleName := joinBigipPath(DEFAULT_PARTITION, abDeploymentIRuleName)
+			// FIXME(kenr): If no routes have A/B, we could remove the irule
+			rsCfg.Virtual.AddIRule(ruleName)
+		}
 	}
 
 	rsCfg.HandleRouteTls(route, pStruct.protocol, policyName, rule,

@@ -698,6 +698,9 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 		appMgr.addInternalDataGroup(passthroughHostsDgName, DEFAULT_PARTITION)
 		appMgr.addInternalDataGroup(reencryptHostsDgName, DEFAULT_PARTITION)
 		appMgr.addInternalDataGroup(reencryptServerSslDgName, DEFAULT_PARTITION)
+		appMgr.addIRule(
+			abDeploymentIRuleName, DEFAULT_PARTITION, abDeploymentIRule())
+		appMgr.addInternalDataGroup(abDeploymentDgName, DEFAULT_PARTITION)
 	}
 
 	if nil != appMgr.nsInformer {
@@ -1113,7 +1116,7 @@ func (appMgr *Manager) syncRoutes(
 
 		//FIXME(kenr): why do we process services that aren't associated
 		//             with a route?
-		svcName := getRouteCanonicalService(route)
+		svcName := getRouteCanonicalServiceName(route)
 		if existsRouteServiceName(route, sKey.ServiceName) {
 			svcName = sKey.ServiceName
 		}
@@ -1128,6 +1131,9 @@ func (appMgr *Manager) syncRoutes(
 					sKey.Namespace, dgMap)
 			}
 		}
+
+		updateDataGroupForABRoute(route, svcName, DEFAULT_PARTITION, sKey.Namespace, dgMap)
+
 		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
@@ -1173,11 +1179,11 @@ func (appMgr *Manager) syncRoutes(
 			}
 
 			// Collect all service names for this Route.
-			svcs := getRouteServiceNames(route)
+			svcNames := getRouteServiceNames(route)
 
 			_, found, updated := appMgr.handleConfigForType(
 				&rsCfg, sKey, rsMap, rsName, svcPortMap,
-				svc, appInf, svcs, nil)
+				svc, appInf, svcNames, nil)
 			stats.vsFound += found
 			stats.vsUpdated += updated
 		}

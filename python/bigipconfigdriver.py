@@ -383,7 +383,7 @@ class ConfigHandler():
                         app_count += 1
                         backends = 0
                         for pool in config['resources']['test']['pools']:
-                            if pool['name'] == service['name']:
+                            if service['name'] in pool['name']:
                                 backends = len(pool['members'])
                                 break
                         test_data[service['name']] = backends

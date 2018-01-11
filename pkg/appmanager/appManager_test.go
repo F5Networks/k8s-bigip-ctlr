@@ -3182,8 +3182,10 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(len(hostDg[namespace].Records)).To(Equal(2))
 					Expect(hostDg[namespace].Records[1].Name).To(Equal(hostName1))
 					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName2))
-					Expect(hostDg[namespace].Records[1].Data).To(Equal(formatRoutePoolName(route1)))
-					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(route2)))
+					Expect(hostDg[namespace].Records[1].Data).To(Equal(formatRoutePoolName(
+						route1, getRouteCanonicalService(route1))))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(
+						route2, getRouteCanonicalService(route2))))
 
 					rs, ok = resources.Get(
 						serviceKey{svcName2, 443, namespace}, "ose-vserver")
@@ -3201,7 +3203,8 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(found).To(BeTrue())
 					Expect(len(hostDg[namespace].Records)).To(Equal(1))
 					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName1))
-					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(route1)))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(
+						route1, getRouteCanonicalService(route1))))
 				})
 
 				It("configures reencrypt routes", func() {
@@ -3250,7 +3253,8 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(found).To(BeTrue())
 					Expect(len(hostDg[namespace].Records)).To(Equal(1))
 					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName))
-					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(route)))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(
+						route, getRouteCanonicalService(route))))
 
 					customProfiles := mockMgr.customProfiles()
 					// Should be 2 profiles from Spec, 2 defaults (clientssl and serverssl)

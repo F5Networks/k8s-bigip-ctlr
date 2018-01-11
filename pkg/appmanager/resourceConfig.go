@@ -259,10 +259,22 @@ func getRouteServiceNames(route *routeapi.Route) []string {
 	return svcs
 }
 
+// Verify if the service is associated with the route
+func existsRouteServiceName(route *routeapi.Route, expSvcName string) bool {
+	// We don't expect an extensive list, so we're not using a map
+	svcNames := getRouteServiceNames(route)
+	for _, svcName := range svcNames {
+		if expSvcName == svcName {
+			return true
+		}
+	}
+	return false
+}
+
 // format the pool name for a Route
-func formatRoutePoolName(route *routeapi.Route) string {
+func formatRoutePoolName(route *routeapi.Route, svcName string) string {
 	return fmt.Sprintf("openshift_%s_%s",
-		route.ObjectMeta.Namespace, route.Spec.To.Name)
+		route.ObjectMeta.Namespace, svcName)
 }
 
 // format the Rule name for a Route
@@ -930,6 +942,7 @@ func createRSConfigFromIngress(
 
 func createRSConfigFromRoute(
 	route *routeapi.Route,
+	svcName string,
 	resources Resources,
 	routeConfig RouteConfig,
 	pStruct portStruct,
@@ -955,13 +968,13 @@ func createRSConfigFromRoute(
 		if strVal == "" {
 			backendPort = route.Spec.Port.TargetPort.IntVal
 		} else {
-			backendPort, err = getServicePort(route, svcIndexer, strVal)
+			backendPort, err = getServicePort(route, svcName, svcIndexer, strVal)
 			if nil != err {
 				log.Warningf("%v", err)
 			}
 		}
 	} else {
-		backendPort, err = getServicePort(route, svcIndexer, "")
+		backendPort, err = getServicePort(route, svcName, svcIndexer, "")
 		if nil != err {
 			log.Warningf("%v", err)
 		}
@@ -975,10 +988,10 @@ func createRSConfigFromRoute(
 
 	// Create the pool
 	pool := Pool{
-		Name:        formatRoutePoolName(route),
+		Name:        formatRoutePoolName(route, svcName),
 		Partition:   DEFAULT_PARTITION,
 		Balance:     balance,
-		ServiceName: route.Spec.To.Name,
+		ServiceName: svcName,
 		ServicePort: backendPort,
 	}
 	// Create the rule
@@ -1468,11 +1481,11 @@ func NewCustomProfile(
 // else return the first port found from a Route's service.
 func getServicePort(
 	route *routeapi.Route,
+	svcName string,
 	svcIndexer cache.Indexer,
 	name string,
 ) (int32, error) {
 	ns := route.ObjectMeta.Namespace
-	svcName := route.Spec.To.Name
 	key := ns + "/" + svcName
 
 	obj, found, err := svcIndexer.GetByKey(key)

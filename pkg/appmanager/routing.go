@@ -33,6 +33,7 @@ import (
 )
 
 const httpRedirectIRuleName = "http_redirect_irule"
+const abDeploymentIRuleName = "ab_deployment_irule"
 const sslPassthroughIRuleName = "openshift_passthrough_irule"
 
 // Internal data group for passthrough routes to map server names to pools.
@@ -48,6 +49,9 @@ const reencryptServerSslDgName = "ssl_reencrypt_serverssl_dg"
 // Internal data group for https redirect
 const httpsRedirectDgName = "https_redirect_dg"
 
+// Internal data group for ab deployment routes.
+const abDeploymentDgName = "ab_deployment_dg"
+
 // DataGroup flattening.
 type FlattenConflictFunc func(key, oldVal, newVal string) string
 
@@ -56,6 +60,7 @@ var groupFlattenFuncMap = map[string]FlattenConflictFunc{
 	reencryptHostsDgName:     flattenConflictWarn,
 	reencryptServerSslDgName: flattenConflictWarn,
 	httpsRedirectDgName:      flattenConflictConcat,
+	abDeploymentDgName:       flattenConflictConcat,
 }
 
 func (r Rules) Len() int           { return len(r) }
@@ -241,6 +246,35 @@ func httpRedirectIRule(port int32) string {
 	return iRuleCode
 }
 
+func abDeploymentIRule() string {
+	// The key in the data group is the specific route (name/path) to examine.
+	// The data is a list of pool/weight pairs delimited by ';'. The pair values
+	// are delineated by ','. Finally, the weight value is normalized between
+	// 0.0 and 1.0 and the pairs should be listed in ascending order or weight
+	// values.
+	iRuleCode := fmt.Sprintf(
+		`when HTTP_REQUEST priority 200 {
+			set path [string tolower [HTTP::host]][HTTP::path]
+			set ab_rule [class match -value $path equals ab_deployment_dg]
+			if {$ab_rule != ""} then {
+				set weight_selection [expr {rand()}]
+				set service_rules [split $ab_rule ";"]
+				foreach service_rule $service_rules {
+					set fields [split $service_rule ","]
+					set service_name [lindex $fields 0]
+					set weight [expr {double([lindex $fields 1])}]
+					if {$weight_selection <= $weight} then {
+						pool $service_name
+						event disable
+						break
+					}
+				}
+			}
+		}`)
+
+	return iRuleCode
+}
+
 func sslPassthroughIRule() string {
 	iRuleCode :=
 		`when CLIENT_ACCEPTED {
@@ -389,12 +423,13 @@ func (appMgr *Manager) updatePassthroughRouteDataGroups(
 // Update a data group map based on a passthrough route object.
 func updateDataGroupForPassthroughRoute(
 	route *routeapi.Route,
+	svcName string,
 	partition string,
 	namespace string,
 	dgMap InternalDataGroupMap,
 ) {
 	hostName := route.Spec.Host
-	poolName := formatRoutePoolName(route)
+	poolName := formatRoutePoolName(route, svcName)
 	updateDataGroup(dgMap, passthroughHostsDgName,
 		partition, namespace, hostName, poolName)
 }
@@ -402,14 +437,59 @@ func updateDataGroupForPassthroughRoute(
 // Update a data group map based on a reencrypt route object.
 func updateDataGroupForReencryptRoute(
 	route *routeapi.Route,
+	svcName string,
 	partition string,
 	namespace string,
 	dgMap InternalDataGroupMap,
 ) {
 	hostName := route.Spec.Host
-	poolName := formatRoutePoolName(route)
+	poolName := formatRoutePoolName(route, svcName)
 	updateDataGroup(dgMap, reencryptHostsDgName,
 		partition, namespace, hostName, poolName)
+}
+
+// Update a data group map based on a alternativeBackends route object.
+// (ignore an service with a 0 weight value)
+func updateDataGroupForABRoute(
+	route *routeapi.Route,
+	svcName string,
+	partition string,
+	namespace string,
+	dgMap InternalDataGroupMap,
+) {
+	if !isRouteABDeployment(route) {
+		return
+	}
+
+	weightTotal := 0
+	svcs := getRouteServices(route)
+	for _, svc := range svcs {
+		weightTotal = weightTotal + svc.weight
+	}
+
+	if weightTotal == 0 {
+		// FIXME(kenr): what do we do if all services had 0 weight?
+		return
+	}
+
+	// Determine a weighted slice between 0.0 and 1.0 to match
+	// each service's weight ratio.
+	runningWeightTotal := 0
+	key := route.Spec.Host + route.Spec.Path
+	var entries []string
+	for _, svc := range svcs {
+		if svc.weight == 0 {
+			continue
+		}
+		runningWeightTotal = runningWeightTotal + svc.weight
+		weightedSliceThreshold := float64(runningWeightTotal) / float64(weightTotal)
+		pool := formatRoutePoolName(route, svc.name)
+		entry := fmt.Sprintf("%s,%4.3f", pool, weightedSliceThreshold)
+		entries = append(entries, entry)
+	}
+	value := strings.Join(entries, ";")
+	updateDataGroup(dgMap, abDeploymentDgName,
+		partition, namespace, key, value)
 }
 
 // Add or update a data group record

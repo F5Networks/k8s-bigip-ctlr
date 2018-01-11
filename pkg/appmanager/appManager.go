@@ -698,6 +698,9 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 		appMgr.addInternalDataGroup(passthroughHostsDgName, DEFAULT_PARTITION)
 		appMgr.addInternalDataGroup(reencryptHostsDgName, DEFAULT_PARTITION)
 		appMgr.addInternalDataGroup(reencryptServerSslDgName, DEFAULT_PARTITION)
+		appMgr.addIRule(
+			abDeploymentIRuleName, DEFAULT_PARTITION, abDeploymentIRule())
+		appMgr.addInternalDataGroup(abDeploymentDgName, DEFAULT_PARTITION)
 	}
 
 	if nil != appMgr.nsInformer {
@@ -1110,20 +1113,31 @@ func (appMgr *Manager) syncRoutes(
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
+
+		//FIXME(kenr): why do we process services that aren't associated
+		//             with a route?
+		svcName := getRouteCanonicalServiceName(route)
+		if existsRouteServiceName(route, sKey.ServiceName) {
+			svcName = sKey.ServiceName
+		}
+
 		if nil != route.Spec.TLS {
 			switch route.Spec.TLS.Termination {
 			case routeapi.TLSTerminationPassthrough:
-				updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION,
+				updateDataGroupForPassthroughRoute(route, svcName, DEFAULT_PARTITION,
 					sKey.Namespace, dgMap)
 			case routeapi.TLSTerminationReencrypt:
-				updateDataGroupForReencryptRoute(route, DEFAULT_PARTITION,
+				updateDataGroupForReencryptRoute(route, svcName, DEFAULT_PARTITION,
 					sKey.Namespace, dgMap)
 			}
 		}
+
+		updateDataGroupForABRoute(route, svcName, DEFAULT_PARTITION, sKey.Namespace, dgMap)
+
 		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
-			rsCfg, err, pool := createRSConfigFromRoute(route,
+			rsCfg, err, pool := createRSConfigFromRoute(route, svcName,
 				*appMgr.resources, appMgr.routeConfig, ps,
 				appInf.svcInformer.GetIndexer(), svcFwdRulesMap)
 			if err != nil {
@@ -1164,9 +1178,12 @@ func (appMgr *Manager) syncRoutes(
 				}
 			}
 
+			// Collect all service names for this Route.
+			svcNames := getRouteServiceNames(route)
+
 			_, found, updated := appMgr.handleConfigForType(
 				&rsCfg, sKey, rsMap, rsName, svcPortMap,
-				svc, appInf, []string{route.Spec.To.Name}, nil)
+				svc, appInf, svcNames, nil)
 			stats.vsFound += found
 			stats.vsUpdated += updated
 		}

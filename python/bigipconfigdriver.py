@@ -697,7 +697,7 @@ def _handle_vxlan_config(config):
 
 def _set_user_agent():
     try:
-        with open('VERSION_BUILD.json', 'r') as version_file:
+        with open('/app/python/VERSION_BUILD.json', 'r') as version_file:
             data = json.load(version_file)
             user_agent = \
                 "k8s-bigip-ctlr-" + data['version'] + '-' + data['build']

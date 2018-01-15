@@ -1,4 +1,6 @@
-sphinx>=1.5.5
--e git://github.com/f5devcentral/f5-sphinx-theme#egg=f5-sphinx-theme
+sphinx>=1.6.2
+git+https://github.com/f5devcentral/f5-sphinx-theme@master
 recommonmark
 sphinxjp.themes.basicstrap
+awscli
+cloud_sptheme

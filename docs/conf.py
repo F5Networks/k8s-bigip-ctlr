@@ -44,7 +44,8 @@ extensions = [
     'sphinx.ext.ifconfig',
     'sphinx.ext.doctest',
     'sphinxjp.themes.basicstrap',
-    'sphinx.ext.extlinks'
+    'sphinx.ext.extlinks',
+    'cloud_sptheme.ext.table_styling'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -70,7 +71,7 @@ master_doc = 'index'
 
 # General information about the project. 
 project = u'F5 BIG-IP Controller for Kubernetes'
-copyright = u'2017 F5 Networks Inc'
+copyright = u'2018 F5 Networks Inc'
 author = u'F5 Networks'
 
 # The version info for the project you're documenting, acts as replacement for

@@ -1,22 +1,39 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-|release|
----------
+v1.4.0
+------
 
 Added Functionality
 ```````````````````
-* Added route domain support for the VxLAN forwarding data base addresses (FDB).
-  Also, Removed the restriction on setting the default route domain
+* Enhanced route domain handling:
+  - Create VxLAN forwarding database (FDB) addresses for route domains.
+  - Ability to change the default route domain for a partition managed by an F5 controller after the controller has deployed.
+* Support for `Flannel VxLAN in Kubernetes`_.
+* Enhanced options for configuring Virtual IP addresses for Ingress resources:
+
+  - Ingresses with the same IP address and port can share a virtual server.
+  - Set a default IP address to use as the VIP for all Ingresses.
+
+* Support for ``recv`` strings in health monitors for ConfigMaps, Ingresses, and Routes.
+* Support UDP in ConfigMaps (includes proxy type and health monitors).
+* Provide Controller version info in the container and logs.
+
+Bug Fixes
+`````````
+* :issues:`341` - HTTPS redirect applies to individual Routes instead of all Routes.
+* :issues:`344` - Create default for SNI profile when using Ingress custom profiles from Secrets.
+* :issues:`460` - Remove risk that pools will update with wrong members after a node update (NodePort mode).
+* :issues:`428` - Controller writes unnecessary updates when no config changes occurred.
 
 Limitations
 ```````````
-* If you are using F5-supported iapps, you must first install the
-  latest release candidate of the iapp available at downloads.f5.com and
-  manually switch to using the new version of the iapp.  For instance,
-  the minimum version you need to use for the f5.http iapp is f5.http.v1.3.0rc3.
-  This version is available in the package iapps-1.0.0.492.0.  Note that
-  installing a new version of an iapp does not replace the existing version.
+* The minimum iApps release package required for this release is ``iapps-1.0.0.492.0``. If you have deployed services using F5-supported iApps:
+
+  - `Download and install the latest iApps templates`_.
+  - `Set the service to use the newer iApp template`_.
+
+* Cannot delete ARP entries on BIG-IP v11.6.1 when running the Controller in Kubernetes with Flannel VXLAN enabled.
 
 v1.3.0
 ------
@@ -135,3 +152,7 @@ Limitations
 * Parameters other than IPAddress and Port (e.g. Connection Limit) specified in the iApp Pool Member Table apply to all members of the pool.
 * Cannot configure virtual servers with IPv6 addresses in the configmap.
 * The K8S BIG-IP Controller cannot watch more than one namespace.
+
+
+.. _Download and install the latest iApps templates: https://support.f5.com/csp/article/K13422
+.. _Set the service to use the newer iApp template: https://support.f5.com/csp/article/K17001

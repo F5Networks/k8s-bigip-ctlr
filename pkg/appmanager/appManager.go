@@ -863,7 +863,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		stats.vsUpdated, stats.vsFound, stats.vsDeleted)
 
 	// delete any custom profiles that are no longer referenced
-	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace)
+	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
 		stats.dgUpdated > 0 {

@@ -106,6 +106,28 @@ rst_epilog = '''
 .. _F5 Resource: %(base_url)s/containers/latest/kubernetes/#f5-resource-properties
 .. _Kubernetes Ingress: https://kubernetes.io/docs/concepts/services-networking/ingress/
 .. _Flannel VxLAN in Kubernetes: %(base_url)s/containers/latest/kubernetes/flannel-bigip-info.html
+.. _user documentation: %(base_url)s/containers/latest/kubernetes/index.html
+.. _Integration Overview: %(base_url)s/containers/latest/kubernetes/index.html
+.. _configure an IPAM system: %(base_url)s/containers/latest/kubernetes/kctlr-manage-bigip-objects.html#assign-ip-addresses-to-big-ip-virtual-servers-using-ipam
+.. _pools without virtual servers: %(base_url)s/containers/latest/kubernetes/kctlr-manage-bigip-objects.html#pools-without-virtual-servers
+.. _expose services to external traffic: %(base_url)s/containers/latest/kubernetes/kctlr-ingress.html
+.. _replace the OpenShift F5 Router with the BIG-IP Controller: %(base_url)s/containers/latest/openshift/replace-f5-router.html
+.. _secure your BIG-IP credentials: %(base_url)s/containers/latest/kubernetes/kctlr-secrets.html#secure-your-big-ip-credentials
+.. _Kubernetes: https://kubernetes.io/
+.. _Kubernetes Service: https://kubernetes.io/docs/concepts/services-networking/service/
+.. _Kubernetes Annotation: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+.. _Kubernetes clusters: https://kubernetes.io/docs/concepts/cluster-administration/cluster-administration-overview/
+.. _NodePort: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
+.. _ClusterIP: https://kubernetes.io/docs/concepts/services-networking/connect-applications-service/
+.. _iApps: https://devcentral.f5.com/iapps
+.. _Kubernetes pods: https://kubernetes.io/docs/user-guide/pods/
+.. _Kubernetes Ingress: https://kubernetes.io/docs/concepts/services-networking/ingress/
+.. _iApp table: https://devcentral.f5.com/wiki/iApp.Working-with-Tables.ashx
+.. _Kubernetes Service Type: https://kubernetes.io/docs/concepts/services-networking/service/
+.. _OpenShift: https://www.openshift.com/
+.. _NodePort mode: %(base_url)s/containers/latest/kubernetes/kctlr-modes.html
+.. _OpenShift Route: https://docs.openshift.org/1.4/dev_guide/routes.html
+.. _route domain: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-routing-administration-12-0-0/9.html
 ''' % {
     'url_version': version,
     'base_url': 'http://clouddocs.f5.com'

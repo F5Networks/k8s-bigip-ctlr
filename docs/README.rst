@@ -21,7 +21,7 @@ The |kctlr-long| lets you manage your F5 BIG-IP device from `Kubernetes`_ or `Op
 Features
 --------
 - Dynamically creates, manages, and destroys BIG-IP objects.
-- Forwards traffic from the BIG-IP device to `Kubernetes clusters`_ via `NodePorts`_ or `ClusterIPs`_.
+- Forwards traffic from the BIG-IP device to `Kubernetes clusters`_ via `NodePort`_ or `ClusterIP`_.
 - Support for F5 `iApps`_.
 - Handles F5-specific VirtualServer objects created in Kubernetes.
 - Handles standard `Kubernetes Ingress`_ objects using F5-specific extensions.
@@ -29,7 +29,7 @@ Features
 
 Guides
 ------
-See the |kctlr-long| `user documentation </containers/latest/kubernetes/>`_.
+See the |kctlr-long| `user documentation`_.
 
 Overview
 --------
@@ -53,7 +53,7 @@ For example, when run in `NodePort mode`_, the |kctlr| does the following:
 
 #. Discovers a new F5 ``virtualServer`` resource.
 #. Creates a new virtual server object in the specified partition on the BIG-IP system. [#objectpartition]_
-#. Creates a pool member on the virtual server for each node in the cluster. [#nodeport]_
+#. Creates a pool member on the virtual server for each node in the cluster. [#nodeportmode]_
 #. Monitors F5 resources, and linked Kubernetes resources, for changes.
 #. Reconfigures the BIG-IP system when it discovers changes.
 
@@ -265,7 +265,7 @@ OpenShift Routes
 F5 Resource ConfigMap Properties
 --------------------------------
 F5 Resource ConfigMap objects tell the |kctlr| how to configure the BIG-IP system.
-See the `Integration Overview </containers/latest/kubernetes/>`_ for more information about F5 resources.
+See the `Integration Overview`_ for more information about F5 resources.
 
 +---------------+---------------------------------------------------+-----------------------------------------------+
 | Property      | Description                                       | Allowed Values                                |
@@ -347,8 +347,8 @@ If you don't define ``bindAddr`` in the Frontend configuration, you must include
 The Controller watches for the annotation key ``virtual-server.f5.com/ip``.
 This annotation must contain the IP address you want to assign to the virtual server.
 
-- You can `configure an IPAM system </containers/latest/kubernetes/kctlr-manage-bigip-objects.html#assign-ip-addresses-to-big-ip-virtual-servers-using-ipam>`_ to write out an annotation containing the selected IP address.
--  You can check the ``status.virtual-server.f5.com/ip`` annotation set by the Controller via the Kubernetes API.
+- You can `configure an IPAM system`_ to write out an annotation containing the selected IP address.
+- You can check the ``status.virtual-server.f5.com/ip`` annotation set by the Controller via the Kubernetes API.
    This allows you to see the ``bindAddr`` assigned to the virtual server.
 
 If you don't define ``virtualAddress`` or ``bindAddr`` in the Frontend configuration, the Controller configures and manages pools, pool members, and healthchecks for the Service without a BIG-IP virtual server.
@@ -358,7 +358,7 @@ For example: :code:`default_myService`.
 
 .. seealso::
 
-   See `Manage pools without virtual servers </containers/latest/kubernetes/kctlr-manage-bigip-objects.html#manage-pools-without-virtual-servers>`_ for more information.
+   See `Pools without virtual servers`_ for more information.
 
 .. _iapp f5 resource:
 
@@ -498,7 +498,7 @@ The ``backend`` section tells the |kctlr| about the Service you want to manage.
 Ingress Resources
 -----------------
 
-You can use the |kctlr| as a `Kubernetes Ingress`_ Controller to `expose Services to external traffic </containers/latest/kubernetes/kctlr-ingress.html>`_.
+You can use the |kctlr| as a `Kubernetes Ingress`_ Controller to `expose Services to external traffic`_.
 
 .. _ingress annotations:
 
@@ -659,49 +659,32 @@ Please see the example configuration files for more details.
 Example Configuration Files
 ---------------------------
 
-- :fonticon:`fa fa-download` :download:`sample-k8s-bigip-ctlr-secrets.yaml <./_static/config_examples/sample-k8s-bigip-ctlr-secrets.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-bigip-credentials-secret.yaml <./_static/config_examples/sample-bigip-credentials-secret.yaml>`
-- :fonticon:`fa fa-download` :download:`example-vs-resource.configmap.yaml <./_static/config_examples/example-vs-resource.configmap.yaml>`
-- :fonticon:`fa fa-download` :download:`example-vs-resource-udp.configmap.yaml <./_static/config_examples/example-vs-resource-udp.configmap.yaml>`
-- :fonticon:`fa fa-download` :download:`example-vs-resource.json <./_static/config_examples/example-vs-resource.json>`
-- :fonticon:`fa fa-download` :download:`example-vs-resource-iapp.json <./_static/config_examples/example-vs-resource-iapp.json>`
-- :fonticon:`fa fa-download` :download:`example-advanced-vs-resource-iapp.json <./_static/config_examples/example-advanced-vs-resource-iapp.json>`
-- :fonticon:`fa fa-download` :download:`single-service-ingress.yaml <./_static/config_examples/single-service-ingress.yaml>`
-- :fonticon:`fa fa-download` :download:`single-service-tls-ingress.yaml <./_static/config_examples/single-service-tls-ingress.yaml>`
-- :fonticon:`fa fa-download` :download:`simple-ingress-fanout.yaml <./_static/config_examples/simple-ingress-fanout.yaml>`
-- :fonticon:`fa fa-download` :download:`name-based-ingress.yaml <./_static/config_examples/name-based-ingress.yaml>`
-- :fonticon:`fa fa-download` :download:`ingress-with-health-monitors.yaml <./_static/config_examples/ingress-with-health-monitors.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-rbac.yaml <./_static/config_examples/sample-rbac.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-unsecured-route.yaml <./_static/config_examples/sample-unsecured-route.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-edge-route.yaml <./_static/config_examples/sample-edge-route.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-passthrough-route.yaml <./_static/config_examples/sample-passthrough-route.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-reencrypt-route.yaml <./_static/config_examples/sample-reencrypt-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-k8s-bigip-ctlr-secrets.yaml </_static/config_examples/sample-k8s-bigip-ctlr-secrets.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-bigip-credentials-secret.yaml </_static/config_examples/sample-bigip-credentials-secret.yaml>`
+- :fonticon:`fa fa-download` :download:`example-vs-resource.configmap.yaml </_static/config_examples/example-vs-resource.configmap.yaml>`
+- :fonticon:`fa fa-download` :download:`example-vs-resource-udp.configmap.yaml </_static/config_examples/example-vs-resource-udp.configmap.yaml>`
+- :fonticon:`fa fa-download` :download:`example-vs-resource.json </_static/config_examples/example-vs-resource.json>`
+- :fonticon:`fa fa-download` :download:`example-vs-resource-iapp.json </_static/config_examples/example-vs-resource-iapp.json>`
+- :fonticon:`fa fa-download` :download:`example-advanced-vs-resource-iapp.json </_static/config_examples/example-advanced-vs-resource-iapp.json>`
+- :fonticon:`fa fa-download` :download:`single-service-ingress.yaml </_static/config_examples/single-service-ingress.yaml>`
+- :fonticon:`fa fa-download` :download:`single-service-tls-ingress.yaml </_static/config_examples/single-service-tls-ingress.yaml>`
+- :fonticon:`fa fa-download` :download:`simple-ingress-fanout.yaml </_static/config_examples/simple-ingress-fanout.yaml>`
+- :fonticon:`fa fa-download` :download:`name-based-ingress.yaml </_static/config_examples/name-based-ingress.yaml>`
+- :fonticon:`fa fa-download` :download:`ingress-with-health-monitors.yaml </_static/config_examples/ingress-with-health-monitors.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-rbac.yaml </_static/config_examples/sample-rbac.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-unsecured-route.yaml </_static/config_examples/sample-unsecured-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-edge-route.yaml </_static/config_examples/sample-edge-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-passthrough-route.yaml </_static/config_examples/sample-passthrough-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-reencrypt-route.yaml </_static/config_examples/sample-reencrypt-route.yaml>`
 
 .. rubric:: Footnotes
 .. [#objectpartition] The |kctlr| creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap. **It cannot manage objects in the** ``/Common`` **partition**.
-.. [#nodeport] The |kctlr| forwards traffic to the NodePort assigned to the Service by Kubernetes. See the Kubernetes `Services <http://kubernetes.io/docs/user-guide/services/>`_ documentation for more information.
-.. [#secrets] You can `secure your BIG-IP credentials </containers/latest/kubernetes/kctlr-secrets.html#secure-your-BIG-IP-credentials>`_ using a Kubernetes Secret.
+.. [#nodeportmode] The |kctlr| forwards traffic to the NodePort assigned to the Service by Kubernetes. See the `Kubernetes Service`_ documentation for more information.
+.. [#secrets] You can `secure your BIG-IP credentials`_ using a Kubernetes Secret.
 .. [#username] The BIG-IP user account must have an appropriate role defined.  For ``nodeport`` type pool members, this role must be either ``Administrator``, ``Resource Administrator``, or ``Manager``. For ``cluster`` type pool members, the user account must have either the ``Administrator`` or ``Resource Manager`` role. See `BIG-IP Users <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-concepts-11-5-0/10.html>`_ for further details.
 .. [#hm1] Required if defining the ``virtual-server.f5.com/health`` Ingress/Route annotation.
 .. [#hm2] See the **HTTP monitor settings** section of the `BIG-IP LTM Monitors Reference Guide <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/bigip-local-traffic-manager-monitors-reference-13-0-0/3.html>`_ for more information about defining send strings.
 
-
-.. _Kubernetes: https://kubernetes.io/
-.. _Kubernetes Service: https://kubernetes.io/docs/user-guide/services/
-.. _Kubernetes Annotation: https://kubernetes.io/docs/user-guide/annotations/
-.. _Kubernetes clusters: https://kubernetes.io/docs/admin/
-.. _NodePorts: https://kubernetes.io/docs/concepts/services-networking/Service/#type-nodeport
-.. _ClusterIPs: https://kubernetes.io/docs/concepts/services-networking/Service/
-.. _iApps: https://devcentral.f5.com/iapps
-.. _Kubernetes pods: https://kubernetes.io/docs/user-guide/pods/
-.. _Kubernetes Ingress: https://kubernetes.io/docs/concepts/services-networking/ingress/
-.. _iApp table: https://devcentral.f5.com/wiki/iApp.Working-with-Tables.ashx
-.. _Kubernetes Service Type: https://kubernetes.io/docs/concepts/services-networking/service/
-.. _OpenShift: https://www.openshift.com/
-.. _replace the OpenShift F5 Router with the BIG-IP Controller: /containers/latest/openshift/replace-f5-router.html
-.. _NodePort mode: /containers/latest/kubernetes/kctlr-modes.html
-.. _OpenShift Route: https://docs.openshift.org/1.4/dev_guide/routes.html
-.. _route domain: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-routing-administration-12-0-0/9.html
 .. |Slack| image:: https://f5cloudsolutions.herokuapp.com/badge.svg
    :target: https://f5cloudsolutions.herokuapp.com
    :alt: Slack

@@ -102,6 +102,16 @@ func (v *Virtual) AddIRule(ruleName string) bool {
 	return true
 }
 
+func (v *Virtual) DeleteIRule(ruleName string) bool {
+	for idx, irule := range v.IRules {
+		if irule == ruleName {
+			v.IRules = append(v.IRules[:idx], v.IRules[idx + 1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 func (v *Virtual) ToString() string {
 	output, err := json.Marshal(v)
 	if nil != err {
@@ -1070,14 +1080,13 @@ func createRSConfigFromRoute(
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 	}
 
+	abDeployment := false
 	if isRouteABDeployment(route) {
-		ruleName := joinBigipPath(DEFAULT_PARTITION, abDeploymentIRuleName)
-		// FIXME(kenr): If no routes have A/B, we could remove the irule
-		rsCfg.Virtual.AddIRule(ruleName)
+		abDeployment = true
 	}
 
 	rsCfg.HandleRouteTls(route, pStruct.protocol, policyName, rule,
-		svcFwdRulesMap)
+		svcFwdRulesMap, abDeployment)
 
 	return rsCfg, nil, pool
 }
@@ -1102,11 +1111,17 @@ func (rc *ResourceConfig) HandleRouteTls(
 	policyName string,
 	rule *Rule,
 	svcFwdRulesMap ServiceFwdRuleMap,
+	abDeployment bool,
 ) {
 	tls := route.Spec.TLS
+	abPathIRuleName := joinBigipPath(DEFAULT_PARTITION, abDeploymentPathIRuleName)
 	if protocol == "http" {
 		if nil == tls || len(tls.Termination) == 0 {
-			rc.AddRuleToPolicy(policyName, rule)
+			if abDeployment {
+				rc.Virtual.AddIRule(abPathIRuleName)
+			} else {
+				rc.AddRuleToPolicy(policyName, rule)
+			}
 		} else {
 			// Handle redirect policy for edge. Reencrypt and passthrough do not
 			// support redirect policies, despite what the OpenShift docs say.
@@ -1114,10 +1129,14 @@ func (rc *ResourceConfig) HandleRouteTls(
 				// edge supports 'allow' and 'redirect'
 				switch tls.InsecureEdgeTerminationPolicy {
 				case routeapi.InsecureEdgeTerminationPolicyAllow:
-					rc.AddRuleToPolicy(policyName, rule)
+					if abDeployment {
+						rc.Virtual.AddIRule(abPathIRuleName)
+					} else {
+						rc.AddRuleToPolicy(policyName, rule)
+					}
 				case routeapi.InsecureEdgeTerminationPolicyRedirect:
-					redirectIRuleName := fmt.Sprintf("/%s/%s",
-						DEFAULT_PARTITION, httpRedirectIRuleName)
+					redirectIRuleName := joinBigipPath(DEFAULT_PARTITION,
+						httpRedirectIRuleName)
 					rc.Virtual.AddIRule(redirectIRuleName)
 					// TLS config indicates to forward http to https.
 					path := "/"
@@ -1132,16 +1151,22 @@ func (rc *ResourceConfig) HandleRouteTls(
 	} else {
 		// https
 		if nil != tls {
-			passThroughRuleName := fmt.Sprintf("/%s/%s",
-				DEFAULT_PARTITION, sslPassthroughIRuleName)
+			passThroughIRuleName := joinBigipPath(DEFAULT_PARTITION,
+				sslPassthroughIRuleName)
 			switch tls.Termination {
 			case routeapi.TLSTerminationEdge:
-				rc.AddRuleToPolicy(policyName, rule)
+				if abDeployment {
+					rc.Virtual.AddIRule(abPathIRuleName)
+				} else {
+					rc.AddRuleToPolicy(policyName, rule)
+				}
 			case routeapi.TLSTerminationPassthrough:
-				rc.Virtual.AddIRule(passThroughRuleName)
+				rc.Virtual.AddIRule(passThroughIRuleName)
 			case routeapi.TLSTerminationReencrypt:
-				rc.Virtual.AddIRule(passThroughRuleName)
-				rc.AddRuleToPolicy(policyName, rule)
+				rc.Virtual.AddIRule(passThroughIRuleName)
+				if !abDeployment {
+					rc.AddRuleToPolicy(policyName, rule)
+				}
 			}
 		}
 	}

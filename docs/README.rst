@@ -589,6 +589,8 @@ OpenShift Route Resources
 Supported Route Configurations
 ``````````````````````````````
 
+.. important:: The |kctlr| does not support path-based routes for TLS re-encryption.
+
 +-------------------------+-------------------+-------------------+---------+-----------------+-------------------------------------------------------------------------+
 | Type                    | Client Connection | Server Connection | Path    | SSL Termination | Description                                                             |
 |                         | Encrypted         | Encrypted         | Support | on BIG-IP       |                                                                         |
@@ -620,8 +622,8 @@ Supported Route Configurations
 +-------------------------+-------------------+-------------------+---------+-----------------+-------------------------------------------------------------------------+
 
 
-Supported annotations
-`````````````````````
+Supported Route Annotations
+```````````````````````````
 
 +----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
 | Annotation                             | Type        | Required  | Description                                                                    | Default     |
@@ -650,7 +652,7 @@ Supported annotations
 +----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
 |                      | recv            | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.     | N/A         |
 +----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/secure-serverssl | boolean     | Optional  | Specify to validate the server-side SSL certificate of Re-encrypt              | false       |
+| virtual-server.f5.com/secure-serverssl | boolean     | Optional  | Specify to validate the server-side SSL certificate of re-encrypt              | false       |
 |                                        |             |           | terminated routes.                                                             |             |
 +----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
 

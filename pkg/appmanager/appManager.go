@@ -699,7 +699,7 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 		appMgr.addInternalDataGroup(reencryptHostsDgName, DEFAULT_PARTITION)
 		appMgr.addInternalDataGroup(reencryptServerSslDgName, DEFAULT_PARTITION)
 		appMgr.addIRule(
-			abDeploymentIRuleName, DEFAULT_PARTITION, abDeploymentIRule())
+			abDeploymentPathIRuleName, DEFAULT_PARTITION, abDeploymentPathIRule())
 		appMgr.addInternalDataGroup(abDeploymentDgName, DEFAULT_PARTITION)
 	}
 
@@ -1125,6 +1125,9 @@ func (appMgr *Manager) syncRoutes(
 		svcNames := getRouteServiceNames(route)
 
 		if nil != route.Spec.TLS {
+			// We need this even for A/B so the irule can determine if we are
+			// doing passthrough or reencrypt (otherwise we need to add more
+			// info to the A/B data group).
 			switch route.Spec.TLS.Termination {
 			case routeapi.TLSTerminationPassthrough:
 				updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION,

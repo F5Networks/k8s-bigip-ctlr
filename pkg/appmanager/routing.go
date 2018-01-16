@@ -33,7 +33,7 @@ import (
 )
 
 const httpRedirectIRuleName = "http_redirect_irule"
-const abDeploymentIRuleName = "ab_deployment_irule"
+const abDeploymentPathIRuleName = "ab_deployment_path_irule"
 const sslPassthroughIRuleName = "openshift_passthrough_irule"
 
 // Internal data group for passthrough routes to map server names to pools.
@@ -246,29 +246,45 @@ func httpRedirectIRule(port int32) string {
 	return iRuleCode
 }
 
-func abDeploymentIRule() string {
-	// The key in the data group is the specific route (name/path) to examine.
+func selectPoolIRuleFunc() string {
+	iRuleFunc :=
+		`proc select_ab_pool {route_key default_pool } {
+			if {[class match $route_key equals ab_deployment_dg]} then {
+				set ab_rule [class match -value $route_key equals ab_deployment_dg]
+				if {$ab_rule != ""} then {
+					set weight_selection [expr {rand()}]
+					set service_rules [split $ab_rule ";"]
+					foreach service_rule $service_rules {
+						set fields [split $service_rule ","]
+						set pool_name [lindex $fields 0]
+						set weight [expr {double([lindex $fields 1])}]
+						if {$weight_selection <= $weight} then {
+							return $pool_name
+						}
+					}
+				}
+			}
+			return $default_pool
+		}`
+
+	return iRuleFunc
+}
+
+func abDeploymentPathIRule() string {
+	// For all A/B deployments that include a path.
+	// The key in the data group is the specific route (host/path) to examine.
 	// The data is a list of pool/weight pairs delimited by ';'. The pair values
 	// are delineated by ','. Finally, the weight value is normalized between
 	// 0.0 and 1.0 and the pairs should be listed in ascending order or weight
 	// values.
-	iRuleCode := fmt.Sprintf(
-		`when HTTP_REQUEST priority 200 {
+	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(),
+		`
+		when HTTP_REQUEST priority 200 {
 			set path [string tolower [HTTP::host]][HTTP::path]
-			set ab_rule [class match -value $path equals ab_deployment_dg]
-			if {$ab_rule != ""} then {
-				set weight_selection [expr {rand()}]
-				set service_rules [split $ab_rule ";"]
-				foreach service_rule $service_rules {
-					set fields [split $service_rule ","]
-					set service_name [lindex $fields 0]
-					set weight [expr {double([lindex $fields 1])}]
-					if {$weight_selection <= $weight} then {
-						pool $service_name
-						event disable
-						break
-					}
-				}
+			set selected_pool [call select_ab_pool $path ""]
+			if {$selected_pool != ""} then {
+				pool $selected_pool
+				event disable
 			}
 		}`)
 
@@ -276,7 +292,7 @@ func abDeploymentIRule() string {
 }
 
 func sslPassthroughIRule() string {
-	iRuleCode :=
+	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(),
 		`when CLIENT_ACCEPTED {
 			TCP::collect
 		}
@@ -358,14 +374,21 @@ func sslPassthroughIRule() string {
 							if { [info exists tls_servername] } {
 								set servername_lower [string tolower $tls_servername]
 								SSL::disable serverside
+								set dflt_pool ""
 								if { [class match $servername_lower equals ssl_passthrough_servername_dg] } {
-									pool [class match -value $servername_lower equals ssl_passthrough_servername_dg]
+									set dflt_pool [class match -value $servername_lower equals ssl_passthrough_servername_dg]
 									SSL::disable
 									HTTP::disable
 								}
 								elseif { [class match $servername_lower equals ssl_reencrypt_servername_dg] } {
-									pool [class match -value $servername_lower equals ssl_reencrypt_servername_dg]
+									set dflt_pool [class match -value $servername_lower equals ssl_reencrypt_servername_dg]
 									SSL::enable serverside
+								}
+								set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
+								if { $selected_pool == "" } then {
+									log local0.debug "Failed to find pool for $servername_lower"
+								} else {
+									pool $selected_pool
 								}
 							}
 						}
@@ -381,7 +404,8 @@ func sslPassthroughIRule() string {
 				set profile [class match -value $servername_lower equals ssl_reencrypt_serverssl_dg]
 				SSL::profile $profile
 			}
-		}`
+		}`)
+
 	return iRuleCode
 }
 
@@ -477,7 +501,16 @@ func updateDataGroupForABRoute(
 	runningWeightTotal := 0
 	path := route.Spec.Path
 	if len(route.Spec.Path) == 0 {
-		path = "/"
+		tls := route.Spec.TLS
+		if tls != nil {
+			// We don't support path-based A/B for pass-thru and re-encrypt
+			switch tls.Termination {
+			case routeapi.TLSTerminationPassthrough:
+			case routeapi.TLSTerminationReencrypt:
+			default:
+				path = "/"
+			}
+		}
 	}
 	key := route.Spec.Host + path
 	var entries []string

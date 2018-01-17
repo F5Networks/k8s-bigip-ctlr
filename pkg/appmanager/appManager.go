@@ -605,8 +605,10 @@ func (appMgr *Manager) enqueueIngress(obj interface{}) {
 }
 
 func (appMgr *Manager) enqueueRoute(obj interface{}) {
-	if ok, key := appMgr.checkValidRoute(obj); ok {
-		appMgr.vsQueue.Add(*key)
+	if ok, keys := appMgr.checkValidRoute(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
 	}
 }
 
@@ -696,6 +698,11 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 		appMgr.addInternalDataGroup(passthroughHostsDgName, DEFAULT_PARTITION)
 		appMgr.addInternalDataGroup(reencryptHostsDgName, DEFAULT_PARTITION)
 		appMgr.addInternalDataGroup(reencryptServerSslDgName, DEFAULT_PARTITION)
+		appMgr.addIRule(
+			abDeploymentPathIRuleName, DEFAULT_PARTITION, abDeploymentPathIRule())
+		//appMgr.addIRule(
+		//	abDeploymentHostIRuleName, DEFAULT_PARTITION, abDeploymentHostIRule())
+		appMgr.addInternalDataGroup(abDeploymentDgName, DEFAULT_PARTITION)
 	}
 
 	if nil != appMgr.nsInformer {
@@ -1108,7 +1115,21 @@ func (appMgr *Manager) syncRoutes(
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
+
+		//FIXME(kenr): why do we process services that aren't associated
+		//             with a route?
+		svcName := getRouteCanonicalServiceName(route)
+		if existsRouteServiceName(route, sKey.ServiceName) {
+			svcName = sKey.ServiceName
+		}
+
+		// Collect all service names for this Route.
+		svcNames := getRouteServiceNames(route)
+
 		if nil != route.Spec.TLS {
+			// We need this even for A/B so the irule can determine if we are
+			// doing passthrough or reencrypt (otherwise we need to add more
+			// info to the A/B data group).
 			switch route.Spec.TLS.Termination {
 			case routeapi.TLSTerminationPassthrough:
 				updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION,
@@ -1118,10 +1139,13 @@ func (appMgr *Manager) syncRoutes(
 					sKey.Namespace, dgMap)
 			}
 		}
+
+		updateDataGroupForABRoute(route, svcName, DEFAULT_PARTITION, sKey.Namespace, dgMap)
+
 		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
-			rsCfg, err, pool := createRSConfigFromRoute(route,
+			rsCfg, err, pool := createRSConfigFromRoute(route, svcName,
 				*appMgr.resources, appMgr.routeConfig, ps,
 				appInf.svcInformer.GetIndexer(), svcFwdRulesMap)
 			if err != nil {
@@ -1164,7 +1188,7 @@ func (appMgr *Manager) syncRoutes(
 
 			_, found, updated := appMgr.handleConfigForType(
 				&rsCfg, sKey, rsMap, rsName, svcPortMap,
-				svc, appInf, []string{route.Spec.To.Name}, nil)
+				svc, appInf, svcNames, nil)
 			stats.vsFound += found
 			stats.vsUpdated += updated
 		}

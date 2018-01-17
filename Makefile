@@ -74,7 +74,7 @@ check-gopath:
 
 pre-build:
 	git status
-	git describe --all --long
+	git describe --all --long --always
 
 prod-build: pre-build
 	@echo "Building with minimal instrumentation..."

@@ -1016,6 +1016,8 @@ func createRSConfigFromRoute(
 func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 	rc.MetaData = cfg.MetaData
 	rc.Virtual = cfg.Virtual
+	rc.Virtual.Profiles = make([]ProfileRef, len(cfg.Virtual.Profiles))
+	copy(rc.Virtual.Profiles, cfg.Virtual.Profiles)
 	rc.Pools = make(Pools, len(cfg.Pools))
 	copy(rc.Pools, cfg.Pools)
 	rc.Monitors = make(Monitors, len(cfg.Monitors))

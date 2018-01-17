@@ -395,6 +395,7 @@ func (appMgr *Manager) createSecretSslProfile(
 func (appMgr *Manager) deleteUnusedProfiles(
 	appInf *appInformer,
 	namespace string,
+	stats *vsSyncStats,
 ) {
 	// Loop through and delete any profileRefs for Ingress cfgs that are
 	// no longer referenced, or have been deleted
@@ -408,6 +409,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 			continue
 		}
 
+		var toRemove []ProfileRef
 		ingresses, _ := appInf.ingInformer.GetIndexer().ByIndex(
 			"namespace", namespace)
 		for _, prof := range cfg.Virtual.Profiles {
@@ -446,7 +448,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 							if nil != err && !strings.ContainsAny(secretName, "/") {
 								// No secret with this name, and name does not
 								// contain "/", meaning it isn't a valid BIG-IP profile
-								cfg.Virtual.RemoveProfile(prof)
+								toRemove = append(toRemove, prof)
 							}
 						}
 					}
@@ -456,8 +458,12 @@ func (appMgr *Manager) deleteUnusedProfiles(
 				}
 			}
 			if !referenced {
-				cfg.Virtual.RemoveProfile(prof)
+				toRemove = append(toRemove, prof)
 			}
+		}
+		for _, prof := range toRemove {
+			cfg.Virtual.RemoveProfile(prof)
+			stats.cpUpdated += 1
 		}
 	}
 
@@ -490,6 +496,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 		if !found {
 			// Profile is not used
 			delete(appMgr.customProfiles.profs, key)
+			stats.cpUpdated += 1
 		} else if profile.CAFile != "" {
 			// Add ref for this profile
 			caRefs[profile.CAFile]++
@@ -500,6 +507,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 		if refs == 0 {
 			delKey := secretKey{Name: extractCertificateName(caKey)}
 			delete(appMgr.customProfiles.profs, delKey)
+			stats.cpUpdated += 1
 		}
 	}
 }

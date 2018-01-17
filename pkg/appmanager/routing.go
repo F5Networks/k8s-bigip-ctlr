@@ -537,16 +537,7 @@ func (appMgr *Manager) updateRouteDataGroups(
 	appMgr.intDgMutex.Lock()
 	defer appMgr.intDgMutex.Unlock()
 
-	// If dgMap is empty, delete all records in our internal map for this namespace
-	if len(dgMap) == 0 {
-		for _, nsDg := range appMgr.intDgMap {
-			if _, found := nsDg[namespace]; found {
-				delete(nsDg, namespace)
-				stats.dgUpdated += 1
-			}
-		}
-	}
-
+	// Add new or modified data group records
 	for mapKey, grp := range dgMap {
 		nsDg, found := appMgr.intDgMap[mapKey]
 		if found {
@@ -557,6 +548,19 @@ func (appMgr *Manager) updateRouteDataGroups(
 			}
 		} else {
 			appMgr.intDgMap[mapKey] = grp
+		}
+	}
+
+	// Remove non-existent data group records (those that are currently
+	// defined, but aren't part of the new set)
+	for mapKey, nsDg := range appMgr.intDgMap {
+		_, found := dgMap[mapKey]
+		if !found {
+			_, found := nsDg[namespace]
+			if found {
+				delete(nsDg, namespace)
+				stats.dgUpdated += 1
+			}
 		}
 	}
 }

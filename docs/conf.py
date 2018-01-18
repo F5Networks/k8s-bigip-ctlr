@@ -108,9 +108,10 @@ rst_epilog = '''
 .. _Flannel VxLAN in Kubernetes: %(base_url)s/containers/latest/kubernetes/flannel-bigip-info.html
 .. _user documentation: %(base_url)s/containers/latest/kubernetes/index.html
 .. _Integration Overview: %(base_url)s/containers/latest/kubernetes/index.html
-.. _configure an IPAM system: %(base_url)s/containers/latest/kubernetes/kctlr-manage-bigip-objects.html#assign-ip-addresses-to-big-ip-virtual-servers-using-ipam
+.. _Assign IP addresses to BIG-IP virtual servers using IPAM: %(base_url)s/containers/latest/kubernetes/kctlr-manage-bigip-objects.html#assign-ip-addresses-to-big-ip-virtual-servers-using-ipam
 .. _pools without virtual servers: %(base_url)s/containers/latest/kubernetes/kctlr-manage-bigip-objects.html#pools-without-virtual-servers
-.. _expose services to external traffic: %(base_url)s/containers/latest/kubernetes/kctlr-ingress.html
+.. _Expose Services to External Traffic using Ingresses: %(base_url)s/containers/latest/kubernetes/kctlr-ingress.html
+.. _f5 schema versions: %(base_url)s/containers/latest/releases_and_versioning.html#f5-schema
 .. _replace the OpenShift F5 Router with the BIG-IP Controller: %(base_url)s/containers/latest/openshift/replace-f5-router.html
 .. _secure your BIG-IP credentials: %(base_url)s/containers/latest/kubernetes/kctlr-secrets.html#secure-your-big-ip-credentials
 .. _Kubernetes: https://kubernetes.io/

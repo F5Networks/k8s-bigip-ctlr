@@ -1,4 +1,4 @@
--e git+https://github.com/f5devcentral/f5-cccl.git@5aaa584f9fc77742eb9d976954e6dad805e6f4ff#egg=f5-cccl
+-e git+https://github.com/f5devcentral/f5-cccl.git@03e22c4779ceb88f529337ade3ca31ddcd57e4c8#egg=f5-cccl
 pyinotify==0.9.6
 ipaddress==1.0.17
 PyJWT==1.4.0

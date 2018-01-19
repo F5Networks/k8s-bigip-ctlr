@@ -221,8 +221,8 @@ func processIngressRules(
 func httpRedirectIRule(port int32) string {
 	// The key in the data group is the host name or * to match all.
 	// The data is a list of paths for the host delimited by '|' or '/' for all.
-	iRuleCode := fmt.Sprintf(
-		`when HTTP_REQUEST {
+	iRuleCode := fmt.Sprintf(`
+		when HTTP_REQUEST {
 			# Look for exact match for host name
 			set paths [class match -value [HTTP::host] equals https_redirect_dg]
 			if {$paths == ""} {
@@ -249,10 +249,20 @@ func httpRedirectIRule(port int32) string {
 }
 
 func selectPoolIRuleFunc() string {
-	iRuleFunc :=
-		`proc select_ab_pool {route_key default_pool } {
-			if {[class match $route_key equals ab_deployment_dg]} then {
-				set ab_rule [class match -value $route_key equals ab_deployment_dg]
+	iRuleFunc := `
+		proc select_ab_pool {path default_pool } {
+			set last_slash [string length $path]
+			while {$last_slash >= 0} {
+				if {[class match $path equals ab_deployment_dg]} then {
+					break
+				}
+				set last_slash [string last "/" $path $last_slash]
+				incr last_slash -1
+				set path [string range $path 0 $last_slash]
+			}
+
+			if {$last_slash >= 0} {
+				set ab_rule [class match -value $path equals ab_deployment_dg]
 				if {$ab_rule != ""} then {
 					set weight_selection [expr {rand()}]
 					set service_rules [split $ab_rule ";"]
@@ -265,6 +275,9 @@ func selectPoolIRuleFunc() string {
 						}
 					}
 				}
+				# If we had a match, but all weights were 0 then
+				# retrun a 503 (Service Unavailable)
+				HTTP::respond 503
 			}
 			return $default_pool
 		}`
@@ -279,8 +292,7 @@ func abDeploymentPathIRule() string {
 	// are delineated by ','. Finally, the weight value is normalized between
 	// 0.0 and 1.0 and the pairs should be listed in ascending order or weight
 	// values.
-	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(),
-		`
+	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(), `
 		when HTTP_REQUEST priority 200 {
 			set path [string tolower [HTTP::host]][HTTP::path]
 			set selected_pool [call select_ab_pool $path ""]
@@ -294,8 +306,8 @@ func abDeploymentPathIRule() string {
 }
 
 func sslPassthroughIRule() string {
-	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(),
-		`when CLIENT_ACCEPTED {
+	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(), `
+		when CLIENT_ACCEPTED {
 			TCP::collect
 		}
 
@@ -493,42 +505,44 @@ func updateDataGroupForABRoute(
 		weightTotal = weightTotal + svc.weight
 	}
 
-	if weightTotal == 0 {
-		// FIXME(kenr): what do we do if all services had 0 weight?
-		return
-	}
-
-	// Determine a weighted slice between 0.0 and 1.0 to match
-	// each service's weight ratio.
-	runningWeightTotal := 0
 	path := route.Spec.Path
-	if len(route.Spec.Path) == 0 {
-		tls := route.Spec.TLS
-		if tls != nil {
-			// We don't support path-based A/B for pass-thru and re-encrypt
-			switch tls.Termination {
-			case routeapi.TLSTerminationPassthrough:
-			case routeapi.TLSTerminationReencrypt:
-			default:
-				path = "/"
-			}
+	tls := route.Spec.TLS
+	if tls != nil {
+		// We don't support path-based A/B for pass-thru and re-encrypt
+		switch tls.Termination {
+		case routeapi.TLSTerminationPassthrough:
+			path = ""
+		case routeapi.TLSTerminationReencrypt:
+			path = ""
 		}
 	}
 	key := route.Spec.Host + path
-	var entries []string
-	for _, svc := range svcs {
-		if svc.weight == 0 {
-			continue
+
+	if weightTotal == 0 {
+		// If all services have 0 weight, openshift requires a 503 to be returned
+		// (see https://docs.openshift.com/container-platform/3.6/architecture
+		//  /networking/routes.html#alternateBackends)
+		updateDataGroup(dgMap, abDeploymentDgName, partition, namespace, key, "")
+	} else {
+		// Place each service in a segment between 0.0 and 1.0 that corresponds to
+		// it's ratio percentage.  The order does not matter in regards to which
+		// service is listed first, but the list must be in ascending order.
+		var entries []string
+		runningWeightTotal := 0
+		for _, svc := range svcs {
+			if svc.weight == 0 {
+				continue
+			}
+			runningWeightTotal = runningWeightTotal + svc.weight
+			weightedSliceThreshold := float64(runningWeightTotal) / float64(weightTotal)
+			pool := formatRoutePoolName(route, svc.name)
+			entry := fmt.Sprintf("%s,%4.3f", pool, weightedSliceThreshold)
+			entries = append(entries, entry)
 		}
-		runningWeightTotal = runningWeightTotal + svc.weight
-		weightedSliceThreshold := float64(runningWeightTotal) / float64(weightTotal)
-		pool := formatRoutePoolName(route, svc.name)
-		entry := fmt.Sprintf("%s,%4.3f", pool, weightedSliceThreshold)
-		entries = append(entries, entry)
+		value := strings.Join(entries, ";")
+		updateDataGroup(dgMap, abDeploymentDgName,
+			partition, namespace, key, value)
 	}
-	value := strings.Join(entries, ";")
-	updateDataGroup(dgMap, abDeploymentDgName,
-		partition, namespace, key, value)
 }
 
 // Add or update a data group record

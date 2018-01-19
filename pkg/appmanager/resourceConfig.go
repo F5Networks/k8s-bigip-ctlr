@@ -1051,16 +1051,6 @@ func createRSConfigFromRoute(
 		if !found {
 			rsCfg.Pools = append(rsCfg.Pools, pool)
 		}
-		// If rule already exists, update it; else add it
-		found = false
-		if len(rsCfg.Policies) > 0 {
-			for i, rl := range rsCfg.Policies[0].Rules {
-				if rl.Name == rule.Name || rl.FullURI == rule.FullURI {
-					found = true
-					rsCfg.Policies[0].Rules[i] = rule
-				}
-			}
-		}
 	} else { // This is a new VS for a Route
 		rsCfg.MetaData.ResourceType = "route"
 		rsCfg.Virtual.Name = rsName
@@ -1076,11 +1066,7 @@ func createRSConfigFromRoute(
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 	}
 
-	abDeployment := false
-	if isRouteABDeployment(route) {
-		abDeployment = true
-	}
-
+	abDeployment := isRouteABDeployment(route)
 	rsCfg.HandleRouteTls(route, pStruct.protocol, policyName, rule,
 		svcFwdRulesMap, abDeployment)
 
@@ -1111,6 +1097,11 @@ func (rc *ResourceConfig) HandleRouteTls(
 ) {
 	tls := route.Spec.TLS
 	abPathIRuleName := joinBigipPath(DEFAULT_PARTITION, abDeploymentPathIRuleName)
+
+	if abDeployment {
+		rc.DeleteRuleFromPolicy(policyName, rule)
+	}
+
 	if protocol == "http" {
 		if nil == tls || len(tls.Termination) == 0 {
 			if abDeployment {
@@ -1195,6 +1186,28 @@ func (rc *ResourceConfig) AddRuleToPolicy(
 	rc.SetPolicy(*policy)
 }
 
+func (rc *ResourceConfig) DeleteRuleFromPolicy(
+	policyName string,
+	rule *Rule,
+) {
+	// We currently have at most 1 policy, 'forwarding'
+	policy := rc.FindPolicy("forwarding")
+	if nil != policy {
+		for i, r := range policy.Rules {
+			if r.Name == rule.Name && r.FullURI == rule.FullURI {
+				// Remove old rule
+				if len(policy.Rules) == 1 {
+					rc.DeletePolicy(*policy)
+				} else {
+					policy.Rules = append(policy.Rules[:i], policy.Rules[i+1:]...)
+					rc.SetPolicy(*policy)
+				}
+				break
+			}
+		}
+	}
+}
+
 func (rc *ResourceConfig) SetPolicy(policy Policy) {
 	toFind := nameRef{
 		Name:      policy.Name,
@@ -1217,6 +1230,14 @@ func (rc *ResourceConfig) SetPolicy(policy Policy) {
 		}
 	}
 	rc.Policies = append(rc.Policies, policy)
+}
+
+func (rc *ResourceConfig) DeletePolicy(policy Policy) {
+	toFind := nameRef{
+		Name:      policy.Name,
+		Partition: policy.Partition,
+	}
+	rc.RemovePolicy(toFind)
 }
 
 func (rc *ResourceConfig) RemovePolicy(toFind nameRef) {

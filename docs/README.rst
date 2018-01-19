@@ -628,6 +628,8 @@ Supported Route Annotations
 +----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
 | Annotation                             | Type        | Required  | Description                                                                    | Default     |
 +========================================+=============+===========+================================================================================+=============+
+| virtual-server.f5.com/balance          | string      | Optional  | Specifies the load balancing mode.                                             | round-robin |
++----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
 | virtual-server.f5.com/clientssl        | string      | Optional  | The name of a pre-configured client ssl profile on the BIG-IP system.          | N/A         |
 |                                        |             |           | The controller uses this profile instead of the certificate and key within the |             |
 |                                        |             |           | Route's configuration.                                                         |             |

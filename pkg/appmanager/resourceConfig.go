@@ -943,12 +943,18 @@ func createRSConfigFromRoute(
 			log.Warningf("%v", err)
 		}
 	}
+	var balance string
+	if bal, ok := route.ObjectMeta.Annotations[f5VsBalanceAnnotation]; ok {
+		balance = bal
+	} else {
+		balance = DEFAULT_BALANCE
+	}
 
 	// Create the pool
 	pool := Pool{
 		Name:        formatRoutePoolName(route),
 		Partition:   DEFAULT_PARTITION,
-		Balance:     DEFAULT_BALANCE,
+		Balance:     balance,
 		ServiceName: route.Spec.To.Name,
 		ServicePort: backendPort,
 	}

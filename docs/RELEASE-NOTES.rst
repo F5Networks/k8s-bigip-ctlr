@@ -7,8 +7,10 @@ v1.4.0
 Added Functionality
 ```````````````````
 * Enhanced route domain handling:
+
   - Create VxLAN forwarding database (FDB) addresses for route domains.
   - Ability to change the default route domain for a partition managed by an F5 controller after the controller has deployed.
+
 * Support for `Flannel VxLAN in Kubernetes`_.
 * Enhanced options for configuring Virtual IP addresses for Ingress resources:
 

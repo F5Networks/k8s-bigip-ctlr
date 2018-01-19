@@ -25,6 +25,7 @@ Bug Fixes
 * :issues:`344` - Create default for SNI profile when using Ingress custom profiles from Secrets.
 * :issues:`460` - Remove risk that pools will update with wrong members after a node update (NodePort mode).
 * :issues:`428` - Controller writes unnecessary updates when no config changes occurred.
+* Corrected a comparison problem in CCCL that caused unnecessary updates for BIG-IP Virtual Server resources.
 
 Limitations
 ```````````

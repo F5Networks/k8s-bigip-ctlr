@@ -413,22 +413,16 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rc.Policies[1].Name).To(Equal("policy2"))
 
 			// remove first policy
-			toRemove := nameRef{
-				Name:      policy1.Name,
-				Partition: policy1.Partition,
-			}
-			rc.RemovePolicy(toRemove)
+			rc.RemovePolicy(policy1)
 			lenValidate(1)
 			Expect(rc.Policies[0].Name).To(Equal("policy2"))
 
 			// remove last policy
-			toRemove.Name = policy2.Name
-			toRemove.Partition = policy2.Partition
-			rc.RemovePolicy(toRemove)
+			rc.RemovePolicy(policy2)
 			lenValidate(0)
 
 			// make sure deleting something that isn't there doesn't fail badly
-			rc.RemovePolicy(toRemove)
+			rc.RemovePolicy(policy2)
 			lenValidate(0)
 		})
 

@@ -1730,17 +1730,12 @@ func (appMgr *Manager) deleteUnusedResources(
 					poolName := joinBigipPath(cfg.Virtual.Partition, pool.Name)
 					// Delete rule
 					for _, pol := range cfg.Policies {
-						polChanged := false
 						// If only one rule left, then just remove the policy
 						if len(pol.Rules) == 1 {
 							if cfg.MetaData.ResourceType == "route" {
 								resourceName = strings.Split(pol.Rules[0].Name, "_")[3]
 							}
-							nr := nameRef{
-								Name:      pol.Name,
-								Partition: pol.Partition,
-							}
-							cfg.RemovePolicy(nr)
+							cfg.RemovePolicy(pol)
 							continue
 						}
 						// Else loop through rules to find which one to remove
@@ -1753,16 +1748,7 @@ func (appMgr *Manager) deleteUnusedResources(
 								ruleOffsets = append(ruleOffsets, i)
 							}
 						}
-						// Fix the ordinals on the remaining rules
-						if len(ruleOffsets) > 0 {
-							for i := len(ruleOffsets) - 1; i >= 0; i-- {
-								pol.RemoveRuleAt(ruleOffsets[i])
-								polChanged = true
-							}
-							for i, rule := range pol.Rules {
-								rule.Ordinal = i
-							}
-						}
+						polChanged := pol.RemoveRules(ruleOffsets)
 						// Update the policy
 						if polChanged {
 							cfg.SetPolicy(pol)

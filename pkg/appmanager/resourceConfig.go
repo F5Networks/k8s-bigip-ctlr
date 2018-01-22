@@ -1197,9 +1197,10 @@ func (rc *ResourceConfig) DeleteRuleFromPolicy(
 			if r.Name == rule.Name && r.FullURI == rule.FullURI {
 				// Remove old rule
 				if len(policy.Rules) == 1 {
-					rc.DeletePolicy(*policy)
+					rc.RemovePolicy(*policy)
 				} else {
-					policy.Rules = append(policy.Rules[:i], policy.Rules[i+1:]...)
+					ruleOffsets := []int{i}
+					policy.RemoveRules(ruleOffsets)
 					rc.SetPolicy(*policy)
 				}
 				break
@@ -1232,15 +1233,11 @@ func (rc *ResourceConfig) SetPolicy(policy Policy) {
 	rc.Policies = append(rc.Policies, policy)
 }
 
-func (rc *ResourceConfig) DeletePolicy(policy Policy) {
+func (rc *ResourceConfig) RemovePolicy(policy Policy) {
 	toFind := nameRef{
 		Name:      policy.Name,
 		Partition: policy.Partition,
 	}
-	rc.RemovePolicy(toFind)
-}
-
-func (rc *ResourceConfig) RemovePolicy(toFind nameRef) {
 	for i, polName := range rc.Virtual.Policies {
 		if reflect.DeepEqual(toFind, polName) {
 			// Remove from array
@@ -1359,6 +1356,21 @@ func (pol *Policy) RemoveRuleAt(offset int) bool {
 	pol.Rules[len(pol.Rules)-1] = &Rule{}
 	pol.Rules = pol.Rules[:len(pol.Rules)-1]
 	return true
+}
+
+func (pol *Policy) RemoveRules(ruleOffsets []int) bool {
+	polChanged := false
+	if len(ruleOffsets) > 0 {
+		polChanged = true
+		for i := len(ruleOffsets) - 1; i >= 0; i-- {
+			pol.RemoveRuleAt(ruleOffsets[i])
+		}
+		// Must fix the ordinals on the remaining rules
+		for i, rule := range pol.Rules {
+			rule.Ordinal = i
+		}
+	}
+	return polChanged
 }
 
 // Sorting methods for unit testing

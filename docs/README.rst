@@ -25,7 +25,7 @@ Features
 - Support for F5 `iApps`_.
 - Handles F5-specific VirtualServer objects created in Kubernetes.
 - Handles standard `Kubernetes Ingress`_ objects using F5-specific extensions.
-- Handles route configuration on the BIG-IP system (**OpenShift only**).
+- Handles OpenShift Route objects using F5-specific extensions.
 
 Guides
 ------
@@ -72,6 +72,8 @@ Controller Configuration Parameters
 -----------------------------------
 All configuration parameters below are global to the |kctlr|.
 
+.. _general configs:
+
 General
 ```````
 
@@ -96,6 +98,8 @@ General
 |                       |         |          |                   | configuration.                          |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 
+.. _bigip configs:
+
 BIG-IP system
 `````````````
 
@@ -113,6 +117,28 @@ BIG-IP system
 | bigip-username        | string  | Required | n/a               | BIG-IP iControl REST username           |                |
 |                       |         |          |                   | [#username]_                            |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+
+.. _vxlan configs:
+
+VXLAN
+`````
+
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| Parameter             | Type    | Required | Default           | Description                             | Allowed Values |
++=======================+=========+==========+===================+=========================================+================+
+| openshift-sdn-name    | string  | Optional | n/a               | Name of the VXLAN tunnel on the BIG-IP  |                |
+|                       |         |          |                   | system that corresponds to an Openshift |                |
+|                       |         |          |                   | SDN HostSubnet.                         |                |
+|                       |         |          |                   |                                         |                |
+|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| flannel-name          | string  | Optional | n/a               | Name of the VXLAN tunnel on the BIG-IP  |                |
+|                       |         |          |                   | system that corresponds to a Flannel    |                |
+|                       |         |          |                   | subnet.                                 |                |
+|                       |         |          |                   |                                         |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+
+.. _k8s configs:
 
 Kubernetes
 ``````````
@@ -185,26 +211,12 @@ Kubernetes
   For example, the BIG-IP device may not be able to reach certain nodes, or the BIG-IP device already manages certain
   nodes. Therefore, the controller should only watch the nodes that match the environmental constraints (by using a label).
 
-VXLAN
-`````````````
-
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| Parameter             | Type    | Required | Default           | Description                             | Allowed Values |
-+=======================+=========+==========+===================+=========================================+================+
-| openshift-sdn-name    | string  | Optional | n/a               | Name of the VXLAN tunnel on the BIG-IP  |                |
-|                       |         |          |                   | system that corresponds to an Openshift |                |
-|                       |         |          |                   | SDN HostSubnet.                         |                |
-|                       |         |          |                   |                                         |                |
-|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| flannel-name          | string  | Optional | n/a               | Name of the VXLAN tunnel on the BIG-IP  |                |
-|                       |         |          |                   | system that corresponds to a Flannel    |                |
-|                       |         |          |                   | subnet.                                 |                |
-|                       |         |          |                   |                                         |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+.. _openshift route configs:
 
 OpenShift Routes
 ````````````````
+
+**The following configuration parameters only apply to OpenShift.**
 
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | Parameter             | Type    | Required | Default           | Description                             | Allowed Values |
@@ -215,8 +227,6 @@ OpenShift Routes
 |                       |         |          |                   | used as default for SNI. This profile   |                |
 |                       |         |          |                   | must have the Default for SNI field     |                |
 |                       |         |          |                   | enabled.                                |                |
-|                       |         |          |                   |                                         |                |
-|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | default-server-ssl    | string  | Optional | n/a               | Specify the name of a user created      |                |
 |                       |         |          |                   | server ssl profile that will be         |                |
@@ -224,34 +234,22 @@ OpenShift Routes
 |                       |         |          |                   | used as default for SNI. This profile   |                |
 |                       |         |          |                   | must have the Default for SNI field     |                |
 |                       |         |          |                   | enabled.                                |                |
-|                       |         |          |                   |                                         |                |
-|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | manage-routes         | boolean | Optional | false             | Indicates if ``k8s-bigip-ctlr`` should  | true, false    |
 |                       |         |          |                   | handle OpenShift Route objects.         |                |
-|                       |         |          |                   |                                         |                |
-|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | route-http-vserver    | string  | Optional | ose-vserver       | The name of the http virtual server for |                |
 |                       |         |          |                   | OpenShift Routes.                       |                |
-|                       |         |          |                   |                                         |                |
-|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | route-https-vserver   | string  | Optional | https-ose-vserver | The name of the https virtual server    |                |
 |                       |         |          |                   | for OpenShift Routes.                   |                |
-|                       |         |          |                   |                                         |                |
-|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | route-label           | string  | Optional | n/a               | Tells the ``k8s-bigip-ctlr`` to only    |                |
 |                       |         |          |                   | watch for OpenShift Route objects with  |                |
 |                       |         |          |                   | the ``f5type`` label set to this value. |                |
-|                       |         |          |                   |                                         |                |
-|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | route-vserver-addr    | string  | Optional | n/a               | Bind address for virtual server for     |                |
 |                       |         |          |                   | OpenShift Route objects.                |                |
-|                       |         |          |                   |                                         |                |
-|                       |         |          |                   | **Only applicable in OpenShift.**       |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
   
 .. note::
@@ -260,10 +258,12 @@ OpenShift Routes
    clientssl and serverssl profiles for the OpenShift Route HTTPS virtual server. The controller sets these profiles as
    Default for SNI. 
 
+
 .. _f5 resource configmap properties:
 
 F5 Resource ConfigMap Properties
 --------------------------------
+
 F5 Resource ConfigMap objects tell the |kctlr| how to configure the BIG-IP system.
 See the `Integration Overview`_ for more information about F5 resources.
 
@@ -274,7 +274,6 @@ See the `Integration Overview`_ for more information about F5 resources.
 |               | should watch                                      |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
 | schema        | Verifies the ``data`` blob                        | f5schemadb://bigip-virtual-server_v0.1.5.json |
-|               |                                                   | [#schemaRecommendation]_                      |
 |               |                                                   |                                               |
 |               |                                                   | f5schemadb://bigip-virtual-server_v0.1.4.json |
 |               |                                                   |                                               |
@@ -284,38 +283,59 @@ See the `Integration Overview`_ for more information about F5 resources.
 +---------------+---------------------------------------------------+-----------------------------------------------+
 | data          | Defines the F5 resource                           |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
-| frontend      | Defines object(s) created on the BIG-IP           | See :ref:`frontend`                           |
+| frontend      | Defines BIG-IP objects                            | See :ref:`frontend`                           |
 +---------------+---------------------------------------------------+-----------------------------------------------+
-| backend       | Identifes the Kubernets Service acting as the     | See :ref:`backend`                            |
+| backend       | Identifies the Kubernetes Service acting as the   | See :ref:`backend`                            |
 |               | server pool                                       |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
 
-.. [#schemaRecommendation] Schemas are backwards compatible. F5 recommends using the latest schema in order to make use of the new features available in the controller.
+
+F5 schema
+`````````
+
+The `F5 schema`_ allows the |kctlr| to communicate with BIG-IP systems.
+
+.. note::
+
+   While all versions of the BIG-IP Controller and F5 schema are backwards-compatible, using an older schema may limit Controller functionality. Be sure to use the schema version that corresponds with your Controller version to ensure access to the full feature set.
+
+   See the `F5 schema versions`_ table for schema and Controller version compatibility.
 
 .. _frontend:
 
 Frontend
 ````````
+
 .. _virtual server f5 resource:
 
 virtualServer
 ~~~~~~~~~~~~~
-The ``frontend.virtualServer`` properties define BIG-IP virtual server, pool, and pool member objects.
 
-==================== ================= ============== =========== ===================================================== ======================
+The ``frontend.virtualServer`` properties define BIG-IP virtual server, pool, and pool member objects. The Controller uses the following naming structure when creating BIG-IP objects:
+
+``<service-namespace>_<configmap-name>``
+
+For a Service named "myService" running in the "default" namespace, the Controller would create a BIG-IP pool with the following name:
+
+``default_myService``
+
+
+==================== ================= ============== =========== ===================================================== ===============================================
 Property             Type              Required       Default     Description                                           Allowed Values
-==================== ================= ============== =========== ===================================================== ======================
-partition            string            Required                   Define the BIG-IP partition to manage
-
-virtualAddress       JSON object       Optional                   Allocate a virtual address from the BIG-IP
+==================== ================= ============== =========== ===================================================== ===============================================
+partition            string            Required                   The BIG-IP partition you want to manage
+-------------------- ----------------- -------------- ----------- ----------------------------------------------------- -----------------------------------------------
+virtualAddress       JSON object       Optional                   Assigns a BIG-IP self IP to the virtual server
 
 - bindAddr [#ba]_    string            Required                   Virtual IP address
 - port               integer           Required                   Port number
+-------------------- ----------------- -------------- ----------- ----------------------------------------------------- -----------------------------------------------
+mode                 string            Optional       tcp         Sets the proxy mode                                   http, tcp, udp
+-------------------- ----------------- -------------- ----------- ----------------------------------------------------- -----------------------------------------------
+.. _balance:
 
-mode                 string            Optional       tcp         Set the proxy mode                                    http, tcp, udp
-
-balance              string            Optional       round-robin Set the load balancing mode                           round-robin
-
+balance              string            Optional       round-robin Sets the load balancing mode                          Any supported load balancing algorithm [#lb]_
+-------------------- ----------------- -------------- ----------- ----------------------------------------------------- -----------------------------------------------
 sslProfile [#ssl]_   JSON object       Optional                   BIG-IP SSL profile to apply to the virtual server.
 
 - f5ProfileName      string            Optional                   Name of the BIG-IP SSL profile you want to use.
@@ -336,29 +356,19 @@ sslProfile [#ssl]_   JSON object       Optional                   BIG-IP SSL pro
                                                                       'Common/testcert2'
                                                                     ]
 
-==================== ================= ============== =========== ===================================================== ======================
-
-.. [#ba] The controller supports BIG-IP `route domain`_ specific addresses.
-.. [#ssl] If you want to configure multiple SSL profiles, use ``f5ProfileNames`` instead of ``f5ProfileName``. The two parameters are mutually exclusive.
+==================== ================= ============== =========== ===================================================== ===============================================
 
 \
 
-If you don't define ``bindAddr`` in the Frontend configuration, you must include it in a `Kubernetes Annotation`_ to the ConfigMap.
-The Controller watches for the annotation key ``virtual-server.f5.com/ip``.
-This annotation must contain the IP address you want to assign to the virtual server.
+.. note::
 
-- You can `configure an IPAM system`_ to write out an annotation containing the selected IP address.
-- You can check the ``status.virtual-server.f5.com/ip`` annotation set by the Controller via the Kubernetes API.
-   This allows you to see the ``bindAddr`` assigned to the virtual server.
+   If you include ``virtualAddress`` in your Resource definition, you can specify the ``bindAddr`` and ``port`` you want the virtual server to use. Omit the ``virtualAddress`` section if you want to create `pools without virtual servers`_.
 
-If you don't define ``virtualAddress`` or ``bindAddr`` in the Frontend configuration, the Controller configures and manages pools, pool members, and healthchecks for the Service without a BIG-IP virtual server.
-In such cases, **you should already have a BIG-IP virtual server** that handles client connections configured with an iRule or local traffic policy that can forward the request to the correct pool.
-The stable name of the pool will be the Kubernetes namespace the Service runs in, followed by an underscore, followed by the name of the Service's ConfigMap.
-For example: :code:`default_myService`.
+   If you're creating pools without virtual servers, **you should already have a BIG-IP virtual server** that handles client connections configured with an iRule or local traffic policy that can forward requests to the correct pool for the Service.
 
-.. seealso::
+   You can also `assign IP addresses to BIG-IP virtual servers using IPAM`_.
 
-   See `Pools without virtual servers`_ for more information.
+\
 
 .. _iapp f5 resource:
 
@@ -369,7 +379,7 @@ The ``frontend.virtualServer`` properties provide the information required to de
 
 .. tip::
 
-   The ``iappOptions`` represent information that the user would provide if deploying the iApp via the BIG-IP configuration utility.
+   The ``iappOptions`` parameter represents the information that you would provide if you deployed the iApp using the BIG-IP configuration utility.
 
 \
 
@@ -397,7 +407,7 @@ iappTables           JSON object       Optional       Define iApp tables to appl
                                                                       [1, "mon2", "http", ""]]}}"
 
 -------------------- ----------------- -------------- ------------------------------------------------------- ------------------------------------
-iappOptions          key-value object  Required       Define the App configurations                           See :ref:`configuration parameters`.        
+iappOptions          key-value object  Required       Define the App configurations                           Varies       
 -------------------- ----------------- -------------- ------------------------------------------------------- ------------------------------------
 iappVariables        key-value object  Required       Define the iApp variables needed for Service creation.
                               
@@ -493,62 +503,80 @@ The ``backend`` section tells the |kctlr| about the Service you want to manage.
 |               |           |           |           |             | backend response.               |                           |
 +---------------+-----------+-----------+-----------+-------------+---------------------------------+---------------------------+
 
+
 .. _ingress resources:
 
-Ingress Resources
------------------
+Kubernetes Ingress Resources
+----------------------------
 
-You can use the |kctlr| as a `Kubernetes Ingress`_ Controller to `expose Services to external traffic`_.
+You can use the |kctlr| to `Expose Services to External Traffic using Ingresses`_.
 
 .. _ingress annotations:
 
-Supported annotations
-`````````````````````
+Supported Ingress Annotations
+`````````````````````````````
 
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| Annotation                         | Type        | Required  | Description                                                                         | Default     |
-+====================================+=============+===========+=====================================================================================+=============+
-| virtual-server.f5.com/ip           | string      | Required  | The IP address you want to assign to the virtual server. Can also set the           | N/A         |
-|                                    |             |           | annotation value as "controller-default" to use the ``default-ingress-ip``          |             |
-|                                    |             |           | specified in the Configuration Parameters above.                                    |             |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/partition    | string      | Optional  | The BIG-IP partition in which the Controller should create/update/delete            | N/A         |
-|                                    |             |           | objects for this Ingress.                                                           |             |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| kubernetes.io/ingress.class        | string      | Optional  | Tells the Controller it should only manage Ingress resources in the ``f5`` class.   | f5          |
-|                                    |             |           | If defined, the value must be ``f5``.                                               |             |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/balance      | string      | Optional  | Specifies the load balancing mode.                                                  | round-robin |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/http-port    | integer     | Optional  | Specifies the HTTP port.                                                            | 80          |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/https-port   | integer     | Optional  | Specifies the HTTPS port.                                                           | 443         |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/health       | JSON object | Optional  | Defines a health monitor for the Ingress resource.                                  | N/A         |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-|                      | path        | string      | Required  | The path for the Service specified in the Ingress resource.                         | N/A         |
-|                      |             |             | [#hm1]_   |                                                                                     |             |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-|                      | interval    | integer     | Required  | The interval at which to check the health of the virtual server.                    | N/A         |
-|                      |             |             | [#hm1]_   |                                                                                     |             |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-|                      | timeout     | integer     | Required  | Number of seconds before the check times out.                                       | N/A         |
-|                      |             |             | [#hm1]_   |                                                                                     |             |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-|                      | send        | string      | Required  | The send string to set in the health monitor. [#hm2]_                               | N/A         |
-|                      |             |             | [#hm1]_   |                                                                                     |             |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-|                      | recv        | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.          | N/A         |
-+----------------------+-------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| ingress.kubernetes.io/allow-http   | boolean     | Optional  | Tells the Controller to allow HTTP traffic for HTTPS Ingress resources.             | false       |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
-| ingress.kubernetes.io/ssl-redirect | boolean     | Optional  | Tells the Controller to redirect HTTP traffic to the HTTPS port for HTTPS Ingress   | true        |
-|                                    |             |           | resources (see TLS Ingress resources, below).                                       |             |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| Annotation                         | Type        | Required  | Description                                                                         | Default     | Allowed Values                          |
++====================================+=============+===========+=====================================================================================+=============+=========================================+
+| virtual-server.f5.com/ip           | string      | Required  | The IP address you want to assign to the virtual server.                            | N/A         | numerical IP address                    |
+|                                    |             |           |                                                                                     |             |                                         |
+|                                    |             |           | Set to "controller-default" if you want to use the ``default-ingress-ip``           |             |                                         |
+|                                    |             |           | specified in the Configuration Parameters above.                                    |             | "controller-default"                    |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/partition    | string      | Optional  | The BIG-IP partition in which the Controller should create/update/delete            | N/A         |                                         |
+|                                    |             |           | objects for this Ingress.                                                           |             |                                         |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| kubernetes.io/ingress.class        | string      | Optional  | Tells the Controller it should only manage Ingress resources in the ``f5`` class.   | f5          | "f5"                                    |
+|                                    |             |           | If defined, the value must be ``f5``.                                               |             |                                         |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/balance      | string      | Optional  | Sets the load balancing mode.                                                       | round-robin | Any supported                           |
+|                                    |             |           |                                                                                     |             | load balancing algorithm [#lb]_         |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/http-port    | integer     | Optional  | Specifies the HTTP port.                                                            | 80          |                                         |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/https-port   | integer     | Optional  | Specifies the HTTPS port.                                                           | 443         |                                         |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/health       | JSON object | Optional  | Defines a health monitor for the Ingress resource.                                  | N/A         |                                         |
++----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | path                          | string      | Required  | The path for the Service specified in the Ingress resource.                         | N/A         |                                         |
+|    |                               |             | [#hm1]_   |                                                                                     |             |                                         |
++----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | interval                      | integer     | Required  | The interval at which to check the health of the virtual server.                    | N/A         |                                         |
+|    |                               |             | [#hm1]_   |                                                                                     |             |                                         |
++----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | timeout                       | integer     | Required  | Number of seconds before the check times out.                                       | N/A         |                                         |
+|    |                               |             | [#hm1]_   |                                                                                     |             |                                         |
++----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | send                          | string      | Required  | The send string to set in the health monitor. [#hm2]_                               | N/A         |                                         |
+|    |                               |             | [#hm1]_   |                                                                                     |             |                                         |
++----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | recv                          | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.          | N/A         |                                         |
++----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| ingress.kubernetes.io/allow-http   | boolean     | Optional  | Tells the Controller to allow HTTP traffic for HTTPS Ingress resources.             | false       | "true", "false"                         |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| ingress.kubernetes.io/ssl-redirect | boolean     | Optional  | Tells the Controller to redirect HTTP traffic to the HTTPS port for HTTPS Ingress   | true        | "true", "false"                         |
+|                                    |             |           | resources (see TLS Ingress resources, below).                                       |             |                                         |
++------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+
+Ingress Health Monitors
+```````````````````````
+
+To configure health monitors on your Ingress resource, define the ``virtual-server.f5.com/health`` annotation with a JSON object.
+Provide an array for each path specified in the Ingress resource.
+
+For example ::
+
+   {
+   "path": "ServiceName/path",
+   "send": "<send string to set in the health monitor>",
+   "interval": <health check interval>,
+   "timeout": <number of seconds before the check has timed out>
+   }
 
 .. _tls ingress:
 
-TLS Ingress resources
+TLS Ingress Resources
 `````````````````````
 
 If the Ingress resource contains a `tls` section, the `allow-http` and `ssl-redirect` annotations provide a method of controlling HTTP traffic.
@@ -562,18 +590,6 @@ You can specify one (1) or more SSL profiles in the Ingress resource.
   - If the controller looks for a Kubernetes Secret with the name(s) provided first;
   - if it doesn't find a matching Secret, the Controller assumes that the name(s) matches a profile that already exists on the BIG-IP system.
   - If naming an existing BIG-IP profile, provide the full path to the profile (for example, ``/Common/clientssl``).
-
-To configure health monitors on your Ingress resource, define the ``virtual-server.f5.com/health`` annotation with a JSON object.
-Provide an array for each path specified in the Ingress resource.
-For example ::
-
-   {
-   "path": "ServiceName/path",
-   "send": "<send string to set in the health monitor>",
-   "interval": <health check interval>,
-   "timeout": <number of seconds before the check has timed out>
-   }
-
 
 .. _openshift routes:
 
@@ -621,47 +637,54 @@ Supported Route Configurations
 |                         |                   |                   |         |                 | SNI and forward the re-encrypted traffic.                               |
 +-------------------------+-------------------+-------------------+---------+-----------------+-------------------------------------------------------------------------+
 
+.. _route annotations:
 
 Supported Route Annotations
 ```````````````````````````
 
-+----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-| Annotation                             | Type        | Required  | Description                                                                    | Default     |
-+========================================+=============+===========+================================================================================+=============+
-| virtual-server.f5.com/balance          | string      | Optional  | Specifies the load balancing mode.                                             | round-robin |
-+----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/clientssl        | string      | Optional  | The name of a pre-configured client ssl profile on the BIG-IP system.          | N/A         |
-|                                        |             |           | The controller uses this profile instead of the certificate and key within the |             |
-|                                        |             |           | Route's configuration.                                                         |             |
-+----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/serverssl        | string      | Optional  | The name of a pre-configured server ssl profile on the BIG-IP system.          | N/A         |
-|                                        |             |           | The controller uses this profile instead of the certificate within the         |             |
-|                                        |             |           | Route's configuration.                                                         |             |
-+----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/health           | JSON object | Optional  | Defines a health monitor for the Route resource.                               | N/A         |
-+----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-|                      | path            | string      | Required  | The path for the Service specified in the Route resource.                      | N/A         |
-|                      |                 |             | [#hm1]_   |                                                                                |             |
-+----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-|                      | interval        | integer     | Required  | The interval at which to check the health of the virtual server.               | N/A         |
-|                      |                 |             | [#hm1]_   |                                                                                |             |
-+----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-|                      | timeout         | integer     | Required  | Number of seconds before the check times out.                                  | N/A         |
-|                      |                 |             | [#hm1]_   |                                                                                |             |
-+----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-|                      | send            | string      | Required  | The send string to set in the health monitor. [#hm2]_                          | N/A         |
-|                      |                 |             | [#hm1]_   |                                                                                |             |
-+----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-|                      | recv            | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.     | N/A         |
-+----------------------+-----------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
-| virtual-server.f5.com/secure-serverssl | boolean     | Optional  | Specify to validate the server-side SSL certificate of re-encrypt              | false       |
-|                                        |             |           | terminated routes.                                                             |             |
-+----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+
++----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| Annotation                             | Type        | Required  | Description                                                                    | Default     | Allowed Values                          |
++========================================+=============+===========+================================================================================+=============+=========================================+
+| virtual-server.f5.com/balance          | string      | Optional  | Sets the load balancing mode.                                                  | round-robin | Any supported                           |
+|                                        |             |           |                                                                                |             | load balancing algorithm [#lb]_         |
++----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/clientssl        | string      | Optional  | The name of a pre-configured client ssl profile on the BIG-IP system.          | N/A         |                                         |
+|                                        |             |           | The controller uses this profile instead of the certificate and key within the |             |                                         |
+|                                        |             |           | Route's configuration.                                                         |             |                                         |
++----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/serverssl        | string      | Optional  | The name of a pre-configured server ssl profile on the BIG-IP system.          | N/A         |                                         |
+|                                        |             |           | The controller uses this profile instead of the certificate within the         |             |                                         |
+|                                        |             |           | Route's configuration.                                                         |             |                                         |
++----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/health           | JSON object | Optional  | Defines a health monitor for the Route resource.                               | N/A         |                                         |
++----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | path                              | string      | Required  | The path for the Service specified in the Route resource.                      | N/A         |                                         |
+|    |                                   |             | [#hm1]_   |                                                                                |             |                                         |
++----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | interval                          | integer     | Required  | The interval at which to check the health of the virtual server.               | N/A         |                                         |
+|    |                                   |             | [#hm1]_   |                                                                                |             |                                         |
++----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | timeout                           | integer     | Required  | Number of seconds before the check times out.                                  | N/A         |                                         |
+|    |                                   |             | [#hm1]_   |                                                                                |             |                                         |
++----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | send                              | string      | Required  | The send string to set in the health monitor. [#hm2]_                          | N/A         |                                         |
+|    |                                   |             | [#hm1]_   |                                                                                |             |                                         |
++----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | recv                              | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.     | N/A         |                                         |
++----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/secure-serverssl | boolean     | Optional  | Specify to validate the server-side SSL certificate of re-encrypt              | false       | "true", "false"                         |
+|                                        |             |           | terminated routes.                                                             |             |                                         |
++----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
 
 Please see the example configuration files for more details.
 
+.. _conf examples:
+
 Example Configuration Files
 ---------------------------
+
+Kubernetes
+``````````
 
 - :fonticon:`fa fa-download` :download:`sample-k8s-bigip-ctlr-secrets.yaml </_static/config_examples/sample-k8s-bigip-ctlr-secrets.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-bigip-credentials-secret.yaml </_static/config_examples/sample-bigip-credentials-secret.yaml>`
@@ -676,19 +699,27 @@ Example Configuration Files
 - :fonticon:`fa fa-download` :download:`name-based-ingress.yaml </_static/config_examples/name-based-ingress.yaml>`
 - :fonticon:`fa fa-download` :download:`ingress-with-health-monitors.yaml </_static/config_examples/ingress-with-health-monitors.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-rbac.yaml </_static/config_examples/sample-rbac.yaml>`
+
+OpenShift
+`````````
+
 - :fonticon:`fa fa-download` :download:`sample-unsecured-route.yaml </_static/config_examples/sample-unsecured-route.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-edge-route.yaml </_static/config_examples/sample-edge-route.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-passthrough-route.yaml </_static/config_examples/sample-passthrough-route.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-reencrypt-route.yaml </_static/config_examples/sample-reencrypt-route.yaml>`
 
-.. rubric:: Footnotes
+.. rubric:: **Footnotes**
 .. [#objectpartition] The |kctlr| creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap. **It cannot manage objects in the** ``/Common`` **partition**.
 .. [#nodeportmode] The |kctlr| forwards traffic to the NodePort assigned to the Service by Kubernetes. See the `Kubernetes Service`_ documentation for more information.
 .. [#secrets] You can `secure your BIG-IP credentials`_ using a Kubernetes Secret.
 .. [#username] The BIG-IP user account must have an appropriate role defined.  For ``nodeport`` type pool members, this role must be either ``Administrator``, ``Resource Administrator``, or ``Manager``. For ``cluster`` type pool members, the user account must have either the ``Administrator`` or ``Resource Manager`` role. See `BIG-IP Users <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-concepts-11-5-0/10.html>`_ for further details.
+.. [#lb] The |kctlr| supports BIG-IP load balancing algorithms that do not require additional configuration parameters. You can view the full list of supported algorithms in the `f5-cccl schema <https://github.com/f5devcentral/f5-cccl/blob/03e22c4779ceb88f529337ade3ca31ddcd57e4c8/f5_cccl/schemas/cccl-ltm-api-schema.yml#L515>`_. See the `BIG-IP Local Traffic Management Basics user guide <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/ltm-basics-13-0-0/4.html>`_ for information about each load balancing mode.
+.. [#ba] The Controller supports BIG-IP `route domain`_ specific addresses.
+.. [#ssl] If you want to configure multiple SSL profiles, use ``f5ProfileNames`` instead of ``f5ProfileName``. The two parameters are mutually exclusive.
 .. [#hm1] Required if defining the ``virtual-server.f5.com/health`` Ingress/Route annotation.
 .. [#hm2] See the **HTTP monitor settings** section of the `BIG-IP LTM Monitors Reference Guide <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/bigip-local-traffic-manager-monitors-reference-13-0-0/3.html>`_ for more information about defining send strings.
 
 .. |Slack| image:: https://f5cloudsolutions.herokuapp.com/badge.svg
    :target: https://f5cloudsolutions.herokuapp.com
    :alt: Slack
+.. _loadBalancingMode options in f5-cccl: https://github.com/f5devcentral/f5-cccl/blob/master/f5_cccl/schemas/cccl-ltm-api-schema.yml

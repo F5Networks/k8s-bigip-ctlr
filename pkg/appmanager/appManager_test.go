@@ -38,7 +38,7 @@ import (
 
 func init() {
 	workingDir, _ := os.Getwd()
-	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.6.json"
+	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.7.json"
 	DEFAULT_PARTITION = "velcro"
 }
 

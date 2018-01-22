@@ -33,7 +33,7 @@ import (
 )
 
 const httpRedirectIRuleName = "http_redirect_irule"
-const abDeploymentIRuleName = "ab_deployment_irule"
+const abDeploymentPathIRuleName = "ab_deployment_path_irule"
 const sslPassthroughIRuleName = "openshift_passthrough_irule"
 
 // Internal data group for passthrough routes to map server names to pools.
@@ -221,8 +221,8 @@ func processIngressRules(
 func httpRedirectIRule(port int32) string {
 	// The key in the data group is the host name or * to match all.
 	// The data is a list of paths for the host delimited by '|' or '/' for all.
-	iRuleCode := fmt.Sprintf(
-		`when HTTP_REQUEST {
+	iRuleCode := fmt.Sprintf(`
+		when HTTP_REQUEST {
 			# Look for exact match for host name
 			set paths [class match -value [HTTP::host] equals https_redirect_dg]
 			if {$paths == ""} {
@@ -232,7 +232,9 @@ func httpRedirectIRule(port int32) string {
 			if {$paths != ""} {
 				set redir 0
 				foreach s [split $paths "|"] {
-					if {[HTTP::path] matches_regex $s} {
+					# See if the request path starts with the prefix
+					append prefix "^" $s "($|/)"
+					if {[HTTP::path] matches_regex $prefix} {
 						set redir 1
 						break
 					}
@@ -246,29 +248,57 @@ func httpRedirectIRule(port int32) string {
 	return iRuleCode
 }
 
-func abDeploymentIRule() string {
-	// The key in the data group is the specific route (name/path) to examine.
+func selectPoolIRuleFunc() string {
+	iRuleFunc := `
+		proc select_ab_pool {path default_pool } {
+			set last_slash [string length $path]
+			while {$last_slash >= 0} {
+				if {[class match $path equals ab_deployment_dg]} then {
+					break
+				}
+				set last_slash [string last "/" $path $last_slash]
+				incr last_slash -1
+				set path [string range $path 0 $last_slash]
+			}
+
+			if {$last_slash >= 0} {
+				set ab_rule [class match -value $path equals ab_deployment_dg]
+				if {$ab_rule != ""} then {
+					set weight_selection [expr {rand()}]
+					set service_rules [split $ab_rule ";"]
+					foreach service_rule $service_rules {
+						set fields [split $service_rule ","]
+						set pool_name [lindex $fields 0]
+						set weight [expr {double([lindex $fields 1])}]
+						if {$weight_selection <= $weight} then {
+							return $pool_name
+						}
+					}
+				}
+				# If we had a match, but all weights were 0 then
+				# retrun a 503 (Service Unavailable)
+				HTTP::respond 503
+			}
+			return $default_pool
+		}`
+
+	return iRuleFunc
+}
+
+func abDeploymentPathIRule() string {
+	// For all A/B deployments that include a path.
+	// The key in the data group is the specific route (host/path) to examine.
 	// The data is a list of pool/weight pairs delimited by ';'. The pair values
 	// are delineated by ','. Finally, the weight value is normalized between
 	// 0.0 and 1.0 and the pairs should be listed in ascending order or weight
 	// values.
-	iRuleCode := fmt.Sprintf(
-		`when HTTP_REQUEST priority 200 {
+	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(), `
+		when HTTP_REQUEST priority 200 {
 			set path [string tolower [HTTP::host]][HTTP::path]
-			set ab_rule [class match -value $path equals ab_deployment_dg]
-			if {$ab_rule != ""} then {
-				set weight_selection [expr {rand()}]
-				set service_rules [split $ab_rule ";"]
-				foreach service_rule $service_rules {
-					set fields [split $service_rule ","]
-					set service_name [lindex $fields 0]
-					set weight [expr {double([lindex $fields 1])}]
-					if {$weight_selection <= $weight} then {
-						pool $service_name
-						event disable
-						break
-					}
-				}
+			set selected_pool [call select_ab_pool $path ""]
+			if {$selected_pool != ""} then {
+				pool $selected_pool
+				event disable
 			}
 		}`)
 
@@ -276,8 +306,8 @@ func abDeploymentIRule() string {
 }
 
 func sslPassthroughIRule() string {
-	iRuleCode :=
-		`when CLIENT_ACCEPTED {
+	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(), `
+		when CLIENT_ACCEPTED {
 			TCP::collect
 		}
 
@@ -358,14 +388,21 @@ func sslPassthroughIRule() string {
 							if { [info exists tls_servername] } {
 								set servername_lower [string tolower $tls_servername]
 								SSL::disable serverside
+								set dflt_pool ""
 								if { [class match $servername_lower equals ssl_passthrough_servername_dg] } {
-									pool [class match -value $servername_lower equals ssl_passthrough_servername_dg]
+									set dflt_pool [class match -value $servername_lower equals ssl_passthrough_servername_dg]
 									SSL::disable
 									HTTP::disable
 								}
 								elseif { [class match $servername_lower equals ssl_reencrypt_servername_dg] } {
-									pool [class match -value $servername_lower equals ssl_reencrypt_servername_dg]
+									set dflt_pool [class match -value $servername_lower equals ssl_reencrypt_servername_dg]
 									SSL::enable serverside
+								}
+								set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
+								if { $selected_pool == "" } then {
+									log local0.debug "Failed to find pool for $servername_lower"
+								} else {
+									pool $selected_pool
 								}
 							}
 						}
@@ -381,7 +418,8 @@ func sslPassthroughIRule() string {
 				set profile [class match -value $servername_lower equals ssl_reencrypt_serverssl_dg]
 				SSL::profile $profile
 			}
-		}`
+		}`)
+
 	return iRuleCode
 }
 
@@ -467,33 +505,44 @@ func updateDataGroupForABRoute(
 		weightTotal = weightTotal + svc.weight
 	}
 
-	if weightTotal == 0 {
-		// FIXME(kenr): what do we do if all services had 0 weight?
-		return
-	}
-
-	// Determine a weighted slice between 0.0 and 1.0 to match
-	// each service's weight ratio.
-	runningWeightTotal := 0
 	path := route.Spec.Path
-	if len(route.Spec.Path) == 0 {
-		path = "/"
+	tls := route.Spec.TLS
+	if tls != nil {
+		// We don't support path-based A/B for pass-thru and re-encrypt
+		switch tls.Termination {
+		case routeapi.TLSTerminationPassthrough:
+			path = ""
+		case routeapi.TLSTerminationReencrypt:
+			path = ""
+		}
 	}
 	key := route.Spec.Host + path
-	var entries []string
-	for _, svc := range svcs {
-		if svc.weight == 0 {
-			continue
+
+	if weightTotal == 0 {
+		// If all services have 0 weight, openshift requires a 503 to be returned
+		// (see https://docs.openshift.com/container-platform/3.6/architecture
+		//  /networking/routes.html#alternateBackends)
+		updateDataGroup(dgMap, abDeploymentDgName, partition, namespace, key, "")
+	} else {
+		// Place each service in a segment between 0.0 and 1.0 that corresponds to
+		// it's ratio percentage.  The order does not matter in regards to which
+		// service is listed first, but the list must be in ascending order.
+		var entries []string
+		runningWeightTotal := 0
+		for _, svc := range svcs {
+			if svc.weight == 0 {
+				continue
+			}
+			runningWeightTotal = runningWeightTotal + svc.weight
+			weightedSliceThreshold := float64(runningWeightTotal) / float64(weightTotal)
+			pool := formatRoutePoolName(route, svc.name)
+			entry := fmt.Sprintf("%s,%4.3f", pool, weightedSliceThreshold)
+			entries = append(entries, entry)
 		}
-		runningWeightTotal = runningWeightTotal + svc.weight
-		weightedSliceThreshold := float64(runningWeightTotal) / float64(weightTotal)
-		pool := formatRoutePoolName(route, svc.name)
-		entry := fmt.Sprintf("%s,%4.3f", pool, weightedSliceThreshold)
-		entries = append(entries, entry)
+		value := strings.Join(entries, ";")
+		updateDataGroup(dgMap, abDeploymentDgName,
+			partition, namespace, key, value)
 	}
-	value := strings.Join(entries, ";")
-	updateDataGroup(dgMap, abDeploymentDgName,
-		partition, namespace, key, value)
 }
 
 // Add or update a data group record
@@ -537,16 +586,7 @@ func (appMgr *Manager) updateRouteDataGroups(
 	appMgr.intDgMutex.Lock()
 	defer appMgr.intDgMutex.Unlock()
 
-	// If dgMap is empty, delete all records in our internal map for this namespace
-	if len(dgMap) == 0 {
-		for _, nsDg := range appMgr.intDgMap {
-			if _, found := nsDg[namespace]; found {
-				delete(nsDg, namespace)
-				stats.dgUpdated += 1
-			}
-		}
-	}
-
+	// Add new or modified data group records
 	for mapKey, grp := range dgMap {
 		nsDg, found := appMgr.intDgMap[mapKey]
 		if found {
@@ -557,6 +597,19 @@ func (appMgr *Manager) updateRouteDataGroups(
 			}
 		} else {
 			appMgr.intDgMap[mapKey] = grp
+		}
+	}
+
+	// Remove non-existent data group records (those that are currently
+	// defined, but aren't part of the new set)
+	for mapKey, nsDg := range appMgr.intDgMap {
+		_, found := dgMap[mapKey]
+		if !found {
+			_, found := nsDg[namespace]
+			if found {
+				delete(nsDg, namespace)
+				stats.dgUpdated += 1
+			}
 		}
 	}
 }

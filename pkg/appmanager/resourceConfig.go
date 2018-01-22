@@ -1051,16 +1051,6 @@ func createRSConfigFromRoute(
 		if !found {
 			rsCfg.Pools = append(rsCfg.Pools, pool)
 		}
-		// If rule already exists, update it; else add it
-		found = false
-		if len(rsCfg.Policies) > 0 {
-			for i, rl := range rsCfg.Policies[0].Rules {
-				if rl.Name == rule.Name || rl.FullURI == rule.FullURI {
-					found = true
-					rsCfg.Policies[0].Rules[i] = rule
-				}
-			}
-		}
 	} else { // This is a new VS for a Route
 		rsCfg.MetaData.ResourceType = "route"
 		rsCfg.Virtual.Name = rsName
@@ -1076,14 +1066,9 @@ func createRSConfigFromRoute(
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 	}
 
-	if isRouteABDeployment(route) {
-		ruleName := joinBigipPath(DEFAULT_PARTITION, abDeploymentIRuleName)
-		// FIXME(kenr): If no routes have A/B, we could remove the irule
-		rsCfg.Virtual.AddIRule(ruleName)
-	}
-
+	abDeployment := isRouteABDeployment(route)
 	rsCfg.HandleRouteTls(route, pStruct.protocol, policyName, rule,
-		svcFwdRulesMap)
+		svcFwdRulesMap, abDeployment)
 
 	return rsCfg, nil, pool
 }
@@ -1108,11 +1093,22 @@ func (rc *ResourceConfig) HandleRouteTls(
 	policyName string,
 	rule *Rule,
 	svcFwdRulesMap ServiceFwdRuleMap,
+	abDeployment bool,
 ) {
 	tls := route.Spec.TLS
+	abPathIRuleName := joinBigipPath(DEFAULT_PARTITION, abDeploymentPathIRuleName)
+
+	if abDeployment {
+		rc.DeleteRuleFromPolicy(policyName, rule)
+	}
+
 	if protocol == "http" {
 		if nil == tls || len(tls.Termination) == 0 {
-			rc.AddRuleToPolicy(policyName, rule)
+			if abDeployment {
+				rc.Virtual.AddIRule(abPathIRuleName)
+			} else {
+				rc.AddRuleToPolicy(policyName, rule)
+			}
 		} else {
 			// Handle redirect policy for edge. Reencrypt and passthrough do not
 			// support redirect policies, despite what the OpenShift docs say.
@@ -1120,10 +1116,14 @@ func (rc *ResourceConfig) HandleRouteTls(
 				// edge supports 'allow' and 'redirect'
 				switch tls.InsecureEdgeTerminationPolicy {
 				case routeapi.InsecureEdgeTerminationPolicyAllow:
-					rc.AddRuleToPolicy(policyName, rule)
+					if abDeployment {
+						rc.Virtual.AddIRule(abPathIRuleName)
+					} else {
+						rc.AddRuleToPolicy(policyName, rule)
+					}
 				case routeapi.InsecureEdgeTerminationPolicyRedirect:
-					redirectIRuleName := fmt.Sprintf("/%s/%s",
-						DEFAULT_PARTITION, httpRedirectIRuleName)
+					redirectIRuleName := joinBigipPath(DEFAULT_PARTITION,
+						httpRedirectIRuleName)
 					rc.Virtual.AddIRule(redirectIRuleName)
 					// TLS config indicates to forward http to https.
 					path := "/"
@@ -1138,16 +1138,22 @@ func (rc *ResourceConfig) HandleRouteTls(
 	} else {
 		// https
 		if nil != tls {
-			passThroughRuleName := fmt.Sprintf("/%s/%s",
-				DEFAULT_PARTITION, sslPassthroughIRuleName)
+			passThroughIRuleName := joinBigipPath(DEFAULT_PARTITION,
+				sslPassthroughIRuleName)
 			switch tls.Termination {
 			case routeapi.TLSTerminationEdge:
-				rc.AddRuleToPolicy(policyName, rule)
+				if abDeployment {
+					rc.Virtual.AddIRule(abPathIRuleName)
+				} else {
+					rc.AddRuleToPolicy(policyName, rule)
+				}
 			case routeapi.TLSTerminationPassthrough:
-				rc.Virtual.AddIRule(passThroughRuleName)
+				rc.Virtual.AddIRule(passThroughIRuleName)
 			case routeapi.TLSTerminationReencrypt:
-				rc.Virtual.AddIRule(passThroughRuleName)
-				rc.AddRuleToPolicy(policyName, rule)
+				rc.Virtual.AddIRule(passThroughIRuleName)
+				if !abDeployment {
+					rc.AddRuleToPolicy(policyName, rule)
+				}
 			}
 		}
 	}
@@ -1180,6 +1186,29 @@ func (rc *ResourceConfig) AddRuleToPolicy(
 	rc.SetPolicy(*policy)
 }
 
+func (rc *ResourceConfig) DeleteRuleFromPolicy(
+	policyName string,
+	rule *Rule,
+) {
+	// We currently have at most 1 policy, 'forwarding'
+	policy := rc.FindPolicy("forwarding")
+	if nil != policy {
+		for i, r := range policy.Rules {
+			if r.Name == rule.Name && r.FullURI == rule.FullURI {
+				// Remove old rule
+				if len(policy.Rules) == 1 {
+					rc.RemovePolicy(*policy)
+				} else {
+					ruleOffsets := []int{i}
+					policy.RemoveRules(ruleOffsets)
+					rc.SetPolicy(*policy)
+				}
+				break
+			}
+		}
+	}
+}
+
 func (rc *ResourceConfig) SetPolicy(policy Policy) {
 	toFind := nameRef{
 		Name:      policy.Name,
@@ -1204,7 +1233,11 @@ func (rc *ResourceConfig) SetPolicy(policy Policy) {
 	rc.Policies = append(rc.Policies, policy)
 }
 
-func (rc *ResourceConfig) RemovePolicy(toFind nameRef) {
+func (rc *ResourceConfig) RemovePolicy(policy Policy) {
+	toFind := nameRef{
+		Name:      policy.Name,
+		Partition: policy.Partition,
+	}
 	for i, polName := range rc.Virtual.Policies {
 		if reflect.DeepEqual(toFind, polName) {
 			// Remove from array
@@ -1323,6 +1356,21 @@ func (pol *Policy) RemoveRuleAt(offset int) bool {
 	pol.Rules[len(pol.Rules)-1] = &Rule{}
 	pol.Rules = pol.Rules[:len(pol.Rules)-1]
 	return true
+}
+
+func (pol *Policy) RemoveRules(ruleOffsets []int) bool {
+	polChanged := false
+	if len(ruleOffsets) > 0 {
+		polChanged = true
+		for i := len(ruleOffsets) - 1; i >= 0; i-- {
+			pol.RemoveRuleAt(ruleOffsets[i])
+		}
+		// Must fix the ordinals on the remaining rules
+		for i, rule := range pol.Rules {
+			rule.Ordinal = i
+		}
+	}
+	return polChanged
 }
 
 // Sorting methods for unit testing

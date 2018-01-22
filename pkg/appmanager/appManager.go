@@ -699,7 +699,7 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 		appMgr.addInternalDataGroup(reencryptHostsDgName, DEFAULT_PARTITION)
 		appMgr.addInternalDataGroup(reencryptServerSslDgName, DEFAULT_PARTITION)
 		appMgr.addIRule(
-			abDeploymentIRuleName, DEFAULT_PARTITION, abDeploymentIRule())
+			abDeploymentPathIRuleName, DEFAULT_PARTITION, abDeploymentPathIRule())
 		appMgr.addInternalDataGroup(abDeploymentDgName, DEFAULT_PARTITION)
 	}
 
@@ -1125,6 +1125,9 @@ func (appMgr *Manager) syncRoutes(
 		svcNames := getRouteServiceNames(route)
 
 		if nil != route.Spec.TLS {
+			// We need this even for A/B so the irule can determine if we are
+			// doing passthrough or reencrypt (otherwise we need to add more
+			// info to the A/B data group).
 			switch route.Spec.TLS.Termination {
 			case routeapi.TLSTerminationPassthrough:
 				updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION,
@@ -1727,17 +1730,12 @@ func (appMgr *Manager) deleteUnusedResources(
 					poolName := joinBigipPath(cfg.Virtual.Partition, pool.Name)
 					// Delete rule
 					for _, pol := range cfg.Policies {
-						polChanged := false
 						// If only one rule left, then just remove the policy
 						if len(pol.Rules) == 1 {
 							if cfg.MetaData.ResourceType == "route" {
 								resourceName = strings.Split(pol.Rules[0].Name, "_")[3]
 							}
-							nr := nameRef{
-								Name:      pol.Name,
-								Partition: pol.Partition,
-							}
-							cfg.RemovePolicy(nr)
+							cfg.RemovePolicy(pol)
 							continue
 						}
 						// Else loop through rules to find which one to remove
@@ -1750,16 +1748,7 @@ func (appMgr *Manager) deleteUnusedResources(
 								ruleOffsets = append(ruleOffsets, i)
 							}
 						}
-						// Fix the ordinals on the remaining rules
-						if len(ruleOffsets) > 0 {
-							for i := len(ruleOffsets) - 1; i >= 0; i-- {
-								pol.RemoveRuleAt(ruleOffsets[i])
-								polChanged = true
-							}
-							for i, rule := range pol.Rules {
-								rule.Ordinal = i
-							}
-						}
+						polChanged := pol.RemoveRules(ruleOffsets)
 						// Update the policy
 						if polChanged {
 							cfg.SetPolicy(pol)

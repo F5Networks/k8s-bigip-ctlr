@@ -236,10 +236,73 @@ func formatIngressRuleName(host, path, pool string) string {
 	return rule
 }
 
+func getRouteCanonicalServiceName(route *routeapi.Route) string {
+	return route.Spec.To.Name
+}
+
+type RouteService struct {
+	weight int
+	name   string
+}
+
+// return the services associated with a route (names + weight)
+func getRouteServices(route *routeapi.Route) []RouteService {
+	numOfSvcs := 1
+	if route.Spec.AlternateBackends != nil {
+		numOfSvcs += len(route.Spec.AlternateBackends)
+	}
+	svcs := make([]RouteService, numOfSvcs)
+
+	svcIndex := 0
+	if route.Spec.AlternateBackends != nil {
+		for _, svc := range route.Spec.AlternateBackends {
+			svcs[svcIndex].name = svc.Name
+			svcs[svcIndex].weight = int(*(svc.Weight))
+			svcIndex = svcIndex + 1
+		}
+	}
+	svcs[svcIndex].name = route.Spec.To.Name
+	if route.Spec.To.Weight != nil {
+		svcs[svcIndex].weight = int(*(route.Spec.To.Weight))
+	} else {
+		// Older versions of openshift do not have a weight field
+		// so we will basically ignore it.
+		svcs[svcIndex].weight = 0
+	}
+
+	return svcs
+}
+
+// return the service names associated with a route
+func getRouteServiceNames(route *routeapi.Route) []string {
+	svcs := getRouteServices(route)
+	svcNames := make([]string, len(svcs))
+	for idx, svc := range svcs {
+		svcNames[idx] = svc.name
+	}
+	return svcNames
+}
+
+// Verify if the service is associated with the route
+func existsRouteServiceName(route *routeapi.Route, expSvcName string) bool {
+	// We don't expect an extensive list, so we're not using a map
+	svcs := getRouteServices(route)
+	for _, svc := range svcs {
+		if expSvcName == svc.name {
+			return true
+		}
+	}
+	return false
+}
+
+func isRouteABDeployment(route *routeapi.Route) bool {
+	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0
+}
+
 // format the pool name for a Route
-func formatRoutePoolName(route *routeapi.Route) string {
+func formatRoutePoolName(route *routeapi.Route, svcName string) string {
 	return fmt.Sprintf("openshift_%s_%s",
-		route.ObjectMeta.Namespace, route.Spec.To.Name)
+		route.ObjectMeta.Namespace, svcName)
 }
 
 // format the Rule name for a Route
@@ -907,6 +970,7 @@ func createRSConfigFromIngress(
 
 func createRSConfigFromRoute(
 	route *routeapi.Route,
+	svcName string,
 	resources Resources,
 	routeConfig RouteConfig,
 	pStruct portStruct,
@@ -932,13 +996,13 @@ func createRSConfigFromRoute(
 		if strVal == "" {
 			backendPort = route.Spec.Port.TargetPort.IntVal
 		} else {
-			backendPort, err = getServicePort(route, svcIndexer, strVal)
+			backendPort, err = getServicePort(route, svcName, svcIndexer, strVal)
 			if nil != err {
 				log.Warningf("%v", err)
 			}
 		}
 	} else {
-		backendPort, err = getServicePort(route, svcIndexer, "")
+		backendPort, err = getServicePort(route, svcName, svcIndexer, "")
 		if nil != err {
 			log.Warningf("%v", err)
 		}
@@ -952,10 +1016,10 @@ func createRSConfigFromRoute(
 
 	// Create the pool
 	pool := Pool{
-		Name:        formatRoutePoolName(route),
+		Name:        formatRoutePoolName(route, svcName),
 		Partition:   DEFAULT_PARTITION,
 		Balance:     balance,
-		ServiceName: route.Spec.To.Name,
+		ServiceName: svcName,
 		ServicePort: backendPort,
 	}
 	// Create the rule
@@ -987,16 +1051,6 @@ func createRSConfigFromRoute(
 		if !found {
 			rsCfg.Pools = append(rsCfg.Pools, pool)
 		}
-		// If rule already exists, update it; else add it
-		found = false
-		if len(rsCfg.Policies) > 0 {
-			for i, rl := range rsCfg.Policies[0].Rules {
-				if rl.Name == rule.Name || rl.FullURI == rule.FullURI {
-					found = true
-					rsCfg.Policies[0].Rules[i] = rule
-				}
-			}
-		}
 	} else { // This is a new VS for a Route
 		rsCfg.MetaData.ResourceType = "route"
 		rsCfg.Virtual.Name = rsName
@@ -1012,8 +1066,9 @@ func createRSConfigFromRoute(
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 	}
 
+	abDeployment := isRouteABDeployment(route)
 	rsCfg.HandleRouteTls(route, pStruct.protocol, policyName, rule,
-		svcFwdRulesMap)
+		svcFwdRulesMap, abDeployment)
 
 	return rsCfg, nil, pool
 }
@@ -1038,11 +1093,22 @@ func (rc *ResourceConfig) HandleRouteTls(
 	policyName string,
 	rule *Rule,
 	svcFwdRulesMap ServiceFwdRuleMap,
+	abDeployment bool,
 ) {
 	tls := route.Spec.TLS
+	abPathIRuleName := joinBigipPath(DEFAULT_PARTITION, abDeploymentPathIRuleName)
+
+	if abDeployment {
+		rc.DeleteRuleFromPolicy(policyName, rule)
+	}
+
 	if protocol == "http" {
 		if nil == tls || len(tls.Termination) == 0 {
-			rc.AddRuleToPolicy(policyName, rule)
+			if abDeployment {
+				rc.Virtual.AddIRule(abPathIRuleName)
+			} else {
+				rc.AddRuleToPolicy(policyName, rule)
+			}
 		} else {
 			// Handle redirect policy for edge. Reencrypt and passthrough do not
 			// support redirect policies, despite what the OpenShift docs say.
@@ -1050,10 +1116,14 @@ func (rc *ResourceConfig) HandleRouteTls(
 				// edge supports 'allow' and 'redirect'
 				switch tls.InsecureEdgeTerminationPolicy {
 				case routeapi.InsecureEdgeTerminationPolicyAllow:
-					rc.AddRuleToPolicy(policyName, rule)
+					if abDeployment {
+						rc.Virtual.AddIRule(abPathIRuleName)
+					} else {
+						rc.AddRuleToPolicy(policyName, rule)
+					}
 				case routeapi.InsecureEdgeTerminationPolicyRedirect:
-					redirectIRuleName := fmt.Sprintf("/%s/%s",
-						DEFAULT_PARTITION, httpRedirectIRuleName)
+					redirectIRuleName := joinBigipPath(DEFAULT_PARTITION,
+						httpRedirectIRuleName)
 					rc.Virtual.AddIRule(redirectIRuleName)
 					// TLS config indicates to forward http to https.
 					path := "/"
@@ -1068,16 +1138,22 @@ func (rc *ResourceConfig) HandleRouteTls(
 	} else {
 		// https
 		if nil != tls {
-			passThroughRuleName := fmt.Sprintf("/%s/%s",
-				DEFAULT_PARTITION, sslPassthroughIRuleName)
+			passThroughIRuleName := joinBigipPath(DEFAULT_PARTITION,
+				sslPassthroughIRuleName)
 			switch tls.Termination {
 			case routeapi.TLSTerminationEdge:
-				rc.AddRuleToPolicy(policyName, rule)
+				if abDeployment {
+					rc.Virtual.AddIRule(abPathIRuleName)
+				} else {
+					rc.AddRuleToPolicy(policyName, rule)
+				}
 			case routeapi.TLSTerminationPassthrough:
-				rc.Virtual.AddIRule(passThroughRuleName)
+				rc.Virtual.AddIRule(passThroughIRuleName)
 			case routeapi.TLSTerminationReencrypt:
-				rc.Virtual.AddIRule(passThroughRuleName)
-				rc.AddRuleToPolicy(policyName, rule)
+				rc.Virtual.AddIRule(passThroughIRuleName)
+				if !abDeployment {
+					rc.AddRuleToPolicy(policyName, rule)
+				}
 			}
 		}
 	}
@@ -1110,6 +1186,29 @@ func (rc *ResourceConfig) AddRuleToPolicy(
 	rc.SetPolicy(*policy)
 }
 
+func (rc *ResourceConfig) DeleteRuleFromPolicy(
+	policyName string,
+	rule *Rule,
+) {
+	// We currently have at most 1 policy, 'forwarding'
+	policy := rc.FindPolicy("forwarding")
+	if nil != policy {
+		for i, r := range policy.Rules {
+			if r.Name == rule.Name && r.FullURI == rule.FullURI {
+				// Remove old rule
+				if len(policy.Rules) == 1 {
+					rc.RemovePolicy(*policy)
+				} else {
+					ruleOffsets := []int{i}
+					policy.RemoveRules(ruleOffsets)
+					rc.SetPolicy(*policy)
+				}
+				break
+			}
+		}
+	}
+}
+
 func (rc *ResourceConfig) SetPolicy(policy Policy) {
 	toFind := nameRef{
 		Name:      policy.Name,
@@ -1134,7 +1233,11 @@ func (rc *ResourceConfig) SetPolicy(policy Policy) {
 	rc.Policies = append(rc.Policies, policy)
 }
 
-func (rc *ResourceConfig) RemovePolicy(toFind nameRef) {
+func (rc *ResourceConfig) RemovePolicy(policy Policy) {
+	toFind := nameRef{
+		Name:      policy.Name,
+		Partition: policy.Partition,
+	}
 	for i, polName := range rc.Virtual.Policies {
 		if reflect.DeepEqual(toFind, polName) {
 			// Remove from array
@@ -1253,6 +1356,21 @@ func (pol *Policy) RemoveRuleAt(offset int) bool {
 	pol.Rules[len(pol.Rules)-1] = &Rule{}
 	pol.Rules = pol.Rules[:len(pol.Rules)-1]
 	return true
+}
+
+func (pol *Policy) RemoveRules(ruleOffsets []int) bool {
+	polChanged := false
+	if len(ruleOffsets) > 0 {
+		polChanged = true
+		for i := len(ruleOffsets) - 1; i >= 0; i-- {
+			pol.RemoveRuleAt(ruleOffsets[i])
+		}
+		// Must fix the ordinals on the remaining rules
+		for i, rule := range pol.Rules {
+			rule.Ordinal = i
+		}
+	}
+	return polChanged
 }
 
 // Sorting methods for unit testing
@@ -1445,11 +1563,11 @@ func NewCustomProfile(
 // else return the first port found from a Route's service.
 func getServicePort(
 	route *routeapi.Route,
+	svcName string,
 	svcIndexer cache.Indexer,
 	name string,
 ) (int32, error) {
 	ns := route.ObjectMeta.Namespace
-	svcName := route.Spec.To.Name
 	key := ns + "/" + svcName
 
 	obj, found, err := svcIndexer.GetByKey(key)

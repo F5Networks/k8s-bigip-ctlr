@@ -581,41 +581,46 @@ func (m *mockAppManager) deleteIngress(ing *v1beta1.Ingress) bool {
 }
 
 func (m *mockAppManager) addRoute(route *routeapi.Route) bool {
-	ok, vsKey := m.appMgr.checkValidRoute(route)
+	ok, keys := m.appMgr.checkValidRoute(route)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(route.ObjectMeta.Namespace)
 		appInf.routeInformer.GetStore().Add(route)
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		m.appMgr.syncVirtualServer(*vsKey)
-
+		for _, vsKey := range keys {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) updateRoute(route *routeapi.Route) bool {
-	ok, vsKey := m.appMgr.checkValidRoute(route)
+	ok, keys := m.appMgr.checkValidRoute(route)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(route.ObjectMeta.Namespace)
 		appInf.routeInformer.GetStore().Update(route)
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		m.appMgr.syncVirtualServer(*vsKey)
+		for _, vsKey := range keys {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
 
 func (m *mockAppManager) deleteRoute(route *routeapi.Route) bool {
-	ok, vsKey := m.appMgr.checkValidRoute(route)
+	ok, keys := m.appMgr.checkValidRoute(route)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(route.ObjectMeta.Namespace)
 		appInf.routeInformer.GetStore().Delete(route)
-		mtx := m.getVsMutex(*vsKey)
-		mtx.Lock()
-		defer mtx.Unlock()
-		m.appMgr.syncVirtualServer(*vsKey)
+		for _, vsKey := range keys {
+			mtx := m.getVsMutex(*vsKey)
+			mtx.Lock()
+			defer mtx.Unlock()
+			m.appMgr.syncVirtualServer(*vsKey)
+		}
 	}
 	return ok
 }
@@ -3177,8 +3182,10 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(len(hostDg[namespace].Records)).To(Equal(2))
 					Expect(hostDg[namespace].Records[1].Name).To(Equal(hostName1))
 					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName2))
-					Expect(hostDg[namespace].Records[1].Data).To(Equal(formatRoutePoolName(route1)))
-					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(route2)))
+					Expect(hostDg[namespace].Records[1].Data).To(Equal(formatRoutePoolName(
+						route1, getRouteCanonicalServiceName(route1))))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(
+						route2, getRouteCanonicalServiceName(route2))))
 
 					rs, ok = resources.Get(
 						serviceKey{svcName2, 443, namespace}, "ose-vserver")
@@ -3196,7 +3203,8 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(found).To(BeTrue())
 					Expect(len(hostDg[namespace].Records)).To(Equal(1))
 					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName1))
-					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(route1)))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(
+						route1, getRouteCanonicalServiceName(route1))))
 				})
 
 				It("configures reencrypt routes", func() {
@@ -3245,7 +3253,8 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(found).To(BeTrue())
 					Expect(len(hostDg[namespace].Records)).To(Equal(1))
 					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName))
-					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(route)))
+					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(
+						route, getRouteCanonicalServiceName(route))))
 
 					customProfiles := mockMgr.customProfiles()
 					// Should be 2 profiles from Spec, 2 defaults (clientssl and serverssl)

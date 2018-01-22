@@ -21,6 +21,7 @@ Added Functionality
 * Support UDP in ConfigMaps (includes proxy type and health monitors).
 * Provide Controller version info in the container and logs.
 * Support for 'virtual-server.f5.com/balance' annotation for Routes.
+* Support for A/B deployments using the Openshift route alternateBackends token.
 
 Bug Fixes
 `````````

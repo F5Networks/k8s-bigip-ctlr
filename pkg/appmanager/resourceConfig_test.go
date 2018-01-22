@@ -413,22 +413,16 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(rc.Policies[1].Name).To(Equal("policy2"))
 
 			// remove first policy
-			toRemove := nameRef{
-				Name:      policy1.Name,
-				Partition: policy1.Partition,
-			}
-			rc.RemovePolicy(toRemove)
+			rc.RemovePolicy(policy1)
 			lenValidate(1)
 			Expect(rc.Policies[0].Name).To(Equal("policy2"))
 
 			// remove last policy
-			toRemove.Name = policy2.Name
-			toRemove.Partition = policy2.Partition
-			rc.RemovePolicy(toRemove)
+			rc.RemovePolicy(policy2)
 			lenValidate(0)
 
 			// make sure deleting something that isn't there doesn't fail badly
-			rc.RemovePolicy(toRemove)
+			rc.RemovePolicy(policy2)
 			lenValidate(0)
 		})
 
@@ -516,8 +510,8 @@ var _ = Describe("Resource Config Tests", func() {
 				HttpsVs: "https-ose-vserver",
 			}
 			svcFwdRulesMap := NewServiceFwdRuleMap()
-			cfg, _, _ := createRSConfigFromRoute(route, Resources{}, rc, ps, nil,
-				svcFwdRulesMap)
+			cfg, _, _ := createRSConfigFromRoute(route, getRouteCanonicalServiceName(route),
+				Resources{}, rc, ps, nil, svcFwdRulesMap)
 			Expect(cfg.Virtual.Name).To(Equal("https-ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_foo"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("foo"))
@@ -541,8 +535,8 @@ var _ = Describe("Resource Config Tests", func() {
 				protocol: "http",
 				port:     80,
 			}
-			cfg, _, _ = createRSConfigFromRoute(route2, Resources{}, rc, ps, nil,
-				svcFwdRulesMap)
+			cfg, _, _ = createRSConfigFromRoute(route2, getRouteCanonicalServiceName(route2),
+				Resources{}, rc, ps, nil, svcFwdRulesMap)
 			Expect(cfg.Virtual.Name).To(Equal("ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_bar"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("bar"))

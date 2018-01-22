@@ -23,7 +23,7 @@ const handleError = require('./util').handleError;
 
 handleError();
 
-const CURRENT_VERSION="v0.1.6";
+const CURRENT_VERSION="v0.1.7";
 const testSchema = `f5schemadb://bigip-virtual-server_${CURRENT_VERSION}.json`;
 
 exports.bigipVirtualServer = {
@@ -257,7 +257,7 @@ exports.bigipVirtualServer.invalidMode = t => {
 exports.bigipVirtualServer.invalidBalance = t => {
 
   let data = Object.assign({}, this.baseValidConfig);
-  data.virtualServer.frontend.balance = 'least-weighted-conns';
+  data.virtualServer.frontend.balance = '';
 
   this.sUtil.loadSchemas(testSchema, () => {
     let result = this.sUtil.runValidate(data, testSchema);

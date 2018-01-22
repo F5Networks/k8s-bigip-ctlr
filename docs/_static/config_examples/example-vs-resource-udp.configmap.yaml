@@ -7,7 +7,7 @@ metadata:
     f5type: virtual-server
 data:
   # this example expects the vs to be backed by a udp mirror service
-  schema: "f5schemadb://bigip-virtual-server_v0.1.6.json"
+  schema: "f5schemadb://bigip-virtual-server_v0.1.7.json"
   data: |
     {
       "virtualServer": {

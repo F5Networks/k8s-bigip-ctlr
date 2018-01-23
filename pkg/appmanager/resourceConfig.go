@@ -1087,16 +1087,32 @@ func createRSConfigFromRoute(
 
 // Copies from an existing config into our new config
 func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
+	// MetaData
 	rc.MetaData = cfg.MetaData
+	// Virtual
 	rc.Virtual = cfg.Virtual
+	// Profiles
 	rc.Virtual.Profiles = make([]ProfileRef, len(cfg.Virtual.Profiles))
 	copy(rc.Virtual.Profiles, cfg.Virtual.Profiles)
+	// Pools
 	rc.Pools = make(Pools, len(cfg.Pools))
 	copy(rc.Pools, cfg.Pools)
+	// Pool Members
+	for i, _ := range rc.Pools {
+		rc.Pools[i].Members = make([]Member, len(cfg.Pools[i].Members))
+		copy(rc.Pools[i].Members, cfg.Pools[i].Members)
+	}
+	// Monitors
 	rc.Monitors = make(Monitors, len(cfg.Monitors))
 	copy(rc.Monitors, cfg.Monitors)
+	// Policies
 	rc.Policies = make([]Policy, len(cfg.Policies))
 	copy(rc.Policies, cfg.Policies)
+	// Rules
+	for i, _ := range rc.Policies {
+		rc.Policies[i].Rules = make([]*Rule, len(cfg.Policies[i].Rules))
+		copy(rc.Policies[i].Rules, cfg.Policies[i].Rules)
+	}
 }
 
 func (rc *ResourceConfig) HandleRouteTls(

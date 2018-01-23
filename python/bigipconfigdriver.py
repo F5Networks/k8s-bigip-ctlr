@@ -22,10 +22,11 @@ import json
 import logging
 import os
 import os.path
-import sys
-import time
-import threading
 import signal
+import sys
+import threading
+import time
+import traceback
 
 import pyinotify
 
@@ -296,10 +297,6 @@ class ConfigHandler():
         log.debug('config handler thread start')
 
         with self._condition:
-            # customProfiles is true when we've written out a custom profile.
-            # Once we know we've written out a profile, we can call delete
-            # if needed.
-            customProfiles = False
             while True:
                 self._condition.acquire()
                 if not self._pending_reset and not self._stop:
@@ -317,50 +314,23 @@ class ConfigHandler():
 
                 start_time = time.time()
 
-                config = _parse_config(self._config_file)
-                # No 'resources' indicates that the controller is not
-                # yet ready -- it does not mean to apply an empty config
-                if 'resources' not in config:
-                    continue
-
-                _handle_vxlan_config(config)
-                cfg_net = create_network_config(config)
                 incomplete = 0
-                for mgr in self._managers:
-                    partition = mgr.get_partition()
-                    cfg_ltm = create_ltm_config(partition, config)
-                    try:
-                        # Manually create custom profiles;
-                        # CCCL doesn't yet do this
-                        if 'customProfiles' in cfg_ltm and \
-                                mgr.get_schema_type() == 'ltm':
-                            tmp = 0
-                            customProfiles, tmp = _create_custom_profiles(
-                                mgr.mgmt_root(),
-                                partition,
-                                cfg_ltm['customProfiles'])
-                            incomplete += tmp
-
-                        # Apply the BIG-IP config after creating profiles
-                        # and before deleting profiles
-                        if mgr.get_schema_type() == 'net':
-                            incomplete += mgr._apply_net_config(cfg_net)
-                        else:
-                            incomplete += mgr._apply_ltm_config(cfg_ltm)
-
-                        # Manually delete custom profiles (if needed)
-                        if customProfiles and \
-                                mgr.get_schema_type() == 'ltm':
-                            _delete_unused_ssl_profiles(
-                                mgr.mgmt_root(),
-                                partition,
-                                cfg_ltm)
-
-                    except F5CcclError as e:
-                        # We created an invalid configuration, raise the
-                        # exception and fail
-                        log.error("CCCL Error: %s", e.msg)
-                        raise e
+                try:
+                    config = _parse_config(self._config_file)
+                    # No 'resources' indicates that the controller is not
+                    # yet ready -- it does not mean to apply an empty config
+                    if 'resources' not in config:
+                        continue
+                    incomplete = self._update_cccl(config)
+                except ValueError:
+                    formatted_lines = traceback.format_exc().splitlines()
+                    last_line = formatted_lines[-1]
+                    log.error('Failed to process the config file {} ({})'
+                              .format(self._config_file, last_line))
+                    incomplete = 1
+                except Exception:
+                    log.exception('Unexpected error')
+                    incomplete = 1
 
                 if incomplete:
                     # Error occurred, perform retries
@@ -400,6 +370,53 @@ class ConfigHandler():
 
         if self._interval:
             self._interval.stop()
+
+    def _update_cccl(self, config):
+        # customProfiles is true when we've written out a custom profile.
+        # Once we know we've written out a profile, we can call delete
+        # if needed.
+        customProfiles = False
+
+        _handle_vxlan_config(config)
+        cfg_net = create_network_config(config)
+        incomplete = 0
+        for mgr in self._managers:
+            partition = mgr.get_partition()
+            cfg_ltm = create_ltm_config(partition, config)
+            try:
+                # Manually create custom profiles;
+                # CCCL doesn't yet do this
+                if 'customProfiles' in cfg_ltm and \
+                        mgr.get_schema_type() == 'ltm':
+                    tmp = 0
+                    customProfiles, tmp = _create_custom_profiles(
+                        mgr.mgmt_root(),
+                        partition,
+                        cfg_ltm['customProfiles'])
+                    incomplete += tmp
+
+                # Apply the BIG-IP config after creating profiles
+                # and before deleting profiles
+                if mgr.get_schema_type() == 'net':
+                    incomplete += mgr._apply_net_config(cfg_net)
+                else:
+                    incomplete += mgr._apply_ltm_config(cfg_ltm)
+
+                # Manually delete custom profiles (if needed)
+                if customProfiles and \
+                        mgr.get_schema_type() == 'ltm':
+                    _delete_unused_ssl_profiles(
+                        mgr.mgmt_root(),
+                        partition,
+                        cfg_ltm)
+
+            except F5CcclError as e:
+                # We created an invalid configuration, raise the
+                # exception and fail
+                log.error("CCCL Error: %s", e.msg)
+                incomplete += 1
+
+            return incomplete
 
     def cleanup_backoff(self):
         """Cleans up canceled backoff timers."""
@@ -581,8 +598,9 @@ def _parse_config(config_file):
     if os.path.exists(config_file):
         with open(config_file, 'r') as config:
             fcntl.lockf(config.fileno(), fcntl.LOCK_SH, 0, 0, 0)
-            config_json = json.load(config)
+            data = config.read()
             fcntl.lockf(config.fileno(), fcntl.LOCK_UN, 0, 0, 0)
+            config_json = json.loads(data)
             log.debug('loaded configuration file successfully')
             return config_json
     else:

@@ -986,7 +986,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.addService(fooSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")
 			resources := mockMgr.resources()
-			Expect(resources.PoolCount()).To(Equal(2))
+			Expect(resources.PoolCount()).To(Equal(1))
 
 			// The first test uses an explicit server name
 			vsCfgFoo, found := resources.Get(svcKey, "https-ose-vserver")

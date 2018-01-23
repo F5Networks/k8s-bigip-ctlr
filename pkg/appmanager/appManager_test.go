@@ -3043,7 +3043,7 @@ var _ = Describe("AppManager Tests", func() {
 						[]v1.ServicePort{{Name: "foo-80", Port: 80, NodePort: 37001}})
 					r = mockMgr.addService(fooSvc)
 					Expect(r).To(BeTrue(), "Service should be processed.")
-					Expect(resources.PoolCount()).To(Equal(2))
+					Expect(resources.PoolCount()).To(Equal(1))
 
 					rs, ok := resources.Get(
 						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
@@ -3078,7 +3078,7 @@ var _ = Describe("AppManager Tests", func() {
 						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
 					mockMgr.addService(barSvc)
 					Expect(r).To(BeTrue(), "Service should be processed.")
-					Expect(resources.PoolCount()).To(Equal(4))
+					Expect(resources.PoolCount()).To(Equal(2))
 
 					rs, ok = resources.Get(
 						serviceKey{"bar", 80, "default"}, "https-ose-vserver")
@@ -3094,7 +3094,7 @@ var _ = Describe("AppManager Tests", func() {
 					// Delete a Route resource
 					r = mockMgr.deleteRoute(route2)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
-					Expect(resources.PoolCount()).To(Equal(2))
+					Expect(resources.PoolCount()).To(Equal(1))
 					rs, ok = resources.Get(
 						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
 					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
@@ -3135,7 +3135,7 @@ var _ = Describe("AppManager Tests", func() {
 						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
 					r = mockMgr.addService(fooSvc)
 					Expect(r).To(BeTrue(), "Service should be processed.")
-					Expect(resources.PoolCount()).To(Equal(2))
+					Expect(resources.PoolCount()).To(Equal(1))
 
 					hostName2 := "barfoo.com"
 					svcName2 := "bar"
@@ -3159,7 +3159,7 @@ var _ = Describe("AppManager Tests", func() {
 						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
 					mockMgr.addService(barSvc)
 					Expect(r).To(BeTrue(), "Service should be processed.")
-					Expect(resources.PoolCount()).To(Equal(4))
+					Expect(resources.PoolCount()).To(Equal(2))
 
 					// Check state.
 					rs, ok := resources.Get(
@@ -3198,7 +3198,7 @@ var _ = Describe("AppManager Tests", func() {
 					// Delete a Route resource and make sure the data groups are cleaned up.
 					r = mockMgr.deleteRoute(route2)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
-					Expect(resources.PoolCount()).To(Equal(2))
+					Expect(resources.PoolCount()).To(Equal(1))
 					hostDg, found = mockMgr.appMgr.intDgMap[hostDgKey]
 					Expect(found).To(BeTrue())
 					Expect(len(hostDg[namespace].Records)).To(Equal(1))
@@ -3233,7 +3233,7 @@ var _ = Describe("AppManager Tests", func() {
 						[]v1.ServicePort{{Port: 443, NodePort: 37001}})
 					r = mockMgr.addService(fooSvc)
 					Expect(r).To(BeTrue(), "Service should be processed.")
-					Expect(resources.PoolCount()).To(Equal(2))
+					Expect(resources.PoolCount()).To(Equal(1))
 
 					rs, ok := resources.Get(
 						serviceKey{"foo", 443, "default"}, "https-ose-vserver")
@@ -3442,6 +3442,202 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(found).To(BeTrue(), "redirect group not found")
 					flatDg = nsMap.FlattenNamespaces()
 					Expect(flatDg).To(BeNil(), "should not have data")
+				})
+
+				It("manages alternate backends for routes (pool creation)", func() {
+					svc1Name := "foo"
+					svc2Name := "bar"
+					svc3Name := "baz"
+					fooSvc := test.NewService(svc1Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+					mockMgr.addService(fooSvc)
+					barSvc := test.NewService(svc2Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37002}})
+					mockMgr.addService(barSvc)
+					bazSvc := test.NewService(svc3Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37003}})
+					mockMgr.addService(bazSvc)
+
+					w0 := int32(100)
+					w1 := int32(50)
+					w2 := int32(10)
+
+					spec := routeapi.RouteSpec{
+						Host: "foo.com",
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind:   "Service",
+							Name:   "fake1", // start with non-existent service
+							Weight: &w0,
+						},
+						AlternateBackends: []routeapi.RouteTargetReference{
+							{
+								Kind:   "Service",
+								Name:   "fake2", // start with non-existent service
+								Weight: &w1,
+							},
+							{
+								Kind:   "Service",
+								Name:   svc3Name,
+								Weight: &w2,
+							},
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec, nil)
+					mockMgr.addRoute(route)
+
+					resources := mockMgr.resources()
+					rs, ok := resources.Get(
+						serviceKey{svc3Name, 80, "default"}, "ose-vserver")
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+
+					Expect(resources.PoolCount()).To(Equal(1))
+					Expect(len(rs.Policies)).To(Equal(0))
+
+					// Update to real service
+					route.Spec.To.Name = svc1Name
+					route.Spec.AlternateBackends[0].Name = svc2Name
+					mockMgr.updateRoute(route)
+					Expect(resources.PoolCount()).To(Equal(3))
+					rs, _ = resources.Get(
+						serviceKey{svc1Name, 80, "default"}, "ose-vserver")
+					Expect(len(rs.Policies)).To(Equal(0))
+
+					// Remove an alternate service
+					mockMgr.deleteService(bazSvc)
+					Expect(resources.PoolCount()).To(Equal(2))
+
+					mockMgr.addService(bazSvc)
+					Expect(resources.PoolCount()).To(Equal(3))
+				})
+
+				It("manages alternate backends for routes (datagroups)", func() {
+					svc1Name := "foo"
+					svc2Name := "bar"
+					svc3Name := "baz"
+					fooSvc := test.NewService(svc1Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+					mockMgr.addService(fooSvc)
+					barSvc := test.NewService(svc2Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37002}})
+					mockMgr.addService(barSvc)
+					bazSvc := test.NewService(svc3Name, "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37003}})
+					mockMgr.addService(bazSvc)
+
+					w0 := int32(100)
+					w1 := int32(50)
+					w2 := int32(0)
+					w3 := int32(60)
+
+					// without path; backends with weights 100,50,0
+					spec1 := routeapi.RouteSpec{
+						Host: "bar.com",
+						To: routeapi.RouteTargetReference{
+							Kind:   "Service",
+							Name:   svc1Name,
+							Weight: &w0,
+						},
+						AlternateBackends: []routeapi.RouteTargetReference{
+							{
+								Kind:   "Service",
+								Name:   svc2Name,
+								Weight: &w1,
+							},
+							{
+								Kind:   "Service",
+								Name:   svc3Name,
+								Weight: &w2,
+							},
+						},
+					}
+					// with path; backends with weights 100,60; reencrypt
+					spec2 := routeapi.RouteSpec{
+						Host: "foo.com",
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind:   "Service",
+							Name:   svc1Name,
+							Weight: &w0,
+						},
+						AlternateBackends: []routeapi.RouteTargetReference{
+							{
+								Kind:   "Service",
+								Name:   svc3Name,
+								Weight: &w3,
+							},
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "reencrypt",
+							Certificate: "cert",
+							Key:         "key",
+							DestinationCACertificate: "destCaCert",
+						},
+					}
+					route1 := test.NewRoute("route1", "1", namespace, spec1, nil)
+					mockMgr.addRoute(route1)
+					route2 := test.NewRoute("route2", "1", namespace, spec2, nil)
+					mockMgr.addRoute(route2)
+
+					// verify data groups
+					grpRef := nameRef{
+						Partition: DEFAULT_PARTITION,
+						Name:      abDeploymentDgName,
+					}
+					nsMap, found := mockMgr.appMgr.intDgMap[grpRef]
+					Expect(found).To(BeTrue(), "a/b group not found")
+					flatDg := nsMap.FlattenNamespaces()
+					Expect(flatDg).ToNot(BeNil(), "should have data")
+					Expect(len(flatDg.Records)).To(Equal(2))
+
+					Expect(flatDg.Records[0].Name).To(Equal(spec1.Host))
+					barWeight := float64(w1) / (float64(w0) + float64(w1))
+					fooWeight := (float64(w0) + float64(w1)) / (float64(w0) + float64(w1))
+					data := fmt.Sprintf("openshift_default_%s,%4.3f;openshift_default_%s,%4.3f",
+						svc2Name, barWeight, svc1Name, fooWeight)
+					Expect(flatDg.Records[0].Data).To(Equal(data))
+
+					Expect(flatDg.Records[1].Name).To(Equal(spec2.Host))
+					bazWeight := float64(w3) / (float64(w0) + float64(w3))
+					fooWeight = (float64(w0) + float64(w3)) / (float64(w0) + float64(w3))
+					data = fmt.Sprintf("openshift_default_%s,%4.3f;openshift_default_%s,%4.3f",
+						svc3Name, bazWeight, svc1Name, fooWeight)
+					Expect(flatDg.Records[1].Data).To(Equal(data))
+
+					rs, ok := mockMgr.resources().Get(
+						serviceKey{svc1Name, 80, namespace}, "ose-vserver")
+					Expect(ok).To(BeTrue())
+					Expect(len(rs.Virtual.IRules)).To(Equal(1))
+
+					// Turn off A/B
+					route1.Spec.AlternateBackends = []routeapi.RouteTargetReference{}
+					route2.Spec.AlternateBackends = []routeapi.RouteTargetReference{}
+					mockMgr.updateRoute(route1)
+					mockMgr.updateRoute(route2)
+
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg).To(BeNil())
+
+					// All weights are 0
+					route1.Spec.To.Weight = &w2
+					route1.Spec.AlternateBackends = []routeapi.RouteTargetReference{
+						{
+							Kind:   "Service",
+							Name:   svc2Name,
+							Weight: &w2,
+						},
+						{
+							Kind:   "Service",
+							Name:   svc3Name,
+							Weight: &w2,
+						},
+					}
+					mockMgr.updateRoute(route1)
+					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
+					flatDg = nsMap.FlattenNamespaces()
+					Expect(flatDg.Records[0].Data).To(Equal(""))
 				})
 			})
 
@@ -3926,7 +4122,7 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.addRoute(route2)
 				Expect(r).To(BeTrue(), "Route resource should be processed.")
 				resources := mockMgr.resources()
-				Expect(resources.PoolCount()).To(Equal(4))
+				Expect(resources.PoolCount()).To(Equal(2))
 
 				rs, ok := resources.Get(
 					serviceKey{"foo", 80, ns1}, "https-ose-vserver")
@@ -3951,7 +4147,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				// Delete a route
 				mockMgr.deleteRoute(route2)
-				Expect(resources.PoolCount()).To(Equal(2))
+				Expect(resources.PoolCount()).To(Equal(1))
 				rs, ok = resources.Get(
 					serviceKey{"foo", 80, ns1}, "https-ose-vserver")
 				Expect(ok).To(BeTrue(), "Route should be accessible.")

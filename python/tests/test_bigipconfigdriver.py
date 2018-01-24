@@ -995,13 +995,30 @@ def test_handle_vxlan_config_missing_vxlan_records(request):
         assert handler._thread.is_alive() is False
 
 
-def test_confighandler_reset_validation_error(request):
-    exception = F5CcclValidationError
+def _raise_value_error():
+    raise ValueError('No JSON object could be decoded', 0)
+
+
+def test_confighandler_reset_json_error(request):
+    exception = _raise_value_error
     common_confighandler_reset(request, exception)
 
 
+def _raise_cccl_error():
+    raise F5CcclValidationError('Generic CCCL Error')
+
+
+def test_confighandler_reset_validation_error(request):
+    exception = _raise_cccl_error
+    common_confighandler_reset(request, exception)
+
+
+def _raise_unexpected_error():
+    raise Exception('Unexpected Failure')
+
+
 def test_confighandler_reset_unexpected_error(request):
-    exception = Exception('Unexpected Failure')
+    exception = _raise_unexpected_error
     common_confighandler_reset(request, exception)
 
 
@@ -1016,7 +1033,7 @@ def common_confighandler_reset(request, exception):
         def handle_results():
             if mgr.calls == 4:
                 # turn on retries by returning an error
-                raise exception
+                exception()
 
             valid_interval_state = flags['valid_interval_state']
             if mgr.calls == 1 or mgr.calls == 5:
@@ -1070,20 +1087,30 @@ def common_confighandler_reset(request, exception):
         assert mgr.calls == 3
         assert flags['valid_interval_state'] is True
 
-        # in the failure case, the exception will not be caught
-        # set the backoff_timer for quick testing
-        handler._backoff_time = .01
+        # in the failure case, the exception will be caught
+        # and the backoff_timer will be set.  Verify the
+        # backoff time has doubled.
+        handler._backoff_time = 0.6
 
         handler.notify_reset()
-        event.wait(0.6)
-        assert event.is_set() is False
+        time.sleep(0.1)
+        assert mgr.calls == 4
         assert flags['valid_interval_state'] is True
 
-        # verify interval timer doesn't fire and backoff does
-        # not change
-        time.sleep(interval_time / 2)
-        assert mgr.calls == 4
-        assert handler._backoff_time == 0.01
+        assert handler._backoff_time == 1.2
+        assert handler._backoff_timer is not None
+
+        assert handler._interval.is_running() is False
+
+        handler.notify_reset()
+        time.sleep(0.1)
+        event.wait(30)
+        assert event.is_set() is True
+        assert flags['valid_interval_state'] is True
+
+        # After a successful call, we should be back to using the
+        # interval timer
+        assert handler._backoff_time == 1
         assert handler._backoff_timer is None
 
     finally:

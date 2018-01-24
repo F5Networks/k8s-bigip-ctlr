@@ -416,7 +416,7 @@ class ConfigHandler():
                 log.error("CCCL Error: %s", e.msg)
                 incomplete += 1
 
-            return incomplete
+        return incomplete
 
     def cleanup_backoff(self):
         """Cleans up canceled backoff timers."""

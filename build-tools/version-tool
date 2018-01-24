@@ -261,7 +261,7 @@ class VersionInfo(object):
                 if ci_tag:
                     try:
                         ci_ver = Version(ci_tag, prefix='v')
-                        if ci_ver != self._ver['tag']:
+                        if ci_ver != self._vers['tag']:
                             raise Exception("CI tag doesn't match newest tag")
                     except NotVersionError:
                         pass

@@ -40,6 +40,7 @@ Limitations
   - `Set the service to use the newer iApp template`_.
 
 * Cannot delete ARP entries on BIG-IP v11.6.1 when running the Controller in Kubernetes with Flannel VXLAN enabled.
+* The controller will exit at startup if it cannot establish a connection with the BIG-IP.
 
 v1.3.0
 ------

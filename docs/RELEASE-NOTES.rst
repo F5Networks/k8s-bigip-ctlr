@@ -1,6 +1,13 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+v1.4.1
+------
+
+Bug Fixes
+`````````
+* :issues:`517` - Controller deletes SSL profiles off of Ingress virtual servers if watching multiple namespaces.
+
 v1.4.0
 ------
 

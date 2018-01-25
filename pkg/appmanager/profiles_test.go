@@ -323,6 +323,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 					Partition: "Common",
 					Name:      "client",
 					Context:   customProfileClient,
+					Namespace: namespace,
 				}))
 			Expect(rs.Virtual.Profiles).ToNot(ContainElement(
 				ProfileRef{
@@ -333,13 +334,15 @@ var _ = Describe("AppManager Profile Tests", func() {
 			pRef := ProfileRef{
 				Name:      "server",
 				Partition: "Common",
-				Context:   "serverside",
+				Context:   customProfileServer,
+				Namespace: namespace,
 			}
 			Expect(rs.Virtual.Profiles).To(ContainElement(pRef))
 			customPRef := ProfileRef{
 				Name:      "openshift_route_default_route-server-ssl",
 				Partition: "velcro",
-				Context:   "serverside",
+				Context:   customProfileServer,
+				Namespace: namespace,
 			}
 			Expect(rs.Virtual.Profiles).ToNot(ContainElement(customPRef))
 
@@ -361,6 +364,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 					Partition: "velcro",
 					Name:      "openshift_route_default_route-client-ssl",
 					Context:   customProfileClient,
+					Namespace: namespace,
 				}))
 			Expect(rs.Virtual.Profiles).ToNot(ContainElement(pRef))
 			Expect(rs.Virtual.Profiles).To(ContainElement(customPRef))
@@ -377,17 +381,20 @@ var _ = Describe("AppManager Profile Tests", func() {
 					Partition: "Common",
 					Name:      "newClient",
 					Context:   customProfileClient,
+					Namespace: namespace,
 				}))
 			Expect(rs.Virtual.Profiles).ToNot(ContainElement(
 				ProfileRef{
 					Partition: "velcro",
 					Name:      "openshift_route_default_route-client-ssl",
 					Context:   customProfileClient,
+					Namespace: namespace,
 				}))
 			pRef = ProfileRef{
 				Name:      "newServer",
 				Partition: "Common",
-				Context:   "serverside",
+				Context:   customProfileServer,
+				Namespace: namespace,
 			}
 			Expect(rs.Virtual.Profiles).To(ContainElement(pRef))
 			Expect(rs.Virtual.Profiles).ToNot(ContainElement(customPRef))

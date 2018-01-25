@@ -467,7 +467,7 @@ func updateDataGroupForPassthroughRoute(
 ) {
 	hostName := route.Spec.Host
 	svcName := getRouteCanonicalServiceName(route)
-	poolName := formatRoutePoolName(route, svcName)
+	poolName := formatRoutePoolName(route.ObjectMeta.Namespace, svcName)
 	updateDataGroup(dgMap, passthroughHostsDgName,
 		partition, namespace, hostName, poolName)
 }
@@ -481,7 +481,7 @@ func updateDataGroupForReencryptRoute(
 ) {
 	hostName := route.Spec.Host
 	svcName := getRouteCanonicalServiceName(route)
-	poolName := formatRoutePoolName(route, svcName)
+	poolName := formatRoutePoolName(route.ObjectMeta.Namespace, svcName)
 	updateDataGroup(dgMap, reencryptHostsDgName,
 		partition, namespace, hostName, poolName)
 }
@@ -535,7 +535,7 @@ func updateDataGroupForABRoute(
 			}
 			runningWeightTotal = runningWeightTotal + svc.weight
 			weightedSliceThreshold := float64(runningWeightTotal) / float64(weightTotal)
-			pool := formatRoutePoolName(route, svc.name)
+			pool := formatRoutePoolName(route.ObjectMeta.Namespace, svc.name)
 			entry := fmt.Sprintf("%s,%4.3f", pool, weightedSliceThreshold)
 			entries = append(entries, entry)
 		}

@@ -62,6 +62,9 @@ type (
 		Name      string `json:"name"`
 		Partition string `json:"partition"`
 		Context   string `json:"context"` // 'clientside', 'serverside', or 'all'
+		// Used as reference to which Namespace/Ingress this profile came from
+		// (for deletion purposes)
+		Namespace string `json:"-"`
 	}
 	ProfileRefs []ProfileRef
 

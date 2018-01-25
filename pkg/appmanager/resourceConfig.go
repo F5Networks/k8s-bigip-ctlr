@@ -317,6 +317,7 @@ func makeRouteClientSSLProfileRef(partition, namespace, name string) ProfileRef 
 		Partition: partition,
 		Name:      fmt.Sprintf("openshift_route_%s_%s-client-ssl", namespace, name),
 		Context:   customProfileClient,
+		Namespace: namespace,
 	}
 }
 
@@ -326,6 +327,7 @@ func makeRouteServerSSLProfileRef(partition, namespace, name string) ProfileRef 
 		Partition: partition,
 		Name:      fmt.Sprintf("openshift_route_%s_%s-server-ssl", namespace, name),
 		Context:   customProfileServer,
+		Namespace: namespace,
 	}
 }
 
@@ -361,10 +363,10 @@ func formatIngressSslProfileName(secret string) string {
 	return profName
 }
 
-func convertStringToProfileRef(profileName, context string) ProfileRef {
+func convertStringToProfileRef(profileName, context, ns string) ProfileRef {
 	profName := strings.TrimSpace(strings.TrimPrefix(profileName, "/"))
 	parts := strings.Split(profName, "/")
-	profRef := ProfileRef{Context: context}
+	profRef := ProfileRef{Context: context, Namespace: ns}
 	switch len(parts) {
 	case 2:
 		profRef.Partition = parts[0]
@@ -765,11 +767,11 @@ func copyConfigMap(virtualName, ns string, cfg *ResourceConfig, cfgMap *ConfigMa
 			if len(cfgMap.VirtualServer.Frontend.SslProfile.F5ProfileName) > 0 {
 				profRef := convertStringToProfileRef(
 					cfgMap.VirtualServer.Frontend.SslProfile.F5ProfileName,
-					customProfileClient)
+					customProfileClient, ns)
 				cfg.Virtual.AddOrUpdateProfile(profRef)
 			} else {
 				for _, profName := range cfgMap.VirtualServer.Frontend.SslProfile.F5ProfileNames {
-					profRef := convertStringToProfileRef(profName, customProfileClient)
+					profRef := convertStringToProfileRef(profName, customProfileClient, ns)
 					cfg.Virtual.AddOrUpdateProfile(profRef)
 				}
 			}

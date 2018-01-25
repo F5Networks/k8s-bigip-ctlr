@@ -1266,7 +1266,7 @@ func (appMgr *Manager) handleIngressTls(
 					log.Debugf("No Secret with name '%s': %s. Parsing secretName as path instead.",
 						tls.SecretName, err)
 					profRef := convertStringToProfileRef(
-						tls.SecretName, customProfileClient)
+						tls.SecretName, customProfileClient, ing.ObjectMeta.Namespace)
 					rsCfg.Virtual.AddOrUpdateProfile(profRef)
 					continue
 				}
@@ -1280,11 +1280,13 @@ func (appMgr *Manager) handleIngressTls(
 					Partition: rsCfg.Virtual.Partition,
 					Name:      tls.SecretName,
 					Context:   customProfileClient,
+					Namespace: ing.ObjectMeta.Namespace,
 				}
 				rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			} else {
 				secretName := formatIngressSslProfileName(tls.SecretName)
-				profRef := convertStringToProfileRef(secretName, customProfileClient)
+				profRef := convertStringToProfileRef(
+					secretName, customProfileClient, ing.ObjectMeta.Namespace)
 				rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			}
 		}

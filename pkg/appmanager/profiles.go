@@ -44,7 +44,7 @@ func (appMgr *Manager) setClientSslProfile(
 	if appMgr.routeConfig.ClientSSL != "" {
 		// User has provided a name
 		prof := convertStringToProfileRef(
-			appMgr.routeConfig.ClientSSL, customProfileClient)
+			appMgr.routeConfig.ClientSSL, customProfileClient, sKey.Namespace)
 		rsCfg.Virtual.AddOrUpdateProfile(prof)
 	} else {
 		// No provided name, so we create a default
@@ -75,7 +75,7 @@ func (appMgr *Manager) setClientSslProfile(
 				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
 			rsCfg.Virtual.RemoveProfile(profRef)
 		}
-		profRef := convertStringToProfileRef(prof, customProfileClient)
+		profRef := convertStringToProfileRef(prof, customProfileClient, sKey.Namespace)
 		if add := rsCfg.Virtual.AddOrUpdateProfile(profRef); add {
 			// Store this annotated profile in the metadata for future reference
 			// if it gets deleted.
@@ -92,6 +92,7 @@ func (appMgr *Manager) setClientSslProfile(
 			Partition: "Common",
 			Name:      "clientssl",
 			Context:   customProfileClient,
+			Namespace: sKey.Namespace,
 		}
 		// We process the profile from the Route
 		if "" != route.Spec.TLS.Certificate && "" != route.Spec.TLS.Key {
@@ -130,7 +131,8 @@ func (appMgr *Manager) setClientSslProfile(
 			}
 			if profName, ok := rsCfg.MetaData.RouteProfs[rKey]; ok {
 				delete(rsCfg.MetaData.RouteProfs, rKey)
-				profRef := convertStringToProfileRef(profName, customProfileClient)
+				profRef := convertStringToProfileRef(
+					profName, customProfileClient, sKey.Namespace)
 				rsCfg.Virtual.RemoveProfile(profRef)
 			}
 			stats.vsUpdated += 1
@@ -238,6 +240,7 @@ func (appMgr *Manager) handleServerSslProfileAnnotation(
 		Name:      name,
 		Partition: partition,
 		Context:   customProfileServer,
+		Namespace: sKey.Namespace,
 	}
 	updated := false
 	if updated := rsCfg.Virtual.AddOrUpdateProfile(profile); updated {
@@ -364,6 +367,7 @@ func (appMgr *Manager) createSecretSslProfile(
 		Name:      secret.ObjectMeta.Name,
 		Partition: rsCfg.Virtual.Partition,
 		Context:   customProfileClient,
+		Namespace: secret.ObjectMeta.Namespace,
 	}
 	cp := NewCustomProfile(
 		profRef,
@@ -413,6 +417,11 @@ func (appMgr *Manager) deleteUnusedProfiles(
 		ingresses, _ := appInf.ingInformer.GetIndexer().ByIndex(
 			"namespace", namespace)
 		for _, prof := range cfg.Virtual.Profiles {
+			// Don't process profiles that came from an Ingress in a different namespace.
+			// We don't want to delete them, since they won't reference an Ingress this time.
+			if prof.Namespace != namespace {
+				continue
+			}
 			// Don't process our default profiles (they'll be deleted when the VS is deleted)
 			if prof.Name == "http" ||
 				prof.Name == "tcp" ||

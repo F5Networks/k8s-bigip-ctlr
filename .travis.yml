@@ -27,6 +27,7 @@ script:
   - export IMG_TAG="${BASE_PUSH_TARGET}:${TRAVIS_COMMIT}"
   - export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${TRAVIS_COMMIT}"
   - export BUILD_STAMP=devel-$TRAVIS_BRANCH-n-$TRAVIS_BUILD_NUMBER-id-$TRAVIS_BUILD_ID-$(date +%s)
+  - export CTLR_VERSION=$(echo $TRAVIS_BRANCH | sed s/-stable//g)
   - export CLEAN_BUILD=true
   - export BASE_OS=alpine
   - make verify

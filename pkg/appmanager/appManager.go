@@ -950,9 +950,10 @@ func (appMgr *Manager) syncConfigMaps(
 		}
 
 		rsName := rsCfg.GetName()
-		if ok, found, updated, deactivated := appMgr.handleConfigForType(
+		ok, found, updated, deactivated := appMgr.handleConfigForType(
 			rsCfg, sKey, rsMap, rsName, svcPortMap,
-			svc, appInf, []string{}, nil); !ok {
+			svc, appInf, []string{}, nil)
+		if !ok {
 			stats.vsUpdated += updated
 			continue
 		} else {
@@ -1589,7 +1590,7 @@ func (appMgr *Manager) handleConfigForType(
 		if ing != nil {
 			msg := fmt.Sprintf("Service '%v' has not been found.",
 				pool.ServiceName)
-			appMgr.recordIngressEvent(ing, "ServiceNotFound", msg, rsName)
+			appMgr.recordIngressEvent(ing, "ServiceNotFound", msg)
 			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "service-not-found").Set(1)
 		}
 		return false, vsFound, vsUpdated, deactivated

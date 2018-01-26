@@ -2,6 +2,9 @@ language: go
 sudo: required
 services:
   - docker
+git:
+  # don't limit git clone depth
+  depth: false
 
 before_install:
   - docker pull golang:1.7.5

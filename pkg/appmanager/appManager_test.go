@@ -2805,6 +2805,14 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(2))
 				mockMgr.deleteService(fooSvc)
 				Expect(resources.PoolCount()).To(Equal(1))
+				// re-add the service and make sure the pool is re-created
+				mockMgr.addService(fooSvc)
+				Expect(resources.PoolCount()).To(Equal(2))
+				// Rename a service to one that doesn't exist, which should cause
+				// removal of its pool.
+				ingress4.Spec.Rules[0].HTTP.Paths[1].Backend.ServiceName = "not-there"
+				mockMgr.updateIngress(ingress4)
+				Expect(resources.PoolCount()).To(Equal(1))
 			})
 
 			It("properly uses the default Ingress IP", func() {
@@ -3187,9 +3195,9 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(hostDg[namespace].Records[1].Name).To(Equal(hostName1))
 					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName2))
 					Expect(hostDg[namespace].Records[1].Data).To(Equal(formatRoutePoolName(
-						route1, getRouteCanonicalServiceName(route1))))
+						route1.ObjectMeta.Namespace, getRouteCanonicalServiceName(route1))))
 					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(
-						route2, getRouteCanonicalServiceName(route2))))
+						route2.ObjectMeta.Namespace, getRouteCanonicalServiceName(route2))))
 
 					rs, ok = resources.Get(
 						serviceKey{svcName2, 443, namespace}, "ose-vserver")
@@ -3208,7 +3216,7 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(len(hostDg[namespace].Records)).To(Equal(1))
 					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName1))
 					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(
-						route1, getRouteCanonicalServiceName(route1))))
+						route1.ObjectMeta.Namespace, getRouteCanonicalServiceName(route1))))
 				})
 
 				It("configures reencrypt routes", func() {
@@ -3258,7 +3266,7 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(len(hostDg[namespace].Records)).To(Equal(1))
 					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName))
 					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(
-						route, getRouteCanonicalServiceName(route))))
+						route.ObjectMeta.Namespace, getRouteCanonicalServiceName(route))))
 
 					customProfiles := mockMgr.customProfiles()
 					// Should be 2 profiles from Spec, 2 defaults (clientssl and serverssl)
@@ -3514,6 +3522,11 @@ var _ = Describe("AppManager Tests", func() {
 
 					mockMgr.addService(bazSvc)
 					Expect(resources.PoolCount()).To(Equal(3))
+
+					// Rename a service, expect the pool to be removed
+					route.Spec.To.Name = "not-there"
+					mockMgr.updateRoute(route)
+					Expect(resources.PoolCount()).To(Equal(2))
 				})
 
 				It("manages alternate backends for routes (datagroups)", func() {

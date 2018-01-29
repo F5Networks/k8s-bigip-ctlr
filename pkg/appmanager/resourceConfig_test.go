@@ -322,6 +322,172 @@ var _ = Describe("Resource Config Tests", func() {
 				Expect(len(rsCfgs)).To(Equal(nbrCfgsPer))
 			}
 		})
+
+		It("route object dependencies", func() {
+			// Make sure NewObjectDependencies finds all the services in a Route.
+			spec := routeapi.RouteSpec{
+				Host: "host.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				AlternateBackends: []routeapi.RouteTargetReference{
+					{
+						Kind: "Service",
+						Name: "bar",
+					}, {
+						Kind: "Service",
+						Name: "baz",
+					},
+				},
+			}
+			route := test.NewRoute("route", "1", "ns1", spec, nil)
+			key, deps := NewObjectDependencies(route)
+			Expect(key).To(Equal(ObjectDependency{
+				Kind: "Route", Namespace: "ns1", Name: "route"}))
+			routeDeps := []ObjectDependency{
+				{Kind: "Service", Namespace: "ns1", Name: "foo"},
+				{Kind: "Service", Namespace: "ns1", Name: "bar"},
+				{Kind: "Service", Namespace: "ns1", Name: "baz"},
+			}
+			for _, dep := range routeDeps {
+				_, found := deps[dep]
+				Expect(found).To(BeTrue())
+			}
+
+			routeAlwaysFound := func(key ObjectDependency) bool {
+				return false
+			}
+			routeNeverFound := func(key ObjectDependency) bool {
+				return true
+			}
+
+			// First add
+			Expect(len(rs.objDeps)).To(BeZero())
+			added, removed := rs.UpdateDependencies(
+				key, deps, routeDeps[0], routeAlwaysFound)
+			Expect(len(added)).To(Equal(len(routeDeps)))
+			Expect(len(removed)).To(BeZero())
+			Expect(len(rs.objDeps)).To(Equal(1))
+
+			// Change a dependent service
+			route.Spec.AlternateBackends[1].Name = "boo"
+			key, deps = NewObjectDependencies(route)
+			added, removed = rs.UpdateDependencies(
+				key, deps, routeDeps[0], routeAlwaysFound)
+			Expect(len(added)).To(Equal(1))
+			Expect(len(removed)).To(Equal(1))
+			Expect(len(rs.objDeps)).To(Equal(1))
+
+			// 'remove' Route. Should remove entry from rs.objDeps
+			added, removed = rs.UpdateDependencies(
+				key, deps, routeDeps[0], routeNeverFound)
+			Expect(len(added)).To(BeZero())
+			Expect(len(removed)).To(BeZero())
+			Expect(len(rs.objDeps)).To(BeZero())
+		})
+
+		It("ingress object dependencies", func() {
+			// Make sure NewObjectDependencies finds all the services in an Ingress.
+			ingressConfig := v1beta1.IngressSpec{
+				Backend: &v1beta1.IngressBackend{
+					ServiceName: "foo",
+					ServicePort: intstr.IntOrString{IntVal: 80},
+				},
+				Rules: []v1beta1.IngressRule{
+					{
+						Host: "host1",
+						IngressRuleValue: v1beta1.IngressRuleValue{
+							HTTP: &v1beta1.HTTPIngressRuleValue{
+								Paths: []v1beta1.HTTPIngressPath{
+									{
+										Path: "/bar",
+										Backend: v1beta1.IngressBackend{
+											ServiceName: "bar",
+											ServicePort: intstr.IntOrString{IntVal: 80},
+										},
+									}, {
+										Path: "/baz",
+										Backend: v1beta1.IngressBackend{
+											ServiceName: "baz",
+											ServicePort: intstr.IntOrString{IntVal: 80},
+										},
+									},
+								},
+							},
+						},
+					}, {
+						Host: "host2",
+						IngressRuleValue: v1beta1.IngressRuleValue{
+							HTTP: &v1beta1.HTTPIngressRuleValue{
+								Paths: []v1beta1.HTTPIngressPath{
+									{
+										Path: "/baz",
+										Backend: v1beta1.IngressBackend{
+											ServiceName: "baz",
+											ServicePort: intstr.IntOrString{IntVal: 80},
+										},
+									}, {
+										Path: "/foobarbaz",
+										Backend: v1beta1.IngressBackend{
+											ServiceName: "foobarbaz",
+											ServicePort: intstr.IntOrString{IntVal: 80},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			// Add a new Ingress
+			ingress := test.NewIngress("ingress", "1", "ns2", ingressConfig, nil)
+			key, deps := NewObjectDependencies(ingress)
+			Expect(key).To(Equal(ObjectDependency{
+				Kind: "Ingress", Namespace: "ns2", Name: "ingress"}))
+			ingressDeps := []ObjectDependency{
+				{Kind: "Service", Namespace: "ns2", Name: "foo"},
+				{Kind: "Service", Namespace: "ns2", Name: "bar"},
+				{Kind: "Service", Namespace: "ns2", Name: "baz"},
+				{Kind: "Service", Namespace: "ns2", Name: "foobarbaz"},
+			}
+			for _, dep := range ingressDeps {
+				_, found := deps[dep]
+				Expect(found).To(BeTrue())
+			}
+
+			ingAlwaysFound := func(key ObjectDependency) bool {
+				return false
+			}
+			ingNeverFound := func(key ObjectDependency) bool {
+				return true
+			}
+
+			// First add
+			Expect(len(rs.objDeps)).To(BeZero())
+			added, removed := rs.UpdateDependencies(
+				key, deps, ingressDeps[0], ingAlwaysFound)
+			Expect(len(added)).To(Equal(len(ingressDeps)))
+			Expect(len(removed)).To(BeZero())
+			Expect(len(rs.objDeps)).To(Equal(1))
+
+			// Change a dependent service
+			ingress.Spec.Rules[1].HTTP.Paths[1].Backend.ServiceName = "boo"
+			key, deps = NewObjectDependencies(ingress)
+			added, removed = rs.UpdateDependencies(
+				key, deps, ingressDeps[0], ingAlwaysFound)
+			Expect(len(added)).To(Equal(1))
+			Expect(len(removed)).To(Equal(1))
+			Expect(len(rs.objDeps)).To(Equal(1))
+
+			// 'remove' Ingress. Should remove entry from rs.objDeps
+			added, removed = rs.UpdateDependencies(
+				key, deps, ingressDeps[0], ingNeverFound)
+			Expect(len(added)).To(BeZero())
+			Expect(len(removed)).To(BeZero())
+			Expect(len(rs.objDeps)).To(BeZero())
+		})
 	})
 
 	Describe("Config Manipulation", func() {

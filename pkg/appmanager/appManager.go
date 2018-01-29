@@ -784,11 +784,12 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 }
 
 type vsSyncStats struct {
-	vsFound   int
-	vsUpdated int
-	vsDeleted int
-	cpUpdated int
-	dgUpdated int
+	vsFound      int
+	vsUpdated    int
+	vsDeleted    int
+	cpUpdated    int
+	dgUpdated    int
+	poolsUpdated int
 }
 
 func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
@@ -859,9 +860,9 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		// We get here when there are ports defined in the service that don't
 		// have a corresponding config map.
 		stats.vsDeleted += appMgr.deleteUnusedConfigs(sKey, rsMap)
-		stats.vsUpdated += appMgr.deleteUnusedResources(sKey, svcFound, appInf)
+		stats.vsUpdated += appMgr.deleteUnusedResources(sKey, svcFound)
 	} else if !svcFound {
-		stats.vsUpdated += appMgr.deleteUnusedResources(sKey, svcFound, appInf)
+		stats.vsUpdated += appMgr.deleteUnusedResources(sKey, svcFound)
 	}
 
 	log.Debugf("Updated %v of %v virtual server configs, deleted %v",
@@ -871,7 +872,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
-		stats.dgUpdated > 0 {
+		stats.dgUpdated > 0 || stats.poolsUpdated > 0 {
 		appMgr.outputConfig()
 	} else if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 {
 		appMgr.resources.Lock()
@@ -994,6 +995,24 @@ func (appMgr *Manager) syncIngresses(
 			appMgr.resolveIngressHost(ing, sKey.Namespace)
 		}
 
+		// Get a list of dependencies removed so their pools can be removed.
+		objKey, objDeps := NewObjectDependencies(ing)
+		svcDepKey := ObjectDependency{
+			Kind:      "Service",
+			Namespace: sKey.Namespace,
+			Name:      sKey.ServiceName,
+		}
+		ingressLookupFunc := func(key ObjectDependency) bool {
+			if key.Kind != "Ingress" {
+				return false
+			}
+			ingKey := key.Namespace + "/" + key.Name
+			_, ingFound, _ := appInf.ingInformer.GetIndexer().GetByKey(ingKey)
+			return !ingFound
+		}
+		_, depsRemoved := appMgr.resources.UpdateDependencies(
+			objKey, objDeps, svcDepKey, ingressLookupFunc)
+
 		for _, portStruct := range appMgr.virtualPorts(ing) {
 			rsCfg := createRSConfigFromIngress(
 				ing,
@@ -1053,6 +1072,20 @@ func (appMgr *Manager) syncIngresses(
 				}
 			} else { // single-service
 				svcs = append(svcs, ing.Spec.Backend.ServiceName)
+			}
+
+			// Remove any left over pools from services no longer used by this Ingress
+			for _, dep := range depsRemoved {
+				if dep.Kind == "Service" {
+					cfgChanged, svcKey := rsCfg.RemovePool(
+						dep.Namespace, formatIngressPoolName(dep.Namespace, dep.Name))
+					if cfgChanged {
+						stats.poolsUpdated++
+					}
+					if nil != svcKey {
+						appMgr.resources.DeleteKeyRef(*svcKey, rsName)
+					}
+				}
 			}
 
 			if ok, found, updated := appMgr.handleConfigForType(
@@ -1124,6 +1157,24 @@ func (appMgr *Manager) syncRoutes(
 		// Collect all service names for this Route.
 		svcNames := getRouteServiceNames(route)
 
+		// Get a list of dependencies removed so their pools can be removed.
+		objKey, objDeps := NewObjectDependencies(route)
+		svcDepKey := ObjectDependency{
+			Kind:      "Service",
+			Namespace: sKey.Namespace,
+			Name:      sKey.ServiceName,
+		}
+		routeLookupFunc := func(key ObjectDependency) bool {
+			if key.Kind != "Route" {
+				return false
+			}
+			routeKey := key.Namespace + "/" + key.Name
+			_, routeFound, _ := appInf.routeInformer.GetIndexer().GetByKey(routeKey)
+			return !routeFound
+		}
+		_, depsRemoved := appMgr.resources.UpdateDependencies(
+			objKey, objDeps, svcDepKey, routeLookupFunc)
+
 		if nil != route.Spec.TLS {
 			// We need this even for A/B so the irule can determine if we are
 			// doing passthrough or reencrypt (otherwise we need to add more
@@ -1180,6 +1231,20 @@ func (appMgr *Manager) syncRoutes(
 					if "" != serverSsl {
 						updateDataGroup(dgMap, reencryptServerSslDgName,
 							DEFAULT_PARTITION, sKey.Namespace, route.Spec.Host, serverSsl)
+					}
+				}
+			}
+
+			// Remove any left over pools from services no longer used by this Route
+			for _, dep := range depsRemoved {
+				if dep.Kind == "Service" {
+					cfgChanged, svcKey := rsCfg.RemovePool(
+						dep.Namespace, formatRoutePoolName(dep.Namespace, dep.Name))
+					if cfgChanged {
+						stats.poolsUpdated++
+					}
+					if nil != svcKey {
+						appMgr.resources.DeleteKeyRef(*svcKey, rsName)
 					}
 				}
 			}
@@ -1707,8 +1772,13 @@ func (appMgr *Manager) deleteUnusedConfigs(
 func (appMgr *Manager) deleteUnusedResources(
 	sKey serviceQueueKey,
 	svcFound bool,
-	appInf *appInformer,
 ) int {
+	// FIXME: This function is mostly obsolete for Ingress and Routes due to
+	// the new object dependency code, but is still needed when the Ingress
+	// or route resource is deleted to handle the profiles, and is still
+	// needed for ConfigMaps
+	appMgr.resources.Lock()
+	defer appMgr.resources.Unlock()
 	rsUpdated := 0
 	namespace := sKey.Namespace
 	svcName := sKey.ServiceName
@@ -1732,15 +1802,7 @@ func (appMgr *Manager) deleteUnusedResources(
 					poolName := joinBigipPath(cfg.Virtual.Partition, pool.Name)
 					// Delete rule
 					for _, pol := range cfg.Policies {
-						// If only one rule left, then just remove the policy
-						if len(pol.Rules) == 1 {
-							if cfg.MetaData.ResourceType == "route" {
-								resourceName = strings.Split(pol.Rules[0].Name, "_")[3]
-							}
-							cfg.RemovePolicy(pol)
-							continue
-						}
-						// Else loop through rules to find which one to remove
+						// Loop through rules to find which one to remove
 						ruleOffsets := []int{}
 						for i, rule := range pol.Rules {
 							if len(rule.Actions) > 0 && rule.Actions[0].Pool == poolName {
@@ -1751,14 +1813,16 @@ func (appMgr *Manager) deleteUnusedResources(
 							}
 						}
 						polChanged := pol.RemoveRules(ruleOffsets)
-						// Update the policy
-						if polChanged {
+						// Update or remove the policy
+						if 0 == len(pol.Rules) {
+							cfg.RemovePolicy(pol)
+						} else if polChanged {
 							cfg.SetPolicy(pol)
 						}
 					}
 					// Delete pool
 					cfg.RemovePoolAt(i)
-					appMgr.resources.DeleteKeyRef(key, cfg.GetName())
+					appMgr.resources.deleteKeyRefLocked(key, cfg.GetName())
 					if resourceName != "" {
 						// Delete profileRef (Route)
 						if cfg.MetaData.ResourceType == "route" {

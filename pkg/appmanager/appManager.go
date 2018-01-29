@@ -950,23 +950,16 @@ func (appMgr *Manager) syncConfigMaps(
 		}
 
 		rsName := rsCfg.GetName()
-		ok, found, updated, deactivated := appMgr.handleConfigForType(
+		ok, found, updated := appMgr.handleConfigForType(
 			rsCfg, sKey, rsMap, rsName, svcPortMap,
 			svc, appInf, []string{}, nil)
 		if !ok {
 			stats.vsUpdated += updated
 			continue
 		} else {
+			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(0)
 			stats.vsFound += found
 			stats.vsUpdated += updated
-		}
-
-		log.Errorf("Deactivated: %v, %v", deactivated, cm.ObjectMeta.Name)
-		if !deactivated {
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(0)
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "success").Set(1)
-		} else {
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "success").Set(0)
 		}
 
 		// Set a status annotation to contain the virtualAddress bindAddr
@@ -1483,7 +1476,7 @@ func (appMgr *Manager) handleConfigForType(
 	appInf *appInformer,
 	currResourceSvcs []string, // Used for Ingress/Routes
 	ing *v1beta1.Ingress, // Used for writing events
-) (bool, int, int, bool) {
+) (bool, int, int) {
 	vsFound := 0
 	vsUpdated := 0
 
@@ -1513,7 +1506,7 @@ func (appMgr *Manager) handleConfigForType(
 		}
 	}
 	if !found {
-		return false, vsFound, vsUpdated, false
+		return false, vsFound, vsUpdated
 	}
 
 	// Make sure pool members from the old config are applied to the new
@@ -1561,26 +1554,29 @@ func (appMgr *Manager) handleConfigForType(
 	}
 
 	deactivated := false
-	bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "port-not-found").Set(0)
+	bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "port-not-found").Set(0)
 	if _, ok := svcPortMap[pool.ServicePort]; !ok {
 		log.Debugf("Process Service delete - name: %v namespace: %v",
 			pool.ServiceName, svcKey.Namespace)
 		log.Infof("Port '%v' for service '%v' was not found.",
 			pool.ServicePort, pool.ServiceName)
-		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "port-not-found").Set(1)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "port-not-found").Set(1)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(0)
 		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
 			vsUpdated += 1
 		}
 		deactivated = true
 	}
 
-	bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "service-not-found").Set(0)
+	bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "service-not-found").Set(0)
 	if nil == svc {
 		// The service is gone, de-activate it in the config.
 		log.Infof("Service '%v' has not been found.", pool.ServiceName)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "service-not-found").Set(1)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(0)
+
 		if !deactivated {
 			deactivated = true
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "service-not-found").Set(1)
 			if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
 				vsUpdated += 1
 			}
@@ -1591,9 +1587,8 @@ func (appMgr *Manager) handleConfigForType(
 			msg := fmt.Sprintf("Service '%v' has not been found.",
 				pool.ServiceName)
 			appMgr.recordIngressEvent(ing, "ServiceNotFound", msg)
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "service-not-found").Set(1)
 		}
-		return false, vsFound, vsUpdated, deactivated
+		return false, vsFound, vsUpdated
 	}
 
 	// Update pool members.
@@ -1622,7 +1617,11 @@ func (appMgr *Manager) handleConfigForType(
 		}
 	}
 
-	return true, vsFound, vsUpdated, deactivated
+	if !deactivated {
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(1)
+	}
+
+	return true, vsFound, vsUpdated
 }
 
 func (appMgr *Manager) syncPoolMembers(rsName string, rsCfg *ResourceConfig) {

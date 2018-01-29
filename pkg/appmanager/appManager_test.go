@@ -1804,7 +1804,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Config map with no schema key
 				noschemakey := test.NewConfigMap("noschema", "1", namespace,
 					map[string]string{"data": configmapFoo})
-				cfg, err := parseConfigMap(noschemakey)
+				cfg, err := mockMgr.appMgr.parseConfigMap(noschemakey)
 				Expect(err.Error()).To(Equal("configmap noschema does not contain schema key"),
 					"Should receive 'no schema' error.")
 				r := mockMgr.addConfigMap(noschemakey)
@@ -1816,7 +1816,7 @@ var _ = Describe("AppManager Tests", func() {
 				nodatakey := test.NewConfigMap("nodata", "1", namespace, map[string]string{
 					"schema": schemaUrl,
 				})
-				cfg, err = parseConfigMap(nodatakey)
+				cfg, err = mockMgr.appMgr.parseConfigMap(nodatakey)
 				Expect(cfg).To(BeNil(), "Should not have parsed bad configmap.")
 				Expect(err.Error()).To(Equal("configmap nodata does not contain data key"),
 					"Should receive 'no data' error.")
@@ -1829,7 +1829,7 @@ var _ = Describe("AppManager Tests", func() {
 					"schema": schemaUrl,
 					"data":   "///// **invalid json** /////",
 				})
-				cfg, err = parseConfigMap(badjson)
+				cfg, err = mockMgr.appMgr.parseConfigMap(badjson)
 				Expect(cfg).To(BeNil(), "Should not have parsed bad configmap.")
 				Expect(err.Error()).To(Equal(
 					"invalid character '/' looking for beginning of value"))
@@ -1844,7 +1844,7 @@ var _ = Describe("AppManager Tests", func() {
 					"key1":   "value1",
 					"key2":   "value2",
 				})
-				cfg, err = parseConfigMap(extrakeys)
+				cfg, err = mockMgr.appMgr.parseConfigMap(extrakeys)
 				Expect(cfg).ToNot(BeNil(), "Config map should parse with extra keys.")
 				Expect(err).To(BeNil(), "Should not receive errors.")
 				r = mockMgr.addConfigMap(extrakeys)
@@ -1858,7 +1858,7 @@ var _ = Describe("AppManager Tests", func() {
 					"schema": schemaUrl,
 					"data":   configmapNoModeBalance,
 				})
-				cfg, err = parseConfigMap(defaultModeAndBalance)
+				cfg, err = mockMgr.appMgr.parseConfigMap(defaultModeAndBalance)
 				Expect(cfg).ToNot(BeNil(), "Config map should exist and contain default mode and balance.")
 				Expect(err).To(BeNil(), "Should not receive errors.")
 				r = mockMgr.addConfigMap(defaultModeAndBalance)
@@ -2142,7 +2142,7 @@ var _ = Describe("AppManager Tests", func() {
 					"schema": schemaUrl,
 					"data":   configmapNoBindAddr,
 				})
-				_, err := parseConfigMap(noBindAddr)
+				_, err := mockMgr.appMgr.parseConfigMap(noBindAddr)
 				Expect(err).To(BeNil(), "Missing bindAddr should be valid.")
 				r := mockMgr.addConfigMap(noBindAddr)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
@@ -2184,7 +2184,7 @@ var _ = Describe("AppManager Tests", func() {
 					"schema": schemaUrl,
 					"data":   configmapNoVirtualAddress,
 				})
-				_, err := parseConfigMap(noVirtualAddress)
+				_, err := mockMgr.appMgr.parseConfigMap(noVirtualAddress)
 				Expect(err).To(BeNil(), "Missing virtualAddress should be valid.")
 				r := mockMgr.addConfigMap(noVirtualAddress)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
@@ -2216,7 +2216,7 @@ var _ = Describe("AppManager Tests", func() {
 				wrongPartition := test.NewConfigMap("foomap", "1", namespace, map[string]string{
 					"schema": schemaUrl,
 					"data":   configmapFoo})
-				_, err := parseConfigMap(wrongPartition)
+				_, err := mockMgr.appMgr.parseConfigMap(wrongPartition)
 				Expect(err).ToNot(BeNil(), "Config map with wrong partition should throw an error.")
 				DEFAULT_PARTITION = "velcro"
 			})

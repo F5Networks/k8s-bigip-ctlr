@@ -2805,6 +2805,14 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(2))
 				mockMgr.deleteService(fooSvc)
 				Expect(resources.PoolCount()).To(Equal(1))
+				// re-add the service and make sure the pool is re-created
+				mockMgr.addService(fooSvc)
+				Expect(resources.PoolCount()).To(Equal(2))
+				// Rename a service to one that doesn't exist, which should cause
+				// removal of its pool.
+				ingress4.Spec.Rules[0].HTTP.Paths[1].Backend.ServiceName = "not-there"
+				mockMgr.updateIngress(ingress4)
+				Expect(resources.PoolCount()).To(Equal(1))
 			})
 
 			It("properly uses the default Ingress IP", func() {
@@ -3514,6 +3522,11 @@ var _ = Describe("AppManager Tests", func() {
 
 					mockMgr.addService(bazSvc)
 					Expect(resources.PoolCount()).To(Equal(3))
+
+					// Rename a service, expect the pool to be removed
+					route.Spec.To.Name = "not-there"
+					mockMgr.updateRoute(route)
+					Expect(resources.PoolCount()).To(Equal(2))
 				})
 
 				It("manages alternate backends for routes (datagroups)", func() {

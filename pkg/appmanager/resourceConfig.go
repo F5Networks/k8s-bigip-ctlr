@@ -300,9 +300,8 @@ func isRouteABDeployment(route *routeapi.Route) bool {
 }
 
 // format the pool name for a Route
-func formatRoutePoolName(route *routeapi.Route, svcName string) string {
-	return fmt.Sprintf("openshift_%s_%s",
-		route.ObjectMeta.Namespace, svcName)
+func formatRoutePoolName(namespace, svcName string) string {
+	return fmt.Sprintf("openshift_%s_%s", namespace, svcName)
 }
 
 // format the Rule name for a Route
@@ -406,11 +405,26 @@ type resourceKeyMap map[serviceKey]resourceList
 // Key is resource name, value is pointer to config. May be shared.
 type ResourceConfigMap map[string]*ResourceConfig
 
+// ObjectDependency identifies a K8s Object
+type ObjectDependency struct {
+	Kind      string
+	Namespace string
+	Name      string
+}
+
+// ObjectDependencies contains each dependency and its use count (usually 1)
+type ObjectDependencies map[ObjectDependency]int
+
+// ObjectDependencyMap key is an Ingress or Route and the value is a
+// map of other objects it depends on - typically services.
+type ObjectDependencyMap map[ObjectDependency]ObjectDependencies
+
 // Map of Resource configs
 type Resources struct {
 	sync.Mutex
-	rm    resourceKeyMap
-	rsMap ResourceConfigMap
+	rm      resourceKeyMap
+	rsMap   ResourceConfigMap
+	objDeps ObjectDependencyMap
 }
 
 type ResourceInterface interface {
@@ -425,6 +439,62 @@ type ResourceInterface interface {
 	GetAllResources() ResourceConfigs
 	Delete(key serviceKey, name string) bool
 	ForEach(f ResourceEnumFunc)
+	DependencyDiff(key ObjectDependency, newDeps ObjectDependencies) ([]ObjectDependency, []ObjectDependency)
+}
+
+// NewObjectDependencies parses an object and returns a map of its dependencies
+func NewObjectDependencies(
+	obj interface{},
+) (ObjectDependency, ObjectDependencies) {
+	var key ObjectDependency
+	deps := make(ObjectDependencies)
+	switch t := obj.(type) {
+	case *routeapi.Route:
+		route := obj.(*routeapi.Route)
+		key.Kind = "Route"
+		key.Namespace = route.ObjectMeta.Namespace
+		key.Name = route.ObjectMeta.Name
+		dep := ObjectDependency{
+			Kind:      route.Spec.To.Kind,
+			Namespace: route.ObjectMeta.Namespace,
+			Name:      route.Spec.To.Name,
+		}
+		deps[dep] = 1
+		for _, backend := range route.Spec.AlternateBackends {
+			dep.Kind = backend.Kind
+			dep.Name = backend.Name
+			deps[dep]++
+		}
+	case *v1beta1.Ingress:
+		ingress := obj.(*v1beta1.Ingress)
+		key.Kind = "Ingress"
+		key.Namespace = ingress.ObjectMeta.Namespace
+		key.Name = ingress.ObjectMeta.Name
+		if nil != ingress.Spec.Backend {
+			dep := ObjectDependency{
+				Kind:      "Service",
+				Namespace: ingress.ObjectMeta.Namespace,
+				Name:      ingress.Spec.Backend.ServiceName,
+			}
+			deps[dep]++
+		}
+		for _, rule := range ingress.Spec.Rules {
+			if nil == rule.IngressRuleValue.HTTP {
+				continue
+			}
+			for _, path := range rule.IngressRuleValue.HTTP.Paths {
+				dep := ObjectDependency{
+					Kind:      "Service",
+					Namespace: ingress.ObjectMeta.Namespace,
+					Name:      path.Backend.ServiceName,
+				}
+				deps[dep]++
+			}
+		}
+	default:
+		log.Errorf("Unhandled object type: %v", t)
+	}
+	return key, deps
 }
 
 // Constructor for Resources
@@ -438,6 +508,7 @@ func NewResources() *Resources {
 func (rs *Resources) Init() {
 	rs.rm = make(resourceKeyMap)
 	rs.rsMap = make(ResourceConfigMap)
+	rs.objDeps = make(ObjectDependencyMap)
 }
 
 // callback type for ForEach()
@@ -553,6 +624,13 @@ func (rs *Resources) Delete(svcKey serviceKey, name string) bool {
 
 // Remove a svcKey's reference to a config (pool was removed)
 func (rs *Resources) DeleteKeyRef(sKey serviceKey, name string) bool {
+	rs.Lock()
+	defer rs.Unlock()
+	return rs.deleteKeyRefLocked(sKey, name)
+}
+
+// Remove a svcKey's reference to a config (pool was removed)
+func (rs *Resources) deleteKeyRefLocked(sKey serviceKey, name string) bool {
 	rsList, ok := rs.rm[sKey]
 	if !ok {
 		// sKey not found
@@ -627,6 +705,58 @@ func (rs *Resources) GetAllResources() ResourceConfigs {
 		cfgs = append(cfgs, cfg)
 	}
 	return cfgs
+}
+
+// UpdateDependencies will keep the rs.objDeps map updated, and return two
+// arrays identifying what has changed - added for dependencies that were
+// added, and removed for dependencies that were removed.
+func (rs *Resources) UpdateDependencies(
+	newKey ObjectDependency,
+	newDeps ObjectDependencies,
+	svcDepKey ObjectDependency,
+	lookupFunc func(key ObjectDependency) bool,
+) ([]ObjectDependency, []ObjectDependency) {
+	rs.Lock()
+	defer rs.Unlock()
+
+	// Update dependencies for newKey
+	var added, removed []ObjectDependency
+	oldDeps, found := rs.objDeps[newKey]
+	if found {
+		// build list of removed deps
+		for oldDep := range oldDeps {
+			if _, found = newDeps[oldDep]; !found {
+				removed = append(removed, oldDep)
+			}
+		}
+		// build list of added deps
+		for newDep := range newDeps {
+			if _, found = oldDeps[newDep]; !found {
+				added = append(added, newDep)
+			}
+		}
+	} else {
+		// all newDeps are adds
+		for newDep := range newDeps {
+			added = append(added, newDep)
+		}
+	}
+	rs.objDeps[newKey] = newDeps
+
+	// Look for all top level objects that depend on the service being handled
+	// by the caller. Remove that top level object if it no longer exists. This
+	// happens when a Route or Ingress is deleted.
+	for objDepKey, objDepDep := range rs.objDeps {
+		if _, found := objDepDep[svcDepKey]; found {
+			shouldRemove := lookupFunc(objDepKey)
+			if shouldRemove {
+				// Ingress or Route has been deleted, remove it from the map
+				delete(rs.objDeps, objDepKey)
+			}
+		}
+	}
+
+	return added, removed
 }
 
 func setProfilesForMode(mode string, cfg *ResourceConfig) {
@@ -1030,7 +1160,7 @@ func createRSConfigFromRoute(
 
 	// Create the pool
 	pool := Pool{
-		Name:        formatRoutePoolName(route, svcName),
+		Name:        formatRoutePoolName(route.ObjectMeta.Namespace, svcName),
 		Partition:   DEFAULT_PARTITION,
 		Balance:     balance,
 		ServiceName: svcName,
@@ -1366,6 +1496,52 @@ func (rc *ResourceConfig) RemoveMonitor(pool, monitor string) bool {
 		}
 	}
 	return removed
+}
+
+func (rc *ResourceConfig) RemovePool(
+	namespace,
+	poolName string,
+) (bool, *serviceKey) {
+	var cfgChanged bool
+	var svcKey *serviceKey
+
+	// Delete pool
+	for i, pool := range rc.Pools {
+		if pool.Name != poolName {
+			continue
+		}
+		svcKey = &serviceKey{
+			Namespace:   namespace,
+			ServiceName: pool.ServiceName,
+			ServicePort: pool.ServicePort,
+		}
+		cfgChanged = rc.RemovePoolAt(i)
+		break
+	}
+
+	// Delete forwarding rule for the pool
+	policy := rc.FindPolicy("forwarding")
+	if nil != policy {
+		// Loop through rules to find which one to remove
+		fullPoolName := joinBigipPath(DEFAULT_PARTITION, poolName)
+		ruleOffsets := []int{}
+		for i, rule := range policy.Rules {
+			if len(rule.Actions) > 0 && rule.Actions[0].Pool == fullPoolName {
+				ruleOffsets = append(ruleOffsets, i)
+			}
+		}
+		polChanged := policy.RemoveRules(ruleOffsets)
+		// Update or remove the policy
+		if 0 == len(policy.Rules) {
+			rc.RemovePolicy(*policy)
+			cfgChanged = true
+		} else if polChanged {
+			rc.SetPolicy(*policy)
+			cfgChanged = true
+		}
+	}
+
+	return cfgChanged, svcKey
 }
 
 func (rc *ResourceConfig) RemovePoolAt(offset int) bool {

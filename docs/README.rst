@@ -61,9 +61,9 @@ The BIG-IP system handles traffic for the Service at the specified virtual addre
 Within the cluster, the allocated NodePort load balances traffic to all pods.
 
 .. danger::
- 
+
    The |kctlr| monitors the BIG-IP partition it manages for configuration changes. If it discovers changes, the Controller reapplies its own configuration to the BIG-IP system.
-   
+
    F5 does not recommend making configuration changes to objects in any partition managed by the |kctlr| via any other means (for example, the configuration utility, TMOS, or by syncing configuration with another device or service group). Doing so may result in disruption of service or unexpected behavior.
 
 .. _configuration parameters:
@@ -77,26 +77,29 @@ All configuration parameters below are global to the |kctlr|.
 General
 ```````
 
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| Parameter             | Type    | Required | Default           | Description                             | Allowed Values |
-+=======================+=========+==========+===================+=========================================+================+
-| log-level             | string  | Optional | INFO              | Log level                               | INFO,          |
-|                       |         |          |                   |                                         | DEBUG,         |
-|                       |         |          |                   |                                         | CRITICAL,      |
-|                       |         |          |                   |                                         | WARNING,       |
-|                       |         |          |                   |                                         | ERROR          |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| node-poll-interval    | integer | Optional | 30                | In seconds, interval at which           |                |
-|                       |         |          |                   | to poll the cluster for its             |                |
-|                       |         |          |                   | node members.                           |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| python-basedir        | string  | Optional | /app/python       | Path to python utilities                |                |
-|                       |         |          |                   | directory                               |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| verify-interval       | integer | Optional | 30                | In seconds, interval at which           |                |
-|                       |         |          |                   | to verify the BIG-IP                    |                |
-|                       |         |          |                   | configuration.                          |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
++-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
+| Parameter             | Type    | Required | Default                          | Description                             | Allowed Values |
++=======================+=========+==========+==================================+=========================================+================+
+| log-level             | string  | Optional | INFO                             | Log level                               | INFO,          |
+|                       |         |          |                                  |                                         | DEBUG,         |
+|                       |         |          |                                  |                                         | CRITICAL,      |
+|                       |         |          |                                  |                                         | WARNING,       |
+|                       |         |          |                                  |                                         | ERROR          |
++-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
+| node-poll-interval    | integer | Optional | 30                               | In seconds, interval at which           |                |
+|                       |         |          |                                  | to poll the cluster for its             |                |
+|                       |         |          |                                  | node members.                           |                |
++-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
+| python-basedir        | string  | Optional | /app/python                      | Path to python utilities                |                |
+|                       |         |          |                                  | directory                               |                |
++-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
+| schema-db-base-dir    | string  | Optional |file:///app/vendor/src/f5/schemas | Path to the F5 schema db's              |                |
+|                       |         |          |                                  | directory                               |                |
++-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
+| verify-interval       | integer | Optional | 30                               | In seconds, interval at which           |                |
+|                       |         |          |                                  | to verify the BIG-IP                    |                |
+|                       |         |          |                                  | configuration.                          |                |
++-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
 
 .. _bigip configs:
 
@@ -251,12 +254,12 @@ OpenShift Routes
 | route-vserver-addr    | string  | Optional | n/a               | Bind address for virtual server for     |                |
 |                       |         |          |                   | OpenShift Route objects.                |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-  
+
 .. note::
 
    If the ``default-client-ssl`` or ``default-server-ssl`` parameters are not provided, then the controller creates default
    clientssl and serverssl profiles for the OpenShift Route HTTPS virtual server. The controller sets these profiles as
-   Default for SNI. 
+   Default for SNI.
 
 
 .. _f5 resource configmap properties:
@@ -386,20 +389,20 @@ The ``frontend.virtualServer`` properties provide the information required to de
 ==================== ================= ============== ======================================================= ====================================
 Property             Type              Required       Description                                             Allowed Values
 ==================== ================= ============== ======================================================= ====================================
-partition            string            Required       The BIG-IP partition you want the |kctlr| to manage.                                            
+partition            string            Required       The BIG-IP partition you want the |kctlr| to manage.
 -------------------- ----------------- -------------- ------------------------------------------------------- ------------------------------------
-iapp                 string            Required       BIG-IP iApp template to use to create the               Any iApp template that already 
-                                                      application  Service.                                   exists on the BIG-IP system. 
+iapp                 string            Required       BIG-IP iApp template to use to create the               Any iApp template that already
+                                                      application  Service.                                   exists on the BIG-IP system.
 -------------------- ----------------- -------------- ------------------------------------------------------- ------------------------------------
-iappPoolMemberTable  JSON object       Required       Define the name and layout of the pool member table   
-                                                      in the iApp.                                          
-                                    
-                                                      **See** :ref:`iApp Pool Member Table`.         
+iappPoolMemberTable  JSON object       Required       Define the name and layout of the pool member table
+                                                      in the iApp.
+
+                                                      **See** :ref:`iApp Pool Member Table`.
 -------------------- ----------------- -------------- ------------------------------------------------------- ------------------------------------
 iappTables           JSON object       Optional       Define iApp tables to apply to the Application Service
                      array
                                                       Example: ::
-                                                      
+
                                                         "iappTables": {
                                                           "monitor__Monitors":
                                                             {"columns": ["Index", "Name", "Type", "Options"],
@@ -407,10 +410,10 @@ iappTables           JSON object       Optional       Define iApp tables to appl
                                                                       [1, "mon2", "http", ""]]}}"
 
 -------------------- ----------------- -------------- ------------------------------------------------------- ------------------------------------
-iappOptions          key-value object  Required       Define the App configurations                           Varies       
+iappOptions          key-value object  Required       Define the App configurations                           Varies
 -------------------- ----------------- -------------- ------------------------------------------------------- ------------------------------------
 iappVariables        key-value object  Required       Define the iApp variables needed for Service creation.
-                              
+
 ==================== ================= ============== ======================================================= ====================================
 
 .. _iapp pool member table:
@@ -467,7 +470,7 @@ the |kctlr| creates the table below on the BIG-IP system. ::
       ]
     }
 
-You will need to adjust this for the particular iApp template that you are using.  
+You will need to adjust this for the particular iApp template that you are using.
 One way to discover the format is to configure an iApp manually from a template,  then check its configuration using :command:`tmsh list sys app Service <appname>`.
 
 .. _backend:

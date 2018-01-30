@@ -90,6 +90,7 @@ var (
 	resolveIngNames   *string
 	defaultIngIP      *string
 	useSecrets        *bool
+	schemaLocal       *string
 
 	bigIPURL        *string
 	bigIPUsername   *string
@@ -193,6 +194,8 @@ func _init() {
 			"any Ingress with the annotation 'virtual-server.f5.com/ip:controller-default'.")
 	useSecrets = kubeFlags.Bool("use-secrets", true,
 		"Optional, enable/disable use of Secrets for Ingress or ConfigMap SSL Profiles.")
+	schemaLocal = kubeFlags.String("schema-db-base-dir", "file:///app/vendor/src/f5/schemas/",
+		"Optional, where the schema db's locally reside")
 
 	// If the flag is specified with no argument, default to LOOKUP
 	kubeFlags.Lookup("resolve-ingress-names").NoOptDefVal = "LOOKUP"
@@ -505,6 +508,7 @@ func main() {
 		ResolveIngress:    *resolveIngNames,
 		DefaultIngIP:      *defaultIngIP,
 		UseSecrets:        *useSecrets,
+		SchemaLocal:       *schemaLocal,
 	}
 
 	// If running with Flannel, create an event channel that the appManager

@@ -52,9 +52,6 @@ var DEFAULT_PARTITION string
 // Indicator to use an F5 schema
 const schemaIndicator string = "f5schemadb://"
 
-// Where the schemas reside locally
-const schemaLocal string = "file:///app/vendor/src/f5/schemas/"
-
 // Constants for CustomProfile.Type as defined in CCCL
 const customProfileAll string = "all"
 const customProfileClient string = "clientside"
@@ -790,7 +787,7 @@ func setProfilesForMode(mode string, cfg *ResourceConfig) {
 }
 
 // Unmarshal an expected ConfigMap object
-func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
+func parseConfigMap(cm *v1.ConfigMap, schemaDBPath string) (*ResourceConfig, error) {
 	var cfg ResourceConfig
 	var cfgMap ConfigMap
 
@@ -806,7 +803,7 @@ func parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
 			schemaName = strings.Trim(schemaName, "\"")
 			if strings.HasPrefix(schemaName, schemaIndicator) {
 				schemaName = strings.Replace(
-					schemaName, schemaIndicator, schemaLocal, 1)
+					schemaName, schemaIndicator, schemaDBPath, 1)
 			}
 			// Load the schema
 			schemaLoader := gojsonschema.NewReferenceLoader(schemaName)

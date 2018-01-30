@@ -113,6 +113,8 @@ type Manager struct {
 	useSecrets bool
 	// Channel for emitting events
 	eventChan chan interface{}
+	// Where the schemas reside locally
+	schemaLocal string
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -132,6 +134,7 @@ type Params struct {
 	restClient      rest.Interface
 	initialState    bool
 	broadcasterFunc NewBroadcasterFunc
+	SchemaLocal     string
 }
 
 // Configuration options for Routes in OpenShift
@@ -173,6 +176,7 @@ func NewManager(params *Params) *Manager {
 		nsQueue:           nsQueue,
 		appInformers:      make(map[string]*appInformer),
 		eventNotifier:     NewEventNotifier(params.broadcasterFunc),
+		schemaLocal:       params.SchemaLocal,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -907,7 +911,7 @@ func (appMgr *Manager) syncConfigMaps(
 		if cm.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
-		rsCfg, err := parseConfigMap(cm)
+		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal)
 		if nil != err {
 			// Ignore this config map for the time being. When the user updates it
 			// so that it is valid it will be requeued.

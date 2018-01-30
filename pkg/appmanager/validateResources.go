@@ -34,7 +34,7 @@ func (appMgr *Manager) checkValidConfigMap(
 		// Not watching this namespace
 		return false, nil
 	}
-	cfg, err := parseConfigMap(cm)
+	cfg, err := parseConfigMap(cm, appMgr.schemaLocal)
 	if nil != err {
 		if handleConfigMapParseFailure(appMgr, cm, cfg, err) {
 			// resources is updated if true is returned, write out the config.

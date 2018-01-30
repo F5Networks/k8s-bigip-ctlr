@@ -81,7 +81,9 @@ author = u'F5 Networks'
 # built documents.
 #
 git_branch = subprocess.check_output(['git', 'rev-parse', '--symbolic-full-name', '--abbrev-ref', 'HEAD']).strip()
+print 'git_branch=', git_branch
 is_stable = re.search(r'^(\d+\.\d+)-stable$', git_branch)
+print 'is_stable=', is_stable
 if is_stable:
     # For stable branches, use the latest git tag to determine docs version.
     v = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).strip().split('.')
@@ -98,6 +100,9 @@ else:
         version = u'v{}.{}'.format(v[0], v[1])
         # The full version, including alpha/beta/rc tags.
         release = u'v{}.{}.{}-dev'.format(v[0], v[1], v[2])
+
+print 'version=', version
+print 'release=', release
 
 # def setup(app):
 #    app.add_config_value('versionlevel', '', 'env')

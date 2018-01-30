@@ -13,6 +13,14 @@ RUN_ARGS=( \
   -e TRAVIS=$TRAVIS
 )
 
+if [[ $TRAVIS_BRANCH == *"-stable" ]]; then
+  release="$(git describe --tags --abbrev=0)"
+  RUN_ARGS+=( -e DOCS_RELEASE=$release )
+  va=( ${release//./ } ) # replace decimals and split into array
+  version="${va[0]}.${va[1]}"
+  RUN_ARGS+=( -e DOCS_VERSION=$version )
+fi
+
 # Add -it if caller is a terminal
 if [ -t 0 ]; then
   RUN_ARGS+=( "-it" )

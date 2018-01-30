@@ -69,7 +69,7 @@ type ResourceMap map[int32][]*ResourceConfig
 
 type Manager struct {
 	resources         *Resources
-	customProfiles    CustomProfileStore
+	customProfiles    *CustomProfileStore
 	irulesMap         IRulesMap
 	intDgMap          InternalDataGroupMap
 	kubeClient        kubernetes.Interface
@@ -247,7 +247,8 @@ func (appMgr *Manager) addNamespaceLocked(
 			"Cannot watch all namespaces when already watching specific ones.")
 	}
 	var appInf *appInformer
-	if appInf, found := appMgr.appInformers[namespace]; found {
+	var found bool
+	if appInf, found = appMgr.appInformers[namespace]; found {
 		return appInf, nil
 	}
 	appInf = appMgr.newAppInformer(namespace, cfgMapSelector, resyncPeriod)
@@ -1203,7 +1204,7 @@ func (appMgr *Manager) syncRoutes(
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
 			rsCfg, err, pool := createRSConfigFromRoute(route, svcName,
-				*appMgr.resources, appMgr.routeConfig, ps,
+				appMgr.resources, appMgr.routeConfig, ps,
 				appInf.svcInformer.GetIndexer(), svcFwdRulesMap)
 			if err != nil {
 				// We return err if there was an error creating a rule
@@ -1222,7 +1223,7 @@ func (appMgr *Manager) syncRoutes(
 					log.Errorf("Unable to parse health monitor JSON array '%v': %v",
 						hmStr, err)
 				} else {
-					appMgr.handleRouteHealthMonitors(rsName, pool, &rsCfg, monitors, stats)
+					appMgr.handleRouteHealthMonitors(rsName, pool, rsCfg, monitors, stats)
 				}
 				rsCfg.SortMonitors()
 			}
@@ -1232,10 +1233,10 @@ func (appMgr *Manager) syncRoutes(
 				rsCfg.Virtual.VirtualAddress.Port == DEFAULT_HTTPS_PORT {
 				switch route.Spec.TLS.Termination {
 				case routeapi.TLSTerminationEdge:
-					appMgr.setClientSslProfile(stats, sKey, &rsCfg, route)
+					appMgr.setClientSslProfile(stats, sKey, rsCfg, route)
 				case routeapi.TLSTerminationReencrypt:
-					appMgr.setClientSslProfile(stats, sKey, &rsCfg, route)
-					serverSsl := appMgr.setServerSslProfile(stats, sKey, &rsCfg, route)
+					appMgr.setClientSslProfile(stats, sKey, rsCfg, route)
+					serverSsl := appMgr.setServerSslProfile(stats, sKey, rsCfg, route)
 					if "" != serverSsl {
 						updateDataGroup(dgMap, reencryptServerSslDgName,
 							DEFAULT_PARTITION, sKey.Namespace, route.Spec.Host, serverSsl)
@@ -1258,7 +1259,7 @@ func (appMgr *Manager) syncRoutes(
 			}
 
 			_, found, updated := appMgr.handleConfigForType(
-				&rsCfg, sKey, rsMap, rsName, svcPortMap,
+				rsCfg, sKey, rsMap, rsName, svcPortMap,
 				svc, appInf, svcNames, nil)
 			stats.vsFound += found
 			stats.vsUpdated += updated
@@ -1962,7 +1963,7 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 		customDNS := appMgr.resolveIng
 		// Grab the port if it exists
 		slice := strings.Split(customDNS, ":")
-		if _, err := strconv.Atoi(slice[len(slice)-1]); err == nil {
+		if _, err = strconv.Atoi(slice[len(slice)-1]); err == nil {
 			port = slice[len(slice)-1]
 		}
 		isIP := net.ParseIP(customDNS)
@@ -1979,7 +1980,8 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 		client := dns.Client{}
 		msg := dns.Msg{}
 		msg.SetQuestion(host+".", dns.TypeA)
-		res, _, err := client.Exchange(&msg, customDNS+":"+port)
+		var res *dns.Msg
+		res, _, err = client.Exchange(&msg, customDNS+":"+port)
 		if nil != err {
 			logDNSError(fmt.Sprintf("Error while resolving host '%s' "+
 				"using DNS server '%s': %s", host, appMgr.resolveIng, err))

@@ -82,25 +82,25 @@ var _ = Describe("Node Poller Tests", func() {
 	initTestData := func(nodeLabelSelector string) (Poller, []nodeData) {
 		addressList := [][]v1.NodeAddress{
 			{
-				{"ExternalIP", "127.0.0.0"},
+				{Type: "ExternalIP", Address: "127.0.0.0"},
 			},
 			{
-				{"ExternalIP", "127.0.0.1"},
-				{"InternalIP", "127.1.0.1"},
+				{Type: "ExternalIP", Address: "127.0.0.1"},
+				{Type: "InternalIP", Address: "127.1.0.1"},
 			},
 			{
-				{"ExternalIP", "127.0.0.2"},
-				{"InternalIP", "127.1.0.2"},
+				{Type: "ExternalIP", Address: "127.0.0.2"},
+				{Type: "InternalIP", Address: "127.1.0.2"},
 			},
 			{
-				{"ExternalIP", "127.0.0.3"},
-				{"InternalIP", "127.1.0.3"},
+				{Type: "ExternalIP", Address: "127.0.0.3"},
+				{Type: "InternalIP", Address: "127.1.0.3"},
 			},
 			{
-				{"InternalIP", "127.0.0.4"},
+				{Type: "InternalIP", Address: "127.0.0.4"},
 			},
 			{
-				{"Hostname", "127.0.0.5"},
+				{Type: "Hostname", Address: "127.0.0.5"},
 			},
 		}
 
@@ -330,7 +330,7 @@ var _ = Describe("Node Poller Tests", func() {
 		}
 
 		for i := range calls[5:] {
-			err := np.RegisterListener(func(index int) PollListener {
+			err = np.RegisterListener(func(index int) PollListener {
 				var p PollListener = func(obj interface{}, err error) {
 					if false == calls[index] {
 						calls[index] = true

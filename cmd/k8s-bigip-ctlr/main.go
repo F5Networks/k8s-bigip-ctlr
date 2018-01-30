@@ -560,7 +560,8 @@ func main() {
 	subPid := <-subPidCh
 	defer func(pid int) {
 		if 0 != pid {
-			proc, err := os.FindProcess(pid)
+			var proc *os.Process
+			proc, err = os.FindProcess(pid)
 			if nil != err {
 				log.Warningf("Failed to find sub-process on exit: %v", err)
 			}

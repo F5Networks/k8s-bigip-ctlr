@@ -388,10 +388,10 @@ type CustomProfileStore struct {
 }
 
 // Contructor for CustomProfiles
-func NewCustomProfiles() CustomProfileStore {
+func NewCustomProfiles() *CustomProfileStore {
 	var cps CustomProfileStore
 	cps.profs = make(map[secretKey]CustomProfile)
-	return cps
+	return &cps
 }
 
 // Key is resource name, value is unused (since go doesn't have set objects).
@@ -1118,12 +1118,12 @@ func createRSConfigFromIngress(
 func createRSConfigFromRoute(
 	route *routeapi.Route,
 	svcName string,
-	resources Resources,
+	resources *Resources,
 	routeConfig RouteConfig,
 	pStruct portStruct,
 	svcIndexer cache.Indexer,
 	svcFwdRulesMap ServiceFwdRuleMap,
-) (ResourceConfig, error, Pool) {
+) (*ResourceConfig, error, Pool) {
 	var rsCfg ResourceConfig
 	rsCfg.MetaData.RouteProfs = make(map[routeKey]string)
 	var policyName, rsName string
@@ -1174,7 +1174,7 @@ func createRSConfigFromRoute(
 	rule, err := createRule(uri, pool.Name, pool.Partition, formatRouteRuleName(route))
 	if nil != err {
 		err = fmt.Errorf("Error configuring rule for Route %s: %v", route.ObjectMeta.Name, err)
-		return rsCfg, err, Pool{}
+		return &rsCfg, err, Pool{}
 	}
 
 	resources.Lock()
@@ -1217,7 +1217,7 @@ func createRSConfigFromRoute(
 	rsCfg.HandleRouteTls(route, pStruct.protocol, policyName, rule,
 		svcFwdRulesMap, abDeployment)
 
-	return rsCfg, nil, pool
+	return &rsCfg, nil, pool
 }
 
 // Copies from an existing config into our new config

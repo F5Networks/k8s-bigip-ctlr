@@ -124,7 +124,8 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 		}
 		// Will only exist in Flannel/Kubernetes
 		if atn, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/backend-data"]; ok {
-			mac, err := parseVtepMac(atn, node.ObjectMeta.Name)
+			var mac string
+			mac, err = parseVtepMac(atn, node.ObjectMeta.Name)
 			if nil != err {
 				log.Errorf("%v", err)
 			} else if rec.Endpoint != "" {
@@ -208,7 +209,8 @@ func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Inter
 		return
 	}
 	for _, pod := range pods.([]appmanager.Member) {
-		mac, err := getVtepMac(pod, kubePods, kubeNodes)
+		var mac string
+		mac, err = getVtepMac(pod, kubePods, kubeNodes)
 		if nil != err {
 			log.Errorf("%v", err)
 			return

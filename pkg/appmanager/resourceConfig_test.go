@@ -227,7 +227,7 @@ var _ = Describe("Resource Config Tests", func() {
 
 		It("creates new resources", func() {
 			// Test that we can create a new/empty resources object.
-			rs := NewResources()
+			rs = NewResources()
 			Expect(rs).ToNot(BeNil())
 			Expect(rs.rm).ToNot(BeNil())
 		})
@@ -678,7 +678,7 @@ var _ = Describe("Resource Config Tests", func() {
 			}
 			svcFwdRulesMap := NewServiceFwdRuleMap()
 			cfg, _, _ := createRSConfigFromRoute(route, getRouteCanonicalServiceName(route),
-				Resources{}, rc, ps, nil, svcFwdRulesMap)
+				&Resources{}, rc, ps, nil, svcFwdRulesMap)
 			Expect(cfg.Virtual.Name).To(Equal("https-ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_foo"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("foo"))
@@ -703,7 +703,7 @@ var _ = Describe("Resource Config Tests", func() {
 				port:     80,
 			}
 			cfg, _, _ = createRSConfigFromRoute(route2, getRouteCanonicalServiceName(route2),
-				Resources{}, rc, ps, nil, svcFwdRulesMap)
+				&Resources{}, rc, ps, nil, svcFwdRulesMap)
 			Expect(cfg.Virtual.Name).To(Equal("ose-vserver"))
 			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_bar"))
 			Expect(cfg.Pools[0].ServiceName).To(Equal("bar"))

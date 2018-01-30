@@ -1,9 +1,10 @@
 package health
 
 import (
-	"log"
 	"net/http"
 	"os"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
 type HealthChecker struct {
@@ -22,7 +23,8 @@ func (hc HealthChecker) HealthCheckHandler() http.Handler {
 				w.Write([]byte("Ok"))
 				return
 			}
-			log.Println(err)
+
+			log.Errorf(err.Error())
 		}
 
 		w.WriteHeader(http.StatusInternalServerError)

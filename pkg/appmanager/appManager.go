@@ -910,7 +910,7 @@ func (appMgr *Manager) syncConfigMaps(
 		if cm.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
-		rsCfg, err := appMgr.parseConfigMap(cm)
+		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal)
 		if nil != err {
 			// Ignore this config map for the time being. When the user updates it
 			// so that it is valid it will be requeued.

@@ -657,7 +657,7 @@ func setProfilesForMode(mode string, cfg *ResourceConfig) {
 }
 
 // Unmarshal an expected ConfigMap object
-func (appMgr *Manager) parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error) {
+func parseConfigMap(cm *v1.ConfigMap, schemaDBPath string) (*ResourceConfig, error) {
 	var cfg ResourceConfig
 	var cfgMap ConfigMap
 
@@ -673,7 +673,7 @@ func (appMgr *Manager) parseConfigMap(cm *v1.ConfigMap) (*ResourceConfig, error)
 			schemaName = strings.Trim(schemaName, "\"")
 			if strings.HasPrefix(schemaName, schemaIndicator) {
 				schemaName = strings.Replace(
-					schemaName, schemaIndicator, appMgr.schemaLocal, 1)
+					schemaName, schemaIndicator, schemaDBPath, 1)
 			}
 			// Load the schema
 			schemaLoader := gojsonschema.NewReferenceLoader(schemaName)

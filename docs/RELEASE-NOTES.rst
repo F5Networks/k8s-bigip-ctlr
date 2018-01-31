@@ -41,7 +41,13 @@ Bug Fixes
 
 Limitations
 ```````````
-* The minimum iApps release package required for this release is ``iapps-1.0.0.492.0``. If you have deployed services using F5-supported iApps:
+* If you are deploying services using the F5-supported iApps, you must upgrade to a version that supports
+  route domain 0 for non-Common partitions. The minimum versions required for the F5 iapps are:
+
+  - f5.http: ``f5.http.v1.3.0rc3``
+  - f5.tcp: ``f5.tcp.v1.0.0rc3``
+
+  You can find these versions in the iapp package ``iapps-1.0.0.492.0``. To upgrade, you must perform the following:
 
   - `Download and install the latest iApps templates`_.
   - `Set the service to use the newer iApp template`_.

@@ -19,8 +19,6 @@
 #
 import os
 import sys
-import subprocess
-import re
 
 sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('../'))
@@ -80,24 +78,12 @@ author = u'F5 Networks'
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
-git_branch = subprocess.check_output(['git', 'rev-parse', '--symbolic-full-name', '--abbrev-ref', 'HEAD']).strip()
-is_stable = re.search(r'^(\d+\.\d+)-stable$', git_branch)
-if is_stable:
-    # For stable branches, use the latest git tag to determine docs version.
-    v = subprocess.check_output(['git', 'describe', '--tags', '--abbrev=0']).strip().split('.')
+with open('../next-version.txt') as verfile:
+    v = verfile.readline().strip().split('.')
     # The short X.Y version.
-    version = u'{}.{}'.format(v[0], v[1])
+    version = u'v{}.{}'.format(v[0], v[1])
     # The full version, including alpha/beta/rc tags.
-    release = u'{}.{}.{}'.format(v[0], v[1], v[2])
-else:
-    # For non-stable branches, use the information in the next-version.txt file to determine docs version.
-    # Note: we don't currently push docs from non-stable versions to clouddocs.
-    with open('../next-version.txt') as verfile:
-        v = verfile.readline().strip().split('.')
-        # The short X.Y version.
-        version = u'v{}.{}'.format(v[0], v[1])
-        # The full version, including alpha/beta/rc tags.
-        release = u'v{}.{}.{}-dev'.format(v[0], v[1], v[2])
+    release = u'v{}.{}.{}-dev'.format(v[0], v[1], v[2])
 
 # def setup(app):
 #    app.add_config_value('versionlevel', '', 'env')

@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
@@ -803,7 +804,6 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		log.Debugf("Finished syncing virtual servers %+v (%v)",
 			sKey, endTime.Sub(startTime))
 	}()
-
 	// Get the informers for the namespace. This will tell us if we care about
 	// this item.
 	appInf, haveNamespace := appMgr.getNamespaceInformer(sKey.Namespace)
@@ -838,8 +838,8 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 
 	// rsMap stores all resources currently in Resources matching sKey, indexed by port
 	rsMap := appMgr.getResourcesForKey(sKey)
-
 	dgMap := make(InternalDataGroupMap)
+
 	var stats vsSyncStats
 	err = appMgr.syncConfigMaps(&stats, sKey, rsMap, svcPortMap, svc, appInf)
 	if nil != err {
@@ -904,6 +904,7 @@ func (appMgr *Manager) syncConfigMaps(
 			sKey.Namespace, err)
 		return err
 	}
+
 	for _, obj := range cfgMapsByIndex {
 		// We need to look at all config maps in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
@@ -913,9 +914,10 @@ func (appMgr *Manager) syncConfigMaps(
 		}
 		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal)
 		if nil != err {
+			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(1)
 			// Ignore this config map for the time being. When the user updates it
 			// so that it is valid it will be requeued.
-			fmt.Errorf("Error parsing ConfigMap %v_%v",
+			log.Errorf("Error parsing ConfigMap %v_%v",
 				cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
 			continue
 		}
@@ -948,12 +950,14 @@ func (appMgr *Manager) syncConfigMaps(
 		}
 
 		rsName := rsCfg.GetName()
-		if ok, found, updated := appMgr.handleConfigForType(
+		ok, found, updated := appMgr.handleConfigForType(
 			rsCfg, sKey, rsMap, rsName, svcPortMap,
-			svc, appInf, []string{}, nil); !ok {
+			svc, appInf, []string{}, nil)
+		if !ok {
 			stats.vsUpdated += updated
 			continue
 		} else {
+			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(0)
 			stats.vsFound += found
 			stats.vsUpdated += updated
 		}
@@ -964,6 +968,7 @@ func (appMgr *Manager) syncConfigMaps(
 			rsCfg.Virtual.VirtualAddress.BindAddr != "" {
 			appMgr.setBindAddrAnnotation(cm, sKey, rsCfg)
 		}
+
 	}
 	return nil
 }
@@ -1062,7 +1067,6 @@ func (appMgr *Manager) syncIngresses(
 				}
 				rsCfg.SortMonitors()
 			}
-
 			// Collect all service names on this Ingress.
 			// Used in handleConfigForType.
 			var svcs []string
@@ -1491,6 +1495,7 @@ func (appMgr *Manager) handleConfigForType(
 		}
 		return false
 	}
+
 	for i, pl := range rsCfg.Pools {
 		if pl.ServiceName == sKey.ServiceName &&
 			poolInNamespace(rsCfg, pl.Name, sKey.Namespace) {
@@ -1549,20 +1554,27 @@ func (appMgr *Manager) handleConfigForType(
 	}
 
 	deactivated := false
+	bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "port-not-found").Set(0)
 	if _, ok := svcPortMap[pool.ServicePort]; !ok {
 		log.Debugf("Process Service delete - name: %v namespace: %v",
 			pool.ServiceName, svcKey.Namespace)
 		log.Infof("Port '%v' for service '%v' was not found.",
 			pool.ServicePort, pool.ServiceName)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "port-not-found").Set(1)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(0)
 		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
 			vsUpdated += 1
 		}
 		deactivated = true
 	}
 
+	bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "service-not-found").Set(0)
 	if nil == svc {
 		// The service is gone, de-activate it in the config.
 		log.Infof("Service '%v' has not been found.", pool.ServiceName)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "service-not-found").Set(1)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(0)
+
 		if !deactivated {
 			deactivated = true
 			if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
@@ -1603,6 +1615,10 @@ func (appMgr *Manager) handleConfigForType(
 				appMgr.recordIngressEvent(ing, reason, msg)
 			}
 		}
+	}
+
+	if !deactivated {
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(1)
 	}
 
 	return true, vsFound, vsUpdated

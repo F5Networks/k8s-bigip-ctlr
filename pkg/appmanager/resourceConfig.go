@@ -26,6 +26,7 @@ import (
 	"strings"
 	"sync"
 
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
 	routeapi "github.com/openshift/origin/pkg/route/api"
@@ -574,6 +575,11 @@ func (rs *Resources) deleteImpl(
 	rsName string,
 	svcKey serviceKey,
 ) {
+	bigIPPrometheus.MonitoredServices.DeleteLabelValues(svcKey.Namespace, svcKey.ServiceName, "parse-error")
+	bigIPPrometheus.MonitoredServices.DeleteLabelValues(svcKey.Namespace, rsName, "port-not-found")
+	bigIPPrometheus.MonitoredServices.DeleteLabelValues(svcKey.Namespace, rsName, "service-not-found")
+	bigIPPrometheus.MonitoredServices.DeleteLabelValues(svcKey.Namespace, rsName, "success")
+
 	// Remove mapping for a backend -> virtual/iapp
 	delete(rsList, rsName)
 	if len(rsList) == 0 {
@@ -584,7 +590,7 @@ func (rs *Resources) deleteImpl(
 	// Look at all service keys to see if another references rsName
 	useCt := 0
 	for _, otherList := range rs.rm {
-		for otherName, _ := range otherList {
+		for otherName := range otherList {
 			if otherName == rsName {
 				// Found one, can't delete this resource yet.
 				useCt += 1

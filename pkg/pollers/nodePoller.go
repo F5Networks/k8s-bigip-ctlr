@@ -26,6 +26,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api/v1"
+
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 )
 
 type pollData struct {
@@ -177,6 +179,7 @@ func (np *nodePoller) poller() {
 
 			// LabelSelector
 			nodes, err := np.kubeClient.Core().Nodes().List(metav1.ListOptions{LabelSelector: np.nodeLabel})
+			bigIPPrometheus.MonitoredNodes.WithLabelValues(np.nodeLabel).Set(float64(len(nodes.Items)))
 			np.nodeCache = nodes.Items
 			np.lastError = err
 

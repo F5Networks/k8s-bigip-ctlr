@@ -23,7 +23,7 @@ prod: prod-build
 
 debug: dbg-build
 
-verify: fmt
+verify: fmt vet
 
 docs: _docs
 
@@ -89,6 +89,10 @@ dbg-build: pre-build
 fmt:
 	@echo "Enforcing code formatting using 'go fmt'..."
 	$(CURDIR)/build-tools/fmt.sh
+
+vet:
+	@echo "Running 'go vet'..."
+	$(CURDIR)/build-tools/vet.sh
 
 devel-image:
 	BASE_OS=$(BASE_OS) ./build-tools/build-devel-image.sh

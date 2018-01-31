@@ -190,7 +190,7 @@ var _ = Describe("Config Writer Tests", func() {
 
 		AfterEach(func() {
 			cw.Stop()
-			_, err := os.Stat(f)
+			_, err = os.Stat(f)
 			Expect(os.IsExist(err)).To(BeFalse())
 		})
 

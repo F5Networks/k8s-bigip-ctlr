@@ -59,25 +59,25 @@ func newNode(
 func getNodeList() []v1.Node {
 	nodes := []v1.Node{
 		*newNode("node0", "0", true, []v1.NodeAddress{
-			{"ExternalIP", "127.0.0.0"}}, nil),
+			{Type: "ExternalIP", Address: "127.0.0.0"}}, nil),
 		*newNode("node1", "1", false, []v1.NodeAddress{
-			{"ExternalIP", "127.0.0.1"}}, nil),
+			{Type: "ExternalIP", Address: "127.0.0.1"}}, nil),
 		*newNode("node2", "2", false, []v1.NodeAddress{
-			{"ExternalIP", "127.0.0.2"},
-			{"InternalIP", "127.1.1.2"}}, nil),
+			{Type: "ExternalIP", Address: "127.0.0.2"},
+			{Type: "InternalIP", Address: "127.1.1.2"}}, nil),
 		*newNode("node3", "3", false, []v1.NodeAddress{
-			{"ExternalIP", "127.0.0.3"}}, nil),
+			{Type: "ExternalIP", Address: "127.0.0.3"}}, nil),
 		*newNode("node4", "4", false, []v1.NodeAddress{
-			{"InternalIP", "127.0.0.4"}}, nil),
+			{Type: "InternalIP", Address: "127.0.0.4"}}, nil),
 		*newNode("node5", "5", false, []v1.NodeAddress{
-			{"Hostname", "127.0.0.5"},
-			{"InternalIP", "127.1.1.5"}}, nil),
+			{Type: "Hostname", Address: "127.0.0.5"},
+			{Type: "InternalIP", Address: "127.1.1.5"}}, nil),
 		*newNode("node6", "6", true, []v1.NodeAddress{
-			{"ExternalIP", "127.0.0.6"}}, nil),
+			{Type: "ExternalIP", Address: "127.0.0.6"}}, nil),
 		*newNode("node7", "7", false, []v1.NodeAddress{
-			{"InternalIP", "127.0.0.7"}}, nil),
+			{Type: "InternalIP", Address: "127.0.0.7"}}, nil),
 		*newNode("node8", "8", false, []v1.NodeAddress{
-			{"Hostname", "127.0.0.8"}}, nil),
+			{Type: "Hostname", Address: "127.0.0.8"}}, nil),
 	}
 
 	return nodes
@@ -236,7 +236,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 			"flannel.alpha.coreos.com/backend-data": "{\"VtepMAC\":\"12:ab:34:cd:56:ef\"}",
 		}
 		flannelNode := *newNode("flannelNode", "9", false,
-			[]v1.NodeAddress{{"InternalIP", "127.0.0.10"}}, annotations)
+			[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.10"}}, annotations)
 
 		expected = fdbSection{
 			TunnelName: "vxlan500",
@@ -325,7 +325,7 @@ var _ = Describe("VxlanMgr Tests", func() {
 			"flannel.alpha.coreos.com/public-ip":    "127.0.0.10",
 		}
 		flannelNode := *newNode("flannelNode", "9", false,
-			[]v1.NodeAddress{{"InternalIP", "127.0.0.10"}}, annotations)
+			[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.10"}}, annotations)
 		flannelPod := &v1.Pod{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Pod",

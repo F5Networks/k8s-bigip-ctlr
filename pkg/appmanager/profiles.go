@@ -243,7 +243,7 @@ func (appMgr *Manager) handleServerSslProfileAnnotation(
 		Namespace: sKey.Namespace,
 	}
 	updated := false
-	if updated := rsCfg.Virtual.AddOrUpdateProfile(profile); updated {
+	if updated = rsCfg.Virtual.AddOrUpdateProfile(profile); updated {
 		// Store this annotated profile in the metadata for future reference
 		// if it gets deleted.
 		rKey := routeKey{

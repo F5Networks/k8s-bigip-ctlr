@@ -72,7 +72,7 @@ type (
 	Virtual struct {
 		Name                  string                `json:"name"`
 		PoolName              string                `json:"pool,omitempty"`
-		Partition             string                `-"`
+		Partition             string                `json:"-"`
 		Destination           string                `json:"destination"`
 		Enabled               bool                  `json:"enabled"`
 		IpProtocol            string                `json:"ipProtocol,omitempty"`
@@ -158,7 +158,7 @@ type (
 	// action config for a Rule
 	action struct {
 		Name      string `json:"name"`
-		Pool      string `json:"pool",omitempty"`
+		Pool      string `json:"pool,omitempty"`
 		HttpReply bool   `json:"httpReply,omitempty"`
 		Forward   bool   `json:"forward,omitempty"`
 		Location  string `json:"location,omitempty"`

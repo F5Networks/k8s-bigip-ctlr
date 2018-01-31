@@ -184,10 +184,10 @@ var _ = Describe("Node Poller Tests", func() {
 	}
 
 	It("starts and stops", func() {
-		fake := fake.NewSimpleClientset()
-		Expect(fake).ToNot(BeNil(), "Mock client cannot be nil.")
+		fakeClient := fake.NewSimpleClientset()
+		Expect(fakeClient).ToNot(BeNil(), "Mock client cannot be nil.")
 
-		np := NewNodePoller(fake, 1*time.Millisecond, "")
+		np := NewNodePoller(fakeClient, 1*time.Millisecond, "")
 		Expect(np).ToNot(BeNil(), "Node poller cannot be nil.")
 
 		err := np.Run()
@@ -284,10 +284,10 @@ var _ = Describe("Node Poller Tests", func() {
 	})
 
 	It("registers properly while stopped", func() {
-		fake := fake.NewSimpleClientset()
-		Expect(fake).ToNot(BeNil(), "Mock client cannot be nil.")
+		fakeClient := fake.NewSimpleClientset()
+		Expect(fakeClient).ToNot(BeNil(), "Mock client cannot be nil.")
 
-		np := NewNodePoller(fake, 1*time.Millisecond, "")
+		np := NewNodePoller(fakeClient, 1*time.Millisecond, "")
 		Expect(np).ToNot(BeNil(), "Node poller cannot be nil.")
 
 		calls := []bool{false, false, false, false, false}

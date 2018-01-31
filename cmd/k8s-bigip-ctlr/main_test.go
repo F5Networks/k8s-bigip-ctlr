@@ -440,8 +440,8 @@ var _ = Describe("Main Tests", func() {
 		err := verifyArgs()
 		Expect(err).To(BeNil())
 
-		fake := fake.NewSimpleClientset()
-		Expect(fake).ToNot(BeNil(), "Mock client cannot be nil.")
+		fakeClient := fake.NewSimpleClientset()
+		Expect(fakeClient).ToNot(BeNil(), "Mock client cannot be nil.")
 
 		configWriter := &test.MockWriter{
 			FailStyle: test.Success,
@@ -455,7 +455,7 @@ var _ = Describe("Main Tests", func() {
 		Expect(nodePoller).ToNot(BeNil(), "Mock poller cannot be nil.")
 
 		vsm := appmanager.NewManager(&appmanager.Params{
-			KubeClient:   fake,
+			KubeClient:   fakeClient,
 			ConfigWriter: configWriter,
 		})
 		err = setupNodePolling(vsm, nodePoller, nil, nil)

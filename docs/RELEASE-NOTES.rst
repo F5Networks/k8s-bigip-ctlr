@@ -7,6 +7,7 @@ v1.4.1
 Bug Fixes
 `````````
 * :issues:`517` - Controller deletes SSL profiles off of Ingress virtual servers if watching multiple namespaces.
+* :issues:`471` - When updating routes, old service pools are not removed until after a refresh cycle.
 
 v1.4.0
 ------

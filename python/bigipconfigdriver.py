@@ -461,9 +461,9 @@ class ConfigWatcher(pyinotify.ProcessEvent):
         self._config_stats = None
         if os.path.exists(self._config_file):
             try:
-                self._config_stats = self._md5()
+                self._config_stats = self._digest()
             except IOError as ioe:
-                log.warning('ioerror during md5 sum calculation: {}'.
+                log.warning('ioerror during sha sum calculation: {}'.
                             format(ioe))
 
         self._running = False
@@ -531,8 +531,8 @@ class ConfigWatcher(pyinotify.ProcessEvent):
         if self._user_abort:
             log.info('Received user kill signal, terminating.')
 
-    def _md5(self):
-        md5 = hashlib.md5()
+    def _digest(self):
+        sha = hashlib.sha256()
 
         with open(self._config_file, 'rb') as f:
             fcntl.lockf(f.fileno(), fcntl.LOCK_SH, 0, 0, 0)
@@ -540,9 +540,9 @@ class ConfigWatcher(pyinotify.ProcessEvent):
                 buf = f.read(4096)
                 if not buf:
                     break
-                md5.update(buf)
+                sha.update(buf)
             fcntl.lockf(f.fileno(), fcntl.LOCK_UN, 0, 0, 0)
-        return md5.digest()
+        return sha.digest()
 
     def _should_watch(self, pathname):
         if pathname == self._config_file:
@@ -559,13 +559,13 @@ class ConfigWatcher(pyinotify.ProcessEvent):
                 changed = False
         else:
             try:
-                cur_hash = self._md5()
+                cur_hash = self._digest()
                 if cur_hash != self._config_stats:
                     changed = True
                 else:
                     changed = False
             except IOError as ioe:
-                log.warning('ioerror during md5 sum calculation: {}'.
+                log.warning('ioerror during sha sum calculation: {}'.
                             format(ioe))
 
         return (changed, cur_hash)
@@ -585,12 +585,12 @@ class ConfigWatcher(pyinotify.ProcessEvent):
                 self._on_change()
 
         if self._should_watch(event.pathname):
-            (changed, md5) = self._is_changed()
+            (changed, sha) = self._is_changed()
 
             if changed:
                 log.debug('config file {0} changed - signalling bigip'.format(
-                    self._config_file, self._config_stats, md5))
-                self._config_stats = md5
+                    self._config_file, self._config_stats, sha))
+                self._config_stats = sha
                 self._on_change()
 
 

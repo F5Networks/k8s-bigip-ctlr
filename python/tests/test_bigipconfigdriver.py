@@ -355,8 +355,9 @@ def test_configwatcher_init(request):
     assert watcher._running is False
 
     # Test with file on created
-    expected_digest = '\xd4\x1d\x8c\xd9\x8f\x00\xb2\x04' + \
-        '\xe9\x80\t\x98\xec\xf8B~'
+    expected_digest = '\xe3\xb0\xc4\x42\x98\xfc\x1c\x14\x9a\xfb' + \
+        '\xf4\xc8\x99\x6f\xb9\x24\x27\xae\x41\xe4\x64\x9b\x93' + \
+        '\x4c\xa4\x95\x99\x1b\x78\x52\xb8\x55'
 
     os.mkdir(expected_dir)
     with open(expected_file, 'w+'):
@@ -397,10 +398,16 @@ def test_configwatcher_loop(request):
 
     expected_changes = [True, True, False, True, True, True]
     expected_digests = [
-        '\xd4\x1d\x8c\xd9\x8f\x00\xb2\x04\xe9\x80\t\x98\xec\xf8B~',
-        '\xd7-\x16\xde\x92\xf2\xb6\xc1\x05\xce\xabj\x84\xcf\xcaz',
-        '\xd7-\x16\xde\x92\xf2\xb6\xc1\x05\xce\xabj\x84\xcf\xcaz', None,
-        '\xd7-\x16\xde\x92\xf2\xb6\xc1\x05\xce\xabj\x84\xcf\xcaz', None
+        '\xe3\xb0\xc4\x42\x98\xfc\x1c\x14\x9a\xfb\xf4\xc8\x99\x6f\xb9\x24' +
+        '\x27\xae\x41\xe4\x64\x9b\x93\x4c\xa4\x95\x99\x1b\x78\x52\xb8\x55',
+        '\x89\x49\x41\x1a\xf4\x39\x14\x13\x41\x0c\x77\x28\x5f\xe7\x90\x40' +
+        '\x1b\x35\x70\xae\xcc\x78\x93\xc2\xfe\x33\x1e\xe1\xe3\xd0\xf9\xfb',
+        '\x89\x49\x41\x1a\xf4\x39\x14\x13\x41\x0c\x77\x28\x5f\xe7\x90\x40' +
+        '\x1b\x35\x70\xae\xcc\x78\x93\xc2\xfe\x33\x1e\xe1\xe3\xd0\xf9\xfb',
+        None,
+        '\x89\x49\x41\x1a\xf4\x39\x14\x13\x41\x0c\x77\x28\x5f\xe7\x90\x40' +
+        '\x1b\x35\x70\xae\xcc\x78\x93\xc2\xfe\x33\x1e\xe1\xe3\xd0\xf9\xfb',
+        None
     ]
 
     watcher = bigipconfigdriver.ConfigWatcher(watch_file,
@@ -414,45 +421,45 @@ def test_configwatcher_loop(request):
     # IN_CREATE event
     os.mkdir(watch_dir)
     with open(watch_file, 'w+') as file_handle:
-        (changed, md5sum) = watcher._is_changed()
+        (changed, shasum) = watcher._is_changed()
         assert changed == expected_changes[0]
-        assert md5sum == expected_digests[0]
-        watcher._config_stats = md5sum
+        assert shasum == expected_digests[0]
+        watcher._config_stats = shasum
 
         file_handle.write('Senatus Populusque Romanus')
 
     # IN_CLOSE_WRITE event
-    (changed, md5sum) = watcher._is_changed()
+    (changed, shasum) = watcher._is_changed()
     assert changed == expected_changes[1]
-    assert md5sum == expected_digests[1]
-    watcher._config_stats = md5sum
+    assert shasum == expected_digests[1]
+    watcher._config_stats = shasum
 
     # IN_CLOSE_WRITE no change
     with open(watch_file, 'w') as file_handle:
         file_handle.write('Senatus Populusque Romanus')
-    (changed, md5sum) = watcher._is_changed()
+    (changed, shasum) = watcher._is_changed()
     assert changed == expected_changes[2]
-    assert md5sum == expected_digests[2]
+    assert shasum == expected_digests[2]
 
     # IN_MOVED_FROM event
     shutil.move(watch_file, watch_dir + '/file2')
-    (changed, md5sum) = watcher._is_changed()
+    (changed, shasum) = watcher._is_changed()
     assert changed == expected_changes[3]
-    assert md5sum == expected_digests[3]
-    watcher._config_stats = md5sum
+    assert shasum == expected_digests[3]
+    watcher._config_stats = shasum
 
     # IN_MOVED_TO event
     shutil.move(watch_dir + '/file2', watch_file)
-    (changed, md5sum) = watcher._is_changed()
+    (changed, shasum) = watcher._is_changed()
     assert changed == expected_changes[4]
-    assert md5sum == expected_digests[4]
-    watcher._config_stats = md5sum
+    assert shasum == expected_digests[4]
+    watcher._config_stats = shasum
 
     # IN_DELETE event
     os.unlink(watch_file)
-    (changed, md5sum) = watcher._is_changed()
+    (changed, shasum) = watcher._is_changed()
     assert changed == expected_changes[5]
-    assert md5sum == expected_digests[5]
+    assert shasum == expected_digests[5]
 
 
 def test_confighandler_lifecycle():

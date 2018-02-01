@@ -8,6 +8,7 @@ Bug Fixes
 `````````
 * :issues:`517` - Controller deletes SSL profiles off of Ingress virtual servers if watching multiple namespaces.
 * :issues:`471` - When updating routes, old service pools are not removed until after a refresh cycle.
+* :cccl-issue:`208` - Address compatibility for BIG-IP v13.0 Health Monitor interval and timeout.
 
 v1.4.0
 ------

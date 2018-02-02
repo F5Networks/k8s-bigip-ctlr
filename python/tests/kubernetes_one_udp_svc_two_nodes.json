@@ -10,7 +10,7 @@
                     "interval": 30,
                     "name": "default_configmap_0_udp",
                     "send": "GET /",
-                    "timeout": 20,
+                    "timeout": 40,
                     "type": "udp"
                 }
             ],

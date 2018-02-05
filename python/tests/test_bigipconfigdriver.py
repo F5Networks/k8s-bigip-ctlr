@@ -486,9 +486,6 @@ def test_parse_config(request):
 
         handler = bigipconfigdriver.ConfigHandler(config_file, [mgr], 30)
 
-        r = bigipconfigdriver._parse_config(config_file)
-        assert r is None
-
         obj = {}
         obj['field1'] = 'one'
         obj['field_string'] = 'string'

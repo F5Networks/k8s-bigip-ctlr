@@ -2159,6 +2159,14 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal(""))
 				Expect(rs.Virtual.VirtualAddress.Port).To(Equal(int32(10000)))
 
+				// Add ip annotation
+				noBindAddr.ObjectMeta.Annotations[f5VsBindAddrAnnotation] = "1.2.3.4"
+				mockMgr.updateConfigMap(noBindAddr)
+				rs, _ = resources.Get(
+					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(noBindAddr))
+				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
+				Expect(rs.Virtual.VirtualAddress.Port).To(Equal(int32(10000)))
+
 				mockMgr.deleteConfigMap(noBindAddr)
 			}
 

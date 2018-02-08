@@ -844,7 +844,7 @@ func parseConfigMap(cm *v1.ConfigMap, schemaDBPath string) (*ResourceConfig, err
 					} else if cfg.Virtual.VirtualAddress.BindAddr == "" {
 						// Check for IP annotation provided by IPAM system
 						if addr, ok := cm.ObjectMeta.Annotations[f5VsBindAddrAnnotation]; ok == true {
-							cfg.Virtual.SetVirtualAddress(addr, 0)
+							cfg.Virtual.SetVirtualAddress(addr, cfg.Virtual.VirtualAddress.Port)
 						} else {
 							log.Infof("No virtual IP was specified for the virtual server %s creating pool only.", cm.ObjectMeta.Name)
 						}

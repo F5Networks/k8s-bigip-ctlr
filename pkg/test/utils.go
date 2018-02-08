@@ -124,6 +124,7 @@ func NewConfigMap(id, rv, namespace string,
 			Name:            id,
 			ResourceVersion: rv,
 			Namespace:       namespace,
+			Annotations:     make(map[string]string),
 		},
 		Data: keys,
 	}

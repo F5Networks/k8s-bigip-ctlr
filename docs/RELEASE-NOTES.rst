@@ -1,6 +1,13 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+v1.4.2
+------
+
+Bug Fixes
+`````````
+* :issues:`549` - Using IP annotation on ConfigMaps would result in the virtual server getting a port of 0.
+
 v1.4.1
 ------
 

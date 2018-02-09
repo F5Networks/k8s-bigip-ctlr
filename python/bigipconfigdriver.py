@@ -595,16 +595,20 @@ class ConfigWatcher(pyinotify.ProcessEvent):
 
 
 def _parse_config(config_file):
-    if os.path.exists(config_file):
-        with open(config_file, 'r') as config:
-            fcntl.lockf(config.fileno(), fcntl.LOCK_SH, 0, 0, 0)
-            data = config.read()
-            fcntl.lockf(config.fileno(), fcntl.LOCK_UN, 0, 0, 0)
-            config_json = json.loads(data)
-            log.debug('loaded configuration file successfully')
-            return config_json
-    else:
-        return None
+    def _file_exist_cb():
+        if os.path.exists(config_file):
+            return (True, None)
+        else:
+            return (False, 'Waiting for config file {}'.format(config_file))
+    _retry_backoff(_file_exist_cb)
+
+    with open(config_file, 'r') as config:
+        fcntl.lockf(config.fileno(), fcntl.LOCK_SH, 0, 0, 0)
+        data = config.read()
+        fcntl.lockf(config.fileno(), fcntl.LOCK_UN, 0, 0, 0)
+        config_json = json.loads(data)
+        log.debug('loaded configuration file successfully')
+        return config_json
 
 
 def _handle_args():
@@ -726,6 +730,24 @@ def _set_user_agent():
     return user_agent
 
 
+def _retry_backoff(cb):
+    RETRY_INTERVAL = 1
+    log_interval = 0.5
+    elapsed = 0.5
+    while 1:
+        (success, val) = cb()
+        if success:
+            return val
+        if elapsed == log_interval:
+            elapsed = 0
+            log_interval *= 2
+            log.error("Encountered error: {}. Retrying for {} seconds.".format(
+                val, int(log_interval)
+            ))
+        time.sleep(RETRY_INTERVAL)
+        elapsed += RETRY_INTERVAL
+
+
 def main():
     try:
         args = _handle_args()
@@ -739,12 +761,18 @@ def main():
         #               may want to make the changes dynamic in the future.
 
         # BIG-IP to manage
-        bigip = mgmt_root(
-            host,
-            config['bigip']['username'],
-            config['bigip']['password'],
-            port,
-            "tmos")
+        def _bigip_connect_cb():
+            try:
+                bigip = mgmt_root(
+                    host,
+                    config['bigip']['username'],
+                    config['bigip']['password'],
+                    port,
+                    "tmos")
+                return (True, bigip)
+            except Exception, e:
+                return (False, 'BIG-IP connection error: {}'.format(e))
+        bigip = _retry_backoff(_bigip_connect_cb)
 
         # Read version and build info, set user-agent for ICR session
         user_agent = _set_user_agent()

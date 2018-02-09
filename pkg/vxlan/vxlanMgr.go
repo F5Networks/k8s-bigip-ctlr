@@ -188,7 +188,6 @@ func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
 				} else {
 					log.Errorf("Vxlan Manager could not read Endpoints from appManager channel.")
 				}
-			default:
 			}
 		}
 	}()

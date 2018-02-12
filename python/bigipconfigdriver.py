@@ -597,6 +597,7 @@ class ConfigWatcher(pyinotify.ProcessEvent):
 def _parse_config(config_file):
     def _file_exist_cb():
         if os.path.exists(config_file):
+            log.info('Config file: {} found'.format(config_file))
             return (True, None)
         else:
             return (False, 'Waiting for config file {}'.format(config_file))
@@ -769,6 +770,7 @@ def main():
                     config['bigip']['password'],
                     port,
                     "tmos")
+                log.info('BIG-IP connection established.')
                 return (True, bigip)
             except Exception, e:
                 return (False, 'BIG-IP connection error: {}'.format(e))

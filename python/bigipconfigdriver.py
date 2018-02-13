@@ -595,9 +595,10 @@ class ConfigWatcher(pyinotify.ProcessEvent):
 
 
 def _parse_config(config_file):
-    def _file_exist_cb():
+    def _file_exist_cb(log_success):
         if os.path.exists(config_file):
-            log.info('Config file: {} found'.format(config_file))
+            if log_success:
+                log.info('Config file: {} found'.format(config_file))
             return (True, None)
         else:
             return (False, 'Waiting for config file {}'.format(config_file))
@@ -735,8 +736,11 @@ def _retry_backoff(cb):
     RETRY_INTERVAL = 1
     log_interval = 0.5
     elapsed = 0.5
+    log_success = False
     while 1:
-        (success, val) = cb()
+        if log_interval > 0.5:
+            log_success = True
+        (success, val) = cb(log_success)
         if success:
             return val
         if elapsed == log_interval:
@@ -762,7 +766,7 @@ def main():
         #               may want to make the changes dynamic in the future.
 
         # BIG-IP to manage
-        def _bigip_connect_cb():
+        def _bigip_connect_cb(log_success):
             try:
                 bigip = mgmt_root(
                     host,
@@ -770,7 +774,8 @@ def main():
                     config['bigip']['password'],
                     port,
                     "tmos")
-                log.info('BIG-IP connection established.')
+                if log_success:
+                    log.info('BIG-IP connection established.')
                 return (True, bigip)
             except Exception, e:
                 return (False, 'BIG-IP connection error: {}'.format(e))

@@ -61,6 +61,7 @@ Limitations
   - `Download and install the latest iApps templates`_.
   - `Set the service to use the newer iApp template`_.
 
+* Check BIG-IP version compatibility on Application Services (iApps) before deploying. See Application Services Integration iApp `[#16] <https://github.com/F5Networks/f5-application-services-integration-iApp/issues/16>`_ for more information.
 * Cannot delete ARP entries on BIG-IP v11.6.1 when running the Controller in Kubernetes with Flannel VXLAN enabled.
 * The controller will exit at startup if it cannot establish a connection with the BIG-IP.
 

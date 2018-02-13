@@ -21,7 +21,7 @@ CURDIR="$(dirname $BASH_SOURCE)"
 WKDIR=$(mktemp -d docker-build.XXXX)
 cp $CURDIR/Dockerfile.$BASE_OS.builder $WKDIR/Dockerfile.builder
 cp $CURDIR/entrypoint.builder.sh $WKDIR
-cp $CURDIR/../python/k8s-*-requirements.txt $WKDIR/
+cp $CURDIR/../requirements.txt $WKDIR
 cp $CURDIR/../requirements.docs.txt $WKDIR
 # GOLANG patches
 cp $CURDIR/golang/17847.patch $WKDIR/

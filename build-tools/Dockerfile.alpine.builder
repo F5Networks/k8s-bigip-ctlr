@@ -12,7 +12,7 @@ ENV GOLANG_SRC_SHA256 4e834513a2079f8cbbd357502cccaac9507fd00a1efe672375798858ff
 COPY no-pic.patch /
 # https://golang.org/issue/17847
 COPY 17847.patch /
- 
+
 RUN apk add --no-cache --virtual .build-deps \
 		bash \
 		gcc \
@@ -39,8 +39,7 @@ WORKDIR $GOPATH
 
 # Controller install steps
 COPY entrypoint.builder.sh /entrypoint.sh
-COPY k8s-build-requirements.txt /tmp/k8s-build-requirements.txt
-COPY k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
+COPY requirements.txt /tmp/requirements.txt
 COPY requirements.docs.txt /tmp/requirements.docs.txt
 
 RUN apk add --no-cache \
@@ -50,8 +49,7 @@ RUN apk add --no-cache \
 		rsync \
 		su-exec && \
 	pip install setuptools flake8 virtualenv && \
-	pip install -r /tmp/k8s-build-requirements.txt && \
-	pip install -r /tmp/k8s-runtime-requirements.txt && \
+	pip install --process-dependency-links -r /tmp/requirements.txt && \
 	pip install -r /tmp/requirements.docs.txt && \
 	go get github.com/wadey/gocovmerge && \
 	go get golang.org/x/tools/cmd/cover && \

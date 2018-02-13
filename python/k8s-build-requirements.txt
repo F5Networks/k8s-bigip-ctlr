@@ -1,7 +1,0 @@
--e git+https://github.com/f5devcentral/f5-cccl.git@06254f6f3b399da8b7e830847d59add55c299f97#egg=f5-cccl
-pytest==3.0.2
-mock
-flake8==3.4.1
-pytest-cov==2.5.1
-coveralls==1.1
-bandit==1.4.0

@@ -61,13 +61,21 @@ func createDriverCmd(
 	configFilename string,
 	pyCmd string,
 ) *exec.Cmd {
-	cmdName := "python"
+	var cmd *exec.Cmd
 
-	cmdArgs := []string{
-		pyCmd,
-		"--config-file", configFilename}
-
-	cmd := exec.Command(cmdName, cmdArgs...)
+	if pyCmd == "bigipconfigdriver.py" {
+		cmdArgs := []string{
+			"--config-file", configFilename,
+			"--ctlr-prefix", "k8s"}
+		cmd = exec.Command(pyCmd, cmdArgs...)
+	} else {
+		cmdName := "python"
+		cmdArgs := []string{
+			pyCmd,
+			"--config-file", configFilename,
+			"--ctlr-prefix", "k8s"}
+		cmd = exec.Command(cmdName, cmdArgs...)
+	}
 
 	return cmd
 }
@@ -131,13 +139,20 @@ func startPythonDriver(
 	bigIP bigIPSection,
 	pythonBaseDir string,
 ) (<-chan int, error) {
+	var pyCmd string
+
 	err := initializeDriverConfig(configWriter, global, bigIP)
 	if nil != err {
 		return nil, err
 	}
 
 	subPidCh := make(chan int)
-	pyCmd := fmt.Sprintf("%s/bigipconfigdriver.py", pythonBaseDir)
+	if len(pythonBaseDir) != 0 {
+		log.Warning("DEPRECATED: python-basedir: option may no longer work as expected.")
+		pyCmd = fmt.Sprintf("%s/bigipconfigdriver.py", pythonBaseDir)
+	} else {
+		pyCmd = "bigipconfigdriver.py"
+	}
 	cmd := createDriverCmd(
 		configWriter.GetOutputFilename(),
 		pyCmd,

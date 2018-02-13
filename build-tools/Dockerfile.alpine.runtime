@@ -5,18 +5,18 @@ ENV APPPATH /app
 RUN mkdir -p "$APPPATH/bin" \
  && chmod -R 755 "$APPPATH" \
  && adduser -D ctlr
- 
+
 WORKDIR $APPPATH
 
-COPY k8s-runtime-requirements.txt /tmp/k8s-runtime-requirements.txt
+COPY requirements.txt /tmp/requirements.txt
 
 RUN apk --no-cache --update add --virtual pip-install-deps git && \
-    pip install -r /tmp/k8s-runtime-requirements.txt && \
+    pip install --process-dependency-links -r /tmp/requirements.txt && \
     apk del pip-install-deps
 
 COPY bigip-virtual-server_v*.json $APPPATH/vendor/src/f5/schemas/
-COPY python/ $APPPATH/python
 COPY k8s-bigip-ctlr $APPPATH/bin
+COPY VERSION_BUILD.json $APPPATH/vendor/src/f5/
 
 USER ctlr
 

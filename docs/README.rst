@@ -273,13 +273,7 @@ See the `Integration Overview`_ for more information about F5 resources.
 | f5type        | Tells ``k8s-bigip-ctlr`` about resources it       |                                               |
 |               | should watch                                      |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
-| schema        | Verifies the ``data`` blob                        | f5schemadb://bigip-virtual-server_v0.1.5.json |
-|               |                                                   |                                               |
-|               |                                                   | f5schemadb://bigip-virtual-server_v0.1.4.json |
-|               |                                                   |                                               |
-|               |                                                   | f5schemadb://bigip-virtual-server_v0.1.3.json |
-|               |                                                   |                                               |
-|               |                                                   | f5schemadb://bigip-virtual-server_v0.1.2.json |
+| schema        | Verifies the ``data`` blob                        | See the `F5 schema versions`_ table           |
 +---------------+---------------------------------------------------+-----------------------------------------------+
 | data          | Defines the F5 resource                           |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
@@ -683,9 +677,6 @@ Please see the example configuration files for more details.
 Example Configuration Files
 ---------------------------
 
-Kubernetes
-``````````
-
 - :fonticon:`fa fa-download` :download:`sample-k8s-bigip-ctlr-secrets.yaml </_static/config_examples/sample-k8s-bigip-ctlr-secrets.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-bigip-credentials-secret.yaml </_static/config_examples/sample-bigip-credentials-secret.yaml>`
 - :fonticon:`fa fa-download` :download:`example-vs-resource.configmap.yaml </_static/config_examples/example-vs-resource.configmap.yaml>`
@@ -707,6 +698,8 @@ OpenShift
 - :fonticon:`fa fa-download` :download:`sample-edge-route.yaml </_static/config_examples/sample-edge-route.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-passthrough-route.yaml </_static/config_examples/sample-passthrough-route.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-reencrypt-route.yaml </_static/config_examples/sample-reencrypt-route.yaml>`
+
+
 
 .. rubric:: **Footnotes**
 .. [#objectpartition] The |kctlr| creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap. **It cannot manage objects in the** ``/Common`` **partition**.

@@ -3023,7 +3023,7 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.addIngress(ing1a)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 				nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-				Expect(found).To(BeTrue(), "redirect group not found")
+				Expect(found).To(BeFalse(), "redirect group should be gone")
 				flatDg = nsMap.FlattenNamespaces()
 				Expect(flatDg).To(BeNil(), "should not have data")
 			})
@@ -3449,7 +3449,7 @@ var _ = Describe("AppManager Tests", func() {
 					r = mockMgr.deleteRoute(route1b)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
 					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-					Expect(found).To(BeTrue(), "redirect group not found")
+					Expect(found).To(BeFalse(), "redirect group should be gone")
 					flatDg = nsMap.FlattenNamespaces()
 					Expect(flatDg).To(BeNil(), "should not have data")
 
@@ -3459,7 +3459,7 @@ var _ = Describe("AppManager Tests", func() {
 					r = mockMgr.addRoute(route1a)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
 					nsMap, found = mockMgr.appMgr.intDgMap[grpRef]
-					Expect(found).To(BeTrue(), "redirect group not found")
+					Expect(found).To(BeFalse(), "redirect group should be gone")
 					flatDg = nsMap.FlattenNamespaces()
 					Expect(flatDg).To(BeNil(), "should not have data")
 				})

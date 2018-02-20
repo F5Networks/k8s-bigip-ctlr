@@ -1,13 +1,14 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-v1.4.2
-------
+next-release
+------------
 
 Bug Fixes
 `````````
 * :issues:`549` - Using IP annotation on ConfigMaps would result in the virtual server getting a port of 0.
 * :issues:`551` - Memory leak in python subprocess
+* :cccl-issue:`211` - Memory leak in f5-cccl submodule
 * :issues:`555` - Controller high CPU usage when inactive
 * :issues:`510` - Change behavior of controller on startup when encountering errors
 

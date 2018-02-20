@@ -8,6 +8,8 @@ Bug Fixes
 `````````
 * :issues:`549` - Using IP annotation on ConfigMaps would result in the virtual server getting a port of 0.
 * :issues:`551` - Memory leak in python subprocess
+* :issues:`555` - Controller high CPU usage when inactive
+* :issues:`510` - Change behavior of controller on startup when encountering errors
 
 v1.4.1
 ------

@@ -141,7 +141,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			// No annotations were specified to control http redirect, check that
 			// we are in the default state 2.
 			Expect(len(httpCfg.Virtual.IRules)).To(Equal(1))
-			expectedIRuleName := fmt.Sprintf("/%s/%s",
+			expectedIRuleName := fmt.Sprintf("/%s/%s_443",
 				DEFAULT_PARTITION, httpRedirectIRuleName)
 			Expect(httpCfg.Virtual.IRules[0]).To(Equal(expectedIRuleName))
 
@@ -154,7 +154,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			Expect(httpCfg).ToNot(BeNil())
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(len(httpCfg.Virtual.IRules)).To(Equal(1))
-			expectedIRuleName = fmt.Sprintf("/%s/%s",
+			expectedIRuleName = fmt.Sprintf("/%s/%s_443",
 				DEFAULT_PARTITION, httpRedirectIRuleName)
 			Expect(httpCfg.Virtual.IRules[0]).To(Equal(expectedIRuleName))
 

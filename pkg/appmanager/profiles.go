@@ -31,6 +31,11 @@ import (
 	routeapi "github.com/openshift/origin/pkg/route/api"
 )
 
+type secretKey struct {
+	Name         string
+	ResourceName string
+}
+
 func (appMgr *Manager) setClientSslProfile(
 	stats *vsSyncStats,
 	sKey serviceQueueKey,
@@ -267,24 +272,28 @@ func (appMgr *Manager) handleDestCACert(
 	appMgr.customProfiles.Lock()
 	defer appMgr.customProfiles.Unlock()
 
-	// Create new SSL server profile with the provided CA Certificate.
-	caProfRef := makeRouteServerSSLProfileRef(
-		rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
-	caProfRef.Name += "-ca"
-	caProf := NewCustomProfile(
-		caProfRef,
-		route.Spec.TLS.DestinationCACertificate,
-		"", // no key
-		route.Spec.Host,
-		false,
-		peerCert,
-		"self",
-	)
-	caKey := secretKey{Name: caProfRef.Name}
-	caExistingProf, ok := appMgr.customProfiles.profs[caKey]
-	if !ok || !reflect.DeepEqual(caProf, caExistingProf) {
-		appMgr.customProfiles.profs[caKey] = caProf
-		stats.cpUpdated += 1
+	// Create new SSL server profile with the provided CA Certificate (if required).
+	var caFile string
+	if peerCert == peerCertRequired {
+		caProfRef := makeRouteServerSSLProfileRef(
+			rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
+		caProfRef.Name += "-ca"
+		caProf := NewCustomProfile(
+			caProfRef,
+			route.Spec.TLS.DestinationCACertificate,
+			"", // no key
+			route.Spec.Host,
+			false,
+			peerCert,
+			"self",
+		)
+		caKey := secretKey{Name: caProfRef.Name}
+		caExistingProf, ok := appMgr.customProfiles.profs[caKey]
+		if !ok || !reflect.DeepEqual(caProf, caExistingProf) {
+			appMgr.customProfiles.profs[caKey] = caProf
+			stats.cpUpdated += 1
+		}
+		caFile = makeCertificateFileName(caProfRef.Name)
 	}
 
 	svrProfRef := makeRouteServerSSLProfileRef(
@@ -296,7 +305,7 @@ func (appMgr *Manager) handleDestCACert(
 		route.Spec.Host,
 		false,
 		peerCert,
-		makeCertificateFileName(caProfRef.Name),
+		caFile,
 	)
 
 	skey := secretKey{
@@ -404,7 +413,8 @@ func (appMgr *Manager) deleteUnusedProfiles(
 	// Loop through and delete any profileRefs for Ingress cfgs that are
 	// no longer referenced, or have been deleted
 	for _, cfg := range appMgr.resources.GetAllResources() {
-		if cfg.MetaData.ResourceType != "ingress" {
+		if cfg.MetaData.ResourceType != "ingress" &&
+			cfg.MetaData.ResourceType != "route" {
 			continue
 		}
 		if nil == cfg.Virtual.VirtualAddress ||
@@ -414,11 +424,9 @@ func (appMgr *Manager) deleteUnusedProfiles(
 		}
 
 		var toRemove []ProfileRef
-		ingresses, _ := appInf.ingInformer.GetIndexer().ByIndex(
-			"namespace", namespace)
 		for _, prof := range cfg.Virtual.Profiles {
-			// Don't process profiles that came from an Ingress in a different namespace.
-			// We don't want to delete them, since they won't reference an Ingress this time.
+			// Don't process profiles that came from a resource in a different namespace.
+			// We don't want to delete them, since they won't reference a resource this time.
 			if prof.Namespace != namespace {
 				continue
 			}
@@ -427,43 +435,70 @@ func (appMgr *Manager) deleteUnusedProfiles(
 				prof.Name == "tcp" ||
 				prof.Name == fmt.Sprintf("default-clientssl-%s", cfg.GetName()) ||
 				prof.Name == "default-route-clientssl" ||
-				prof.Name == "default-route-serverssl" {
+				prof.Name == "default-route-serverssl" ||
+				prof.Name == "openshift_route_cluster_default-ca" {
 				continue
 			}
 			referenced := false
-			for _, obj := range ingresses {
-				ing := obj.(*v1beta1.Ingress)
-				if 0 == len(ing.Spec.TLS) {
-					// Nothing to do if no TLS section
-					continue
-				}
-				for _, tls := range ing.Spec.TLS {
-					var profName string
-					// Trim leading "/" from secret name (if it exists)
-					secretName := strings.TrimSpace(strings.TrimPrefix(tls.SecretName, "/"))
-					// If another slash remains, then we know a partition is in the name
-					if strings.ContainsAny(secretName, "/") {
-						profName = fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
-					} else {
-						profName = prof.Name
+			if cfg.MetaData.ResourceType == "ingress" {
+				ingresses, _ := appInf.ingInformer.GetIndexer().ByIndex(
+					"namespace", namespace)
+				for _, obj := range ingresses {
+					ing := obj.(*v1beta1.Ingress)
+					if 0 == len(ing.Spec.TLS) {
+						// Nothing to do if no TLS section
+						continue
 					}
-					if profName == secretName {
-						referenced = true
-						// Ingress may reference a secret that no longer exists
-						if appMgr.useSecrets {
-							_, err := appMgr.kubeClient.Core().
-								Secrets(ing.ObjectMeta.Namespace).
-								Get(tls.SecretName, metav1.GetOptions{})
-							if nil != err && !strings.ContainsAny(secretName, "/") {
-								// No secret with this name, and name does not
-								// contain "/", meaning it isn't a valid BIG-IP profile
-								toRemove = append(toRemove, prof)
+					for _, tls := range ing.Spec.TLS {
+						var profName string
+						// Trim leading "/" from secret name (if it exists)
+						secretName := strings.TrimSpace(strings.TrimPrefix(tls.SecretName, "/"))
+						// If another slash remains, then we know a partition is in the name
+						if strings.ContainsAny(secretName, "/") {
+							profName = fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
+						} else {
+							profName = prof.Name
+						}
+						if profName == secretName {
+							referenced = true
+							// Ingress may reference a secret that no longer exists
+							if appMgr.useSecrets {
+								_, err := appMgr.kubeClient.Core().
+									Secrets(ing.ObjectMeta.Namespace).
+									Get(tls.SecretName, metav1.GetOptions{})
+								if nil != err && !strings.ContainsAny(secretName, "/") {
+									// No secret with this name, and name does not
+									// contain "/", meaning it isn't a valid BIG-IP profile
+									toRemove = append(toRemove, prof)
+								}
 							}
 						}
 					}
+					if referenced {
+						break
+					}
 				}
-				if referenced {
-					break
+			} else if cfg.MetaData.ResourceType == "route" {
+				routes, _ := appInf.routeInformer.GetIndexer().ByIndex(
+					"namespace", namespace)
+				for _, obj := range routes {
+					route := obj.(*routeapi.Route)
+					if route.Spec.TLS == nil {
+						// Nothing to do if no TLS section
+						continue
+					}
+					var cliProf, servProf ProfileRef
+					cliProf = makeRouteClientSSLProfileRef(
+						cfg.Virtual.Partition, namespace, route.ObjectMeta.Name)
+					switch route.Spec.TLS.Termination {
+					case routeapi.TLSTerminationReencrypt:
+						servProf = makeRouteServerSSLProfileRef(
+							cfg.Virtual.Partition, namespace, route.ObjectMeta.Name)
+					}
+					if prof == cliProf || prof == servProf {
+						referenced = true
+						break
+					}
 				}
 			}
 			if !referenced {

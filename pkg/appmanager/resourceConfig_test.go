@@ -593,123 +593,136 @@ var _ = Describe("Resource Config Tests", func() {
 			lenValidate(0)
 		})
 
-		It("properly configures ingress resources", func() {
-			namespace := "default"
-			ingressConfig := v1beta1.IngressSpec{
-				Backend: &v1beta1.IngressBackend{
-					ServiceName: "foo",
-					ServicePort: intstr.IntOrString{IntVal: 80},
-				},
-			}
-			ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
-				map[string]string{
-					f5VsBindAddrAnnotation:  "1.2.3.4",
-					f5VsPartitionAnnotation: "velcro",
-				})
-			ps := portStruct{
-				protocol: "http",
-				port:     80,
-			}
-			cfg := createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps, "")
-			Expect(cfg.Pools[0].Balance).To(Equal("round-robin"))
-			Expect(cfg.Virtual.Partition).To(Equal("velcro"))
-			Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
-			Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(80)))
+		Context("resource configuration", func() {
+			var mockMgr *mockAppManager
+			BeforeEach(func() {
+				mockMgr = newMockAppManager(&Params{})
+			})
 
-			ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
-				map[string]string{
-					f5VsBindAddrAnnotation:  "1.2.3.4",
-					f5VsPartitionAnnotation: "velcro",
-					f5VsHttpPortAnnotation:  "100",
-					f5VsBalanceAnnotation:   "foobar",
-					k8sIngressClass:         "f5",
-				})
-			ps = portStruct{
-				protocol: "http",
-				port:     100,
-			}
-			cfg = createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps, "")
-			Expect(cfg.Pools[0].Balance).To(Equal("foobar"))
-			Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(100)))
+			It("properly configures ingress resources", func() {
+				namespace := "default"
+				ingressConfig := v1beta1.IngressSpec{
+					Backend: &v1beta1.IngressBackend{
+						ServiceName: "foo",
+						ServicePort: intstr.IntOrString{IntVal: 80},
+					},
+				}
+				ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
+					map[string]string{
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: "velcro",
+					})
+				ps := portStruct{
+					protocol: "http",
+					port:     80,
+				}
+				cfg := mockMgr.appMgr.createRSConfigFromIngress(
+					ingress, &Resources{}, namespace, nil, ps, "")
+				Expect(cfg.Pools[0].Balance).To(Equal("round-robin"))
+				Expect(cfg.Virtual.Partition).To(Equal("velcro"))
+				Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
+				Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(80)))
 
-			ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
-				map[string]string{
-					k8sIngressClass: "notf5",
-				})
-			cfg = createRSConfigFromIngress(ingress, &Resources{}, namespace, nil, ps, "")
-			Expect(cfg).To(BeNil())
+				ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
+					map[string]string{
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: "velcro",
+						f5VsHttpPortAnnotation:  "100",
+						f5VsBalanceAnnotation:   "foobar",
+						k8sIngressClass:         "f5",
+					})
+				ps = portStruct{
+					protocol: "http",
+					port:     100,
+				}
+				cfg = mockMgr.appMgr.createRSConfigFromIngress(
+					ingress, &Resources{}, namespace, nil, ps, "")
+				Expect(cfg.Pools[0].Balance).To(Equal("foobar"))
+				Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(100)))
 
-			// Use controller default IP
-			defaultIng := test.NewIngress("ingress", "1", namespace, ingressConfig,
-				map[string]string{
-					f5VsBindAddrAnnotation:  "controller-default",
-					f5VsPartitionAnnotation: "velcro",
-				})
-			cfg = createRSConfigFromIngress(defaultIng, &Resources{}, namespace, nil, ps, "5.6.7.8")
-			Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("5.6.7.8"))
-		})
+				ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
+					map[string]string{
+						k8sIngressClass: "notf5",
+					})
+				cfg = mockMgr.appMgr.createRSConfigFromIngress(
+					ingress, &Resources{}, namespace, nil, ps, "")
+				Expect(cfg).To(BeNil())
 
-		It("properly configures route resources", func() {
-			namespace := "default"
-			spec := routeapi.RouteSpec{
-				Host: "foobar.com",
-				Path: "/foo",
-				To: routeapi.RouteTargetReference{
-					Kind: "Service",
-					Name: "foo",
-				},
-				Port: &routeapi.RoutePort{
-					TargetPort: intstr.FromInt(80),
-				},
-				TLS: &routeapi.TLSConfig{
-					Termination: "edge",
-					Certificate: "cert",
-					Key:         "key",
-				},
-			}
-			route := test.NewRoute("route", "1", namespace, spec, nil)
-			ps := portStruct{
-				protocol: "https",
-				port:     443,
-			}
-			rc := RouteConfig{
-				HttpVs:  "ose-vserver",
-				HttpsVs: "https-ose-vserver",
-			}
-			svcFwdRulesMap := NewServiceFwdRuleMap()
-			cfg, _, _ := createRSConfigFromRoute(route, getRouteCanonicalServiceName(route),
-				Resources{}, rc, ps, nil, svcFwdRulesMap)
-			Expect(cfg.Virtual.Name).To(Equal("https-ose-vserver"))
-			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_foo"))
-			Expect(cfg.Pools[0].ServiceName).To(Equal("foo"))
-			Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))
-			Expect(cfg.Policies[0].Name).To(Equal("openshift_secure_routes"))
-			Expect(cfg.Policies[0].Rules[0].Name).To(Equal("openshift_route_default_route"))
+				// Use controller default IP
+				defaultIng := test.NewIngress("ingress", "1", namespace, ingressConfig,
+					map[string]string{
+						f5VsBindAddrAnnotation:  "controller-default",
+						f5VsPartitionAnnotation: "velcro",
+					})
+				cfg = mockMgr.appMgr.createRSConfigFromIngress(
+					defaultIng, &Resources{}, namespace, nil, ps, "5.6.7.8")
+				Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("5.6.7.8"))
+			})
 
-			spec = routeapi.RouteSpec{
-				Host: "foobar.com",
-				Path: "/foo",
-				To: routeapi.RouteTargetReference{
-					Kind: "Service",
-					Name: "bar",
-				},
-				Port: &routeapi.RoutePort{
-					TargetPort: intstr.FromInt(80),
-				},
-			}
-			route2 := test.NewRoute("route2", "1", namespace, spec, nil)
-			ps = portStruct{
-				protocol: "http",
-				port:     80,
-			}
-			cfg, _, _ = createRSConfigFromRoute(route2, getRouteCanonicalServiceName(route2),
-				Resources{}, rc, ps, nil, svcFwdRulesMap)
-			Expect(cfg.Virtual.Name).To(Equal("ose-vserver"))
-			Expect(cfg.Pools[0].Name).To(Equal("openshift_default_bar"))
-			Expect(cfg.Pools[0].ServiceName).To(Equal("bar"))
-			Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))
-			Expect(cfg.Policies[0].Name).To(Equal("openshift_insecure_routes"))
-			Expect(cfg.Policies[0].Rules[0].Name).To(Equal("openshift_route_default_route2"))
+			It("properly configures route resources", func() {
+				namespace := "default"
+				spec := routeapi.RouteSpec{
+					Host: "foobar.com",
+					Path: "/foo",
+					To: routeapi.RouteTargetReference{
+						Kind: "Service",
+						Name: "foo",
+					},
+					Port: &routeapi.RoutePort{
+						TargetPort: intstr.FromInt(80),
+					},
+					TLS: &routeapi.TLSConfig{
+						Termination: "edge",
+						Certificate: "cert",
+						Key:         "key",
+					},
+				}
+				route := test.NewRoute("route", "1", namespace, spec, nil)
+				ps := portStruct{
+					protocol: "https",
+					port:     443,
+				}
+				rc := RouteConfig{
+					HttpVs:  "ose-vserver",
+					HttpsVs: "https-ose-vserver",
+				}
+				svcFwdRulesMap := NewServiceFwdRuleMap()
+				cfg, _, _ := mockMgr.appMgr.createRSConfigFromRoute(
+					route, getRouteCanonicalServiceName(route),
+					&Resources{}, rc, ps, nil, svcFwdRulesMap)
+				Expect(cfg.Virtual.Name).To(Equal("https-ose-vserver"))
+				Expect(cfg.Pools[0].Name).To(Equal("openshift_default_foo"))
+				Expect(cfg.Pools[0].ServiceName).To(Equal("foo"))
+				Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))
+				Expect(cfg.Policies[0].Name).To(Equal("openshift_secure_routes"))
+				Expect(cfg.Policies[0].Rules[0].Name).To(Equal("openshift_route_default_route"))
+
+				spec = routeapi.RouteSpec{
+					Host: "foobar.com",
+					Path: "/foo",
+					To: routeapi.RouteTargetReference{
+						Kind: "Service",
+						Name: "bar",
+					},
+					Port: &routeapi.RoutePort{
+						TargetPort: intstr.FromInt(80),
+					},
+				}
+				route2 := test.NewRoute("route2", "1", namespace, spec, nil)
+				ps = portStruct{
+					protocol: "http",
+					port:     80,
+				}
+				cfg, _, _ = mockMgr.appMgr.createRSConfigFromRoute(
+					route2, getRouteCanonicalServiceName(route2),
+					&Resources{}, rc, ps, nil, svcFwdRulesMap)
+				Expect(cfg.Virtual.Name).To(Equal("ose-vserver"))
+				Expect(cfg.Pools[0].Name).To(Equal("openshift_default_bar"))
+				Expect(cfg.Pools[0].ServiceName).To(Equal("bar"))
+				Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))
+				Expect(cfg.Policies[0].Name).To(Equal("openshift_insecure_routes"))
+				Expect(cfg.Policies[0].Rules[0].Name).To(Equal("openshift_route_default_route2"))
+			})
 		})
 
 		It("sets and removes internal data group records", func() {

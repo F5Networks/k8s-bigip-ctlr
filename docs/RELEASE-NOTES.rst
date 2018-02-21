@@ -11,6 +11,7 @@ Bug Fixes
 * :cccl-issue:`211` - Memory leak in f5-cccl submodule
 * :issues:`555` - Controller high CPU usage when inactive
 * :issues:`510` - Change behavior of controller on startup when encountering errors
+* :issues:`567` - Clean up all objects (including iRules and datagroups) when deleting Routes.
 
 v1.4.1
 ------

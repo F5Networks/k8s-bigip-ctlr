@@ -23,6 +23,7 @@ import (
 	"net"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -30,6 +31,7 @@ import (
 
 	routeapi "github.com/openshift/origin/pkg/route/api"
 	"github.com/xeipuuv/gojsonschema"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
@@ -92,6 +94,7 @@ func (v *Virtual) ReferencesProfile(profile CustomProfile) bool {
 	return false
 }
 
+// Adds an IRule reference to a Virtual object
 func (v *Virtual) AddIRule(ruleName string) bool {
 	for _, irule := range v.IRules {
 		if irule == ruleName {
@@ -100,6 +103,19 @@ func (v *Virtual) AddIRule(ruleName string) bool {
 	}
 	v.IRules = append(v.IRules, ruleName)
 	return true
+}
+
+// Removes an IRule reference from a Virtual object
+func (v *Virtual) RemoveIRule(ruleName string) bool {
+	for i, irule := range v.IRules {
+		if irule == ruleName {
+			copy(v.IRules[i:], v.IRules[i+1:])
+			v.IRules[len(v.IRules)-1] = ""
+			v.IRules = v.IRules[:len(v.IRules)-1]
+			return true
+		}
+	}
+	return false
 }
 
 func (v *Virtual) ToString() string {
@@ -207,6 +223,11 @@ func formatConfigMapVSName(cm *v1.ConfigMap) string {
 // format the pool name for a ConfigMap
 func formatConfigMapPoolName(namespace, cmName, svc string) string {
 	return fmt.Sprintf("cfgmap_%s_%s_%s", namespace, cmName, svc)
+}
+
+// formats a health monitor name
+func formatMonitorName(poolName string) string {
+	return poolName + "_0_http"
 }
 
 // format the virtual server name for an Ingress
@@ -959,7 +980,7 @@ func copyConfigMap(virtualName, ns string, cfg *ResourceConfig, cfgMap *ConfigMa
 }
 
 // Create a ResourceConfig based on an Ingress resource config
-func createRSConfigFromIngress(
+func (appMgr *Manager) createRSConfigFromIngress(
 	ing *v1beta1.Ingress,
 	resources *Resources,
 	ns string,
@@ -1112,10 +1133,120 @@ func createRSConfigFromIngress(
 	return &cfg
 }
 
-func createRSConfigFromRoute(
+// Return value is whether or not a custom profile was updated
+func (appMgr *Manager) handleIngressTls(
+	rsCfg *ResourceConfig,
+	ing *v1beta1.Ingress,
+	svcFwdRulesMap ServiceFwdRuleMap,
+) bool {
+	if 0 == len(ing.Spec.TLS) {
+		// Nothing to do if no TLS section
+		return false
+	}
+	if nil == rsCfg.Virtual.VirtualAddress ||
+		rsCfg.Virtual.VirtualAddress.BindAddr == "" {
+		// Nothing to do for pool-only mode
+		return false
+	}
+
+	var httpsPort int32
+	if port, ok :=
+		ing.ObjectMeta.Annotations[f5VsHttpsPortAnnotation]; ok == true {
+		p, _ := strconv.ParseInt(port, 10, 32)
+		httpsPort = int32(p)
+	} else {
+		httpsPort = DEFAULT_HTTPS_PORT
+	}
+	// If we are processing the HTTPS server,
+	// then we don't need a redirect policy, only profiles
+	if rsCfg.Virtual.VirtualAddress.Port == httpsPort {
+		var cpUpdated, updateState bool
+		for _, tls := range ing.Spec.TLS {
+			// Check if profile is contained in a Secret
+			if appMgr.useSecrets {
+				secret, err := appMgr.kubeClient.Core().Secrets(ing.ObjectMeta.Namespace).
+					Get(tls.SecretName, metav1.GetOptions{})
+				if err != nil {
+					// No secret, so we assume the profile is a BIG-IP default
+					log.Debugf("No Secret with name '%s': %s. Parsing secretName as path instead.",
+						tls.SecretName, err)
+					profRef := convertStringToProfileRef(
+						tls.SecretName, customProfileClient, ing.ObjectMeta.Namespace)
+					rsCfg.Virtual.AddOrUpdateProfile(profRef)
+					continue
+				}
+				err, cpUpdated = appMgr.createSecretSslProfile(rsCfg, secret)
+				if err != nil {
+					log.Warningf("%v", err)
+					continue
+				}
+				updateState = updateState || cpUpdated
+				profRef := ProfileRef{
+					Partition: rsCfg.Virtual.Partition,
+					Name:      tls.SecretName,
+					Context:   customProfileClient,
+					Namespace: ing.ObjectMeta.Namespace,
+				}
+				rsCfg.Virtual.AddOrUpdateProfile(profRef)
+			} else {
+				secretName := formatIngressSslProfileName(tls.SecretName)
+				profRef := convertStringToProfileRef(
+					secretName, customProfileClient, ing.ObjectMeta.Namespace)
+				rsCfg.Virtual.AddOrUpdateProfile(profRef)
+			}
+		}
+		return cpUpdated
+	}
+
+	// sslRedirect defaults to true, allowHttp defaults to false.
+	sslRedirect := getBooleanAnnotation(ing.ObjectMeta.Annotations,
+		ingressSslRedirect, true)
+	allowHttp := getBooleanAnnotation(ing.ObjectMeta.Annotations,
+		ingressAllowHttp, false)
+	// -----------------------------------------------------------------
+	// | State | sslRedirect | allowHttp | Description                 |
+	// -----------------------------------------------------------------
+	// |   1   |     F       |    F      | Just HTTPS, nothing on HTTP |
+	// -----------------------------------------------------------------
+	// |   2   |     T       |    F      | HTTP redirects to HTTPS     |
+	// -----------------------------------------------------------------
+	// |   2   |     T       |    T      | Honor sslRedirect == true   |
+	// -----------------------------------------------------------------
+	// |   3   |     F       |    T      | Both HTTP and HTTPS         |
+	// -----------------------------------------------------------------
+	if sslRedirect {
+		// State 2, set HTTP redirect iRule
+		log.Debugf("TLS: Applying HTTP redirect iRule.")
+		ruleName := fmt.Sprintf("%s_%d", httpRedirectIRuleName, httpsPort)
+		appMgr.addIRule(ruleName, DEFAULT_PARTITION,
+			httpRedirectIRule(httpsPort))
+		appMgr.addInternalDataGroup(httpsRedirectDgName, DEFAULT_PARTITION)
+		ruleName = joinBigipPath(DEFAULT_PARTITION, ruleName)
+		rsCfg.Virtual.AddIRule(ruleName)
+		if nil != ing.Spec.Backend {
+			svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
+				ing.Spec.Backend.ServiceName, "*", "/")
+		}
+		for _, rul := range ing.Spec.Rules {
+			if nil != rul.HTTP {
+				host := rul.Host
+				for _, path := range rul.HTTP.Paths {
+					svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
+						path.Backend.ServiceName, host, path.Path)
+				}
+			}
+		}
+	} else if allowHttp {
+		// State 3, do not apply any policy
+		log.Debugf("TLS: Not applying any policies.")
+	}
+	return false
+}
+
+func (appMgr *Manager) createRSConfigFromRoute(
 	route *routeapi.Route,
 	svcName string,
-	resources Resources,
+	resources *Resources,
 	routeConfig RouteConfig,
 	pStruct portStruct,
 	svcIndexer cache.Indexer,
@@ -1211,8 +1342,13 @@ func createRSConfigFromRoute(
 	}
 
 	abDeployment := isRouteABDeployment(route)
-	rsCfg.HandleRouteTls(route, pStruct.protocol, policyName, rule,
-		svcFwdRulesMap, abDeployment)
+	appMgr.handleRouteTls(&rsCfg,
+		route,
+		pStruct.protocol,
+		policyName,
+		rule,
+		svcFwdRulesMap,
+		abDeployment)
 
 	return rsCfg, nil, pool
 }
@@ -1247,7 +1383,8 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 	}
 }
 
-func (rc *ResourceConfig) HandleRouteTls(
+func (appMgr *Manager) handleRouteTls(
+	rc *ResourceConfig,
 	route *routeapi.Route,
 	protocol string,
 	policyName string,
@@ -1265,6 +1402,9 @@ func (rc *ResourceConfig) HandleRouteTls(
 	if protocol == "http" {
 		if nil == tls || len(tls.Termination) == 0 {
 			if abDeployment {
+				appMgr.addIRule(
+					abDeploymentPathIRuleName, DEFAULT_PARTITION, abDeploymentPathIRule())
+				appMgr.addInternalDataGroup(abDeploymentDgName, DEFAULT_PARTITION)
 				rc.Virtual.AddIRule(abPathIRuleName)
 			} else {
 				rc.AddRuleToPolicy(policyName, rule)
@@ -1284,6 +1424,9 @@ func (rc *ResourceConfig) HandleRouteTls(
 				case routeapi.InsecureEdgeTerminationPolicyRedirect:
 					redirectIRuleName := joinBigipPath(DEFAULT_PARTITION,
 						httpRedirectIRuleName)
+					appMgr.addIRule(httpRedirectIRuleName, DEFAULT_PARTITION,
+						httpRedirectIRule(DEFAULT_HTTPS_PORT))
+					appMgr.addInternalDataGroup(httpsRedirectDgName, DEFAULT_PARTITION)
 					rc.Virtual.AddIRule(redirectIRuleName)
 					// TLS config indicates to forward http to https.
 					path := "/"
@@ -1303,13 +1446,23 @@ func (rc *ResourceConfig) HandleRouteTls(
 			switch tls.Termination {
 			case routeapi.TLSTerminationEdge:
 				if abDeployment {
+					appMgr.addIRule(
+						abDeploymentPathIRuleName, DEFAULT_PARTITION, abDeploymentPathIRule())
+					appMgr.addInternalDataGroup(abDeploymentDgName, DEFAULT_PARTITION)
 					rc.Virtual.AddIRule(abPathIRuleName)
 				} else {
 					rc.AddRuleToPolicy(policyName, rule)
 				}
 			case routeapi.TLSTerminationPassthrough:
+				appMgr.addIRule(
+					sslPassthroughIRuleName, DEFAULT_PARTITION, sslPassthroughIRule())
+				appMgr.addInternalDataGroup(passthroughHostsDgName, DEFAULT_PARTITION)
 				rc.Virtual.AddIRule(passThroughIRuleName)
 			case routeapi.TLSTerminationReencrypt:
+				appMgr.addIRule(
+					sslPassthroughIRuleName, DEFAULT_PARTITION, sslPassthroughIRule())
+				appMgr.addInternalDataGroup(reencryptHostsDgName, DEFAULT_PARTITION)
+				appMgr.addInternalDataGroup(reencryptServerSslDgName, DEFAULT_PARTITION)
 				rc.Virtual.AddIRule(passThroughIRuleName)
 				if !abDeployment {
 					rc.AddRuleToPolicy(policyName, rule)
@@ -1504,6 +1657,7 @@ func (rc *ResourceConfig) RemovePool(
 ) (bool, *serviceKey) {
 	var cfgChanged bool
 	var svcKey *serviceKey
+	var fullPoolName, resourceName string
 
 	// Delete pool
 	for i, pool := range rc.Pools {
@@ -1518,15 +1672,18 @@ func (rc *ResourceConfig) RemovePool(
 		cfgChanged = rc.RemovePoolAt(i)
 		break
 	}
+	fullPoolName = joinBigipPath(DEFAULT_PARTITION, poolName)
 
 	// Delete forwarding rule for the pool
 	policy := rc.FindPolicy("forwarding")
 	if nil != policy {
 		// Loop through rules to find which one to remove
-		fullPoolName := joinBigipPath(DEFAULT_PARTITION, poolName)
 		ruleOffsets := []int{}
 		for i, rule := range policy.Rules {
 			if len(rule.Actions) > 0 && rule.Actions[0].Pool == fullPoolName {
+				if rc.MetaData.ResourceType == "route" {
+					resourceName = strings.Split(rule.Name, "_")[3]
+				}
 				ruleOffsets = append(ruleOffsets, i)
 			}
 		}
@@ -1538,6 +1695,21 @@ func (rc *ResourceConfig) RemovePool(
 		} else if polChanged {
 			rc.SetPolicy(*policy)
 			cfgChanged = true
+		}
+	}
+	// Delete health monitor for the pool
+	monitorName := formatMonitorName(fullPoolName)
+	rc.RemoveMonitor(poolName, monitorName)
+
+	// Delete profile (route only)
+	if resourceName != "" {
+		if rc.MetaData.ResourceType == "route" {
+			profRef := makeRouteClientSSLProfileRef(
+				rc.Virtual.Partition, namespace, resourceName)
+			rc.Virtual.RemoveProfile(profRef)
+			serverProfile := makeRouteServerSSLProfileRef(
+				rc.Virtual.Partition, namespace, resourceName)
+			rc.Virtual.RemoveProfile(serverProfile)
 		}
 	}
 
@@ -1683,6 +1855,34 @@ func NewInternalDataGroup(name, partition string) *InternalDataGroup {
 		Name:      name,
 		Partition: partition,
 		Records:   []InternalDataGroupRecord{},
+	}
+}
+
+// Creates an IRule if it doesn't already exist
+func (appMgr *Manager) addIRule(name, partition, rule string) {
+	appMgr.irulesMutex.Lock()
+	defer appMgr.irulesMutex.Unlock()
+
+	key := nameRef{
+		Name:      name,
+		Partition: partition,
+	}
+	if _, found := appMgr.irulesMap[key]; !found {
+		appMgr.irulesMap[key] = NewIRule(name, partition, rule)
+	}
+}
+
+// Creates an InternalDataGroup if it doesn't already exist
+func (appMgr *Manager) addInternalDataGroup(name, partition string) {
+	appMgr.intDgMutex.Lock()
+	defer appMgr.intDgMutex.Unlock()
+
+	key := nameRef{
+		Name:      name,
+		Partition: partition,
+	}
+	if _, found := appMgr.intDgMap[key]; !found {
+		appMgr.intDgMap[key] = make(DataGroupNamespaceMap)
 	}
 }
 

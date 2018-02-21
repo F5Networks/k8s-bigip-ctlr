@@ -85,7 +85,7 @@ func (appMgr *Manager) assignMonitorToPool(
 				// Also add a monitor index to the name to be consistent with the
 				// marathon-bigip-ctlr. Since the monitor names are already unique here,
 				// appending a '0' is sufficient.
-				Name:      poolName + "_0_http",
+				Name:      formatMonitorName(poolName),
 				Partition: partition,
 				Type:      "http",
 				Interval:  ruleData.healthMon.Interval,
@@ -137,7 +137,7 @@ func (appMgr *Manager) handleSingleServiceHealthMonitors(
 	if nil != err {
 		log.Errorf("%s", err.Error())
 		appMgr.recordIngressEvent(ing, "MonitorError", err.Error())
-		mon := poolName + "_0_http"
+		mon := formatMonitorName(poolName)
 		_, pool := splitBigipPath(poolName, false)
 		cfg.RemoveMonitor(pool, mon)
 		return
@@ -277,7 +277,7 @@ func (appMgr *Manager) handleRouteHealthMonitors(
 	if nil != err {
 		log.Errorf("%s", err.Error())
 		// If this monitor exists already, remove it
-		monitorName := poolPath + "_0_http"
+		monitorName := formatMonitorName(poolPath)
 		if removed := cfg.RemoveMonitor(pool.Name, monitorName); removed {
 			stats.vsUpdated += 1
 		}

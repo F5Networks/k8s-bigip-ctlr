@@ -191,28 +191,6 @@ func NewManager(params *Params) *Manager {
 	return &manager
 }
 
-func (appMgr *Manager) addIRule(name, partition, rule string) {
-	appMgr.irulesMutex.Lock()
-	defer appMgr.irulesMutex.Unlock()
-
-	key := nameRef{
-		Name:      name,
-		Partition: partition,
-	}
-	appMgr.irulesMap[key] = NewIRule(name, partition, rule)
-}
-
-func (appMgr *Manager) addInternalDataGroup(name, partition string) {
-	appMgr.intDgMutex.Lock()
-	defer appMgr.intDgMutex.Unlock()
-
-	key := nameRef{
-		Name:      name,
-		Partition: partition,
-	}
-	appMgr.intDgMap[key] = make(DataGroupNamespaceMap)
-}
-
 func (appMgr *Manager) watchingAllNamespacesLocked() bool {
 	if 0 == len(appMgr.appInformers) {
 		// Not watching any namespaces.
@@ -694,21 +672,6 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 	defer appMgr.vsQueue.ShutDown()
 	defer appMgr.nsQueue.ShutDown()
 
-	appMgr.addIRule(httpRedirectIRuleName, DEFAULT_PARTITION,
-		httpRedirectIRule(DEFAULT_HTTPS_PORT))
-	appMgr.addInternalDataGroup(httpsRedirectDgName, DEFAULT_PARTITION)
-
-	if nil != appMgr.routeClientV1 {
-		appMgr.addIRule(
-			sslPassthroughIRuleName, DEFAULT_PARTITION, sslPassthroughIRule())
-		appMgr.addInternalDataGroup(passthroughHostsDgName, DEFAULT_PARTITION)
-		appMgr.addInternalDataGroup(reencryptHostsDgName, DEFAULT_PARTITION)
-		appMgr.addInternalDataGroup(reencryptServerSslDgName, DEFAULT_PARTITION)
-		appMgr.addIRule(
-			abDeploymentPathIRuleName, DEFAULT_PARTITION, abDeploymentPathIRule())
-		appMgr.addInternalDataGroup(abDeploymentDgName, DEFAULT_PARTITION)
-	}
-
 	if nil != appMgr.nsInformer {
 		// Using one worker for namespace label changes.
 		appMgr.startAndSyncNamespaceInformer(stopCh)
@@ -857,9 +820,10 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			return err
 		}
 	}
-
 	// Update internal data groups if changed
-	appMgr.updateRouteDataGroups(&stats, dgMap, sKey.Namespace)
+	appMgr.syncDataGroups(&stats, dgMap, sKey.Namespace)
+	// Delete IRules if necessary
+	appMgr.syncIRules()
 
 	if len(rsMap) > 0 {
 		// We get here when there are ports defined in the service that don't
@@ -1024,7 +988,7 @@ func (appMgr *Manager) syncIngresses(
 			objKey, objDeps, svcDepKey, ingressLookupFunc)
 
 		for _, portStruct := range appMgr.virtualPorts(ing) {
-			rsCfg := createRSConfigFromIngress(
+			rsCfg := appMgr.createRSConfigFromIngress(
 				ing,
 				appMgr.resources,
 				sKey.Namespace,
@@ -1184,27 +1148,11 @@ func (appMgr *Manager) syncRoutes(
 		_, depsRemoved := appMgr.resources.UpdateDependencies(
 			objKey, objDeps, svcDepKey, routeLookupFunc)
 
-		if nil != route.Spec.TLS {
-			// We need this even for A/B so the irule can determine if we are
-			// doing passthrough or reencrypt (otherwise we need to add more
-			// info to the A/B data group).
-			switch route.Spec.TLS.Termination {
-			case routeapi.TLSTerminationPassthrough:
-				updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION,
-					sKey.Namespace, dgMap)
-			case routeapi.TLSTerminationReencrypt:
-				updateDataGroupForReencryptRoute(route, DEFAULT_PARTITION,
-					sKey.Namespace, dgMap)
-			}
-		}
-
-		updateDataGroupForABRoute(route, svcName, DEFAULT_PARTITION, sKey.Namespace, dgMap)
-
 		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
-			rsCfg, err, pool := createRSConfigFromRoute(route, svcName,
-				appMgr.resources, appMgr.routeConfig, ps,
+			rsCfg, err, pool := appMgr.createRSConfigFromRoute(
+				route, svcName, appMgr.resources, appMgr.routeConfig, ps,
 				appInf.svcInformer.GetIndexer(), svcFwdRulesMap)
 			if err != nil {
 				// We return err if there was an error creating a rule
@@ -1264,6 +1212,20 @@ func (appMgr *Manager) syncRoutes(
 			stats.vsFound += found
 			stats.vsUpdated += updated
 		}
+		if nil != route.Spec.TLS {
+			// We need this even for A/B so the irule can determine if we are
+			// doing passthrough or reencrypt (otherwise we need to add more
+			// info to the A/B data group).
+			switch route.Spec.TLS.Termination {
+			case routeapi.TLSTerminationPassthrough:
+				updateDataGroupForPassthroughRoute(route, DEFAULT_PARTITION,
+					sKey.Namespace, dgMap)
+			case routeapi.TLSTerminationReencrypt:
+				updateDataGroupForReencryptRoute(route, DEFAULT_PARTITION,
+					sKey.Namespace, dgMap)
+			}
+		}
+		updateDataGroupForABRoute(route, svcName, DEFAULT_PARTITION, sKey.Namespace, dgMap)
 	}
 
 	if len(svcFwdRulesMap) > 0 {
@@ -1276,7 +1238,6 @@ func (appMgr *Manager) syncRoutes(
 		}
 		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
 	}
-
 	return nil
 }
 
@@ -1295,122 +1256,6 @@ func getBooleanAnnotation(
 		return defaultValue
 	}
 	return bVal
-}
-
-type secretKey struct {
-	Name         string
-	ResourceName string
-}
-
-// Return value is whether or not a custom profile was updated
-func (appMgr *Manager) handleIngressTls(
-	rsCfg *ResourceConfig,
-	ing *v1beta1.Ingress,
-	svcFwdRulesMap ServiceFwdRuleMap,
-) bool {
-	if 0 == len(ing.Spec.TLS) {
-		// Nothing to do if no TLS section
-		return false
-	}
-	if nil == rsCfg.Virtual.VirtualAddress ||
-		rsCfg.Virtual.VirtualAddress.BindAddr == "" {
-		// Nothing to do for pool-only mode
-		return false
-	}
-
-	var httpsPort int32
-	if port, ok :=
-		ing.ObjectMeta.Annotations[f5VsHttpsPortAnnotation]; ok == true {
-		p, _ := strconv.ParseInt(port, 10, 32)
-		httpsPort = int32(p)
-	} else {
-		httpsPort = DEFAULT_HTTPS_PORT
-	}
-	// If we are processing the HTTPS server,
-	// then we don't need a redirect policy, only profiles
-	if rsCfg.Virtual.VirtualAddress.Port == httpsPort {
-		var cpUpdated, updateState bool
-		for _, tls := range ing.Spec.TLS {
-			// Check if profile is contained in a Secret
-			if appMgr.useSecrets {
-				secret, err := appMgr.kubeClient.Core().Secrets(ing.ObjectMeta.Namespace).
-					Get(tls.SecretName, metav1.GetOptions{})
-				if err != nil {
-					// No secret, so we assume the profile is a BIG-IP default
-					log.Debugf("No Secret with name '%s': %s. Parsing secretName as path instead.",
-						tls.SecretName, err)
-					profRef := convertStringToProfileRef(
-						tls.SecretName, customProfileClient, ing.ObjectMeta.Namespace)
-					rsCfg.Virtual.AddOrUpdateProfile(profRef)
-					continue
-				}
-				err, cpUpdated = appMgr.createSecretSslProfile(rsCfg, secret)
-				if err != nil {
-					log.Warningf("%v", err)
-					continue
-				}
-				updateState = updateState || cpUpdated
-				profRef := ProfileRef{
-					Partition: rsCfg.Virtual.Partition,
-					Name:      tls.SecretName,
-					Context:   customProfileClient,
-					Namespace: ing.ObjectMeta.Namespace,
-				}
-				rsCfg.Virtual.AddOrUpdateProfile(profRef)
-			} else {
-				secretName := formatIngressSslProfileName(tls.SecretName)
-				profRef := convertStringToProfileRef(
-					secretName, customProfileClient, ing.ObjectMeta.Namespace)
-				rsCfg.Virtual.AddOrUpdateProfile(profRef)
-			}
-		}
-		return cpUpdated
-	}
-
-	// sslRedirect defaults to true, allowHttp defaults to false.
-	sslRedirect := getBooleanAnnotation(ing.ObjectMeta.Annotations,
-		ingressSslRedirect, true)
-	allowHttp := getBooleanAnnotation(ing.ObjectMeta.Annotations,
-		ingressAllowHttp, false)
-	// -----------------------------------------------------------------
-	// | State | sslRedirect | allowHttp | Description                 |
-	// -----------------------------------------------------------------
-	// |   1   |     F       |    F      | Just HTTPS, nothing on HTTP |
-	// -----------------------------------------------------------------
-	// |   2   |     T       |    F      | HTTP redirects to HTTPS     |
-	// -----------------------------------------------------------------
-	// |   2   |     T       |    T      | Honor sslRedirect == true   |
-	// -----------------------------------------------------------------
-	// |   3   |     F       |    T      | Both HTTP and HTTPS         |
-	// -----------------------------------------------------------------
-	if sslRedirect {
-		// State 2, set HTTP redirect iRule
-		log.Debugf("TLS: Applying HTTP redirect iRule.")
-		ruleName := joinBigipPath(DEFAULT_PARTITION, httpRedirectIRuleName)
-		if httpsPort != DEFAULT_HTTPS_PORT {
-			ruleName = fmt.Sprintf("%s_%d", ruleName, httpsPort)
-			appMgr.addIRule(ruleName, DEFAULT_PARTITION,
-				httpRedirectIRule(httpsPort))
-		}
-		rsCfg.Virtual.AddIRule(ruleName)
-		if nil != ing.Spec.Backend {
-			svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
-				ing.Spec.Backend.ServiceName, "*", "/")
-		}
-		for _, rul := range ing.Spec.Rules {
-			if nil != rul.HTTP {
-				host := rul.Host
-				for _, path := range rul.HTTP.Paths {
-					svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
-						path.Backend.ServiceName, host, path.Path)
-				}
-			}
-		}
-	} else if allowHttp {
-		// State 3, do not apply any policy
-		log.Debugf("TLS: Not applying any policies.")
-	}
-	return false
 }
 
 type portStruct struct {
@@ -1794,22 +1639,17 @@ func (appMgr *Manager) deleteUnusedResources(
 	sKey serviceQueueKey,
 	svcFound bool,
 ) int {
-	// FIXME: This function is mostly obsolete for Ingress and Routes due to
-	// the new object dependency code, but is still needed when the Ingress
-	// or route resource is deleted to handle the profiles, and is still
-	// needed for ConfigMaps
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
 	rsUpdated := 0
 	namespace := sKey.Namespace
 	svcName := sKey.ServiceName
-	var resourceName string
 	for _, cfg := range appMgr.resources.GetAllResources() {
 		if cfg.MetaData.ResourceType == "configmap" ||
 			cfg.MetaData.ResourceType == "iapp" {
 			continue
 		}
-		for i, pool := range cfg.Pools {
+		for _, pool := range cfg.Pools {
 			// Make sure we aren't processing empty pool
 			if pool.Name != "" {
 				key := serviceKey{
@@ -1820,42 +1660,10 @@ func (appMgr *Manager) deleteUnusedResources(
 				poolNS := strings.Split(pool.Name, "_")[1]
 				_, ok := appMgr.resources.Get(key, cfg.GetName())
 				if pool.ServiceName == svcName && poolNS == namespace && (!ok || !svcFound) {
-					poolName := joinBigipPath(cfg.Virtual.Partition, pool.Name)
-					// Delete rule
-					for _, pol := range cfg.Policies {
-						// Loop through rules to find which one to remove
-						ruleOffsets := []int{}
-						for i, rule := range pol.Rules {
-							if len(rule.Actions) > 0 && rule.Actions[0].Pool == poolName {
-								if cfg.MetaData.ResourceType == "route" {
-									resourceName = strings.Split(rule.Name, "_")[3]
-								}
-								ruleOffsets = append(ruleOffsets, i)
-							}
-						}
-						polChanged := pol.RemoveRules(ruleOffsets)
-						// Update or remove the policy
-						if 0 == len(pol.Rules) {
-							cfg.RemovePolicy(pol)
-						} else if polChanged {
-							cfg.SetPolicy(pol)
-						}
+					if updated, svcKey := cfg.RemovePool(namespace, pool.Name); updated {
+						appMgr.resources.deleteKeyRefLocked(*svcKey, cfg.GetName())
+						rsUpdated += 1
 					}
-					// Delete pool
-					cfg.RemovePoolAt(i)
-					appMgr.resources.deleteKeyRefLocked(key, cfg.GetName())
-					if resourceName != "" {
-						// Delete profileRef (Route)
-						if cfg.MetaData.ResourceType == "route" {
-							profRef := makeRouteClientSSLProfileRef(
-								cfg.Virtual.Partition, namespace, resourceName)
-							cfg.Virtual.RemoveProfile(profRef)
-							serverProfile := makeRouteServerSSLProfileRef(
-								cfg.Virtual.Partition, namespace, resourceName)
-							cfg.Virtual.RemoveProfile(serverProfile)
-						}
-					}
-					rsUpdated += 1
 				}
 			}
 		}

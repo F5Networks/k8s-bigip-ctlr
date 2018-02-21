@@ -306,7 +306,7 @@ func abDeploymentPathIRule() string {
 }
 
 func sslPassthroughIRule() string {
-	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(), `
+	iRule := fmt.Sprintf(`
 		when CLIENT_ACCEPTED {
 			TCP::collect
 		}
@@ -389,20 +389,31 @@ func sslPassthroughIRule() string {
 								set servername_lower [string tolower $tls_servername]
 								SSL::disable serverside
 								set dflt_pool ""
-								if { [class match $servername_lower equals ssl_passthrough_servername_dg] } {
+								set passthru_class "/%[1]s/ssl_passthrough_servername_dg"
+								set svrname_class "/%[1]s/ssl_reencrypt_servername_dg"
+								if { [class exists $passthru_class] && [class match $servername_lower equals ssl_passthrough_servername_dg] } {
 									set dflt_pool [class match -value $servername_lower equals ssl_passthrough_servername_dg]
 									SSL::disable
 									HTTP::disable
 								}
-								elseif { [class match $servername_lower equals ssl_reencrypt_servername_dg] } {
+								elseif { [class exists $svrname_class] && [class match $servername_lower equals ssl_reencrypt_servername_dg] } {
 									set dflt_pool [class match -value $servername_lower equals ssl_reencrypt_servername_dg]
 									SSL::enable serverside
 								}
-								set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
-								if { $selected_pool == "" } then {
-									log local0.debug "Failed to find pool for $servername_lower"
+								set ab_class "/%[1]s/ab_deployment_dg"
+								if { not [class exists $ab_class] } {
+									if { $dflt_pool == "" } then {
+										log local0.debug "Failed to find pool for $servername_lower"
+									} else {
+										pool $dflt_pool
+									}
 								} else {
-									pool $selected_pool
+									set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
+									if { $selected_pool == "" } then {
+										log local0.debug "Failed to find pool for $servername_lower"
+									} else {
+										pool $selected_pool
+									}
 								}
 							}
 						}
@@ -414,11 +425,14 @@ func sslPassthroughIRule() string {
 		}
 
 		when SERVER_CONNECTED {
-			if { [class match $servername_lower equals ssl_reencrypt_serverssl_dg] } {
+			set svrssl_class "/%[1]s/ssl_reencrypt_serverssl_dg"
+			if { [class exists $svrssl_class] && [class match $servername_lower equals ssl_reencrypt_serverssl_dg] } {
 				set profile [class match -value $servername_lower equals ssl_reencrypt_serverssl_dg]
 				SSL::profile $profile
 			}
-		}`)
+		}`, DEFAULT_PARTITION)
+
+	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(), iRule)
 
 	return iRuleCode
 }
@@ -578,7 +592,7 @@ func updateDataGroup(
 
 // Update the appMgr datagroup cache for routes, indicating if something
 // had changed by updating 'stats', which should rewrite the config.
-func (appMgr *Manager) updateRouteDataGroups(
+func (appMgr *Manager) syncDataGroups(
 	stats *vsSyncStats,
 	dgMap InternalDataGroupMap,
 	namespace string,
@@ -608,9 +622,70 @@ func (appMgr *Manager) updateRouteDataGroups(
 			_, found := nsDg[namespace]
 			if found {
 				delete(nsDg, namespace)
+				if len(nsDg) == 0 {
+					delete(appMgr.intDgMap, mapKey)
+				}
 				stats.dgUpdated += 1
 			}
 		}
+	}
+}
+
+// Finds which IRules have no data groups for them
+func (appMgr *Manager) syncIRules() {
+	// Verify which data groups are still in use
+	type iruleRef struct {
+		https       bool
+		ab          bool
+		passthrough bool
+		reencrypt   bool
+	}
+	var iRef iruleRef
+	for mapKey, _ := range appMgr.intDgMap {
+		switch mapKey.Name {
+		case httpsRedirectDgName:
+			iRef.https = true
+		case abDeploymentDgName:
+			iRef.ab = true
+		case passthroughHostsDgName:
+			iRef.passthrough = true
+		case reencryptHostsDgName:
+			iRef.reencrypt = true
+		case reencryptServerSslDgName:
+			iRef.reencrypt = true
+		}
+	}
+	// Delete any IRules for datagroups that are gone
+	if !iRef.https {
+		// http redirect rule may have a port appended, so find it
+		for irule, _ := range appMgr.irulesMap {
+			if strings.HasPrefix(irule.Name, httpRedirectIRuleName) {
+				appMgr.deleteIRule(irule.Name)
+			}
+		}
+	}
+	if !iRef.ab {
+		appMgr.deleteIRule(abDeploymentPathIRuleName)
+	}
+	if !iRef.passthrough && !iRef.reencrypt {
+		appMgr.deleteIRule(sslPassthroughIRuleName)
+	}
+}
+
+// Deletes an IRule from the IRules map, and dereferences it from a Virtual
+func (appMgr *Manager) deleteIRule(rule string) {
+	ref := nameRef{
+		Name:      rule,
+		Partition: DEFAULT_PARTITION,
+	}
+	delete(appMgr.irulesMap, ref)
+	fullName := joinBigipPath(DEFAULT_PARTITION, rule)
+	for _, cfg := range appMgr.resources.GetAllResources() {
+		if cfg.MetaData.ResourceType == "configmap" ||
+			cfg.MetaData.ResourceType == "iapp" {
+			continue
+		}
+		cfg.Virtual.RemoveIRule(fullName)
 	}
 }
 

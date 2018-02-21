@@ -1,9 +1,0 @@
-# .coveragerc to control coverage.py for build
-
-[run]
-omit =
-  */lib/*
-  */tests/*
-  */go/src/f5-cccl/*
-
-data_file = ${BUILDDIR}/python-coverage.out

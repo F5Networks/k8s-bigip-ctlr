@@ -20,14 +20,12 @@ VERSION_INFO=$(${CURDIR}/version-tool version)
 
 # Hard code the platform dir here
 cp $CURDIR/../_docker_workspace/out/$RELEASE_PLATFORM/bin/* $WKDIR/
-mkdir -p $WKDIR/python
-cp python/*.py $WKDIR/python/
-cp python/k8s-runtime-requirements.txt $WKDIR/
+cp requirements.txt $WKDIR/
 cp schemas/bigip-virtual-server_v*.json $WKDIR/
 cp LICENSE $WKDIR/
 cp $CURDIR/help.md $WKDIR/help.md
 echo "{\"version\": \"${VERSION_INFO}\", \"build\": \"${BUILD_INFO}\"}" \
-  > $WKDIR/python/VERSION_BUILD.json 
+  > $WKDIR/VERSION_BUILD.json
 
 echo "Docker build context:"
 ls -la $WKDIR

@@ -139,8 +139,8 @@ func _init() {
 	}
 
 	// Global flags
-	pythonBaseDir = globalFlags.String("python-basedir", "/app/python",
-		"Optional, directory location of python utilities")
+	pythonBaseDir = globalFlags.String("python-basedir", "",
+		"DEPRECATED: Optional, directory location of python utilities")
 	logLevel = globalFlags.String("log-level", "INFO",
 		"Optional, logging level")
 	verifyInterval = globalFlags.Int("verify-interval", 30,

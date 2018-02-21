@@ -127,28 +127,41 @@ var _ = Describe("Main Tests", func() {
 	})
 
 	It("sets up the driver command", func() {
-		pyDriver := "/tmp/some-dir/test-driver.py"
-
+		pyDriver := "bigipconfigdriver.py"
 		configFile := fmt.Sprintf("/tmp/k8s-bigip-ctlr.config.%d.json",
 			os.Getpid())
+		driverPath, err := exec.LookPath("bigipconfigdriver.py")
+		Expect(err).To(BeNil(), "We should find the driver.")
 
-		pythonPath, err := exec.LookPath("python")
-		Expect(err).To(BeNil(), "We should find python.")
-
+		args := []string{
+			pyDriver,
+			"--config-file", configFile,
+			"--ctlr-prefix", "k8s",
+		}
 		cmd := createDriverCmd(
 			configFile,
 			pyDriver,
 		)
 
-		Expect(cmd).ToNot(BeNil())
-		Expect(cmd.Path).ToNot(BeNil())
-		Expect(cmd.Path).To(Equal(pythonPath))
+		Expect(cmd.Path).To(Equal(driverPath))
+		Expect(cmd.Args).To(Equal(args))
 
-		args := []string{
+		pyDriver = "/path/to/python/bigipconfigdriver.py"
+		pythonPath, err := exec.LookPath("python")
+		Expect(err).To(BeNil(), "We should find the driver.")
+
+		args = []string{
 			"python",
 			pyDriver,
 			"--config-file", configFile,
+			"--ctlr-prefix", "k8s",
 		}
+		cmd = createDriverCmd(
+			configFile,
+			pyDriver,
+		)
+
+		Expect(cmd.Path).To(Equal(pythonPath))
 		Expect(cmd.Args).To(Equal(args))
 	})
 
@@ -202,10 +215,14 @@ var _ = Describe("Main Tests", func() {
 		pyDriver := "./test/pyTest.py"
 		configFile := configWriter.GetOutputFilename()
 
-		cmd := createDriverCmd(
-			configFile,
+		pyCmd := "python"
+		cmdArgs := []string{
 			pyDriver,
-		)
+			"--config-file", configFile,
+			"--ctlr-prefix", "k8s",
+		}
+		cmd := exec.Command(pyCmd, cmdArgs...)
+
 		go runBigIPDriver(subPidCh, cmd)
 		pid := <-subPidCh
 

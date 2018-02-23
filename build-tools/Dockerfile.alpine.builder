@@ -1,4 +1,4 @@
-FROM python:2.7-alpine
+FROM python:2.7-alpine3.7
 
 # GOLANG install steps used from the official golang:1.7-alpine image
 # at https://github.com/docker-library/golang/tree/f19fa68b57e811315e95091bb6b78c1e2f43d14f

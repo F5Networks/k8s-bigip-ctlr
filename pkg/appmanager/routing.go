@@ -249,11 +249,12 @@ func httpRedirectIRule(port int32) string {
 }
 
 func selectPoolIRuleFunc() string {
-	iRuleFunc := `
+	iRuleFunc := fmt.Sprintf(`
 		proc select_ab_pool {path default_pool } {
 			set last_slash [string length $path]
+			set ab_class "/%s/ab_deployment_dg"
 			while {$last_slash >= 0} {
-				if {[class match $path equals ab_deployment_dg]} then {
+				if {[class match $path equals $ab_class]} then {
 					break
 				}
 				set last_slash [string last "/" $path $last_slash]
@@ -262,7 +263,7 @@ func selectPoolIRuleFunc() string {
 			}
 
 			if {$last_slash >= 0} {
-				set ab_rule [class match -value $path equals ab_deployment_dg]
+				set ab_rule [class match -value $path equals $ab_class]
 				if {$ab_rule != ""} then {
 					set weight_selection [expr {rand()}]
 					set service_rules [split $ab_rule ";"]
@@ -280,7 +281,7 @@ func selectPoolIRuleFunc() string {
 				HTTP::respond 503
 			}
 			return $default_pool
-		}`
+		}`, DEFAULT_PARTITION)
 
 	return iRuleFunc
 }
@@ -390,15 +391,19 @@ func sslPassthroughIRule() string {
 								SSL::disable serverside
 								set dflt_pool ""
 								set passthru_class "/%[1]s/ssl_passthrough_servername_dg"
-								set svrname_class "/%[1]s/ssl_reencrypt_servername_dg"
-								if { [class exists $passthru_class] && [class match $servername_lower equals ssl_passthrough_servername_dg] } {
-									set dflt_pool [class match -value $servername_lower equals ssl_passthrough_servername_dg]
-									SSL::disable
-									HTTP::disable
+								set reencrypt_class "/%[1]s/ssl_reencrypt_servername_dg"
+								if { [class exists $passthru_class] } {
+									set dflt_pool [class match -value $servername_lower equals $passthru_class]
+									if { not ($dflt_pool equals "") } {
+										SSL::disable
+										HTTP::disable
+									}
 								}
-								elseif { [class exists $svrname_class] && [class match $servername_lower equals ssl_reencrypt_servername_dg] } {
-									set dflt_pool [class match -value $servername_lower equals ssl_reencrypt_servername_dg]
-									SSL::enable serverside
+								elseif { [class exists $reencrypt_class] } {
+									set dflt_pool [class match -value $servername_lower equals $reencrypt_class]
+									if { not ($dflt_pool equals "") } {
+										SSL::enable serverside
+									}
 								}
 								set ab_class "/%[1]s/ab_deployment_dg"
 								if { not [class exists $ab_class] } {
@@ -426,9 +431,11 @@ func sslPassthroughIRule() string {
 
 		when SERVER_CONNECTED {
 			set svrssl_class "/%[1]s/ssl_reencrypt_serverssl_dg"
-			if { [class exists $svrssl_class] && [class match $servername_lower equals ssl_reencrypt_serverssl_dg] } {
-				set profile [class match -value $servername_lower equals ssl_reencrypt_serverssl_dg]
-				SSL::profile $profile
+			if { [class exists $svrssl_class] } {
+				set profile [class match -value $servername_lower equals $svrssl_class]
+				if { not ($profile equals "") } {
+					SSL::profile $profile
+				}
 			}
 		}`, DEFAULT_PARTITION)
 

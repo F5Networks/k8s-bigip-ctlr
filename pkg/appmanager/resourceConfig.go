@@ -1225,7 +1225,7 @@ func (appMgr *Manager) handleIngressTls(
 		rsCfg.Virtual.AddIRule(ruleName)
 		if nil != ing.Spec.Backend {
 			svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
-				ing.Spec.Backend.ServiceName, "*", "/")
+				ing.Spec.Backend.ServiceName, "\\*", "/")
 		}
 		for _, rul := range ing.Spec.Rules {
 			if nil != rul.HTTP {

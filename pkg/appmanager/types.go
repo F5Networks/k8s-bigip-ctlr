@@ -76,7 +76,7 @@ type (
 		Destination           string                `json:"destination"`
 		Enabled               bool                  `json:"enabled"`
 		IpProtocol            string                `json:"ipProtocol,omitempty"`
-		SourceAddrTranslation sourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
+		SourceAddrTranslation SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
 		Policies              []nameRef             `json:"policies,omitempty"`
 		IRules                []string              `json:"rules,omitempty"`
 		Profiles              ProfileRefs           `json:"profiles,omitempty"`
@@ -128,8 +128,9 @@ type (
 	Monitors []Monitor
 
 	// Virtual Server Source Address Translation
-	sourceAddrTranslation struct {
+	SourceAddrTranslation struct {
 		Type string `json:"type"`
+		Pool string `json:"pool,omitempty"`
 	}
 
 	// Virtual policy
@@ -278,7 +279,7 @@ type (
 		Destination           string                `json:"destination,omitempty"`
 		Enabled               bool                  `json:"enabled,omitempty"`
 		IpProtocol            string                `json:"ipProtocol,omitempty"`
-		SourceAddrTranslation sourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
+		SourceAddrTranslation SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
 		SslProfile            *sslProfile           `json:"sslProfile,omitempty"`
 		Policies              []nameRef             `json:"policies,omitempty"`
 		IRules                []string              `json:"rules,omitempty"`

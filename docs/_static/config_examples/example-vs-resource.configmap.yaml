@@ -3,7 +3,7 @@ apiVersion: v1
 metadata:
   name: example-vs
   namespace: default
-  labels: 
+  labels:
     f5type: virtual-server
 data:
   schema: "f5schemadb://bigip-virtual-server_v0.1.7.json"
@@ -20,6 +20,10 @@ data:
           },
           "sslProfile": {
             "f5ProfileName": "Common/testcert"
+          },
+          "sourceAddressTranslation": {
+            "type": "snat",
+            "pool": "snat-pool"
           }
         },
         "backend": {

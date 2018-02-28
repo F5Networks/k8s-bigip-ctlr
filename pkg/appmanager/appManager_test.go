@@ -38,7 +38,7 @@ import (
 
 func init() {
 	workingDir, _ := os.Getwd()
-	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.7.json"
+	schemaUrl = "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.8.json"
 	DEFAULT_PARTITION = "velcro"
 }
 
@@ -86,6 +86,9 @@ var configmapFoo8080 string = string(`{
       "virtualAddress": {
         "bindAddr": "10.128.10.240",
         "port": 5051
+      },
+      "sourceAddressTranslation": {
+        "type": "none"
       }
     }
   }
@@ -104,6 +107,10 @@ var configmapFoo9090 string = string(`{
 			"virtualAddress": {
 				"bindAddr": "10.128.10.200",
 				"port": 4041
+			},
+			"sourceAddressTranslation": {
+				"type": "snat",
+				"pool": "snat-pool"
 			}
 		}
 	}
@@ -187,6 +194,9 @@ var configmapBar string = string(`{
       "virtualAddress": {
         "bindAddr": "10.128.10.240",
         "port": 6051
+      },
+      "sourceAddressTranslation": {
+        "type": "automap"
       }
     }
   }
@@ -291,7 +301,7 @@ var configmapIApp2 string = string(`{
 
 var emptyConfig string = string(`{"resources":{}}`)
 
-var twoSvcsFourPortsThreeNodesConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap","pool":"/velcro/cfgmap_default_foomap_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"},{"partition":"velcro","name":"testcert","context":"clientside"}]},{"name":"default_foomap8080","pool":"/velcro/cfgmap_default_foomap8080_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap9090","pool":"/velcro/cfgmap_default_foomap9090_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.200:4041","profiles":[{"partition":"Common","name":"tcp","context":"all"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":37001,"session":"user-enabled"},{"address":"127.0.0.2","port":37001,"session":"user-enabled"},{"address":"127.0.0.3","port":37001,"session":"user-enabled"}],"monitors":null},{"name":"cfgmap_default_foomap_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":30001,"session":"user-enabled"},{"address":"127.0.0.2","port":30001,"session":"user-enabled"},{"address":"127.0.0.3","port":30001,"session":"user-enabled"}],"monitors":["/velcro/cfgmap_default_foomap_foo_0_tcp"]},{"name":"cfgmap_default_foomap8080_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":38001,"session":"user-enabled"},{"address":"127.0.0.2","port":38001,"session":"user-enabled"},{"address":"127.0.0.3","port":38001,"session":"user-enabled"}],"monitors":null},{"name":"cfgmap_default_foomap9090_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":39001,"session":"user-enabled"},{"address":"127.0.0.2","port":39001,"session":"user-enabled"},{"address":"127.0.0.3","port":39001,"session":"user-enabled"}],"monitors":null}],"monitors":[{"name":"cfgmap_default_foomap_foo_0_tcp","interval":30,"type":"tcp","send":"GET /","recv":"Hello from","timeout":20}]}}}`)
+var twoSvcsFourPortsThreeNodesConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap","pool":"/velcro/cfgmap_default_foomap_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"},{"partition":"velcro","name":"testcert","context":"clientside"}]},{"name":"default_foomap8080","pool":"/velcro/cfgmap_default_foomap8080_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"none"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap9090","pool":"/velcro/cfgmap_default_foomap9090_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"snat","pool":"snat-pool"},"destination":"/velcro/10.128.10.200:4041","profiles":[{"partition":"Common","name":"tcp","context":"all"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":37001,"session":"user-enabled"},{"address":"127.0.0.2","port":37001,"session":"user-enabled"},{"address":"127.0.0.3","port":37001,"session":"user-enabled"}],"monitors":null},{"name":"cfgmap_default_foomap_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":30001,"session":"user-enabled"},{"address":"127.0.0.2","port":30001,"session":"user-enabled"},{"address":"127.0.0.3","port":30001,"session":"user-enabled"}],"monitors":["/velcro/cfgmap_default_foomap_foo_0_tcp"]},{"name":"cfgmap_default_foomap8080_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":38001,"session":"user-enabled"},{"address":"127.0.0.2","port":38001,"session":"user-enabled"},{"address":"127.0.0.3","port":38001,"session":"user-enabled"}],"monitors":null},{"name":"cfgmap_default_foomap9090_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":39001,"session":"user-enabled"},{"address":"127.0.0.2","port":39001,"session":"user-enabled"},{"address":"127.0.0.3","port":39001,"session":"user-enabled"}],"monitors":null}],"monitors":[{"name":"cfgmap_default_foomap_foo_0_tcp","interval":30,"type":"tcp","send":"GET /","recv":"Hello from","timeout":20}]}}}`)
 
 var twoSvcsTwoNodesConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap","pool":"/velcro/cfgmap_default_foomap_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"},{"partition":"velcro","name":"testcert","context":"clientside"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":37001,"session":"user-enabled"},{"address":"127.0.0.2","port":37001,"session":"user-enabled"}]},{"name":"cfgmap_default_foomap_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":30001,"session":"user-enabled"},{"address":"127.0.0.2","port":30001,"session":"user-enabled"}],"monitors":["/velcro/cfgmap_default_foomap_foo_0_tcp"]}],"monitors":[{"name":"cfgmap_default_foomap_foo_0_tcp","interval":30,"type":"tcp","send":"GET /","recv":"Hello from","timeout":20}]}}}`)
 
@@ -305,7 +315,7 @@ var twoIappsOneNodeConfig string = string(`{"resources":{"velcro":{"virtualServe
 
 var oneIappOneNodeConfig string = string(`{"resources":{"velcro":{"virtualServers":[],"pools":[],"iapps":[{"name":"default_iapp2map","template":"/Common/f5.http","options":{"description":"iApp 2"},"tables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"poolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}],"members":[{"address":"192.168.0.4","port":20202,"session":"user-enabled"}]},"variables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}]}}}`)
 
-var twoSvcTwoPodsConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap","pool":"/velcro/cfgmap_default_foomap_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"10.2.96.0","port":80,"session":"user-enabled"},{"address":"10.2.96.3","port":80,"session":"user-enabled"}]},{"name":"cfgmap_default_foomap_foo","loadBalancingMode":"round-robin","members":[{"address":"10.2.96.1","port":8080,"session":"user-enabled"},{"address":"10.2.96.2","port":8080,"session":"user-enabled"}]}]}}}`)
+var twoSvcTwoPodsConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap","pool":"/velcro/cfgmap_default_foomap_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"none"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"10.2.96.0","port":80,"session":"user-enabled"},{"address":"10.2.96.3","port":80,"session":"user-enabled"}]},{"name":"cfgmap_default_foomap_foo","loadBalancingMode":"round-robin","members":[{"address":"10.2.96.1","port":8080,"session":"user-enabled"},{"address":"10.2.96.2","port":8080,"session":"user-enabled"}]}]}}}`)
 
 var oneSvcTwoPodsConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"10.2.96.0","port":80,"session":"user-enabled"},{"address":"10.2.96.3","port":80,"session":"user-enabled"}]}]}}}`)
 
@@ -2626,12 +2636,15 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs.Virtual.Partition).To(Equal("velcro"))
 				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
 				Expect(rs.Virtual.VirtualAddress.Port).To(Equal(int32(80)))
+				Expect(rs.Virtual.SourceAddrTranslation.Type).To(Equal("automap"))
+				Expect(rs.Virtual.SourceAddrTranslation.Pool).To(Equal(""))
 				// Update the Ingress resource
 				ingress2 := test.NewIngress("ingress", "1", namespace, ingressConfig,
 					map[string]string{
-						f5VsBindAddrAnnotation:  "5.6.7.8",
-						f5VsPartitionAnnotation: "velcro2",
-						f5VsHttpPortAnnotation:  "443",
+						f5VsBindAddrAnnotation:              "5.6.7.8",
+						f5VsPartitionAnnotation:             "velcro2",
+						f5VsHttpPortAnnotation:              "443",
+						f5VsSourceAddrTranslationAnnotation: string(`{"type":"none"}`),
 					})
 				r = mockMgr.updateIngress(ingress2)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -2650,6 +2663,8 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs.Virtual.Partition).To(Equal("velcro2"))
 				Expect(rs.Virtual.VirtualAddress.BindAddr).To(Equal("5.6.7.8"))
 				Expect(rs.Virtual.VirtualAddress.Port).To(Equal(int32(443)))
+				Expect(rs.Virtual.SourceAddrTranslation.Type).To(Equal("none"))
+				Expect(rs.Virtual.SourceAddrTranslation.Pool).To(Equal(""))
 				// Delete the Ingress resource
 				r = mockMgr.deleteIngress(ingress2)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -3054,7 +3069,10 @@ var _ = Describe("AppManager Tests", func() {
 							Key:         "key",
 						},
 					}
-					route := test.NewRoute("route", "1", namespace, spec, nil)
+					route := test.NewRoute("route", "1", namespace, spec,
+						map[string]string{
+							f5VsSourceAddrTranslationAnnotation: string(`{"type":"snat","pool":"snat-pool"}`),
+						})
 					r := mockMgr.addRoute(route)
 					Expect(r).To(BeTrue(), "Route resource should be processed.")
 
@@ -3070,6 +3088,8 @@ var _ = Describe("AppManager Tests", func() {
 						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
 					Expect(ok).To(BeTrue(), "Route should be accessible.")
 					Expect(rs).ToNot(BeNil(), "Route should be object.")
+					Expect(rs.Virtual.SourceAddrTranslation.Type).To(Equal("snat"))
+					Expect(rs.Virtual.SourceAddrTranslation.Pool).To(Equal("snat-pool"))
 					Expect(rs.MetaData.Active).To(BeTrue())
 					Expect(len(rs.Policies[0].Rules)).To(Equal(1))
 

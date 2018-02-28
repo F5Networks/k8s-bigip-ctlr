@@ -5,6 +5,12 @@ metadata:
     name: svc1
   name: svc1-route-unsecured
   namespace: default
+  annotations:
+    # Optionally specify the source address translation type of the virtual server
+    virtual-server.f5.com/source-addr-translation: |
+        {
+          "type": "automap"
+        }
 spec:
   host: svc1-route.local
   path: "/test"

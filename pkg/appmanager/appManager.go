@@ -893,14 +893,13 @@ func (appMgr *Manager) syncConfigMaps(
 				if profile.Context != customProfileClient {
 					continue
 				}
-				profileName := fmt.Sprintf("%s/%s", profile.Partition, profile.Name)
 				// Check if profile is contained in a Secret
 				secret, err := appMgr.kubeClient.Core().Secrets(cm.ObjectMeta.Namespace).
-					Get(profileName, metav1.GetOptions{})
+					Get(profile.Name, metav1.GetOptions{})
 				if err != nil {
 					// No secret, so we assume the profile is a BIG-IP default
-					log.Debugf("No Secret with name '%s', parsing secretName as path instead.",
-						profileName)
+					log.Debugf("No Secret with name '%s' in namespace '%s', "+
+						"parsing secretName as path instead.", profile.Name, sKey.Namespace)
 					continue
 				}
 				err, updated := appMgr.createSecretSslProfile(rsCfg, secret)

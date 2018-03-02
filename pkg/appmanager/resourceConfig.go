@@ -390,9 +390,9 @@ func convertStringToProfileRef(profileName, context, ns string) ProfileRef {
 		profRef.Partition = parts[0]
 		profRef.Name = parts[1]
 	case 1:
-		// This is technically supported on the Big-IP, but will fail in the
-		// python driver. Issue a warning here for better context.
-		log.Warningf("Profile name '%v' does not contain a full path.", profileName)
+		log.Debugf("Partition not provided in profile '%s', using default partition '%s'",
+			profileName, DEFAULT_PARTITION)
+		profRef.Partition = DEFAULT_PARTITION
 		profRef.Name = profileName
 	default:
 		// This is almost certainly an error, but again issue a warning for
@@ -1171,8 +1171,9 @@ func (appMgr *Manager) handleIngressTls(
 					Get(tls.SecretName, metav1.GetOptions{})
 				if err != nil {
 					// No secret, so we assume the profile is a BIG-IP default
-					log.Debugf("No Secret with name '%s': %s. Parsing secretName as path instead.",
-						tls.SecretName, err)
+					log.Debugf("No Secret with name '%s' in namespace '%s', "+
+						"parsing secretName as path instead.",
+						tls.SecretName, ing.ObjectMeta.Namespace)
 					profRef := convertStringToProfileRef(
 						tls.SecretName, customProfileClient, ing.ObjectMeta.Namespace)
 					rsCfg.Virtual.AddOrUpdateProfile(profRef)

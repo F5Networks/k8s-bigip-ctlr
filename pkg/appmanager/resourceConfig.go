@@ -1253,6 +1253,13 @@ func (appMgr *Manager) handleIngressTls(
 				rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			}
 		}
+		if serverProfile, ok :=
+			ing.ObjectMeta.Annotations[f5ServerSslProfileAnnotation]; ok == true {
+			secretName := formatIngressSslProfileName(serverProfile)
+			profRef := convertStringToProfileRef(
+				secretName, customProfileServer, ing.ObjectMeta.Namespace)
+			rsCfg.Virtual.AddOrUpdateProfile(profRef)
+		}
 		return cpUpdated
 	}
 

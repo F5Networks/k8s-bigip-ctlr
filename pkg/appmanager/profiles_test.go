@@ -178,7 +178,20 @@ var _ = Describe("AppManager Profile Tests", func() {
 			}
 			sort.Strings(clientProfileNames)
 			Expect(clientProfileNames).To(Equal(secretArray))
-
+			// ServerSSL Profile tests
+			fooIng.ObjectMeta.Annotations[f5ServerSslProfileAnnotation] = "Common/server"
+			r = mockMgr.addIngress(fooIng)
+			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+			httpsCfg, found = resources.Get(svcKey, formatIngressVSName("1.2.3.4", 443))
+			Expect(found).To(BeTrue())
+			Expect(httpsCfg).ToNot(BeNil())
+			Expect(httpsCfg.Virtual.Profiles).To(ContainElement(
+				ProfileRef{
+					Name:      "server",
+					Partition: "Common",
+					Context:   customProfileServer,
+					Namespace: namespace,
+				}))
 			// Now test state 3.
 			fooIng.ObjectMeta.Annotations[ingressSslRedirect] = "false"
 			fooIng.ObjectMeta.Annotations[ingressAllowHttp] = "true"

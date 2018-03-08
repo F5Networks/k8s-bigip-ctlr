@@ -684,6 +684,7 @@ func compareVirtuals(vs, expected Virtual) {
 	Expect(vs.SourceAddrTranslation).To(Equal(expected.SourceAddrTranslation))
 	Expect(vs.Policies).To(Equal(expected.Policies))
 	Expect(vs.IRules).To(Equal(expected.IRules))
+	Expect(len(vs.Profiles)).To(Equal(len(expected.Profiles)))
 	for i, prof := range vs.Profiles {
 		Expect(prof.Context).To(Equal(expected.Profiles[i].Context))
 		Expect(prof.Name).To(Equal(expected.Profiles[i].Name))

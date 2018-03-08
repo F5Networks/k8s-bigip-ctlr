@@ -17,6 +17,7 @@
 package appmanager
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"reflect"
@@ -359,19 +360,19 @@ func (appMgr *Manager) createSecretSslProfile(
 		Name:         fmt.Sprintf("default-clientssl-%s", rsCfg.GetName()),
 		ResourceName: rsCfg.GetName(),
 	}
-	if _, ok := appMgr.customProfiles.profs[skey]; !ok {
-		profile := ProfileRef{
-			Name:      skey.Name,
-			Partition: rsCfg.Virtual.Partition,
-			Context:   customProfileClient,
-		}
-		// This is just a basic profile, so we don't need all the fields
-		cp := NewCustomProfile(profile, "", "", "", true, "", "")
-		appMgr.customProfiles.profs[skey] = cp
-		rsCfg.Virtual.AddOrUpdateProfile(profile)
+	sni := ProfileRef{
+		Name:      skey.Name,
+		Partition: rsCfg.Virtual.Partition,
+		Context:   customProfileClient,
 	}
+	if _, ok := appMgr.customProfiles.profs[skey]; !ok {
+		// This is just a basic profile, so we don't need all the fields
+		cp := NewCustomProfile(sni, "", "", "", true, "", "")
+		appMgr.customProfiles.profs[skey] = cp
+	}
+	rsCfg.Virtual.AddOrUpdateProfile(sni)
 
-	// Now add the Ingress profile
+	// Now add the resource profile
 	profRef := ProfileRef{
 		Name:      secret.ObjectMeta.Name,
 		Partition: rsCfg.Virtual.Partition,
@@ -410,11 +411,10 @@ func (appMgr *Manager) deleteUnusedProfiles(
 	namespace string,
 	stats *vsSyncStats,
 ) {
-	// Loop through and delete any profileRefs for Ingress cfgs that are
+	// Loop through and delete any profileRefs for cfgs that are
 	// no longer referenced, or have been deleted
 	for _, cfg := range appMgr.resources.GetAllResources() {
-		if cfg.MetaData.ResourceType != "ingress" &&
-			cfg.MetaData.ResourceType != "route" {
+		if cfg.MetaData.ResourceType == "iapp" {
 			continue
 		}
 		if nil == cfg.Virtual.VirtualAddress ||
@@ -440,7 +440,42 @@ func (appMgr *Manager) deleteUnusedProfiles(
 				continue
 			}
 			referenced := false
-			if cfg.MetaData.ResourceType == "ingress" {
+			// If a profile in our Virtual is not referenced in any resource, or is a Secret
+			// that has been deleted, then we remove that profile from the virtual
+			if cfg.MetaData.ResourceType == "configmap" {
+				cfgmaps, _ := appInf.cfgMapInformer.GetIndexer().ByIndex(
+					"namespace", namespace)
+				for _, obj := range cfgmaps {
+					cm := obj.(*v1.ConfigMap)
+					var cfgMap ConfigMap
+					if data, ok := cm.Data["data"]; ok {
+						err := json.Unmarshal([]byte(data), &cfgMap)
+						if err != nil {
+							continue
+						}
+						var profNames []string
+						if nil != cfgMap.VirtualServer.Frontend.SslProfile {
+							ssl := cfgMap.VirtualServer.Frontend.SslProfile
+							if len(ssl.F5ProfileName) > 0 {
+								profNames = append(profNames, ssl.F5ProfileName)
+							} else {
+								for _, profName := range ssl.F5ProfileNames {
+									profNames = append(profNames, profName)
+								}
+							}
+							for _, p := range profNames {
+								appMgr.checkProfile(
+									prof,
+									&toRemove,
+									cm.ObjectMeta.Namespace,
+									p,
+									&referenced,
+								)
+							}
+						}
+					}
+				}
+			} else if cfg.MetaData.ResourceType == "ingress" {
 				ingresses, _ := appInf.ingInformer.GetIndexer().ByIndex(
 					"namespace", namespace)
 				for _, obj := range ingresses {
@@ -450,29 +485,13 @@ func (appMgr *Manager) deleteUnusedProfiles(
 						continue
 					}
 					for _, tls := range ing.Spec.TLS {
-						var profName string
-						// Trim leading "/" from secret name (if it exists)
-						secretName := strings.TrimSpace(strings.TrimPrefix(tls.SecretName, "/"))
-						// If another slash remains, then we know a partition is in the name
-						if strings.ContainsAny(secretName, "/") {
-							profName = fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
-						} else {
-							profName = prof.Name
-						}
-						if profName == secretName {
-							referenced = true
-							// Ingress may reference a secret that no longer exists
-							if appMgr.useSecrets {
-								_, err := appMgr.kubeClient.Core().
-									Secrets(ing.ObjectMeta.Namespace).
-									Get(tls.SecretName, metav1.GetOptions{})
-								if nil != err && !strings.ContainsAny(secretName, "/") {
-									// No secret with this name, and name does not
-									// contain "/", meaning it isn't a valid BIG-IP profile
-									toRemove = append(toRemove, prof)
-								}
-							}
-						}
+						appMgr.checkProfile(
+							prof,
+							&toRemove,
+							ing.ObjectMeta.Namespace,
+							tls.SecretName,
+							&referenced,
+						)
 					}
 					if referenced {
 						break
@@ -552,6 +571,42 @@ func (appMgr *Manager) deleteUnusedProfiles(
 			delKey := secretKey{Name: extractCertificateName(caKey)}
 			delete(appMgr.customProfiles.profs, delKey)
 			stats.cpUpdated += 1
+		}
+	}
+}
+
+// Compare a Virtual's profile with a ConfigMap/Ingress profile to see if
+// they are the same. If true, the profile is not deleted. If true but the
+// profile name is a Secret that no longer exists, then we delete the profile
+func (appMgr *Manager) checkProfile(
+	prof ProfileRef,
+	toRemove *[]ProfileRef,
+	namespace,
+	testName string,
+	referenced *bool,
+) {
+	var profName string
+	// Trim leading "/" from secret name (if it exists)
+	secretName := strings.TrimSpace(strings.TrimPrefix(testName, "/"))
+	// If another slash remains, then we know a partition is in the name
+	if strings.ContainsAny(secretName, "/") {
+		profName = fmt.Sprintf("%s/%s", prof.Partition, prof.Name)
+	} else {
+		profName = prof.Name
+	}
+
+	if profName == secretName {
+		*referenced = true
+		// May reference a secret that no longer exists
+		if appMgr.useSecrets {
+			_, err := appMgr.kubeClient.Core().
+				Secrets(namespace).
+				Get(testName, metav1.GetOptions{})
+			if nil != err && !strings.ContainsAny(secretName, "/") {
+				// No secret with this name, and name does not
+				// contain "/", meaning it isn't a valid BIG-IP profile
+				*toRemove = append(*toRemove, prof)
+			}
 		}
 	}
 }

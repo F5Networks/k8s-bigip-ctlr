@@ -69,7 +69,7 @@ source_encoding = 'utf-8-sig'
 # The master toctree document.
 master_doc = 'index'
 
-# General information about the project. 
+# General information about the project.
 project = u'F5 BIG-IP Controller for Kubernetes'
 copyright = u'2018 F5 Networks Inc'
 author = u'F5 Networks'
@@ -131,6 +131,8 @@ rst_epilog = '''
 .. _NodePort mode: %(base_url)s/containers/latest/kubernetes/kctlr-modes.html
 .. _OpenShift Route: https://docs.openshift.org/1.4/dev_guide/routes.html
 .. _route domain: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-routing-administration-12-0-0/9.html
+.. _Source Address Translation Overview: https://support.f5.com/csp/article/K7820
+.. _`F5 Controller Agent`: https://github.com/f5devcentral/f5-ctlr-agent
 ''' % {
     'url_version': version,
     'base_url': 'http://clouddocs.f5.com'

@@ -104,6 +104,10 @@ General
 |                       |         |          |                                  | e.g. (`/metrics` and `health`)          |                |
 +-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
 
+.. note::
+
+   :code:`python-basedir` optionally specifies the path to an alternate |kctlr| to F5 CCCL agent (:code:`bigipconfigdriver.py`). `F5 Controller Agent`_ is the default agent.
+
 .. _bigip configs:
 
 BIG-IP system
@@ -320,43 +324,61 @@ For a Service named "myService" running in the "default" namespace, the Controll
 ``default_myService``
 
 
-==================== ================= ============== =========== ===================================================== ===============================================
-Property             Type              Required       Default     Description                                           Allowed Values
-==================== ================= ============== =========== ===================================================== ===============================================
-partition            string            Required                   The BIG-IP partition you want to manage
--------------------- ----------------- -------------- ----------- ----------------------------------------------------- -----------------------------------------------
-virtualAddress       JSON object       Optional                   Assigns a BIG-IP self IP to the virtual server
+========================== ================= ============== =========== =============================================================== ===============================================
+Property                   Type              Required       Default     Description                                                     Allowed Values
+========================== ================= ============== =========== =============================================================== ===============================================
+partition                  string            Required                   The BIG-IP partition you want to manage
+-------------------------- ----------------- -------------- ----------- --------------------------------------------------------------- -----------------------------------------------
+virtualAddress             JSON object       Optional                   Assigns a BIG-IP self IP to the virtual server
 
-- bindAddr [#ba]_    string            Required                   Virtual IP address
-- port               integer           Required                   Port number
--------------------- ----------------- -------------- ----------- ----------------------------------------------------- -----------------------------------------------
-mode                 string            Optional       tcp         Sets the proxy mode                                   http, tcp, udp
--------------------- ----------------- -------------- ----------- ----------------------------------------------------- -----------------------------------------------
+- bindAddr [#ba]_          string            Required                   Virtual IP address
+- port                     integer           Required                   Port number
+-------------------------- ----------------- -------------- ----------- --------------------------------------------------------------- -----------------------------------------------
+mode                       string            Optional       tcp         Sets the proxy mode                                             http, tcp, udp
+-------------------------- ----------------- -------------- ----------- --------------------------------------------------------------- -----------------------------------------------
 .. _balance:
 
-balance              string            Optional       round-robin Sets the load balancing mode                          Any supported load balancing algorithm [#lb]_
--------------------- ----------------- -------------- ----------- ----------------------------------------------------- -----------------------------------------------
-sslProfile [#ssl]_   JSON object       Optional                   BIG-IP SSL profile to apply to the virtual server.
+balance                    string            Optional       round-robin Sets the load balancing mode                                    Any supported load balancing algorithm [#lb]_
+-------------------------- ----------------- -------------- ----------- --------------------------------------------------------------- -----------------------------------------------
+source address translation JSON object       Optional       automap     Source address translation type to apply to the virtual server  automap, none, snat
 
-- f5ProfileName      string            Optional                   Name of the BIG-IP SSL profile you want to use.
+                                                                        Two formats depending on the source address translation type.
 
-                                                                  Uses format :code:`partition_name/cert_name`
+                                                                        Type automap or none: ::
 
-                                                                  Example: :code:`Common/testcert`
+                                                                          {
+                                                                            'type': 'automap'
+                                                                          }
 
-- f5ProfileNames     array of strings  Optional                   Array of BIG-IP SSL profile names.
+                                                                        Type snat: ::
 
-                                                                  Each SSL profile name uses the format
-                                                                  :code:`partition_name/cert_name`.
+                                                                          {
+                                                                            'type': 'snat',
+                                                                            'pool': 'snat-pool-name'
+                                                                          }
 
-                                                                  Example: ::
+-------------------------- ----------------- -------------- ----------- --------------------------------------------------------------- -----------------------------------------------
+sslProfile [#ssl]_         JSON object       Optional                   BIG-IP SSL profile to apply to the virtual server.
 
-                                                                    [
-                                                                      'Common/testcert1',
-                                                                      'Common/testcert2'
-                                                                    ]
+- f5ProfileName            string            Optional                   Name of the BIG-IP SSL profile you want to use.
 
-==================== ================= ============== =========== ===================================================== ===============================================
+                                                                        Uses format :code:`partition_name/cert_name`
+
+                                                                        Example: :code:`Common/testcert`
+
+- f5ProfileNames           array of strings  Optional                   Array of BIG-IP SSL profile names.
+
+                                                                        Each SSL profile name uses the format
+                                                                        :code:`partition_name/cert_name`.
+
+                                                                        Example: ::
+
+                                                                          [
+                                                                            'Common/testcert1',
+                                                                            'Common/testcert2'
+                                                                          ]
+
+========================== ================= ============== =========== =============================================================== ===============================================
 
 \
 
@@ -367,6 +389,8 @@ sslProfile [#ssl]_   JSON object       Optional                   BIG-IP SSL pro
    If you're creating pools without virtual servers, **you should already have a BIG-IP virtual server** that handles client connections configured with an iRule or local traffic policy that can forward requests to the correct pool for the Service.
 
    You can also `assign IP addresses to BIG-IP virtual servers using IPAM`_.
+
+   See `Source Address Translation Overview`_ on AskF5 for more information on configuring virtual server source address translation.
 
 \
 
@@ -516,48 +540,51 @@ You can use the |kctlr| to `Expose Services to External Traffic using Ingresses`
 Supported Ingress Annotations
 `````````````````````````````
 
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| Annotation                         | Type        | Required  | Description                                                                         | Default     | Allowed Values                          |
-+====================================+=============+===========+=====================================================================================+=============+=========================================+
-| virtual-server.f5.com/ip           | string      | Required  | The IP address you want to assign to the virtual server.                            | N/A         | numerical IP address                    |
-|                                    |             |           |                                                                                     |             |                                         |
-|                                    |             |           | Set to "controller-default" if you want to use the ``default-ingress-ip``           |             |                                         |
-|                                    |             |           | specified in the Configuration Parameters above.                                    |             | "controller-default"                    |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/partition    | string      | Optional  | The BIG-IP partition in which the Controller should create/update/delete            | N/A         |                                         |
-|                                    |             |           | objects for this Ingress.                                                           |             |                                         |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| kubernetes.io/ingress.class        | string      | Optional  | Tells the Controller it should only manage Ingress resources in the ``f5`` class.   | f5          | "f5"                                    |
-|                                    |             |           | If defined, the value must be ``f5``.                                               |             |                                         |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/balance      | string      | Optional  | Sets the load balancing mode.                                                       | round-robin | Any supported                           |
-|                                    |             |           |                                                                                     |             | load balancing algorithm [#lb]_         |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/http-port    | integer     | Optional  | Specifies the HTTP port.                                                            | 80          |                                         |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/https-port   | integer     | Optional  | Specifies the HTTPS port.                                                           | 443         |                                         |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/health       | JSON object | Optional  | Defines a health monitor for the Ingress resource.                                  | N/A         |                                         |
-+----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-|    | path                          | string      | Required  | The path for the Service specified in the Ingress resource.                         | N/A         |                                         |
-|    |                               |             | [#hm1]_   |                                                                                     |             |                                         |
-+----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-|    | interval                      | integer     | Required  | The interval at which to check the health of the virtual server.                    | N/A         |                                         |
-|    |                               |             | [#hm1]_   |                                                                                     |             |                                         |
-+----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-|    | timeout                       | integer     | Required  | Number of seconds before the check times out.                                       | N/A         |                                         |
-|    |                               |             | [#hm1]_   |                                                                                     |             |                                         |
-+----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-|    | send                          | string      | Required  | The send string to set in the health monitor. [#hm2]_                               | N/A         |                                         |
-|    |                               |             | [#hm1]_   |                                                                                     |             |                                         |
-+----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-|    | recv                          | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.          | N/A         |                                         |
-+----+-------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| ingress.kubernetes.io/allow-http   | boolean     | Optional  | Tells the Controller to allow HTTP traffic for HTTPS Ingress resources.             | false       | "true", "false"                         |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| ingress.kubernetes.io/ssl-redirect | boolean     | Optional  | Tells the Controller to redirect HTTP traffic to the HTTPS port for HTTPS Ingress   | true        | "true", "false"                         |
-|                                    |             |           | resources (see TLS Ingress resources, below).                                       |             |                                         |
-+------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| Annotation                                    | Type        | Required  | Description                                                                         | Default     | Allowed Values                          |
++===============================================+=============+===========+=====================================================================================+=============+=========================================+
+| virtual-server.f5.com/ip                      | string      | Required  | The IP address you want to assign to the virtual server.                            | N/A         | numerical IP address                    |
+|                                               |             |           |                                                                                     |             |                                         |
+|                                               |             |           | Set to "controller-default" if you want to use the ``default-ingress-ip``           |             |                                         |
+|                                               |             |           | specified in the Configuration Parameters above.                                    |             | "controller-default"                    |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/partition               | string      | Optional  | The BIG-IP partition in which the Controller should create/update/delete            | N/A         |                                         |
+|                                               |             |           | objects for this Ingress.                                                           |             |                                         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| kubernetes.io/ingress.class                   | string      | Optional  | Tells the Controller it should only manage Ingress resources in the ``f5`` class.   | f5          | "f5"                                    |
+|                                               |             |           | If defined, the value must be ``f5``.                                               |             |                                         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/balance                 | string      | Optional  | Sets the load balancing mode.                                                       | round-robin | Any supported                           |
+|                                               |             |           |                                                                                     |             | load balancing algorithm [#lb]_         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/http-port               | integer     | Optional  | Specifies the HTTP port.                                                            | 80          |                                         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/https-port              | integer     | Optional  | Specifies the HTTPS port.                                                           | 443         |                                         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/health                  | JSON object | Optional  | Defines a health monitor for the Ingress resource.                                  | N/A         |                                         |
++----+------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | path                                     | string      | Required  | The path for the Service specified in the Ingress resource.                         | N/A         |                                         |
+|    |                                          |             | [#hm1]_   |                                                                                     |             |                                         |
++----+------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | interval                                 | integer     | Required  | The interval at which to check the health of the virtual server.                    | N/A         |                                         |
+|    |                                          |             | [#hm1]_   |                                                                                     |             |                                         |
++----+------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | timeout                                  | integer     | Required  | Number of seconds before the check times out.                                       | N/A         |                                         |
+|    |                                          |             | [#hm1]_   |                                                                                     |             |                                         |
++----+------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | send                                     | string      | Required  | The send string to set in the health monitor. [#hm2]_                               | N/A         |                                         |
+|    |                                          |             | [#hm1]_   |                                                                                     |             |                                         |
++----+------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | recv                                     | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.          | N/A         |                                         |
++----+------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/source-addr-translation | string      | Optional  | Source address translation type to apply to the virtual server.                     | automap     | automap, none, snat                     |
+|                                               |             |           | JSON object encoded string see virtualServer table entry for formatting examples.   |             |                                         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| ingress.kubernetes.io/allow-http              | boolean     | Optional  | Tells the Controller to allow HTTP traffic for HTTPS Ingress resources.             | false       | "true", "false"                         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| ingress.kubernetes.io/ssl-redirect            | boolean     | Optional  | Tells the Controller to redirect HTTP traffic to the HTTPS port for HTTPS Ingress   | true        | "true", "false"                         |
+|                                               |             |           | resources (see TLS Ingress resources, below).                                       |             |                                         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
 
 Ingress Health Monitors
 ```````````````````````
@@ -642,39 +669,42 @@ Supported Route Configurations
 Supported Route Annotations
 ```````````````````````````
 
-+----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| Annotation                             | Type        | Required  | Description                                                                    | Default     | Allowed Values                          |
-+========================================+=============+===========+================================================================================+=============+=========================================+
-| virtual-server.f5.com/balance          | string      | Optional  | Sets the load balancing mode.                                                  | round-robin | Any supported                           |
-|                                        |             |           |                                                                                |             | load balancing algorithm [#lb]_         |
-+----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/clientssl        | string      | Optional  | The name of a pre-configured client ssl profile on the BIG-IP system.          | N/A         |                                         |
-|                                        |             |           | The controller uses this profile instead of the certificate and key within the |             |                                         |
-|                                        |             |           | Route's configuration.                                                         |             |                                         |
-+----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/serverssl        | string      | Optional  | The name of a pre-configured server ssl profile on the BIG-IP system.          | N/A         |                                         |
-|                                        |             |           | The controller uses this profile instead of the certificate within the         |             |                                         |
-|                                        |             |           | Route's configuration.                                                         |             |                                         |
-+----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/health           | JSON object | Optional  | Defines a health monitor for the Route resource.                               | N/A         |                                         |
-+----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
-|    | path                              | string      | Required  | The path for the Service specified in the Route resource.                      | N/A         |                                         |
-|    |                                   |             | [#hm1]_   |                                                                                |             |                                         |
-+----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
-|    | interval                          | integer     | Required  | The interval at which to check the health of the virtual server.               | N/A         |                                         |
-|    |                                   |             | [#hm1]_   |                                                                                |             |                                         |
-+----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
-|    | timeout                           | integer     | Required  | Number of seconds before the check times out.                                  | N/A         |                                         |
-|    |                                   |             | [#hm1]_   |                                                                                |             |                                         |
-+----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
-|    | send                              | string      | Required  | The send string to set in the health monitor. [#hm2]_                          | N/A         |                                         |
-|    |                                   |             | [#hm1]_   |                                                                                |             |                                         |
-+----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
-|    | recv                              | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.     | N/A         |                                         |
-+----+-----------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/secure-serverssl | boolean     | Optional  | Specify to validate the server-side SSL certificate of re-encrypt              | false       | "true", "false"                         |
-|                                        |             |           | terminated routes.                                                             |             |                                         |
-+----------------------------------------+-------------+-----------+--------------------------------------------------------------------------------+-------------+-----------------------------------------+
++-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| Annotation                                    | Type        | Required  | Description                                                                       | Default     | Allowed Values                          |
++===============================================+=============+===========+===================================================================================+=============+=========================================+
+| virtual-server.f5.com/balance                 | string      | Optional  | Sets the load balancing mode.                                                     | round-robin | Any supported                           |
+|                                               |             |           |                                                                                   |             | load balancing algorithm [#lb]_         |
++-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/clientssl               | string      | Optional  | The name of a pre-configured client ssl profile on the BIG-IP system.             | N/A         |                                         |
+|                                               |             |           | The controller uses this profile instead of the certificate and key within the    |             |                                         |
+|                                               |             |           | Route's configuration.                                                            |             |                                         |
++-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/serverssl               | string      | Optional  | The name of a pre-configured server ssl profile on the BIG-IP system.             | N/A         |                                         |
+|                                               |             |           | The controller uses this profile instead of the certificate within the            |             |                                         |
+|                                               |             |           | Route's configuration.                                                            |             |                                         |
++-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/health                  | JSON object | Optional  | Defines a health monitor for the Route resource.                                  | N/A         |                                         |
++----+------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | path                                     | string      | Required  | The path for the Service specified in the Route resource.                         | N/A         |                                         |
+|    |                                          |             | [#hm1]_   |                                                                                   |             |                                         |
++----+------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | interval                                 | integer     | Required  | The interval at which to check the health of the virtual server.                  | N/A         |                                         |
+|    |                                          |             | [#hm1]_   |                                                                                   |             |                                         |
++----+------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | timeout                                  | integer     | Required  | Number of seconds before the check times out.                                     | N/A         |                                         |
+|    |                                          |             | [#hm1]_   |                                                                                   |             |                                         |
++----+------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | send                                     | string      | Required  | The send string to set in the health monitor. [#hm2]_                             | N/A         |                                         |
+|    |                                          |             | [#hm1]_   |                                                                                   |             |                                         |
++----+------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+|    | recv                                     | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.        | N/A         |                                         |
++----+------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/secure-serverssl        | boolean     | Optional  | Specify to validate the server-side SSL certificate of re-encrypt                 | false       | "true", "false"                         |
+|                                               |             |           | terminated routes.                                                                |             |                                         |
++-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/source-addr-translation | string      | Optional  | Source address translation type to apply to the virtual server.                   | automap     | automap, none, snat                     |
+|                                               |             |           | JSON object encoded string see virtualServer table entry for formatting examples. |             |                                         |
++-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
 
 Please see the example configuration files for more details.
 

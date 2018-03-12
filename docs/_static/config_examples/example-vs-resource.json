@@ -10,6 +10,9 @@
       },
       "sslProfile": {
         "f5ProfileName": "Common/testcert"
+      },
+      "sourceAddressTranslation": {
+        "type": "automap"
       }
     },
     "backend": {

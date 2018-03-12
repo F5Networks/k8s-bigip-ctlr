@@ -41,7 +41,7 @@ To provide a custom URI:
 There are two schemas provided. One is a schema providing primitive types and
 the second uses those types to validate some very simple data.
 
-The definitions_v0.1.0.json provides a type for a positive interger, a negative
+The definitions_v0.1.0.json provides a type for a positive integer, a negative
 integer, and a non-empty string.
 
 The enforce-basic-types_v0.1.0.json creates a simple schema that expects three

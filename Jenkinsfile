@@ -18,7 +18,6 @@ pipeline {
           export GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
           export BUILD_VERSION=$(build-tools/version-tool version)
           export BUILD_INFO=$(build-tools/version-tool build-info)
-          DOCKER_NAMESPACE="docker-registry.pdbld.f5net.com/velcro"
           BASE_PUSH_TARGET="$DOCKER_NAMESPACE/k8s-bigip-ctlr"
           export IMG_TAG="${BASE_PUSH_TARGET}:${GIT_COMMIT}-$BASE_OS"
           export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${GIT_COMMIT}-$BASE_OS"

@@ -7,6 +7,13 @@ next-release
 Bug Fixes
 `````````
 
+v1.5.0
+------
+
+Added Functionality
+```````````````````
+* Support for virtual server source address translation configuration.
+
 v1.4.2
 ------
 
@@ -115,7 +122,7 @@ Added Functionality
 * Create BIG-IP objects from OpenShift Route resources.
   - This includes unsecured, edge, passthrough, and re-encrypt Routes.
 
-* This is a feature-complete upgrade from the OpenShift F5Router. 
+* This is a feature-complete upgrade from the OpenShift F5Router.
   See `Replace the OpenShift F5 Router with the BIG-IP Controller <http://clouddocs.f5.com/containers/latest/openshift/replace-f5-router.html>`_ for more information.
 
 Bug Fixes
@@ -126,7 +133,7 @@ Bug Fixes
 Limitations
 ```````````
 
-* OpenShift - Does not currently support redirect for individual Routes. If a Route specifies 
+* OpenShift - Does not currently support redirect for individual Routes. If a Route specifies
   "insecureEdgeTerminationPolicy" as "Redirect", the http virtual server will enable this policy for all Routes.
   `[#341] <https://github.com/F5Networks/k8s-bigip-ctlr/issues/341>`_
 

@@ -493,6 +493,16 @@ func (appMgr *Manager) deleteUnusedProfiles(
 							&referenced,
 						)
 					}
+					if serverProfile, ok :=
+						ing.ObjectMeta.Annotations[f5ServerSslProfileAnnotation]; ok == true {
+						appMgr.checkProfile(
+							prof,
+							&toRemove,
+							ing.ObjectMeta.Namespace,
+							serverProfile,
+							&referenced,
+						)
+					}
 					if referenced {
 						break
 					}
@@ -521,6 +531,8 @@ func (appMgr *Manager) deleteUnusedProfiles(
 				}
 			}
 			if !referenced {
+				log.Debugf("deleteUnusedProfiles Removing profile: %v.",
+					prof)
 				toRemove = append(toRemove, prof)
 			}
 		}

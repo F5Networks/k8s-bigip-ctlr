@@ -585,6 +585,8 @@ Supported Ingress Annotations
 | ingress.kubernetes.io/ssl-redirect            | boolean     | Optional  | Tells the Controller to redirect HTTP traffic to the HTTPS port for HTTPS Ingress   | true        | "true", "false"                         |
 |                                               |             |           | resources (see TLS Ingress resources, below).                                       |             |                                         |
 +-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/serverssl               | string      | Optional  | The name of a pre-configured server ssl profile on the BIG-IP system.               | N/A         |                                         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
 
 Ingress Health Monitors
 ```````````````````````

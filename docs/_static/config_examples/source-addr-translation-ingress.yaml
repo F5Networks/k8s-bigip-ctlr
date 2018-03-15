@@ -8,6 +8,12 @@ metadata:
     virtual-server.f5.com/ip: "10.190.25.70"
     # Specify the BIG-IP partition containing the virtual server
     virtual-server.f5.com/partition: "k8s"
+    # This assumes that a snat pool example-snat has been preconfigured in the Common partition
+    virtual-server.f5.com/source-addr-translation: |
+      {
+        "type": "snat",
+        "pool": "/Common/example-snat"
+      }
 spec:
   backend:
     # The name of the Kubernetes Service you want to expose to external traffic

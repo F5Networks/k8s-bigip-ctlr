@@ -6,11 +6,6 @@ metadata:
   annotations:
     virtual-server.f5.com/ip:        "1.2.3.4"
     virtual-server.f5.com/partition: "k8s"
-    # Optionally specify the source address translation type of the virtual server
-    virtual-server.f5.com/source-addr-translation: |
-        {
-          "type": "automap"
-        }
     virtual-server.f5.com/health: |
       [
         {

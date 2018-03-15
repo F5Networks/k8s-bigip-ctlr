@@ -6,6 +6,12 @@ metadata:
   name: svc1-route-unsecured
   namespace: default
   annotations:
+    # This assumes that a snat pool example-snat has been preconfigured in the Common partition
+    virtual-server.f5.com/source-addr-translation: |
+      {
+        "type": "snat",
+        "pool": "/Common/example-snat"
+      }
 spec:
   host: svc1-route.local
   path: "/test"

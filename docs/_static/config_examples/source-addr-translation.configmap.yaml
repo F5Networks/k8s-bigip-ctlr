@@ -7,6 +7,7 @@ metadata:
     f5type: virtual-server
 data:
   schema: "f5schemadb://bigip-virtual-server_v0.1.7.json"
+  # This assumes that a snat pool example-snat has been preconfigured in the Common partition
   data: |
     {
       "virtualServer": {
@@ -20,6 +21,10 @@ data:
           },
           "sslProfile": {
             "f5ProfileName": "Common/testcert"
+          },
+          "sourceAddressTranslation": {
+            "type": "snat",
+            "pool": "/Common/example-snat"
           }
         },
         "backend": {

@@ -13,6 +13,7 @@ v1.5.0
 Added Functionality
 ```````````````````
 * Support for virtual server source address translation configuration.
+* Added controller name and version to the metadata of certain BIG-IP LTM resources managed by the controller.
 
 v1.4.2
 ------

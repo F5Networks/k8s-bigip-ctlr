@@ -59,6 +59,8 @@ const f5VsHttpPortAnnotation = "virtual-server.f5.com/http-port"
 const f5VsHttpsPortAnnotation = "virtual-server.f5.com/https-port"
 const f5VsBalanceAnnotation = "virtual-server.f5.com/balance"
 const f5VsPartitionAnnotation = "virtual-server.f5.com/partition"
+const f5VsURLRewriteAnnotation = "virtual-server.f5.com/rewrite-target-url"
+const f5VsAppRootAnnotation = "virtual-server.f5.com/rewrite-app-root"
 const f5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
 const f5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"
 const f5ServerSslSecureAnnotation = "virtual-server.f5.com/secure-serverssl"
@@ -117,6 +119,10 @@ type Manager struct {
 	eventChan chan interface{}
 	// Where the schemas reside locally
 	schemaLocal string
+	// map of rules that have been merged
+	mergedRulesMap map[string]map[string]mergedRuleEntry
+	// map of rules created from annotations
+	annotationRulesMap map[string]map[string][]string
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -157,30 +163,32 @@ func NewManager(params *Params) *Manager {
 	nsQueue := workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "namespace-controller")
 	manager := Manager{
-		resources:         NewResources(),
-		customProfiles:    NewCustomProfiles(),
-		irulesMap:         make(IRulesMap),
-		intDgMap:          make(InternalDataGroupMap),
-		kubeClient:        params.KubeClient,
-		restClientv1:      params.restClient,
-		restClientv1beta1: params.restClient,
-		routeClientV1:     params.RouteClientV1,
-		configWriter:      params.ConfigWriter,
-		useNodeInternal:   params.UseNodeInternal,
-		isNodePort:        params.IsNodePort,
-		initialState:      params.initialState,
-		routeConfig:       params.RouteConfig,
-		nodeLabelSelector: params.NodeLabelSelector,
-		resolveIng:        params.ResolveIngress,
-		defaultIngIP:      params.DefaultIngIP,
-		vsSnatPoolName:    params.VsSnatPoolName,
-		useSecrets:        params.UseSecrets,
-		eventChan:         params.EventChan,
-		vsQueue:           vsQueue,
-		nsQueue:           nsQueue,
-		appInformers:      make(map[string]*appInformer),
-		eventNotifier:     NewEventNotifier(params.broadcasterFunc),
-		schemaLocal:       params.SchemaLocal,
+		resources:          NewResources(),
+		customProfiles:     NewCustomProfiles(),
+		irulesMap:          make(IRulesMap),
+		intDgMap:           make(InternalDataGroupMap),
+		kubeClient:         params.KubeClient,
+		restClientv1:       params.restClient,
+		restClientv1beta1:  params.restClient,
+		routeClientV1:      params.RouteClientV1,
+		configWriter:       params.ConfigWriter,
+		useNodeInternal:    params.UseNodeInternal,
+		isNodePort:         params.IsNodePort,
+		initialState:       params.initialState,
+		routeConfig:        params.RouteConfig,
+		nodeLabelSelector:  params.NodeLabelSelector,
+		resolveIng:         params.ResolveIngress,
+		defaultIngIP:       params.DefaultIngIP,
+		vsSnatPoolName:     params.VsSnatPoolName,
+		useSecrets:         params.UseSecrets,
+		eventChan:          params.EventChan,
+		vsQueue:            vsQueue,
+		nsQueue:            nsQueue,
+		appInformers:       make(map[string]*appInformer),
+		eventNotifier:      NewEventNotifier(params.broadcasterFunc),
+		schemaLocal:        params.SchemaLocal,
+		mergedRulesMap:     make(map[string]map[string]mergedRuleEntry),
+		annotationRulesMap: make(map[string]map[string][]string),
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -1054,7 +1062,7 @@ func (appMgr *Manager) syncIngresses(
 			for _, dep := range depsRemoved {
 				if dep.Kind == "Service" {
 					cfgChanged, svcKey := rsCfg.RemovePool(
-						dep.Namespace, formatIngressPoolName(dep.Namespace, dep.Name))
+						dep.Namespace, formatIngressPoolName(dep.Namespace, dep.Name), appMgr)
 					if cfgChanged {
 						stats.poolsUpdated++
 					}
@@ -1066,7 +1074,7 @@ func (appMgr *Manager) syncIngresses(
 					for _, pol := range rsCfg.Policies {
 						for _, rl := range pol.Rules {
 							if rl.FullURI == dep.Name {
-								rsCfg.DeleteRuleFromPolicy(pol.Name, rl)
+								rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
 							}
 						}
 					}
@@ -1208,7 +1216,7 @@ func (appMgr *Manager) syncRoutes(
 			for _, dep := range depsRemoved {
 				if dep.Kind == "Service" {
 					cfgChanged, svcKey := rsCfg.RemovePool(
-						dep.Namespace, formatRoutePoolName(dep.Namespace, dep.Name))
+						dep.Namespace, formatRoutePoolName(dep.Namespace, dep.Name), appMgr)
 					if cfgChanged {
 						stats.poolsUpdated++
 					}
@@ -1672,7 +1680,7 @@ func (appMgr *Manager) deleteUnusedResources(
 				poolNS := strings.Split(pool.Name, "_")[1]
 				_, ok := appMgr.resources.Get(key, cfg.GetName())
 				if pool.ServiceName == svcName && poolNS == namespace && (!ok || !svcFound) {
-					if updated, svcKey := cfg.RemovePool(namespace, pool.Name); updated {
+					if updated, svcKey := cfg.RemovePool(namespace, pool.Name, appMgr); updated {
 						appMgr.resources.deleteKeyRefLocked(*svcKey, cfg.GetName())
 						rsUpdated += 1
 					}

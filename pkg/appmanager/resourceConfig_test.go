@@ -937,4 +937,673 @@ var _ = Describe("Resource Config Tests", func() {
 			}
 		})
 	})
+	Describe("url-rewrite and app-root Annotation Tests", func() {
+		It("parses annotations correctly", func() {
+			result := parseAppRootURLRewriteAnnotations("foo")
+			Expect(result["single"]).To(Equal("foo"))
+
+			result = parseAppRootURLRewriteAnnotations("foo=bar")
+			Expect(result["foo"]).To(Equal("bar"))
+
+			result = parseAppRootURLRewriteAnnotations("foo=bar,bar=baz")
+			Expect(result["foo"]).To(Equal("bar"))
+			Expect(result["bar"]).To(Equal("baz"))
+
+			result = parseAppRootURLRewriteAnnotations("=bar")
+			Expect(result[""]).To(Equal("bar"))
+
+			result = parseAppRootURLRewriteAnnotations("foo=")
+			Expect(result["foo"]).To(Equal(""))
+
+			result = parseAppRootURLRewriteAnnotations("=foo,bar=")
+			Expect(result[""]).To(Equal("foo"))
+			Expect(result["bar"]).To(Equal(""))
+
+			result = parseAppRootURLRewriteAnnotations("foo=,=bar")
+			Expect(result["foo"]).To(Equal(""))
+			Expect(result[""]).To(Equal("bar"))
+
+			result = parseAppRootURLRewriteAnnotations(",")
+			Expect(len(result)).To(Equal(0))
+
+			result = parseAppRootURLRewriteAnnotations("foo,")
+			Expect(len(result)).To(Equal(0))
+
+			result = parseAppRootURLRewriteAnnotations("foo=bar,")
+			Expect(len(result)).To(Equal(1))
+			Expect(result["foo"]).To(Equal("bar"))
+
+			result = parseAppRootURLRewriteAnnotations("foo=bar,bar=baz,")
+			Expect(len(result)).To(Equal(2))
+			Expect(result["foo"]).To(Equal("bar"))
+			Expect(result["bar"]).To(Equal("baz"))
+
+			result = parseAppRootURLRewriteAnnotations("foo=bar,bar")
+			Expect(len(result)).To(Equal(1))
+			Expect(result["foo"]).To(Equal("bar"))
+
+			result = parseAppRootURLRewriteAnnotations("foo,bar=baz")
+			Expect(len(result)).To(Equal(1))
+			Expect(result["bar"]).To(Equal("baz"))
+
+			result = parseAppRootURLRewriteAnnotations("foo=bar,=bar=")
+			Expect(len(result)).To(Equal(1))
+			Expect(result["foo"]).To(Equal("bar"))
+
+			result = parseAppRootURLRewriteAnnotations(",bar=baz")
+			Expect(len(result)).To(Equal(1))
+			Expect(result["bar"]).To(Equal("baz"))
+
+			result = parseAppRootURLRewriteAnnotations("/hello=/good-bye/hi=/bye")
+			Expect(len(result)).To(Equal(0))
+
+			result = parseAppRootURLRewriteAnnotations("/hello=/good-bye/hi=/bye,")
+			Expect(len(result)).To(Equal(0))
+
+			result = parseAppRootURLRewriteAnnotations(",/hello=/good-bye/hi=/bye,")
+			Expect(len(result)).To(Equal(0))
+		})
+
+		It("processes app-root annotations correctly", func() {
+			poolName := "test-pool"
+
+			// multi-service ingress missing host fail case
+			result := processAppRoot("", "/approot", poolName, multiServiceIngressType)
+			Expect(len(result)).To(Equal(0))
+
+			// multi-service ingress targeted path fail case
+			result = processAppRoot("host.com/path", "/approot", poolName, multiServiceIngressType)
+			Expect(len(result)).To(Equal(0))
+
+			// route targeted path fail case
+			result = processAppRoot("host.com/path", "/approot", poolName, routeType)
+			Expect(len(result)).To(Equal(0))
+
+			// non-empty value host fail case
+			result = processAppRoot("host.com", "newhost.com/approot", poolName, multiServiceIngressType)
+			Expect(len(result)).To(Equal(0))
+
+			// empty value path fail case
+			result = processAppRoot("host.com", "", poolName, multiServiceIngressType)
+			Expect(len(result)).To(Equal(0))
+
+			// multi-service ingress success case
+			result = processAppRoot("host.com", "/approot", poolName, multiServiceIngressType)
+			Expect(len(result)).To(Equal(2))
+			Expect(result[0].Actions).To(Equal([]*action{&action{
+				Name:      "0",
+				HttpReply: true,
+				Redirect:  true,
+				Location:  "/approot",
+				Request:   true,
+			}}))
+			Expect(result[0].Conditions).To(Equal([]*condition{
+				&condition{
+					Name:     "0",
+					Equals:   true,
+					Host:     true,
+					HTTPHost: true,
+					Index:    0,
+					Request:  true,
+					Values:   []string{"host.com"},
+				},
+				&condition{
+					Name:    "1",
+					Equals:  true,
+					HTTPURI: true,
+					Path:    true,
+					Request: true,
+					Values:  []string{"/"},
+				},
+			}))
+			Expect(result[1].Actions).To(Equal([]*action{&action{
+				Name:    "0",
+				Pool:    poolName,
+				Forward: true,
+				Request: true,
+			}}))
+			Expect(result[1].Conditions).To(Equal([]*condition{
+				result[0].Conditions[0],
+				&condition{
+					Name:    "1",
+					Equals:  true,
+					HTTPURI: true,
+					Path:    true,
+					Request: true,
+					Values:  []string{"/approot"},
+				},
+			}))
+
+			// route success case
+			result = processAppRoot("host.com", "/approot", poolName, routeType)
+			Expect(len(result)).To(Equal(2))
+			Expect(result[0].Actions).To(Equal([]*action{&action{
+				Name:      "0",
+				HttpReply: true,
+				Redirect:  true,
+				Location:  "/approot",
+				Request:   true,
+			}}))
+			Expect(result[0].Conditions).To(Equal([]*condition{
+				&condition{
+					Name:     "0",
+					Equals:   true,
+					Host:     true,
+					HTTPHost: true,
+					Index:    0,
+					Request:  true,
+					Values:   []string{"host.com"},
+				},
+				&condition{
+					Name:    "1",
+					Equals:  true,
+					HTTPURI: true,
+					Path:    true,
+					Request: true,
+					Values:  []string{"/"},
+				},
+			}))
+			Expect(result[1].Actions).To(Equal([]*action{&action{
+				Name:    "0",
+				Pool:    poolName,
+				Forward: true,
+				Request: true,
+			}}))
+			Expect(result[1].Conditions).To(Equal([]*condition{
+				result[0].Conditions[0],
+				&condition{
+					Name:    "1",
+					Equals:  true,
+					HTTPURI: true,
+					Path:    true,
+					Request: true,
+					Values:  []string{"/approot"},
+				},
+			}))
+
+			// single-service ingress success case
+			result = processAppRoot("", "/approot", poolName, singleServiceIngressType)
+			Expect(len(result)).To(Equal(2))
+			Expect(result[0].Actions).To(Equal([]*action{&action{
+				Name:      "0",
+				HttpReply: true,
+				Redirect:  true,
+				Location:  "/approot",
+				Request:   true,
+			}}))
+			Expect(result[0].Conditions).To(Equal([]*condition{&condition{
+				Name:    "0",
+				Equals:  true,
+				HTTPURI: true,
+				Path:    true,
+				Request: true,
+				Values:  []string{"/"},
+			}}))
+			Expect(result[1].Actions).To(Equal([]*action{&action{
+				Name:    "0",
+				Pool:    poolName,
+				Forward: true,
+				Request: true,
+			}}))
+			Expect(result[1].Conditions).To(Equal([]*condition{&condition{
+				Name:    "0",
+				Equals:  true,
+				HTTPURI: true,
+				Path:    true,
+				Request: true,
+				Values:  []string{"/approot"},
+			}}))
+		})
+
+		It("processes url-rewrite annotations correctly", func() {
+			// multi-service ingress missing target host host fail case
+			result := processURLRewrite("", "newhost.com", multiServiceIngressType)
+			Expect(result).To(BeNil())
+
+			// multi-service ingress missing target host path fail case
+			result = processURLRewrite("/path", "/newpath", multiServiceIngressType)
+			Expect(result).To(BeNil())
+
+			// multi-service ingress missing target path path fail case
+			result = processURLRewrite("host.com", "/newpath", multiServiceIngressType)
+			Expect(result).To(BeNil())
+
+			// route missing target path path fail case
+			result = processURLRewrite("host.com", "/newpath", routeType)
+			Expect(result).To(BeNil())
+
+			// route missing target host host fail case
+			result = processURLRewrite("", "newhost.com", routeType)
+			Expect(result).To(BeNil())
+
+			// empty values fail case
+			result = processURLRewrite("host.com/path", "", routeType)
+			Expect(result).To(BeNil())
+
+			// multi-service ingress rewrite host
+			result = processURLRewrite("host.com", "newhost.com", multiServiceIngressType)
+			Expect(result.Conditions).To(Equal([]*condition{&condition{
+				Name:     "0",
+				Equals:   true,
+				Host:     true,
+				HTTPHost: true,
+				Index:    0,
+				Request:  true,
+				Values:   []string{"host.com"},
+			}}))
+			Expect(result.Actions).To(Equal([]*action{&action{
+				Name:     "0",
+				HTTPHost: true,
+				Replace:  true,
+				Request:  true,
+				Value:    "newhost.com",
+			}}))
+
+			// multi-service ingress rewrite path
+			result = processURLRewrite("host.com/oldpath/path", "/newpath/path", multiServiceIngressType)
+			Expect(result.Conditions).To(Equal([]*condition{
+				&condition{
+					Name:     "0",
+					Equals:   true,
+					Host:     true,
+					HTTPHost: true,
+					Index:    0,
+					Request:  true,
+					Values:   []string{"host.com"},
+				},
+				&condition{
+					Name:        "1",
+					Equals:      true,
+					HTTPURI:     true,
+					Index:       1,
+					PathSegment: true,
+					Request:     true,
+					Values:      []string{"oldpath"},
+				},
+				&condition{
+					Name:        "2",
+					Equals:      true,
+					HTTPURI:     true,
+					Index:       2,
+					PathSegment: true,
+					Request:     true,
+					Values:      []string{"path"},
+				},
+			}))
+			Expect(result.Actions).To(Equal([]*action{&action{
+				Name:    "0",
+				HTTPURI: true,
+				Path:    "/oldpath/path",
+				Replace: true,
+				Request: true,
+				Value:   "/newpath/path",
+			}}))
+
+			// mutli-service ingress rewrite host and path
+			result = processURLRewrite("host.com/path", "newhost.com/newpath", multiServiceIngressType)
+			Expect(result.Conditions).To(Equal([]*condition{
+				&condition{
+					Name:     "0",
+					Equals:   true,
+					Host:     true,
+					HTTPHost: true,
+					Index:    0,
+					Request:  true,
+					Values:   []string{"host.com"},
+				},
+				&condition{
+					Name:        "1",
+					Equals:      true,
+					HTTPURI:     true,
+					Index:       1,
+					PathSegment: true,
+					Request:     true,
+					Values:      []string{"path"},
+				},
+			}))
+			Expect(result.Actions).To(Equal([]*action{
+				&action{
+					Name:     "0",
+					HTTPHost: true,
+					Replace:  true,
+					Request:  true,
+					Value:    "newhost.com",
+				},
+				&action{
+					Name:    "1",
+					HTTPURI: true,
+					Path:    "/path",
+					Replace: true,
+					Request: true,
+					Value:   "/newpath",
+				},
+			}))
+
+			// route rewrite host
+			result = processURLRewrite("host.com", "newhost.com", routeType)
+			Expect(result.Conditions).To(Equal([]*condition{&condition{
+				Name:     "0",
+				Equals:   true,
+				Host:     true,
+				HTTPHost: true,
+				Index:    0,
+				Request:  true,
+				Values:   []string{"host.com"},
+			}}))
+			Expect(result.Actions).To(Equal([]*action{&action{
+				Name:     "0",
+				HTTPHost: true,
+				Replace:  true,
+				Request:  true,
+				Value:    "newhost.com",
+			}}))
+
+			// route rewrite path
+			result = processURLRewrite("host.com/path", "/newpath", routeType)
+			Expect(result.Conditions).To(Equal([]*condition{
+				&condition{
+					Name:     "0",
+					Equals:   true,
+					Host:     true,
+					HTTPHost: true,
+					Index:    0,
+					Request:  true,
+					Values:   []string{"host.com"},
+				},
+				&condition{
+					Name:        "1",
+					Equals:      true,
+					HTTPURI:     true,
+					Index:       1,
+					PathSegment: true,
+					Request:     true,
+					Values:      []string{"path"},
+				},
+			}))
+			Expect(result.Actions).To(Equal([]*action{&action{
+				Name:    "0",
+				HTTPURI: true,
+				Path:    "/path",
+				Replace: true,
+				Request: true,
+				Value:   "/newpath",
+			}}))
+
+			// route rewrite host and path
+			result = processURLRewrite("host.com/path", "newhost.com/newpath", routeType)
+			Expect(result.Conditions).To(Equal([]*condition{
+				&condition{
+					Name:     "0",
+					Equals:   true,
+					Host:     true,
+					HTTPHost: true,
+					Index:    0,
+					Request:  true,
+					Values:   []string{"host.com"},
+				},
+				&condition{
+					Name:        "1",
+					Equals:      true,
+					HTTPURI:     true,
+					Index:       1,
+					PathSegment: true,
+					Request:     true,
+					Values:      []string{"path"},
+				},
+			}))
+			Expect(result.Actions).To(Equal([]*action{
+				&action{
+					Name:     "0",
+					HTTPHost: true,
+					Replace:  true,
+					Request:  true,
+					Value:    "newhost.com",
+				},
+				&action{
+					Name:    "1",
+					HTTPURI: true,
+					Path:    "/path",
+					Replace: true,
+					Request: true,
+					Value:   "/newpath",
+				},
+			}))
+		})
+
+		It("merges rules correctly with matching conditions", func() {
+			mergedRulesMap := make(map[string]map[string]mergedRuleEntry)
+			resourceConfig := &ResourceConfig{
+				Virtual:  Virtual{Name: "test-virtual"},
+				Policies: []Policy{Policy{Name: "test-policy", Controls: []string{"forwarding"}}},
+			}
+
+			// matches rule2, rule7
+			rule1 := &Rule{
+				Name: "app-root-rule1",
+				Conditions: []*condition{&condition{
+					Name:   "app-root-rule1-condition1",
+					Host:   true,
+					Values: []string{"host.com"},
+				}},
+				Actions: []*action{&action{
+					Name:    "app-root-rule1-action1",
+					Replace: true,
+				}},
+			}
+			// matches rule1,rule7
+			rule2 := &Rule{
+				Name: "url-rewrite-rule1",
+				Conditions: []*condition{&condition{
+					Name:   "url-rewrite-rule1-condition1",
+					Host:   true,
+					Values: []string{"host.com"},
+				}},
+				Actions: []*action{&action{
+					Name:  "url-rewrite-rule1-action1",
+					Reset: true,
+				}},
+			}
+			// does not match anything
+			rule3 := &Rule{
+				Name: "rule-3",
+				Conditions: []*condition{&condition{
+					Name:   "rule3-condition1",
+					Host:   true,
+					Values: []string{"otherhost.com"},
+				}},
+				Actions: []*action{&action{
+					Name:  "rule3-action1",
+					Reset: true,
+				}},
+			}
+			// matches rule8
+			rule4 := &Rule{
+				Name: "rule4",
+				Conditions: []*condition{&condition{
+					Name:   "rule4-condition1",
+					Path:   true,
+					Values: []string{"/path"},
+				}},
+				Actions: []*action{&action{
+					Name:    "rule4-action1",
+					Request: true,
+				}},
+			}
+			// does not match anything
+			rule5 := &Rule{
+				Name: "rule5",
+				Conditions: []*condition{&condition{
+					Name:   "rule5-condition1",
+					Path:   true,
+					Values: []string{"/otherpath"},
+				}},
+				Actions: []*action{&action{
+					Name:    "rule5-action1",
+					Request: true,
+				}},
+			}
+			// does not match anything
+			rule6 := &Rule{
+				Name: "app-root-rule2",
+				Conditions: []*condition{&condition{
+					Name:   "app-root-rule2-condition1",
+					Scheme: true,
+					Values: []string{"https"},
+				}},
+				Actions: []*action{&action{
+					Name:    "app-root-rule2-action1",
+					Forward: true,
+				}},
+			}
+			// matches rule1, rule2
+			rule7 := &Rule{
+				Name: "rule7",
+				Conditions: []*condition{&condition{
+					Name:   "rule7-condition1",
+					Host:   true,
+					Values: []string{"host.com"},
+				}},
+				Actions: []*action{&action{
+					Name:    "rule7-action1",
+					Forward: true,
+				}},
+			}
+			//matches rule4
+			rule8 := &Rule{
+				Name: "url-rewrite-rule2",
+				Conditions: []*condition{&condition{
+					Name:   "url-rewrite-rule2-condition1",
+					Path:   true,
+					Values: []string{"/path"},
+				}},
+				Actions: []*action{&action{
+					Name:     "url-rewrite-rule2-action1",
+					Redirect: true,
+				}},
+			}
+
+			resourceConfig.Policies[0].Rules = []*Rule{rule1, rule2, rule3, rule4, rule5, rule6, rule7, rule8}
+			resourceConfig.MergeRules(mergedRulesMap)
+			Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(5))
+			Expect(resourceConfig.Policies[0].Rules[0]).To(Equal(rule3))
+			Expect(resourceConfig.Policies[0].Rules[2]).To(Equal(rule5))
+			Expect(resourceConfig.Policies[0].Rules[3]).To(Equal(rule6))
+
+			// Test the merged rules rule4 and rule8
+			Expect(resourceConfig.Policies[0].Rules[1].Name).To(Equal("rule4"))
+			Expect(len(resourceConfig.Policies[0].Rules[1].Conditions)).To(Equal(1))
+			Expect(resourceConfig.Policies[0].Rules[1].Conditions).To(Equal(rule4.Conditions))
+			Expect(len(resourceConfig.Policies[0].Rules[1].Actions)).To(Equal(2))
+			Expect(resourceConfig.Policies[0].Rules[1].Actions).To(Equal([]*action{rule4.Actions[0], rule8.Actions[0]}))
+
+			// Test the merged rules rule1, rule2, and rule7
+			Expect(resourceConfig.Policies[0].Rules[4].Name).To(Equal("rule7"))
+			Expect(len(resourceConfig.Policies[0].Rules[4].Conditions)).To(Equal(1))
+			Expect(resourceConfig.Policies[0].Rules[4].Conditions).To(Equal(rule7.Conditions))
+			Expect(len(resourceConfig.Policies[0].Rules[4].Actions)).To(Equal(3))
+			Expect(resourceConfig.Policies[0].Rules[4].Actions).To(Equal([]*action{rule7.Actions[0], rule1.Actions[0], rule2.Actions[0]}))
+
+			// Test entries in the mergedRulesMap
+			Expect(len(mergedRulesMap)).To(Equal(1))
+			// 5 entries for the 3 rules that were merged and the 2 rules they were merged into
+			Expect(len(mergedRulesMap["test-virtual"])).To(Equal(5))
+			Expect(mergedRulesMap["test-virtual"][rule1.Name]).To(Equal(mergedRuleEntry{
+				RuleName:       rule1.Name,
+				OtherRuleNames: []string{rule7.Name},
+				MergedActions:  nil,
+				OriginalRule:   rule1,
+			}))
+			Expect(mergedRulesMap["test-virtual"][rule2.Name]).To(Equal(mergedRuleEntry{
+				RuleName:       rule2.Name,
+				OtherRuleNames: []string{rule7.Name},
+				MergedActions:  nil,
+				OriginalRule:   rule2,
+			}))
+			Expect(mergedRulesMap["test-virtual"][rule3.Name]).To(Equal(mergedRuleEntry{}))
+			rule4MergedActions := make(map[string][]*action)
+			rule4MergedActions[rule8.Name] = []*action{rule8.Actions[0]}
+			Expect(mergedRulesMap["test-virtual"][rule4.Name]).To(Equal(mergedRuleEntry{
+				RuleName:       rule4.Name,
+				OtherRuleNames: []string{rule8.Name},
+				MergedActions:  rule4MergedActions,
+				OriginalRule:   rule4,
+			}))
+			Expect(mergedRulesMap["test-virtual"][rule5.Name]).To(Equal(mergedRuleEntry{}))
+			Expect(mergedRulesMap["test-virtual"][rule6.Name]).To(Equal(mergedRuleEntry{}))
+			rule7MergedActions := make(map[string][]*action)
+			rule7MergedActions[rule1.Name] = []*action{rule1.Actions[0]}
+			rule7MergedActions[rule2.Name] = []*action{rule2.Actions[0]}
+			Expect(mergedRulesMap["test-virtual"][rule7.Name]).To(Equal(mergedRuleEntry{
+				RuleName:       rule7.Name,
+				OtherRuleNames: []string{rule2.Name, rule1.Name},
+				MergedActions:  rule7MergedActions,
+				OriginalRule:   rule7,
+			}))
+			Expect(mergedRulesMap["test-virtual"][rule8.Name]).To(Equal(mergedRuleEntry{
+				RuleName:       rule8.Name,
+				OtherRuleNames: []string{rule4.Name},
+				MergedActions:  nil,
+				OriginalRule:   rule8,
+			}))
+
+			// Unmerge rule7
+			resourceConfig.UnmergeRule(rule7.Name, mergedRulesMap)
+			Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(5))
+			Expect(resourceConfig.Policies[0].Rules[4].Name).To(Equal(rule1.Name))
+			Expect(resourceConfig.Policies[0].Rules[4].Conditions).To(Equal(rule1.Conditions))
+			Expect(resourceConfig.Policies[0].Rules[4].Actions).To(Equal([]*action{rule1.Actions[0], rule2.Actions[0]}))
+			Expect(mergedRulesMap["test-virtual"][rule7.Name]).To(Equal(mergedRuleEntry{}))
+			rule1MergedActions := make(map[string][]*action)
+			rule1MergedActions[rule2.Name] = []*action{rule2.Actions[0]}
+			Expect(mergedRulesMap["test-virtual"][rule1.Name]).To(Equal(mergedRuleEntry{
+				RuleName:       rule1.Name,
+				OtherRuleNames: []string{rule2.Name},
+				MergedActions:  rule1MergedActions,
+				OriginalRule:   rule1,
+			}))
+			Expect(mergedRulesMap["test-virtual"][rule2.Name]).To(Equal(mergedRuleEntry{
+				RuleName:       rule2.Name,
+				OtherRuleNames: []string{rule1.Name},
+				MergedActions:  nil,
+				OriginalRule:   rule2,
+			}))
+
+			// Unmerge rule4
+			resourceConfig.UnmergeRule(rule4.Name, mergedRulesMap)
+			Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(5))
+			Expect(resourceConfig.Policies[0].Rules[4].Name).To(Equal(rule8.Name))
+			Expect(resourceConfig.Policies[0].Rules[4].Conditions).To(Equal(rule8.Conditions))
+			Expect(resourceConfig.Policies[0].Rules[4].Actions).To(Equal([]*action{rule8.Actions[0]}))
+			Expect(mergedRulesMap["test-virtual"][rule4.Name]).To(Equal(mergedRuleEntry{}))
+			Expect(mergedRulesMap["test-virtual"][rule4.Name]).To(Equal(mergedRuleEntry{}))
+
+			// Unmerge rule2
+			resourceConfig.UnmergeRule(rule2.Name, mergedRulesMap)
+			Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(5))
+			Expect(resourceConfig.Policies[0].Rules[3].Name).To(Equal(rule1.Name))
+			Expect(resourceConfig.Policies[0].Rules[3].Conditions).To(Equal(rule1.Conditions))
+			Expect(resourceConfig.Policies[0].Rules[3].Actions).To(Equal([]*action{rule1.Actions[0]}))
+			Expect(mergedRulesMap["test-virtual"][rule1.Name]).To(Equal(mergedRuleEntry{}))
+			Expect(mergedRulesMap["test-virtual"][rule2.Name]).To(Equal(mergedRuleEntry{}))
+			Expect(len(mergedRulesMap["test-virtual"])).To(Equal(0))
+
+			// Unmerge rule3
+			result := resourceConfig.UnmergeRule(rule2.Name, mergedRulesMap)
+			Expect(result).To(BeFalse())
+
+			// Unmerge rule7 again
+			result = resourceConfig.UnmergeRule(rule7.Name, mergedRulesMap)
+			Expect(result).To(BeFalse())
+
+			// Unmerge rule1
+			result = resourceConfig.UnmergeRule(rule1.Name, mergedRulesMap)
+			Expect(result).To(BeFalse())
+
+			var ruleNames []string
+			for _, rule := range resourceConfig.Policies[0].Rules {
+				ruleNames = append(ruleNames, rule.Name)
+			}
+			Expect(ruleNames).To(Equal([]string{rule3.Name, rule5.Name, rule6.Name, rule1.Name, rule8.Name}))
+		})
+	})
 })

@@ -69,6 +69,24 @@ func (r Rules) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
 
 type Routes []*routeapi.Route
 
+func createPathSegmentConditions(u *url.URL) []*condition {
+	var c []*condition
+	path := strings.TrimPrefix(u.EscapedPath(), "/")
+	segments := strings.Split(path, "/")
+	for i, v := range segments {
+		c = append(c, &condition{
+			Equals:      true,
+			HTTPURI:     true,
+			PathSegment: true,
+			Name:        strconv.Itoa(i + 1),
+			Index:       i + 1,
+			Request:     true,
+			Values:      []string{v},
+		})
+	}
+	return c
+}
+
 func createRule(uri, poolName, partition, ruleName string) (*Rule, error) {
 	_u := "scheme://" + uri
 	_u = strings.TrimSuffix(_u, "/")
@@ -112,19 +130,7 @@ func createRule(uri, poolName, partition, ruleName string) (*Rule, error) {
 		})
 	}
 	if 0 != len(u.EscapedPath()) {
-		path := strings.TrimPrefix(u.EscapedPath(), "/")
-		segments := strings.Split(path, "/")
-		for i, v := range segments {
-			c = append(c, &condition{
-				Equals:      true,
-				HTTPURI:     true,
-				PathSegment: true,
-				Name:        strconv.Itoa(i + 1),
-				Index:       i + 1,
-				Request:     true,
-				Values:      []string{v},
-			})
-		}
+		c = append(c, createPathSegmentConditions(u)...)
 	}
 
 	rl := Rule{
@@ -157,14 +163,22 @@ func createPolicy(rls Rules, policyName, partition string) *Policy {
 
 func processIngressRules(
 	ing *v1beta1.IngressSpec,
+	urlRewriteMap map[string]string,
+	appRootMap map[string]string,
 	pools []Pool,
 	partition string,
-) *Rules {
+) (*Rules, map[string]string, map[string][]string) {
 	var err error
 	var uri, poolName string
 	var rl *Rule
+	var urlRewriteRules []*Rule
+	var appRootRules []*Rule
+
 	rlMap := make(ruleMap)
 	wildcards := make(ruleMap)
+	urlRewriteRefs := make(map[string]string)
+	appRootRefs := make(map[string][]string)
+
 	for _, rule := range ing.Rules {
 		if nil != rule.IngressRuleValue.HTTP {
 			for _, path := range rule.IngressRuleValue.HTTP.Paths {
@@ -182,12 +196,29 @@ func processIngressRules(
 				rl, err = createRule(uri, poolName, partition, ruleName)
 				if nil != err {
 					log.Warningf("Error configuring rule: %v", err)
-					return nil
+					return nil, nil, nil
 				}
 				if true == strings.HasPrefix(uri, "*.") {
 					wildcards[uri] = rl
 				} else {
 					rlMap[uri] = rl
+				}
+
+				// Process url-rewrite annotation
+				if urlRewriteTargetedVal, ok := urlRewriteMap[uri]; ok == true {
+					urlRewriteRule := processURLRewrite(uri, urlRewriteTargetedVal, multiServiceIngressType)
+					urlRewriteRules = append(urlRewriteRules, urlRewriteRule)
+					urlRewriteRefs[poolName] = urlRewriteRule.Name
+				}
+
+				// Process app-root annotation
+				if appRootTargetedVal, ok := appRootMap[uri]; ok == true {
+					appRootRulePair := processAppRoot(uri, appRootTargetedVal, fmt.Sprintf("/%s/%s", partition, poolName), multiServiceIngressType)
+					appRootRules = append(appRootRules, appRootRulePair...)
+					if len(appRootRulePair) == 2 {
+						appRootRefs[poolName] = append(appRootRefs[poolName], appRootRulePair[0].Name)
+						appRootRefs[poolName] = append(appRootRefs[poolName], appRootRulePair[1].Name)
+					}
 				}
 				poolName = ""
 			}
@@ -215,7 +246,15 @@ func processIngressRules(
 	wg.Wait()
 
 	rls = append(rls, w...)
-	return &rls
+
+	if len(appRootRules) != 0 {
+		rls = append(rls, appRootRules...)
+	}
+	if len(urlRewriteRules) != 0 {
+		rls = append(rls, urlRewriteRules...)
+	}
+
+	return &rls, urlRewriteRefs, appRootRefs
 }
 
 func httpRedirectIRule(port int32) string {

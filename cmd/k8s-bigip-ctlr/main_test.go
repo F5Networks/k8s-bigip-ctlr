@@ -608,10 +608,13 @@ var _ = Describe("Main Tests", func() {
 
 	Describe("Mock driver subprocess tests", func() {
 		var pid int
+		tmpFilename := string("configdriverOutput.tmp")
+		tmpFilepath := string("test/" + tmpFilename)
 		BeforeEach(func() {
 			configWriter := &test.MockWriter{
 				FailStyle: test.Success,
 				Sections:  make(map[string]interface{}),
+				File:      "configdriverOutput.tmp",
 			}
 			gs := globalSection{
 				LogLevel:       "INFO",
@@ -626,23 +629,59 @@ var _ = Describe("Main Tests", func() {
 			}
 			subPidCh, _ := startPythonDriver(configWriter, gs, bs, "test")
 			pid = <-subPidCh
-
 		})
+
 		AfterEach(func() {
+			// Call kill command once the file exists and the message is received
 			killDriverCmd := exec.Command("kill", []string{"-2", strconv.Itoa(pid)}...)
-			Start(killDriverCmd, GinkgoWriter, GinkgoWriter)
-		})
-		It("runs the driver subprocess", func() {
+			session, _ := Start(killDriverCmd, GinkgoWriter, GinkgoWriter)
+			Eventually(session, 30*time.Second).Should(Exit(0))
 
+			// Clean up file
+			os.Remove(tmpFilepath)
+			_, err := os.Stat(tmpFilepath)
+			Expect(err).ToNot(BeNil())
+		})
+
+		It("runs the driver subprocess", func() {
 			Expect(pid).ToNot(Equal(0), "Pid should be set and not nil value.")
 
 			proc, err := os.FindProcess(pid)
 			Expect(err).To(BeNil())
 			Expect(proc).ToNot(BeNil(), "Should have process object.")
 
+			// Runs script verifying the creation of the Python process
 			cmd := exec.Command("bash", []string{"test/testBigipconfigdriver.sh"}...)
 			session, _ := Start(cmd, GinkgoWriter, GinkgoWriter)
 			Eventually(session, 30*time.Second).Should(Exit(0))
+
+			// Check if configdriverOutput.tmp file exists
+			timeCount := 1000
+			for timeCount > 0 {
+				if _, err = os.Stat(tmpFilepath); err == nil {
+					break
+				}
+				time.Sleep(time.Millisecond)
+				timeCount--
+			}
+			// Timed out waiting for the creation of a temp file
+			Expect(timeCount).ToNot(Equal(0), "Timed out waiting for the creation of a temp file")
+
+			// Check if configdriverOutput.tmp file contains message
+			f, fileError := os.Open(tmpFilepath)
+			Expect(fileError).To(BeNil(), "The configdriverOutput.tmp file should be present.")
+
+			fileMsg := make([]byte, 27)
+			f.Read(fileMsg)
+			timeCount = 1000
+			for (string(fileMsg) != string("Ready for KeyboardInterrupt")) &&
+				(timeCount > 0) {
+				time.Sleep(time.Millisecond)
+				f.Read(fileMsg)
+				timeCount--
+			}
+			// Timed out waiting for a ready message in the temp file
+			Expect(timeCount).ToNot(Equal(0), "Timed out waiting for a ready message in the temp file")
 		})
 	})
 })

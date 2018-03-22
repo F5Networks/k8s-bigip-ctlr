@@ -179,7 +179,8 @@ var _ = Describe("Main Tests", func() {
 				"--bigip-partition=velcro2",
 				"--bigip-password=admin",
 				"--bigip-url=bigip.example.com",
-				"--bigip-username=admin"}
+				"--bigip-username=admin",
+				"--vs-snat-pool-name=test-snat-pool"}
 
 			nameVar := []string{"testing"}
 			flags.Parse(os.Args)
@@ -190,6 +191,7 @@ var _ = Describe("Main Tests", func() {
 			Expect(*bigIPUsername).To(Equal("admin"))
 			Expect(*bigIPPassword).To(Equal("admin"))
 			Expect(*bigIPPartitions).To(Equal([]string{"velcro1", "velcro2"}))
+			Expect(*vsSnatPoolName).To(Equal("test-snat-pool"))
 			Expect(*logLevel).To(Equal("INFO"))
 
 			// Test url variations

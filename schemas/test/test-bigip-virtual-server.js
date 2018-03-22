@@ -23,7 +23,7 @@ const handleError = require('./util').handleError;
 
 handleError();
 
-const CURRENT_VERSION="v0.1.8";
+const CURRENT_VERSION="v0.1.7";
 const testSchema = `f5schemadb://bigip-virtual-server_${CURRENT_VERSION}.json`;
 
 exports.bigipVirtualServer = {
@@ -503,139 +503,6 @@ exports.bigipVirtualServer.invalidServicePort = t => {
         'Should have port error');
     t.strictEqual(result.errors[0].message,
         'is not of a type(s) integer', 'Should have non integer error');
-
-    t.done();
-  });
-};
-
-exports.bigipVirtualServer.validSourceAddressTranslation = t => {
-  let data = Object.assign({}, this.baseValidConfig);
-  data.virtualServer.frontend.sourceAddressTranslation = {
-    'type': 'automap'
-  };
-
-  this.sUtil.loadSchemas(testSchema, () => {
-    let result = this.sUtil.runValidate(data, testSchema);
-    t.ok(result.valid, 'Should not have failed');
-
-    data.virtualServer.frontend.sourceAddressTranslation = {
-      'type': 'none'
-    };
-    result = this.sUtil.runValidate(data, testSchema);
-    t.ok(result.valid, 'Should not have failed');
-
-    data.virtualServer.frontend.sourceAddressTranslation = {
-      'type': 'snat',
-      'pool': 'test-snat-pool'
-    };
-    result = this.sUtil.runValidate(data, testSchema);
-    t.ok(result.valid, 'Should not have failed')
-
-    t.done();
-  });
-};
-
-exports.bigipVirtualServer.invalidSourceAddressTranslation = t => {
-  let data = Object.assign({}, this.baseValidConfig);
-  data.virtualServer.frontend.sourceAddressTranslation = 'not-object';
-
-  this.sUtil.loadSchemas(testSchema, () => {
-    let result = this.sUtil.runValidate(data, testSchema);
-    t.ok(!result.valid, 'Should have failed');
-
-    t.strictEqual(result.errors.length, 1, 'should have one error');
-    t.strictEqual(result.errors[0].property,
-        'instance.virtualServer.frontend',
-        'Should have frontend error');
-    t.strictEqual(result.errors[0].message,
-        'is not exactly one from <#/definitions/frontendIAppType>,<#/definitions/frontendVSType>',
-        'should have definitions error');
-
-    data.virtualServer.frontend.sourceAddressTranslation = {};
-    result = this.sUtil.runValidate(data, testSchema);
-    t.ok(!result.valid, 'Should have failed');
-
-    t.strictEqual(result.errors.length, 1, 'should have one error');
-    t.strictEqual(result.errors[0].property,
-        'instance.virtualServer.frontend',
-        'Should have frontend error');
-    t.strictEqual(result.errors[0].message,
-        'is not exactly one from <#/definitions/frontendIAppType>,<#/definitions/frontendVSType>',
-        'Should have definitions error');
-
-    data.virtualServer.frontend.sourceAddressTranslation = {
-      'snat': 'snat-pool-name'
-    };
-    result = this.sUtil.runValidate(data, testSchema);
-    t.ok(!result.valid, 'Should have failed');
-
-    t.strictEqual(result.errors.length, 1, 'should have one error');
-    t.strictEqual(result.errors[0].property,
-        'instance.virtualServer.frontend',
-        'Should have frontend error');
-    t.strictEqual(result.errors[0].message,
-        'is not exactly one from <#/definitions/frontendIAppType>,<#/definitions/frontendVSType>',
-        'Should have definitions error');
-
-    data.virtualServer.frontend.sourceAddressTranslation = {
-      'type': 'snat',
-      'snat': ''
-    };
-    result = this.sUtil.runValidate(data, testSchema);
-    t.ok(!result.valid, 'Should have failed');
-
-    t.strictEqual(result.errors.length, 1, 'should have one error');
-    t.strictEqual(result.errors[0].property,
-        'instance.virtualServer.frontend',
-        'Should have frontend error');
-    t.strictEqual(result.errors[0].message,
-        'is not exactly one from <#/definitions/frontendIAppType>,<#/definitions/frontendVSType>',
-        'Should have definitions error');
-
-    data.virtualServer.frontend.sourceAddressTranslation = {
-      'type': 'invalid-type',
-      'snat': 'snat-pool-name'
-    };
-    result = this.sUtil.runValidate(data, testSchema);
-    t.ok(!result.valid, 'Should have failed');
-
-    t.strictEqual(result.errors.length, 1, 'should have one error');
-    t.strictEqual(result.errors[0].property,
-        'instance.virtualServer.frontend',
-        'Should have frontend error');
-    t.strictEqual(result.errors[0].message,
-        'is not exactly one from <#/definitions/frontendIAppType>,<#/definitions/frontendVSType>',
-        'Should have definitions error');
-
-    data.virtualServer.frontend.sourceAddressTranslation = {
-      'type': 1,
-      'snat': 'snat-pool-name'
-    };
-    result = this.sUtil.runValidate(data, testSchema);
-    t.ok(!result.valid, 'Should have failed');
-
-    t.strictEqual(result.errors.length, 1, 'should have one error');
-    t.strictEqual(result.errors[0].property,
-        'instance.virtualServer.frontend',
-        'Should have frontend error');
-    t.strictEqual(result.errors[0].message,
-        'is not exactly one from <#/definitions/frontendIAppType>,<#/definitions/frontendVSType>',
-        'Should have definitions error');
-
-    data.virtualServer.frontend.sourceAddressTranslation = {
-      'type': 'none',
-      'snat': 1
-    };
-    result = this.sUtil.runValidate(data, testSchema);
-    t.ok(!result.valid, 'Should have failed');
-
-    t.strictEqual(result.errors.length, 1, 'should have one error');
-    t.strictEqual(result.errors[0].property,
-        'instance.virtualServer.frontend',
-        'Should have frontend error');
-    t.strictEqual(result.errors[0].message,
-        'is not exactly one from <#/definitions/frontendIAppType>,<#/definitions/frontendVSType>',
-        'Should have definitions error');
 
     t.done();
   });

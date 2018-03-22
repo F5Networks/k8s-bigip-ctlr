@@ -60,7 +60,6 @@ const f5VsHttpPortAnnotation = "virtual-server.f5.com/http-port"
 const f5VsHttpsPortAnnotation = "virtual-server.f5.com/https-port"
 const f5VsBalanceAnnotation = "virtual-server.f5.com/balance"
 const f5VsPartitionAnnotation = "virtual-server.f5.com/partition"
-const f5VsSourceAddrTranslationAnnotation = "virtual-server.f5.com/source-addr-translation"
 const f5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
 const f5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"
 const f5ServerSslSecureAnnotation = "virtual-server.f5.com/secure-serverssl"
@@ -111,6 +110,8 @@ type Manager struct {
 	resolveIng string
 	// Default IP for any Ingress with the 'controller-default' ip annotation
 	defaultIngIP string
+	// Optional SNAT pool name to be referenced by virtual servers
+	vsSnatPoolName string
 	// Use Secrets for SSL Profiles
 	useSecrets bool
 	// Channel for emitting events
@@ -129,6 +130,7 @@ type Params struct {
 	RouteConfig       RouteConfig
 	ResolveIngress    string
 	DefaultIngIP      string
+	VsSnatPoolName    string
 	NodeLabelSelector string
 	UseSecrets        bool
 	EventChan         chan interface{}
@@ -172,6 +174,7 @@ func NewManager(params *Params) *Manager {
 		nodeLabelSelector: params.NodeLabelSelector,
 		resolveIng:        params.ResolveIngress,
 		defaultIngIP:      params.DefaultIngIP,
+		vsSnatPoolName:    params.VsSnatPoolName,
 		useSecrets:        params.UseSecrets,
 		eventChan:         params.EventChan,
 		vsQueue:           vsQueue,
@@ -878,7 +881,7 @@ func (appMgr *Manager) syncConfigMaps(
 		if cm.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
-		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal)
+		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
 		if nil != err {
 			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(1)
 			// Ignore this config map for the time being. When the user updates it
@@ -995,6 +998,7 @@ func (appMgr *Manager) syncIngresses(
 				appInf.svcInformer.GetIndexer(),
 				portStruct,
 				appMgr.defaultIngIP,
+				appMgr.vsSnatPoolName,
 			)
 			if rsCfg == nil {
 				// Currently, an error is returned only if the Ingress is one we
@@ -1153,7 +1157,7 @@ func (appMgr *Manager) syncRoutes(
 		for _, ps := range pStructs {
 			rsCfg, err, pool := appMgr.createRSConfigFromRoute(
 				route, svcName, appMgr.resources, appMgr.routeConfig, ps,
-				appInf.svcInformer.GetIndexer(), svcFwdRulesMap)
+				appInf.svcInformer.GetIndexer(), svcFwdRulesMap, appMgr.vsSnatPoolName)
 			if err != nil {
 				// We return err if there was an error creating a rule
 				log.Warningf("%v", err)

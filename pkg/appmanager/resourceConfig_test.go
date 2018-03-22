@@ -617,38 +617,39 @@ var _ = Describe("Resource Config Tests", func() {
 					port:     80,
 				}
 				cfg := mockMgr.appMgr.createRSConfigFromIngress(
-					ingress, &Resources{}, namespace, nil, ps, "")
+					ingress, &Resources{}, namespace, nil, ps, "", "test-snat-pool")
 				Expect(cfg.Pools[0].Balance).To(Equal("round-robin"))
 				Expect(cfg.Virtual.Partition).To(Equal("velcro"))
 				Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("1.2.3.4"))
 				Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(80)))
+				Expect(cfg.Virtual.SourceAddrTranslation).To(Equal(SourceAddrTranslation{
+					Type: "snat",
+					Pool: "test-snat-pool",
+				}))
 
 				ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
 					map[string]string{
-						f5VsBindAddrAnnotation:              "1.2.3.4",
-						f5VsPartitionAnnotation:             "velcro",
-						f5VsHttpPortAnnotation:              "100",
-						f5VsBalanceAnnotation:               "foobar",
-						f5VsSourceAddrTranslationAnnotation: string(`{"type":"snat","pool":"snat-pool"}`),
-						k8sIngressClass:                     "f5",
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: "velcro",
+						f5VsHttpPortAnnotation:  "100",
+						f5VsBalanceAnnotation:   "foobar",
+						k8sIngressClass:         "f5",
 					})
 				ps = portStruct{
 					protocol: "http",
 					port:     100,
 				}
 				cfg = mockMgr.appMgr.createRSConfigFromIngress(
-					ingress, &Resources{}, namespace, nil, ps, "")
+					ingress, &Resources{}, namespace, nil, ps, "", "")
 				Expect(cfg.Pools[0].Balance).To(Equal("foobar"))
 				Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(100)))
-				Expect(cfg.Virtual.SourceAddrTranslation.Type).To(Equal("snat"))
-				Expect(cfg.Virtual.SourceAddrTranslation.Pool).To(Equal("snat-pool"))
 
 				ingress = test.NewIngress("ingress", "1", namespace, ingressConfig,
 					map[string]string{
 						k8sIngressClass: "notf5",
 					})
 				cfg = mockMgr.appMgr.createRSConfigFromIngress(
-					ingress, &Resources{}, namespace, nil, ps, "")
+					ingress, &Resources{}, namespace, nil, ps, "", "")
 				Expect(cfg).To(BeNil())
 
 				// Use controller default IP
@@ -658,43 +659,8 @@ var _ = Describe("Resource Config Tests", func() {
 						f5VsPartitionAnnotation: "velcro",
 					})
 				cfg = mockMgr.appMgr.createRSConfigFromIngress(
-					defaultIng, &Resources{}, namespace, nil, ps, "5.6.7.8")
+					defaultIng, &Resources{}, namespace, nil, ps, "5.6.7.8", "")
 				Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("5.6.7.8"))
-			})
-
-			It("handles invalid source address translation annotations for ingress", func() {
-				namespace := "default"
-				ingressConfig := v1beta1.IngressSpec{
-					Backend: &v1beta1.IngressBackend{
-						ServiceName: "foo",
-						ServicePort: intstr.IntOrString{IntVal: 80},
-					},
-				}
-
-				badAnnotations := []string{
-					"",
-					"garbage",
-					"1",
-					"automap",
-					"---\ntype: snat\npool: snat-pool",
-				}
-
-				for _, badAnnotation := range badAnnotations {
-					ingress := test.NewIngress("ingress", "1", namespace, ingressConfig,
-						map[string]string{
-							f5VsBindAddrAnnotation:              "1.2.3.4",
-							f5VsPartitionAnnotation:             "velcro",
-							f5VsSourceAddrTranslationAnnotation: string(badAnnotation),
-						})
-					ps := portStruct{
-						protocol: "http",
-						port:     80,
-					}
-					cfg := mockMgr.appMgr.createRSConfigFromIngress(
-						ingress, &Resources{}, namespace, nil, ps, "")
-					var expectedCfgReturn *ResourceConfig
-					Expect(cfg).To(Equal(expectedCfgReturn))
-				}
 			})
 
 			It("properly configures route resources", func() {
@@ -727,10 +693,12 @@ var _ = Describe("Resource Config Tests", func() {
 				svcFwdRulesMap := NewServiceFwdRuleMap()
 				cfg, _, _ := mockMgr.appMgr.createRSConfigFromRoute(
 					route, getRouteCanonicalServiceName(route),
-					&Resources{}, rc, ps, nil, svcFwdRulesMap)
+					&Resources{}, rc, ps, nil, svcFwdRulesMap, "test-snat-pool")
 				Expect(cfg.Virtual.Name).To(Equal("https-ose-vserver"))
-				Expect(cfg.Virtual.SourceAddrTranslation.Type).To(Equal("automap"))
-				Expect(cfg.Virtual.SourceAddrTranslation.Pool).To(Equal(""))
+				Expect(cfg.Virtual.SourceAddrTranslation).To(Equal(SourceAddrTranslation{
+					Type: "snat",
+					Pool: "test-snat-pool",
+				}))
 				Expect(cfg.Pools[0].Name).To(Equal("openshift_default_foo"))
 				Expect(cfg.Pools[0].ServiceName).To(Equal("foo"))
 				Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))
@@ -748,67 +716,20 @@ var _ = Describe("Resource Config Tests", func() {
 						TargetPort: intstr.FromInt(80),
 					},
 				}
-				route2 := test.NewRoute("route2", "1", namespace, spec,
-					map[string]string{
-						f5VsSourceAddrTranslationAnnotation: string(`{"type":"none"}`),
-					})
+				route2 := test.NewRoute("route2", "1", namespace, spec, nil)
 				ps = portStruct{
 					protocol: "http",
 					port:     80,
 				}
 				cfg, _, _ = mockMgr.appMgr.createRSConfigFromRoute(
 					route2, getRouteCanonicalServiceName(route2),
-					&Resources{}, rc, ps, nil, svcFwdRulesMap)
+					&Resources{}, rc, ps, nil, svcFwdRulesMap, "")
 				Expect(cfg.Virtual.Name).To(Equal("ose-vserver"))
-				Expect(cfg.Virtual.SourceAddrTranslation.Type).To(Equal("none"))
-				Expect(cfg.Virtual.SourceAddrTranslation.Pool).To(Equal(""))
 				Expect(cfg.Pools[0].Name).To(Equal("openshift_default_bar"))
 				Expect(cfg.Pools[0].ServiceName).To(Equal("bar"))
 				Expect(cfg.Pools[0].ServicePort).To(Equal(int32(80)))
 				Expect(cfg.Policies[0].Name).To(Equal("openshift_insecure_routes"))
 				Expect(cfg.Policies[0].Rules[0].Name).To(Equal("openshift_route_default_route2"))
-			})
-
-			It("handles invalid source address translation annotations for routes", func() {
-				svcFwdRulesMap := NewServiceFwdRuleMap()
-				spec := routeapi.RouteSpec{
-					Host: "foobar.com",
-					Path: "/foo",
-					To: routeapi.RouteTargetReference{
-						Kind: "Service",
-						Name: "bar",
-					},
-					Port: &routeapi.RoutePort{
-						TargetPort: intstr.FromInt(80),
-					},
-				}
-				rc := RouteConfig{
-					HttpVs:  "ose-vserver",
-					HttpsVs: "https-ose-vserver",
-				}
-
-				badAnnotations := []string{
-					"",
-					"garbage",
-					"1",
-					"automap",
-					"---\ntype: snat\npool: snat-pool",
-				}
-
-				for _, badAnnotation := range badAnnotations {
-					route := test.NewRoute("route", "1", "default", spec,
-						map[string]string{
-							f5VsSourceAddrTranslationAnnotation: string(badAnnotation),
-						})
-					ps := portStruct{
-						protocol: "http",
-						port:     80,
-					}
-					cfg, _, _ := mockMgr.appMgr.createRSConfigFromRoute(
-						route, getRouteCanonicalServiceName(route),
-						&Resources{}, rc, ps, nil, svcFwdRulesMap)
-					Expect(cfg.Virtual).To(Equal(Virtual{}))
-				}
 			})
 		})
 

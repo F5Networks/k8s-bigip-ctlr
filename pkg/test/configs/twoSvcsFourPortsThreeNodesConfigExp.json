@@ -57,7 +57,7 @@
           "ipProtocol":"tcp",
           "enabled":true,
           "sourceAddressTranslation":{
-            "type":"none"
+            "type":"automap"
           },
           "destination":"/velcro/10.128.10.240:5051",
           "profiles":[
@@ -79,8 +79,7 @@
           "ipProtocol":"tcp",
           "enabled":true,
           "sourceAddressTranslation":{
-            "type":"snat",
-            "pool":"snat-pool"
+            "type":"automap"
           },
           "destination":"/velcro/10.128.10.200:4041",
           "profiles":[

@@ -133,7 +133,10 @@ var _ = Describe("Main Tests", func() {
 			configFile := fmt.Sprintf("/tmp/k8s-bigip-ctlr.config.%d.json",
 				os.Getpid())
 			driverPath, err := exec.LookPath("bigipconfigdriver.py")
-			Expect(err).To(BeNil(), "We should find the driver.")
+			if err != nil {
+				// Set path for local runs
+				driverPath = "bigipconfigdriver.py"
+			}
 
 			args := []string{
 				pyDriver,

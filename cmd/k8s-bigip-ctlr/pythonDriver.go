@@ -147,7 +147,7 @@ func startPythonDriver(
 	}
 
 	subPidCh := make(chan int)
-	if len(pythonBaseDir) != 0 {
+	if len(pythonBaseDir) != 0 && pythonBaseDir != "/app/python" {
 		log.Warning("DEPRECATED: python-basedir: option may no longer work as expected.")
 		pyCmd = fmt.Sprintf("%s/bigipconfigdriver.py", pythonBaseDir)
 	} else {

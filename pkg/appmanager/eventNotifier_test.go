@@ -161,8 +161,8 @@ var _ = Describe("Event Notifier Tests", func() {
 
 			emptyIps := []string{}
 			readyIps := []string{fmt.Sprintf("10.2.96.%d", ingNbr)}
-			endpts := test.NewEndpoints(svcName, "1", namespaces[ingNbr], readyIps,
-				emptyIps, convertSvcPortsToEndpointPorts(svcPorts))
+			endpts := test.NewEndpoints(svcName, "1", "node0", namespaces[ingNbr],
+				readyIps, emptyIps, convertSvcPortsToEndpointPorts(svcPorts))
 			r = mockMgr.addEndpoints(endpts)
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 

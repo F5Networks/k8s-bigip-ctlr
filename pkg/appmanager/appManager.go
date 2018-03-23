@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -88,7 +87,7 @@ type Manager struct {
 	// need something more complicated (channels, etc?)
 	oldNodesMutex sync.Mutex
 	// Nodes from previous iteration of node polling
-	oldNodes []string
+	oldNodes []Node
 	// Mutex for all informers (for informer CRUD)
 	informersMutex sync.Mutex
 	// Mutex for irulesMap
@@ -1526,7 +1525,7 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 	eps, _ := item.(*v1.Endpoints)
 	for _, portSpec := range svc.Spec.Ports {
 		if portSpec.Port == sKey.ServicePort {
-			ipPorts := getEndpointsForService(portSpec.Name, eps)
+			ipPorts := appMgr.getEndpointsForCluster(portSpec.Name, eps)
 			log.Debugf("Found endpoints for backend %+v: %v", sKey, ipPorts)
 			rsCfg.MetaData.Active = true
 			rsCfg.Pools[index].Members = ipPorts
@@ -1822,10 +1821,11 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 	}
 }
 
-func getEndpointsForService(
+func (appMgr *Manager) getEndpointsForCluster(
 	portName string,
 	eps *v1.Endpoints,
 ) []Member {
+	nodes := appMgr.getNodesFromCache()
 	var members []Member
 
 	if eps == nil {
@@ -1836,12 +1836,14 @@ func getEndpointsForService(
 		for _, p := range subset.Ports {
 			if portName == p.Name {
 				for _, addr := range subset.Addresses {
-					member := Member{
-						Address: addr.IP,
-						Port:    p.Port,
-						Session: "user-enabled",
+					if contains(nodes, *addr.NodeName) {
+						member := Member{
+							Address: addr.IP,
+							Port:    p.Port,
+							Session: "user-enabled",
+						}
+						members = append(members, member)
 					}
-					members = append(members, member)
 				}
 			}
 		}
@@ -1856,7 +1858,7 @@ func (appMgr *Manager) getEndpointsForNodePort(
 	var members []Member
 	for _, v := range nodes {
 		member := Member{
-			Address: v,
+			Address: v.Addr,
 			Port:    nodePort,
 			Session: "user-enabled",
 		}
@@ -1901,6 +1903,11 @@ func handleConfigMapParseFailure(
 	return false
 }
 
+type Node struct {
+	Name string
+	Addr string
+}
+
 // Check for a change in Node state
 func (appMgr *Manager) ProcessNodeUpdate(
 	obj interface{}, err error,
@@ -1910,12 +1917,11 @@ func (appMgr *Manager) ProcessNodeUpdate(
 		return
 	}
 
-	newNodes, err := appMgr.getNodeAddresses(obj)
+	newNodes, err := appMgr.getNodes(obj)
 	if nil != err {
 		log.Warningf("Unable to get list of nodes, err=%+v", err)
 		return
 	}
-	sort.Strings(newNodes)
 
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
@@ -1952,26 +1958,26 @@ func (appMgr *Manager) ProcessNodeUpdate(
 }
 
 // Return a copy of the node cache
-func (appMgr *Manager) getNodesFromCache() []string {
+func (appMgr *Manager) getNodesFromCache() []Node {
 	appMgr.oldNodesMutex.Lock()
 	defer appMgr.oldNodesMutex.Unlock()
-	nodes := make([]string, len(appMgr.oldNodes))
+	nodes := make([]Node, len(appMgr.oldNodes))
 	copy(nodes, appMgr.oldNodes)
 
 	return nodes
 }
 
 // Get a list of Node addresses
-func (appMgr *Manager) getNodeAddresses(
+func (appMgr *Manager) getNodes(
 	obj interface{},
-) ([]string, error) {
+) ([]Node, error) {
 	nodes, ok := obj.([]v1.Node)
 	if false == ok {
 		return nil,
 			fmt.Errorf("poll update unexpected type, interface is not []v1.Node")
 	}
 
-	addrs := []string{}
+	watchedNodes := []Node{}
 
 	var addrType v1.NodeAddressType
 	if appMgr.UseNodeInternal() {
@@ -1998,11 +2004,24 @@ func (appMgr *Manager) getNodeAddresses(
 			nodeAddrs := node.Status.Addresses
 			for _, addr := range nodeAddrs {
 				if addr.Type == addrType {
-					addrs = append(addrs, addr.Address)
+					n := Node{
+						Name: node.ObjectMeta.Name,
+						Addr: addr.Address,
+					}
+					watchedNodes = append(watchedNodes, n)
 				}
 			}
 		}
 	}
 
-	return addrs, nil
+	return watchedNodes, nil
+}
+
+func contains(nodes []Node, name string) bool {
+	for _, node := range nodes {
+		if node.Name == name {
+			return true
+		}
+	}
+	return false
 }

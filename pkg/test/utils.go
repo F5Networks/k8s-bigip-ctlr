@@ -48,11 +48,17 @@ type MockWriter struct {
 	FailStyle    int
 	WrittenTimes int
 	Sections     map[string]interface{}
+	File         string
 	sync.Mutex
 }
 
 func (mw *MockWriter) GetOutputFilename() string {
-	return "mock-file"
+	// Returns the File field if one exists, otherwise returns "mock-file"
+	if len(mw.File) > 0 {
+		return mw.File
+	} else {
+		return "mock-file"
+	}
 }
 
 func (mw *MockWriter) Stop() {

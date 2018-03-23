@@ -19,6 +19,7 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"sync"
 	"time"
@@ -44,280 +45,55 @@ func init() {
 
 var schemaUrl string
 
-var configmapFoo string = string(`{
-  "virtualServer": {
-    "backend": {
-      "serviceName": "foo",
-      "servicePort": 80,
-      "healthMonitors": [ {
-        "interval": 30,
-        "timeout": 20,
-        "send": "GET /",
-        "recv": "Hello from",
-        "protocol": "tcp"
-        }
-      ]
-    },
-    "frontend": {
-      "balance": "round-robin",
-      "mode": "http",
-      "partition": "velcro",
-      "virtualAddress": {
-        "bindAddr": "10.128.10.240",
-        "port": 5051
-      },
-      "sslProfile": {
-        "f5ProfileName": "velcro/testcert"
-      }
-    }
-  }
-}`)
+var configPath string = "../test/configs/"
 
-var configmapFoo8080 string = string(`{
-  "virtualServer": {
-    "backend": {
-      "serviceName": "foo",
-      "servicePort": 8080
-    },
-    "frontend": {
-      "balance": "round-robin",
-      "mode": "http",
-      "partition": "velcro",
-      "virtualAddress": {
-        "bindAddr": "10.128.10.240",
-        "port": 5051
-      },
-      "sourceAddressTranslation": {
-        "type": "none"
-      }
-    }
-  }
-}`)
+var configmapFoo string = readConfigFile(configPath + "configmapFoo.json")
 
-var configmapFoo9090 string = string(`{
-	"virtualServer": {
-		"backend": {
-			"serviceName": "foo",
-			"servicePort": 9090
-		},
-		"frontend": {
-			"balance": "round-robin",
-			"mode": "tcp",
-			"partition": "velcro",
-			"virtualAddress": {
-				"bindAddr": "10.128.10.200",
-				"port": 4041
-			},
-			"sourceAddressTranslation": {
-				"type": "snat",
-				"pool": "snat-pool"
-			}
-		}
-	}
-}`)
+var configmapFoo8080 string = readConfigFile(configPath + "configmapFoo8080.json")
 
-var configmapFooTcp string = string(`{
-  "virtualServer": {
-    "backend": {
-      "serviceName": "foo",
-      "servicePort": 80
-    },
-    "frontend": {
-      "balance": "round-robin",
-      "mode": "tcp",
-      "partition": "velcro",
-      "virtualAddress": {
-        "bindAddr": "10.128.10.240",
-        "port": 5051
-      }
-    }
-  }
-}`)
+var configmapFoo9090 string = readConfigFile(configPath + "configmapFoo9090.json")
 
-var configmapFooUdp string = string(`{
-  "virtualServer": {
-    "backend": {
-      "serviceName": "foo",
-      "servicePort": 80,
-      "healthMonitors": [ {
-        "interval": 30,
-        "timeout": 20,
-        "send": "GET /",
-        "recv": "Hello from",
-        "protocol": "udp"
-        }
-      ]
-    },
-    "frontend": {
-      "balance": "round-robin",
-      "mode": "udp",
-      "partition": "velcro",
-      "virtualAddress": {
-        "bindAddr": "10.128.10.240",
-        "port": 5051
-      }
-    }
-  }
-}`)
+var configmapFooTcp string = readConfigFile(configPath + "configmapFooTcp.json")
 
-var configmapFooInvalid string = string(`{
-  "virtualServer": {
-    "backend": {
-      "serviceName": "",
-      "servicePort": 0
-    },
-    "frontend": {
-      "balance": "super-duper-mojo",
-      "mode": "udp",
-      "partition": "",
-      "virtualAddress": {
-        "bindAddr": "10.128.10.260",
-        "port": 500000
-      },
-      "sslProfile": {
-        "f5ProfileName": ""
-      }
-    }
-  }
-}`)
+var configmapFooUdp string = readConfigFile(configPath + "configmapFooUdp.json")
 
-var configmapBar string = string(`{
-  "virtualServer": {
-    "backend": {
-      "serviceName": "bar",
-      "servicePort": 80
-    },
-    "frontend": {
-      "balance": "round-robin",
-      "mode": "http",
-      "partition": "velcro",
-      "virtualAddress": {
-        "bindAddr": "10.128.10.240",
-        "port": 6051
-      },
-      "sourceAddressTranslation": {
-        "type": "automap"
-      }
-    }
-  }
-}`)
+var configmapFooInvalid string = readConfigFile(configPath + "configmapFooInvalid.json")
 
-var configmapNoModeBalance string = string(`{
-  "virtualServer": {
-    "backend": {
-      "serviceName": "bar",
-      "servicePort": 80
-    },
-    "frontend": {
-      "partition": "velcro",
-      "virtualAddress": {
-        "bindAddr": "10.128.10.240",
-        "port": 80
-      }
-    }
-  }
-}`)
+var configmapBar string = readConfigFile(configPath + "configmapBar.json")
 
-var configmapIApp1 string = string(`{
-  "virtualServer": {
-    "backend": {
-      "serviceName": "iapp1",
-      "servicePort": 80
-    },
-    "frontend": {
-      "partition": "velcro",
-      "iapp": "/Common/f5.http",
-      "iappPoolMemberTable": {
-        "name": "pool__members",
-        "columns": [
-          {"name": "IPAddress", "kind": "IPAddress"},
-          {"name": "Port", "kind": "Port"},
-          {"name": "ConnectionLimit", "value": "0"},
-          {"name": "SomeOtherValue", "value": "value-1"}
-        ]
-      },
-      "iappOptions": {
-        "description": "iApp 1"
-      },
-      "iappVariables": {
-        "monitor__monitor": "/#create_new#",
-        "monitor__resposne": "none",
-        "monitor__uri": "/",
-        "net__client_mode": "wan",
-        "net__server_mode": "lan",
-        "pool__addr": "127.0.0.1",
-        "pool__pool_to_use": "/#create_new#",
-        "pool__port": "8080"
-      }
-    }
-  }
-}`)
+var configmapNoModeBalance string = readConfigFile(configPath + "configmapNoModeBalance.json")
 
-var configmapIApp2 string = string(`{
-  "virtualServer": {
-    "backend": {
-      "serviceName": "iapp2",
-      "servicePort": 80
-    },
-    "frontend": {
-      "partition": "velcro",
-      "iapp": "/Common/f5.http",
-      "iappOptions": {
-        "description": "iApp 2"
-      },
-      "iappTables": {
-        "pool__Pools": {
-          "columns": ["Index", "Name", "Description", "LbMethod", "Monitor",
-                      "AdvOptions"],
-          "rows": [["0", "", "", "round-robin", "0", "none"]]
-        },
-        "monitor__Monitors": {
-          "columns": ["Index", "Name", "Type", "Options"],
-          "rows": [["0", "/Common/tcp", "none", "none"]]
-        }
-      },
-      "iappPoolMemberTable": {
-        "name": "pool__members",
-        "columns": [
-          {"name": "IPAddress", "kind": "IPAddress"},
-          {"name": "Port", "kind": "Port"},
-          {"name": "ConnectionLimit", "value": "0"},
-          {"name": "SomeOtherValue", "value": "value-1"}
-        ]
-      },
-      "iappVariables": {
-        "monitor__monitor": "/#create_new#",
-        "monitor__resposne": "none",
-        "monitor__uri": "/",
-        "net__client_mode": "wan",
-        "net__server_mode": "lan",
-        "pool__addr": "127.0.0.2",
-        "pool__pool_to_use": "/#create_new#",
-        "pool__port": "4430"
-      }
-    }
-  }
-}`)
+var configmapIApp1 string = readConfigFile(configPath + "configmapIApp1.json")
+
+var configmapIApp2 string = readConfigFile(configPath + "configmapIApp2.json")
 
 var emptyConfig string = string(`{"resources":{}}`)
 
-var twoSvcsFourPortsThreeNodesConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap","pool":"/velcro/cfgmap_default_foomap_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"},{"partition":"velcro","name":"testcert","context":"clientside"}]},{"name":"default_foomap8080","pool":"/velcro/cfgmap_default_foomap8080_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"none"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap9090","pool":"/velcro/cfgmap_default_foomap9090_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"snat","pool":"snat-pool"},"destination":"/velcro/10.128.10.200:4041","profiles":[{"partition":"Common","name":"tcp","context":"all"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":37001,"session":"user-enabled"},{"address":"127.0.0.2","port":37001,"session":"user-enabled"},{"address":"127.0.0.3","port":37001,"session":"user-enabled"}],"monitors":null},{"name":"cfgmap_default_foomap_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":30001,"session":"user-enabled"},{"address":"127.0.0.2","port":30001,"session":"user-enabled"},{"address":"127.0.0.3","port":30001,"session":"user-enabled"}],"monitors":["/velcro/cfgmap_default_foomap_foo_0_tcp"]},{"name":"cfgmap_default_foomap8080_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":38001,"session":"user-enabled"},{"address":"127.0.0.2","port":38001,"session":"user-enabled"},{"address":"127.0.0.3","port":38001,"session":"user-enabled"}],"monitors":null},{"name":"cfgmap_default_foomap9090_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":39001,"session":"user-enabled"},{"address":"127.0.0.2","port":39001,"session":"user-enabled"},{"address":"127.0.0.3","port":39001,"session":"user-enabled"}],"monitors":null}],"monitors":[{"name":"cfgmap_default_foomap_foo_0_tcp","interval":30,"type":"tcp","send":"GET /","recv":"Hello from","timeout":20}]}}}`)
+var twoSvcsFourPortsThreeNodesConfig string = readConfigFile(configPath + "twoSvcsFourPortsThreeNodesConfigExp.json")
 
-var twoSvcsTwoNodesConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap","pool":"/velcro/cfgmap_default_foomap_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"},{"partition":"velcro","name":"testcert","context":"clientside"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":37001,"session":"user-enabled"},{"address":"127.0.0.2","port":37001,"session":"user-enabled"}]},{"name":"cfgmap_default_foomap_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.1","port":30001,"session":"user-enabled"},{"address":"127.0.0.2","port":30001,"session":"user-enabled"}],"monitors":["/velcro/cfgmap_default_foomap_foo_0_tcp"]}],"monitors":[{"name":"cfgmap_default_foomap_foo_0_tcp","interval":30,"type":"tcp","send":"GET /","recv":"Hello from","timeout":20}]}}}`)
+var twoSvcsTwoNodesConfig string = readConfigFile(configPath + "twoSvcsTwoNodesConfigExp.json")
 
-var twoSvcsOneNodeConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap","pool":"/velcro/cfgmap_default_foomap_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"},{"partition":"velcro","name":"testcert","context":"clientside"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.3","port":37001,"session":"user-enabled"}]},{"name":"cfgmap_default_foomap_foo","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.3","port":30001,"session":"user-enabled"}],"monitors":["/velcro/cfgmap_default_foomap_foo_0_tcp"]}],"monitors":[{"name":"cfgmap_default_foomap_foo_0_tcp","interval":30,"type":"tcp","send":"GET /","recv":"Hello from","timeout":20}]}}}`)
+var twoSvcsOneNodeConfig string = readConfigFile(configPath + "twoSvcsOneNodeConfigExp.json")
 
-var oneSvcOneNodeConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"127.0.0.3","port":37001,"session":"user-enabled"}]}]}}}`)
+var oneSvcOneNodeConfig string = readConfigFile(configPath + "oneSvcOneNodeConfigExp.json")
 
-var twoIappsThreeNodesConfig string = string(`{"resources":{"velcro":{"virtualServers":[],"pools":[],"iapps":[{"name":"default_iapp1map","template":"/Common/f5.http","options":{"description":"iApp 1"},"poolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}],"members":[{"address":"192.168.0.1","port":10101,"session":"user-enabled"},{"address":"192.168.0.2","port":10101,"session":"user-enabled"},{"address":"192.168.0.4","port":10101,"session":"user-enabled"}]},"variables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}},{"name":"default_iapp2map","template":"/Common/f5.http","options":{"description":"iApp 2"},"tables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"poolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}],"members":[{"address":"192.168.0.1","port":20202,"session":"user-enabled"},{"address":"192.168.0.2","port":20202,"session":"user-enabled"},{"address":"192.168.0.4","port":20202,"session":"user-enabled"}]},"variables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}]}}}`)
+var twoIappsThreeNodesConfig string = readConfigFile(configPath + "twoIappsThreeNodesConfigExp.json")
 
-var twoIappsOneNodeConfig string = string(`{"resources":{"velcro":{"virtualServers":[],"pools":[],"iapps":[{"name":"default_iapp1map","template":"/Common/f5.http","options":{"description":"iApp 1"},"poolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}],"members":[{"address":"192.168.0.4","port":10101,"session":"user-enabled"}]},"variables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.1","pool__pool_to_use":"/#create_new#","pool__port":"8080"}},{"name":"default_iapp2map","template":"/Common/f5.http","options":{"description":"iApp 2"},"tables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"poolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}],"members":[{"address":"192.168.0.4","port":20202,"session":"user-enabled"}]},"variables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}]}}}`)
+var twoIappsOneNodeConfig string = readConfigFile(configPath + "twoIappsOneNodeConfigExp.json")
 
-var oneIappOneNodeConfig string = string(`{"resources":{"velcro":{"virtualServers":[],"pools":[],"iapps":[{"name":"default_iapp2map","template":"/Common/f5.http","options":{"description":"iApp 2"},"tables":{"pool__Pools":{"columns":["Index","Name","Description","LbMethod","Monitor","AdvOptions"],"rows":[["0","","","round-robin","0","none"]]},"monitor__Monitors":{"columns":["Index","Name","Type","Options"],"rows":[["0","/Common/tcp","none","none"]]}},"poolMemberTable":{"name":"pool__members","columns":[{"name":"IPAddress","kind":"IPAddress"},{"name":"Port","kind":"Port"},{"name":"ConnectionLimit","value":"0"},{"name":"SomeOtherValue","value":"value-1"}],"members":[{"address":"192.168.0.4","port":20202,"session":"user-enabled"}]},"variables":{"monitor__monitor":"/#create_new#","monitor__resposne":"none","monitor__uri":"/","net__client_mode":"wan","net__server_mode":"lan","pool__addr":"127.0.0.2","pool__pool_to_use":"/#create_new#","pool__port":"4430"}}]}}}`)
+var oneIappOneNodeConfig string = readConfigFile(configPath + "oneIappOneNodeConfigExp.json")
 
-var twoSvcTwoPodsConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]},{"name":"default_foomap","pool":"/velcro/cfgmap_default_foomap_foo","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"none"},"destination":"/velcro/10.128.10.240:5051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"10.2.96.0","port":80,"session":"user-enabled"},{"address":"10.2.96.3","port":80,"session":"user-enabled"}]},{"name":"cfgmap_default_foomap_foo","loadBalancingMode":"round-robin","members":[{"address":"10.2.96.1","port":8080,"session":"user-enabled"},{"address":"10.2.96.2","port":8080,"session":"user-enabled"}]}]}}}`)
+var twoSvcTwoPodsConfig string = readConfigFile(configPath + "twoSvcTwoPodsConfigExp.json")
 
-var oneSvcTwoPodsConfig string = string(`{"resources":{"velcro":{"virtualServers":[{"name":"default_barmap","pool":"/velcro/cfgmap_default_barmap_bar","ipProtocol":"tcp","enabled":true,"sourceAddressTranslation":{"type":"automap"},"destination":"/velcro/10.128.10.240:6051","profiles":[{"partition":"Common","name":"http","context":"all"},{"partition":"Common","name":"tcp","context":"all"}]}],"pools":[{"name":"cfgmap_default_barmap_bar","loadBalancingMode":"round-robin","members":[{"address":"10.2.96.0","port":80,"session":"user-enabled"},{"address":"10.2.96.3","port":80,"session":"user-enabled"}]}]}}}`)
+var oneSvcTwoPodsConfig string = readConfigFile(configPath + "oneSvcTwoPodsConfigExp.json")
+
+func readConfigFile(path string) string {
+	defer GinkgoRecover()
+	data, err := ioutil.ReadFile(path)
+	RegisterFailHandler(Fail)
+	Expect(err).To(BeNil(), "Configuration files should be located in pkg/test/configs.")
+	return string(data)
+}
 
 type mockAppManager struct {
 	appMgr  *Manager

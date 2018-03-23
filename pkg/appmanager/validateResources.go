@@ -34,7 +34,7 @@ func (appMgr *Manager) checkValidConfigMap(
 		// Not watching this namespace
 		return false, nil
 	}
-	cfg, err := parseConfigMap(cm, appMgr.schemaLocal)
+	cfg, err := parseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
 	if nil != err {
 		if handleConfigMapParseFailure(appMgr, cm, cfg, err) {
 			// resources is updated if true is returned, write out the config.
@@ -116,6 +116,7 @@ func (appMgr *Manager) checkValidIngress(
 			appInf.svcInformer.GetIndexer(),
 			portStruct,
 			appMgr.defaultIngIP,
+			appMgr.vsSnatPoolName,
 		)
 		rsName := formatIngressVSName(bindAddr, portStruct.port)
 		// If rsCfg is nil, delete any resources tied to this Ingress

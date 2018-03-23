@@ -49,12 +49,6 @@ const DEFAULT_BALANCE string = "round-robin"
 const DEFAULT_HTTP_PORT int32 = 80
 const DEFAULT_HTTPS_PORT int32 = 443
 
-const (
-	DEFAULT_SOURCE_ADDR_TRANSLATION string = "automap"
-	NONE_SOURCE_ADDR_TRANSLATION    string = "none"
-	SNAT_SOURCE_ADDR_TRANSLATION    string = "snat"
-)
-
 // FIXME: remove this global variable.
 var DEFAULT_PARTITION string
 
@@ -70,6 +64,9 @@ const customProfileServer string = "serverside"
 const peerCertRequired = "require"
 const peerCertIgnored = "ignore"
 const peerCertDefault = peerCertIgnored
+
+const defaultSourceAddrTranslation = "automap"
+const snatSourceAddrTranslation = "snat"
 
 func (v *Virtual) GetProfileCountByContext(context string) int {
 	// Valid values of context are 'clientside', serverside', and 'all'.
@@ -819,37 +816,20 @@ func setProfilesForMode(mode string, cfg *ResourceConfig) {
 	}
 }
 
-func verifySourceAddrTranslation(vsName string, sat SourceAddrTranslation) error {
-	if sat.Type != SNAT_SOURCE_ADDR_TRANSLATION && sat.Pool != "" {
-		log.Infof("Virtual server %s has source address translation of type %s which does not require a pool name", vsName, sat.Type)
-	} else if sat.Type == SNAT_SOURCE_ADDR_TRANSLATION && sat.Pool == "" {
-		return fmt.Errorf("Source address translation of type %s requires a pool name", sat.Type)
-	}
-	return nil
-}
-
-func setSourceAddrTranslation(annotations map[string]string, name string) (SourceAddrTranslation, error) {
-	var sourceAddrTranslation SourceAddrTranslation
-
-	if satAnnotation, ok := annotations[f5VsSourceAddrTranslationAnnotation]; ok == true {
-		var err error
-		if err = json.Unmarshal([]byte(satAnnotation), &sourceAddrTranslation); err != nil {
-			return SourceAddrTranslation{}, err
-		}
-		if err = verifySourceAddrTranslation(name, sourceAddrTranslation); err != nil {
-			return SourceAddrTranslation{}, err
-		}
-	} else {
-		sourceAddrTranslation = SourceAddrTranslation{
-			Type: DEFAULT_SOURCE_ADDR_TRANSLATION,
+func setSourceAddrTranslation(snatPoolName string) SourceAddrTranslation {
+	if snatPoolName == "" {
+		return SourceAddrTranslation{
+			Type: defaultSourceAddrTranslation,
 		}
 	}
-
-	return sourceAddrTranslation, nil
+	return SourceAddrTranslation{
+		Type: snatSourceAddrTranslation,
+		Pool: snatPoolName,
+	}
 }
 
 // Unmarshal an expected ConfigMap object
-func parseConfigMap(cm *v1.ConfigMap, schemaDBPath string) (*ResourceConfig, error) {
+func parseConfigMap(cm *v1.ConfigMap, schemaDBPath, snatPoolName string) (*ResourceConfig, error) {
 	var cfg ResourceConfig
 	var cfgMap ConfigMap
 
@@ -887,13 +867,7 @@ func parseConfigMap(cm *v1.ConfigMap, schemaDBPath string) (*ResourceConfig, err
 			}
 			if result.Valid() {
 				ns := cm.ObjectMeta.Namespace
-
-				// Handle configmap virtual source address translation
-				if err = verifySourceAddrTranslation(cm.ObjectMeta.Name, cfgMap.VirtualServer.Frontend.SourceAddrTranslation); err != nil {
-					return &cfg, fmt.Errorf("Virtual server %s source address translation error %v", cm.ObjectMeta.Name, err)
-				}
-
-				copyConfigMap(formatConfigMapVSName(cm), ns, &cfg, &cfgMap)
+				copyConfigMap(formatConfigMapVSName(cm), ns, snatPoolName, &cfg, &cfgMap)
 
 				// Checking for annotation in VS, not iApp
 				if cfg.MetaData.ResourceType != "iapp" && cfg.Virtual.VirtualAddress != nil {
@@ -931,7 +905,7 @@ func parseConfigMap(cm *v1.ConfigMap, schemaDBPath string) (*ResourceConfig, err
 	return &cfg, nil
 }
 
-func copyConfigMap(virtualName, ns string, cfg *ResourceConfig, cfgMap *ConfigMap) {
+func copyConfigMap(virtualName, ns, snatPoolName string, cfg *ResourceConfig, cfgMap *ConfigMap) {
 	cmName := strings.Split(virtualName, "_")[1]
 	poolName := formatConfigMapPoolName(ns, cmName, cfgMap.VirtualServer.Backend.ServiceName)
 	if cfgMap.VirtualServer.Frontend.IApp == "" {
@@ -940,15 +914,8 @@ func copyConfigMap(virtualName, ns string, cfg *ResourceConfig, cfgMap *ConfigMa
 		cfg.Virtual.Name = virtualName
 		cfg.Virtual.Partition = cfgMap.VirtualServer.Frontend.Partition
 		cfg.Virtual.Enabled = true
+		cfg.Virtual.SourceAddrTranslation = setSourceAddrTranslation(snatPoolName)
 		cfg.Virtual.PoolName = fmt.Sprintf("/%s/%s", cfg.Virtual.Partition, poolName)
-
-		// If source address translation not set use default
-		cfg.Virtual.SourceAddrTranslation = cfgMap.VirtualServer.Frontend.SourceAddrTranslation
-		if cfg.Virtual.SourceAddrTranslation.Type == "" {
-			cfg.Virtual.SourceAddrTranslation = SourceAddrTranslation{
-				Type: DEFAULT_SOURCE_ADDR_TRANSLATION,
-			}
-		}
 
 		// If mode not set, use default
 		mode := DEFAULT_MODE
@@ -1037,7 +1004,8 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	ns string,
 	svcIndexer cache.Indexer,
 	pStruct portStruct,
-	defaultIP string,
+	defaultIP,
+	snatPoolName string,
 ) *ResourceConfig {
 	if class, ok := ing.ObjectMeta.Annotations[k8sIngressClass]; ok == true {
 		if class != "f5" {
@@ -1071,12 +1039,6 @@ func (appMgr *Manager) createRSConfigFromIngress(
 			ing.ObjectMeta.Name)
 	}
 	cfg.Virtual.Name = formatIngressVSName(bindAddr, pStruct.port)
-
-	sourceAddrTranslation, err := setSourceAddrTranslation(ing.ObjectMeta.Annotations, ing.ObjectMeta.Name)
-	if err != nil {
-		log.Errorf("Virtual server %s source address translation error %v", ing.ObjectMeta.Name, err)
-		return nil
-	}
 
 	// Create our pools and policy/rules based on the Ingress
 	var pools Pools
@@ -1179,7 +1141,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		cfg.MetaData.ResourceType = "ingress"
 		cfg.Virtual.Enabled = true
 		setProfilesForMode("http", &cfg)
-		cfg.Virtual.SourceAddrTranslation = sourceAddrTranslation
+		cfg.Virtual.SourceAddrTranslation = setSourceAddrTranslation(snatPoolName)
 		cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
 		cfg.Pools = append(cfg.Pools, pools...)
 		if plcy != nil {
@@ -1316,6 +1278,7 @@ func (appMgr *Manager) createRSConfigFromRoute(
 	pStruct portStruct,
 	svcIndexer cache.Indexer,
 	svcFwdRulesMap ServiceFwdRuleMap,
+	snatPoolName string,
 ) (*ResourceConfig, error, Pool) {
 	var rsCfg ResourceConfig
 	rsCfg.MetaData.RouteProfs = make(map[routeKey]string)
@@ -1370,12 +1333,6 @@ func (appMgr *Manager) createRSConfigFromRoute(
 		return &rsCfg, err, Pool{}
 	}
 
-	sourceAddrTranslation, err := setSourceAddrTranslation(route.ObjectMeta.Annotations, route.ObjectMeta.Name)
-	if err != nil {
-		err = fmt.Errorf("Virtual server %s source address translation error %v", route.ObjectMeta.Name, err)
-		return &rsCfg, err, Pool{}
-	}
-
 	resources.Lock()
 	defer resources.Unlock()
 	// Check to see if we have any Routes already saved for this VS type
@@ -1402,7 +1359,7 @@ func (appMgr *Manager) createRSConfigFromRoute(
 		rsCfg.Virtual.Name = rsName
 		rsCfg.Virtual.Enabled = true
 		setProfilesForMode("http", &rsCfg)
-		rsCfg.Virtual.SourceAddrTranslation = sourceAddrTranslation
+		rsCfg.Virtual.SourceAddrTranslation = setSourceAddrTranslation(snatPoolName)
 		rsCfg.Virtual.Partition = DEFAULT_PARTITION
 		bindAddr := ""
 		if routeConfig.RouteVSAddr != "" {

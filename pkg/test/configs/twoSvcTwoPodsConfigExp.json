@@ -30,7 +30,7 @@
           "ipProtocol":"tcp",
           "enabled":true,
           "sourceAddressTranslation":{
-            "type":"none"
+            "type":"automap"
           },
           "destination":"/velcro/10.128.10.240:5051",
           "profiles":[

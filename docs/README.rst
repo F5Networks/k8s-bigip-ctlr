@@ -100,6 +100,12 @@ General
 |                       |         |          |                                  | to verify the BIG-IP                    |                |
 |                       |         |          |                                  | configuration.                          |                |
 +-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
+| vs-snat-pool-name     | string  | Optional | n/a                              | Name of the SNAT pool that all virtual  |                |
+|                       |         |          |                                  | servers will reference. If it is not    |                |
+|                       |         |          |                                  | set virtual servers will have source    |                |
+|                       |         |          |                                  | address translation of type automap     |                |
+|                       |         |          |                                  | configured                              |                |
++-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
 | http-listen-address   | string  | Optional | "0.0.0.0:8080"                   | Address to serve http based informations|                |
 |                       |         |          |                                  | e.g. (`/metrics` and `health`)          |                |
 +-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
@@ -107,6 +113,10 @@ General
 .. note::
 
    :code:`python-basedir` optionally specifies the path to an alternate |kctlr| to F5 CCCL agent (:code:`bigipconfigdriver.py`). `F5 Controller Agent`_ is the default agent.
+
+   Use the ``vs-snat-pool-name`` if you want virtual servers to reference a preconfigured SNAT pool by name in the Common partition on the BIG-IP device.
+   See `Overview of SNAT features`_ if you would like more details on this configuration option.
+
 
 .. _bigip configs:
 
@@ -340,24 +350,6 @@ mode                       string            Optional       tcp         Sets the
 
 balance                    string            Optional       round-robin Sets the load balancing mode                                    Any supported load balancing algorithm [#lb]_
 -------------------------- ----------------- -------------- ----------- --------------------------------------------------------------- -----------------------------------------------
-source address translation JSON object       Optional       automap     Source address translation type to apply to the virtual server  automap, none, snat
-
-                                                                        Two formats depending on the source address translation type.
-
-                                                                        Type automap or none: ::
-
-                                                                          {
-                                                                            'type': 'automap'
-                                                                          }
-
-                                                                        Type snat: ::
-
-                                                                          {
-                                                                            'type': 'snat',
-                                                                            'pool': 'snat-pool-name'
-                                                                          }
-
--------------------------- ----------------- -------------- ----------- --------------------------------------------------------------- -----------------------------------------------
 sslProfile [#ssl]_         JSON object       Optional                   BIG-IP SSL profile to apply to the virtual server.
 
 - f5ProfileName            string            Optional                   Name of the BIG-IP SSL profile you want to use.
@@ -389,8 +381,6 @@ sslProfile [#ssl]_         JSON object       Optional                   BIG-IP S
    If you're creating pools without virtual servers, **you should already have a BIG-IP virtual server** that handles client connections configured with an iRule or local traffic policy that can forward requests to the correct pool for the Service.
 
    You can also `assign IP addresses to BIG-IP virtual servers using IPAM`_.
-
-   See `Source Address Translation Overview`_ on AskF5 for more information on configuring virtual server source address translation.
 
 \
 
@@ -577,9 +567,6 @@ Supported Ingress Annotations
 +----+------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
 |    | recv                                     | string      | Optional  | String or RegEx pattern to match in first 5,120 bytes of backend response.          | N/A         |                                         |
 +----+------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/source-addr-translation | string      | Optional  | Source address translation type to apply to the virtual server.                     | automap     | automap, none, snat                     |
-|                                               |             |           | JSON object encoded string see virtualServer table entry for formatting examples.   |             |                                         |
-+-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
 | ingress.kubernetes.io/allow-http              | boolean     | Optional  | Tells the Controller to allow HTTP traffic for HTTPS Ingress resources.             | false       | "true", "false"                         |
 +-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
 | ingress.kubernetes.io/ssl-redirect            | boolean     | Optional  | Tells the Controller to redirect HTTP traffic to the HTTPS port for HTTPS Ingress   | true        | "true", "false"                         |
@@ -703,9 +690,6 @@ Supported Route Annotations
 +----+------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
 | virtual-server.f5.com/secure-serverssl        | boolean     | Optional  | Specify to validate the server-side SSL certificate of re-encrypt                 | false       | "true", "false"                         |
 |                                               |             |           | terminated routes.                                                                |             |                                         |
-+-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/source-addr-translation | string      | Optional  | Source address translation type to apply to the virtual server.                   | automap     | automap, none, snat                     |
-|                                               |             |           | JSON object encoded string see virtualServer table entry for formatting examples. |             |                                         |
 +-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
 
 Please see the example configuration files for more details.

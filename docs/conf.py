@@ -130,8 +130,8 @@ rst_epilog = '''
 .. _OpenShift: https://www.openshift.com/
 .. _NodePort mode: %(base_url)s/containers/latest/kubernetes/kctlr-modes.html
 .. _OpenShift Route: https://docs.openshift.org/1.4/dev_guide/routes.html
+.. _Overview of SNAT features: https://support.f5.com/csp/article/K7820
 .. _route domain: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-routing-administration-12-0-0/9.html
-.. _Source Address Translation Overview: https://support.f5.com/csp/article/K7820
 .. _`F5 Controller Agent`: https://github.com/f5devcentral/f5-ctlr-agent
 ''' % {
     'url_version': version,

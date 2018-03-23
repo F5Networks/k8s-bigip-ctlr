@@ -94,6 +94,7 @@ var (
 	nodeLabelSelector *string
 	resolveIngNames   *string
 	defaultIngIP      *string
+	vsSnatPoolName    *string
 	useSecrets        *bool
 	schemaLocal       *string
 
@@ -199,6 +200,9 @@ func _init() {
 	defaultIngIP = kubeFlags.String("default-ingress-ip", "",
 		"Optional, the controller will configure a virtual server with this IP address for "+
 			"any Ingress with the annotation 'virtual-server.f5.com/ip:controller-default'.")
+	vsSnatPoolName = kubeFlags.String("vs-snat-pool-name", "",
+		"Optional, the controller will configure each virtual server to reference the "+
+			"pool with this name.")
 	useSecrets = kubeFlags.Bool("use-secrets", true,
 		"Optional, enable/disable use of Secrets for Ingress or ConfigMap SSL Profiles.")
 	schemaLocal = kubeFlags.String("schema-db-base-dir", "file:///app/vendor/src/f5/schemas/",
@@ -514,6 +518,7 @@ func main() {
 		NodeLabelSelector: *nodeLabelSelector,
 		ResolveIngress:    *resolveIngNames,
 		DefaultIngIP:      *defaultIngIP,
+		VsSnatPoolName:    *vsSnatPoolName,
 		UseSecrets:        *useSecrets,
 		SchemaLocal:       *schemaLocal,
 	}

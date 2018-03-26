@@ -45,47 +45,47 @@ func init() {
 
 var schemaUrl string
 
-var configPath string = "../test/configs/"
+var configPath = "../test/configs/"
 
-var configmapFoo string = readConfigFile(configPath + "configmapFoo.json")
+var configmapFoo = readConfigFile(configPath + "configmapFoo.json")
 
-var configmapFoo8080 string = readConfigFile(configPath + "configmapFoo8080.json")
+var configmapFoo8080 = readConfigFile(configPath + "configmapFoo8080.json")
 
-var configmapFoo9090 string = readConfigFile(configPath + "configmapFoo9090.json")
+var configmapFoo9090 = readConfigFile(configPath + "configmapFoo9090.json")
 
-var configmapFooTcp string = readConfigFile(configPath + "configmapFooTcp.json")
+var configmapFooTcp = readConfigFile(configPath + "configmapFooTcp.json")
 
-var configmapFooUdp string = readConfigFile(configPath + "configmapFooUdp.json")
+var configmapFooUdp = readConfigFile(configPath + "configmapFooUdp.json")
 
-var configmapFooInvalid string = readConfigFile(configPath + "configmapFooInvalid.json")
+var configmapFooInvalid = readConfigFile(configPath + "configmapFooInvalid.json")
 
-var configmapBar string = readConfigFile(configPath + "configmapBar.json")
+var configmapBar = readConfigFile(configPath + "configmapBar.json")
 
-var configmapNoModeBalance string = readConfigFile(configPath + "configmapNoModeBalance.json")
+var configmapNoModeBalance = readConfigFile(configPath + "configmapNoModeBalance.json")
 
-var configmapIApp1 string = readConfigFile(configPath + "configmapIApp1.json")
+var configmapIApp1 = readConfigFile(configPath + "configmapIApp1.json")
 
-var configmapIApp2 string = readConfigFile(configPath + "configmapIApp2.json")
+var configmapIApp2 = readConfigFile(configPath + "configmapIApp2.json")
 
-var emptyConfig string = string(`{"resources":{}}`)
+var emptyConfig = string(`{"resources":{}}`)
 
-var twoSvcsFourPortsThreeNodesConfig string = readConfigFile(configPath + "twoSvcsFourPortsThreeNodesConfigExp.json")
+var twoSvcsFourPortsThreeNodesConfig = readConfigFile(configPath + "twoSvcsFourPortsThreeNodesConfigExp.json")
 
-var twoSvcsTwoNodesConfig string = readConfigFile(configPath + "twoSvcsTwoNodesConfigExp.json")
+var twoSvcsTwoNodesConfig = readConfigFile(configPath + "twoSvcsTwoNodesConfigExp.json")
 
-var twoSvcsOneNodeConfig string = readConfigFile(configPath + "twoSvcsOneNodeConfigExp.json")
+var twoSvcsOneNodeConfig = readConfigFile(configPath + "twoSvcsOneNodeConfigExp.json")
 
-var oneSvcOneNodeConfig string = readConfigFile(configPath + "oneSvcOneNodeConfigExp.json")
+var oneSvcOneNodeConfig = readConfigFile(configPath + "oneSvcOneNodeConfigExp.json")
 
-var twoIappsThreeNodesConfig string = readConfigFile(configPath + "twoIappsThreeNodesConfigExp.json")
+var twoIappsThreeNodesConfig = readConfigFile(configPath + "twoIappsThreeNodesConfigExp.json")
 
-var twoIappsOneNodeConfig string = readConfigFile(configPath + "twoIappsOneNodeConfigExp.json")
+var twoIappsOneNodeConfig = readConfigFile(configPath + "twoIappsOneNodeConfigExp.json")
 
-var oneIappOneNodeConfig string = readConfigFile(configPath + "oneIappOneNodeConfigExp.json")
+var oneIappOneNodeConfig = readConfigFile(configPath + "oneIappOneNodeConfigExp.json")
 
-var twoSvcTwoPodsConfig string = readConfigFile(configPath + "twoSvcTwoPodsConfigExp.json")
+var twoSvcTwoPodsConfig = readConfigFile(configPath + "twoSvcTwoPodsConfigExp.json")
 
-var oneSvcTwoPodsConfig string = readConfigFile(configPath + "oneSvcTwoPodsConfigExp.json")
+var oneSvcTwoPodsConfig = readConfigFile(configPath + "oneSvcTwoPodsConfigExp.json")
 
 func readConfigFile(path string) string {
 	defer GinkgoRecover()

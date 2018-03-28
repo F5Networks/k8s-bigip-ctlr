@@ -651,11 +651,11 @@ var _ = Describe("AppManager Tests", func() {
 					{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}),
 			}
 
-			expectedReturn := []string{
-				"127.0.0.0",
-				"127.0.0.1",
-				"127.0.0.2",
-				"127.0.0.3",
+			expectedReturn := []Node{
+				{Name: "node0", Addr: "127.0.0.0"},
+				{Name: "node1", Addr: "127.0.0.1"},
+				{Name: "node2", Addr: "127.0.0.2"},
+				{Name: "node3", Addr: "127.0.0.3"},
 			}
 
 			fakeClient := fake.NewSimpleClientset()
@@ -669,7 +669,7 @@ var _ = Describe("AppManager Tests", func() {
 
 			nodes, err := fakeClient.Core().Nodes().List(metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			addresses, err := appMgr.getNodeAddresses(nodes.Items)
+			addresses, err := appMgr.getNodes(nodes.Items)
 			Expect(err).To(BeNil(), "Should not fail getting addresses.")
 			Expect(addresses).To(Equal(expectedReturn))
 		})
@@ -705,10 +705,10 @@ var _ = Describe("AppManager Tests", func() {
 					}),
 			}
 
-			expectedReturn := []string{
-				"127.0.0.1",
-				"127.0.0.2",
-				"127.0.0.3",
+			expectedReturn := []Node{
+				{Name: "node1", Addr: "127.0.0.1"},
+				{Name: "node2", Addr: "127.0.0.2"},
+				{Name: "node3", Addr: "127.0.0.3"},
 			}
 
 			fakeClient := fake.NewSimpleClientset()
@@ -723,17 +723,17 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err := fakeClient.Core().Nodes().List(metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			addresses, err := appMgr.getNodeAddresses(nodes.Items)
+			addresses, err := appMgr.getNodes(nodes.Items)
 			Expect(err).To(BeNil(), "Should not fail getting addresses.")
 			Expect(addresses).To(Equal(expectedReturn))
 
 			// test filtering
-			expectedInternal := []string{
-				"127.0.0.4",
+			expectedInternal := []Node{
+				{Name: "node4", Addr: "127.0.0.4"},
 			}
 
 			appMgr.useNodeInternal = true
-			addresses, err = appMgr.getNodeAddresses(nodes.Items)
+			addresses, err = appMgr.getNodes(nodes.Items)
 			Expect(err).To(BeNil(), "Should not fail getting internal addresses.")
 			Expect(addresses).To(Equal(expectedInternal))
 
@@ -743,11 +743,11 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil(), "Should not fail deleting node.")
 			}
 
-			expectedReturn = []string{}
+			expectedReturn = []Node{}
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			addresses, err = appMgr.getNodeAddresses(nodes.Items)
+			addresses, err = appMgr.getNodes(nodes.Items)
 			Expect(err).To(BeNil(), "Should not fail getting empty addresses.")
 			Expect(addresses).To(Equal(expectedReturn), "Should get no addresses.")
 		})
@@ -776,10 +776,10 @@ var _ = Describe("AppManager Tests", func() {
 					}),
 			}
 
-			expectedOgSet := []string{
-				"127.0.0.1",
-				"127.0.0.2",
-				"127.0.0.3",
+			expectedOgSet := []Node{
+				{Name: "node1", Addr: "127.0.0.1"},
+				{Name: "node2", Addr: "127.0.0.2"},
+				{Name: "node3", Addr: "127.0.0.3"},
 			}
 
 			fakeClient := fake.NewSimpleClientset(&v1.NodeList{Items: originalSet})
@@ -796,8 +796,8 @@ var _ = Describe("AppManager Tests", func() {
 			Expect(cachedNodes).To(Equal(expectedOgSet))
 
 			// test filtering
-			expectedInternal := []string{
-				"127.0.0.4",
+			expectedInternal := []Node{
+				{Name: "node4", Addr: "127.0.0.4"},
 			}
 
 			appMgr.useNodeInternal = true
@@ -822,7 +822,7 @@ var _ = Describe("AppManager Tests", func() {
 			nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
 			appMgr.ProcessNodeUpdate(nodes.Items, err)
-			expectedAddSet := append(expectedOgSet, "127.0.0.6")
+			expectedAddSet := append(expectedOgSet, Node{Name: "nodeAdd", Addr: "127.0.0.6"})
 
 			Expect(appMgr.oldNodes).To(Equal(expectedAddSet))
 
@@ -835,7 +835,7 @@ var _ = Describe("AppManager Tests", func() {
 			nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
 			appMgr.ProcessNodeUpdate(nodes.Items, err)
-			expectedAddSet = append(expectedOgSet, "127.0.0.6")
+			expectedAddSet = append(expectedOgSet, Node{Name: "nodeAdd", Addr: "127.0.0.6"})
 
 			Expect(appMgr.oldNodes).To(Equal(expectedAddSet))
 
@@ -851,7 +851,9 @@ var _ = Describe("AppManager Tests", func() {
 			fakeClient.Core().Nodes().Delete("node3", &metav1.DeleteOptions{})
 			Expect(err).To(BeNil())
 
-			expectedDelSet := []string{"127.0.0.6"}
+			expectedDelSet := []Node{
+				{Name: "nodeAdd", Addr: "127.0.0.6"},
+			}
 
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.Core().Nodes().List(metav1.ListOptions{})
@@ -994,10 +996,6 @@ var _ = Describe("AppManager Tests", func() {
 				nodeSet := []v1.Node{
 					*test.NewNode("node0", "0", false, []v1.NodeAddress{
 						{Type: "InternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
-					*test.NewNode("node1", "1", false, []v1.NodeAddress{
-						{Type: "InternalIP", Address: "127.0.0.1"}}, []v1.Taint{}),
-					*test.NewNode("node2", "2", false, []v1.NodeAddress{
-						{Type: "InternalIP", Address: "127.0.0.2"}}, []v1.Taint{}),
 				}
 
 				mockMgr.processNodeUpdate(nodeSet, nil)
@@ -1012,12 +1010,19 @@ var _ = Describe("AppManager Tests", func() {
 					"schema": schemaUrl,
 					"data":   configmapFoo9090})
 
-				foo := test.NewService("foo", "1", namespace, "NodePort",
-					[]v1.ServicePort{{Port: 80, NodePort: 30001},
-						{Port: 8080, NodePort: 38001},
-						{Port: 9090, NodePort: 39001}})
+				fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+					{Port: 8080, NodePort: 38001},
+					{Port: 9090, NodePort: 39001}}
+				foo := test.NewService("foo", "1", namespace, "NodePort", fooPorts)
 				r := mockMgr.addService(foo)
 				Expect(r).To(BeTrue(), "Service should be processed.")
+
+				fooIps := []string{"10.1.1.1"}
+				fooEndpts := test.NewEndpoints(
+					"foo", "1", "node0", namespace, fooIps, []string{},
+					convertSvcPortsToEndpointPorts(fooPorts))
+				r = mockMgr.addEndpoints(fooEndpts)
+				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 
 				r = mockMgr.addConfigMap(cfgFoo)
 				Expect(r).To(BeTrue(), "ConfigMap should be processed.")
@@ -1046,11 +1051,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.CountOf(serviceKey{"foo", 8080, namespace})).To(Equal(1))
 				Expect(resources.CountOf(serviceKey{"foo", 9090, namespace})).To(Equal(1))
 
-				addrs := []string{
-					"127.0.0.0",
-					"127.0.0.1",
-					"127.0.0.2",
-				}
+				addrs := []string{"127.0.0.0"}
 				rs, ok := resources.Get(
 					serviceKey{"foo", 80, namespace}, formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
@@ -1236,6 +1237,21 @@ var _ = Describe("AppManager Tests", func() {
 				barIps := []string{"10.2.96.0", "10.2.96.3"}
 				barPorts := []v1.ServicePort{newServicePort("port1", 80)}
 
+				nodes := []*v1.Node{
+					test.NewNode("node0", "0", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+					test.NewNode("node1", "1", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}),
+				}
+				for _, node := range nodes {
+					n, err := mockMgr.appMgr.kubeClient.Core().Nodes().Create(node)
+					Expect(err).To(BeNil(), "Should not fail creating node.")
+					Expect(n).To(Equal(node))
+				}
+				n, err := mockMgr.appMgr.kubeClient.Core().Nodes().List(metav1.ListOptions{})
+				Expect(err).To(BeNil())
+				mockMgr.processNodeUpdate(n.Items, nil)
+
 				cfgFoo := test.NewConfigMap("foomap", "1", namespace, map[string]string{
 					"schema": schemaUrl,
 					"data":   configmapFoo8080})
@@ -1246,9 +1262,9 @@ var _ = Describe("AppManager Tests", func() {
 				foo := test.NewService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
 				bar := test.NewService("bar", "1", namespace, v1.ServiceTypeClusterIP, barPorts)
 
-				fooEndpts := test.NewEndpoints("foo", "1", namespace, fooIps, barIps,
+				fooEndpts := test.NewEndpoints("foo", "1", "node0", namespace, fooIps, barIps,
 					convertSvcPortsToEndpointPorts(fooPorts))
-				barEndpts := test.NewEndpoints("bar", "1", namespace, barIps, fooIps,
+				barEndpts := test.NewEndpoints("bar", "1", "node1", namespace, barIps, fooIps,
 					convertSvcPortsToEndpointPorts(barPorts))
 				cfgCh := make(chan struct{})
 				endptCh := make(chan struct{})
@@ -2045,15 +2061,34 @@ var _ = Describe("AppManager Tests", func() {
 
 				foo := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 
+				nodes := []*v1.Node{
+					test.NewNode("node0", "0", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+					test.NewNode("node1", "1", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}),
+					test.NewNode("node2", "2", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}),
+					test.NewNode("node3", "3", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}),
+				}
+				for _, node := range nodes {
+					n, err := mockMgr.appMgr.kubeClient.Core().Nodes().Create(node)
+					Expect(err).To(BeNil(), "Should not fail creating node.")
+					Expect(n).To(Equal(node))
+				}
+				n, err := mockMgr.appMgr.kubeClient.Core().Nodes().List(metav1.ListOptions{})
+				Expect(err).To(BeNil())
+				mockMgr.processNodeUpdate(n.Items, nil)
+
 				endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
-				goodEndpts := test.NewEndpoints(svcName, "1", namespace, emptyIps, emptyIps,
-					endptPorts)
+				goodEndpts := test.NewEndpoints(svcName, "1", "node0", namespace,
+					emptyIps, emptyIps, endptPorts)
 
 				r := mockMgr.addEndpoints(goodEndpts)
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 				// this is for another service
-				badEndpts := test.NewEndpoints("wrongSvc", "1", namespace, []string{"10.2.96.7"},
-					[]string{}, endptPorts)
+				badEndpts := test.NewEndpoints("wrongSvc", "1", "node1", namespace,
+					[]string{"10.2.96.7"}, []string{}, endptPorts)
 				r = mockMgr.addEndpoints(badEndpts)
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 
@@ -2076,19 +2111,19 @@ var _ = Describe("AppManager Tests", func() {
 
 				// Move it back to ready from not ready and make sure it is re-added
 				r = mockMgr.updateEndpoints(test.NewEndpoints(
-					svcName, "2", namespace, readyIps, notReadyIps, endptPorts))
+					svcName, "2", "node1", namespace, readyIps, notReadyIps, endptPorts))
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 				validateServiceIps(svcName, namespace, svcPorts, readyIps, resources)
 
 				// Remove all endpoints make sure they are removed but virtual server exists
-				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "3", namespace, emptyIps,
-					emptyIps, endptPorts))
+				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "3", "node2", namespace,
+					emptyIps, emptyIps, endptPorts))
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 				validateServiceIps(svcName, namespace, svcPorts, nil, resources)
 
 				// Move it back to ready from not ready and make sure it is re-added
-				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "4", namespace, readyIps,
-					notReadyIps, endptPorts))
+				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "4", "node3", namespace,
+					readyIps, notReadyIps, endptPorts))
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 				validateServiceIps(svcName, namespace, svcPorts, readyIps, resources)
 			})
@@ -2115,6 +2150,29 @@ var _ = Describe("AppManager Tests", func() {
 					"schema": schemaUrl,
 					"data":   configmapFoo9090})
 
+				nodes := []*v1.Node{
+					test.NewNode("node0", "0", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
+					test.NewNode("node1", "1", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}),
+					test.NewNode("node2", "2", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.2"}}, []v1.Taint{}),
+					test.NewNode("node3", "3", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}),
+					test.NewNode("node4", "4", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.4"}}, []v1.Taint{}),
+					test.NewNode("node5", "5", false, []v1.NodeAddress{
+						{Type: "ExternalIP", Address: "127.0.0.5"}}, []v1.Taint{}),
+				}
+				for _, node := range nodes {
+					n, err := mockMgr.appMgr.kubeClient.Core().Nodes().Create(node)
+					Expect(err).To(BeNil(), "Should not fail creating node.")
+					Expect(n).To(Equal(node))
+				}
+				n, err := mockMgr.appMgr.kubeClient.Core().Nodes().List(metav1.ListOptions{})
+				Expect(err).To(BeNil())
+				mockMgr.processNodeUpdate(n.Items, nil)
+
 				foo := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 
 				r := mockMgr.addConfigMap(cfgFoo)
@@ -2136,13 +2194,13 @@ var _ = Describe("AppManager Tests", func() {
 				}
 
 				endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
-				goodEndpts := test.NewEndpoints(svcName, "1", namespace, readyIps, notReadyIps,
-					endptPorts)
+				goodEndpts := test.NewEndpoints(svcName, "1", "node0", namespace,
+					readyIps, notReadyIps, endptPorts)
 				r = mockMgr.addEndpoints(goodEndpts)
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 				// this is for another service
-				badEndpts := test.NewEndpoints("wrongSvc", "1", namespace, []string{"10.2.96.7"},
-					[]string{}, endptPorts)
+				badEndpts := test.NewEndpoints("wrongSvc", "1", "node1", namespace,
+					[]string{"10.2.96.7"}, []string{}, endptPorts)
 				r = mockMgr.addEndpoints(badEndpts)
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 
@@ -2152,28 +2210,28 @@ var _ = Describe("AppManager Tests", func() {
 				// goes away from virtual servers
 				notReadyIps = append(notReadyIps, readyIps[len(readyIps)-1])
 				readyIps = readyIps[:len(readyIps)-1]
-				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "2", namespace, readyIps,
-					notReadyIps, endptPorts))
+				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "2", "node2", namespace,
+					readyIps, notReadyIps, endptPorts))
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 				validateServiceIps(svcName, namespace, svcPorts, readyIps, resources)
 
 				// Move it back to ready from not ready and make sure it is re-added
 				readyIps = append(readyIps, notReadyIps[len(notReadyIps)-1])
 				notReadyIps = notReadyIps[:len(notReadyIps)-1]
-				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "3", namespace, readyIps,
-					notReadyIps, endptPorts))
+				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "3", "node3", namespace,
+					readyIps, notReadyIps, endptPorts))
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 				validateServiceIps(svcName, namespace, svcPorts, readyIps, resources)
 
 				// Remove all endpoints make sure they are removed but virtual server exists
-				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "4", namespace, emptyIps,
-					emptyIps, endptPorts))
+				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "4", "node4", namespace,
+					emptyIps, emptyIps, endptPorts))
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 				validateServiceIps(svcName, namespace, svcPorts, nil, resources)
 
 				// Move it back to ready from not ready and make sure it is re-added
-				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "5", namespace, readyIps,
-					notReadyIps, endptPorts))
+				r = mockMgr.updateEndpoints(test.NewEndpoints(svcName, "5", "node5", namespace,
+					readyIps, notReadyIps, endptPorts))
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 				validateServiceIps(svcName, namespace, svcPorts, readyIps, resources)
 			})
@@ -2188,11 +2246,21 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				svcPodIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
 
+				node := test.NewNode("node0", "0", false, []v1.NodeAddress{
+					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{})
+				n, err := mockMgr.appMgr.kubeClient.Core().Nodes().Create(node)
+				Expect(err).To(BeNil(), "Should not fail creating node.")
+				Expect(n).To(Equal(node))
+
+				nodes, err := mockMgr.appMgr.kubeClient.Core().Nodes().List(metav1.ListOptions{})
+				Expect(err).To(BeNil())
+				mockMgr.processNodeUpdate(nodes.Items, nil)
+
 				foo := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 
 				endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
-				r := mockMgr.addEndpoints(test.NewEndpoints(svcName, "1", namespace, svcPodIps,
-					[]string{}, endptPorts))
+				r := mockMgr.addEndpoints(test.NewEndpoints(svcName, "1", "node0", namespace,
+					svcPodIps, []string{}, endptPorts))
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 
 				r = mockMgr.addService(foo)
@@ -2245,6 +2313,16 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				svcPodIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
 
+				node := test.NewNode("node0", "0", false, []v1.NodeAddress{
+					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{})
+				n, err := mockMgr.appMgr.kubeClient.Core().Nodes().Create(node)
+				Expect(err).To(BeNil(), "Should not fail creating node.")
+				Expect(n).To(Equal(node))
+
+				nodes, err := mockMgr.appMgr.kubeClient.Core().Nodes().List(metav1.ListOptions{})
+				Expect(err).To(BeNil())
+				mockMgr.processNodeUpdate(nodes.Items, nil)
+
 				foo := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 
 				endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
@@ -2252,8 +2330,8 @@ var _ = Describe("AppManager Tests", func() {
 				r := mockMgr.addService(foo)
 				Expect(r).To(BeTrue(), "Service should be processed.")
 
-				r = mockMgr.addEndpoints(test.NewEndpoints(svcName, "1", namespace, svcPodIps,
-					[]string{}, endptPorts))
+				r = mockMgr.addEndpoints(test.NewEndpoints(svcName, "1", "node0", namespace,
+					svcPodIps, []string{}, endptPorts))
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
 
 				// no virtual servers yet

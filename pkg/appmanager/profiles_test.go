@@ -102,8 +102,8 @@ var _ = Describe("AppManager Profile Tests", func() {
 				svcPorts)
 			emptyIps := []string{}
 			readyIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
-			endpts := test.NewEndpoints(svcName, "1", namespace, readyIps, emptyIps,
-				convertSvcPortsToEndpointPorts(svcPorts))
+			endpts := test.NewEndpoints(svcName, "1", "node0", namespace,
+				readyIps, emptyIps, convertSvcPortsToEndpointPorts(svcPorts))
 
 			// Add ingress, service, and endpoints objects and make sure the
 			// ssl-profile set in the ingress object shows up in the virtual server.

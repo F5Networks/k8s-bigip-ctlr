@@ -226,8 +226,15 @@ func NewService(id, rv, namespace string, serviceType v1.ServiceType,
 }
 
 //NewEndpoints returns an endpoints objects
-func NewEndpoints(svcName, rv, namespace string,
-	readyIps, notReadyIps []string, ports []v1.EndpointPort) *v1.Endpoints {
+func NewEndpoints(
+	svcName,
+	rv,
+	node,
+	namespace string,
+	readyIps,
+	notReadyIps []string,
+	ports []v1.EndpointPort,
+) *v1.Endpoints {
 	ep := &v1.Endpoints{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Endpoints",
@@ -245,8 +252,8 @@ func NewEndpoints(svcName, rv, namespace string,
 		ep.Subsets = append(
 			ep.Subsets,
 			v1.EndpointSubset{
-				Addresses:         newEndpointAddress(readyIps),
-				NotReadyAddresses: newEndpointAddress(notReadyIps),
+				Addresses:         newEndpointAddress(readyIps, node),
+				NotReadyAddresses: newEndpointAddress(notReadyIps, node),
 				Ports:             ports,
 			},
 		)
@@ -255,10 +262,11 @@ func NewEndpoints(svcName, rv, namespace string,
 	return ep
 }
 
-func newEndpointAddress(ips []string) []v1.EndpointAddress {
+func newEndpointAddress(ips []string, node string) []v1.EndpointAddress {
 	eps := make([]v1.EndpointAddress, len(ips))
 	for i, v := range ips {
 		eps[i].IP = v
+		eps[i].NodeName = &node
 	}
 	return eps
 }

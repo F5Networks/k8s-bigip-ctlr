@@ -194,8 +194,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			fooSvc := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP,
 				svcPorts)
 			readyIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
-			endpts := test.NewEndpoints(svcName, "1", namespace, readyIps, emptyIps,
-				convertSvcPortsToEndpointPorts(svcPorts))
+			endpts := test.NewEndpoints(svcName, "1", "node0", namespace,
+				readyIps, emptyIps, convertSvcPortsToEndpointPorts(svcPorts))
 
 			r := mockMgr.addIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -411,8 +411,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			fooSvc := test.NewService(svc1Name, "1", namespace, v1.ServiceTypeClusterIP,
 				svc1Ports)
 			ready1Ips := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
-			endpts1 := test.NewEndpoints(svc1Name, "1", namespace, ready1Ips, emptyIps,
-				convertSvcPortsToEndpointPorts(svc1Ports))
+			endpts1 := test.NewEndpoints(svc1Name, "1", "node0", namespace,
+				ready1Ips, emptyIps, convertSvcPortsToEndpointPorts(svc1Ports))
 
 			r := mockMgr.addIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -438,8 +438,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			barSvc := test.NewService(svc2Name, "1", namespace, v1.ServiceTypeClusterIP,
 				svc2Ports)
 			ready2Ips := []string{"10.2.96.3", "10.2.96.4", "10.2.96.5"}
-			endpts2 := test.NewEndpoints(svc2Name, "1", namespace, ready2Ips, emptyIps,
-				convertSvcPortsToEndpointPorts(svc2Ports))
+			endpts2 := test.NewEndpoints(svc2Name, "1", "node1", namespace,
+				ready2Ips, emptyIps, convertSvcPortsToEndpointPorts(svc2Ports))
 
 			r = mockMgr.addService(barSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")
@@ -461,8 +461,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			bazSvc := test.NewService(svc3Name, "1", namespace, v1.ServiceTypeClusterIP,
 				svc3Ports)
 			ready3Ips := []string{"10.2.96.6", "10.2.96.7", "10.2.96.8"}
-			endpts3 := test.NewEndpoints(svc3Name, "1", namespace, ready3Ips, emptyIps,
-				convertSvcPortsToEndpointPorts(svc3Ports))
+			endpts3 := test.NewEndpoints(svc3Name, "1", "node2", namespace,
+				ready3Ips, emptyIps, convertSvcPortsToEndpointPorts(svc3Ports))
 
 			r = mockMgr.addService(bazSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")
@@ -565,8 +565,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			fooSvc := test.NewService(svc1aName, "1", namespace, v1.ServiceTypeClusterIP,
 				svc1aPorts)
 			ready1aIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
-			endpts1a := test.NewEndpoints(svc1aName, "1", namespace, ready1aIps, emptyIps,
-				convertSvcPortsToEndpointPorts(svc1aPorts))
+			endpts1a := test.NewEndpoints(svc1aName, "1", "node0", namespace,
+				ready1aIps, emptyIps, convertSvcPortsToEndpointPorts(svc1aPorts))
 
 			r := mockMgr.addService(fooSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")
@@ -577,8 +577,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			barSvc := test.NewService(svc1bName, "1", namespace, v1.ServiceTypeClusterIP,
 				svc1bPorts)
 			ready1bIps := []string{"10.2.96.3", "10.2.96.4", "10.2.96.5"}
-			endpts1b := test.NewEndpoints(svc1bName, "1", namespace, ready1bIps, emptyIps,
-				convertSvcPortsToEndpointPorts(svc1bPorts))
+			endpts1b := test.NewEndpoints(svc1bName, "1", "node1", namespace,
+				ready1bIps, emptyIps, convertSvcPortsToEndpointPorts(svc1bPorts))
 
 			r = mockMgr.addService(barSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")
@@ -589,8 +589,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			bazSvc := test.NewService(svc2Name, "1", namespace, v1.ServiceTypeClusterIP,
 				svc2Ports)
 			ready2Ips := []string{"10.2.96.6", "10.2.96.7", "10.2.96.8"}
-			endpts2 := test.NewEndpoints(svc2Name, "1", namespace, ready2Ips, emptyIps,
-				convertSvcPortsToEndpointPorts(svc2Ports))
+			endpts2 := test.NewEndpoints(svc2Name, "1", "node2", namespace,
+				ready2Ips, emptyIps, convertSvcPortsToEndpointPorts(svc2Ports))
 
 			r = mockMgr.addService(bazSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")
@@ -710,8 +710,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			fooSvc := test.NewService(svc1aName, "1", namespace, v1.ServiceTypeClusterIP,
 				svc1aPorts)
 			ready1aIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
-			endpts1a := test.NewEndpoints(svc1aName, "1", namespace, ready1aIps, emptyIps,
-				convertSvcPortsToEndpointPorts(svc1aPorts))
+			endpts1a := test.NewEndpoints(svc1aName, "1", "node0", namespace,
+				ready1aIps, emptyIps, convertSvcPortsToEndpointPorts(svc1aPorts))
 
 			r := mockMgr.addIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -737,8 +737,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			barSvc := test.NewService(svc1bName, "1", namespace, v1.ServiceTypeClusterIP,
 				svc1bPorts)
 			ready1bIps := []string{"10.2.96.3", "10.2.96.4", "10.2.96.5"}
-			endpts1b := test.NewEndpoints(svc1bName, "1", namespace, ready1bIps, emptyIps,
-				convertSvcPortsToEndpointPorts(svc1bPorts))
+			endpts1b := test.NewEndpoints(svc1bName, "1", "node1", namespace,
+				ready1bIps, emptyIps, convertSvcPortsToEndpointPorts(svc1bPorts))
 
 			r = mockMgr.addService(barSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")
@@ -760,8 +760,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			bazSvc := test.NewService(svc2Name, "1", namespace, v1.ServiceTypeClusterIP,
 				svc2Ports)
 			ready2Ips := []string{"10.2.96.6", "10.2.96.7", "10.2.96.8"}
-			endpts2 := test.NewEndpoints(svc2Name, "1", namespace, ready2Ips, emptyIps,
-				convertSvcPortsToEndpointPorts(svc2Ports))
+			endpts2 := test.NewEndpoints(svc2Name, "1", "node0", namespace,
+				ready2Ips, emptyIps, convertSvcPortsToEndpointPorts(svc2Ports))
 
 			r = mockMgr.addService(bazSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")
@@ -856,8 +856,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			fooSvc := test.NewService(svc1Name, "1", namespace, v1.ServiceTypeClusterIP,
 				svc1Ports)
 			ready1Ips := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
-			endpts1 := test.NewEndpoints(svc1Name, "1", namespace, ready1Ips, emptyIps,
-				convertSvcPortsToEndpointPorts(svc1Ports))
+			endpts1 := test.NewEndpoints(svc1Name, "1", "node0", namespace,
+				ready1Ips, emptyIps, convertSvcPortsToEndpointPorts(svc1Ports))
 
 			r := mockMgr.addIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -883,8 +883,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			barSvc := test.NewService(svc2Name, "1", namespace, v1.ServiceTypeClusterIP,
 				svc2Ports)
 			ready2Ips := []string{"10.2.96.3", "10.2.96.4", "10.2.96.5"}
-			endpts2 := test.NewEndpoints(svc2Name, "1", namespace, ready2Ips, emptyIps,
-				convertSvcPortsToEndpointPorts(svc2Ports))
+			endpts2 := test.NewEndpoints(svc2Name, "1", "node1", namespace,
+				ready2Ips, emptyIps, convertSvcPortsToEndpointPorts(svc2Ports))
 
 			r = mockMgr.addService(barSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")
@@ -906,8 +906,8 @@ var _ = Describe("Health Monitor Tests", func() {
 			bazSvc := test.NewService(svc3Name, "1", namespace, v1.ServiceTypeClusterIP,
 				svc3Ports)
 			ready3Ips := []string{"10.2.96.6", "10.2.96.7", "10.2.96.8"}
-			endpts3 := test.NewEndpoints(svc3Name, "1", namespace, ready3Ips, emptyIps,
-				convertSvcPortsToEndpointPorts(svc3Ports))
+			endpts3 := test.NewEndpoints(svc3Name, "1", "node2", namespace,
+				ready3Ips, emptyIps, convertSvcPortsToEndpointPorts(svc3Ports))
 
 			r = mockMgr.addService(bazSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")

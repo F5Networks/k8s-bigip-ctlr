@@ -402,9 +402,16 @@ func setupNodePolling(
 			return fmt.Errorf("error creating vxlan manager: %v", err)
 		}
 
+		// Register vxMgr to watch for node updates to process fdb records
 		err = np.RegisterListener(vxMgr.ProcessNodeUpdate)
 		if nil != err {
 			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
+				err)
+		}
+		// Register appMgr to watch for node updates to keep track of watched nodes
+		err = np.RegisterListener(appMgr.ProcessNodeUpdate)
+		if nil != err {
+			return fmt.Errorf("error registering node update listener for appManager: %v",
 				err)
 		}
 		if eventChan != nil {

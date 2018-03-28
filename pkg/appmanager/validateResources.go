@@ -17,6 +17,8 @@
 package appmanager
 
 import (
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+
 	routeapi "github.com/openshift/origin/pkg/route/api"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
@@ -41,6 +43,20 @@ func (appMgr *Manager) checkValidConfigMap(
 			appMgr.outputConfig()
 		}
 		return false, nil
+	}
+	// This ensures that pool-only mode only logs the message below the first
+	// time we see a config.
+	rsName := formatConfigMapVSName(cm)
+	// Checking for annotation in VS, not iApp
+	if _, exists := appMgr.resources.GetByName(rsName); !exists &&
+		cfg.MetaData.ResourceType != "iapp" &&
+		cfg.Virtual.VirtualAddress != nil &&
+		cfg.Virtual.VirtualAddress.BindAddr == "" {
+		// Check for IP annotation provided by IPAM system
+		if _, ok := cm.ObjectMeta.Annotations[f5VsBindAddrAnnotation]; !ok {
+			log.Infof("No virtual IP was specified for the virtual server %s creating pool only.",
+				rsName)
+		}
 	}
 	key := &serviceQueueKey{
 		ServiceName: cfg.Pools[0].ServiceName,
@@ -138,7 +154,12 @@ func (appMgr *Manager) checkValidIngress(
 			}
 			return false, nil
 		}
-
+		// This ensures that pool-only mode only logs the message below the first
+		// time we see a config.
+		if _, exists := appMgr.resources.GetByName(rsName); !exists && bindAddr == "" {
+			log.Infof("No virtual IP was specified for the virtual server %s, creating pool only.",
+				rsName)
+		}
 		// Create a list of keys for all pools
 		for _, pool := range rsCfg.Pools {
 			key := &serviceQueueKey{

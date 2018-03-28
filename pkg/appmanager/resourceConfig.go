@@ -881,8 +881,6 @@ func parseConfigMap(cm *v1.ConfigMap, schemaDBPath, snatPoolName string) (*Resou
 						// Check for IP annotation provided by IPAM system
 						if addr, ok := cm.ObjectMeta.Annotations[f5VsBindAddrAnnotation]; ok == true {
 							cfg.Virtual.SetVirtualAddress(addr, cfg.Virtual.VirtualAddress.Port)
-						} else {
-							log.Infof("No virtual IP was specified for the virtual server %s creating pool only.", cm.ObjectMeta.Name)
 						}
 					}
 				}
@@ -1034,9 +1032,6 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		} else {
 			bindAddr = addr
 		}
-	} else {
-		log.Infof("No virtual IP was specified for the virtual server %s, creating pool only.",
-			ing.ObjectMeta.Name)
 	}
 	cfg.Virtual.Name = formatIngressVSName(bindAddr, pStruct.port)
 

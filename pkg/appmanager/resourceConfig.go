@@ -1088,6 +1088,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		}
 		pools = append(pools, pool)
 		cfg.Virtual.PoolName = joinBigipPath(cfg.Virtual.Partition, pool.Name)
+		cfg.MetaData.ssIngName = ing.ObjectMeta.Name
 	}
 
 	resources.Lock()

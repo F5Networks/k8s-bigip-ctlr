@@ -160,7 +160,7 @@ func (appMgr *Manager) setServerSslProfile(
 	}
 
 	// Handle the Default for SNI profile
-	appMgr.handleServerSNIDefaultProfile(rsCfg, peerCert)
+	appMgr.handleServerSNIDefaultProfile(rsCfg, peerCert, sKey)
 
 	if prof, ok := route.ObjectMeta.Annotations[f5ServerSslProfileAnnotation]; ok {
 		serverSsl, updated := appMgr.handleServerSslProfileAnnotation(
@@ -191,15 +191,13 @@ func (appMgr *Manager) setServerSslProfile(
 func (appMgr *Manager) handleServerSNIDefaultProfile(
 	rsCfg *ResourceConfig,
 	peerCert string,
+	sKey serviceQueueKey,
 ) {
 	if appMgr.routeConfig.ServerSSL != "" {
 		// User has provided a name
-		profile := ProfileRef{
-			Name:      appMgr.routeConfig.ServerSSL,
-			Partition: rsCfg.Virtual.Partition,
-			Context:   customProfileServer,
-		}
-		rsCfg.Virtual.AddOrUpdateProfile(profile)
+		prof := convertStringToProfileRef(
+			appMgr.routeConfig.ServerSSL, customProfileServer, sKey.Namespace)
+		rsCfg.Virtual.AddOrUpdateProfile(prof)
 	} else {
 		// No provided name, so we create a default
 		skey := secretKey{
@@ -431,14 +429,30 @@ func (appMgr *Manager) deleteUnusedProfiles(
 				continue
 			}
 			// Don't process our default profiles (they'll be deleted when the VS is deleted)
-			if prof.Name == "http" ||
-				prof.Name == "tcp" ||
+			if prof.Name == "http" || prof.Name == "tcp" ||
 				prof.Name == fmt.Sprintf("default-clientssl-%s", cfg.GetName()) ||
-				prof.Name == "default-route-clientssl" ||
-				prof.Name == "default-route-serverssl" ||
 				prof.Name == "openshift_route_cluster_default-ca" {
 				continue
 			}
+			// If route clientssl has been given via cli, don't remove it
+			if appMgr.routeConfig.ClientSSL != "" {
+				_, rtClient := splitBigipPath(appMgr.routeConfig.ClientSSL, false)
+				if prof.Name == rtClient {
+					continue
+				}
+			} else if prof.Name == "default-route-clientssl" {
+				continue
+			}
+			// If route serverssl has been given via cli, don't remove it
+			if appMgr.routeConfig.ServerSSL != "" {
+				_, rtServer := splitBigipPath(appMgr.routeConfig.ServerSSL, false)
+				if prof.Name == rtServer {
+					continue
+				}
+			} else if prof.Name == "default-route-serverssl" {
+				continue
+			}
+
 			referenced := false
 			// If a profile in our Virtual is not referenced in any resource, or is a Secret
 			// that has been deleted, then we remove that profile from the virtual

@@ -2663,11 +2663,23 @@ var _ = Describe("AppManager Tests", func() {
 						f5VsPartitionAnnotation: "velcro",
 					})
 				// Add ingress with same ip (should use shared virtual)
-				ingress5 := test.NewIngress("ingressShared", "3", namespace,
+				ingress5 := test.NewIngress("ingressShared", "4", namespace,
 					v1beta1.IngressSpec{
-						Backend: &v1beta1.IngressBackend{
-							ServiceName: "foobar",
-							ServicePort: intstr.IntOrString{IntVal: 80},
+						Rules: []v1beta1.IngressRule{
+							{Host: "",
+								IngressRuleValue: v1beta1.IngressRuleValue{
+									HTTP: &v1beta1.HTTPIngressRuleValue{
+										Paths: []v1beta1.HTTPIngressPath{
+											{Path: "/foo",
+												Backend: v1beta1.IngressBackend{
+													ServiceName: "foobar",
+													ServicePort: intstr.IntOrString{IntVal: 80},
+												},
+											},
+										},
+									},
+								},
+							},
 						},
 					},
 					map[string]string{
@@ -2684,7 +2696,7 @@ var _ = Describe("AppManager Tests", func() {
 					serviceKey{"foo", 80, "default"}, formatIngressVSName("1.2.3.4", 80))
 				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
 				events = mockMgr.getFakeEvents(namespace)
-				Expect(len(events)).To(Equal(7))
+				Expect(len(events)).To(Equal(8))
 
 				mockMgr.deleteIngress(ingress5)
 				Expect(resources.VirtualCount()).To(Equal(1))

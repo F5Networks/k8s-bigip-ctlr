@@ -154,12 +154,28 @@ func (appMgr *Manager) checkValidIngress(
 			}
 			return false, nil
 		}
+
 		// This ensures that pool-only mode only logs the message below the first
 		// time we see a config.
 		if _, exists := appMgr.resources.GetByName(rsName); !exists && bindAddr == "" {
 			log.Infof("No virtual IP was specified for the virtual server %s, creating pool only.",
 				rsName)
 		}
+
+		// If we have a config for this IP:Port, and either that config or the current config
+		// is for a single service ingress, then we don't allow the new Ingress to share the VS
+		// It doesn't make sense for single service Ingresses to share a VS
+		if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
+			if (oldCfg.Virtual.PoolName != "" || ing.Spec.Rules == nil) &&
+				oldCfg.MetaData.ssIngName != ing.ObjectMeta.Name &&
+				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
+				log.Warningf(
+					"Single-service Ingress cannot share the IP and port: '%s:%d'.",
+					oldCfg.Virtual.VirtualAddress.BindAddr, oldCfg.Virtual.VirtualAddress.Port)
+				return false, nil
+			}
+		}
+
 		// Create a list of keys for all pools
 		for _, pool := range rsCfg.Pools {
 			key := &serviceQueueKey{

@@ -252,7 +252,9 @@ func formatIngressRuleName(host, path, pool string) string {
 	if path == "" {
 		rule = fmt.Sprintf("ingress_%s_%s", host, pool)
 	} else {
+		// Remove the first slash, then replace any subsequent slashes with '_'
 		path = strings.TrimPrefix(path, "/")
+		path = strings.Replace(path, "/", "_", -1)
 		rule = fmt.Sprintf("ingress_%s_%s_%s", host, path, pool)
 	}
 	return rule

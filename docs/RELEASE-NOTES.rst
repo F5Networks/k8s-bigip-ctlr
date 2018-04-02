@@ -14,6 +14,16 @@ Added Functionality
 ```````````````````
 * Support for virtual server source address translation configuration.
 * Added controller name and version to the metadata of certain BIG-IP LTM resources managed by the controller.
+* :issues:`433` - Support for pre-existing server ssl profiles for Ingresses.
+
+Bug Fixes
+`````````
+* :issues:`552` - Controller properly creates Secret SSL profiles for ConfigMaps.
+* :issues:`592` - Node label selector works properly in cluster mode.
+* :issues:`603` - Pool only mode no longer prints excessive logs.
+* :issues:`608` - Single service Ingresses cannot share virtual servers.
+* :issues:`636` - Controller configures default ssl profiles for Routes when specified via CLI.
+* :issues:`638` - Ingress extended paths no longer break BIG-IP GUI links.
 
 v1.4.2
 ------

@@ -133,7 +133,7 @@ pip_attributions.json: always-build
 
 docs/_static/ATTRIBUTIONS.md: flatfile_attributions.json  golang_attributions.json  pip_attributions.json
 	./build-tools/attributions-generator.sh \
-		node /frontEnd/frontEnd.js $(CURDIR)
+		node /frontEnd/frontEnd.js --pd $(CURDIR)
 	mv ATTRIBUTIONS.md $@
 
 #

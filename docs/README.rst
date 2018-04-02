@@ -303,6 +303,17 @@ F5 Resource ConfigMap Properties
 F5 Resource ConfigMap objects tell the |kctlr| how to configure the BIG-IP system.
 See the `Integration Overview`_ for more information about F5 resources.
 
+.. note::
+
+   The Controller uses the following naming structure when creating BIG-IP objects:
+
+   ``<service-namespace>_<configmap-name>``
+
+   For a Service named "myService" running in the "default" namespace, the Controller would create a BIG-IP pool with the following name:
+
+   ``default_myService``
+
+
 +---------------+---------------------------------------------------+-----------------------------------------------+
 | Property      | Description                                       | Allowed Values                                |
 +===============+===================================================+===============================================+
@@ -338,17 +349,10 @@ Frontend
 
 .. _virtual server f5 resource:
 
-virtualServer
-~~~~~~~~~~~~~
+Virtual Servers
+~~~~~~~~~~~~~~~
 
-The ``frontend.virtualServer`` properties define BIG-IP virtual server, pool, and pool member objects. The Controller uses the following naming structure when creating BIG-IP objects:
-
-``<service-namespace>_<configmap-name>``
-
-For a Service named "myService" running in the "default" namespace, the Controller would create a BIG-IP pool with the following name:
-
-``default_myService``
-
+Use the options shown in the table below in the ``frontend`` section of an F5 resource ConfigMap to define BIG-IP virtual server(s), pool(s), and pool member(s).
 
 ========================== ================= ============== =========== =============================================================== ===============================================
 Property                   Type              Required       Default     Description                                                     Allowed Values
@@ -402,11 +406,11 @@ sslProfile [#ssl]_         JSON object       Optional                   BIG-IP S
 iApps
 ~~~~~
 
-The ``frontend.virtualServer`` properties provide the information required to deploy an iApp on the BIG-IP system.
+Use the options shown in the table below in the ``frontend`` section of an F5 resource ConfigMap to deploy an iApp on the BIG-IP system.
 
 .. tip::
 
-   The ``iappOptions`` parameter represents the information that you would provide if you deployed the iApp using the BIG-IP configuration utility.
+   The ``iappOptions`` parameter should contain the information that you would provide if you deployed the iApp using the BIG-IP configuration utility.
 
 \
 

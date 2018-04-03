@@ -354,9 +354,9 @@ func makeRouteServerSSLProfileRef(partition, namespace, name string) ProfileRef 
 	}
 }
 
-func makeCertificateFileName(name string) string {
-	// All certificates are currently in the Common partition
-	return joinBigipPath("Common", name) + ".crt"
+func makeCertificateFileName(partition, name string) string {
+	// All certificates are installed to the managed partition
+	return joinBigipPath(partition, name) + ".crt"
 }
 
 func extractCertificateName(fn string) string {

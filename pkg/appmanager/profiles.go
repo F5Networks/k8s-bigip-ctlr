@@ -214,7 +214,7 @@ func (appMgr *Manager) handleServerSNIDefaultProfile(
 			}
 			// This is just a basic profile, so we don't need all the fields
 			cp := NewCustomProfile(profile, "", "", "", true, peerCert,
-				makeCertificateFileName(defaultSslServerCAName))
+				makeCertificateFileName(rsCfg.Virtual.Partition, defaultSslServerCAName))
 			appMgr.customProfiles.profs[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profile)
 		}
@@ -292,7 +292,7 @@ func (appMgr *Manager) handleDestCACert(
 			appMgr.customProfiles.profs[caKey] = caProf
 			stats.cpUpdated += 1
 		}
-		caFile = makeCertificateFileName(caProfRef.Name)
+		caFile = makeCertificateFileName(rsCfg.Virtual.Partition, caProfRef.Name)
 	}
 
 	svrProfRef := makeRouteServerSSLProfileRef(
@@ -574,7 +574,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 	caRefs := make(map[string]int)
 	for key, profile := range appMgr.customProfiles.profs {
 		if !profile.SNIDefault && profile.CAFile == "self" {
-			caKey := makeCertificateFileName(key.Name)
+			caKey := makeCertificateFileName(profile.Partition, key.Name)
 			caRefs[caKey] = 0
 		}
 	}

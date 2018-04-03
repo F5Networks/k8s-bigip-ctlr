@@ -89,6 +89,10 @@ General
 +-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
 | Parameter             | Type    | Required | Default                          | Description                             | Allowed Values |
 +=======================+=========+==========+==================================+=========================================+================+
+| http-listen-address   | string  | Optional | "0.0.0.0:8080"                   | Address at which to serve http-based    |                |
+|                       |         |          |                                  | information (for example, ``/metrics``, |                |
+|                       |         |          |                                  | ``health``)                             |                |
++-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
 | log-level             | string  | Optional | INFO                             | Log level                               | INFO,          |
 |                       |         |          |                                  |                                         | DEBUG,         |
 |                       |         |          |                                  |                                         | CRITICAL,      |
@@ -111,9 +115,6 @@ General
 |                       |         |          |                                  | |kctlr| verifies that the BIG-IP        |                |
 |                       |         |          |                                  | configuration matches the state of      |                |
 |                       |         |          |                                  | the orchestration system.               |                |
-|                       |         |          |                                  |                                         |                |
-|                       |         |          |                                  | Setting this interval to ``0`` does not |                |
-|                       |         |          |                                  | deactivate verification.                |                |
 +-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
 | vs-snat-pool-name     | string  | Optional | n/a                              | Name of the SNAT pool that all virtual  |                |
 |                       |         |          |                                  | servers will reference. If it is not    |                |
@@ -130,11 +131,12 @@ General
 
    - The :code:`python-basedir` setting lets you specify the path to an alternate python agent that can bridge between the |kctlr| and `F5 CCCL <https://github.com/f5devcentral/f5-cccl>`_.
 
-   - Use :code:`vs-snat-pool-name` if you want virtual servers to reference a SNAT pool that already exists in the :code:`/Common` partition on the BIG-IP device.
-     See `Overview of SNAT features`_ on AskF5 for more information.
-
    - The time it takes for the |kctlr| reapply the system configurations to the BIG-IP device is normally low (a few ms) and won't cause service disruption. If your configs are particularly large, consider increasing the :code:`verify-interval` setting.
 
+   - Setting the :code:`verify-interval` to ``0`` does not deactivate verification. Instead, if you set :code:`verify-interval` to ``0`` the Controller will use the default setting of 30 seconds.
+
+   - Use :code:`vs-snat-pool-name` if you want virtual servers to reference a SNAT pool that already exists in the :code:`/Common` partition on the BIG-IP device.
+     See `Overview of SNAT features`_ on AskF5 for more information.
 
 .. _bigip configs:
 

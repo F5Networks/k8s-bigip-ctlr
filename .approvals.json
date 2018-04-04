@@ -862,7 +862,7 @@
  },
  {
    "name": "jsonpatch",
-   "version": "1.21",
+   "version": "1.16",
    "license": "Modified BSD License",
    "category": 3,
    "status": "pending"

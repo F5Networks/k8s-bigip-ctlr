@@ -74,7 +74,7 @@ func (appMgr *Manager) setClientSslProfile(
 	// If annotation is set, use that profile instead of Route profile.
 	if prof, ok := route.ObjectMeta.Annotations[f5ClientSslProfileAnnotation]; ok {
 		if nil != route.Spec.TLS {
-			log.Debugf("Both clientssl annotation and cert/key provided for Route: %s, "+
+			log.Infof("Both clientssl annotation and cert/key provided for Route: %s, "+
 				"using annotation.", route.ObjectMeta.Name)
 			// Delete existing Route profile if it exists
 			profRef := makeRouteClientSSLProfileRef(
@@ -531,12 +531,22 @@ func (appMgr *Manager) deleteUnusedProfiles(
 						continue
 					}
 					var cliProf, servProf ProfileRef
-					cliProf = makeRouteClientSSLProfileRef(
-						cfg.Virtual.Partition, namespace, route.ObjectMeta.Name)
+					if cli, ok := route.ObjectMeta.Annotations[f5ClientSslProfileAnnotation]; ok {
+						cliProf = convertStringToProfileRef(
+							cli, customProfileClient, route.ObjectMeta.Namespace)
+					} else {
+						cliProf = makeRouteClientSSLProfileRef(
+							cfg.Virtual.Partition, namespace, route.ObjectMeta.Name)
+					}
 					switch route.Spec.TLS.Termination {
 					case routeapi.TLSTerminationReencrypt:
-						servProf = makeRouteServerSSLProfileRef(
-							cfg.Virtual.Partition, namespace, route.ObjectMeta.Name)
+						if serv, ok := route.ObjectMeta.Annotations[f5ServerSslProfileAnnotation]; ok {
+							servProf = convertStringToProfileRef(
+								serv, customProfileServer, route.ObjectMeta.Namespace)
+						} else {
+							servProf = makeRouteServerSSLProfileRef(
+								cfg.Virtual.Partition, namespace, route.ObjectMeta.Name)
+						}
 					}
 					if prof == cliProf || prof == servProf {
 						referenced = true

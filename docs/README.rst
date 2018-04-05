@@ -66,6 +66,8 @@ Within the cluster, the allocated NodePort load balances traffic to all pods.
 
    F5 does not recommend making configuration changes to objects in any partition managed by the |kctlr| via any other means (for example, the configuration utility, TMOS, or by syncing configuration with another device or service group). Doing so may result in disruption of service or unexpected behavior.
 
+   The Controller allows one exception to this recommendation.  When using named virtual servers for :ref:`Openshift routes <openshift route configs>`, you can set the Controller to merge its desired settings with a pre-existing virtual server(s). See `Manage OpenShift Routes`_ for more information.
+
 .. _configuration parameters:
 
 Controller Configuration Parameters

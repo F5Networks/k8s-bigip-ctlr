@@ -133,6 +133,7 @@ rst_epilog = '''
 .. _Overview of SNAT features: https://support.f5.com/csp/article/K7820
 .. _route domain: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-routing-administration-12-0-0/9.html
 .. _`F5 Controller Agent`: https://github.com/f5devcentral/f5-ctlr-agent
+.. _Manage OpenShift Routes:  %(base_url)s/containers/latest/openshift/kctlr-openshift-routes.html
 ''' % {
     'url_version': version,
     'base_url': 'http://clouddocs.f5.com'

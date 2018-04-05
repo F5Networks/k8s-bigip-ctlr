@@ -21,6 +21,8 @@ Added Functionality
 * Added support for Red Hat OpenShift Container Platform (OSCP) version 3.7.
 * (BETA) Added initial basic support for Prometheus metrics.
 * `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-ctlr>`_ pairs with k8s-bigip-ctlr by writing out `virtual-server.f5.com/ip` annotation for IP addresses allocated for host names in Ingresses or ConfigMaps.
+* Added support for using `helm`_ to deploy the Controller using the `f5-bigip-ctlr chart`_.
+* Added support for using `helm`_ to deploy Ingress resources using the `f5-bigip-ingress chart`_.
 
 Bug Fixes
 `````````

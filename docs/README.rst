@@ -31,6 +31,12 @@ Guides
 ------
 See the |kctlr-long| `user documentation`_.
 
+Installation
+------------
+- `Kubernetes Installation`_
+- `OpenShift Installation`_
+- If you use `helm`_ you can install the |kctlr| using the `f5-bigip-ctlr chart`_.
+
 Overview
 --------
 The |kctlr-long| is a Docker container that runs in a `Kubernetes`_ Pod.

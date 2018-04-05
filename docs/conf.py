@@ -134,6 +134,11 @@ rst_epilog = '''
 .. _route domain: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-routing-administration-12-0-0/9.html
 .. _`F5 Controller Agent`: https://github.com/f5devcentral/f5-ctlr-agent
 .. _Manage OpenShift Routes:  %(base_url)s/containers/latest/openshift/kctlr-openshift-routes.html
+.. _Kubernetes Installation: %(base_url)s/containers/latest/kubernetes/kctlr-app-install.html
+.. _OpenShift Installation: %(base_url)s/containers/latest/openshift/kctlr-openshift-app-install.html
+.. _f5-bigip-ctlr chart: https://github.com/F5Networks/charts/tree/master/src/stable/f5-bigip-ctlr
+.. _helm: https://helm.sh/
+.. _f5-bigip-ingress chart: https://github.com/F5Networks/charts/tree/master/src/stable/f5-bigip-ingress
 ''' % {
     'url_version': version,
     'base_url': 'http://clouddocs.f5.com'

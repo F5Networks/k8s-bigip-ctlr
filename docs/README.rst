@@ -119,9 +119,11 @@ General
 |                       |         |          |                                  | servers will reference. If it is not    |                |
 |                       |         |          |                                  | set, virtual servers use automap SNAT.  |                |
 +-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
-| http-listen-address   | string  | Optional | "0.0.0.0:8080"                   | Address at which to serve http-based    |                |
+| http-listen-address   | string  | Optional | "0.0.0.0:8080"                   | Address at which to serve HTTP-based    |                |
 |                       |         |          |                                  | information (for example, ``/metrics``, |                |
-|                       |         |          |                                  | ``health``)                             |                |
+|                       |         |          |                                  | ``health``) to `Prometheus`_            |                |
+|                       |         |          |                                  |                                         |                |   
+|                       |         |          |                                  | :fonticon:`fa fa-flask` Beta feature    |                |   
 +-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
 
 .. note::
@@ -765,3 +767,4 @@ OpenShift
    :target: https://f5cloudsolutions.herokuapp.com
    :alt: Slack
 .. _loadBalancingMode options in f5-cccl: https://github.com/f5devcentral/f5-cccl/blob/master/f5_cccl/schemas/cccl-ltm-api-schema.yml
+.. _Prometheus: https://prometheus.io/

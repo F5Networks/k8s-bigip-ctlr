@@ -24,6 +24,7 @@ Bug Fixes
 * :issues:`608` - Single service Ingresses cannot share virtual servers.
 * :issues:`636` - Controller configures default ssl profiles for Routes when specified via CLI.
 * :issues:`638` - Ingress extended paths no longer break BIG-IP GUI links.
+* :issues:`649` - Route annotation profiles are no longer ignored.
 
 v1.4.2
 ------

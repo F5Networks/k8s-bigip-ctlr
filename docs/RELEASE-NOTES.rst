@@ -26,6 +26,7 @@ Bug Fixes
 * :issues:`636` - Controller configures default ssl profiles for Routes when specified via CLI.
 * :issues:`638` - Ingress extended paths no longer break BIG-IP GUI links.
 * :issues:`649` - Route annotation profiles are no longer ignored.
+* :cccl-issue:`214` - Keys and certificates are now installed onto the managed partition.
 
 v1.4.2
 ------

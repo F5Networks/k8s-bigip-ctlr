@@ -513,6 +513,12 @@ func NewObjectDependencies(
 					Name:      path.Backend.ServiceName,
 				}
 				deps[dep]++
+				dep = ObjectDependency{
+					Kind:      "Rule",
+					Namespace: ingress.ObjectMeta.Namespace,
+					Name:      rule.Host + path.Path,
+				}
+				deps[dep]++
 			}
 		}
 	default:

@@ -24,6 +24,7 @@ Bug Fixes
 * :issues:`603` - Pool only mode no longer prints excessive logs.
 * :issues:`608` - Single service Ingresses cannot share virtual servers.
 * :issues:`636` - Controller configures default ssl profiles for Routes when specified via CLI.
+* :issues:`635` - Controller cleans up policy rules when an Ingress removes them.
 * :issues:`638` - Ingress extended paths no longer break BIG-IP GUI links.
 * :issues:`649` - Route annotation profiles are no longer ignored.
 

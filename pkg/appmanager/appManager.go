@@ -1050,7 +1050,7 @@ func (appMgr *Manager) syncIngresses(
 				svcs = append(svcs, ing.Spec.Backend.ServiceName)
 			}
 
-			// Remove any left over pools from services no longer used by this Ingress
+			// Remove any dependencies no longer used by this Ingress
 			for _, dep := range depsRemoved {
 				if dep.Kind == "Service" {
 					cfgChanged, svcKey := rsCfg.RemovePool(
@@ -1060,6 +1060,15 @@ func (appMgr *Manager) syncIngresses(
 					}
 					if nil != svcKey {
 						appMgr.resources.DeleteKeyRef(*svcKey, rsName)
+					}
+				}
+				if dep.Kind == "Rule" {
+					for _, pol := range rsCfg.Policies {
+						for _, rl := range pol.Rules {
+							if rl.FullURI == dep.Name {
+								rsCfg.DeleteRuleFromPolicy(pol.Name, rl)
+							}
+						}
 					}
 				}
 			}

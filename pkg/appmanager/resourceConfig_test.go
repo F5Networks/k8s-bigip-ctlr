@@ -451,6 +451,10 @@ var _ = Describe("Resource Config Tests", func() {
 				{Kind: "Service", Namespace: "ns2", Name: "bar"},
 				{Kind: "Service", Namespace: "ns2", Name: "baz"},
 				{Kind: "Service", Namespace: "ns2", Name: "foobarbaz"},
+				{Kind: "Rule", Namespace: "ns2", Name: "host1/bar"},
+				{Kind: "Rule", Namespace: "ns2", Name: "host1/baz"},
+				{Kind: "Rule", Namespace: "ns2", Name: "host2/baz"},
+				{Kind: "Rule", Namespace: "ns2", Name: "host2/foobarbaz"},
 			}
 			for _, dep := range ingressDeps {
 				_, found := deps[dep]

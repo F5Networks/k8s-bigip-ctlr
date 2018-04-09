@@ -16,6 +16,11 @@ Added Functionality
 * Added controller name and version to the metadata of certain BIG-IP LTM resources managed by the controller.
 * :issues:`433` - Support for pre-existing server ssl profiles for Ingresses.
 * Added support for attaching OpenShift Routes to existing BIG-IP virtual servers.
+* Added support for Kubernetes version 1.8.
+* Added support for OpenShift Origin version 3.7.
+* Added support for Red Hat OpenShift Container Platform (OSCP) version 3.7.
+* (BETA) Added initial basic support for Prometheus metrics.
+* `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-ctlr>`_ pairs with k8s-bigip-ctlr by writing out `virtual-server.f5.com/ip` annotation for IP addresses allocated for host names in Ingresses or ConfigMaps.
 
 Bug Fixes
 `````````

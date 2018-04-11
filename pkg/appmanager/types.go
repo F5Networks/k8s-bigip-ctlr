@@ -48,9 +48,9 @@ type (
 		ResourceType string
 		// Only used for Routes (for keeping track of annotated profiles)
 		RouteProfs map[routeKey]string
-		// Only used for single-service Ingress; the name of the Ingress that created
-		// this config
-		ssIngName string
+		// Name of the Ingress that created this config
+		// Used to prevent single-service Ingresses from sharing virtuals
+		ingName string
 	}
 
 	// Key used to store annotated profiles for a route

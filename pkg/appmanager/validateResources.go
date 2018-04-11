@@ -167,7 +167,7 @@ func (appMgr *Manager) checkValidIngress(
 		// It doesn't make sense for single service Ingresses to share a VS
 		if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
 			if (oldCfg.Virtual.PoolName != "" || ing.Spec.Rules == nil) &&
-				oldCfg.MetaData.ssIngName != ing.ObjectMeta.Name &&
+				oldCfg.MetaData.ingName != ing.ObjectMeta.Name &&
 				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
 				log.Warningf(
 					"Single-service Ingress cannot share the IP and port: '%s:%d'.",

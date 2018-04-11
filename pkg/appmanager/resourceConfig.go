@@ -1047,6 +1047,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	var pools Pools
 	var plcy *Policy
 	var rules *Rules
+	var ssPoolName string
 	if nil != ing.Spec.Rules { //multi-service
 		for _, rule := range ing.Spec.Rules {
 			if nil != rule.IngressRuleValue.HTTP {
@@ -1094,10 +1095,11 @@ func (appMgr *Manager) createRSConfigFromIngress(
 			ServiceName: ing.Spec.Backend.ServiceName,
 			ServicePort: ing.Spec.Backend.ServicePort.IntVal,
 		}
+		ssPoolName = pool.Name
 		pools = append(pools, pool)
-		cfg.Virtual.PoolName = joinBigipPath(cfg.Virtual.Partition, pool.Name)
-		cfg.MetaData.ssIngName = ing.ObjectMeta.Name
+		cfg.Virtual.PoolName = joinBigipPath(cfg.Virtual.Partition, ssPoolName)
 	}
+	cfg.MetaData.ingName = ing.ObjectMeta.Name
 
 	resources.Lock()
 	defer resources.Unlock()
@@ -1119,9 +1121,14 @@ func (appMgr *Manager) createRSConfigFromIngress(
 				cfg.Pools = append(cfg.Pools, newPool)
 			}
 		}
-		if len(cfg.Pools) > 1 {
+		if len(cfg.Pools) > 1 && nil != ing.Spec.Rules {
 			cfg.Virtual.PoolName = ""
+		} else if nil == ing.Spec.Rules {
+			// If updating an Ingress from multi-service to single-service, we need to
+			// reset the virtual's default pool
+			cfg.Virtual.PoolName = joinBigipPath(cfg.Virtual.Partition, ssPoolName)
 		}
+
 		// If any of the new rules already exist, update them; else add them
 		if len(cfg.Policies) > 0 && rules != nil {
 			policy := cfg.Policies[0]

@@ -1,0 +1,16 @@
+apiVersion: extensions/v1beta1
+   kind: Ingress
+   metadata:
+     annotations:
+       virtual-server.f5.com/rewrite-target-url: "new.example.com"
+     name: rewrite-siteurl
+     namespace: default
+   spec:
+     rules:
+     - host: old.example.com
+       http:
+         paths:
+         - backend:
+             serviceName: new-svc
+             servicePort: 80
+             path: /my-site

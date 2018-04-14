@@ -4074,5 +4074,79 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addr)))
 			})
 		})
+
+		Context("annotation rule processing", func() {
+			It("processes annotation rules correctly", func() {
+				mockMgr.appMgr.annotationRulesMap["test-virtual"] = make(map[string][]string)
+				mockMgr.appMgr.mergedRulesMap["test-virtual"] = make(map[string]mergedRuleEntry)
+
+				regularRule := &Rule{
+					Name: "regular-rule",
+					Conditions: []*condition{&condition{
+						Name:   "regular-rule-condition1",
+						Path:   true,
+						Values: []string{"/path"},
+					}},
+					Actions: []*action{&action{
+						Name:    "regular-rule-action1",
+						Replace: true,
+					}},
+				}
+				mergerRule1 := &Rule{
+					Name: "merger-rule1",
+					Conditions: []*condition{&condition{
+						Name:   "merger-rule1-condition1",
+						Path:   true,
+						Values: []string{"/old-path"},
+					}},
+					Actions: []*action{&action{
+						Name:    "merged-rule1-action1",
+						Replace: true,
+					}},
+				}
+				otherRule := &Rule{
+					Name: "other-rule",
+					Conditions: []*condition{&condition{
+						Name:   "other-rule-condition1",
+						Host:   true,
+						Values: []string{"other-host.com"},
+					}},
+					Actions: []*action{&action{
+						Name:    "other-rule-action1",
+						Forward: true,
+					}},
+				}
+
+				resourceConfig := &ResourceConfig{
+					Virtual:  Virtual{Name: "test-virtual"},
+					Policies: []Policy{Policy{Name: "test-policy", Controls: []string{"forwarding"}}},
+				}
+				resourceConfig.Policies[0].Rules = []*Rule{regularRule, mergerRule1, otherRule}
+
+				mockMgr.appMgr.annotationRulesMap["test-virtual"]["test-pool"] = []string{"merged-rule", "regular-rule", "merger-rule1"}
+				mockMgr.appMgr.annotationRulesMap["test-virtual"]["other-pool"] = []string{"other-rule"}
+
+				mockMgr.appMgr.mergedRulesMap["test-virtual"]["merged-rule"] = mergedRuleEntry{
+					RuleName:       "merged-rule",
+					OtherRuleNames: []string{"merger-rule1"},
+					OriginalRule:   nil,
+				}
+				mockMgr.appMgr.mergedRulesMap["test-virtual"]["merger-rule1"] = mergedRuleEntry{
+					RuleName:       "merger-rule1",
+					OtherRuleNames: []string{"merged-rule"},
+					MergedActions:  nil,
+					OriginalRule:   mergerRule1,
+				}
+
+				mockMgr.appMgr.ProcessAnnotationRules(resourceConfig, "test-pool")
+				Expect(len(mockMgr.appMgr.mergedRulesMap)).To(Equal(0))
+				Expect(len(mockMgr.appMgr.annotationRulesMap["test-virtual"]["test-pool"])).To(Equal(0))
+				Expect(mockMgr.appMgr.annotationRulesMap["test-virtual"]["other-pool"]).To(Equal([]string{"other-rule"}))
+				Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(1))
+				Expect(resourceConfig.Policies[0].Rules[0].Name).To(Equal(otherRule.Name))
+				Expect(resourceConfig.Policies[0].Rules[0].Actions).To(Equal(otherRule.Actions))
+				Expect(resourceConfig.Policies[0].Rules[0].Conditions).To(Equal(otherRule.Conditions))
+			})
+		})
 	})
 })

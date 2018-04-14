@@ -582,6 +582,10 @@ Supported Ingress Annotations
 +-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
 | virtual-server.f5.com/serverssl               | string      | Optional  | The name of a pre-configured server ssl profile on the BIG-IP system.               | N/A         |                                         |
 +-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/rewrite-app-root        | string      | Optional  | Root path redirection for the application.                                          | N/A         |                                         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/rewrite-target-url      | string      | Optional  | URL host, path, or host and path to be rewritten.                                   | N/A         |                                         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
 
 Ingress Health Monitors
 ```````````````````````
@@ -699,6 +703,10 @@ Supported Route Annotations
 | virtual-server.f5.com/secure-serverssl        | boolean     | Optional  | Specify to validate the server-side SSL certificate of re-encrypt                 | false       | "true", "false"                         |
 |                                               |             |           | terminated routes.                                                                |             |                                         |
 +-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/rewrite-app-root        | string      | Optional  | Root path redirection for the application.                                        | N/A         |                                         |
++-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/rewrite-target-url      | string      | Optional  | URL host, path, or host and path to be rewritten.                                 | N/A         |                                         |
++-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
 
 Please see the example configuration files for more details.
 
@@ -720,6 +728,8 @@ Example Configuration Files
 - :fonticon:`fa fa-download` :download:`name-based-ingress.yaml </_static/config_examples/name-based-ingress.yaml>`
 - :fonticon:`fa fa-download` :download:`ingress-with-health-monitors.yaml </_static/config_examples/ingress-with-health-monitors.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-rbac.yaml </_static/config_examples/sample-rbac.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-app-root-annotation.yaml </_static/config_examples/sample-app-root-annotation.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-url-rewrite-annotation.yaml </_static/config_examples/sample-url-rewrite-annotation.yaml>`
 
 OpenShift
 `````````

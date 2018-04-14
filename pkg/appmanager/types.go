@@ -163,12 +163,17 @@ type (
 	action struct {
 		Name      string `json:"name"`
 		Pool      string `json:"pool,omitempty"`
+		HTTPHost  bool   `json:"httpHost,omitempty"`
 		HttpReply bool   `json:"httpReply,omitempty"`
+		HTTPURI   bool   `json:"httpUri,omitempty"`
 		Forward   bool   `json:"forward,omitempty"`
 		Location  string `json:"location,omitempty"`
+		Path      string `json:"path,omitempty"`
 		Redirect  bool   `json:"redirect,omitempty"`
+		Replace   bool   `json:"replace,omitempty"`
 		Request   bool   `json:"request,omitempty"`
 		Reset     bool   `json:"reset,omitempty"`
+		Value     string `json:"value, omitempty"`
 	}
 
 	// condition config for a Rule
@@ -182,6 +187,7 @@ type (
 		Host            bool     `json:"host,omitempty"`
 		HTTPURI         bool     `json:"httpUri,omitempty"`
 		Index           int      `json:"index,omitempty"`
+		Path            bool     `json:"path,omitempty"`
 		PathSegment     bool     `json:"pathSegment,omitempty"`
 		Present         bool     `json:"present,omitempty"`
 		Remote          bool     `json:"remote,omitempty"`

@@ -89,9 +89,11 @@ General
 +-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
 | Parameter             | Type    | Required | Default                          | Description                             | Allowed Values |
 +=======================+=========+==========+==================================+=========================================+================+
-| http-listen-address   | string  | Optional | "0.0.0.0:8080"                   | Address at which to serve http-based    |                |
+| http-listen-address   | string  | Optional | "0.0.0.0:8080"                   | Address at which to serve HTTP-based    |                |
 |                       |         |          |                                  | information (for example, ``/metrics``, |                |
-|                       |         |          |                                  | ``health``)                             |                |
+|                       |         |          |                                  | ``health``) to `Prometheus`_            |                |
+|                       |         |          |                                  |                                         |                |
+|                       |         |          |                                  | :fonticon:`fa fa-flask` Beta feature    |                |
 +-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
 | log-level             | string  | Optional | INFO                             | Log level                               | INFO,          |
 |                       |         |          |                                  |                                         | DEBUG,         |
@@ -120,18 +122,12 @@ General
 |                       |         |          |                                  | servers will reference. If it is not    |                |
 |                       |         |          |                                  | set, virtual servers use automap SNAT.  |                |
 +-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
-| http-listen-address   | string  | Optional | "0.0.0.0:8080"                   | Address at which to serve HTTP-based    |                |
-|                       |         |          |                                  | information (for example, ``/metrics``, |                |
-|                       |         |          |                                  | ``health``) to `Prometheus`_            |                |
-|                       |         |          |                                  |                                         |                |   
-|                       |         |          |                                  | :fonticon:`fa fa-flask` Beta feature    |                |   
-+-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
 
 .. note::
 
    - The :code:`python-basedir` setting lets you specify the path to an alternate python agent that can bridge between the |kctlr| and `F5 CCCL <https://github.com/f5devcentral/f5-cccl>`_.
 
-   - The time it takes for the |kctlr| reapply the system configurations to the BIG-IP device is normally low (a few ms) and won't cause service disruption. If your configs are particularly large, consider increasing the :code:`verify-interval` setting.
+   - The time it takes for the |kctlr| to reapply the system configurations to the BIG-IP device is normally low (a few ms) and won't cause service disruption. If your configs are particularly large, consider increasing the :code:`verify-interval` setting.
 
    - Setting the :code:`verify-interval` to ``0`` does not deactivate verification. Instead, if you set :code:`verify-interval` to ``0`` the Controller will use the default setting of 30 seconds.
 

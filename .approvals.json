@@ -873,12 +873,5 @@
    "license": "BSD License",
    "category": 3,
    "status": "approved"
- },
- {
-   "name": "google/uuid",
-   "version": "0.2-21-gdec09d7",
-   "license": "BSD 3-Clause",
-   "category": 3,
-   "status": "approved"
  }
 ]

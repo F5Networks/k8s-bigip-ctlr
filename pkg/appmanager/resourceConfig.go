@@ -492,6 +492,12 @@ func NewObjectDependencies(
 			dep.Name = backend.Name
 			deps[dep]++
 		}
+		dep = ObjectDependency{
+			Kind:      "Rule",
+			Namespace: route.ObjectMeta.Namespace,
+			Name:      route.Spec.Host + route.Spec.Path,
+		}
+		deps[dep]++
 	case *v1beta1.Ingress:
 		ingress := obj.(*v1beta1.Ingress)
 		key.Kind = "Ingress"

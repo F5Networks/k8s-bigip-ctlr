@@ -63,9 +63,38 @@ var groupFlattenFuncMap = map[string]FlattenConflictFunc{
 	abDeploymentDgName:       flattenConflictConcat,
 }
 
-func (r Rules) Len() int           { return len(r) }
-func (r Rules) Less(i, j int) bool { return r[i].FullURI < r[j].FullURI }
-func (r Rules) Swap(i, j int)      { r[i], r[j] = r[j], r[i] }
+func (r Rules) Len() int { return len(r) }
+func (r Rules) Less(i, j int) bool {
+	iApprootRedirect := strings.Contains(r[i].Name, "app-root-redirect-rule")
+	iApprootForward := strings.Contains(r[i].Name, "app-root-forward-rule")
+	iUrlrewrite := strings.Contains(r[i].Name, "url-rewrite-rule")
+
+	jApprootRedirect := strings.Contains(r[j].Name, "app-root-redirect-rule")
+	jApprootForward := strings.Contains(r[j].Name, "app-root-forward-rule")
+	jUrlrewrite := strings.Contains(r[j].Name, "url-rewrite-rule")
+
+	if iApprootRedirect && !jApprootRedirect {
+		return false
+	}
+	if !iApprootRedirect && jApprootRedirect {
+		return true
+	}
+	if iApprootForward && !jApprootForward {
+		return false
+	}
+	if !iApprootForward && jApprootForward {
+		return true
+	}
+	if iUrlrewrite && !jUrlrewrite {
+		return false
+	}
+	if !iUrlrewrite && jUrlrewrite {
+		return true
+	}
+
+	return r[i].FullURI < r[j].FullURI
+}
+func (r Rules) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 
 type Routes []*routeapi.Route
 
@@ -212,7 +241,7 @@ func processIngressRules(
 				}
 
 				// Process app-root annotation
-				if appRootTargetedVal, ok := appRootMap[uri]; ok == true {
+				if appRootTargetedVal, ok := appRootMap[rule.Host]; ok == true {
 					appRootRulePair := processAppRoot(uri, appRootTargetedVal, fmt.Sprintf("/%s/%s", partition, poolName), multiServiceIngressType)
 					appRootRules = append(appRootRules, appRootRulePair...)
 					if len(appRootRulePair) == 2 {

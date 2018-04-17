@@ -905,8 +905,9 @@ func processAppRoot(target, value, poolName string, rsType int) []*Rule {
 		return rules
 	}
 	if rsType == multiServiceIngressType && targetURL.Path != "" {
-		log.Warningf("Invalid annotation: %s=%s can not target path for app-root annotation for multi-service ingress, skipping", target, value)
-		return rules
+		if targetURL.Path != valueURL.Path {
+			return rules
+		}
 	}
 	if rsType == routeType && targetURL.Path != "" {
 		log.Warningf("Invalid annotation: %s=%s can not target path for app-root annotation for route, skipping", target, value)
@@ -952,10 +953,11 @@ func processAppRoot(target, value, poolName string, rsType int) []*Rule {
 		Request:   true,
 	}
 
-	nameEnd := target + value
+	nameEnd := target
 	nameEnd = strings.Replace(nameEnd, "/", "_", -1)
 	rules = append(rules, &Rule{
 		Name:       fmt.Sprintf("app-root-redirect-rule-%s", nameEnd),
+		FullURI:    target,
 		Actions:    []*action{redirectAction},
 		Conditions: redirectConditions,
 	})
@@ -992,6 +994,7 @@ func processAppRoot(target, value, poolName string, rsType int) []*Rule {
 
 	rules = append(rules, &Rule{
 		Name:       fmt.Sprintf("app-root-forward-rule-%s", nameEnd),
+		FullURI:    target,
 		Actions:    []*action{forwardAction},
 		Conditions: forwardConditions,
 	})
@@ -1083,6 +1086,7 @@ func processURLRewrite(target, value string, rsType int) *Rule {
 	nameEnd = strings.Replace(nameEnd, "/", "_", -1)
 	return &Rule{
 		Name:       fmt.Sprintf("url-rewrite-rule-%s", nameEnd),
+		FullURI:    target,
 		Actions:    actions,
 		Conditions: conditions,
 	}
@@ -2492,11 +2496,18 @@ func (rc *ResourceConfig) MergeRules(mergedRulesMap map[string]map[string]merged
 			}
 		}
 
-		// Reset rules and policy if rules were merged
-		if len(uniqueDeletedRuleIndices) > 0 {
-			policy.Rules = rules
-			rc.SetPolicy(*policy)
+		// Sort the rules and reset their ordinals
+		sortrules := func(rls *Rules, ordinal int) {
+			sort.Sort(sort.Reverse(*rls))
+			for _, v := range *rls {
+				v.Ordinal = ordinal
+				ordinal++
+			}
 		}
+		sortrules(&rules, 0)
+
+		policy.Rules = rules
+		rc.SetPolicy(*policy)
 	}
 }
 

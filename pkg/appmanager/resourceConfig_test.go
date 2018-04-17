@@ -1371,240 +1371,380 @@ var _ = Describe("Resource Config Tests", func() {
 			}))
 		})
 
-		It("merges rules correctly with matching conditions", func() {
+		It("merges and sorts rules correctly with matching conditions", func() {
 			mergedRulesMap := make(map[string]map[string]mergedRuleEntry)
 			resourceConfig := &ResourceConfig{
 				Virtual:  Virtual{Name: "test-virtual"},
 				Policies: []Policy{Policy{Name: "test-policy", Controls: []string{"forwarding"}}},
 			}
 
-			// matches rule2, rule7
+			// url-rewrite host matches rule2 and rule3
 			rule1 := &Rule{
-				Name: "app-root-rule1",
-				Conditions: []*condition{&condition{
-					Name:   "app-root-rule1-condition1",
-					Host:   true,
-					Values: []string{"host.com"},
-				}},
+				Name:    "url-rewrite-rule1",
+				FullURI: "host.com/bar",
 				Actions: []*action{&action{
-					Name:    "app-root-rule1-action1",
-					Replace: true,
+					Name:     "0",
+					HTTPHost: true,
+					Replace:  true,
+					Request:  true,
+					Value:    "newhost.com",
 				}},
+				Conditions: []*condition{
+					&condition{
+						Name:     "0",
+						Equals:   true,
+						Host:     true,
+						HTTPHost: true,
+						Index:    0,
+						Request:  true,
+						Values:   []string{"host.com"},
+					},
+					&condition{
+						Name:        "1",
+						Equals:      true,
+						PathSegment: true,
+						Index:       1,
+						Request:     true,
+						Values:      []string{"bar"},
+					},
+				},
 			}
-			// matches rule1,rule7
+
+			// url-rewrite path matches rule1 and rule3
 			rule2 := &Rule{
-				Name: "url-rewrite-rule1",
-				Conditions: []*condition{&condition{
-					Name:   "url-rewrite-rule1-condition1",
-					Host:   true,
-					Values: []string{"host.com"},
-				}},
+				Name:    "url-rewrite-rule2",
+				FullURI: "host.com/bar",
 				Actions: []*action{&action{
-					Name:  "url-rewrite-rule1-action1",
-					Reset: true,
+					Name:    "0",
+					HTTPURI: true,
+					Path:    "/bar",
+					Replace: true,
+					Request: true,
+					Value:   "/foobar",
 				}},
+				Conditions: []*condition{
+					&condition{
+						Name:     "0",
+						Equals:   true,
+						Host:     true,
+						HTTPHost: true,
+						Index:    0,
+						Request:  true,
+						Values:   []string{"host.com"},
+					},
+					&condition{
+						Name:        "1",
+						Equals:      true,
+						PathSegment: true,
+						Index:       1,
+						Request:     true,
+						Values:      []string{"bar"},
+					},
+				},
 			}
-			// does not match anything
+
+			// forwarding rule matches rule1 and rule2
 			rule3 := &Rule{
-				Name: "rule-3",
-				Conditions: []*condition{&condition{
-					Name:   "rule3-condition1",
-					Host:   true,
-					Values: []string{"otherhost.com"},
-				}},
+				Name:    "regular-rule1",
+				FullURI: "host.com/bar",
 				Actions: []*action{&action{
-					Name:  "rule3-action1",
-					Reset: true,
+					Name:    "0",
+					Pool:    "default-pool1",
+					Forward: true,
 				}},
+				Conditions: []*condition{
+					&condition{
+						Name:     "0",
+						Equals:   true,
+						Host:     true,
+						HTTPHost: true,
+						Index:    0,
+						Request:  true,
+						Values:   []string{"host.com"},
+					},
+					&condition{
+						Name:        "1",
+						Equals:      true,
+						PathSegment: true,
+						Index:       1,
+						Request:     true,
+						Values:      []string{"bar"},
+					},
+				},
 			}
-			// matches rule8
+
+			// forwarding rule does not match anything
 			rule4 := &Rule{
-				Name: "rule4",
-				Conditions: []*condition{&condition{
-					Name:   "rule4-condition1",
-					Path:   true,
-					Values: []string{"/path"},
-				}},
+				Name:    "regular-rule2",
+				FullURI: "host.com/foo",
 				Actions: []*action{&action{
-					Name:    "rule4-action1",
-					Request: true,
+					Name:    "0",
+					Pool:    "default-pool2",
+					Forward: true,
 				}},
+				Conditions: []*condition{
+					&condition{
+						Name:     "0",
+						Equals:   true,
+						Host:     true,
+						HTTPHost: true,
+						Index:    0,
+						Request:  true,
+						Values:   []string{"host.com"},
+					},
+					&condition{
+						Name:        "1",
+						Equals:      true,
+						PathSegment: true,
+						Index:       1,
+						Request:     true,
+						Values:      []string{"foo"},
+					},
+				},
 			}
-			// does not match anything
+
+			// app-root forward rule does not match anything
 			rule5 := &Rule{
-				Name: "rule5",
-				Conditions: []*condition{&condition{
-					Name:   "rule5-condition1",
-					Path:   true,
-					Values: []string{"/otherpath"},
-				}},
+				Name:    "app-root-forward-rule1",
+				FullURI: "host.com/foo",
 				Actions: []*action{&action{
-					Name:    "rule5-action1",
-					Request: true,
+					Name:    "0",
+					Pool:    "default-pool3",
+					Forward: true,
 				}},
+				Conditions: []*condition{
+					&condition{
+						Name:     "0",
+						Equals:   true,
+						Host:     true,
+						HTTPHost: true,
+						Index:    0,
+						Request:  true,
+						Values:   []string{"host.com"},
+					},
+					&condition{
+						Name:    "1",
+						Equals:  true,
+						HTTPURI: true,
+						Path:    true,
+						Index:   1,
+						Request: true,
+						Values:  []string{"/buz"},
+					},
+				},
 			}
-			// does not match anything
+
+			// forwarding rule does not match anything
 			rule6 := &Rule{
-				Name: "app-root-rule2",
-				Conditions: []*condition{&condition{
-					Name:   "app-root-rule2-condition1",
-					Scheme: true,
-					Values: []string{"https"},
-				}},
+				Name:    "regular-rule3",
+				FullURI: "host.com/foo/baz",
 				Actions: []*action{&action{
-					Name:    "app-root-rule2-action1",
+					Name:    "0",
+					Pool:    "default-pool4",
 					Forward: true,
 				}},
+				Conditions: []*condition{
+					&condition{
+						Name:     "0",
+						Equals:   true,
+						Host:     true,
+						HTTPHost: true,
+						Index:    0,
+						Request:  true,
+						Values:   []string{"host.com"},
+					},
+					&condition{
+						Name:        "1",
+						Equals:      true,
+						PathSegment: true,
+						Index:       1,
+						Request:     true,
+						Values:      []string{"foo"},
+					},
+					&condition{
+						Name:        "2",
+						Equals:      true,
+						PathSegment: true,
+						Index:       2,
+						Request:     true,
+						Values:      []string{"baz"},
+					},
+				},
 			}
-			// matches rule1, rule2
+
+			// app-root redirect rule
 			rule7 := &Rule{
-				Name: "rule7",
-				Conditions: []*condition{&condition{
-					Name:   "rule7-condition1",
-					Host:   true,
-					Values: []string{"host.com"},
-				}},
+				Name:    "app-root-redirect-rule1",
+				FullURI: "host.com/foo",
 				Actions: []*action{&action{
-					Name:    "rule7-action1",
-					Forward: true,
-				}},
-			}
-			//matches rule4
-			rule8 := &Rule{
-				Name: "url-rewrite-rule2",
-				Conditions: []*condition{&condition{
-					Name:   "url-rewrite-rule2-condition1",
-					Path:   true,
-					Values: []string{"/path"},
-				}},
-				Actions: []*action{&action{
-					Name:     "url-rewrite-rule2-action1",
+					Name:     "0",
+					Location: "/buz",
 					Redirect: true,
 				}},
+				Conditions: []*condition{
+					&condition{
+						Name:     "0",
+						Equals:   true,
+						Host:     true,
+						HTTPHost: true,
+						Index:    0,
+						Request:  true,
+						Values:   []string{"host.com"},
+					},
+					&condition{
+						Name:    "1",
+						Equals:  true,
+						HTTPURI: true,
+						Path:    true,
+						Index:   1,
+						Request: true,
+						Values:  []string{"/"},
+					},
+				},
 			}
 
-			resourceConfig.Policies[0].Rules = []*Rule{rule1, rule2, rule3, rule4, rule5, rule6, rule7, rule8}
+			resourceConfig.Policies[0].Rules = []*Rule{rule1, rule2, rule3, rule4, rule5, rule6, rule7}
 			resourceConfig.MergeRules(mergedRulesMap)
+
+			// app-root redirects are sorted first
 			Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(5))
-			Expect(resourceConfig.Policies[0].Rules[0]).To(Equal(rule3))
-			Expect(resourceConfig.Policies[0].Rules[2]).To(Equal(rule5))
-			Expect(resourceConfig.Policies[0].Rules[3]).To(Equal(rule6))
+			Expect(resourceConfig.Policies[0].Rules[0].Name).To(Equal(rule7.Name))
+			Expect(resourceConfig.Policies[0].Rules[0].Ordinal).To(Equal(0))
+			Expect(resourceConfig.Policies[0].Rules[0].Actions).To(Equal(rule7.Actions))
+			Expect(resourceConfig.Policies[0].Rules[0].Conditions).To(Equal(rule7.Conditions))
 
-			// Test the merged rules rule4 and rule8
-			Expect(resourceConfig.Policies[0].Rules[1].Name).To(Equal("rule4"))
-			Expect(len(resourceConfig.Policies[0].Rules[1].Conditions)).To(Equal(1))
-			Expect(resourceConfig.Policies[0].Rules[1].Conditions).To(Equal(rule4.Conditions))
-			Expect(len(resourceConfig.Policies[0].Rules[1].Actions)).To(Equal(2))
-			Expect(resourceConfig.Policies[0].Rules[1].Actions).To(Equal([]*action{rule4.Actions[0], rule8.Actions[0]}))
+			// app-root forwards are sorted next
+			Expect(resourceConfig.Policies[0].Rules[1].Name).To(Equal(rule5.Name))
+			Expect(resourceConfig.Policies[0].Rules[1].Ordinal).To(Equal(1))
+			Expect(resourceConfig.Policies[0].Rules[1].Actions).To(Equal(rule5.Actions))
+			Expect(resourceConfig.Policies[0].Rules[1].Conditions).To(Equal(rule5.Conditions))
 
-			// Test the merged rules rule1, rule2, and rule7
-			Expect(resourceConfig.Policies[0].Rules[4].Name).To(Equal("rule7"))
-			Expect(len(resourceConfig.Policies[0].Rules[4].Conditions)).To(Equal(1))
-			Expect(resourceConfig.Policies[0].Rules[4].Conditions).To(Equal(rule7.Conditions))
-			Expect(len(resourceConfig.Policies[0].Rules[4].Actions)).To(Equal(3))
-			Expect(resourceConfig.Policies[0].Rules[4].Actions).To(Equal([]*action{rule7.Actions[0], rule1.Actions[0], rule2.Actions[0]}))
+			// longest URI regular forward rules are sorted next
+			Expect(resourceConfig.Policies[0].Rules[2].Name).To(Equal(rule6.Name))
+			Expect(resourceConfig.Policies[0].Rules[2].Ordinal).To(Equal(2))
+			Expect(resourceConfig.Policies[0].Rules[2].Actions).To(Equal(rule6.Actions))
+			Expect(resourceConfig.Policies[0].Rules[2].Conditions).To(Equal(rule6.Conditions))
 
-			// Test entries in the mergedRulesMap
-			Expect(len(mergedRulesMap)).To(Equal(1))
-			// 5 entries for the 3 rules that were merged and the 2 rules they were merged into
-			Expect(len(mergedRulesMap["test-virtual"])).To(Equal(5))
-			Expect(mergedRulesMap["test-virtual"][rule1.Name]).To(Equal(mergedRuleEntry{
-				RuleName:       rule1.Name,
-				OtherRuleNames: []string{rule7.Name},
-				MergedActions:  nil,
-				OriginalRule:   rule1,
-			}))
-			Expect(mergedRulesMap["test-virtual"][rule2.Name]).To(Equal(mergedRuleEntry{
-				RuleName:       rule2.Name,
-				OtherRuleNames: []string{rule7.Name},
-				MergedActions:  nil,
-				OriginalRule:   rule2,
-			}))
+			// alphabetically greater URI regular forward rules are sorted next
+			Expect(resourceConfig.Policies[0].Rules[3].Name).To(Equal(rule4.Name))
+			Expect(resourceConfig.Policies[0].Rules[3].Ordinal).To(Equal(3))
+			Expect(resourceConfig.Policies[0].Rules[3].Actions).To(Equal(rule4.Actions))
+			Expect(resourceConfig.Policies[0].Rules[3].Conditions).To(Equal(rule4.Conditions))
+
+			// shortest and alphabetically least URI regular forward rule
+			Expect(resourceConfig.Policies[0].Rules[4].Name).To(Equal(rule3.Name))
+			Expect(resourceConfig.Policies[0].Rules[4].Ordinal).To(Equal(4))
+			Expect(resourceConfig.Policies[0].Rules[4].Actions).To(Equal([]*action{rule3.Actions[0], rule1.Actions[0], rule2.Actions[0]}))
+			Expect(resourceConfig.Policies[0].Rules[4].Conditions).To(Equal(rule3.Conditions))
+
+			// Merged rules map entry for rule3 (Merger)
+			Expect(len(mergedRulesMap["test-virtual"])).To(Equal(3))
+			Expect(mergedRulesMap["test-virtual"][rule3.Name].RuleName).To(Equal(rule3.Name))
+			Expect(mergedRulesMap["test-virtual"][rule3.Name].OtherRuleNames).To(Equal([]string{rule2.Name, rule1.Name}))
+			Expect(mergedRulesMap["test-virtual"][rule3.Name].MergedActions[rule2.Name]).To(Equal([]*action{rule2.Actions[0]}))
+			Expect(mergedRulesMap["test-virtual"][rule3.Name].MergedActions[rule1.Name]).To(Equal([]*action{rule1.Actions[0]}))
+			Expect(mergedRulesMap["test-virtual"][rule3.Name].OriginalRule).To(Equal(rule3))
+
+			// Merged rules map entry for rule2 (Mergee)
+			Expect(mergedRulesMap["test-virtual"][rule2.Name].RuleName).To(Equal(rule2.Name))
+			Expect(mergedRulesMap["test-virtual"][rule2.Name].OtherRuleNames).To(Equal([]string{rule3.Name}))
+			Expect(len(mergedRulesMap["test-virtual"][rule2.Name].MergedActions)).To(Equal(0))
+			Expect(mergedRulesMap["test-virtual"][rule2.Name].OriginalRule).To(Equal(rule2))
+
+			// Merged rules map entry for rule1 (Mergee)
+			Expect(mergedRulesMap["test-virtual"][rule1.Name].RuleName).To(Equal(rule1.Name))
+			Expect(mergedRulesMap["test-virtual"][rule1.Name].OtherRuleNames).To(Equal([]string{rule3.Name}))
+			Expect(len(mergedRulesMap["test-virtual"][rule1.Name].MergedActions)).To(Equal(0))
+			Expect(mergedRulesMap["test-virtual"][rule1.Name].OriginalRule).To(Equal(rule1))
+
+			// Unmerge merger rule3
+			resourceConfig.UnmergeRule(rule3.Name, mergedRulesMap)
+			Expect(len(mergedRulesMap["test-virtual"])).To(Equal(2))
 			Expect(mergedRulesMap["test-virtual"][rule3.Name]).To(Equal(mergedRuleEntry{}))
-			rule4MergedActions := make(map[string][]*action)
-			rule4MergedActions[rule8.Name] = []*action{rule8.Actions[0]}
-			Expect(mergedRulesMap["test-virtual"][rule4.Name]).To(Equal(mergedRuleEntry{
-				RuleName:       rule4.Name,
-				OtherRuleNames: []string{rule8.Name},
-				MergedActions:  rule4MergedActions,
-				OriginalRule:   rule4,
-			}))
-			Expect(mergedRulesMap["test-virtual"][rule5.Name]).To(Equal(mergedRuleEntry{}))
-			Expect(mergedRulesMap["test-virtual"][rule6.Name]).To(Equal(mergedRuleEntry{}))
-			rule7MergedActions := make(map[string][]*action)
-			rule7MergedActions[rule1.Name] = []*action{rule1.Actions[0]}
-			rule7MergedActions[rule2.Name] = []*action{rule2.Actions[0]}
-			Expect(mergedRulesMap["test-virtual"][rule7.Name]).To(Equal(mergedRuleEntry{
-				RuleName:       rule7.Name,
-				OtherRuleNames: []string{rule2.Name, rule1.Name},
-				MergedActions:  rule7MergedActions,
-				OriginalRule:   rule7,
-			}))
-			Expect(mergedRulesMap["test-virtual"][rule8.Name]).To(Equal(mergedRuleEntry{
-				RuleName:       rule8.Name,
-				OtherRuleNames: []string{rule4.Name},
-				MergedActions:  nil,
-				OriginalRule:   rule8,
-			}))
+			Expect(mergedRulesMap["test-virtual"][rule1.Name].RuleName).To(Equal(rule1.Name))
+			Expect(mergedRulesMap["test-virtual"][rule1.Name].OtherRuleNames).To(Equal([]string{rule2.Name}))
+			Expect(len(mergedRulesMap["test-virtual"][rule1.Name].MergedActions)).To(Equal(1))
+			Expect(mergedRulesMap["test-virtual"][rule1.Name].MergedActions[rule2.Name]).To(Equal([]*action{rule2.Actions[0]}))
+			Expect(mergedRulesMap["test-virtual"][rule1.Name].OriginalRule).To(Equal(rule1))
+			Expect(mergedRulesMap["test-virtual"][rule2.Name].RuleName).To(Equal(rule2.Name))
+			Expect(mergedRulesMap["test-virtual"][rule2.Name].OtherRuleNames).To(Equal([]string{rule1.Name}))
+			Expect(len(mergedRulesMap["test-virtual"][rule2.Name].MergedActions)).To(Equal(0))
+			Expect(mergedRulesMap["test-virtual"][rule2.Name].OriginalRule).To(Equal(rule2))
 
-			// Unmerge rule7
-			resourceConfig.UnmergeRule(rule7.Name, mergedRulesMap)
+			// Verify first rule has not changed
 			Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(5))
-			Expect(resourceConfig.Policies[0].Rules[4].Name).To(Equal(rule1.Name))
-			Expect(resourceConfig.Policies[0].Rules[4].Conditions).To(Equal(rule1.Conditions))
-			Expect(resourceConfig.Policies[0].Rules[4].Actions).To(Equal([]*action{rule1.Actions[0], rule2.Actions[0]}))
-			Expect(mergedRulesMap["test-virtual"][rule7.Name]).To(Equal(mergedRuleEntry{}))
-			rule1MergedActions := make(map[string][]*action)
-			rule1MergedActions[rule2.Name] = []*action{rule2.Actions[0]}
-			Expect(mergedRulesMap["test-virtual"][rule1.Name]).To(Equal(mergedRuleEntry{
-				RuleName:       rule1.Name,
-				OtherRuleNames: []string{rule2.Name},
-				MergedActions:  rule1MergedActions,
-				OriginalRule:   rule1,
-			}))
-			Expect(mergedRulesMap["test-virtual"][rule2.Name]).To(Equal(mergedRuleEntry{
-				RuleName:       rule2.Name,
-				OtherRuleNames: []string{rule1.Name},
-				MergedActions:  nil,
-				OriginalRule:   rule2,
-			}))
+			Expect(resourceConfig.Policies[0].Rules[0].Name).To(Equal(rule7.Name))
+			Expect(resourceConfig.Policies[0].Rules[0].Ordinal).To(Equal(0))
+			Expect(resourceConfig.Policies[0].Rules[0].Actions).To(Equal(rule7.Actions))
+			Expect(resourceConfig.Policies[0].Rules[0].Conditions).To(Equal(rule7.Conditions))
 
-			// Unmerge rule4
-			resourceConfig.UnmergeRule(rule4.Name, mergedRulesMap)
+			// Verify second rule has not changed
+			Expect(resourceConfig.Policies[0].Rules[1].Name).To(Equal(rule5.Name))
+			Expect(resourceConfig.Policies[0].Rules[1].Ordinal).To(Equal(1))
+			Expect(resourceConfig.Policies[0].Rules[1].Actions).To(Equal(rule5.Actions))
+			Expect(resourceConfig.Policies[0].Rules[1].Conditions).To(Equal(rule5.Conditions))
+
+			// Verify rule1 (url-rewrite) has been sorted in front of non-matching regular forwarding rules
+			Expect(resourceConfig.Policies[0].Rules[2].Name).To(Equal(rule1.Name))
+			Expect(resourceConfig.Policies[0].Rules[2].Ordinal).To(Equal(2))
+			Expect(resourceConfig.Policies[0].Rules[2].Actions).To(Equal([]*action{rule1.Actions[0], rule2.Actions[0]}))
+			Expect(resourceConfig.Policies[0].Rules[2].Conditions).To(Equal(rule1.Conditions))
+
+			// Verify rule6 (longest URI) was sorted behind url-rewrite but ahead of shorter URIs
+			Expect(resourceConfig.Policies[0].Rules[3].Name).To(Equal(rule6.Name))
+			Expect(resourceConfig.Policies[0].Rules[3].Ordinal).To(Equal(3))
+			Expect(resourceConfig.Policies[0].Rules[3].Actions).To(Equal(rule6.Actions))
+			Expect(resourceConfig.Policies[0].Rules[3].Conditions).To(Equal(rule6.Conditions))
+
+			// Verify last rule is the shorted URI rule
+			Expect(resourceConfig.Policies[0].Rules[4].Name).To(Equal(rule4.Name))
+			Expect(resourceConfig.Policies[0].Rules[4].Ordinal).To(Equal(4))
+			Expect(resourceConfig.Policies[0].Rules[4].Actions).To(Equal(rule4.Actions))
+			Expect(resourceConfig.Policies[0].Rules[4].Conditions).To(Equal(rule4.Conditions))
+
+			// Verify calling UnmergeRule on an unmerged rule does nothing
+			result := resourceConfig.UnmergeRule(rule7.Name, mergedRulesMap)
 			Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(5))
-			Expect(resourceConfig.Policies[0].Rules[4].Name).To(Equal(rule8.Name))
-			Expect(resourceConfig.Policies[0].Rules[4].Conditions).To(Equal(rule8.Conditions))
-			Expect(resourceConfig.Policies[0].Rules[4].Actions).To(Equal([]*action{rule8.Actions[0]}))
-			Expect(mergedRulesMap["test-virtual"][rule4.Name]).To(Equal(mergedRuleEntry{}))
-			Expect(mergedRulesMap["test-virtual"][rule4.Name]).To(Equal(mergedRuleEntry{}))
+			Expect(result).To(BeFalse())
 
-			// Unmerge rule2
+			// Verify calling UnmergeRule on an already unmerged rule does nothing
+			result = resourceConfig.UnmergeRule(rule3.Name, mergedRulesMap)
+			Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(5))
+			Expect(result).To(BeFalse())
+
+			// Unmerge mergee rule2
 			resourceConfig.UnmergeRule(rule2.Name, mergedRulesMap)
-			Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(5))
-			Expect(resourceConfig.Policies[0].Rules[3].Name).To(Equal(rule1.Name))
-			Expect(resourceConfig.Policies[0].Rules[3].Conditions).To(Equal(rule1.Conditions))
-			Expect(resourceConfig.Policies[0].Rules[3].Actions).To(Equal([]*action{rule1.Actions[0]}))
-			Expect(mergedRulesMap["test-virtual"][rule1.Name]).To(Equal(mergedRuleEntry{}))
-			Expect(mergedRulesMap["test-virtual"][rule2.Name]).To(Equal(mergedRuleEntry{}))
 			Expect(len(mergedRulesMap["test-virtual"])).To(Equal(0))
+			Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(5))
 
-			// Unmerge rule3
-			result := resourceConfig.UnmergeRule(rule2.Name, mergedRulesMap)
-			Expect(result).To(BeFalse())
+			// Verify second rule has not changed
+			Expect(resourceConfig.Policies[0].Rules[1].Name).To(Equal(rule5.Name))
+			Expect(resourceConfig.Policies[0].Rules[1].Ordinal).To(Equal(1))
+			Expect(resourceConfig.Policies[0].Rules[1].Actions).To(Equal(rule5.Actions))
+			Expect(resourceConfig.Policies[0].Rules[1].Conditions).To(Equal(rule5.Conditions))
 
-			// Unmerge rule7 again
-			result = resourceConfig.UnmergeRule(rule7.Name, mergedRulesMap)
-			Expect(result).To(BeFalse())
+			// Verify rule2 has been unmerged from rule1
+			Expect(resourceConfig.Policies[0].Rules[2].Name).To(Equal(rule1.Name))
+			Expect(resourceConfig.Policies[0].Rules[2].Ordinal).To(Equal(2))
+			Expect(resourceConfig.Policies[0].Rules[2].Actions).To(Equal(rule1.Actions))
+			Expect(resourceConfig.Policies[0].Rules[2].Conditions).To(Equal(rule1.Conditions))
 
-			// Unmerge rule1
+			// Verify fourth rule has not changed
+			Expect(resourceConfig.Policies[0].Rules[3].Name).To(Equal(rule6.Name))
+			Expect(resourceConfig.Policies[0].Rules[3].Ordinal).To(Equal(3))
+			Expect(resourceConfig.Policies[0].Rules[3].Actions).To(Equal(rule6.Actions))
+			Expect(resourceConfig.Policies[0].Rules[3].Conditions).To(Equal(rule6.Conditions))
+
+			// Verify last rule has not changed
+			Expect(resourceConfig.Policies[0].Rules[4].Name).To(Equal(rule4.Name))
+			Expect(resourceConfig.Policies[0].Rules[4].Ordinal).To(Equal(4))
+			Expect(resourceConfig.Policies[0].Rules[4].Actions).To(Equal(rule4.Actions))
+			Expect(resourceConfig.Policies[0].Rules[4].Conditions).To(Equal(rule4.Conditions))
+
+			// Verify unmerging a rule that has been unmerged does nothing
 			result = resourceConfig.UnmergeRule(rule1.Name, mergedRulesMap)
+			Expect(len(resourceConfig.Policies[0].Rules)).To(Equal(5))
 			Expect(result).To(BeFalse())
-
-			var ruleNames []string
-			for _, rule := range resourceConfig.Policies[0].Rules {
-				ruleNames = append(ruleNames, rule.Name)
-			}
-			Expect(ruleNames).To(Equal([]string{rule3.Name, rule5.Name, rule6.Name, rule1.Name, rule8.Name}))
 		})
 	})
 })

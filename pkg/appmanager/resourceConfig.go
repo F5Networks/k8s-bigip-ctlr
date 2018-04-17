@@ -17,6 +17,8 @@
 package appmanager
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,7 +33,6 @@ import (
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
-	"github.com/google/uuid"
 	routeapi "github.com/openshift/origin/pkg/route/api"
 	"github.com/xeipuuv/gojsonschema"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -944,9 +945,11 @@ func processAppRoot(target, value, poolName string, rsType int) []*Rule {
 		Redirect:  true,
 		Request:   true,
 	}
-	redirectGUID := uuid.New()
+
+	nameEnd := target + value
+	nameEnd = strings.Replace(nameEnd, "/", "_", -1)
 	rules = append(rules, &Rule{
-		Name:       fmt.Sprintf("app-root-redirect-rule-%s", redirectGUID.String()),
+		Name:       fmt.Sprintf("app-root-redirect-rule-%s", nameEnd),
 		Actions:    []*action{redirectAction},
 		Conditions: redirectConditions,
 	})
@@ -980,9 +983,9 @@ func processAppRoot(target, value, poolName string, rsType int) []*Rule {
 		Pool:    poolName,
 		Request: true,
 	}
-	forwardGUID := uuid.New()
+
 	rules = append(rules, &Rule{
-		Name:       fmt.Sprintf("app-root-forward-rule-%s", forwardGUID.String()),
+		Name:       fmt.Sprintf("app-root-forward-rule-%s", nameEnd),
 		Actions:    []*action{forwardAction},
 		Conditions: forwardConditions,
 	})
@@ -1070,9 +1073,10 @@ func processURLRewrite(target, value string, rsType int) *Rule {
 		return nil
 	}
 
-	guid := uuid.New()
+	nameEnd := target + value
+	nameEnd = strings.Replace(nameEnd, "/", "_", -1)
 	return &Rule{
-		Name:       fmt.Sprintf("url-rewrite-rule-%s", guid.String()),
+		Name:       fmt.Sprintf("url-rewrite-rule-%s", nameEnd),
 		Actions:    actions,
 		Conditions: conditions,
 	}
@@ -1402,6 +1406,10 @@ func (appMgr *Manager) createRSConfigFromIngress(
 			if !found {
 				cfg.Pools = append(cfg.Pools, newPool)
 			} else {
+				// This is called to ensure that if a url-rewrite annotation is changed for a pool,
+				// the old value is cleaned up. All rules will be unmerged for the pool, but those
+				// that still remain will be re-merged before writing out the final config.
+				// Only deleted annotations will be completely removed.
 				appMgr.ProcessAnnotationRules(&cfg, newPool.Name)
 			}
 		}
@@ -1694,6 +1702,10 @@ func (appMgr *Manager) createRSConfigFromRoute(
 		if !found {
 			rsCfg.Pools = append(rsCfg.Pools, pool)
 		} else {
+			// This is called to ensure that if a url-rewrite annotation is changed for a pool,
+			// the old value is cleaned up. All rules will be unmerged for the pool, but those
+			// that still remain will be re-merged before writing out the final config.
+			// Only deleted annotations will be completely removed.
 			appMgr.ProcessAnnotationRules(&rsCfg, pool.Name)
 		}
 	} else { // This is a new VS for a Route
@@ -1729,31 +1741,16 @@ func (appMgr *Manager) createRSConfigFromRoute(
 
 // Copies from an existing config into our new config
 func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
-	// MetaData
-	rc.MetaData = cfg.MetaData
-	// Virtual
-	rc.Virtual = cfg.Virtual
-	// Profiles
-	rc.Virtual.Profiles = make([]ProfileRef, len(cfg.Virtual.Profiles))
-	copy(rc.Virtual.Profiles, cfg.Virtual.Profiles)
-	// Pools
-	rc.Pools = make(Pools, len(cfg.Pools))
-	copy(rc.Pools, cfg.Pools)
-	// Pool Members
-	for i, _ := range rc.Pools {
-		rc.Pools[i].Members = make([]Member, len(cfg.Pools[i].Members))
-		copy(rc.Pools[i].Members, cfg.Pools[i].Members)
+	var cfgBytes bytes.Buffer
+	err := gob.NewEncoder(&cfgBytes).Encode(cfg)
+	if err != nil {
+		log.Errorf("Couldn't encode ResourceConfig: %v", err)
+		return
 	}
-	// Monitors
-	rc.Monitors = make(Monitors, len(cfg.Monitors))
-	copy(rc.Monitors, cfg.Monitors)
-	// Policies
-	rc.Policies = make([]Policy, len(cfg.Policies))
-	copy(rc.Policies, cfg.Policies)
-	// Rules
-	for i, _ := range rc.Policies {
-		rc.Policies[i].Rules = make([]*Rule, len(cfg.Policies[i].Rules))
-		copy(rc.Policies[i].Rules, cfg.Policies[i].Rules)
+	err = gob.NewDecoder(&cfgBytes).Decode(&rc)
+	if err != nil {
+		log.Errorf("Could not decode ResourceConfig: %v", err)
+		return
 	}
 }
 

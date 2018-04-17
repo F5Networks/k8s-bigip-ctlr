@@ -862,16 +862,16 @@
  },
  {
    "name": "jsonpatch",
-   "version": "1.21",
+   "version": "1.16",
    "license": "Modified BSD License",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "jsonpointer",
    "version": "2.0",
    "license": "BSD License",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  }
 ]

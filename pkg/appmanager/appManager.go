@@ -1224,6 +1224,15 @@ func (appMgr *Manager) syncRoutes(
 						appMgr.resources.DeleteKeyRef(*svcKey, rsName)
 					}
 				}
+				if dep.Kind == "Rule" {
+					for _, pol := range rsCfg.Policies {
+						for _, rl := range pol.Rules {
+							if rl.FullURI == dep.Name {
+								rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
+							}
+						}
+					}
+				}
 			}
 
 			_, found, updated := appMgr.handleConfigForType(

@@ -350,6 +350,7 @@ var _ = Describe("Resource Config Tests", func() {
 				{Kind: "Service", Namespace: "ns1", Name: "foo"},
 				{Kind: "Service", Namespace: "ns1", Name: "bar"},
 				{Kind: "Service", Namespace: "ns1", Name: "baz"},
+				{Kind: "Rule", Namespace: "ns1", Name: "host.com/foo"},
 			}
 			for _, dep := range routeDeps {
 				_, found := deps[dep]

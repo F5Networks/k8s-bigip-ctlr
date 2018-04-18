@@ -145,7 +145,7 @@ type (
 		Description string   `json:"description,omitempty"`
 		Legacy      bool     `json:"legacy,omitempty"`
 		Requires    []string `json:"requires,omitempty"`
-		Rules       []*Rule  `json:"rules,omitempty"`
+		Rules       Rules    `json:"rules,omitempty"`
 		Strategy    string   `json:"strategy,omitempty"`
 	}
 	Policies []Policy

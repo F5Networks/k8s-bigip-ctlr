@@ -892,7 +892,7 @@ func parseAnnotationURL(urlString string) *url.URL {
 	return u
 }
 
-func processAppRoot(target, value, poolName string, rsType int) []*Rule {
+func processAppRoot(target, value, poolName string, rsType int) Rules {
 	var rules []*Rule
 	var redirectConditions []*condition
 	var forwardConditions []*condition
@@ -901,7 +901,6 @@ func processAppRoot(target, value, poolName string, rsType int) []*Rule {
 	valueURL := parseAnnotationURL(value)
 
 	if rsType == multiServiceIngressType && targetURL.Host == "" {
-		log.Warningf("Invalid annotation: %s=%s need a host target for app-root annotation for multi-service ingress, skipping", target, value)
 		return rules
 	}
 	if rsType == multiServiceIngressType && targetURL.Path != "" {
@@ -910,15 +909,12 @@ func processAppRoot(target, value, poolName string, rsType int) []*Rule {
 		}
 	}
 	if rsType == routeType && targetURL.Path != "" {
-		log.Warningf("Invalid annotation: %s=%s can not target path for app-root annotation for route, skipping", target, value)
 		return rules
 	}
 	if valueURL.Host != "" {
-		log.Warningf("Invalid annotation: %s=%s can not specify host for app root annotation value, skipping", target, value)
 		return rules
 	}
 	if valueURL.Path == "" {
-		log.Warningf("Invalid annotation: %s=%s must specify path for app root annotation value, skipping", target, value)
 		return rules
 	}
 
@@ -953,7 +949,12 @@ func processAppRoot(target, value, poolName string, rsType int) []*Rule {
 		Request:   true,
 	}
 
-	nameEnd := target
+	var nameEnd string
+	if rsType == singleServiceIngressType {
+		nameEnd = "single-service"
+	} else {
+		nameEnd = target
+	}
 	nameEnd = strings.Replace(nameEnd, "/", "_", -1)
 	rules = append(rules, &Rule{
 		Name:       fmt.Sprintf("app-root-redirect-rule-%s", nameEnd),
@@ -1010,23 +1011,18 @@ func processURLRewrite(target, value string, rsType int) *Rule {
 	valueURL := parseAnnotationURL(value)
 
 	if rsType == multiServiceIngressType && targetURL.Host == "" {
-		log.Warningf("Invalid annotation: %s=%s need a host target for url-rewrite annotation for multi-service ingress, skipping", target, value)
 		return nil
 	}
 	if rsType == multiServiceIngressType && targetURL.Path == "" && valueURL.Path != "" {
-		log.Warningf("Invalid annotation: %s=%s need a host and path target for url-rewrite annotation with path for multi-service ingress, skipping", target, value)
 		return nil
 	}
 	if rsType == routeType && targetURL.Path == "" && valueURL.Path != "" {
-		log.Warningf("Invalid annotation: %s=%s need a path target for url-rewrite annotation with path for route, skipping", target, value)
 		return nil
 	}
 	if rsType == routeType && targetURL.Host == "" && valueURL.Host != "" {
-		log.Warningf("Invalid annotation: %s=%s need a host target for url-rewrite annotation with host for route, skipping", target, value)
 		return nil
 	}
 	if valueURL.Host == "" && valueURL.Path == "" {
-		log.Warningf("Invalid annotation: %s=%s empty values for url-rewrite annotation, skipping", target, value)
 		return nil
 	}
 
@@ -1259,6 +1255,13 @@ func copyConfigMap(virtualName, ns, snatPoolName string, cfg *ResourceConfig, cf
 	cfg.Pools = append(cfg.Pools, pool)
 }
 
+func isAnnotationRule(ruleName string) bool {
+	if strings.Contains(ruleName, "app-root") || strings.Contains(ruleName, "url-rewrite") {
+		return true
+	}
+	return false
+}
+
 // Create a ResourceConfig based on an Ingress resource config
 func (appMgr *Manager) createRSConfigFromIngress(
 	ing *v1beta1.Ingress,
@@ -1307,7 +1310,6 @@ func (appMgr *Manager) createRSConfigFromIngress(
 
 	// Handle app-root annotation
 	var appRootMap map[string]string
-	var appRoot string
 	if appRoot, ok := ing.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
 		appRootMap = parseAppRootURLRewriteAnnotations(appRoot)
 	}
@@ -1378,20 +1380,15 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		cfg.Virtual.PoolName = joinBigipPath(cfg.Virtual.Partition, ssPoolName)
 
 		// Process app root annotation
-		if len(urlRewriteMap) != 0 {
-			log.Warning("URL rewrite annotations not applicable to single service ingress, not processing")
-		} else if len(appRootMap) > 1 {
-			log.Warningf("App root annotation: %s does not support multiple values for single service ingress, not processing", appRoot)
-		} else if len(appRootMap) == 1 {
+		if len(appRootMap) == 1 {
 			if appRootVal, ok := appRootMap["single"]; ok == true {
 				appRootRules := processAppRoot("", appRootVal, fmt.Sprintf("/%s/%s", pool.Partition, pool.Name), singleServiceIngressType)
+				rules = &appRootRules
 				if len(appRootRules) == 2 {
-					plcy = createPolicy(appRootRules, "url-rewrite-app-root-policy", cfg.Virtual.Partition)
+					plcy = createPolicy(appRootRules, cfg.Virtual.Name, cfg.Virtual.Partition)
 					appRootRefs[pool.Name] = append(appRootRefs[pool.Name], appRootRules[0].Name)
 					appRootRefs[pool.Name] = append(appRootRefs[pool.Name], appRootRules[1].Name)
 				}
-			} else {
-				log.Warningf("App root annotation: %s does not support targeted values for single service ingress, not processing", appRoot)
 			}
 		}
 	}
@@ -1437,7 +1434,9 @@ func (appMgr *Manager) createRSConfigFromIngress(
 			for _, newRule := range *rules {
 				found := false
 				for i, rl := range policy.Rules {
-					if rl.Name == newRule.Name || rl.FullURI == newRule.FullURI {
+					if rl.Name == newRule.Name || (!isAnnotationRule(rl.Name) &&
+						!isAnnotationRule(newRule.Name) &&
+						rl.FullURI == newRule.FullURI) {
 						found = true
 						policy.Rules[i] = newRule
 						break
@@ -1664,13 +1663,9 @@ func (appMgr *Manager) createRSConfigFromRoute(
 	var urlRewriteRule *Rule
 	if urlRewrite, ok := route.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
 		urlRewriteMap := parseAppRootURLRewriteAnnotations(urlRewrite)
-		if len(urlRewriteMap) > 1 {
-			log.Warningf("URL rewrite annotation: %s does not support multiple values for routes, not processing", urlRewrite)
-		} else if len(urlRewriteMap) == 1 {
+		if len(urlRewriteMap) == 1 {
 			if urlRewriteVal, ok := urlRewriteMap["single"]; ok == true {
 				urlRewriteRule = processURLRewrite(uri, urlRewriteVal, routeType)
-			} else {
-				log.Warningf("URL rewrite annotation: %s does not support targeted values for routes, not processing", urlRewrite)
 			}
 		}
 	}
@@ -1679,13 +1674,9 @@ func (appMgr *Manager) createRSConfigFromRoute(
 	var appRootRules []*Rule
 	if appRoot, ok := route.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
 		appRootMap := parseAppRootURLRewriteAnnotations(appRoot)
-		if len(appRootMap) > 1 {
-			log.Warningf("App root annotation: %s does not support multiple values for routes, not processing", appRoot)
-		} else if len(appRootMap) == 1 {
+		if len(appRootMap) == 1 {
 			if appRootVal, ok := appRootMap["single"]; ok == true {
 				appRootRules = processAppRoot(uri, appRootVal, fmt.Sprintf("/%s/%s", pool.Partition, pool.Name), routeType)
-			} else {
-				log.Warningf("App root annotation: %s does not support targeted values for routes, not processing", appRoot)
 			}
 		}
 	}
@@ -1908,8 +1899,9 @@ func (appMgr *Manager) ProcessAnnotationRules(rsCfg *ResourceConfig, poolName st
 	}
 
 	// Nothing to process if there are no annotation rules for this pool
-	ruleNames := appMgr.annotationRulesMap[rsName][poolName]
-	if len(ruleNames) == 0 {
+	var ruleNames []string
+	var ok bool
+	if ruleNames, ok = appMgr.annotationRulesMap[rsName][poolName]; !ok || len(ruleNames) == 0 {
 		return
 	}
 
@@ -2340,175 +2332,174 @@ func (rc *ResourceConfig) MergeRules(mergedRulesMap map[string]map[string]merged
 	}
 
 	rules := policy.Rules
-	if policy.Name != "url-rewrite-app-root-policy" {
-		var iDeletedRuleIndices []int
-		var jDeletedRuleIndices []int
 
-		// Iterate through the rules and compare them to each other
-		for i := range rules {
-			// Do not merge the same rule to itself or to rules that have already been merged
-			for j := i + 1; j < len(rules); j++ {
-				numMatches := 0
-				numIConditions := len(rules[i].Conditions)
-				numJConditions := len(rules[j].Conditions)
-				if numIConditions == numJConditions {
-					for k := range rules[i].Conditions {
-						for l := range rules[j].Conditions {
-							kConditionName := rules[i].Conditions[k].Name
-							lConditionName := rules[j].Conditions[l].Name
-							rules[i].Conditions[k].Name = ""
-							rules[j].Conditions[l].Name = ""
-							if reflect.DeepEqual(rules[i].Conditions[k], rules[j].Conditions[l]) {
-								numMatches++
+	var iDeletedRuleIndices []int
+	var jDeletedRuleIndices []int
+
+	// Iterate through the rules and compare them to each other
+	for i := range rules {
+		// Do not merge the same rule to itself or to rules that have already been merged
+		for j := i + 1; j < len(rules); j++ {
+			numMatches := 0
+			numIConditions := len(rules[i].Conditions)
+			numJConditions := len(rules[j].Conditions)
+			if numIConditions == numJConditions {
+				for k := range rules[i].Conditions {
+					for l := range rules[j].Conditions {
+						kConditionName := rules[i].Conditions[k].Name
+						lConditionName := rules[j].Conditions[l].Name
+						rules[i].Conditions[k].Name = ""
+						rules[j].Conditions[l].Name = ""
+						if reflect.DeepEqual(rules[i].Conditions[k], rules[j].Conditions[l]) {
+							numMatches++
+						}
+						rules[i].Conditions[k].Name = kConditionName
+						rules[j].Conditions[l].Name = lConditionName
+					}
+				}
+
+				// Only merge if both sets of conditions match
+				if numMatches == numIConditions {
+					var mergerEntry mergedRuleEntry
+					var mergeeEntry mergedRuleEntry
+
+					iName := rules[i].Name
+					jName := rules[j].Name
+					// Merge rule[i] into rule[j]
+					if ((strings.Contains(iName, "app-root") || strings.Contains(iName, "url-rewrite")) && !(strings.Contains(jName, "app-root") || strings.Contains(jName, "url-rewrite"))) ||
+						((strings.Contains(iName, "app-root") || strings.Contains(iName, "url-rewrite")) && (strings.Contains(jName, "app-root") || strings.Contains(jName, "url-rewrite"))) {
+						iDeletedRuleIndices = append(iDeletedRuleIndices, i)
+						mergerEntry.RuleName = jName
+						mergeeEntry.RuleName = iName
+						mergerEntry.OtherRuleNames = []string{iName}
+						mergeeEntry.OtherRuleNames = []string{jName}
+						mergerEntry.OriginalRule = rules[j]
+						mergeeEntry.OriginalRule = rules[i]
+
+						// Merge only unique actions
+						for k := range rules[i].Actions {
+							found := false
+							for l := range rules[j].Actions {
+								mergeeName := rules[i].Actions[k].Name
+								mergerName := rules[j].Actions[l].Name
+								rules[i].Actions[k].Name = ""
+								rules[j].Actions[l].Name = ""
+								if reflect.DeepEqual(rules[i].Actions[k], rules[j].Actions[l]) {
+									found = true
+								}
+								rules[i].Actions[k].Name = mergeeName
+								rules[j].Actions[l].Name = mergerName
 							}
-							rules[i].Conditions[k].Name = kConditionName
-							rules[j].Conditions[l].Name = lConditionName
+							if !found {
+								rules[j].Actions = append(rules[j].Actions, rules[i].Actions[k])
+								mergerEntry.MergedActions = make(map[string][]*action)
+								mergerEntry.MergedActions[iName] = append(mergerEntry.MergedActions[iName], rules[i].Actions[k])
+							}
+						}
+						// Merge rule[j] into rule[i]
+					} else if !(strings.Contains(iName, "app-root") || strings.Contains(iName, "url-rewrite")) && (strings.Contains(jName, "app-root") || strings.Contains(jName, "url-rewrite")) {
+						jDeletedRuleIndices = append(jDeletedRuleIndices, j)
+						mergerEntry.RuleName = iName
+						mergeeEntry.RuleName = jName
+						mergerEntry.OtherRuleNames = []string{jName}
+						mergeeEntry.OtherRuleNames = []string{iName}
+						mergerEntry.OriginalRule = rules[i]
+						mergeeEntry.OriginalRule = rules[j]
+
+						// Merge only unique actions
+						for k := range rules[j].Actions {
+							found := false
+							for l := range rules[i].Actions {
+								mergeeName := rules[j].Actions[k].Name
+								mergerName := rules[i].Actions[l].Name
+								rules[j].Actions[k].Name = ""
+								rules[i].Actions[l].Name = ""
+								if reflect.DeepEqual(rules[j].Actions[k], rules[i].Actions[l]) {
+									found = true
+								}
+								rules[j].Actions[k].Name = mergeeName
+								rules[i].Actions[l].Name = mergerName
+							}
+							if !found {
+								rules[i].Actions = append(rules[i].Actions, rules[j].Actions[k])
+								mergerEntry.MergedActions = make(map[string][]*action)
+								mergerEntry.MergedActions[jName] = append(mergerEntry.MergedActions[jName], rules[j].Actions[k])
+							}
 						}
 					}
 
-					// Only merge if both sets of conditions match
-					if numMatches == numIConditions {
-						var mergerEntry mergedRuleEntry
-						var mergeeEntry mergedRuleEntry
+					// Process entries to the mergedRulesMap
+					key := rc.GetName()
+					if len(mergerEntry.MergedActions) != 0 {
+						// Check if there is are entries for this resource config
+						if _, ok := mergedRulesMap[key]; ok {
+							// See if there is an entry for the merger
+							if entry, ok := mergedRulesMap[key][mergerEntry.RuleName]; ok {
+								mergerEntry.OtherRuleNames = append(mergerEntry.OtherRuleNames, entry.OtherRuleNames...)
+								mergerEntry.OriginalRule = entry.OriginalRule
 
-						iName := rules[i].Name
-						jName := rules[j].Name
-						// Merge rule[i] into rule[j]
-						if ((strings.Contains(iName, "app-root") || strings.Contains(iName, "url-rewrite")) && !(strings.Contains(jName, "app-root") || strings.Contains(jName, "url-rewrite"))) ||
-							((strings.Contains(iName, "app-root") || strings.Contains(iName, "url-rewrite")) && (strings.Contains(jName, "app-root") || strings.Contains(jName, "url-rewrite"))) {
-							iDeletedRuleIndices = append(iDeletedRuleIndices, i)
-							mergerEntry.RuleName = jName
-							mergeeEntry.RuleName = iName
-							mergerEntry.OtherRuleNames = []string{iName}
-							mergeeEntry.OtherRuleNames = []string{jName}
-							mergerEntry.OriginalRule = rules[j]
-							mergeeEntry.OriginalRule = rules[i]
-
-							// Merge only unique actions
-							for k := range rules[i].Actions {
-								found := false
-								for l := range rules[j].Actions {
-									mergeeName := rules[i].Actions[k].Name
-									mergerName := rules[j].Actions[l].Name
-									rules[i].Actions[k].Name = ""
-									rules[j].Actions[l].Name = ""
-									if reflect.DeepEqual(rules[i].Actions[k], rules[j].Actions[l]) {
-										found = true
+								if len(entry.MergedActions) != 0 {
+									for k, v := range entry.MergedActions {
+										mergerEntry.MergedActions[k] = v
 									}
-									rules[i].Actions[k].Name = mergeeName
-									rules[j].Actions[l].Name = mergerName
-								}
-								if !found {
-									rules[j].Actions = append(rules[j].Actions, rules[i].Actions[k])
-									mergerEntry.MergedActions = make(map[string][]*action)
-									mergerEntry.MergedActions[iName] = append(mergerEntry.MergedActions[iName], rules[i].Actions[k])
 								}
 							}
-							// Merge rule[j] into rule[i]
-						} else if !(strings.Contains(iName, "app-root") || strings.Contains(iName, "url-rewrite")) && (strings.Contains(jName, "app-root") || strings.Contains(jName, "url-rewrite")) {
-							jDeletedRuleIndices = append(jDeletedRuleIndices, j)
-							mergerEntry.RuleName = iName
-							mergeeEntry.RuleName = jName
-							mergerEntry.OtherRuleNames = []string{jName}
-							mergeeEntry.OtherRuleNames = []string{iName}
-							mergerEntry.OriginalRule = rules[i]
-							mergeeEntry.OriginalRule = rules[j]
-
-							// Merge only unique actions
-							for k := range rules[j].Actions {
-								found := false
-								for l := range rules[i].Actions {
-									mergeeName := rules[j].Actions[k].Name
-									mergerName := rules[i].Actions[l].Name
-									rules[j].Actions[k].Name = ""
-									rules[i].Actions[l].Name = ""
-									if reflect.DeepEqual(rules[j].Actions[k], rules[i].Actions[l]) {
-										found = true
-									}
-									rules[j].Actions[k].Name = mergeeName
-									rules[i].Actions[l].Name = mergerName
-								}
-								if !found {
-									rules[i].Actions = append(rules[i].Actions, rules[j].Actions[k])
-									mergerEntry.MergedActions = make(map[string][]*action)
-									mergerEntry.MergedActions[jName] = append(mergerEntry.MergedActions[jName], rules[j].Actions[k])
-								}
+							// See if there is an entry for the mergee
+							if entry, ok := mergedRulesMap[key][mergeeEntry.RuleName]; ok {
+								mergeeEntry.OriginalRule = entry.OriginalRule
 							}
+						} else {
+							mergedRulesMap[key] = make(map[string]mergedRuleEntry)
 						}
 
-						// Process entries to the mergedRulesMap
-						key := rc.GetName()
-						if len(mergerEntry.MergedActions) != 0 {
-							// Check if there is are entries for this resource config
-							if _, ok := mergedRulesMap[key]; ok {
-								// See if there is an entry for the merger
-								if entry, ok := mergedRulesMap[key][mergerEntry.RuleName]; ok {
-									mergerEntry.OtherRuleNames = append(mergerEntry.OtherRuleNames, entry.OtherRuleNames...)
-									mergerEntry.OriginalRule = entry.OriginalRule
-
-									if len(entry.MergedActions) != 0 {
-										for k, v := range entry.MergedActions {
-											mergerEntry.MergedActions[k] = v
-										}
-									}
-								}
-								// See if there is an entry for the mergee
-								if entry, ok := mergedRulesMap[key][mergeeEntry.RuleName]; ok {
-									mergeeEntry.OriginalRule = entry.OriginalRule
-								}
-							} else {
-								mergedRulesMap[key] = make(map[string]mergedRuleEntry)
-							}
-
-							mergedRulesMap[key][mergerEntry.RuleName] = mergerEntry
-							mergedRulesMap[key][mergeeEntry.RuleName] = mergeeEntry
-						}
+						mergedRulesMap[key][mergerEntry.RuleName] = mergerEntry
+						mergedRulesMap[key][mergeeEntry.RuleName] = mergeeEntry
 					}
 				}
 			}
 		}
-
-		// Process deleted rule indices and remove duplicates
-		deletedRuleIndices := append(iDeletedRuleIndices, jDeletedRuleIndices...)
-		sort.Ints(deletedRuleIndices)
-		var uniqueDeletedRuleIndices []int
-		for i := range deletedRuleIndices {
-			if i == 0 {
-				uniqueDeletedRuleIndices = append(uniqueDeletedRuleIndices, deletedRuleIndices[i])
-			} else {
-				found := false
-				for j := range uniqueDeletedRuleIndices {
-					if uniqueDeletedRuleIndices[j] == deletedRuleIndices[i] {
-						found = true
-					}
-				}
-				if !found {
-					uniqueDeletedRuleIndices = append(uniqueDeletedRuleIndices, deletedRuleIndices[i])
-				}
-			}
-		}
-
-		// Remove rules that were merged with others
-		for _, index := range uniqueDeletedRuleIndices {
-			rules = append(rules[:index], rules[index+1:]...)
-			for i := range uniqueDeletedRuleIndices {
-				uniqueDeletedRuleIndices[i]--
-			}
-		}
-
-		// Sort the rules and reset their ordinals
-		sortrules := func(rls *Rules, ordinal int) {
-			sort.Sort(sort.Reverse(*rls))
-			for _, v := range *rls {
-				v.Ordinal = ordinal
-				ordinal++
-			}
-		}
-		sortrules(&rules, 0)
-
-		policy.Rules = rules
-		rc.SetPolicy(*policy)
 	}
+
+	// Process deleted rule indices and remove duplicates
+	deletedRuleIndices := append(iDeletedRuleIndices, jDeletedRuleIndices...)
+	sort.Ints(deletedRuleIndices)
+	var uniqueDeletedRuleIndices []int
+	for i := range deletedRuleIndices {
+		if i == 0 {
+			uniqueDeletedRuleIndices = append(uniqueDeletedRuleIndices, deletedRuleIndices[i])
+		} else {
+			found := false
+			for j := range uniqueDeletedRuleIndices {
+				if uniqueDeletedRuleIndices[j] == deletedRuleIndices[i] {
+					found = true
+				}
+			}
+			if !found {
+				uniqueDeletedRuleIndices = append(uniqueDeletedRuleIndices, deletedRuleIndices[i])
+			}
+		}
+	}
+
+	// Remove rules that were merged with others
+	for _, index := range uniqueDeletedRuleIndices {
+		rules = append(rules[:index], rules[index+1:]...)
+		for i := range uniqueDeletedRuleIndices {
+			uniqueDeletedRuleIndices[i]--
+		}
+	}
+
+	// Sort the rules and reset their ordinals
+	sortrules := func(rls *Rules, ordinal int) {
+		sort.Sort(sort.Reverse(*rls))
+		for _, v := range *rls {
+			v.Ordinal = ordinal
+			ordinal++
+		}
+	}
+	sortrules(&rules, 0)
+
+	policy.Rules = rules
+	rc.SetPolicy(*policy)
 }
 
 func (pol *Policy) RemoveRuleAt(offset int) bool {

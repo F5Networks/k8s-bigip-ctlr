@@ -14,6 +14,14 @@ GO_BUILD_FLAGS=-v -ldflags "-extldflags \"-static\" -X main.version=$(BUILD_VERS
 # Allow users to pass in BASE_OS build options (alpine or rhel7)
 BASE_OS ?= alpine
 
+# This is for builds not triggered through Travis CI 
+LICENSE_STRICT ?= false
+
+# If strict license approval check is desired, pass the corresponding flag 
+# to Attributions Generator on command line
+ifeq ($(LICENSE_STRICT), true)
+	LIC_FLAG=--al release
+endif
 
 all: local-build
 
@@ -137,5 +145,5 @@ pip_attributions.json: always-build
 
 docs/_static/ATTRIBUTIONS.md: flatfile_attributions.json  golang_attributions.json  pip_attributions.json
 	./build-tools/attributions-generator.sh \
-		node /frontEnd/frontEnd.js --pd $(CURDIR)
+		node /frontEnd/frontEnd.js --pd $(CURDIR) $(LIC_FLAG)
 	mv ATTRIBUTIONS.md $@

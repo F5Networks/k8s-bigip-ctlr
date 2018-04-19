@@ -134,10 +134,12 @@ func (appMgr *Manager) checkValidIngress(
 			appMgr.defaultIngIP,
 			appMgr.vsSnatPoolName,
 		)
+		var rsType int
 		rsName := formatIngressVSName(bindAddr, portStruct.port)
 		// If rsCfg is nil, delete any resources tied to this Ingress
 		if rsCfg == nil {
 			if nil == ing.Spec.Rules { //single-service
+				rsType = singleServiceIngressType
 				serviceName := ing.Spec.Backend.ServiceName
 				servicePort := ing.Spec.Backend.ServicePort.IntVal
 				sKey := serviceKey{serviceName, servicePort, namespace}
@@ -146,6 +148,7 @@ func (appMgr *Manager) checkValidIngress(
 					appMgr.outputConfigLocked()
 				}
 			} else { //multi-service
+				rsType = multiServiceIngressType
 				_, keys := appMgr.resources.GetAllWithName(rsName)
 				for _, key := range keys {
 					appMgr.resources.Delete(key, rsName)
@@ -153,6 +156,34 @@ func (appMgr *Manager) checkValidIngress(
 				}
 			}
 			return false, nil
+		}
+
+		// Validate url-rewrite annotations
+		if urlRewrite, ok := ing.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
+			if rsType == multiServiceIngressType {
+				urlRewriteMap := parseAppRootURLRewriteAnnotations(urlRewrite)
+				validateURLRewriteAnnotations(rsType, urlRewriteMap)
+			} else {
+				log.Warning("Single service ingress does not support url-rewrite annotation, not processing")
+			}
+		}
+
+		// Validate app-root annotations
+		if appRoot, ok := ing.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
+			appRootMap := parseAppRootURLRewriteAnnotations(appRoot)
+			if rsType == singleServiceIngressType {
+				if len(appRootMap) > 1 {
+					log.Warning("Single service ingress does not support multiple app-root annotation values, not processing")
+				} else {
+					if _, ok := appRootMap["single"]; ok {
+						validateAppRootAnnotations(rsType, appRootMap)
+					} else {
+						log.Warningf("App root annotation: %s does not support targeted values for single service ingress, not processing", appRoot)
+					}
+				}
+			} else {
+				validateAppRootAnnotations(rsType, appRootMap)
+			}
 		}
 
 		// This ensures that pool-only mode only logs the message below the first
@@ -209,6 +240,48 @@ func (appMgr *Manager) checkValidRoute(
 		// Not watching this namespace
 		return false, nil
 	}
+
+	// Validate url-rewrite annotations
+	uri := route.Spec.Host + route.Spec.Path
+	if urlRewrite, ok := route.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
+		urlRewriteMap := parseAppRootURLRewriteAnnotations(urlRewrite)
+		if len(urlRewriteMap) > 1 {
+			log.Warning(
+				"Routes do not support multiple app-root annotation values, " +
+					"not processing")
+		} else {
+			urlRewriteMap[uri] = urlRewriteMap["single"]
+			if _, ok := urlRewriteMap["single"]; ok {
+				delete(urlRewriteMap, "single")
+				validateURLRewriteAnnotations(routeType, urlRewriteMap)
+			} else {
+				log.Warningf(
+					"URL rewrite annotation: %s does not support targeted values "+
+						"for routes, not processing", urlRewrite)
+			}
+		}
+	}
+
+	// Validate app-root annotations
+	if appRoot, ok := route.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
+		appRootMap := parseAppRootURLRewriteAnnotations(appRoot)
+		if len(appRootMap) > 1 {
+			log.Warning(
+				"Single service ingress does not support multiple url-rewrite " +
+					"annotation values, not processing")
+		} else {
+			appRootMap[uri] = appRootMap["single"]
+			if _, ok := appRootMap["single"]; ok {
+				delete(appRootMap, "single")
+				validateAppRootAnnotations(routeType, appRootMap)
+			} else {
+				log.Warningf(
+					"App root annotation: %s does not support targeted values "+
+						"for routes, not processing", appRoot)
+			}
+		}
+	}
+
 	svcNames := getRouteServiceNames(route)
 	for _, svcName := range svcNames {
 		key := &serviceQueueKey{
@@ -218,4 +291,75 @@ func (appMgr *Manager) checkValidRoute(
 		allKeys = append(allKeys, key)
 	}
 	return true, allKeys
+}
+
+func validateURLRewriteAnnotations(rsType int, entries map[string]string) {
+	for k, v := range entries {
+		targetURL := parseAnnotationURL(k)
+		valueURL := parseAnnotationURL(v)
+
+		if rsType == multiServiceIngressType && targetURL.Host == "" {
+			log.Warningf(
+				"Invalid annotation: %s=%s need a host target for url-rewrite annotation "+
+					"for multi-service ingress, skipping", k, v)
+			return
+		}
+		if rsType == multiServiceIngressType && targetURL.Path == "" && valueURL.Path != "" {
+			log.Warningf(
+				"Invalid annotation: %s=%s need a host and path target for url-rewrite "+
+					"annotation with path for multi-service ingress, skipping", k, v)
+			return
+		}
+		if rsType == routeType && targetURL.Path == "" && valueURL.Path != "" {
+			log.Warningf(
+				"Invalid annotation: %s=%s need a path target for url-rewrite annotation "+
+					"with path for route, skipping", k, v)
+			return
+		}
+		if rsType == routeType && targetURL.Host == "" && valueURL.Host != "" {
+			log.Warningf(
+				"Invalid annotation: %s=%s need a host target for url-rewrite annotation "+
+					"with host for route, skipping",
+				k, v)
+			return
+		}
+		if valueURL.Host == "" && valueURL.Path == "" {
+			log.Warningf(
+				"Invalid annotation: %s=%s empty values for url-rewrite "+
+					"annotation, skipping", k, v)
+			return
+		}
+	}
+}
+
+func validateAppRootAnnotations(rsType int, entries map[string]string) {
+	for k, v := range entries {
+		targetURL := parseAnnotationURL(k)
+		valueURL := parseAnnotationURL(v)
+
+		if rsType == multiServiceIngressType && targetURL.Host == "" {
+			log.Warningf(
+				"Invalid annotation: %s=%s need a host target for app-root "+
+					"annotation for multi-service ingress, skipping", k, v)
+			return
+		}
+		if rsType == routeType && targetURL.Path != "" {
+			log.Warningf(
+				"Invalid annotation: %s=%s can not target path for app-root "+
+					"annotation for route, skipping", k, v)
+			return
+		}
+		if valueURL.Host != "" {
+			log.Warningf(
+				"Invalid annotation: %s=%s can not specify host for app root "+
+					"annotation value, skipping", k, v)
+			return
+		}
+		if valueURL.Path == "" {
+			log.Warningf(
+				"Invalid annotation: %s=%s must specify path for app root "+
+					"annotation value, skipping", k, v)
+			return
+		}
+	}
 }

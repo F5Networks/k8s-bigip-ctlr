@@ -37,6 +37,10 @@ Bug Fixes
 * :issues:`649` - Route annotation profiles are no longer ignored.
 * :cccl-issue:`214` - Keys and certificates are now installed onto the managed partition.
 
+Limitations
+```````````
+* Cannot apply app-root and url-rewrite annotations to the same resource; see: :issues:`675`
+
 v1.4.2
 ------
 

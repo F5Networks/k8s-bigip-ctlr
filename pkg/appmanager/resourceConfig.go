@@ -1078,7 +1078,7 @@ func processURLRewrite(target, value string, rsType int) *Rule {
 		return nil
 	}
 
-	nameEnd := target + value
+	nameEnd := target + "-" + value
 	nameEnd = strings.Replace(nameEnd, "/", "_", -1)
 	return &Rule{
 		Name:       fmt.Sprintf("url-rewrite-rule-%s", nameEnd),

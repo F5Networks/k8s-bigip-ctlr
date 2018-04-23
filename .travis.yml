@@ -33,11 +33,14 @@ script:
   - |
     if [[ "$TRAVIS_BRANCH" == *"-stable" ]]; then
       export CTLR_VERSION=v$(echo $TRAVIS_BRANCH | sed s/-stable//g)
+      export LICENSE_STRICT=false
     elif [[ "$TRAVIS_BRANCH" =~ ^v[0-9]+\.[0-9]+\.[0-9]* ]]; then
       va=( ${TRAVIS_BRANCH//./ } ) # replace decimals and split into array
       export CTLR_VERSION="${va[0]}.${va[1]}"
+      export LICENSE_STRICT=true
     else
       export CTLR_VERSION=$TRAVIS_BRANCH
+      export LICENSE_STRICT=false
     fi
   - export CLEAN_BUILD=true
   - export BASE_OS=alpine

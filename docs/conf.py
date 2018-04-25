@@ -105,12 +105,12 @@ rst_epilog = '''
     <a href="http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/%(url_version)s/_static/ATTRIBUTIONS.html">Attributions</a>
 .. |kctlr| replace:: :code:`k8s-bigip-ctlr`
 .. |kctlr-long| replace:: F5 BIG-IP Controller for Kubernetes
-.. _F5 Resource: %(base_url)s/containers/latest/kubernetes/#f5-resource-properties
+.. _F5 Resource: %(base_url)s/containers/v2/kubernetes/kctlr-f5-resource.html#f5-resource-properties
 .. _Kubernetes Ingress: https://kubernetes.io/docs/concepts/services-networking/ingress/
 .. _Flannel VxLAN in Kubernetes: %(base_url)s/containers/latest/kubernetes/flannel-bigip-info.html
 .. _user documentation: %(base_url)s/containers/latest/kubernetes/index.html
 .. _Integration Overview: %(base_url)s/containers/latest/kubernetes/index.html
-.. _Assign IP addresses to BIG-IP virtual servers using IPAM: %(base_url)s/containers/latest/kubernetes/kctlr-manage-bigip-objects.html#assign-ip-addresses-to-big-ip-virtual-servers-using-ipam
+.. _Assign IP addresses to BIG-IP virtual servers using IPAM: %(base_url)s/containers/latest/kubernetes/kctlr-manage-bigip-objects.html#attach-pools-to-a-virtual-server-using-ipam
 .. _pools without virtual servers: %(base_url)s/containers/latest/kubernetes/kctlr-manage-bigip-objects.html#pools-without-virtual-servers
 .. _Expose Services to External Traffic using Ingresses: %(base_url)s/containers/latest/kubernetes/kctlr-ingress.html
 .. _f5 schema versions: %(base_url)s/containers/latest/releases_and_versioning.html#f5-schema

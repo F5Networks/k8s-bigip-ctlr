@@ -1,6 +1,14 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+v1.5.1
+------
+
+Bug Fixes
+`````````
+* :issues:`683` - Controller upgrades properly with new metadata field.
+* :issues:`686` - Controller in cluster mode does not rely on vxlan name to configure pool members.
+
 v1.5.0
 ------
 
@@ -34,6 +42,9 @@ Bug Fixes
 Limitations
 ```````````
 * Cannot apply app-root and url-rewrite annotations to the same resource; see: :issues:`675`
+* If an older controller created resources, upgrading to the new version could
+  result in a python exception when adding metadata to virtuals: :issues:`683`
+* If running the controller in cluster mode without a vxlan name, pool members are not created: :issues:`686`
 
 v1.4.2
 ------

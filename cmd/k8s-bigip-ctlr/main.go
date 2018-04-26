@@ -375,12 +375,11 @@ func setupNodePolling(
 	eventChan <-chan interface{},
 	kubeClient kubernetes.Interface,
 ) error {
-	if appMgr.IsNodePort() {
-		err := np.RegisterListener(appMgr.ProcessNodeUpdate)
-		if nil != err {
-			return fmt.Errorf("error registering node update listener for nodeport mode: %v",
-				err)
-		}
+	// Register appMgr to watch for node updates to keep track of watched nodes
+	err := np.RegisterListener(appMgr.ProcessNodeUpdate)
+	if nil != err {
+		return fmt.Errorf("error registering node update listener: %v",
+			err)
 	}
 
 	if 0 != len(vxlanMode) {
@@ -406,12 +405,6 @@ func setupNodePolling(
 		err = np.RegisterListener(vxMgr.ProcessNodeUpdate)
 		if nil != err {
 			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
-				err)
-		}
-		// Register appMgr to watch for node updates to keep track of watched nodes
-		err = np.RegisterListener(appMgr.ProcessNodeUpdate)
-		if nil != err {
-			return fmt.Errorf("error registering node update listener for appManager: %v",
 				err)
 		}
 		if eventChan != nil {
@@ -599,7 +592,8 @@ func main() {
 		log.Fatalf("error connecting to the client: %v", err)
 	}
 	if *manageRoutes {
-		rclient, err := routeclient.New(config)
+		var rclient *routeclient.Client
+		rclient, err = routeclient.New(config)
 		appMgrParms.RouteClientV1 = rclient.RESTClient
 		if nil != err {
 			log.Fatalf("unable to create route client: err: %+v\n", err)
@@ -608,18 +602,16 @@ func main() {
 
 	appMgr := appmanager.NewManager(&appMgrParms)
 
-	if isNodePort || 0 != len(vxlanMode) {
-		intervalFactor := time.Duration(*nodePollInterval)
-		np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
-		err := setupNodePolling(appMgr, np, eventChan, appMgrParms.KubeClient)
-		if nil != err {
-			log.Fatalf("Required polling utility for node updates failed setup: %v",
-				err)
-		}
-
-		np.Run()
-		defer np.Stop()
+	intervalFactor := time.Duration(*nodePollInterval)
+	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
+	err = setupNodePolling(appMgr, np, eventChan, appMgrParms.KubeClient)
+	if nil != err {
+		log.Fatalf("Required polling utility for node updates failed setup: %v",
+			err)
 	}
+
+	np.Run()
+	defer np.Stop()
 
 	setupWatchers(appMgr, 30*time.Second)
 	// Expose Prometheus metrics

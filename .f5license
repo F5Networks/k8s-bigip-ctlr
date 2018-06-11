@@ -24,42 +24,6 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
     THE SOFTWARE.
 
-# The client-go module contains a proper LICENSE file.
-- name: client-go
-  version: v3.0.0
-  attribution_text: |
-    Copyright 2014 The Kubernetes Authors.
-
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
-
-        http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
-
-# The apimachinery module contains a proper LICENSE file.
-- name: apimachinery
-  version: 85ace53
-  attribution_text: |
-    Copyright 2014 The Kubernetes Authors.
-
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
-
-        http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
-
 # The davecgh/go-spew module contains a proper LICENSE file.
 - name: davecgh/go-spew
   version: 5215b55
@@ -1217,13 +1181,6 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
     THE SOFTWARE.
 
-# The kubernetes/api module has an Apache 2 license
-- name: apiserver
-  version: 261c062
-  license: Apache-2.0
-  author:
-    name: The Kubernetes authors
-
 # The beorn7/perks module has a MIT license
 - name: beorn7/perks
   version: 4c0e845
@@ -1418,13 +1375,6 @@
     THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-# The kubernetes module has an Apache 2 license
-- name: kubernetes
-  version: v1.6.1
-  license: Apache-2.0
-  author:
-    name: The Kubernetes authors
 
 # the matttproud/golang_protobuf_extensions module has an Apache 2 license
 - name: matttproud/golang_protobuf_extensions

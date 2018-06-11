@@ -275,9 +275,17 @@ class VersionInfo(object):
 def print_docker_build_args(args):
     """Create labels for Docker container."""
     ver = VersionInfo(args.version_file)
+   
+    """
+    OVERRIDE_VERSION can be passed in as a config parameter to the Jenkins 
+    build job. This will override the version label in the Docker image. 
+    """
+    version = ver.version_str()
+    if os.environ.get('OVERRIDE_VERSION', None):
+        version = os.environ['OVERRIDE_VERSION']
     labels = {
         'scm_version': ver.format('{sha}'),
-        'version': ver.version_str(),
+        'version': version,
     }
 
     ret = []

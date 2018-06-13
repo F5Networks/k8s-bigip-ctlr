@@ -173,7 +173,7 @@ type (
 		Replace   bool   `json:"replace,omitempty"`
 		Request   bool   `json:"request,omitempty"`
 		Reset     bool   `json:"reset,omitempty"`
-		Value     string `json:"value, omitempty"`
+		Value     string `json:"value,omitempty"`
 	}
 
 	// condition config for a Rule

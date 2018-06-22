@@ -310,6 +310,7 @@ type (
 		Send     string `json:"send"`
 		Recv     string `json:"recv"`
 		Timeout  int    `json:"timeout"`
+		Type     string `json:"type"`
 	}
 	AnnotationHealthMonitors []AnnotationHealthMonitor
 

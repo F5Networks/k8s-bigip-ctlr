@@ -85,6 +85,9 @@ func runBigIPDriver(pid chan<- int, cmd *exec.Cmd) {
 
 	// the config driver python logging goes to stderr by default
 	cmdOut, err := cmd.StderrPipe()
+	if err != nil {
+		log.Fatalf("Internal error: failed to get a stderr pipe of BIG-IP driver: %v", err)
+	}
 	scanOut := bufio.NewScanner(cmdOut)
 	go func() {
 		for true {

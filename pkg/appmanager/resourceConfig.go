@@ -17,8 +17,6 @@
 package appmanager
 
 import (
-	"bytes"
-	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1742,16 +1740,64 @@ func (appMgr *Manager) createRSConfigFromRoute(
 
 // Copies from an existing config into our new config
 func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
-	var cfgBytes bytes.Buffer
-	err := gob.NewEncoder(&cfgBytes).Encode(cfg)
-	if err != nil {
-		log.Errorf("Couldn't encode ResourceConfig: %v", err)
-		return
+	// MetaData
+	rc.MetaData = cfg.MetaData
+	// Virtual
+	rc.Virtual = cfg.Virtual
+	// Profiles
+	rc.Virtual.Profiles = make([]ProfileRef, len(cfg.Virtual.Profiles))
+	copy(rc.Virtual.Profiles, cfg.Virtual.Profiles)
+	// Policies ref
+	rc.Virtual.Policies = make([]nameRef, len(cfg.Virtual.Policies))
+	copy(rc.Virtual.Policies, cfg.Virtual.Policies)
+	// IRules
+	rc.Virtual.IRules = make([]string, len(cfg.Virtual.IRules))
+	copy(rc.Virtual.IRules, cfg.Virtual.IRules)
+	// Pools
+	rc.Pools = make(Pools, len(cfg.Pools))
+	copy(rc.Pools, cfg.Pools)
+	// Pool Members and Monitor Names
+	for i, _ := range rc.Pools {
+		rc.Pools[i].Members = make([]Member, len(cfg.Pools[i].Members))
+		copy(rc.Pools[i].Members, cfg.Pools[i].Members)
+
+		rc.Pools[i].MonitorNames = make([]string, len(cfg.Pools[i].MonitorNames))
+		copy(rc.Pools[i].MonitorNames, cfg.Pools[i].MonitorNames)
 	}
-	err = gob.NewDecoder(&cfgBytes).Decode(&rc)
-	if err != nil {
-		log.Errorf("Could not decode ResourceConfig: %v", err)
-		return
+	// Monitors
+	rc.Monitors = make(Monitors, len(cfg.Monitors))
+	copy(rc.Monitors, cfg.Monitors)
+	// Policies
+	rc.Policies = make([]Policy, len(cfg.Policies))
+	copy(rc.Policies, cfg.Policies)
+
+	for i, _ := range rc.Policies {
+		rc.Policies[i].Controls = make([]string, len(cfg.Policies[i].Controls))
+		copy(rc.Policies[i].Controls, cfg.Policies[i].Controls)
+		rc.Policies[i].Requires = make([]string, len(cfg.Policies[i].Requires))
+		copy(rc.Policies[i].Requires, cfg.Policies[i].Requires)
+
+		// Rules
+		rc.Policies[i].Rules = make([]*Rule, len(cfg.Policies[i].Rules))
+		// Actions and Conditions
+		for j, _ := range rc.Policies[i].Rules {
+			rc.Policies[i].Rules[j] = &Rule{}
+			rc.Policies[i].Rules[j].Actions = make([]*action, len(cfg.Policies[i].Rules[j].Actions))
+			rc.Policies[i].Rules[j].Conditions = make([]*condition, len(cfg.Policies[i].Rules[j].Conditions))
+			for k, _ := range rc.Policies[i].Rules[j].Conditions {
+				rc.Policies[i].Rules[j].Conditions[k] = &condition{}
+				rc.Policies[i].Rules[j].Conditions[k].Values =
+					make([]string, len(cfg.Policies[i].Rules[j].Conditions[k].Values))
+			}
+		}
+		copy(rc.Policies[i].Rules, cfg.Policies[i].Rules)
+		for j, _ := range rc.Policies[i].Rules {
+			copy(rc.Policies[i].Rules[j].Actions, cfg.Policies[i].Rules[j].Actions)
+			copy(rc.Policies[i].Rules[j].Conditions, cfg.Policies[i].Rules[j].Conditions)
+			for k, _ := range rc.Policies[i].Rules[j].Conditions {
+				copy(rc.Policies[i].Rules[j].Conditions[k].Values, cfg.Policies[i].Rules[j].Conditions[k].Values)
+			}
+		}
 	}
 }
 

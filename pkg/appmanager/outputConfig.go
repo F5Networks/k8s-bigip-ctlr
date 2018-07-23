@@ -148,8 +148,7 @@ func (appMgr *Manager) outputConfigLocked() {
 		}
 	}
 
-	if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 ||
-		appMgr.initialState == true {
+	if appMgr.processedItems >= appMgr.queueLen || appMgr.initialState {
 		doneCh, errCh, err := appMgr.ConfigWriter().SendSection("resources", resources)
 		if nil != err {
 			log.Warningf("Failed to write Big-IP config data: %v", err)

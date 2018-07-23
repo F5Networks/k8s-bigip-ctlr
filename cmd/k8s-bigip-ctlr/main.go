@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -102,6 +103,7 @@ var (
 	bigIPUsername   *string
 	bigIPPassword   *string
 	bigIPPartitions *[]string
+	credsDir        *string
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -166,6 +168,9 @@ func _init() {
 		"Required, password for the Big-IP user account.")
 	bigIPPartitions = bigIPFlags.StringArray("bigip-partition", []string{},
 		"Required, partition(s) for the Big-IP kubernetes objects.")
+	credsDir = bigIPFlags.String("credentials-directory", "",
+		"Optional, directory that contains the BIG-IP username, password, and/or "+
+			"url files. To be used instead of username, password, and/or url arguments.")
 
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
@@ -294,9 +299,17 @@ func verifyArgs() error {
 		return logErr
 	}
 
-	if len(*bigIPURL) == 0 || len(*bigIPUsername) == 0 || len(*bigIPPassword) == 0 ||
-		len(*bigIPPartitions) == 0 || len(*poolMemberType) == 0 {
-		return fmt.Errorf("Missing required parameter")
+	if len(*poolMemberType) == 0 {
+		return fmt.Errorf("missing pool member type")
+	}
+
+	if len(*bigIPPartitions) == 0 {
+		return fmt.Errorf("missing a BIG-IP partition")
+	}
+
+	if (len(*bigIPURL) == 0 || len(*bigIPUsername) == 0 ||
+		len(*bigIPPassword) == 0) && len(*credsDir) == 0 {
+		return fmt.Errorf("Missing BIG-IP credentials info")
 	}
 
 	if len(*namespaces) != 0 && len(*namespaceLabel) != 0 {
@@ -307,29 +320,6 @@ func verifyArgs() error {
 		watchAllNamespaces = true
 	} else {
 		watchAllNamespaces = false
-	}
-
-	u, err := url.Parse(*bigIPURL)
-	if nil != err {
-		return fmt.Errorf("Error parsing url: %s", err)
-	}
-
-	if len(u.Scheme) == 0 {
-		*bigIPURL = "https://" + *bigIPURL
-		u, err = url.Parse(*bigIPURL)
-		if nil != err {
-			return fmt.Errorf("Error parsing url: %s", err)
-		}
-	}
-
-	if u.Scheme != "https" {
-		return fmt.Errorf("Invalid BIGIP-URL protocol: '%s' - Must be 'https'",
-			u.Scheme)
-	}
-
-	if len(u.Path) > 0 && u.Path != "/" {
-		return fmt.Errorf("BIGIP-URL path must be empty or '/'; check URL formatting and/or remove %s from path",
-			u.Path)
 	}
 
 	if *poolMemberType == "nodeport" {
@@ -366,6 +356,73 @@ func verifyArgs() error {
 		vxlanName = *flannelName
 	}
 
+	return nil
+}
+
+func getCredentials() error {
+	if len(*credsDir) > 0 {
+		var usr, pass, bigipURL string
+		var err error
+		if strings.HasSuffix(*credsDir, "/") {
+			usr = *credsDir + "username"
+			pass = *credsDir + "password"
+			bigipURL = *credsDir + "url"
+		} else {
+			usr = *credsDir + "/username"
+			pass = *credsDir + "/password"
+			bigipURL = *credsDir + "/url"
+		}
+
+		setField := func(field *string, filename, fieldType string) error {
+			fileBytes, readErr := ioutil.ReadFile(filename)
+			if readErr != nil {
+				log.Debug(fmt.Sprintf(
+					"No %s in credentials directory, falling back to CLI argument", fieldType))
+				if len(*field) == 0 {
+					return fmt.Errorf(fmt.Sprintf("BIG-IP %s not specified", fieldType))
+				}
+			} else {
+				*field = string(fileBytes)
+			}
+			return nil
+		}
+
+		err = setField(bigIPUsername, usr, "username")
+		if err != nil {
+			return err
+		}
+		err = setField(bigIPPassword, pass, "password")
+		if err != nil {
+			return err
+		}
+		err = setField(bigIPURL, bigipURL, "url")
+		if err != nil {
+			return err
+		}
+	}
+	// Verify URL is valid
+	u, err := url.Parse(*bigIPURL)
+	if nil != err {
+		return fmt.Errorf("Error parsing url: %s", err)
+	}
+
+	if len(u.Scheme) == 0 {
+		*bigIPURL = "https://" + *bigIPURL
+		u, err = url.Parse(*bigIPURL)
+		if nil != err {
+			return fmt.Errorf("Error parsing url: %s", err)
+		}
+	}
+
+	if u.Scheme != "https" {
+		return fmt.Errorf("Invalid BIGIP-URL protocol: '%s' - Must be 'https'",
+			u.Scheme)
+	}
+
+	if len(u.Path) > 0 && u.Path != "/" {
+		return fmt.Errorf("BIGIP-URL path must be empty or '/'; check URL formatting and/or remove %s from path",
+			u.Path)
+	}
 	return nil
 }
 
@@ -476,6 +533,12 @@ func main() {
 	}
 
 	err = verifyArgs()
+	if nil != err {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		flags.Usage()
+		os.Exit(1)
+	}
+	err = getCredentials()
 	if nil != err {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		flags.Usage()

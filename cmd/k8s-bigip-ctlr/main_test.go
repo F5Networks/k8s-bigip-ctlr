@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"sort"
@@ -187,23 +188,12 @@ var _ = Describe("Main Tests", func() {
 			argError := verifyArgs()
 			Expect(argError).To(BeNil())
 			Expect(*namespaces).To(Equal(nameVar))
-			Expect(*bigIPURL).To(Equal("https://bigip.example.com"))
+			Expect(*bigIPURL).To(Equal("bigip.example.com"))
 			Expect(*bigIPUsername).To(Equal("admin"))
 			Expect(*bigIPPassword).To(Equal("admin"))
 			Expect(*bigIPPartitions).To(Equal([]string{"velcro1", "velcro2"}))
 			Expect(*vsSnatPoolName).To(Equal("test-snat-pool"))
 			Expect(*logLevel).To(Equal("INFO"))
-
-			// Test url variations
-			os.Args[5] = "--bigip-url=fail://bigip.example.com"
-			flags.Parse(os.Args)
-			argError = verifyArgs()
-			Expect(argError).ToNot(BeNil(), "BIGIP-URL should fail with incorrect scheme 'fail://'.")
-
-			os.Args[5] = "--bigip-url=https://bigip.example.com/some/path"
-			flags.Parse(os.Args)
-			argError = verifyArgs()
-			Expect(argError).ToNot(BeNil(), "BIGIP-URL should fail with invalid path.")
 
 			// Test empty required args
 			allArgs := map[string]*string{
@@ -322,6 +312,71 @@ var _ = Describe("Main Tests", func() {
 			*openshiftSDNName = ""
 			err = verifyArgs()
 			Expect(err).ToNot(BeNil())
+		})
+
+		It("gets credentials from a file", func() {
+			defer _init()
+			defer os.RemoveAll("/tmp/k8s-test-creds")
+
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--namespace=testing",
+				"--credentials-directory=/tmp/k8s-test-creds",
+				"--bigip-partition=velcro1",
+				"--bigip-url=bigip.example.com",
+				"--pool-member-type=nodeport",
+			}
+			flags.Parse(os.Args)
+			os.Mkdir("/tmp/k8s-test-creds", 0755)
+			err := ioutil.WriteFile("/tmp/k8s-test-creds/username", []byte("user"), 0755)
+			Expect(err).ToNot(HaveOccurred())
+			err = ioutil.WriteFile("/tmp/k8s-test-creds/password", []byte("pass"), 0755)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = getCredentials()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(*bigIPURL).To(Equal("https://bigip.example.com"))
+			Expect(*bigIPUsername).To(Equal("user"))
+			Expect(*bigIPPassword).To(Equal("pass"))
+
+			// Test url variations
+			os.Args[4] = "--bigip-url=fail://bigip.example.com"
+			flags.Parse(os.Args)
+			err = getCredentials()
+			Expect(err).ToNot(BeNil(), "BIGIP-URL should fail with incorrect scheme 'fail://'.")
+
+			os.Args[4] = "--bigip-url=https://bigip.example.com/some/path"
+			flags.Parse(os.Args)
+			err = getCredentials()
+			Expect(err).ToNot(BeNil(), "BIGIP-URL should fail with invalid path.")
+		})
+
+		It("uses credentials file over CLI args", func() {
+			defer _init()
+			defer os.RemoveAll("/tmp/k8s-test-creds")
+
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--namespace=testing",
+				"--credentials-directory=/tmp/k8s-test-creds",
+				"--bigip-partition=velcro1",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=cli-user",
+				"--bigip-password=cli-pass",
+				"--pool-member-type=nodeport",
+			}
+			flags.Parse(os.Args)
+			os.Mkdir("/tmp/k8s-test-creds", 0755)
+			err := ioutil.WriteFile("/tmp/k8s-test-creds/username", []byte("user"), 0755)
+			Expect(err).ToNot(HaveOccurred())
+			err = ioutil.WriteFile("/tmp/k8s-test-creds/password", []byte("pass"), 0755)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = getCredentials()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(*bigIPURL).To(Equal("https://bigip.example.com"))
+			Expect(*bigIPUsername).To(Equal("user"))
+			Expect(*bigIPPassword).To(Equal("pass"))
 		})
 
 		It("sets up the node poller", func() {

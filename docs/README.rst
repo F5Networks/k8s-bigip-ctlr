@@ -153,6 +153,26 @@ BIG-IP system
 | bigip-username        | string  | Required | n/a               | BIG-IP iControl REST username           |                |
 |                       |         |          |                   | [#username]_                            |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| credentials-directory | string  | Optional | n/a               | Directory that contains the BIG-IP      |                |
+|                       |         |          |                   | username, password, or url files        |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+
+.. important::
+
+     The :code:`credentials-directory` option is an alternative to using the :code:`bigip-username`, :code:`bigip-password`, or
+     :code:`bigip-url` arguments.
+
+     When you use this argument, the controller looks for three files in the specified directory:
+
+     - "username", "password", and "url"
+
+     If any of these files do not exist, the controller falls back to using the CLI arguments as parameters.
+
+     Each file should contain **only** the username, password, and url, respectively. You can create and mount
+     the files as `Kubernetes Secrets`_.
+     
+     It is important to not project the Secret keys to specific paths, as the controller looks for the "username",
+     "password", and "url" files directly within the credentials directory.
 
 .. _vxlan configs:
 

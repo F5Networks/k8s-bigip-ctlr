@@ -125,6 +125,7 @@ rst_epilog = '''
 .. _iApps: https://devcentral.f5.com/iapps
 .. _Kubernetes pods: https://kubernetes.io/docs/user-guide/pods/
 .. _Kubernetes Ingress: https://kubernetes.io/docs/concepts/services-networking/ingress/
+.. _Kubernetes Secrets: https://kubernetes.io/docs/concepts/configuration/secret/
 .. _iApp table: https://devcentral.f5.com/wiki/iApp.Working-with-Tables.ashx
 .. _Kubernetes Service Type: https://kubernetes.io/docs/concepts/services-networking/service/
 .. _OpenShift: https://www.openshift.com/

@@ -79,6 +79,8 @@ type Manager struct {
 	routeClientV1     rest.Interface
 	configWriter      writer.Writer
 	initialState      bool
+	queueLen          int
+	processedItems    int
 	// Use internal node IPs
 	useNodeInternal bool
 	// Running in nodeport (or cluster) mode
@@ -175,6 +177,8 @@ func NewManager(params *Params) *Manager {
 		useNodeInternal:    params.UseNodeInternal,
 		isNodePort:         params.IsNodePort,
 		initialState:       params.initialState,
+		queueLen:           0,
+		processedItems:     0,
 		routeConfig:        params.RouteConfig,
 		nodeLabelSelector:  params.NodeLabelSelector,
 		resolveIng:         params.ResolveIngress,
@@ -745,6 +749,9 @@ func (appMgr *Manager) virtualServerWorker() {
 
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
+	if !appMgr.initialState && appMgr.processedItems == 0 {
+		appMgr.queueLen = appMgr.vsQueue.Len()
+	}
 	if quit {
 		// The controller is shutting down.
 		return false
@@ -753,6 +760,9 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 
 	err := appMgr.syncVirtualServer(key.(serviceQueueKey))
 	if err == nil {
+		if !appMgr.initialState {
+			appMgr.processedItems++
+		}
 		appMgr.vsQueue.Forget(key)
 		return true
 	}
@@ -811,7 +821,9 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		}
 	}
 
-	// rsMap stores all resources currently in Resources matching sKey, indexed by port
+	// rsMap stores all resources currently in Resources matching sKey, indexed by port.
+	// At the end of processing, rsMap should only contain configs we want to delete.
+	// If we have a valid config, then we remove it from rsMap.
 	rsMap := appMgr.getResourcesForKey(sKey)
 	dgMap := make(InternalDataGroupMap)
 
@@ -854,12 +866,8 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
 		stats.dgUpdated > 0 || stats.poolsUpdated > 0 {
 		appMgr.outputConfig()
-	} else if appMgr.vsQueue.Len() == 0 && appMgr.nsQueue.Len() == 0 {
-		appMgr.resources.Lock()
-		defer appMgr.resources.Unlock()
-		if !appMgr.initialState {
-			appMgr.outputConfigLocked()
-		}
+	} else if !appMgr.initialState && appMgr.processedItems >= appMgr.queueLen {
+		appMgr.outputConfig()
 	}
 
 	return nil
@@ -888,6 +896,7 @@ func (appMgr *Manager) syncConfigMaps(
 		if cm.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
+
 		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
 		if nil != err {
 			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(1)
@@ -943,7 +952,6 @@ func (appMgr *Manager) syncConfigMaps(
 			rsCfg.Virtual.VirtualAddress.BindAddr != "" {
 			appMgr.setBindAddrAnnotation(cm, sKey, rsCfg)
 		}
-
 	}
 	return nil
 }

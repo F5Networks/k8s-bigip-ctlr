@@ -4,6 +4,18 @@ Release Notes for BIG-IP Controller for Kubernetes
 next-release
 ------------
 
+v1.6.0
+------
+
+Added Functionality
+```````````````````
+* Added ability to provide BIG-IP credentials via mounted Secret files instead of CLI arguments.
+
+Bug Fixes
+`````````
+* Improved controller performance when deep copying configurations.
+* Improved controller performance when starting up and achieving "steady state".
+
 v1.5.1
 ------
 

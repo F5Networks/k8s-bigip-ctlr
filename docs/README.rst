@@ -174,6 +174,9 @@ BIG-IP system
      It is important to not project the Secret keys to specific paths, as the controller looks for the "username",
      "password", and "url" files directly within the credentials directory.
 
+     See :fonticon:`fa fa-download` :download:`example-bigip-credentials-directory.yaml </_static/config_examples/example-bigip-credentials-directory.yaml>`
+     for a deployment example.
+
 .. _vxlan configs:
 
 VXLAN
@@ -746,6 +749,7 @@ Example Configuration Files
 
 - :fonticon:`fa fa-download` :download:`sample-k8s-bigip-ctlr-secrets.yaml </_static/config_examples/sample-k8s-bigip-ctlr-secrets.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-bigip-credentials-secret.yaml </_static/config_examples/sample-bigip-credentials-secret.yaml>`
+- :fonticon:`fa fa-download` :download:`example-bigip-credentials-directory.yaml </_static/config_examples/example-bigip-credentials-directory.yaml>`
 - :fonticon:`fa fa-download` :download:`example-vs-resource.configmap.yaml </_static/config_examples/example-vs-resource.configmap.yaml>`
 - :fonticon:`fa fa-download` :download:`example-vs-resource-udp.configmap.yaml </_static/config_examples/example-vs-resource-udp.configmap.yaml>`
 - :fonticon:`fa fa-download` :download:`example-vs-resource.json </_static/config_examples/example-vs-resource.json>`

@@ -1,9 +1,6 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-next-release
-------------
-
 v1.6.0
 ------
 

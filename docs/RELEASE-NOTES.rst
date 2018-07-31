@@ -6,12 +6,20 @@ v1.6.0
 
 Added Functionality
 ```````````````````
-* Added ability to provide BIG-IP credentials via mounted Secret files instead of CLI arguments.
+* VEL-1484: Added ability to provide BIG-IP credentials via mounted Secret files instead of CLI arguments.
 
 Bug Fixes
 `````````
 * Improved controller performance when deep copying configurations.
 * Improved controller performance when starting up and achieving "steady state".
+
+Vulnerability Fixes
+```````````````````
++-----------------------+---------------+----------------------------------------------------------------+----------------+
+| ID Number             | CVE           | Solution Article(s)                                            | Description    |
++=======================+===============+================================================================+================+
+| VEL-1484              | CVE-2018-5543 | `[#K58935003] <https://support.f5.com/csp/article/K58935003>`_ | CVE-2018-5543  |
++-----------------------+---------------+----------------------------------------------------------------+----------------+
 
 v1.5.1
 ------

@@ -253,6 +253,38 @@ var _ = Describe("Main Tests", func() {
 			Expect(isNodePort).To(BeFalse())
 		})
 
+		It("verifies Common not in list of partitions", func() {
+			defer _init()
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--namespace=testing",
+				"--bigip-partition=velcro1",
+				"--bigip-partition=velcro2",
+				"--bigip-password=admin",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--vs-snat-pool-name=test-snat-pool"}
+			flags.Parse(os.Args)
+			argError := verifyArgs()
+			Expect(argError).To(BeNil())
+			hasCommon := hasCommonPartition(*bigIPPartitions)
+			Expect(hasCommon).To(BeFalse())
+
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--namespace=testing",
+				"--bigip-partition=velcro1",
+				"--bigip-partition=Common",
+				"--bigip-partition=velcro2",
+				"--bigip-password=admin",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--vs-snat-pool-name=test-snat-pool"}
+			flags.Parse(os.Args)
+			hasCommon = hasCommonPartition(*bigIPPartitions)
+			Expect(hasCommon).To(BeTrue())
+		})
+
 		It("verifies args labels", func() {
 			defer _init()
 			os.Args = []string{

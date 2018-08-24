@@ -40,5 +40,10 @@ pipeline {
       // cleanup workspace
       dir("${env.WORKSPACE}") { deleteDir() }
     }
+    failure {
+        mail to: "$NOTIFY",
+             subject: "Failed Pipeline: ${currentBuild.fullDisplayName}",
+             body: "Something is wrong with ${env.BUILD_URL}"
+    }
   }
 }

@@ -882,12 +882,13 @@ var _ = Describe("AppManager Tests", func() {
 			Expect(fakeClient).ToNot(BeNil())
 
 			mockMgr = newMockAppManager(&Params{
-				KubeClient:      fakeClient,
-				ConfigWriter:    mw,
-				restClient:      test.CreateFakeHTTPClient(),
-				RouteClientV1:   test.CreateFakeHTTPClient(),
-				IsNodePort:      true,
-				broadcasterFunc: NewFakeEventBroadcaster,
+				KubeClient:       fakeClient,
+				ConfigWriter:     mw,
+				restClient:       test.CreateFakeHTTPClient(),
+				RouteClientV1:    test.CreateFakeHTTPClient(),
+				IsNodePort:       true,
+				broadcasterFunc:  NewFakeEventBroadcaster,
+				ManageConfigMaps: true,
 			})
 		})
 		AfterEach(func() {

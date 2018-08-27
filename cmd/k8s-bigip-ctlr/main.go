@@ -92,6 +92,7 @@ var (
 	kubeConfig        *string
 	namespaceLabel    *string
 	manageRoutes      *bool
+	manageConfigMaps  *bool
 	nodeLabelSelector *string
 	resolveIngNames   *string
 	defaultIngIP      *string
@@ -196,6 +197,8 @@ func _init() {
 		"Optional, used to watch for namespaces with this label")
 	manageRoutes = kubeFlags.Bool("manage-routes", false,
 		"Optional, specify whether or not to manage Route resources")
+	manageConfigMaps = kubeFlags.Bool("manage-configmaps", true,
+		"Optional, specify whether or not to manage ConfigMap resources")
 	nodeLabelSelector = kubeFlags.String("node-label-selector", "",
 		"Optional, used to watch only for nodes with this label")
 	resolveIngNames = kubeFlags.String("resolve-ingress-names", "",
@@ -520,6 +523,8 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 				err = appMgr.AddNamespace(namespace, ls, resyncPeriod)
 				if nil != err {
 					log.Warningf("Failed to add informers for namespace %v: %v", namespace, err)
+				} else {
+					log.Debugf("Added informers for namespace %v: %v", namespace, err)
 				}
 			}
 		}
@@ -597,6 +602,7 @@ func main() {
 		DefaultIngIP:      *defaultIngIP,
 		VsSnatPoolName:    *vsSnatPoolName,
 		UseSecrets:        *useSecrets,
+		ManageConfigMaps:  *manageConfigMaps,
 		SchemaLocal:       *schemaLocal,
 	}
 

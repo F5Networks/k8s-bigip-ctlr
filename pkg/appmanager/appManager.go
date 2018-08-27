@@ -125,6 +125,8 @@ type Manager struct {
 	mergedRulesMap map[string]map[string]mergedRuleEntry
 	// map of rules created from annotations
 	annotationRulesMap map[string]map[string][]string
+	// Whether to watch ConfigMap resources or not
+	manageConfigMaps bool
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -142,10 +144,11 @@ type Params struct {
 	UseSecrets        bool
 	EventChan         chan interface{}
 	// Package local for unit testing only
-	restClient      rest.Interface
-	initialState    bool
-	broadcasterFunc NewBroadcasterFunc
-	SchemaLocal     string
+	restClient       rest.Interface
+	initialState     bool
+	broadcasterFunc  NewBroadcasterFunc
+	SchemaLocal      string
+	ManageConfigMaps bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -193,6 +196,7 @@ func NewManager(params *Params) *Manager {
 		schemaLocal:        params.SchemaLocal,
 		mergedRulesMap:     make(map[string]map[string]mergedRuleEntry),
 		annotationRulesMap: make(map[string]map[string][]string),
+		manageConfigMaps:   params.ManageConfigMaps,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -419,20 +423,10 @@ func (appMgr *Manager) newAppInformer(
 	cfgMapSelector labels.Selector,
 	resyncPeriod time.Duration,
 ) *appInformer {
+	log.Debugf("Creating new app informer")
 	appInf := appInformer{
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
-		cfgMapInformer: cache.NewSharedIndexInformer(
-			newListWatchWithLabelSelector(
-				appMgr.restClientv1,
-				"configmaps",
-				namespace,
-				cfgMapSelector,
-			),
-			&v1.ConfigMap{},
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		),
 		svcInformer: cache.NewSharedIndexInformer(
 			newListWatchWithLabelSelector(
 				appMgr.restClientv1,
@@ -467,6 +461,24 @@ func (appMgr *Manager) newAppInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
 	}
+
+	if false != appMgr.manageConfigMaps {
+		log.Infof("Watching ConfigMap resources.")
+		appInf.cfgMapInformer = cache.NewSharedIndexInformer(
+			newListWatchWithLabelSelector(
+				appMgr.restClientv1,
+				"configmaps",
+				namespace,
+				cfgMapSelector,
+			),
+			&v1.ConfigMap{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
+	} else {
+		log.Infof("Not watching ConfigMap resources.")
+	}
+
 	if nil != appMgr.routeClientV1 {
 		// Ensure the default server cert is loaded
 		appMgr.loadDefaultCert()
@@ -494,14 +506,19 @@ func (appMgr *Manager) newAppInformer(
 		)
 	}
 
-	appInf.cfgMapInformer.AddEventHandlerWithResyncPeriod(
-		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
-			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueConfigMap(cur) },
-			DeleteFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
-		},
-		resyncPeriod,
-	)
+	if false != appMgr.manageConfigMaps {
+		log.Infof("Handling ConfigMap resource events.")
+		appInf.cfgMapInformer.AddEventHandlerWithResyncPeriod(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
+				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueConfigMap(cur) },
+				DeleteFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
+			},
+			resyncPeriod,
+		)
+	} else {
+		log.Infof("Not handling ConfigMap resource events.")
+	}
 
 	appInf.svcInformer.AddEventHandlerWithResyncPeriod(
 		&cache.ResourceEventHandlerFuncs{
@@ -632,34 +649,33 @@ func (appMgr *Manager) getNamespaceInformerLocked(
 }
 
 func (appInf *appInformer) start() {
-	go appInf.cfgMapInformer.Run(appInf.stopCh)
 	go appInf.svcInformer.Run(appInf.stopCh)
 	go appInf.endptInformer.Run(appInf.stopCh)
 	go appInf.ingInformer.Run(appInf.stopCh)
 	if nil != appInf.routeInformer {
 		go appInf.routeInformer.Run(appInf.stopCh)
 	}
+	if nil != appInf.cfgMapInformer {
+		go appInf.cfgMapInformer.Run(appInf.stopCh)
+	}
 }
 
 func (appInf *appInformer) waitForCacheSync() {
-	if nil != appInf.routeInformer {
-		cache.WaitForCacheSync(
-			appInf.stopCh,
-			appInf.cfgMapInformer.HasSynced,
-			appInf.svcInformer.HasSynced,
-			appInf.endptInformer.HasSynced,
-			appInf.ingInformer.HasSynced,
-			appInf.routeInformer.HasSynced,
-		)
-	} else {
-		cache.WaitForCacheSync(
-			appInf.stopCh,
-			appInf.cfgMapInformer.HasSynced,
-			appInf.svcInformer.HasSynced,
-			appInf.endptInformer.HasSynced,
-			appInf.ingInformer.HasSynced,
-		)
+	cacheSyncs := []cache.InformerSynced{
+		appInf.svcInformer.HasSynced,
+		appInf.endptInformer.HasSynced,
+		appInf.ingInformer.HasSynced,
 	}
+	if nil != appInf.routeInformer {
+		cacheSyncs = append(cacheSyncs, appInf.routeInformer.HasSynced)
+	}
+	if nil != appInf.cfgMapInformer {
+		cacheSyncs = append(cacheSyncs, appInf.cfgMapInformer.HasSynced)
+	}
+	cache.WaitForCacheSync(
+		appInf.stopCh,
+		cacheSyncs...,
+	)
 }
 
 func (appInf *appInformer) stopInformers() {
@@ -828,9 +844,12 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	dgMap := make(InternalDataGroupMap)
 
 	var stats vsSyncStats
-	err = appMgr.syncConfigMaps(&stats, sKey, rsMap, svcPortMap, svc, appInf)
-	if nil != err {
-		return err
+
+	if nil != appInf.cfgMapInformer {
+		err = appMgr.syncConfigMaps(&stats, sKey, rsMap, svcPortMap, svc, appInf)
+		if nil != err {
+			return err
+		}
 	}
 
 	err = appMgr.syncIngresses(&stats, sKey, rsMap, svcPortMap, svc, appInf, dgMap)

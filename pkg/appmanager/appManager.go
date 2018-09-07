@@ -1183,7 +1183,6 @@ func (appMgr *Manager) syncRoutes(
 				route, svcName, appMgr.resources, appMgr.routeConfig, ps,
 				appInf.svcInformer.GetIndexer(), svcFwdRulesMap, appMgr.vsSnatPoolName)
 			if err != nil {
-				// We return err if there was an error creating a rule
 				log.Warningf("%v", err)
 				continue
 			}
@@ -1582,11 +1581,29 @@ func (appMgr *Manager) deactivateVirtualServer(
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
 	if rs, ok := appMgr.resources.Get(sKey, rsName); ok {
-		rsCfg.MetaData.Active = false
-		rsCfg.Pools[index].Members = nil
-		if !reflect.DeepEqual(rs, rsCfg) {
-			log.Debugf("Service delete matching backend %v %v deactivating config",
+		if len(rsCfg.Pools) > 1 {
+			// Only deactivate if all other pools for this config are nil as well
+			var valid bool
+			for i, pool := range rsCfg.Pools {
+				if i != index && pool.Members != nil {
+					valid = true
+					break
+				}
+			}
+			if !valid {
+				rsCfg.MetaData.Active = false
+				rsCfg.Pools[index].Members = nil
+			}
+		} else {
+			rsCfg.MetaData.Active = false
+			rsCfg.Pools[index].Members = nil
+		}
+		if !rsCfg.MetaData.Active {
+			log.Debugf("Service delete matching backend '%v', deactivating config '%v'",
 				sKey, rsName)
+		}
+
+		if !reflect.DeepEqual(rs, rsCfg) {
 			updateConfig = true
 		}
 	} else {

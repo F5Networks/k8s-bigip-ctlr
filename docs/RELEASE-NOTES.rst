@@ -9,7 +9,9 @@ v1.6.1
 
 Bug Fixes
 `````````
+* :issues:`486` - User cannot configure the controller to manage the Common partition.
 * :issues:`743` - Controller doesn't temporarily remove entire BIG-IP configs after deleting a single service.
+* :issues:`746` - Log messages and documentation added to ensure Route profile configuration is clear.
 
 v1.6.0
 ------

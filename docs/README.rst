@@ -740,6 +740,15 @@ Supported Route Annotations
 | virtual-server.f5.com/rewrite-target-url      | string      | Optional  | URL host, path, or host and path to be rewritten.                                 | N/A         |                                         |
 +-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
 
+.. important::
+
+    For edge (client) termination, a Route **must** include **either** the certificate/key literal information
+    in the Route Spec, **or** the clientssl annotation. For re-encrypt (server) termination, a Route **must** include
+    **either** the destinationCaCertificate literal information in the Route Spec, **or** the serverssl annotation, 
+    in addition to the edge rules listed previously. If you want to use the configuration parameters 
+    `default-clientssl` or `default-serverssl` profiles for a Route, then specify those profile names in the
+    Route annotations in addition to the controller configuration.
+
 Please see the example configuration files for more details.
 
 .. _conf examples:

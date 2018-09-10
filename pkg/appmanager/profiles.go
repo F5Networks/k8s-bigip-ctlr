@@ -127,6 +127,9 @@ func (appMgr *Manager) setClientSslProfile(
 			appMgr.customProfiles.profs[skey] = cp
 			profRef.Partition = cp.Partition
 			profRef.Name = cp.Name
+		} else {
+			log.Warningf("No profile information supplied for Route '%v'", route.ObjectMeta.Name)
+			return
 		}
 		if add := rsCfg.Virtual.AddOrUpdateProfile(profRef); add {
 			// Remove annotation profile if it exists

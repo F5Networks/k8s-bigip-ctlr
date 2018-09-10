@@ -292,6 +292,15 @@ func init() {
 	_init()
 }
 
+func hasCommonPartition(partitions []string) bool {
+	for _, x := range partitions {
+		if x == "Common" {
+			return true
+		}
+	}
+	return false
+}
+
 func verifyArgs() error {
 	*logLevel = strings.ToUpper(*logLevel)
 	logErr := initLogger(*logLevel)
@@ -305,6 +314,11 @@ func verifyArgs() error {
 
 	if len(*bigIPPartitions) == 0 {
 		return fmt.Errorf("missing a BIG-IP partition")
+	} else if len(*bigIPPartitions) > 0 {
+		err := hasCommonPartition(*bigIPPartitions)
+		if false != err {
+			return fmt.Errorf("Common cannot be one of the specified partitions.")
+		}
 	}
 
 	if (len(*bigIPURL) == 0 || len(*bigIPUsername) == 0 ||

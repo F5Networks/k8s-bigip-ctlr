@@ -1,6 +1,13 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+v1.6.1
+------
+
+Bug Fixes
+`````````
+* :issues:`743` - Controller doesn't temporarily remove entire BIG-IP configs after deleting a single service.
+
 v1.6.0
 ------
 

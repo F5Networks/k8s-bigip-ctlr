@@ -2713,6 +2713,114 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(1))
 			})
 
+			It("doesn't deactivate a multi-service config unnecessarily", func() {
+				mockMgr.appMgr.useNodeInternal = true
+				// Ingress first
+				ingressConfig := v1beta1.IngressSpec{
+					Rules: []v1beta1.IngressRule{
+						{Host: "host1",
+							IngressRuleValue: v1beta1.IngressRuleValue{
+								HTTP: &v1beta1.HTTPIngressRuleValue{
+									Paths: []v1beta1.HTTPIngressPath{
+										{Path: "/foo",
+											Backend: v1beta1.IngressBackend{
+												ServiceName: "foo",
+												ServicePort: intstr.IntOrString{IntVal: 80},
+											},
+										},
+										{Path: "/bar",
+											Backend: v1beta1.IngressBackend{
+												ServiceName: "bar",
+												ServicePort: intstr.IntOrString{IntVal: 80},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				// Create Node so we get endpoints
+				node := test.NewNode("node1", "1", false,
+					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.1"}}, []v1.Taint{})
+				_, err := mockMgr.appMgr.kubeClient.Core().Nodes().Create(node)
+				Expect(err).To(BeNil())
+				n, err := mockMgr.appMgr.kubeClient.Core().Nodes().List(metav1.ListOptions{})
+				Expect(err).To(BeNil(), "Should not fail listing nodes.")
+				mockMgr.processNodeUpdate(n.Items, err)
+
+				// Create the services
+				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+					[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+				r := mockMgr.addService(fooSvc)
+				Expect(r).To(BeTrue(), "Service should be processed.")
+				barSvc := test.NewService("bar", "2", namespace, "NodePort",
+					[]v1.ServicePort{{Port: 80, NodePort: 37002}})
+				r = mockMgr.addService(barSvc)
+				Expect(r).To(BeTrue(), "Service should be processed.")
+
+				// Create the Ingress
+				ing := test.NewIngress("ingress", "1", namespace, ingressConfig,
+					map[string]string{
+						f5VsBindAddrAnnotation:  "1.2.3.4",
+						f5VsPartitionAnnotation: "velcro",
+					})
+				r = mockMgr.addIngress(ing)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+
+				resources := mockMgr.resources()
+
+				deleteServices := func() {
+					rs, ok := resources.Get(
+						serviceKey{"foo", 80, "default"}, formatIngressVSName("1.2.3.4", 80))
+					Expect(ok).To(BeTrue())
+					Expect(rs.MetaData.Active).To(BeTrue())
+
+					// Delete one service, config should still be active
+					mockMgr.deleteService(fooSvc)
+					rs, ok = resources.Get(
+						serviceKey{"bar", 80, "default"}, formatIngressVSName("1.2.3.4", 80))
+					Expect(ok).To(BeTrue())
+					Expect(rs.MetaData.Active).To(BeTrue())
+
+					// Delete final service, config should go inactive
+					mockMgr.deleteService(barSvc)
+					rs, ok = resources.Get(
+						serviceKey{"bar", 80, "default"}, formatIngressVSName("1.2.3.4", 80))
+					Expect(ok).To(BeFalse())
+				}
+				deleteServices()
+
+				// Now try routes
+				mockMgr.addService(fooSvc)
+				mockMgr.addService(barSvc)
+				spec1 := routeapi.RouteSpec{
+					Host: "foo.com",
+					Path: "/foo",
+					To: routeapi.RouteTargetReference{
+						Kind: "Service",
+						Name: "foo",
+					},
+				}
+				route1 := test.NewRoute("route1", "1", namespace, spec1, nil)
+				r = mockMgr.addRoute(route1)
+				Expect(r).To(BeTrue(), "Route resource should be processed.")
+
+				spec2 := routeapi.RouteSpec{
+					Host: "bar.com",
+					Path: "/bar",
+					To: routeapi.RouteTargetReference{
+						Kind: "Service",
+						Name: "bar",
+					},
+				}
+				route2 := test.NewRoute("route2", "1", namespace, spec2, nil)
+				r = mockMgr.addRoute(route2)
+				Expect(r).To(BeTrue(), "Route resource should be processed.")
+
+				deleteServices()
+			})
+
 			It("properly uses the default Ingress IP", func() {
 				mockMgr.appMgr.defaultIngIP = "10.1.2.3"
 

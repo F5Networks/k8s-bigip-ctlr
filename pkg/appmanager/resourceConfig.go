@@ -1625,13 +1625,13 @@ func (appMgr *Manager) createRSConfigFromRoute(
 		} else {
 			backendPort, err = getServicePort(route, svcName, svcIndexer, strVal)
 			if nil != err {
-				log.Warningf("%v", err)
+				return &rsCfg, err, Pool{}
 			}
 		}
 	} else {
 		backendPort, err = getServicePort(route, svcName, svcIndexer, "")
 		if nil != err {
-			log.Warningf("%v", err)
+			return &rsCfg, err, Pool{}
 		}
 	}
 	var balance string

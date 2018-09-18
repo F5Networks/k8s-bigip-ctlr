@@ -213,6 +213,12 @@ Kubernetes
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | kubeconfig            | string  | Optional | ./config          | Path to the *kubeconfig* file           |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
+| manage-configmaps     | boolean | Optional | true              | Tells the controller whether or not     | true, false    |
+|                       |         |          |                   | to watch Kubernetes ConfigMaps and      |                |
+|                       |         |          |                   | apply their configuration.              |                |
+|                       |         |          |                   | If false, the controller will ignore    |                |
+|                       |         |          |                   | ConfigMap events.                       |                |
++-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | namespace             | string  | Optional | All               | Kubernetes namespace(s) to watch        |                |
 |                       |         |          |                   |                                         |                |
 |                       |         |          |                   | - may be a comma-separated list         |                |
@@ -617,6 +623,11 @@ Supported Ingress Annotations
 | virtual-server.f5.com/rewrite-app-root        | string      | Optional  | Root path redirection for the application.                                          | N/A         |                                         |
 +-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
 | virtual-server.f5.com/rewrite-target-url      | string      | Optional  | URL host, path, or host and path to be rewritten.                                   | N/A         |                                         |
++-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/whitelist-source-range  | string      | Optional  | Comma separated list of CIDR addresses to allow inbound to Ingress services         | N/A         | Comma separated, CIDR formatted, IP     |
+|                                               |             |           |                                                                                     |             | addresses.                              |
+|                                               |             |           |                                                                                     |             |                                         |
+|                                               |             |           |                                                                                     |             | ex. 1.2.3.4/32,2.2.2.0/24               |
 +-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
 
 Ingress Health Monitors

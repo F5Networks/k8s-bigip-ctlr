@@ -87,7 +87,15 @@ pre-build:
 prod-build: pre-build
 	@echo "Building with minimal instrumentation..."
 	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
+	RUN_TESTS=1 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
+	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
+
+prod-quick: prod-build-quick
+
+prod-build-quick: pre-build
+	@echo "Building with running tests..."
+	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
+	RUN_TESTS=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
 	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
 
 dbg-build: pre-build

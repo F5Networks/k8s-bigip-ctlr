@@ -186,6 +186,24 @@ func createPolicy(rls Rules, policyName, partition string) *Policy {
 
 	plcy.Rules = rls
 
+	// Check for the existence of the TCP field in the conditions.
+	// This would indicate that a whitelist rule is in the policy
+	// and that we need to add the "tcp" requirement to the policy.
+	requiresTcp := false
+	for _, x := range rls {
+		for _, c := range x.Conditions {
+			if c.Tcp == true {
+				requiresTcp = true
+			}
+		}
+	}
+
+	// Add the tcp requirement if needed; indicated by the presence
+	// of the TCP field.
+	if requiresTcp {
+		plcy.Requires = append(plcy.Requires, "tcp")
+	}
+
 	log.Debugf("Configured policy: %v", plcy)
 	return &plcy
 }
@@ -193,10 +211,11 @@ func createPolicy(rls Rules, policyName, partition string) *Policy {
 func processIngressRules(
 	ing *v1beta1.IngressSpec,
 	urlRewriteMap map[string]string,
+	whitelistSourceRanges []string,
 	appRootMap map[string]string,
 	pools []Pool,
 	partition string,
-) (*Rules, map[string]string, map[string][]string) {
+) (*Rules, map[string]string, map[string]string, map[string][]string) {
 	var err error
 	var uri, poolName string
 	var rl *Rule
@@ -206,6 +225,7 @@ func processIngressRules(
 	rlMap := make(ruleMap)
 	wildcards := make(ruleMap)
 	urlRewriteRefs := make(map[string]string)
+	whitelistSourceRangeRefs := make(map[string]string)
 	appRootRefs := make(map[string][]string)
 
 	for _, rule := range ing.Rules {
@@ -225,7 +245,7 @@ func processIngressRules(
 				rl, err = createRule(uri, poolName, partition, ruleName)
 				if nil != err {
 					log.Warningf("Error configuring rule: %v", err)
-					return nil, nil, nil
+					return nil, nil, nil, nil
 				}
 				if true == strings.HasPrefix(uri, "*.") {
 					wildcards[uri] = rl
@@ -253,6 +273,7 @@ func processIngressRules(
 			}
 		}
 	}
+
 	var wg sync.WaitGroup
 	wg.Add(2)
 	sortrules := func(r ruleMap, rls *Rules, ordinal int) {
@@ -266,6 +287,7 @@ func processIngressRules(
 		}
 		wg.Done()
 	}
+
 	rls := Rules{}
 	go sortrules(rlMap, &rls, 0)
 
@@ -283,7 +305,33 @@ func processIngressRules(
 		rls = append(rls, urlRewriteRules...)
 	}
 
-	return &rls, urlRewriteRefs, appRootRefs
+	if len(whitelistSourceRanges) != 0 {
+		// Add whitelist entries to each rule.
+		//
+		// Whitelist rules are added as other conditions on the rule so that
+		// the whitelist is actually enforced. The whitelist entries cannot
+		// be separate rules because of the matching strategy that is used.
+		//
+		// The matching strategy used is first-match. Therefore, if the
+		// whitelist were a separate rule, and they did not match, then
+		// further rules will be processed and this is not what the function
+		// of a whitelist should be.
+		//
+		// Whitelists should be used to *prevent* access. So they need to be
+		// a separate condition of *each* rule.
+		for _, x := range rls {
+			cond := condition{
+				Tcp:     true,
+				Address: true,
+				Matches: true,
+				Name:    "0",
+				Values:  whitelistSourceRanges,
+			}
+			x.Conditions = append(x.Conditions, &cond)
+		}
+	}
+
+	return &rls, urlRewriteRefs, whitelistSourceRangeRefs, appRootRefs
 }
 
 func httpRedirectIRule(port int32) string {

@@ -173,12 +173,14 @@ type (
 		Replace   bool   `json:"replace,omitempty"`
 		Request   bool   `json:"request,omitempty"`
 		Reset     bool   `json:"reset,omitempty"`
+		Select    bool   `json:"select,omitempty"`
 		Value     string `json:"value,omitempty"`
 	}
 
 	// condition config for a Rule
 	condition struct {
 		Name            string   `json:"name"`
+		Address         bool     `json:"address,omitempty"`
 		CaseInsensitive bool     `json:"caseInsensitive,omitempty"`
 		Equals          bool     `json:"equals,omitempty"`
 		EndsWith        bool     `json:"endsWith,omitempty"`
@@ -187,12 +189,14 @@ type (
 		Host            bool     `json:"host,omitempty"`
 		HTTPURI         bool     `json:"httpUri,omitempty"`
 		Index           int      `json:"index,omitempty"`
+		Matches         bool     `json:"matches,omitempty"`
 		Path            bool     `json:"path,omitempty"`
 		PathSegment     bool     `json:"pathSegment,omitempty"`
 		Present         bool     `json:"present,omitempty"`
 		Remote          bool     `json:"remote,omitempty"`
 		Request         bool     `json:"request,omitempty"`
 		Scheme          bool     `json:"scheme,omitempty"`
+		Tcp             bool     `json:"tcp,omitempty"`
 		Values          []string `json:"values"`
 	}
 

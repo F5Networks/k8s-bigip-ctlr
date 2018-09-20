@@ -60,6 +60,7 @@ const f5VsHttpsPortAnnotation = "virtual-server.f5.com/https-port"
 const f5VsBalanceAnnotation = "virtual-server.f5.com/balance"
 const f5VsPartitionAnnotation = "virtual-server.f5.com/partition"
 const f5VsURLRewriteAnnotation = "virtual-server.f5.com/rewrite-target-url"
+const f5VsWhitelistSourceRangeAnnotation = "virtual-server.f5.com/whitelist-source-range"
 const f5VsAppRootAnnotation = "virtual-server.f5.com/rewrite-app-root"
 const f5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
 const f5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"
@@ -1366,6 +1367,32 @@ func (appMgr *Manager) virtualPorts(ing *v1beta1.Ingress) []portStruct {
 	return ports
 }
 
+func poolInNamespace(cfg *ResourceConfig, name, namespace string) bool {
+	split := strings.Split(name, "_")
+	if cfg.MetaData.ResourceType == "iapp" {
+		if split[0] == namespace {
+			return true
+		}
+	} else if split[1] == namespace {
+		return true
+	}
+	return false
+}
+
+func serviceMatch(svcs []string, sKey serviceQueueKey) bool {
+	// ConfigMap case (svc will always match sKey)
+	if len(svcs) == 0 {
+		return true
+	}
+	// Ingress/Route case
+	for _, svc := range svcs {
+		if svc == sKey.ServiceName {
+			return true
+		}
+	}
+	return false
+}
+
 // Common handling function for ConfigMaps, Ingresses, and Routes
 func (appMgr *Manager) handleConfigForType(
 	rsCfg *ResourceConfig,
@@ -1385,17 +1412,6 @@ func (appMgr *Manager) handleConfigForType(
 	var pool Pool
 	found := false
 	plIdx := 0
-	poolInNamespace := func(cfg *ResourceConfig, name, namespace string) bool {
-		split := strings.Split(name, "_")
-		if cfg.MetaData.ResourceType == "iapp" {
-			if split[0] == namespace {
-				return true
-			}
-		} else if split[1] == namespace {
-			return true
-		}
-		return false
-	}
 
 	for i, pl := range rsCfg.Pools {
 		if pl.ServiceName == sKey.ServiceName &&
@@ -1427,19 +1443,6 @@ func (appMgr *Manager) handleConfigForType(
 	// Multiple Ingress/Routes can share a config, so if one Ingress/Route is deleted, then just
 	// the pools for that resource should be deleted from our config. By keeping the config in the map,
 	// we delete the necessary pools later on, while leaving everything else intact.
-	serviceMatch := func(svcs []string, sKey serviceQueueKey) bool {
-		// ConfigMap case (svc will always match sKey)
-		if len(svcs) == 0 {
-			return true
-		}
-		// Ingress/Route case
-		for _, svc := range svcs {
-			if svc == sKey.ServiceName {
-				return true
-			}
-		}
-		return false
-	}
 	cfgList := rsMap[pool.ServicePort]
 	if serviceMatch(currResourceSvcs, sKey) {
 		if len(cfgList) == 1 && cfgList[0].GetName() == rsName {

@@ -26,14 +26,15 @@ RUN_ARGS=( \
   -v $PWD:/build/$srcdir:ro,Z
   --workdir  /build/$srcdir
   -e GOPATH=/build
-  -e CLEAN_BUILD
-  -e IMG_TAG
-  -e BUILD_IMG_TAG
-  -e BUILD_VERSION
-  -e BUILD_INFO
+  -e CLEAN_BUILD=$CLEAN_BUILD
+  -e IMG_TAG=$IMG_TAG
+  -e BUILD_IMG_TAG=$BUILD_IMG_TAG
+  -e BUILD_VERSION=$BUILD_VERSION
+  -e BUILD_INFO=$BUILD_INFO
   -e LOCAL_USER_ID=$(id -u)
   -e TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG
   -e COVERALLS_TOKEN=$COVERALLS_REPO_TOKEN
+  -e RUN_TESTS=$RUN_TESTS
 )
 
 # Add -it if caller is a terminal

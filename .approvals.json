@@ -379,7 +379,7 @@
  },
  {
    "name": "urllib3",
-   "version": " ",
+   "version": "1.23",
    "license": "MIT",
    "category": 3,
    "status": "approved"
@@ -448,7 +448,7 @@
    "status": "approved"
  },
  {
-   "name": "-e git+https://github.com/f5devcentral/f5-cccl.git@5aaa584f9fc77742eb9d976954e6dad805e6f4ff#egg=f5_cccl",
+   "name": "-e git+https://github.com/f5devcentral/f5-cccl.git@c97f6918e69137822466cc2185979e1923bbebb6#egg=f5_cccl",
    "version": "0.1.0",
    "license": "Apache 2.0",
    "category": 3,
@@ -463,7 +463,7 @@
  },
  {
    "name": "f5-sdk",
-   "version": "3.0.1",
+   "version": "3.0.20",
    "license": "Apache 2.0",
    "category": 3,
    "status": "approved"
@@ -715,7 +715,7 @@
  },
  {
    "name": "f5-icontrol-rest",
-   "version": "1.3.4",
+   "version": "1.3.11",
    "license": "Apache 2.0",
    "category": 3,
    "status": "approved"

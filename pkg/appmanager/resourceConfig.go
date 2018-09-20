@@ -870,6 +870,29 @@ func parseAppRootURLRewriteAnnotations(annotation string) map[string]string {
 	return annotationValMap
 }
 
+func parseAppRootWhitelistSourceRangeAnnotations(annotation string) []string {
+	var annotationVals []string
+
+	numSeps := strings.Count(annotation, ",")
+	if numSeps > 0 {
+		splits := strings.Split(annotation, ",")
+		for _, val := range splits {
+			val = strings.TrimSpace(val)
+			_, _, err := net.ParseCIDR(val)
+			if err != nil {
+				log.Infof("Annotation: %s value: %s not properly formatted should be in CIDR format, skipping", annotation, val)
+			}
+			annotationVals = append(annotationVals, val)
+		}
+	} else if numSeps == 0 {
+		annotationVals = append(annotationVals, annotation)
+	} else {
+		log.Warningf("Annotation: %s improperly formatted should be single value or comma separated values, not processing", annotation)
+	}
+
+	return annotationVals
+}
+
 const (
 	multiServiceIngressType = iota
 	singleServiceIngressType
@@ -1306,6 +1329,12 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		urlRewriteMap = parseAppRootURLRewriteAnnotations(urlRewrite)
 	}
 
+	// Handle whitelist-source-range annotation
+	var whitelistSourceRanges []string
+	if sourceRange, ok := ing.ObjectMeta.Annotations[f5VsWhitelistSourceRangeAnnotation]; ok {
+		whitelistSourceRanges = parseAppRootWhitelistSourceRangeAnnotations(sourceRange)
+	}
+
 	// Handle app-root annotation
 	var appRootMap map[string]string
 	if appRoot, ok := ing.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
@@ -1319,6 +1348,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	var ssPoolName string
 
 	urlRewriteRefs := make(map[string]string)
+	whitelistSourceRangeRefs := make(map[string]string)
 	appRootRefs := make(map[string][]string)
 	if nil != ing.Spec.Rules { //multi-service
 		for _, rule := range ing.Spec.Rules {
@@ -1354,9 +1384,11 @@ func (appMgr *Manager) createRSConfigFromIngress(
 				}
 			}
 		}
-		rules, urlRewriteRefs, appRootRefs = processIngressRules(
+
+		rules, urlRewriteRefs, whitelistSourceRangeRefs, appRootRefs = processIngressRules(
 			&ing.Spec,
 			urlRewriteMap,
+			whitelistSourceRanges,
 			appRootMap,
 			pools,
 			cfg.Virtual.Partition,
@@ -1469,7 +1501,13 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		}
 	}
 
-	if len(urlRewriteRefs) > 0 || len(appRootRefs) > 0 {
+	for k, v := range whitelistSourceRangeRefs {
+		log.Debugf("Adding rule %s to virtual %s for pool %s", v, cfg.Virtual.Name, k)
+		appMgr.AddRuleToAnnotationsMap(cfg.Virtual.Name, k, v)
+	}
+
+	log.Debugf("%d whitelist sources", len(whitelistSourceRangeRefs))
+	if len(urlRewriteRefs) > 0 || len(appRootRefs) > 0 || len(whitelistSourceRangeRefs) > 0 {
 		cfg.MergeRules(appMgr.mergedRulesMap)
 	}
 

@@ -4,6 +4,11 @@ Release Notes for BIG-IP Controller for Kubernetes
 next-release
 ------------
 
+Added Functionality
+```````````````````
+* Added `--manage-configmaps` argument to CC to prevent or allow CC to respond to ConfigMap events. Defaults to `true`.
+* Added `virtual-server.f5.com/whitelist-source-range` annotation to support CIDR whitelisting.
+
 v1.6.1
 ------
 

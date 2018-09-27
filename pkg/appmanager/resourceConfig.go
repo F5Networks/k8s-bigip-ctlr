@@ -792,7 +792,12 @@ func (rs *Resources) UpdateDependencies(
 		if _, found := objDepDep[svcDepKey]; found {
 			shouldRemove := lookupFunc(objDepKey)
 			if shouldRemove {
-				// Ingress or Route has been deleted, remove it from the map
+				// Ingress or Route has been deleted, remove it from the map and add deps to removed
+				for dep := range rs.objDeps[objDepKey] {
+					if dep.Kind != "Service" {
+						removed = append(removed, dep)
+					}
+				}
 				delete(rs.objDeps, objDepKey)
 			}
 		}
@@ -2277,16 +2282,20 @@ func (rc *ResourceConfig) RemovePool(
 	// Delete profile (route only)
 	if resourceName != "" {
 		if rc.MetaData.ResourceType == "route" {
-			profRef := makeRouteClientSSLProfileRef(
-				rc.Virtual.Partition, namespace, resourceName)
-			rc.Virtual.RemoveProfile(profRef)
-			serverProfile := makeRouteServerSSLProfileRef(
-				rc.Virtual.Partition, namespace, resourceName)
-			rc.Virtual.RemoveProfile(serverProfile)
+			rc.DeleteRouteProfile(namespace, resourceName)
 		}
 	}
 
 	return cfgChanged, svcKey
+}
+
+func (rc *ResourceConfig) DeleteRouteProfile(namespace, name string) {
+	profRef := makeRouteClientSSLProfileRef(
+		rc.Virtual.Partition, namespace, name)
+	rc.Virtual.RemoveProfile(profRef)
+	serverProfile := makeRouteServerSSLProfileRef(
+		rc.Virtual.Partition, namespace, name)
+	rc.Virtual.RemoveProfile(serverProfile)
 }
 
 func (rc *ResourceConfig) RemovePoolAt(offset int) bool {

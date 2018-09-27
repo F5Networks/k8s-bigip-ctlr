@@ -9,6 +9,10 @@ Added Functionality
 * Added `--manage-configmaps` argument to CC to prevent or allow CC to respond to ConfigMap events. Defaults to `true`.
 * Added `virtual-server.f5.com/whitelist-source-range` annotation to support CIDR whitelisting.
 
+Bug Fixes
+`````````
+* :issues:`735` - Deleted rules from routes and ingresses on the same service not cleaned up properly.
+
 v1.6.1
 ------
 

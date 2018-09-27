@@ -385,7 +385,7 @@ var _ = Describe("Resource Config Tests", func() {
 			added, removed = rs.UpdateDependencies(
 				key, deps, routeDeps[0], routeNeverFound)
 			Expect(len(added)).To(BeZero())
-			Expect(len(removed)).To(BeZero())
+			Expect(len(removed)).To(Equal(1))
 			Expect(len(rs.objDeps)).To(BeZero())
 		})
 
@@ -490,7 +490,7 @@ var _ = Describe("Resource Config Tests", func() {
 			added, removed = rs.UpdateDependencies(
 				key, deps, ingressDeps[0], ingNeverFound)
 			Expect(len(added)).To(BeZero())
-			Expect(len(removed)).To(BeZero())
+			Expect(len(removed)).To(Equal(4))
 			Expect(len(rs.objDeps)).To(BeZero())
 		})
 	})

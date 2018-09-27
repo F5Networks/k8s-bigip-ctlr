@@ -1256,6 +1256,11 @@ func (appMgr *Manager) syncRoutes(
 						for _, rl := range pol.Rules {
 							if rl.FullURI == dep.Name {
 								rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
+								// Delete profile (route only)
+								if rsCfg.MetaData.ResourceType == "route" {
+									resourceName := strings.Split(rl.Name, "_")[3]
+									rsCfg.DeleteRouteProfile(dep.Namespace, resourceName)
+								}
 							}
 						}
 					}

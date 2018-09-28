@@ -98,7 +98,7 @@ var _ = Describe("Health Monitor Tests", func() {
 	}
 
 	Context("health monitor properties", func() {
-		It("confirms health Monitor properties", func() {
+		It("confirms http health Monitor properties", func() {
 			hm := Monitor{}
 			hm.Name = "svc"
 			hm.Partition = "f5"
@@ -113,6 +113,27 @@ var _ = Describe("Health Monitor Tests", func() {
 				"Partition": Equal("f5"),
 				"Interval":  Equal(10),
 				"Type":      Equal("http"),
+				"Send":      Equal("GET / HTTP/1.0"),
+				"Recv":      Equal("Hello from"),
+				"Timeout":   Equal(5),
+			}))
+		})
+
+		It("confirms https health Monitor properties", func() {
+			hm := Monitor{}
+			hm.Name = "svc"
+			hm.Partition = "f5"
+			hm.Interval = 10
+			hm.Type = "https"
+			hm.Send = "GET / HTTP/1.0"
+			hm.Recv = "Hello from"
+			hm.Timeout = 5
+
+			Expect(hm).To(MatchAllFields(Fields{
+				"Name":      Equal("svc"),
+				"Partition": Equal("f5"),
+				"Interval":  Equal(10),
+				"Type":      Equal("https"),
 				"Send":      Equal("GET / HTTP/1.0"),
 				"Recv":      Equal("Hello from"),
 				"Timeout":   Equal(5),
@@ -147,6 +168,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			ahm.Send = "GET / HTTP/1.0"
 			ahm.Recv = "Hello from"
 			ahm.Timeout = 5
+			ahm.Type = "http"
 
 			Expect(ahm).To(MatchAllFields(Fields{
 				"Path":     Equal("/foo"),
@@ -154,6 +176,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				"Send":     Equal("GET / HTTP/1.0"),
 				"Recv":     Equal("Hello from"),
 				"Timeout":  Equal(5),
+				"Type":     Equal("http"),
 			}))
 		})
 

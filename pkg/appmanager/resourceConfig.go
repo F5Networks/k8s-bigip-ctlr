@@ -228,8 +228,8 @@ func formatConfigMapPoolName(namespace, cmName, svc string) string {
 }
 
 // formats a health monitor name
-func formatMonitorName(poolName string) string {
-	return poolName + "_0_http"
+func formatMonitorName(poolName, monitorType string) string {
+	return poolName + "_0_" + monitorType
 }
 
 // format the virtual server name for an Ingress
@@ -2188,12 +2188,14 @@ func (rc *ResourceConfig) SetMonitor(pool *Pool, monitor Monitor) bool {
 	return updated
 }
 
-func (rc *ResourceConfig) RemoveMonitor(pool, monitor string) bool {
+func (rc *ResourceConfig) RemoveMonitor(pool string) bool {
 	var removed bool
+	var monitor string
 	for i, pl := range rc.Pools {
 		if pl.Name == pool {
 			for j, mon := range pl.MonitorNames {
-				if mon == monitor {
+				if strings.Contains(mon, pool) {
+					monitor = mon
 					if j >= len(pl.MonitorNames)-1 {
 						pl.MonitorNames = pl.MonitorNames[:len(pl.MonitorNames)-1]
 					} else {
@@ -2209,8 +2211,7 @@ func (rc *ResourceConfig) RemoveMonitor(pool, monitor string) bool {
 		}
 	}
 	for i, mon := range rc.Monitors {
-		name := strings.Split(monitor, "/")[2]
-		if mon.Name == name {
+		if strings.Contains(monitor, mon.Name) {
 			if i >= len(rc.Monitors)-1 {
 				rc.Monitors = rc.Monitors[:len(rc.Monitors)-1]
 			} else {
@@ -2276,8 +2277,7 @@ func (rc *ResourceConfig) RemovePool(
 		}
 	}
 	// Delete health monitor for the pool
-	monitorName := formatMonitorName(fullPoolName)
-	rc.RemoveMonitor(poolName, monitorName)
+	rc.RemoveMonitor(poolName)
 
 	// Delete profile (route only)
 	if resourceName != "" {

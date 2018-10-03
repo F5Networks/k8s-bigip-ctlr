@@ -23,6 +23,7 @@ pipeline {
           export BUILD_IMG_TAG="${BASE_PUSH_TARGET}-devel:${GIT_COMMIT}-$BASE_OS"
           export BUILD_STAMP="devel-$GIT_BRANCH-n-$BUILD_NUMBER-id-$BUILD_ID-$BASE_OS"
           export CLEAN_BUILD=true
+          docker login "$DOCKER_REGISTRY" -u="$USERNAME" -p="$TOKEN"
           build-tools/build-devel-image.sh
           build-tools/build-release-artifacts.sh
           build-tools/build-release-images.sh

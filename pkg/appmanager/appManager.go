@@ -124,8 +124,6 @@ type Manager struct {
 	schemaLocal string
 	// map of rules that have been merged
 	mergedRulesMap map[string]map[string]mergedRuleEntry
-	// map of rules created from annotations
-	annotationRulesMap map[string]map[string][]string
 	// Whether to watch ConfigMap resources or not
 	manageConfigMaps bool
 }
@@ -169,35 +167,34 @@ func NewManager(params *Params) *Manager {
 	nsQueue := workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "namespace-controller")
 	manager := Manager{
-		resources:          NewResources(),
-		customProfiles:     NewCustomProfiles(),
-		irulesMap:          make(IRulesMap),
-		intDgMap:           make(InternalDataGroupMap),
-		kubeClient:         params.KubeClient,
-		restClientv1:       params.restClient,
-		restClientv1beta1:  params.restClient,
-		routeClientV1:      params.RouteClientV1,
-		configWriter:       params.ConfigWriter,
-		useNodeInternal:    params.UseNodeInternal,
-		isNodePort:         params.IsNodePort,
-		initialState:       params.initialState,
-		queueLen:           0,
-		processedItems:     0,
-		routeConfig:        params.RouteConfig,
-		nodeLabelSelector:  params.NodeLabelSelector,
-		resolveIng:         params.ResolveIngress,
-		defaultIngIP:       params.DefaultIngIP,
-		vsSnatPoolName:     params.VsSnatPoolName,
-		useSecrets:         params.UseSecrets,
-		eventChan:          params.EventChan,
-		vsQueue:            vsQueue,
-		nsQueue:            nsQueue,
-		appInformers:       make(map[string]*appInformer),
-		eventNotifier:      NewEventNotifier(params.broadcasterFunc),
-		schemaLocal:        params.SchemaLocal,
-		mergedRulesMap:     make(map[string]map[string]mergedRuleEntry),
-		annotationRulesMap: make(map[string]map[string][]string),
-		manageConfigMaps:   params.ManageConfigMaps,
+		resources:         NewResources(),
+		customProfiles:    NewCustomProfiles(),
+		irulesMap:         make(IRulesMap),
+		intDgMap:          make(InternalDataGroupMap),
+		kubeClient:        params.KubeClient,
+		restClientv1:      params.restClient,
+		restClientv1beta1: params.restClient,
+		routeClientV1:     params.RouteClientV1,
+		configWriter:      params.ConfigWriter,
+		useNodeInternal:   params.UseNodeInternal,
+		isNodePort:        params.IsNodePort,
+		initialState:      params.initialState,
+		queueLen:          0,
+		processedItems:    0,
+		routeConfig:       params.RouteConfig,
+		nodeLabelSelector: params.NodeLabelSelector,
+		resolveIng:        params.ResolveIngress,
+		defaultIngIP:      params.DefaultIngIP,
+		vsSnatPoolName:    params.VsSnatPoolName,
+		useSecrets:        params.UseSecrets,
+		eventChan:         params.EventChan,
+		vsQueue:           vsQueue,
+		nsQueue:           nsQueue,
+		appInformers:      make(map[string]*appInformer),
+		eventNotifier:     NewEventNotifier(params.broadcasterFunc),
+		schemaLocal:       params.SchemaLocal,
+		mergedRulesMap:    make(map[string]map[string]mergedRuleEntry),
+		manageConfigMaps:  params.ManageConfigMaps,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -1010,7 +1007,7 @@ func (appMgr *Manager) syncIngresses(
 		// Get a list of dependencies removed so their pools can be removed.
 		objKey, objDeps := NewObjectDependencies(ing)
 		svcDepKey := ObjectDependency{
-			Kind:      "Service",
+			Kind:      ServiceDep,
 			Namespace: sKey.Namespace,
 			Name:      sKey.ServiceName,
 		}
@@ -1022,7 +1019,7 @@ func (appMgr *Manager) syncIngresses(
 			_, ingFound, _ := appInf.ingInformer.GetIndexer().GetByKey(ingKey)
 			return !ingFound
 		}
-		_, depsRemoved := appMgr.resources.UpdateDependencies(
+		depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 			objKey, objDeps, svcDepKey, ingressLookupFunc)
 
 		for _, portStruct := range appMgr.virtualPorts(ing) {
@@ -1088,7 +1085,7 @@ func (appMgr *Manager) syncIngresses(
 
 			// Remove any dependencies no longer used by this Ingress
 			for _, dep := range depsRemoved {
-				if dep.Kind == "Service" {
+				if dep.Kind == ServiceDep {
 					cfgChanged, svcKey := rsCfg.RemovePool(
 						dep.Namespace, formatIngressPoolName(dep.Namespace, dep.Name), appMgr)
 					if cfgChanged {
@@ -1098,11 +1095,56 @@ func (appMgr *Manager) syncIngresses(
 						appMgr.resources.DeleteKeyRef(*svcKey, rsName)
 					}
 				}
-				if dep.Kind == "Rule" {
+				if dep.Kind == RuleDep {
 					for _, pol := range rsCfg.Policies {
 						for _, rl := range pol.Rules {
 							if rl.FullURI == dep.Name {
 								rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
+							}
+						}
+					}
+				}
+				if dep.Kind == URLDep || dep.Kind == AppRootDep {
+					var addedRules string
+					for _, add := range depsAdded {
+						if add.Kind == URLDep || add.Kind == AppRootDep {
+							addedRules = add.Name
+						}
+					}
+					removedRules := strings.Split(dep.Name, ",")
+					for _, remv := range removedRules {
+						if !strings.Contains(addedRules, remv) {
+							// Rule has been removed from annotation, delete it
+							var found bool
+							for _, pol := range rsCfg.Policies {
+								for _, rl := range pol.Rules {
+									if rl.Name == remv {
+										found = true
+										rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
+										break
+									}
+								}
+							}
+							if !found { // likely a merged rule
+								rsCfg.UnmergeRule(remv, appMgr.mergedRulesMap)
+							}
+						}
+					}
+				}
+				if dep.Kind == WhitelistDep {
+					for _, pol := range rsCfg.Policies {
+						for _, rl := range pol.Rules {
+							for i, cd := range rl.Conditions {
+								var valueStr string
+								for _, val := range cd.Values {
+									valueStr += val + ","
+								}
+								valueStr = strings.TrimSuffix(valueStr, ",")
+								if valueStr == dep.Name {
+									copy(rl.Conditions[i:], rl.Conditions[i+1:])
+									rl.Conditions[len(rl.Conditions)-1] = nil
+									rl.Conditions = rl.Conditions[:len(rl.Conditions)-1]
+								}
 							}
 						}
 					}
@@ -1181,7 +1223,7 @@ func (appMgr *Manager) syncRoutes(
 		// Get a list of dependencies removed so their pools can be removed.
 		objKey, objDeps := NewObjectDependencies(route)
 		svcDepKey := ObjectDependency{
-			Kind:      "Service",
+			Kind:      ServiceDep,
 			Namespace: sKey.Namespace,
 			Name:      sKey.ServiceName,
 		}
@@ -1241,7 +1283,7 @@ func (appMgr *Manager) syncRoutes(
 
 			// Remove any left over pools from services no longer used by this Route
 			for _, dep := range depsRemoved {
-				if dep.Kind == "Service" {
+				if dep.Kind == ServiceDep {
 					cfgChanged, svcKey := rsCfg.RemovePool(
 						dep.Namespace, formatRoutePoolName(dep.Namespace, dep.Name), appMgr)
 					if cfgChanged {
@@ -1251,7 +1293,7 @@ func (appMgr *Manager) syncRoutes(
 						appMgr.resources.DeleteKeyRef(*svcKey, rsName)
 					}
 				}
-				if dep.Kind == "Rule" {
+				if dep.Kind == RuleDep {
 					for _, pol := range rsCfg.Policies {
 						for _, rl := range pol.Rules {
 							if rl.FullURI == dep.Name {
@@ -1262,6 +1304,19 @@ func (appMgr *Manager) syncRoutes(
 									rsCfg.DeleteRouteProfile(dep.Namespace, resourceName)
 								}
 							}
+						}
+					}
+				}
+				if dep.Kind == URLDep || dep.Kind == AppRootDep {
+					for _, pol := range rsCfg.Policies {
+						var toRemove []*Rule
+						for _, rl := range pol.Rules {
+							if strings.Contains(dep.Name, rl.Name) {
+								toRemove = append(toRemove, rl)
+							}
+						}
+						for _, rl := range toRemove {
+							rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
 						}
 					}
 				}

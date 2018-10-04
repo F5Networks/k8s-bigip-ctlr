@@ -50,6 +50,10 @@ const DEFAULT_BALANCE string = "round-robin"
 const DEFAULT_HTTP_PORT int32 = 80
 const DEFAULT_HTTPS_PORT int32 = 443
 
+const urlRewriteRulePrefix = "url-rewrite-rule-"
+const appRootForwardRulePrefix = "app-root-forward-rule-"
+const appRootRedirectRulePrefix = "app-root-redirect-rule-"
+
 // FIXME: remove this global variable.
 var DEFAULT_PARTITION string
 
@@ -467,6 +471,12 @@ type ResourceInterface interface {
 	DependencyDiff(key ObjectDependency, newDeps ObjectDependencies) ([]ObjectDependency, []ObjectDependency)
 }
 
+const ServiceDep = "Service"
+const RuleDep = "Rule"
+const URLDep = "URL-Rewrite-Annotation"
+const AppRootDep = "App-Root-Annotation"
+const WhitelistDep = "Whitelist-Annotation"
+
 // NewObjectDependencies parses an object and returns a map of its dependencies
 func NewObjectDependencies(
 	obj interface{},
@@ -491,11 +501,27 @@ func NewObjectDependencies(
 			deps[dep]++
 		}
 		dep = ObjectDependency{
-			Kind:      "Rule",
+			Kind:      RuleDep,
 			Namespace: route.ObjectMeta.Namespace,
 			Name:      route.Spec.Host + route.Spec.Path,
 		}
 		deps[dep]++
+		if urlRewrite, ok := route.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
+			dep = ObjectDependency{
+				Kind:      URLDep,
+				Namespace: route.ObjectMeta.Namespace,
+				Name:      getAnnotationRuleNames(urlRewrite, false, route),
+			}
+			deps[dep]++
+		}
+		if appRoot, ok := route.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
+			dep = ObjectDependency{
+				Kind:      AppRootDep,
+				Namespace: route.ObjectMeta.Namespace,
+				Name:      getAnnotationRuleNames(appRoot, true, route),
+			}
+			deps[dep]++
+		}
 	case *v1beta1.Ingress:
 		ingress := obj.(*v1beta1.Ingress)
 		key.Kind = "Ingress"
@@ -503,7 +529,7 @@ func NewObjectDependencies(
 		key.Name = ingress.ObjectMeta.Name
 		if nil != ingress.Spec.Backend {
 			dep := ObjectDependency{
-				Kind:      "Service",
+				Kind:      ServiceDep,
 				Namespace: ingress.ObjectMeta.Namespace,
 				Name:      ingress.Spec.Backend.ServiceName,
 			}
@@ -515,23 +541,186 @@ func NewObjectDependencies(
 			}
 			for _, path := range rule.IngressRuleValue.HTTP.Paths {
 				dep := ObjectDependency{
-					Kind:      "Service",
+					Kind:      ServiceDep,
 					Namespace: ingress.ObjectMeta.Namespace,
 					Name:      path.Backend.ServiceName,
 				}
 				deps[dep]++
 				dep = ObjectDependency{
-					Kind:      "Rule",
+					Kind:      RuleDep,
 					Namespace: ingress.ObjectMeta.Namespace,
 					Name:      rule.Host + path.Path,
 				}
 				deps[dep]++
+				if urlRewrite, ok := ingress.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
+					dep = ObjectDependency{
+						Kind:      URLDep,
+						Namespace: ingress.ObjectMeta.Namespace,
+						Name:      getAnnotationRuleNames(urlRewrite, false, ingress),
+					}
+					deps[dep]++
+				}
+				if appRoot, ok := ingress.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
+					dep = ObjectDependency{
+						Kind:      AppRootDep,
+						Namespace: ingress.ObjectMeta.Namespace,
+						Name:      getAnnotationRuleNames(appRoot, true, ingress),
+					}
+					deps[dep]++
+				}
+				if whiteList, ok := ingress.ObjectMeta.Annotations[f5VsWhitelistSourceRangeAnnotation]; ok {
+					dep = ObjectDependency{
+						Kind:      WhitelistDep,
+						Namespace: ingress.ObjectMeta.Namespace,
+						Name:      whiteList,
+					}
+					deps[dep]++
+				}
 			}
 		}
 	default:
 		log.Errorf("Unhandled object type: %v", t)
 	}
 	return key, deps
+}
+
+func generateMultiServiceAnnotationRuleNames(ing *v1beta1.Ingress, annotationMap map[string]string, prefix string) string {
+	var ruleNames string
+	appRoot := strings.HasPrefix(prefix, "app-root")
+
+	for _, rule := range ing.Spec.Rules {
+		if nil != rule.IngressRuleValue.HTTP {
+			for _, path := range rule.IngressRuleValue.HTTP.Paths {
+				var uri string
+				if appRoot {
+					uri = rule.Host
+				} else {
+					uri = rule.Host + path.Path
+				}
+				if targetVal, ok := annotationMap[uri]; ok {
+					var nameEnd string
+					if appRoot {
+						nameEnd = uri + targetVal
+					} else {
+						nameEnd = uri + "-" + targetVal
+					}
+					nameEnd = strings.Replace(nameEnd, "/", "_", -1)
+					ruleNames += prefix + nameEnd + ","
+				}
+			}
+		}
+	}
+	ruleNames = strings.TrimSuffix(ruleNames, ",")
+
+	return ruleNames
+}
+
+// formats annotation rule names in a comma separated string
+func getAnnotationRuleNames(oldName string, isAppRoot bool, obj interface{}) string {
+	var ruleNames string
+	switch t := obj.(type) {
+	case *routeapi.Route:
+		route := obj.(*routeapi.Route)
+		annotationMap := parseAppRootURLRewriteAnnotations(oldName)
+		nameEnd := route.Spec.Host + route.Spec.Path + "-" + annotationMap["single"]
+		nameEnd = strings.Replace(nameEnd, "/", "_", -1)
+		if isAppRoot {
+			ruleNames = appRootRedirectRulePrefix + nameEnd
+			ruleNames += "," + appRootForwardRulePrefix + nameEnd
+		} else {
+			ruleNames = urlRewriteRulePrefix + nameEnd
+		}
+	case *v1beta1.Ingress:
+		ingress := obj.(*v1beta1.Ingress)
+		if ingress.Spec.Rules != nil {
+			annotationMap := parseAppRootURLRewriteAnnotations(oldName)
+			if isAppRoot {
+				ruleNames = generateMultiServiceAnnotationRuleNames(ingress, annotationMap, appRootRedirectRulePrefix)
+				ruleNames += "," + generateMultiServiceAnnotationRuleNames(ingress, annotationMap, appRootForwardRulePrefix)
+			} else {
+				ruleNames = generateMultiServiceAnnotationRuleNames(ingress, annotationMap, urlRewriteRulePrefix)
+			}
+		} else {
+			if isAppRoot {
+				annotationMap := parseAppRootURLRewriteAnnotations(oldName)
+				nameEnd := "single-service" + "-" + annotationMap["single"]
+				ruleNames = appRootRedirectRulePrefix + nameEnd
+				ruleNames += "," + appRootForwardRulePrefix + nameEnd
+			}
+		}
+	default:
+		log.Errorf("Unknown object type: %v", t)
+	}
+	return ruleNames
+}
+
+// UpdateDependencies will keep the rs.objDeps map updated, and return two
+// arrays identifying what has changed - added for dependencies that were
+// added, and removed for dependencies that were removed.
+func (rs *Resources) UpdateDependencies(
+	newKey ObjectDependency,
+	newDeps ObjectDependencies,
+	svcDepKey ObjectDependency,
+	lookupFunc func(key ObjectDependency) bool,
+) ([]ObjectDependency, []ObjectDependency) {
+	rs.Lock()
+	defer rs.Unlock()
+
+	// Update dependencies for newKey
+	var added, removed []ObjectDependency
+	oldDeps, found := rs.objDeps[newKey]
+	if found {
+		// build list of removed deps
+		for oldDep := range oldDeps {
+			if _, found = newDeps[oldDep]; !found {
+				// If Rule, put at front of list to ensure we unmerge before trying
+				// to process any removed annotation rules
+				if oldDep.Kind == RuleDep {
+					removed = append([]ObjectDependency{oldDep}, removed...)
+				} else {
+					removed = append(removed, oldDep)
+				}
+			}
+		}
+		// build list of added deps
+		for newDep := range newDeps {
+			if _, found = oldDeps[newDep]; !found {
+				added = append(added, newDep)
+			}
+		}
+	} else {
+		// all newDeps are adds
+		for newDep := range newDeps {
+			added = append(added, newDep)
+		}
+	}
+	rs.objDeps[newKey] = newDeps
+
+	// Look for all top level objects that depend on the service being handled
+	// by the caller. Remove that top level object if it no longer exists. This
+	// happens when a Route or Ingress is deleted.
+	for objDepKey, objDepDep := range rs.objDeps {
+		if _, found := objDepDep[svcDepKey]; found {
+			shouldRemove := lookupFunc(objDepKey)
+			if shouldRemove {
+				// Ingress or Route has been deleted, remove it from the map and add deps to removed
+				for dep := range rs.objDeps[objDepKey] {
+					if dep.Kind != ServiceDep {
+						// If Rule, put at front of list to ensure we unmerge before trying
+						// to process any removed annotation rules
+						if dep.Kind == RuleDep {
+							removed = append([]ObjectDependency{dep}, removed...)
+						} else {
+							removed = append(removed, dep)
+						}
+					}
+				}
+				delete(rs.objDeps, objDepKey)
+			}
+		}
+	}
+
+	return added, removed
 }
 
 // Constructor for Resources
@@ -749,63 +938,6 @@ func (rs *Resources) GetAllResources() ResourceConfigs {
 	return cfgs
 }
 
-// UpdateDependencies will keep the rs.objDeps map updated, and return two
-// arrays identifying what has changed - added for dependencies that were
-// added, and removed for dependencies that were removed.
-func (rs *Resources) UpdateDependencies(
-	newKey ObjectDependency,
-	newDeps ObjectDependencies,
-	svcDepKey ObjectDependency,
-	lookupFunc func(key ObjectDependency) bool,
-) ([]ObjectDependency, []ObjectDependency) {
-	rs.Lock()
-	defer rs.Unlock()
-
-	// Update dependencies for newKey
-	var added, removed []ObjectDependency
-	oldDeps, found := rs.objDeps[newKey]
-	if found {
-		// build list of removed deps
-		for oldDep := range oldDeps {
-			if _, found = newDeps[oldDep]; !found {
-				removed = append(removed, oldDep)
-			}
-		}
-		// build list of added deps
-		for newDep := range newDeps {
-			if _, found = oldDeps[newDep]; !found {
-				added = append(added, newDep)
-			}
-		}
-	} else {
-		// all newDeps are adds
-		for newDep := range newDeps {
-			added = append(added, newDep)
-		}
-	}
-	rs.objDeps[newKey] = newDeps
-
-	// Look for all top level objects that depend on the service being handled
-	// by the caller. Remove that top level object if it no longer exists. This
-	// happens when a Route or Ingress is deleted.
-	for objDepKey, objDepDep := range rs.objDeps {
-		if _, found := objDepDep[svcDepKey]; found {
-			shouldRemove := lookupFunc(objDepKey)
-			if shouldRemove {
-				// Ingress or Route has been deleted, remove it from the map and add deps to removed
-				for dep := range rs.objDeps[objDepKey] {
-					if dep.Kind != "Service" {
-						removed = append(removed, dep)
-					}
-				}
-				delete(rs.objDeps, objDepKey)
-			}
-		}
-	}
-
-	return added, removed
-}
-
 func setProfilesForMode(mode string, cfg *ResourceConfig) {
 	tcpProf := ProfileRef{
 		Partition: "Common",
@@ -875,7 +1007,7 @@ func parseAppRootURLRewriteAnnotations(annotation string) map[string]string {
 	return annotationValMap
 }
 
-func parseAppRootWhitelistSourceRangeAnnotations(annotation string) []string {
+func parseWhitelistSourceRangeAnnotations(annotation string) []string {
 	var annotationVals []string
 
 	numSeps := strings.Count(annotation, ",")
@@ -983,7 +1115,7 @@ func processAppRoot(target, value, poolName string, rsType int) Rules {
 	}
 	nameEnd = strings.Replace(nameEnd, "/", "_", -1)
 	rules = append(rules, &Rule{
-		Name:       fmt.Sprintf("app-root-redirect-rule-%s", nameEnd),
+		Name:       appRootRedirectRulePrefix + nameEnd,
 		FullURI:    target,
 		Actions:    []*action{redirectAction},
 		Conditions: redirectConditions,
@@ -1020,7 +1152,7 @@ func processAppRoot(target, value, poolName string, rsType int) Rules {
 	}
 
 	rules = append(rules, &Rule{
-		Name:       fmt.Sprintf("app-root-forward-rule-%s", nameEnd),
+		Name:       appRootForwardRulePrefix + nameEnd,
 		FullURI:    target,
 		Actions:    []*action{forwardAction},
 		Conditions: forwardConditions,
@@ -1107,7 +1239,7 @@ func processURLRewrite(target, value string, rsType int) *Rule {
 	nameEnd := target + "-" + value
 	nameEnd = strings.Replace(nameEnd, "/", "_", -1)
 	return &Rule{
-		Name:       fmt.Sprintf("url-rewrite-rule-%s", nameEnd),
+		Name:       urlRewriteRulePrefix + nameEnd,
 		FullURI:    target,
 		Actions:    actions,
 		Conditions: conditions,
@@ -1337,7 +1469,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	// Handle whitelist-source-range annotation
 	var whitelistSourceRanges []string
 	if sourceRange, ok := ing.ObjectMeta.Annotations[f5VsWhitelistSourceRangeAnnotation]; ok {
-		whitelistSourceRanges = parseAppRootWhitelistSourceRangeAnnotations(sourceRange)
+		whitelistSourceRanges = parseWhitelistSourceRangeAnnotations(sourceRange)
 	}
 
 	// Handle app-root annotation
@@ -1353,7 +1485,6 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	var ssPoolName string
 
 	urlRewriteRefs := make(map[string]string)
-	whitelistSourceRangeRefs := make(map[string]string)
 	appRootRefs := make(map[string][]string)
 	if nil != ing.Spec.Rules { //multi-service
 		for _, rule := range ing.Spec.Rules {
@@ -1390,7 +1521,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 			}
 		}
 
-		rules, urlRewriteRefs, whitelistSourceRangeRefs, appRootRefs = processIngressRules(
+		rules, urlRewriteRefs, appRootRefs = processIngressRules(
 			&ing.Spec,
 			urlRewriteMap,
 			whitelistSourceRanges,
@@ -1447,12 +1578,6 @@ func (appMgr *Manager) createRSConfigFromIngress(
 			}
 			if !found {
 				cfg.Pools = append(cfg.Pools, newPool)
-			} else {
-				// This is called to ensure that if a url-rewrite annotation is changed for a pool,
-				// the old value is cleaned up. All rules will be unmerged for the pool, but those
-				// that still remain will be re-merged before writing out the final config.
-				// Only deleted annotations will be completely removed.
-				appMgr.ProcessAnnotationRules(&cfg, newPool.Name)
 			}
 		}
 		if len(cfg.Pools) > 1 && nil != ing.Spec.Rules {
@@ -1470,8 +1595,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 				found := false
 				for i, rl := range policy.Rules {
 					if rl.Name == newRule.Name || (!isAnnotationRule(rl.Name) &&
-						!isAnnotationRule(newRule.Name) &&
-						rl.FullURI == newRule.FullURI) {
+						!isAnnotationRule(newRule.Name) && rl.FullURI == newRule.FullURI) {
 						found = true
 						policy.Rules[i] = newRule
 						break
@@ -1496,23 +1620,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		}
 	}
 
-	for k, v := range urlRewriteRefs {
-		appMgr.AddRuleToAnnotationsMap(cfg.Virtual.Name, k, v)
-	}
-
-	for k, v := range appRootRefs {
-		for i := range v {
-			appMgr.AddRuleToAnnotationsMap(cfg.Virtual.Name, k, v[i])
-		}
-	}
-
-	for k, v := range whitelistSourceRangeRefs {
-		log.Debugf("Adding rule %s to virtual %s for pool %s", v, cfg.Virtual.Name, k)
-		appMgr.AddRuleToAnnotationsMap(cfg.Virtual.Name, k, v)
-	}
-
-	log.Debugf("%d whitelist sources", len(whitelistSourceRangeRefs))
-	if len(urlRewriteRefs) > 0 || len(appRootRefs) > 0 || len(whitelistSourceRangeRefs) > 0 {
+	if len(urlRewriteRefs) > 0 || len(appRootRefs) > 0 {
 		cfg.MergeRules(appMgr.mergedRulesMap)
 	}
 
@@ -1743,12 +1851,6 @@ func (appMgr *Manager) createRSConfigFromRoute(
 		}
 		if !found {
 			rsCfg.Pools = append(rsCfg.Pools, pool)
-		} else {
-			// This is called to ensure that if a url-rewrite annotation is changed for a pool,
-			// the old value is cleaned up. All rules will be unmerged for the pool, but those
-			// that still remain will be re-merged before writing out the final config.
-			// Only deleted annotations will be completely removed.
-			appMgr.ProcessAnnotationRules(&rsCfg, pool.Name)
 		}
 	} else { // This is a new VS for a Route
 		rsCfg.MetaData.ResourceType = "route"
@@ -1855,13 +1957,10 @@ func setAnnotationRulesForRoute(
 ) {
 	if len(appRootRules) == 2 {
 		rc.AddRuleToPolicy(policyName, appRootRules[0])
-		appMgr.AddRuleToAnnotationsMap(virtualName, poolName, appRootRules[0].Name)
 		rc.AddRuleToPolicy(policyName, appRootRules[1])
-		appMgr.AddRuleToAnnotationsMap(virtualName, poolName, appRootRules[1].Name)
 	}
 	if urlRewriteRule != nil {
 		rc.AddRuleToPolicy(policyName, urlRewriteRule)
-		appMgr.AddRuleToAnnotationsMap(virtualName, poolName, urlRewriteRule.Name)
 	}
 }
 
@@ -1962,85 +2061,6 @@ func (appMgr *Manager) handleRouteTls(
 	}
 	if urlRewriteRule != nil || len(appRootRules) != 0 {
 		rc.MergeRules(appMgr.mergedRulesMap)
-	}
-}
-
-func (appMgr *Manager) AddRuleToAnnotationsMap(virtualName, poolName, ruleName string) {
-	if _, ok := appMgr.annotationRulesMap[virtualName]; !ok {
-		appMgr.annotationRulesMap[virtualName] = make(map[string][]string)
-	}
-	if _, ok := appMgr.annotationRulesMap[virtualName][poolName]; ok {
-		// Only add the rule name if it is unique
-		for _, name := range appMgr.annotationRulesMap[virtualName][poolName] {
-			if name == ruleName {
-				return
-			}
-		}
-	}
-	appMgr.annotationRulesMap[virtualName][poolName] = append(appMgr.annotationRulesMap[virtualName][poolName], ruleName)
-}
-
-func (appMgr *Manager) ProcessAnnotationRules(rsCfg *ResourceConfig, poolName string) {
-	rsName := rsCfg.GetName()
-	// Nothing to process if there are no annotation rules for this resource config
-	if _, ok := appMgr.annotationRulesMap[rsName]; !ok {
-		return
-	}
-
-	// Nothing to process if there are no annotation rules for this pool
-	var ruleNames []string
-	var ok bool
-	if ruleNames, ok = appMgr.annotationRulesMap[rsName][poolName]; !ok || len(ruleNames) == 0 {
-		return
-	}
-
-	// Process all annotation rules for this pool
-	var deletedRuleIndices []int
-	for i := range ruleNames {
-		var addedIndex bool
-
-		// Get merged rule if this rule was merged with another and unmerge them (delete this rule's actions) then process the next rule for this pool
-		if _, ok := appMgr.mergedRulesMap[rsName]; ok {
-			if mergedRule, ok := appMgr.mergedRulesMap[rsName][ruleNames[i]]; ok {
-				rsCfg.UnmergeRule(mergedRule.RuleName, appMgr.mergedRulesMap)
-				if !addedIndex {
-					deletedRuleIndices = append(deletedRuleIndices, i)
-					addedIndex = true
-				}
-				continue
-			}
-		}
-
-		// Remove this rule from this config and from the annotationRulesMap entry
-		policy := rsCfg.FindPolicy("forwarding")
-		for k := range policy.Rules {
-			if policy.Rules[k].Name == ruleNames[i] {
-				policy.Rules = append(policy.Rules[:k], policy.Rules[k+1:]...)
-				if !addedIndex {
-					deletedRuleIndices = append(deletedRuleIndices, i)
-				}
-				rsCfg.SetPolicy(*policy)
-				break
-			}
-		}
-	}
-
-	// Remove the deleted rule entries from the annotationRulesMap
-	for _, index := range deletedRuleIndices {
-		ruleNames = append(ruleNames[:index], ruleNames[index+1:]...)
-		for i := range deletedRuleIndices {
-			deletedRuleIndices[i]--
-		}
-	}
-	appMgr.annotationRulesMap[rsName][poolName] = ruleNames
-
-	// Remove this pool entry from the annotationRulesMap if all of its annotation rules have been deleted
-	if len(appMgr.annotationRulesMap[rsName][poolName]) == 0 {
-		delete(appMgr.annotationRulesMap[rsName], poolName)
-	}
-	// Remove this resource config entry from the annotationRulesMap if all of its pools annotation rules have been deleted
-	if len(appMgr.annotationRulesMap[rsName]) == 0 {
-		delete(appMgr.annotationRulesMap, rsName)
 	}
 }
 
@@ -2235,9 +2255,6 @@ func (rc *ResourceConfig) RemovePool(
 	var svcKey *serviceKey
 	var fullPoolName, resourceName string
 
-	// Delete annotation rules associated with this pool
-	appMgr.ProcessAnnotationRules(rc, poolName)
-
 	// Delete pool
 	for i, pool := range rc.Pools {
 		if pool.Name != poolName {
@@ -2264,6 +2281,10 @@ func (rc *ResourceConfig) RemovePool(
 					resourceName = strings.Split(rule.Name, "_")[3]
 				}
 				ruleOffsets = append(ruleOffsets, i)
+				unmerged := rc.UnmergeRule(rule.Name, appMgr.mergedRulesMap)
+				if unmerged {
+					cfgChanged = true
+				}
 			}
 		}
 		polChanged := policy.RemoveRules(ruleOffsets)
@@ -2521,6 +2542,15 @@ func (rc *ResourceConfig) MergeRules(mergedRulesMap map[string]map[string]merged
 						}
 					}
 
+					contains := func(slice []string, s string) bool {
+						for _, v := range slice {
+							if v == s {
+								return true
+							}
+						}
+						return false
+					}
+
 					// Process entries to the mergedRulesMap
 					key := rc.GetName()
 					if len(mergerEntry.MergedActions) != 0 {
@@ -2528,7 +2558,9 @@ func (rc *ResourceConfig) MergeRules(mergedRulesMap map[string]map[string]merged
 						if _, ok := mergedRulesMap[key]; ok {
 							// See if there is an entry for the merger
 							if entry, ok := mergedRulesMap[key][mergerEntry.RuleName]; ok {
-								mergerEntry.OtherRuleNames = append(mergerEntry.OtherRuleNames, entry.OtherRuleNames...)
+								if !contains(entry.OtherRuleNames, mergerEntry.OtherRuleNames[0]) {
+									mergerEntry.OtherRuleNames = append(mergerEntry.OtherRuleNames, entry.OtherRuleNames...)
+								}
 								mergerEntry.OriginalRule = entry.OriginalRule
 
 								if len(entry.MergedActions) != 0 {

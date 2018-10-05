@@ -344,23 +344,23 @@ var _ = Describe("Resource Config Tests", func() {
 			}
 			route := test.NewRoute("route", "1", "ns1", spec, nil)
 			key, deps := NewObjectDependencies(route)
-			Expect(key).To(Equal(ObjectDependency{
+			Expect(*key).To(Equal(ObjectDependency{
 				Kind: "Route", Namespace: "ns1", Name: "route"}))
-			routeDeps := []ObjectDependency{
-				{Kind: "Service", Namespace: "ns1", Name: "foo"},
-				{Kind: "Service", Namespace: "ns1", Name: "bar"},
-				{Kind: "Service", Namespace: "ns1", Name: "baz"},
-				{Kind: "Rule", Namespace: "ns1", Name: "host.com/foo"},
+			routeDeps := []*ObjectDependency{
+				&ObjectDependency{Kind: "Service", Namespace: "ns1", Name: "foo"},
+				&ObjectDependency{Kind: "Service", Namespace: "ns1", Name: "bar"},
+				&ObjectDependency{Kind: "Service", Namespace: "ns1", Name: "baz"},
+				&ObjectDependency{Kind: "Rule", Namespace: "ns1", Name: "host.com/foo"},
 			}
 			for _, dep := range routeDeps {
 				_, found := deps[dep]
 				Expect(found).To(BeTrue())
 			}
 
-			routeAlwaysFound := func(key ObjectDependency) bool {
+			routeAlwaysFound := func(key *ObjectDependency) bool {
 				return false
 			}
-			routeNeverFound := func(key ObjectDependency) bool {
+			routeNeverFound := func(key *ObjectDependency) bool {
 				return true
 			}
 
@@ -445,27 +445,27 @@ var _ = Describe("Resource Config Tests", func() {
 			// Add a new Ingress
 			ingress := test.NewIngress("ingress", "1", "ns2", ingressConfig, nil)
 			key, deps := NewObjectDependencies(ingress)
-			Expect(key).To(Equal(ObjectDependency{
+			Expect(*key).To(Equal(ObjectDependency{
 				Kind: "Ingress", Namespace: "ns2", Name: "ingress"}))
-			ingressDeps := []ObjectDependency{
-				{Kind: "Service", Namespace: "ns2", Name: "foo"},
-				{Kind: "Service", Namespace: "ns2", Name: "bar"},
-				{Kind: "Service", Namespace: "ns2", Name: "baz"},
-				{Kind: "Service", Namespace: "ns2", Name: "foobarbaz"},
-				{Kind: "Rule", Namespace: "ns2", Name: "host1/bar"},
-				{Kind: "Rule", Namespace: "ns2", Name: "host1/baz"},
-				{Kind: "Rule", Namespace: "ns2", Name: "host2/baz"},
-				{Kind: "Rule", Namespace: "ns2", Name: "host2/foobarbaz"},
+			ingressDeps := []*ObjectDependency{
+				&ObjectDependency{Kind: "Service", Namespace: "ns2", Name: "foo"},
+				&ObjectDependency{Kind: "Service", Namespace: "ns2", Name: "bar"},
+				&ObjectDependency{Kind: "Service", Namespace: "ns2", Name: "baz"},
+				&ObjectDependency{Kind: "Service", Namespace: "ns2", Name: "foobarbaz"},
+				&ObjectDependency{Kind: "Rule", Namespace: "ns2", Name: "host1/bar"},
+				&ObjectDependency{Kind: "Rule", Namespace: "ns2", Name: "host1/baz"},
+				&ObjectDependency{Kind: "Rule", Namespace: "ns2", Name: "host2/baz"},
+				&ObjectDependency{Kind: "Rule", Namespace: "ns2", Name: "host2/foobarbaz"},
 			}
 			for _, dep := range ingressDeps {
 				_, found := deps[dep]
 				Expect(found).To(BeTrue())
 			}
 
-			ingAlwaysFound := func(key ObjectDependency) bool {
+			ingAlwaysFound := func(key *ObjectDependency) bool {
 				return false
 			}
-			ingNeverFound := func(key ObjectDependency) bool {
+			ingNeverFound := func(key *ObjectDependency) bool {
 				return true
 			}
 
@@ -698,7 +698,7 @@ var _ = Describe("Resource Config Tests", func() {
 				svcFwdRulesMap := NewServiceFwdRuleMap()
 				cfg, _, _ := mockMgr.appMgr.createRSConfigFromRoute(
 					route, getRouteCanonicalServiceName(route),
-					&Resources{}, rc, ps, nil, svcFwdRulesMap, "test-snat-pool")
+					&Resources{}, rc, ps, nil, svcFwdRulesMap, "test-snat-pool", false, false)
 				Expect(cfg.Virtual.Name).To(Equal("https-ose-vserver"))
 				Expect(cfg.Virtual.SourceAddrTranslation).To(Equal(SourceAddrTranslation{
 					Type: "snat",
@@ -728,7 +728,7 @@ var _ = Describe("Resource Config Tests", func() {
 				}
 				cfg, _, _ = mockMgr.appMgr.createRSConfigFromRoute(
 					route2, getRouteCanonicalServiceName(route2),
-					&Resources{}, rc, ps, nil, svcFwdRulesMap, "")
+					&Resources{}, rc, ps, nil, svcFwdRulesMap, "", false, false)
 				Expect(cfg.Virtual.Name).To(Equal("ose-vserver"))
 				Expect(cfg.Pools[0].Name).To(Equal("openshift_default_bar"))
 				Expect(cfg.Pools[0].ServiceName).To(Equal("bar"))

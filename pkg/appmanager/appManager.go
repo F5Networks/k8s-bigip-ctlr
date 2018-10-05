@@ -1010,12 +1010,12 @@ func (appMgr *Manager) syncIngresses(
 
 		// Get a list of dependencies removed so their pools can be removed.
 		objKey, objDeps := NewObjectDependencies(ing)
-		svcDepKey := ObjectDependency{
+		svcDepKey := &ObjectDependency{
 			Kind:      "Service",
 			Namespace: sKey.Namespace,
 			Name:      sKey.ServiceName,
 		}
-		ingressLookupFunc := func(key ObjectDependency) bool {
+		ingressLookupFunc := func(key *ObjectDependency) bool {
 			if key.Kind != "Ingress" {
 				return false
 			}
@@ -1252,9 +1252,9 @@ func getRemovedAnnotationRuleNames(new, old string, isAppRoot bool, obj interfac
 	return ruleNames
 }
 
-func processAnnotationDependencies(added, removed []ObjectDependency, obj interface{}) (bool, bool) {
-	var urlAdded ObjectDependency
-	var appAdded ObjectDependency
+func processAnnotationDependencies(added, removed []*ObjectDependency, obj interface{}) (bool, bool) {
+	var urlAdded *ObjectDependency
+	var appAdded *ObjectDependency
 	for i := range added {
 		if added[i].Kind == "URL-Rewrite-Annotation" {
 			urlAdded = added[i]
@@ -1264,8 +1264,8 @@ func processAnnotationDependencies(added, removed []ObjectDependency, obj interf
 		}
 	}
 
-	var urlRemoved ObjectDependency
-	var appRemoved ObjectDependency
+	var urlRemoved *ObjectDependency
+	var appRemoved *ObjectDependency
 	for i := range removed {
 		if removed[i].Kind == "URL-Rewrite-Annotation" {
 			urlRemoved = removed[i]
@@ -1276,22 +1276,22 @@ func processAnnotationDependencies(added, removed []ObjectDependency, obj interf
 	}
 
 	var urlUpdate bool
-	if urlAdded.Name != "" && urlRemoved.Name != "" {
+	if urlAdded != nil && urlRemoved != nil {
 		urlUpdate = true
 		urlRemoved.Name = getRemovedAnnotationRuleNames(urlAdded.Name, urlRemoved.Name, false, obj)
-	} else if urlAdded.Name != "" && urlRemoved.Name == "" {
+	} else if urlAdded != nil && urlRemoved == nil {
 		urlUpdate = true
-	} else if urlAdded.Name == "" && urlRemoved.Name != "" {
+	} else if urlAdded == nil && urlRemoved != nil {
 		urlRemoved.Name = getRemovedAnnotationRuleNames("", urlRemoved.Name, false, obj)
 	}
 
 	var appUpdate bool
-	if appAdded.Name != "" && appRemoved.Name != "" {
+	if appAdded != nil && appRemoved != nil {
 		appUpdate = true
 		appRemoved.Name = getRemovedAnnotationRuleNames(appAdded.Name, appRemoved.Name, true, obj)
-	} else if appAdded.Name != "" && appRemoved.Name == "" {
+	} else if appAdded != nil && appRemoved == nil {
 		appUpdate = true
-	} else if appAdded.Name == "" && appRemoved.Name != "" {
+	} else if appAdded == nil && appRemoved != nil {
 		appRemoved.Name = getRemovedAnnotationRuleNames("", appRemoved.Name, true, obj)
 	}
 
@@ -1333,12 +1333,12 @@ func (appMgr *Manager) syncRoutes(
 
 		// Get a list of dependencies removed so their pools can be removed.
 		objKey, objDeps := NewObjectDependencies(route)
-		svcDepKey := ObjectDependency{
+		svcDepKey := &ObjectDependency{
 			Kind:      "Service",
 			Namespace: sKey.Namespace,
 			Name:      sKey.ServiceName,
 		}
-		routeLookupFunc := func(key ObjectDependency) bool {
+		routeLookupFunc := func(key *ObjectDependency) bool {
 			if key.Kind != "Route" {
 				return false
 			}
@@ -1349,7 +1349,7 @@ func (appMgr *Manager) syncRoutes(
 		depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 			objKey, objDeps, svcDepKey, routeLookupFunc)
 
-		updateURL, updateApp := processAnnotationDependencies(depsAdded, depsAdded, false)
+		updateURL, updateApp := processAnnotationDependencies(depsAdded, depsRemoved, route)
 
 		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
@@ -1409,10 +1409,10 @@ func (appMgr *Manager) syncRoutes(
 				if dep.Kind == "Rule" {
 					for _, pol := range rsCfg.Policies {
 						for _, rl := range pol.Rules {
-							if rl.FullURI == dep.Name {
+							if rl.FullURI == dep.Name && !isAnnotationRule(rl.Name) {
 								rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
 								// Delete profile (route only)
-								if rsCfg.MetaData.ResourceType == "route" {
+								if rsCfg.MetaData.ResourceType == "route" && !strings.Contains(rl.Name, appRootForwardRulePrefix) && !strings.Contains(rl.Name, appRootRedirectRulePrefix) && !strings.Contains(rl.Name, urlRewriteRulePrefix) {
 									resourceName := strings.Split(rl.Name, "_")[3]
 									rsCfg.DeleteRouteProfile(dep.Namespace, resourceName)
 								}
@@ -1421,9 +1421,11 @@ func (appMgr *Manager) syncRoutes(
 					}
 				}
 				if dep.Kind == "URL-Rewrite-Annotation" || dep.Kind == "App-Root-Annotation" {
+					log.Warningf("REMOVED: %s", dep.Name)
 					for _, pol := range rsCfg.Policies {
 						for _, rl := range pol.Rules {
 							if strings.Contains(dep.Name, rl.Name) {
+								log.Warningf("Deleting Rule: %v", rl)
 								rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
 							}
 						}

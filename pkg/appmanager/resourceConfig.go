@@ -442,11 +442,11 @@ type ObjectDependency struct {
 }
 
 // ObjectDependencies contains each dependency and its use count (usually 1)
-type ObjectDependencies map[ObjectDependency]int
+type ObjectDependencies map[*ObjectDependency]int
 
 // ObjectDependencyMap key is an Ingress or Route and the value is a
 // map of other objects it depends on - typically services.
-type ObjectDependencyMap map[ObjectDependency]ObjectDependencies
+type ObjectDependencyMap map[*ObjectDependency]ObjectDependencies
 
 // Map of Resource configs
 type Resources struct {
@@ -474,8 +474,8 @@ type ResourceInterface interface {
 // NewObjectDependencies parses an object and returns a map of its dependencies
 func NewObjectDependencies(
 	obj interface{},
-) (ObjectDependency, ObjectDependencies) {
-	var key ObjectDependency
+) (*ObjectDependency, ObjectDependencies) {
+	key := &ObjectDependency{}
 	deps := make(ObjectDependencies)
 	switch t := obj.(type) {
 	case *routeapi.Route:
@@ -483,7 +483,7 @@ func NewObjectDependencies(
 		key.Kind = "Route"
 		key.Namespace = route.ObjectMeta.Namespace
 		key.Name = route.ObjectMeta.Name
-		dep := ObjectDependency{
+		dep := &ObjectDependency{
 			Kind:      route.Spec.To.Kind,
 			Namespace: route.ObjectMeta.Namespace,
 			Name:      route.Spec.To.Name,
@@ -494,14 +494,14 @@ func NewObjectDependencies(
 			dep.Name = backend.Name
 			deps[dep]++
 		}
-		dep = ObjectDependency{
+		dep = &ObjectDependency{
 			Kind:      "Rule",
 			Namespace: route.ObjectMeta.Namespace,
 			Name:      route.Spec.Host + route.Spec.Path,
 		}
 		deps[dep]++
 		if urlRewrite, ok := route.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
-			dep = ObjectDependency{
+			dep = &ObjectDependency{
 				Kind:      "URL-Rewrite-Annotation",
 				Namespace: route.ObjectMeta.Namespace,
 				Name:      urlRewrite,
@@ -509,7 +509,7 @@ func NewObjectDependencies(
 			deps[dep]++
 		}
 		if appRoot, ok := route.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
-			dep = ObjectDependency{
+			dep = &ObjectDependency{
 				Kind:      "App-Root-Annotation",
 				Namespace: route.ObjectMeta.Namespace,
 				Name:      appRoot,
@@ -522,7 +522,7 @@ func NewObjectDependencies(
 		key.Namespace = ingress.ObjectMeta.Namespace
 		key.Name = ingress.ObjectMeta.Name
 		if nil != ingress.Spec.Backend {
-			dep := ObjectDependency{
+			dep := &ObjectDependency{
 				Kind:      "Service",
 				Namespace: ingress.ObjectMeta.Namespace,
 				Name:      ingress.Spec.Backend.ServiceName,
@@ -534,20 +534,20 @@ func NewObjectDependencies(
 				continue
 			}
 			for _, path := range rule.IngressRuleValue.HTTP.Paths {
-				dep := ObjectDependency{
+				dep := &ObjectDependency{
 					Kind:      "Service",
 					Namespace: ingress.ObjectMeta.Namespace,
 					Name:      path.Backend.ServiceName,
 				}
 				deps[dep]++
-				dep = ObjectDependency{
+				dep = &ObjectDependency{
 					Kind:      "Rule",
 					Namespace: ingress.ObjectMeta.Namespace,
 					Name:      rule.Host + path.Path,
 				}
 				deps[dep]++
 				if urlRewrite, ok := ingress.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
-					dep = ObjectDependency{
+					dep = &ObjectDependency{
 						Kind:      "URL-Rewrite-Annotation",
 						Namespace: ingress.ObjectMeta.Namespace,
 						Name:      urlRewrite,
@@ -555,7 +555,7 @@ func NewObjectDependencies(
 					deps[dep]++
 				}
 				if appRoot, ok := ingress.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
-					dep = ObjectDependency{
+					dep = &ObjectDependency{
 						Kind:      "App-Root-Annotation",
 						Namespace: ingress.ObjectMeta.Namespace,
 						Name:      appRoot,
@@ -789,16 +789,16 @@ func (rs *Resources) GetAllResources() ResourceConfigs {
 // arrays identifying what has changed - added for dependencies that were
 // added, and removed for dependencies that were removed.
 func (rs *Resources) UpdateDependencies(
-	newKey ObjectDependency,
+	newKey *ObjectDependency,
 	newDeps ObjectDependencies,
-	svcDepKey ObjectDependency,
-	lookupFunc func(key ObjectDependency) bool,
-) ([]ObjectDependency, []ObjectDependency) {
+	svcDepKey *ObjectDependency,
+	lookupFunc func(key *ObjectDependency) bool,
+) ([]*ObjectDependency, []*ObjectDependency) {
 	rs.Lock()
 	defer rs.Unlock()
 
 	// Update dependencies for newKey
-	var added, removed []ObjectDependency
+	var added, removed []*ObjectDependency
 	oldDeps, found := rs.objDeps[newKey]
 	if found {
 		// build list of removed deps

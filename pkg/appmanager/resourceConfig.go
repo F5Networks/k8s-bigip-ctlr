@@ -50,6 +50,10 @@ const DEFAULT_BALANCE string = "round-robin"
 const DEFAULT_HTTP_PORT int32 = 80
 const DEFAULT_HTTPS_PORT int32 = 443
 
+const urlRewriteRulePrefix = "url-rewrite-rule-"
+const appRootForwardRulePrefix = "app-root-forward-rule-"
+const appRootRedirectRulePrefix = "app-root-redirect-rule-"
+
 // FIXME: remove this global variable.
 var DEFAULT_PARTITION string
 
@@ -438,11 +442,11 @@ type ObjectDependency struct {
 }
 
 // ObjectDependencies contains each dependency and its use count (usually 1)
-type ObjectDependencies map[ObjectDependency]int
+type ObjectDependencies map[*ObjectDependency]int
 
 // ObjectDependencyMap key is an Ingress or Route and the value is a
 // map of other objects it depends on - typically services.
-type ObjectDependencyMap map[ObjectDependency]ObjectDependencies
+type ObjectDependencyMap map[*ObjectDependency]ObjectDependencies
 
 // Map of Resource configs
 type Resources struct {
@@ -470,8 +474,8 @@ type ResourceInterface interface {
 // NewObjectDependencies parses an object and returns a map of its dependencies
 func NewObjectDependencies(
 	obj interface{},
-) (ObjectDependency, ObjectDependencies) {
-	var key ObjectDependency
+) (*ObjectDependency, ObjectDependencies) {
+	key := &ObjectDependency{}
 	deps := make(ObjectDependencies)
 	switch t := obj.(type) {
 	case *routeapi.Route:
@@ -479,7 +483,7 @@ func NewObjectDependencies(
 		key.Kind = "Route"
 		key.Namespace = route.ObjectMeta.Namespace
 		key.Name = route.ObjectMeta.Name
-		dep := ObjectDependency{
+		dep := &ObjectDependency{
 			Kind:      route.Spec.To.Kind,
 			Namespace: route.ObjectMeta.Namespace,
 			Name:      route.Spec.To.Name,
@@ -490,19 +494,35 @@ func NewObjectDependencies(
 			dep.Name = backend.Name
 			deps[dep]++
 		}
-		dep = ObjectDependency{
+		dep = &ObjectDependency{
 			Kind:      "Rule",
 			Namespace: route.ObjectMeta.Namespace,
 			Name:      route.Spec.Host + route.Spec.Path,
 		}
 		deps[dep]++
+		if urlRewrite, ok := route.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
+			dep = &ObjectDependency{
+				Kind:      "URL-Rewrite-Annotation",
+				Namespace: route.ObjectMeta.Namespace,
+				Name:      urlRewrite,
+			}
+			deps[dep]++
+		}
+		if appRoot, ok := route.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
+			dep = &ObjectDependency{
+				Kind:      "App-Root-Annotation",
+				Namespace: route.ObjectMeta.Namespace,
+				Name:      appRoot,
+			}
+			deps[dep]++
+		}
 	case *v1beta1.Ingress:
 		ingress := obj.(*v1beta1.Ingress)
 		key.Kind = "Ingress"
 		key.Namespace = ingress.ObjectMeta.Namespace
 		key.Name = ingress.ObjectMeta.Name
 		if nil != ingress.Spec.Backend {
-			dep := ObjectDependency{
+			dep := &ObjectDependency{
 				Kind:      "Service",
 				Namespace: ingress.ObjectMeta.Namespace,
 				Name:      ingress.Spec.Backend.ServiceName,
@@ -514,18 +534,34 @@ func NewObjectDependencies(
 				continue
 			}
 			for _, path := range rule.IngressRuleValue.HTTP.Paths {
-				dep := ObjectDependency{
+				dep := &ObjectDependency{
 					Kind:      "Service",
 					Namespace: ingress.ObjectMeta.Namespace,
 					Name:      path.Backend.ServiceName,
 				}
 				deps[dep]++
-				dep = ObjectDependency{
+				dep = &ObjectDependency{
 					Kind:      "Rule",
 					Namespace: ingress.ObjectMeta.Namespace,
 					Name:      rule.Host + path.Path,
 				}
 				deps[dep]++
+				if urlRewrite, ok := ingress.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
+					dep = &ObjectDependency{
+						Kind:      "URL-Rewrite-Annotation",
+						Namespace: ingress.ObjectMeta.Namespace,
+						Name:      urlRewrite,
+					}
+					deps[dep]++
+				}
+				if appRoot, ok := ingress.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
+					dep = &ObjectDependency{
+						Kind:      "App-Root-Annotation",
+						Namespace: ingress.ObjectMeta.Namespace,
+						Name:      appRoot,
+					}
+					deps[dep]++
+				}
 			}
 		}
 	default:
@@ -753,16 +789,16 @@ func (rs *Resources) GetAllResources() ResourceConfigs {
 // arrays identifying what has changed - added for dependencies that were
 // added, and removed for dependencies that were removed.
 func (rs *Resources) UpdateDependencies(
-	newKey ObjectDependency,
+	newKey *ObjectDependency,
 	newDeps ObjectDependencies,
-	svcDepKey ObjectDependency,
-	lookupFunc func(key ObjectDependency) bool,
-) ([]ObjectDependency, []ObjectDependency) {
+	svcDepKey *ObjectDependency,
+	lookupFunc func(key *ObjectDependency) bool,
+) ([]*ObjectDependency, []*ObjectDependency) {
 	rs.Lock()
 	defer rs.Unlock()
 
 	// Update dependencies for newKey
-	var added, removed []ObjectDependency
+	var added, removed []*ObjectDependency
 	oldDeps, found := rs.objDeps[newKey]
 	if found {
 		// build list of removed deps
@@ -975,15 +1011,10 @@ func processAppRoot(target, value, poolName string, rsType int) Rules {
 		Request:   true,
 	}
 
-	var nameEnd string
-	if rsType == singleServiceIngressType {
-		nameEnd = "single-service"
-	} else {
-		nameEnd = target
-	}
+	nameEnd := target + "-" + value
 	nameEnd = strings.Replace(nameEnd, "/", "_", -1)
 	rules = append(rules, &Rule{
-		Name:       fmt.Sprintf("app-root-redirect-rule-%s", nameEnd),
+		Name:       appRootRedirectRulePrefix + nameEnd,
 		FullURI:    target,
 		Actions:    []*action{redirectAction},
 		Conditions: redirectConditions,
@@ -1020,7 +1051,7 @@ func processAppRoot(target, value, poolName string, rsType int) Rules {
 	}
 
 	rules = append(rules, &Rule{
-		Name:       fmt.Sprintf("app-root-forward-rule-%s", nameEnd),
+		Name:       appRootForwardRulePrefix + nameEnd,
 		FullURI:    target,
 		Actions:    []*action{forwardAction},
 		Conditions: forwardConditions,
@@ -1107,7 +1138,7 @@ func processURLRewrite(target, value string, rsType int) *Rule {
 	nameEnd := target + "-" + value
 	nameEnd = strings.Replace(nameEnd, "/", "_", -1)
 	return &Rule{
-		Name:       fmt.Sprintf("url-rewrite-rule-%s", nameEnd),
+		Name:       urlRewriteRulePrefix + nameEnd,
 		FullURI:    target,
 		Actions:    actions,
 		Conditions: conditions,
@@ -1417,7 +1448,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		// Process app root annotation
 		if len(appRootMap) == 1 {
 			if appRootVal, ok := appRootMap["single"]; ok == true {
-				appRootRules := processAppRoot("", appRootVal, fmt.Sprintf("/%s/%s", pool.Partition, pool.Name), singleServiceIngressType)
+				appRootRules := processAppRoot("single-service", appRootVal, fmt.Sprintf("/%s/%s", pool.Partition, pool.Name), singleServiceIngressType)
 				rules = &appRootRules
 				if len(appRootRules) == 2 {
 					plcy = createPolicy(appRootRules, cfg.Virtual.Name, cfg.Virtual.Partition)
@@ -1452,7 +1483,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 				// the old value is cleaned up. All rules will be unmerged for the pool, but those
 				// that still remain will be re-merged before writing out the final config.
 				// Only deleted annotations will be completely removed.
-				appMgr.ProcessAnnotationRules(&cfg, newPool.Name)
+				//appMgr.ProcessAnnotationRules(&cfg, newPool.Name)
 			}
 		}
 		if len(cfg.Pools) > 1 && nil != ing.Spec.Rules {
@@ -1512,10 +1543,6 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	}
 
 	log.Debugf("%d whitelist sources", len(whitelistSourceRangeRefs))
-	if len(urlRewriteRefs) > 0 || len(appRootRefs) > 0 || len(whitelistSourceRangeRefs) > 0 {
-		cfg.MergeRules(appMgr.mergedRulesMap)
-	}
-
 	return &cfg
 }
 
@@ -1646,6 +1673,8 @@ func (appMgr *Manager) createRSConfigFromRoute(
 	svcIndexer cache.Indexer,
 	svcFwdRulesMap ServiceFwdRuleMap,
 	snatPoolName string,
+	processURL bool,
+	processApp bool,
 ) (*ResourceConfig, error, Pool) {
 	var rsCfg ResourceConfig
 	rsCfg.MetaData.RouteProfs = make(map[routeKey]string)
@@ -1702,22 +1731,26 @@ func (appMgr *Manager) createRSConfigFromRoute(
 
 	// Handle url-rewrite annotation
 	var urlRewriteRule *Rule
-	if urlRewrite, ok := route.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
-		urlRewriteMap := parseAppRootURLRewriteAnnotations(urlRewrite)
-		if len(urlRewriteMap) == 1 {
-			if urlRewriteVal, ok := urlRewriteMap["single"]; ok == true {
-				urlRewriteRule = processURLRewrite(uri, urlRewriteVal, routeType)
+	if processURL {
+		if urlRewrite, ok := route.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
+			urlRewriteMap := parseAppRootURLRewriteAnnotations(urlRewrite)
+			if len(urlRewriteMap) == 1 {
+				if urlRewriteVal, ok := urlRewriteMap["single"]; ok == true {
+					urlRewriteRule = processURLRewrite(uri, urlRewriteVal, routeType)
+				}
 			}
 		}
 	}
 
 	// Handle app-root annotation
 	var appRootRules []*Rule
-	if appRoot, ok := route.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
-		appRootMap := parseAppRootURLRewriteAnnotations(appRoot)
-		if len(appRootMap) == 1 {
-			if appRootVal, ok := appRootMap["single"]; ok == true {
-				appRootRules = processAppRoot(uri, appRootVal, fmt.Sprintf("/%s/%s", pool.Partition, pool.Name), routeType)
+	if processApp {
+		if appRoot, ok := route.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
+			appRootMap := parseAppRootURLRewriteAnnotations(appRoot)
+			if len(appRootMap) == 1 {
+				if appRootVal, ok := appRootMap["single"]; ok == true {
+					appRootRules = processAppRoot(uri, appRootVal, fmt.Sprintf("/%s/%s", pool.Partition, pool.Name), routeType)
+				}
 			}
 		}
 	}
@@ -1748,7 +1781,7 @@ func (appMgr *Manager) createRSConfigFromRoute(
 			// the old value is cleaned up. All rules will be unmerged for the pool, but those
 			// that still remain will be re-merged before writing out the final config.
 			// Only deleted annotations will be completely removed.
-			appMgr.ProcessAnnotationRules(&rsCfg, pool.Name)
+			// appMgr.ProcessAnnotationRules(&rsCfg, pool.Name)
 		}
 	} else { // This is a new VS for a Route
 		rsCfg.MetaData.ResourceType = "route"
@@ -1959,9 +1992,6 @@ func (appMgr *Manager) handleRouteTls(
 				}
 			}
 		}
-	}
-	if urlRewriteRule != nil || len(appRootRules) != 0 {
-		rc.MergeRules(appMgr.mergedRulesMap)
 	}
 }
 

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1009,12 +1010,12 @@ func (appMgr *Manager) syncIngresses(
 
 		// Get a list of dependencies removed so their pools can be removed.
 		objKey, objDeps := NewObjectDependencies(ing)
-		svcDepKey := ObjectDependency{
+		svcDepKey := &ObjectDependency{
 			Kind:      "Service",
 			Namespace: sKey.Namespace,
 			Name:      sKey.ServiceName,
 		}
-		ingressLookupFunc := func(key ObjectDependency) bool {
+		ingressLookupFunc := func(key *ObjectDependency) bool {
 			if key.Kind != "Ingress" {
 				return false
 			}
@@ -1145,6 +1146,158 @@ func (appMgr *Manager) syncIngresses(
 	return nil
 }
 
+func computeAnnotationDiff(new, old string) string {
+	newSplits := strings.Split(new, ",")
+	oldSplits := strings.Split(old, ",")
+
+	var indices []int
+	for i := range newSplits {
+		for j := range oldSplits {
+			if newSplits[i] == oldSplits[j] {
+				indices = append(indices, j)
+				break
+			}
+		}
+	}
+
+	var offset int
+	sort.Ints(indices)
+	for _, index := range indices {
+		oldSplits = append(oldSplits[:index-offset], oldSplits[index-offset+1:]...)
+		offset--
+	}
+
+	var ruleNames string
+	for _, rule := range oldSplits {
+		ruleNames += rule + ","
+	}
+	ruleNames = strings.TrimSuffix(ruleNames, ",")
+
+	return ruleNames
+}
+
+func generateMultiServiceAnnotationRuleNames(ing *v1beta1.Ingress, annotationMap map[string]string, prefix string) string {
+	var ruleNames string
+
+	for _, rule := range ing.Spec.Rules {
+		if nil != rule.IngressRuleValue.HTTP {
+			for _, path := range rule.IngressRuleValue.HTTP.Paths {
+				uri := rule.Host + path.Path
+				if targetVal, ok := annotationMap[uri]; ok {
+					nameEnd := uri + "-" + targetVal
+					nameEnd = strings.Replace(nameEnd, "/", "_", -1)
+					ruleNames += prefix + nameEnd + ","
+				}
+			}
+		}
+	}
+	ruleNames = strings.TrimSuffix(ruleNames, ",")
+
+	return ruleNames
+}
+
+func getRemovedAnnotationRuleNames(new, old string, isAppRoot bool, obj interface{}) string {
+	var ruleNames string
+	switch t := obj.(type) {
+	case *routeapi.Route:
+		route := obj.(*routeapi.Route)
+		annotationMap := parseAppRootURLRewriteAnnotations(old)
+		nameEnd := route.Spec.Host + route.Spec.Path + "-" + annotationMap["single"]
+		nameEnd = strings.Replace(nameEnd, "/", "_", -1)
+		if isAppRoot {
+			ruleNames = appRootRedirectRulePrefix + nameEnd
+			ruleNames += "," + appRootForwardRulePrefix + nameEnd
+		} else {
+			ruleNames = urlRewriteRulePrefix + nameEnd
+		}
+	case *v1beta1.Ingress:
+		ingress := obj.(*v1beta1.Ingress)
+		if ingress.Spec.Rules != nil {
+			if new != "" {
+				oldAnnotationMap := parseAppRootURLRewriteAnnotations(old)
+				newAnnotationMap := parseAppRootURLRewriteAnnotations(new)
+				var oldRuleNames string
+				var newRuleNames string
+				if isAppRoot {
+					oldRuleNames = generateMultiServiceAnnotationRuleNames(ingress, oldAnnotationMap, appRootRedirectRulePrefix)
+					oldRuleNames += "," + generateMultiServiceAnnotationRuleNames(ingress, oldAnnotationMap, appRootForwardRulePrefix)
+					newRuleNames = generateMultiServiceAnnotationRuleNames(ingress, newAnnotationMap, appRootRedirectRulePrefix)
+					newRuleNames += "," + generateMultiServiceAnnotationRuleNames(ingress, newAnnotationMap, appRootForwardRulePrefix)
+					ruleNames = computeAnnotationDiff(newRuleNames, oldRuleNames)
+				} else {
+					oldRuleNames = generateMultiServiceAnnotationRuleNames(ingress, oldAnnotationMap, urlRewriteRulePrefix)
+					newRuleNames = generateMultiServiceAnnotationRuleNames(ingress, newAnnotationMap, urlRewriteRulePrefix)
+					ruleNames = computeAnnotationDiff(newRuleNames, oldRuleNames)
+				}
+			} else {
+				annotationMap := parseAppRootURLRewriteAnnotations(old)
+				if isAppRoot {
+					ruleNames = generateMultiServiceAnnotationRuleNames(ingress, annotationMap, appRootRedirectRulePrefix)
+					ruleNames += "," + generateMultiServiceAnnotationRuleNames(ingress, annotationMap, appRootForwardRulePrefix)
+				} else {
+					ruleNames = generateMultiServiceAnnotationRuleNames(ingress, annotationMap, urlRewriteRulePrefix)
+				}
+			}
+		} else {
+			if isAppRoot {
+				annotationMap := parseAppRootURLRewriteAnnotations(old)
+				nameEnd := "single-service" + "-" + annotationMap["single"]
+				ruleNames = appRootRedirectRulePrefix + nameEnd
+				ruleNames += "," + appRootForwardRulePrefix + nameEnd
+			}
+		}
+	default:
+		log.Errorf("Unknown object type: %v", t)
+	}
+	return ruleNames
+}
+
+func processAnnotationDependencies(added, removed []*ObjectDependency, obj interface{}) (bool, bool) {
+	var urlAdded *ObjectDependency
+	var appAdded *ObjectDependency
+	for i := range added {
+		if added[i].Kind == "URL-Rewrite-Annotation" {
+			urlAdded = added[i]
+		}
+		if added[i].Kind == "App-Root-Annotation" {
+			appAdded = added[i]
+		}
+	}
+
+	var urlRemoved *ObjectDependency
+	var appRemoved *ObjectDependency
+	for i := range removed {
+		if removed[i].Kind == "URL-Rewrite-Annotation" {
+			urlRemoved = removed[i]
+		}
+		if removed[i].Kind == "App-Root-Annotation" {
+			appRemoved = removed[i]
+		}
+	}
+
+	var urlUpdate bool
+	if urlAdded != nil && urlRemoved != nil {
+		urlUpdate = true
+		urlRemoved.Name = getRemovedAnnotationRuleNames(urlAdded.Name, urlRemoved.Name, false, obj)
+	} else if urlAdded != nil && urlRemoved == nil {
+		urlUpdate = true
+	} else if urlAdded == nil && urlRemoved != nil {
+		urlRemoved.Name = getRemovedAnnotationRuleNames("", urlRemoved.Name, false, obj)
+	}
+
+	var appUpdate bool
+	if appAdded != nil && appRemoved != nil {
+		appUpdate = true
+		appRemoved.Name = getRemovedAnnotationRuleNames(appAdded.Name, appRemoved.Name, true, obj)
+	} else if appAdded != nil && appRemoved == nil {
+		appUpdate = true
+	} else if appAdded == nil && appRemoved != nil {
+		appRemoved.Name = getRemovedAnnotationRuleNames("", appRemoved.Name, true, obj)
+	}
+
+	return urlUpdate, appUpdate
+}
+
 func (appMgr *Manager) syncRoutes(
 	stats *vsSyncStats,
 	sKey serviceQueueKey,
@@ -1180,12 +1333,12 @@ func (appMgr *Manager) syncRoutes(
 
 		// Get a list of dependencies removed so their pools can be removed.
 		objKey, objDeps := NewObjectDependencies(route)
-		svcDepKey := ObjectDependency{
+		svcDepKey := &ObjectDependency{
 			Kind:      "Service",
 			Namespace: sKey.Namespace,
 			Name:      sKey.ServiceName,
 		}
-		routeLookupFunc := func(key ObjectDependency) bool {
+		routeLookupFunc := func(key *ObjectDependency) bool {
 			if key.Kind != "Route" {
 				return false
 			}
@@ -1193,15 +1346,17 @@ func (appMgr *Manager) syncRoutes(
 			_, routeFound, _ := appInf.routeInformer.GetIndexer().GetByKey(routeKey)
 			return !routeFound
 		}
-		_, depsRemoved := appMgr.resources.UpdateDependencies(
+		depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 			objKey, objDeps, svcDepKey, routeLookupFunc)
+
+		updateURL, updateApp := processAnnotationDependencies(depsAdded, depsRemoved, route)
 
 		pStructs := []portStruct{{protocol: "http", port: DEFAULT_HTTP_PORT},
 			{protocol: "https", port: DEFAULT_HTTPS_PORT}}
 		for _, ps := range pStructs {
 			rsCfg, err, pool := appMgr.createRSConfigFromRoute(
 				route, svcName, appMgr.resources, appMgr.routeConfig, ps,
-				appInf.svcInformer.GetIndexer(), svcFwdRulesMap, appMgr.vsSnatPoolName)
+				appInf.svcInformer.GetIndexer(), svcFwdRulesMap, appMgr.vsSnatPoolName, updateURL, updateApp)
 			if err != nil {
 				log.Warningf("%v", err)
 				continue
@@ -1254,10 +1409,10 @@ func (appMgr *Manager) syncRoutes(
 				if dep.Kind == "Rule" {
 					for _, pol := range rsCfg.Policies {
 						for _, rl := range pol.Rules {
-							if rl.FullURI == dep.Name {
+							if rl.FullURI == dep.Name && !isAnnotationRule(rl.Name) {
 								rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
 								// Delete profile (route only)
-								if rsCfg.MetaData.ResourceType == "route" {
+								if rsCfg.MetaData.ResourceType == "route" && !strings.Contains(rl.Name, appRootForwardRulePrefix) && !strings.Contains(rl.Name, appRootRedirectRulePrefix) && !strings.Contains(rl.Name, urlRewriteRulePrefix) {
 									resourceName := strings.Split(rl.Name, "_")[3]
 									rsCfg.DeleteRouteProfile(dep.Namespace, resourceName)
 								}
@@ -1265,6 +1420,20 @@ func (appMgr *Manager) syncRoutes(
 						}
 					}
 				}
+				if dep.Kind == "URL-Rewrite-Annotation" || dep.Kind == "App-Root-Annotation" {
+					log.Warningf("REMOVED: %s", dep.Name)
+					for _, pol := range rsCfg.Policies {
+						for _, rl := range pol.Rules {
+							if strings.Contains(dep.Name, rl.Name) {
+								log.Warningf("Deleting Rule: %v", rl)
+								rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
+							}
+						}
+					}
+				}
+			}
+			if updateURL || updateApp {
+				rsCfg.MergeRules(appMgr.mergedRulesMap)
 			}
 
 			_, found, updated := appMgr.handleConfigForType(

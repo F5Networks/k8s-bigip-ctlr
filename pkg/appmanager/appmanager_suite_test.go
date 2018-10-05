@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestAppmanager(t *testing.T) {
+func XTestAppmanager(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Appmanager Suite")
 }

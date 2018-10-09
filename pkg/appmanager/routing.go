@@ -215,7 +215,7 @@ func processIngressRules(
 	appRootMap map[string]string,
 	pools []Pool,
 	partition string,
-) (*Rules, map[string]string, map[string]string, map[string][]string) {
+) (*Rules, map[string]string, map[string][]string) {
 	var err error
 	var uri, poolName string
 	var rl *Rule
@@ -225,7 +225,6 @@ func processIngressRules(
 	rlMap := make(ruleMap)
 	wildcards := make(ruleMap)
 	urlRewriteRefs := make(map[string]string)
-	whitelistSourceRangeRefs := make(map[string]string)
 	appRootRefs := make(map[string][]string)
 
 	for _, rule := range ing.Rules {
@@ -245,7 +244,7 @@ func processIngressRules(
 				rl, err = createRule(uri, poolName, partition, ruleName)
 				if nil != err {
 					log.Warningf("Error configuring rule: %v", err)
-					return nil, nil, nil, nil
+					return nil, nil, nil
 				}
 				if true == strings.HasPrefix(uri, "*.") {
 					wildcards[uri] = rl
@@ -331,7 +330,7 @@ func processIngressRules(
 		}
 	}
 
-	return &rls, urlRewriteRefs, whitelistSourceRangeRefs, appRootRefs
+	return &rls, urlRewriteRefs, appRootRefs
 }
 
 func httpRedirectIRule(port int32) string {

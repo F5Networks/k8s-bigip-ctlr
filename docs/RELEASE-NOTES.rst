@@ -13,6 +13,7 @@ Added Functionality
 Bug Fixes
 `````````
 * :issues:`735` - Deleted rules from routes and ingresses on the same service not cleaned up properly.
+* :issues:`753` - Controller doesn't delete and recreate annotation-based policy rules.
 
 v1.6.1
 ------

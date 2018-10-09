@@ -1132,22 +1132,7 @@ func (appMgr *Manager) syncIngresses(
 					}
 				}
 				if dep.Kind == WhitelistDep {
-					for _, pol := range rsCfg.Policies {
-						for _, rl := range pol.Rules {
-							for i, cd := range rl.Conditions {
-								var valueStr string
-								for _, val := range cd.Values {
-									valueStr += val + ","
-								}
-								valueStr = strings.TrimSuffix(valueStr, ",")
-								if valueStr == dep.Name {
-									copy(rl.Conditions[i:], rl.Conditions[i+1:])
-									rl.Conditions[len(rl.Conditions)-1] = nil
-									rl.Conditions = rl.Conditions[:len(rl.Conditions)-1]
-								}
-							}
-						}
-					}
+					rsCfg.deleteWhitelistCondition(dep.Name)
 				}
 			}
 
@@ -1320,6 +1305,9 @@ func (appMgr *Manager) syncRoutes(
 						}
 					}
 				}
+				if dep.Kind == WhitelistDep {
+					rsCfg.deleteWhitelistCondition(dep.Name)
+				}
 			}
 
 			_, found, updated := appMgr.handleConfigForType(
@@ -1355,6 +1343,26 @@ func (appMgr *Manager) syncRoutes(
 		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
 	}
 	return nil
+}
+
+// Deletes a whitelist condition if the values match
+func (rsCfg *ResourceConfig) deleteWhitelistCondition(values string) {
+	for _, pol := range rsCfg.Policies {
+		for _, rl := range pol.Rules {
+			for i, cd := range rl.Conditions {
+				var valueStr string
+				for _, val := range cd.Values {
+					valueStr += val + ","
+				}
+				valueStr = strings.TrimSuffix(valueStr, ",")
+				if valueStr == values {
+					copy(rl.Conditions[i:], rl.Conditions[i+1:])
+					rl.Conditions[len(rl.Conditions)-1] = nil
+					rl.Conditions = rl.Conditions[:len(rl.Conditions)-1]
+				}
+			}
+		}
+	}
 }
 
 func getBooleanAnnotation(

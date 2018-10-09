@@ -522,6 +522,14 @@ func NewObjectDependencies(
 			}
 			deps[dep]++
 		}
+		if whiteList, ok := route.ObjectMeta.Annotations[f5VsWhitelistSourceRangeAnnotation]; ok {
+			dep = ObjectDependency{
+				Kind:      WhitelistDep,
+				Namespace: route.ObjectMeta.Namespace,
+				Name:      whiteList,
+			}
+			deps[dep]++
+		}
 	case *v1beta1.Ingress:
 		ingress := obj.(*v1beta1.Ingress)
 		key.Kind = "Ingress"
@@ -568,15 +576,15 @@ func NewObjectDependencies(
 					}
 					deps[dep]++
 				}
-				if whiteList, ok := ingress.ObjectMeta.Annotations[f5VsWhitelistSourceRangeAnnotation]; ok {
-					dep = ObjectDependency{
-						Kind:      WhitelistDep,
-						Namespace: ingress.ObjectMeta.Namespace,
-						Name:      whiteList,
-					}
-					deps[dep]++
-				}
 			}
+		}
+		if whiteList, ok := ingress.ObjectMeta.Annotations[f5VsWhitelistSourceRangeAnnotation]; ok {
+			dep := ObjectDependency{
+				Kind:      WhitelistDep,
+				Namespace: ingress.ObjectMeta.Namespace,
+				Name:      whiteList,
+			}
+			deps[dep]++
 		}
 	default:
 		log.Errorf("Unhandled object type: %v", t)
@@ -2061,6 +2069,30 @@ func (appMgr *Manager) handleRouteTls(
 	}
 	if urlRewriteRule != nil || len(appRootRules) != 0 {
 		rc.MergeRules(appMgr.mergedRulesMap)
+	}
+
+	// Add whitelist conditions to every rule (to prevent access)
+	var whitelistSourceRanges []string
+	if sourceRange, ok := route.ObjectMeta.Annotations[f5VsWhitelistSourceRangeAnnotation]; ok {
+		whitelistSourceRanges = parseWhitelistSourceRangeAnnotations(sourceRange)
+	}
+	if len(whitelistSourceRanges) > 0 {
+		for _, pol := range rc.Policies {
+			if pol.Name == policyName {
+				for _, rl := range pol.Rules {
+					cond := condition{
+						Tcp:     true,
+						Address: true,
+						Matches: true,
+						Name:    "0",
+						Values:  whitelistSourceRanges,
+					}
+					rl.Conditions = append(rl.Conditions, &cond)
+				}
+				pol.Requires = append(pol.Requires, "tcp")
+				break
+			}
+		}
 	}
 }
 

@@ -626,7 +626,7 @@ Supported Ingress Annotations
 +-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
 | virtual-server.f5.com/rewrite-target-url      | string      | Optional  | URL host, path, or host and path to be rewritten.                                   | N/A         |                                         |
 +-----------------------------------------------+-------------+-----------+-------------------------------------------------------------------------------------+-------------+-----------------------------------------+
-| virtual-server.f5.com/whitelist-source-range  | string      | Optional  | Comma separated list of CIDR addresses to allow inbound to Ingress services         | N/A         | Comma separated, CIDR formatted, IP     |
+| virtual-server.f5.com/whitelist-source-range  | string      | Optional  | Comma separated list of CIDR addresses to allow inbound to Ingress services.        | N/A         | Comma separated, CIDR formatted, IP     |
 |                                               |             |           |                                                                                     |             | addresses.                              |
 |                                               |             |           |                                                                                     |             |                                         |
 |                                               |             |           |                                                                                     |             | ex. 1.2.3.4/32,2.2.2.0/24               |
@@ -751,6 +751,11 @@ Supported Route Annotations
 | virtual-server.f5.com/rewrite-app-root        | string      | Optional  | Root path redirection for the application.                                        | N/A         |                                         |
 +-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
 | virtual-server.f5.com/rewrite-target-url      | string      | Optional  | URL host, path, or host and path to be rewritten.                                 | N/A         |                                         |
++-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
+| virtual-server.f5.com/whitelist-source-range  | string      | Optional  | Comma separated list of CIDR addresses to allow inbound to Route services.        | N/A         | Comma separated, CIDR formatted, IP     |
+|                                               |             |           |                                                                                   |             | addresses.                              |
+|                                               |             |           |                                                                                   |             |                                         |
+|                                               |             |           |                                                                                   |             | ex. 1.2.3.4/32,2.2.2.0/24               |
 +-----------------------------------------------+-------------+-----------+-----------------------------------------------------------------------------------+-------------+-----------------------------------------+
 
 .. important::

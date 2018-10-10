@@ -3484,6 +3484,80 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(rs.Virtual.GetProfileCountByContext(customProfileServer)).To(Equal(2))
 				})
 
+				It("configures whitelist annotation on Routes", func() {
+					spec := routeapi.RouteSpec{
+						Host: "foo.com",
+						Path: "/foo",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: "cert",
+							Key:         "key",
+						},
+					}
+					route := test.NewRoute("route", "1", namespace, spec,
+						map[string]string{
+							"virtual-server.f5.com/whitelist-source-range": "1.2.3.4/32,5.6.7.8/24",
+						})
+					mockMgr.addRoute(route)
+					spec2 := routeapi.RouteSpec{
+						Host: "bar.com",
+						Path: "/bar",
+						To: routeapi.RouteTargetReference{
+							Kind: "Service",
+							Name: "foo",
+						},
+						TLS: &routeapi.TLSConfig{
+							Termination: "edge",
+							Certificate: "cert",
+							Key:         "key",
+						},
+					}
+					route2 := test.NewRoute("route2", "1", namespace, spec2, nil)
+					mockMgr.addRoute(route2)
+					fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+						[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+					mockMgr.addService(fooSvc)
+
+					resources := mockMgr.resources()
+					rs, ok := resources.Get(
+						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+
+					// Verify whitelist conditions exist
+					var found *condition
+					Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+					Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(3))
+					for _, x := range rs.Policies[0].Rules[0].Conditions {
+						if x.Tcp == true {
+							found = x
+						}
+					}
+					Expect(found).NotTo(BeNil())
+					Expect(found.Values).Should(ConsistOf("1.2.3.4/32", "5.6.7.8/24"))
+
+					// delete whitelist route, conditions should be gone
+					mockMgr.deleteRoute(route)
+
+					rs, ok = resources.Get(
+						serviceKey{"foo", 80, "default"}, "https-ose-vserver")
+					Expect(ok).To(BeTrue(), "Route should be accessible.")
+					Expect(rs).ToNot(BeNil(), "Route should be object.")
+
+					Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(2))
+					found = nil
+					for _, x := range rs.Policies[0].Rules[0].Conditions {
+						if x.Tcp == true {
+							found = x
+						}
+					}
+					Expect(found).To(BeNil())
+				})
+
 				It("doesn't update stored route configs during processing", func() {
 					spec1 := routeapi.RouteSpec{
 						Host: "foo.com",

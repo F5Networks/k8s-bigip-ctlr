@@ -92,9 +92,20 @@ func (r Rules) Less(i, j int) bool {
 		return true
 	}
 
+	if r[i].FullURI == r[j].FullURI {
+		if len(r[j].Actions) > 0 && r[j].Actions[0].Reset {
+			return false
+		}
+		return true
+	}
+
 	return r[i].FullURI < r[j].FullURI
 }
-func (r Rules) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r Rules) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+	r[i].Ordinal = i
+	r[j].Ordinal = j
+}
 
 type Routes []*routeapi.Route
 

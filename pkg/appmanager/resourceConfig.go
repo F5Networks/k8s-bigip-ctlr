@@ -1876,7 +1876,7 @@ func (appMgr *Manager) createRSConfigFromRoute(
 	}
 
 	abDeployment := isRouteABDeployment(route)
-	appMgr.handleRouteTls(&rsCfg,
+	appMgr.handleRouteRules(&rsCfg,
 		route,
 		pStruct.protocol,
 		policyName,
@@ -1972,7 +1972,7 @@ func setAnnotationRulesForRoute(
 	}
 }
 
-func (appMgr *Manager) handleRouteTls(
+func (appMgr *Manager) handleRouteRules(
 	rc *ResourceConfig,
 	route *routeapi.Route,
 	protocol string,
@@ -2071,7 +2071,7 @@ func (appMgr *Manager) handleRouteTls(
 		rc.MergeRules(appMgr.mergedRulesMap)
 	}
 
-	// Add whitelist conditions to every rule (to prevent access)
+	// Add whitelist condition
 	var whitelistSourceRanges []string
 	if sourceRange, ok := route.ObjectMeta.Annotations[f5VsWhitelistSourceRangeAnnotation]; ok {
 		whitelistSourceRanges = parseWhitelistSourceRangeAnnotations(sourceRange)
@@ -2079,17 +2079,49 @@ func (appMgr *Manager) handleRouteTls(
 	if len(whitelistSourceRanges) > 0 {
 		for _, pol := range rc.Policies {
 			if pol.Name == policyName {
-				for _, rl := range pol.Rules {
-					cond := condition{
-						Tcp:     true,
-						Address: true,
-						Matches: true,
-						Name:    "0",
-						Values:  whitelistSourceRanges,
+				for i, rl := range pol.Rules {
+					if rl.FullURI == rule.FullURI && !strings.HasSuffix(rl.Name, "-reset") {
+						origCond := make([]*condition, len(rl.Conditions))
+						copy(origCond, rl.Conditions)
+						cond := condition{
+							Tcp:     true,
+							Address: true,
+							Matches: true,
+							Name:    "0",
+							Values:  whitelistSourceRanges,
+						}
+						if !contains(rl.Conditions, cond) {
+							rl.Conditions = append(rl.Conditions, &cond)
+						}
+
+						// Add reset traffic rule immediately after this rule
+						if (len(pol.Rules) > i+1 && pol.Rules[i+1].Name != rl.Name+"-reset") ||
+							i == len(pol.Rules)-1 {
+							reset := &Rule{
+								Name:    rl.Name + "-reset",
+								FullURI: rl.FullURI,
+								Actions: []*action{{
+									Name:    "0",
+									Forward: true,
+									Request: true,
+									Reset:   true,
+								}},
+								Conditions: origCond,
+							}
+							if i == len(pol.Rules)-1 {
+								pol.Rules = append(pol.Rules, reset)
+							} else {
+								pol.Rules = append(pol.Rules, &Rule{})
+								copy(pol.Rules[i+2:], pol.Rules[i+1:])
+								pol.Rules[i+1] = reset
+							}
+						}
 					}
-					rl.Conditions = append(rl.Conditions, &cond)
 				}
-				pol.Requires = append(pol.Requires, "tcp")
+				if !contains(pol.Requires, "tcp") {
+					pol.Requires = append(pol.Requires, "tcp")
+				}
+				rc.SetPolicy(pol)
 				break
 			}
 		}
@@ -2483,9 +2515,15 @@ func (rc *ResourceConfig) MergeRules(mergedRulesMap map[string]map[string]merged
 	var jDeletedRuleIndices []int
 
 	// Iterate through the rules and compare them to each other
-	for i := range rules {
+	for i, rl := range rules {
+		if strings.HasSuffix(rl.Name, "-reset") {
+			continue
+		}
 		// Do not merge the same rule to itself or to rules that have already been merged
 		for j := i + 1; j < len(rules); j++ {
+			if strings.HasSuffix(rules[j].Name, "-reset") {
+				continue
+			}
 			numMatches := 0
 			numIConditions := len(rules[i].Conditions)
 			numJConditions := len(rules[j].Conditions)
@@ -2645,15 +2683,8 @@ func (rc *ResourceConfig) MergeRules(mergedRulesMap map[string]map[string]merged
 		}
 	}
 
-	// Sort the rules and reset their ordinals
-	sortrules := func(rls *Rules, ordinal int) {
-		sort.Sort(sort.Reverse(*rls))
-		for _, v := range *rls {
-			v.Ordinal = ordinal
-			ordinal++
-		}
-	}
-	sortrules(&rules, 0)
+	// Sort the rules
+	sort.Sort(sort.Reverse(&rules))
 
 	policy.Rules = rules
 	rc.SetPolicy(*policy)
@@ -2928,4 +2959,28 @@ func getServicePort(
 		}
 	}
 	return 0, fmt.Errorf("Could not find service ports for service '%s'", key)
+}
+
+// contains returns whether x contains y
+func contains(x interface{}, y interface{}) bool {
+	if nil == x || nil == y {
+		return false
+	}
+
+	if reflect.TypeOf(x).Kind() != reflect.Slice {
+		return false
+	}
+
+	if reflect.TypeOf(x).Elem() != reflect.TypeOf(y) {
+		return false
+	}
+
+	s := reflect.ValueOf(x)
+	for i := 0; i < s.Len(); i++ {
+		if reflect.DeepEqual(s.Index(i).Interface(), y) {
+			return true
+		}
+	}
+
+	return false
 }

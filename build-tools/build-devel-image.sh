@@ -36,22 +36,7 @@ docker build $PULL_FLAG --force-rm ${NO_CACHE_ARGS} \
   -f $WKDIR/Dockerfile.builder \
   $WKDIR
 
-# Repeat for debug builder  (To enable -race)
-WKDIR=$(mktemp -d docker-build.XXXX)
-cp $CURDIR/Dockerfile.builder.dbg $WKDIR
-cp $CURDIR/entrypoint.builder.debian.sh $WKDIR
-#cp $CURDIR/../python/k8s-*-requirements.txt $WKDIR/
-#cp $CURDIR/../requirements.docs.txt $WKDIR
-
-docker build $PULL_FLAG --force-rm ${NO_CACHE_ARGS} \
-  -t $BUILD_DBG_IMG_TAG \
-  -f $WKDIR/Dockerfile.builder.dbg \
-  $WKDIR
-
 rm -rf docker-build.????
 
 docker history $BUILD_IMG_TAG
 echo "Built docker image $BUILD_IMG_TAG"
-
-docker history $BUILD_DBG_IMG_TAG
-echo "Built docker image $BUILD_DBG_IMG_TAG"

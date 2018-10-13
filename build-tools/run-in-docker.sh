@@ -35,6 +35,7 @@ RUN_ARGS=( \
   -e TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG
   -e COVERALLS_TOKEN=$COVERALLS_REPO_TOKEN
   -e RUN_TESTS=$RUN_TESTS
+  -e BASE_OS=$BASE_OS
 )
 
 # Add -it if caller is a terminal

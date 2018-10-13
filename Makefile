@@ -11,8 +11,8 @@ export BUILD_INFO := $(shell ./build-tools/version-tool build-info)
 
 GO_BUILD_FLAGS=-v -ldflags "-extldflags \"-static\" -X main.version=$(BUILD_VERSION) -X main.buildInfo=$(BUILD_INFO)"
 
-# Allow users to pass in BASE_OS build options (alpine or rhel7)
-BASE_OS ?= alpine
+# Allow users to pass in BASE_OS build options (debian or rhel7)
+BASE_OS ?= debian
 
 # This is for builds not triggered through Travis CI 
 LICENSE_STRICT ?= false
@@ -28,8 +28,6 @@ all: local-build
 test: local-go-test
 
 prod: prod-build
-
-debug: dbg-build
 
 verify: fmt vet
 
@@ -97,10 +95,6 @@ prod-build-quick: pre-build
 	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
 	RUN_TESTS=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
 	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
-
-dbg-build: pre-build
-	@echo "Building with race detection instrumentation..."
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-debug-artifacts.sh
 
 fmt:
 	@echo "Enforcing code formatting using 'go fmt'..."

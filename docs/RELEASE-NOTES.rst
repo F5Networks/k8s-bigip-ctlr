@@ -14,6 +14,8 @@ Bug Fixes
 `````````
 * :issues:`735` - Deleted rules from routes and ingresses on the same service not cleaned up properly.
 * :issues:`753` - Controller doesn't delete and recreate annotation-based policy rules.
+* :issues:`755` - Controller implements best-match by setting first-match and sorting rules in reverse lexical order.
+* :issues:`765` - Controller properly sorts Route rules in reverse lexical order.
 
 v1.6.1
 ------

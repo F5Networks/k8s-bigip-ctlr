@@ -3530,7 +3530,7 @@ var _ = Describe("AppManager Tests", func() {
 
 					// Verify whitelist conditions exist
 					var found *condition
-					Expect(len(rs.Policies[0].Rules)).To(Equal(2))
+					Expect(len(rs.Policies[0].Rules)).To(Equal(3))
 					Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(3))
 					for _, x := range rs.Policies[0].Rules[0].Conditions {
 						if x.Tcp == true {

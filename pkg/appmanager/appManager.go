@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1266,7 +1267,7 @@ func (appMgr *Manager) syncRoutes(
 				}
 			}
 
-			// Remove any left over pools from services no longer used by this Route
+			// Remove any left over pools/rules from configs no longer used by this Route
 			for _, dep := range depsRemoved {
 				if dep.Kind == ServiceDep {
 					cfgChanged, svcKey := rsCfg.RemovePool(
@@ -1280,15 +1281,19 @@ func (appMgr *Manager) syncRoutes(
 				}
 				if dep.Kind == RuleDep {
 					for _, pol := range rsCfg.Policies {
+						var toRemove []*Rule
 						for _, rl := range pol.Rules {
 							if rl.FullURI == dep.Name {
-								rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
+								toRemove = append(toRemove, rl)
 								// Delete profile (route only)
 								if rsCfg.MetaData.ResourceType == "route" {
 									resourceName := strings.Split(rl.Name, "_")[3]
 									rsCfg.DeleteRouteProfile(dep.Namespace, resourceName)
 								}
 							}
+						}
+						for _, rl := range toRemove {
+							rsCfg.DeleteRuleFromPolicy(pol.Name, rl, appMgr.mergedRulesMap)
 						}
 					}
 				}
@@ -1308,6 +1313,11 @@ func (appMgr *Manager) syncRoutes(
 				if dep.Kind == WhitelistDep {
 					rsCfg.deleteWhitelistCondition(dep.Name)
 				}
+			}
+			// Sort the rules
+			for _, pol := range rsCfg.Policies {
+				sort.Sort(sort.Reverse(&pol.Rules))
+				rsCfg.SetPolicy(pol)
 			}
 
 			_, found, updated := appMgr.handleConfigForType(
@@ -1981,7 +1991,7 @@ func (appMgr *Manager) getEndpointsForCluster(
 		for _, p := range subset.Ports {
 			if portName == p.Name {
 				for _, addr := range subset.Addresses {
-					if contains(nodes, *addr.NodeName) {
+					if containsNode(nodes, *addr.NodeName) {
 						member := Member{
 							Address: addr.IP,
 							Port:    p.Port,
@@ -2162,7 +2172,7 @@ func (appMgr *Manager) getNodes(
 	return watchedNodes, nil
 }
 
-func contains(nodes []Node, name string) bool {
+func containsNode(nodes []Node, name string) bool {
 	for _, node := range nodes {
 		if node.Name == name {
 			return true

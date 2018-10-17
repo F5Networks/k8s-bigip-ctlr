@@ -9,11 +9,16 @@ USER_ID=${LOCAL_USER_ID:-9001}
 echo "Starting with UID : $USER_ID"
 export HOME=/home/user
 
+echo "BASE_OS=$BASE_OS"
+if [[ $BASE_OS == "debian" ]]; then
+  ADDUSER_FLAG='--disabled-password --gecos ""'
+fi
+
 if [ -x /sbin/su-exec ]; then
-    adduser -D -s /bin/bash -u $USER_ID user
+    adduser -D --shell /bin/bash --uid $USER_ID ${ADDUSER_FLAG} user
     su_binary=/sbin/su-exec
 else
-    adduser -s /bin/bash -u $USER_ID user
+    adduser --shell /bin/bash --uid $USER_ID ${ADDUSER_FLAG} user
     su_binary=gosu
     source scl_source enable python27
 fi

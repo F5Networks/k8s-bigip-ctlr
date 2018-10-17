@@ -2,9 +2,9 @@ FROM registry.access.redhat.com/rhel7
 
 # GOLANG install steps
 
-ENV GOLANG_VERSION 1.7.5
+ENV GOLANG_VERSION 1.11.1
 ENV GOLANG_SRC_URL https://golang.org/dl/go$GOLANG_VERSION.src.tar.gz
-ENV GOLANG_SRC_SHA256 4e834513a2079f8cbbd357502cccaac9507fd00a1efe672375798858ff291815
+ENV GOLANG_SRC_SHA256 558f8c169ae215e25b81421596e8de7572bd3ba824b79add22fba6e284db1117
 
 RUN REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-rpms && \
 	yum -y update-minimal --disablerepo "*" --enablerepo rhel-7-server-rpms --setopt=tsflags=nodocs \

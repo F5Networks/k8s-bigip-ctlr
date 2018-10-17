@@ -9,6 +9,7 @@ Added Functionality
 * Added `--manage-configmaps` argument to CC to prevent or allow CC to respond to ConfigMap events. Defaults to `true`.
 * Added `virtual-server.f5.com/whitelist-source-range` annotation to support CIDR whitelisting.
 * :issues:`699` - Ability to configure health monitor type in Ingress/Route annotation. Http is the default.
+* Changed container base image to use debian-slim.
 
 Bug Fixes
 `````````

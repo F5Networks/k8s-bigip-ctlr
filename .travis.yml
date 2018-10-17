@@ -7,7 +7,7 @@ git:
   depth: false
 
 before_install:
-  - docker pull golang:1.7.5
+  - docker pull golang:1.11.1
   - docker pull node:6.11.0-slim
   - docker pull f5devcentral/containthedocs
 
@@ -43,7 +43,7 @@ script:
       export LICENSE_STRICT=false
     fi
   - export CLEAN_BUILD=true
-  - export BASE_OS=alpine
+  - export BASE_OS=debian
   - make verify
   - make prod
   - docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"

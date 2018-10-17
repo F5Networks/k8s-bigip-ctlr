@@ -20,7 +20,6 @@ set -e
 : ${CLEAN_BUILD:=false}
 : ${IMG_TAG:=k8s-bigip-ctlr:latest}
 : ${BUILD_IMG_TAG:=k8s-bigip-ctlr-devel:latest}
-: ${BUILD_DBG_IMG_TAG:=${BUILD_IMG_TAG}-debug}
 : ${BUILD_VARIANT:=release}
 : ${BUILD_VARIANT_FLAGS:=}
 
@@ -52,7 +51,7 @@ get_builddir() {
 }
 
 # This is the expected output location, from the release build container
-RELEASE_PLATFORM=linux-amd64-release-go1.7.5
+RELEASE_PLATFORM=linux-amd64-release-go1.11.1
 
 NO_CACHE_ARGS=""
 if $CLEAN_BUILD; then

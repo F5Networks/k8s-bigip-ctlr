@@ -2346,6 +2346,12 @@ func (rc *ResourceConfig) RemovePool(
 				}
 				ruleOffsets = append(ruleOffsets, i)
 				unmerged := rc.UnmergeRule(rule.Name, appMgr.mergedRulesMap)
+				// If the next rule is a reset rule, remove that as well
+				if len(policy.Rules) > i+1 &&
+					strings.HasSuffix(policy.Rules[i+1].Name, "-reset") &&
+					policy.Rules[i+1].FullURI == rule.FullURI {
+					ruleOffsets = append(ruleOffsets, i+1)
+				}
 				if unmerged {
 					cfgChanged = true
 				}

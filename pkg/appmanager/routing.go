@@ -359,7 +359,7 @@ func httpRedirectIRule(port int32) string {
 				set redir 0
 				foreach s [split $paths "|"] {
 					# See if the request path starts with the prefix
-					append prefix "^" $s "($|/)"
+					append prefix "^" $s "($|/*)"
 					if {[HTTP::path] matches_regex $prefix} {
 						set redir 1
 						break

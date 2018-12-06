@@ -359,7 +359,7 @@ func httpRedirectIRule(port int32) string {
 				set redir 0
 				foreach s [split $paths "|"] {
 					# See if the request path starts with the prefix
-					append prefix "^" $s "($|/)"
+					append prefix "^" $s "($|/*)"
 					if {[HTTP::path] matches_regex $prefix} {
 						set redir 1
 						break
@@ -557,7 +557,7 @@ func sslPassthroughIRule() string {
 
 		when SERVER_CONNECTED {
 			set svrssl_class "/%[1]s/ssl_reencrypt_serverssl_dg"
-			if { [class exists $svrssl_class] } {
+			if { [info exists servername_lower] and [class exists $svrssl_class] } {
 				set profile [class match -value $servername_lower equals $svrssl_class]
 				if { not ($profile equals "") } {
 					SSL::profile $profile

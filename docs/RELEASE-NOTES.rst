@@ -1,6 +1,22 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+v1.7.1
+------
+
+Vulnerability Addresses
+```````````````````````
++------------------+----------------------------------------------------------------+
+| CVE              | Comments                                                       |
++==================+================================================================+
+| CVE-2018-1002105 | Validated against Kubernetes 1.12.3                            |
++------------------+----------------------------------------------------------------+
+
+Bug fixes
+`````````
+* :issues:`789` - Controller properly creates https redirect for child paths in k8s Ingress.
+* Fixes an issue in openshift where communication breaks with clients with no SNI support.
+
 v1.7.0
 ------
 

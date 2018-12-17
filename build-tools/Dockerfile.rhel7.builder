@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/rhel7
+FROM registry.redhat.io/rhel7
 
 # GOLANG install steps
 

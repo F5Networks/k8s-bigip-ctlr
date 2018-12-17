@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/rhel-atomic
+FROM registry.redhat.io/rhel-atomic
 
 LABEL name="f5networks/k8s-bigip-ctlr" \
       vendor="F5 Networks" \

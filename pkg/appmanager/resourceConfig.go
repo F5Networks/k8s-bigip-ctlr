@@ -1369,6 +1369,11 @@ func copyConfigMap(virtualName, ns, snatPoolName string, cfg *ResourceConfig, cf
 				}
 			}
 		}
+		if len(cfgMap.VirtualServer.Frontend.IRules) > 0 {
+			for _, iruleName := range cfgMap.VirtualServer.Frontend.IRules {
+				cfg.Virtual.AddIRule(iruleName)
+			}
+		}
 	} else {
 		// Handle IApp specific config.
 		cfg.MetaData.ResourceType = "iapp"

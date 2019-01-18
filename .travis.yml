@@ -6,14 +6,24 @@ git:
   # don't limit git clone depth
   depth: false
 
+addons:
+  apt:
+    packages:
+      - docker-ce
+
+matrix:
+  include:
+    - os: linux
+    - os: linux-ppc64le
+
 before_install:
   - docker pull golang:1.11.1
-  - docker pull node:6.11.0-slim
+  - docker pull node:8.15.0-slim
   - docker pull f5devcentral/containthedocs
 
 script:
   - set -e
-  - docker run --rm -it -v `pwd`:`pwd` -w `pwd` node:6.11.0-slim build-tools/schema-tests.sh
+  - docker run --rm -it -v `pwd`:`pwd` -w `pwd` node:8.15.0-slim build-tools/schema-tests.sh
   - if [ "$DOCKER_NAMESPACE" == "" ]; then DOCKER_NAMESPACE="local"; fi
   - BASE_PUSH_TARGET="$DOCKER_NAMESPACE/k8s-bigip-ctlr"
   - |
@@ -55,15 +65,19 @@ script:
       docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_STAMP"
       docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_VERSION"
       docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_VERSION-$BUILD_INFO"
+      docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$TRAVIS_BRANCH-$ARCH"
       docker push "$IMG_TAG"
       docker push "$BASE_PUSH_TARGET:devel-$TRAVIS_BRANCH"
       docker push "$BASE_PUSH_TARGET:$BUILD_STAMP"
       docker push "$BASE_PUSH_TARGET:$BUILD_VERSION"
       docker push "$BASE_PUSH_TARGET:$BUILD_VERSION-$BUILD_INFO"
       docker push "$BASE_PUSH_TARGET:latest"
+      docker push "$BASE_PUSH_TARGET:$TRAVIS_BRANCH-$ARCH"
+      docker manifest create "$BASE_PUSH_TARGET:$TRAVIS_BRANCH" "$BASE_PUSH_TARGET:$TRAVIS_BRANCH-amd64" "$BASE_PUSH_TARGET:$TRAVIS_BRANCH-ppc64le"
+      docker manifest push "$BASE_PUSH_TARGET:$TRAVIS_BRANCH"
     fi
-  - make docs
-
+  - if [[ "$ARCH" == "amd64" ]]; then make docs; fi #f5devcentral/attributions-generator:latest docker image available only for x86.
+        #TO DO, https://github.com/F5Networks/k8s-bigip-ctlr/issues/806
 deploy:
   - provider: script
     skip_cleanup: true

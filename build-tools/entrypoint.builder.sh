@@ -17,6 +17,9 @@ fi
 if [ -x /sbin/su-exec ]; then
     adduser -D --shell /bin/bash --uid $USER_ID ${ADDUSER_FLAG} user
     su_binary=/sbin/su-exec
+elif [[ "$(go env GOARCH)" == "ppc64le" ]]; then
+    adduser --shell /bin/bash --uid $USER_ID ${ADDUSER_FLAG} user
+    su_binary=gosu
 else
     adduser --shell /bin/bash --uid $USER_ID ${ADDUSER_FLAG} user
     su_binary=gosu

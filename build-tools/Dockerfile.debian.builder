@@ -53,6 +53,17 @@ ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
 
 RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 WORKDIR $GOPATH
+# install gosu based on host architecture
+# https://github.com/tianon/gosu/blob/master/INSTALL.md#from-centos
+ENV GOSU_VERSION 1.10
+RUN set -ex && \
+        dpkgArch="$(dpkg --print-architecture | awk -F- '{ print $NF }')" && \
+        wget -O /usr/bin/gosu "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch" && \
+        wget -O /usr/local/bin/gosu.asc "https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc" && \
+        chmod +x /usr/bin/gosu && \
+        chmod +x /usr/local/bin/gosu.asc && \
+# verify that the binary works
+        gosu nobody true
 
 # Controller install steps
 COPY entrypoint.builder.sh /entrypoint.sh
@@ -69,11 +80,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 	go get github.com/onsi/ginkgo/ginkgo && \
 	go get github.com/onsi/gomega && \
 	chmod 755 /entrypoint.sh
-
-COPY --from=gosu/assets /opt/gosu /opt/gosu
-RUN set -x \
-    && /opt/gosu/gosu.install.sh \
-    && rm -fr /opt/gosu
 
 ENTRYPOINT [ "/entrypoint.sh" ]
 CMD [ "/bin/bash" ]

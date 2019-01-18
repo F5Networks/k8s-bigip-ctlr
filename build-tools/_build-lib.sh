@@ -51,7 +51,7 @@ get_builddir() {
 }
 
 # This is the expected output location, from the release build container
-RELEASE_PLATFORM=linux-amd64-release-go1.11.1
+RELEASE_PLATFORM="linux-$(go env GOARCH)-release-go1.11.1"
 
 NO_CACHE_ARGS=""
 if $CLEAN_BUILD; then
@@ -146,7 +146,11 @@ tmpdir_for_test() {
   local WKDIR=$(mktemp -d $BUILDDIR/tmpXXXXXX)
   # src dir to follow gopath convention
   mkdir -p $WKDIR/src
-  # Copy over mounted src to our writable src
-  rsync -a --exclude '.git' --exclude '_docker_workspace' $GOPATH/src/ $WKDIR/src
+  if [ "$(go env GOARCH)" == "amd64" ]; then
+     # Copy over mounted src to our writable src
+     rsync -a --exclude '.git' --exclude '_docker_workspace' $GOPATH/src/ $WKDIR/src
+  else
+     rsync -r --exclude '.git' --exclude '_docker_workspace' $GOPATH/src/ $WKDIR/src
+  fi
   echo $WKDIR
 }

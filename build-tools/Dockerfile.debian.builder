@@ -61,7 +61,7 @@ COPY requirements.docs.txt /tmp/requirements.docs.txt
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir setuptools flake8 virtualenv && \
-	pip install --no-cache-dir --process-dependency-links -r /tmp/requirements.txt && \
+	pip install --no-cache-dir -r /tmp/requirements.txt && \
 	pip install --no-cache-dir -r /tmp/requirements.docs.txt && \
 	go get github.com/wadey/gocovmerge && \
 	go get golang.org/x/tools/cmd/cover && \

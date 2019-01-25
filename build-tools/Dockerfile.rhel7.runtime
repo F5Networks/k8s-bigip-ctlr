@@ -30,7 +30,7 @@ RUN microdnf --enablerepo=rhel-7-server-rpms --enablerepo=rhel-7-server-optional
     go-md2man -in /tmp/help.md -out /help.1 && rm -f /tmp/help.md && \
     source scl_source enable python27 && \
     pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir --process-dependency-links -r /tmp/requirements.txt && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
     python -m pip uninstall -y pip && \
     adduser ctlr && \
     microdnf remove golang-github-cpuguy83-go-md2man git fipscheck fipscheck-lib groff-base \

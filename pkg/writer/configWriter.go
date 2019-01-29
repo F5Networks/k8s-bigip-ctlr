@@ -223,7 +223,7 @@ func (cw *configWriter) waitData() {
 			} else {
 				cw.sectionMap[cs.name] = cs.data
 
-				output, err := json.Marshal(cw.sectionMap)
+				output, err := json.MarshalIndent(cw.sectionMap, "", "    ")
 				if nil != err {
 					log.Warningf("ConfigWriter (%p) received marshal error (%s): %v",
 						cw, cs.name, err)

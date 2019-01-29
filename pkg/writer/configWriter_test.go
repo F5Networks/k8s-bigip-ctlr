@@ -268,7 +268,7 @@ var _ = Describe("Config Writer Tests", func() {
 			pollDone(doneCh, errCh)
 			testFile(f, true)
 
-			expected, err := json.Marshal(testData)
+			expected, err := json.MarshalIndent(testData, "", "    ")
 			Expect(err).To(BeNil())
 
 			written, err := ioutil.ReadFile(f)
@@ -292,7 +292,7 @@ var _ = Describe("Config Writer Tests", func() {
 			pollDone(doneCh, errCh)
 			testFile(f, true)
 
-			expected, err = json.Marshal(empty)
+			expected, err = json.MarshalIndent(empty, "", "    ")
 			Expect(err).To(BeNil())
 
 			written, err = ioutil.ReadFile(f)
@@ -306,7 +306,7 @@ var _ = Describe("Config Writer Tests", func() {
 			pollDone(doneCh, errCh)
 			testFile(f, true)
 
-			expected, err = json.Marshal(testData)
+			expected, err = json.MarshalIndent(testData, "", "    ")
 			Expect(err).To(BeNil())
 
 			written, err = ioutil.ReadFile(f)
@@ -374,7 +374,7 @@ var _ = Describe("Config Writer Tests", func() {
 			}
 			wg.Wait()
 
-			expected, err := json.Marshal(testData)
+			expected, err := json.MarshalIndent(testData, "", "    ")
 			Expect(err).To(BeNil())
 
 			written, err := ioutil.ReadFile(f)

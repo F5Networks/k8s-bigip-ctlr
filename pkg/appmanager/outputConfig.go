@@ -167,7 +167,7 @@ func (appMgr *Manager) outputConfigLocked() {
 					// Copy everything from resources except CustomProfiles
 					// to be used for debug logging
 					resourceLog := copyResourceData(resources)
-					output, err := json.Marshal(resourceLog)
+					output, err := json.MarshalIndent(resourceLog, "", "    ")
 					if nil != err {
 						log.Warningf("Failed creating output debug log: %v", err)
 					} else {

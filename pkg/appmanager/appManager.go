@@ -66,6 +66,7 @@ const f5VsAppRootAnnotation = "virtual-server.f5.com/rewrite-app-root"
 const f5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
 const f5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"
 const f5ServerSslSecureAnnotation = "virtual-server.f5.com/secure-serverssl"
+const f5IruleAnnotation = "virtual-server.f5.com/irules"
 const defaultSslServerCAName = "openshift_route_cluster_default-ca"
 
 type ResourceMap map[int32][]*ResourceConfig
@@ -1069,6 +1070,17 @@ func (appMgr *Manager) syncIngresses(
 				}
 				rsCfg.SortMonitors()
 			}
+			// Handle custom iRule annotation
+			iRuleStr, found := ing.ObjectMeta.Annotations[f5IruleAnnotation]
+			if found {
+				iRuleStr := strings.TrimSpace(iRuleStr)
+				parts := strings.Split(iRuleStr, ",")
+				for _, iruleName := range parts {
+					iruleName := strings.TrimSpace(iruleName)
+					rsCfg.Virtual.AddIRule(iruleName)
+				}
+			}
+
 			// Collect all service names on this Ingress.
 			// Used in handleConfigForType.
 			var svcs []string

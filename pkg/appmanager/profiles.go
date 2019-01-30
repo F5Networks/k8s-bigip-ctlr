@@ -490,6 +490,19 @@ func (appMgr *Manager) deleteUnusedProfiles(
 								)
 							}
 						}
+						if serverProfile, ok :=
+							cm.ObjectMeta.Annotations[f5ServerSslProfileAnnotation]; ok == true {
+							appMgr.checkProfile(
+								prof,
+								&toRemove,
+								cm.ObjectMeta.Namespace,
+								serverProfile,
+								&referenced,
+							)
+						}
+						if referenced {
+							break
+						}
 					}
 				}
 			} else if cfg.MetaData.ResourceType == "ingress" {

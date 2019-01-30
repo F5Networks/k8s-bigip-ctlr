@@ -1310,6 +1310,13 @@ func parseConfigMap(cm *v1.ConfigMap, schemaDBPath, snatPoolName string) (*Resou
 						}
 					}
 				}
+				if serverProfile, ok :=
+					cm.ObjectMeta.Annotations[f5ServerSslProfileAnnotation]; ok == true {
+					secretName := formatIngressSslProfileName(serverProfile)
+					profRef := convertStringToProfileRef(
+						secretName, customProfileServer, cm.ObjectMeta.Namespace)
+					cfg.Virtual.AddOrUpdateProfile(profRef)
+				}
 			} else {
 				var errors []string
 				for _, desc := range result.Errors() {

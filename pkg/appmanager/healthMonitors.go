@@ -269,12 +269,32 @@ func (appMgr *Manager) handleRouteHealthMonitors(
 
 	// Setup the rule-to-pool map from the route
 	ruleItem := make(pathToRuleMap)
-	ruleItem["/"] = &ruleData{
-		svcName: pool.ServiceName,
-		svcPort: pool.ServicePort,
-	}
 	htpMap := make(hostToPathMap)
-	htpMap["*"] = ruleItem
+	for _, mon := range monitors {
+		slashPos := strings.Index(mon.Path, "/")
+		if slashPos == -1 {
+			continue
+		}
+
+		host := mon.Path[:slashPos]
+		path := mon.Path[slashPos:]
+		if len(path) > 0 {
+			ruleItem[path] = &ruleData{
+				svcName: pool.ServiceName,
+				svcPort: pool.ServicePort,
+			}
+		} else {
+			ruleItem["/"] = &ruleData{
+				svcName: pool.ServiceName,
+				svcPort: pool.ServicePort,
+			}
+		}
+		if len(host) > 0 {
+			htpMap[host] = ruleItem
+		} else {
+			htpMap["*"] = ruleItem
+		}
+	}
 
 	err := appMgr.assignHealthMonitorsByPath(rsName, nil, htpMap, monitors)
 	if nil != err {

@@ -35,6 +35,7 @@ import (
 const httpRedirectIRuleName = "http_redirect_irule"
 const abDeploymentPathIRuleName = "ab_deployment_path_irule"
 const sslPassthroughIRuleName = "openshift_passthrough_irule"
+const httpXForwardForIruleName = "http_x_forwarded_for_irule"
 
 // Internal data group for passthrough routes to map server names to pools.
 const passthroughHostsDgName = "ssl_passthrough_servername_dg"
@@ -370,6 +371,16 @@ func httpRedirectIRule(port int32) string {
 				}
 			}
 		}`, port)
+
+	return iRuleCode
+}
+
+func httpXForwardedFor() string {
+	iRuleCode := fmt.Sprintf("%s\n", `
+                       when HTTP_REQUEST {
+                               HTTP::header insert X-Forwarded-For [IP::remote_addr]
+                       }
+               `)
 
 	return iRuleCode
 }

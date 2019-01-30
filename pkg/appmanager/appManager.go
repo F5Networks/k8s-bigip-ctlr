@@ -67,6 +67,7 @@ const f5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
 const f5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"
 const f5ServerSslSecureAnnotation = "virtual-server.f5.com/secure-serverssl"
 const f5IruleAnnotation = "virtual-server.f5.com/irules"
+const xForwardedFor = "ingress.kubernetes.io/x-forwarded-for"
 const defaultSslServerCAName = "openshift_route_cluster_default-ca"
 
 type ResourceMap map[int32][]*ResourceConfig
@@ -1079,6 +1080,17 @@ func (appMgr *Manager) syncIngresses(
 					iruleName := strings.TrimSpace(iruleName)
 					rsCfg.Virtual.AddIRule(iruleName)
 				}
+			}
+
+			XForwardedFor := getBooleanAnnotation(ing.ObjectMeta.Annotations,
+				xForwardedFor, false)
+
+			if XForwardedFor {
+				log.Debugf("IRule: Applying HTTP X-Forwarded-For iRule.")
+				appMgr.addIRule(httpXForwardForIruleName, DEFAULT_PARTITION,
+					httpXForwardedFor())
+				ruleName := joinBigipPath(DEFAULT_PARTITION, httpXForwardForIruleName)
+				rsCfg.Virtual.AddIRule(ruleName)
 			}
 
 			// Collect all service names on this Ingress.

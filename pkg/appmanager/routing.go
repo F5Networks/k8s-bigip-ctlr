@@ -350,7 +350,7 @@ func httpRedirectIRule(port int32) string {
 	iRuleCode := fmt.Sprintf(`
 		when HTTP_REQUEST {
 			# Look for exact match for host name
-			set paths [class match -value [HTTP::host] equals https_redirect_dg]
+			set paths [class match -value [getfield [HTTP::host] ":" 1] equals https_redirect_dg]
 			if {$paths == ""} {
 				# See if there's an entry that matches all hosts
 				set paths [class match -value "*" equals https_redirect_dg]

@@ -1568,6 +1568,9 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	}
 	cfg.MetaData.ingName = ing.ObjectMeta.Name
 
+	sslRedirect := getBooleanAnnotation(ing.ObjectMeta.Annotations,
+		ingressSslRedirect, true)
+
 	resources.Lock()
 	defer resources.Unlock()
 	// Check to see if we already have any Ingresses for this IP:Port
@@ -1614,7 +1617,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 				}
 			}
 		} else if len(cfg.Policies) == 0 && plcy != nil {
-			cfg.SetPolicy(*plcy)
+			cfg.IngSetPolicy(*plcy, sslRedirect, pStruct.protocol)
 		}
 	} else { // This is a new VS for an Ingress
 		cfg.MetaData.ResourceType = "ingress"
@@ -1624,7 +1627,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
 		cfg.Pools = append(cfg.Pools, pools...)
 		if plcy != nil {
-			cfg.SetPolicy(*plcy)
+			cfg.IngSetPolicy(*plcy, sslRedirect, pStruct.protocol)
 		}
 	}
 
@@ -2194,6 +2197,36 @@ func (rc *ResourceConfig) SetPolicy(policy Policy) {
 	}
 	if !found {
 		rc.Virtual.Policies = append(rc.Virtual.Policies, toFind)
+	}
+	for i, pol := range rc.Policies {
+		if pol.Name == policy.Name && pol.Partition == policy.Partition {
+			rc.Policies[i] = policy
+			return
+		}
+	}
+	rc.Policies = append(rc.Policies, policy)
+}
+
+func (rc *ResourceConfig) IngSetPolicy(policy Policy, sslRedirect bool, pProtocol string) {
+	toFind := nameRef{
+		Name:      policy.Name,
+		Partition: policy.Partition,
+	}
+	found := false
+	for _, polName := range rc.Virtual.Policies {
+		if reflect.DeepEqual(toFind, polName) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		if sslRedirect {
+			if pProtocol == "https" {
+				rc.Virtual.Policies = append(rc.Virtual.Policies, toFind)
+			}
+		} else {
+			rc.Virtual.Policies = append(rc.Virtual.Policies, toFind)
+		}
 	}
 	for i, pol := range rc.Policies {
 		if pol.Name == policy.Name && pol.Partition == policy.Partition {

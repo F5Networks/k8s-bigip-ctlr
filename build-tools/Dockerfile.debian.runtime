@@ -13,7 +13,7 @@ COPY requirements.txt /tmp/requirements.txt
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
     && pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir --process-dependency-links -r /tmp/requirements.txt \
+    && pip install --no-cache-dir -r /tmp/requirements.txt \
     && apt-get remove -y git
 
 COPY bigip-virtual-server_v*.json $APPPATH/vendor/src/f5/schemas/

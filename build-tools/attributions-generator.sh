@@ -7,7 +7,7 @@
 set -e
 set -x
 
-ATTR_GEN_IMG=f5devcentral/attributions-generator:latest
+ATTR_GEN_IMG=subbuv26/f5-attributions-generator:latest
 docker pull ${ATTR_GEN_IMG}
 
 RUN_ARGS=( \

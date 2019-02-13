@@ -3,6 +3,7 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 next-release
 ------------
+* :issues: `810` - Controller deletes services and recreates during bigip-ctlr pod restart
 
 v1.7.1
 ------

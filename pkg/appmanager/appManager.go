@@ -765,6 +765,8 @@ func (appMgr *Manager) virtualServerWorker() {
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
 	if !appMgr.initialState && appMgr.processedItems == 0 {
+		//TODO: Properly handlle queueLen assessment and remove Sleep function
+		time.Sleep(1 * time.Second)
 		appMgr.queueLen = appMgr.vsQueue.Len()
 	}
 	if quit {

@@ -123,11 +123,11 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 			}
 		}
 		// Will only exist in Flannel/Kubernetes
-                if pip, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/public-ip"]; ok {
-                        if rec.Endpoint != pip {
-                                rec.Endpoint = pip
-                        }
-                }
+               if pip, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/public-ip"]; ok {
+                       if rec.Endpoint != pip {
+                               rec.Endpoint = pip
+                       }
+               }
 		if atn, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/backend-data"]; ok {
 			var mac string
 			mac, err = parseVtepMac(atn, node.ObjectMeta.Name)
@@ -261,7 +261,7 @@ func getVtepMac(
 			// Get the Node for this Pod
 			for _, node := range kubeNodes.Items {
 				if _, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/public-ip"]; ok &&
-                                        node.ObjectMeta.Name == kPod.Spec.NodeName {
+                                       node.ObjectMeta.Name == kPod.Spec.NodeName {
 					if mac, ok :=
 						node.ObjectMeta.Annotations["flannel.alpha.coreos.com/backend-data"]; ok {
 						return parseVtepMac(mac, node.ObjectMeta.Name)

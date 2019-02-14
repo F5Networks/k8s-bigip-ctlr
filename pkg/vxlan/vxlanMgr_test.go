@@ -338,6 +338,9 @@ var _ = Describe("VxlanMgr Tests", func() {
 				PodIP:  "1.2.3.4",
 				HostIP: "127.0.0.10",
 			},
+			Spec: v1.PodSpec{
+				NodeName: "flannelNode",
+			},
 		}
 
 		fakeClient.Core().Nodes().Create(&flannelNode)

@@ -4200,10 +4200,10 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).ToNot(BeNil())
 			})
 
-                        // This test case validates namespace name update funcitonality
-                        // where, a name starting with a 'number' is prefixed with 'cfgmap_<name>'
+			// This test case validates namespace name update funcitonality
+			// where, a name starting with a 'number' is prefixed with 'cfgmap_<name>'
 			It("Check namespace name starting with number", func() {
-                                NumNSname := "4-default-rack"
+				NumNSname := "4-default-rack"
 				cfgMapSelector, err := labels.Parse(DefaultConfigMapLabel)
 				Expect(err).To(BeNil())
 				err = mockMgr.appMgr.AddNamespace(NumNSname, cfgMapSelector, 0)
@@ -4221,7 +4221,7 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok := resources.Get(serviceKey{"foo", 80, NumNSname},
 					formatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
-                                Expect(rs.Virtual.Name).To(Equal("cfgmap_"+NumNSname+"_foomap"))
+				Expect(rs.Virtual.Name).To(Equal("cfgmap_" + NumNSname + "_foomap"))
 			})
 
 			It("watches namespace labels", func() {

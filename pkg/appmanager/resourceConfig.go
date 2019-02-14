@@ -226,12 +226,12 @@ func (v *Virtual) SetVirtualAddress(bindAddr string, port int32) {
 // To handle VS name which start with Number,
 // we are prefixing with 'cfgmap_' to avoid errors with bigip.
 func formatConfigMapVSName(cm *v1.ConfigMap) string {
-        VSprefix := "cfgmap"
-        if _, err := strconv.Atoi(cm.ObjectMeta.Namespace[0:1]); err == nil {
-           return fmt.Sprintf("%s_%s_%s", VSprefix, cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
-        }else{
-	return fmt.Sprintf("%s_%s", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
-        }
+	VSprefix := "cfgmap"
+	if _, err := strconv.Atoi(cm.ObjectMeta.Namespace[0:1]); err == nil {
+		return fmt.Sprintf("%s_%s_%s", VSprefix, cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
+	} else {
+		return fmt.Sprintf("%s_%s", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
+	}
 }
 
 // format the pool name for a ConfigMap

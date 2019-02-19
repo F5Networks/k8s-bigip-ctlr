@@ -1568,8 +1568,11 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	}
 	cfg.MetaData.ingName = ing.ObjectMeta.Name
 
-	sslRedirect := getBooleanAnnotation(ing.ObjectMeta.Annotations,
-		ingressSslRedirect, true)
+	var sslRedirect bool
+	if _, ok := ing.ObjectMeta.Annotations[ingressSslRedirect]; ok == true {
+		sslRedirect = getBooleanAnnotation(ing.ObjectMeta.Annotations,
+			ingressSslRedirect, true)
+	}
 
 	resources.Lock()
 	defer resources.Unlock()

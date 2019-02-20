@@ -3,7 +3,26 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 next-release
 ------------
-* :issues: `810` - Controller deletes services and recreates during bigip-ctlr pod restart
+
+v1.8.0
+------
+Deprecation
+```````````
+Next minor release will change the virtual server names in BigIP from <namespace>_<service> to cfgmap_<namespace>_<service>
+
+Added Functionality
+```````````````````
+* Added support for Services handling in numerical namespaces of Kubernetes and Openshift
+* Validated against 14.X versions of BIG-IP
+
+Bug Fixes
+`````````
+* :issues:`810` - Controller doesn't delete services and recreates during bigip-ctlr pod restart
+* :issues:`718` - Namespaces that start with a number does not cause errors
+
+Limitations
+```````````
+* Openshift Routes are not compatible with 14.X versions of BIG-IP
 
 v1.7.1
 ------

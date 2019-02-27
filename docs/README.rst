@@ -139,23 +139,33 @@ General
 BIG-IP system
 `````````````
 
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| Parameter             | Type    | Required | Default           | Description                             | Allowed Values |
-+=======================+=========+==========+===================+=========================================+================+
-| bigip-partition       | string  | Required | n/a               | The BIG-IP partition in which           |                |
-|                       |         |          |                   | to configure objects.                   |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| bigip-password        | string  | Required | n/a               | BIG-IP iControl REST password           |                |
-|                       |         |          |                   | [#secrets]_                             |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| bigip-url             | string  | Required | n/a               | BIG-IP admin IP address                 |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| bigip-username        | string  | Required | n/a               | BIG-IP iControl REST username           |                |
-|                       |         |          |                   | [#username]_                            |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| credentials-directory | string  | Optional | n/a               | Directory that contains the BIG-IP      |                |
-|                       |         |          |                   | username, password, or url files        |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
++-----------------------+---------+----------+-------------------+---------------------------------------------+----------------+
+| Parameter             | Type    | Required | Default           | Description                                 | Allowed Values |
++=======================+=========+==========+===================+=============================================+================+
+| bigip-partition       | string  | Required | n/a               | The BIG-IP partition in which               |                |
+|                       |         |          |                   | to configure objects.                       |                |
++-----------------------+---------+----------+-------------------+---------------------------------------------+----------------+
+| bigip-password        | string  | Required | n/a               || BIG-IP iControl REST password              |                |
+|                       |         |          |                   ||                                            |                |
+|                       |         |          |                   || You can `secure your BIG-IP credentials`_  |                |
+|                       |         |          |                   || using a Kubernetes Secret.                 |                |
++-----------------------+---------+----------+-------------------+---------------------------------------------+----------------+
+| bigip-url             | string  | Required | n/a               | BIG-IP admin IP address                     |                |
++-----------------------+---------+----------+-------------------+---------------------------------------------+----------------+
+| bigip-username        | string  | Required | n/a               || BIG-IP iControl REST username              |                |
+|                       |         |          |                   ||                                            |                |
+|                       |         |          |                   || The BIG-IP user account must have the      |                |
+|                       |         |          |                   || appropriate role defined:                  |                |
+|                       |         |          |                   ||                                            |                |
+|                       |         |          |                   || For ``nodeport`` type pool members, the    |                |
+|                       |         |          |                   || role must be ``Administrator``.            |                |
+|                       |         |          |                   ||                                            |                |
+|                       |         |          |                   || For ``cluster`` type pool members, the     |                |
+|                       |         |          |                   || role must be ``Administrator``.            |                |
++-----------------------+---------+----------+-------------------+---------------------------------------------+----------------+
+| credentials-directory | string  | Optional | n/a               | Directory that contains the BIG-IP          |                |
+|                       |         |          |                   | username, password, or url files            |                |
++-----------------------+---------+----------+-------------------+---------------------------------------------+----------------+
 
 .. important::
 
@@ -231,7 +241,7 @@ Kubernetes
 |                       |         |          |                   | only nodes with this label              |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | pool-member-type      | string  | Optional | nodeport          | The type of BIG-IP pool members you want| cluster,       |
-|                       |         |          |                   | to create. [#username]_                 | nodeport       |
+|                       |         |          |                   | to create.                              | nodeport       |
 |                       |         |          |                   |                                         |                |
 |                       |         |          |                   | Use ``cluster`` to create pool members  |                |
 |                       |         |          |                   | for each of the endpoints for the       |                |
@@ -804,8 +814,6 @@ OpenShift
 .. rubric:: **Footnotes**
 .. [#objectpartition] The |kctlr| creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap. **It cannot manage objects in the** ``/Common`` **partition**.
 .. [#nodeportmode] The |kctlr| forwards traffic to the NodePort assigned to the Service by Kubernetes. See the `Kubernetes Service`_ documentation for more information.
-.. [#secrets] You can `secure your BIG-IP credentials`_ using a Kubernetes Secret.
-.. [#username] The BIG-IP user account must have an appropriate role defined.  For ``nodeport`` type pool members, this role must be either ``Administrator``, ``Resource Administrator``, or ``Manager``. For ``cluster`` type pool members, the user account must have either the ``Administrator`` or ``Resource Manager`` role. See `BIG-IP Users <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-concepts-11-5-0/10.html>`_ for further details.
 .. [#lb] The |kctlr| supports BIG-IP load balancing algorithms that do not require additional configuration parameters. You can view the full list of supported algorithms in the `f5-cccl schema <https://github.com/f5devcentral/f5-cccl/blob/03e22c4779ceb88f529337ade3ca31ddcd57e4c8/f5_cccl/schemas/cccl-ltm-api-schema.yml#L515>`_. See the `BIG-IP Local Traffic Management Basics user guide <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/ltm-basics-13-0-0/4.html>`_ for information about each load balancing mode.
 .. [#ba] The Controller supports BIG-IP `route domain`_ specific addresses.
 .. [#ssl] If you want to configure multiple SSL profiles, use ``f5ProfileNames`` instead of ``f5ProfileName``. The two parameters are mutually exclusive.

@@ -35,6 +35,8 @@ import f5_sphinx_theme
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'recommonmark',
+    'sphinx_copybutton',
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
@@ -42,7 +44,6 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinxjp.themes.basicstrap',
     'sphinx.ext.extlinks',
-    'recommonmark',
     'cloud_sptheme.ext.table_styling'
 ]
 

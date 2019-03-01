@@ -1,2 +1,4 @@
 build:
   script: "make prod"
+  tags:
+    - cm-official-docker-executor

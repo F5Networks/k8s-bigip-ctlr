@@ -1,0 +1,2 @@
+build:
+  script: "make prod"

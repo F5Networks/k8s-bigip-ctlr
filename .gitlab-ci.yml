@@ -1,3 +1,5 @@
+image: ubuntu
+
 build:
   script: "make prod"
   tags:

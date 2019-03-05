@@ -45,6 +45,8 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinxjp.themes.basicstrap',
     'sphinx.ext.extlinks',
+    'recommonmark',
+    'sphinx_copybutton',
     'cloud_sptheme.ext.table_styling'
 ]
 

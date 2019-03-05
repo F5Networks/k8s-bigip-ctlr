@@ -872,21 +872,21 @@
    "version": "0.24.0",
    "license": "MIT",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "certifi",
    "version": "2018.11.29",
    "license": "MPL 2.0",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "cffi",
    "version": "1.12.1",
    "license": "MIT",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
 
  {
@@ -901,91 +901,91 @@
    "version": "2.5",
    "license": "BSD License",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "cryptography",
    "version": "2.6.1",
    "license": "BSD License",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "enum34",
    "version": "1.1.6",
    "license": "BSD License",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "idna",
    "version": "2.7",
    "license": "BSD License",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "pycparser",
    "version": "2.19",
    "license": "BSD License",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "pyOpenSSL",
    "version": "17.5.0",
    "license": "Apache 2.0",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "PyYAML",
    "version": "4.2b1",
    "license": "MIT",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "requests",
    "version": "2.20.0",
    "license": "Apache 2.0",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "urllib3",
    "version": "1.24.1",
    "license": "MIT",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "attrs",
    "version": "18.2.0",
    "license": "MIT",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "cffi",
    "version": "1.12.2",
    "license": "MIT",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "jsonschema",
    "version": "3.0.0",
    "license": "MIT",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "pyrsistent",
    "version": "0.14.11",
    "license": "MIT",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  }
 
 ]

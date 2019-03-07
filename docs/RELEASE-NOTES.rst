@@ -1,15 +1,23 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+v1.8.1
+------
+
+Bug Fixes
+`````````
+* Fixes security vulnerabilities between Controller and BIG-IP.
+
+  - CVE-2017-18342
+  - CVE-2018-100807
+  - CVE-2018-18074
+
 v1.8.0
 ------
-Deprecation
-```````````
-Next minor release will change the virtual server names in BigIP from <namespace>_<service> to cfgmap_<namespace>_<service>
 
 Added Functionality
 ```````````````````
-* Added support for Services handling in numerical namespaces of Kubernetes and Openshift
+* Added support for Services handling in namespaces of Kubernetes and Openshift that starts with a number.
 * Validated against 14.X versions of BIG-IP
 
 Bug Fixes

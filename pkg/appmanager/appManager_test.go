@@ -3422,9 +3422,9 @@ var _ = Describe("AppManager Tests", func() {
 							Name: "foo",
 						},
 						TLS: &routeapi.TLSConfig{
-							Termination:              "reencrypt",
-							Certificate:              "cert",
-							Key:                      "key",
+							Termination: "reencrypt",
+							Certificate: "cert",
+							Key:         "key",
 							DestinationCACertificate: "destCaCert",
 						},
 					}
@@ -3630,9 +3630,9 @@ var _ = Describe("AppManager Tests", func() {
 							TargetPort: intstr.FromInt(80),
 						},
 						TLS: &routeapi.TLSConfig{
-							Termination:                   "edge",
-							Certificate:                   "cert",
-							Key:                           "key",
+							Termination: "edge",
+							Certificate: "cert",
+							Key:         "key",
 							InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyRedirect,
 						},
 					}
@@ -3853,9 +3853,9 @@ var _ = Describe("AppManager Tests", func() {
 							},
 						},
 						TLS: &routeapi.TLSConfig{
-							Termination:              "reencrypt",
-							Certificate:              "cert",
-							Key:                      "key",
+							Termination: "reencrypt",
+							Certificate: "cert",
+							Key:         "key",
 							DestinationCACertificate: "destCaCert",
 						},
 					}
@@ -4067,6 +4067,16 @@ var _ = Describe("AppManager Tests", func() {
 				ignoreEventCt += expectedEventCt
 				Expect(events[0].Reason).To(Equal("DNSResolutionError"))
 				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
+			})
+			It("ConfigMap with AS3 true flag", func() {
+				cfgFoo := test.NewConfigMap("foomap", "1", namespace, map[string]string{
+					"schema": schemaUrl,
+					"data":   configmapFoo})
+				cfgFoo.ObjectMeta.Labels = make(map[string]string)
+				cfgFoo.ObjectMeta.Labels["as3"] = "true"
+				ok, keyList := mockMgr.appMgr.checkValidConfigMap(cfgFoo)
+				Expect(ok).To(BeTrue(), "ConfigMap with AS3 TRUE be processed.")
+				Expect(keyList[:1][0].As3Name).To(Equal("as3_foomap"))
 			})
 		})
 

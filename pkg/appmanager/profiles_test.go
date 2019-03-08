@@ -308,9 +308,9 @@ var _ = Describe("AppManager Profile Tests", func() {
 					Name: "foo",
 				},
 				TLS: &routeapi.TLSConfig{
-					Termination: "reencrypt",
-					Certificate: "cert",
-					Key:         "key",
+					Termination:              "reencrypt",
+					Certificate:              "cert",
+					Key:                      "key",
 					DestinationCACertificate: "destCaCert",
 				},
 			}

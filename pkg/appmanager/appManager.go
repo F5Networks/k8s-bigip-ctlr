@@ -588,7 +588,9 @@ func newListWatchWithLabelSelector(
 }
 
 func (appMgr *Manager) enqueueConfigMap(obj interface{}) {
-	if ok, keys := appMgr.checkValidConfigMap(obj); ok {
+	ok, keys := appMgr.checkValidConfigMap(obj)
+	if ok {
+		log.Infof("[as3_log] Processing non AS3 Config Map...")
 		for _, key := range keys {
 			appMgr.vsQueue.Add(*key)
 		}
@@ -914,6 +916,13 @@ func (appMgr *Manager) syncConfigMaps(
 		// and see if it belongs to the service that has changed.
 		cm := obj.(*v1.ConfigMap)
 		if cm.ObjectMeta.Namespace != sKey.Namespace {
+			continue
+		}
+
+		//if as3 just skip and continue
+		as3ok := appMgr.checkAs3ConfigMap(obj)
+		if !as3ok {
+			log.Infof("[as3_log] ConfigMap processing with AS3 Manager...")
 			continue
 		}
 

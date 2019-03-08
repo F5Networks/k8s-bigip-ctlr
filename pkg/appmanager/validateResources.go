@@ -36,6 +36,12 @@ func (appMgr *Manager) checkValidConfigMap(
 		// Not watching this namespace
 		return false, nil
 	}
+	//check as3 config map and branchout there
+	as3ok := appMgr.checkAs3ConfigMap(obj)
+	if !as3ok {
+		log.Infof("[as3_log]ConfigMap processing with AS3 Manager...")
+		return false, nil
+	}
 	cfg, err := parseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
 	if nil != err {
 		if handleConfigMapParseFailure(appMgr, cm, cfg, err) {

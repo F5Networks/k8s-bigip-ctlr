@@ -56,7 +56,7 @@ COPY requirements.docs.txt /tmp/requirements.docs.txt
 RUN source scl_source enable python27 && \
 	pip install --no-cache-dir --upgrade pip && \
 	pip install --no-cache-dir setuptools flake8 && \
-	pip install --no-cache-dir --process-dependency-links --ignore-installed -r /tmp/requirements.txt && \
+	pip install --no-cache-dir --ignore-installed -r /tmp/requirements.txt && \
 	pip install --no-cache-dir -r /tmp/requirements.docs.txt && \
 	go get github.com/wadey/gocovmerge && \
 	go get golang.org/x/tools/cmd/cover && \

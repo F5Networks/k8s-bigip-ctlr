@@ -933,7 +933,6 @@ func (appMgr *Manager) syncConfigMaps(
 		//	log.Infof("[as3_log] ConfigMap processing with AS3 Manager...")
 		//	continue
 		//}
-
 		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
 		if nil != err {
 			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(1)

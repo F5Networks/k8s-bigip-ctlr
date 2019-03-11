@@ -37,6 +37,7 @@ func (appMgr *Manager) checkValidConfigMap(
 		// Not watching this namespace
 		return false, nil
 	}
+
 	//check as3 config map 
 	if as3ok := appMgr.checkAs3ConfigMap(obj); as3ok {
 		log.Debugf("[as3_log] Found AS3: %t. Processing ConfigMap - %s with Template %s",

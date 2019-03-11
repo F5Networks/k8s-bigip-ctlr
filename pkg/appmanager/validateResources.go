@@ -37,14 +37,15 @@ func (appMgr *Manager) checkValidConfigMap(
 		// Not watching this namespace
 		return false, nil
 	}
-	//check as3 config map 
+
+	//check as3 config map
 	if as3ok := appMgr.checkAs3ConfigMap(obj); as3ok {
 		log.Debugf("[as3_log] Found AS3: %t. Processing ConfigMap - %s with Template %s",
-		               as3ok, cm.ObjectMeta.Name, cm.Data)
+			as3ok, cm.ObjectMeta.Name, cm.Data)
 		key := &serviceQueueKey{
-                        Namespace: namespace,
-			As3Name: "as3_"+cm.ObjectMeta.Name,
-			As3Data: cm.Data["template"],
+			Namespace: namespace,
+			As3Name:   "as3_" + cm.ObjectMeta.Name,
+			As3Data:   cm.Data["template"],
 		}
 		keyList = append(keyList, key)
 		return true, keyList
@@ -382,24 +383,23 @@ func validateAppRootAnnotations(rsType int, entries map[string]string) {
 // description: This function validates configmap be AS3 specific or not
 
 func (appMgr *Manager) checkAs3ConfigMap(
-        obj interface{},
+	obj interface{},
 ) bool {
-        // check for metadata.labels has 'as3' and that 'as3' is set to 'true'
-        cm := obj.(*v1.ConfigMap)
-        labels := cm.ObjectMeta.Labels
+	// check for metadata.labels has 'as3' and that 'as3' is set to 'true'
+	cm := obj.(*v1.ConfigMap)
+	labels := cm.ObjectMeta.Labels
 	log.Debugf("[as3_log] Parsing labels: %s ", labels)
-        if val, ok := labels["as3"]; ok {
-           log.Debugf("[as3_log] Found AS3 config map...")
-	   if val == "true" {
-	      return true
-	   }else{
-              return false
-	   }
+	if val, ok := labels["as3"]; ok {
+		log.Debugf("[as3_log] Found AS3 config map...")
+		if val == "true" {
+			return true
+		} else {
+			return false
+		}
 
-        } else {
-                log.Debugf("[as3_log] No AS3 Configuration found.")
-                // if as3 variable is not found, just return true for NON-AS3 Processing.
-                return false
-        }
+	} else {
+		log.Debugf("[as3_log] No AS3 Configuration found.")
+		// if as3 variable is not found, just return true for NON-AS3 Processing.
+		return false
+	}
 }
-

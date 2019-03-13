@@ -3422,9 +3422,9 @@ var _ = Describe("AppManager Tests", func() {
 							Name: "foo",
 						},
 						TLS: &routeapi.TLSConfig{
-							Termination: "reencrypt",
-							Certificate: "cert",
-							Key:         "key",
+							Termination:              "reencrypt",
+							Certificate:              "cert",
+							Key:                      "key",
 							DestinationCACertificate: "destCaCert",
 						},
 					}
@@ -3630,9 +3630,9 @@ var _ = Describe("AppManager Tests", func() {
 							TargetPort: intstr.FromInt(80),
 						},
 						TLS: &routeapi.TLSConfig{
-							Termination: "edge",
-							Certificate: "cert",
-							Key:         "key",
+							Termination:                   "edge",
+							Certificate:                   "cert",
+							Key:                           "key",
 							InsecureEdgeTerminationPolicy: routeapi.InsecureEdgeTerminationPolicyRedirect,
 						},
 					}
@@ -3853,9 +3853,9 @@ var _ = Describe("AppManager Tests", func() {
 							},
 						},
 						TLS: &routeapi.TLSConfig{
-							Termination: "reencrypt",
-							Certificate: "cert",
-							Key:         "key",
+							Termination:              "reencrypt",
+							Certificate:              "cert",
+							Key:                      "key",
 							DestinationCACertificate: "destCaCert",
 						},
 					}

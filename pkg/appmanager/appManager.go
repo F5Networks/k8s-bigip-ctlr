@@ -405,8 +405,6 @@ func (appMgr *Manager) GetNamespaceLabelInformer() cache.SharedIndexInformer {
 type serviceQueueKey struct {
 	Namespace   string
 	ServiceName string
-	As3Name     string // as3 Specific configMap name
-	As3Data     string // if As3Name is present, populate this with as3 tmpl data
 }
 
 type appInformer struct {
@@ -766,13 +764,6 @@ func (appMgr *Manager) virtualServerWorker() {
 
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
-	k := key.(serviceQueueKey)
-	if len(k.As3Name) != 0 {
-		log.Debugf("[as3_log] Processing AS3 cfgMap (%s) with AS3 Manager.\n", k.As3Name)
-		log.Debugf("[as3_log] AS3 ConfigMap Data: %s\n", k.As3Data)
-		appMgr.vsQueue.Done(key)
-		return false
-	}
 	if !appMgr.initialState && appMgr.processedItems == 0 {
 		//TODO: Properly handlle queueLen assessment and remove Sleep function
 		time.Sleep(1 * time.Second)
@@ -924,14 +915,6 @@ func (appMgr *Manager) syncConfigMaps(
 		cm := obj.(*v1.ConfigMap)
 		if cm.ObjectMeta.Namespace != sKey.Namespace {
 			continue
-		}
-		// If as3 just continue
-		if val, ok := cm.ObjectMeta.Labels["as3"]; ok {
-			if as3Val, err := strconv.ParseBool(val); err == nil {
-				if as3Val {
-					continue
-				}
-			}
 		}
 
 		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)

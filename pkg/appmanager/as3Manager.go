@@ -2,8 +2,11 @@ package appmanager
 
 import (
 	"encoding/json"
-
+	"fmt"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/pkg/api/v1"
+	apiv1 "k8s.io/client-go/pkg/api/v1"
 )
 
 type as3Template string
@@ -98,10 +101,74 @@ func getClass(obj interface{}) string {
 	return cl
 }
 
-// Story 3
-// Discover Endpoints for an application. Returns a pool
+// Performs Service discovery for the given AS3 Service and returns a pool.
+// Service discovery is loosely coupled with Kubernetes Service labels. A Kubernetes Service is treated as a match for
+// an AS3 service, if the Kubernetes Service have the following labels and their values matches corresponding AS3
+// Object.
+// cis.f5.com/as3-tenant=<Tenant Name>
+// cis.f5.com/as3-app=<Application Name>
+// cis.f5.com/as3-service=<AS3 Service Name>
+// When a match is found, returns Node's Address and Service NodePort as pool members, if Controller is running in
+// NodePort mode, else by default ClusterIP Address and Port are returned.
 func (appMgr *Manager) getEndpointsForAS3Service(tenant tenantName, app appName, as3Svc serviceName) pool {
-	return pool{}
+	tenantKey := "cis.f5.com/as3-tenant="
+	appKey := "cis.f5.com/as3-app="
+	serviceKey := "cis.f5.com/as3-service="
+
+	selector := tenantKey + string(tenant) + "," +
+		appKey + string(app) + "," +
+		serviceKey + string(as3Svc)
+
+	svcListOptions := metaV1.ListOptions{
+		LabelSelector: selector,
+	}
+
+	// Identify services that matched the given label
+	services, err := appMgr.kubeClient.CoreV1().Services(v1.NamespaceAll).List(svcListOptions)
+
+	if err != nil {
+		log.Errorf("[as3] Error getting service list. %v", err)
+		return nil
+	}
+
+	var members []Member
+
+	for _, service := range services.Items {
+		if appMgr.isNodePort == false { // Controller is in ClusterIP Mode
+			endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(
+				metaV1.ListOptions{
+					FieldSelector: "metadata.name=" + service.Name,
+				},
+			)
+			if err != nil {
+				log.Debugf("[as3] Error getting endpoints for service %v", service.Name)
+				continue
+			}
+
+			for _, endpoints := range endpointsList.Items {
+				for _, subset := range endpoints.Subsets {
+					for _, address := range subset.Addresses {
+						member := Member{
+							Address: address.IP,
+							Port:    subset.Ports[0].Port,
+						}
+						members = append(members, member)
+					}
+				}
+			}
+		} else { // Controller is in NodePort mode.
+			if service.Spec.Type == apiv1.ServiceTypeNodePort {
+				members = appMgr.getEndpointsForNodePort(service.Spec.Ports[0].NodePort)
+			} else {
+				msg := fmt.Sprintf("Requested service backend '%+v' not of NodePort type", service.Name)
+				log.Debug(msg)
+			}
+		}
+
+		log.Debugf("[as3] Discovered members for service %v is %v", service, members)
+	}
+
+	return members
 }
 
 // Returns a pool of IP address.

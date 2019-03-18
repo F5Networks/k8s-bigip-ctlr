@@ -113,11 +113,76 @@ func (appMgr *Manager) getFakeEndpointsForAS3Service(tenant tenantName, app appN
 	}
 }
 
-// Story 4
+// Traverses through the AS3 JSON using the information passed from buildAS3Declaration,
+// parses the AS3 JSON and populates it with pool members
+func updatePoolMembers(tnt tenantName, app appName, svc serviceName, ips []string, port int32, templateJSON map[string]interface{}) map[string]interface{} {
+
+	// Get the declaration object from AS3 Json
+	dec := (templateJSON["declaration"]).(map[string]interface{})
+	// Get the tenant object from AS3 Json
+	tet := (dec[string(tnt)]).(map[string]interface{})
+
+	// Get the poolname for the serviceName svc
+	apps := (tet[string(app)].(map[string]interface{}))
+	servicemain := (apps[string(svc)].(map[string]interface{}))
+	poolname := (servicemain["pool"].(string))
+
+	// Continue with the poolName and replace the as3 template with poolMembers
+	toName := (tet[string(app)].(map[string]interface{}))
+	pool := (toName[string(poolname)].(map[string]interface{}))
+	poolmem := (((pool["members"]).([]interface{}))[0]).(map[string]interface{})
+
+	// Replace pool member IP addresses
+	poolmem["serverAddresses"] = ips
+	// Replace port number
+	poolmem["servicePort"] = port
+	return templateJSON
+}
+
 // Takes AS3 template and AS3 Object and produce AS3 Declaration
-func buildAS3Declaration(obj as3Object, template as3Template) as3Declaration {
-	decalaration := ""
-	return as3Declaration(decalaration)
+func (appMgr *Manager) buildAS3Declaration(obj as3Object, template as3Template) as3Declaration {
+
+	var tmp interface{}
+	// unmarshall the template of type string to interface
+	err := json.Unmarshal([]byte(template), &tmp)
+	if nil != err {
+		return ""
+	}
+
+	// convert tmp to map[string]interface{}, This conversion will help in traversing the as3 object
+	templateJSON := tmp.(map[string]interface{})
+
+	// traverse through the as3 object to fetch the list of services and get endpopints using the servicename
+	log.Debugf("[as3_log] Started Parsing the AS3 Object")
+	for tnt, apps := range obj {
+		for app, svcs := range apps {
+			for svc := range svcs {
+				eps := appMgr.getEndpointsForAS3Service(tnt, app, svcs[svc])
+				// Handle an empty value
+				if len(eps) == 0 {
+					continue
+				}
+				ips := make([]string, 0)
+				for _, v := range eps {
+					ips = append(ips, v.Address)
+				}
+				port := eps[0].Port
+				log.Debugf("Updating AS3 Template for tenant '%s' app '%s' service '%s', ", tnt, app, svcs[svc])
+				updatePoolMembers(tnt, app, svcs[svc], ips, port, templateJSON)
+			}
+		}
+	}
+
+	declaration, err := json.Marshal(templateJSON)
+	if err != nil {
+		log.Errorf("[as3_log] Issue marshalling AS3 Json")
+	}
+	log.Debugf("[as3_log] AS3 Template is populated with the pool members")
+	log.Debugf("[as3_log] Printing AS3 Template ...")
+	log.Debugf("%s", declaration)
+
+	return as3Declaration(declaration)
+
 }
 
 //Story 5

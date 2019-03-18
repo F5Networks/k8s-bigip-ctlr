@@ -4068,6 +4068,16 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(events[0].Reason).To(Equal("DNSResolutionError"))
 				Expect(events[1].Reason).To(Equal("ResourceConfigured"))
 			})
+			// Test Case to check AS3 specific branching out.
+			It("ConfigMap with AS3 true flag", func() {
+				cfgFoo := test.NewConfigMap("foomap", "1", namespace, map[string]string{
+					"data": configmapFoo})
+				cfgFoo.ObjectMeta.Labels = make(map[string]string)
+				cfgFoo.ObjectMeta.Labels["as3"] = "true"
+				ok, keyList := mockMgr.appMgr.checkValidConfigMap(cfgFoo)
+				Expect(ok).To(BeTrue(), "ConfigMap with AS3 TRUE be processed.")
+				Expect(keyList[:1][0].As3Name).To(Equal("foomap"))
+			})
 		})
 
 		Context("namespace related", func() {

@@ -640,6 +640,9 @@ func main() {
 		BigIPURL:        *bigIPURL,
 		BigIPPartitions: *bigIPPartitions,
 	}
+	appmanager.BigIPUsername = *bigIPUsername
+	appmanager.BigIPPassword = *bigIPPassword
+	appmanager.BigIPURL = *bigIPURL
 
 	subPidCh, err := startPythonDriver(configWriter, gs, bs, *pythonBaseDir)
 	if nil != err {

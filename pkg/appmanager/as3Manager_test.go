@@ -25,22 +25,24 @@ import (
 
 var _ = Describe("Create HTTP REST mock client and test POST call", func() {
 
-	It("AS3 declaratyion POST call test", func() {
+	It("AS3 declaratyion POST call test with 200 OK response", func() {
 		route := "/mgmt/shared/appsvcs/declare"
 		method := "POST"
 		var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
 		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 			// Test request parameters
-			// equals(t, req.URL.String(), "/mgmt/shared/appsvcs/info")
+			Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
 			// Send response to be tested
-			rw.Write([]byte("OK"))
+			_, err := rw.Write([]byte("OK"))
+			Expect(err).To(BeNil(), "Response writer should be written.")
 		}))
 		// Close the server when test finishes
 		defer server.Close()
 		// Use Client & URL from our local test server
 		api := As3RestClient{server.Client(), server.URL}
-		body, _ := api.restCallToBigIP(method, route, template)
-		Expect(body).To(BeEquivalentTo("OK"))
+		body, status := api.restCallToBigIP(method, route, template)
+		Expect(status).To(BeTrue())
+		Expect(body).To(BeEquivalentTo("OK"), "Response should be captured.")
 	})
 
 })

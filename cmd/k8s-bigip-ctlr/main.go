@@ -641,6 +641,10 @@ func main() {
 		BigIPPartitions: *bigIPPartitions,
 	}
 
+	appmanager.BigIPUsername = *bigIPUsername
+	appmanager.BigIPPassword = *bigIPPassword
+	appmanager.BigIPURL = *bigIPURL
+
 	subPidCh, err := startPythonDriver(configWriter, gs, bs, *pythonBaseDir)
 	if nil != err {
 		log.Fatalf("Could not initialize subprocess configuration: %v", err)

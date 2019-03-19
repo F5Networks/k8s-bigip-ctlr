@@ -39,8 +39,8 @@ func (appMgr *Manager) getAS3ObjectFromTemplate(
 	}
 
 	as3 := make(as3Object)
-	// extract as3 decleration from template
-	dclr := (tmpl.(map[string]interface{}))["decleration"]
+	// extract as3 declaration from template
+	dclr := (tmpl.(map[string]interface{}))["declaration"]
 
 	// Loop over all the tenants
 	for tn, t := range dclr.(map[string]interface{}) {

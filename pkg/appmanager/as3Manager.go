@@ -305,6 +305,7 @@ func (as3RestClient *As3RestClient) restCallToBigIP(method string, route string,
 	}
 	req.SetBasicAuth(BigIPUsername, BigIPPassword)
 	resp, err := as3RestClient.client.Do(req)
+	defer resp.Body.Close()
 	if err != nil {
 		log.Errorf("[as3_log] REST call error: %v ", err)
 		return string(body), false
@@ -314,7 +315,6 @@ func (as3RestClient *As3RestClient) restCallToBigIP(method string, route string,
 		log.Errorf("[as3_log] REST call error: %v ", err)
 		return string(body), false
 	}
-	defer resp.Body.Close()
 	return string(body), true
 
 }

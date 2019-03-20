@@ -12,8 +12,7 @@ import (
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	apiv1 "k8s.io/client-go/pkg/api/v1"
-	v1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/api/v1"
 )
 
 type as3Template string
@@ -38,9 +37,19 @@ var BigIPPassword string
 var BigIPURL string
 
 // Takes an AS3 Template and perform service discovery with Kubernetes to generate AS3 Declaration
-func (appMgr *Manager) processUserDefinedAS3(template as3Template) {
-	// TODO: Implement Me
+func (appMgr *Manager) processUserDefinedAS3(template string) bool {
+	templateObj := as3Template(template)
+	obj, ok := appMgr.getAS3ObjectFromTemplate(templateObj)
 
+	if !ok {
+		log.Errorf("Error processing template\n")
+		return false
+	}
+	declaration := appMgr.buildAS3Declaration(obj, templateObj)
+	log.Debugf("Generated AS3 Declaration: \n%v", declaration)
+
+	appMgr.postAS3Declaration(declaration)
+	return true
 }
 
 // getAS3ObjectFromTemplate gets an AS3 template as a input parameter.
@@ -56,8 +65,8 @@ func (appMgr *Manager) getAS3ObjectFromTemplate(
 	}
 
 	as3 := make(as3Object)
-	// extract as3 decleration from template
-	dclr := (tmpl.(map[string]interface{}))["decleration"]
+	// extract as3 declaration from template
+	dclr := (tmpl.(map[string]interface{}))["declaration"]
 
 	// Loop over all the tenants
 	for tn, t := range dclr.(map[string]interface{}) {
@@ -174,7 +183,7 @@ func (appMgr *Manager) getEndpointsForAS3Service(tenant tenantName, app appName,
 				}
 			}
 		} else { // Controller is in NodePort mode.
-			if service.Spec.Type == apiv1.ServiceTypeNodePort {
+			if service.Spec.Type == v1.ServiceTypeNodePort {
 				members = appMgr.getEndpointsForNodePort(service.Spec.Ports[0].NodePort)
 			} else {
 				msg := fmt.Sprintf("Requested service backend '%+v' not of NodePort type", service.Name)

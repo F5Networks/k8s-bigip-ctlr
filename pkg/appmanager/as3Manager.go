@@ -65,16 +65,20 @@ func (appMgr *Manager) getAS3ObjectFromTemplate(
 	}
 
 	as3 := make(as3Object)
+	if len(as3) == 0 {
+		log.Error("No ADC class found in AS3 template")
+		return as3, false
+	}
 	// extract as3 declaration from template
 	dclr := (tmpl.(map[string]interface{}))["declaration"]
 
 	// Loop over all the tenants
-	for tn, t := range dclr.(map[string]interface{}) {
+	if dclr != nil{
+		for tn, t := range dclr.(map[string]interface{}) {
 		// Filter out non-json values
 		if _, ok := t.(map[string]interface{}); !ok {
 			continue
 		}
-
 		as3[tenantName(tn)] = make(tenant, 0)
 		// Loop over all the services in a tenant
 		for an, a := range t.(map[string]interface{}) {
@@ -109,10 +113,7 @@ func (appMgr *Manager) getAS3ObjectFromTemplate(
 		if len(as3[tenantName(tn)]) == 0 {
 			log.Debugf("No applications declared for tenant: %s\n", tn)
 		}
-	}
-	if len(as3) == 0 {
-		log.Error("No tenants declared in AS3 template")
-		return as3, false
+	    }
 	}
 	return as3, true
 }

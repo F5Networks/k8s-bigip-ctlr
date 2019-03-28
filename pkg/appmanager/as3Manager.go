@@ -27,6 +27,7 @@ import (
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/xeipuuv/gojsonschema"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/client-go/pkg/api/v1"
 )
@@ -54,6 +55,15 @@ var BigIPURL string
 
 // Takes an AS3 Template and perform service discovery with Kubernetes to generate AS3 Declaration
 func (appMgr *Manager) processUserDefinedAS3(template string) bool {
+
+	// Validate AS3 Template
+	ok := appMgr.validateAS3Template(template)
+
+	if !ok {
+		log.Errorf("Error processing AS3 template \n")
+		return false
+	}
+
 	templateObj := as3Template(template)
 	obj, ok := appMgr.getAS3ObjectFromTemplate(templateObj)
 
@@ -67,6 +77,34 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 	appMgr.postAS3Declaration(declaration)
 	appMgr.sendAS3EndpointsForARPUpdate()
 
+	return true
+}
+
+// Validates the AS3 Template
+func (appMgr *Manager) validateAS3Template(template string) bool {
+
+	var schema = appMgr.schemaLocal + "as3-schema-3.9.0-3-cis.json"
+
+	// Load Both the AS3 Schema and AS3 Template
+	schemaLoader := gojsonschema.NewReferenceLoader(schema)
+	documentLoader := gojsonschema.NewStringLoader(template)
+
+	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
+
+	if err != nil {
+		log.Errorf("%s", err)
+		return false
+	}
+
+	if !result.Valid() {
+		log.Errorf("AS3 Template is not valid. see errors :\n")
+		for _, desc := range result.Errors() {
+			log.Errorf("- %s\n", desc)
+		}
+		return false
+	}
+
+	log.Debugf("AS3 Template is Validated Successfully \n")
 	return true
 }
 

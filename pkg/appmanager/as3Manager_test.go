@@ -25,7 +25,7 @@ import (
 
 var _ = Describe("Create HTTP REST mock client and test POST call", func() {
 
-	It("AS3 declaratyion POST call test with 200 OK response", func() {
+	It("Test POST call request with 200 OK response", func() {
 		route := "/mgmt/shared/appsvcs/declare"
 		method := "POST"
 		var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
@@ -33,16 +33,79 @@ var _ = Describe("Create HTTP REST mock client and test POST call", func() {
 			// Test request parameters
 			Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
 			// Send response to be tested
-			_, err := rw.Write([]byte("OK"))
+			data := `{"results":[{"message":"Success","host":"localhost","tenant":"Sample_01","runTime":262,"code":200}]}`
+			_, err := rw.Write([]byte(data))
 			Expect(err).To(BeNil(), "Response writer should be written.")
 		}))
 		// Close the server when test finishes
 		defer server.Close()
 		// Use Client & URL from our local test server
 		api := As3RestClient{server.Client(), server.URL}
-		body, status := api.restCallToBigIP(method, route, template)
+		_, status := api.restCallToBigIP(method, route, template)
 		Expect(status).To(BeTrue())
-		Expect(body).To(BeEquivalentTo("OK"), "Response should be captured.")
+	})
+
+	It("Test POST call request with 500 response", func() {
+		route := "/mgmt/shared/appsvcs/declare"
+		method := "POST"
+		var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Test request parameters
+			Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
+			// Send response to be tested
+			data := `{"results":[{"message":"no change","host":"localhost","tenant":"Sample_01","runTime":262,"code":200}]}`
+			rw.WriteHeader(500)
+			_, err := rw.Write([]byte(data))
+			Expect(err).To(BeNil(), "Response writer should be written.")
+		}))
+		// Close the server when test finishes
+		defer server.Close()
+		// Use Client & URL from our local test server
+		api := As3RestClient{server.Client(), server.URL}
+		_, status := api.restCallToBigIP(method, route, template)
+		Expect(status).To(BeFalse())
+	})
+
+	It("Test POST call response with invalid json string", func() {
+		route := "/mgmt/shared/appsvcs/declare"
+		method := "POST"
+		var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Test request parameters
+			Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
+			// Send response to be tested
+			//Invalid json string as response
+			data := `Invalid json string`
+			_, err := rw.Write([]byte(data))
+			Expect(err).To(BeNil(), "Response writer should be written.")
+		}))
+		// Close the server when test finishes
+		defer server.Close()
+		// Use Client & URL from our local test server
+		api := As3RestClient{server.Client(), server.URL}
+		_, status := api.restCallToBigIP(method, route, template)
+		Expect(status).To(BeFalse())
+	})
+
+	It("Test POST call when server is down/closed", func() {
+		route := "/mgmt/shared/appsvcs/declare"
+		method := "POST"
+		var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			// Test request parameters
+			Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
+			data := `{"results":[{"message":"no change","host":"localhost","tenant":"Sample_01","runTime":262,"code":200}]}`
+			_, err := rw.Write([]byte(data))
+			Expect(err).To(BeNil(), "Response writer should be written.")
+		}))
+		// Close the server when test finishes
+		defer server.Close()
+		// Use Client & URL from our local test server
+		api := As3RestClient{server.Client(), server.URL}
+		//Close serve to test serve failure
+		server.Close()
+		_, status := api.restCallToBigIP(method, route, template)
+		Expect(status).To(BeFalse())
 	})
 
 })

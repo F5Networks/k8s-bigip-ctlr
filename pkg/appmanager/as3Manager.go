@@ -49,7 +49,27 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 	log.Debugf("Generated AS3 Declaration: \n%v", declaration)
 
 	appMgr.postAS3Declaration(declaration)
+	appMgr.sendAS3EndpointsForARPUpdate()
+
 	return true
+}
+
+// Send all AS3 endpoints to VxLAN Manager for populating static ARP entries. Empties the as3Member list after
+// processing.
+func (appMgr *Manager) sendAS3EndpointsForARPUpdate() {
+	var endpoints []Member
+
+	for member := range appMgr.as3Members {
+		endpoints = append(endpoints, member)
+	}
+
+	select {
+	case appMgr.eventChan <- endpoints:
+		log.Debugf("[as3_log] AS3Manager wrote following endpoints to VxLAN Manager:\n %v", endpoints)
+	case <-time.After(3 * time.Second):
+	}
+
+	appMgr.as3Members = make(map[Member]struct{}, 0)
 }
 
 // getAS3ObjectFromTemplate gets an AS3 template as a input parameter.
@@ -134,8 +154,9 @@ func getClass(obj interface{}) string {
 // cis.f5.com/as3-tenant=<Tenant Name>
 // cis.f5.com/as3-app=<Application Name>
 // cis.f5.com/as3-service=<AS3 Service Name>
-// When a match is found, returns Node's Address and Service NodePort as pool members, if Controller is running in
-// NodePort mode, else by default ClusterIP Address and Port are returned.
+// When controller is in NodePort mode, returns a pool of Node IP Address and NodePort.
+// When controller is in ClusterIP mode, returns a pool of Cluster IP Address and Service Port. Also, it accumulates
+// members for static ARP entry population.
 func (appMgr *Manager) getEndpointsForAS3Service(tenant tenantName, app appName, as3Svc serviceName) pool {
 	tenantKey := "cis.f5.com/as3-tenant="
 	appKey := "cis.f5.com/as3-app="
@@ -179,6 +200,9 @@ func (appMgr *Manager) getEndpointsForAS3Service(tenant tenantName, app appName,
 							Port:    subset.Ports[0].Port,
 						}
 						members = append(members, member)
+
+						// Update master AS3 Member list
+						appMgr.as3Members[member] = struct{}{}
 					}
 				}
 			}

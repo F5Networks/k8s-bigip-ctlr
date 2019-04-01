@@ -127,6 +127,7 @@ type Manager struct {
 	mergedRulesMap map[string]map[string]mergedRuleEntry
 	// Whether to watch ConfigMap resources or not
 	manageConfigMaps bool
+	as3Members       map[Member]struct{}
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -196,6 +197,7 @@ func NewManager(params *Params) *Manager {
 		schemaLocal:       params.SchemaLocal,
 		mergedRulesMap:    make(map[string]map[string]mergedRuleEntry),
 		manageConfigMaps:  params.ManageConfigMaps,
+		as3Members:        make(map[Member]struct{}, 0),
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.

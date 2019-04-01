@@ -78,6 +78,11 @@ var _ = Describe("As3Manager Tests", func() {
 			_, ok := mockMgr.appMgr.getAS3ObjectFromTemplate(as3Template(data))
 			Expect(ok).To(Equal(false), "AS3 Template parsed succesfully, [No Tenants].")
 		})
+		It("AS3 template without ADC declaration", func() {
+			data := readConfigFile(configPath + "as3config_without_adc.json")
+			_, ok := mockMgr.appMgr.getAS3ObjectFromTemplate(as3Template(data))
+			Expect(ok).To(Equal(false), "AS3 Template without ADC declaration should not be processed.")
+		})
 	})
 
 	Describe("Create HTTP REST mock client and test POST call", func() {

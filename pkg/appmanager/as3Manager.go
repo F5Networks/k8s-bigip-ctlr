@@ -28,18 +28,18 @@ import (
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 type as3Template string
 type as3Declaration string
 
-type serviceName string
+type poolName string
 type appName string
 type tenantName string
 
 type pool []Member
-type tenant map[appName][]serviceName
+type tenant map[appName][]poolName
 type as3Object map[tenantName]tenant
 
 //Rest client creation for big ip
@@ -124,26 +124,34 @@ func (appMgr *Manager) getAS3ObjectFromTemplate(
 				continue
 			}
 
-			as3[tenantName(tn)][appName(an)] = []serviceName{}
+			as3[tenantName(tn)][appName(an)] = []poolName{}
 			// Loop over all the json objects in an application
-			for sn, v := range a.(map[string]interface{}) {
+			for pn, v := range a.(map[string]interface{}) {
 				// Filter out non-json values
 				if _, ok := v.(map[string]interface{}); !ok {
 					continue
 				}
 
-				// filter out empty json objects and pool objects
-				if cl := getClass(v); cl == "" || cl == "Pool" {
+				// filter out non-pool objects
+				if cl := getClass(v); cl != "Pool" {
 					continue
 				}
-				//Update the list of services under corresponding application
+
+				// Skip if list of serverAddress is not empty
+				mems := (v.(map[string]interface{}))["members"]
+				srvAddrs := ((mems.([]interface{}))[0].(map[string]interface{}))["serverAddresses"]
+				if len(srvAddrs.([]interface{})) != 0 {
+					continue
+				}
+
+				//Update the list of pools under corresponding application
 				as3[tenantName(tn)][appName(an)] = append(
 					as3[tenantName(tn)][appName(an)],
-					serviceName(sn),
+					poolName(pn),
 				)
 			}
 			if len(as3[tenantName(tn)][appName(an)]) == 0 {
-				log.Debugf("No services declared for application: %s,"+
+				log.Debugf("No pools declared for application: %s,"+
 					" tenant: %s\n", an, tn)
 			}
 		}
@@ -168,24 +176,24 @@ func getClass(obj interface{}) string {
 	return cl
 }
 
-// Performs Service discovery for the given AS3 Service and returns a pool.
+// Performs Service discovery for the given AS3 Pool and returns a pool.
 // Service discovery is loosely coupled with Kubernetes Service labels. A Kubernetes Service is treated as a match for
-// an AS3 service, if the Kubernetes Service have the following labels and their values matches corresponding AS3
+// an AS3 Pool, if the Kubernetes Service have the following labels and their values matches corresponding AS3
 // Object.
 // cis.f5.com/as3-tenant=<Tenant Name>
 // cis.f5.com/as3-app=<Application Name>
-// cis.f5.com/as3-service=<AS3 Service Name>
+// cis.f5.com/as3-pool=<Pool Name>
 // When controller is in NodePort mode, returns a pool of Node IP Address and NodePort.
 // When controller is in ClusterIP mode, returns a pool of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
-func (appMgr *Manager) getEndpointsForAS3Service(tenant tenantName, app appName, as3Svc serviceName) pool {
+func (appMgr *Manager) getEndpointsForPool(tenant tenantName, app appName, pool poolName) pool {
 	tenantKey := "cis.f5.com/as3-tenant="
 	appKey := "cis.f5.com/as3-app="
-	serviceKey := "cis.f5.com/as3-service="
+	poolKey := "cis.f5.com/as3-pool="
 
 	selector := tenantKey + string(tenant) + "," +
 		appKey + string(app) + "," +
-		serviceKey + string(as3Svc)
+		poolKey + string(pool)
 
 	svcListOptions := metaV1.ListOptions{
 		LabelSelector: selector,
@@ -243,7 +251,7 @@ func (appMgr *Manager) getEndpointsForAS3Service(tenant tenantName, app appName,
 }
 
 // Returns a pool of IP address.
-func (appMgr *Manager) getFakeEndpointsForAS3Service(tenant tenantName, app appName, as3Svc serviceName) pool {
+func (appMgr *Manager) getFakeEndpointsForPool(tenant tenantName, app appName, pool poolName) pool {
 	return []Member{
 		{"1.1.1.1", 80, ""},
 		{"2.2.2.2", 80, ""},
@@ -253,21 +261,16 @@ func (appMgr *Manager) getFakeEndpointsForAS3Service(tenant tenantName, app appN
 
 // Traverses through the AS3 JSON using the information passed from buildAS3Declaration,
 // parses the AS3 JSON and populates it with pool members
-func updatePoolMembers(tnt tenantName, app appName, svc serviceName, ips []string, port int32, templateJSON map[string]interface{}) map[string]interface{} {
+func updatePoolMembers(tnt tenantName, app appName, pn poolName, ips []string, port int32, templateJSON map[string]interface{}) map[string]interface{} {
 
 	// Get the declaration object from AS3 Json
 	dec := (templateJSON["declaration"]).(map[string]interface{})
 	// Get the tenant object from AS3 Json
 	tet := (dec[string(tnt)]).(map[string]interface{})
 
-	// Get the poolname for the serviceName svc
-	apps := (tet[string(app)].(map[string]interface{}))
-	servicemain := (apps[string(svc)].(map[string]interface{}))
-	poolname := (servicemain["pool"].(string))
-
 	// Continue with the poolName and replace the as3 template with poolMembers
 	toName := (tet[string(app)].(map[string]interface{}))
-	pool := (toName[string(poolname)].(map[string]interface{}))
+	pool := (toName[string(pn)].(map[string]interface{}))
 	poolmem := (((pool["members"]).([]interface{}))[0]).(map[string]interface{})
 
 	// Replace pool member IP addresses
@@ -293,9 +296,9 @@ func (appMgr *Manager) buildAS3Declaration(obj as3Object, template as3Template) 
 	// traverse through the as3 object to fetch the list of services and get endpopints using the servicename
 	log.Debugf("[as3_log] Started Parsing the AS3 Object")
 	for tnt, apps := range obj {
-		for app, svcs := range apps {
-			for svc := range svcs {
-				eps := appMgr.getEndpointsForAS3Service(tnt, app, svcs[svc])
+		for app, pools := range apps {
+			for _, pn := range pools {
+				eps := appMgr.getEndpointsForPool(tnt, app, pn)
 				// Handle an empty value
 				if len(eps) == 0 {
 					continue
@@ -305,8 +308,8 @@ func (appMgr *Manager) buildAS3Declaration(obj as3Object, template as3Template) 
 					ips = append(ips, v.Address)
 				}
 				port := eps[0].Port
-				log.Debugf("Updating AS3 Template for tenant '%s' app '%s' service '%s', ", tnt, app, svcs[svc])
-				updatePoolMembers(tnt, app, svcs[svc], ips, port, templateJSON)
+				log.Debugf("Updating AS3 Template for tenant '%s' app '%s' pool '%s', ", tnt, app, pn)
+				updatePoolMembers(tnt, app, pn, ips, port, templateJSON)
 			}
 		}
 	}

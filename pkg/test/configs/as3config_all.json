@@ -28,20 +28,23 @@
                     "virtualAddresses": [
                         "10.0.1.10"
                     ],
-                    "pool": "web_pool",
+                    "pool": "db_pool",
                     "policyWAF": {
                         "bigip": "/Common/linux-high"
                     }
                 },
-                "service2": {
-                    "class": "Service_HTTP",
-                    "virtualAddresses": [
-                        "10.0.1.10"
+                "db_pool": {
+                    "class": "Pool",
+                    "monitors": [
+                        "http"
                     ],
-                    "pool": "web_pool",
-                    "policyWAF": {
-                        "bigip": "/Common/linux-high"
-                    }
+                    "members": [
+                        {
+                            "servicePort": 80,
+                            "serverAddresses": [
+                            ]
+                        }
+                    ]
                 },
                 "web_pool": {
                     "class": "Pool",
@@ -67,6 +70,20 @@
                     "pool": "web_pool"
                 },
                 "web_pool": {
+                    "class": "Pool",
+                    "monitors": [
+                        "http"
+                    ],
+                    "members": [
+                        {
+                            "servicePort": 90,
+                            "serverAddresses": [
+                                "1.1.1.1"
+                            ]
+                        }
+                    ]
+                },
+                "db_pool": {
                     "class": "Pool",
                     "monitors": [
                         "http"

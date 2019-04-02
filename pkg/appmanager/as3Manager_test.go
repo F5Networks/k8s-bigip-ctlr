@@ -58,15 +58,15 @@ var _ = Describe("As3Manager Tests", func() {
 			_, ok := mockMgr.appMgr.getAS3ObjectFromTemplate(as3Template(data))
 			Expect(ok).To(Equal(false), "AS3 Template is not a valid JSON.")
 		})
-		It("AS3 declaration with all Tenants, Applications and Services", func() {
+		It("AS3 declaration with all Tenants, Applications and Pools", func() {
 			data := readConfigFile(configPath + "as3config_all.json")
 			_, ok := mockMgr.appMgr.getAS3ObjectFromTemplate(as3Template(data))
 			Expect(ok).To(Equal(true), "AS3 Template parsed succesfully.")
 		})
-		It("AS3 declaration without Services", func() {
-			data := readConfigFile(configPath + "as3config_without_services.json")
+		It("AS3 declaration without Pools", func() {
+			data := readConfigFile(configPath + "as3config_without_pools.json")
 			_, ok := mockMgr.appMgr.getAS3ObjectFromTemplate(as3Template(data))
-			Expect(ok).To(Equal(true), "AS3 Template parsed succesfully [No Services].")
+			Expect(ok).To(Equal(true), "AS3 Template parsed succesfully [No Pools].")
 		})
 		It("AS3 declaration without Applications", func() {
 			data := readConfigFile(configPath + "as3config_without_apps.json")

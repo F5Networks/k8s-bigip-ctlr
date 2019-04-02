@@ -1645,7 +1645,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 	rsCfg *ResourceConfig,
 	index int,
 ) (bool, string, string) {
-	if svc.Spec.Type == v1.ServiceTypeNodePort {
+	if svc.Spec.Type == v1.ServiceTypeNodePort || svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 		for _, portSpec := range svc.Spec.Ports {
 			if portSpec.Port == svcKey.ServicePort {
 				log.Debugf("Service backend matched %+v: using node port %v",
@@ -1657,7 +1657,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 		}
 		return true, "", ""
 	} else {
-		msg := fmt.Sprintf("Requested service backend '%+v' not of NodePort type",
+		msg := fmt.Sprintf("Requested service backend '%+v' not of NodePort or LoadBalancer type",
 			svcKey.ServiceName)
 		log.Debug(msg)
 		return false, "IncorrectBackendServiceType", msg

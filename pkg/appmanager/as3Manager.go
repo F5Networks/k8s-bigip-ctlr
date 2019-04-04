@@ -225,6 +225,8 @@ func getClass(obj interface{}) string {
 // When controller is in ClusterIP mode, returns a pool of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
 func (appMgr *Manager) getEndpointsForPool(tenant tenantName, app appName, pool poolName) pool {
+	log.Debugf("[as3_log] Discovering endpoints for pool: [%v -> %v -> %v]", tenant, app, pool)
+
 	tenantKey := "cis.f5.com/as3-tenant="
 	appKey := "cis.f5.com/as3-app="
 	poolKey := "cis.f5.com/as3-pool="
@@ -237,7 +239,7 @@ func (appMgr *Manager) getEndpointsForPool(tenant tenantName, app appName, pool 
 		LabelSelector: selector,
 	}
 
-	// Identify services that matched the given label
+	// Identify services that matches the given label
 	services, err := appMgr.kubeClient.CoreV1().Services(v1.NamespaceAll).List(svcListOptions)
 
 	if err != nil {
@@ -246,6 +248,17 @@ func (appMgr *Manager) getEndpointsForPool(tenant tenantName, app appName, pool 
 	}
 
 	var members []Member
+
+	if len(services.Items) > 1 {
+		svcNames := ""
+
+		for _, service := range services.Items {
+			svcNames += fmt.Sprintf("Service: %v, Namespace: %v \n", service.Name, service.Namespace)
+		}
+
+		log.Errorf("[as3] Multiple Services are tagged for this pool. Ignoring all endpoints.\n%v", svcNames)
+		return members
+	}
 
 	for _, service := range services.Items {
 		if appMgr.isNodePort == false { // Controller is in ClusterIP Mode

@@ -57,18 +57,20 @@ var BigIPURL string
 func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 
 	// Validate AS3 Template
-	ok := appMgr.validateAS3Template(template)
+	if appMgr.as3Validation == true {
+		log.Debugf("[as3] Start validating template")
 
-	if !ok {
-		log.Errorf("Error processing AS3 template \n")
-		return false
+		if ok := appMgr.validateAS3Template(template); !ok {
+			log.Errorf("[as3] Error validating template \n")
+			return false
+		}
 	}
 
 	templateObj := as3Template(template)
 	obj, ok := appMgr.getAS3ObjectFromTemplate(templateObj)
 
 	if !ok {
-		log.Errorf("Error processing template\n")
+		log.Errorf("[as3] Error processing template\n")
 		return false
 	}
 	declaration := appMgr.buildAS3Declaration(obj, templateObj)

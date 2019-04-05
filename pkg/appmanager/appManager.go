@@ -128,6 +128,7 @@ type Manager struct {
 	// Whether to watch ConfigMap resources or not
 	manageConfigMaps bool
 	as3Members       map[Member]struct{}
+	as3Validation    bool
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -150,6 +151,7 @@ type Params struct {
 	broadcasterFunc  NewBroadcasterFunc
 	SchemaLocal      string
 	ManageConfigMaps bool
+	AS3Validation    bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -198,6 +200,7 @@ func NewManager(params *Params) *Manager {
 		mergedRulesMap:    make(map[string]map[string]mergedRuleEntry),
 		manageConfigMaps:  params.ManageConfigMaps,
 		as3Members:        make(map[Member]struct{}, 0),
+		as3Validation:     params.AS3Validation,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.

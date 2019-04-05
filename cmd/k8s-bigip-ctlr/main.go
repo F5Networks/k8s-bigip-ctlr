@@ -105,6 +105,7 @@ var (
 	bigIPPassword   *string
 	bigIPPartitions *[]string
 	credsDir        *string
+	as3Validation   *bool
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -172,6 +173,8 @@ func _init() {
 	credsDir = bigIPFlags.String("credentials-directory", "",
 		"Optional, directory that contains the BIG-IP username, password, and/or "+
 			"url files. To be used instead of username, password, and/or url arguments.")
+	as3Validation = bigIPFlags.Bool("as3-validation", true,
+		"Optional, when set to false, disables as3 template validation on the controller")
 
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
@@ -604,6 +607,7 @@ func main() {
 		UseSecrets:        *useSecrets,
 		ManageConfigMaps:  *manageConfigMaps,
 		SchemaLocal:       *schemaLocal,
+		AS3Validation:     *as3Validation,
 	}
 
 	// If running with Flannel, create an event channel that the appManager

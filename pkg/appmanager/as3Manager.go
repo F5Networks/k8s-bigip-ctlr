@@ -384,20 +384,20 @@ func (appMgr *Manager) postAS3Declaration(declaration as3Declaration) {
 	log.Debugf("[as3_log] Processing AS3 POST call with AS3 Manager")
 	var as3RC As3RestClient
 	as3RC.baseURL = BigIPURL
-	response, _ := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration)
+	response, _ := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr.sslInsecure)
 	log.Debugf("[as3_log] AS3 declaration POST call response %s", response)
 
 }
 
 // Takes AS3 Declaration, method, API route and post it to BigIP
-func (as3RestClient *As3RestClient) restCallToBigIP(method string, route string, declaration as3Declaration) (string, bool) {
+func (as3RestClient *As3RestClient) restCallToBigIP(method string, route string, declaration as3Declaration, sslInsecure bool) (string, bool) {
 	log.Debugf("[as3_log] REST call with AS3 Manager")
 	timeout := time.Duration(15 * time.Second)
 	var body []byte
 	//FIXME: tr flag is set true to disable SSL validation
 	//Please remove SSL disable settings at RTW
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: sslInsecure},
 	}
 	as3RestClient.client = &http.Client{
 		Transport: tr,

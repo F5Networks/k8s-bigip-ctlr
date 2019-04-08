@@ -4,6 +4,17 @@ Release Notes for BIG-IP Controller for Kubernetes
 next-release
 ------------
 
+Added Functionality
+```````````````````
+* Added support for `Application Services 3 <https://clouddocs.f5.com/products/extensions/f5-appsvcs-extension/latest>_` declarations.
+
+Limitations
+```````````
+* AS3 declaration with multiple members inside pool class are not supoorted.
+* Supports only one AS3 ConfigMap.
+* AS3 doesn't allow to move a node in BIGIP from old partition to a new partition.
+* Deleting AS3 ConfigMap doesnot delete static ARP entries.
+
 v1.8.1
 ------
 

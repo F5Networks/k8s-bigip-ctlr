@@ -129,6 +129,7 @@ type Manager struct {
 	manageConfigMaps bool
 	as3Members       map[Member]struct{}
 	as3Validation    bool
+	sslInsecure      bool
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -152,6 +153,7 @@ type Params struct {
 	SchemaLocal      string
 	ManageConfigMaps bool
 	AS3Validation    bool
+	SSLInsecure      bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -201,6 +203,7 @@ func NewManager(params *Params) *Manager {
 		manageConfigMaps:  params.ManageConfigMaps,
 		as3Members:        make(map[Member]struct{}, 0),
 		as3Validation:     params.AS3Validation,
+		sslInsecure:       params.SSLInsecure,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.

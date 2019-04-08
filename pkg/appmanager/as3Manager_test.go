@@ -103,7 +103,7 @@ var _ = Describe("As3Manager Tests", func() {
 			defer server.Close()
 			// Use Client & URL from our local test server
 			api := As3RestClient{server.Client(), server.URL}
-			_, status := api.restCallToBigIP(method, route, template)
+			_, status := api.restCallToBigIP(method, route, template, false)
 			Expect(status).To(BeTrue())
 		})
 
@@ -124,7 +124,7 @@ var _ = Describe("As3Manager Tests", func() {
 			defer server.Close()
 			// Use Client & URL from our local test server
 			api := As3RestClient{server.Client(), server.URL}
-			_, status := api.restCallToBigIP(method, route, template)
+			_, status := api.restCallToBigIP(method, route, template, false)
 			Expect(status).To(BeFalse())
 		})
 
@@ -145,7 +145,7 @@ var _ = Describe("As3Manager Tests", func() {
 			defer server.Close()
 			// Use Client & URL from our local test server
 			api := As3RestClient{server.Client(), server.URL}
-			_, status := api.restCallToBigIP(method, route, template)
+			_, status := api.restCallToBigIP(method, route, template, false)
 			Expect(status).To(BeFalse())
 		})
 
@@ -166,7 +166,7 @@ var _ = Describe("As3Manager Tests", func() {
 			api := As3RestClient{server.Client(), server.URL}
 			//Close serve to test serve failure
 			server.Close()
-			_, status := api.restCallToBigIP(method, route, template)
+			_, status := api.restCallToBigIP(method, route, template, false)
 			Expect(status).To(BeFalse())
 		})
 	})

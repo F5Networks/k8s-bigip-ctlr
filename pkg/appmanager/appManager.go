@@ -900,7 +900,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
-		stats.dgUpdated > 0 || stats.poolsUpdated > 0 {
+		stats.dgUpdated > 0 || stats.poolsUpdated > 0 || len(appMgr.as3Members) > 0 {
 		appMgr.outputConfig()
 	} else if !appMgr.initialState && appMgr.processedItems >= appMgr.queueLen {
 		appMgr.outputConfig()

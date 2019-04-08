@@ -53,6 +53,8 @@ var BigIPUsername string
 var BigIPPassword string
 var BigIPURL string
 
+var buffer map[Member]struct{}
+
 // Takes an AS3 Template and perform service discovery with Kubernetes to generate AS3 Declaration
 func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 
@@ -73,11 +75,14 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 		log.Errorf("[as3] Error processing template\n")
 		return false
 	}
+
+	buffer = make(map[Member]struct{}, 0)
+
 	declaration := appMgr.buildAS3Declaration(obj, templateObj)
 	log.Debugf("Generated AS3 Declaration: \n%v", declaration)
 
+	appMgr.as3Members = buffer
 	appMgr.postAS3Declaration(declaration)
-	appMgr.sendAS3EndpointsForARPUpdate()
 
 	return true
 }
@@ -108,24 +113,6 @@ func (appMgr *Manager) validateAS3Template(template string) bool {
 
 	log.Debugf("AS3 Template is Validated Successfully \n")
 	return true
-}
-
-// Send all AS3 endpoints to VxLAN Manager for populating static ARP entries. Empties the as3Member list after
-// processing.
-func (appMgr *Manager) sendAS3EndpointsForARPUpdate() {
-	var endpoints []Member
-
-	for member := range appMgr.as3Members {
-		endpoints = append(endpoints, member)
-	}
-
-	select {
-	case appMgr.eventChan <- endpoints:
-		log.Debugf("[as3_log] AS3Manager wrote following endpoints to VxLAN Manager:\n %v", endpoints)
-	case <-time.After(3 * time.Second):
-	}
-
-	appMgr.as3Members = make(map[Member]struct{}, 0)
 }
 
 // getAS3ObjectFromTemplate gets an AS3 template as a input parameter.
@@ -284,7 +271,7 @@ func (appMgr *Manager) getEndpointsForPool(tenant tenantName, app appName, pool 
 						members = append(members, member)
 
 						// Update master AS3 Member list
-						appMgr.as3Members[member] = struct{}{}
+						buffer[member] = struct{}{}
 					}
 				}
 			}

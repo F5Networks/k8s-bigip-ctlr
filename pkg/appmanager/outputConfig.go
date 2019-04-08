@@ -118,6 +118,11 @@ func (appMgr *Manager) outputConfigLocked() {
 				allPoolMembers = append(allPoolMembers, iapp.IAppPoolMemberTable.Members...)
 			}
 		}
+
+		for member := range appMgr.as3Members {
+			allPoolMembers = append(allPoolMembers, member)
+		}
+
 		select {
 		case appMgr.eventChan <- allPoolMembers:
 			log.Debugf("AppManager wrote endpoints to VxlanMgr.")

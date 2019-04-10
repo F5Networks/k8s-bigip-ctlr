@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/F5Networks/k8s-bigip-ctlr",
 	"GoVersion": "go1.7",
-	"GodepVersion": "v79",
+	"GodepVersion": "v80",
 	"Packages": [
 		"./..."
 	],
@@ -615,7 +615,8 @@
 		},
 		{
 			"ImportPath": "github.com/xeipuuv/gojsonschema",
-			"Rev": "3a089261b6b42d98d910b1444e36ac9347ad87f9"
+			"Comment": "v1.1.0",
+			"Rev": "f971f3cd73b2899de6923801c147f075263e0c50"
 		},
 		{
 			"ImportPath": "golang.org/x/crypto/ssh/terminal",

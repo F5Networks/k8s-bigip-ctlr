@@ -819,6 +819,13 @@
    "status": "approved"
  },
  {
+   "name": "xeipuuv/gojsonschema",
+   "version": "v1.1.0",
+   "license": "Apache 2.0",
+   "category": 3,
+   "status": "approved"
+ },
+ {
    "name": "PuerkitoBio/purell",
    "version": "v1.0.0",
    "license": "BSD 3",

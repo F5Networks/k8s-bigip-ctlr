@@ -127,6 +127,9 @@ type Manager struct {
 	mergedRulesMap map[string]map[string]mergedRuleEntry
 	// Whether to watch ConfigMap resources or not
 	manageConfigMaps bool
+	as3Members       map[Member]struct{}
+	as3Validation    bool
+	sslInsecure      bool
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -149,6 +152,8 @@ type Params struct {
 	broadcasterFunc  NewBroadcasterFunc
 	SchemaLocal      string
 	ManageConfigMaps bool
+	AS3Validation    bool
+	SSLInsecure      bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -196,6 +201,9 @@ func NewManager(params *Params) *Manager {
 		schemaLocal:       params.SchemaLocal,
 		mergedRulesMap:    make(map[string]map[string]mergedRuleEntry),
 		manageConfigMaps:  params.ManageConfigMaps,
+		as3Members:        make(map[Member]struct{}, 0),
+		as3Validation:     params.AS3Validation,
+		sslInsecure:       params.SSLInsecure,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -771,6 +779,8 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 		log.Debugf("[as3_log] Processing AS3 cfgMap (%s) with AS3 Manager.\n", k.As3Name)
 		log.Debugf("[as3_log] AS3 ConfigMap Data: %s\n", k.As3Data)
 		appMgr.vsQueue.Done(key)
+		appMgr.processUserDefinedAS3(k.As3Data)
+		appMgr.vsQueue.Forget(key)
 		return false
 	}
 	if !appMgr.initialState && appMgr.processedItems == 0 {
@@ -893,7 +903,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
-		stats.dgUpdated > 0 || stats.poolsUpdated > 0 {
+		stats.dgUpdated > 0 || stats.poolsUpdated > 0 || len(appMgr.as3Members) > 0 {
 		appMgr.outputConfig()
 	} else if !appMgr.initialState && appMgr.processedItems >= appMgr.queueLen {
 		appMgr.outputConfig()

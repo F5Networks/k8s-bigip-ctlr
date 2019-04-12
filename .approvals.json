@@ -901,7 +901,7 @@
    "version": "3.0.4",
    "license": "LGPL",
    "category": 3,
-   "status": "pending"
+   "status": "approved"
  },
  {
    "name": "cryptography",

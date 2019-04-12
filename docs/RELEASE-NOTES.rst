@@ -6,7 +6,7 @@ v1.9.0
 
 Added Functionality
 ```````````````````
-* Added support for `Application Services 3 Extension <https://clouddocs.f5.com/products/extensions/f5-appsvcs-extension/latest/>_`.
+* Added support for `Application Services 3 Extension <https://clouddocs.f5.com/products/extensions/f5-appsvcs-extension/latest/>`_.
 
 Limitations
 ```````````

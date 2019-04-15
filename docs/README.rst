@@ -22,6 +22,7 @@ Features
 --------
 - Dynamically creates, manages, and destroys BIG-IP objects.
 - Forwards traffic from the BIG-IP device to `Kubernetes clusters`_ via `NodePort`_ or `ClusterIP`_.
+- Support for `F5 AS3 Extension`_ declarations.
 - Support for F5 `iApps`_.
 - Handles F5-specific VirtualServer objects created in Kubernetes.
 - Handles standard `Kubernetes Ingress`_ objects using F5-specific extensions.
@@ -34,6 +35,7 @@ See the |kctlr-long| `user documentation`_.
 Installation
 ------------
 - `Kubernetes Installation`_
+- `F5 AS3 Installation`_
 - `OpenShift Installation`_
 - If you use `helm`_ you can install the |kctlr| using the `f5-bigip-ctlr chart`_.
 
@@ -573,6 +575,12 @@ The ``backend`` section tells the |kctlr| about the Service you want to manage.
 |               |           |           |           |             | backend response.               |                           |
 +---------------+-----------+-----------+-----------+-------------+---------------------------------+---------------------------+
 
+.. _as3 resources:
+
+F5 AS3 Integration Resources
+----------------------------
+
+To expose services to external traffic using As3 Extension declarations, refer to `Container Ingress Services and AS3 Extension integration`_.
 
 .. _ingress resources:
 

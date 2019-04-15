@@ -7,7 +7,11 @@ v1.9.0
 Added Functionality
 ```````````````````
 * Added support for `Application Services 3 Extension <https://clouddocs.f5.com/products/extensions/f5-appsvcs-extension/latest/>`_.
-  Added support for Google Container Engine (GKE) LoadBalancer service. Validated against Kubernetes 1.13.4.
+* Added support for Google Container Engine (GKE) LoadBalancer service. Validated against Kubernetes 1.13.4.
+
+Bug Fixes
+`````````
+* :issues:`736` - Added support for Google Container Engine (GKE) LoadBalancer service. Validated against Kubernetes 1.13.4.
 
 Limitations
 ```````````
@@ -15,10 +19,6 @@ Limitations
 * The BIG-IP Contoller supports only one AS3 ConfigMap instance.
 * AS3 does not support moving BIG-IP nodes to new partitions.
 * Static ARP entries remain after deleting an AS3 ConfigMap.
-
-Bug Fixes
-`````````
-* :issues:`736` - Added support for Google Container Engine (GKE) LoadBalancer service. Validated against Kubernetes 1.13.4.
 
 v1.8.1
 ------

@@ -140,6 +140,11 @@ rst_epilog = '''
 .. _f5-bigip-ctlr chart: https://github.com/F5Networks/charts/tree/master/src/stable/f5-bigip-ctlr
 .. _helm: https://helm.sh/
 .. _f5-bigip-ingress chart: https://github.com/F5Networks/charts/tree/master/src/stable/f5-bigip-ingress
+.. _F5 AS3 Extension: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/
+.. _F5 AS3 Installation: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/userguide/installation.html
+.. _F5 AS3 User Guide: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/userguide/
+.. _F5 AS3 Reference Guide: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/refguide/
+.. _Container Ingress Services and AS3 Extension integration: %(base_url)s/containers/v2/kubernetes/kctlr-k8s-as3.html
 ''' % {
     'url_version': version,
     'base_url': 'http://clouddocs.f5.com'

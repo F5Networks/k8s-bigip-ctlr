@@ -9,6 +9,7 @@ Added Functionality
 
 Bug Fixes
 `````````
+* Handle CIS to monitor the pods on unscheduled nodes. This will avoid traffic loss.
 
 v1.9.2
 ------------

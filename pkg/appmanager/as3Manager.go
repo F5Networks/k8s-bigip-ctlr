@@ -29,7 +29,13 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/xeipuuv/gojsonschema"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	v1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/tools/cache"
+)
+
+const (
+	defaultAS3ConfigMapLabel = "f5type in (virtual-server), as3 in (true)"
 )
 
 type as3Template string
@@ -434,4 +440,47 @@ func (as3RestClient *As3RestClient) restCallToBigIP(method string, route string,
 		return string(body), false
 	}
 
+}
+
+// SetupAS3Informers returns an appInformer that includes the following set of informers.
+// CfgMapInformer and SvcInformer are label based and endptInformer is not label based.
+// These informers are event based informer and do not poll on the resources.
+func (appMgr *Manager) SetupAS3Informers() error {
+	// resyncPeriod is zero to avoid repolling
+	var resyncPeriod time.Duration
+	// namespace is Empty to create watchers for all namespaces
+	namespace := v1.NamespaceAll
+
+	log.Debug("[as3] Stated creating AS3 Informers")
+	cfgMapSelector, err := labels.Parse(defaultAS3ConfigMapLabel)
+	if err != nil {
+		return fmt.Errorf("Failed to parse AS3 ConfigMap Label Selector string: %v", err)
+	}
+
+	appMgr.as3Informer = &appInformer{
+		namespace: namespace,
+		stopCh:    make(chan struct{}),
+		cfgMapInformer: cache.NewSharedIndexInformer(
+			newListWatchWithLabelSelector(
+				appMgr.restClientv1,
+				"configmaps",
+				namespace,
+				cfgMapSelector,
+			),
+			&v1.ConfigMap{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+	}
+
+	appMgr.as3Informer.cfgMapInformer.AddEventHandlerWithResyncPeriod(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
+			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueConfigMap(cur) },
+			DeleteFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
+		},
+		resyncPeriod,
+	)
+
+	return nil
 }

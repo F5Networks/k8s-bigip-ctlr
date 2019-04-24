@@ -544,6 +544,11 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 			log.Warningf("Failed to add label watch for all namespaces:%v", err)
 		}
 	}
+	err := appMgr.SetupAS3Informers()
+	if nil != err {
+		log.Warningf("Failed to add AS3 watcher for all namespaces:%v", err)
+	}
+
 }
 
 func main() {

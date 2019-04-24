@@ -33,7 +33,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -102,6 +102,7 @@ type Manager struct {
 	// App informer support
 	vsQueue      workqueue.RateLimitingInterface
 	appInformers map[string]*appInformer
+	as3Informer  *appInformer
 	// Namespace informer support (namespace labels)
 	nsQueue    workqueue.RateLimitingInterface
 	nsInformer cache.SharedIndexInformer

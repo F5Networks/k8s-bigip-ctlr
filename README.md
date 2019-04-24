@@ -3,8 +3,7 @@
 F5 BIG-IP Controller for Kubernetes
 ===================================
 
-The F5 BIG-IP Controller for [Kubernetes](http://kubernetes.io/) makes F5 [BIG-IP]
-(<https://f5.com/products/big-ip/local-traffic-manager-ltm)
+The F5 BIG-IP Controller for [Kubernetes](http://kubernetes.io/) makes F5 [BIG-IP](https://www.f5.com/products/big-ip-services)
 services available to applications running in Kubernetes.
 
 Documentation

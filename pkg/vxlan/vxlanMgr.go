@@ -28,7 +28,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 type fdbSection struct {
@@ -112,6 +112,16 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 	}
 
 	for _, node := range nodes {
+		// Ignore the Nodes with status NotReady
+		var notExecutable bool
+		for _, t := range node.Spec.Taints {
+			if v1.TaintEffectNoExecute == t.Effect {
+				notExecutable = true
+			}
+		}
+		if notExecutable == true {
+			continue
+		}
 		nodeAddrs := node.Status.Addresses
 		rec := fdbRecord{}
 		for _, addr := range nodeAddrs {
@@ -123,6 +133,11 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 			}
 		}
 		// Will only exist in Flannel/Kubernetes
+		if pip, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/public-ip"]; ok {
+			if rec.Endpoint != pip {
+				rec.Endpoint = pip
+			}
+		}
 		if atn, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/backend-data"]; ok {
 			var mac string
 			mac, err = parseVtepMac(atn, node.ObjectMeta.Name)
@@ -255,8 +270,8 @@ func getVtepMac(
 		if kPod.Status.PodIP == pod.Address {
 			// Get the Node for this Pod
 			for _, node := range kubeNodes.Items {
-				if ip, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/public-ip"]; ok &&
-					ip == kPod.Status.HostIP {
+				if _, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/public-ip"]; ok &&
+					node.ObjectMeta.Name == kPod.Spec.NodeName {
 					if mac, ok :=
 						node.ObjectMeta.Annotations["flannel.alpha.coreos.com/backend-data"]; ok {
 						return parseVtepMac(mac, node.ObjectMeta.Name)

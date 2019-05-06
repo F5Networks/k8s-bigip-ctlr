@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 func newNode(
@@ -337,6 +337,9 @@ var _ = Describe("VxlanMgr Tests", func() {
 			Status: v1.PodStatus{
 				PodIP:  "1.2.3.4",
 				HostIP: "127.0.0.10",
+			},
+			Spec: v1.PodSpec{
+				NodeName: "flannelNode",
 			},
 		}
 

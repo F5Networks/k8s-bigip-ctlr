@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"crypto/md5"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -56,6 +57,7 @@ var BigIPUsername string
 var BigIPPassword string
 var BigIPURL string
 var as3RC As3RestClient
+var certificates string
 
 var buffer map[Member]struct{}
 
@@ -390,10 +392,27 @@ func (as3RestClient *As3RestClient) restCallToBigIP(method string, route string,
 		log.Debugf("[as3_log] No change in declaration.")
 		return string(body), true
 	}
-	//FIXME: tr flag is set true to disable SSL validation
-	//Please remove SSL disable settings at RTW
+
+	//Certificate setting
+	// Get the SystemCertPool, continue with an empty pool on error
+	rootCAs, _ := x509.SystemCertPool()
+	if rootCAs == nil {
+		rootCAs = x509.NewCertPool()
+	}
+
+	// Get the cert
+	certs := []byte(certificates)
+
+	// Append our cert to the system pool
+	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
+		log.Debug("[as3_log] No certs appended, using system certs only")
+	}
+
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: sslInsecure},
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: sslInsecure,
+			RootCAs:            rootCAs,
+		},
 	}
 	as3RestClient.client = &http.Client{
 		Transport: tr,
@@ -444,4 +463,20 @@ func (as3RestClient *As3RestClient) restCallToBigIP(method string, route string,
 		return string(body), false
 	}
 
+}
+
+// Read certificate from configmap
+func (appMgr *Manager) getCertFromConfigMap(cfgmap string) {
+
+	certs := ""
+	cm, err := appMgr.kubeClient.CoreV1().ConfigMaps("default").Get(cfgmap, metaV1.GetOptions{})
+	if err != nil {
+		log.Debug("[as3_log] Reading certificate from configmap error.")
+		certificates = ""
+	} else {
+		for _, v := range cm.Data {
+			certs = certs + v + "\n"
+		}
+		certificates = certs
+	}
 }

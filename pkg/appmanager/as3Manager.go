@@ -18,6 +18,7 @@ package appmanager
 
 import (
 	"bytes"
+	"crypto/md5"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -51,13 +52,16 @@ type as3Object map[tenantName]tenant
 
 //Rest client creation for big ip
 type As3RestClient struct {
-	client  *http.Client
-	baseURL string
+	client      *http.Client
+	baseURL     string
+	oldChecksum string
+	newChecksum string
 }
 
 var BigIPUsername string
 var BigIPPassword string
 var BigIPURL string
+var as3RC As3RestClient
 
 var buffer map[Member]struct{}
 
@@ -375,18 +379,23 @@ func (appMgr *Manager) buildAS3Declaration(obj as3Object, template as3Template) 
 // Takes AS3 Declaration and post it to BigIP
 func (appMgr *Manager) postAS3Declaration(declaration as3Declaration) {
 	log.Debugf("[as3_log] Processing AS3 POST call with AS3 Manager")
-	var as3RC As3RestClient
 	as3RC.baseURL = BigIPURL
-	response, _ := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr.sslInsecure)
-	log.Debugf("[as3_log] AS3 declaration POST call response %s", response)
+	as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr.sslInsecure)
 
 }
 
 // Takes AS3 Declaration, method, API route and post it to BigIP
 func (as3RestClient *As3RestClient) restCallToBigIP(method string, route string, declaration as3Declaration, sslInsecure bool) (string, bool) {
 	log.Debugf("[as3_log] REST call with AS3 Manager")
-	timeout := time.Duration(15 * time.Second)
+	hash := md5.New()
+	io.WriteString(hash, string(declaration))
+	as3RestClient.newChecksum = string(hash.Sum(nil))
+	timeout := time.Duration(60 * time.Second)
 	var body []byte
+	if as3RestClient.oldChecksum == as3RestClient.newChecksum {
+		log.Debugf("[as3_log] No change in declaration.")
+		return string(body), true
+	}
 	//FIXME: tr flag is set true to disable SSL validation
 	//Please remove SSL disable settings at RTW
 	tr := &http.Transport{
@@ -433,6 +442,7 @@ func (as3RestClient *As3RestClient) restCallToBigIP(method string, route string,
 			log.Debugf("[as3_log] Response from Big-IP")
 			log.Debugf("[as3_log] code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 		}
+		as3RestClient.oldChecksum = as3RestClient.newChecksum
 		return string(body), true
 	} else {
 		//Other then 200 status code

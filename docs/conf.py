@@ -122,7 +122,7 @@ rst_epilog = '''
 .. _Kubernetes clusters: https://kubernetes.io/docs/concepts/cluster-administration/cluster-administration-overview/
 .. _NodePort: https://kubernetes.io/docs/concepts/services-networking/service/#nodeport
 .. _ClusterIP: https://kubernetes.io/docs/concepts/services-networking/connect-applications-service/
-.. _iApps: https://devcentral.f5.com/iapps
+.. _iApps: https://www.f5.com/products/f5-technologies
 .. _Kubernetes pods: https://kubernetes.io/docs/user-guide/pods/
 .. _Kubernetes Ingress: https://kubernetes.io/docs/concepts/services-networking/ingress/
 .. _Kubernetes Secrets: https://kubernetes.io/docs/concepts/configuration/secret/

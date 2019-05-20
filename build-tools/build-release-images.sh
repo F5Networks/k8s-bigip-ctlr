@@ -22,7 +22,7 @@ VERSION_INFO=$(${CURDIR}/version-tool version)
 cp $CURDIR/../_docker_workspace/out/$RELEASE_PLATFORM/bin/* $WKDIR/
 cp requirements.txt $WKDIR/
 cp schemas/bigip-virtual-server_v*.json $WKDIR/
-cp schemas/as3-schema-3.10-cis.json $WKDIR/
+cp schemas/as3-schema-3.11.0-3-cis.json $WKDIR/
 cp LICENSE $WKDIR/
 cp $CURDIR/help.md $WKDIR/help.md
 echo "{\"version\": \"${VERSION_INFO}\", \"build\": \"${BUILD_INFO}\"}" \

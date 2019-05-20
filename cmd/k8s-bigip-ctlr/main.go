@@ -100,13 +100,14 @@ var (
 	useSecrets        *bool
 	schemaLocal       *string
 
-	bigIPURL        *string
-	bigIPUsername   *string
-	bigIPPassword   *string
-	bigIPPartitions *[]string
-	credsDir        *string
-	as3Validation   *bool
-	sslInsecure     *bool
+	bigIPURL           *string
+	bigIPUsername      *string
+	bigIPPassword      *string
+	bigIPPartitions    *[]string
+	credsDir           *string
+	as3Validation      *bool
+	sslInsecure        *bool
+	trustedCertsCfgmap *string
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -178,6 +179,8 @@ func _init() {
 		"Optional, when set to false, disables as3 template validation on the controller.")
 	sslInsecure = bigIPFlags.Bool("insecure", false,
 		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
+	trustedCertsCfgmap = bigIPFlags.String("trusted-certs-cfgmap", "",
+		"Optional, when certificates are provided, enable secure SSL communication to BIGIP.")
 
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
@@ -604,19 +607,20 @@ func main() {
 	}
 
 	var appMgrParms = appmanager.Params{
-		ConfigWriter:      configWriter,
-		UseNodeInternal:   *useNodeInternal,
-		IsNodePort:        isNodePort,
-		RouteConfig:       routeConfig,
-		NodeLabelSelector: *nodeLabelSelector,
-		ResolveIngress:    *resolveIngNames,
-		DefaultIngIP:      *defaultIngIP,
-		VsSnatPoolName:    *vsSnatPoolName,
-		UseSecrets:        *useSecrets,
-		ManageConfigMaps:  *manageConfigMaps,
-		SchemaLocal:       *schemaLocal,
-		AS3Validation:     *as3Validation,
-		SSLInsecure:       *sslInsecure,
+		ConfigWriter:       configWriter,
+		UseNodeInternal:    *useNodeInternal,
+		IsNodePort:         isNodePort,
+		RouteConfig:        routeConfig,
+		NodeLabelSelector:  *nodeLabelSelector,
+		ResolveIngress:     *resolveIngNames,
+		DefaultIngIP:       *defaultIngIP,
+		VsSnatPoolName:     *vsSnatPoolName,
+		UseSecrets:         *useSecrets,
+		ManageConfigMaps:   *manageConfigMaps,
+		SchemaLocal:        *schemaLocal,
+		AS3Validation:      *as3Validation,
+		SSLInsecure:        *sslInsecure,
+		TrustedCertsCfgmap: *trustedCertsCfgmap,
 	}
 
 	// If running with Flannel, create an event channel that the appManager

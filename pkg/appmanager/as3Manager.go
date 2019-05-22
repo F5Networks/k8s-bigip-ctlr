@@ -39,6 +39,9 @@ import (
 
 const (
 	defaultAS3ConfigMapLabel = "f5type in (virtual-server), as3 in (true)"
+	svcTenantLabel           = "cis.f5.com/as3-tenant"
+	svcAppLabel              = "cis.f5.com/as3-app"
+	svcPoolLabel             = "cis.f5.com/as3-pool"
 )
 
 type as3Template string
@@ -67,6 +70,7 @@ var as3RC As3RestClient
 var certificates string
 
 var buffer map[Member]struct{}
+var epbuffer map[string]struct{}
 
 // Takes an AS3 Template and perform service discovery with Kubernetes to generate AS3 Declaration
 func (appMgr *Manager) processUserDefinedAS3(template string) bool {
@@ -90,11 +94,13 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 	}
 
 	buffer = make(map[Member]struct{}, 0)
+	epbuffer = make(map[string]struct{}, 0)
 
 	declaration := appMgr.buildAS3Declaration(obj, templateObj)
 	log.Debugf("Generated AS3 Declaration: \n%v", declaration)
 
 	appMgr.as3Members = buffer
+	appMgr.watchedAS3Endpoints = epbuffer
 	appMgr.postAS3Declaration(declaration)
 
 	return true
@@ -287,6 +293,8 @@ func (appMgr *Manager) getEndpointsForPool(tenant tenantName, app appName, pool 
 						buffer[member] = struct{}{}
 					}
 				}
+				// Populate endpoints to watchList
+				epbuffer[endpoints.Name] = struct{}{}
 			}
 		} else { // Controller is in NodePort mode.
 			if service.Spec.Type == v1.ServiceTypeNodePort {
@@ -511,6 +519,16 @@ func (appMgr *Manager) SetupAS3Informers() error {
 		return fmt.Errorf("Failed to parse AS3 ConfigMap Label Selector string: %v", err)
 	}
 
+	defaultSvcLabel := fmt.Sprintf("%v,%v,%v",
+		svcTenantLabel,
+		svcAppLabel,
+		svcPoolLabel,
+	)
+	svcSelector, err := labels.Parse(defaultSvcLabel)
+	if err != nil {
+		return fmt.Errorf("Failed to parse Service Label Selector string: %v", err)
+	}
+
 	appMgr.as3Informer = &appInformer{
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
@@ -525,16 +543,137 @@ func (appMgr *Manager) SetupAS3Informers() error {
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
+		svcInformer: cache.NewSharedIndexInformer(
+			newListWatchWithLabelSelector(
+				appMgr.restClientv1,
+				"services",
+				namespace,
+				svcSelector,
+			),
+			&v1.Service{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+		endptInformer: cache.NewSharedIndexInformer(
+			newListWatchWithLabelSelector(
+				appMgr.restClientv1,
+				"endpoints",
+				namespace,
+				labels.Everything(),
+			),
+			&v1.Endpoints{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
 	}
 
-	appMgr.as3Informer.cfgMapInformer.AddEventHandlerWithResyncPeriod(
+	appMgr.as3Informer.cfgMapInformer.AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
-			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueConfigMap(cur) },
-			DeleteFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
+			AddFunc:    func(obj interface{}) { appMgr.enqueueAS3ConfigMap(obj) },
+			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueAS3ConfigMap(cur) },
 		},
-		resyncPeriod,
+	)
+	appMgr.as3Informer.svcInformer.AddEventHandler(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { appMgr.enqueueAS3Service(obj) },
+			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueAS3Service(cur) },
+			DeleteFunc: func(obj interface{}) { appMgr.enqueueAS3Service(obj) },
+		},
+	)
+	appMgr.as3Informer.endptInformer.AddEventHandler(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { appMgr.enqueueAS3Endpoints(obj) },
+			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueAS3Endpoints(cur) },
+			DeleteFunc: func(obj interface{}) { appMgr.enqueueAS3Endpoints(obj) },
+		},
 	)
 
 	return nil
+}
+
+func (appMgr *Manager) enqueueAS3ConfigMap(obj interface{}) {
+	if ok, keys := appMgr.checkValidAS3ConfigMap(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) enqueueAS3Service(obj interface{}) {
+	if ok, keys := appMgr.checkValidAS3Service(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) enqueueAS3Endpoints(obj interface{}) {
+	if ok, keys := appMgr.checkValidAS3Endpoints(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) checkValidAS3ConfigMap(obj interface{}) (
+	bool, []*serviceQueueKey) {
+
+	var keyList []*serviceQueueKey
+	cm := obj.(*v1.ConfigMap)
+	namespace := cm.ObjectMeta.Namespace
+
+	log.Debugf("[as3_log] Found AS3 ConfigMap - %s.", cm.ObjectMeta.Name)
+	key := &serviceQueueKey{
+		Namespace: namespace,
+		As3Name:   cm.ObjectMeta.Name,
+		As3Data:   cm.Data["template"],
+	}
+	keyList = append(keyList, key)
+	return true, keyList
+}
+
+func (appMgr *Manager) checkValidAS3Service(obj interface{}) (
+	bool, []*serviceQueueKey) {
+
+	if appMgr.activeCfgMap.Name == "" {
+		return false, nil
+	}
+
+	var keyList []*serviceQueueKey
+	svc := obj.(*v1.Service)
+	namespace := svc.ObjectMeta.Namespace
+
+	key := &serviceQueueKey{
+		ServiceName: svc.ObjectMeta.Name,
+		Namespace:   namespace,
+		As3Name:     appMgr.activeCfgMap.Name,
+		As3Data:     appMgr.activeCfgMap.Data,
+	}
+	keyList = append(keyList, key)
+	return true, keyList
+}
+
+func (appMgr *Manager) checkValidAS3Endpoints(obj interface{}) (
+	bool, []*serviceQueueKey) {
+
+	if appMgr.activeCfgMap.Name == "" {
+		return false, nil
+	}
+	eps := obj.(*v1.Endpoints)
+
+	if _, ok := appMgr.watchedAS3Endpoints[eps.Name]; !ok {
+		return false, nil
+	}
+
+	var keyList []*serviceQueueKey
+	namespace := eps.ObjectMeta.Namespace
+
+	key := &serviceQueueKey{
+		ServiceName: eps.ObjectMeta.Name,
+		Namespace:   namespace,
+		As3Name:     appMgr.activeCfgMap.Name,
+		As3Data:     appMgr.activeCfgMap.Data,
+	}
+	keyList = append(keyList, key)
+	return true, keyList
 }

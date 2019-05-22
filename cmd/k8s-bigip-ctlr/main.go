@@ -180,7 +180,7 @@ func _init() {
 	sslInsecure = bigIPFlags.Bool("insecure", false,
 		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
 	trustedCertsCfgmap = bigIPFlags.String("trusted-certs-cfgmap", "",
-		"Optional, when certificates are provided, enable secure SSL communication to BIGIP.")
+		"Optional, when certificates are provided, adds them to controller’s trusted certificate store.")
 
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))

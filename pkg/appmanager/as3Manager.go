@@ -33,12 +33,16 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+        "k8s.io/apimachinery/pkg/fields"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
 const (
 	defaultAS3ConfigMapLabel = "f5type in (virtual-server), as3 in (true)"
+	svcTenantLabel           = "cis.f5.com/as3-tenant"
+	svcAppLabel              = "cis.f5.com/as3-app"
+	svcPoolLabel             = "cis.f5.com/as3-pool"
 )
 
 type as3Template string
@@ -511,6 +515,16 @@ func (appMgr *Manager) SetupAS3Informers() error {
 		return fmt.Errorf("Failed to parse AS3 ConfigMap Label Selector string: %v", err)
 	}
 
+	defaultSvcLabel := fmt.Sprintf("%v,%v,%v",
+		svcTenantLabel,
+		svcAppLabel,
+		svcPoolLabel,
+	)
+	svcSelector, err := labels.Parse(defaultSvcLabel)
+	if err != nil {
+		return fmt.Errorf("Failed to parse Service Label Selector string: %v", err)
+	}
+
 	appMgr.as3Informer = &appInformer{
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
@@ -525,16 +539,69 @@ func (appMgr *Manager) SetupAS3Informers() error {
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
+		svcInformer: cache.NewSharedIndexInformer(
+			newListWatchWithLabelSelector(
+				appMgr.restClientv1,
+				"services",
+				namespace,
+				svcSelector,
+			),
+			&v1.Service{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+		endptInformer: cache.NewSharedIndexInformer(
+			newListWatchWithLabelSelector(
+				appMgr.restClientv1,
+				"endpoints",
+				namespace,
+				labels.Everything(),
+			),
+			&v1.Endpoints{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+		nodeInformer: cache.NewSharedIndexInformer(
+			cache.NewListWatchFromClient(
+				appMgr.restClientv1,
+				"nodes",
+				namespace,
+				fields.Everything(),
+			),
+			&v1.Node{},
+			resyncPeriod,
+			cache.Indexers{},
+		),
 	}
 
-	appMgr.as3Informer.cfgMapInformer.AddEventHandlerWithResyncPeriod(
+	appMgr.as3Informer.cfgMapInformer.AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
 			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueConfigMap(cur) },
 			DeleteFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
 		},
-		resyncPeriod,
 	)
+	appMgr.as3Informer.svcInformer.AddEventHandler(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { appMgr.enqueueService(obj) },
+			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueService(cur) },
+			DeleteFunc: func(obj interface{}) { appMgr.enqueueService(obj) },
+		},
+	)
+	appMgr.as3Informer.endptInformer.AddEventHandler(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { appMgr.enqueueEndpoints(obj) },
+			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueEndpoints(cur) },
+			DeleteFunc: func(obj interface{}) { appMgr.enqueueEndpoints(obj) },
+		},
+	)
+	appMgr.as3Informer.nodeInformer.AddEventHandler(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { appMgr.enqueueNode(obj) },
+			DeleteFunc: func(obj interface{}) { appMgr.enqueueNode(obj) },
+		},
+	)
+
 
 	return nil
 }

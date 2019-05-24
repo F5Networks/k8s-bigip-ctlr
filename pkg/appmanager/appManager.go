@@ -38,6 +38,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	//"k8s.io/apimachinery/pkg/fields"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -132,6 +133,19 @@ type Manager struct {
 	as3Validation      bool
 	sslInsecure        bool
 	trustedCertsCfgmap string
+	// Active User Defined Configmap details
+	activeCfgMap  ActiveAS3ConfigMap
+        // List of Watched Endpoints for user-defined AS3
+	watchedAS3Endpoints map[string]struct{}
+}
+
+// FIXME: Refactor to have one struct to hold all AS3 specific data.
+
+// Active user defined ConfigMap for global availability.
+type ActiveAS3ConfigMap struct {
+	Name     string // as3 Specific configMap name
+	Data     string // if As3Name is present, populate this with as3 tmpl data
+
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -428,6 +442,7 @@ type appInformer struct {
 	endptInformer  cache.SharedIndexInformer
 	ingInformer    cache.SharedIndexInformer
 	routeInformer  cache.SharedIndexInformer
+	nodeInformer   cache.SharedIndexInformer
 	stopCh         chan struct{}
 }
 
@@ -625,6 +640,15 @@ func (appMgr *Manager) enqueueEndpoints(obj interface{}) {
 	}
 }
 
+func (appMgr *Manager) enqueueNode(obj interface{}) {
+	log.Debugf("[as3_log] NodeInformer - Node changes triggered.")
+	if ok, keys := appMgr.checkActiveConfigMap(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
 func (appMgr *Manager) enqueueIngress(obj interface{}) {
 	if ok, keys := appMgr.checkValidIngress(obj); ok {
 		for _, key := range keys {
@@ -662,9 +686,18 @@ func (appMgr *Manager) getNamespaceInformerLocked(
 }
 
 func (appInf *appInformer) start() {
-	go appInf.svcInformer.Run(appInf.stopCh)
-	go appInf.endptInformer.Run(appInf.stopCh)
-	go appInf.ingInformer.Run(appInf.stopCh)
+	if nil != appInf.svcInformer {
+		go appInf.svcInformer.Run(appInf.stopCh)
+	}
+	if nil != appInf.endptInformer {
+		go appInf.endptInformer.Run(appInf.stopCh)
+	}
+	if nil != appInf.nodeInformer {
+		go appInf.nodeInformer.Run(appInf.stopCh)
+	}
+	if nil != appInf.ingInformer {
+		go appInf.ingInformer.Run(appInf.stopCh)
+	}
 	if nil != appInf.routeInformer {
 		go appInf.routeInformer.Run(appInf.stopCh)
 	}
@@ -674,10 +707,19 @@ func (appInf *appInformer) start() {
 }
 
 func (appInf *appInformer) waitForCacheSync() {
-	cacheSyncs := []cache.InformerSynced{
-		appInf.svcInformer.HasSynced,
-		appInf.endptInformer.HasSynced,
-		appInf.ingInformer.HasSynced,
+	cacheSyncs := []cache.InformerSynced{}
+
+	if nil != appInf.svcInformer {
+		cacheSyncs = append(cacheSyncs, appInf.svcInformer.HasSynced)
+	}
+	if nil != appInf.endptInformer {
+		cacheSyncs = append(cacheSyncs, appInf.endptInformer.HasSynced)
+	}
+	if nil != appInf.nodeInformer {
+		cacheSyncs = append(cacheSyncs, appInf.nodeInformer.HasSynced)
+	}
+	if nil != appInf.ingInformer {
+		cacheSyncs = append(cacheSyncs, appInf.ingInformer.HasSynced)
 	}
 	if nil != appInf.routeInformer {
 		cacheSyncs = append(cacheSyncs, appInf.routeInformer.HasSynced)
@@ -753,6 +795,9 @@ func (appMgr *Manager) startAppInformersLocked() {
 	for _, appInf := range appMgr.appInformers {
 		appInf.start()
 	}
+	if nil != appMgr.as3Informer {
+		appMgr.as3Informer.start()
+	}
 }
 
 func (appMgr *Manager) waitForCacheSync() {
@@ -765,6 +810,9 @@ func (appMgr *Manager) waitForCacheSyncLocked() {
 	for _, appInf := range appMgr.appInformers {
 		appInf.waitForCacheSync()
 	}
+	if nil != appMgr.as3Informer {
+		appMgr.as3Informer.waitForCacheSync()
+	}
 }
 
 func (appMgr *Manager) stopAppInformers() {
@@ -772,6 +820,9 @@ func (appMgr *Manager) stopAppInformers() {
 	defer appMgr.informersMutex.Unlock()
 	for _, appInf := range appMgr.appInformers {
 		appInf.stopInformers()
+	}
+	if nil != appMgr.as3Informer {
+		appMgr.as3Informer.stopInformers()
 	}
 }
 
@@ -788,6 +839,9 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 		log.Debugf("[as3_log] AS3 ConfigMap Data: %s\n", k.As3Data)
 		appMgr.vsQueue.Done(key)
 		appMgr.processUserDefinedAS3(k.As3Data)
+		// Store the AS3 CfgMap Name and AS3 CfgMap Data in appMgr too for global usage.
+		appMgr.activeCfgMap.Name = k.As3Name
+		appMgr.activeCfgMap.Data = k.As3Data
 		appMgr.vsQueue.Forget(key)
 		return false
 	}

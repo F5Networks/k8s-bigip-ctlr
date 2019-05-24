@@ -99,6 +99,28 @@ func (appMgr *Manager) checkValidService(
 	return true, keyList
 }
 
+func (appMgr *Manager) checkActiveConfigMap(
+	obj interface{},
+) (bool, []*serviceQueueKey) {
+	// Check if an active configMap exists.
+	// if existis get it from appMgr struct and return.
+	// if not existis return false, nil.
+	log.Debugf("[as3_log] NodeInformer: CM name: %s", appMgr.activeCfgMap.Name)
+	log.Debugf("[as3_log] NodeInformer: CM data: %s", appMgr.activeCfgMap.Data)
+        if "" != appMgr.activeCfgMap.Name && "" != appMgr.activeCfgMap.Data{
+	        key := &serviceQueueKey{
+			As3Name: appMgr.activeCfgMap.Name,
+			As3Data: appMgr.activeCfgMap.Data,
+		}
+	        var keyList []*serviceQueueKey
+	        keyList = append(keyList, key)
+		log.Debugf("[as3_log] NodeInformer: ConfigMap '%s' placed in Queue.", appMgr.activeCfgMap.Name)
+	        return true, keyList
+	}
+	log.Debugf("[as3_log] NodeInformer: No Active ConfigMaps found.")
+	return false, nil
+}
+
 func (appMgr *Manager) checkValidEndpoints(
 	obj interface{},
 ) (bool, []*serviceQueueKey) {

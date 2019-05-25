@@ -132,6 +132,18 @@ type Manager struct {
 	as3Validation      bool
 	sslInsecure        bool
 	trustedCertsCfgmap string
+	// Active User Defined ConfigMap details
+	activeCfgMap ActiveAS3ConfigMap
+	// List of Watched Endpoints for user-defined AS3
+	watchedAS3Endpoints map[string]struct{}
+}
+
+// FIXME: Refactor to have one struct to hold all AS3 specific data.
+
+// ActiveAS3ConfigMap user defined ConfigMap for global availability.
+type ActiveAS3ConfigMap struct {
+	Name string // AS3 specific ConfigMap name
+	Data string // if AS3 Name is present, populate this with AS3 template data.
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -662,9 +674,15 @@ func (appMgr *Manager) getNamespaceInformerLocked(
 }
 
 func (appInf *appInformer) start() {
-	go appInf.svcInformer.Run(appInf.stopCh)
-	go appInf.endptInformer.Run(appInf.stopCh)
-	go appInf.ingInformer.Run(appInf.stopCh)
+	if nil != appInf.svcInformer {
+		go appInf.svcInformer.Run(appInf.stopCh)
+	}
+	if nil != appInf.endptInformer {
+		go appInf.endptInformer.Run(appInf.stopCh)
+	}
+	if nil != appInf.ingInformer {
+		go appInf.ingInformer.Run(appInf.stopCh)
+	}
 	if nil != appInf.routeInformer {
 		go appInf.routeInformer.Run(appInf.stopCh)
 	}
@@ -674,10 +692,16 @@ func (appInf *appInformer) start() {
 }
 
 func (appInf *appInformer) waitForCacheSync() {
-	cacheSyncs := []cache.InformerSynced{
-		appInf.svcInformer.HasSynced,
-		appInf.endptInformer.HasSynced,
-		appInf.ingInformer.HasSynced,
+	cacheSyncs := []cache.InformerSynced{}
+
+	if nil != appInf.svcInformer {
+		cacheSyncs = append(cacheSyncs, appInf.svcInformer.HasSynced)
+	}
+	if nil != appInf.endptInformer {
+		cacheSyncs = append(cacheSyncs, appInf.endptInformer.HasSynced)
+	}
+	if nil != appInf.ingInformer {
+		cacheSyncs = append(cacheSyncs, appInf.ingInformer.HasSynced)
 	}
 	if nil != appInf.routeInformer {
 		cacheSyncs = append(cacheSyncs, appInf.routeInformer.HasSynced)
@@ -753,6 +777,9 @@ func (appMgr *Manager) startAppInformersLocked() {
 	for _, appInf := range appMgr.appInformers {
 		appInf.start()
 	}
+	if nil != appMgr.as3Informer {
+		appMgr.as3Informer.start()
+	}
 }
 
 func (appMgr *Manager) waitForCacheSync() {
@@ -765,6 +792,9 @@ func (appMgr *Manager) waitForCacheSyncLocked() {
 	for _, appInf := range appMgr.appInformers {
 		appInf.waitForCacheSync()
 	}
+	if nil != appMgr.as3Informer {
+		appMgr.as3Informer.waitForCacheSync()
+	}
 }
 
 func (appMgr *Manager) stopAppInformers() {
@@ -772,6 +802,9 @@ func (appMgr *Manager) stopAppInformers() {
 	defer appMgr.informersMutex.Unlock()
 	for _, appInf := range appMgr.appInformers {
 		appInf.stopInformers()
+	}
+	if nil != appMgr.as3Informer {
+		appMgr.as3Informer.stopInformers()
 	}
 }
 
@@ -784,10 +817,16 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
 	k := key.(serviceQueueKey)
 	if len(k.As3Name) != 0 {
+
+		appMgr.activeCfgMap.Name = k.As3Name
+		appMgr.activeCfgMap.Data = k.As3Data
+		log.Debugf("[as3_log] Active ConfigMap: (%s)\n", appMgr.activeCfgMap.Name)
+
+		appMgr.vsQueue.Done(key)
 		log.Debugf("[as3_log] Processing AS3 cfgMap (%s) with AS3 Manager.\n", k.As3Name)
 		log.Debugf("[as3_log] AS3 ConfigMap Data: %s\n", k.As3Data)
-		appMgr.vsQueue.Done(key)
 		appMgr.processUserDefinedAS3(k.As3Data)
+
 		appMgr.vsQueue.Forget(key)
 		return false
 	}

@@ -517,6 +517,11 @@ func createLabel(label string) (labels.Selector, error) {
 func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 	label := appmanager.DefaultConfigMapLabel
 
+	err := appMgr.SetupAS3Informers()
+	if nil != err {
+		log.Warningf("Failed to add AS3 watcher for all namespaces:%v", err)
+	}
+
 	if len(*namespaceLabel) == 0 {
 		ls, err := createLabel(label)
 		if nil != err {
@@ -547,11 +552,6 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 			log.Warningf("Failed to add label watch for all namespaces:%v", err)
 		}
 	}
-	err := appMgr.SetupAS3Informers()
-	if nil != err {
-		log.Warningf("Failed to add AS3 watcher for all namespaces:%v", err)
-	}
-
 }
 
 func main() {

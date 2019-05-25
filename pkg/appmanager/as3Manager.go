@@ -32,8 +32,8 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/xeipuuv/gojsonschema"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
-        "k8s.io/apimachinery/pkg/fields"
 	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -601,7 +601,6 @@ func (appMgr *Manager) SetupAS3Informers() error {
 			DeleteFunc: func(obj interface{}) { appMgr.enqueueNode(obj) },
 		},
 	)
-
 
 	return nil
 }

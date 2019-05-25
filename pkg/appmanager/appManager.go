@@ -134,8 +134,8 @@ type Manager struct {
 	sslInsecure        bool
 	trustedCertsCfgmap string
 	// Active User Defined Configmap details
-	activeCfgMap  ActiveAS3ConfigMap
-        // List of Watched Endpoints for user-defined AS3
+	activeCfgMap ActiveAS3ConfigMap
+	// List of Watched Endpoints for user-defined AS3
 	watchedAS3Endpoints map[string]struct{}
 }
 
@@ -143,8 +143,8 @@ type Manager struct {
 
 // Active user defined ConfigMap for global availability.
 type ActiveAS3ConfigMap struct {
-	Name     string // as3 Specific configMap name
-	Data     string // if As3Name is present, populate this with as3 tmpl data
+	Name string // as3 Specific configMap name
+	Data string // if As3Name is present, populate this with as3 tmpl data
 
 }
 

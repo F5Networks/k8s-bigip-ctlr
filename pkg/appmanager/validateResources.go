@@ -107,15 +107,15 @@ func (appMgr *Manager) checkActiveConfigMap(
 	// if not existis return false, nil.
 	log.Debugf("[as3_log] NodeInformer: CM name: %s", appMgr.activeCfgMap.Name)
 	log.Debugf("[as3_log] NodeInformer: CM data: %s", appMgr.activeCfgMap.Data)
-        if "" != appMgr.activeCfgMap.Name && "" != appMgr.activeCfgMap.Data{
-	        key := &serviceQueueKey{
+	if "" != appMgr.activeCfgMap.Name && "" != appMgr.activeCfgMap.Data {
+		key := &serviceQueueKey{
 			As3Name: appMgr.activeCfgMap.Name,
 			As3Data: appMgr.activeCfgMap.Data,
 		}
-	        var keyList []*serviceQueueKey
-	        keyList = append(keyList, key)
+		var keyList []*serviceQueueKey
+		keyList = append(keyList, key)
 		log.Debugf("[as3_log] NodeInformer: ConfigMap '%s' placed in Queue.", appMgr.activeCfgMap.Name)
-	        return true, keyList
+		return true, keyList
 	}
 	log.Debugf("[as3_log] NodeInformer: No Active ConfigMaps found.")
 	return false, nil

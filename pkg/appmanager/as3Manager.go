@@ -109,7 +109,7 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 // Validates the AS3 Template
 func (appMgr *Manager) validateAS3Template(template string) bool {
 
-	var schema = appMgr.schemaLocal + "as3-schema-3.10-cis.json"
+	var schema = appMgr.schemaLocal + "as3-schema-3.11.0-3-cis.json"
 
 	// Load Both the AS3 Schema and AS3 Template
 	schemaLoader := gojsonschema.NewReferenceLoader(schema)

@@ -97,7 +97,6 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 	epbuffer = make(map[string]struct{}, 0)
 
 	declaration := appMgr.buildAS3Declaration(obj, templateObj)
-	log.Debugf("Generated AS3 Declaration: \n%v", declaration)
 
 	appMgr.as3Members = buffer
 	appMgr.watchedAS3Endpoints = epbuffer
@@ -305,7 +304,7 @@ func (appMgr *Manager) getEndpointsForPool(tenant tenantName, app appName, pool 
 			}
 		}
 
-		log.Debugf("[as3] Discovered members for service %v is %v", service, members)
+		log.Debugf("[as3] Discovered members for service %v is %v", service.Name, members)
 	}
 
 	return members
@@ -380,8 +379,6 @@ func (appMgr *Manager) buildAS3Declaration(obj as3Object, template as3Template) 
 		log.Errorf("[as3_log] Issue marshalling AS3 Json")
 	}
 	log.Debugf("[as3_log] AS3 Template is populated with the pool members")
-	log.Debugf("[as3_log] Printing AS3 Template ...")
-	log.Debugf("%s", declaration)
 
 	return as3Declaration(declaration)
 

@@ -440,6 +440,7 @@ type appInformer struct {
 	endptInformer  cache.SharedIndexInformer
 	ingInformer    cache.SharedIndexInformer
 	routeInformer  cache.SharedIndexInformer
+	nodeInformer   cache.SharedIndexInformer
 	stopCh         chan struct{}
 }
 
@@ -637,6 +638,14 @@ func (appMgr *Manager) enqueueEndpoints(obj interface{}) {
 	}
 }
 
+func (appMgr *Manager) enqueueNode(obj interface{}) {
+	if ok, keys := appMgr.checkValidNode(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
 func (appMgr *Manager) enqueueIngress(obj interface{}) {
 	if ok, keys := appMgr.checkValidIngress(obj); ok {
 		for _, key := range keys {
@@ -689,6 +698,9 @@ func (appInf *appInformer) start() {
 	if nil != appInf.cfgMapInformer {
 		go appInf.cfgMapInformer.Run(appInf.stopCh)
 	}
+	if nil != appInf.nodeInformer {
+		go appInf.nodeInformer.Run(appInf.stopCh)
+	}
 }
 
 func (appInf *appInformer) waitForCacheSync() {
@@ -708,6 +720,9 @@ func (appInf *appInformer) waitForCacheSync() {
 	}
 	if nil != appInf.cfgMapInformer {
 		cacheSyncs = append(cacheSyncs, appInf.cfgMapInformer.HasSynced)
+	}
+	if nil != appInf.nodeInformer {
+		cacheSyncs = append(cacheSyncs, appInf.nodeInformer.HasSynced)
 	}
 	cache.WaitForCacheSync(
 		appInf.stopCh,

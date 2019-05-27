@@ -565,6 +565,17 @@ func (appMgr *Manager) SetupAS3Informers() error {
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
+		nodeInformer: cache.NewSharedIndexInformer(
+			newListWatchWithLabelSelector(
+				appMgr.restClientv1,
+				"nodes",
+				namespace,
+				labels.Everything(),
+			),
+			&v1.Node{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
 	}
 
 	appMgr.as3Informer.cfgMapInformer.AddEventHandler(
@@ -585,6 +596,13 @@ func (appMgr *Manager) SetupAS3Informers() error {
 			AddFunc:    func(obj interface{}) { appMgr.enqueueAS3Endpoints(obj) },
 			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueAS3Endpoints(cur) },
 			DeleteFunc: func(obj interface{}) { appMgr.enqueueAS3Endpoints(obj) },
+		},
+	)
+	appMgr.as3Informer.nodeInformer.AddEventHandler(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { appMgr.enqueueNode(obj) },
+			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueNode(cur) },
+			DeleteFunc: func(obj interface{}) { appMgr.enqueueNode(obj) },
 		},
 	)
 

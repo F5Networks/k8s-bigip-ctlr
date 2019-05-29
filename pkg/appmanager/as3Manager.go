@@ -600,8 +600,9 @@ func (appMgr *Manager) SetupAS3Informers() error {
 	)
 	appMgr.as3Informer.nodeInformer.AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { appMgr.enqueueNode(obj) },
-			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueNode(cur) },
+			AddFunc: func(obj interface{}) { appMgr.enqueueNode(obj) },
+			// TODO: Need to add handler for update event
+			// UpdateFunc: func(old, cur interface{}) { appMgr.enqueueNode(cur) },
 			DeleteFunc: func(obj interface{}) { appMgr.enqueueNode(obj) },
 		},
 	)

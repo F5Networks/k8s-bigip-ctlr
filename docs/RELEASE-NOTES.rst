@@ -5,7 +5,7 @@ v1.9.1
 ------
 Added Functionality
 `````````````````````
-* Users can utilize a `ConfigMap <https://example.com>`_ to add third-party certificates to controllers trusted store.
+* Added support for _`establishing trust <https://clouddocs.f5.com/containers/v2/kubernetes/kctlr-as3-cert-trust.html>`_ with remote BIG-IP systems using either the device or CA certificates.
 * Added support for AS3 3.11.
 
 Bug Fixes

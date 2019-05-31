@@ -1,6 +1,30 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+v1.9.1
+------
+Added Functionality
+`````````````````````
+* Users can utilize a `ConfigMap <https://example.com>`_ to add third-party certificates to controllers trusted store.
+* Added support for AS3 3.11.
+
+Bug Fixes
+`````````
+* Improves performance when updating Configmaps with AS3 Declarations.
+* Improves performance when updating Services associated with AS3 Declarations.
+* Improves performance when handling changes in Endpoints associated with AS3 Declarations.
+* Improves performance when handling node updates in AS3 Declarations.
+* Improves performance when applying AS3 Declarations to BIG-IP.
+* :issues:`797` - Controller uses ``flannel.alpha.coreos.com/public-ip`` as VTEP endpoint.
+
+Vulnerability Fixes
+```````````````````
++------------------+----------------------------------------------------------------+
+| CVE              | Comments                                                       |
++==================+================================================================+
+| TBA              | Controller no longer prints AS3 Declarations in debug logs     |
++------------------+----------------------------------------------------------------+
+
 v1.9.0
 ------------
 

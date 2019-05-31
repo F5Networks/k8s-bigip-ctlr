@@ -108,6 +108,7 @@ var (
 	as3Validation      *bool
 	sslInsecure        *bool
 	trustedCertsCfgmap *string
+	agent              *string
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -181,6 +182,8 @@ func _init() {
 		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
 	trustedCertsCfgmap = bigIPFlags.String("trusted-certs-cfgmap", "",
 		"Optional, when certificates are provided, adds them to controller’s trusted certificate store.")
+	agent = bigIPFlags.String("agent", "cccl",
+		"Optional, when set to as3, enables execution through as3 mode otherwise by default execution is through cccl mode")
 
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
@@ -621,6 +624,7 @@ func main() {
 		AS3Validation:      *as3Validation,
 		SSLInsecure:        *sslInsecure,
 		TrustedCertsCfgmap: *trustedCertsCfgmap,
+		Agent:              *agent,
 	}
 
 	// If running with Flannel, create an event channel that the appManager

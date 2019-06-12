@@ -70,8 +70,6 @@ Within the cluster, the allocated NodePort load balances traffic to all pods.
 
 .. danger::
 
-   The |kctlr| monitors the `Kubernetes API <https://kubernetes.io/docs/api/>`_ for configuration changes, and updates the BIG-IP system configuration accordingly.
-
    F5 does not recommend making configuration changes to objects in any partition managed by the |kctlr| via any other means (for example, the configuration utility, TMOS, or by syncing configuration with another device or service group). Doing so may result in disruption of service or unexpected behavior.
 
    The Controller allows one exception to this recommendation.  When using named virtual servers for :ref:`Openshift routes <openshift route configs>`, you can set the Controller to merge its desired settings with a pre-existing virtual server(s). See `Manage OpenShift Routes`_ for more information.
@@ -88,42 +86,42 @@ All of the configuration parameters below are global.
 General
 ```````
 
-+-----------------------+---------+----------+----------------------------------+------------------------------------------+----------------+
-| Parameter             | Type    | Required | Default                          | Description                              | Allowed Values |
-+=======================+=========+==========+==================================+==========================================+================+
-| http-listen-address   | string  | Optional | "0.0.0.0:8080"                   | Address at which to serve HTTP-based     |                |
-|                       |         |          |                                  | information (for example, ``/metrics``,  |                |
-|                       |         |          |                                  | ``health``) to `Prometheus`_             |                |
-|                       |         |          |                                  |                                          |                |
-|                       |         |          |                                  | :fonticon:`fa fa-flask` Beta feature     |                |
-+-----------------------+---------+----------+----------------------------------+------------------------------------------+----------------+
-| log-level             | string  | Optional | INFO                             | Log level                                | INFO,          |
-|                       |         |          |                                  |                                          | DEBUG,         |
-|                       |         |          |                                  |                                          | CRITICAL,      |
-|                       |         |          |                                  |                                          | WARNING,       |
-|                       |         |          |                                  |                                          | ERROR          |
-+-----------------------+---------+----------+----------------------------------+------------------------------------------+----------------+
-| node-poll-interval    | integer | Optional | 30                               | In seconds, the interval at which the    |                |
-|                       |         |          |                                  | |kctlr| polls the cluster to find all    |                |
-|                       |         |          |                                  | node members.                            |                |
-+-----------------------+---------+----------+----------------------------------+------------------------------------------+----------------+
-| python-basedir        | string  | Optional | /app/python                      | Path to the python utilities             |                |
-|                       |         |          |                                  | directory                                |                |
-+-----------------------+---------+----------+----------------------------------+------------------------------------------+----------------+
-| schema-db-base-dir    | string  | Optional |file:///app/vendor/src/f5/schemas | Path to the directory containing the     |                |
-|                       |         |          |                                  | F5 schema db                             |                |
-+-----------------------+---------+----------+----------------------------------+------------------------------------------+----------------+
-| verify-interval       | integer | n/a      | 30                               | In seconds, the interval at which the    |                |
-|                       |         |          |                                  | |kctlr| verifies that the BIG-IP         |                |
-|                       |         |          |                                  | configuration matches the state of       |                |
-|                       |         |          |                                  | the orchestration system.                |                |
-|                       |         |          |                                  |                                          |                |
-|                       |         |          |                                  | **The default value cannot be modified** |                |
-+-----------------------+---------+----------+----------------------------------+------------------------------------------+----------------+
-| vs-snat-pool-name     | string  | Optional | n/a                              | Name of the SNAT pool that all virtual   |                |
-|                       |         |          |                                  | servers will reference. If it is not     |                |
-|                       |         |          |                                  | set, virtual servers use automap SNAT.   |                |
-+-----------------------+---------+----------+----------------------------------+------------------------------------------+----------------+
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| Parameter             | Type    | Required | Default                          | Description                                  | Allowed Values |
++=======================+=========+==========+==================================+==============================================+================+
+| http-listen-address   | string  | Optional | "0.0.0.0:8080"                   | Address at which to serve HTTP-based         |                |
+|                       |         |          |                                  | information (for example, ``/metrics``,      |                |
+|                       |         |          |                                  | ``health``) to `Prometheus`_                 |                |
+|                       |         |          |                                  |                                              |                |
+|                       |         |          |                                  | :fonticon:`fa fa-flask` Beta feature         |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| log-level             | string  | Optional | INFO                             | Log level                                    | INFO,          |
+|                       |         |          |                                  |                                              | DEBUG,         |
+|                       |         |          |                                  |                                              | CRITICAL,      |
+|                       |         |          |                                  |                                              | WARNING,       |
+|                       |         |          |                                  |                                              | ERROR          |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| node-poll-interval    | integer | Optional | 30                               | In seconds, the interval at which the        |                |
+|                       |         |          |                                  | |kctlr| polls the cluster to find all        |                |
+|                       |         |          |                                  | node members.                                |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| python-basedir        | string  | Optional | /app/python                      | Path to the python utilities                 |                |
+|                       |         |          |                                  | directory                                    |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| schema-db-base-dir    | string  | Optional |file:///app/vendor/src/f5/schemas | Path to the directory containing the         |                |
+|                       |         |          |                                  | F5 schema db                                 |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| verify-interval       | integer | n/a      | 30                               | In seconds, the interval at which the        |                |
+|                       |         |          |                                  | |kctlr| verifies that the BIG-IP             |                |
+|                       |         |          |                                  | configuration matches the state of           |                |
+|                       |         |          |                                  | the orchestration system.                    |                |
+|                       |         |          |                                  |                                              |                |
+|                       |         |          |                                  | **This value is not currently configurable** |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| vs-snat-pool-name     | string  | Optional | n/a                              | Name of the SNAT pool that all virtual       |                |
+|                       |         |          |                                  | servers will reference. If it is not         |                |
+|                       |         |          |                                  | set, virtual servers use automap SNAT.       |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
 
 .. note::
 

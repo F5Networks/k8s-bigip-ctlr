@@ -1,3 +1,5 @@
+image: alpine:latest
+
 stages:
   - Build
   
@@ -5,5 +7,6 @@ Build-Image:
   tags:
     - docker-executor
   stage: Build
+  image: alpine
   script:
-    - echo "Hello GitLab"
+- echo "Hello GitLab"

@@ -1,7 +1,8 @@
 stages:
   - Build
-  - Test-cluster-mode
-  - Test-nodeport-mode
+  - Test
+#  - Test-cluster-mode
+#  - Test-nodeport-mode
 
 Build-Image:
   tags:
@@ -22,5 +23,3 @@ Run-Regression:
     - sudo yum upgrade openssh -y
     - sudo yum install wget, make -y
     - sudo pip install ansible==2.6.5
-    
-    

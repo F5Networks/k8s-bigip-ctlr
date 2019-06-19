@@ -9,7 +9,6 @@ DEBUG=${DEBUG:-1}
 
 . $CURDIR/_build-lib.sh
 BUILDDIR=$(get_builddir)
-
 export BUILDDIR=$BUILDDIR
 
 DEBUG=$DEBUG go_install $(all_cmds)
@@ -31,3 +30,5 @@ if [ $RUN_TESTS -eq 1 ]; then
         -service=travis-ci
     fi
 fi
+#Copying the build directory to volume
+cp -rf $BUILDDIR /build/mnt/

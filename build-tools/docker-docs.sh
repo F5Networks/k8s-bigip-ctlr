@@ -4,7 +4,7 @@ set -x
 
 : ${DOC_IMG:=f5devcentral/containthedocs:latest}
 
-if [ "$CI_SERVER_NAME" == "GitLab" ]; then
+if [ "$GITLAB_CI" == true ]; then
   TRAVIS=$GITLAB_CI
   TRAVIS_BRANCH=$CI_COMMIT_REF_NAME
 fi

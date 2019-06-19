@@ -11,7 +11,7 @@ Build-Image:
   image: ${DOCKER_BUILDER}
   script:
     - apk update
-    - apk add git make python coreutils bash
+    - apk add git make python coreutils bash sudo
     - adduser -D user -s /bin/bash
     - sudo -H -u user bash -c "make prod-build"
 #    - git clone https://github.com/F5Networks/k8s-bigip-ctlr.git

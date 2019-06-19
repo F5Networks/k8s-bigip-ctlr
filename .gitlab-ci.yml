@@ -17,7 +17,7 @@ Build-Image:
 #    - sudo -H -u user bash -c "make prod-build"
 #    - git clone https://github.com/F5Networks/k8s-bigip-ctlr.git
 #    - cd k8s-bigip-ctlr
-    - make prod-build
+    - bash -c "make prod-build"
 #    - docker tag ${SOURCE_IMAGE} ${BUILD_TAG}
 #    - docker push ${TARGET_IMAGE}
 

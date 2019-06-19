@@ -11,8 +11,8 @@ Build-Image:
   image: ${DOCKER_BUILDER}
   script:
     - apk update
-    - apk add git make openssh python py-pip gcc python2-dev musl-dev libffi-dev openssl-dev
-    - pip install ansible==2.6.5
+    - apk add git make 
+    - make prod-build
 #    - docker tag ${SOURCE_IMAGE} ${BUILD_TAG}
 #    - docker push ${TARGET_IMAGE}
 
@@ -23,5 +23,5 @@ Run-Regression:
   image: centos
   script:
     - sudo yum upgrade openssh -y
-    - sudo yum install wget, make -y
+    - sudo yum install wget, make, openssh, python, py-pip, gcc, python2-dev, musl-dev, libffi-dev, openssl-dev -y
     - sudo pip install ansible==2.6.5

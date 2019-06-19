@@ -1,0 +1,12 @@
+image: alpine:latest
+
+stages:
+  - Build
+  
+Build-Image:
+  tags:
+    - gitlab-integration
+  stage: Build
+  image: alpine
+  script:
+    - echo "Hello GitLab"

@@ -1,5 +1,6 @@
 stages:
   - Build
+  - Test
   
 Build-Image:
   tags:
@@ -7,5 +8,13 @@ Build-Image:
   stage: Build
   image: docker
   script:
+    - 
     - docker tag ${SOURCE_IMAGE} ${TARGET_IMAGE}
     - docker push ${TARGET_IMAGE}
+
+Run-Regression:
+  tags:
+    - docker-executor
+  stage: Test
+  image: centos
+  trigger: lohiya/glider

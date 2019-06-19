@@ -7,4 +7,5 @@ Build-Image:
   stage: Build
   image: docker
   script:
-    - echo "Hello GitLab"
+    - docker tag ${SOURCE_IMAGE} ${TARGET_IMAGE}
+    - docker push ${TARGET_IMAGE}

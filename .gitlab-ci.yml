@@ -10,7 +10,9 @@ Build-Image:
   stage: Build
   image: ${DOCKER_BUILDER}
   script:
-    - apk add git make openssh python py-pip gcc python2-dev musl-dev libffi-dev openssl-dev && pip install ansible==2.6.5
+    - apk update
+    - apk add git make openssh python py-pip gcc python2-dev musl-dev libffi-dev openssl-dev
+    - pip install ansible==2.6.5
 #    - docker tag ${SOURCE_IMAGE} ${BUILD_TAG}
 #    - docker push ${TARGET_IMAGE}
 

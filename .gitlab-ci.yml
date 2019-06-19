@@ -12,13 +12,11 @@ Build-Image:
   script:
     - apk update
     - apk add git make python coreutils bash sudo
-    - export USER=$(whoami)
-    - env
-#    - adduser -D user -s /bin/bash
-#    - sudo -H -u user bash -c "make prod-build"
+    - adduser -D user -s /bin/bash
+    - sudo -H -u user bash -c "export USER=$(whoami) && make prod-build"
 #    - git clone https://github.com/F5Networks/k8s-bigip-ctlr.git
 #    - cd k8s-bigip-ctlr
-    - bash -c "make prod-build"
+#    - bash -c "make prod-build"
 #    - docker tag ${SOURCE_IMAGE} ${BUILD_TAG}
 #    - docker push ${TARGET_IMAGE}
 

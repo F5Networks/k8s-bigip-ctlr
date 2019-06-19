@@ -27,8 +27,19 @@ import (
 // Dump out the Virtual Server configs to a file
 func (appMgr *Manager) outputConfig() {
 	appMgr.resources.Lock()
-	appMgr.outputConfigLocked()
+	if appMgr.as3Mode {
+		//AS3 execution
+		appMgr.outputConfigLockedAs3Mode()
+	} else {
+		//CCCL execution
+		appMgr.outputConfigLocked()
+	}
 	appMgr.resources.Unlock()
+}
+
+//TODO : OpenShift routing : AS3 Mode
+func (appMgr *Manager) outputConfigLockedAs3Mode() {
+	log.Debugf("-------------- In As3 Mode : OpenShift Routes Impl --------------", appMgr.as3Mode)
 }
 
 // Dump out the Virtual Server configs to a file

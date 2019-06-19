@@ -5,7 +5,7 @@ stages:
   
 Build-Image:
   tags:
-    - gitlab-integration
+    - docker-executor
   stage: Build
   image: alpine
   script:

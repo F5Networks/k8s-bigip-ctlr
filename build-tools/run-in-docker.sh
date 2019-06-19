@@ -19,8 +19,10 @@ CURDIR="$(dirname $BASH_SOURCE)"
 srcdir=src/github.com/F5Networks/k8s-bigip-ctlr
 wkspace=${PWD}/_docker_workspace
 mkdir -p $wkspace/$srcdir
+LOCAL_USER_ID=$(id -u)
 if [ "$GITLAB_CI" == true ]; then
   TRAVIS_REPO_SLUG=$CI_PROJECT_PATH
+  LOCAL_USER_ID=9001
 fi
 RUN_ARGS=( \
   --rm
@@ -33,7 +35,7 @@ RUN_ARGS=( \
   -e BUILD_IMG_TAG=$BUILD_IMG_TAG
   -e BUILD_VERSION=$BUILD_VERSION
   -e BUILD_INFO=$BUILD_INFO
-  -e LOCAL_USER_ID=$(id -u)
+  -e LOCAL_USER_ID=$LOCAL_USER_ID
   -e TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG
   -e COVERALLS_TOKEN=$COVERALLS_REPO_TOKEN
   -e RUN_TESTS=$RUN_TESTS

@@ -11,8 +11,11 @@ Build-Image:
   image: ${DOCKER_BUILDER}
   script:
     - apk update
-    - apk add git make python
-    - make prod-build
+    - apk add git make python coreutils bash
+    - adduser user -s /bin/bash
+    - su user
+    - git clone https://github.com/F5Networks/k8s-bigip-ctlr.git
+    - cd k8s-bigip-ctlr && make prod-build
 #    - docker tag ${SOURCE_IMAGE} ${BUILD_TAG}
 #    - docker push ${TARGET_IMAGE}
 

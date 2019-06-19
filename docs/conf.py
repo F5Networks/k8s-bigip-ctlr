@@ -24,9 +24,6 @@ sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('../'))
 
 import f5_sphinx_theme
-import recommonmark
-import CommonMark
-from recommonmark.parser import CommonMarkParser
 
 # -- General configuration ------------------------------------------------
 
@@ -45,6 +42,8 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinxjp.themes.basicstrap',
     'sphinx.ext.extlinks',
+    'recommonmark',
+    'sphinx_copybutton',
     'cloud_sptheme.ext.table_styling'
 ]
 
@@ -55,11 +54,12 @@ templates_path = ['_templates']
 # You can specify multiple suffix as a list of string:
 #
 # source_suffix = ['.rst', '.md']
-source_suffix = ['.rst', '.md']
 
-source_parsers = {
-    '.md': CommonMarkParser,
-}
+source_suffix = {
+            '.rst': 'restructuredtext',
+            '.txt': 'markdown',
+            '.md': 'markdown',
+        }
 
 
 # The encoding of source files.
@@ -122,7 +122,7 @@ rst_epilog = '''
 .. _Kubernetes clusters: https://kubernetes.io/docs/concepts/cluster-administration/cluster-administration-overview/
 .. _NodePort: https://kubernetes.io/docs/concepts/services-networking/service/#nodeport
 .. _ClusterIP: https://kubernetes.io/docs/concepts/services-networking/connect-applications-service/
-.. _iApps: https://devcentral.f5.com/iapps
+.. _iApps: https://www.f5.com/products/f5-technologies
 .. _Kubernetes pods: https://kubernetes.io/docs/user-guide/pods/
 .. _Kubernetes Ingress: https://kubernetes.io/docs/concepts/services-networking/ingress/
 .. _Kubernetes Secrets: https://kubernetes.io/docs/concepts/configuration/secret/
@@ -140,6 +140,11 @@ rst_epilog = '''
 .. _f5-bigip-ctlr chart: https://github.com/F5Networks/charts/tree/master/src/stable/f5-bigip-ctlr
 .. _helm: https://helm.sh/
 .. _f5-bigip-ingress chart: https://github.com/F5Networks/charts/tree/master/src/stable/f5-bigip-ingress
+.. _F5 AS3 Extension: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/
+.. _F5 AS3 Installation: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/userguide/installation.html
+.. _F5 AS3 User Guide: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/userguide/
+.. _F5 AS3 Reference Guide: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/refguide/
+.. _Container Ingress Services and AS3 Extension integration: %(base_url)s/containers/v2/kubernetes/kctlr-k8s-as3.html
 ''' % {
     'url_version': version,
     'base_url': 'http://clouddocs.f5.com'

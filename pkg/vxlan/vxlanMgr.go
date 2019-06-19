@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017,2018, F5 Networks, Inc.
+ * Copyright (c) 2017,2018,2019 F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 type fdbSection struct {
@@ -112,6 +112,16 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 	}
 
 	for _, node := range nodes {
+		// Ignore the Nodes with status NotReady
+		var notExecutable bool
+		for _, t := range node.Spec.Taints {
+			if v1.TaintEffectNoExecute == t.Effect {
+				notExecutable = true
+			}
+		}
+		if notExecutable == true {
+			continue
+		}
 		nodeAddrs := node.Status.Addresses
 		rec := fdbRecord{}
 		for _, addr := range nodeAddrs {

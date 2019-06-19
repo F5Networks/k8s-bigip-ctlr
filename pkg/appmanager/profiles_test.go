@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2016-2018, F5 Networks, Inc.
+ * Copyright (c) 2016-2019, F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -308,9 +308,9 @@ var _ = Describe("AppManager Profile Tests", func() {
 					Name: "foo",
 				},
 				TLS: &routeapi.TLSConfig{
-					Termination: "reencrypt",
-					Certificate: "cert",
-					Key:         "key",
+					Termination:              "reencrypt",
+					Certificate:              "cert",
+					Key:                      "key",
 					DestinationCACertificate: "destCaCert",
 				},
 			}

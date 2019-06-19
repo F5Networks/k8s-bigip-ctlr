@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2016-2018, F5 Networks, Inc.
+ * Copyright (c) 2016-2019, F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -102,6 +102,7 @@ type Manager struct {
 	// App informer support
 	vsQueue      workqueue.RateLimitingInterface
 	appInformers map[string]*appInformer
+	as3Informer  *appInformer
 	// Namespace informer support (namespace labels)
 	nsQueue    workqueue.RateLimitingInterface
 	nsInformer cache.SharedIndexInformer
@@ -126,7 +127,23 @@ type Manager struct {
 	// map of rules that have been merged
 	mergedRulesMap map[string]map[string]mergedRuleEntry
 	// Whether to watch ConfigMap resources or not
-	manageConfigMaps bool
+	manageConfigMaps   bool
+	as3Members         map[Member]struct{}
+	as3Validation      bool
+	sslInsecure        bool
+	trustedCertsCfgmap string
+	// Active User Defined ConfigMap details
+	activeCfgMap ActiveAS3ConfigMap
+	// List of Watched Endpoints for user-defined AS3
+	watchedAS3Endpoints map[string]struct{}
+}
+
+// FIXME: Refactor to have one struct to hold all AS3 specific data.
+
+// ActiveAS3ConfigMap user defined ConfigMap for global availability.
+type ActiveAS3ConfigMap struct {
+	Name string // AS3 specific ConfigMap name
+	Data string // if AS3 Name is present, populate this with AS3 template data.
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -144,11 +161,14 @@ type Params struct {
 	UseSecrets        bool
 	EventChan         chan interface{}
 	// Package local for unit testing only
-	restClient       rest.Interface
-	initialState     bool
-	broadcasterFunc  NewBroadcasterFunc
-	SchemaLocal      string
-	ManageConfigMaps bool
+	restClient         rest.Interface
+	initialState       bool
+	broadcasterFunc    NewBroadcasterFunc
+	SchemaLocal        string
+	ManageConfigMaps   bool
+	AS3Validation      bool
+	SSLInsecure        bool
+	TrustedCertsCfgmap string
 }
 
 // Configuration options for Routes in OpenShift
@@ -168,34 +188,38 @@ func NewManager(params *Params) *Manager {
 	nsQueue := workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "namespace-controller")
 	manager := Manager{
-		resources:         NewResources(),
-		customProfiles:    NewCustomProfiles(),
-		irulesMap:         make(IRulesMap),
-		intDgMap:          make(InternalDataGroupMap),
-		kubeClient:        params.KubeClient,
-		restClientv1:      params.restClient,
-		restClientv1beta1: params.restClient,
-		routeClientV1:     params.RouteClientV1,
-		configWriter:      params.ConfigWriter,
-		useNodeInternal:   params.UseNodeInternal,
-		isNodePort:        params.IsNodePort,
-		initialState:      params.initialState,
-		queueLen:          0,
-		processedItems:    0,
-		routeConfig:       params.RouteConfig,
-		nodeLabelSelector: params.NodeLabelSelector,
-		resolveIng:        params.ResolveIngress,
-		defaultIngIP:      params.DefaultIngIP,
-		vsSnatPoolName:    params.VsSnatPoolName,
-		useSecrets:        params.UseSecrets,
-		eventChan:         params.EventChan,
-		vsQueue:           vsQueue,
-		nsQueue:           nsQueue,
-		appInformers:      make(map[string]*appInformer),
-		eventNotifier:     NewEventNotifier(params.broadcasterFunc),
-		schemaLocal:       params.SchemaLocal,
-		mergedRulesMap:    make(map[string]map[string]mergedRuleEntry),
-		manageConfigMaps:  params.ManageConfigMaps,
+		resources:          NewResources(),
+		customProfiles:     NewCustomProfiles(),
+		irulesMap:          make(IRulesMap),
+		intDgMap:           make(InternalDataGroupMap),
+		kubeClient:         params.KubeClient,
+		restClientv1:       params.restClient,
+		restClientv1beta1:  params.restClient,
+		routeClientV1:      params.RouteClientV1,
+		configWriter:       params.ConfigWriter,
+		useNodeInternal:    params.UseNodeInternal,
+		isNodePort:         params.IsNodePort,
+		initialState:       params.initialState,
+		queueLen:           0,
+		processedItems:     0,
+		routeConfig:        params.RouteConfig,
+		nodeLabelSelector:  params.NodeLabelSelector,
+		resolveIng:         params.ResolveIngress,
+		defaultIngIP:       params.DefaultIngIP,
+		vsSnatPoolName:     params.VsSnatPoolName,
+		useSecrets:         params.UseSecrets,
+		eventChan:          params.EventChan,
+		vsQueue:            vsQueue,
+		nsQueue:            nsQueue,
+		appInformers:       make(map[string]*appInformer),
+		eventNotifier:      NewEventNotifier(params.broadcasterFunc),
+		schemaLocal:        params.SchemaLocal,
+		mergedRulesMap:     make(map[string]map[string]mergedRuleEntry),
+		manageConfigMaps:   params.ManageConfigMaps,
+		as3Members:         make(map[Member]struct{}, 0),
+		as3Validation:      params.AS3Validation,
+		sslInsecure:        params.SSLInsecure,
+		trustedCertsCfgmap: params.TrustedCertsCfgmap,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -405,6 +429,8 @@ func (appMgr *Manager) GetNamespaceLabelInformer() cache.SharedIndexInformer {
 type serviceQueueKey struct {
 	Namespace   string
 	ServiceName string
+	As3Name     string // as3 Specific configMap name
+	As3Data     string // if As3Name is present, populate this with as3 tmpl data
 }
 
 type appInformer struct {
@@ -414,6 +440,7 @@ type appInformer struct {
 	endptInformer  cache.SharedIndexInformer
 	ingInformer    cache.SharedIndexInformer
 	routeInformer  cache.SharedIndexInformer
+	nodeInformer   cache.SharedIndexInformer
 	stopCh         chan struct{}
 }
 
@@ -611,6 +638,14 @@ func (appMgr *Manager) enqueueEndpoints(obj interface{}) {
 	}
 }
 
+func (appMgr *Manager) enqueueNode(obj interface{}) {
+	if ok, keys := appMgr.checkValidNode(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
 func (appMgr *Manager) enqueueIngress(obj interface{}) {
 	if ok, keys := appMgr.checkValidIngress(obj); ok {
 		for _, key := range keys {
@@ -648,28 +683,46 @@ func (appMgr *Manager) getNamespaceInformerLocked(
 }
 
 func (appInf *appInformer) start() {
-	go appInf.svcInformer.Run(appInf.stopCh)
-	go appInf.endptInformer.Run(appInf.stopCh)
-	go appInf.ingInformer.Run(appInf.stopCh)
+	if nil != appInf.svcInformer {
+		go appInf.svcInformer.Run(appInf.stopCh)
+	}
+	if nil != appInf.endptInformer {
+		go appInf.endptInformer.Run(appInf.stopCh)
+	}
+	if nil != appInf.ingInformer {
+		go appInf.ingInformer.Run(appInf.stopCh)
+	}
 	if nil != appInf.routeInformer {
 		go appInf.routeInformer.Run(appInf.stopCh)
 	}
 	if nil != appInf.cfgMapInformer {
 		go appInf.cfgMapInformer.Run(appInf.stopCh)
 	}
+	if nil != appInf.nodeInformer {
+		go appInf.nodeInformer.Run(appInf.stopCh)
+	}
 }
 
 func (appInf *appInformer) waitForCacheSync() {
-	cacheSyncs := []cache.InformerSynced{
-		appInf.svcInformer.HasSynced,
-		appInf.endptInformer.HasSynced,
-		appInf.ingInformer.HasSynced,
+	cacheSyncs := []cache.InformerSynced{}
+
+	if nil != appInf.svcInformer {
+		cacheSyncs = append(cacheSyncs, appInf.svcInformer.HasSynced)
+	}
+	if nil != appInf.endptInformer {
+		cacheSyncs = append(cacheSyncs, appInf.endptInformer.HasSynced)
+	}
+	if nil != appInf.ingInformer {
+		cacheSyncs = append(cacheSyncs, appInf.ingInformer.HasSynced)
 	}
 	if nil != appInf.routeInformer {
 		cacheSyncs = append(cacheSyncs, appInf.routeInformer.HasSynced)
 	}
 	if nil != appInf.cfgMapInformer {
 		cacheSyncs = append(cacheSyncs, appInf.cfgMapInformer.HasSynced)
+	}
+	if nil != appInf.nodeInformer {
+		cacheSyncs = append(cacheSyncs, appInf.nodeInformer.HasSynced)
 	}
 	cache.WaitForCacheSync(
 		appInf.stopCh,
@@ -725,6 +778,10 @@ func (appMgr *Manager) startAndSyncNamespaceInformer(stopCh <-chan struct{}) {
 }
 
 func (appMgr *Manager) startAndSyncAppInformers() {
+
+	//Setup certificates
+	appMgr.getCertFromConfigMap(appMgr.trustedCertsCfgmap)
+
 	appMgr.informersMutex.Lock()
 	defer appMgr.informersMutex.Unlock()
 	appMgr.startAppInformersLocked()
@@ -734,6 +791,9 @@ func (appMgr *Manager) startAndSyncAppInformers() {
 func (appMgr *Manager) startAppInformersLocked() {
 	for _, appInf := range appMgr.appInformers {
 		appInf.start()
+	}
+	if nil != appMgr.as3Informer {
+		appMgr.as3Informer.start()
 	}
 }
 
@@ -747,6 +807,9 @@ func (appMgr *Manager) waitForCacheSyncLocked() {
 	for _, appInf := range appMgr.appInformers {
 		appInf.waitForCacheSync()
 	}
+	if nil != appMgr.as3Informer {
+		appMgr.as3Informer.waitForCacheSync()
+	}
 }
 
 func (appMgr *Manager) stopAppInformers() {
@@ -754,6 +817,9 @@ func (appMgr *Manager) stopAppInformers() {
 	defer appMgr.informersMutex.Unlock()
 	for _, appInf := range appMgr.appInformers {
 		appInf.stopInformers()
+	}
+	if nil != appMgr.as3Informer {
+		appMgr.as3Informer.stopInformers()
 	}
 }
 
@@ -764,7 +830,23 @@ func (appMgr *Manager) virtualServerWorker() {
 
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
+	k := key.(serviceQueueKey)
+	if len(k.As3Name) != 0 {
+
+		appMgr.activeCfgMap.Name = k.As3Name
+		appMgr.activeCfgMap.Data = k.As3Data
+		log.Debugf("[as3_log] Active ConfigMap: (%s)\n", appMgr.activeCfgMap.Name)
+
+		appMgr.vsQueue.Done(key)
+		log.Debugf("[as3_log] Processing AS3 cfgMap (%s) with AS3 Manager.\n", k.As3Name)
+		appMgr.processUserDefinedAS3(k.As3Data)
+
+		appMgr.vsQueue.Forget(key)
+		return false
+	}
 	if !appMgr.initialState && appMgr.processedItems == 0 {
+		//TODO: Properly handlle queueLen assessment and remove Sleep function
+		time.Sleep(1 * time.Second)
 		appMgr.queueLen = appMgr.vsQueue.Len()
 	}
 	if quit {
@@ -882,7 +964,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
-		stats.dgUpdated > 0 || stats.poolsUpdated > 0 {
+		stats.dgUpdated > 0 || stats.poolsUpdated > 0 || len(appMgr.as3Members) > 0 {
 		appMgr.outputConfig()
 	} else if !appMgr.initialState && appMgr.processedItems >= appMgr.queueLen {
 		appMgr.outputConfig()
@@ -913,6 +995,14 @@ func (appMgr *Manager) syncConfigMaps(
 		cm := obj.(*v1.ConfigMap)
 		if cm.ObjectMeta.Namespace != sKey.Namespace {
 			continue
+		}
+		// If as3 just continue
+		if val, ok := cm.ObjectMeta.Labels["as3"]; ok {
+			if as3Val, err := strconv.ParseBool(val); err == nil {
+				if as3Val {
+					continue
+				}
+			}
 		}
 
 		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
@@ -1626,7 +1716,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 	rsCfg *ResourceConfig,
 	index int,
 ) (bool, string, string) {
-	if svc.Spec.Type == v1.ServiceTypeNodePort {
+	if svc.Spec.Type == v1.ServiceTypeNodePort || svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 		for _, portSpec := range svc.Spec.Ports {
 			if portSpec.Port == svcKey.ServicePort {
 				log.Debugf("Service backend matched %+v: using node port %v",
@@ -1638,7 +1728,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 		}
 		return true, "", ""
 	} else {
-		msg := fmt.Sprintf("Requested service backend '%+v' not of NodePort type",
+		msg := fmt.Sprintf("Requested service backend '%+v' not of NodePort or LoadBalancer type",
 			svcKey.ServiceName)
 		log.Debug(msg)
 		return false, "IncorrectBackendServiceType", msg
@@ -2141,30 +2231,16 @@ func (appMgr *Manager) getNodes(
 		addrType = v1.NodeExternalIP
 	}
 
-	isUnSchedulable := func(node v1.Node) bool {
-		for _, t := range node.Spec.Taints {
-			if v1.TaintEffectNoSchedule == t.Effect {
-				return true
-			}
-		}
-		return node.Spec.Unschedulable
-	}
-
+	// Append list of nodes to watchedNodes
 	for _, node := range nodes {
-		if 0 == len(appMgr.nodeLabelSelector) && isUnSchedulable(node) {
-			// Skip unschedulable nodes only when there isn't a node
-			// selector
-			continue
-		} else {
-			nodeAddrs := node.Status.Addresses
-			for _, addr := range nodeAddrs {
-				if addr.Type == addrType {
-					n := Node{
-						Name: node.ObjectMeta.Name,
-						Addr: addr.Address,
-					}
-					watchedNodes = append(watchedNodes, n)
+		nodeAddrs := node.Status.Addresses
+		for _, addr := range nodeAddrs {
+			if addr.Type == addrType {
+				n := Node{
+					Name: node.ObjectMeta.Name,
+					Addr: addr.Address,
 				}
+				watchedNodes = append(watchedNodes, n)
 			}
 		}
 	}

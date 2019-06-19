@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2017,2018, F5 Networks, Inc.
+ * Copyright (c) 2017,2018,2019 F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -100,11 +100,14 @@ var (
 	useSecrets        *bool
 	schemaLocal       *string
 
-	bigIPURL        *string
-	bigIPUsername   *string
-	bigIPPassword   *string
-	bigIPPartitions *[]string
-	credsDir        *string
+	bigIPURL           *string
+	bigIPUsername      *string
+	bigIPPassword      *string
+	bigIPPartitions    *[]string
+	credsDir           *string
+	as3Validation      *bool
+	sslInsecure        *bool
+	trustedCertsCfgmap *string
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -172,6 +175,12 @@ func _init() {
 	credsDir = bigIPFlags.String("credentials-directory", "",
 		"Optional, directory that contains the BIG-IP username, password, and/or "+
 			"url files. To be used instead of username, password, and/or url arguments.")
+	as3Validation = bigIPFlags.Bool("as3-validation", true,
+		"Optional, when set to false, disables as3 template validation on the controller.")
+	sslInsecure = bigIPFlags.Bool("insecure", false,
+		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
+	trustedCertsCfgmap = bigIPFlags.String("trusted-certs-cfgmap", "",
+		"Optional, when certificates are provided, adds them to controller’s trusted certificate store.")
 
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
@@ -508,6 +517,11 @@ func createLabel(label string) (labels.Selector, error) {
 func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 	label := appmanager.DefaultConfigMapLabel
 
+	err := appMgr.SetupAS3Informers()
+	if nil != err {
+		log.Warningf("Failed to add AS3 watcher for all namespaces:%v", err)
+	}
+
 	if len(*namespaceLabel) == 0 {
 		ls, err := createLabel(label)
 		if nil != err {
@@ -593,17 +607,20 @@ func main() {
 	}
 
 	var appMgrParms = appmanager.Params{
-		ConfigWriter:      configWriter,
-		UseNodeInternal:   *useNodeInternal,
-		IsNodePort:        isNodePort,
-		RouteConfig:       routeConfig,
-		NodeLabelSelector: *nodeLabelSelector,
-		ResolveIngress:    *resolveIngNames,
-		DefaultIngIP:      *defaultIngIP,
-		VsSnatPoolName:    *vsSnatPoolName,
-		UseSecrets:        *useSecrets,
-		ManageConfigMaps:  *manageConfigMaps,
-		SchemaLocal:       *schemaLocal,
+		ConfigWriter:       configWriter,
+		UseNodeInternal:    *useNodeInternal,
+		IsNodePort:         isNodePort,
+		RouteConfig:        routeConfig,
+		NodeLabelSelector:  *nodeLabelSelector,
+		ResolveIngress:     *resolveIngNames,
+		DefaultIngIP:       *defaultIngIP,
+		VsSnatPoolName:     *vsSnatPoolName,
+		UseSecrets:         *useSecrets,
+		ManageConfigMaps:   *manageConfigMaps,
+		SchemaLocal:        *schemaLocal,
+		AS3Validation:      *as3Validation,
+		SSLInsecure:        *sslInsecure,
+		TrustedCertsCfgmap: *trustedCertsCfgmap,
 	}
 
 	// If running with Flannel, create an event channel that the appManager
@@ -640,6 +657,10 @@ func main() {
 		BigIPURL:        *bigIPURL,
 		BigIPPartitions: *bigIPPartitions,
 	}
+
+	appmanager.BigIPUsername = *bigIPUsername
+	appmanager.BigIPPassword = *bigIPPassword
+	appmanager.BigIPURL = *bigIPURL
 
 	subPidCh, err := startPythonDriver(configWriter, gs, bs, *pythonBaseDir)
 	if nil != err {

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2016-2018, F5 Networks, Inc.
+ * Copyright (c) 2016-2019, F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -222,8 +222,16 @@ func (v *Virtual) SetVirtualAddress(bindAddr string, port int32) {
 }
 
 // format the virtual server name for a ConfigMap
+
+// To handle VS name which start with Number,
+// we are prefixing with 'cfgmap_' to avoid errors with bigip.
 func formatConfigMapVSName(cm *v1.ConfigMap) string {
-	return fmt.Sprintf("%s_%s", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
+	VSprefix := "cfgmap"
+	if _, err := strconv.Atoi(cm.ObjectMeta.Namespace[0:1]); err == nil {
+		return fmt.Sprintf("%s_%s_%s", VSprefix, cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
+	} else {
+		return fmt.Sprintf("%s_%s", cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
+	}
 }
 
 // format the pool name for a ConfigMap

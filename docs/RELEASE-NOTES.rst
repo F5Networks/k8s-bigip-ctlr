@@ -1,8 +1,76 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-next-release
+v1.9.1
+------
+Added Functionality
+`````````````````````
+* Added support for `establishing trust <https://clouddocs.f5.com/containers/v2/kubernetes/kctlr-as3-cert-trust.html>`_ with remote BIG-IP systems using either the device or CA certificates.
+* Added support for AS3 3.11.
+
+Bug Fixes
+`````````
+* Improves performance when updating Configmaps with AS3 Declarations.
+* Improves performance when updating Services associated with AS3 Declarations.
+* Improves performance when handling changes in Endpoints associated with AS3 Declarations.
+* Improves performance when handling node updates in AS3 Declarations.
+* Improves performance when applying AS3 Declarations to BIG-IP.
+* :issues:`797` - Controller uses ``flannel.alpha.coreos.com/public-ip`` as VTEP endpoint.
+
+Vulnerability Fixes
+```````````````````
++------------------+----------------------------------------------------------------+
+| CVE              | Comments                                                       |
++==================+================================================================+
+| TBA              | Controller no longer prints AS3 Declarations in debug logs     |
++------------------+----------------------------------------------------------------+
+
+v1.9.0
 ------------
+
+Added Functionality
+```````````````````
+* Added support for `Application Services 3 Extension <https://clouddocs.f5.com/products/extensions/f5-appsvcs-extension/latest/>`_.
+* Added support for Google Container Engine (GKE) LoadBalancer service. Validated against Kubernetes 1.13.4.
+
+Bug Fixes
+`````````
+* :issues:`736` - Added support for Google Container Engine (GKE) LoadBalancer service. Validated against Kubernetes 1.13.4.
+
+Limitations
+```````````
+* AS3 pool class declarations support only one load balancing pool.
+* The BIG-IP Contoller supports only one AS3 ConfigMap instance.
+* AS3 does not support moving BIG-IP nodes to new partitions.
+* Static ARP entries remain after deleting an AS3 ConfigMap.
+
+v1.8.1
+------
+
+Bug Fixes
+`````````
+* Fixes security vulnerabilities between Controller and BIG-IP.
+
+  - CVE-2017-18342
+  - CVE-2018-100807
+  - CVE-2018-18074
+
+v1.8.0
+------
+
+Added Functionality
+```````````````````
+* Added support for Services handling in namespaces of Kubernetes and Openshift that starts with a number.
+* Validated against 14.X versions of BIG-IP
+
+Bug Fixes
+`````````
+* :issues:`810` - Controller doesn't delete services and recreates during bigip-ctlr pod restart
+* :issues:`718` - Namespaces that start with a number does not cause errors
+
+Limitations
+```````````
+* Openshift Routes are not compatible with 14.X versions of BIG-IP
 
 v1.7.1
 ------

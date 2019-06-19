@@ -22,6 +22,7 @@ Features
 --------
 - Dynamically creates, manages, and destroys BIG-IP objects.
 - Forwards traffic from the BIG-IP device to `Kubernetes clusters`_ via `NodePort`_ or `ClusterIP`_.
+- Support for `F5 AS3 Extension`_ declarations.
 - Support for F5 `iApps`_.
 - Handles F5-specific VirtualServer objects created in Kubernetes.
 - Handles standard `Kubernetes Ingress`_ objects using F5-specific extensions.
@@ -34,6 +35,7 @@ See the |kctlr-long| `user documentation`_.
 Installation
 ------------
 - `Kubernetes Installation`_
+- `F5 AS3 Installation`_
 - `OpenShift Installation`_
 - If you use `helm`_ you can install the |kctlr| using the `f5-bigip-ctlr chart`_.
 
@@ -68,8 +70,6 @@ Within the cluster, the allocated NodePort load balances traffic to all pods.
 
 .. danger::
 
-   The |kctlr| monitors the BIG-IP partition it manages for configuration changes (see :code:`verify-interval` in the :ref:`General configuration parameters <general configs>` table). If it discovers changes, the Controller reapplies its own configuration to the BIG-IP system.
-
    F5 does not recommend making configuration changes to objects in any partition managed by the |kctlr| via any other means (for example, the configuration utility, TMOS, or by syncing configuration with another device or service group). Doing so may result in disruption of service or unexpected behavior.
 
    The Controller allows one exception to this recommendation.  When using named virtual servers for :ref:`Openshift routes <openshift route configs>`, you can set the Controller to merge its desired settings with a pre-existing virtual server(s). See `Manage OpenShift Routes`_ for more information.
@@ -86,50 +86,48 @@ All of the configuration parameters below are global.
 General
 ```````
 
-+-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
-| Parameter             | Type    | Required | Default                          | Description                             | Allowed Values |
-+=======================+=========+==========+==================================+=========================================+================+
-| http-listen-address   | string  | Optional | "0.0.0.0:8080"                   | Address at which to serve HTTP-based    |                |
-|                       |         |          |                                  | information (for example, ``/metrics``, |                |
-|                       |         |          |                                  | ``health``) to `Prometheus`_            |                |
-|                       |         |          |                                  |                                         |                |
-|                       |         |          |                                  | :fonticon:`fa fa-flask` Beta feature    |                |
-+-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
-| log-level             | string  | Optional | INFO                             | Log level                               | INFO,          |
-|                       |         |          |                                  |                                         | DEBUG,         |
-|                       |         |          |                                  |                                         | CRITICAL,      |
-|                       |         |          |                                  |                                         | WARNING,       |
-|                       |         |          |                                  |                                         | ERROR          |
-+-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
-| node-poll-interval    | integer | Optional | 30                               | In seconds, the interval at which the   |                |
-|                       |         |          |                                  | |kctlr| polls the cluster to find all   |                |
-|                       |         |          |                                  | node members.                           |                |
-+-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
-| python-basedir        | string  | Optional | /app/python                      | Path to the python utilities            |                |
-|                       |         |          |                                  | directory                               |                |
-+-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
-| schema-db-base-dir    | string  | Optional |file:///app/vendor/src/f5/schemas | Path to the directory containing the    |                |
-|                       |         |          |                                  | F5 schema db                            |                |
-+-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
-| .. _verify-interval:  |         |          |                                  |                                         |                |
-|                       |         |          |                                  |                                         |                |
-| verify-interval       | integer | Optional | 30                               | In seconds, the interval at which the   |                |
-|                       |         |          |                                  | |kctlr| verifies that the BIG-IP        |                |
-|                       |         |          |                                  | configuration matches the state of      |                |
-|                       |         |          |                                  | the orchestration system.               |                |
-+-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
-| vs-snat-pool-name     | string  | Optional | n/a                              | Name of the SNAT pool that all virtual  |                |
-|                       |         |          |                                  | servers will reference. If it is not    |                |
-|                       |         |          |                                  | set, virtual servers use automap SNAT.  |                |
-+-----------------------+---------+----------+----------------------------------+-----------------------------------------+----------------+
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| Parameter             | Type    | Required | Default                          | Description                                  | Allowed Values |
++=======================+=========+==========+==================================+==============================================+================+
+| http-listen-address   | string  | Optional | "0.0.0.0:8080"                   | Address at which to serve HTTP-based         |                |
+|                       |         |          |                                  | information (for example, ``/metrics``,      |                |
+|                       |         |          |                                  | ``health``) to `Prometheus`_                 |                |
+|                       |         |          |                                  |                                              |                |
+|                       |         |          |                                  | :fonticon:`fa fa-flask` Beta feature         |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| log-level             | string  | Optional | INFO                             | Log level                                    | INFO,          |
+|                       |         |          |                                  |                                              | DEBUG,         |
+|                       |         |          |                                  |                                              | CRITICAL,      |
+|                       |         |          |                                  |                                              | WARNING,       |
+|                       |         |          |                                  |                                              | ERROR          |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| node-poll-interval    | integer | Optional | 30                               | In seconds, the interval at which the        |                |
+|                       |         |          |                                  | |kctlr| polls the cluster to find all        |                |
+|                       |         |          |                                  | node members.                                |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| python-basedir        | string  | Optional | /app/python                      | Path to the python utilities                 |                |
+|                       |         |          |                                  | directory                                    |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| schema-db-base-dir    | string  | Optional |file:///app/vendor/src/f5/schemas | Path to the directory containing the         |                |
+|                       |         |          |                                  | F5 schema db                                 |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| verify-interval       | integer | n/a      | 30                               | In seconds, the interval at which the        |                |
+|                       |         |          |                                  | |kctlr| verifies that the BIG-IP             |                |
+|                       |         |          |                                  | configuration matches the state of           |                |
+|                       |         |          |                                  | the orchestration system.                    |                |
+|                       |         |          |                                  |                                              |                |
+|                       |         |          |                                  | **This value is not currently configurable** |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
+| vs-snat-pool-name     | string  | Optional | n/a                              | Name of the SNAT pool that all virtual       |                |
+|                       |         |          |                                  | servers will reference. If it is not         |                |
+|                       |         |          |                                  | set, virtual servers use automap SNAT.       |                |
++-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
 
 .. note::
 
    - The :code:`python-basedir` setting lets you specify the path to an alternate python agent that can bridge between the |kctlr| and `F5 CCCL <https://github.com/f5devcentral/f5-cccl>`_.
 
-   - The time it takes for the |kctlr| to reapply the system configurations to the BIG-IP device is normally low (a few ms) and won't cause service disruption. If your configs are particularly large, consider increasing the :code:`verify-interval` setting.
-
-   - Setting the :code:`verify-interval` to ``0`` does not deactivate verification. Instead, if you set :code:`verify-interval` to ``0`` the Controller will use the default setting of 30 seconds.
+   - The time it takes for the |kctlr| to reapply the system configurations to the BIG-IP device is normally low (a few ms) and won't cause service disruption. 
 
    - Use :code:`vs-snat-pool-name` if you want virtual servers to reference a SNAT pool that already exists in the :code:`/Common` partition on the BIG-IP device.
      See `Overview of SNAT features`_ on AskF5 for more information.
@@ -139,23 +137,33 @@ General
 BIG-IP system
 `````````````
 
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| Parameter             | Type    | Required | Default           | Description                             | Allowed Values |
-+=======================+=========+==========+===================+=========================================+================+
-| bigip-partition       | string  | Required | n/a               | The BIG-IP partition in which           |                |
-|                       |         |          |                   | to configure objects.                   |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| bigip-password        | string  | Required | n/a               | BIG-IP iControl REST password           |                |
-|                       |         |          |                   | [#secrets]_                             |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| bigip-url             | string  | Required | n/a               | BIG-IP admin IP address                 |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| bigip-username        | string  | Required | n/a               | BIG-IP iControl REST username           |                |
-|                       |         |          |                   | [#username]_                            |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| credentials-directory | string  | Optional | n/a               | Directory that contains the BIG-IP      |                |
-|                       |         |          |                   | username, password, or url files        |                |
-+-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
++-----------------------+---------+----------+-------------------+--------------------------------------------+----------------+
+| Parameter             | Type    | Required | Default           | Description                                | Allowed Values |
++=======================+=========+==========+===================+============================================+================+
+| bigip-partition       | string  | Required | n/a               | The BIG-IP partition in which              |                |
+|                       |         |          |                   | to configure objects.                      |                |
++-----------------------+---------+----------+-------------------+--------------------------------------------+----------------+
+| bigip-password        | string  | Required | n/a               | BIG-IP iControl REST password              |                |
+|                       |         |          |                   |                                            |                |
+|                       |         |          |                   | You can `secure your BIG-IP credentials`_  |                |
+|                       |         |          |                   | using a Kubernetes Secret.                 |                |
++-----------------------+---------+----------+-------------------+--------------------------------------------+----------------+
+| bigip-url             | string  | Required | n/a               | BIG-IP admin IP address                    |                |
++-----------------------+---------+----------+-------------------+--------------------------------------------+----------------+
+| bigip-username        | string  | Required | n/a               | BIG-IP iControl REST username              |                |
+|                       |         |          |                   |                                            |                |
+|                       |         |          |                   | The BIG-IP user account must have the      |                |
+|                       |         |          |                   | appropriate role defined:                  |                |
+|                       |         |          |                   |                                            |                |
+|                       |         |          |                   | For ``nodeport`` type pool members, the    |                |
+|                       |         |          |                   | role must be ``Administrator``.            |                |
+|                       |         |          |                   |                                            |                |
+|                       |         |          |                   | For ``cluster`` type pool members, the     |                |
+|                       |         |          |                   | role must be ``Administrator``.            |                |
++-----------------------+---------+----------+-------------------+--------------------------------------------+----------------+
+| credentials-directory | string  | Optional | n/a               | Directory that contains the BIG-IP         |                |
+|                       |         |          |                   | username, password, or url files           |                |
++-----------------------+---------+----------+-------------------+--------------------------------------------+----------------+
 
 .. important::
 
@@ -231,7 +239,7 @@ Kubernetes
 |                       |         |          |                   | only nodes with this label              |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | pool-member-type      | string  | Optional | nodeport          | The type of BIG-IP pool members you want| cluster,       |
-|                       |         |          |                   | to create. [#username]_                 | nodeport       |
+|                       |         |          |                   | to create.                              | nodeport       |
 |                       |         |          |                   |                                         |                |
 |                       |         |          |                   | Use ``cluster`` to create pool members  |                |
 |                       |         |          |                   | for each of the endpoints for the       |                |
@@ -563,6 +571,12 @@ The ``backend`` section tells the |kctlr| about the Service you want to manage.
 |               |           |           |           |             | backend response.               |                           |
 +---------------+-----------+-----------+-----------+-------------+---------------------------------+---------------------------+
 
+.. _as3 resources:
+
+F5 AS3 Integration Resources
+----------------------------
+
+To expose services to external traffic using As3 Extension declarations, refer to `Container Ingress Services and AS3 Extension integration`_.
 
 .. _ingress resources:
 
@@ -804,8 +818,6 @@ OpenShift
 .. rubric:: **Footnotes**
 .. [#objectpartition] The |kctlr| creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap. **It cannot manage objects in the** ``/Common`` **partition**.
 .. [#nodeportmode] The |kctlr| forwards traffic to the NodePort assigned to the Service by Kubernetes. See the `Kubernetes Service`_ documentation for more information.
-.. [#secrets] You can `secure your BIG-IP credentials`_ using a Kubernetes Secret.
-.. [#username] The BIG-IP user account must have an appropriate role defined.  For ``nodeport`` type pool members, this role must be either ``Administrator``, ``Resource Administrator``, or ``Manager``. For ``cluster`` type pool members, the user account must have either the ``Administrator`` or ``Resource Manager`` role. See `BIG-IP Users <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-concepts-11-5-0/10.html>`_ for further details.
 .. [#lb] The |kctlr| supports BIG-IP load balancing algorithms that do not require additional configuration parameters. You can view the full list of supported algorithms in the `f5-cccl schema <https://github.com/f5devcentral/f5-cccl/blob/03e22c4779ceb88f529337ade3ca31ddcd57e4c8/f5_cccl/schemas/cccl-ltm-api-schema.yml#L515>`_. See the `BIG-IP Local Traffic Management Basics user guide <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/ltm-basics-13-0-0/4.html>`_ for information about each load balancing mode.
 .. [#ba] The Controller supports BIG-IP `route domain`_ specific addresses.
 .. [#ssl] If you want to configure multiple SSL profiles, use ``f5ProfileNames`` instead of ``f5ProfileName``. The two parameters are mutually exclusive.

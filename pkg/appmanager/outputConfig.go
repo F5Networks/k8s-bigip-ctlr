@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2016-2018, F5 Networks, Inc.
+ * Copyright (c) 2016-2019, F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -118,6 +118,11 @@ func (appMgr *Manager) outputConfigLocked() {
 				allPoolMembers = append(allPoolMembers, iapp.IAppPoolMemberTable.Members...)
 			}
 		}
+
+		for member := range appMgr.as3Members {
+			allPoolMembers = append(allPoolMembers, member)
+		}
+
 		select {
 		case appMgr.eventChan <- allPoolMembers:
 			log.Debugf("AppManager wrote endpoints to VxlanMgr.")

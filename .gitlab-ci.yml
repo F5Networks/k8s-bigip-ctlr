@@ -1,20 +1,26 @@
 stages:
   - Build
-  - Test
-  
+  - Test-cluster-mode
+  - Test-nodeport-mode
+
 Build-Image:
   tags:
     - docker-executor
   stage: Build
-  image: docker
+  image: ${DOCKER_BUILDER}
   script:
-    - 
-    - docker tag ${SOURCE_IMAGE} ${TARGET_IMAGE}
-    - docker push ${TARGET_IMAGE}
+    - apk add git,make,openssh,python,py-pip,gcc,python2-dev,musl-dev,libffi-dev,openssl-dev && pip install ansible==2.6.5
+#    - docker tag ${SOURCE_IMAGE} ${BUILD_TAG}
+#    - docker push ${TARGET_IMAGE}
 
 Run-Regression:
   tags:
     - docker-executor
   stage: Test
   image: centos
-  trigger: lohiya/glider
+  script:
+    - sudo yum upgrade openssh -y
+    - sudo yum install wget, make -y
+    - sudo pip install ansible==2.6.5
+    
+    

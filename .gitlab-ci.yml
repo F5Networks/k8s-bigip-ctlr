@@ -13,7 +13,7 @@ Build-Image:
     - apk update
     - apk add git make python coreutils bash
     - adduser -D user -s /bin/bash
-    - su user
+    - sudo -H -u user bash -c "make prod-build"
 #    - git clone https://github.com/F5Networks/k8s-bigip-ctlr.git
 #    - cd k8s-bigip-ctlr
     - make prod-build

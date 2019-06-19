@@ -9,4 +9,4 @@ Build-Image:
   stage: Build
   image: alpine
   script:
-- echo "Hello GitLab"
+    - echo "Hello GitLab"

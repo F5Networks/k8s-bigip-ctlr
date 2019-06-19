@@ -15,7 +15,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/*
 
 ENV GOLANG_VERSION 1.11.1
-
 RUN set -eux; \
 	\
 # this "case" statement is generated via "update.sh"
@@ -58,7 +57,6 @@ WORKDIR $GOPATH
 COPY entrypoint.builder.sh /entrypoint.sh
 COPY requirements.txt /tmp/requirements.txt
 COPY requirements.docs.txt /tmp/requirements.docs.txt
-
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir setuptools flake8 virtualenv && \
 	pip install --no-cache-dir -r /tmp/requirements.txt && \

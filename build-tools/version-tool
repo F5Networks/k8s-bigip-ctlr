@@ -267,6 +267,23 @@ class VersionInfo(object):
                         pass
                     info['tag'] = os.environ['TRAVIS_TAG']
                 return info
+            elif os.environ.get('CI_SERVER_NAME', None):
+                info = {
+                    'build_num': os.environ['CI_BUILD_REF'],
+                    'build_id':  os.environ['CI_BUILD_ID'],
+                    'slug':  os.environ['CI_PROJECT_PATH'],
+                }
+                # Travis build
+                ci_tag = os.environ.get('CI_COMMIT_REF_NAME', None)
+                if ci_tag:
+                    try:
+                        ci_ver = Version(ci_tag, prefix='v')
+                        if ci_ver != self._vers['tag']:
+                            raise Exception("CI tag doesn't match newest tag")
+                    except NotVersionError:
+                        pass
+                    info['tag'] = os.environ['CI_COMMIT_REF_NAME']
+                return info
             else:
                 raise Exception("This CI build isn't handled")
         return None

@@ -3,13 +3,19 @@
 set -x
 
 : ${DOC_IMG:=f5devcentral/containthedocs:latest}
+LOCAL_USER_ID=$(id -u)
+if [ "$GITLAB_CI" == true ]; then
+  TRAVIS=$GITLAB_CI
+  TRAVIS_BRANCH=$CI_COMMIT_REF_NAME
+  LOCAL_USER_ID=9001
+fi
 
 RUN_ARGS=( \
   --rm
   -v $PWD:$PWD
   --workdir $PWD
   ${DOCKER_RUN_ARGS}
-  -e "LOCAL_USER_ID=$(id -u)"
+  -e LOCAL_USER_ID=$LOCAL_USER_ID
   -e TRAVIS=$TRAVIS
 )
 

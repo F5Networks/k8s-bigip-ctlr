@@ -18,7 +18,8 @@ CURDIR="$(dirname $BASH_SOURCE)"
 # Runtime Dockerfile will add only the runtime dependencies
 
 
-WKDIR=$(mktemp -d docker-build.XXXX)
+WKDIR=$(mktemp -d /tmp/docker-build.XXXX)
+cp -rf $CURDIR/../../k8s-bigip-ctlr $WKDIR/
 cp $CURDIR/Dockerfile.$BASE_OS.builder $WKDIR/Dockerfile.builder
 cp $CURDIR/entrypoint.builder.sh $WKDIR
 cp $CURDIR/../requirements.txt $WKDIR
@@ -36,7 +37,7 @@ docker build $PULL_FLAG --force-rm ${NO_CACHE_ARGS} \
   -f $WKDIR/Dockerfile.builder \
   $WKDIR
 
-rm -rf docker-build.????
+rm -rf /tmp/docker-build.????
 
 docker history $BUILD_IMG_TAG
 echo "Built docker image $BUILD_IMG_TAG"

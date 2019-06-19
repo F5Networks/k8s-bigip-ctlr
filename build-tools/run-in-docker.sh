@@ -19,7 +19,9 @@ CURDIR="$(dirname $BASH_SOURCE)"
 srcdir=src/github.com/F5Networks/k8s-bigip-ctlr
 wkspace=${PWD}/_docker_workspace
 mkdir -p $wkspace/$srcdir
-
+if [ "$CI_SERVER_NAME" == "GitLab" ]; then
+  TRAVIS_REPO_SLUG=$CI_PROJECT_PATH
+fi
 RUN_ARGS=( \
   --rm
   -v $wkspace:/build:Z

@@ -27,7 +27,7 @@ import (
 // Dump out the Virtual Server configs to a file
 func (appMgr *Manager) outputConfig() {
 	appMgr.resources.Lock()
-	if appMgr.as3Mode {
+	if appMgr.agent == "as3" {
 		//AS3 execution
 		appMgr.outputConfigLockedAs3Mode()
 	} else {
@@ -39,7 +39,7 @@ func (appMgr *Manager) outputConfig() {
 
 //TODO : OpenShift routing : AS3 Mode
 func (appMgr *Manager) outputConfigLockedAs3Mode() {
-	log.Debugf("-------------- In As3 Mode : OpenShift Routes Impl --------------", appMgr.as3Mode)
+	log.Debugf("Using agent: %v", appMgr.agent)
 }
 
 // Dump out the Virtual Server configs to a file

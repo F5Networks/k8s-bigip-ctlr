@@ -133,7 +133,7 @@ type Manager struct {
 	sslInsecure        bool
 	trustedCertsCfgmap string
 	//Switch between AS3 and CCCL execution
-	as3Mode bool
+	agent string
 	// Active User Defined ConfigMap details
 	activeCfgMap ActiveAS3ConfigMap
 	// List of Watched Endpoints for user-defined AS3
@@ -171,7 +171,7 @@ type Params struct {
 	AS3Validation      bool
 	SSLInsecure        bool
 	TrustedCertsCfgmap string
-	As3Mode            bool
+	Agent              string
 }
 
 // Configuration options for Routes in OpenShift
@@ -223,7 +223,7 @@ func NewManager(params *Params) *Manager {
 		as3Validation:      params.AS3Validation,
 		sslInsecure:        params.SSLInsecure,
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
-		as3Mode:            params.As3Mode,
+		agent:              params.Agent,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.

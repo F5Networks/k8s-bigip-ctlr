@@ -19,15 +19,17 @@ CURDIR="$(dirname $BASH_SOURCE)"
 srcdir=src/github.com/F5Networks/k8s-bigip-ctlr
 wkspace=${PWD}/_docker_workspace
 mkdir -p $wkspace/$srcdir
-LOCAL_USER_ID=$(id -u)
+#LOCAL_USER_ID=$(id -u)
+LOCAL_USER_ID=9001
 if [ "$GITLAB_CI" == true ]; then
   TRAVIS_REPO_SLUG=$CI_PROJECT_PATH
   LOCAL_USER_ID=9001
 fi
 RUN_ARGS=( \
   --rm
-  -v $wkspace:/build:Z
-  -v $PWD:/build/$srcdir:ro,Z
+#  -v $wkspace:/build:Z
+#  -v $PWD:/build/$srcdir:ro,Z
+  --mount source=workspace_vol,target=/build/
   --workdir  /build/$srcdir
   -e GOPATH=/build
   -e CLEAN_BUILD=$CLEAN_BUILD
@@ -46,6 +48,6 @@ RUN_ARGS=( \
 if [ -t 0 ]; then
   RUN_ARGS+=( "-it" )
 fi
-
+docker volume create workspace_vol
 # Run the user provided args
 docker run "${RUN_ARGS[@]}" "$build_img" "$@"

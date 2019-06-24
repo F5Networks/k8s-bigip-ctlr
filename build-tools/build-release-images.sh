@@ -12,9 +12,8 @@ CURDIR="$(dirname $BASH_SOURCE)"
 . $CURDIR/_build-lib.sh
 
 # Setup a temp docker build context dir
-WKDIR=$(mktemp -d docker-build.XXXX)
+WKDIR=$(mktemp -d /tmp/docker-build.XXXX)
 cp $CURDIR/Dockerfile.$BASE_OS.runtime $WKDIR/Dockerfile.runtime
-
 BUILD_INFO=$(${CURDIR}/version-tool build-info)
 VERSION_INFO=$(${CURDIR}/version-tool version)
 
@@ -50,4 +49,4 @@ docker inspect -f '{{ range $k, $v := .ContainerConfig.Labels -}}
 
 echo "Built docker image $IMG_TAG"
 
-rm -rf docker-build.????
+rm -rf /tmp/docker-build.????

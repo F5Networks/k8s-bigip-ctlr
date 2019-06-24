@@ -16,9 +16,9 @@ CURDIR="$(dirname $BASH_SOURCE)"
 : ${build_img:=${BUILD_IMG_TAG}}
 
 # Need to make the directory before docker, to keep it owned by local user
-srcdir=src/github.com/F5Networks/k8s-bigip-ctlr
-wkspace=${PWD}/_docker_workspace
-mkdir -p $wkspace/$srcdir
+srcdir=/build/src/github.com/F5Networks/
+#wkspace=${PWD}/_docker_workspace
+#mkdir -p $wkspace/$srcdir
 #LOCAL_USER_ID=$(id -u)
 LOCAL_USER_ID=9001
 if [ "$GITLAB_CI" == true ]; then
@@ -29,8 +29,8 @@ RUN_ARGS=( \
   --rm
 #  -v $wkspace:/build:Z
 #  -v $PWD:/build/$srcdir:ro,Z
-  --mount source=workspace_vol,target=/build/
-  --workdir  /build/$srcdir
+  --mount source=workspace_vol,target=$srcdir
+  --workdir  $srcdir/k8s-bigip-ctlr/
   -e GOPATH=/build
   -e CLEAN_BUILD=$CLEAN_BUILD
   -e IMG_TAG=$IMG_TAG

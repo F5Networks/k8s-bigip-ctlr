@@ -5,7 +5,7 @@ stages:
 #  - Test-nodeport-mode
 
 Build-Image:
-  tags:
+  tags: 
     - docker-executor
   stage: Build
   image: ${DOCKER_BUILDER}
@@ -41,10 +41,10 @@ Build-Image:
         export CTLR_VERSION=$CI_COMMIT_REF_NAME
         export LICENSE_STRICT=false
       fi
-  - export CLEAN_BUILD=true
-  - export BASE_OS=debian
-  - make verify
-  - make prod
+    - export CLEAN_BUILD=true
+    - export BASE_OS=debian
+    - make verify
+    - make prod
 #    - adduser -D user -s /bin/bash
 #    - bash -c "make prod-build"
 #    - git clone https://github.com/F5Networks/k8s-bigip-ctlr.git

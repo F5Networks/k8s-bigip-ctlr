@@ -10,9 +10,9 @@ Build-Image:
   stage: Build
   image: ${DOCKER_BUILDER}
   before_script:
-    - 'which ssh-agent || ( yum install openssh-client git -y )'
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client git -y )'
     - eval $(ssh-agent -s)
-    - echo -n "$SSH_PRIVATE_KEY" | ssh-add - >/dev/null
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - echo "$SSH_SERVER_HOSTKEYS" > ~/.ssh/known_hosts'

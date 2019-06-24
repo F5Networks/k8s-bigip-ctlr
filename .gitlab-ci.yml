@@ -15,8 +15,9 @@ Build-Image:
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - echo "$SSH_SERVER_HOSTKEYS" > ~/.ssh/known_hosts'
-    - chmod 644 ~/.ssh/known_hosts
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+#    - echo "$SSH_SERVER_HOSTKEYS" > ~/.ssh/known_hosts'
+#    - chmod 644 ~/.ssh/known_hosts
 
 
   script:

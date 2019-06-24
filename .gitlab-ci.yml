@@ -15,13 +15,13 @@ Build-Image:
     - if [ "$DOCKER_NAMESPACE" == "" ]; then DOCKER_NAMESPACE="local"; fi
     - export BASE_PUSH_TARGET="$DOCKER_NAMESPACE/k8s-bigip-ctlr"
     - |
-    if [ "$DOCKER_P" == "" -o "$DOCKER_U" == "" -o $DOCKER_NAMESPACE == "" ]; then
-      echo "[INFO] Docker user, password, or namespace vars absent from travis-ci."
-      echo "[INFO] See README.md section 'build' to configure travis with DockerHub."
-    else
-      docker login -u="$DOCKER_U" -p="$DOCKER_P"
-      DOCKER_READY="true"
-    fi
+      if [ "$DOCKER_P" == "" -o "$DOCKER_U" == "" -o $DOCKER_NAMESPACE == "" ]; then
+        echo "[INFO] Docker user, password, or namespace vars absent from travis-ci."
+        echo "[INFO] See README.md section 'build' to configure travis with DockerHub."
+      else
+        docker login -u="$DOCKER_U" -p="$DOCKER_P"
+        DOCKER_READY="true"
+      fi
     - export BUILD_VERSION=$(build-tools/version-tool version)
     - export BUILD_INFO=$(build-tools/version-tool build-info)
     - if [ "$CI_COMMIT_TAG" == "$CI_COMMIT_REF_NAME" ]; then BUILD_VERSION=$CI_COMMIT_TAG; fi
@@ -30,17 +30,17 @@ Build-Image:
     - export BUILD_STAMP=devel-$CI_COMMIT_REF_NAME-n-$CI_CONCURRENT_PROJECT_ID-id-$CI_CONCURRENT_ID-$(date +%s)
     - export USER=$(whoami)
     - |
-    if [[ "$CI_COMMIT_REF_NAME" == *"-stable" ]]; then
-      export CTLR_VERSION=v$(echo $CI_COMMIT_REF_NAME | sed s/-stable//g)
-      export LICENSE_STRICT=false
-    elif [[ "$CI_COMMIT_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]* ]]; then
-      va=( ${CI_COMMIT_REF_NAME//./ } ) # replace decimals and split into array
-      export CTLR_VERSION="${va[0]}.${va[1]}"
-      export LICENSE_STRICT=true
-    else
-      export CTLR_VERSION=$CI_COMMIT_REF_NAME
-      export LICENSE_STRICT=false
-    fi
+      if [[ "$CI_COMMIT_REF_NAME" == *"-stable" ]]; then
+        export CTLR_VERSION=v$(echo $CI_COMMIT_REF_NAME | sed s/-stable//g)
+        export LICENSE_STRICT=false
+      elif [[ "$CI_COMMIT_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]* ]]; then
+        va=( ${CI_COMMIT_REF_NAME//./ } ) # replace decimals and split into array
+        export CTLR_VERSION="${va[0]}.${va[1]}"
+        export LICENSE_STRICT=true
+      else
+        export CTLR_VERSION=$CI_COMMIT_REF_NAME
+        export LICENSE_STRICT=false
+      fi
   - export CLEAN_BUILD=true
   - export BASE_OS=debian
   - make verify

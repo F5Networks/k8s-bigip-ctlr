@@ -9,20 +9,10 @@ Build-Image:
     - docker-executor
   stage: Build
   image: ${DOCKER_BUILDER}
-  before_script:
-    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client git -y )'
-    - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
-    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
-#    - echo "$SSH_SERVER_HOSTKEYS" > ~/.ssh/known_hosts'
-#    - chmod 644 ~/.ssh/known_hosts
-
-
+  
   script:
-    - ssh $SSH_SERVER
-    - yum install -y git make python coreutils bash sudo
+    - apk update
+    - apk add git make python coreutils bash sudo
     - if [ "$DOCKER_NAMESPACE" == "" ]; then DOCKER_NAMESPACE="local"; fi
     - export BASE_PUSH_TARGET="$DOCKER_NAMESPACE/k8s-bigip-ctlr"
     - |

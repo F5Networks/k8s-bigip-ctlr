@@ -16,7 +16,7 @@ CURDIR="$(dirname $BASH_SOURCE)"
 : ${build_img:=${BUILD_IMG_TAG}}
 
 # Need to make the directory before docker, to keep it owned by local user
-srcdir=/build/src/github.com/F5Networks/
+srcdir=/build/src/github.com/F5Networks/k8s-bigip-ctlr/
 #wkspace=${PWD}/_docker_workspace
 #mkdir -p $wkspace/$srcdir
 #LOCAL_USER_ID=$(id -u)
@@ -29,8 +29,8 @@ RUN_ARGS=( \
   --rm
 #  -v $wkspace:/build:Z
 #  -v $PWD:/build/$srcdir:ro,Z
-  -v workspace_vol:/build/mnt/
-  --workdir  $srcdir/k8s-bigip-ctlr/
+  -v workspace_vol:/build/
+  --workdir  $srcdir
   -e GOPATH=/build
   -e CLEAN_BUILD=$CLEAN_BUILD
   -e IMG_TAG=$IMG_TAG
@@ -48,6 +48,5 @@ RUN_ARGS=( \
 if [ -t 0 ]; then
   RUN_ARGS+=( "-it" )
 fi
-docker volume create workspace_vol
 # Run the user provided args
 docker run "${RUN_ARGS[@]}" "$build_img" "$@"

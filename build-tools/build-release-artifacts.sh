@@ -6,11 +6,23 @@ set -e
 set -x
 
 CURDIR="$(dirname $BASH_SOURCE)"
-mkdir -p  _docker_workspace
+
+# Making changes to user docker volume as workspace
+#mkdir -p  _docker_workspace
+docker volume create workspace_vol
+WORKSPACE=/build/src/github.com/F5Networks/
+# adding logic for copying the code repository to newly created volume
+docker run -v workspace_vol:/build -d --name cp-temp alpine sh "mkdir -p $WORKSPACE && tail -f /dev/null"
+# copying CIS code to volume
+docker cp $CURDIR/../../k8s-bigip-ctlr cp-temp:$WORKSPACE
+#Removing the temporory container
+docker rm -f cp-temp
+
 . $CURDIR/_build-lib.sh
-build_dir=/build/out/
+
 # Build artifacts using the build image
 $CURDIR/run-in-docker.sh ./build-tools/rel-build.sh
+
 if $CLEAN_BUILD; then
   docker rmi $BUILD_IMG_TAG
 fi

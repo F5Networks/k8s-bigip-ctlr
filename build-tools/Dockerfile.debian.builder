@@ -57,7 +57,6 @@ WORKDIR $GOPATH
 COPY entrypoint.builder.sh /entrypoint.sh
 COPY requirements.txt /tmp/requirements.txt
 COPY requirements.docs.txt /tmp/requirements.docs.txt
-COPY k8s-bigip-ctlr /build/src/github.com/F5Networks/k8s-bigip-ctlr/
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir setuptools flake8 virtualenv && \
 	pip install --no-cache-dir -r /tmp/requirements.txt && \

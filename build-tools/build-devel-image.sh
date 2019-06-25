@@ -19,7 +19,7 @@ CURDIR="$(dirname $BASH_SOURCE)"
 
 
 WKDIR=$(mktemp -d /tmp/docker-build.XXXX)
-cp -rf ../../k8s-bigip-ctlr $WKDIR/
+cp -rf $CURDIR/../../k8s-bigip-ctlr $WKDIR/
 cp $CURDIR/Dockerfile.$BASE_OS.builder $WKDIR/Dockerfile.builder
 cp $CURDIR/entrypoint.builder.sh $WKDIR
 cp $CURDIR/../requirements.txt $WKDIR

@@ -12,7 +12,8 @@ CURDIR="$(dirname $BASH_SOURCE)"
 docker volume create workspace_vol
 WORKSPACE=/build/src/github.com/F5Networks/
 # adding logic for copying the code repository to newly created volume
-docker run -v workspace_vol:/build -d --name cp-temp alpine sh "mkdir -p $WORKSPACE && tail -f /dev/null"
+docker run -v workspace_vol:/build -d --name cp-temp alpine tail -f /dev/null
+docker exec -d cp-temp mkdir -p $WORKSPACE
 # copying CIS code to volume
 docker cp $CURDIR/../../k8s-bigip-ctlr cp-temp:$WORKSPACE
 #Removing the temporory container

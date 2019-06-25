@@ -32,11 +32,11 @@ Build-Image:
     - export USER=$(whoami)
     - |
       if echo "$CI_COMMIT_REF_NAME" | grep -Eq "-stable"; then
-        export CTLR_VERSION=v$(echo $CI_COMMIT_REF_NAME | sed s/-stable//g)
+#        export CTLR_VERSION=v$(echo $CI_COMMIT_REF_NAME | sed s/-stable//g)
         export LICENSE_STRICT=false
       elif echo "$CI_COMMIT_REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]*' ; then
-        va=( "${CI_COMMIT_REF_NAME//./ }" ) # replace decimals and split into array
-        export CTLR_VERSION="${va[0]}.${va[1]}"
+#        va=( "${CI_COMMIT_REF_NAME//./ }" ) # replace decimals and split into array
+#        export CTLR_VERSION="${va[0]}.${va[1]}"
         export LICENSE_STRICT=true
       else
         export CTLR_VERSION=$CI_COMMIT_REF_NAME

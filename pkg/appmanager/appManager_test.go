@@ -183,7 +183,7 @@ func (m *mockAppManager) addConfigMap(cm *v1.ConfigMap) bool {
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
 		appInf.cfgMapInformer.GetStore().Add(cm)
-		m.appMgr.agent="cccl"
+		m.appMgr.agent = "cccl"
 		for _, vsKey := range keys {
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
@@ -229,7 +229,7 @@ func (m *mockAppManager) addService(svc *v1.Service) bool {
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(svc.ObjectMeta.Namespace)
 		appInf.svcInformer.GetStore().Add(svc)
-		m.appMgr.agent="cccl"
+		m.appMgr.agent = "cccl"
 		for _, vsKey := range keys {
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
@@ -275,7 +275,7 @@ func (m *mockAppManager) addEndpoints(ep *v1.Endpoints) bool {
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
 		appInf.endptInformer.GetStore().Add(ep)
-		m.appMgr.agent="cccl"
+		m.appMgr.agent = "cccl"
 		for _, vsKey := range keys {
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
@@ -378,7 +378,7 @@ func (m *mockAppManager) addRoute(route *routeapi.Route) bool {
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(route.ObjectMeta.Namespace)
 		appInf.routeInformer.GetStore().Add(route)
-		m.appMgr.agent="cccl"
+		m.appMgr.agent = "cccl"
 		for _, vsKey := range keys {
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()

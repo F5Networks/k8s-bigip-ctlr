@@ -13,6 +13,8 @@ docker volume create workspace_vol
 WORKSPACE=/build/src/github.com/F5Networks/
 # adding logic for copying the code repository to newly created volume
 docker run -v workspace_vol:/build --rm -d alpine mkdir -p $WORKSPACE
+# Removing cp-temp container if already exist
+if docker ps -a | grep cp-temp ; then docker rm -f cp-temp ; fi
 docker run -v workspace_vol:/build -d --name cp-temp alpine tail -f /dev/null
 # copying CIS code to volume
 docker cp $CURDIR/../../k8s-bigip-ctlr cp-temp:$WORKSPACE

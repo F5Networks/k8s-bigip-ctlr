@@ -17,9 +17,11 @@ package appmanager
 
 import (
 	"crypto/md5"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
@@ -28,33 +30,33 @@ import (
 )
 
 var _ = Describe("As3Manager Tests", func() {
+	var mockMgr *mockAppManager
+	var mw *test.MockWriter
+	BeforeEach(func() {
+		RegisterBigIPSchemaTypes()
+
+		mw = &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
+		}
+		fakeClient := fake.NewSimpleClientset()
+		Expect(fakeClient).ToNot(BeNil())
+
+		mockMgr = newMockAppManager(&Params{
+			KubeClient:       fakeClient,
+			ConfigWriter:     mw,
+			restClient:       test.CreateFakeHTTPClient(),
+			RouteClientV1:    test.CreateFakeHTTPClient(),
+			IsNodePort:       true,
+			broadcasterFunc:  NewFakeEventBroadcaster,
+			ManageConfigMaps: true,
+		})
+	})
+	AfterEach(func() {
+		mockMgr.shutdown()
+	})
+
 	Describe("Validating AS3 ConfigMap with AS3Manager", func() {
-		var mockMgr *mockAppManager
-		var mw *test.MockWriter
-		BeforeEach(func() {
-			RegisterBigIPSchemaTypes()
-
-			mw = &test.MockWriter{
-				FailStyle: test.Success,
-				Sections:  make(map[string]interface{}),
-			}
-			fakeClient := fake.NewSimpleClientset()
-			Expect(fakeClient).ToNot(BeNil())
-
-			mockMgr = newMockAppManager(&Params{
-				KubeClient:       fakeClient,
-				ConfigWriter:     mw,
-				restClient:       test.CreateFakeHTTPClient(),
-				RouteClientV1:    test.CreateFakeHTTPClient(),
-				IsNodePort:       true,
-				broadcasterFunc:  NewFakeEventBroadcaster,
-				ManageConfigMaps: true,
-			})
-		})
-		AfterEach(func() {
-			mockMgr.shutdown()
-		})
-
 		It("AS3 declaration with Invalid JSON", func() {
 			data := readConfigFile(configPath + "as3config_invalid_JSON.json")
 			_, ok := mockMgr.appMgr.getAS3ObjectFromTemplate(as3Template(data))
@@ -215,4 +217,65 @@ var _ = Describe("As3Manager Tests", func() {
 			Expect(status).To(BeTrue())
 		})
 	})
+	Describe("Validate Generated Unified Declaration", func() {
+		It("Unified Declaration only with User Defined ConfigMap", func() {
+			var cfg, generatedCfg interface{}
+
+			data := readConfigFile(configPath + "as3config_all.json")
+			err := json.Unmarshal([]byte(data), &cfg)
+			Expect(err).To(BeNil(), "Config should be json")
+			mockMgr.appMgr.activeCfgMap.Data = string(data)
+
+			result := mockMgr.appMgr.getUnifiedAS3Declaration()
+
+			err = json.Unmarshal([]byte(result), &generatedCfg)
+			Expect(err).To(BeNil(), "Failed to Create Valid JSON")
+
+			Expect(reflect.DeepEqual(cfg, generatedCfg)).To(BeTrue(), "Failed to Create JSON with correct configuration")
+		})
+		It("Unified Declaration only with Openshift Route", func() {
+			var cfg, origCfg, generatedCfg interface{}
+
+			data := readConfigFile(configPath + "as3_route_declaration.json")
+			err := json.Unmarshal([]byte(data), &origCfg)
+			Expect(err).To(BeNil(), "Original Config should be json")
+
+			data = readConfigFile(configPath + "as3_route.json")
+			err = json.Unmarshal([]byte(data), &cfg)
+			Expect(err).To(BeNil(), "Route Config should be json")
+			mockMgr.appMgr.as3RouteCfg = as3Declaration(data)
+
+			result := mockMgr.appMgr.getUnifiedAS3Declaration()
+
+			err = json.Unmarshal([]byte(result), &generatedCfg)
+			Expect(err).To(BeNil(), "Failed to Create Valid JSON")
+
+			Expect(reflect.DeepEqual(origCfg, generatedCfg)).To(BeTrue(), "Failed to Create JSON with correct configuration")
+		})
+		It("Unified Declaration with User Defined ConfigMap and Openshift Route", func() {
+			var cfg, origCfg, generatedCfg interface{}
+
+			data := readConfigFile(configPath + "as3_route_cfgmap_declaration.json")
+			err := json.Unmarshal([]byte(data), &origCfg)
+			Expect(err).To(BeNil(), "Original Config should be json")
+
+			data = readConfigFile(configPath + "as3config_all.json")
+			err = json.Unmarshal([]byte(data), &cfg)
+			Expect(err).To(BeNil(), "Config should be json")
+			mockMgr.appMgr.activeCfgMap.Data = string(data)
+
+			data = readConfigFile(configPath + "as3_route.json")
+			err = json.Unmarshal([]byte(data), &cfg)
+			Expect(err).To(BeNil(), "Route Config should be json")
+			mockMgr.appMgr.as3RouteCfg = as3Declaration(data)
+
+			result := mockMgr.appMgr.getUnifiedAS3Declaration()
+
+			err = json.Unmarshal([]byte(result), &generatedCfg)
+			Expect(err).To(BeNil(), "Failed to Create Valid JSON")
+
+			Expect(reflect.DeepEqual(origCfg, generatedCfg)).To(BeTrue(), "Failed to Create JSON with correct configuration")
+		})
+	})
+
 })

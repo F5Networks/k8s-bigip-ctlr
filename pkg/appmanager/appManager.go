@@ -136,6 +136,7 @@ type Manager struct {
 	activeCfgMap ActiveAS3ConfigMap
 	// List of Watched Endpoints for user-defined AS3
 	watchedAS3Endpoints map[string]struct{}
+	as3RouteCfg         as3Declaration
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.

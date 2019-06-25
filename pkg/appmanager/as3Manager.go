@@ -42,6 +42,18 @@ const (
 	svcTenantLabel           = "cis.f5.com/as3-tenant"
 	svcAppLabel              = "cis.f5.com/as3-app"
 	svcPoolLabel             = "cis.f5.com/as3-pool"
+	baseAS3Config            = `{
+  "$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema-3.11.0-3.json",
+  "class": "AS3",
+  "declaration": {
+    "class": "ADC",
+    "schemaVersion": "3.10.0",
+    "id": "urn:uuid:ebefe1c6-9629-4339-885f-92492db94120",
+    "label": "Basic Declaration",
+	"remark": "Default AS3 template"
+  }
+}
+`
 )
 
 type as3Template string
@@ -692,4 +704,33 @@ func (appMgr *Manager) checkValidAS3Endpoints(obj interface{}) (
 	}
 	keyList = append(keyList, key)
 	return true, keyList
+}
+
+func (appMgr *Manager) getUnifiedAS3Declaration() as3Declaration {
+	if appMgr.as3RouteCfg == "" {
+		// Triggered from CfgMap call back
+		// return active CfgMap
+		return as3Declaration(appMgr.activeCfgMap.Data)
+	}
+
+	// Need to process Routes
+	var declObj, routeObj map[string]interface{}
+	if appMgr.activeCfgMap.Data != "" {
+		// Merge activeCfgMap and as3RouteCfg
+		_ = json.Unmarshal([]byte(appMgr.activeCfgMap.Data), &declObj)
+	} else {
+		// Merge base AS3 template and as3RouteCfg
+		_ = json.Unmarshal([]byte(baseAS3Config), &declObj)
+	}
+	_ = json.Unmarshal([]byte(appMgr.as3RouteCfg), &routeObj)
+
+	decl := declObj["declaration"].(map[string]interface{})
+	decl["openshift"] = map[string]interface{}{}
+	tnt := decl["openshift"].(map[string]interface{})
+	tnt["class"] = "Tenant"
+	tnt["Shared"] = routeObj
+
+	unifiedDecl, _ := json.Marshal(declObj)
+	log.Debugf("as3_log: Unified AS3 Declaration: %v\n", string(unifiedDecl))
+	return as3Declaration(string(unifiedDecl))
 }

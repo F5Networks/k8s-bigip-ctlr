@@ -29,7 +29,7 @@ RUN_ARGS=( \
   --rm
 #  -v $wkspace:/build:Z
 #  -v $PWD:/build/$srcdir:ro,Z
-  --mount source=workspace_vol,target=/mnt/
+  --mount source=workspace_vol,target=/build/mnt/
   --workdir  $srcdir/k8s-bigip-ctlr/
   -e GOPATH=/build
   -e CLEAN_BUILD=$CLEAN_BUILD

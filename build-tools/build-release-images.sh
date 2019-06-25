@@ -17,8 +17,10 @@ cp $CURDIR/Dockerfile.$BASE_OS.runtime $WKDIR/Dockerfile.runtime
 BUILD_INFO=$(${CURDIR}/version-tool build-info)
 VERSION_INFO=$(${CURDIR}/version-tool version)
 
+# adding logic for copying the build artifacts to localhost
+docker run --mount source=workspace_vol,target=/mnt/ -d --name cp-temp alpine tail -f /dev/null
 # Hard code the platform dir here
-cp _docker_workspace/* $WKDIR/
+docker cp cp-temp:/mnt/$RELEASE_PLATFORM/bin/k8s-bigip-ctlr $WKDIR/
 cp requirements.txt $WKDIR/
 cp schemas/bigip-virtual-server_v*.json $WKDIR/
 cp schemas/as3-schema-3.10-cis.json $WKDIR/
@@ -48,5 +50,6 @@ docker inspect -f '{{ range $k, $v := .ContainerConfig.Labels -}}
 {{ end -}}' "$IMG_TAG"
 
 echo "Built docker image $IMG_TAG"
-
+docker rm -f cp-temp
+docker volume rm -f workspace_vol
 rm -rf docker-build.???? _docker_workspace

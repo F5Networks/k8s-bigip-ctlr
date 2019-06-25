@@ -30,4 +30,4 @@ if [ $RUN_TESTS -eq 1 ]; then
     fi
 fi
 #Copying the build directory to volume
-cp -rf $BUILDDIR /mnt/
+cp -rf $BUILDDIR /build/mnt/

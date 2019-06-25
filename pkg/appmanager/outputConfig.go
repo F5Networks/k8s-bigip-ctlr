@@ -18,17 +18,37 @@ package appmanager
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
+// invalidAgent is returned when no matching agent values are given neither "as3" nor "cccl"
+var invalidAgentParam = "Invalid agent parameter provided (agent parameter can only be 'as3' or 'cccl')"
+
 // Dump out the Virtual Server configs to a file
-func (appMgr *Manager) outputConfig() {
+func (appMgr *Manager) outputConfig() error {
 	appMgr.resources.Lock()
-	appMgr.outputConfigLocked()
+	if appMgr.agent == "as3" {
+		//AS3 execution
+		appMgr.outputConfigLockedAs3Mode()
+		appMgr.resources.Unlock()
+		return nil
+	} else if appMgr.agent == "cccl" {
+		//CCCL execution
+		appMgr.outputConfigLocked()
+		appMgr.resources.Unlock()
+		return nil
+	}
 	appMgr.resources.Unlock()
+	return fmt.Errorf("agent parameter is invalid : %v", invalidAgentParam)
+}
+
+//TODO : OpenShift routing : AS3 Mode
+func (appMgr *Manager) outputConfigLockedAs3Mode() {
+	log.Debugf("Using agent: %v", appMgr.agent)
 }
 
 // Dump out the Virtual Server configs to a file

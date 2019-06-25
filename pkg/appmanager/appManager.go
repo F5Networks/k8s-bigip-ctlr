@@ -132,6 +132,8 @@ type Manager struct {
 	as3Validation      bool
 	sslInsecure        bool
 	trustedCertsCfgmap string
+	//Switch between AS3 and CCCL execution
+	agent string
 	// Active User Defined ConfigMap details
 	activeCfgMap ActiveAS3ConfigMap
 	// List of Watched Endpoints for user-defined AS3
@@ -169,6 +171,7 @@ type Params struct {
 	AS3Validation      bool
 	SSLInsecure        bool
 	TrustedCertsCfgmap string
+	Agent              string
 }
 
 // Configuration options for Routes in OpenShift
@@ -220,6 +223,7 @@ func NewManager(params *Params) *Manager {
 		as3Validation:      params.AS3Validation,
 		sslInsecure:        params.SSLInsecure,
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
+		agent:              params.Agent,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -965,9 +969,11 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
 		stats.dgUpdated > 0 || stats.poolsUpdated > 0 || len(appMgr.as3Members) > 0 {
-		appMgr.outputConfig()
+		err := appMgr.outputConfig()
+		return err
 	} else if !appMgr.initialState && appMgr.processedItems >= appMgr.queueLen {
-		appMgr.outputConfig()
+		err := appMgr.outputConfig()
+		return err
 	}
 
 	return nil

@@ -12,13 +12,13 @@ CURDIR="$(dirname $BASH_SOURCE)"
 . $CURDIR/_build-lib.sh
 
 # Setup a temp docker build context dir
-WKDIR=$(mktemp -d /tmp/docker-build.XXXX)
+WKDIR=$(mktemp -d docker-build.XXXX)
 cp $CURDIR/Dockerfile.$BASE_OS.runtime $WKDIR/Dockerfile.runtime
 BUILD_INFO=$(${CURDIR}/version-tool build-info)
 VERSION_INFO=$(${CURDIR}/version-tool version)
 
 # Hard code the platform dir here
-cp $CURDIR/../_docker_workspace/out/$RELEASE_PLATFORM/bin/* $WKDIR/
+cp _docker_workspace/* $WKDIR/
 cp requirements.txt $WKDIR/
 cp schemas/bigip-virtual-server_v*.json $WKDIR/
 cp schemas/as3-schema-3.10-cis.json $WKDIR/
@@ -49,4 +49,4 @@ docker inspect -f '{{ range $k, $v := .ContainerConfig.Labels -}}
 
 echo "Built docker image $IMG_TAG"
 
-rm -rf /tmp/docker-build.????
+rm -rf docker-build.???? _docker_workspace

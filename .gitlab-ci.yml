@@ -43,7 +43,6 @@ Build-Image:
       fi
     - export CLEAN_BUILD=true
     - export BASE_OS=debian
-    - make verify
     - make prod
 #    - adduser -D user -s /bin/bash
 #    - bash -c "make prod-build"

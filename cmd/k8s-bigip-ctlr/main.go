@@ -107,6 +107,7 @@ var (
 	credsDir           *string
 	as3Validation      *bool
 	sslInsecure        *bool
+	arpLearning        *bool
 	trustedCertsCfgmap *string
 
 	vxlanMode        string
@@ -179,6 +180,8 @@ func _init() {
 		"Optional, when set to false, disables as3 template validation on the controller.")
 	sslInsecure = bigIPFlags.Bool("insecure", false,
 		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
+	arpLearning = bigIPFlags.Bool("arplearning", false,
+		"Optional, when set to true, Allow BIGIP ARP learning k8s POD.")
 	trustedCertsCfgmap = bigIPFlags.String("trusted-certs-cfgmap", "",
 		"Optional, when certificates are provided, adds them to controller’s trusted certificate store.")
 
@@ -490,7 +493,7 @@ func setupNodePolling(
 			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
 				err)
 		}
-		if eventChan != nil {
+		if (eventChan != nil) && (!appMgr.ARPLearning()) {
 			vxMgr.ProcessAppmanagerEvents(kubeClient)
 		}
 	}
@@ -620,6 +623,7 @@ func main() {
 		SchemaLocal:        *schemaLocal,
 		AS3Validation:      *as3Validation,
 		SSLInsecure:        *sslInsecure,
+		ARPLearning:        *arpLearning,
 		TrustedCertsCfgmap: *trustedCertsCfgmap,
 	}
 

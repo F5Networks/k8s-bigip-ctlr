@@ -131,6 +131,7 @@ type Manager struct {
 	as3Members         map[Member]struct{}
 	as3Validation      bool
 	sslInsecure        bool
+	arpLearning        bool
 	trustedCertsCfgmap string
 	// Active User Defined ConfigMap details
 	activeCfgMap ActiveAS3ConfigMap
@@ -168,6 +169,7 @@ type Params struct {
 	ManageConfigMaps   bool
 	AS3Validation      bool
 	SSLInsecure        bool
+	ARPLearning        bool
 	TrustedCertsCfgmap string
 }
 
@@ -219,6 +221,7 @@ func NewManager(params *Params) *Manager {
 		as3Members:         make(map[Member]struct{}, 0),
 		as3Validation:      params.AS3Validation,
 		sslInsecure:        params.SSLInsecure,
+		arpLearning:        params.ARPLearning,
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
@@ -740,6 +743,10 @@ func (appMgr *Manager) IsNodePort() bool {
 
 func (appMgr *Manager) UseNodeInternal() bool {
 	return appMgr.useNodeInternal
+}
+
+func (appMgr *Manager) ARPLearning() bool {
+	return appMgr.arpLearning
 }
 
 func (appMgr *Manager) ConfigWriter() writer.Writer {

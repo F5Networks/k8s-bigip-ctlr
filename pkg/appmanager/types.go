@@ -357,4 +357,55 @@ type (
 
 	DataGroupNamespaceMap map[string]*InternalDataGroup
 	InternalDataGroupMap  map[nameRef]DataGroupNamespaceMap
+
+	//Route rule
+	As3Rule struct {
+		Name       string         `json:"name,omitempty"`
+		Conditions []As3Condition `json:"conditions,omitempty"`
+		Actions    []As3Action    `json:"actions,omitempty"`
+	}
+
+	//Route pool
+	As3Pool struct {
+		Class             string          `json:"class,omitempty"`
+		LoadBalancingMode string          `json:"loadBalancingMode,omitempty"`
+		Members           []As3PoolMember `json:"members,omitempty"`
+	}
+
+	//Route pool member
+	As3PoolMember struct {
+		AddressDiscovery string   `json:"addressDiscovery,omitempty"`
+		ServerAddresses  []string `json:"serverAddresses,omitempty"`
+		ServicePort      int32    `json:"servicePort,omitempty"`
+	}
+
+	//Route rule condition
+	As3Condition struct {
+		Type  string                 `json:"type,omitempty"`
+		Name  string                 `json:"name,omitempty"`
+		Event string                 `json:"event,omitempty"`
+		All   map[string]interface{} `json:"all,omitempty"`
+	}
+
+	//Route rule action
+	As3Action struct {
+		Type   string                 `json:"type,omitempty"`
+		Event  string                 `json:"event,omitempty"`
+		Select map[string]interface{} `json:"select,omitempty"`
+	}
+
+	//Route virtual server
+	As3Vserver struct {
+		Layer4                 string            `json:"layer4,omitempty"`
+		Source                 string            `json:"source,omitempty"`
+		TranslateServerAddress bool              `json:"translateServerAddress,omitempty"`
+		TranslateServerPort    bool              `json:"translateServerPort,omitempty"`
+		Class                  string            `json:"class,omitempty"`
+		ProfileHTTP            map[string]string `json:"profileHTTP,omitempty"`
+		ProfileTCP             map[string]string `json:"profileTCP,omitempty"`
+		VirtualAddresses       []string          `json:"virtualAddresses,omitempty"`
+		VirtualPort            int               `json:"virtualPort,omitempty"`
+		Snat                   string            `json:"snat,omitempty"`
+		PolicyEndpoint         string            `json:"policyEndpoint,omitempty"`
+	}
 )

@@ -26,6 +26,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -733,4 +734,147 @@ func (appMgr *Manager) getUnifiedAS3Declaration() as3Declaration {
 	unifiedDecl, _ := json.Marshal(declObj)
 	log.Debugf("as3_log: Unified AS3 Declaration: %v\n", string(unifiedDecl))
 	return as3Declaration(string(unifiedDecl))
+}
+
+func (appMgr *Manager) postRouteDeclarationHost() {
+	var shared map[string]interface{}
+	shared = appMgr.generateAS3RouteDeclaration()
+	if len(shared) > 2 {
+		declaration, _ := json.Marshal(shared)
+		log.Debugf("as3_log route shared json: %v", string(declaration))
+		appMgr.as3RouteCfg = as3Declaration(declaration)
+		//Get unified declaration
+		unifiedDecl := appMgr.getUnifiedAS3Declaration()
+		appMgr.postAS3Declaration(unifiedDecl)
+	}
+
+}
+
+func (appMgr *Manager) generateAS3RouteDeclaration() map[string]interface{} {
+
+	//Create shared object
+	sharedApp := make(map[string]interface{})
+	sharedApp["class"] = "Application"
+	sharedApp["template"] = "shared"
+	for _, cfg := range appMgr.resources.GetAllResources() {
+		//Process only route data
+		if cfg.MetaData.ResourceType == "route" {
+			for _, pl := range cfg.Policies {
+				for _, rl := range pl.Rules {
+
+					//Create routes
+					route := make(map[string]interface{})
+					route["class"] = "Endpoint_Policy"
+					s := strings.Split(pl.Strategy, "/")
+					route["strategy"] = s[len(s)-1]
+
+					//Create rules
+					rulesData := &As3Rule{Name: rl.Name}
+
+					//Create condition object
+					createRouteRuleCondition(rl, rulesData)
+
+					//Creat action object
+					createRouteRuleAction(rl, rulesData)
+
+					r := make([]interface{}, 0)
+					route["rules"] = append(r, rulesData)
+
+					//Setting shared name
+					sharedApp[pl.Name] = route
+				}
+			}
+
+			//Create pools
+			createPoolDecl(cfg.Pools, sharedApp)
+
+			//Create virtuals
+			createVirtualDecl(cfg, sharedApp)
+		}
+	}
+	return sharedApp
+}
+
+//create route pools
+func createPoolDecl(pools Pools, sharedApp map[string]interface{}) {
+	for _, v := range pools {
+		var pool As3Pool
+		pool.LoadBalancingMode = v.Balance
+		pool.Class = "Pool"
+		for _, val := range v.Members {
+			var member As3PoolMember
+			member.AddressDiscovery = "static"
+			member.ServicePort = val.Port
+			member.ServerAddresses = append(member.ServerAddresses, val.Address)
+			pool.Members = append(pool.Members, member)
+		}
+		sharedApp[strings.Replace(v.Name, "-", "_", -1)] = pool
+	}
+}
+
+//Create route virtuals
+func createVirtualDecl(cfg *ResourceConfig, sharedApp map[string]interface{}) {
+	var osev As3Vserver
+	osev.Layer4 = cfg.Virtual.IpProtocol
+	osev.Source = "0.0.0.0/0"
+	osev.TranslateServerAddress = true
+	osev.TranslateServerPort = true
+	osev.Class = "Service_HTTP"
+	profileHTTP := map[string]string{"bigip": "/Common/http"}
+	osev.ProfileHTTP = profileHTTP
+	profileTCP := map[string]string{"bigip": "/Common/tcp"}
+	osev.ProfileTCP = profileTCP
+	destination := strings.Split(cfg.Virtual.Destination, "/")
+	ipPort := strings.Split(destination[len(destination)-1], ":")
+	va := append(osev.VirtualAddresses, ipPort[0])
+	osev.VirtualAddresses = va
+	port, _ := strconv.Atoi(ipPort[1])
+	osev.VirtualPort = port
+	osev.Snat = "auto"
+	if len(cfg.Policies) > 0 {
+		osev.PolicyEndpoint = "/openshift/Shared/openshift_insecure_routes"
+	}
+	sharedApp[strings.Replace(cfg.Virtual.Name, "-", "_", -1)] = osev
+
+}
+
+//Create route rule condition object
+func createRouteRuleCondition(rl *Rule, rulesData *As3Rule) {
+	var condition As3Condition
+	for _, v := range rl.Conditions {
+		condition.Type = "httpHeader"
+		if v.Request {
+			condition.Event = "request"
+		}
+		if v.Host {
+			condition.Name = "host"
+		}
+		all := make(map[string]interface{})
+		all["values"] = v.Values
+		if v.Equals {
+			all["operand"] = "equals"
+		}
+		condition.All = all
+	}
+	rulesData.Conditions = append(rulesData.Conditions, condition)
+}
+
+//Create route rule action object
+func createRouteRuleAction(rl *Rule, rulesData *As3Rule) {
+	var action As3Action
+	for _, v := range rl.Actions {
+		if v.Forward {
+			action.Type = "forward"
+		}
+		if v.Request {
+			action.Event = "request"
+		}
+		sel := make(map[string]interface{})
+		pools := make(map[string]interface{})
+		p := strings.Split(v.Pool, "/")
+		pools["use"] = strings.Replace(p[len(p)-1], "-", "_", -1)
+		sel["pool"] = pools
+		action.Select = sel
+	}
+	rulesData.Actions = append(rulesData.Actions, action)
 }

@@ -27,7 +27,16 @@ import (
 // Dump out the Virtual Server configs to a file
 func (appMgr *Manager) outputConfig() {
 	appMgr.resources.Lock()
-	appMgr.outputConfigLocked()
+	log.Debugf("Using agent : %v ", appMgr.agent)
+
+	switch appMgr.agent {
+	case "as3":
+		//AS3 execution
+		appMgr.postRouteDeclarationHost()
+	default:
+		//CCCL execution
+		appMgr.outputConfigLocked()
+	}
 	appMgr.resources.Unlock()
 }
 

@@ -29,7 +29,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-var _ = Describe("As3Manager Tests", func() {
+var _ = Describe("AS3Manager Tests", func() {
 	var mockMgr *mockAppManager
 	var mw *test.MockWriter
 	BeforeEach(func() {
@@ -63,7 +63,7 @@ var _ = Describe("As3Manager Tests", func() {
 			Expect(ok).To(Equal(false), "AS3 Template is not a valid JSON.")
 		})
 		It("AS3 declaration with all Tenants, Applications and Pools", func() {
-			data := readConfigFile(configPath + "as3config_all.json")
+			data := readConfigFile(configPath + "as3config_valid.json")
 			_, ok := mockMgr.appMgr.getAS3ObjectFromTemplate(as3Template(data))
 			Expect(ok).To(Equal(true), "AS3 Template parsed succesfully.")
 		})
@@ -106,7 +106,7 @@ var _ = Describe("As3Manager Tests", func() {
 			// Close the server when test finishes
 			defer server.Close()
 			// Use Client & URL from our local test server
-			api := As3RestClient{server.Client(), server.URL, "", ""}
+			api := AS3RestClient{server.Client(), server.URL, "", ""}
 			_, status := api.restCallToBigIP(method, route, template, false)
 			Expect(status).To(BeTrue())
 		})
@@ -127,7 +127,7 @@ var _ = Describe("As3Manager Tests", func() {
 			// Close the server when test finishes
 			defer server.Close()
 			// Use Client & URL from our local test server
-			api := As3RestClient{server.Client(), server.URL, "", ""}
+			api := AS3RestClient{server.Client(), server.URL, "", ""}
 			_, status := api.restCallToBigIP(method, route, template, false)
 			Expect(status).To(BeFalse())
 		})
@@ -148,7 +148,7 @@ var _ = Describe("As3Manager Tests", func() {
 			// Close the server when test finishes
 			defer server.Close()
 			// Use Client & URL from our local test server
-			api := As3RestClient{server.Client(), server.URL, "", ""}
+			api := AS3RestClient{server.Client(), server.URL, "", ""}
 			_, status := api.restCallToBigIP(method, route, template, false)
 			Expect(status).To(BeFalse())
 		})
@@ -167,7 +167,7 @@ var _ = Describe("As3Manager Tests", func() {
 			// Close the server when test finishes
 			defer server.Close()
 			// Use Client & URL from our local test server
-			api := As3RestClient{server.Client(), server.URL, "", ""}
+			api := AS3RestClient{server.Client(), server.URL, "", ""}
 			//Close serve to test serve failure
 			server.Close()
 			_, status := api.restCallToBigIP(method, route, template, false)
@@ -192,7 +192,7 @@ var _ = Describe("As3Manager Tests", func() {
 			io.WriteString(h, string(template))
 			oldChecksum := string(h.Sum(nil))
 			// Use Client & URL from our local test server
-			api := As3RestClient{server.Client(), server.URL, oldChecksum, ""}
+			api := AS3RestClient{server.Client(), server.URL, oldChecksum, ""}
 			_, status := api.restCallToBigIP(method, route, template, false)
 			Expect(status).To(BeTrue())
 		})
@@ -212,7 +212,7 @@ var _ = Describe("As3Manager Tests", func() {
 			// Close the server when test finishes
 			defer server.Close()
 			// Use Client & URL from our local test server
-			api := As3RestClient{server.Client(), server.URL, "", ""}
+			api := AS3RestClient{server.Client(), server.URL, "", ""}
 			_, status := api.restCallToBigIP(method, route, template, false)
 			Expect(status).To(BeTrue())
 		})
@@ -221,7 +221,7 @@ var _ = Describe("As3Manager Tests", func() {
 		It("Unified Declaration only with User Defined ConfigMap", func() {
 			var cfg, generatedCfg interface{}
 
-			data := readConfigFile(configPath + "as3config_all.json")
+			data := readConfigFile(configPath + "as3config_valid.json")
 			err := json.Unmarshal([]byte(data), &cfg)
 			Expect(err).To(BeNil(), "Config should be json")
 			mockMgr.appMgr.activeCfgMap.Data = string(data)
@@ -234,7 +234,8 @@ var _ = Describe("As3Manager Tests", func() {
 			Expect(reflect.DeepEqual(cfg, generatedCfg)).To(BeTrue(), "Failed to Create JSON with correct configuration")
 		})
 		It("Unified Declaration only with Openshift Route", func() {
-			var cfg, origCfg, generatedCfg interface{}
+			var origCfg, generatedCfg interface{}
+			var cfg as3ADC
 
 			data := readConfigFile(configPath + "as3_route_declaration.json")
 			err := json.Unmarshal([]byte(data), &origCfg)
@@ -243,7 +244,7 @@ var _ = Describe("As3Manager Tests", func() {
 			data = readConfigFile(configPath + "as3_route.json")
 			err = json.Unmarshal([]byte(data), &cfg)
 			Expect(err).To(BeNil(), "Route Config should be json")
-			mockMgr.appMgr.as3RouteCfg = as3Declaration(data)
+			mockMgr.appMgr.as3RouteCfg = cfg
 
 			result := mockMgr.appMgr.getUnifiedAS3Declaration()
 
@@ -253,21 +254,47 @@ var _ = Describe("As3Manager Tests", func() {
 			Expect(reflect.DeepEqual(origCfg, generatedCfg)).To(BeTrue(), "Failed to Create JSON with correct configuration")
 		})
 		It("Unified Declaration with User Defined ConfigMap and Openshift Route", func() {
-			var cfg, origCfg, generatedCfg interface{}
+			var origCfg, userCfg, generatedCfg interface{}
+			var cfg as3ADC
 
 			data := readConfigFile(configPath + "as3_route_cfgmap_declaration.json")
 			err := json.Unmarshal([]byte(data), &origCfg)
 			Expect(err).To(BeNil(), "Original Config should be json")
 
-			data = readConfigFile(configPath + "as3config_all.json")
-			err = json.Unmarshal([]byte(data), &cfg)
+			data = readConfigFile(configPath + "as3config_valid.json")
+			err = json.Unmarshal([]byte(data), &userCfg)
 			Expect(err).To(BeNil(), "Config should be json")
 			mockMgr.appMgr.activeCfgMap.Data = string(data)
 
 			data = readConfigFile(configPath + "as3_route.json")
 			err = json.Unmarshal([]byte(data), &cfg)
 			Expect(err).To(BeNil(), "Route Config should be json")
-			mockMgr.appMgr.as3RouteCfg = as3Declaration(data)
+			mockMgr.appMgr.as3RouteCfg = cfg
+
+			result := mockMgr.appMgr.getUnifiedAS3Declaration()
+
+			err = json.Unmarshal([]byte(result), &generatedCfg)
+			Expect(err).To(BeNil(), "Failed to Create Valid JSON")
+
+			Expect(reflect.DeepEqual(origCfg, generatedCfg)).To(BeTrue(), "Failed to Create JSON with correct configuration")
+		})
+		It("Unified Declaration with User Defined ConfigMap and Openshift Route with Common Tenant", func() {
+			var origCfg, userCfg, generatedCfg interface{}
+			var cfg as3ADC
+
+			data := readConfigFile(configPath + "as3_route_cfgmap_declaration_common_tenant.json")
+			err := json.Unmarshal([]byte(data), &origCfg)
+			Expect(err).To(BeNil(), "Original Config should be json")
+
+			data = readConfigFile(configPath + "as3config_common_tenant.json")
+			err = json.Unmarshal([]byte(data), &userCfg)
+			Expect(err).To(BeNil(), "Config should be json")
+			mockMgr.appMgr.activeCfgMap.Data = string(data)
+
+			data = readConfigFile(configPath + "as3_route.json")
+			err = json.Unmarshal([]byte(data), &cfg)
+			Expect(err).To(BeNil(), "Route Config should be json")
+			mockMgr.appMgr.as3RouteCfg = cfg
 
 			result := mockMgr.appMgr.getUnifiedAS3Declaration()
 
@@ -277,5 +304,4 @@ var _ = Describe("As3Manager Tests", func() {
 			Expect(reflect.DeepEqual(origCfg, generatedCfg)).To(BeTrue(), "Failed to Create JSON with correct configuration")
 		})
 	})
-
 })

@@ -73,12 +73,13 @@ type (
 
 	// as3Condition maps to Policy_Condition in AS3 Resources
 	as3Condition struct {
-		Type  string                  `json:"type,omitempty"`
-		Name  string                  `json:"name,omitempty"`
-		Event string                  `json:"event,omitempty"`
-		All   *as3PolicyCompareString `json:"all,omitempty"`
-		Index int                     `json:"index,omitempty"`
-		Host  *as3PolicyCompareString `json:"host,omitempty"`
+		Type        string                  `json:"type,omitempty"`
+		Name        string                  `json:"name,omitempty"`
+		Event       string                  `json:"event,omitempty"`
+		All         *as3PolicyCompareString `json:"all,omitempty"`
+		Index       int                     `json:"index,omitempty"`
+		Host        *as3PolicyCompareString `json:"host,omitempty"`
+		PathSegment *as3PolicyCompareString `json:"pathSegment,omitempty"`
 	}
 
 	// as3ActionForwardSelect maps to Policy_Action_Forward_Select in AS3 Resources

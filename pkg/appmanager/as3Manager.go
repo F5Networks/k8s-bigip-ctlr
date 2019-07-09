@@ -880,15 +880,31 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp map[string]interface{}) {
 func createRouteRuleCondition(rl *Rule, rulesData *as3Rule) {
 	for _, c := range rl.Conditions {
 		var condition as3Condition
-		condition.Name = "host"
-		condition.All = &as3PolicyCompareString{
-			Values: c.Values,
-		}
-		if c.HTTPHost {
-			condition.Type = "httpHeader"
-		}
-		if c.Equals {
-			condition.All.Operand = "equals"
+		if c.Host {
+			condition.Name = "host"
+			condition.All = &as3PolicyCompareString{
+				Values: c.Values,
+			}
+			if c.HTTPHost {
+				condition.Type = "httpHeader"
+			}
+			if c.Equals {
+				condition.All.Operand = "equals"
+			}
+		} else if c.PathSegment {
+			condition.PathSegment = &as3PolicyCompareString{
+				Values: c.Values,
+			}
+			if c.Name != "" {
+				condition.Name = c.Name
+			}
+			condition.Index = c.Index
+			if c.HTTPURI {
+				condition.Type = "httpUri"
+			}
+			if c.Equals {
+				condition.PathSegment.Operand = "equals"
+			}
 		}
 
 		if c.Request {

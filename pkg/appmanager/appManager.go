@@ -138,7 +138,7 @@ type Manager struct {
 	activeCfgMap ActiveAS3ConfigMap
 	// List of Watched Endpoints for user-defined AS3
 	watchedAS3Endpoints map[string]struct{}
-	as3RouteCfg         as3Declaration
+	as3RouteCfg         as3ADC
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -434,8 +434,8 @@ func (appMgr *Manager) GetNamespaceLabelInformer() cache.SharedIndexInformer {
 type serviceQueueKey struct {
 	Namespace   string
 	ServiceName string
-	As3Name     string // as3 Specific configMap name
-	As3Data     string // if As3Name is present, populate this with as3 tmpl data
+	AS3Name     string // as3 Specific configMap name
+	AS3Data     string // if AS3Name is present, populate this with as3 tmpl data
 }
 
 type appInformer struct {
@@ -836,15 +836,15 @@ func (appMgr *Manager) virtualServerWorker() {
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
 	k := key.(serviceQueueKey)
-	if len(k.As3Name) != 0 {
+	if len(k.AS3Name) != 0 {
 
-		appMgr.activeCfgMap.Name = k.As3Name
-		appMgr.activeCfgMap.Data = k.As3Data
+		appMgr.activeCfgMap.Name = k.AS3Name
+		appMgr.activeCfgMap.Data = k.AS3Data
 		log.Debugf("[as3_log] Active ConfigMap: (%s)\n", appMgr.activeCfgMap.Name)
 
 		appMgr.vsQueue.Done(key)
-		log.Debugf("[as3_log] Processing AS3 cfgMap (%s) with AS3 Manager.\n", k.As3Name)
-		appMgr.processUserDefinedAS3(k.As3Data)
+		log.Debugf("[as3_log] Processing AS3 cfgMap (%s) with AS3 Manager.\n", k.AS3Name)
+		appMgr.processUserDefinedAS3(k.AS3Data)
 
 		appMgr.vsQueue.Forget(key)
 		return false

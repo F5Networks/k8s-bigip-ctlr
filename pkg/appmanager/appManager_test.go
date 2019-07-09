@@ -4090,7 +4090,7 @@ var _ = Describe("AppManager Tests", func() {
 				cfgFoo.ObjectMeta.Labels["as3"] = "true"
 				ok, keyList := mockMgr.appMgr.checkValidConfigMap(cfgFoo)
 				Expect(ok).To(BeTrue(), "ConfigMap with AS3 TRUE be processed.")
-				Expect(keyList[:1][0].As3Name).To(Equal("foomap"))
+				Expect(keyList[:1][0].AS3Name).To(Equal("foomap"))
 			})
 		})
 

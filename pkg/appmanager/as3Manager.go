@@ -48,7 +48,7 @@ const (
   "class": "AS3",
   "declaration": {
     "class": "ADC",
-    "schemaVersion": "3.10.0",
+    "schemaVersion": "3.11.0",
     "id": "urn:uuid:ebefe1c6-9629-4339-885f-92492db94120",
     "label": "Basic Declaration",
 	"remark": "Default AS3 template"
@@ -57,29 +57,10 @@ const (
 `
 )
 
-type as3Template string
-type as3Declaration string
-
-type poolName string
-type appName string
-type tenantName string
-
-type pool []Member
-type tenant map[appName][]poolName
-type as3Object map[tenantName]tenant
-
-//Rest client creation for big ip
-type As3RestClient struct {
-	client      *http.Client
-	baseURL     string
-	oldChecksum string
-	newChecksum string
-}
-
 var BigIPUsername string
 var BigIPPassword string
 var BigIPURL string
-var as3RC As3RestClient
+var as3RC AS3RestClient
 var certificates string
 
 var buffer map[Member]struct{}
@@ -406,7 +387,7 @@ func (appMgr *Manager) postAS3Declaration(declaration as3Declaration) {
 }
 
 // Takes AS3 Declaration, method, API route and post it to BigIP
-func (as3RestClient *As3RestClient) restCallToBigIP(method string, route string, declaration as3Declaration, sslInsecure bool) (string, bool) {
+func (as3RestClient *AS3RestClient) restCallToBigIP(method string, route string, declaration as3Declaration, sslInsecure bool) (string, bool) {
 	log.Debugf("[as3_log] REST call with AS3 Manager")
 	hash := md5.New()
 	io.WriteString(hash, string(declaration))
@@ -654,8 +635,8 @@ func (appMgr *Manager) checkValidAS3ConfigMap(obj interface{}) (
 	log.Debugf("[as3_log] Found AS3 ConfigMap - %s.", cm.ObjectMeta.Name)
 	key := &serviceQueueKey{
 		Namespace: namespace,
-		As3Name:   cm.ObjectMeta.Name,
-		As3Data:   cm.Data["template"],
+		AS3Name:   cm.ObjectMeta.Name,
+		AS3Data:   cm.Data["template"],
 	}
 	keyList = append(keyList, key)
 	return true, keyList
@@ -675,8 +656,8 @@ func (appMgr *Manager) checkValidAS3Service(obj interface{}) (
 	key := &serviceQueueKey{
 		ServiceName: svc.ObjectMeta.Name,
 		Namespace:   namespace,
-		As3Name:     appMgr.activeCfgMap.Name,
-		As3Data:     appMgr.activeCfgMap.Data,
+		AS3Name:     appMgr.activeCfgMap.Name,
+		AS3Data:     appMgr.activeCfgMap.Data,
 	}
 	keyList = append(keyList, key)
 	return true, keyList
@@ -700,76 +681,87 @@ func (appMgr *Manager) checkValidAS3Endpoints(obj interface{}) (
 	key := &serviceQueueKey{
 		ServiceName: eps.ObjectMeta.Name,
 		Namespace:   namespace,
-		As3Name:     appMgr.activeCfgMap.Name,
-		As3Data:     appMgr.activeCfgMap.Data,
+		AS3Name:     appMgr.activeCfgMap.Name,
+		AS3Data:     appMgr.activeCfgMap.Data,
 	}
 	keyList = append(keyList, key)
 	return true, keyList
 }
 
 func (appMgr *Manager) getUnifiedAS3Declaration() as3Declaration {
-	if appMgr.as3RouteCfg == "" {
+	if appMgr.as3RouteCfg == nil {
 		// Triggered from CfgMap call back
 		// return active CfgMap
 		return as3Declaration(appMgr.activeCfgMap.Data)
 	}
 
 	// Need to process Routes
-	var declObj, routeObj map[string]interface{}
+	var as3Config map[string]interface{}
 	if appMgr.activeCfgMap.Data != "" {
 		// Merge activeCfgMap and as3RouteCfg
-		_ = json.Unmarshal([]byte(appMgr.activeCfgMap.Data), &declObj)
+		_ = json.Unmarshal([]byte(appMgr.activeCfgMap.Data), &as3Config)
 	} else {
 		// Merge base AS3 template and as3RouteCfg
-		_ = json.Unmarshal([]byte(baseAS3Config), &declObj)
+		_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
 	}
-	_ = json.Unmarshal([]byte(appMgr.as3RouteCfg), &routeObj)
+	// TODO: Merge User ConfigMap and Route ADC properly
+	var commonTenants []string
+	adc := as3Config["declaration"].(map[string]interface{})
 
-	decl := declObj["declaration"].(map[string]interface{})
-	decl["openshift"] = map[string]interface{}{}
-	tnt := decl["openshift"].(map[string]interface{})
-	tnt["class"] = "Tenant"
-	tnt["Shared"] = routeObj
+	for rk := range appMgr.as3RouteCfg {
+		for ak := range adc {
+			if rk == ak {
+				commonTenants = append(commonTenants, rk)
+			}
+		}
+	}
+	if len(commonTenants) > 0 {
+		for _, t := range commonTenants {
+			for k, v := range appMgr.as3RouteCfg[t].(map[string]interface{}) {
+				adc[t].(map[string]interface{})[k] = v
+			}
+		}
+	} else {
+		for k, v := range appMgr.as3RouteCfg {
+			adc[k] = v
+		}
+	}
 
-	unifiedDecl, _ := json.Marshal(declObj)
+	unifiedDecl, _ := json.Marshal(as3Config)
 	log.Debugf("as3_log: Unified AS3 Declaration: %v\n", string(unifiedDecl))
 	return as3Declaration(string(unifiedDecl))
 }
 
 func (appMgr *Manager) postRouteDeclarationHost() {
-	var shared map[string]interface{}
-	shared = appMgr.generateAS3RouteDeclaration()
-	if len(shared) > 2 {
-		declaration, _ := json.Marshal(shared)
-		log.Debugf("as3_log route shared json: %v", string(declaration))
-		appMgr.as3RouteCfg = as3Declaration(declaration)
+	if adc, ok := appMgr.generateAS3RouteDeclaration(); ok {
+		log.Debugf("as3_log route shared json: %v", adc)
+		appMgr.as3RouteCfg = adc
 		//Get unified declaration
 		unifiedDecl := appMgr.getUnifiedAS3Declaration()
 		appMgr.postAS3Declaration(unifiedDecl)
 	}
-
 }
 
-func (appMgr *Manager) generateAS3RouteDeclaration() map[string]interface{} {
-
-	//Create shared object
-	sharedApp := make(map[string]interface{})
+func (appMgr *Manager) generateAS3RouteDeclaration() (as3ADC, bool) {
+	var partition string
+	// Create Shared as3Application object
+	sharedApp := as3Application{}
 	sharedApp["class"] = "Application"
 	sharedApp["template"] = "shared"
 	for _, cfg := range appMgr.resources.GetAllResources() {
 		//Process only route data
 		if cfg.MetaData.ResourceType == "route" {
 			for _, pl := range cfg.Policies {
+				//Create EndpointPolicy
+				ep := as3EndpointPolicy{}
 				for _, rl := range pl.Rules {
 
-					//Create routes
-					route := make(map[string]interface{})
-					route["class"] = "Endpoint_Policy"
+					ep.Class = "Endpoint_Policy"
 					s := strings.Split(pl.Strategy, "/")
-					route["strategy"] = s[len(s)-1]
+					ep.Strategy = s[len(s)-1]
 
 					//Create rules
-					rulesData := &As3Rule{Name: rl.Name}
+					rulesData := &as3Rule{Name: rl.Name}
 
 					//Create condition object
 					createRouteRuleCondition(rl, rulesData)
@@ -777,32 +769,47 @@ func (appMgr *Manager) generateAS3RouteDeclaration() map[string]interface{} {
 					//Creat action object
 					createRouteRuleAction(rl, rulesData)
 
-					r := make([]interface{}, 0)
-					route["rules"] = append(r, rulesData)
-
-					//Setting shared name
-					sharedApp[pl.Name] = route
+					ep.Rules = append(ep.Rules, *rulesData)
 				}
+				//Setting Endpoint_Policy Name
+				sharedApp[pl.Name] = ep
 			}
 
 			//Create pools
 			createPoolDecl(cfg.Pools, sharedApp)
 
-			//Create virtuals
-			createVirtualDecl(cfg, sharedApp)
+			//Create AS3 Service for virtual server
+			createServiceDecl(cfg, sharedApp)
+
+			if len(cfg.Virtual.Policies) != 0 && partition == "" {
+				partition = cfg.Virtual.Policies[0].Partition
+			}
 		}
 	}
-	return sharedApp
+
+	// No Policy created, hence no route declaration
+	if partition == "" {
+		return nil, false
+	}
+	// Create AS3 Tenant
+	tenant := as3Tenant{
+		"class":  "Tenant",
+		"Shared": sharedApp,
+	}
+	as3JSONDecl := as3ADC{
+		partition: tenant,
+	}
+	return as3JSONDecl, true
 }
 
-//create route pools
+// Create AS3 Pools for Route
 func createPoolDecl(pools Pools, sharedApp map[string]interface{}) {
 	for _, v := range pools {
-		var pool As3Pool
+		var pool as3Pool
 		pool.LoadBalancingMode = v.Balance
 		pool.Class = "Pool"
 		for _, val := range v.Members {
-			var member As3PoolMember
+			var member as3PoolMember
 			member.AddressDiscovery = "static"
 			member.ServicePort = val.Port
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
@@ -812,56 +819,89 @@ func createPoolDecl(pools Pools, sharedApp map[string]interface{}) {
 	}
 }
 
-//Create route virtuals
-func createVirtualDecl(cfg *ResourceConfig, sharedApp map[string]interface{}) {
-	var osev As3Vserver
-	osev.Layer4 = cfg.Virtual.IpProtocol
-	osev.Source = "0.0.0.0/0"
-	osev.TranslateServerAddress = true
-	osev.TranslateServerPort = true
-	osev.Class = "Service_HTTP"
-	profileHTTP := map[string]string{"bigip": "/Common/http"}
-	osev.ProfileHTTP = profileHTTP
-	profileTCP := map[string]string{"bigip": "/Common/tcp"}
-	osev.ProfileTCP = profileTCP
+// Create AS3 Service for Route
+func createServiceDecl(cfg *ResourceConfig, sharedApp map[string]interface{}) {
+	var svc as3Service
+
+	if len(cfg.Virtual.Policies) == 1 {
+		svc.PolicyEndpoint = fmt.Sprintf("/%s/%s/%s",
+			cfg.Virtual.Policies[0].Partition,
+			"Shared",
+			cfg.Virtual.Policies[0].Name,
+		)
+	} else if len(cfg.Virtual.Policies) > 1 {
+		var peps []as3ResourcePointer
+		for _, pep := range cfg.Virtual.Policies {
+			svc.PolicyEndpoint = append(
+				peps,
+				as3ResourcePointer{
+					BigIP: fmt.Sprintf("/%s/%s/%s",
+						pep.Partition,
+						"Shared",
+						pep.Name,
+					),
+				},
+			)
+		}
+		svc.PolicyEndpoint = peps
+	}
+
+	svc.Layer4 = cfg.Virtual.IpProtocol
+	svc.Source = "0.0.0.0/0"
+	svc.TranslateServerAddress = true
+	svc.TranslateServerPort = true
+	svc.Class = "Service_HTTP"
+
+	for _, prof := range cfg.Virtual.Profiles {
+		switch prof.Name {
+		case "http":
+			svc.ProfileHTTP = as3ResourcePointer{
+				BigIP: fmt.Sprintf("/%s/%s", prof.Partition, prof.Name),
+			}
+		case "tcp":
+			svc.ProfileTCP = as3ResourcePointer{
+				BigIP: fmt.Sprintf("/%s/%s", prof.Partition, prof.Name),
+			}
+		}
+	}
+
 	destination := strings.Split(cfg.Virtual.Destination, "/")
 	ipPort := strings.Split(destination[len(destination)-1], ":")
-	va := append(osev.VirtualAddresses, ipPort[0])
-	osev.VirtualAddresses = va
+	va := append(svc.VirtualAddresses, ipPort[0])
+	svc.VirtualAddresses = va
 	port, _ := strconv.Atoi(ipPort[1])
-	osev.VirtualPort = port
-	osev.Snat = "auto"
-	if len(cfg.Policies) > 0 {
-		osev.PolicyEndpoint = "/openshift/Shared/openshift_insecure_routes"
-	}
-	sharedApp[strings.Replace(cfg.Virtual.Name, "-", "_", -1)] = osev
+	svc.VirtualPort = port
+	svc.SNAT = "auto"
 
+	sharedApp[strings.Replace(cfg.Virtual.Name, "-", "_", -1)] = svc
 }
 
-//Create route rule condition object
-func createRouteRuleCondition(rl *Rule, rulesData *As3Rule) {
-	var condition As3Condition
-	for _, v := range rl.Conditions {
-		condition.Type = "httpHeader"
-		if v.Request {
+// Create AS3 Rule Condition for Route
+func createRouteRuleCondition(rl *Rule, rulesData *as3Rule) {
+	for _, c := range rl.Conditions {
+		var condition as3Condition
+		condition.Name = "host"
+		condition.All = &as3PolicyCompareString{
+			Values: c.Values,
+		}
+		if c.HTTPHost {
+			condition.Type = "httpHeader"
+		}
+		if c.Equals {
+			condition.All.Operand = "equals"
+		}
+
+		if c.Request {
 			condition.Event = "request"
 		}
-		if v.Host {
-			condition.Name = "host"
-		}
-		all := make(map[string]interface{})
-		all["values"] = v.Values
-		if v.Equals {
-			all["operand"] = "equals"
-		}
-		condition.All = all
+
+		rulesData.Conditions = append(rulesData.Conditions, condition)
 	}
-	rulesData.Conditions = append(rulesData.Conditions, condition)
 }
 
-//Create route rule action object
-func createRouteRuleAction(rl *Rule, rulesData *As3Rule) {
-	var action As3Action
+// Create AS3 Rule Action for Route
+func createRouteRuleAction(rl *Rule, rulesData *as3Rule) {
+	var action as3Action
 	for _, v := range rl.Actions {
 		if v.Forward {
 			action.Type = "forward"
@@ -869,12 +909,13 @@ func createRouteRuleAction(rl *Rule, rulesData *As3Rule) {
 		if v.Request {
 			action.Event = "request"
 		}
-		sel := make(map[string]interface{})
-		pools := make(map[string]interface{})
+
 		p := strings.Split(v.Pool, "/")
-		pools["use"] = strings.Replace(p[len(p)-1], "-", "_", -1)
-		sel["pool"] = pools
-		action.Select = sel
+		action.Select = &as3ActionForwardSelect{
+			Pool: &as3ResourcePointer{
+				Use: strings.Replace(p[len(p)-1], "-", "_", -1),
+			},
+		}
 	}
 	rulesData.Actions = append(rulesData.Actions, action)
 }

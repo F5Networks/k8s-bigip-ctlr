@@ -1,14 +1,15 @@
 stages:
   - Build
-#  - Test
-#  - Test-cluster-mode
-#  - Test-nodeport-mode
+  - Test
 
 Build-Image:
   tags: 
     - docker-executor
   stage: Build
   image: ${DOCKER_BUILDER}
+  artifacts:
+    paths:
+      - shared-vars.sh
   
   script:
     - apk update
@@ -16,11 +17,11 @@ Build-Image:
     - if [ "$DOCKER_NAMESPACE" == "" ]; then DOCKER_NAMESPACE="local"; fi
     - export BASE_PUSH_TARGET="$DOCKER_NAMESPACE/k8s-bigip-ctlr"
     - |
-      if [ "$DOCKER_P" == "" -o "$DOCKER_U" == "" -o $DOCKER_NAMESPACE == "" ]; then
+      if [ "$CI_REGISTRY_PASSWORD" == "" -o "$CI_REGISTRY_USER" == "" -o $DOCKER_NAMESPACE == "" ]; then
         echo "[INFO] Docker user, password, or namespace vars absent from travis-ci."
         echo "[INFO] See README.md section 'build' to configure travis with DockerHub."
       else
-        docker login -u="$DOCKER_U" -p="$DOCKER_P"
+        docker login -u="$CI_REGISTRY_USER" -p="$CI_REGISTRY_PASSWORD"
         DOCKER_READY="true"
       fi
     - export BUILD_VERSION=$(build-tools/version-tool version)
@@ -44,20 +45,55 @@ Build-Image:
     - export CLEAN_BUILD=true
     - export BASE_OS=debian
     - make prod
-#    - adduser -D user -s /bin/bash
-#    - bash -c "make prod-build"
-#    - git clone https://github.com/F5Networks/k8s-bigip-ctlr.git
-#    - cd k8s-bigip-ctlr
-#    - bash -c "make prod-build"
-#    - docker tag ${SOURCE_IMAGE} ${BUILD_TAG}
-#    - docker push ${TARGET_IMAGE}
+    - echo "export BUILD_IMG_TAG=$BUILD_IMG_TAG;" >> shared-vars.sh
+    
+    - |
+      if [ "$DOCKER_READY" ]; then
+      
+        docker tag "$IMG_TAG" "$BASE_PUSH_TARGET" 
+        docker push "$BASE_PUSH_TARGET:latest"
 
-#Run-Regression:
-#  tags:
-#    - docker-executor
-#  stage: Test
-#  image: centos
-#  script:
-#    - sudo yum upgrade openssh -y
-#    - sudo yum install wget, make, openssh, python, py-pip, gcc, python2-dev, musl-dev, libffi-dev, openssl-dev -y
-#    - sudo pip install ansible==2.6.5
+        docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_STAMP"
+        docker push "$BASE_PUSH_TARGET:$BUILD_STAMP"
+                
+        docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_VERSION"
+        docker push "$BASE_PUSH_TARGET:$BUILD_VERSION"
+        
+        docker tag "$IMG_TAG" "$BUILD_IMG_TAG"
+        docker push "$BUILD_IMG_TAG" 
+
+      fi
+
+Test-Image:
+  tags: 
+    - docker-executor
+
+  stage: Test
+  image: ${DOCKER_TESTER}
+  before_script:
+    - source shared-vars.sh
+  
+  script:
+    - yum install -y epel-release && yum clean all
+    - yum install git unzip wget make openssh python python-pip  -y
+    - yum upgrade openssh -y
+    - pip install ansible==2.6.5
+    # Cloning Glider Repo
+    - export GIT_ASKPASS=${PWD}/git_config.sh
+    - mkdir glider
+    - echo $GLIDER_REPO
+    - pushd glider
+    - echo -e '#!/bin/bash \necho $GIT_PASSWORD' > $GIT_ASKPASS
+    - chmod +x $GIT_ASKPASS
+    - git init && git config http.sslVerify false
+    - git config credential.https://gitswarm.f5net.com.username ${GITLAB_USER_LOGIN}
+    - git pull $GLIDER_REPO
+    - chmod +x run_glider.sh 
+    - sh run_glider.sh --functest-setup
+    # Running test cases in CLuster Mode
+    - sh run_glider.sh --functest-run --pool-mode='cluster'
+    # Running test case in Nodeport Mode
+    - sh run_glider.sh --functest-run --pool-mode='nodeport'
+    
+    - sh run_glider.sh --functest-teardown
+    - popd

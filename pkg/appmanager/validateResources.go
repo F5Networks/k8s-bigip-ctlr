@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2016-2018, F5 Networks, Inc.
+ * Copyright (c) 2016-2019, F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -239,6 +239,25 @@ func (appMgr *Manager) checkValidIngress(
 		}
 	}
 	return true, keyList
+}
+
+func (appMgr *Manager) checkValidNode(
+	obj interface{},
+) (bool, []*serviceQueueKey) {
+	// Check if an active configMap exists.
+	// if existis get it from appMgr struct and return.
+	// if not existis return false, nil.
+	if "" != appMgr.activeCfgMap.Name && "" != appMgr.activeCfgMap.Data {
+		key := &serviceQueueKey{
+			As3Name: appMgr.activeCfgMap.Name,
+			As3Data: appMgr.activeCfgMap.Data,
+		}
+		var keyList []*serviceQueueKey
+		keyList = append(keyList, key)
+		log.Debugf("[as3_log] NodeInformer: ConfigMap '%s' placed in Queue.", appMgr.activeCfgMap.Name)
+		return true, keyList
+	}
+	return false, nil
 }
 
 func (appMgr *Manager) checkValidRoute(

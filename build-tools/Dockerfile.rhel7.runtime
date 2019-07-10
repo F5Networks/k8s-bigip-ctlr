@@ -43,7 +43,7 @@ RUN microdnf --enablerepo=rhel-7-server-rpms --enablerepo=rhel-7-server-optional
     microdnf clean all
 
 COPY bigip-virtual-server_v*.json $APPPATH/vendor/src/f5/schemas/
-COPY as3-schema-3.10-cis.json $APPPATH/vendor/src/f5/schemas/
+COPY as3-schema-3.11.0-3-cis.json $APPPATH/vendor/src/f5/schemas/
 COPY k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr.real
 COPY VERSION_BUILD.json $APPPATH/vendor/src/f5/
 

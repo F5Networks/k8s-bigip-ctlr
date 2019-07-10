@@ -967,6 +967,14 @@
    "status": "approved"
  },
  {
+   "name": "urllib3",
+   "version": "1.24.2",
+   "license": "MIT",
+   "category": 3,
+   "status": "approved"
+ },
+
+ {
    "name": "attrs",
    "version": "18.2.0",
    "license": "MIT",

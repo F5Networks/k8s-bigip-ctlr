@@ -761,7 +761,7 @@ func (appMgr *Manager) generateAS3RouteDeclaration() (as3ADC, bool) {
 					ep.Strategy = s[len(s)-1]
 
 					//Create rules
-					rulesData := &as3Rule{Name: rl.Name}
+					rulesData := &as3Rule{Name: as3FormatedString(rl.Name)}
 
 					//Create condition object
 					createRouteRuleCondition(rl, rulesData)
@@ -772,7 +772,7 @@ func (appMgr *Manager) generateAS3RouteDeclaration() (as3ADC, bool) {
 					ep.Rules = append(ep.Rules, *rulesData)
 				}
 				//Setting Endpoint_Policy Name
-				sharedApp[pl.Name] = ep
+				sharedApp[as3FormatedString(pl.Name)] = ep
 			}
 
 			//Create pools
@@ -780,6 +780,9 @@ func (appMgr *Manager) generateAS3RouteDeclaration() (as3ADC, bool) {
 
 			//Create AS3 Service for virtual server
 			createServiceDecl(cfg, sharedApp)
+
+			//Create health monitor declaration
+			createMonitorDecl(cfg, sharedApp)
 
 			if len(cfg.Virtual.Policies) != 0 && partition == "" {
 				partition = cfg.Virtual.Policies[0].Partition
@@ -815,7 +818,17 @@ func createPoolDecl(pools Pools, sharedApp map[string]interface{}) {
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
 			pool.Members = append(pool.Members, member)
 		}
-		sharedApp[strings.Replace(v.Name, "-", "_", -1)] = pool
+		for _, val := range v.MonitorNames {
+			var monitor as3ResourcePointer
+			use := strings.Split(val, "/")
+			monitor.Use = fmt.Sprintf("/%s/%s/%s",
+				use[1],
+				"Shared",
+				as3FormatedString(use[2]),
+			)
+			pool.Monitors = append(pool.Monitors, monitor)
+		}
+		sharedApp[as3FormatedString(v.Name)] = pool
 	}
 }
 
@@ -873,7 +886,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp map[string]interface{}) {
 	svc.VirtualPort = port
 	svc.SNAT = "auto"
 
-	sharedApp[strings.Replace(cfg.Virtual.Name, "-", "_", -1)] = svc
+	sharedApp[as3FormatedString(cfg.Virtual.Name)] = svc
 }
 
 // Create AS3 Rule Condition for Route
@@ -929,9 +942,46 @@ func createRouteRuleAction(rl *Rule, rulesData *as3Rule) {
 		p := strings.Split(v.Pool, "/")
 		action.Select = &as3ActionForwardSelect{
 			Pool: &as3ResourcePointer{
-				Use: strings.Replace(p[len(p)-1], "-", "_", -1),
+				Use: as3FormatedString(p[len(p)-1]),
 			},
 		}
 	}
 	rulesData.Actions = append(rulesData.Actions, action)
+}
+
+//Create health monitor declaration
+func createMonitorDecl(cfg *ResourceConfig, sharedApp map[string]interface{}) {
+
+	for _, v := range cfg.Monitors {
+		var monitor as3Monitor
+		monitor.Class = "Monitor"
+		monitor.Interval = v.Interval
+		monitor.MonitorType = v.Type
+		monitor.Timeout = v.Timeout
+		val := 0
+		monitor.TargetPort = &val
+		targetAddressStr := ""
+		monitor.TargetAddress = &targetAddressStr
+		//Monitor type
+		switch v.Type {
+		case "http":
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+			monitor.Dscp = &val
+			monitor.Receive = "none"
+			monitor.TimeUnitilUp = &val
+			monitor.Send = v.Send
+		case "https":
+			//Todo: For https monitor type
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+		}
+		sharedApp[as3FormatedString(v.Name)] = monitor
+	}
+
+}
+
+//Replacing "-" with "_" for given string
+func as3FormatedString(str string) string {
+	return strings.Replace(str, "-", "_", -1)
 }

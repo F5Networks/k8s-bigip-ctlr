@@ -101,9 +101,10 @@ type (
 
 	// as3Pool maps to Pool in AS3 Resources
 	as3Pool struct {
-		Class             string          `json:"class,omitempty"`
-		LoadBalancingMode string          `json:"loadBalancingMode,omitempty"`
-		Members           []as3PoolMember `json:"members,omitempty"`
+		Class             string               `json:"class,omitempty"`
+		LoadBalancingMode string               `json:"loadBalancingMode,omitempty"`
+		Members           []as3PoolMember      `json:"members,omitempty"`
+		Monitors          []as3ResourcePointer `json:"monitors,omitempty"`
 	}
 
 	// as3PoolMember maps to Pool_Member in AS3 Resources
@@ -141,5 +142,25 @@ type (
 		VirtualPort            int               `json:"virtualPort,omitempty"`
 		SNAT                   string            `json:"snat,omitempty"`
 		PolicyEndpoint         as3MultiTypeParam `json:"policyEndpoint,omitempty"`
+	}
+
+	// as3Monitor maps to the following in AS3 Resources
+	// - Monitor
+	// - Monitor_HTTP
+	// - Monitor_HTTPS
+	as3Monitor struct {
+		Class             string  `json:"class,omitempty"`
+		Interval          int     `json:"interval,omitempty"`
+		MonitorType       string  `json:"monitorType,omitempty"`
+		TargetAddress     *string `json:"targetAddress,omitempty"`
+		Timeout           int     `json:"timeout,omitempty"`
+		TimeUnitilUp      *int    `json:"timeUntilUp,omitempty"`
+		Adaptive          *bool   `json:"adaptive,omitempty"`
+		Dscp              *int    `json:"dscp,omitempty"`
+		Receive           string  `json:"receive,omitempty"`
+		Send              string  `json:"send,omitempty"`
+		TargetPort        *int    `json:"targetPort,omitempty"`
+		ClientCertificate string  `json:"clientCertificate,omitempty"`
+		Ciphers           string  `json:"ciphers,omitempty"`
 	}
 )

@@ -34,7 +34,7 @@ import (
 	routeapi "github.com/openshift/origin/pkg/route/api"
 	"github.com/xeipuuv/gojsonschema"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 )

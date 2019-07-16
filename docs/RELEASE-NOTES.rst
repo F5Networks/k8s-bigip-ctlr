@@ -1,6 +1,13 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+next release
+------------
+
+Bug Fixes
+`````````
+* Controller handles http redirects without entering into an infinite loop.
+
 v1.9.1
 ------
 Added Functionality

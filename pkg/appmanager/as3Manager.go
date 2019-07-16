@@ -57,6 +57,7 @@ const (
 `
 )
 
+var BigIPPartition string
 var BigIPUsername string
 var BigIPPassword string
 var BigIPURL string
@@ -743,7 +744,7 @@ func (appMgr *Manager) postRouteDeclarationHost() {
 }
 
 func (appMgr *Manager) generateAS3RouteDeclaration() (as3ADC, bool) {
-	var partition string
+	var policyCreated bool
 	// Create Shared as3Application object
 	sharedApp := as3Application{}
 	sharedApp["class"] = "Application"
@@ -751,6 +752,12 @@ func (appMgr *Manager) generateAS3RouteDeclaration() (as3ADC, bool) {
 	for _, cfg := range appMgr.resources.GetAllResources() {
 		//Process only route data
 		if cfg.MetaData.ResourceType == "route" {
+			if len(cfg.Virtual.Policies) != 0 {
+				if BigIPPartition == "" {
+					BigIPPartition = cfg.Virtual.Policies[0].Partition + "_AS3"
+				}
+				policyCreated = true
+			}
 			for _, pl := range cfg.Policies {
 				//Create EndpointPolicy
 				ep := as3EndpointPolicy{}
@@ -783,15 +790,11 @@ func (appMgr *Manager) generateAS3RouteDeclaration() (as3ADC, bool) {
 
 			//Create health monitor declaration
 			createMonitorDecl(cfg, sharedApp)
-
-			if len(cfg.Virtual.Policies) != 0 && partition == "" {
-				partition = cfg.Virtual.Policies[0].Partition
-			}
 		}
 	}
 
 	// No Policy created, hence no route declaration
-	if partition == "" {
+	if !policyCreated {
 		return nil, false
 	}
 	// Create AS3 Tenant
@@ -800,7 +803,7 @@ func (appMgr *Manager) generateAS3RouteDeclaration() (as3ADC, bool) {
 		"Shared": sharedApp,
 	}
 	as3JSONDecl := as3ADC{
-		partition: tenant,
+		BigIPPartition: tenant,
 	}
 	return as3JSONDecl, true
 }
@@ -838,7 +841,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp map[string]interface{}) {
 
 	if len(cfg.Virtual.Policies) == 1 {
 		svc.PolicyEndpoint = fmt.Sprintf("/%s/%s/%s",
-			cfg.Virtual.Policies[0].Partition,
+			BigIPPartition,
 			"Shared",
 			cfg.Virtual.Policies[0].Name,
 		)
@@ -849,7 +852,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp map[string]interface{}) {
 				peps,
 				as3ResourcePointer{
 					BigIP: fmt.Sprintf("/%s/%s/%s",
-						pep.Partition,
+						BigIPPartition,
 						"Shared",
 						pep.Name,
 					),

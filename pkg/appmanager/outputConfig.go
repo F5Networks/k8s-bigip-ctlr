@@ -32,6 +32,7 @@ func (appMgr *Manager) outputConfig() {
 	switch appMgr.agent {
 	case "as3":
 		//AS3 execution
+		appMgr.sendFDBForRoutes()
 		appMgr.postRouteDeclarationHost()
 	default:
 		//CCCL execution
@@ -190,6 +191,37 @@ func (appMgr *Manager) outputConfigLocked() {
 				}
 			case e := <-errCh:
 				log.Warningf("Failed to write Big-IP config data: %v", e)
+			case <-time.After(time.Second):
+				log.Warning("Did not receive config write response in 1s")
+			}
+		}
+		appMgr.initialState = true
+	}
+}
+
+func (appMgr *Manager) sendFDBForRoutes() {
+	// Sends FDB details to Vxlan Manager when agent=as3
+
+	// Organize the data as a map of arrays of resources (per partition)
+	resources := PartitionMap{}
+
+	// Filter the configs to only those that have active services
+	for _, cfg := range appMgr.resources.GetAllResources() {
+		if cfg.MetaData.Active == true {
+			initPartitionData(resources, cfg.GetPartition())
+		}
+	}
+
+	if appMgr.processedItems >= appMgr.queueLen || appMgr.initialState {
+		doneCh, errCh, err := appMgr.ConfigWriter().SendSection("resources", resources)
+		if nil != err {
+			log.Warningf("Failed to write FDB Records: %v", err)
+		} else {
+			select {
+			case <-doneCh:
+				log.Infof("Successfully Sent the FDB Records")
+			case e := <-errCh:
+				log.Warningf("Failed to write FDB Records: %v", e)
 			case <-time.After(time.Second):
 				log.Warning("Did not receive config write response in 1s")
 			}

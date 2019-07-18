@@ -45,14 +45,12 @@ Build-Image:
     - export CLEAN_BUILD=true
     - export BASE_OS=debian
     - make prod
-    - echo "export BUILD_IMG_TAG=$BUILD_IMG_TAG;" >> shared-vars.sh
-    
+    - echo "export BUILD_IMG_TAG=$BUILD_IMG_TAG;" >> shared-vars.sh 
     - |
       if [ "$DOCKER_READY" ]; then
       
         docker tag "$IMG_TAG" "$BASE_PUSH_TARGET" 
         docker push "$BASE_PUSH_TARGET:latest"
-
         docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_STAMP"
         docker push "$BASE_PUSH_TARGET:$BUILD_STAMP"
                 
@@ -61,9 +59,7 @@ Build-Image:
         
         docker tag "$IMG_TAG" "$BUILD_IMG_TAG"
         docker push "$BUILD_IMG_TAG" 
-
       fi
-
 Test-Image:
   tags: 
     - docker-executor
@@ -74,26 +70,45 @@ Test-Image:
     - source shared-vars.sh
   
   script:
-    - yum install -y epel-release && yum clean all
-    - yum install git unzip wget make openssh python python-pip  -y
-    - yum upgrade openssh -y
-    - pip install ansible==2.6.5
-    # Cloning Glider Repo
-    - export GIT_ASKPASS=${PWD}/git_config.sh
-    - mkdir glider
-    - echo $GLIDER_REPO
-    - pushd glider
-    - echo -e '#!/bin/bash \necho $GIT_PASSWORD' > $GIT_ASKPASS
-    - chmod +x $GIT_ASKPASS
-    - git init && git config http.sslVerify false
-    - git config credential.https://gitswarm.f5net.com.username ${GITLAB_USER_LOGIN}
-    - git pull $GLIDER_REPO
-    - chmod +x run_glider.sh 
-    - sh run_glider.sh --functest-setup
-    # Running test cases in CLuster Mode
-    - sh run_glider.sh --functest-run --pool-mode='cluster'
-    # Running test case in Nodeport Mode
-    - sh run_glider.sh --functest-run --pool-mode='nodeport'
-    
-    - sh run_glider.sh --functest-teardown
-    - popd
+    - yum install openssh openssh-clients -y 
+    - |
+      if [[ ! ( -z ${BASTION_KEY} ) && ! ( -z ${BASTION}) ]]; then
+        set -x
+        SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
+        chmod 600 ${BASTION_KEY}
+        ssh -o "StrictHostKeyChecking=no" -i ${BASTION_KEY} -t ${BASTION} "sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json"
+        if [[ ${ORCHESTRATION} == "k8s" ]] ; then
+          ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh  --project=bigip_ctlr --session=${SESSION}-cluster --include-tags=${INCLUDE_TAGS} --orchestration=k8s --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags=${EXCLUDE_TAGS}" ;
+          ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh  --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags=${INCLUDE_TAGS} --orchestration=k8s --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags=${EXCLUDE_TAGS}" ;
+          
+        elif [[ ${ORCHESTRATION} == "oscp" || ${ORCHESTRATION} == "os" ]] ; then
+          ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags=${INCLUDE_TAGS} --orchestration=openshift --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags=${EXCLUDE_TAGS}" ;
+          ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags=${INCLUDE_TAGS} --orchestration=openshift --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags=${EXCLUDE_TAGS}" ;
+          
+        else
+          echo "Invalid Orchestration. Exiting...";
+          exit 1;
+        fi ;
+      else
+        yum install -y epel-release && yum clean all
+        yum install git unzip wget make openssh python python-pip  -y
+        pip install ansible==2.6.5
+        # Cloning Glider Repo
+        export GIT_ASKPASS=${PWD}/git_config.sh
+        mkdir glider
+        echo $GLIDER_REPO
+        pushd glider
+        echo -e '#!/bin/bash \necho $GIT_PASSWORD' > $GIT_ASKPASS
+        chmod +x $GIT_ASKPASS
+        git init && git config http.sslVerify false
+        git config credential.https://gitswarm.f5net.com.username ${GITLAB_USER_LOGIN}
+        git pull $GLIDER_REPO
+        chmod +x run_glider.sh 
+        sh run_glider.sh --functest-setup
+        # Running test cases in CLuster Mode
+        sh run_glider.sh --functest-run --pool-mode='cluster'
+        # Running test case in Nodeport Mode
+        sh run_glider.sh --functest-run --pool-mode='nodeport'
+        sh run_glider.sh --functest-teardown
+        popd
+      fi

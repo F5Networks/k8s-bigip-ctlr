@@ -21,6 +21,7 @@ GTAGS
 *.core
 *.v8heapsnapshot
 *.idea
+.vscode
 .vagrant
 debian/files
 debian/*.debhelper.log

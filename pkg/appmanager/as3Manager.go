@@ -55,6 +55,7 @@ const (
   }
 }
 `
+	as3SharedApplication = "Shared"
 )
 
 var BigIPPartition string
@@ -799,8 +800,8 @@ func (appMgr *Manager) generateAS3RouteDeclaration() (as3ADC, bool) {
 	}
 	// Create AS3 Tenant
 	tenant := as3Tenant{
-		"class":  "Tenant",
-		"Shared": sharedApp,
+		"class":              "Tenant",
+		as3SharedApplication: sharedApp,
 	}
 	as3JSONDecl := as3ADC{
 		BigIPPartition: tenant,
@@ -825,8 +826,8 @@ func createPoolDecl(pools Pools, sharedApp map[string]interface{}) {
 			var monitor as3ResourcePointer
 			use := strings.Split(val, "/")
 			monitor.Use = fmt.Sprintf("/%s/%s/%s",
-				use[1],
-				"Shared",
+				BigIPPartition,
+				as3SharedApplication,
 				as3FormatedString(use[2]),
 			)
 			pool.Monitors = append(pool.Monitors, monitor)
@@ -842,7 +843,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp map[string]interface{}) {
 	if len(cfg.Virtual.Policies) == 1 {
 		svc.PolicyEndpoint = fmt.Sprintf("/%s/%s/%s",
 			BigIPPartition,
-			"Shared",
+			as3SharedApplication,
 			cfg.Virtual.Policies[0].Name,
 		)
 	} else if len(cfg.Virtual.Policies) > 1 {
@@ -853,7 +854,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp map[string]interface{}) {
 				as3ResourcePointer{
 					BigIP: fmt.Sprintf("/%s/%s/%s",
 						BigIPPartition,
-						"Shared",
+						as3SharedApplication,
 						pep.Name,
 					),
 				},

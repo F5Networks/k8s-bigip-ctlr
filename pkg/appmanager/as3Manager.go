@@ -43,6 +43,7 @@ const (
 	svcTenantLabel           = "cis.f5.com/as3-tenant"
 	svcAppLabel              = "cis.f5.com/as3-app"
 	svcPoolLabel             = "cis.f5.com/as3-pool"
+	as3SchemaLatest          = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
 	baseAS3Config            = `{
   "$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema-3.11.0-3.json",
   "class": "AS3",
@@ -67,6 +68,7 @@ var certificates string
 
 var buffer map[Member]struct{}
 var epbuffer map[string]struct{}
+var schemaLoader gojsonschema.JSONLoader
 
 // Takes an AS3 Template and perform service discovery with Kubernetes to generate AS3 Declaration
 func (appMgr *Manager) processUserDefinedAS3(template string) bool {
@@ -104,12 +106,40 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 // Validates the AS3 Template
 func (appMgr *Manager) validateAS3Template(template string) bool {
 
-	var schema = appMgr.schemaLocal + "as3-schema-3.11.0-3-cis.json"
+	res, err := http.Get(as3SchemaLatest)
+	if err != nil {
+		log.Debugf("unable to fetch latest as3 template: %v", err)
+	}
 
-	// Load Both the AS3 Schema and AS3 Template
-	schemaLoader := gojsonschema.NewReferenceLoader(schema)
+	if res.StatusCode == http.StatusOK {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Debugf("unable to read the as3 template from json response body : %v", err)
+		}
+		defer res.Body.Close()
+
+		jsonMap := make(map[string]interface{})
+		err = json.Unmarshal(body, &jsonMap)
+		if err != nil {
+			log.Debugf("unable to unmarshal json response body : %v", err)
+		}
+
+		jsonMap["$id"] = as3SchemaLatest
+
+		byteJSON, err := json.Marshal(jsonMap)
+		if err != nil {
+			log.Debugf("unable to marshal : %v", err)
+		}
+
+		// Load AS3 Schema
+		schemaLoader = gojsonschema.NewStringLoader(string(byteJSON))
+	} else {
+		// Load AS3 Schema
+		schemaLoader = gojsonschema.NewReferenceLoader(appMgr.schemaLocal + "as3-schema-3.11.0-3-cis.json")
+	}
+
+	// Load AS3 Template
 	documentLoader := gojsonschema.NewStringLoader(template)
-
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
 
 	if err != nil {

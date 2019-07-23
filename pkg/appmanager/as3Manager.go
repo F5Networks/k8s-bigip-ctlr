@@ -95,6 +95,9 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 
 	appMgr.as3Members = buffer
 	appMgr.watchedAS3Endpoints = epbuffer
+	// Update the active configmap data
+	appMgr.activeCfgMap.Data = string(declaration)
+	declaration = appMgr.getUnifiedAS3Declaration()
 	appMgr.postAS3Declaration(declaration)
 
 	return true

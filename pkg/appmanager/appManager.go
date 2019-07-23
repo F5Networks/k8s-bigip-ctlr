@@ -828,6 +828,15 @@ func (appMgr *Manager) virtualServerWorker() {
 	}
 }
 
+func (appMgr *Manager) getServicesQueueLen() int {
+	qLen := 0
+	for _, ns := range appMgr.GetWatchedNamespaces() {
+		services, _ := appMgr.kubeClient.CoreV1().Services(ns).List(metav1.ListOptions{})
+		qLen += len(services.Items)
+	}
+	return qLen
+}
+
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
 	k := key.(serviceQueueKey)
@@ -845,9 +854,7 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 		return false
 	}
 	if !appMgr.initialState && appMgr.processedItems == 0 {
-		//TODO: Properly handlle queueLen assessment and remove Sleep function
-		time.Sleep(1 * time.Second)
-		appMgr.queueLen = appMgr.vsQueue.Len()
+		appMgr.queueLen = appMgr.getServicesQueueLen()
 	}
 	if quit {
 		// The controller is shutting down.

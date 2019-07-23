@@ -7,6 +7,7 @@ next release
 Bug Fixes
 `````````
 * Controller handles http redirects without entering into an infinite loop.
+* Controller deletes services and recreates them during controller pod restart.
 
 v1.9.1
 ------

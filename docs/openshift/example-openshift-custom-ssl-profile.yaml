@@ -13,7 +13,7 @@ metadata:
     # all Route Annotations
     # https://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/latest/#supported-route-annotations
     virtual-server.f5.com/balance: least-connections-member
-    virtual-server.f5.com/clientssl: /Common/existing-ssl
+    virtual-server.f5.com/clientssl: /Common/custom-ssl
 spec:
   host: mysite.example.com
   path: "/myApp"

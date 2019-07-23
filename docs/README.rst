@@ -295,15 +295,15 @@ OpenShift Routes
 | Parameter             | Type    | Required | Default           | Description                             | Allowed Values |
 +=======================+=========+==========+===================+=========================================+================+
 | custom-client-ssl     | string  | Optional | n/a               | Specifies the name of a custom          |                |
-|                       |         |          |                   | client SSL profile that is associated   |                |
-|                       |         |          |                   | with the route HTTPS virtual server and |                |
+|                       |         |          |                   | client SSL profile attached to the      |                |
+|                       |         |          |                   | route HTTPS virtual server and          |                |
 |                       |         |          |                   | used as default for SNI. This profile   |                |
 |                       |         |          |                   | must have the Default for SNI field     |                |
 |                       |         |          |                   | enabled.                                |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | custom-server-ssl     | string  | Optional | n/a               | Specifies the name of a custom          |                |
-|                       |         |          |                   | server SSL profile that is associated   |                |
-|                       |         |          |                   | with the route HTTPS virtual server and |                |
+|                       |         |          |                   | server SSL profile attached to the      |                |
+|                       |         |          |                   | route HTTPS virtual server and          |                |
 |                       |         |          |                   | used as default for SNI. This profile   |                |
 |                       |         |          |                   | must have the Default for SNI field     |                |
 |                       |         |          |                   | enabled.                                |                |

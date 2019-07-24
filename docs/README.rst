@@ -331,8 +331,8 @@ OpenShift Routes
    clientssl and serverssl profiles for the OpenShift Route HTTPS virtual server. The controller sets these profiles as
    Default for SNI.
 
-- :fonticon:`fa fa-download` :download:`example-openshift-custom-ssl-profile.yaml </openshift/config_examples/example-openshift-custom-ssl-profile.yaml>`
-- :fonticon:`fa fa-download` :download:`example-openshift-default-ssl-profile.yaml </openshift/config_examples/example-openshift-default-ssl-profile.yaml>`
+- :fonticon:`fa fa-download` :download:`example-openshift-custom-ssl-profile.yaml </_static/config_examples/example-openshift-custom-ssl-profile.yaml>`
+- :fonticon:`fa fa-download` :download:`example-openshift-default-ssl-profile.yaml </_static/config_examples/example-openshift-default-ssl-profile.yaml>`
 
 .. _f5 resource configmap properties:
 

@@ -294,16 +294,16 @@ OpenShift Routes
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
 | Parameter             | Type    | Required | Default           | Description                             | Allowed Values |
 +=======================+=========+==========+===================+=========================================+================+
-| default-client-ssl    | string  | Optional | n/a               | Specify the name of a user created      |                |
-|                       |         |          |                   | client ssl profile that will be         |                |
-|                       |         |          |                   | attached to the route https vserver and |                |
+| custom-client-ssl     | string  | Optional | n/a               | Specifies the name of a custom          |                |
+|                       |         |          |                   | client SSL profile attached to the      |                |
+|                       |         |          |                   | route HTTPS virtual server and          |                |
 |                       |         |          |                   | used as default for SNI. This profile   |                |
 |                       |         |          |                   | must have the Default for SNI field     |                |
 |                       |         |          |                   | enabled.                                |                |
 +-----------------------+---------+----------+-------------------+-----------------------------------------+----------------+
-| default-server-ssl    | string  | Optional | n/a               | Specify the name of a user created      |                |
-|                       |         |          |                   | server ssl profile that will be         |                |
-|                       |         |          |                   | attached to the route https vserver and |                |
+| custom-server-ssl     | string  | Optional | n/a               | Specifies the name of a custom          |                |
+|                       |         |          |                   | server SSL profile attached to the      |                |
+|                       |         |          |                   | route HTTPS virtual server and          |                |
 |                       |         |          |                   | used as default for SNI. This profile   |                |
 |                       |         |          |                   | must have the Default for SNI field     |                |
 |                       |         |          |                   | enabled.                                |                |
@@ -327,10 +327,12 @@ OpenShift Routes
 
 .. note::
 
-   If the ``default-client-ssl`` or ``default-server-ssl`` parameters are not provided, then the controller creates default
+   If the ``custom-client-ssl`` or ``custom-server-ssl`` parameters are not provided, then the controller creates default
    clientssl and serverssl profiles for the OpenShift Route HTTPS virtual server. The controller sets these profiles as
    Default for SNI.
 
+- :fonticon:`fa fa-download` :download:`example-openshift-custom-ssl-profile.yaml </openshift/config_examples/example-openshift-custom-ssl-profile.yaml>`
+- :fonticon:`fa fa-download` :download:`example-openshift-default-ssl-profile.yaml </openshift/config_examples/example-openshift-default-ssl-profile.yaml>`
 
 .. _f5 resource configmap properties:
 

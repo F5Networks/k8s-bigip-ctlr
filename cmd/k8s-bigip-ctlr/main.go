@@ -512,6 +512,16 @@ func createLabel(label string) (labels.Selector, error) {
 	return l, nil
 }
 
+// Get Namespaces we are watching to know the vsQueue Length
+func GetNamespaces(appMgr *appmanager.Manager) {
+	if len(*namespaces) != 0 && len(*namespaceLabel) == 0 {
+		appMgr.WatchedNS.Namespaces = *namespaces
+	}
+	if len(*namespaces) == 0 && len(*namespaceLabel) != 0 {
+		appMgr.WatchedNS.NamespaceLabel = *namespaceLabel
+	}
+}
+
 // setup the initial watch based off the flags passed in, if no flags then we
 // watch all namespaces
 func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
@@ -705,7 +715,7 @@ func main() {
 	}
 
 	appMgr := appmanager.NewManager(&appMgrParms)
-
+	GetNamespaces(appMgr)
 	intervalFactor := time.Duration(*nodePollInterval)
 	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
 	err = setupNodePolling(appMgr, np, eventChan, appMgrParms.KubeClient)

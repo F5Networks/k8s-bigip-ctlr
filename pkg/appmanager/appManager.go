@@ -136,6 +136,8 @@ type Manager struct {
 	activeCfgMap ActiveAS3ConfigMap
 	// List of Watched Endpoints for user-defined AS3
 	watchedAS3Endpoints map[string]struct{}
+	// Watched namespaces
+	WatchedNS WatchedNamespaces
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -144,6 +146,12 @@ type Manager struct {
 type ActiveAS3ConfigMap struct {
 	Name string // AS3 specific ConfigMap name
 	Data string // if AS3 Name is present, populate this with AS3 template data.
+}
+
+// Watched Namespaces for global availability.
+type WatchedNamespaces struct {
+	Namespaces     []string
+	NamespaceLabel string
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -828,6 +836,43 @@ func (appMgr *Manager) virtualServerWorker() {
 	}
 }
 
+// Get all Namespaces being watched based on Namespaces provided, Namespace Label or all
+func (appMgr *Manager) GetAllWatchedNamespaces() []string {
+	var namespaces []string
+	switch {
+	case len(appMgr.WatchedNS.Namespaces) != 0:
+		namespaces = appMgr.WatchedNS.Namespaces
+	case len(appMgr.WatchedNS.NamespaceLabel) != 0:
+		NsListOptions := metav1.ListOptions{
+			LabelSelector: appMgr.WatchedNS.NamespaceLabel,
+		}
+		nsL, err := appMgr.kubeClient.CoreV1().Namespaces().List(NsListOptions)
+		if err != nil {
+			log.Errorf("Error getting Namespaces with Namespace label - %v.", err)
+		}
+		for _, v := range nsL.Items {
+			namespaces = append(namespaces, v.Name)
+		}
+	default:
+		namespaces = append(namespaces, "")
+	}
+	return namespaces
+}
+
+// Get the count of Services from the Namespaces being watched.
+func (appMgr *Manager) getServiceCount() int {
+	qLen := 0
+	for _, ns := range appMgr.GetAllWatchedNamespaces() {
+		services, err := appMgr.kubeClient.CoreV1().Services(ns).List(metav1.ListOptions{})
+		qLen += len(services.Items)
+		if err != nil {
+			log.Errorf("Failed getting Services from watched namespace : %v.", err)
+			qLen = appMgr.vsQueue.Len()
+		}
+	}
+	return qLen
+}
+
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
 	k := key.(serviceQueueKey)
@@ -845,9 +890,7 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 		return false
 	}
 	if !appMgr.initialState && appMgr.processedItems == 0 {
-		//TODO: Properly handlle queueLen assessment and remove Sleep function
-		time.Sleep(1 * time.Second)
-		appMgr.queueLen = appMgr.vsQueue.Len()
+		appMgr.queueLen = appMgr.getServiceCount()
 	}
 	if quit {
 		// The controller is shutting down.

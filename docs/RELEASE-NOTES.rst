@@ -1,6 +1,13 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+v1.9.2
+------
+Bug Fixes
+`````````
+* Controller handles http redirects without entering into an infinite loop.
+* :issues:`810` Controller does not delete resources in BIG-IP and recreates during controller pod restart.
+
 v1.9.1
 ------
 Added Functionality

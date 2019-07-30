@@ -1,6 +1,13 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+v1.10
+------
+Added Functionality
+`````````````````````
+* Logging BIP-IP AS3 error response body for better readability and appropriate logs.
+
+
 v1.9.1
 ------
 Added Functionality

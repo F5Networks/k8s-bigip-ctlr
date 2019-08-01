@@ -93,6 +93,7 @@ var (
 	namespaceLabel    *string
 	manageRoutes      *bool
 	manageConfigMaps  *bool
+	manageIngress     *bool
 	nodeLabelSelector *string
 	resolveIngNames   *string
 	defaultIngIP      *string
@@ -206,6 +207,8 @@ func _init() {
 		"Optional, used to watch for namespaces with this label")
 	manageRoutes = kubeFlags.Bool("manage-routes", false,
 		"Optional, specify whether or not to manage Route resources")
+	manageIngress = kubeFlags.Bool("manage-ingress", true,
+		"Optional, specify whether or not to manage Ingress resources")
 	manageConfigMaps = kubeFlags.Bool("manage-configmaps", true,
 		"Optional, specify whether or not to manage ConfigMap resources")
 	nodeLabelSelector = kubeFlags.String("node-label-selector", "",
@@ -607,6 +610,9 @@ func main() {
 	if len(*routeLabel) > 0 {
 		*routeLabel = fmt.Sprintf("f5type in (%s)", *routeLabel)
 	}
+	if false == *manageIngress {
+		*resolveIngNames = ""
+	}
 	var routeConfig = appmanager.RouteConfig{
 		RouteVSAddr: *routeVserverAddr,
 		RouteLabel:  *routeLabel,
@@ -627,6 +633,7 @@ func main() {
 		VsSnatPoolName:     *vsSnatPoolName,
 		UseSecrets:         *useSecrets,
 		ManageConfigMaps:   *manageConfigMaps,
+		ManageIngress:      *manageIngress,
 		SchemaLocal:        *schemaLocal,
 		AS3Validation:      *as3Validation,
 		SSLInsecure:        *sslInsecure,

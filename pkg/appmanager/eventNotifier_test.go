@@ -140,6 +140,7 @@ var _ = Describe("Event Notifier Tests", func() {
 				restClient:      test.CreateFakeHTTPClient(),
 				RouteClientV1:   test.CreateFakeHTTPClient(),
 				IsNodePort:      true,
+				ManageIngress:   true,
 				broadcasterFunc: NewFakeEventBroadcaster,
 			})
 			namespaces = []string{"ns0", "ns1", "ns2", "ns3", "ns4", "ns5"}

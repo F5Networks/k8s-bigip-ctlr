@@ -2274,16 +2274,30 @@ func (appMgr *Manager) getNodes(
 		addrType = v1.NodeExternalIP
 	}
 
-	// Append list of nodes to watchedNodes
+	isUnSchedulable := func(node v1.Node) bool {
+		for _, t := range node.Spec.Taints {
+			if v1.TaintEffectNoSchedule == t.Effect {
+				return true
+			}
+		}
+		return node.Spec.Unschedulable
+	}
+
 	for _, node := range nodes {
-		nodeAddrs := node.Status.Addresses
-		for _, addr := range nodeAddrs {
-			if addr.Type == addrType {
-				n := Node{
-					Name: node.ObjectMeta.Name,
-					Addr: addr.Address,
+		if 0 == len(appMgr.nodeLabelSelector) && isUnSchedulable(node) {
+			// Skip unschedulable nodes only when there isn't a node
+			// selector
+			continue
+		} else {
+			nodeAddrs := node.Status.Addresses
+			for _, addr := range nodeAddrs {
+				if addr.Type == addrType {
+					n := Node{
+						Name: node.ObjectMeta.Name,
+						Addr: addr.Address,
+					}
+					watchedNodes = append(watchedNodes, n)
 				}
-				watchedNodes = append(watchedNodes, n)
 			}
 		}
 	}

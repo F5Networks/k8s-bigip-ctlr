@@ -33,7 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
-	v1 "k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
@@ -73,8 +73,6 @@ var twoSvcsFourPortsThreeNodesConfig = readConfigFile(configPath + "twoSvcsFourP
 
 var twoSvcsTwoNodesConfig = readConfigFile(configPath + "twoSvcsTwoNodesConfigExp.json")
 
-var twoSvcsThreeNodesConfig = readConfigFile(configPath + "twoSvcsThreeNodesConfigExp.json")
-
 var twoSvcsOneNodeConfig = readConfigFile(configPath + "twoSvcsOneNodeConfigExp.json")
 
 var oneSvcOneNodeConfig = readConfigFile(configPath + "oneSvcOneNodeConfigExp.json")
@@ -88,8 +86,6 @@ var oneIappOneNodeConfig = readConfigFile(configPath + "oneIappOneNodeConfigExp.
 var twoSvcTwoPodsConfig = readConfigFile(configPath + "twoSvcTwoPodsConfigExp.json")
 
 var oneSvcTwoPodsConfig = readConfigFile(configPath + "oneSvcTwoPodsConfigExp.json")
-
-var twoSvcsFourPortsFourNodesConfig = readConfigFile(configPath + "twoSvcsFourPortsFourNodesConfigExp.json")
 
 func readConfigFile(path string) string {
 	defer GinkgoRecover()
@@ -710,11 +706,9 @@ var _ = Describe("AppManager Tests", func() {
 			}
 
 			expectedReturn := []Node{
-				{Name: "node0", Addr: "127.0.0.0"},
 				{Name: "node1", Addr: "127.0.0.1"},
 				{Name: "node2", Addr: "127.0.0.2"},
 				{Name: "node3", Addr: "127.0.0.3"},
-				{Name: "node6", Addr: "127.0.0.6"},
 			}
 
 			fakeClient := fake.NewSimpleClientset()
@@ -783,11 +777,9 @@ var _ = Describe("AppManager Tests", func() {
 			}
 
 			expectedOgSet := []Node{
-				{Name: "node0", Addr: "127.0.0.0"},
 				{Name: "node1", Addr: "127.0.0.1"},
 				{Name: "node2", Addr: "127.0.0.2"},
 				{Name: "node3", Addr: "127.0.0.3"},
-				{Name: "node6", Addr: "127.0.0.6"},
 			}
 
 			fakeClient := fake.NewSimpleClientset(&v1.NodeList{Items: originalSet})
@@ -860,8 +852,6 @@ var _ = Describe("AppManager Tests", func() {
 			Expect(err).To(BeNil())
 
 			expectedDelSet := []Node{
-				{Name: "node0", Addr: "127.0.0.0"},
-				{Name: "node6", Addr: "127.0.0.6"},
 				{Name: "nodeAdd", Addr: "127.0.0.6"},
 			}
 
@@ -1187,14 +1177,12 @@ var _ = Describe("AppManager Tests", func() {
 					Fail("Timed out expecting node channel notification.")
 				}
 
-				validateConfig(mw, twoSvcsThreeNodesConfig)
+				validateConfig(mw, twoSvcsTwoNodesConfig)
 				resources := mockMgr.resources()
 
 				go func() {
 					defer GinkgoRecover()
-					err := mockMgr.appMgr.kubeClient.Core().Nodes().Delete("node0", &metav1.DeleteOptions{})
-					Expect(err).To(BeNil())
-					err = mockMgr.appMgr.kubeClient.Core().Nodes().Delete("node1", &metav1.DeleteOptions{})
+					err := mockMgr.appMgr.kubeClient.Core().Nodes().Delete("node1", &metav1.DeleteOptions{})
 					Expect(err).To(BeNil())
 					err = mockMgr.appMgr.kubeClient.Core().Nodes().Delete("node2", &metav1.DeleteOptions{})
 					Expect(err).To(BeNil())
@@ -1411,7 +1399,7 @@ var _ = Describe("AppManager Tests", func() {
 				extraNode := test.NewNode("node3", "3", false,
 					[]v1.NodeAddress{{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{})
 
-				addrs := []string{"127.0.0.0", "127.0.0.1", "127.0.0.2"}
+				addrs := []string{"127.0.0.1", "127.0.0.2"}
 
 				fakeClient := fake.NewSimpleClientset(&v1.NodeList{Items: nodes})
 				Expect(fakeClient).ToNot(BeNil())
@@ -1541,7 +1529,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
 					Equal(generateExpectedAddrs(39001, append(addrs, "127.0.0.3"))))
-				validateConfig(mw, twoSvcsFourPortsFourNodesConfig)
+				validateConfig(mw, twoSvcsFourPortsThreeNodesConfig)
 
 				// ConfigMap DELETED third foo port
 				r = mockMgr.deleteConfigMap(cfgFoo9090)
@@ -1579,8 +1567,6 @@ var _ = Describe("AppManager Tests", func() {
 					Equal(1), "Virtual servers should contain remaining ports.")
 
 				// Nodes DELETED
-				err = fakeClient.Core().Nodes().Delete("node0", &metav1.DeleteOptions{})
-				Expect(err).To(BeNil())
 				err = fakeClient.Core().Nodes().Delete("node1", &metav1.DeleteOptions{})
 				Expect(err).To(BeNil())
 				err = fakeClient.Core().Nodes().Delete("node2", &metav1.DeleteOptions{})
@@ -1833,7 +1819,7 @@ var _ = Describe("AppManager Tests", func() {
 				extraNode := test.NewNode("node4", "4", false, []v1.NodeAddress{
 					{Type: "InternalIP", Address: "192.168.0.4"}}, []v1.Taint{})
 
-				addrs := []string{"192.168.0.0", "192.168.0.1", "192.168.0.2"}
+				addrs := []string{"192.168.0.1", "192.168.0.2"}
 
 				fakeClient := fake.NewSimpleClientset(&v1.NodeList{Items: nodes})
 				Expect(fakeClient).ToNot(BeNil(), "Mock client cannot be nil.")
@@ -1925,12 +1911,12 @@ var _ = Describe("AppManager Tests", func() {
 					serviceKey{"iapp1", 80, namespace}, formatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(10101, []string{"192.168.0.0", "192.168.0.4"})))
+					Equal(generateExpectedAddrs(10101, []string{"192.168.0.4"})))
 				rs, ok = resources.Get(
 					serviceKey{"iapp2", 80, namespace}, formatConfigMapVSName(cfgIapp2))
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(20202, []string{"192.168.0.0", "192.168.0.4"})))
+					Equal(generateExpectedAddrs(20202, []string{"192.168.0.4"})))
 				validateConfig(mw, twoIappsOneNodeConfig)
 
 				// ConfigMap DELETED

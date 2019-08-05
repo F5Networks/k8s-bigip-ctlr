@@ -43,6 +43,7 @@ var _ = Describe("Routing Tests", func() {
 			restClient:    test.CreateFakeHTTPClient(),
 			RouteClientV1: test.CreateFakeHTTPClient(),
 			IsNodePort:    true,
+			ManageIngress: true,
 		})
 		err := appMgr.startNonLabelMode([]string{"test"})
 		Expect(err).To(BeNil())

@@ -47,6 +47,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			restClient:      test.CreateFakeHTTPClient(),
 			RouteClientV1:   test.CreateFakeHTTPClient(),
 			IsNodePort:      true,
+			ManageIngress:   true,
 			broadcasterFunc: NewFakeEventBroadcaster,
 		})
 		namespace = "default"

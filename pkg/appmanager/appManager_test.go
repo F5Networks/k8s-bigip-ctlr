@@ -889,6 +889,7 @@ var _ = Describe("AppManager Tests", func() {
 				IsNodePort:       true,
 				broadcasterFunc:  NewFakeEventBroadcaster,
 				ManageConfigMaps: true,
+				ManageIngress:    true,
 			})
 		})
 		AfterEach(func() {

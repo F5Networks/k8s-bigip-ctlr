@@ -128,6 +128,7 @@ type Manager struct {
 	mergedRulesMap map[string]map[string]mergedRuleEntry
 	// Whether to watch ConfigMap resources or not
 	manageConfigMaps   bool
+	manageIngress      bool
 	as3Members         map[Member]struct{}
 	as3Validation      bool
 	sslInsecure        bool
@@ -174,6 +175,7 @@ type Params struct {
 	broadcasterFunc    NewBroadcasterFunc
 	SchemaLocal        string
 	ManageConfigMaps   bool
+	ManageIngress      bool
 	AS3Validation      bool
 	SSLInsecure        bool
 	TrustedCertsCfgmap string
@@ -224,6 +226,7 @@ func NewManager(params *Params) *Manager {
 		schemaLocal:        params.SchemaLocal,
 		mergedRulesMap:     make(map[string]map[string]mergedRuleEntry),
 		manageConfigMaps:   params.ManageConfigMaps,
+		manageIngress:      params.ManageIngress,
 		as3Members:         make(map[Member]struct{}, 0),
 		as3Validation:      params.AS3Validation,
 		sslInsecure:        params.SSLInsecure,
@@ -483,7 +486,11 @@ func (appMgr *Manager) newAppInformer(
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
-		ingInformer: cache.NewSharedIndexInformer(
+	}
+
+	if true == appMgr.manageIngress {
+		log.Infof("Watching Ingress resources.")
+		appInf.ingInformer = cache.NewSharedIndexInformer(
 			newListWatchWithLabelSelector(
 				appMgr.restClientv1beta1,
 				"ingresses",
@@ -493,7 +500,9 @@ func (appMgr *Manager) newAppInformer(
 			&v1beta1.Ingress{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		),
+		)
+	} else {
+		log.Infof("Not watching Ingress resources.")
 	}
 
 	if false != appMgr.manageConfigMaps {
@@ -572,14 +581,19 @@ func (appMgr *Manager) newAppInformer(
 		resyncPeriod,
 	)
 
-	appInf.ingInformer.AddEventHandlerWithResyncPeriod(
-		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { appMgr.enqueueIngress(obj) },
-			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueIngress(cur) },
-			DeleteFunc: func(obj interface{}) { appMgr.enqueueIngress(obj) },
-		},
-		resyncPeriod,
-	)
+	if true == appMgr.manageIngress {
+		log.Infof("Handling Ingress resource events.")
+		appInf.ingInformer.AddEventHandlerWithResyncPeriod(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { appMgr.enqueueIngress(obj) },
+				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueIngress(cur) },
+				DeleteFunc: func(obj interface{}) { appMgr.enqueueIngress(obj) },
+			},
+			resyncPeriod,
+		)
+	} else {
+		log.Infof("Not handling Ingress resource events.")
+	}
 
 	if nil != appMgr.routeClientV1 {
 		appInf.routeInformer.AddEventHandlerWithResyncPeriod(
@@ -975,10 +989,11 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			return err
 		}
 	}
-
-	err = appMgr.syncIngresses(&stats, sKey, rsMap, svcPortMap, svc, appInf, dgMap)
-	if nil != err {
-		return err
+	if nil != appInf.ingInformer {
+		err = appMgr.syncIngresses(&stats, sKey, rsMap, svcPortMap, svc, appInf, dgMap)
+		if nil != err {
+			return err
+		}
 	}
 	if nil != appInf.routeInformer {
 		err = appMgr.syncRoutes(&stats, sKey, rsMap, svcPortMap, svc, appInf, dgMap)

@@ -55,6 +55,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 				IsNodePort:       true,
 				broadcasterFunc:  NewFakeEventBroadcaster,
 				ManageConfigMaps: true,
+				ManageIngress:    true,
 			})
 			namespace = "default"
 			mockMgr.appMgr.routeConfig = RouteConfig{

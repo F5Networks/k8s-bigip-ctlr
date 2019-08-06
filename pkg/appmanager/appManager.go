@@ -1405,6 +1405,15 @@ func (appMgr *Manager) syncRoutes(
 				switch route.Spec.TLS.Termination {
 				case routeapi.TLSTerminationEdge:
 					appMgr.setClientSslProfile(stats, sKey, rsCfg, route)
+					// default-route-serverssl profile may not get removed
+					// when Reencrypt routes are modified to edge. Below lines
+					// keeps the openshift_passthrough_irule attached to
+					// HTTPS VS and updates the ssl_reencrypt_serverssl_dg
+					// with key as hostname and value empty, This will
+					// result in forwarding http traffic to backend(service).
+					serverSsl := ""
+					updateDataGroup(dgMap, reencryptServerSslDgName,
+						DEFAULT_PARTITION, sKey.Namespace, route.Spec.Host, serverSsl)
 				case routeapi.TLSTerminationReencrypt:
 					appMgr.setClientSslProfile(stats, sKey, rsCfg, route)
 					serverSsl := appMgr.setServerSslProfile(stats, sKey, rsCfg, route)

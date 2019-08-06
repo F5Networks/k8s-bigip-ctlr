@@ -1,4 +1,4 @@
-FROM python:2.7-slim-stretch
+FROM python:2.7-slim-buster
 
 # gcc for cgo
 RUN apt-get update && apt-get install -y --no-install-recommends \

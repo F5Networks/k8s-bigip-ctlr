@@ -3,7 +3,15 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 next release
 ------------
+Added Functionality
+`````````````````````
+* Changed container base image from debian-stretch to debian-buster
 
+Bug Fixes
+`````````
+
+v1.9.2
+------------
 Bug Fixes
 `````````
 * Controller handles http redirects without entering into an infinite loop.

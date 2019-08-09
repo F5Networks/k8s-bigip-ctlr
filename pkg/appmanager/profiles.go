@@ -26,7 +26,7 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 
 	routeapi "github.com/openshift/origin/pkg/route/api"
@@ -412,6 +412,22 @@ func (appMgr *Manager) deleteUnusedProfiles(
 	namespace string,
 	stats *vsSyncStats,
 ) {
+	var reencryptRouteCount int
+	// delete any custom profiles that are no longer referenced
+	// Get the list of routes and check if there are any reencrypt
+	// routes. If there are no reencrypt routes delete
+	// default-route-serverssl profile as it is not used by any
+	// virtual server.
+	if appInf.routeInformer != nil {
+		routes := appInf.routeInformer.GetIndexer().List()
+		for _, obj := range routes {
+			route := obj.(*routeapi.Route)
+			if route.Spec.TLS != nil &&
+				route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
+				reencryptRouteCount++
+			}
+		}
+	}
 	// Loop through and delete any profileRefs for cfgs that are
 	// no longer referenced, or have been deleted
 	for _, cfg := range appMgr.resources.GetAllResources() {
@@ -426,9 +442,15 @@ func (appMgr *Manager) deleteUnusedProfiles(
 
 		var toRemove []ProfileRef
 		for _, prof := range cfg.Virtual.Profiles {
+
+			// If reencryptRouteCount >= 1, don't remove default-route-serverssl
+			if reencryptRouteCount >= 1 && prof.Name == "default-route-serverssl" {
+				reencryptRouteCount = 0
+				continue
+			}
 			// Don't process profiles that came from a resource in a different namespace.
 			// We don't want to delete them, since they won't reference a resource this time.
-			if prof.Namespace != namespace {
+			if prof.Namespace != namespace && prof.Name != "default-route-serverssl" {
 				continue
 			}
 			// Don't process our default profiles (they'll be deleted when the VS is deleted)
@@ -452,8 +474,6 @@ func (appMgr *Manager) deleteUnusedProfiles(
 				if prof.Name == rtServer {
 					continue
 				}
-			} else if prof.Name == "default-route-serverssl" {
-				continue
 			}
 
 			referenced := false

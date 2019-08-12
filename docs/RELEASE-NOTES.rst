@@ -6,9 +6,11 @@ next release
 Added Functionality
 `````````````````````
 * Changed container base image from debian-stretch to debian-buster
+* AS3 schema validation using latest AS3 schema and not with any older version.
 
 Bug Fixes
 `````````
+* Logging BIP-IP AS3 error response body.
 
 v1.9.2
 ------------

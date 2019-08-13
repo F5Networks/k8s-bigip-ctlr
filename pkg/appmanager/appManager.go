@@ -2238,10 +2238,6 @@ func (appMgr *Manager) getNodes(
 
 	// Append list of nodes to watchedNodes
 	for _, node := range nodes {
-		// Ignore Master Node from the list of Watched nodes.
-		if node.ObjectMeta.Labels["node-role.kubernetes.io/master"] == "true" {
-			continue
-		}
 		nodeAddrs := node.Status.Addresses
 		for _, addr := range nodeAddrs {
 			if addr.Type == addrType {

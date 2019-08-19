@@ -115,7 +115,7 @@ rst_epilog = '''
 .. _Expose Services to External Traffic using Ingresses: %(base_url)s/containers/latest/kubernetes/kctlr-ingress.html
 .. _f5 schema versions: %(base_url)s/containers/latest/releases_and_versioning.html#f5-schema
 .. _replace the OpenShift F5 Router with the BIG-IP Controller: %(base_url)s/containers/latest/openshift/replace-f5-router.html
-.. _secure your BIG-IP credentials: %(base_url)s/containers/latest/kubernetes/kctlr-secrets.html#secure-your-big-ip-credentials
+.. _secure your BIG-IP credentials: %(base_url)s/containers/latest/kubernetes/kctlr-secrets.html
 .. _Kubernetes: https://kubernetes.io/
 .. _Kubernetes Service: https://kubernetes.io/docs/concepts/services-networking/service/
 .. _Kubernetes Annotation: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/

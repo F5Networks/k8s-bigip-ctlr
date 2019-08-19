@@ -133,12 +133,15 @@ type Manager struct {
 	as3Validation      bool
 	sslInsecure        bool
 	trustedCertsCfgmap string
+	// Orchestration agent: AS3 or CCCL
+	Agent string
 	// Active User Defined ConfigMap details
 	activeCfgMap ActiveAS3ConfigMap
 	// List of Watched Endpoints for user-defined AS3
 	watchedAS3Endpoints map[string]struct{}
 	// Watched namespaces
-	WatchedNS WatchedNamespaces
+	WatchedNS   WatchedNamespaces
+	as3RouteCfg ActiveAS3Route
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -153,6 +156,12 @@ type ActiveAS3ConfigMap struct {
 type WatchedNamespaces struct {
 	Namespaces     []string
 	NamespaceLabel string
+}
+
+// ActiveAS3Route route for global availability.
+type ActiveAS3Route struct {
+	Pending bool   // Moved to pending status if route declaration that gets posted to BigIP gets error response
+	Data    as3ADC // if AS3 Name is present, populate this with AS3 template data.
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -179,6 +188,7 @@ type Params struct {
 	AS3Validation      bool
 	SSLInsecure        bool
 	TrustedCertsCfgmap string
+	Agent              string
 }
 
 // Configuration options for Routes in OpenShift
@@ -231,6 +241,7 @@ func NewManager(params *Params) *Manager {
 		as3Validation:      params.AS3Validation,
 		sslInsecure:        params.SSLInsecure,
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
+		Agent:              getValidAgent(params.Agent),
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -240,8 +251,21 @@ func NewManager(params *Params) *Manager {
 		// This is the normal production case, but need the checks for unit tests.
 		manager.restClientv1beta1 = manager.kubeClient.Extensions().RESTClient()
 	}
-
 	return &manager
+}
+
+func getValidAgent(inputString string) string {
+	agent := "cccl"
+
+	switch inputString {
+	case "as3":
+		agent = "as3"
+	default:
+		log.Debugf("Unknown agent input %v", inputString)
+	}
+
+	log.Debugf("Using agent %v", agent)
+	return agent
 }
 
 func (appMgr *Manager) watchingAllNamespacesLocked() bool {
@@ -440,8 +464,8 @@ func (appMgr *Manager) GetNamespaceLabelInformer() cache.SharedIndexInformer {
 type serviceQueueKey struct {
 	Namespace   string
 	ServiceName string
-	As3Name     string // as3 Specific configMap name
-	As3Data     string // if As3Name is present, populate this with as3 tmpl data
+	AS3Name     string // as3 Specific configMap name
+	AS3Data     string // if AS3Name is present, populate this with as3 tmpl data
 }
 
 type appInformer struct {
@@ -890,15 +914,14 @@ func (appMgr *Manager) getServiceCount() int {
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
 	k := key.(serviceQueueKey)
-	if len(k.As3Name) != 0 {
+	if len(k.AS3Name) != 0 {
 
-		appMgr.activeCfgMap.Name = k.As3Name
-		appMgr.activeCfgMap.Data = k.As3Data
+		appMgr.activeCfgMap.Name = k.AS3Name
 		log.Debugf("[as3_log] Active ConfigMap: (%s)\n", appMgr.activeCfgMap.Name)
 
 		appMgr.vsQueue.Done(key)
-		log.Debugf("[as3_log] Processing AS3 cfgMap (%s) with AS3 Manager.\n", k.As3Name)
-		appMgr.processUserDefinedAS3(k.As3Data)
+		log.Debugf("[as3_log] Processing AS3 cfgMap (%s) with AS3 Manager.\n", k.AS3Name)
+		appMgr.processUserDefinedAS3(k.AS3Data)
 
 		appMgr.vsQueue.Forget(key)
 		return false
@@ -1022,7 +1045,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
-		stats.dgUpdated > 0 || stats.poolsUpdated > 0 || len(appMgr.as3Members) > 0 {
+		stats.dgUpdated > 0 || stats.poolsUpdated > 0 || len(appMgr.as3Members) > 0 || appMgr.as3RouteCfg.Pending {
 		appMgr.outputConfig()
 	} else if !appMgr.initialState && appMgr.processedItems >= appMgr.queueLen {
 		appMgr.outputConfig()

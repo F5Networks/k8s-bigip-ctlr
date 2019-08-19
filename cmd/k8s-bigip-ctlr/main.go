@@ -109,6 +109,7 @@ var (
 	as3Validation      *bool
 	sslInsecure        *bool
 	trustedCertsCfgmap *string
+	agent              *string
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -182,6 +183,9 @@ func _init() {
 		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
 	trustedCertsCfgmap = bigIPFlags.String("trusted-certs-cfgmap", "",
 		"Optional, when certificates are provided, adds them to controller’s trusted certificate store.")
+	// TODO: Rephrase agent functionality
+	agent = bigIPFlags.String("agent", "cccl",
+		"Optional, when set to as3, orchestration agent will be AS3 instead of CCCL")
 
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
@@ -594,6 +598,10 @@ func main() {
 	log.Infof("Starting: Version: %s, BuildInfo: %s", version, buildInfo)
 
 	appmanager.DEFAULT_PARTITION = (*bigIPPartitions)[0]
+	if strings.ToLower(*agent) == "as3" {
+		appmanager.DEFAULT_PARTITION += "_AS3"
+		*agent = "as3"
+	}
 	appmanager.RegisterBigIPSchemaTypes()
 
 	if _, isSet := os.LookupEnv("SCALE_PERF_ENABLE"); isSet {
@@ -635,6 +643,7 @@ func main() {
 		AS3Validation:      *as3Validation,
 		SSLInsecure:        *sslInsecure,
 		TrustedCertsCfgmap: *trustedCertsCfgmap,
+		Agent:              *agent,
 	}
 
 	// If running with Flannel, create an event channel that the appManager
@@ -719,6 +728,11 @@ func main() {
 	}
 
 	appMgr := appmanager.NewManager(&appMgrParms)
+	// Delete as3 managed partition when switching back to agent cccl from as3
+	if appMgr.Agent == "cccl" {
+		appMgr.DeleteAS3ManagedPartition()
+	}
+
 	GetNamespaces(appMgr)
 	intervalFactor := time.Duration(*nodePollInterval)
 	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)

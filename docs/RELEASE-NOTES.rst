@@ -6,15 +6,17 @@ next release
 Added Functionality
 `````````````````````
 * Changed container base image from debian-stretch to debian-buster
-* Support for using AS3 as an orchestration backend for Openshift Routes (Experimental)
+* Support for using AS3 as an orchestration backend for Openshift Routes
+* Added support for disabling Ingress resource processing using `--manage-ingress` option
+* Controller does not master node as a pool member if marked as unscheduled in NodePort Mode
 
-Bug Fixes
-`````````
+Bugs Fixed
+``````````
 * Controller adds pods in unscheduled nodes as pool members.
 
 Limitations
 ```````````
-* Limitations for Openshift Routes orchestrated through AS3 backend are available in Documentation.
+* Limitations for Openshift Routes orchestration through AS3 backend are available `here <url placeholder>`.
 
 v1.9.2
 ------------

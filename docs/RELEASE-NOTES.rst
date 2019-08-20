@@ -6,10 +6,15 @@ next release
 Added Functionality
 `````````````````````
 * Changed container base image from debian-stretch to debian-buster
+* Support for using AS3 as an orchestration backend for Openshift Routes (Experimental)
 
 Bug Fixes
 `````````
-* Handle CIS to monitor the pods on unscheduled nodes. This will avoid traffic loss.
+* Controller adds pods in unscheduled nodes as pool members.
+
+Limitations
+```````````
+* Limitations for Openshift Routes orchestrated through AS3 backend are available in Documentation.
 
 v1.9.2
 ------------

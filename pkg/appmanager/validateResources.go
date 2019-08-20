@@ -39,12 +39,12 @@ func (appMgr *Manager) checkValidConfigMap(
 	}
 	//check as3 config map.
 	// if ok, add cfgMap name and data to serviceQueueKey.
-	if ok := appMgr.checkAs3ConfigMap(obj); ok {
+	if ok := appMgr.checkAS3ConfigMap(obj); ok {
 		log.Debugf("[as3_log] Found AS3 ConfigMap - %s.", cm.ObjectMeta.Name)
 		key := &serviceQueueKey{
 			Namespace: namespace,
-			As3Name:   cm.ObjectMeta.Name,
-			As3Data:   cm.Data["template"],
+			AS3Name:   cm.ObjectMeta.Name,
+			AS3Data:   cm.Data["template"],
 		}
 		keyList = append(keyList, key)
 		return true, keyList
@@ -249,8 +249,8 @@ func (appMgr *Manager) checkValidNode(
 	// if not existis return false, nil.
 	if "" != appMgr.activeCfgMap.Name && "" != appMgr.activeCfgMap.Data {
 		key := &serviceQueueKey{
-			As3Name: appMgr.activeCfgMap.Name,
-			As3Data: appMgr.activeCfgMap.Data,
+			AS3Name: appMgr.activeCfgMap.Name,
+			AS3Data: appMgr.activeCfgMap.Data,
 		}
 		var keyList []*serviceQueueKey
 		keyList = append(keyList, key)
@@ -395,12 +395,12 @@ func validateAppRootAnnotations(rsType int, entries map[string]string) {
 	}
 }
 
-// name:       checkAs3ConfigMap
+// name:       checkAS3ConfigMap
 // arguments:  obj interface{} - ConfigMap Object
 // return val: bool - is it AS3 or not
 // description: This function validates configmap be AS3 specific or not
 
-func (appMgr *Manager) checkAs3ConfigMap(
+func (appMgr *Manager) checkAS3ConfigMap(
 	obj interface{},
 ) bool {
 	// check for metadata.labels has 'as3' and that 'as3' is set to 'true'

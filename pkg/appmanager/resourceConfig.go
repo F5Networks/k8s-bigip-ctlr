@@ -34,7 +34,7 @@ import (
 	routeapi "github.com/openshift/origin/pkg/route/api"
 	"github.com/xeipuuv/gojsonschema"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api/v1"
+	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -2059,12 +2059,12 @@ func (appMgr *Manager) handleRouteRules(
 				}
 			case routeapi.TLSTerminationPassthrough:
 				appMgr.addIRule(
-					sslPassthroughIRuleName, DEFAULT_PARTITION, sslPassthroughIRule())
+					sslPassthroughIRuleName, DEFAULT_PARTITION, appMgr.sslPassthroughIRule())
 				appMgr.addInternalDataGroup(passthroughHostsDgName, DEFAULT_PARTITION)
 				rc.Virtual.AddIRule(passThroughIRuleName)
 			case routeapi.TLSTerminationReencrypt:
 				appMgr.addIRule(
-					sslPassthroughIRuleName, DEFAULT_PARTITION, sslPassthroughIRule())
+					sslPassthroughIRuleName, DEFAULT_PARTITION, appMgr.sslPassthroughIRule())
 				appMgr.addInternalDataGroup(reencryptHostsDgName, DEFAULT_PARTITION)
 				appMgr.addInternalDataGroup(reencryptServerSslDgName, DEFAULT_PARTITION)
 				rc.Virtual.AddIRule(passThroughIRuleName)

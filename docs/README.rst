@@ -694,7 +694,7 @@ OpenShift Route Resources
 Supported Route Configurations
 ``````````````````````````````
 
-.. important:: The |kctlr| supports a sigle path-based route for TLS re-encryption. Multiple path-based routes are not currently supported.
+.. important:: The |kctlr| supports a single path-based route for TLS re-encryption. Multiple path-based routes are not currently supported.
 
 +-------------------------+-------------------+-------------------+---------+-----------------+-------------------------------------------------------------------------+
 | Type                    | Client Connection | Server Connection | Path    | SSL Termination | Description                                                             |

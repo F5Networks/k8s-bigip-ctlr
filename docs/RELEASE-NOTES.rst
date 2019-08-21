@@ -9,6 +9,7 @@ Added Functionality
 * Support AS3 for BIG-IP orchestration with Openshift Routes using `--agent=as3` option.
 * Support disabling Ingress resource processing using `--manage-ingress` option.
 * Controller does not use master node as a pool member when marked as unscheduled in NodePort Mode.
+* Support BIG-IP 14.x when using AS3 Orchestration for BIG-IP in Openshift.
 
 Bugs Fixed
 ``````````

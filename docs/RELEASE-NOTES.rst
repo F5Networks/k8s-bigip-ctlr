@@ -11,8 +11,8 @@ Added Functionality
 * Controller does not use master node as a pool member when marked as unscheduled in NodePort Mode.
 * Support BIG-IP 14.x when using AS3 Orchestration for BIG-IP in Openshift.
 
-Bugs Fixed
-``````````
+Bug Fixes
+`````````
 * Controller adds pods in unscheduled nodes as pool members.
 * Controller now handles Openshift route TLS termination switch from reencrypt to edge.
 

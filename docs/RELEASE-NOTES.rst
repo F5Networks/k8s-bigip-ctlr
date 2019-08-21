@@ -14,6 +14,7 @@ Added Functionality
 Bugs Fixed
 ``````````
 * Controller adds pods in unscheduled nodes as pool members.
+* Controller now handles Openshift route TLS termination switch from reencrypt to edge.
 
 Limitations
 ```````````

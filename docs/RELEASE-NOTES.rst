@@ -18,7 +18,7 @@ Bug Fixes
 
 Limitations
 ```````````
-* Limitations for Openshift Routes orchestration through AS3 backend are available `here <url placeholder>`.
+* Limitations for Openshift Routes orchestration through AS3 backend are available `here <https://clouddocs.f5.com/containers/latest/openshift/kctlr-use-as3-backend.html>`_.
 
 v1.9.2
 ------------

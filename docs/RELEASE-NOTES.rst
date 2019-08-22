@@ -1,18 +1,20 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-next release
+v1.10.0
 ------------
 Added Functionality
 `````````````````````
-* Changed container base image from debian-stretch to debian-buster
-* Support for using AS3 as an orchestration backend for Openshift Routes
-* Added support for disabling Ingress resource processing using `--manage-ingress` option
-* Controller does not master node as a pool member if marked as unscheduled in NodePort Mode
+* Changed container base image from debian-stretch to debian-buster.
+* Support AS3 for BIG-IP orchestration with Openshift Routes using `--agent=as3` option.
+* Support disabling Ingress resource processing using `--manage-ingress` option.
+* Controller does not use master node as a pool member when marked as unscheduled in NodePort Mode.
+* Support BIG-IP 14.x when using AS3 Orchestration for BIG-IP in Openshift.
 
-Bugs Fixed
-``````````
+Bug Fixes
+`````````
 * Controller adds pods in unscheduled nodes as pool members.
+* Controller now handles Openshift route TLS termination switch from reencrypt to edge.
 
 Limitations
 ```````````

@@ -5,13 +5,14 @@ set -ex
 
 CURDIR="$(dirname $BASH_SOURCE)"
 RUN_TESTS=${RUN_TESTS:-1}
+DEBUG=${DEBUG:-1}
 
 . $CURDIR/_build-lib.sh
 BUILDDIR=$(get_builddir)
 
 export BUILDDIR=$BUILDDIR
 
-go_install $(all_cmds)
+DEBUG=$DEBUG go_install $(all_cmds)
 
 if [ $RUN_TESTS -eq 1 ]; then
     echo "Gathering unit test code coverage for 'release' build..."

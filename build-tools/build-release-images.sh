@@ -13,7 +13,14 @@ CURDIR="$(dirname $BASH_SOURCE)"
 
 # Setup a temp docker build context dir
 WKDIR=$(mktemp -d docker-build.XXXX)
+DEBUG=${DEBUG:-1}
+
 cp $CURDIR/Dockerfile.$BASE_OS.runtime $WKDIR/Dockerfile.runtime
+
+if [ $DEBUG == 0 ]
+then
+  cp $CURDIR/Dockerfile.debug.runtime $WKDIR/Dockerfile.runtime
+fi
 
 BUILD_INFO=$(${CURDIR}/version-tool build-info)
 VERSION_INFO=$(${CURDIR}/version-tool version)

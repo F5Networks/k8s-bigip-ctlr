@@ -96,6 +96,12 @@ prod-build-quick: pre-build
 	RUN_TESTS=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
 	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
 
+debug: pre-build
+	@echo "Building with debug support..."
+	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
+	DEBUG=0 RUN_TESTS=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
+	DEBUG=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
+
 fmt:
 	@echo "Enforcing code formatting using 'go fmt'..."
 	$(CURDIR)/build-tools/fmt.sh

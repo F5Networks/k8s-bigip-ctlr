@@ -1,0 +1,37 @@
+FROM golang as builder
+ENV CGO_ENABLE 0
+
+RUN go get github.com/go-delve/delve/cmd/dlv
+
+FROM python:2.7-slim-buster
+
+ENV APPPATH /app
+
+RUN mkdir -p "$APPPATH/bin" \
+ && chmod -R 755 "$APPPATH" \
+ && adduser --disabled-password --gecos "" ctlr
+
+WORKDIR $APPPATH
+
+COPY requirements.txt /tmp/requirements.txt
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git \
+    && apt-get upgrade -y \
+    && pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r /tmp/requirements.txt \
+    && apt-get remove -y git
+
+# FIXME: Remove this fix once libidn is no longer vulnerable
+RUN apt-get remove -y libidn11
+
+COPY bigip-virtual-server_v*.json $APPPATH/vendor/src/f5/schemas/
+COPY as3-schema-3.11.0-3-cis.json $APPPATH/vendor/src/f5/schemas/
+COPY k8s-bigip-ctlr $APPPATH/bin
+COPY VERSION_BUILD.json $APPPATH/vendor/src/f5/
+COPY --from=builder /go/bin/dlv /app/bin
+
+USER ctlr
+EXPOSE 40000
+# Run the run application in the projects bin directory.
+CMD [ "/app/bin/k8s-bigip-ctlr" ]

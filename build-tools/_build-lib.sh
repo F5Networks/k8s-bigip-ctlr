@@ -72,6 +72,11 @@ go_install () {
   BUILDDIR=$(get_builddir)
   local GO_BUILD_FLAGS=( -v -ldflags "-extldflags \"-static\" -X main.version=${BUILD_VERSION} -X main.buildInfo=${BUILD_INFO}" )
 
+  if [ $DEBUG == 0 ]
+  then
+    GO_BUILD_FLAGS+=( -gcflags "all=-N -l" )
+  fi
+
   mkdir -p "$BUILDDIR"
   (
     export GOBIN="$BUILDDIR/bin"

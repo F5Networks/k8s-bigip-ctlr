@@ -3470,9 +3470,10 @@ var _ = Describe("AppManager Tests", func() {
 						Partition: DEFAULT_PARTITION,
 					}
 					hostDg, found := mockMgr.appMgr.intDgMap[hostDgKey]
+					routePath := hostName + spec.Path
 					Expect(found).To(BeTrue())
 					Expect(len(hostDg[namespace].Records)).To(Equal(1))
-					Expect(hostDg[namespace].Records[0].Name).To(Equal(hostName))
+					Expect(hostDg[namespace].Records[0].Name).To(Equal(routePath))
 					Expect(hostDg[namespace].Records[0].Data).To(Equal(formatRoutePoolName(
 						route.ObjectMeta.Namespace, getRouteCanonicalServiceName(route))))
 

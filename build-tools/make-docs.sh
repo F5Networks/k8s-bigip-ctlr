@@ -12,7 +12,7 @@ write-good `find docs -name '*.rst'` --passive --so --no-illusion --thereIs --cl
 
 # Exclude release notes from linkcheck when running in travis.
 # Note: we've already rendered these - its safe to remove the unneeded source files.
-if [ "$TRAVIS" = true ]; then
+if [ "$TRAVIS" == true ] || [ "$GITLAB_CI" == true ]; then
   rm -f docs/RELEASE-NOTES.rst
 fi
 make -C docs linkcheck

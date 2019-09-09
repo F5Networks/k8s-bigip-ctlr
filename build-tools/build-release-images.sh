@@ -25,8 +25,13 @@ fi
 BUILD_INFO=$(${CURDIR}/version-tool build-info)
 VERSION_INFO=$(${CURDIR}/version-tool version)
 
-# Hard code the platform dir here
-cp $CURDIR/../_docker_workspace/out/$RELEASE_PLATFORM/bin/* $WKDIR/
+# adding logic for copying the code repository to newly created volume
+docker run -v workspace_vol:/build -d --name cp-temp alpine tail -f /dev/null
+# copying CIS binary to local
+docker cp cp-temp:/build/out/$RELEASE_PLATFORM/bin/k8s-bigip-ctlr $WKDIR/
+#Removing the temporory container
+docker rm -f cp-temp
+
 cp requirements.txt $WKDIR/
 cp schemas/bigip-virtual-server_v*.json $WKDIR/
 cp schemas/as3-schema-3.11.0-3-cis.json $WKDIR/
@@ -56,5 +61,6 @@ docker inspect -f '{{ range $k, $v := .ContainerConfig.Labels -}}
 {{ end -}}' "$IMG_TAG"
 
 echo "Built docker image $IMG_TAG"
-
-rm -rf docker-build.????
+# Removing the workspace volume
+docker volume rm -f workspace_vol
+rm -rf docker-build.???? _docker_workspace

@@ -3,7 +3,7 @@
 # Add local user
 # Either use the LOCAL_USER_ID if passed in at runtime or
 # fallback
-
+chmod -R 755 /build
 USER_ID=${LOCAL_USER_ID:-9001}
 
 echo "Starting with UID : $USER_ID"
@@ -22,5 +22,6 @@ else
     su_binary=gosu
     source scl_source enable python27
 fi
-
+chmod -R 755 /build
+chown -R user:user /build
 exec $su_binary user "$@"

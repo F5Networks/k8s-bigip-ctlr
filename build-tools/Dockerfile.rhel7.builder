@@ -9,6 +9,7 @@ ENV GOLANG_SRC_SHA256 558f8c169ae215e25b81421596e8de7572bd3ba824b79add22fba6e284
 RUN REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-rpms && \
 	yum -y update-minimal --disablerepo "*" --enablerepo rhel-7-server-rpms --setopt=tsflags=nodocs \
 	  --security --sec-severity=Important --sec-severity=Critical && \
+	yum -y update scl-utils && \
 	yum -y install --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
 	  gcc openssl golang git make rsync wget python27 && \
 # Add epel repo for dpkg install

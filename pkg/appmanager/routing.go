@@ -375,7 +375,11 @@ func httpRedirectIRule(port int32) string {
 	return iRuleCode
 }
 
-func selectPoolIRuleFunc() string {
+func (appMgr *Manager) selectPoolIRuleFunc() string {
+	dgPath := DEFAULT_PARTITION
+	if appMgr.Agent == "as3" {
+		dgPath = strings.Join([]string{DEFAULT_PARTITION, as3SharedApplication}, "/")
+	}
 	iRuleFunc := fmt.Sprintf(`
 		proc select_ab_pool {path default_pool } {
 			set last_slash [string length $path]
@@ -408,19 +412,19 @@ func selectPoolIRuleFunc() string {
 				HTTP::respond 503
 			}
 			return $default_pool
-		}`, DEFAULT_PARTITION)
+		}`, dgPath)
 
 	return iRuleFunc
 }
 
-func abDeploymentPathIRule() string {
+func (appMgr *Manager) abDeploymentPathIRule() string {
 	// For all A/B deployments that include a path.
 	// The key in the data group is the specific route (host/path) to examine.
 	// The data is a list of pool/weight pairs delimited by ';'. The pair values
 	// are delineated by ','. Finally, the weight value is normalized between
 	// 0.0 and 1.0 and the pairs should be listed in ascending order or weight
 	// values.
-	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(), `
+	iRuleCode := fmt.Sprintf("%s\n\n%s", appMgr.selectPoolIRuleFunc(), `
 		when HTTP_REQUEST priority 200 {
 			set path [string tolower [HTTP::host]][HTTP::path]
 			set selected_pool [call select_ab_pool $path ""]
@@ -605,7 +609,7 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 			}
 		}`, dgPath)
 
-	iRuleCode := fmt.Sprintf("%s\n\n%s", selectPoolIRuleFunc(), iRule)
+	iRuleCode := fmt.Sprintf("%s\n\n%s", appMgr.selectPoolIRuleFunc(), iRule)
 
 	return iRuleCode
 }

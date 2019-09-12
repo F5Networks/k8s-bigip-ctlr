@@ -26,6 +26,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
@@ -46,7 +47,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			KubeClient:       fakeClient,
 			ConfigWriter:     mw,
 			restClient:       test.CreateFakeHTTPClient(),
-			RouteClientV1:    test.CreateFakeHTTPClient(),
+			RouteClientV1:    fakeRouteClient.NewSimpleClientset().RouteV1(),
 			IsNodePort:       true,
 			broadcasterFunc:  NewFakeEventBroadcaster,
 			ManageConfigMaps: true,

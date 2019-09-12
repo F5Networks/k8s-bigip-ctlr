@@ -22,11 +22,12 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 
-	routeapi "github.com/openshift/origin/pkg/route/api"
+	routeapi "github.com/openshift/api/route/v1"
+	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
+	"k8s.io/api/core/v1"
+	"k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 var _ = Describe("Health Monitor Tests", func() {
@@ -45,7 +46,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			KubeClient:      fakeClient,
 			ConfigWriter:    mw,
 			restClient:      test.CreateFakeHTTPClient(),
-			RouteClientV1:   test.CreateFakeHTTPClient(),
+			RouteClientV1:   fakeRouteClient.NewSimpleClientset().RouteV1(),
 			IsNodePort:      true,
 			ManageIngress:   true,
 			broadcasterFunc: NewFakeEventBroadcaster,

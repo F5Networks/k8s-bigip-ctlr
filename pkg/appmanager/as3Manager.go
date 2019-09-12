@@ -32,9 +32,9 @@ import (
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/xeipuuv/gojsonschema"
+	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	v1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -522,7 +522,13 @@ func (appMgr *Manager) SetupAS3Informers() error {
 	namespace := v1.NamespaceAll
 
 	log.Debug("[as3] Stated creating AS3 Informers")
+	allOptions := func(options *metaV1.ListOptions) {
+		options.LabelSelector = ""
+	}
 	cfgMapSelector, err := labels.Parse(defaultAS3ConfigMapLabel)
+	cfgMapOptions := func(options *metaV1.ListOptions) {
+		options.LabelSelector = cfgMapSelector.String()
+	}
 	if err != nil {
 		return fmt.Errorf("Failed to parse AS3 ConfigMap Label Selector string: %v", err)
 	}
@@ -533,6 +539,9 @@ func (appMgr *Manager) SetupAS3Informers() error {
 		svcPoolLabel,
 	)
 	svcSelector, err := labels.Parse(defaultSvcLabel)
+	svcOptions := func(options *metaV1.ListOptions) {
+		options.LabelSelector = svcSelector.String()
+	}
 	if err != nil {
 		return fmt.Errorf("Failed to parse Service Label Selector string: %v", err)
 	}
@@ -541,44 +550,44 @@ func (appMgr *Manager) SetupAS3Informers() error {
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
 		cfgMapInformer: cache.NewSharedIndexInformer(
-			newListWatchWithLabelSelector(
+			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
 				"configmaps",
 				namespace,
-				cfgMapSelector,
+				cfgMapOptions,
 			),
 			&v1.ConfigMap{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
 		svcInformer: cache.NewSharedIndexInformer(
-			newListWatchWithLabelSelector(
+			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
 				"services",
 				namespace,
-				svcSelector,
+				svcOptions,
 			),
 			&v1.Service{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
 		endptInformer: cache.NewSharedIndexInformer(
-			newListWatchWithLabelSelector(
+			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
 				"endpoints",
 				namespace,
-				labels.Everything(),
+				allOptions,
 			),
 			&v1.Endpoints{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
 		nodeInformer: cache.NewSharedIndexInformer(
-			newListWatchWithLabelSelector(
+			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
 				"nodes",
 				namespace,
-				labels.Everything(),
+				allOptions,
 			),
 			&v1.Node{},
 			resyncPeriod,

@@ -27,13 +27,12 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 
-	routeapi "github.com/openshift/origin/pkg/route/api"
+	routeapi "github.com/openshift/api/route/v1"
+	"k8s.io/api/core/v1"
+	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/pkg/api"
-	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/rest/fake"
 )
 
@@ -274,7 +273,7 @@ func newEndpointAddress(ips []string, node string) []v1.EndpointAddress {
 // CreateFakeHTTPClient returns a fake RESTClient which also satisfies rest.Interface
 func CreateFakeHTTPClient() *fake.RESTClient {
 	fakeClient := &fake.RESTClient{
-		APIRegistry:          api.Registry,
+		//APIRegistry:          api.Registry,
 		NegotiatedSerializer: &fakeNegotiatedSerializer{},
 		Resp: &http.Response{
 			StatusCode: http.StatusOK,

@@ -6,6 +6,7 @@ next-release
 Added Functionality
 `````````````````````
 * Support Path Based Routing for Openshift reencrypt routes.
+* OpenShift 4.1, Kubernetes 1.14 support and other dependency package upgrade.
 
 v1.10.0
 ------------

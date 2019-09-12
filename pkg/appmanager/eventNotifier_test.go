@@ -23,15 +23,15 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
+	"k8s.io/api/core/v1"
+	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/tools/record"
-
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/record"
 )
 
 func NewFakeEventBroadcaster() record.EventBroadcaster {
@@ -47,6 +47,7 @@ func NewFakeEvent(
 
 	namespace := ""
 	name := ""
+	var annotations map[string]string
 
 	// Only Ingress objects are supported more, others added easily here.
 	switch obj.(type) {
@@ -61,11 +62,12 @@ func NewFakeEvent(
 	}
 
 	return FakeEvent{
-		Namespace: namespace,
-		Name:      name,
-		EventType: eventType,
-		Reason:    reason,
-		Message:   message,
+		Namespace:   namespace,
+		Name:        name,
+		EventType:   eventType,
+		Reason:      reason,
+		Message:     message,
+		Annotations: annotations,
 	}
 }
 
@@ -74,15 +76,16 @@ type FakeEventBroadcaster struct {
 }
 
 type FakeEventRecorder struct {
-	Events []FakeEvent
+	FEvent []FakeEvent
 }
 
 type FakeEvent struct {
-	Namespace string
-	Name      string
-	EventType string
-	Reason    string
-	Message   string
+	Namespace   string
+	Name        string
+	EventType   string
+	Reason      string
+	Message     string
+	Annotations map[string]string
 }
 
 // record.EventBroadcaster interface methods
@@ -105,17 +108,23 @@ func (feb *FakeEventBroadcaster) NewRecorder(scheme *runtime.Scheme, source v1.E
 // record.EventRecorder interface methods
 func (fer *FakeEventRecorder) Event(obj runtime.Object, eventType, reason, message string) {
 	ev := NewFakeEvent(obj, eventType, reason, message)
-	fer.Events = append(fer.Events, ev)
+	fer.FEvent = append(fer.FEvent, ev)
 }
 
 func (fer *FakeEventRecorder) Eventf(obj runtime.Object, eventType, reason, messageFmt string, args ...interface{}) {
 	ev := NewFakeEvent(obj, eventType, reason, fmt.Sprintf(messageFmt, args...))
-	fer.Events = append(fer.Events, ev)
+	fer.FEvent = append(fer.FEvent, ev)
 }
 
 func (fer *FakeEventRecorder) PastEventf(obj runtime.Object, timestamp metav1.Time, eventType, reason, messageFmt string, args ...interface{}) {
 	ev := NewFakeEvent(obj, eventType, reason, fmt.Sprintf(messageFmt, args...)+" @ "+timestamp.String())
-	fer.Events = append(fer.Events, ev)
+	fer.FEvent = append(fer.FEvent, ev)
+}
+
+func (fer *FakeEventRecorder) AnnotatedEventf(obj runtime.Object, annotations map[string]string, eventType, reason, messageFmt string, args ...interface{}) {
+	ev := NewFakeEvent(obj, eventType, reason, fmt.Sprintf(messageFmt, args...))
+	ev.Annotations = annotations
+	fer.FEvent = append(fer.FEvent, ev)
 }
 
 // Unit tests
@@ -138,7 +147,7 @@ var _ = Describe("Event Notifier Tests", func() {
 				KubeClient:      fakeClient,
 				ConfigWriter:    mw,
 				restClient:      test.CreateFakeHTTPClient(),
-				RouteClientV1:   test.CreateFakeHTTPClient(),
+				RouteClientV1:   fakeRouteClient.NewSimpleClientset().RouteV1(),
 				IsNodePort:      true,
 				ManageIngress:   true,
 				broadcasterFunc: NewFakeEventBroadcaster,

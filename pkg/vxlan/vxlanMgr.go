@@ -26,9 +26,9 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 type fdbSection struct {
@@ -212,12 +212,12 @@ func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
 
 func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Interface) {
 	arps := arpSection{}
-	kubePods, err := kubeClient.Core().Pods("").List(metav1.ListOptions{})
+	kubePods, err := kubeClient.CoreV1().Pods("").List(metav1.ListOptions{})
 	if nil != err {
 		log.Errorf("Vxlan Manager could not list Kubernetes Pods for ARP entries: %v", err)
 		return
 	}
-	kubeNodes, err := kubeClient.Core().Nodes().List(metav1.ListOptions{})
+	kubeNodes, err := kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
 	if nil != err {
 		log.Errorf("Vxlan Manager could not list Kubernetes Nodes for ARP entries: %v", err)
 		return

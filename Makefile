@@ -46,6 +46,7 @@ clean:
 	rm -rf _build
 	rm -rf docs/_build
 	rm -f *_attributions.json
+	rm -f *_attributions.csv
 	rm -f docs/_static/ATTRIBUTIONS.md
 	@echo "Did not clean local go workspace"
 

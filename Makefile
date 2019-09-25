@@ -113,6 +113,17 @@ vet:
 devel-image:
 	BASE_OS=$(BASE_OS) ./build-tools/build-devel-image.sh
 
+# Enable certain funtionalities only on a developer build
+dev-patch:
+	git apply --check build-tools/golang/0001-Enable-AS3-Declaration-logging.patch
+	git apply build-tools/golang/0001-Enable-AS3-Declaration-logging.patch
+
+reset-dev-patch:
+	git apply -R $(CURDIR)/build-tools/golang/0001-Enable-AS3-Declaration-logging.patch
+
+# Build devloper image
+dev: dev-patch prod-quick reset-dev-patch
+
 #
 # Docs
 #

@@ -389,6 +389,11 @@ func verifyArgs() error {
 		vxlanMode = "maintain"
 		vxlanName = *flannelName
 	}
+	if *manageRoutes {
+		if len(*routeVserverAddr) == 0 {
+			return fmt.Errorf("Missing required parameter route-vserver-addr")
+		}
+	}
 
 	return nil
 }

@@ -7,7 +7,8 @@
 set -e
 set -x
 
-ATTR_GEN_IMG=f5networksdevel/attributions-generator:latest
+#ATTR_GEN_IMG=f5networksdevel/attributions-generator:latest
+ATTR_GEN_IMG=cisbot/attributions-generator:latest
 docker pull ${ATTR_GEN_IMG}
 
 RUN_ARGS=( \

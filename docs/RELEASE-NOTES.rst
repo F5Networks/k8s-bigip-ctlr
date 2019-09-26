@@ -3,6 +3,9 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 next-release
 ------------
+Added Functionality
+`````````````````````
+* Support Path Based Routing for Openshift reencrypt routes.
 
 v1.10.0
 ------------

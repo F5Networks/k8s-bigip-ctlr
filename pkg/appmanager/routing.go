@@ -516,39 +516,34 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 
 								incr extension_start $extension_len
 							}
-
 							if { [info exists tls_servername] } {
-								set servername_lower [string tolower $tls_servername]
-								SSL::disable serverside
-								set dflt_pool ""
 								set passthru_class "/%[1]s/ssl_passthrough_servername_dg"
-								set reencrypt_class "/%[1]s/ssl_reencrypt_servername_dg"
 								if { [class exists $passthru_class] } {
+									set servername_lower [string tolower $tls_servername]
+									SSL::disable serverside
+									set dflt_pool ""
+
+									# Disable Serverside SSL for Passthrough Class
 									set dflt_pool [class match -value $servername_lower equals $passthru_class]
 									if { not ($dflt_pool equals "") } {
 										SSL::disable
 										HTTP::disable
 									}
-								}
-								elseif { [class exists $reencrypt_class] } {
-									set dflt_pool [class match -value $servername_lower equals $reencrypt_class]
-									if { not ($dflt_pool equals "") } {
-										SSL::enable serverside
-									}
-								}
-								set ab_class "/%[1]s/ab_deployment_dg"
-								if { not [class exists $ab_class] } {
-									if { $dflt_pool == "" } then {
-										log local0.debug "Failed to find pool for $servername_lower"
+
+									set ab_class "/%[1]s/ab_deployment_dg"
+									if { not [class exists $ab_class] } {
+										if { $dflt_pool == "" } then {
+											log local0.debug "Failed to find pool for $servername_lower"
+										} else {
+											pool $dflt_pool
+										}
 									} else {
-										pool $dflt_pool
-									}
-								} else {
-									set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
-									if { $selected_pool == "" } then {
-										log local0.debug "Failed to find pool for $servername_lower"
-									} else {
-										pool $selected_pool
+										set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
+										if { $selected_pool == "" } then {
+											log local0.debug "Failed to find pool for $servername_lower"
+										} else {
+											pool $selected_pool
+										}
 									}
 								}
 							}
@@ -558,6 +553,46 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 			}
 
 			TCP::release
+		}
+
+		when CLIENTSSL_HANDSHAKE {
+ 			SSL::collect
+		}
+
+		when CLIENTSSL_DATA {
+			set sslpath [lindex [SSL::payload] 1]
+			set routepath ""
+			if { [info exists tls_servername] } {
+				set servername_lower [string tolower $tls_servername]
+				append routepath $servername_lower $sslpath
+				SSL::disable serverside
+				set dflt_pool ""
+				set reencrypt_class "/%[1]s/ssl_reencrypt_servername_dg"
+
+				if { [class exists $reencrypt_class] } {
+					set dflt_pool [class match -value $routepath equals $reencrypt_class]
+					if { not ($dflt_pool equals "") } {
+						SSL::enable serverside
+					}
+				}
+
+				set ab_class "/%[1]s/ab_deployment_dg"
+				if { not [class exists $ab_class] } {
+					if { $dflt_pool == "" } then {
+						log local0.debug "Failed to find pool for $servername_lower"
+					} else {
+						pool $dflt_pool
+					}
+				} else {
+					set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
+					if { $selected_pool == "" } then {
+						log local0.debug "Failed to find pool for $servername_lower"
+					} else {
+						pool $selected_pool
+					}
+				}
+			}
+			SSL::release
 		}
 
 		when SERVER_CONNECTED {
@@ -631,11 +666,21 @@ func updateDataGroupForReencryptRoute(
 	namespace string,
 	dgMap InternalDataGroupMap,
 ) {
+	// Combination of hostName and path are used as key in reencrypt Datagroup.
+	// Servername and path from the ssl::payload of clientssl_data Irule event is
+	// used as value in reencrypt Datagroup.
 	hostName := route.Spec.Host
+	path := route.Spec.Path
+	// If path is empty, Use "/" as path. This is needed as ssl::payload of
+	// clientssl_data Irule event returns "/" for empty path.
+	if path == "" {
+		path = "/"
+	}
+	routePath := hostName + path
 	svcName := getRouteCanonicalServiceName(route)
 	poolName := formatRoutePoolName(route.ObjectMeta.Namespace, svcName)
 	updateDataGroup(dgMap, reencryptHostsDgName,
-		partition, namespace, hostName, poolName)
+		partition, namespace, routePath, poolName)
 }
 
 // Update a data group map based on a alternativeBackends route object.

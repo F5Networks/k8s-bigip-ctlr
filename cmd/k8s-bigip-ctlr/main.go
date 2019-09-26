@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -49,6 +50,8 @@ import (
 
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
+
+const as3SchemaLatestUrl = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
 
 type globalSection struct {
 	LogLevel       string `json:"log-level,omitempty"`
@@ -731,6 +734,9 @@ func main() {
 		appMgr.DeleteAS3ManagedPartition()
 	}
 
+	// AS3 schema validation using latest AS3 version
+	fetchAS3Schema(appMgr)
+
 	GetNamespaces(appMgr)
 	intervalFactor := time.Duration(*nodePollInterval)
 	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
@@ -765,4 +771,38 @@ func main() {
 	sig := <-sigs
 	close(stopCh)
 	log.Infof("Exiting - signal %v\n", sig)
+}
+
+func fetchAS3Schema(appMgr *appmanager.Manager) {
+
+	res, resErr := http.Get(as3SchemaLatestUrl)
+	if resErr != nil {
+		log.Debugf("error while fetching latest as3 schema : %v", resErr)
+	}
+
+	if res.StatusCode == http.StatusOK {
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Debugf("unable to read the as3 template from json response body : %v", err)
+		}
+		defer res.Body.Close()
+
+		jsonMap := make(map[string]interface{})
+		err = json.Unmarshal(body, &jsonMap)
+		if err != nil {
+			log.Debugf("unable to unmarshal json response body : %v", err)
+		}
+
+		jsonMap["$id"] = as3SchemaLatestUrl
+		byteJSON, err := json.Marshal(jsonMap)
+		if err != nil {
+			log.Debugf("unable to marshal : %v", err)
+		}
+		appMgr.As3SchemaLatest = string(byteJSON)
+
+	} else {
+		log.Debugf("unable to fetch the latest AS3 schema")
+		appMgr.As3SchemaLatest = ""
+	}
+
 }

@@ -66,6 +66,8 @@ var certificates string
 
 var buffer map[Member]struct{}
 var epbuffer map[string]struct{}
+var schemaLoader gojsonschema.JSONLoader
+var As3SchemaLatest string
 
 // Takes an AS3 Template and perform service discovery with Kubernetes to generate AS3 Declaration
 func (appMgr *Manager) processUserDefinedAS3(template string) bool {
@@ -106,12 +108,16 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 // Validates the AS3 Template
 func (appMgr *Manager) validateAS3Template(template string) bool {
 
-	var schema = appMgr.schemaLocal + "as3-schema-3.11.0-3-cis.json"
-
-	// Load Both the AS3 Schema and AS3 Template
-	schemaLoader := gojsonschema.NewReferenceLoader(schema)
+	if appMgr.As3SchemaLatest != "" {
+		// Load AS3 Schema
+		schemaLoader = gojsonschema.NewStringLoader(appMgr.As3SchemaLatest)
+	} else {
+		//Bypassing Schema Validation
+		log.Debugf("[as3] Bypassing AS3 Template Validation")
+		return true
+	}
+	// Load AS3 Template
 	documentLoader := gojsonschema.NewStringLoader(template)
-
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
 
 	if err != nil {

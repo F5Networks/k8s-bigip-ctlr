@@ -1,0 +1,25 @@
+From 837204a66fbef5e9dba3e49645b1bcd1fd5012ea Mon Sep 17 00:00:00 2001
+From: Surendhar <surendhar@ymail.com>
+Date: Wed, 25 Sep 2019 12:09:14 +0530
+Subject: [PATCH] Enable AS3 Declaration logging
+
+Signed-off-by: Surendhar <surendhar@ymail.com>
+---
+ pkg/appmanager/as3Manager.go | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/pkg/appmanager/as3Manager.go b/pkg/appmanager/as3Manager.go
+index 9d8a5ea..da7ca5c 100644
+--- a/pkg/appmanager/as3Manager.go
++++ b/pkg/appmanager/as3Manager.go
+@@ -392,6 +392,7 @@ func (appMgr *Manager) buildAS3Declaration(obj as3Object, template as3Template)
+ // Takes AS3 Declaration and post it to BigIP
+ func (appMgr *Manager) postAS3Declaration(declaration as3Declaration) {
+ 	log.Debugf("[as3_log] Processing AS3 POST call with AS3 Manager")
++	log.Debugf("[AS3] Declaration: %v", string(declaration))
+ 	as3RC.baseURL = BigIPURL
+ 	_, ok := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr.sslInsecure)
+ 	if ok {
+-- 
+2.20.1 (Apple Git-117)
+

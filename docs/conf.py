@@ -132,7 +132,7 @@ rst_epilog = '''
 .. _NodePort mode: %(base_url)s/containers/latest/kubernetes/kctlr-modes.html
 .. _OpenShift Route: https://docs.openshift.org/1.4/dev_guide/routes.html
 .. _Overview of SNAT features: https://support.f5.com/csp/article/K7820
-.. _route domain: https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-routing-administration-12-0-0/9.html
+.. _route domain: https://techdocs.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-routing-administration-12-1-1/9.html
 .. _`F5 Controller Agent`: https://github.com/f5devcentral/f5-ctlr-agent
 .. _Manage OpenShift Routes:  %(base_url)s/containers/latest/openshift/kctlr-openshift-routes.html
 .. _Kubernetes Installation: %(base_url)s/containers/latest/kubernetes/kctlr-app-install.html

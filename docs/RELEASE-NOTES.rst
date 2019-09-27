@@ -7,6 +7,7 @@ Added Functionality
 `````````````````````
 * Support Path Based Routing for Openshift reencrypt routes.
 * OpenShift 4.1, Kubernetes 1.14 support and other dependency package upgrade.
+* Update OpenShift 3.11 GUI with Route admitted status based on BIG-IP response.
 
 Bug Fixes
 `````````

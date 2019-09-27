@@ -456,18 +456,18 @@ func (as3RestClient *AS3RESTClient) restCallToBigIP(method string, route string,
 		return string(body), false
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == 200 {
-		body, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Errorf("[as3_log] REST call response error: %v ", err)
-			return string(body), false
-		}
-		var response map[string]interface{}
-		err = json.Unmarshal([]byte(body), &response)
-		if err != nil {
-			log.Errorf("[as3_log] Response body unmarshal failed: %v\n", err)
-			return string(body), false
-		}
+	body, err = ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Errorf("[as3_log] REST call response error: %v ", err)
+		return string(body), false
+	}
+	var response map[string]interface{}
+	err = json.Unmarshal([]byte(body), &response)
+	if err != nil {
+		log.Errorf("[as3_log] Response body unmarshal failed: %v\n", err)
+		return string(body), false
+	}
+	if resp.StatusCode == http.StatusOK {
 		//traverse all response results
 		results := (response["results"]).([]interface{})
 		for _, value := range results {
@@ -478,12 +478,18 @@ func (as3RestClient *AS3RESTClient) restCallToBigIP(method string, route string,
 		}
 		as3RestClient.oldChecksum = as3RestClient.newChecksum
 		return string(body), true
-	} else {
-		//Other then 200 status code
-		log.Errorf("[as3_log] Big-IP Response error %v", resp)
-		return string(body), false
 	}
-
+	//Other then 200 status code
+	if results, ok := (response["results"]).([]interface{}); ok {
+		for _, value := range results {
+			v := value.(map[string]interface{})
+			//log result with code, tenant and message
+			log.Debugf("[as3_log] Big-IP Response code: %v,Response:%v, Message: %v", v["code"], v["response"], v["message"])
+		}
+	} else {
+		log.Debugf("[as3_log] Big-IP Response error: %v", response)
+	}
+	return string(body), false
 }
 
 // Read certificate from configmap

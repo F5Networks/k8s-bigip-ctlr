@@ -141,8 +141,9 @@ type Manager struct {
 	// List of Watched Endpoints for user-defined AS3
 	watchedAS3Endpoints map[string]struct{}
 	// Watched namespaces
-	WatchedNS   WatchedNamespaces
-	as3RouteCfg ActiveAS3Route
+	WatchedNS       WatchedNamespaces
+	as3RouteCfg     ActiveAS3Route
+	As3SchemaLatest string
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.

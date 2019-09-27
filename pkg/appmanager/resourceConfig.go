@@ -31,11 +31,11 @@ import (
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
-	routeapi "github.com/openshift/origin/pkg/route/api"
+	routeapi "github.com/openshift/api/route/v1"
 	"github.com/xeipuuv/gojsonschema"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -1674,7 +1674,7 @@ func (appMgr *Manager) handleIngressTls(
 		for _, tls := range ing.Spec.TLS {
 			// Check if profile is contained in a Secret
 			if appMgr.useSecrets {
-				secret, err := appMgr.kubeClient.Core().Secrets(ing.ObjectMeta.Namespace).
+				secret, err := appMgr.kubeClient.CoreV1().Secrets(ing.ObjectMeta.Namespace).
 					Get(tls.SecretName, metav1.GetOptions{})
 				if err != nil {
 					// No secret, so we assume the profile is a BIG-IP default

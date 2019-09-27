@@ -26,9 +26,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/pkg/api/v1"
 )
 
 const (
@@ -137,7 +137,7 @@ var _ = Describe("Node Poller Tests", func() {
 		Expect(fake).ToNot(BeNil(), "Mock client cannot be nil.")
 
 		for _, setNode := range setNodes {
-			node, err := fake.Core().Nodes().Create(setNode)
+			node, err := fake.CoreV1().Nodes().Create(setNode)
 			Expect(err).To(BeNil(), "Should not fail creating node.")
 			Expect(node).To(Equal(setNode))
 		}

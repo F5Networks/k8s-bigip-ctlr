@@ -24,12 +24,13 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	routeapi "github.com/openshift/origin/pkg/route/api"
+	routeapi "github.com/openshift/api/route/v1"
+	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
+	"k8s.io/api/core/v1"
+	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 )
 
 var _ = Describe("AppManager Profile Tests", func() {
@@ -51,7 +52,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 				KubeClient:       fakeClient,
 				ConfigWriter:     mw,
 				restClient:       test.CreateFakeHTTPClient(),
-				RouteClientV1:    test.CreateFakeHTTPClient(),
+				RouteClientV1:    fakeRouteClient.NewSimpleClientset().RouteV1(),
 				IsNodePort:       true,
 				broadcasterFunc:  NewFakeEventBroadcaster,
 				ManageConfigMaps: true,
@@ -235,7 +236,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 					"tls.key": []byte("testkey"),
 				},
 			}
-			_, err := mockMgr.appMgr.kubeClient.Core().Secrets(namespace).Create(secret)
+			_, err := mockMgr.appMgr.kubeClient.CoreV1().Secrets(namespace).Create(secret)
 			Expect(err).To(BeNil())
 
 			spec := v1beta1.IngressSpec{

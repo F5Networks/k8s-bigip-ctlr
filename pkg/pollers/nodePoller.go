@@ -23,9 +23,9 @@ import (
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
 
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 )
@@ -178,7 +178,7 @@ func (np *nodePoller) poller() {
 			doPoll = false
 
 			// LabelSelector
-			nodes, err := np.kubeClient.Core().Nodes().List(metav1.ListOptions{LabelSelector: np.nodeLabel})
+			nodes, err := np.kubeClient.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: np.nodeLabel})
 			bigIPPrometheus.MonitoredNodes.WithLabelValues(np.nodeLabel).Set(float64(len(nodes.Items)))
 			np.nodeCache = nodes.Items
 			np.lastError = err

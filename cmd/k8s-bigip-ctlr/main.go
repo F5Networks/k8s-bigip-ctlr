@@ -47,9 +47,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/labels"
 
-	routeclient "github.com/openshift/origin/pkg/client"
-	// The import below is required to register the RouteList and Route types.
-	_ "github.com/openshift/origin/pkg/route/api/install"
+	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
 
 type globalSection struct {
@@ -719,12 +717,12 @@ func main() {
 		log.Fatalf("error connecting to the client: %v", err)
 	}
 	if *manageRoutes {
-		var rclient *routeclient.Client
-		rclient, err = routeclient.New(config)
-		appMgrParms.RouteClientV1 = rclient.RESTClient
+		var rclient *routeclient.RouteV1Client
+		rclient, err = routeclient.NewForConfig(config)
 		if nil != err {
 			log.Fatalf("unable to create route client: err: %+v\n", err)
 		}
+		appMgrParms.RouteClientV1 = rclient
 	}
 
 	appMgr := appmanager.NewManager(&appMgrParms)

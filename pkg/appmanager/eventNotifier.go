@@ -19,11 +19,11 @@ package appmanager
 import (
 	"sync"
 
+	"k8s.io/api/core/v1"
+	"k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/pkg/api/v1"
-	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/tools/record"
 )
 
@@ -121,6 +121,6 @@ func (appMgr *Manager) recordIngressEvent(
 	namespace := ing.ObjectMeta.Namespace
 	// Create the event
 	evNotifier := appMgr.eventNotifier.createNotifierForNamespace(
-		namespace, appMgr.kubeClient.Core())
+		namespace, appMgr.kubeClient.CoreV1())
 	evNotifier.recordEvent(ing, v1.EventTypeNormal, reason, message)
 }

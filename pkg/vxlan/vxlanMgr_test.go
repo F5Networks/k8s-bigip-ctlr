@@ -25,9 +25,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
-	v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 func newNode(
@@ -343,8 +343,8 @@ var _ = Describe("VxlanMgr Tests", func() {
 			},
 		}
 
-		fakeClient.Core().Nodes().Create(&flannelNode)
-		fakeClient.Core().Pods("default").Create(flannelPod)
+		fakeClient.CoreV1().Nodes().Create(&flannelNode)
+		fakeClient.CoreV1().Pods("default").Create(flannelPod)
 
 		vxMgr.ProcessAppmanagerEvents(fakeClient)
 		pod := []appMgr.Member{

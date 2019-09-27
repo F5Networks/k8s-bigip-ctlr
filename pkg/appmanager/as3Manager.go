@@ -63,8 +63,6 @@ var BigIPPassword string
 var BigIPURL string
 var as3RC AS3RESTClient
 var certificates string
-var tempAs3ConfigmapDecl as3Declaration
-var tempRouteConfigDecl as3ADC
 
 var buffer map[Member]struct{}
 var epbuffer map[string]struct{}
@@ -97,10 +95,10 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 
 	appMgr.as3Members = buffer
 	appMgr.watchedAS3Endpoints = epbuffer
-	tempAs3ConfigmapDecl = declaration
-	tempRouteConfigDecl = appMgr.as3RouteCfg.Data
+	tempAs3ConfigmapDecl := declaration
+	tempRouteConfigDecl := appMgr.as3RouteCfg.Data
 	if unifiedDecl, ok := appMgr.getUnifiedAS3Declaration(tempAs3ConfigmapDecl, tempRouteConfigDecl); ok {
-		appMgr.postAS3Declaration(unifiedDecl)
+		appMgr.postAS3Declaration(unifiedDecl, tempAs3ConfigmapDecl, tempRouteConfigDecl)
 	}
 	return true
 }
@@ -390,7 +388,7 @@ func (appMgr *Manager) buildAS3Declaration(obj as3Object, template as3Template) 
 
 // TODO: Refactor
 // Takes AS3 Declaration and post it to BigIP
-func (appMgr *Manager) postAS3Declaration(declaration as3Declaration) {
+func (appMgr *Manager) postAS3Declaration(declaration as3Declaration, tempAs3ConfigmapDecl as3Declaration, tempRouteConfigDecl as3ADC) {
 	log.Debugf("[as3_log] Processing AS3 POST call with AS3 Manager")
 	as3RC.baseURL = BigIPURL
 	_, ok := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr.sslInsecure)
@@ -744,12 +742,11 @@ func (appMgr *Manager) getUnifiedAS3Declaration(as3CfgmapDecl as3Declaration, ro
 
 func (appMgr *Manager) postRouteDeclarationHost() {
 	adc := appMgr.generateAS3RouteDeclaration()
+	tempAs3ConfigmapDecl := as3Declaration(appMgr.activeCfgMap.Data)
+	tempRouteConfigDecl := adc
 	//Get unified declaration
-	tempAs3ConfigmapDecl = as3Declaration(appMgr.activeCfgMap.Data)
-	tempRouteConfigDecl = adc
-
 	if unifiedDecl, ok := appMgr.getUnifiedAS3Declaration(tempAs3ConfigmapDecl, tempRouteConfigDecl); ok {
-		appMgr.postAS3Declaration(unifiedDecl)
+		appMgr.postAS3Declaration(unifiedDecl, tempAs3ConfigmapDecl, tempRouteConfigDecl)
 	}
 }
 
@@ -1228,5 +1225,5 @@ func (appMgr *Manager) DeleteAS3ManagedPartition() {
 	decl := as3Config["declaration"].(map[string]interface{})
 	decl[DEFAULT_PARTITION+"_AS3"] = map[string]string{"class": "Tenant"}
 	data, _ := json.Marshal(as3Config)
-	appMgr.postAS3Declaration(as3Declaration(data))
+	appMgr.postAS3Declaration(as3Declaration(data), "", nil)
 }

@@ -582,7 +582,7 @@ func (appMgr *Manager) newAppInformer(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
 				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueConfigMap(cur) },
-				DeleteFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
+				DeleteFunc: func(obj interface{}) { appMgr.enqueueDeletedConfigMap(obj) },
 			},
 			resyncPeriod,
 		)
@@ -638,6 +638,25 @@ func (appMgr *Manager) newAppInformer(
 
 func (appMgr *Manager) enqueueConfigMap(obj interface{}) {
 	if ok, keys := appMgr.checkValidConfigMap(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) enqueueDeletedConfigMap(obj interface{}) {
+	cm := obj.(*v1.ConfigMap)
+	if val, ok := cm.ObjectMeta.Labels["as3"]; ok {
+		if as3Val, err := strconv.ParseBool(val); err == nil {
+			if as3Val {
+				appMgr.activeCfgMap.Data = ""
+				appMgr.activeCfgMap.Name = ""
+				cm.ObjectMeta.Name = ""
+				cm.Data = map[string]string{"template": ""}
+			}
+		}
+	}
+	if ok, keys := appMgr.checkValidConfigMap(cm); ok {
 		for _, key := range keys {
 			appMgr.vsQueue.Add(*key)
 		}

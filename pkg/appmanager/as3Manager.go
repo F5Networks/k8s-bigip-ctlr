@@ -893,11 +893,13 @@ func (appMgr *Manager) processRouteProfilesForAS3(sharedApp as3Application) {
 					svc.ServerTLS = &as3ResourcePointer{
 						BigIP: val,
 					}
+					updateVirtualToHTTPS(svc)
 				case customProfileServer:
 					// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
 					svc.ClientTLS = &as3ResourcePointer{
 						BigIP: val,
 					}
+					updateVirtualToHTTPS(svc)
 				}
 			}
 		}
@@ -957,13 +959,10 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	}
 }
 
-func isSecuredVirtualServer(policies []nameRef) bool {
-	for _, p := range policies {
-		if p.Name == "openshift_secure_routes" {
-			return true
-		}
-	}
-	return false
+func updateVirtualToHTTPS(v *as3Service) {
+	v.Class = "Service_HTTPS"
+	redirect80 := false
+	v.Redirect80 = &redirect80
 }
 
 // Create AS3 Service for Route
@@ -999,13 +998,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	svc.TranslateServerAddress = true
 	svc.TranslateServerPort = true
 
-	if isSecuredVirtualServer(cfg.Virtual.Policies) {
-		svc.Class = "Service_HTTPS"
-		redirect80 := false
-		svc.Redirect80 = &redirect80
-	} else {
-		svc.Class = "Service_HTTP"
-	}
+	svc.Class = "Service_HTTP"
 
 	for _, prof := range cfg.Virtual.Profiles {
 		switch prof.Name {
@@ -1034,9 +1027,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.ServerTLS = &as3ResourcePointer{
 				BigIP: "/Common/clientssl",
 			}
-			svc.Class = "Service_HTTPS"
-			redirect80 := false
-			svc.Redirect80 = &redirect80
+			updateVirtualToHTTPS(svc)
 		}
 		svc.IRules = append(svc.IRules, as3FormatedString(iRuleName))
 	}
@@ -1085,8 +1076,8 @@ func createRouteRuleCondition(rl *Rule, rulesData *as3Rule) {
 
 // Create AS3 Rule Action for Route
 func createRouteRuleAction(rl *Rule, rulesData *as3Rule) {
-	var action as3Action
 	for _, v := range rl.Actions {
+		var action as3Action
 		if v.Forward {
 			action.Type = "forward"
 		}
@@ -1100,8 +1091,8 @@ func createRouteRuleAction(rl *Rule, rulesData *as3Rule) {
 				Use: as3FormatedString(p[len(p)-1]),
 			},
 		}
+		rulesData.Actions = append(rulesData.Actions, action)
 	}
-	rulesData.Actions = append(rulesData.Actions, action)
 }
 
 //Create health monitor declaration
@@ -1190,6 +1181,7 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 
 			sharedApp[tlsServerName] = tlsServer
 			svc.ServerTLS = tlsServerName
+			updateVirtualToHTTPS(svc)
 		}
 
 		tlsServer.Certificates = append(
@@ -1223,6 +1215,7 @@ func createTLSClient(
 		}
 		sharedApp[tlsClientName] = tlsClient
 		svc.ClientTLS = tlsClientName
+		updateVirtualToHTTPS(svc)
 
 		return true
 	}

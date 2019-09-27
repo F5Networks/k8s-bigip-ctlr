@@ -2004,7 +2004,7 @@ func (appMgr *Manager) handleRouteRules(
 		if nil == tls || len(tls.Termination) == 0 {
 			if abDeployment {
 				appMgr.addIRule(
-					abDeploymentPathIRuleName, DEFAULT_PARTITION, abDeploymentPathIRule())
+					abDeploymentPathIRuleName, DEFAULT_PARTITION, appMgr.abDeploymentPathIRule())
 				appMgr.addInternalDataGroup(abDeploymentDgName, DEFAULT_PARTITION)
 				rc.Virtual.AddIRule(abPathIRuleName)
 			} else {
@@ -2050,7 +2050,7 @@ func (appMgr *Manager) handleRouteRules(
 			case routeapi.TLSTerminationEdge:
 				if abDeployment {
 					appMgr.addIRule(
-						abDeploymentPathIRuleName, DEFAULT_PARTITION, abDeploymentPathIRule())
+						abDeploymentPathIRuleName, DEFAULT_PARTITION, appMgr.abDeploymentPathIRule())
 					appMgr.addInternalDataGroup(abDeploymentDgName, DEFAULT_PARTITION)
 					rc.Virtual.AddIRule(abPathIRuleName)
 				} else {

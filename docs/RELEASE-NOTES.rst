@@ -8,6 +8,10 @@ Added Functionality
 * Support Path Based Routing for Openshift reencrypt routes.
 * OpenShift 4.1, Kubernetes 1.14 support and other dependency package upgrade.
 
+Bug Fixes
+`````````
+* Controller configured to manage-routes now exist with readable help message in logs when router-vserver-addr is not configured.
+
 v1.10.0
 ------------
 Added Functionality

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"log/syslog"
+	"os"
 )
 
 type (
@@ -64,15 +65,21 @@ func (cl *consoleLogger) Debugf(format string, params ...interface{}) {
 
 func (cl *consoleLogger) Info(msg string) {
 	if cl.slLogLevel >= syslog.LOG_INFO {
-		log.Println("[INFO]", msg)
+		toSTDOUT(msg)
 	}
 }
 
 func (cl *consoleLogger) Infof(format string, params ...interface{}) {
 	if cl.slLogLevel >= syslog.LOG_INFO {
 		msg := fmt.Sprintf(format, params...)
-		log.Println("[INFO]", msg)
+		toSTDOUT(msg)
 	}
+}
+
+func toSTDOUT(msg string) {
+	log.SetOutput(os.Stdout)
+	log.Println("[INFO]", msg)
+	log.SetOutput(os.Stderr)
 }
 
 func (cl *consoleLogger) Warning(msg string) {

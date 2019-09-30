@@ -12,6 +12,10 @@ Bug Fixes
 `````````
 * Controller configured to manage-routes now exist with readable help message in logs when router-vserver-addr is not configured.
 
+Bug Fixes
+`````````
+* :issues:`1016` Controller logs INFO messages to STDOUT
+
 v1.10.0
 ------------
 Added Functionality

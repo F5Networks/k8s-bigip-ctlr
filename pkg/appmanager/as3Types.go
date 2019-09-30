@@ -53,23 +53,25 @@ type (
 
 	// as3EndpointPolicy maps to Endpoint_Policy in AS3 Resources
 	as3EndpointPolicy struct {
-		Class    string    `json:"class,omitempty"`
-		Rules    []as3Rule `json:"rules,omitempty"`
-		Strategy string    `json:"strategy,omitempty"`
+		Class    string     `json:"class,omitempty"`
+		Rules    []*as3Rule `json:"rules,omitempty"`
+		Strategy string     `json:"strategy,omitempty"`
 	}
 
 	// as3Rule maps to Endpoint_Policy_Rule in AS3 Resources
 	as3Rule struct {
-		Name       string         `json:"name,omitempty"`
-		Conditions []as3Condition `json:"conditions,omitempty"`
-		Actions    []as3Action    `json:"actions,omitempty"`
+		Name       string          `json:"name,omitempty"`
+		Conditions []*as3Condition `json:"conditions,omitempty"`
+		Actions    []*as3Action    `json:"actions,omitempty"`
 	}
 
 	// as3Action maps to Policy_Action in AS3 Resources
 	as3Action struct {
-		Type   string                  `json:"type,omitempty"`
-		Event  string                  `json:"event,omitempty"`
-		Select *as3ActionForwardSelect `json:"select,omitempty"`
+		Type    string                  `json:"type,omitempty"`
+		Event   string                  `json:"event,omitempty"`
+		Select  *as3ActionForwardSelect `json:"select,omitempty"`
+		Policy  *as3ResourcePointer     `json:"policy,omitempty"`
+		Enabled *bool                   `json:"enabled,omitempty"`
 	}
 
 	// as3Condition maps to Policy_Condition in AS3 Resources

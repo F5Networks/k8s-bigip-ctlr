@@ -783,6 +783,9 @@ func (appMgr *Manager) generateAS3RouteDeclaration() as3ADC {
 	// Process DataGroup to be consumed by IRule
 	appMgr.processDataGroupForAS3(sharedApp)
 
+	// Process F5 Resources
+	appMgr.processF5ResourcesForAS3(sharedApp)
+
 	// Create AS3 Tenant
 	tenant := as3Tenant{
 		"class":              "Tenant",
@@ -915,6 +918,124 @@ func (appMgr *Manager) processRouteProfilesForAS3(sharedApp as3Application) {
 	}
 }
 
+// processF5ResourcesForAS3 does the following steps to implement WAF
+// * Add WAF policy action to the corresponding rules
+// * Add a default WAF disable Rule to corresponding policy
+// * Add WAF disable action to all rules that do not handle WAF
+func (appMgr *Manager) processF5ResourcesForAS3(sharedApp as3Application) {
+
+	// Identify rules that do not handle waf and add waf disable action to that rule
+	addWAFDisableAction := func(ep *as3EndpointPolicy) {
+		enabled := false
+		wafDisableAction := &as3Action{
+			Type:    "waf",
+			Enabled: &enabled,
+		}
+
+		for _, rule := range ep.Rules {
+			isWAFRule := false
+			for _, action := range rule.Actions {
+				if action.Type == "waf" {
+					isWAFRule = true
+					break
+				}
+			}
+			// BigIP requires a default WAF disable rule doesn't require WAF
+			if !isWAFRule {
+				rule.Actions = append(rule.Actions, wafDisableAction)
+			}
+		}
+	}
+
+	var isSecureWAF, isInsecureWAF bool
+	var ep *as3EndpointPolicy
+
+	// Update Rules with WAF action
+	for rec, res := range appMgr.intF5Res {
+		switch res.Virtual {
+		case HTTPS:
+			isSecureWAF = true
+			ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
+		case HTTPANDS:
+			isSecureWAF = true
+			ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
+			updatePolicyWithWAF(ep, rec, res)
+			fallthrough
+		case HTTP:
+			isInsecureWAF = true
+			ep = sharedApp["openshift_insecure_routes"].(*as3EndpointPolicy)
+		default:
+			continue
+		}
+		updatePolicyWithWAF(ep, rec, res)
+	}
+
+	enabled := false
+	wafDisableAction := &as3Action{
+		Type:    "waf",
+		Enabled: &enabled,
+	}
+
+	wafDisableRule := &as3Rule{
+		Name:    "openshift_route_waf_disable",
+		Actions: []*as3Action{wafDisableAction},
+	}
+
+	// Add a default WAF disable action to all non-WAF rules
+	// BigIP requires a default WAF disable rule doesn't require WAF
+	if isSecureWAF {
+		ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
+		ep.Rules = append(ep.Rules, wafDisableRule)
+		addWAFDisableAction(ep)
+	}
+	if isInsecureWAF {
+		ep = sharedApp["openshift_insecure_routes"].(*as3EndpointPolicy)
+		ep.Rules = append(ep.Rules, wafDisableRule)
+		addWAFDisableAction(ep)
+	}
+}
+
+// Identify rule with condition that matches with given host and path
+// Add WAF policy action to that rule
+func updatePolicyWithWAF(ep *as3EndpointPolicy, rec Record, res F5Resources) {
+	action := &as3Action{
+		Type:  "waf",
+		Event: "request",
+		Policy: &as3ResourcePointer{
+			BigIP: res.WAFPolicy,
+		},
+	}
+
+	recPathElems := strings.Split(rec.Path, "/")[1:]
+
+	for _, rule := range ep.Rules {
+		var hosts []string
+		var paths [][]string
+		for _, cond := range rule.Conditions {
+			if cond.All != nil {
+				hosts = cond.All.Values
+			}
+			if cond.PathSegment != nil {
+				paths = append(paths, cond.PathSegment.Values)
+			}
+		}
+
+		if contains(hosts, rec.Host) && len(recPathElems) == len(paths) {
+			pathMatch := true
+			for i, v := range recPathElems {
+				if !contains(paths[i], v) {
+					pathMatch = false
+					break
+				}
+			}
+			if pathMatch {
+				rule.Actions = append(rule.Actions, action)
+				break
+			}
+		}
+	}
+}
+
 func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	for _, pl := range cfg.Policies {
 		//Create EndpointPolicy
@@ -934,7 +1055,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			//Creat action object
 			createRouteRuleAction(rl, rulesData)
 
-			ep.Rules = append(ep.Rules, *rulesData)
+			ep.Rules = append(ep.Rules, rulesData)
 		}
 		//Setting Endpoint_Policy Name
 		sharedApp[as3FormatedString(pl.Name)] = ep
@@ -1047,7 +1168,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 // Create AS3 Rule Condition for Route
 func createRouteRuleCondition(rl *Rule, rulesData *as3Rule) {
 	for _, c := range rl.Conditions {
-		var condition as3Condition
+		condition := &as3Condition{}
 		if c.Host {
 			condition.Name = "host"
 			condition.All = &as3PolicyCompareString{
@@ -1086,7 +1207,7 @@ func createRouteRuleCondition(rl *Rule, rulesData *as3Rule) {
 // Create AS3 Rule Action for Route
 func createRouteRuleAction(rl *Rule, rulesData *as3Rule) {
 	for _, v := range rl.Actions {
-		var action as3Action
+		action := &as3Action{}
 		if v.Forward {
 			action.Type = "forward"
 		}

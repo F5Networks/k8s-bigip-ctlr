@@ -68,6 +68,7 @@ const f5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
 const f5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"
 const f5ServerSslSecureAnnotation = "virtual-server.f5.com/secure-serverssl"
 const defaultSslServerCAName = "openshift_route_cluster_default-ca"
+const f5VsWAFPolicy = "virtual-server.f5.com/waf"
 
 type ResourceMap map[int32][]*ResourceConfig
 
@@ -144,6 +145,7 @@ type Manager struct {
 	WatchedNS       WatchedNamespaces
 	as3RouteCfg     ActiveAS3Route
 	As3SchemaLatest string
+	intF5Res        InternalF5Resources // AS3 Specific features that can be applied to a Route/Ingress
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -1358,6 +1360,10 @@ func (appMgr *Manager) syncRoutes(
 
 	// Rebuild all internal data groups for routes as we process each
 	svcFwdRulesMap := NewServiceFwdRuleMap()
+
+	// buffer to hold F5Resources till all routes are processed
+	bufferF5Res := map[Record]F5Resources{}
+
 	for _, route := range routeByIndex {
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
@@ -1507,6 +1513,14 @@ func (appMgr *Manager) syncRoutes(
 			}
 		}
 		updateDataGroupForABRoute(route, svcName, DEFAULT_PARTITION, sKey.Namespace, dgMap)
+
+		appMgr.processAS3SpecificFeatures(route, bufferF5Res)
+	}
+
+	// if buffer is updated then update the appMgr and stats
+	if !reflect.DeepEqual(appMgr.intF5Res, bufferF5Res) {
+		appMgr.intF5Res = bufferF5Res
+		stats.vsUpdated++
 	}
 
 	if len(svcFwdRulesMap) > 0 {
@@ -1520,6 +1534,35 @@ func (appMgr *Manager) syncRoutes(
 		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
 	}
 	return nil
+}
+
+// Process AS3 Specific features
+func (appMgr *Manager) processAS3SpecificFeatures(route *routeapi.Route, buffer map[Record]F5Resources) {
+	idf := Record{
+		Host: route.Spec.Host,
+		Path: route.Spec.Path,
+	}
+
+	// Check for WAF Annotation
+	if wafPolicyName, exists := route.Annotations[f5VsWAFPolicy]; exists {
+		buffer[idf] = F5Resources{
+			Virtual:   appMgr.affectedVirtuals(route),
+			WAFPolicy: wafPolicyName,
+		}
+	}
+}
+
+// Identify which virtuals needs update
+func (appMgr *Manager) affectedVirtuals(route *routeapi.Route) virtuals {
+	var v virtuals = HTTP
+	if route.Spec.TLS != nil {
+		v = HTTPS
+
+		if route.Spec.TLS.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyAllow {
+			v = HTTPANDS
+		}
+	}
+	return v
 }
 
 // Deletes a whitelist condition if the values match

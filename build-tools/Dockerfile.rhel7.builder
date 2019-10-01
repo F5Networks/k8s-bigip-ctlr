@@ -11,7 +11,7 @@ RUN REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-
 	  --security --sec-severity=Important --sec-severity=Critical && \
 	yum -y update scl-utils && \
 	yum -y install --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
-	  gcc openssl golang git make rsync wget python27 && \
+	  gcc openssl golang git make rsync wget python36 && \
 # Add epel repo for dpkg install
 	curl -o epel-release-latest-7.noarch.rpm -SL https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
             --retry 9 --retry-max-time 0 -C - && \
@@ -54,7 +54,7 @@ COPY entrypoint.builder.sh /entrypoint.sh
 COPY requirements.txt /tmp/requirements.txt
 COPY requirements.docs.txt /tmp/requirements.docs.txt
 
-RUN source scl_source enable python27 && \
+RUN source scl_source enable python36 && \
 	pip install --no-cache-dir --upgrade pip && \
 	pip install --no-cache-dir setuptools flake8 && \
 	pip install --no-cache-dir --ignore-installed -r /tmp/requirements.txt && \

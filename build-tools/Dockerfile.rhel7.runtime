@@ -25,10 +25,10 @@ COPY requirements.txt /tmp/requirements.txt
 
 RUN microdnf --enablerepo=rhel-7-server-rpms --enablerepo=rhel-7-server-optional-rpms \
       --enablerepo=rhel-server-rhscl-7-rpms install --nodocs \
-      golang-github-cpuguy83-go-md2man python27-python-pip git shadow-utils && \
+      golang-github-cpuguy83-go-md2man python36-python-pip git shadow-utils && \
     microdnf update && \
     go-md2man -in /tmp/help.md -out /help.1 && rm -f /tmp/help.md && \
-    source scl_source enable python27 && \
+    source scl_source enable python36 && \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     python -m pip uninstall -y pip && \
@@ -49,7 +49,7 @@ COPY VERSION_BUILD.json $APPPATH/vendor/src/f5/
 
 # entrypoint to enable scl python at runtime
 RUN echo $'#!/bin/sh\n\
-	  source scl_source enable python27\n\
+	  source scl_source enable python36\n\
 	  exec $APPPATH/bin/k8s-bigip-ctlr.real "$@"' > $APPPATH/bin/k8s-bigip-ctlr && \
     chmod +x $APPPATH/bin/k8s-bigip-ctlr
 

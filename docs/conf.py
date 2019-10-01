@@ -70,9 +70,9 @@ source_encoding = 'utf-8-sig'
 master_doc = 'index'
 
 # General information about the project.
-project = u'F5 BIG-IP Controller for Kubernetes'
-copyright = u'2018 F5 Networks Inc'
-author = u'F5 Networks'
+project = 'F5 BIG-IP Controller for Kubernetes'
+copyright = '2018 F5 Networks Inc'
+author = 'F5 Networks'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -81,9 +81,9 @@ author = u'F5 Networks'
 with open('../next-version.txt') as verfile:
     v = verfile.readline().strip().split('.')
     # The short X.Y version.
-    version = u'v{}.{}'.format(v[0], v[1])
+    version = 'v{}.{}'.format(v[0], v[1])
     # The full version, including alpha/beta/rc tags.
-    release = u'v{}.{}.{}-dev'.format(v[0], v[1], v[2])
+    release = 'v{}.{}.{}-dev'.format(v[0], v[1], v[2])
 
 # def setup(app):
 #    app.add_config_value('versionlevel', '', 'env')
@@ -242,7 +242,7 @@ html_title = "{} {}".format(project, version)
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
 #
-#html_short_title = u'F5 BIG-IP Controller for Kubernetes'
+#html_short_title = 'F5 BIG-IP Controller for Kubernetes'
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
@@ -367,7 +367,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'F5 Kubernetes BIG-IP Controller.tex',
-     u'F5 BIG-IP Controller for Kubernetes - Documentation',
+     'F5 BIG-IP Controller for Kubernetes - Documentation',
      'F5 Networks', 'manual'),
 ]
 
@@ -418,7 +418,7 @@ latex_toplevel_sectioning = 'section'
 # (source start file, name, description, authors, manual section).
 man_pages = [
     (master_doc, 'F5 BIG-IP Controller for Kubernetes',
-     u'F5 BIG-IP Controller for Kubernetes - Documentation',
+     'F5 BIG-IP Controller for Kubernetes - Documentation',
      [author], 1)
 ]
 
@@ -434,7 +434,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     (master_doc, 'F5 BIG-IP Controller for Kubernetes',
-     u'F5 BIG-IP Controller for Kubernetes - Documentation',
+     'F5 BIG-IP Controller for Kubernetes - Documentation',
      author, 'F5 BIG-IP Controller for Kubernetes', 'manual'),
 ]
 

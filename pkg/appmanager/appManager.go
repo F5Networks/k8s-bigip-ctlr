@@ -205,6 +205,8 @@ type RouteConfig struct {
 	ServerSSL   string
 }
 
+var RoutesProcessed []*routeapi.Route
+
 // Create and return a new app manager that meets the Manager interface
 func NewManager(params *Params) *Manager {
 	vsQueue := workqueue.NewNamedRateLimitingQueue(
@@ -1368,6 +1370,7 @@ func (appMgr *Manager) syncRoutes(
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
+		RoutesProcessed = append(RoutesProcessed, route)
 
 		//FIXME(kenr): why do we process services that aren't associated
 		//             with a route?

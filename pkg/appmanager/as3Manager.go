@@ -31,6 +31,7 @@ import (
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	routev1 "github.com/openshift/api/route/v1"
 	"github.com/xeipuuv/gojsonschema"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -392,6 +393,34 @@ func (appMgr *Manager) buildAS3Declaration(obj as3Object, template as3Template) 
 
 }
 
+// Get the RFC3339Copy of the timestamp for updating the OpenShift Routes
+func getRfc3339Timestamp() metaV1.Time {
+	return metaV1.Now().Rfc3339Copy()
+}
+
+// For any route added, the Ingress is not populated unless it is admitted by a Router.
+// This must be populated by CIS based on BIG-IP response 200 OK.
+// If BIG-IP response is an error, do care update Ingress.
+// Don't update an existing Ingress object when BIG-IP response is not 200 OK. Its already consumed.
+func (appMgr *Manager) admitRoutes() {
+	now := getRfc3339Timestamp()
+	for _, route := range RoutesProcessed {
+		if len(route.Status.Ingress) == 0 {
+			route.Status.Ingress = append(route.Status.Ingress, routev1.RouteIngress{
+				RouterName: "F5 BIG-IP",
+				Host:       route.Spec.Host,
+				Conditions: []routev1.RouteIngressCondition{{
+					Type:               routev1.RouteAdmitted,
+					Status:             v1.ConditionTrue,
+					LastTransitionTime: &now,
+				}},
+			})
+			appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(route)
+			log.Debugf("Admitted Route -  %v", route.ObjectMeta.Name)
+		}
+	}
+}
+
 // TODO: Refactor
 // Takes AS3 Declaration and post it to BigIP
 func (appMgr *Manager) postAS3Declaration(declaration as3Declaration, tempAs3ConfigmapDecl as3Declaration, tempRouteConfigDecl as3ADC) {
@@ -402,6 +431,9 @@ func (appMgr *Manager) postAS3Declaration(declaration as3Declaration, tempAs3Con
 		appMgr.activeCfgMap.Data = string(tempAs3ConfigmapDecl)
 		appMgr.as3RouteCfg.Data = tempRouteConfigDecl
 		appMgr.as3RouteCfg.Pending = false
+		if nil != appMgr.routeClientV1 {
+			appMgr.admitRoutes()
+		}
 	} else {
 		appMgr.as3RouteCfg.Pending = true
 	}

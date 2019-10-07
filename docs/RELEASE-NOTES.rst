@@ -3,19 +3,23 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 next-release
 ------------
+
+
+v1.11.0
+------------
 Added Functionality
 `````````````````````
-* Support Path Based Routing for Openshift reencrypt routes.
-* OpenShift 4.1, Kubernetes 1.14 support and other dependency package upgrade.
-* Update OpenShift 3.11 GUI with Route admitted status based on BIG-IP response.
+* Added support for WAF policy reference through virtual-server.f5.com/waf annotation.
+* Added support for OpenShift version 4.1.
+* Added support for Alternate Backend Deployment in OpenShift Routes while using as3 backend. 
+* Controller updates Route status in Openshift Web Console.
 
 Bug Fixes
 `````````
-* Controller configured to manage-routes now exist with readable help message in logs when router-vserver-addr is not configured.
-
-Bug Fixes
-`````````
-* :issues:`1016` Controller logs INFO messages to STDOUT
+* :issues:`790` Controller properly handles OpenShift path based routes with TLS.
+* :issues:`1016` Controller now logs INFO messages to STDOUT instead of STDERR.
+* Controller provides readable help message in logs when router-vserver-addr is not configured.
+* Support for wildcards on path based Routes.
 
 v1.10.0
 ------------

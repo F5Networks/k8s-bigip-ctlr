@@ -1,21 +1,28 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-next-release
+v1.11.0
 ------------
 Added Functionality
 `````````````````````
-* Support Path Based Routing for Openshift reencrypt routes.
-* OpenShift 4.1, Kubernetes 1.14 support and other dependency package upgrade.
-* Update OpenShift 3.11 GUI with Route admitted status based on BIG-IP response.
+* Added support for WAF policy reference through ``virtual-server.f5.com/waf`` annotation in OpenShift Routes.
+* Added support for OpenShift version 4.1.
+    - | Controller service account needs ``cluster-admin`` role. Before upgrading controller to v1.11.0 and above, update cluster role as follows:
+      | ``oc adm policy add-cluster-role-to-user cluster-admin -z <service-account-name> -n <namespace>``
+* Added support for Alternate Backend Deployment in OpenShift Routes while using as3 backend. 
+* Controller updates Route status in Openshift Web Console (OpenShift 3.11 and below).
+* Controller includes the body of AS3 API call error responses in Debug logs.
+* Added support for validating AS3 JSON against the latest schema. Controller downloads the latest schema during startup.
 
 Bug Fixes
 `````````
-* Controller configured to manage-routes now exist with readable help message in logs when router-vserver-addr is not configured.
+* :issues:`790` Controller properly handles OpenShift path based routes with TLS.
+* :issues:`1016` Controller now logs INFO messages to STDOUT instead of STDERR.
+* Controller provides readable help message in logs when ``--router-vserver-addr`` is not configured.
 
-Bug Fixes
-`````````
-* :issues:`1016` Controller logs INFO messages to STDOUT
+Limitations
+```````````
+* Limitations for Openshift Routes orchestration through AS3 backend are available `here <https://clouddocs.f5.com/containers/latest/openshift/kctlr-use-as3-backend.html>`_.
 
 v1.10.0
 ------------
@@ -64,7 +71,7 @@ Vulnerability Fixes
 +------------------+----------------------------------------------------------------+
 | CVE              | Comments                                                       |
 +==================+================================================================+
-| TBA              | Controller no longer prints AS3 Declarations in debug logs     |
+| CVE-2019-6648    | Controller no longer prints AS3 Declarations in debug logs     |
 +------------------+----------------------------------------------------------------+
 
 v1.9.0

@@ -1,5 +1,10 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
+Next Release
+------------
+Added Functionality
+`````````````````````
+* Added support for Tenant Filtering using `--filter-tenants=true` option.
 
 v1.11.0
 ------------

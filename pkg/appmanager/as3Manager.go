@@ -421,12 +421,30 @@ func (appMgr *Manager) admitRoutes() {
 	}
 }
 
+func (appMgr *Manager) getAS3APIURL(decl as3Declaration) string {
+	apiURL := "/mgmt/shared/appsvcs/declare/"
+	if !appMgr.FilterTenants {
+		return apiURL
+	}
+
+	if as3Obj, ok := appMgr.getAS3ObjectFromTemplate(as3Template(string(decl))); ok {
+		var tenants []string
+		for tenant, _ := range as3Obj {
+			tenants = append(tenants, string(tenant))
+		}
+		apiURL += strings.Join(tenants, ",")
+	}
+	return apiURL
+}
+
 // TODO: Refactor
 // Takes AS3 Declaration and post it to BigIP
 func (appMgr *Manager) postAS3Declaration(declaration as3Declaration, tempAs3ConfigmapDecl as3Declaration, tempRouteConfigDecl as3ADC) {
 	log.Debugf("[as3_log] Processing AS3 POST call with AS3 Manager")
 	as3RC.baseURL = BigIPURL
-	_, ok := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr.sslInsecure)
+
+	as3APIURL := appMgr.getAS3APIURL(declaration)
+	_, ok := as3RC.restCallToBigIP("POST", as3APIURL, declaration, appMgr.sslInsecure)
 	if ok {
 		appMgr.activeCfgMap.Data = string(tempAs3ConfigmapDecl)
 		appMgr.as3RouteCfg.Data = tempRouteConfigDecl

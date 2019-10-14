@@ -146,6 +146,7 @@ type Manager struct {
 	as3RouteCfg     ActiveAS3Route
 	As3SchemaLatest string
 	intF5Res        InternalF5Resources // AS3 Specific features that can be applied to a Route/Ingress
+	FilterTenants   bool
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -193,6 +194,7 @@ type Params struct {
 	SSLInsecure        bool
 	TrustedCertsCfgmap string
 	Agent              string
+	FilterTenants      bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -248,6 +250,7 @@ func NewManager(params *Params) *Manager {
 		sslInsecure:        params.SSLInsecure,
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
 		Agent:              getValidAgent(params.Agent),
+		FilterTenants:      params.FilterTenants,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.

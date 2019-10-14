@@ -1,6 +1,13 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+next-release
+------------
+Added Functionality
+`````````````````````
+* Controller updates Route Status in OpenShift Management Console (3.11 and 4.1).
+
+
 v1.11.0
 ------------
 Added Functionality

@@ -59,6 +59,8 @@ const (
 	as3SharedApplication = "Shared"
 )
 
+const F5RouterName = "F5 BIG-IP"
+
 var BigIPUsername string
 var BigIPPassword string
 var BigIPURL string
@@ -398,25 +400,76 @@ func getRfc3339Timestamp() metaV1.Time {
 	return metaV1.Now().Rfc3339Copy()
 }
 
+// Check whether we are processing this route.
+// Else, clean the route metadata if we add any in past.
+func (appMgr *Manager) containsProcessedRoute(route routev1.Route) bool {
+	for _, rt := range appMgr.RoutesProcessed {
+		if route.ObjectMeta.Name == rt.ObjectMeta.Name && route.ObjectMeta.Namespace == rt.ObjectMeta.Namespace {
+			return true
+		}
+	}
+	return false
+}
+
+// Clean the MetaData for routes processed in the past and
+// not considered now.
+func (appMgr *Manager) cleanupMetadata(route routev1.Route) {
+	if len(route.Status.Ingress) > 1 {
+		for i := 0; i < len(route.Status.Ingress); i++ {
+			if route.Status.Ingress[i].RouterName == F5RouterName {
+				route.Status.Ingress = append(route.Status.Ingress[:i], route.Status.Ingress[i+1:]...)
+				i--
+			}
+		}
+	}
+	appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(&route)
+}
+
 // For any route added, the Ingress is not populated unless it is admitted by a Router.
 // This must be populated by CIS based on BIG-IP response 200 OK.
 // If BIG-IP response is an error, do care update Ingress.
 // Don't update an existing Ingress object when BIG-IP response is not 200 OK. Its already consumed.
 func (appMgr *Manager) admitRoutes() {
-	now := getRfc3339Timestamp()
-	for _, route := range RoutesProcessed {
-		if len(route.Status.Ingress) == 0 {
-			route.Status.Ingress = append(route.Status.Ingress, routev1.RouteIngress{
-				RouterName: "F5 BIG-IP",
-				Host:       route.Spec.Host,
-				Conditions: []routev1.RouteIngressCondition{{
-					Type:               routev1.RouteAdmitted,
-					Status:             v1.ConditionTrue,
-					LastTransitionTime: &now,
-				}},
-			})
-			appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(route)
-			log.Debugf("Admitted Route -  %v", route.ObjectMeta.Name)
+	if len(appMgr.RoutesProcessed) > 0 {
+		now := getRfc3339Timestamp()
+		// Get the list of Routes from all NS and remove updated metadata.
+		allOptions := metaV1.ListOptions{
+			LabelSelector: "",
+		}
+		allNamespaces := ""
+		allRoutes, err := appMgr.routeClientV1.Routes(allNamespaces).List(allOptions)
+		if err != nil {
+			log.Errorf("Error listing Routes: %v", err)
+		}
+		for _, aRoute := range allRoutes.Items {
+			if !appMgr.containsProcessedRoute(aRoute) {
+				appMgr.cleanupMetadata(aRoute)
+			}
+		}
+
+		for _, route := range appMgr.RoutesProcessed {
+			Admitted := false
+			if len(route.Status.Ingress) != 0 {
+				for _, routeIngress := range route.Status.Ingress {
+					if routeIngress.RouterName == F5RouterName {
+						Admitted = true
+						break
+					}
+				}
+				if !Admitted {
+					route.Status.Ingress = append(route.Status.Ingress, routev1.RouteIngress{
+						RouterName: F5RouterName,
+						Host:       route.Spec.Host,
+						Conditions: []routev1.RouteIngressCondition{{
+							Type:               routev1.RouteAdmitted,
+							Status:             v1.ConditionTrue,
+							LastTransitionTime: &now,
+						}},
+					})
+					appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(route)
+					log.Debugf("Admitted Route -  %v", route.ObjectMeta.Name)
+				}
+			}
 		}
 	}
 }

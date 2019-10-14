@@ -51,6 +51,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			IsNodePort:       true,
 			broadcasterFunc:  NewFakeEventBroadcaster,
 			ManageConfigMaps: true,
+			FilterTenants:    true,
 		})
 	})
 	AfterEach(func() {
@@ -284,6 +285,23 @@ var _ = Describe("AS3Manager Tests", func() {
 			Expect(err).To(BeNil(), "Failed to Create Valid JSON")
 
 			Expect(reflect.DeepEqual(origCfg, generatedCfg)).To(BeTrue(), "Failed to Create JSON with correct configuration")
+		})
+	})
+	Describe("Validate Generated AS3 API URL", func() {
+		It("AS3 API URL for single Tenant", func() {
+			data := readConfigFile(configPath + "as3_route_declaration.json")
+			apiURL := mockMgr.appMgr.getAS3APIURL(as3Declaration(data))
+
+			Expect(apiURL).To(Equal("/mgmt/shared/appsvcs/declare/openshift"))
+		})
+		It("AS3 API URL for multiple Tenants", func() {
+			data := readConfigFile(configPath + "as3_route_cfgmap_declaration.json")
+			apiURL := mockMgr.appMgr.getAS3APIURL(as3Declaration(data))
+
+			Expect(apiURL).To(Or(
+				Equal("/mgmt/shared/appsvcs/declare/openshift,Tenant1"),
+				Equal("/mgmt/shared/appsvcs/declare/Tenant1,openshift"),
+			))
 		})
 	})
 })

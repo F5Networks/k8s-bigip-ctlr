@@ -154,6 +154,7 @@ type Manager struct {
 	As3SchemaFlag   bool
 	RoutesProcessed RouteMap // Processed routes for updating Admit Status
 	logAS3Response  bool     //Log the AS3 response body in Controller logs
+	FilterTenants   bool
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -203,6 +204,7 @@ type Params struct {
 	Agent              string
 	SchemaLocalPath    string
 	LogAS3Response     bool
+	FilterTenants      bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -261,6 +263,7 @@ func NewManager(params *Params) *Manager {
 		intF5Res:           make(map[string]InternalF5Resources),
 		SchemaLocalPath:    params.SchemaLocal,
 		logAS3Response:     params.LogAS3Response,
+		FilterTenants:      params.FilterTenants,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.

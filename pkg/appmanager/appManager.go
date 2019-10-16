@@ -146,6 +146,10 @@ type Manager struct {
 	as3RouteCfg     ActiveAS3Route
 	As3SchemaLatest string
 	intF5Res        InternalF5ResourcesGroup // AS3 Specific features that can be applied to a Route/Ingress
+	// Path of schemas reside locally
+	SchemaLocalPath string
+	// Flag to check schema validation using reference or string
+	As3SchemaFlag bool
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -193,6 +197,7 @@ type Params struct {
 	SSLInsecure        bool
 	TrustedCertsCfgmap string
 	Agent              string
+	SchemaLocalPath    string
 }
 
 // Configuration options for Routes in OpenShift
@@ -249,6 +254,7 @@ func NewManager(params *Params) *Manager {
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
 		Agent:              getValidAgent(params.Agent),
 		intF5Res:           make(map[string]InternalF5Resources),
+		SchemaLocalPath:    params.SchemaLocal,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.

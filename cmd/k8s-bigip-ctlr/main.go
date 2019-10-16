@@ -51,7 +51,8 @@ import (
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
 
-const as3SchemaLatestUrl = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
+const as3SchemaLatestURL = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
+const as3SchemaFileName = "as3-schema-3.13.2-1-cis.json"
 
 type globalSection struct {
 	LogLevel       string `json:"log-level,omitempty"`
@@ -780,12 +781,11 @@ func main() {
 
 func fetchAS3Schema(appMgr *appmanager.Manager) {
 
-	res, resErr := http.Get(as3SchemaLatestUrl)
+	res, resErr := http.Get(as3SchemaLatestURL)
 	if resErr != nil {
 		log.Debugf("error while fetching latest as3 schema : %v", resErr)
 	}
-
-	if res.StatusCode == http.StatusOK {
+	if res.StatusCode == http.StatusOK && res != nil {
 		body, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			log.Debugf("unable to read the as3 template from json response body : %v", err)
@@ -798,16 +798,16 @@ func fetchAS3Schema(appMgr *appmanager.Manager) {
 			log.Debugf("unable to unmarshal json response body : %v", err)
 		}
 
-		jsonMap["$id"] = as3SchemaLatestUrl
+		jsonMap["$id"] = as3SchemaLatestURL
 		byteJSON, err := json.Marshal(jsonMap)
 		if err != nil {
 			log.Debugf("unable to marshal : %v", err)
 		}
 		appMgr.As3SchemaLatest = string(byteJSON)
-
-	} else {
-		log.Debugf("unable to fetch the latest AS3 schema")
-		appMgr.As3SchemaLatest = ""
+		return
 	}
+	appMgr.As3SchemaFlag = true
+	log.Errorf("unable to fetch the latest AS3 schema : validating AS3 schema with %v", as3SchemaFileName)
+	appMgr.As3SchemaLatest = appMgr.SchemaLocalPath + as3SchemaFileName
 
 }

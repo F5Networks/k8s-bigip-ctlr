@@ -69,6 +69,7 @@ var buffer map[Member]struct{}
 var epbuffer map[string]struct{}
 var schemaLoader gojsonschema.JSONLoader
 var As3SchemaLatest string
+var As3SchemaFlag string
 
 // Takes an AS3 Template and perform service discovery with Kubernetes to generate AS3 Declaration
 func (appMgr *Manager) processUserDefinedAS3(template string) bool {
@@ -109,18 +110,16 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 // Validates the AS3 Template
 func (appMgr *Manager) validateAS3Template(template string) bool {
 
-	if appMgr.As3SchemaLatest != "" {
-		// Load AS3 Schema
-		schemaLoader = gojsonschema.NewStringLoader(appMgr.As3SchemaLatest)
+	// Load AS3 Schema
+	// As3SchemaFlag is true validate the AS3 schema through the local file or else validate through the latest schema url
+	if appMgr.As3SchemaFlag {
+		schemaLoader = gojsonschema.NewReferenceLoader(appMgr.As3SchemaLatest)
 	} else {
-		//Bypassing Schema Validation
-		log.Debugf("[as3] Bypassing AS3 Template Validation")
-		return true
+		schemaLoader = gojsonschema.NewStringLoader(appMgr.As3SchemaLatest)
 	}
 	// Load AS3 Template
 	documentLoader := gojsonschema.NewStringLoader(template)
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
-
 	if err != nil {
 		log.Errorf("%s", err)
 		return false

@@ -1,6 +1,14 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+Next Release
+------------
+Bug Fixes
+`````````
+* :issues:`1040` Controller does not crashes if latest AS3 schema is not available. Validation of AS3 schema handled with previous version of AS3 schema.
+
+
+
 v1.11.0
 ------------
 Added Functionality

@@ -1038,7 +1038,8 @@ func updatePolicyWithWAF(ep *as3EndpointPolicy, rec Record, res F5Resources) {
 		},
 	}
 
-	recPathElems := strings.Split(rec.Path, "/")[1:]
+	recPath := strings.TrimRight(rec.Path, "/")
+	recPathElems := strings.Split(recPath, "/")[1:]
 
 	for _, rule := range ep.Rules {
 		var hosts []string

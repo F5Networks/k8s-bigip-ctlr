@@ -157,14 +157,14 @@ func (appMgr *Manager) checkValidIngress(
 				sKey := serviceKey{serviceName, servicePort, namespace}
 				if _, ok := appMgr.resources.Get(sKey, rsName); ok {
 					appMgr.resources.Delete(sKey, rsName)
-					appMgr.outputConfigLocked()
+					appMgr.outputConfig()
 				}
 			} else { //multi-service
 				rsType = multiServiceIngressType
 				_, keys := appMgr.resources.GetAllWithName(rsName)
 				for _, key := range keys {
 					appMgr.resources.Delete(key, rsName)
-					appMgr.outputConfigLocked()
+					appMgr.outputConfig()
 				}
 			}
 			return false, nil

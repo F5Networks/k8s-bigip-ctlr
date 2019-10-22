@@ -449,7 +449,7 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 			}
 		})
 		if rsDeleted > 0 {
-			appMgr.outputConfigLocked()
+			appMgr.outputConfig()
 		}
 	}
 
@@ -1520,10 +1520,15 @@ func (appMgr *Manager) syncRoutes(
 		appMgr.processAS3SpecificFeatures(route, bufferF5Res)
 	}
 
-	// if buffer is updated then update the appMgr and stats
-	if !reflect.DeepEqual(appMgr.intF5Res, bufferF5Res) {
-		appMgr.intF5Res = bufferF5Res
-		stats.vsUpdated++
+	// Refer Github Issue(#1041)
+	// Check if both the resource maps are not empty.
+	// DeepEqual interprets both empty arguments as valid
+	if (len(appMgr.intF5Res) != 0) && (len(bufferF5Res) != 0) {
+		// if buffer is updated then update the appMgr and stats
+		if !reflect.DeepEqual(appMgr.intF5Res, bufferF5Res) {
+			appMgr.intF5Res = bufferF5Res
+			stats.vsUpdated++
+		}
 	}
 
 	if len(svcFwdRulesMap) > 0 {

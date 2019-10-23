@@ -1,9 +1,11 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-v1.11.0
+Next Release
 ------------
-
+Bug Fixes
+`````````
+:issues:`1052` CIS will no more dump extra logs every 30 seconds
 
 v1.11.0
 ------------

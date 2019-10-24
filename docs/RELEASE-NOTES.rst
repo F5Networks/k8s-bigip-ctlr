@@ -6,6 +6,7 @@ Next Release
 Bug Fixes
 `````````
 :issues:`1052` CIS will no more dump extra logs every 30 seconds
+* Controller handles WAF Policy in the root path of a domain in OpenShift Routes.
 
 v1.11.0
 ------------

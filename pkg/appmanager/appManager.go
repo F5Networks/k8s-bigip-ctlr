@@ -1520,13 +1520,12 @@ func (appMgr *Manager) syncRoutes(
 		appMgr.processAS3SpecificFeatures(route, bufferF5Res)
 	}
 
-	// Refer Github Issue(#1041)
-	// Check if both the resource maps are not empty.
-	// DeepEqual interprets both empty arguments as valid
-	if (len(appMgr.intF5Res) != 0) && (len(bufferF5Res) != 0) {
-		// if buffer is updated then update the appMgr and stats
-		if !reflect.DeepEqual(appMgr.intF5Res, bufferF5Res) {
-			appMgr.intF5Res = bufferF5Res
+	// if buffer is updated then update the appMgr and stats
+	if !reflect.DeepEqual(appMgr.intF5Res, bufferF5Res) {
+		appMgr.intF5Res = bufferF5Res
+                // This is defensive check to avoid unnecessary looging
+                // might be removed when a multi namespace is in place
+		if (len(bufferF5Res) != 0) {
 			stats.vsUpdated++
 		}
 	}

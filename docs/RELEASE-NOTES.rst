@@ -1,6 +1,12 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+Next Release
+------------
+Bug Fixes
+`````````
+* Controller handles WAF Policy in the root path of a domain in OpenShift Routes.
+
 v1.11.0
 ------------
 Added Functionality

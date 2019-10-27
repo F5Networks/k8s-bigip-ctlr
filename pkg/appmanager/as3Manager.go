@@ -983,23 +983,25 @@ func (appMgr *Manager) processF5ResourcesForAS3(sharedApp as3Application) {
 	var ep *as3EndpointPolicy
 
 	// Update Rules with WAF action
-	for rec, res := range appMgr.intF5Res {
-		switch res.Virtual {
-		case HTTPS:
-			isSecureWAF = true
-			ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
-		case HTTPANDS:
-			isSecureWAF = true
-			ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
+	for _, resGroup := range appMgr.intF5Res {
+		for rec, res := range resGroup {
+			switch res.Virtual {
+			case HTTPS:
+				isSecureWAF = true
+				ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
+			case HTTPANDS:
+				isSecureWAF = true
+				ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
+				updatePolicyWithWAF(ep, rec, res)
+				fallthrough
+			case HTTP:
+				isInsecureWAF = true
+				ep = sharedApp["openshift_insecure_routes"].(*as3EndpointPolicy)
+			default:
+				continue
+			}
 			updatePolicyWithWAF(ep, rec, res)
-			fallthrough
-		case HTTP:
-			isInsecureWAF = true
-			ep = sharedApp["openshift_insecure_routes"].(*as3EndpointPolicy)
-		default:
-			continue
 		}
-		updatePolicyWithWAF(ep, rec, res)
 	}
 
 	enabled := false

@@ -366,7 +366,9 @@ type (
 	// | Host + Path | Virtual Server to Apply | WAF Policy Name |
 	// |-------------|-------------------------|-----------------|
 	// Host + Path is a unique record. The columns can be extended to add future features.
-	InternalF5Resources map[Record]F5Resources
+	// InternalF5ResourcesGroup takes OpenShift/Kubernetes namespace as key
+	InternalF5ResourcesGroup map[string]InternalF5Resources
+	InternalF5Resources      map[Record]F5Resources
 
 	Record struct {
 		Host string

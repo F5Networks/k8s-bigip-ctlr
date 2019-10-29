@@ -72,6 +72,8 @@ const f5VsWAFPolicy = "virtual-server.f5.com/waf"
 
 type ResourceMap map[int32][]*ResourceConfig
 
+type RouteMap map[string]*routeapi.Route
+
 type Manager struct {
 	resources         *Resources
 	customProfiles    *CustomProfileStore
@@ -149,7 +151,8 @@ type Manager struct {
 	// Path of schemas reside locally
 	SchemaLocalPath string
 	// Flag to check schema validation using reference or string
-	As3SchemaFlag bool
+	As3SchemaFlag   bool
+	RoutesProcessed RouteMap // Processed routes for updating Admit Status
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -1360,6 +1363,7 @@ func (appMgr *Manager) syncRoutes(
 	appInf *appInformer,
 	dgMap InternalDataGroupMap,
 ) error {
+	appMgr.RoutesProcessed = make(RouteMap)
 	routeByIndex, err := appInf.getOrderedRoutes(sKey.Namespace)
 	if nil != err {
 		log.Warningf("Unable to list routes for namespace '%v': %v",
@@ -1377,7 +1381,7 @@ func (appMgr *Manager) syncRoutes(
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
-		RoutesProcessed = append(RoutesProcessed, route)
+		appMgr.RoutesProcessed[route.ObjectMeta.Name] = route
 
 		//FIXME(kenr): why do we process services that aren't associated
 		//             with a route?

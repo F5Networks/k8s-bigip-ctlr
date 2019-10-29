@@ -145,11 +145,11 @@ type Manager struct {
 	WatchedNS       WatchedNamespaces
 	as3RouteCfg     ActiveAS3Route
 	As3SchemaLatest string
-	intF5Res        InternalF5Resources // AS3 Specific features that can be applied to a Route/Ingress
 	// Path of schemas reside locally
 	SchemaLocalPath string
 	// Flag to check schema validation using reference or string
 	As3SchemaFlag bool
+	intF5Res        InternalF5ResourcesGroup // AS3 Specific features that can be applied to a Route/Ingress
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -254,6 +254,7 @@ func NewManager(params *Params) *Manager {
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
 		Agent:              getValidAgent(params.Agent),
 		SchemaLocalPath:    params.SchemaLocal,
+		intF5Res:           make(map[string]InternalF5Resources),
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -1370,7 +1371,7 @@ func (appMgr *Manager) syncRoutes(
 	svcFwdRulesMap := NewServiceFwdRuleMap()
 
 	// buffer to hold F5Resources till all routes are processed
-	bufferF5Res := map[Record]F5Resources{}
+	bufferF5Res := InternalF5Resources{}
 
 	for _, route := range routeByIndex {
 		if route.ObjectMeta.Namespace != sKey.Namespace {
@@ -1527,8 +1528,10 @@ func (appMgr *Manager) syncRoutes(
 	}
 
 	// if buffer is updated then update the appMgr and stats
-	if !reflect.DeepEqual(appMgr.intF5Res, bufferF5Res) {
-		appMgr.intF5Res = bufferF5Res
+	if (len(appMgr.intF5Res[sKey.Namespace]) != 0 || len(bufferF5Res) != 0) &&
+		(!reflect.DeepEqual(appMgr.intF5Res[sKey.Namespace], bufferF5Res)) {
+
+		appMgr.intF5Res[sKey.Namespace] = bufferF5Res
 		stats.vsUpdated++
 	}
 

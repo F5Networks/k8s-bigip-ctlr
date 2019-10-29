@@ -5,9 +5,12 @@ Next Release
 ------------
 Bug Fixes
 `````````
-* :issues:`1040` Controller does not crashes if latest AS3 schema is not available. Validation of AS3 schema handled with previous version of AS3 schema.
 
-
+* :issues:`1040` Controller does not crashes if latest AS3 schema is not available.
+* Controller handles WAF Policy in the root path of a domain in OpenShift Routes.
+* Controller handles OpenShift Routes with WAF Policy in multiple namespaces.
+* Controller now does not push configuration to BigIP using AS3 for every 30 seconds with no changes.
+* :issues:`1041` Controller now does not log dozens of "INFO" log messages frequently.
 
 v1.11.0
 ------------

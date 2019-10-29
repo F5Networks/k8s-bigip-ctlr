@@ -9,6 +9,8 @@ Bug Fixes
 * Controller handles OpenShift Routes with WAF Policy in multiple namespaces.
 * Controller now does not push configuration to BigIP using AS3 for every 30 seconds with no changes.
 * :issues:`1041` Controller now does not log dozens of "INFO" log messages frequently.
+* :issues:`1040` Controller does not crashes if latest AS3 schema is not available.
+
 
 v1.11.0
 ------------

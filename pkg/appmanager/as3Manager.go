@@ -73,12 +73,26 @@ var As3SchemaLatest string
 // Takes an AS3 Template and perform service discovery with Kubernetes to generate AS3 Declaration
 func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 
+	// Check if override AS3 declaration configured for this controller
+	if appMgr.OverrideAS3Decl != "" {
+		// Check if override AS3 declaration configured for this namespace
+		overrideAS3Decl := strings.Split(appMgr.OverrideAS3Decl, "/")
+		if overrideAS3Decl[0] == appMgr.activeCfgMap.Namespace &&
+			overrideAS3Decl[1] == appMgr.activeCfgMap.Name {
+			// override active AS3 declaration with existing one
+			if template, _ = overrideJsonData(template, appMgr.activeCfgMap.Data); template == "" {
+				log.Errorf("[as3_log] Error while overriding existing AS3 with user defined AS3")
+				return false
+			}
+		}
+	}
+
 	// Validate AS3 Template
 	if appMgr.as3Validation == true {
-		log.Debugf("[as3] Start validating template")
+		log.Debugf("[as3_log] Start validating template")
 
 		if ok := appMgr.validateAS3Template(template); !ok {
-			log.Errorf("[as3] Error validating template \n")
+			log.Errorf("[as3_log] Error validating template \n")
 			return false
 		}
 	}
@@ -87,7 +101,7 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 	obj, ok := appMgr.getAS3ObjectFromTemplate(templateObj)
 
 	if !ok {
-		log.Errorf("[as3] Error processing template\n")
+		log.Errorf("[as3_log] Error processing template\n")
 		return false
 	}
 
@@ -114,7 +128,7 @@ func (appMgr *Manager) validateAS3Template(template string) bool {
 		schemaLoader = gojsonschema.NewStringLoader(appMgr.As3SchemaLatest)
 	} else {
 		//Bypassing Schema Validation
-		log.Debugf("[as3] Bypassing AS3 Template Validation")
+		log.Debugf("[as3_log] Bypassing AS3 Template Validation")
 		return true
 	}
 	// Load AS3 Template
@@ -1392,3 +1406,66 @@ func (appMgr *Manager) DeleteAS3ManagedPartition() {
 	data, _ := json.Marshal(as3Config)
 	appMgr.postAS3Declaration(as3Declaration(data), "", nil)
 }
+
+// This code snippet is written for a generic purpose, and this must be available in common
+// place where other modules can also utilize this service
+func overrideJsonData(srcJsonData, dstJsonData string) (string, error) {
+
+	// Perform JSON-UnMarshal on srcJsonData and dstJsonData.
+	// This function returns error when UnMarshaling failed on any of the ARGS
+	var srcJsonObj interface{}
+	if err := json.Unmarshal([]byte(srcJsonData), &srcJsonObj); err != nil {
+		log.Errorf("JSON-UnMarshal failed on src JSON Data, JSON Merge interrupted !!! : %v", err)
+		return "", err
+	}
+	var dstJsonObj interface{}
+	if err := json.Unmarshal([]byte(dstJsonData), &dstJsonObj);err != nil {
+		log.Errorf("JSON-UnMarshal failed on dst JSON Data, JSON Merge interrupted !!! : %v", err)
+		return "", err
+	}
+
+	var finalJsonObj map[string]interface{}
+	// merges the two JSON Marshalable objects to final JSON
+	finalJsonObj = mergeRecursive(srcJsonObj, dstJsonObj).(map[string]interface{})
+	mergedJsonData, err := json.Marshal(finalJsonObj)
+	if err != nil {
+		log.Errorf("JSON-Marshal failed on overridden JSON Object, JSON Merge interrupted !!! : %v", err)
+		return "", err
+	}
+	return string(mergedJsonData), nil
+}
+
+func mergeRecursive(srcJsonOBJ, dstJsonOBJ interface{}) interface{} {
+	//preferring srcJsonOBJ overriding on dstJsonOBJ
+	switch srcJsonOBJ := srcJsonOBJ.(type) {
+	case map[string]interface{}:
+		// If any member for corresponding dstJsonOBJ not present
+		// then simply consider member of the src object
+		dstJsonOBJ, ok := dstJsonOBJ.(map[string]interface{})
+		if !ok {
+			return srcJsonOBJ
+		}
+
+		// If corresponding member of dstJsonOBJ present, then
+		// in this case the keys from both objects are included and
+		// only their values are merged recursively
+		for dstKey, dstVal := range dstJsonOBJ {
+			if srcKey, ok := srcJsonOBJ[dstKey]; ok {
+				srcJsonOBJ[dstKey] = mergeRecursive(srcKey, dstVal)
+			} else {
+				srcJsonOBJ[dstKey] = dstVal
+			}
+		}
+	case nil:
+		// If a member of srcJsonOBJ is not present and its corresponding dstJsonOBJ
+		// present, then simply consider member of the dstJsonOBJ, in which case
+		// this below code will just merge "nil" and "map[string]interface{...}" to
+		// "map[string]interface{...}"
+		dstJsonOBJ, ok := dstJsonOBJ.(map[string]interface{})
+		if ok {
+			return dstJsonOBJ
+		}
+	}
+	return srcJsonOBJ
+}
+

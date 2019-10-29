@@ -145,6 +145,7 @@ type Manager struct {
 	WatchedNS       WatchedNamespaces
 	as3RouteCfg     ActiveAS3Route
 	As3SchemaLatest string
+	OverrideAS3Decl string // Override existing as3 declaration with this configmap
 	intF5Res        InternalF5Resources // AS3 Specific features that can be applied to a Route/Ingress
 }
 
@@ -154,6 +155,7 @@ type Manager struct {
 type ActiveAS3ConfigMap struct {
 	Name string // AS3 specific ConfigMap name
 	Data string // if AS3 Name is present, populate this with AS3 template data.
+	Namespace string // Namespace of the configMap
 }
 
 // Watched Namespaces for global availability.
@@ -193,6 +195,7 @@ type Params struct {
 	SSLInsecure        bool
 	TrustedCertsCfgmap string
 	Agent              string
+	OverrideAS3Decl    string
 }
 
 // Configuration options for Routes in OpenShift
@@ -248,6 +251,7 @@ func NewManager(params *Params) *Manager {
 		sslInsecure:        params.SSLInsecure,
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
 		Agent:              getValidAgent(params.Agent),
+		OverrideAS3Decl:    params.OverrideAS3Decl,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -917,6 +921,7 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 	if len(k.AS3Name) != 0 {
 
 		appMgr.activeCfgMap.Name = k.AS3Name
+		appMgr.activeCfgMap.Namespace = k.Namespace
 		log.Debugf("[as3_log] Active ConfigMap: (%s)\n", appMgr.activeCfgMap.Name)
 
 		appMgr.vsQueue.Done(key)
@@ -926,6 +931,7 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 		appMgr.vsQueue.Forget(key)
 		return false
 	}
+
 	if !appMgr.initialState && appMgr.processedItems == 0 {
 		appMgr.queueLen = appMgr.getServiceCount()
 	}

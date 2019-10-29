@@ -111,6 +111,7 @@ var (
 	sslInsecure        *bool
 	trustedCertsCfgmap *string
 	agent              *string
+	overrideAS3Decl    *string
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -187,7 +188,8 @@ func _init() {
 	// TODO: Rephrase agent functionality
 	agent = bigIPFlags.String("agent", "cccl",
 		"Optional, when set to as3, orchestration agent will be AS3 instead of CCCL")
-
+	overrideAS3Decl = bigIPFlags.String("override-as3-declaration", "",
+		"Optional, when set, controller will override existing as3 declaration with this configmap's as3")
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
 	}
@@ -395,6 +397,11 @@ func verifyArgs() error {
 		}
 	}
 
+	if *overrideAS3Decl != ""{
+		if len(strings.Split(*overrideAS3Decl, "/")) < 2 {
+			return fmt.Errorf("Invalid value provided for --override-as3-declaration")
+		}
+	}
 	return nil
 }
 
@@ -649,6 +656,7 @@ func main() {
 		AS3Validation:      *as3Validation,
 		SSLInsecure:        *sslInsecure,
 		TrustedCertsCfgmap: *trustedCertsCfgmap,
+		OverrideAS3Decl:    *overrideAS3Decl,
 		Agent:              *agent,
 	}
 

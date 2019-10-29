@@ -459,7 +459,7 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 			}
 		})
 		if rsDeleted > 0 {
-			appMgr.outputConfigLocked()
+			appMgr.outputConfig()
 		}
 	}
 

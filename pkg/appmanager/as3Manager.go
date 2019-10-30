@@ -104,11 +104,7 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 	tempAs3ConfigmapDecl := declaration
 	tempRouteConfigDecl := appMgr.as3RouteCfg.Data
 	if unifiedDecl, ok := appMgr.getUnifiedAS3Declaration(tempAs3ConfigmapDecl, tempRouteConfigDecl); ok {
-		rsp := appMgr.postAS3Declaration(unifiedDecl, tempAs3ConfigmapDecl, tempRouteConfigDecl)
-		if rsp != "" {
-			// Update AS3 Modified flag if the as3 declaration is posted to BIG-IP
-			appMgr.as3Modified = true
-		}
+		appMgr.postAS3Declaration(unifiedDecl, tempAs3ConfigmapDecl, tempRouteConfigDecl)
 	}
 	return true
 }
@@ -478,7 +474,7 @@ func (appMgr *Manager) updateAdmitStatus() {
 // Takes AS3 Declaration and post it to BigIP
 func (appMgr *Manager) postAS3Declaration(declaration as3Declaration,
 	tempAs3ConfigmapDecl as3Declaration,
-	tempRouteConfigDecl as3ADC) string {
+	tempRouteConfigDecl as3ADC) {
 	log.Debugf("[AS3] Processing AS3 POST call with AS3 Manager")
 	as3RC.baseURL = BigIPURL
 	rsp, ok := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr)
@@ -489,10 +485,13 @@ func (appMgr *Manager) postAS3Declaration(declaration as3Declaration,
 		if nil != appMgr.routeClientV1 {
 			appMgr.updateAdmitStatus()
 		}
+		if rsp != "" {
+			// Update AS3 Modified flag if the as3 declaration is posted to BIG-IP
+			appMgr.as3Modified = true
+		}
 	} else {
 		appMgr.as3RouteCfg.Pending = true
 	}
-	return rsp
 }
 
 // Takes AS3 Declaration, method, API route and post it to BigIP
@@ -594,15 +593,14 @@ func (appMgr *Manager) getCertFromConfigMap(cfgmap string) {
 
 	certificates = ""
 	namespaceCfgmapSlice := strings.Split(cfgmap, "/")
-	if len(namespaceCfgmapSlice) < 2 {
+	if len(namespaceCfgmapSlice) != 2 {
 		log.Debugf("[AS3] Invalid trusted-certs-cfgmap option provided.")
 	} else {
 		certs := ""
-		namespace := namespaceCfgmapSlice[0]
-		cfgmapName := namespaceCfgmapSlice[1]
-		cm, err := appMgr.kubeClient.CoreV1().ConfigMaps(namespace).Get(cfgmapName, metaV1.GetOptions{})
+		cm, err := appMgr.getConfigMapUsingNamespaceAndName(namespaceCfgmapSlice[0], namespaceCfgmapSlice[1])
 		if err != nil {
-			log.Debugf("[AS3] Reading certificate from configmap error: %v", err)
+			log.Errorf("[AS3] ConfigMap with name %v not found in namespace: %v, error: %v",
+				namespaceCfgmapSlice[1], namespaceCfgmapSlice[0], err)
 		} else {
 			//Fetching all certificates from configmap
 			for _, v := range cm.Data {
@@ -611,6 +609,14 @@ func (appMgr *Manager) getCertFromConfigMap(cfgmap string) {
 			certificates = certs
 		}
 	}
+}
+
+func (appMgr *Manager) getConfigMapUsingNamespaceAndName(cfgMapNamespace, cfgMapName string) (*v1.ConfigMap, error) {
+	cfgMap, err := appMgr.kubeClient.CoreV1().ConfigMaps(cfgMapNamespace).Get(cfgMapName, metaV1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return cfgMap, err
 }
 
 // SetupAS3Informers returns an appInformer that includes the following set of informers.
@@ -840,6 +846,37 @@ func (appMgr *Manager) getUnifiedAS3Declaration(as3CfgmapDecl as3Declaration, ro
 	if err != nil {
 		log.Debugf("[AS3] Unified declaration: %v\n", err)
 	}
+
+	// Override AS3 Config if AS3 Override is enabled
+	if appMgr.OverrideAS3Decl != "" {
+		// Fetch configMap's namespace and name
+		overrideAS3Decl := strings.Split(appMgr.OverrideAS3Decl, "/")
+		// Fetch configMap using namespace and name as an input
+		cfgMap, err := appMgr.getConfigMapUsingNamespaceAndName(overrideAS3Decl[0], overrideAS3Decl[1])
+		if err != nil {
+			log.Errorf("[AS3] ConfigMap with name %v not found in namespace: %v, error: %v",
+				overrideAS3Decl[1], overrideAS3Decl[0], err)
+		}
+		if cfgMap != nil {
+			// Only one entry is allowed in cfgMap Data
+			if len(cfgMap.Data) == 1 {
+				for _, data := range cfgMap.Data {
+					overriddenUnifiedDecl := ValidateAndOverrideAS3JsonData(data, string(unifiedDecl))
+					if overriddenUnifiedDecl != "" {
+						if ok := appMgr.validateAS3Template(overriddenUnifiedDecl); ok {
+							log.Debugf("[AS3] Unified AS3 declaration is overridden !!! ")
+							return as3Declaration(overriddenUnifiedDecl), true
+						}
+						log.Errorf("[AS3] Error validating unified AS3 template \n")
+						break
+					}
+					log.Errorf("[AS3] Unified AS3 declaration is not overridden due to errors !!! ")
+				}
+			}
+			log.Errorf("[AS3] Invalid override cfgMap, AS3 declaration cannot be overridden !!! ")
+		}
+	}
+
 	return as3Declaration(string(unifiedDecl)), true
 }
 

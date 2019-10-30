@@ -783,31 +783,44 @@ func fetchAS3Schema(appMgr *appmanager.Manager) {
 
 	res, resErr := http.Get(as3SchemaLatestURL)
 	if resErr != nil {
-		log.Debugf("error while fetching latest as3 schema : %v", resErr)
+		log.Debugf("Error while fetching latest as3 schema : %v", resErr)
+		fallbackToLocalAS3Schema(appMgr)
+		return
 	}
-	if res.StatusCode == http.StatusOK && res != nil {
+	if res.StatusCode == http.StatusOK {
 		body, err := ioutil.ReadAll(res.Body)
 		if err != nil {
-			log.Debugf("unable to read the as3 template from json response body : %v", err)
+			log.Debugf("Unable to read the as3 template from json response body : %v", err)
+			fallbackToLocalAS3Schema(appMgr)
+			return
 		}
 		defer res.Body.Close()
 
 		jsonMap := make(map[string]interface{})
 		err = json.Unmarshal(body, &jsonMap)
 		if err != nil {
-			log.Debugf("unable to unmarshal json response body : %v", err)
+			log.Debugf("Unable to unmarshal json response body : %v", err)
+			fallbackToLocalAS3Schema(appMgr)
+			return
 		}
 
 		jsonMap["$id"] = as3SchemaLatestURL
 		byteJSON, err := json.Marshal(jsonMap)
 		if err != nil {
-			log.Debugf("unable to marshal : %v", err)
+			log.Debugf("Unable to marshal : %v", err)
+			fallbackToLocalAS3Schema(appMgr)
+			return
 		}
 		appMgr.As3SchemaLatest = string(byteJSON)
 		return
 	}
-	appMgr.As3SchemaFlag = true
-	log.Errorf("unable to fetch the latest AS3 schema : validating AS3 schema with %v", as3SchemaFileName)
-	appMgr.As3SchemaLatest = appMgr.SchemaLocalPath + as3SchemaFileName
+	fallbackToLocalAS3Schema(appMgr)
+	return
+}
 
+func fallbackToLocalAS3Schema(appMgr *appmanager.Manager) {
+	appMgr.As3SchemaFlag = true
+	log.Debugf("Unable to fetch the latest AS3 schema : validating AS3 schema with %v", as3SchemaFileName)
+	appMgr.As3SchemaLatest = appMgr.SchemaLocalPath + as3SchemaFileName
+	return
 }

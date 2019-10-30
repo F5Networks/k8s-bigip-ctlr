@@ -1029,27 +1029,32 @@ func (appMgr *Manager) processF5ResourcesForAS3(sharedApp as3Application) {
 	}
 
 	var isSecureWAF, isInsecureWAF bool
-	var ep *as3EndpointPolicy
+	var secureEP, insecureEP *as3EndpointPolicy
+
+	secureEP, _ = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
+	insecureEP, _ = sharedApp["openshift_insecure_routes"].(*as3EndpointPolicy)
 
 	// Update Rules with WAF action
 	for _, resGroup := range appMgr.intF5Res {
 		for rec, res := range resGroup {
 			switch res.Virtual {
 			case HTTPS:
-				isSecureWAF = true
-				ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
+				if secureEP != nil {
+					isSecureWAF = true
+					updatePolicyWithWAF(secureEP, rec, res)
+				}
 			case HTTPANDS:
-				isSecureWAF = true
-				ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
-				updatePolicyWithWAF(ep, rec, res)
+				if secureEP != nil {
+					isSecureWAF = true
+					updatePolicyWithWAF(secureEP, rec, res)
+				}
 				fallthrough
 			case HTTP:
-				isInsecureWAF = true
-				ep = sharedApp["openshift_insecure_routes"].(*as3EndpointPolicy)
-			default:
-				continue
+				if insecureEP != nil {
+					isInsecureWAF = true
+					updatePolicyWithWAF(insecureEP, rec, res)
+				}
 			}
-			updatePolicyWithWAF(ep, rec, res)
 		}
 	}
 
@@ -1066,15 +1071,13 @@ func (appMgr *Manager) processF5ResourcesForAS3(sharedApp as3Application) {
 
 	// Add a default WAF disable action to all non-WAF rules
 	// BigIP requires a default WAF disable rule doesn't require WAF
-	if isSecureWAF {
-		ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
-		ep.Rules = append(ep.Rules, wafDisableRule)
-		addWAFDisableAction(ep)
+	if isSecureWAF && secureEP != nil {
+		secureEP.Rules = append(secureEP.Rules, wafDisableRule)
+		addWAFDisableAction(secureEP)
 	}
-	if isInsecureWAF {
-		ep = sharedApp["openshift_insecure_routes"].(*as3EndpointPolicy)
-		ep.Rules = append(ep.Rules, wafDisableRule)
-		addWAFDisableAction(ep)
+	if isInsecureWAF && insecureEP != nil {
+		insecureEP.Rules = append(insecureEP.Rules, wafDisableRule)
+		addWAFDisableAction(insecureEP)
 	}
 }
 

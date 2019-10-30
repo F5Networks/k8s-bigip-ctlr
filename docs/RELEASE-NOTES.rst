@@ -11,6 +11,7 @@ Bug Fixes
 * :issues:`1041` Controller now does not log dozens of "INFO" log messages frequently.
 * :issues:`1040` Controller does not crashes if latest AS3 schema is not available.
 * Controller updates Route Status in OpenShift Management Console (OCP 4.x)
+* Controller does not crash when handling Route with WAF Policy that does not have a service.
 
 
 v1.11.0

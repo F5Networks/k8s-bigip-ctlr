@@ -71,8 +71,8 @@ Cluster-Mode:
   script:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
-      ssh -o "StrictHostKeyChecking=no" -i ${BASTION_KEY} -t ${BASTION} "sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json"
-      ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}'" ;
+      sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json
+      cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}';
 
 Nodeport-Mode:
   tags: 
@@ -84,5 +84,5 @@ Nodeport-Mode:
   script:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
-      ssh -o "StrictHostKeyChecking=no" -i ${BASTION_KEY} -t ${BASTION} "sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json"
-      ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}'" ;
+      sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json
+      cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}' ;

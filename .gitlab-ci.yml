@@ -62,7 +62,7 @@ Build-Image:
       fi
 Test-Image:
   tags: 
-    - docker-executor
+    - cis_smoke
 
   stage: Test
   image: cisbot/test_centos

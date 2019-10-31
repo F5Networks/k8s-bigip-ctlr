@@ -40,7 +40,7 @@ func (appMgr *Manager) checkValidConfigMap(
 	//check as3 config map.
 	// if ok, add cfgMap name and data to serviceQueueKey.
 	if ok := appMgr.checkAS3ConfigMap(obj); ok {
-		log.Debugf("[as3_log] Found AS3 ConfigMap - %s.", cm.ObjectMeta.Name)
+		log.Debugf("[AS3] Found AS3 ConfigMap - %s.", cm.ObjectMeta.Name)
 		key := &serviceQueueKey{
 			Namespace: namespace,
 			AS3Name:   cm.ObjectMeta.Name,
@@ -254,7 +254,7 @@ func (appMgr *Manager) checkValidNode(
 		}
 		var keyList []*serviceQueueKey
 		keyList = append(keyList, key)
-		log.Debugf("[as3_log] NodeInformer: ConfigMap '%s' placed in Queue.", appMgr.activeCfgMap.Name)
+		log.Debugf("[AS3] NodeInformer: ConfigMap '%s' placed in Queue.", appMgr.activeCfgMap.Name)
 		return true, keyList
 	}
 	return false, nil
@@ -407,7 +407,7 @@ func (appMgr *Manager) checkAS3ConfigMap(
 	cm := obj.(*v1.ConfigMap)
 	labels := cm.ObjectMeta.Labels
 	if val, ok := labels["as3"]; ok {
-		log.Debugf("[as3_log] Found AS3 config map...")
+		log.Debugf("[AS3] Found AS3 config map...")
 		if val == "true" {
 			return true
 		}

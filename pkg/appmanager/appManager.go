@@ -1090,6 +1090,18 @@ func (appMgr *Manager) syncConfigMaps(
 		if cm.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
+
+		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
+		if nil != err {
+			bigIPPrometheus.MonitoredServices.WithLabelValues(cm.ObjectMeta.Namespace, cm.ObjectMeta.Name, "parse-error").Set(1)
+			// Ignore this config map for the time being. When the user updates it
+			// so that it is valid it will be requeued.
+			log.Errorf("Error parsing ConfigMap %v_%v",
+				cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
+			continue
+		}
+		bigIPPrometheus.MonitoredServices.WithLabelValues(cm.ObjectMeta.Namespace, cm.ObjectMeta.Name, "parse-error").Set(0)
+
 		// If as3 just continue
 		if val, ok := cm.ObjectMeta.Labels["as3"]; ok {
 			if as3Val, err := strconv.ParseBool(val); err == nil {
@@ -1097,16 +1109,6 @@ func (appMgr *Manager) syncConfigMaps(
 					continue
 				}
 			}
-		}
-
-		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
-		if nil != err {
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(1)
-			// Ignore this config map for the time being. When the user updates it
-			// so that it is valid it will be requeued.
-			log.Errorf("Error parsing ConfigMap %v_%v",
-				cm.ObjectMeta.Namespace, cm.ObjectMeta.Name)
-			continue
 		}
 
 		// Check if SSLProfile(s) are contained in Secrets

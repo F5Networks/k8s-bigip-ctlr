@@ -574,7 +574,8 @@ func (as3RestClient *AS3RESTClient) restCallToBigIP(method string, route string,
 			log.Debugf("[as3_log] Big-IP Response code: %v,Response:%v, Message: %v", v["code"], v["response"], v["message"])
 		}
 	} else {
-		log.Debugf("[as3_log] Big-IP Response error: %v", response)
+		//log.Debugf("[as3_log] Big-IP Response error: %v", response) // need fix to dump only non sensitive data
+		log.Debugf("[as3_log] Big-IP Responded with error code: %v", resp.StatusCode)
 	}
 	return string(body), false
 }

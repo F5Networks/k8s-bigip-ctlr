@@ -60,66 +60,29 @@ Build-Image:
         docker tag "$IMG_TAG" "$BUILD_IMG_TAG"
         docker push "$BUILD_IMG_TAG" 
       fi
-Test-Image:
+
+Test-Cluster-Mode:
   tags: 
     - cis_smoke
 
   stage: Test
-  image: cisbot/test_centos
   before_script:
-    - source shared-vars.sh
-  after_script:
-    - |
-      if [[ ! ( -z ${BASTION_KEY} ) && ! ( -z ${BASTION}) ]]; then
-        exit 0;
-      else
-        cd glider
-        sh run_glider.sh --functest-teardown 2>&1 | tee /tmp/terraform_log_teardown;
-        if [[ $(grep "error(s) occurred:" /tmp/terraform_log_teardown) != "" ]]; then
-          echo "ERROR :  Teardown Not successful, kindly delete infrastructure Manually";
-          exit 1
-        fi
-      fi
-    
+    - source shared-vars.sh   
   script:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
-      if [[ ! ( -z ${BASTION_KEY} ) && ! ( -z ${BASTION}) ]]; then
-        set -x
-        
-        chmod 600 ${BASTION_KEY}
-        ssh -o "StrictHostKeyChecking=no" -i ${BASTION_KEY} -t ${BASTION} "sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json"
-        if [[ ${ORCHESTRATION} == "k8s" ]] ; then
-          ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh  --project=bigip_ctlr --session=${SESSION}-cluster --include-tags='${INCLUDE_TAGS}' --orchestration=k8s --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}'" ;
-          ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh  --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags='${INCLUDE_TAGS}' --orchestration=k8s --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}'" ;
-          
-        elif [[ ${ORCHESTRATION} == "oscp" || ${ORCHESTRATION} == "os" ]] ; then
-          ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}'" ;
-          ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}'" ;
-          
-        else
-          echo "Invalid Orchestration. Exiting...";
-          exit 1;
-        fi ;
-      else
-        # Cloning Glider Repo
-        export GIT_ASKPASS=${PWD}/git_config.sh
-        mkdir glider
-        cd glider
-        echo -e '#!/bin/bash \necho $GIT_PASSWORD' > $GIT_ASKPASS
-        chmod +x $GIT_ASKPASS
-        git init
-        REPO=$(echo $GLIDER_REPO | awk -F'com/' '{print $1"com"}')
-        git config credential.${REPO}.username ${GITLAB_USER_LOGIN}
-        git pull $GLIDER_REPO
-        chmod +x run_glider.sh 
-        sh run_glider.sh --functest-setup 2>&1 | tee /tmp/terraform_log_setup;
-        if [[ $(grep "error(s) occurred:" /tmp/terraform_log_setup) == "" ]]; then
-          echo 'No errors found in infrastructure provisioing. Proceeding with test execution'
-          sh run_glider.sh --functest-run --pool-mode='cluster';
-          sh run_glider.sh --functest-run --pool-mode='nodeport';
-        else
-          echo "Infrastructure provisioning failed."
-          exit 1
-        fi
-      fi
+      ssh -o "StrictHostKeyChecking=no" -i ${BASTION_KEY} -t ${BASTION} "sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json"
+      ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}'" ;
+
+Test-Nodeport-Mode:
+  tags: 
+    - cis_smoke
+
+  stage: Test
+  before_script:
+    - source shared-vars.sh   
+  script:
+    - |
+      SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
+      ssh -o "StrictHostKeyChecking=no" -i ${BASTION_KEY} -t ${BASTION} "sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json"
+      ssh -o "StrictHostKeyChecking=no" -i  ${BASTION_KEY} -t ${BASTION} "cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}'" ;

@@ -67,11 +67,19 @@ type (
 
 	// as3Action maps to Policy_Action in AS3 Resources
 	as3Action struct {
-		Type    string                  `json:"type,omitempty"`
-		Event   string                  `json:"event,omitempty"`
-		Select  *as3ActionForwardSelect `json:"select,omitempty"`
-		Policy  *as3ResourcePointer     `json:"policy,omitempty"`
-		Enabled *bool                   `json:"enabled,omitempty"`
+		Type     string                  `json:"type,omitempty"`
+		Event    string                  `json:"event,omitempty"`
+		Select   *as3ActionForwardSelect `json:"select,omitempty"`
+		Policy   *as3ResourcePointer     `json:"policy,omitempty"`
+		Enabled  *bool                   `json:"enabled,omitempty"`
+		Location string                  `json:"location,omitempty"`
+		Replace  *as3ActionReplaceMap    `json:"replace,omitempty"`
+	}
+
+	as3ActionReplaceMap struct {
+		Value string `json:"value,omitempty"`
+		Name  string `json:"name,omitempty"`
+		Path  string `json:"path,omitempty"`
 	}
 
 	// as3Condition maps to Policy_Condition in AS3 Resources
@@ -83,6 +91,7 @@ type (
 		Index       int                     `json:"index,omitempty"`
 		Host        *as3PolicyCompareString `json:"host,omitempty"`
 		PathSegment *as3PolicyCompareString `json:"pathSegment,omitempty"`
+		Path        *as3PolicyCompareString `json:"path,omitempty"`
 	}
 
 	// as3ActionForwardSelect maps to Policy_Action_Forward_Select in AS3 Resources
@@ -149,6 +158,7 @@ type (
 		ServerTLS              as3MultiTypeParam `json:"serverTLS,omitempty"`
 		IRules                 []string          `json:"iRules,omitempty"`
 		Redirect80             *bool             `json:"redirect80,omitempty"`
+		Pool                   string            `json:"pool,omitempty"`
 	}
 
 	// as3Monitor maps to the following in AS3 Resources

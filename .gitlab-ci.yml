@@ -1,6 +1,7 @@
 stages:
   - Build
   - Test
+  - Test
 
 Build-Image:
   tags: 
@@ -61,7 +62,7 @@ Build-Image:
         docker push "$BUILD_IMG_TAG" 
       fi
 
-Cluster-Mode:
+OSCP-Cluster-Mode:
   tags: 
     - cis_smoke
 
@@ -72,9 +73,9 @@ Cluster-Mode:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
       sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json
-      cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}';
+      cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}';
 
-Nodeport-Mode:
+OSCP-Nodeport-Mode:
   tags: 
     - cis_smoke
 
@@ -85,4 +86,34 @@ Nodeport-Mode:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
       sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json
-      cd ${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}' ;
+      cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags='${INCLUDE_TAGS}' --orchestration=openshift --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}' ;
+
+K8s-Cluster-Mode:
+  tags: 
+    - k8s
+  stage: Test
+  before_script:
+    - source shared-vars.sh 
+  only:
+    - schedules
+  script:
+    - |
+      SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
+      sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json
+      cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags='${INCLUDE_TAGS}' --orchestration=k8s --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}';
+
+K8s-Nodeport-Mode:
+  tags: 
+    - k8s
+  stage: Test
+  before_script:
+    - source shared-vars.sh 
+  only:
+    - schedules
+  script:
+    - |
+      SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
+      sed -i  '/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\",' ~/testenv_symbols/testenv_symbols.json
+      cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags='${INCLUDE_TAGS}' --orchestration=k8s --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags='${EXCLUDE_TAGS}' ;
+
+

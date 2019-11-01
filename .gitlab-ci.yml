@@ -1,7 +1,6 @@
 stages:
   - Build
   - Test
-  - Test
 
 Build-Image:
   tags: 

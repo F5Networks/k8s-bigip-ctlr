@@ -104,7 +104,11 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 	tempAs3ConfigmapDecl := declaration
 	tempRouteConfigDecl := appMgr.as3RouteCfg.Data
 	if unifiedDecl, ok := appMgr.getUnifiedAS3Declaration(tempAs3ConfigmapDecl, tempRouteConfigDecl); ok {
-		appMgr.postAS3Declaration(unifiedDecl, tempAs3ConfigmapDecl, tempRouteConfigDecl)
+		rsp := appMgr.postAS3Declaration(unifiedDecl, tempAs3ConfigmapDecl, tempRouteConfigDecl)
+		if rsp != "" {
+			// Update AS3 Modified flag if the as3 declaration is posted to BIG-IP
+			appMgr.as3Modified = true
+		}
 	}
 	return true
 }
@@ -472,10 +476,12 @@ func (appMgr *Manager) updateAdmitStatus() {
 
 // TODO: Refactor
 // Takes AS3 Declaration and post it to BigIP
-func (appMgr *Manager) postAS3Declaration(declaration as3Declaration, tempAs3ConfigmapDecl as3Declaration, tempRouteConfigDecl as3ADC) {
+func (appMgr *Manager) postAS3Declaration(declaration as3Declaration,
+	tempAs3ConfigmapDecl as3Declaration,
+	tempRouteConfigDecl as3ADC) string {
 	log.Debugf("[AS3] Processing AS3 POST call with AS3 Manager")
 	as3RC.baseURL = BigIPURL
-	_, ok := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr)
+	rsp, ok := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr)
 	if ok {
 		appMgr.activeCfgMap.Data = string(tempAs3ConfigmapDecl)
 		appMgr.as3RouteCfg.Data = tempRouteConfigDecl
@@ -486,6 +492,7 @@ func (appMgr *Manager) postAS3Declaration(declaration as3Declaration, tempAs3Con
 	} else {
 		appMgr.as3RouteCfg.Pending = true
 	}
+	return rsp
 }
 
 // Takes AS3 Declaration, method, API route and post it to BigIP

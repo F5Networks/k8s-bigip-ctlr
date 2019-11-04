@@ -449,7 +449,6 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 		appMgr.removeNamespaceLocked(nsName)
 		appMgr.eventNotifier.deleteNotifierForNamespace(nsName)
 		appMgr.resources.Lock()
-		defer appMgr.resources.Unlock()
 		rsDeleted := 0
 		appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
 			if key.Namespace == nsName {
@@ -458,6 +457,7 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 				}
 			}
 		})
+		appMgr.resources.Unlock()
 		if rsDeleted > 0 {
 			appMgr.outputConfig()
 		}

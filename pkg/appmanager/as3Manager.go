@@ -59,6 +59,8 @@ const (
 	as3SharedApplication = "Shared"
 )
 
+const F5RouterName = "F5 BIG-IP"
+
 var BigIPUsername string
 var BigIPPassword string
 var BigIPURL string
@@ -69,6 +71,7 @@ var buffer map[Member]struct{}
 var epbuffer map[string]struct{}
 var schemaLoader gojsonschema.JSONLoader
 var As3SchemaLatest string
+var As3SchemaFlag string
 
 // Takes an AS3 Template and perform service discovery with Kubernetes to generate AS3 Declaration
 func (appMgr *Manager) processUserDefinedAS3(template string) bool {
@@ -109,18 +112,16 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 // Validates the AS3 Template
 func (appMgr *Manager) validateAS3Template(template string) bool {
 
-	if appMgr.As3SchemaLatest != "" {
-		// Load AS3 Schema
-		schemaLoader = gojsonschema.NewStringLoader(appMgr.As3SchemaLatest)
+	// Load AS3 Schema
+	// As3SchemaFlag is true validate the AS3 schema through the local file or else validate through the latest schema url
+	if appMgr.As3SchemaFlag {
+		schemaLoader = gojsonschema.NewReferenceLoader(appMgr.As3SchemaLatest)
 	} else {
-		//Bypassing Schema Validation
-		log.Debugf("[as3] Bypassing AS3 Template Validation")
-		return true
+		schemaLoader = gojsonschema.NewStringLoader(appMgr.As3SchemaLatest)
 	}
 	// Load AS3 Template
 	documentLoader := gojsonschema.NewStringLoader(template)
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
-
 	if err != nil {
 		log.Errorf("%s", err)
 		return false
@@ -398,25 +399,73 @@ func getRfc3339Timestamp() metaV1.Time {
 	return metaV1.Now().Rfc3339Copy()
 }
 
+// Check whether we are processing this route.
+// Else, clean the route metadata if we add any in past.
+func (appMgr *Manager) containsProcessedRoute(route routev1.Route) bool {
+	for _, rt := range appMgr.RoutesProcessed {
+		if route.ObjectMeta.Name == rt.ObjectMeta.Name && route.ObjectMeta.Namespace == rt.ObjectMeta.Namespace {
+			return true
+		}
+	}
+	return false
+}
+
+// Clean the MetaData for routes processed in the past and
+// not considered now.
+func (appMgr *Manager) cleanupMetadata(route routev1.Route) {
+	if len(route.Status.Ingress) > 1 {
+		for i := 0; i < len(route.Status.Ingress); i++ {
+			if route.Status.Ingress[i].RouterName == F5RouterName {
+				route.Status.Ingress = append(route.Status.Ingress[:i], route.Status.Ingress[i+1:]...)
+				i--
+			}
+		}
+		appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(&route)
+	}
+}
+
 // For any route added, the Ingress is not populated unless it is admitted by a Router.
 // This must be populated by CIS based on BIG-IP response 200 OK.
 // If BIG-IP response is an error, do care update Ingress.
 // Don't update an existing Ingress object when BIG-IP response is not 200 OK. Its already consumed.
-func (appMgr *Manager) admitRoutes() {
+func (appMgr *Manager) updateAdmitStatus() {
 	now := getRfc3339Timestamp()
-	for _, route := range RoutesProcessed {
-		if len(route.Status.Ingress) == 0 {
-			route.Status.Ingress = append(route.Status.Ingress, routev1.RouteIngress{
-				RouterName: "F5 BIG-IP",
-				Host:       route.Spec.Host,
-				Conditions: []routev1.RouteIngressCondition{{
-					Type:               routev1.RouteAdmitted,
-					Status:             v1.ConditionTrue,
-					LastTransitionTime: &now,
-				}},
-			})
-			appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(route)
-			log.Debugf("Admitted Route -  %v", route.ObjectMeta.Name)
+	for _, route := range appMgr.RoutesProcessed {
+		Admitted := false
+		if len(route.Status.Ingress) != 0 {
+			for _, routeIngress := range route.Status.Ingress {
+				if routeIngress.RouterName == F5RouterName {
+					Admitted = true
+					break
+				}
+			}
+			if !Admitted {
+				route.Status.Ingress = append(route.Status.Ingress, routev1.RouteIngress{
+					RouterName: F5RouterName,
+					Host:       route.Spec.Host,
+					Conditions: []routev1.RouteIngressCondition{{
+						Type:               routev1.RouteAdmitted,
+						Status:             v1.ConditionTrue,
+						LastTransitionTime: &now,
+					}},
+				})
+				appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(route)
+				log.Debugf("[as3_log] Admitted Route -  %v", route.ObjectMeta.Name)
+			}
+		}
+	}
+	// Get the list of Routes from all NS and remove updated metadata.
+	allOptions := metaV1.ListOptions{
+		LabelSelector: "",
+	}
+	allNamespaces := ""
+	allRoutes, err := appMgr.routeClientV1.Routes(allNamespaces).List(allOptions)
+	if err != nil {
+		log.Errorf("[as3]Error listing Routes: %v", err)
+	}
+	for _, aRoute := range allRoutes.Items {
+		if !appMgr.containsProcessedRoute(aRoute) {
+			appMgr.cleanupMetadata(aRoute)
 		}
 	}
 }
@@ -432,7 +481,7 @@ func (appMgr *Manager) postAS3Declaration(declaration as3Declaration, tempAs3Con
 		appMgr.as3RouteCfg.Data = tempRouteConfigDecl
 		appMgr.as3RouteCfg.Pending = false
 		if nil != appMgr.routeClientV1 {
-			appMgr.admitRoutes()
+			appMgr.updateAdmitStatus()
 		}
 	} else {
 		appMgr.as3RouteCfg.Pending = true
@@ -525,7 +574,8 @@ func (as3RestClient *AS3RESTClient) restCallToBigIP(method string, route string,
 			log.Debugf("[as3_log] Big-IP Response code: %v,Response:%v, Message: %v", v["code"], v["response"], v["message"])
 		}
 	} else {
-		log.Debugf("[as3_log] Big-IP Response error: %v", response)
+		//log.Debugf("[as3_log] Big-IP Response error: %v", response) // need fix to dump only non sensitive data
+		log.Debugf("[as3_log] Big-IP Responded with error code: %v", resp.StatusCode)
 	}
 	return string(body), false
 }
@@ -980,26 +1030,33 @@ func (appMgr *Manager) processF5ResourcesForAS3(sharedApp as3Application) {
 	}
 
 	var isSecureWAF, isInsecureWAF bool
-	var ep *as3EndpointPolicy
+	var secureEP, insecureEP *as3EndpointPolicy
+
+	secureEP, _ = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
+	insecureEP, _ = sharedApp["openshift_insecure_routes"].(*as3EndpointPolicy)
 
 	// Update Rules with WAF action
-	for rec, res := range appMgr.intF5Res {
-		switch res.Virtual {
-		case HTTPS:
-			isSecureWAF = true
-			ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
-		case HTTPANDS:
-			isSecureWAF = true
-			ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
-			updatePolicyWithWAF(ep, rec, res)
-			fallthrough
-		case HTTP:
-			isInsecureWAF = true
-			ep = sharedApp["openshift_insecure_routes"].(*as3EndpointPolicy)
-		default:
-			continue
+	for _, resGroup := range appMgr.intF5Res {
+		for rec, res := range resGroup {
+			switch res.Virtual {
+			case HTTPS:
+				if secureEP != nil {
+					isSecureWAF = true
+					updatePolicyWithWAF(secureEP, rec, res)
+				}
+			case HTTPANDS:
+				if secureEP != nil {
+					isSecureWAF = true
+					updatePolicyWithWAF(secureEP, rec, res)
+				}
+				fallthrough
+			case HTTP:
+				if insecureEP != nil {
+					isInsecureWAF = true
+					updatePolicyWithWAF(insecureEP, rec, res)
+				}
+			}
 		}
-		updatePolicyWithWAF(ep, rec, res)
 	}
 
 	enabled := false
@@ -1015,15 +1072,13 @@ func (appMgr *Manager) processF5ResourcesForAS3(sharedApp as3Application) {
 
 	// Add a default WAF disable action to all non-WAF rules
 	// BigIP requires a default WAF disable rule doesn't require WAF
-	if isSecureWAF {
-		ep = sharedApp["openshift_secure_routes"].(*as3EndpointPolicy)
-		ep.Rules = append(ep.Rules, wafDisableRule)
-		addWAFDisableAction(ep)
+	if isSecureWAF && secureEP != nil {
+		secureEP.Rules = append(secureEP.Rules, wafDisableRule)
+		addWAFDisableAction(secureEP)
 	}
-	if isInsecureWAF {
-		ep = sharedApp["openshift_insecure_routes"].(*as3EndpointPolicy)
-		ep.Rules = append(ep.Rules, wafDisableRule)
-		addWAFDisableAction(ep)
+	if isInsecureWAF && insecureEP != nil {
+		insecureEP.Rules = append(insecureEP.Rules, wafDisableRule)
+		addWAFDisableAction(insecureEP)
 	}
 }
 
@@ -1038,7 +1093,8 @@ func updatePolicyWithWAF(ep *as3EndpointPolicy, rec Record, res F5Resources) {
 		},
 	}
 
-	recPathElems := strings.Split(rec.Path, "/")[1:]
+	recPath := strings.TrimRight(rec.Path, "/")
+	recPathElems := strings.Split(recPath, "/")[1:]
 
 	for _, rule := range ep.Rules {
 		var hosts []string

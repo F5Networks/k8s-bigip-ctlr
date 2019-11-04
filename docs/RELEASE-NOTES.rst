@@ -1,6 +1,19 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+v1.11.1
+------------
+Bug Fixes
+`````````
+* Controller handles WAF Policy in the root path of a domain in OpenShift Routes.
+* Controller handles OpenShift Routes with WAF Policy in multiple namespaces.
+* Controller now does not push configuration to BIG-IP using AS3 for every 30 seconds with no changes.
+* :issues:`1041` Controller now does not log dozens of "INFO" log messages frequently.
+* :issues:`1040` Controller does not crashes if latest AS3 schema is not available.
+* Controller updates Route Status in OpenShift Management Console (OCP 4.x)
+* Controller does not crash when handling Route with WAF Policy that does not have a service.
+
+
 v1.11.0
 ------------
 Added Functionality

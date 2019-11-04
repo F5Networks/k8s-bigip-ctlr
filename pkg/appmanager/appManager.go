@@ -72,6 +72,8 @@ const f5VsWAFPolicy = "virtual-server.f5.com/waf"
 
 type ResourceMap map[int32][]*ResourceConfig
 
+type RouteMap map[string]*routeapi.Route
+
 type Manager struct {
 	resources         *Resources
 	customProfiles    *CustomProfileStore
@@ -145,7 +147,12 @@ type Manager struct {
 	WatchedNS       WatchedNamespaces
 	as3RouteCfg     ActiveAS3Route
 	As3SchemaLatest string
-	intF5Res        InternalF5Resources // AS3 Specific features that can be applied to a Route/Ingress
+	intF5Res        InternalF5ResourcesGroup // AS3 Specific features that can be applied to a Route/Ingress
+	// Path of schemas reside locally
+	SchemaLocalPath string
+	// Flag to check schema validation using reference or string
+	As3SchemaFlag   bool
+	RoutesProcessed RouteMap // Processed routes for updating Admit Status
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -193,6 +200,7 @@ type Params struct {
 	SSLInsecure        bool
 	TrustedCertsCfgmap string
 	Agent              string
+	SchemaLocalPath    string
 }
 
 // Configuration options for Routes in OpenShift
@@ -248,6 +256,8 @@ func NewManager(params *Params) *Manager {
 		sslInsecure:        params.SSLInsecure,
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
 		Agent:              getValidAgent(params.Agent),
+		intF5Res:           make(map[string]InternalF5Resources),
+		SchemaLocalPath:    params.SchemaLocal,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -439,7 +449,6 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 		appMgr.removeNamespaceLocked(nsName)
 		appMgr.eventNotifier.deleteNotifierForNamespace(nsName)
 		appMgr.resources.Lock()
-		defer appMgr.resources.Unlock()
 		rsDeleted := 0
 		appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
 			if key.Namespace == nsName {
@@ -448,8 +457,9 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 				}
 			}
 		})
+		appMgr.resources.Unlock()
 		if rsDeleted > 0 {
-			appMgr.outputConfigLocked()
+			appMgr.outputConfig()
 		}
 	}
 
@@ -1353,6 +1363,7 @@ func (appMgr *Manager) syncRoutes(
 	appInf *appInformer,
 	dgMap InternalDataGroupMap,
 ) error {
+	appMgr.RoutesProcessed = make(RouteMap)
 	routeByIndex, err := appInf.getOrderedRoutes(sKey.Namespace)
 	if nil != err {
 		log.Warningf("Unable to list routes for namespace '%v': %v",
@@ -1364,13 +1375,13 @@ func (appMgr *Manager) syncRoutes(
 	svcFwdRulesMap := NewServiceFwdRuleMap()
 
 	// buffer to hold F5Resources till all routes are processed
-	bufferF5Res := map[Record]F5Resources{}
+	bufferF5Res := InternalF5Resources{}
 
 	for _, route := range routeByIndex {
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
-		RoutesProcessed = append(RoutesProcessed, route)
+		appMgr.RoutesProcessed[route.ObjectMeta.Name] = route
 
 		//FIXME(kenr): why do we process services that aren't associated
 		//             with a route?
@@ -1521,8 +1532,10 @@ func (appMgr *Manager) syncRoutes(
 	}
 
 	// if buffer is updated then update the appMgr and stats
-	if !reflect.DeepEqual(appMgr.intF5Res, bufferF5Res) {
-		appMgr.intF5Res = bufferF5Res
+	if (len(appMgr.intF5Res[sKey.Namespace]) != 0 || len(bufferF5Res) != 0) &&
+		(!reflect.DeepEqual(appMgr.intF5Res[sKey.Namespace], bufferF5Res)) {
+
+		appMgr.intF5Res[sKey.Namespace] = bufferF5Res
 		stats.vsUpdated++
 	}
 

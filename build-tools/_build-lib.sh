@@ -16,6 +16,8 @@
 
 set -e
 
+CURDIR="$(dirname $BASH_SOURCE)"
+
 # CI Should set these variables
 : ${CLEAN_BUILD:=false}
 : ${IMG_TAG:=k8s-bigip-ctlr:latest}
@@ -51,7 +53,7 @@ get_builddir() {
 }
 
 # This is the expected output location, from the release build container
-RELEASE_PLATFORM=linux-amd64-release-go1.12
+RELEASE_PLATFORM=linux-amd64-release-go1.13.4
 
 NO_CACHE_ARGS=""
 if $CLEAN_BUILD; then
@@ -80,7 +82,8 @@ go_install () {
   mkdir -p "$BUILDDIR"
   (
     export GOBIN="$BUILDDIR/bin"
-    echodo cd "$BUILDDIR"
+    echodo cd $CURDIR
+    export GO111MODULE=on
     echodo go install $BUILD_VARIANT_FLAGS "${GO_BUILD_FLAGS[@]}" -v "$@"
   )
 }

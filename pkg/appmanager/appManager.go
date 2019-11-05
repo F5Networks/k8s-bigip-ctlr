@@ -136,6 +136,7 @@ type Manager struct {
 	as3Members         map[Member]struct{}
 	as3Validation      bool
 	sslInsecure        bool
+	arpLearning        bool
 	trustedCertsCfgmap string
 	// Orchestration agent: AS3 or CCCL
 	Agent string
@@ -198,6 +199,7 @@ type Params struct {
 	ManageIngress      bool
 	AS3Validation      bool
 	SSLInsecure        bool
+	ARPLearning        bool
 	TrustedCertsCfgmap string
 	Agent              string
 	SchemaLocalPath    string
@@ -254,6 +256,7 @@ func NewManager(params *Params) *Manager {
 		as3Members:         make(map[Member]struct{}, 0),
 		as3Validation:      params.AS3Validation,
 		sslInsecure:        params.SSLInsecure,
+		arpLearning:        params.ARPLearning,
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
 		Agent:              getValidAgent(params.Agent),
 		intF5Res:           make(map[string]InternalF5Resources),
@@ -796,6 +799,10 @@ func (appMgr *Manager) IsNodePort() bool {
 
 func (appMgr *Manager) UseNodeInternal() bool {
 	return appMgr.useNodeInternal
+}
+
+func (appMgr *Manager) ARPLearning() bool {
+	return appMgr.arpLearning
 }
 
 func (appMgr *Manager) ConfigWriter() writer.Writer {

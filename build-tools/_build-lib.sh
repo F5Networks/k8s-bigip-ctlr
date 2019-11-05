@@ -51,7 +51,7 @@ get_builddir() {
 }
 
 # This is the expected output location, from the release build container
-RELEASE_PLATFORM=linux-amd64-release-go1.12
+RELEASE_PLATFORM=linux-amd64-release-go1.13.4
 
 NO_CACHE_ARGS=""
 if $CLEAN_BUILD; then
@@ -81,6 +81,7 @@ go_install () {
   (
     export GOBIN="$BUILDDIR/bin"
     echodo cd "$BUILDDIR"
+    export GO111MODULE=on
     echodo go install $BUILD_VARIANT_FLAGS "${GO_BUILD_FLAGS[@]}" -v "$@"
   )
 }

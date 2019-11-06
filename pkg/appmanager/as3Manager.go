@@ -475,7 +475,7 @@ func (appMgr *Manager) updateAdmitStatus() {
 func (appMgr *Manager) postAS3Declaration(declaration as3Declaration, tempAs3ConfigmapDecl as3Declaration, tempRouteConfigDecl as3ADC) {
 	log.Debugf("[as3_log] Processing AS3 POST call with AS3 Manager")
 	as3RC.baseURL = BigIPURL
-	_, ok := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr.sslInsecure)
+	_, ok := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr)
 	if ok {
 		appMgr.activeCfgMap.Data = string(tempAs3ConfigmapDecl)
 		appMgr.as3RouteCfg.Data = tempRouteConfigDecl
@@ -489,7 +489,7 @@ func (appMgr *Manager) postAS3Declaration(declaration as3Declaration, tempAs3Con
 }
 
 // Takes AS3 Declaration, method, API route and post it to BigIP
-func (as3RestClient *AS3RESTClient) restCallToBigIP(method string, route string, declaration as3Declaration, sslInsecure bool) (string, bool) {
+func (as3RestClient *AS3RESTClient) restCallToBigIP(method string, route string, declaration as3Declaration, appMgr *Manager) (string, bool) {
 	log.Debugf("[as3_log] REST call with AS3 Manager")
 	hash := md5.New()
 	io.WriteString(hash, string(declaration))
@@ -518,7 +518,7 @@ func (as3RestClient *AS3RESTClient) restCallToBigIP(method string, route string,
 
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: sslInsecure,
+			InsecureSkipVerify: appMgr.sslInsecure,
 			RootCAs:            rootCAs,
 		},
 	}
@@ -574,8 +574,10 @@ func (as3RestClient *AS3RESTClient) restCallToBigIP(method string, route string,
 			log.Debugf("[as3_log] Big-IP Response code: %v,Response:%v, Message: %v", v["code"], v["response"], v["message"])
 		}
 	} else {
-		//log.Debugf("[as3_log] Big-IP Response error: %v", response) // need fix to dump only non sensitive data
-		log.Debugf("[as3_log] Big-IP Responded with error code: %v", resp.StatusCode)
+		log.Errorf("[AS3_log] Big-IP Responded with error code: %v", resp.StatusCode)
+		if appMgr.logAS3Response {
+			log.Errorf("[AS3_log] Raw response from Big-IP: %v ", response)
+		}
 	}
 	return string(body), false
 }

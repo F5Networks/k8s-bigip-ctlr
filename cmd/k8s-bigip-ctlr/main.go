@@ -112,6 +112,7 @@ var (
 	sslInsecure        *bool
 	trustedCertsCfgmap *string
 	agent              *string
+	logAS3Response     *bool
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -183,6 +184,8 @@ func _init() {
 		"Optional, when set to false, disables as3 template validation on the controller.")
 	sslInsecure = bigIPFlags.Bool("insecure", false,
 		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
+	logAS3Response = bigIPFlags.Bool("log-as3-response", false,
+		"Optional, when set to true, add the body of AS3 API response in Controller logs.")
 	trustedCertsCfgmap = bigIPFlags.String("trusted-certs-cfgmap", "",
 		"Optional, when certificates are provided, adds them to controller’s trusted certificate store.")
 	// TODO: Rephrase agent functionality
@@ -651,6 +654,7 @@ func main() {
 		SSLInsecure:        *sslInsecure,
 		TrustedCertsCfgmap: *trustedCertsCfgmap,
 		Agent:              *agent,
+		LogAS3Response:     *logAS3Response,
 	}
 
 	// If running with Flannel, create an event channel that the appManager

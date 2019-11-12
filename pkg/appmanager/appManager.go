@@ -153,6 +153,7 @@ type Manager struct {
 	// Flag to check schema validation using reference or string
 	As3SchemaFlag   bool
 	RoutesProcessed RouteMap // Processed routes for updating Admit Status
+	logAS3Response  bool     //Log the AS3 response body in Controller logs
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -201,6 +202,7 @@ type Params struct {
 	TrustedCertsCfgmap string
 	Agent              string
 	SchemaLocalPath    string
+	LogAS3Response     bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -258,6 +260,7 @@ func NewManager(params *Params) *Manager {
 		Agent:              getValidAgent(params.Agent),
 		intF5Res:           make(map[string]InternalF5Resources),
 		SchemaLocalPath:    params.SchemaLocal,
+		logAS3Response:     params.LogAS3Response,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.

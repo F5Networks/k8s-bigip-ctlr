@@ -96,6 +96,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			route := "/mgmt/shared/appsvcs/declare"
 			method := "POST"
 			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
+			appMgr := NewManager(&Params{SSLInsecure: false})
 			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 				// Test request parameters
 				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
@@ -108,7 +109,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			defer server.Close()
 			// Use Client & URL from our local test server
 			api := AS3RESTClient{server.Client(), server.URL, "", ""}
-			_, status := api.restCallToBigIP(method, route, template, false)
+			_, status := api.restCallToBigIP(method, route, template, appMgr)
 			Expect(status).To(BeTrue())
 		})
 
@@ -116,6 +117,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			route := "/mgmt/shared/appsvcs/declare"
 			method := "POST"
 			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
+			appMgr := NewManager(&Params{SSLInsecure: false})
 			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 				// Test request parameters
 				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
@@ -129,7 +131,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			defer server.Close()
 			// Use Client & URL from our local test server
 			api := AS3RESTClient{server.Client(), server.URL, "", ""}
-			_, status := api.restCallToBigIP(method, route, template, false)
+			_, status := api.restCallToBigIP(method, route, template, appMgr)
 			Expect(status).To(BeFalse())
 		})
 
@@ -137,6 +139,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			route := "/mgmt/shared/appsvcs/declare"
 			method := "POST"
 			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
+			appMgr := NewManager(&Params{SSLInsecure: false})
 			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 				// Test request parameters
 				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
@@ -150,7 +153,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			defer server.Close()
 			// Use Client & URL from our local test server
 			api := AS3RESTClient{server.Client(), server.URL, "", ""}
-			_, status := api.restCallToBigIP(method, route, template, false)
+			_, status := api.restCallToBigIP(method, route, template, appMgr)
 			Expect(status).To(BeFalse())
 		})
 
@@ -158,6 +161,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			route := "/mgmt/shared/appsvcs/declare"
 			method := "POST"
 			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
+			appMgr := NewManager(&Params{SSLInsecure: false})
 			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 				// Test request parameters
 				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
@@ -171,7 +175,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			api := AS3RESTClient{server.Client(), server.URL, "", ""}
 			//Close serve to test serve failure
 			server.Close()
-			_, status := api.restCallToBigIP(method, route, template, false)
+			_, status := api.restCallToBigIP(method, route, template, appMgr)
 			Expect(status).To(BeFalse())
 		})
 
@@ -179,6 +183,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			route := "/mgmt/shared/appsvcs/declare"
 			method := "POST"
 			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
+			appMgr := NewManager(&Params{SSLInsecure: false})
 			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 				// Test request parameters
 				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
@@ -194,7 +199,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			oldChecksum := string(h.Sum(nil))
 			// Use Client & URL from our local test server
 			api := AS3RESTClient{server.Client(), server.URL, oldChecksum, ""}
-			_, status := api.restCallToBigIP(method, route, template, false)
+			_, status := api.restCallToBigIP(method, route, template, appMgr)
 			Expect(status).To(BeTrue())
 		})
 
@@ -202,6 +207,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			route := "/mgmt/shared/appsvcs/declare"
 			method := "POST"
 			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":false,}`
+			appMgr := NewManager(&Params{SSLInsecure: false})
 			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 				// Test request parameters
 				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
@@ -214,7 +220,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			defer server.Close()
 			// Use Client & URL from our local test server
 			api := AS3RESTClient{server.Client(), server.URL, "", ""}
-			_, status := api.restCallToBigIP(method, route, template, false)
+			_, status := api.restCallToBigIP(method, route, template, appMgr)
 			Expect(status).To(BeTrue())
 		})
 	})

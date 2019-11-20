@@ -42,9 +42,17 @@ const passthroughHostsDgName = "ssl_passthrough_servername_dg"
 // Internal data group for reencrypt routes.
 const reencryptHostsDgName = "ssl_reencrypt_servername_dg"
 
+// Internal data group for edge routes.
+const edgeHostsDgName = "ssl_edge_servername_dg"
+
 // Internal data group for reencrypt routes that maps the host name to the
 // server ssl profile.
 const reencryptServerSslDgName = "ssl_reencrypt_serverssl_dg"
+
+// Internal data group for edge routes that maps the host name to the
+// false. This will help Irule to understand ssl should be disabled
+// on serverside.
+const edgeServerSslDgName = "ssl_edge_serverssl_dg"
 
 // Internal data group for https redirect
 const httpsRedirectDgName = "https_redirect_dg"
@@ -58,7 +66,9 @@ type FlattenConflictFunc func(key, oldVal, newVal string) string
 var groupFlattenFuncMap = map[string]FlattenConflictFunc{
 	passthroughHostsDgName:   flattenConflictWarn,
 	reencryptHostsDgName:     flattenConflictWarn,
+	edgeHostsDgName:          flattenConflictWarn,
 	reencryptServerSslDgName: flattenConflictWarn,
+	edgeServerSslDgName:      flattenConflictWarn,
 	httpsRedirectDgName:      flattenConflictConcat,
 	abDeploymentDgName:       flattenConflictConcat,
 }
@@ -564,50 +574,110 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 		}
 
 		when CLIENTSSL_DATA {
-			set sslpath [lindex [SSL::payload] 1]
-			set routepath ""
-			if { [info exists tls_servername] } {
+            set sslpath [lindex [SSL::payload] 1]
+            set routepath ""
+            
+            if { [info exists tls_servername] } {
 				set servername_lower [string tolower $tls_servername]
+				# Set routepath as combination of servername and url path
 				append routepath $servername_lower $sslpath
-				SSL::disable serverside
-				set dflt_pool ""
+				set routepath [string tolower $routepath]
+				set sslpath $routepath
+				# Find the number of "/" in the routepath
+				set rc 0
+				foreach x [split $routepath {}] {
+				   if {$x eq "/"} {
+					   incr rc
+				   }
+				}
+				# Disable serverside ssl and enable only for reencrypt routes													
+                SSL::disable serverside
 				set reencrypt_class "/%[1]s/ssl_reencrypt_servername_dg"
-
-				if { [class exists $reencrypt_class] } {
-					set dflt_pool [class match -value $routepath equals $reencrypt_class]
-					if { not ($dflt_pool equals "") } {
-						SSL::enable serverside
+				set edge_class "/%[1]s/ssl_edge_servername_dg"
+                if { [class exists $reencrypt_class] || [class exists $edge_class] } {
+					# Compares the routepath with the entries in ssl_reencrypt_servername_dg and
+					# ssl_edge_servername_dg.
+					for {set i $rc} {$i >= 0} {incr i -1} {
+						if { [class exists $reencrypt_class] } {
+							set reen_pool [class match -value $routepath equals $reencrypt_class]
+							if { not ($reen_pool equals "") } {
+								set dflt_pool $reen_pool
+								SSL::enable serverside
+							}
+						}
+						if { [class exists $edge_class] } {
+							set edge_pool [class match -value $routepath equals $edge_class]
+							if { not ($edge_pool equals "") } {
+							    set dflt_pool $edge_pool
+							}
+						}
+                        if { not [info exists dflt_pool] } {
+                            set routepath [
+                                string range $routepath 0 [
+                                    expr {[string last "/" $routepath]-1}
+                                ]
+                            ]
+                        }
+                        else {
+                            break
+						}
 					}
-				}
-
-				set ab_class "/%[1]s/ab_deployment_dg"
-				if { not [class exists $ab_class] } {
-					if { $dflt_pool == "" } then {
-						log local0.debug "Failed to find pool for $servername_lower"
-					} else {
-						pool $dflt_pool
-					}
-				} else {
-					set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
-					if { $selected_pool == "" } then {
-						log local0.debug "Failed to find pool for $servername_lower"
-					} else {
-						pool $selected_pool
-					}
-				}
-			}
-			SSL::release
-		}
+                }
+                set ab_class "/%[1]s/Shared/ab_deployment_dg"
+                if { not [class exists $ab_class] } {
+                    if { $dflt_pool == "" } then {
+                        log local0.debug "Failed to find pool for $servername_lower"
+                    } else {
+                        pool $dflt_pool
+                    }
+                } else {
+                    set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
+                    if { $selected_pool == "" } then {
+                        log local0.debug "Failed to find pool for $servername_lower"
+                    } else {
+                        pool $selected_pool
+                    }
+                }
+            }
+            SSL::release
+        }
 
 		when SERVER_CONNECTED {
-			set svrssl_class "/%[1]s/ssl_reencrypt_serverssl_dg"
-			if { [info exists servername_lower] and [class exists $svrssl_class] } {
-				set profile [class match -value $servername_lower equals $svrssl_class]
-				if { not ($profile equals "") } {
-					SSL::profile $profile
+			set reencryptssl_class "/test_AS3/Shared/ssl_reencrypt_serverssl_dg"
+			set edgessl_class "/test_AS3/Shared/ssl_edge_serverssl_dg"
+			if { [info exists sslpath] and [class exists $reencryptssl_class] } {
+				# Find the nearest child path which matches the reencrypt_class
+				for {set i $rc} {$i >= 0} {incr i -1} {
+					if { [class exists $reencryptssl_class] } {
+						set reen [class match -value $sslpath equals $reencryptssl_class]
+						if { not ($reen equals "") } {
+							    set sslprofile $reen
+						}
+					}
+					if { [class exists $edgessl_class] } {
+						set edge [class match -value $sslpath equals $edgessl_class]
+						if { not ($edge equals "") } {
+							    set sslprofile $edge
+						}
+						
+					}
+					if { not [info exists sslprofile] } {
+						set sslpath [
+							string range $sslpath 0 [
+								expr {[string last "/" $sslpath]-1}
+							]
+						]
+					}
+					else {
+						break
+					}
+				}
+				# Assign respective SSL profile based on ssl_reencrypt_serverssl_dg
+				if { not ($sslprofile equals "false") } {
+						SSL::profile $reen
 				}
 			}
-		}`, dgPath)
+        }`, dgPath)
 
 	iRuleCode := fmt.Sprintf("%s\n\n%s", appMgr.selectPoolIRuleFunc(), iRule)
 
@@ -675,15 +745,29 @@ func updateDataGroupForReencryptRoute(
 	// used as value in reencrypt Datagroup.
 	hostName := route.Spec.Host
 	path := route.Spec.Path
-	// If path is empty, Use "/" as path. This is needed as ssl::payload of
-	// clientssl_data Irule event returns "/" for empty path.
-	if path == "" {
-		path = "/"
-	}
 	routePath := hostName + path
 	svcName := getRouteCanonicalServiceName(route)
 	poolName := formatRoutePoolName(route.ObjectMeta.Namespace, svcName)
 	updateDataGroup(dgMap, reencryptHostsDgName,
+		partition, namespace, routePath, poolName)
+}
+
+// Update a data group map based on a edge route object.
+func updateDataGroupForEdgeRoute(
+	route *routeapi.Route,
+	partition string,
+	namespace string,
+	dgMap InternalDataGroupMap,
+) {
+	// Combination of hostName and path are used as key in edge Datagroup.
+	// Servername and path from the ssl::payload of clientssl_data Irule event is
+	// used as value in edge Datagroup.
+	hostName := route.Spec.Host
+	path := route.Spec.Path
+	routePath := hostName + path
+	svcName := getRouteCanonicalServiceName(route)
+	poolName := formatRoutePoolName(route.ObjectMeta.Namespace, svcName)
+	updateDataGroup(dgMap, edgeHostsDgName,
 		partition, namespace, routePath, poolName)
 }
 
@@ -826,6 +910,7 @@ func (appMgr *Manager) syncIRules() {
 		ab          bool
 		passthrough bool
 		reencrypt   bool
+		edge        bool
 	}
 	var iRef iruleRef
 	for mapKey, _ := range appMgr.intDgMap {
@@ -838,8 +923,12 @@ func (appMgr *Manager) syncIRules() {
 			iRef.passthrough = true
 		case reencryptHostsDgName:
 			iRef.reencrypt = true
+		case edgeHostsDgName:
+			iRef.edge = true
 		case reencryptServerSslDgName:
 			iRef.reencrypt = true
+		case edgeServerSslDgName:
+			iRef.edge = true
 		}
 	}
 	// Delete any IRules for datagroups that are gone

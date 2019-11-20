@@ -3,6 +3,18 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 Next Release
 ------------
+Added Functionality
+`````````````````````
+* Controller handles extended URL paths to the nearest matching backend context paths.
+
+Bug Fixes
+`````````
+* Controller handles combination of Edge and Reencrypt Openshift routes.
+* Controller now does not send encrypted traffic to backend.
+
+
+v1.11.1
+------------
 Bug Fixes
 `````````
 * Controller handles WAF Policy in the root path of a domain in OpenShift Routes.

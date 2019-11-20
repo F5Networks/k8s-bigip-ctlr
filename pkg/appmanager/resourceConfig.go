@@ -2054,6 +2054,11 @@ func (appMgr *Manager) handleRouteRules(
 					appMgr.addInternalDataGroup(abDeploymentDgName, DEFAULT_PARTITION)
 					rc.Virtual.AddIRule(abPathIRuleName)
 				} else {
+					appMgr.addIRule(
+						sslPassthroughIRuleName, DEFAULT_PARTITION, appMgr.sslPassthroughIRule())
+					appMgr.addInternalDataGroup(edgeHostsDgName, DEFAULT_PARTITION)
+					appMgr.addInternalDataGroup(edgeServerSslDgName, DEFAULT_PARTITION)
+					rc.Virtual.AddIRule(passThroughIRuleName)
 					rc.AddRuleToPolicy(policyName, rule)
 					setAnnotationRulesForRoute(policyName, virtualName, poolName, urlRewriteRule, appRootRules, rc, appMgr)
 				}

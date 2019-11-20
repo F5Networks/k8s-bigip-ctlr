@@ -1449,12 +1449,28 @@ func (appMgr *Manager) syncRoutes(
 				switch route.Spec.TLS.Termination {
 				case routeapi.TLSTerminationEdge:
 					appMgr.setClientSslProfile(stats, sKey, rsCfg, route)
+					serverSsl := "false"
+					// Combination of hostName and path are used as key in edge Datagroup.
+					// Servername and path from the ssl::payload of clientssl_data Irule event is
+					// used as value in edge Datagroup.
+					hostName := route.Spec.Host
+					path := route.Spec.Path
+					sslPath := hostName + path
+					updateDataGroup(dgMap, edgeServerSslDgName,
+						DEFAULT_PARTITION, sKey.Namespace, sslPath, serverSsl)
+
 				case routeapi.TLSTerminationReencrypt:
 					appMgr.setClientSslProfile(stats, sKey, rsCfg, route)
 					serverSsl := appMgr.setServerSslProfile(stats, sKey, rsCfg, route)
+					// Combination of hostName and path are used as key in reencrypt Datagroup.
+					// Servername and path from the ssl::payload of clientssl_data Irule event is
+					// used as value in reencrypt Datagroup.
+					hostName := route.Spec.Host
+					path := route.Spec.Path
+					sslPath := hostName + path
 					if "" != serverSsl {
 						updateDataGroup(dgMap, reencryptServerSslDgName,
-							DEFAULT_PARTITION, sKey.Namespace, route.Spec.Host, serverSsl)
+							DEFAULT_PARTITION, sKey.Namespace, sslPath, serverSsl)
 					}
 				}
 			}
@@ -1528,6 +1544,9 @@ func (appMgr *Manager) syncRoutes(
 					sKey.Namespace, dgMap)
 			case routeapi.TLSTerminationReencrypt:
 				updateDataGroupForReencryptRoute(route, DEFAULT_PARTITION,
+					sKey.Namespace, dgMap)
+			case routeapi.TLSTerminationEdge:
+				updateDataGroupForEdgeRoute(route, DEFAULT_PARTITION,
 					sKey.Namespace, dgMap)
 			}
 		}

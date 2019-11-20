@@ -156,6 +156,8 @@ type Manager struct {
 	As3SchemaFlag   bool
 	RoutesProcessed RouteMap // Processed routes for updating Admit Status
 	logAS3Response  bool     //Log the AS3 response body in Controller logs
+	// Ingress SSL Transient Context
+	IngressSSLCtxt map[string]*v1.Secret
 }
 
 // FIXME: Refactor to have one struct to hold all AS3 specific data.
@@ -266,6 +268,7 @@ func NewManager(params *Params) *Manager {
 		intF5Res:           make(map[string]InternalF5Resources),
 		SchemaLocalPath:    params.SchemaLocal,
 		logAS3Response:     params.LogAS3Response,
+		IngressSSLCtxt:     make(map[string]*v1.Secret),
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -1167,6 +1170,26 @@ func (appMgr *Manager) syncConfigMaps(
 	return nil
 }
 
+func prepareIngressTlsTransientContext(appMgr *Manager, ing *v1beta1.Ingress) {
+
+	// CleanUp Ingress Transient Context
+	for secretName := range appMgr.IngressSSLCtxt {
+		delete(appMgr.IngressSSLCtxt, secretName)
+	}
+
+	// Prepare Ingress SSL Transient Context
+	for _, tls := range ing.Spec.TLS {
+		// Check if profile is contained in a Secret
+		secret, err := appMgr.kubeClient.CoreV1().Secrets(ing.ObjectMeta.Namespace).
+			Get(tls.SecretName, metav1.GetOptions{})
+		if err != nil {
+			appMgr.IngressSSLCtxt[tls.SecretName] = nil
+			continue
+		}
+		appMgr.IngressSSLCtxt[tls.SecretName] = secret
+	}
+}
+
 func (appMgr *Manager) syncIngresses(
 	stats *vsSyncStats,
 	sKey serviceQueueKey,
@@ -1188,8 +1211,13 @@ func (appMgr *Manager) syncIngresses(
 		// We need to look at all ingresses in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
 		ing := obj.(*v1beta1.Ingress)
-		if ing.ObjectMeta.Namespace != sKey.Namespace {
+		if ing.ObjectMeta.Namespace != sKey.Namespace ||
+			(ing.Spec.Backend != nil && ing.Spec.Backend.ServiceName != sKey.ServiceName) {
 			continue
+		}
+
+		if appMgr.useSecrets {
+			prepareIngressTlsTransientContext(appMgr, ing)
 		}
 
 		// Resolve first Ingress Host name (if required)

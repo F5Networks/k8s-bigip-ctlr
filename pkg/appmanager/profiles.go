@@ -28,7 +28,6 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type secretKey struct {
@@ -658,10 +657,8 @@ func (appMgr *Manager) checkProfile(
 		*referenced = true
 		// May reference a secret that no longer exists
 		if appMgr.useSecrets {
-			_, err := appMgr.kubeClient.CoreV1().
-				Secrets(namespace).
-				Get(testName, metav1.GetOptions{})
-			if nil != err && !strings.ContainsAny(secretName, "/") {
+			secret := appMgr.IngressSSLCtxt[testName]
+			if secret == nil && !strings.ContainsAny(secretName, "/") {
 				// No secret with this name, and name does not
 				// contain "/", meaning it isn't a valid BIG-IP profile
 				*toRemove = append(*toRemove, prof)

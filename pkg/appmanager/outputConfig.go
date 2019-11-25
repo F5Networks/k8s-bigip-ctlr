@@ -31,8 +31,9 @@ func (appMgr *Manager) outputConfig() {
 	switch appMgr.Agent {
 	case "as3":
 		if appMgr.processedItems >= appMgr.queueLen || appMgr.initialState {
-			appMgr.sendFDBForRoutes()
+			appMgr.sendFDBEntries()
 			appMgr.postRouteDeclarationHost()
+			appMgr.sendARPEntries()
 			appMgr.initialState = true
 		}
 	default:
@@ -199,7 +200,7 @@ func (appMgr *Manager) outputConfigLocked() {
 	}
 }
 
-func (appMgr *Manager) sendFDBForRoutes() {
+func (appMgr *Manager) sendFDBEntries() {
 	// Sends FDB details to Vxlan Manager when agent=as3
 
 	// Organize the data as a map of arrays of resources (per partition)
@@ -224,6 +225,24 @@ func (appMgr *Manager) sendFDBForRoutes() {
 		log.Warningf("Failed to write FDB Records: %v", e)
 	case <-time.After(time.Second):
 		log.Warning("Did not receive config write response in 1s")
+	}
+}
+
+func (appMgr *Manager) sendARPEntries() {
+
+	if appMgr.eventChan != nil {
+		// Get all pool members and write them to VxlanMgr to configure ARP entries
+		var allPoolMembers []Member
+
+		for member := range appMgr.as3Members {
+			allPoolMembers = append(allPoolMembers, member)
+		}
+
+		select {
+		case appMgr.eventChan <- allPoolMembers:
+			log.Debugf("AppManager wrote endpoints to VxlanMgr. %v", allPoolMembers)
+		case <-time.After(3 * time.Second):
+		}
 	}
 }
 

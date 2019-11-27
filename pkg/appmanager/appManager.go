@@ -134,6 +134,7 @@ type Manager struct {
 	manageConfigMaps   bool
 	manageIngress      bool
 	as3Members         map[Member]struct{}
+	as3Modified        bool
 	as3Validation      bool
 	sslInsecure        bool
 	trustedCertsCfgmap string
@@ -254,6 +255,7 @@ func NewManager(params *Params) *Manager {
 		manageConfigMaps:   params.ManageConfigMaps,
 		manageIngress:      params.ManageIngress,
 		as3Members:         make(map[Member]struct{}, 0),
+		as3Modified:        false,
 		as3Validation:      params.AS3Validation,
 		sslInsecure:        params.SSLInsecure,
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
@@ -1058,8 +1060,12 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
-		stats.dgUpdated > 0 || stats.poolsUpdated > 0 || len(appMgr.as3Members) > 0 || appMgr.as3RouteCfg.Pending {
+		stats.dgUpdated > 0 || stats.poolsUpdated > 0 || (len(appMgr.as3Members) > 0 && appMgr.as3Modified) ||
+		appMgr.as3RouteCfg.Pending {
 		appMgr.outputConfig()
+		if appMgr.as3Modified {
+			appMgr.as3Modified = false
+		}
 	} else if !appMgr.initialState && appMgr.processedItems >= appMgr.queueLen {
 		appMgr.outputConfig()
 	}

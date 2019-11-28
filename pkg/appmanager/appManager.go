@@ -2407,22 +2407,6 @@ func (appMgr *Manager) getNodes(
 
 	// Append list of nodes to watchedNodes
 	for _, node := range nodes {
-		// Ignore Master Node from the list of watched nodes
-		// only when master is in UnSchedulable state.
-		if node.ObjectMeta.Labels["node-role.kubernetes.io/master"] == "true" {
-			isUnSchedulable := false
-			// Iterate through the list of taints available
-			// on master node and look for no schedule taint
-			for _, t := range node.Spec.Taints {
-				if v1.TaintEffectNoSchedule == t.Effect {
-					isUnSchedulable = true
-				}
-			}
-			if isUnSchedulable == true {
-				continue
-			}
-		}
-		// Consider all the other nodes except master.
 		nodeAddrs := node.Status.Addresses
 		for _, addr := range nodeAddrs {
 			if addr.Type == addrType {

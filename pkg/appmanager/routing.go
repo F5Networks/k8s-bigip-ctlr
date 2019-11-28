@@ -623,7 +623,7 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 						}
 					}
                 }
-                set ab_class "/%[1]s/Shared/ab_deployment_dg"
+                set ab_class "/%[1]s/ab_deployment_dg"
                 if { not [class exists $ab_class] } {
                     if { $dflt_pool == "" } then {
                         log local0.debug "Failed to find pool for $servername_lower"
@@ -643,8 +643,8 @@ func (appMgr *Manager) sslPassthroughIRule() string {
         }
 
 		when SERVER_CONNECTED {
-			set reencryptssl_class "/test_AS3/Shared/ssl_reencrypt_serverssl_dg"
-			set edgessl_class "/test_AS3/Shared/ssl_edge_serverssl_dg"
+			set reencryptssl_class "/%[1]s/ssl_reencrypt_serverssl_dg"
+			set edgessl_class "/%[1]s/ssl_edge_serverssl_dg"
 			if { [info exists sslpath] and [class exists $reencryptssl_class] } {
 				# Find the nearest child path which matches the reencrypt_class
 				for {set i $rc} {$i >= 0} {incr i -1} {

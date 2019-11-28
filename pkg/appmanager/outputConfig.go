@@ -230,6 +230,25 @@ func (appMgr *Manager) sendFDBEntries() {
 
 func (appMgr *Manager) sendARPEntries() {
 
+	resources := PartitionMap{}
+	var allPoolMembers []Member
+
+	// Filter the configs to only those that have active services
+	for _, cfg := range appMgr.resources.GetAllResources() {
+		if cfg.MetaData.Active == true {
+			initPartitionData(resources, cfg.GetPartition())
+			for _, p := range cfg.Pools {
+				resources[p.Partition].Pools = appendPool(resources[p.Partition].Pools, p)
+			}
+		}
+	}
+
+	for _, cfg := range resources {
+		for _, pool := range cfg.Pools {
+			allPoolMembers = append(allPoolMembers, pool.Members...)
+		}
+	}
+
 	if appMgr.eventChan != nil {
 		// Get all pool members and write them to VxlanMgr to configure ARP entries
 		var allPoolMembers []Member

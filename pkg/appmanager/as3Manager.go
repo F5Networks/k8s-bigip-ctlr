@@ -897,9 +897,7 @@ func (appMgr *Manager) processResourcesForAS3(sharedApp as3Application) {
 		createMonitorDecl(cfg, sharedApp)
 
 		//Create pools
-		buffer = make(map[Member]struct{}, 0)
 		createPoolDecl(cfg, sharedApp)
-		appMgr.as3Members = buffer
 
 		//Create AS3 Service for virtual server
 		createServiceDecl(cfg, sharedApp)
@@ -1173,12 +1171,6 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			member.ServicePort = val.Port
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
 			pool.Members = append(pool.Members, member)
-			var ingPoolMember Member
-			if cfg.MetaData.ResourceType == "ingress" {
-				ingPoolMember.Address = val.Address
-				ingPoolMember.Port = val.Port
-				buffer[ingPoolMember] = struct{}{}
-			}
 		}
 		for _, val := range v.MonitorNames {
 			var monitor as3ResourcePointer

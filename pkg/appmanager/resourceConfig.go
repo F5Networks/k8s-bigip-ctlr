@@ -65,6 +65,10 @@ const customProfileAll string = "all"
 const customProfileClient string = "clientside"
 const customProfileServer string = "serverside"
 
+// Constants for Resource Types
+const resourceTypeIngress string = "ingress"
+const resourceTypeRoute string = "route"
+
 // Constants for CustomProfile.PeerCertMode
 const peerCertRequired = "require"
 const peerCertIgnored = "ignore"
@@ -1473,7 +1477,17 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		} else {
 			bindAddr = addr
 		}
+	} else {
+		// if no annotation is provided, take the IP from controller config.
+		if defaultIP != "" && defaultIP != "0.0.0.0" {
+			bindAddr = defaultIP
+		} else {
+			// Ingress IP is not given in either as controller deployment option or in annotation, exit with error log.
+			log.Error("Ingress IP Address is not provided. Unable to process ingress resources. " +
+				"Either configure controller with 'default-ingress-ip' or Ingress with annotation 'virtual-server.f5.com/ip'.")
+		}
 	}
+
 	cfg.Virtual.Name = formatIngressVSName(bindAddr, pStruct.port)
 
 	// Handle url-rewrite annotation

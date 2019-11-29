@@ -1247,12 +1247,6 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			member.ServicePort = val.Port
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
 			pool.Members = append(pool.Members, member)
-			var ingPoolMember Member
-			if cfg.MetaData.ResourceType == resourceTypeIngress {
-				ingPoolMember.Address = val.Address
-				ingPoolMember.Port = val.Port
-				buffer[ingPoolMember] = struct{}{}
-			}
 		}
 		for _, val := range v.MonitorNames {
 			var monitor as3ResourcePointer

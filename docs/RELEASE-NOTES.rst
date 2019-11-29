@@ -7,6 +7,7 @@ Added Functionality
 `````````````````````
 * Controller handles extended URL paths to the nearest matching backend context paths.
 * Support AS3 for BIG-IP orchestration with Kubernetes Ingress.
+* Controller implements support for overriding already existing AS3 resources(ConfigMap, Route and Ingress) through ConfigMap. 
 
 Bug Fixes
 `````````

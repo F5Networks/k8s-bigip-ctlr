@@ -31,9 +31,12 @@ func (appMgr *Manager) outputConfig() {
 	switch appMgr.Agent {
 	case "as3":
 		if appMgr.processedItems >= appMgr.queueLen || appMgr.initialState {
-			appMgr.sendFDBEntries()
 			appMgr.postRouteDeclarationHost()
-			appMgr.sendARPEntries()
+			if appMgr.as3Modified {
+				appMgr.sendFDBEntries()
+				appMgr.sendARPEntries()
+				appMgr.as3Modified = false
+			}
 			appMgr.initialState = true
 		}
 	default:
@@ -259,7 +262,7 @@ func (appMgr *Manager) sendARPEntries() {
 
 		select {
 		case appMgr.eventChan <- allPoolMembers:
-			log.Debugf("AppManager wrote endpoints to VxlanMgr. %v", allPoolMembers)
+			log.Debugf("AppManager wrote endpoints to VxlanMgr")
 		case <-time.After(3 * time.Second):
 		}
 	}

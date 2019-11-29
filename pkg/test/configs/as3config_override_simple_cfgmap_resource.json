@@ -1,0 +1,13 @@
+{
+    "declaration": {
+        "example_simple_http_application": {
+            "example_simple_http_application_01": {
+                "serviceMain": {
+                    "virtualAddresses": [
+                        "172.16.3.199"
+                    ]
+                }
+            }
+        }
+    }
+}

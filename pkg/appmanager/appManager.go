@@ -149,6 +149,7 @@ type Manager struct {
 	as3RouteCfg     ActiveAS3Route
 	As3SchemaLatest string
 	intF5Res        InternalF5ResourcesGroup // AS3 Specific features that can be applied to a Route/Ingress
+	OverrideAS3Decl string                   // Override existing as3 declaration with this configmap
 	// Path of schemas reside locally
 	SchemaLocalPath string
 	// Flag to check schema validation using reference or string
@@ -202,6 +203,7 @@ type Params struct {
 	SSLInsecure        bool
 	TrustedCertsCfgmap string
 	Agent              string
+	OverrideAS3Decl    string
 	SchemaLocalPath    string
 	LogAS3Response     bool
 }
@@ -260,6 +262,7 @@ func NewManager(params *Params) *Manager {
 		sslInsecure:        params.SSLInsecure,
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
 		Agent:              getValidAgent(params.Agent),
+		OverrideAS3Decl:    params.OverrideAS3Decl,
 		intF5Res:           make(map[string]InternalF5Resources),
 		SchemaLocalPath:    params.SchemaLocal,
 		logAS3Response:     params.LogAS3Response,
@@ -1059,13 +1062,10 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	// delete any custom profiles that are no longer referenced
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
-	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
-		stats.dgUpdated > 0 || stats.poolsUpdated > 0 || (len(appMgr.as3Members) > 0 && appMgr.as3Modified) ||
+	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 || stats.dgUpdated > 0 ||
+		stats.poolsUpdated > 0 || appMgr.as3Modified || appMgr.OverrideAS3Decl != "" ||
 		appMgr.as3RouteCfg.Pending {
 		appMgr.outputConfig()
-		if appMgr.as3Modified {
-			appMgr.as3Modified = false
-		}
 	} else if !appMgr.initialState && appMgr.processedItems >= appMgr.queueLen {
 		appMgr.outputConfig()
 	}
@@ -1163,6 +1163,7 @@ func (appMgr *Manager) syncConfigMaps(
 			appMgr.setBindAddrAnnotation(cm, sKey, rsCfg)
 		}
 	}
+
 	return nil
 }
 
@@ -1362,6 +1363,7 @@ func (appMgr *Manager) syncIngresses(
 		}
 		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
 	}
+
 	return nil
 }
 
@@ -1579,6 +1581,7 @@ func (appMgr *Manager) syncRoutes(
 		}
 		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
 	}
+
 	return nil
 }
 

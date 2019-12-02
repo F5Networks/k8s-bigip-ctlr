@@ -995,7 +995,7 @@ func getDGRecordValueForAS3(dgName string, sharedApp as3Application) (string, bo
 
 func (appMgr *Manager) processCustomProfilesForAS3(sharedApp as3Application) {
 	caBundleName := "serverssl_ca_bundle"
-	clientTLSCreated := false
+	var tlsClient *as3TLSClient
 	// TLS Certificates are available in CustomProfiles
 	for key, prof := range appMgr.customProfiles.profs {
 		// Create TLSServer and Certificate for each profile
@@ -1008,15 +1008,16 @@ func (appMgr *Manager) processCustomProfilesForAS3(sharedApp as3Application) {
 			createCertificateDecl(prof, sharedApp)
 		} else {
 			createUpdateCABundle(prof, caBundleName, sharedApp)
-			if !clientTLSCreated {
-				validateCertificate := false
-				skey := secretKey{
-					Name: prof.Name + "-ca",
-				}
-				if _, ok := appMgr.customProfiles.profs[skey]; ok {
-					validateCertificate = true
-				}
-				clientTLSCreated = createTLSClient(prof, svcName, caBundleName, validateCertificate, sharedApp)
+			if tlsClient == nil {
+				tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
+			}
+			skey := secretKey{
+				Name: prof.Name + "-ca",
+			}
+			if _, ok := appMgr.customProfiles.profs[skey]; ok && tlsClient != nil {
+				// If a profile exist in customProfiles with key as created above
+				// then it indicates that secure-serverssl needs to be added
+				tlsClient.ValidateCertificate = true
 			}
 		}
 	}
@@ -1570,28 +1571,27 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 func createTLSClient(
 	prof CustomProfile,
 	svcName, caBundleName string,
-	validateCertificate bool,
 	sharedApp as3Application,
-) bool {
+) *as3TLSClient {
 	// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
 	if "" != prof.Cert && "" == prof.Key {
 		svc := sharedApp[svcName].(*as3Service)
 		tlsClientName := fmt.Sprintf("%s_tls_client", svcName)
 
 		tlsClient := &as3TLSClient{
-			Class:               "TLS_Client",
-			ValidateCertificate: validateCertificate,
+			Class: "TLS_Client",
+			TrustCA: &as3ResourcePointer{
+				Use: caBundleName,
+			},
 		}
-		tlsClient.TrustCA = &as3ResourcePointer{
-			Use: caBundleName,
-		}
+
 		sharedApp[tlsClientName] = tlsClient
 		svc.ClientTLS = tlsClientName
 		updateVirtualToHTTPS(svc)
 
-		return true
+		return tlsClient
 	}
-	return false
+	return nil
 }
 
 // Utils definition to handle openshift and ingress resource types.

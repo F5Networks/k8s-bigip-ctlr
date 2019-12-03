@@ -1063,7 +1063,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 || stats.dgUpdated > 0 ||
-		stats.poolsUpdated > 0 || appMgr.as3Modified || appMgr.OverrideAS3Decl != "" ||
+		stats.poolsUpdated > 0 || appMgr.as3Modified ||
 		appMgr.as3RouteCfg.Pending {
 		appMgr.outputConfig()
 	} else if !appMgr.initialState && appMgr.processedItems >= appMgr.queueLen {

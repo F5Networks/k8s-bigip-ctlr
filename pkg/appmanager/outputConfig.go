@@ -233,6 +233,7 @@ func (appMgr *Manager) sendFDBEntries() {
 
 func (appMgr *Manager) sendARPEntries() {
 
+	// Get all pool members and write them to VxlanMgr to configure ARP entries
 	resources := PartitionMap{}
 	var allPoolMembers []Member
 
@@ -253,9 +254,6 @@ func (appMgr *Manager) sendARPEntries() {
 	}
 
 	if appMgr.eventChan != nil {
-		// Get all pool members and write them to VxlanMgr to configure ARP entries
-		var allPoolMembers []Member
-
 		for member := range appMgr.as3Members {
 			allPoolMembers = append(allPoolMembers, member)
 		}

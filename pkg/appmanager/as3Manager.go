@@ -1602,11 +1602,17 @@ func deriveResourceTypeFromAS3Value(val string) string {
 	return resourceTypeIngress
 }
 
-func (appMgr *Manager) DeleteAS3ManagedPartition() {
+func (appMgr *Manager) DeleteCISManagedPartition() {
 	var as3Config map[string]interface{}
 	_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
 	decl := as3Config["declaration"].(map[string]interface{})
-	decl[DEFAULT_PARTITION+"_AS3"] = map[string]string{"class": "Tenant"}
+	if appMgr.Agent == "cccl" {
+		decl[DEFAULT_PARTITION+"_AS3"] = map[string]string{"class": "Tenant"}
+	} else if appMgr.Agent == "as3" {
+		decl[DEFAULT_PARTITION] = map[string]string{"class": "Tenant"}
+	} else {
+		return
+	}
 	data, _ := json.Marshal(as3Config)
 	appMgr.postAS3Declaration(as3Declaration(data), "", nil)
 }

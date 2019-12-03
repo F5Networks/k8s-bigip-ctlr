@@ -134,6 +134,7 @@ type Manager struct {
 	manageConfigMaps   bool
 	manageIngress      bool
 	as3Members         map[Member]struct{}
+	as3Modified        bool
 	as3Validation      bool
 	sslInsecure        bool
 	trustedCertsCfgmap string
@@ -148,6 +149,7 @@ type Manager struct {
 	as3RouteCfg     ActiveAS3Route
 	As3SchemaLatest string
 	intF5Res        InternalF5ResourcesGroup // AS3 Specific features that can be applied to a Route/Ingress
+	OverrideAS3Decl string                   // Override existing as3 declaration with this configmap
 	// Path of schemas reside locally
 	SchemaLocalPath string
 	// Flag to check schema validation using reference or string
@@ -201,6 +203,7 @@ type Params struct {
 	SSLInsecure        bool
 	TrustedCertsCfgmap string
 	Agent              string
+	OverrideAS3Decl    string
 	SchemaLocalPath    string
 	LogAS3Response     bool
 }
@@ -254,10 +257,12 @@ func NewManager(params *Params) *Manager {
 		manageConfigMaps:   params.ManageConfigMaps,
 		manageIngress:      params.ManageIngress,
 		as3Members:         make(map[Member]struct{}, 0),
+		as3Modified:        false,
 		as3Validation:      params.AS3Validation,
 		sslInsecure:        params.SSLInsecure,
 		trustedCertsCfgmap: params.TrustedCertsCfgmap,
 		Agent:              getValidAgent(params.Agent),
+		OverrideAS3Decl:    params.OverrideAS3Decl,
 		intF5Res:           make(map[string]InternalF5Resources),
 		SchemaLocalPath:    params.SchemaLocal,
 		logAS3Response:     params.LogAS3Response,
@@ -1057,8 +1062,9 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	// delete any custom profiles that are no longer referenced
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
-	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 ||
-		stats.dgUpdated > 0 || stats.poolsUpdated > 0 || len(appMgr.as3Members) > 0 || appMgr.as3RouteCfg.Pending {
+	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 || stats.dgUpdated > 0 ||
+		stats.poolsUpdated > 0 || appMgr.as3Modified ||
+		appMgr.as3RouteCfg.Pending {
 		appMgr.outputConfig()
 	} else if !appMgr.initialState && appMgr.processedItems >= appMgr.queueLen {
 		appMgr.outputConfig()
@@ -1157,6 +1163,7 @@ func (appMgr *Manager) syncConfigMaps(
 			appMgr.setBindAddrAnnotation(cm, sKey, rsCfg)
 		}
 	}
+
 	return nil
 }
 
@@ -1356,6 +1363,7 @@ func (appMgr *Manager) syncIngresses(
 		}
 		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
 	}
+
 	return nil
 }
 
@@ -1449,12 +1457,28 @@ func (appMgr *Manager) syncRoutes(
 				switch route.Spec.TLS.Termination {
 				case routeapi.TLSTerminationEdge:
 					appMgr.setClientSslProfile(stats, sKey, rsCfg, route)
+					serverSsl := "false"
+					// Combination of hostName and path are used as key in edge Datagroup.
+					// Servername and path from the ssl::payload of clientssl_data Irule event is
+					// used as value in edge Datagroup.
+					hostName := route.Spec.Host
+					path := route.Spec.Path
+					sslPath := hostName + path
+					updateDataGroup(dgMap, edgeServerSslDgName,
+						DEFAULT_PARTITION, sKey.Namespace, sslPath, serverSsl)
+
 				case routeapi.TLSTerminationReencrypt:
 					appMgr.setClientSslProfile(stats, sKey, rsCfg, route)
 					serverSsl := appMgr.setServerSslProfile(stats, sKey, rsCfg, route)
+					// Combination of hostName and path are used as key in reencrypt Datagroup.
+					// Servername and path from the ssl::payload of clientssl_data Irule event is
+					// used as value in reencrypt Datagroup.
+					hostName := route.Spec.Host
+					path := route.Spec.Path
+					sslPath := hostName + path
 					if "" != serverSsl {
 						updateDataGroup(dgMap, reencryptServerSslDgName,
-							DEFAULT_PARTITION, sKey.Namespace, route.Spec.Host, serverSsl)
+							DEFAULT_PARTITION, sKey.Namespace, sslPath, serverSsl)
 					}
 				}
 			}
@@ -1529,6 +1553,9 @@ func (appMgr *Manager) syncRoutes(
 			case routeapi.TLSTerminationReencrypt:
 				updateDataGroupForReencryptRoute(route, DEFAULT_PARTITION,
 					sKey.Namespace, dgMap)
+			case routeapi.TLSTerminationEdge:
+				updateDataGroupForEdgeRoute(route, DEFAULT_PARTITION,
+					sKey.Namespace, dgMap)
 			}
 		}
 		updateDataGroupForABRoute(route, svcName, DEFAULT_PARTITION, sKey.Namespace, dgMap)
@@ -1554,6 +1581,7 @@ func (appMgr *Manager) syncRoutes(
 		}
 		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
 	}
+
 	return nil
 }
 

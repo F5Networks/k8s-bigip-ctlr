@@ -31,8 +31,12 @@ func (appMgr *Manager) outputConfig() {
 	switch appMgr.Agent {
 	case "as3":
 		if appMgr.processedItems >= appMgr.queueLen || appMgr.initialState {
-			appMgr.sendFDBForRoutes()
 			appMgr.postRouteDeclarationHost()
+			if appMgr.as3Modified {
+				appMgr.sendFDBEntries()
+				appMgr.sendARPEntries()
+				appMgr.as3Modified = false
+			}
 			appMgr.initialState = true
 		}
 	default:
@@ -199,7 +203,7 @@ func (appMgr *Manager) outputConfigLocked() {
 	}
 }
 
-func (appMgr *Manager) sendFDBForRoutes() {
+func (appMgr *Manager) sendFDBEntries() {
 	// Sends FDB details to Vxlan Manager when agent=as3
 
 	// Organize the data as a map of arrays of resources (per partition)
@@ -224,6 +228,41 @@ func (appMgr *Manager) sendFDBForRoutes() {
 		log.Warningf("Failed to write FDB Records: %v", e)
 	case <-time.After(time.Second):
 		log.Warning("Did not receive config write response in 1s")
+	}
+}
+
+func (appMgr *Manager) sendARPEntries() {
+
+	// Get all pool members and write them to VxlanMgr to configure ARP entries
+	resources := PartitionMap{}
+	var allPoolMembers []Member
+
+	// Filter the configs to only those that have active services
+	for _, cfg := range appMgr.resources.GetAllResources() {
+		if cfg.MetaData.Active == true {
+			initPartitionData(resources, cfg.GetPartition())
+			for _, p := range cfg.Pools {
+				resources[p.Partition].Pools = appendPool(resources[p.Partition].Pools, p)
+			}
+		}
+	}
+
+	for _, cfg := range resources {
+		for _, pool := range cfg.Pools {
+			allPoolMembers = append(allPoolMembers, pool.Members...)
+		}
+	}
+
+	if appMgr.eventChan != nil {
+		for member := range appMgr.as3Members {
+			allPoolMembers = append(allPoolMembers, member)
+		}
+
+		select {
+		case appMgr.eventChan <- allPoolMembers:
+			log.Debugf("AppManager wrote endpoints to VxlanMgr")
+		case <-time.After(3 * time.Second):
+		}
 	}
 }
 

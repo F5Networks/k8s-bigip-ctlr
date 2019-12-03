@@ -472,16 +472,22 @@ func (appMgr *Manager) updateAdmitStatus() {
 
 // TODO: Refactor
 // Takes AS3 Declaration and post it to BigIP
-func (appMgr *Manager) postAS3Declaration(declaration as3Declaration, tempAs3ConfigmapDecl as3Declaration, tempRouteConfigDecl as3ADC) {
+func (appMgr *Manager) postAS3Declaration(declaration as3Declaration,
+	tempAs3ConfigmapDecl as3Declaration,
+	tempRouteConfigDecl as3ADC) {
 	log.Debugf("[AS3] Processing AS3 POST call with AS3 Manager")
 	as3RC.baseURL = BigIPURL
-	_, ok := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr)
+	rsp, ok := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr)
 	if ok {
 		appMgr.activeCfgMap.Data = string(tempAs3ConfigmapDecl)
 		appMgr.as3RouteCfg.Data = tempRouteConfigDecl
 		appMgr.as3RouteCfg.Pending = false
 		if nil != appMgr.routeClientV1 {
 			appMgr.updateAdmitStatus()
+		}
+		if rsp != "" {
+			// Update AS3 Modified flag if the as3 declaration is posted to BIG-IP
+			appMgr.as3Modified = true
 		}
 	} else {
 		appMgr.as3RouteCfg.Pending = true
@@ -574,9 +580,9 @@ func (as3RestClient *AS3RESTClient) restCallToBigIP(method string, route string,
 			log.Debugf("[AS3] Big-IP Response code: %v,Response:%v, Message: %v", v["code"], v["response"], v["message"])
 		}
 	} else {
-		log.Errorf("[AS3_log] Big-IP Responded with error code: %v", resp.StatusCode)
+		log.Errorf("[AS3] Big-IP Responded with error code: %v", resp.StatusCode)
 		if appMgr.logAS3Response {
-			log.Errorf("[AS3_log] Raw response from Big-IP: %v ", response)
+			log.Errorf("[AS3] Raw response from Big-IP: %v ", response)
 		}
 	}
 	return string(body), false
@@ -587,15 +593,14 @@ func (appMgr *Manager) getCertFromConfigMap(cfgmap string) {
 
 	certificates = ""
 	namespaceCfgmapSlice := strings.Split(cfgmap, "/")
-	if len(namespaceCfgmapSlice) < 2 {
+	if len(namespaceCfgmapSlice) != 2 {
 		log.Debugf("[AS3] Invalid trusted-certs-cfgmap option provided.")
 	} else {
 		certs := ""
-		namespace := namespaceCfgmapSlice[0]
-		cfgmapName := namespaceCfgmapSlice[1]
-		cm, err := appMgr.kubeClient.CoreV1().ConfigMaps(namespace).Get(cfgmapName, metaV1.GetOptions{})
+		cm, err := appMgr.getConfigMapUsingNamespaceAndName(namespaceCfgmapSlice[0], namespaceCfgmapSlice[1])
 		if err != nil {
-			log.Debugf("[AS3] Reading certificate from configmap error: %v", err)
+			log.Errorf("[AS3] ConfigMap with name %v not found in namespace: %v, error: %v",
+				namespaceCfgmapSlice[1], namespaceCfgmapSlice[0], err)
 		} else {
 			//Fetching all certificates from configmap
 			for _, v := range cm.Data {
@@ -604,6 +609,14 @@ func (appMgr *Manager) getCertFromConfigMap(cfgmap string) {
 			certificates = certs
 		}
 	}
+}
+
+func (appMgr *Manager) getConfigMapUsingNamespaceAndName(cfgMapNamespace, cfgMapName string) (*v1.ConfigMap, error) {
+	cfgMap, err := appMgr.kubeClient.CoreV1().ConfigMaps(cfgMapNamespace).Get(cfgMapName, metaV1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return cfgMap, err
 }
 
 // SetupAS3Informers returns an appInformer that includes the following set of informers.
@@ -833,6 +846,37 @@ func (appMgr *Manager) getUnifiedAS3Declaration(as3CfgmapDecl as3Declaration, ro
 	if err != nil {
 		log.Debugf("[AS3] Unified declaration: %v\n", err)
 	}
+
+	// Override AS3 Config if AS3 Override is enabled
+	if appMgr.OverrideAS3Decl != "" {
+		// Fetch configMap's namespace and name
+		overrideAS3Decl := strings.Split(appMgr.OverrideAS3Decl, "/")
+		// Fetch configMap using namespace and name as an input
+		cfgMap, err := appMgr.getConfigMapUsingNamespaceAndName(overrideAS3Decl[0], overrideAS3Decl[1])
+		if err != nil {
+			log.Errorf("[AS3] ConfigMap with name %v not found in namespace: %v, error: %v",
+				overrideAS3Decl[1], overrideAS3Decl[0], err)
+		}
+		if cfgMap != nil {
+			// Only one entry is allowed in cfgMap Data
+			if len(cfgMap.Data) == 1 {
+				for _, data := range cfgMap.Data {
+					overriddenUnifiedDecl := ValidateAndOverrideAS3JsonData(data, string(unifiedDecl))
+					if overriddenUnifiedDecl != "" {
+						if ok := appMgr.validateAS3Template(overriddenUnifiedDecl); ok {
+							log.Debugf("[AS3] Unified AS3 declaration is overridden !!! ")
+							return as3Declaration(overriddenUnifiedDecl), true
+						}
+						log.Errorf("[AS3] Error validating unified AS3 template \n")
+						break
+					}
+					log.Errorf("[AS3] Unified AS3 declaration is not overridden due to errors !!! ")
+				}
+			}
+			log.Errorf("[AS3] Invalid override cfgMap, AS3 declaration cannot be overridden !!! ")
+		}
+	}
+
 	return as3Declaration(string(unifiedDecl)), true
 }
 
@@ -859,8 +903,9 @@ func (appMgr *Manager) generateAS3RouteDeclaration() as3ADC {
 	appMgr.processCustomProfilesForAS3(sharedApp)
 
 	// Process RouteProfiles
-	appMgr.processRouteProfilesForAS3(sharedApp)
+	appMgr.processProfilesForAS3(sharedApp)
 
+	// For Ingress process SecretName
 	// Process IRules
 	appMgr.processIRulesForAS3(sharedApp)
 
@@ -903,7 +948,7 @@ func (appMgr *Manager) processIRulesForAS3(sharedApp as3Application) {
 		iRule := &as3IRules{}
 		iRule.Class = "iRule"
 		iRule.IRule = v.Code
-		sharedApp[as3FormatedString(v.Name)] = iRule
+		sharedApp[as3FormatedString(v.Name, deriveResourceTypeFromAS3Value(v.Name))] = iRule
 	}
 }
 
@@ -921,11 +966,11 @@ func (appMgr *Manager) processDataGroupForAS3(sharedApp as3Application) {
 				if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
 					rec.Value = val
 				} else {
-					rec.Value = as3FormatedString(record.Data)
+					rec.Value = as3FormatedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
 				}
 				dgMap.Records = append(dgMap.Records, rec)
 			}
-			sharedApp[as3FormatedString(dg.Name)] = dgMap
+			sharedApp[as3FormatedString(dg.Name, "")] = dgMap
 		}
 	}
 }
@@ -950,11 +995,11 @@ func getDGRecordValueForAS3(dgName string, sharedApp as3Application) (string, bo
 
 func (appMgr *Manager) processCustomProfilesForAS3(sharedApp as3Application) {
 	caBundleName := "serverssl_ca_bundle"
-	clientTLSCreated := false
+	var tlsClient *as3TLSClient
 	// TLS Certificates are available in CustomProfiles
 	for key, prof := range appMgr.customProfiles.profs {
 		// Create TLSServer and Certificate for each profile
-		svcName := as3FormatedString(key.ResourceName)
+		svcName := as3FormatedString(key.ResourceName, deriveResourceTypeFromAS3Value(key.ResourceName))
 		if svcName == "" {
 			continue
 		}
@@ -963,40 +1008,76 @@ func (appMgr *Manager) processCustomProfilesForAS3(sharedApp as3Application) {
 			createCertificateDecl(prof, sharedApp)
 		} else {
 			createUpdateCABundle(prof, caBundleName, sharedApp)
-			if !clientTLSCreated {
-				validateCertificate := false
-				skey := secretKey{
-					Name: prof.Name + "-ca",
-				}
-				if _, ok := appMgr.customProfiles.profs[skey]; ok {
-					validateCertificate = true
-				}
-				clientTLSCreated = createTLSClient(prof, svcName, caBundleName, validateCertificate, sharedApp)
+			if tlsClient == nil {
+				tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
+			}
+			skey := secretKey{
+				Name: prof.Name + "-ca",
+			}
+			if _, ok := appMgr.customProfiles.profs[skey]; ok && tlsClient != nil {
+				// If a profile exist in customProfiles with key as created above
+				// then it indicates that secure-serverssl needs to be added
+				tlsClient.ValidateCertificate = true
 			}
 		}
 	}
 }
 
-func (appMgr *Manager) processRouteProfilesForAS3(sharedApp as3Application) {
+func processRouteTLSProfilesForAS3(metadata *metaData, svc *as3Service) {
+	for key, val := range metadata.RouteProfs {
+		switch key.Context {
+		case customProfileClient:
+			// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
+			svc.ServerTLS = &as3ResourcePointer{
+				BigIP: val,
+			}
+			updateVirtualToHTTPS(svc)
+		case customProfileServer:
+			// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
+			svc.ClientTLS = &as3ResourcePointer{
+				BigIP: val,
+			}
+			updateVirtualToHTTPS(svc)
+		}
+	}
+}
+
+func processIngressTLSProfilesForAS3(virtual *Virtual, svc *as3Service) {
+	// lets discard BIGIP profile creation when there exists a custom profile.
+	for _, profile := range virtual.Profiles {
+		if profile.Partition == "Common" {
+			switch profile.Context {
+			case customProfileClient:
+				// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
+				svc.ServerTLS = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+				}
+				updateVirtualToHTTPS(svc)
+			case customProfileServer:
+				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
+				svc.ClientTLS = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+				}
+				updateVirtualToHTTPS(svc)
+			}
+		}
+
+	}
+
+}
+
+func (appMgr *Manager) processProfilesForAS3(sharedApp as3Application) {
 	// Processes RouteProfs to create AS3 Declaration for Route annotations
 	// Override/Set ServerTLS/ClientTLS in AS3 Service as annotation takes higher priority
 	for svcName, cfg := range appMgr.resources.rsMap {
-		if svc, ok := sharedApp[as3FormatedString(svcName)].(*as3Service); ok {
-			for key, val := range cfg.MetaData.RouteProfs {
-				switch key.Context {
-				case customProfileClient:
-					// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
-					svc.ServerTLS = &as3ResourcePointer{
-						BigIP: val,
-					}
-					updateVirtualToHTTPS(svc)
-				case customProfileServer:
-					// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
-					svc.ClientTLS = &as3ResourcePointer{
-						BigIP: val,
-					}
-					updateVirtualToHTTPS(svc)
-				}
+		if svc, ok := sharedApp[as3FormatedString(svcName, cfg.MetaData.ResourceType)].(*as3Service); ok {
+			switch cfg.MetaData.ResourceType {
+			case resourceTypeRoute:
+				processRouteTLSProfilesForAS3(&cfg.MetaData, svc)
+			case resourceTypeIngress:
+				processIngressTLSProfilesForAS3(&cfg.Virtual, svc)
+			default:
+				log.Warningf("Unsupported resource type: %v", cfg.MetaData.ResourceType)
 			}
 		}
 	}
@@ -1137,18 +1218,21 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			ep.Strategy = s[len(s)-1]
 
 			//Create rules
-			rulesData := &as3Rule{Name: as3FormatedString(rl.Name)}
+			rulesData := &as3Rule{Name: as3FormatedString(rl.Name, cfg.MetaData.ResourceType)}
 
 			//Create condition object
 			createRouteRuleCondition(rl, rulesData)
 
 			//Creat action object
-			createRouteRuleAction(rl, rulesData)
+			createRouteRuleAction(rl, rulesData, cfg.MetaData.ResourceType)
 
 			ep.Rules = append(ep.Rules, rulesData)
 		}
+		if cfg.MetaData.ResourceType == resourceTypeIngress {
+			pl.Name = strings.Title(pl.Name)
+		}
 		//Setting Endpoint_Policy Name
-		sharedApp[as3FormatedString(pl.Name)] = ep
+		sharedApp[as3FormatedString(pl.Name, cfg.MetaData.ResourceType)] = ep
 	}
 }
 
@@ -1171,11 +1255,11 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			monitor.Use = fmt.Sprintf("/%s/%s/%s",
 				DEFAULT_PARTITION,
 				as3SharedApplication,
-				as3FormatedString(use[len(use)-1]),
+				as3FormatedString(use[len(use)-1], cfg.MetaData.ResourceType),
 			)
 			pool.Monitors = append(pool.Monitors, monitor)
 		}
-		sharedApp[as3FormatedString(v.Name)] = pool
+		sharedApp[as3FormatedString(v.Name, cfg.MetaData.ResourceType)] = pool
 	}
 }
 
@@ -1188,17 +1272,23 @@ func updateVirtualToHTTPS(v *as3Service) {
 // Create AS3 Service for Route
 func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	svc := &as3Service{}
-
 	numPolicies := len(cfg.Virtual.Policies)
-	if numPolicies == 1 {
+	switch {
+	case numPolicies == 1:
+		policyName := cfg.Virtual.Policies[0].Name
+		if cfg.MetaData.ResourceType == resourceTypeIngress {
+			policyName = strings.Title(cfg.Virtual.Policies[0].Name)
+		}
 		svc.PolicyEndpoint = fmt.Sprintf("/%s/%s/%s",
 			DEFAULT_PARTITION,
 			as3SharedApplication,
-			cfg.Virtual.Policies[0].Name,
-		)
-	} else if numPolicies > 1 {
+			as3FormatedString(policyName, cfg.MetaData.ResourceType))
+	case numPolicies > 1:
 		var peps []as3ResourcePointer
 		for _, pep := range cfg.Virtual.Policies {
+			if cfg.MetaData.ResourceType == resourceTypeIngress {
+				pep.Name = strings.Title(pep.Name)
+			}
 			svc.PolicyEndpoint = append(
 				peps,
 				as3ResourcePointer{
@@ -1211,6 +1301,15 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			)
 		}
 		svc.PolicyEndpoint = peps
+	case numPolicies == 0:
+		// No policies since we need to handle the pool name.
+		ps := strings.Split(cfg.Virtual.PoolName, "/")
+		if cfg.Virtual.PoolName != "" {
+			svc.Pool = fmt.Sprintf("/%s/%s/%s",
+				DEFAULT_PARTITION,
+				as3SharedApplication,
+				as3FormatedString(ps[len(ps)-1], cfg.MetaData.ResourceType))
+		}
 	}
 
 	svc.Layer4 = cfg.Virtual.IpProtocol
@@ -1235,10 +1334,16 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	destination := strings.Split(cfg.Virtual.Destination, "/")
 	ipPort := strings.Split(destination[len(destination)-1], ":")
-	va := append(svc.VirtualAddresses, ipPort[0])
-	svc.VirtualAddresses = va
-	port, _ := strconv.Atoi(ipPort[1])
-	svc.VirtualPort = port
+	// verify that ip address and port exists else return error.
+	if len(ipPort) == 2 {
+		va := append(svc.VirtualAddresses, ipPort[0])
+		svc.VirtualAddresses = va
+		port, _ := strconv.Atoi(ipPort[1])
+		svc.VirtualPort = port
+	} else {
+		log.Error("Invalid Virtual Server Destination IP address/Port.")
+	}
+
 	svc.SNAT = "auto"
 	for _, v := range cfg.Virtual.IRules {
 		splits := strings.Split(v, "/")
@@ -1249,10 +1354,10 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			}
 			updateVirtualToHTTPS(svc)
 		}
-		svc.IRules = append(svc.IRules, as3FormatedString(iRuleName))
+		svc.IRules = append(svc.IRules, as3FormatedString(iRuleName, cfg.MetaData.ResourceType))
 	}
 
-	sharedApp[as3FormatedString(cfg.Virtual.Name)] = svc
+	sharedApp[as3FormatedString(cfg.Virtual.Name, cfg.MetaData.ResourceType)] = svc
 }
 
 // Create AS3 Rule Condition for Route
@@ -1284,8 +1389,21 @@ func createRouteRuleCondition(rl *Rule, rulesData *as3Rule) {
 			if c.Equals {
 				condition.PathSegment.Operand = "equals"
 			}
+		} else if c.Path {
+			condition.Path = &as3PolicyCompareString{
+				Values: c.Values,
+			}
+			if c.Name != "" {
+				condition.Name = c.Name
+			}
+			condition.Index = c.Index
+			if c.HTTPURI {
+				condition.Type = "httpUri"
+			}
+			if c.Equals {
+				condition.Path.Operand = "equals"
+			}
 		}
-
 		if c.Request {
 			condition.Event = "request"
 		}
@@ -1295,7 +1413,7 @@ func createRouteRuleCondition(rl *Rule, rulesData *as3Rule) {
 }
 
 // Create AS3 Rule Action for Route
-func createRouteRuleAction(rl *Rule, rulesData *as3Rule) {
+func createRouteRuleAction(rl *Rule, rulesData *as3Rule, resourceType string) {
 	for _, v := range rl.Actions {
 		action := &as3Action{}
 		if v.Forward {
@@ -1304,12 +1422,38 @@ func createRouteRuleAction(rl *Rule, rulesData *as3Rule) {
 		if v.Request {
 			action.Event = "request"
 		}
-
+		if v.Redirect {
+			action.Type = "httpRedirect"
+		}
+		if v.HTTPHost {
+			action.Type = "httpHeader"
+		}
+		if v.HTTPURI {
+			action.Type = "httpUri"
+		}
+		if v.Location != "" {
+			action.Location = v.Location
+		}
+		// Handle hostname rewrite.
+		if v.Replace && v.HTTPHost {
+			action.Replace = &as3ActionReplaceMap{
+				Value: v.Value,
+				Name:  "host",
+			}
+		}
+		// handle uri rewrite.
+		if v.Replace && v.HTTPURI {
+			action.Replace = &as3ActionReplaceMap{
+				Value: v.Value,
+			}
+		}
 		p := strings.Split(v.Pool, "/")
-		action.Select = &as3ActionForwardSelect{
-			Pool: &as3ResourcePointer{
-				Use: as3FormatedString(p[len(p)-1]),
-			},
+		if v.Pool != "" {
+			action.Select = &as3ActionForwardSelect{
+				Pool: &as3ResourcePointer{
+					Use: as3FormatedString(p[len(p)-1], resourceType),
+				},
+			}
 		}
 		rulesData.Actions = append(rulesData.Actions, action)
 	}
@@ -1345,14 +1489,23 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			adaptiveFalse := false
 			monitor.Adaptive = &adaptiveFalse
 		}
-		sharedApp[as3FormatedString(v.Name)] = monitor
+		sharedApp[as3FormatedString(v.Name, cfg.MetaData.ResourceType)] = monitor
 	}
 
 }
 
 //Replacing "-" with "_" for given string
-func as3FormatedString(str string) string {
-	return strings.Replace(str, "-", "_", -1)
+// also handling the IP addr to string as per AS3 for Ingress Resource.
+func as3FormatedString(str string, resourceType string) string {
+	var formattedString string
+	switch resourceType {
+	case resourceTypeIngress:
+		formattedString = strings.Replace(str, ".", "_", -1)
+		formattedString = strings.Replace(formattedString, "-", "_", -1)
+	default:
+		formattedString = strings.Replace(str, "-", "_", -1)
+	}
+	return formattedString
 }
 
 func createUpdateCABundle(prof CustomProfile, caBundleName string, sharedApp as3Application) {
@@ -1380,7 +1533,7 @@ func createCertificateDecl(prof CustomProfile, sharedApp as3Application) {
 			ChainCA:     prof.CAFile,
 		}
 
-		sharedApp[as3FormatedString(prof.Name)] = cert
+		sharedApp[as3FormatedString(prof.Name, deriveResourceTypeFromAS3Value(prof.Name))] = cert
 	}
 }
 
@@ -1390,7 +1543,7 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 	if "" != prof.Cert && "" != prof.Key {
 		svc := sharedApp[svcName].(*as3Service)
 		tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
-		certName := as3FormatedString(prof.Name)
+		certName := as3FormatedString(prof.Name, deriveResourceTypeFromAS3Value(prof.Name))
 
 		tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
 		if !ok {
@@ -1418,28 +1571,35 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 func createTLSClient(
 	prof CustomProfile,
 	svcName, caBundleName string,
-	validateCertificate bool,
 	sharedApp as3Application,
-) bool {
+) *as3TLSClient {
 	// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
 	if "" != prof.Cert && "" == prof.Key {
 		svc := sharedApp[svcName].(*as3Service)
 		tlsClientName := fmt.Sprintf("%s_tls_client", svcName)
 
 		tlsClient := &as3TLSClient{
-			Class:               "TLS_Client",
-			ValidateCertificate: validateCertificate,
+			Class: "TLS_Client",
+			TrustCA: &as3ResourcePointer{
+				Use: caBundleName,
+			},
 		}
-		tlsClient.TrustCA = &as3ResourcePointer{
-			Use: caBundleName,
-		}
+
 		sharedApp[tlsClientName] = tlsClient
 		svc.ClientTLS = tlsClientName
 		updateVirtualToHTTPS(svc)
 
-		return true
+		return tlsClient
 	}
-	return false
+	return nil
+}
+
+// Utils definition to handle openshift and ingress resource types.
+func deriveResourceTypeFromAS3Value(val string) string {
+	if strings.HasPrefix(val, "openshift_") {
+		return resourceTypeRoute
+	}
+	return resourceTypeIngress
 }
 
 func (appMgr *Manager) DeleteAS3ManagedPartition() {

@@ -3,6 +3,27 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 Next Release
 ------------
+Added Functionality
+`````````````````````
+* Support AS3 for BIG-IP orchestration with Kubernetes Ingress.
+* Users can override parameters in controller generated AS3 declaration using a new `--override-as3-declaration` option.
+* CIS handles URL paths to the nearest matching parent path for OpenShift Routes.
+* Added new command-line option “--log-as3-response” to log as3 error response.
+
+Bug Fixes
+`````````
+* CIS handles the combination of Edge and Re-encrypt OpenShift routes.
+* CIS does not send encrypted traffic to Edge Route backend.
+* :issues:`1041` CIS now does not log dozens of "INFO" log messages frequently.
+* :issues:`931` Issue resolved for the Prometheus metric status="parse-error".
+
+Limitations
+```````````
+* Master Node label must set to "node-role.kubernetes.io/master=true" when operating on K8S version 1.13.4 or OSCP version 4.1 and above in nodeport mode. If not set, BIG-IP treats master node as any other pool member.
+* CIS considers `secure-serverssl` annotation as `true` irrespective of the configuration.
+
+v1.11.1
+------------
 Bug Fixes
 `````````
 * Controller handles WAF Policy in the root path of a domain in OpenShift Routes.

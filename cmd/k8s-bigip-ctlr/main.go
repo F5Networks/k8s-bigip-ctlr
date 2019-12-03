@@ -749,9 +749,7 @@ func main() {
 
 	appMgr := appmanager.NewManager(&appMgrParms)
 	// Delete as3 managed partition when switching back to agent cccl from as3
-	if appMgr.Agent == "cccl" {
-		appMgr.DeleteAS3ManagedPartition()
-	}
+	appMgr.DeleteCISManagedPartition()
 
 	// AS3 schema validation using latest AS3 version
 	fetchAS3Schema(appMgr)

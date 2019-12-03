@@ -5,20 +5,22 @@ Next Release
 ------------
 Added Functionality
 `````````````````````
-* Controller handles extended URL paths to the nearest matching backend context paths.
 * Support AS3 for BIG-IP orchestration with Kubernetes Ingress.
-* Controller implements support for overriding already existing AS3 resources(ConfigMap, Route and Ingress) through ConfigMap. 
+* Users can override parameters in controller generated AS3 declaration using a new `--override-as3-declaration` option.
+* CIS handles URL paths to the nearest matching parent path for OpenShift Routes.
+* Added new command-line option “--log-as3-response” to log as3 error response.
 
 Bug Fixes
 `````````
-* Controller handles combination of Edge and Reencrypt Openshift routes.
-* Controller now does not send encrypted traffic to backend.
-* Controller now does not log dozens of "INFO" log messages frequently in CCCL mode.
-* Ingress in K8S cluster mode, observing no data plane traffic as there were no static ARP entries available in BIG-IP.
+* CIS handles the combination of Edge and Re-encrypt OpenShift routes.
+* CIS does not send encrypted traffic to Edge Route backend.
+* :issues:`1041` CIS now does not log dozens of "INFO" log messages frequently.
+* :issues:`931` Issue resolved for the Prometheus metric status="parse-error".
 
 Limitations
 ```````````
-* Master Node label must set to "node-role.kubernetes.io/master=true" when operating on K8S version 1.13.4 or OSCP version 4.1 in nodeport mode. If not set, BIG-IP treats master node as any other pool member.
+* Master Node label must set to "node-role.kubernetes.io/master=true" when operating on K8S version 1.13.4 or OSCP version 4.1 and above in nodeport mode. If not set, BIG-IP treats master node as any other pool member.
+* CIS considers `secure-serverssl` annotation as `true` irrespective of the configuration.
 
 v1.11.1
 ------------

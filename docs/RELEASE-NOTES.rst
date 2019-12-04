@@ -20,7 +20,7 @@ Bug Fixes
 Limitations
 ```````````
 * Master Node label must set to "node-role.kubernetes.io/master=true" when operating on K8S version 1.13.4 or OSCP version 4.1 and above in nodeport mode. If not set, BIG-IP treats master node as any other pool member.
-* CIS considers `secure-serverssl` annotation as `true` irrespective of the configuration.
+* If any route is configured with `secure-serverssl` annotation as `true`, then rest of the routes in CIS will override the same behaviour. By default `secure-serverssl` is false and disabled.
 
 v1.11.1
 ------------
@@ -29,7 +29,6 @@ Bug Fixes
 * Controller handles WAF Policy in the root path of a domain in OpenShift Routes.
 * Controller handles OpenShift Routes with WAF Policy in multiple namespaces.
 * Controller now does not push configuration to BigIP using AS3 for every 30 seconds with no changes.
-* :issues:`1041` Controller now does not log dozens of "INFO" log messages frequently.
 * :issues:`1040` Controller does not crashes if latest AS3 schema is not available.
 * Controller updates Route Status in OpenShift Management Console (OCP 4.x)
 * Controller does not crash when handling Route with WAF Policy that does not have a service.

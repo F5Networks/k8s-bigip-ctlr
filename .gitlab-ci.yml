@@ -68,6 +68,9 @@ OSCP-Cluster-Mode:
   stage: Test
   before_script:
     - source shared-vars.sh   
+  only:
+    - schedules
+  allow_failure: true
   script:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
@@ -82,6 +85,9 @@ OSCP-Nodeport-Mode:
   stage: Test
   before_script:
     - source shared-vars.sh   
+  only:
+    - schedules
+  allow_failure: true
   script:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
@@ -97,6 +103,7 @@ K8s-Cluster-Mode:
     - source shared-vars.sh 
   only:
     - schedules
+  allow_failure: true
   script:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
@@ -112,6 +119,7 @@ K8s-Nodeport-Mode:
     - source shared-vars.sh 
   only:
     - schedules
+  allow_failure: true
   script:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')

@@ -1,7 +1,7 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-Next Release
+1.12.0
 ------------
 Added Functionality
 `````````````````````
@@ -21,6 +21,7 @@ Limitations
 ```````````
 * Master Node label must set to "node-role.kubernetes.io/master=true" when operating on K8S version 1.13.4 or OSCP version 4.1 and above in nodeport mode. If not set, BIG-IP treats master node as any other pool member.
 * CIS considers `secure-serverssl` annotation as `true` irrespective of the configuration.
+* CIS does not support virtual-server.f5.com/http-port annotation.
 
 v1.11.1
 ------------

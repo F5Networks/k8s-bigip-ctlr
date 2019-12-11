@@ -1612,8 +1612,6 @@ func (appMgr *Manager) DeleteCISManagedPartition() {
 	decl := as3Config["declaration"].(map[string]interface{})
 	if appMgr.Agent == "cccl" {
 		decl[DEFAULT_PARTITION+"_AS3"] = map[string]string{"class": "Tenant"}
-	} else if appMgr.Agent == "as3" {
-		decl[DEFAULT_PARTITION] = map[string]string{"class": "Tenant"}
 	} else {
 		return
 	}

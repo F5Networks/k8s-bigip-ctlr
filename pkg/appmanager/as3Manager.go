@@ -487,10 +487,14 @@ func (appMgr *Manager) postAS3Declaration(declaration as3Declaration,
 		}
 		if rsp != "" {
 			// Update AS3 Modified flag if the as3 declaration is posted to BIG-IP
-			appMgr.as3Modified = true
+			if appMgr.Agent == "as3" {
+				appMgr.as3Modified = true
+			}
 		}
 	} else {
-		appMgr.as3RouteCfg.Pending = true
+		if appMgr.Agent == "as3" {
+			appMgr.as3RouteCfg.Pending = true
+		}
 	}
 }
 

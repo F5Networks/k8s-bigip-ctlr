@@ -955,22 +955,37 @@ func (appMgr *Manager) processIRulesForAS3(sharedApp as3Application) {
 func (appMgr *Manager) processDataGroupForAS3(sharedApp as3Application) {
 	for idk, idg := range appMgr.intDgMap {
 		for _, dg := range idg {
-			dgMap := &as3DataGroup{}
-			dgMap.Class = "Data_Group"
-			dgMap.KeyDataType = "string"
-
-			for _, record := range dg.Records {
-				var rec as3Record
-				rec.Key = record.Name
-				// To override default Value created for CCCL for certain DG types
-				if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
-					rec.Value = val
-				} else {
-					rec.Value = as3FormatedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+			dataGroupRecord, found := sharedApp[as3FormatedString(dg.Name, "")]
+			if !found {
+				dgMap := &as3DataGroup{}
+				dgMap.Class = "Data_Group"
+				dgMap.KeyDataType = "string"
+				for _, record := range dg.Records {
+					var rec as3Record
+					rec.Key = record.Name
+					// To override default Value created for CCCL for certain DG types
+					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
+						rec.Value = val
+					} else {
+						rec.Value = as3FormatedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+					}
+					dgMap.Records = append(dgMap.Records, rec)
 				}
-				dgMap.Records = append(dgMap.Records, rec)
+				sharedApp[as3FormatedString(dg.Name, "")] = dgMap
+			} else {
+				for _, record := range dg.Records {
+					var rec as3Record
+					rec.Key = record.Name
+					// To override default Value created for CCCL for certain DG types
+					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
+						rec.Value = val
+					} else {
+						rec.Value = as3FormatedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+					}
+					sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
+				}
 			}
-			sharedApp[as3FormatedString(dg.Name, "")] = dgMap
+
 		}
 	}
 }

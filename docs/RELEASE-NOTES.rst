@@ -3,8 +3,9 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 Next Release
 ------------
-
-
+Bug Fixes
+`````````
+* Controller handles data group correctly with routes/ingress in multiple namespaces. 
 
 1.12.0
 ------------

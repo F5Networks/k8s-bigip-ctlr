@@ -359,8 +359,11 @@ func httpRedirectIRule(port int32) string {
 	// The data is a list of paths for the host delimited by '|' or '/' for all.
 	iRuleCode := fmt.Sprintf(`
 		when HTTP_REQUEST {
-			# Look for exact match for host name
-			set paths [class match -value [HTTP::host] equals https_redirect_dg]
+			# Look for exact match for combination of host name and path
+			set host [HTTP::host]
+			set path [HTTP::path]
+			append host $path
+			set paths [class match -value $host equals https_redirect_dg]
 			if {$paths == ""} {
 				# See if there's an entry that matches all hosts
 				set paths [class match -value "*" equals https_redirect_dg]
@@ -1036,20 +1039,10 @@ func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap) {
 			dgMap[skey.Namespace] = nsGrp
 		}
 		for host, pathMap := range hostMap {
-			paths := []string{}
 			for path, _ := range pathMap {
-				paths = append(paths, path)
+				nsGrp.AddOrUpdateRecord(host+path, path)
 			}
-			// Need to sort the paths to have consistent ordering
-			sort.Strings(paths)
-			var buf bytes.Buffer
-			for i, path := range paths {
-				if i > 0 {
-					buf.WriteString("|")
-				}
-				buf.WriteString(path)
-			}
-			nsGrp.AddOrUpdateRecord(host, buf.String())
+
 		}
 	}
 }

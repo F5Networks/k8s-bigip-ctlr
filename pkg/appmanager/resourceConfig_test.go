@@ -606,6 +606,8 @@ var _ = Describe("Resource Config Tests", func() {
 
 			It("properly configures ingress resources", func() {
 				namespace := "default"
+				mockMgr.appMgr.manageIngressClassOnly = false
+				mockMgr.appMgr.ingressClass = "f5"
 				ingressConfig := v1beta1.IngressSpec{
 					Backend: &v1beta1.IngressBackend{
 						ServiceName: "foo",

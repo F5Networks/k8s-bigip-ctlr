@@ -87,21 +87,23 @@ var (
 	printVersion     *bool
 	httpAddress      *string
 
-	namespaces        *[]string
-	useNodeInternal   *bool
-	poolMemberType    *string
-	inCluster         *bool
-	kubeConfig        *string
-	namespaceLabel    *string
-	manageRoutes      *bool
-	manageConfigMaps  *bool
-	manageIngress     *bool
-	nodeLabelSelector *string
-	resolveIngNames   *string
-	defaultIngIP      *string
-	vsSnatPoolName    *string
-	useSecrets        *bool
-	schemaLocal       *string
+	namespaces             *[]string
+	useNodeInternal        *bool
+	poolMemberType         *string
+	inCluster              *bool
+	kubeConfig             *string
+	namespaceLabel         *string
+	manageRoutes           *bool
+	manageConfigMaps       *bool
+	manageIngress          *bool
+	nodeLabelSelector      *string
+	resolveIngNames        *string
+	defaultIngIP           *string
+	vsSnatPoolName         *string
+	useSecrets             *bool
+	schemaLocal            *string
+	manageIngressClassOnly *bool
+	ingressClass           *string
 
 	bigIPURL           *string
 	bigIPUsername      *string
@@ -239,6 +241,14 @@ func _init() {
 		"Optional, enable/disable use of Secrets for Ingress or ConfigMap SSL Profiles.")
 	schemaLocal = kubeFlags.String("schema-db-base-dir", "file:///app/vendor/src/f5/schemas/",
 		"Optional, where the schema db's locally reside")
+	manageIngressClassOnly = kubeFlags.Bool("manage-ingress-class-only", false,
+		"Optional, default `false`. Process all ingress resources without `kubernetes.io/ingress.class`"+
+			"annotation and ingresses with annotation `kubernetes.io/ingress.class=f5`.")
+	ingressClass = kubeFlags.String("ingress-class", "f5",
+		"Optional, default `f5`. A class of the Ingress controller. The Ingress controller only processes Ingress"+
+			"resources that belong to its class - i.e. have the annotation `kubernetes.io/ingress.class` equal to the class."+
+			"Additionally, the Ingress controller processes Ingress resources that do not have that annotation,"+
+			"which can be disabled by setting the `-manage-ingress-class-only` flag")
 
 	// If the flag is specified with no argument, default to LOOKUP
 	kubeFlags.Lookup("resolve-ingress-names").NoOptDefVal = "LOOKUP"
@@ -646,24 +656,26 @@ func main() {
 	}
 
 	var appMgrParms = appmanager.Params{
-		ConfigWriter:       configWriter,
-		UseNodeInternal:    *useNodeInternal,
-		IsNodePort:         isNodePort,
-		RouteConfig:        routeConfig,
-		NodeLabelSelector:  *nodeLabelSelector,
-		ResolveIngress:     *resolveIngNames,
-		DefaultIngIP:       *defaultIngIP,
-		VsSnatPoolName:     *vsSnatPoolName,
-		UseSecrets:         *useSecrets,
-		ManageConfigMaps:   *manageConfigMaps,
-		ManageIngress:      *manageIngress,
-		SchemaLocal:        *schemaLocal,
-		AS3Validation:      *as3Validation,
-		SSLInsecure:        *sslInsecure,
-		TrustedCertsCfgmap: *trustedCertsCfgmap,
-		OverrideAS3Decl:    *overrideAS3Decl,
-		Agent:              *agent,
-		LogAS3Response:     *logAS3Response,
+		ConfigWriter:           configWriter,
+		UseNodeInternal:        *useNodeInternal,
+		IsNodePort:             isNodePort,
+		RouteConfig:            routeConfig,
+		NodeLabelSelector:      *nodeLabelSelector,
+		ResolveIngress:         *resolveIngNames,
+		DefaultIngIP:           *defaultIngIP,
+		VsSnatPoolName:         *vsSnatPoolName,
+		UseSecrets:             *useSecrets,
+		ManageConfigMaps:       *manageConfigMaps,
+		ManageIngress:          *manageIngress,
+		ManageIngressClassOnly: *manageIngressClassOnly,
+		IngressClass:           *ingressClass,
+		SchemaLocal:            *schemaLocal,
+		AS3Validation:          *as3Validation,
+		SSLInsecure:            *sslInsecure,
+		TrustedCertsCfgmap:     *trustedCertsCfgmap,
+		OverrideAS3Decl:        *overrideAS3Decl,
+		Agent:                  *agent,
+		LogAS3Response:         *logAS3Response,
 	}
 
 	// If running with Flannel, create an event channel that the appManager

@@ -144,13 +144,15 @@ var _ = Describe("Event Notifier Tests", func() {
 			Expect(fakeClient).ToNot(BeNil())
 
 			mockMgr = newMockAppManager(&Params{
-				KubeClient:      fakeClient,
-				ConfigWriter:    mw,
-				restClient:      test.CreateFakeHTTPClient(),
-				RouteClientV1:   fakeRouteClient.NewSimpleClientset().RouteV1(),
-				IsNodePort:      true,
-				ManageIngress:   true,
-				broadcasterFunc: NewFakeEventBroadcaster,
+				KubeClient:             fakeClient,
+				ConfigWriter:           mw,
+				restClient:             test.CreateFakeHTTPClient(),
+				RouteClientV1:          fakeRouteClient.NewSimpleClientset().RouteV1(),
+				IsNodePort:             true,
+				ManageIngress:          true,
+				broadcasterFunc:        NewFakeEventBroadcaster,
+				ManageIngressClassOnly: false,
+				IngressClass:           "f5",
 			})
 			namespaces = []string{"ns0", "ns1", "ns2", "ns3", "ns4", "ns5"}
 			err := mockMgr.startNonLabelMode(namespaces)

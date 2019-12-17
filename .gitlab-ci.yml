@@ -60,7 +60,6 @@ Build-Image:
         docker tag "$IMG_TAG" "$BUILD_IMG_TAG"
         docker push "$BUILD_IMG_TAG" 
       fi
-
 OSCP-Cluster-Mode:
   tags: 
     - oscp
@@ -68,13 +67,15 @@ OSCP-Cluster-Mode:
   stage: Test
   before_script:
     - source shared-vars.sh   
+  only:
+    - schedules
+  allow_failure: true
   script:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
       sed -i  "/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\"," ~/testenv_symbols/testenv_symbols.json
       cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags=${INCLUDE_TAGS} --orchestration=openshift --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags=${EXCLUDE_TAGS};
-      if [ $(cat $HOME/test_results/${SESSION}-cluster/${SESSION}-cluster-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Smoke test failed"; exit 1; fi 
-
+      if [ $(cat $HOME/test_results/${SESSION}-cluster/${SESSION}-cluster-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Test failed"; exit 1; fi 
 OSCP-Nodeport-Mode:
   tags: 
     - oscp
@@ -82,13 +83,15 @@ OSCP-Nodeport-Mode:
   stage: Test
   before_script:
     - source shared-vars.sh   
+  only:
+    - schedules
+  allow_failure: true
   script:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
       sed -i  "/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\"," ~/testenv_symbols/testenv_symbols.json
       cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags=${INCLUDE_TAGS} --orchestration=openshift --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags=${EXCLUDE_TAGS} ;
-      if [ $(cat $HOME/test_results/${SESSION}-nodeport/${SESSION}-nodeport-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Smoke test failed"; exit 1; fi 
-
+      if [ $(cat $HOME/test_results/${SESSION}-nodeport/${SESSION}-nodeport-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Test failed"; exit 1; fi 
 K8s-Cluster-Mode:
   tags: 
     - k8s
@@ -97,13 +100,13 @@ K8s-Cluster-Mode:
     - source shared-vars.sh 
   only:
     - schedules
+  allow_failure: true
   script:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
       sed -i  "/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\"," ~/testenv_symbols/testenv_symbols.json
       cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags=${INCLUDE_TAGS} --orchestration=k8s --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags=${EXCLUDE_TAGS};
-      if [ $(cat $HOME/test_results/${SESSION}-cluster/${SESSION}-cluster-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Smoke test failed"; exit 1; fi 
-
+      if [ $(cat $HOME/test_results/${SESSION}-cluster/${SESSION}-cluster-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Test failed"; exit 1; fi 
 K8s-Nodeport-Mode:
   tags: 
     - k8s
@@ -112,10 +115,10 @@ K8s-Nodeport-Mode:
     - source shared-vars.sh 
   only:
     - schedules
+  allow_failure: true
   script:
     - |
       SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
       sed -i  "/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\"," ~/testenv_symbols/testenv_symbols.json
       cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags=${INCLUDE_TAGS} --orchestration=k8s --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags=${EXCLUDE_TAGS} ;
-      if [ $(cat $HOME/test_results/${SESSION}-nodeport/${SESSION}-nodeport-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Smoke test failed"; exit 1; fi 
-
+      if [ $(cat $HOME/test_results/${SESSION}-nodeport/${SESSION}-nodeport-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Test failed"; exit 1; fi 

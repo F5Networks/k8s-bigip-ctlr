@@ -35,7 +35,6 @@ import (
 	"github.com/xeipuuv/gojsonschema"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -1693,9 +1692,8 @@ func (appMgr *Manager) handleIngressTls(
 		for _, tls := range ing.Spec.TLS {
 			// Check if profile is contained in a Secret
 			if appMgr.useSecrets {
-				secret, err := appMgr.kubeClient.CoreV1().Secrets(ing.ObjectMeta.Namespace).
-					Get(tls.SecretName, metav1.GetOptions{})
-				if err != nil {
+				secret := appMgr.IngressSSLCtxt[tls.SecretName]
+				if secret == nil {
 					// No secret, so we assume the profile is a BIG-IP default
 					log.Debugf("No Secret with name '%s' in namespace '%s', "+
 						"parsing secretName as path instead.",
@@ -1705,6 +1703,7 @@ func (appMgr *Manager) handleIngressTls(
 					rsCfg.Virtual.AddOrUpdateProfile(profRef)
 					continue
 				}
+				var err error
 				err, cpUpdated = appMgr.createSecretSslProfile(rsCfg, secret)
 				if err != nil {
 					log.Warningf("%v", err)

@@ -3165,7 +3165,7 @@ var _ = Describe("AppManager Tests", func() {
 				flatDg := nsMap.FlattenNamespaces()
 				Expect(flatDg).ToNot(BeNil(), "should have data")
 				Expect(len(flatDg.Records)).To(Equal(1))
-				Expect(flatDg.Records[0].Name).To(Equal(host))
+				Expect(flatDg.Records[0].Name).To(Equal(host + fooPath))
 				Expect(flatDg.Records[0].Data).To(Equal(fooPath))
 
 				// Add a route for the same host but different path
@@ -3181,10 +3181,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(found).To(BeTrue(), "redirect group not found")
 				flatDg = nsMap.FlattenNamespaces()
 				Expect(flatDg).ToNot(BeNil(), "should have data")
-				Expect(len(flatDg.Records)).To(Equal(1))
-				Expect(flatDg.Records[0].Name).To(Equal(host))
-				fooAndBarPath := fmt.Sprintf("%s|%s", barPath, fooPath)
-				Expect(flatDg.Records[0].Data).To(Equal(fooAndBarPath))
+				Expect(len(flatDg.Records)).To(Equal(2))
 
 				// Delete one of the duplicates for foo.com/foo, should not change dg
 				r = mockMgr.deleteIngress(ing2)
@@ -3193,9 +3190,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(found).To(BeTrue(), "redirect group not found")
 				flatDg = nsMap.FlattenNamespaces()
 				Expect(flatDg).ToNot(BeNil(), "should have data")
-				Expect(len(flatDg.Records)).To(Equal(1))
-				Expect(flatDg.Records[0].Name).To(Equal(host))
-				Expect(flatDg.Records[0].Data).To(Equal(fooAndBarPath))
+				Expect(len(flatDg.Records)).To(Equal(2))
 
 				// Delete the second duplicate for foo.com/foo, should change dg
 				r = mockMgr.deleteIngress(ing1a)
@@ -3205,10 +3200,10 @@ var _ = Describe("AppManager Tests", func() {
 				flatDg = nsMap.FlattenNamespaces()
 				Expect(flatDg).ToNot(BeNil(), "should have data")
 				Expect(len(flatDg.Records)).To(Equal(1))
-				Expect(flatDg.Records[0].Name).To(Equal(host))
+				Expect(flatDg.Records[0].Name).To(Equal(host + barPath))
 				Expect(flatDg.Records[0].Data).To(Equal(barPath))
 
-				// Delete last route, should produce a nil dg
+				// Delete last ingress, should produce a nil dg
 				r = mockMgr.deleteIngress(ing1b)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 				flatDg = nsMap.FlattenNamespaces()
@@ -3683,7 +3678,7 @@ var _ = Describe("AppManager Tests", func() {
 					flatDg := nsMap.FlattenNamespaces()
 					Expect(flatDg).ToNot(BeNil(), "should have data")
 					Expect(len(flatDg.Records)).To(Equal(1))
-					Expect(flatDg.Records[0].Name).To(Equal(host))
+					Expect(flatDg.Records[0].Name).To(Equal(host + fooPath))
 					Expect(flatDg.Records[0].Data).To(Equal(fooPath))
 
 					// Add a route for the same host but different path
@@ -3695,10 +3690,7 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(found).To(BeTrue(), "redirect group not found")
 					flatDg = nsMap.FlattenNamespaces()
 					Expect(flatDg).ToNot(BeNil(), "should have data")
-					Expect(len(flatDg.Records)).To(Equal(1))
-					Expect(flatDg.Records[0].Name).To(Equal(host))
-					fooAndBarPath := fmt.Sprintf("%s|%s", barPath, fooPath)
-					Expect(flatDg.Records[0].Data).To(Equal(fooAndBarPath))
+					Expect(len(flatDg.Records)).To(Equal(2))
 
 					// Delete one of the duplicates for foo.com/foo, should not change dg
 					r = mockMgr.deleteRoute(route2)
@@ -3707,9 +3699,7 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(found).To(BeTrue(), "redirect group not found")
 					flatDg = nsMap.FlattenNamespaces()
 					Expect(flatDg).ToNot(BeNil(), "should have data")
-					Expect(len(flatDg.Records)).To(Equal(1))
-					Expect(flatDg.Records[0].Name).To(Equal(host))
-					Expect(flatDg.Records[0].Data).To(Equal(fooAndBarPath))
+					Expect(len(flatDg.Records)).To(Equal(2))
 
 					// Delete the second duplicate for foo.com/foo, should change dg
 					r = mockMgr.deleteRoute(route1a)
@@ -3719,7 +3709,7 @@ var _ = Describe("AppManager Tests", func() {
 					flatDg = nsMap.FlattenNamespaces()
 					Expect(flatDg).ToNot(BeNil(), "should have data")
 					Expect(len(flatDg.Records)).To(Equal(1))
-					Expect(flatDg.Records[0].Name).To(Equal(host))
+					Expect(flatDg.Records[0].Name).To(Equal(host + barPath))
 					Expect(flatDg.Records[0].Data).To(Equal(barPath))
 
 					// Delete last route, should produce a nil dg

@@ -1451,11 +1451,16 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	snatPoolName string,
 ) *ResourceConfig {
 	if class, ok := ing.ObjectMeta.Annotations[k8sIngressClass]; ok == true {
-		if class != "f5" {
+		if class != appMgr.ingressClass {
+			return nil
+		}
+	} else {
+		// at this point we dont have k8sIngressClass defined in Ingress definition.
+		// So check whether we need to process those ingress or not.
+		if appMgr.manageIngressClassOnly {
 			return nil
 		}
 	}
-
 	var cfg ResourceConfig
 	var balance string
 	if bal, ok := ing.ObjectMeta.Annotations[f5VsBalanceAnnotation]; ok == true {

@@ -131,13 +131,15 @@ type Manager struct {
 	// map of rules that have been merged
 	mergedRulesMap map[string]map[string]mergedRuleEntry
 	// Whether to watch ConfigMap resources or not
-	manageConfigMaps   bool
-	manageIngress      bool
-	as3Members         map[Member]struct{}
-	as3Modified        bool
-	as3Validation      bool
-	sslInsecure        bool
-	trustedCertsCfgmap string
+	manageConfigMaps       bool
+	manageIngress          bool
+	manageIngressClassOnly bool
+	ingressClass           string
+	as3Members             map[Member]struct{}
+	as3Modified            bool
+	as3Validation          bool
+	sslInsecure            bool
+	trustedCertsCfgmap     string
 	// Orchestration agent: AS3 or CCCL
 	Agent string
 	// Active User Defined ConfigMap details
@@ -193,19 +195,21 @@ type Params struct {
 	UseSecrets        bool
 	EventChan         chan interface{}
 	// Package local for unit testing only
-	restClient         rest.Interface
-	initialState       bool
-	broadcasterFunc    NewBroadcasterFunc
-	SchemaLocal        string
-	ManageConfigMaps   bool
-	ManageIngress      bool
-	AS3Validation      bool
-	SSLInsecure        bool
-	TrustedCertsCfgmap string
-	Agent              string
-	OverrideAS3Decl    string
-	SchemaLocalPath    string
-	LogAS3Response     bool
+	restClient             rest.Interface
+	initialState           bool
+	broadcasterFunc        NewBroadcasterFunc
+	SchemaLocal            string
+	ManageConfigMaps       bool
+	ManageIngress          bool
+	ManageIngressClassOnly bool
+	IngressClass           string
+	AS3Validation          bool
+	SSLInsecure            bool
+	TrustedCertsCfgmap     string
+	Agent                  string
+	OverrideAS3Decl        string
+	SchemaLocalPath        string
+	LogAS3Response         bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -227,45 +231,47 @@ func NewManager(params *Params) *Manager {
 	nsQueue := workqueue.NewNamedRateLimitingQueue(
 		workqueue.DefaultControllerRateLimiter(), "namespace-controller")
 	manager := Manager{
-		resources:          NewResources(),
-		customProfiles:     NewCustomProfiles(),
-		irulesMap:          make(IRulesMap),
-		intDgMap:           make(InternalDataGroupMap),
-		kubeClient:         params.KubeClient,
-		restClientv1:       params.restClient,
-		restClientv1beta1:  params.restClient,
-		routeClientV1:      params.RouteClientV1,
-		configWriter:       params.ConfigWriter,
-		useNodeInternal:    params.UseNodeInternal,
-		isNodePort:         params.IsNodePort,
-		initialState:       params.initialState,
-		queueLen:           0,
-		processedItems:     0,
-		routeConfig:        params.RouteConfig,
-		nodeLabelSelector:  params.NodeLabelSelector,
-		resolveIng:         params.ResolveIngress,
-		defaultIngIP:       params.DefaultIngIP,
-		vsSnatPoolName:     params.VsSnatPoolName,
-		useSecrets:         params.UseSecrets,
-		eventChan:          params.EventChan,
-		vsQueue:            vsQueue,
-		nsQueue:            nsQueue,
-		appInformers:       make(map[string]*appInformer),
-		eventNotifier:      NewEventNotifier(params.broadcasterFunc),
-		schemaLocal:        params.SchemaLocal,
-		mergedRulesMap:     make(map[string]map[string]mergedRuleEntry),
-		manageConfigMaps:   params.ManageConfigMaps,
-		manageIngress:      params.ManageIngress,
-		as3Members:         make(map[Member]struct{}, 0),
-		as3Modified:        false,
-		as3Validation:      params.AS3Validation,
-		sslInsecure:        params.SSLInsecure,
-		trustedCertsCfgmap: params.TrustedCertsCfgmap,
-		Agent:              getValidAgent(params.Agent),
-		OverrideAS3Decl:    params.OverrideAS3Decl,
-		intF5Res:           make(map[string]InternalF5Resources),
-		SchemaLocalPath:    params.SchemaLocal,
-		logAS3Response:     params.LogAS3Response,
+		resources:              NewResources(),
+		customProfiles:         NewCustomProfiles(),
+		irulesMap:              make(IRulesMap),
+		intDgMap:               make(InternalDataGroupMap),
+		kubeClient:             params.KubeClient,
+		restClientv1:           params.restClient,
+		restClientv1beta1:      params.restClient,
+		routeClientV1:          params.RouteClientV1,
+		configWriter:           params.ConfigWriter,
+		useNodeInternal:        params.UseNodeInternal,
+		isNodePort:             params.IsNodePort,
+		initialState:           params.initialState,
+		queueLen:               0,
+		processedItems:         0,
+		routeConfig:            params.RouteConfig,
+		nodeLabelSelector:      params.NodeLabelSelector,
+		resolveIng:             params.ResolveIngress,
+		defaultIngIP:           params.DefaultIngIP,
+		vsSnatPoolName:         params.VsSnatPoolName,
+		useSecrets:             params.UseSecrets,
+		eventChan:              params.EventChan,
+		vsQueue:                vsQueue,
+		nsQueue:                nsQueue,
+		appInformers:           make(map[string]*appInformer),
+		eventNotifier:          NewEventNotifier(params.broadcasterFunc),
+		schemaLocal:            params.SchemaLocal,
+		mergedRulesMap:         make(map[string]map[string]mergedRuleEntry),
+		manageConfigMaps:       params.ManageConfigMaps,
+		manageIngress:          params.ManageIngress,
+		manageIngressClassOnly: params.ManageIngressClassOnly,
+		ingressClass:           params.IngressClass,
+		as3Members:             make(map[Member]struct{}, 0),
+		as3Modified:            false,
+		as3Validation:          params.AS3Validation,
+		sslInsecure:            params.SSLInsecure,
+		trustedCertsCfgmap:     params.TrustedCertsCfgmap,
+		Agent:                  getValidAgent(params.Agent),
+		OverrideAS3Decl:        params.OverrideAS3Decl,
+		intF5Res:               make(map[string]InternalF5Resources),
+		SchemaLocalPath:        params.SchemaLocal,
+		logAS3Response:         params.LogAS3Response,
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -1191,7 +1197,6 @@ func (appMgr *Manager) syncIngresses(
 		if ing.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
-
 		// Resolve first Ingress Host name (if required)
 		_, exists := ing.ObjectMeta.Annotations[f5VsBindAddrAnnotation]
 		if !exists && appMgr.resolveIng != "" {

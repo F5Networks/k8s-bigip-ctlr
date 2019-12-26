@@ -43,13 +43,15 @@ var _ = Describe("Health Monitor Tests", func() {
 		Expect(fakeClient).ToNot(BeNil())
 
 		mockMgr = newMockAppManager(&Params{
-			KubeClient:      fakeClient,
-			ConfigWriter:    mw,
-			restClient:      test.CreateFakeHTTPClient(),
-			RouteClientV1:   fakeRouteClient.NewSimpleClientset().RouteV1(),
-			IsNodePort:      true,
-			ManageIngress:   true,
-			broadcasterFunc: NewFakeEventBroadcaster,
+			KubeClient:             fakeClient,
+			ConfigWriter:           mw,
+			restClient:             test.CreateFakeHTTPClient(),
+			RouteClientV1:          fakeRouteClient.NewSimpleClientset().RouteV1(),
+			IsNodePort:             true,
+			ManageIngress:          true,
+			broadcasterFunc:        NewFakeEventBroadcaster,
+			ManageIngressClassOnly: false,
+			IngressClass:           "f5",
 		})
 		namespace = "default"
 		err := mockMgr.startNonLabelMode([]string{namespace})

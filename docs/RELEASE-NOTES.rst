@@ -3,6 +3,13 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 Next Release
 ------------
+
+Added Functionality
+`````````````````````
+* Added new command-line options:
+  - `--manage-ingress-class-only`: A flag whether to handle Ingresses that do not have the class annotation and with annotation `kubernetes.io/ingress.class` set to `f5`. When set to `true`, process ingress resources with `kubernetes.io/ingress.class` set to `f5` or custom ingress class.
+  - `--ingress-class` to define custom ingress class to watch.
+
 Bug Fixes
 `````````
 * Controller handles data group correctly with routes/ingress in multiple namespaces. 

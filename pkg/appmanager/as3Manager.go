@@ -558,6 +558,9 @@ func (as3RestClient *AS3RESTClient) restCallToBigIP(method string, route string,
 	err = json.Unmarshal([]byte(body), &response)
 	if err != nil {
 		log.Errorf("[AS3] Response body unmarshal failed: %v\n", err)
+		if appMgr.logAS3Response {
+			log.Errorf("[AS3] Raw response from Big-IP: %v", string(body))
+		}
 		return string(body), false
 	}
 	if resp.StatusCode == http.StatusOK {
@@ -1333,19 +1336,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	svc.TranslateServerPort = true
 
 	svc.Class = "Service_HTTP"
-
-	for _, prof := range cfg.Virtual.Profiles {
-		switch prof.Name {
-		case "http":
-			svc.ProfileHTTP = as3ResourcePointer{
-				BigIP: fmt.Sprintf("/%s/%s", prof.Partition, prof.Name),
-			}
-		case "tcp":
-			svc.ProfileTCP = as3ResourcePointer{
-				BigIP: fmt.Sprintf("/%s/%s", prof.Partition, prof.Name),
-			}
-		}
-	}
 
 	destination := strings.Split(cfg.Virtual.Destination, "/")
 	ipPort := strings.Split(destination[len(destination)-1], ":")

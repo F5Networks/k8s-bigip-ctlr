@@ -19,6 +19,7 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
 	"net"
 	"reflect"
 	"sort"
@@ -84,7 +85,7 @@ type Manager struct {
 	restClientv1beta1 rest.Interface
 	routeClientV1     routeclient.RouteV1Interface
 	configWriter      writer.Writer
-	initialState      bool
+	steadyState       bool
 	queueLen          int
 	processedItems    int
 	// Use internal node IPs
@@ -135,49 +136,56 @@ type Manager struct {
 	manageIngress          bool
 	manageIngressClassOnly bool
 	ingressClass           string
-	as3Members             map[Member]struct{}
-	as3Modified            bool
-	as3Validation          bool
-	sslInsecure            bool
-	trustedCertsCfgmap     string
 	// Orchestration agent: AS3 or CCCL
 	Agent string
+	AS3Manager
+}
+
+// AS3Manager holds all the AS3 orchestration specific Data
+type AS3Manager struct {
+	as3Members         map[Member]struct{}
+	as3Validation      bool
+	sslInsecure        bool
+	trustedCertsCfgmap string
 	// Active User Defined ConfigMap details
-	activeCfgMap ActiveAS3ConfigMap
+	as3ActiveConfig AS3Config
 	// List of Watched Endpoints for user-defined AS3
 	watchedAS3Endpoints map[string]struct{}
 	// Watched namespaces
 	WatchedNS       WatchedNamespaces
-	as3RouteCfg     ActiveAS3Route
 	As3SchemaLatest string
-	intF5Res        InternalF5ResourcesGroup // AS3 Specific features that can be applied to a Route/Ingress
-	OverrideAS3Decl string                   // Override existing as3 declaration with this configmap
+	// AS3 Specific features that can be applied to a Route/Ingress
+	intF5Res InternalF5ResourcesGroup
+	// Override existing as3 declaration with this configmap
+	OverrideAS3Decl string
 	// Path of schemas reside locally
 	SchemaLocalPath string
 	// Flag to check schema validation using reference or string
-	As3SchemaFlag   bool
-	RoutesProcessed RouteMap // Processed routes for updating Admit Status
-	logAS3Response  bool     //Log the AS3 response body in Controller logs
+	As3SchemaFlag bool
+	// Processed routes for updating Admit Status
+	RoutesProcessed RouteMap
+	// POSTs configuration to BIG-IP using AS3
+	PostManager *postmanager.PostManager
 }
 
-// FIXME: Refactor to have one struct to hold all AS3 specific data.
+// AS3Config consists of all the AS3 related configurations
+type AS3Config struct {
+	configmap          AS3ConfigMap
+	routeConfig        as3ADC
+	overrrideAS3Config as3Declaration
+	unifiedDeclaration as3Declaration
+}
 
 // ActiveAS3ConfigMap user defined ConfigMap for global availability.
-type ActiveAS3ConfigMap struct {
-	Name string // AS3 specific ConfigMap name
-	Data string // if AS3 Name is present, populate this with AS3 template data.
+type AS3ConfigMap struct {
+	Name string         // AS3 specific ConfigMap name
+	Data as3Declaration // if AS3 Name is present, populate this with AS3 template data.
 }
 
 // Watched Namespaces for global availability.
 type WatchedNamespaces struct {
 	Namespaces     []string
 	NamespaceLabel string
-}
-
-// ActiveAS3Route route for global availability.
-type ActiveAS3Route struct {
-	Pending bool   // Moved to pending status if route declaration that gets posted to BigIP gets error response
-	Data    as3ADC // if AS3 Name is present, populate this with AS3 template data.
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -196,7 +204,7 @@ type Params struct {
 	EventChan         chan interface{}
 	// Package local for unit testing only
 	restClient             rest.Interface
-	initialState           bool
+	steadyState            bool
 	broadcasterFunc        NewBroadcasterFunc
 	SchemaLocal            string
 	ManageConfigMaps       bool
@@ -209,7 +217,6 @@ type Params struct {
 	Agent                  string
 	OverrideAS3Decl        string
 	SchemaLocalPath        string
-	LogAS3Response         bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -242,7 +249,7 @@ func NewManager(params *Params) *Manager {
 		configWriter:           params.ConfigWriter,
 		useNodeInternal:        params.UseNodeInternal,
 		isNodePort:             params.IsNodePort,
-		initialState:           params.initialState,
+		steadyState:            params.steadyState,
 		queueLen:               0,
 		processedItems:         0,
 		routeConfig:            params.RouteConfig,
@@ -262,16 +269,16 @@ func NewManager(params *Params) *Manager {
 		manageIngress:          params.ManageIngress,
 		manageIngressClassOnly: params.ManageIngressClassOnly,
 		ingressClass:           params.IngressClass,
-		as3Members:             make(map[Member]struct{}, 0),
-		as3Modified:            false,
-		as3Validation:          params.AS3Validation,
-		sslInsecure:            params.SSLInsecure,
-		trustedCertsCfgmap:     params.TrustedCertsCfgmap,
 		Agent:                  getValidAgent(params.Agent),
-		OverrideAS3Decl:        params.OverrideAS3Decl,
-		intF5Res:               make(map[string]InternalF5Resources),
-		SchemaLocalPath:        params.SchemaLocal,
-		logAS3Response:         params.LogAS3Response,
+		AS3Manager: AS3Manager{
+			as3Members:         make(map[Member]struct{}, 0),
+			as3Validation:      params.AS3Validation,
+			sslInsecure:        params.SSLInsecure,
+			trustedCertsCfgmap: params.TrustedCertsCfgmap,
+			OverrideAS3Decl:    params.OverrideAS3Decl,
+			intF5Res:           make(map[string]InternalF5Resources),
+			SchemaLocalPath:    params.SchemaLocal,
+		},
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -678,8 +685,8 @@ func (appMgr *Manager) enqueueDeletedConfigMap(obj interface{}) {
 	if val, ok := cm.ObjectMeta.Labels["as3"]; ok {
 		if as3Val, err := strconv.ParseBool(val); err == nil {
 			if as3Val {
-				appMgr.activeCfgMap.Data = ""
-				appMgr.activeCfgMap.Name = ""
+				appMgr.as3ActiveConfig.configmap.Data = ""
+				appMgr.as3ActiveConfig.configmap.Name = ""
 				cm.ObjectMeta.Name = ""
 				cm.Data = map[string]string{"template": ""}
 			}
@@ -848,10 +855,6 @@ func (appMgr *Manager) startAndSyncNamespaceInformer(stopCh <-chan struct{}) {
 }
 
 func (appMgr *Manager) startAndSyncAppInformers() {
-
-	//Setup certificates
-	appMgr.getCertFromConfigMap(appMgr.trustedCertsCfgmap)
-
 	appMgr.informersMutex.Lock()
 	defer appMgr.informersMutex.Unlock()
 	appMgr.startAppInformersLocked()
@@ -938,10 +941,13 @@ func (appMgr *Manager) getServiceCount() int {
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
 	k := key.(serviceQueueKey)
+	if !appMgr.steadyState && appMgr.processedItems == 0 {
+		appMgr.queueLen = appMgr.getServiceCount()
+	}
 	if len(k.AS3Name) != 0 {
 
-		appMgr.activeCfgMap.Name = k.AS3Name
-		log.Debugf("[AS3] Active ConfigMap: (%s)\n", appMgr.activeCfgMap.Name)
+		appMgr.as3ActiveConfig.configmap.Name = k.AS3Name
+		log.Debugf("[AS3] Active ConfigMap: (%s)\n", k.AS3Name)
 
 		appMgr.vsQueue.Done(key)
 		log.Debugf("[AS3] Processing AS3 cfgMap (%s) with AS3 Manager.\n", k.AS3Name)
@@ -950,9 +956,7 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 		appMgr.vsQueue.Forget(key)
 		return false
 	}
-	if !appMgr.initialState && appMgr.processedItems == 0 {
-		appMgr.queueLen = appMgr.getServiceCount()
-	}
+
 	if quit {
 		// The controller is shutting down.
 		return false
@@ -961,7 +965,7 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 
 	err := appMgr.syncVirtualServer(key.(serviceQueueKey))
 	if err == nil {
-		if !appMgr.initialState {
+		if !appMgr.steadyState {
 			appMgr.processedItems++
 		}
 		appMgr.vsQueue.Forget(key)
@@ -1069,10 +1073,9 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
 	if stats.vsUpdated > 0 || stats.vsDeleted > 0 || stats.cpUpdated > 0 || stats.dgUpdated > 0 ||
-		stats.poolsUpdated > 0 || appMgr.as3Modified ||
-		appMgr.as3RouteCfg.Pending {
+		stats.poolsUpdated > 0 {
 		appMgr.outputConfig()
-	} else if !appMgr.initialState && appMgr.processedItems >= appMgr.queueLen {
+	} else if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen {
 		appMgr.outputConfig()
 	}
 
@@ -2348,7 +2351,7 @@ func (appMgr *Manager) ProcessNodeUpdate(
 	defer appMgr.oldNodesMutex.Unlock()
 
 	// Only check for updates once we are in our initial state
-	if appMgr.initialState {
+	if appMgr.steadyState {
 		// Compare last set of nodes with new one
 		if !reflect.DeepEqual(newNodes, appMgr.oldNodes) {
 			log.Infof("ProcessNodeUpdate: Change in Node state detected")

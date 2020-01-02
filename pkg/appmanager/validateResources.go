@@ -245,16 +245,16 @@ func (appMgr *Manager) checkValidNode(
 	obj interface{},
 ) (bool, []*serviceQueueKey) {
 	// Check if an active configMap exists.
-	// if existis get it from appMgr struct and return.
-	// if not existis return false, nil.
-	if "" != appMgr.activeCfgMap.Name && "" != appMgr.activeCfgMap.Data {
+	// if exists get it from appMgr struct and return.
+	// if not exists return false, nil.
+	if "" != appMgr.as3ActiveConfig.configmap.Name && "" != appMgr.as3ActiveConfig.configmap.Data {
 		key := &serviceQueueKey{
-			AS3Name: appMgr.activeCfgMap.Name,
-			AS3Data: appMgr.activeCfgMap.Data,
+			AS3Name: appMgr.as3ActiveConfig.configmap.Name,
+			AS3Data: string(appMgr.as3ActiveConfig.configmap.Data),
 		}
 		var keyList []*serviceQueueKey
 		keyList = append(keyList, key)
-		log.Debugf("[AS3] NodeInformer: ConfigMap '%s' placed in Queue.", appMgr.activeCfgMap.Name)
+		log.Debugf("[AS3] NodeInformer: ConfigMap '%s' placed in Queue.", appMgr.as3ActiveConfig.configmap.Name)
 		return true, keyList
 	}
 	return false, nil

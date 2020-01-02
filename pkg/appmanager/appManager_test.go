@@ -619,7 +619,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr = NewManager(&Params{
 				ConfigWriter: mw,
 				IsNodePort:   true,
-				initialState: true,
+				steadyState:  true,
 			})
 		})
 
@@ -628,7 +628,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr = NewManager(&Params{
 				ConfigWriter:      mw,
 				IsNodePort:        true,
-				initialState:      true,
+				steadyState:       true,
 				NodeLabelSelector: "label",
 				UseNodeInternal:   false,
 			})

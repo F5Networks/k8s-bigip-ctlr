@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"reflect"
 )
 
 func ValidateJSONStringAndFetchObject(jsonData string, jsonObj *map[string]interface{}) error {
@@ -116,4 +117,23 @@ func mergeRecursive(srcJsonObj, dstJsonObj interface{}) interface{} {
 		}
 	}
 	return srcJsonObj
+}
+
+func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
+	if decl1 == "" && decl2 == "" {
+		return true
+	}
+	var o1, o2 interface{}
+
+	err := json.Unmarshal([]byte(decl1), &o1)
+	if err != nil {
+		return false
+	}
+
+	err = json.Unmarshal([]byte(decl2), &o2)
+	if err != nil {
+		return false
+	}
+
+	return reflect.DeepEqual(o1, o2)
 }

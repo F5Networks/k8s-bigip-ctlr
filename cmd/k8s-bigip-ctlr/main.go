@@ -31,6 +31,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
@@ -671,11 +672,9 @@ func main() {
 		IngressClass:           *ingressClass,
 		SchemaLocal:            *schemaLocal,
 		AS3Validation:          *as3Validation,
-		SSLInsecure:            *sslInsecure,
 		TrustedCertsCfgmap:     *trustedCertsCfgmap,
 		OverrideAS3Decl:        *overrideAS3Decl,
 		Agent:                  *agent,
-		LogAS3Response:         *logAS3Response,
 	}
 
 	// If running with Flannel, create an event channel that the appManager
@@ -712,10 +711,6 @@ func main() {
 		BigIPURL:        *bigIPURL,
 		BigIPPartitions: *bigIPPartitions,
 	}
-
-	appmanager.BigIPUsername = *bigIPUsername
-	appmanager.BigIPPassword = *bigIPPassword
-	appmanager.BigIPURL = *bigIPURL
 
 	subPidCh, err := startPythonDriver(configWriter, gs, bs, *pythonBaseDir)
 	if nil != err {
@@ -760,6 +755,18 @@ func main() {
 	}
 
 	appMgr := appmanager.NewManager(&appMgrParms)
+
+	// Create PostManager to POST configuration to BIG-IP using AS3
+	var postMgrParams = postmanager.Params{
+		BIGIPUsername: *bigIPUsername,
+		BIGIPPassword: *bigIPPassword,
+		BIGIPURL:      *bigIPURL,
+		TrustedCerts:  appMgr.GetBIGIPTrustedCerts(),
+		SSLInsecure:   *sslInsecure,
+		LogResponse:   *logAS3Response,
+	}
+	appMgr.PostManager = postmanager.NewPostManager(postMgrParams)
+
 	// Delete as3 managed partition when switching back to agent cccl from as3
 	appMgr.DeleteCISManagedPartition()
 

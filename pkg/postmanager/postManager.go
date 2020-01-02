@@ -21,10 +21,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
 const (
@@ -165,6 +166,9 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	err = json.Unmarshal(body, &response)
 	if err != nil {
 		log.Errorf("[AS3] Response body unmarshal failed: %v\n", err)
+		if postMgr.LogResponse {
+			log.Errorf("[AS3] Raw response from Big-IP: %v", string(body))
+		}
 		return nil, nil
 	}
 	return httpResp, response

@@ -18,8 +18,9 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"reflect"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
 func ValidateJSONStringAndFetchObject(jsonData string, jsonObj *map[string]interface{}) error {
@@ -81,7 +82,7 @@ func ValidateAndOverrideAS3JsonData(srcJsonData string, dstJsonData string) stri
 		log.Errorf("[AS3] CIS failed to merge JSON Data !!!: %v", err)
 		return ""
 	}
-
+	log.Debug("[AS3] Unified AS3 declaration is overridden !!!")
 	return string(mergedJsonData)
 }
 

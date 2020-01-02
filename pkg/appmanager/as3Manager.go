@@ -1236,19 +1236,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	svc.Class = "Service_HTTP"
 
-	for _, prof := range cfg.Virtual.Profiles {
-		switch prof.Name {
-		case "http":
-			svc.ProfileHTTP = as3ResourcePointer{
-				BigIP: fmt.Sprintf("/%s/%s", prof.Partition, prof.Name),
-			}
-		case "tcp":
-			svc.ProfileTCP = as3ResourcePointer{
-				BigIP: fmt.Sprintf("/%s/%s", prof.Partition, prof.Name),
-			}
-		}
-	}
-
 	destination := strings.Split(cfg.Virtual.Destination, "/")
 	ipPort := strings.Split(destination[len(destination)-1], ":")
 	// verify that ip address and port exists else return error.

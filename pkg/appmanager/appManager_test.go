@@ -31,7 +31,7 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
+	"k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -318,7 +318,7 @@ func (m *mockAppManager) addIngress(ing *v1beta1.Ingress) bool {
 	ok, keys := m.appMgr.checkValidIngress(ing)
 	if ok {
 		ns := ing.ObjectMeta.Namespace
-		m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Create(ing)
+		m.appMgr.kubeClient.NetworkingV1beta1().Ingresses(ns).Create(ing)
 		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Add(ing)
 		for _, vsKey := range keys {
@@ -335,11 +335,11 @@ func (m *mockAppManager) updateIngress(ing *v1beta1.Ingress) bool {
 	ok, keys := m.appMgr.checkValidIngress(ing)
 	if ok {
 		ns := ing.ObjectMeta.Namespace
-		_, err := m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Update(ing)
+		_, err := m.appMgr.kubeClient.NetworkingV1beta1().Ingresses(ns).Update(ing)
 		if nil != err {
 			// This can happen when an ingress is ignored by checkValidIngress
 			// before, but now has been updated to be accepted.
-			m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Create(ing)
+			m.appMgr.kubeClient.NetworkingV1beta1().Ingresses(ns).Create(ing)
 		}
 		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Update(ing)
@@ -358,7 +358,7 @@ func (m *mockAppManager) deleteIngress(ing *v1beta1.Ingress) bool {
 	if ok {
 		name := ing.ObjectMeta.Name
 		ns := ing.ObjectMeta.Namespace
-		m.appMgr.kubeClient.ExtensionsV1beta1().Ingresses(ns).Delete(name, nil)
+		m.appMgr.kubeClient.NetworkingV1beta1().Ingresses(ns).Delete(name, nil)
 		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Delete(ing)
 		for _, vsKey := range keys {

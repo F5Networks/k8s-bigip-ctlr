@@ -21,7 +21,7 @@ import (
 
 	routeapi "github.com/openshift/api/route/v1"
 	"k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
+	"k8s.io/api/networking/v1beta1"
 )
 
 func (appMgr *Manager) checkValidConfigMap(

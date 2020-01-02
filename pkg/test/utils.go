@@ -29,7 +29,7 @@ import (
 
 	routeapi "github.com/openshift/api/route/v1"
 	"k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
+	"k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -142,7 +142,7 @@ func NewIngress(id, rv, namespace string,
 	return &v1beta1.Ingress{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Ingress",
-			APIVersion: "extensions/v1beta1",
+			APIVersion: "networking/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            id,

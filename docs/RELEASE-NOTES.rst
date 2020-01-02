@@ -10,6 +10,8 @@ Added Functionality
   - `--manage-ingress-class-only`: A flag whether to handle Ingresses that do not have the class annotation and with annotation `kubernetes.io/ingress.class` set to `f5`. When set to `true`, process ingress resources with `kubernetes.io/ingress.class` set to `f5` or custom ingress class.
   - `--ingress-class` to define custom ingress class to watch.
   - Controller now pushes configuration after 3 seconds when encounters http response with code 503 from busy BIG-IP.
+* Controller supports Kubernetes 1.16.x release. K8S Ingress (in extension/v1beta1 API group) uses networking/v1beta1 API.
+
 
 Bug Fixes
 `````````

@@ -33,7 +33,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
+	"k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 
@@ -286,7 +286,7 @@ func NewManager(params *Params) *Manager {
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1beta1 {
 		// This is the normal production case, but need the checks for unit tests.
-		manager.restClientv1beta1 = manager.kubeClient.ExtensionsV1beta1().RESTClient()
+		manager.restClientv1beta1 = manager.kubeClient.NetworkingV1beta1().RESTClient()
 	}
 	return &manager
 }
@@ -2131,7 +2131,7 @@ func (appMgr *Manager) setIngressStatus(
 	} else if ing.Status.LoadBalancer.Ingress[0].IP != ip {
 		ing.Status.LoadBalancer.Ingress[0] = lbIngress
 	}
-	_, updateErr := appMgr.kubeClient.ExtensionsV1beta1().
+	_, updateErr := appMgr.kubeClient.NetworkingV1beta1().
 		Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(ing)
 	if nil != updateErr {
 		// Multi-service causes the controller to try to update the status multiple times
@@ -2229,7 +2229,7 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 		ing.ObjectMeta.Annotations = make(map[string]string)
 	}
 	ing.ObjectMeta.Annotations[f5VsBindAddrAnnotation] = ipAddress
-	_, err = appMgr.kubeClient.ExtensionsV1beta1().Ingresses(namespace).Update(ing)
+	_, err = appMgr.kubeClient.NetworkingV1beta1().Ingresses(namespace).Update(ing)
 	if nil != err {
 		msg := fmt.Sprintf("Error while setting virtual-server IP for Ingress '%s': %s",
 			ing.ObjectMeta.Name, err)

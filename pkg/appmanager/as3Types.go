@@ -16,10 +16,6 @@
 
 package appmanager
 
-import (
-	"net/http"
-)
-
 type (
 	as3Template    string
 	as3Declaration string
@@ -31,14 +27,6 @@ type (
 	pool      []Member
 	tenant    map[appName][]poolName
 	as3Object map[tenantName]tenant
-
-	//Rest client creation for big ip
-	AS3RESTClient struct {
-		client      *http.Client
-		baseURL     string
-		oldChecksum string
-		newChecksum string
-	}
 
 	as3JSONWithArbKeys map[string]interface{}
 

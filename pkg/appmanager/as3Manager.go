@@ -17,15 +17,8 @@
 package appmanager
 
 import (
-	"bytes"
-	"crypto/md5"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -61,17 +54,8 @@ const (
 
 const F5RouterName = "F5 BIG-IP"
 
-var BigIPUsername string
-var BigIPPassword string
-var BigIPURL string
-var as3RC AS3RESTClient
-var certificates string
-
 var buffer map[Member]struct{}
 var epbuffer map[string]struct{}
-var schemaLoader gojsonschema.JSONLoader
-var As3SchemaLatest string
-var As3SchemaFlag string
 
 // Takes an AS3 Template and perform service discovery with Kubernetes to generate AS3 Declaration
 func (appMgr *Manager) processUserDefinedAS3(template string) bool {
@@ -97,21 +81,21 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 	buffer = make(map[Member]struct{}, 0)
 	epbuffer = make(map[string]struct{}, 0)
 
-	declaration := appMgr.buildAS3Declaration(obj, templateObj)
+	tempAS3Config := appMgr.as3ActiveConfig
+	tempAS3Config.configmap.Data = appMgr.buildAS3Declaration(obj, templateObj)
+	tempAS3Config.overrrideAS3Config, _ = appMgr.getAS3OverrideConfig()
 
 	appMgr.as3Members = buffer
 	appMgr.watchedAS3Endpoints = epbuffer
-	tempAs3ConfigmapDecl := declaration
-	tempRouteConfigDecl := appMgr.as3RouteCfg.Data
-	if unifiedDecl, ok := appMgr.getUnifiedAS3Declaration(tempAs3ConfigmapDecl, tempRouteConfigDecl); ok {
-		appMgr.postAS3Declaration(unifiedDecl, tempAs3ConfigmapDecl, tempRouteConfigDecl)
-	}
+
+	appMgr.postAS3Config(tempAS3Config)
+
 	return true
 }
 
 // Validates the AS3 Template
 func (appMgr *Manager) validateAS3Template(template string) bool {
-
+	var schemaLoader gojsonschema.JSONLoader
 	// Load AS3 Schema
 	// As3SchemaFlag is true validate the AS3 schema through the local file or else validate through the latest schema url
 	if appMgr.As3SchemaFlag {
@@ -470,145 +454,50 @@ func (appMgr *Manager) updateAdmitStatus() {
 	}
 }
 
-// TODO: Refactor
-// Takes AS3 Declaration and post it to BigIP
-func (appMgr *Manager) postAS3Declaration(declaration as3Declaration,
-	tempAs3ConfigmapDecl as3Declaration,
-	tempRouteConfigDecl as3ADC) {
-	log.Debugf("[AS3] Processing AS3 POST call with AS3 Manager")
-	as3RC.baseURL = BigIPURL
-	rsp, ok := as3RC.restCallToBigIP("POST", "/mgmt/shared/appsvcs/declare", declaration, appMgr)
-	if ok {
-		appMgr.activeCfgMap.Data = string(tempAs3ConfigmapDecl)
-		appMgr.as3RouteCfg.Data = tempRouteConfigDecl
-		appMgr.as3RouteCfg.Pending = false
-		if nil != appMgr.routeClientV1 {
-			appMgr.updateAdmitStatus()
-		}
-		if rsp != "" {
-			// Update AS3 Modified flag if the as3 declaration is posted to BIG-IP
-			appMgr.as3Modified = true
-		}
-	} else {
-		appMgr.as3RouteCfg.Pending = true
-	}
-}
+func (appMgr *Manager) postAS3Config(tempAS3Config AS3Config) {
+	unifiedDecl := tempAS3Config.getUnifiedDeclaration()
 
-// Takes AS3 Declaration, method, API route and post it to BigIP
-func (as3RestClient *AS3RESTClient) restCallToBigIP(method string, route string, declaration as3Declaration, appMgr *Manager) (string, bool) {
-	log.Debugf("[AS3] REST call with AS3 Manager")
-	hash := md5.New()
-	io.WriteString(hash, string(declaration))
-	as3RestClient.newChecksum = string(hash.Sum(nil))
-	timeout := time.Duration(60 * time.Second)
-	var body []byte
-	if as3RestClient.oldChecksum == as3RestClient.newChecksum {
-		log.Debugf("[AS3] No change in declaration.")
-		return string(body), true
+	if DeepEqualJSON(appMgr.as3ActiveConfig.unifiedDeclaration, unifiedDecl) {
+		log.Debug("[AS3] No Change in the Configuration")
+		return
 	}
 
-	//Certificate setting
-	// Get the SystemCertPool, continue with an empty pool on error
-	rootCAs, _ := x509.SystemCertPool()
-	if rootCAs == nil {
-		rootCAs = x509.NewCertPool()
+	switch appMgr.Agent {
+	case "as3":
+		appMgr.sendFDBEntries()
+		appMgr.sendARPEntries()
+	default:
+		if !appMgr.steadyState {
+			appMgr.processedItems++
+		}
+		appMgr.outputConfig()
 	}
 
-	// Get the cert
-	certs := []byte(certificates)
-
-	// Append our cert to the system pool
-	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
-		log.Debug("[AS3] No certs appended, using system certs only")
-	}
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: appMgr.sslInsecure,
-			RootCAs:            rootCAs,
-		},
-	}
-	as3RestClient.client = &http.Client{
-		Transport: tr,
-		Timeout:   timeout,
-	}
-	var data io.Reader
-	if method == "POST" || method == "PUT" {
-		var s = []byte(declaration)
-		data = bytes.NewBuffer(s)
-	}
-	req, err := http.NewRequest(method, as3RestClient.baseURL+route, data)
-	if err != nil {
-		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
-		return string(body), false
-	}
-	req.SetBasicAuth(BigIPUsername, BigIPPassword)
-	resp, err := as3RestClient.client.Do(req)
-	if err != nil {
-		log.Errorf("[AS3] REST call error: %v ", err)
-		return string(body), false
-	}
-	defer resp.Body.Close()
-	body, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Errorf("[AS3] REST call response error: %v ", err)
-		return string(body), false
-	}
-	var response map[string]interface{}
-	err = json.Unmarshal([]byte(body), &response)
-	if err != nil {
-		log.Errorf("[AS3] Response body unmarshal failed: %v\n", err)
-		return string(body), false
-	}
-	if resp.StatusCode == http.StatusOK {
-		//traverse all response results
-		results := (response["results"]).([]interface{})
-		for _, value := range results {
-			v := value.(map[string]interface{})
-			//log result with code, tenant and message
-			log.Debugf("[AS3] Response from Big-IP")
-			log.Debugf("[AS3] code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
-		}
-		as3RestClient.oldChecksum = as3RestClient.newChecksum
-		return string(body), true
-	}
-	//Other then 200 status code
-	if results, ok := (response["results"]).([]interface{}); ok {
-		for _, value := range results {
-			v := value.(map[string]interface{})
-			//log result with code, tenant and message
-			log.Debugf("[AS3] Big-IP Response code: %v,Response:%v, Message: %v", v["code"], v["response"], v["message"])
-		}
-	} else {
-		log.Errorf("[AS3] Big-IP Responded with error code: %v", resp.StatusCode)
-		if appMgr.logAS3Response {
-			log.Errorf("[AS3] Raw response from Big-IP: %v ", response)
-		}
-	}
-	return string(body), false
+	appMgr.as3ActiveConfig.updateConfig(tempAS3Config)
+	appMgr.PostManager.Write(string(unifiedDecl))
 }
 
 // Read certificate from configmap
-func (appMgr *Manager) getCertFromConfigMap(cfgmap string) {
-
-	certificates = ""
-	namespaceCfgmapSlice := strings.Split(cfgmap, "/")
+func (appMgr *Manager) GetBIGIPTrustedCerts() string {
+	namespaceCfgmapSlice := strings.Split(appMgr.trustedCertsCfgmap, "/")
 	if len(namespaceCfgmapSlice) != 2 {
 		log.Debugf("[AS3] Invalid trusted-certs-cfgmap option provided.")
-	} else {
-		certs := ""
-		cm, err := appMgr.getConfigMapUsingNamespaceAndName(namespaceCfgmapSlice[0], namespaceCfgmapSlice[1])
-		if err != nil {
-			log.Errorf("[AS3] ConfigMap with name %v not found in namespace: %v, error: %v",
-				namespaceCfgmapSlice[1], namespaceCfgmapSlice[0], err)
-		} else {
-			//Fetching all certificates from configmap
-			for _, v := range cm.Data {
-				certs = certs + v + "\n"
-			}
-			certificates = certs
-		}
+		return ""
 	}
+
+	cm, err := appMgr.getConfigMapUsingNamespaceAndName(namespaceCfgmapSlice[0], namespaceCfgmapSlice[1])
+	if err != nil {
+		log.Errorf("[AS3] ConfigMap with name %v not found in namespace: %v, error: %v",
+			namespaceCfgmapSlice[1], namespaceCfgmapSlice[0], err)
+		return ""
+	}
+
+	var certs string
+	// Fetch all certificates from configmap
+	for _, v := range cm.Data {
+		certs += v + "\n"
+	}
+	return certs
 }
 
 func (appMgr *Manager) getConfigMapUsingNamespaceAndName(cfgMapNamespace, cfgMapName string) (*v1.ConfigMap, error) {
@@ -617,6 +506,53 @@ func (appMgr *Manager) getConfigMapUsingNamespaceAndName(cfgMapNamespace, cfgMap
 		return nil, err
 	}
 	return cfgMap, err
+}
+
+func (as3Cfg *AS3Config) updateConfig(newAS3Cfg AS3Config) {
+	as3Cfg.configmap.Data = newAS3Cfg.configmap.Data
+	as3Cfg.routeConfig = newAS3Cfg.routeConfig
+	as3Cfg.overrrideAS3Config = newAS3Cfg.overrrideAS3Config
+	as3Cfg.unifiedDeclaration = newAS3Cfg.unifiedDeclaration
+}
+
+func (as3Cfg *AS3Config) getUnifiedDeclaration() as3Declaration {
+	if as3Cfg.routeConfig == nil && as3Cfg.configmap.Data == "" {
+		return ""
+	}
+
+	// Need to process Routes
+	var as3Config map[string]interface{}
+	if as3Cfg.configmap.Data != "" {
+		// Merge activeCfgMap and as3RouteCfg
+		_ = json.Unmarshal([]byte(as3Cfg.configmap.Data), &as3Config)
+	} else {
+		// Merge base AS3 template and as3RouteCfg
+		_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
+	}
+	adc, _ := as3Config["declaration"].(map[string]interface{})
+
+	for k, v := range as3Cfg.routeConfig {
+		adc[k] = v
+	}
+
+	unifiedDecl, err := json.Marshal(as3Config)
+	if err != nil {
+		log.Debugf("[AS3] Unified declaration: %v\n", err)
+	}
+
+	if string(as3Cfg.overrrideAS3Config) == "" {
+		as3Cfg.unifiedDeclaration = as3Declaration(unifiedDecl)
+		return as3Declaration(unifiedDecl)
+	}
+
+	overriddenUnifiedDecl := ValidateAndOverrideAS3JsonData(string(as3Cfg.overrrideAS3Config), string(unifiedDecl))
+	if overriddenUnifiedDecl == "" {
+		log.Debug("[AS3] Failed to override AS3 Declaration")
+		as3Cfg.unifiedDeclaration = as3Declaration(unifiedDecl)
+		return as3Declaration(unifiedDecl)
+	}
+	as3Cfg.unifiedDeclaration = as3Declaration(overriddenUnifiedDecl)
+	return as3Declaration(overriddenUnifiedDecl)
 }
 
 // SetupAS3Informers returns an appInformer that includes the following set of informers.
@@ -778,7 +714,7 @@ func (appMgr *Manager) checkValidAS3ConfigMap(obj interface{}) (
 func (appMgr *Manager) checkValidAS3Service(obj interface{}) (
 	bool, []*serviceQueueKey) {
 
-	if appMgr.activeCfgMap.Name == "" {
+	if appMgr.as3ActiveConfig.configmap.Name == "" {
 		return false, nil
 	}
 
@@ -789,8 +725,8 @@ func (appMgr *Manager) checkValidAS3Service(obj interface{}) (
 	key := &serviceQueueKey{
 		ServiceName: svc.ObjectMeta.Name,
 		Namespace:   namespace,
-		AS3Name:     appMgr.activeCfgMap.Name,
-		AS3Data:     appMgr.activeCfgMap.Data,
+		AS3Name:     appMgr.as3ActiveConfig.configmap.Name,
+		AS3Data:     string(appMgr.as3ActiveConfig.configmap.Data),
 	}
 	keyList = append(keyList, key)
 	return true, keyList
@@ -799,7 +735,7 @@ func (appMgr *Manager) checkValidAS3Service(obj interface{}) (
 func (appMgr *Manager) checkValidAS3Endpoints(obj interface{}) (
 	bool, []*serviceQueueKey) {
 
-	if appMgr.activeCfgMap.Name == "" {
+	if appMgr.as3ActiveConfig.configmap.Name == "" {
 		return false, nil
 	}
 	eps := obj.(*v1.Endpoints)
@@ -814,80 +750,46 @@ func (appMgr *Manager) checkValidAS3Endpoints(obj interface{}) (
 	key := &serviceQueueKey{
 		ServiceName: eps.ObjectMeta.Name,
 		Namespace:   namespace,
-		AS3Name:     appMgr.activeCfgMap.Name,
-		AS3Data:     appMgr.activeCfgMap.Data,
+		AS3Name:     appMgr.as3ActiveConfig.configmap.Name,
+		AS3Data:     string(appMgr.as3ActiveConfig.configmap.Data),
 	}
 	keyList = append(keyList, key)
 	return true, keyList
 }
 
-func (appMgr *Manager) getUnifiedAS3Declaration(as3CfgmapDecl as3Declaration, routeConfigDecl as3ADC) (as3Declaration, bool) {
-	if routeConfigDecl == nil && string(as3CfgmapDecl) == "" {
-		// return false if empty routeConfigDecl and as3CfgmapDecl
-		return as3CfgmapDecl, false
+func (appMgr *Manager) getAS3OverrideConfig() (as3Declaration, bool) {
+	if appMgr.OverrideAS3Decl == "" {
+		return "", false
+	}
+	// Fetch configMap's namespace and name
+	overrideAS3Decl := strings.Split(appMgr.OverrideAS3Decl, "/")
+	// Fetch configMap using namespace and name as an input
+	cfgMap, err := appMgr.getConfigMapUsingNamespaceAndName(overrideAS3Decl[0], overrideAS3Decl[1])
+	if err != nil || cfgMap == nil {
+		log.Errorf("[AS3] ConfigMap with name %v not found in namespace: %v, error: %v",
+			overrideAS3Decl[1], overrideAS3Decl[0], err)
+		return "", false
 	}
 
-	// Need to process Routes
-	var as3Config map[string]interface{}
-	if as3CfgmapDecl != "" {
-		// Merge activeCfgMap and as3RouteCfg
-		_ = json.Unmarshal([]byte(as3CfgmapDecl), &as3Config)
-	} else {
-		// Merge base AS3 template and as3RouteCfg
-		_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
-	}
-	adc := as3Config["declaration"].(map[string]interface{})
-
-	for k, v := range routeConfigDecl {
-		adc[k] = v
+	if len(cfgMap.Data) != 1 {
+		log.Error("[AS3] Invalid override cfgMap, unable to override AS3 declaration")
+		return "", false
 	}
 
-	unifiedDecl, err := json.Marshal(as3Config)
-	if err != nil {
-		log.Debugf("[AS3] Unified declaration: %v\n", err)
-	}
+	for _, data := range cfgMap.Data {
+		return as3Declaration(data), true
 
-	// Override AS3 Config if AS3 Override is enabled
-	if appMgr.OverrideAS3Decl != "" {
-		// Fetch configMap's namespace and name
-		overrideAS3Decl := strings.Split(appMgr.OverrideAS3Decl, "/")
-		// Fetch configMap using namespace and name as an input
-		cfgMap, err := appMgr.getConfigMapUsingNamespaceAndName(overrideAS3Decl[0], overrideAS3Decl[1])
-		if err != nil {
-			log.Errorf("[AS3] ConfigMap with name %v not found in namespace: %v, error: %v",
-				overrideAS3Decl[1], overrideAS3Decl[0], err)
-		}
-		if cfgMap != nil {
-			// Only one entry is allowed in cfgMap Data
-			if len(cfgMap.Data) == 1 {
-				for _, data := range cfgMap.Data {
-					overriddenUnifiedDecl := ValidateAndOverrideAS3JsonData(data, string(unifiedDecl))
-					if overriddenUnifiedDecl != "" {
-						if ok := appMgr.validateAS3Template(overriddenUnifiedDecl); ok {
-							log.Debugf("[AS3] Unified AS3 declaration is overridden !!! ")
-							return as3Declaration(overriddenUnifiedDecl), true
-						}
-						log.Errorf("[AS3] Error validating unified AS3 template \n")
-						break
-					}
-					log.Errorf("[AS3] Unified AS3 declaration is not overridden due to errors !!! ")
-				}
-			}
-			log.Errorf("[AS3] Invalid override cfgMap, AS3 declaration cannot be overridden !!! ")
-		}
 	}
-
-	return as3Declaration(string(unifiedDecl)), true
+	log.Error("[AS3] Error validating unified AS3 template \n")
+	return "", false
 }
 
-func (appMgr *Manager) postRouteDeclarationHost() {
-	adc := appMgr.generateAS3RouteDeclaration()
-	tempAs3ConfigmapDecl := as3Declaration(appMgr.activeCfgMap.Data)
-	tempRouteConfigDecl := adc
-	//Get unified declaration
-	if unifiedDecl, ok := appMgr.getUnifiedAS3Declaration(tempAs3ConfigmapDecl, tempRouteConfigDecl); ok {
-		appMgr.postAS3Declaration(unifiedDecl, tempAs3ConfigmapDecl, tempRouteConfigDecl)
-	}
+func (appMgr *Manager) postRouteDeclaration() {
+	tempAS3Config := appMgr.as3ActiveConfig
+	tempAS3Config.routeConfig = appMgr.generateAS3RouteDeclaration()
+	tempAS3Config.overrrideAS3Config, _ = appMgr.getAS3OverrideConfig()
+
+	appMgr.postAS3Config(tempAS3Config)
 }
 
 func (appMgr *Manager) generateAS3RouteDeclaration() as3ADC {
@@ -1627,5 +1529,8 @@ func (appMgr *Manager) DeleteCISManagedPartition() {
 		return
 	}
 	data, _ := json.Marshal(as3Config)
-	appMgr.postAS3Declaration(as3Declaration(data), "", nil)
+
+	tempAS3Config := appMgr.as3ActiveConfig
+	tempAS3Config.configmap.Data = as3Declaration(data)
+	appMgr.postAS3Config(tempAS3Config)
 }

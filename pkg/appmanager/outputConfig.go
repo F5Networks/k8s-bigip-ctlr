@@ -30,14 +30,10 @@ func (appMgr *Manager) outputConfig() {
 
 	switch appMgr.Agent {
 	case "as3":
-		if appMgr.processedItems >= appMgr.queueLen || appMgr.initialState {
-			appMgr.postRouteDeclarationHost()
-			if appMgr.as3Modified {
-				appMgr.sendFDBEntries()
-				appMgr.sendARPEntries()
-				appMgr.as3Modified = false
-			}
-			appMgr.initialState = true
+		if appMgr.processedItems >= appMgr.queueLen || appMgr.steadyState {
+			appMgr.postRouteDeclaration()
+
+			appMgr.steadyState = true
 		}
 	default:
 		appMgr.outputConfigLocked()
@@ -167,7 +163,7 @@ func (appMgr *Manager) outputConfigLocked() {
 		}
 	}
 
-	if appMgr.processedItems >= appMgr.queueLen || appMgr.initialState {
+	if appMgr.processedItems >= appMgr.queueLen || appMgr.steadyState {
 		doneCh, errCh, err := appMgr.ConfigWriter().SendSection("resources", resources)
 		if nil != err {
 			log.Warningf("Failed to write Big-IP config data: %v", err)
@@ -199,7 +195,7 @@ func (appMgr *Manager) outputConfigLocked() {
 				log.Warning("Did not receive config write response in 1s")
 			}
 		}
-		appMgr.initialState = true
+		appMgr.steadyState = true
 	}
 }
 

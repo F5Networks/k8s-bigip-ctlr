@@ -16,13 +16,7 @@
 package appmanager
 
 import (
-	"crypto/md5"
 	"encoding/json"
-	"io"
-	"net/http"
-	"net/http/httptest"
-	"reflect"
-
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -90,200 +84,48 @@ var _ = Describe("AS3Manager Tests", func() {
 		})
 	})
 
-	Describe("Create HTTP REST mock client and test POST call", func() {
-
-		It("Test POST call request with 200 OK response", func() {
-			route := "/mgmt/shared/appsvcs/declare"
-			method := "POST"
-			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
-			appMgr := NewManager(&Params{SSLInsecure: false})
-			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-				// Test request parameters
-				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
-				// Send response to be tested
-				data := `{"results":[{"message":"Success","host":"localhost","tenant":"Sample_01","runTime":262,"code":200}]}`
-				_, err := rw.Write([]byte(data))
-				Expect(err).To(BeNil(), "Response writer should be written.")
-			}))
-			// Close the server when test finishes
-			defer server.Close()
-			// Use Client & URL from our local test server
-			api := AS3RESTClient{server.Client(), server.URL, "", ""}
-			_, status := api.restCallToBigIP(method, route, template, appMgr)
-			Expect(status).To(BeTrue())
-		})
-
-		It("Test POST call request with 500 response", func() {
-			route := "/mgmt/shared/appsvcs/declare"
-			method := "POST"
-			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
-			appMgr := NewManager(&Params{SSLInsecure: false})
-			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-				// Test request parameters
-				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
-				// Send response to be tested
-				data := `{"results":[{"message":"no change","host":"localhost","tenant":"Sample_01","runTime":262,"code":200}]}`
-				rw.WriteHeader(500)
-				_, err := rw.Write([]byte(data))
-				Expect(err).To(BeNil(), "Response writer should be written.")
-			}))
-			// Close the server when test finishes
-			defer server.Close()
-			// Use Client & URL from our local test server
-			api := AS3RESTClient{server.Client(), server.URL, "", ""}
-			_, status := api.restCallToBigIP(method, route, template, appMgr)
-			Expect(status).To(BeFalse())
-		})
-
-		It("Test POST call response with invalid json string", func() {
-			route := "/mgmt/shared/appsvcs/declare"
-			method := "POST"
-			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
-			appMgr := NewManager(&Params{SSLInsecure: false})
-			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-				// Test request parameters
-				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
-				// Send response to be tested
-				//Invalid json string as response
-				data := `Invalid json string`
-				_, err := rw.Write([]byte(data))
-				Expect(err).To(BeNil(), "Response writer should be written.")
-			}))
-			// Close the server when test finishes
-			defer server.Close()
-			// Use Client & URL from our local test server
-			api := AS3RESTClient{server.Client(), server.URL, "", ""}
-			_, status := api.restCallToBigIP(method, route, template, appMgr)
-			Expect(status).To(BeFalse())
-		})
-
-		It("Test POST call when server is down/closed", func() {
-			route := "/mgmt/shared/appsvcs/declare"
-			method := "POST"
-			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
-			appMgr := NewManager(&Params{SSLInsecure: false})
-			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-				// Test request parameters
-				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
-				data := `{"results":[{"message":"no change","host":"localhost","tenant":"Sample_01","runTime":262,"code":200}]}`
-				_, err := rw.Write([]byte(data))
-				Expect(err).To(BeNil(), "Response writer should be written.")
-			}))
-			// Close the server when test finishes
-			defer server.Close()
-			// Use Client & URL from our local test server
-			api := AS3RESTClient{server.Client(), server.URL, "", ""}
-			//Close serve to test serve failure
-			server.Close()
-			_, status := api.restCallToBigIP(method, route, template, appMgr)
-			Expect(status).To(BeFalse())
-		})
-
-		It("Test for same declaration posting to bigip", func() {
-			route := "/mgmt/shared/appsvcs/declare"
-			method := "POST"
-			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":true,}`
-			appMgr := NewManager(&Params{SSLInsecure: false})
-			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-				// Test request parameters
-				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
-				// Send response to be tested
-				data := `{"results":[{"message":"no change","host":"localhost","tenant":"Sample_01","runTime":262,"code":200}]}`
-				_, err := rw.Write([]byte(data))
-				Expect(err).To(BeNil(), "Response writer should be written.")
-			}))
-			// Close the server when test finishes
-			defer server.Close()
-			h := md5.New()
-			io.WriteString(h, string(template))
-			oldChecksum := string(h.Sum(nil))
-			// Use Client & URL from our local test server
-			api := AS3RESTClient{server.Client(), server.URL, oldChecksum, ""}
-			_, status := api.restCallToBigIP(method, route, template, appMgr)
-			Expect(status).To(BeTrue())
-		})
-
-		It("Test for new declaration posting to bigip", func() {
-			route := "/mgmt/shared/appsvcs/declare"
-			method := "POST"
-			var template as3Declaration = `{"class":"AS3","action":"deploy","persist":false,}`
-			appMgr := NewManager(&Params{SSLInsecure: false})
-			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-				// Test request parameters
-				Expect(req.URL.String()).To(BeEquivalentTo("/mgmt/shared/appsvcs/declare"))
-				// Send response to be tested
-				data := `{"results":[{"message":"no change","host":"localhost","tenant":"Sample_01","runTime":262,"code":200}]}`
-				_, err := rw.Write([]byte(data))
-				Expect(err).To(BeNil(), "Response writer should be written.")
-			}))
-			// Close the server when test finishes
-			defer server.Close()
-			// Use Client & URL from our local test server
-			api := AS3RESTClient{server.Client(), server.URL, "", ""}
-			_, status := api.restCallToBigIP(method, route, template, appMgr)
-			Expect(status).To(BeTrue())
-		})
-	})
 	Describe("Validate Generated Unified Declaration", func() {
 		It("Unified Declaration only with User Defined ConfigMap", func() {
-			var cfg, generatedCfg interface{}
-
 			data := readConfigFile(configPath + "as3config_valid.json")
-			err := json.Unmarshal([]byte(data), &cfg)
-			Expect(err).To(BeNil(), "Config should be json")
-			mockMgr.appMgr.activeCfgMap.Data = string(data)
 
-			result, _ := mockMgr.appMgr.getUnifiedAS3Declaration(as3Declaration(mockMgr.appMgr.activeCfgMap.Data), nil)
+			var tempAS3Config AS3Config
+			tempAS3Config.configmap.Data = as3Declaration(data)
 
-			err = json.Unmarshal([]byte(result), &generatedCfg)
-			Expect(err).To(BeNil(), "Failed to Create Valid JSON")
+			result := tempAS3Config.getUnifiedDeclaration()
 
-			Expect(reflect.DeepEqual(cfg, generatedCfg)).To(BeTrue(), "Failed to Create JSON with correct configuration")
+			Expect(string(result)).To(MatchJSON(data), "Failed to Create JSON with correct configuration")
 		})
 		It("Unified Declaration only with Openshift Route", func() {
-			var origCfg, generatedCfg interface{}
-			var cfg as3ADC
-
-			data := readConfigFile(configPath + "as3_route_declaration.json")
-			err := json.Unmarshal([]byte(data), &origCfg)
+			var routeConfig map[string]interface{}
+			routedecl := readConfigFile(configPath + "as3_route_declaration.json")
+			route := readConfigFile(configPath + "as3_route.json")
+			err := json.Unmarshal([]byte(route), &routeConfig)
 			Expect(err).To(BeNil(), "Original Config should be json")
 
-			data = readConfigFile(configPath + "as3_route.json")
-			err = json.Unmarshal([]byte(data), &cfg)
-			Expect(err).To(BeNil(), "Route Config should be json")
-			mockMgr.appMgr.as3RouteCfg.Data = cfg
+			var tempAS3Config AS3Config
+			tempAS3Config.routeConfig = as3ADC(routeConfig)
 
-			result, _ := mockMgr.appMgr.getUnifiedAS3Declaration("", mockMgr.appMgr.as3RouteCfg.Data)
+			result := tempAS3Config.getUnifiedDeclaration()
 
-			err = json.Unmarshal([]byte(result), &generatedCfg)
-			Expect(err).To(BeNil(), "Failed to Create Valid JSON")
-
-			Expect(reflect.DeepEqual(origCfg, generatedCfg)).To(BeTrue(), "Failed to Create JSON with correct configuration")
+			Expect(string(result)).To(MatchJSON(routedecl), "Failed to Create JSON with correct configuration")
 		})
 		It("Unified Declaration with User Defined ConfigMap and Openshift Route", func() {
-			var origCfg, userCfg, generatedCfg interface{}
-			var cfg as3ADC
+			var routeCfg map[string]interface{}
+			var tempAS3Config AS3Config
 
-			data := readConfigFile(configPath + "as3_route_cfgmap_declaration.json")
-			err := json.Unmarshal([]byte(data), &origCfg)
-			Expect(err).To(BeNil(), "Original Config should be json")
+			unifiedConfig := readConfigFile(configPath + "as3_route_cfgmap_declaration.json")
 
-			data = readConfigFile(configPath + "as3config_valid.json")
-			err = json.Unmarshal([]byte(data), &userCfg)
-			Expect(err).To(BeNil(), "Config should be json")
-			mockMgr.appMgr.activeCfgMap.Data = string(data)
+			data := readConfigFile(configPath + "as3config_valid.json")
+			tempAS3Config.configmap.Data = as3Declaration(data)
 
 			data = readConfigFile(configPath + "as3_route.json")
-			err = json.Unmarshal([]byte(data), &cfg)
+			err := json.Unmarshal([]byte(data), &routeCfg)
 			Expect(err).To(BeNil(), "Route Config should be json")
-			mockMgr.appMgr.as3RouteCfg.Data = cfg
+			tempAS3Config.routeConfig = routeCfg
 
-			result, _ := mockMgr.appMgr.getUnifiedAS3Declaration(as3Declaration(mockMgr.appMgr.activeCfgMap.Data), mockMgr.appMgr.as3RouteCfg.Data)
+			result := tempAS3Config.getUnifiedDeclaration()
 
-			err = json.Unmarshal([]byte(result), &generatedCfg)
-			Expect(err).To(BeNil(), "Failed to Create Valid JSON")
-
-			Expect(reflect.DeepEqual(origCfg, generatedCfg)).To(BeTrue(), "Failed to Create JSON with correct configuration")
+			Expect(string(result)).To(MatchJSON(unifiedConfig), "Failed to Create JSON with correct configuration")
 		})
 	})
 })

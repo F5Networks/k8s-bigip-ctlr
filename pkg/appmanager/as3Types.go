@@ -136,8 +136,6 @@ type (
 		TranslateServerAddress bool              `json:"translateServerAddress,omitempty"`
 		TranslateServerPort    bool              `json:"translateServerPort,omitempty"`
 		Class                  string            `json:"class,omitempty"`
-		ProfileHTTP            as3MultiTypeParam `json:"profileHTTP,omitempty"`
-		ProfileTCP             as3MultiTypeParam `json:"profileTCP,omitempty"`
 		VirtualAddresses       []string          `json:"virtualAddresses,omitempty"`
 		VirtualPort            int               `json:"virtualPort,omitempty"`
 		SNAT                   string            `json:"snat,omitempty"`

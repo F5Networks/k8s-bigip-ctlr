@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -37,6 +38,7 @@ const (
 type PostManager struct {
 	postChan     chan bool
 	activeConfig string
+	as3APIURL    string
 	httpClient   *http.Client
 	Params
 }
@@ -92,10 +94,16 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 	}
 }
 
+func (postMgr *PostManager) getAS3APIURL(tenants []string) string {
+	apiURL := postMgr.BIGIPURL + "/mgmt/shared/appsvcs/declare/" + strings.Join(tenants, ",")
+	return apiURL
+}
+
 // Write sets activeConfig with the latest config received, so that configWorker can use latest configuration
 // Write enqueues postChan to unblock configWorker, which gets blocked on postChan
-func (postMgr *PostManager) Write(config string) {
+func (postMgr *PostManager) Write(config string, partitions []string) {
 	postMgr.activeConfig = config
+	postMgr.as3APIURL = postMgr.getAS3APIURL(partitions)
 	postMgr.postChan <- true
 	log.Debug("[AS3] PostManager Accepted the configuration")
 
@@ -124,14 +132,14 @@ func (postMgr *PostManager) postOnEventOrTimeout(timeout time.Duration) bool {
 }
 
 func (postMgr *PostManager) postConfig() bool {
-	bigipURL := postMgr.BIGIPURL + "/mgmt/shared/appsvcs/declare"
 	httpReqBody := bytes.NewBuffer([]byte(postMgr.activeConfig))
 
-	req, err := http.NewRequest("POST", bigipURL, httpReqBody)
+	req, err := http.NewRequest("POST", postMgr.as3APIURL, httpReqBody)
 	if err != nil {
 		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
 		return false
 	}
+	log.Debugf("[AS3] POSTing request to %v", postMgr.as3APIURL)
 	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
 
 	httpResp, responseMap := postMgr.httpPOST(req)

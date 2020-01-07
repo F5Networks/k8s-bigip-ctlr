@@ -166,6 +166,8 @@ type AS3Manager struct {
 	RoutesProcessed RouteMap
 	// POSTs configuration to BIG-IP using AS3
 	PostManager *postmanager.PostManager
+	// To put list of tenants in BIG-IP REST call URL that are in AS3 declaration
+	FilterTenants bool
 }
 
 // AS3Config consists of all the AS3 related configurations
@@ -217,6 +219,7 @@ type Params struct {
 	Agent                  string
 	OverrideAS3Decl        string
 	SchemaLocalPath        string
+	FilterTenants          bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -278,6 +281,7 @@ func NewManager(params *Params) *Manager {
 			OverrideAS3Decl:    params.OverrideAS3Decl,
 			intF5Res:           make(map[string]InternalF5Resources),
 			SchemaLocalPath:    params.SchemaLocal,
+			FilterTenants:      params.FilterTenants,
 		},
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {

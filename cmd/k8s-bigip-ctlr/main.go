@@ -117,6 +117,7 @@ var (
 	agent              *string
 	logAS3Response     *bool
 	overrideAS3Decl    *string
+	filterTenants      *bool
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -198,6 +199,8 @@ func _init() {
 	overrideAS3UsageStr := "Optional, provide Namespace and Name of that ConfigMap as <namespace>/<configmap-name>." +
 		"The JSON key/values from this ConfigMap will override key/values from internally generated AS3 declaration."
 	overrideAS3Decl = bigIPFlags.String("override-as3-declaration", "", overrideAS3UsageStr)
+	filterTenants = kubeFlags.Bool("filter-tenants", false,
+		"Optional, specify whether or not to use tenant filtering API for AS3 declaration")
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
 	}
@@ -675,6 +678,7 @@ func main() {
 		TrustedCertsCfgmap:     *trustedCertsCfgmap,
 		OverrideAS3Decl:        *overrideAS3Decl,
 		Agent:                  *agent,
+		FilterTenants:          *filterTenants,
 	}
 
 	// If running with Flannel, create an event channel that the appManager

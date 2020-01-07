@@ -454,6 +454,17 @@ func (appMgr *Manager) updateAdmitStatus() {
 	}
 }
 
+func (appMgr *Manager) getTenants(decl as3Declaration) []string {
+	if as3Obj, ok := appMgr.getAS3ObjectFromTemplate(as3Template(string(decl))); ok {
+		var tenants []string
+		for k, _ := range as3Obj {
+			tenants = append(tenants, string(k))
+		}
+		return tenants
+	}
+	return nil
+}
+
 func (appMgr *Manager) postAS3Config(tempAS3Config AS3Config) {
 	unifiedDecl := tempAS3Config.getUnifiedDeclaration()
 
@@ -474,7 +485,12 @@ func (appMgr *Manager) postAS3Config(tempAS3Config AS3Config) {
 	}
 
 	appMgr.as3ActiveConfig.updateConfig(tempAS3Config)
-	appMgr.PostManager.Write(string(unifiedDecl))
+	if appMgr.FilterTenants {
+		appMgr.PostManager.Write(string(unifiedDecl), appMgr.getTenants(unifiedDecl))
+	} else {
+		appMgr.PostManager.Write(string(unifiedDecl), nil)
+	}
+
 }
 
 // Read certificate from configmap

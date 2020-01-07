@@ -1409,6 +1409,10 @@ func as3FormatedString(str string, resourceType string) string {
 	default:
 		formattedString = strings.Replace(str, "-", "_", -1)
 	}
+	//Reducing object name length by giving a shortened form of a word.
+	formattedString = strings.ReplaceAll(formattedString, "openshift_route", "osr")
+	formattedString = strings.ReplaceAll(formattedString, "client_ssl", "cssl")
+	formattedString = strings.ReplaceAll(formattedString, "server_ssl", "sssl")
 	return formattedString
 }
 

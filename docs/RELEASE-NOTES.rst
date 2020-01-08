@@ -15,6 +15,7 @@ Added Functionality
 Bug Fixes
 `````````
 * Controller handles data group correctly with routes/ingress in multiple namespaces.
+* Controller now does not allow userDefinedConfigmap with contoller managed partitions as tenants.
 
 1.12.0
 ------------

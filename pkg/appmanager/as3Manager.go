@@ -78,6 +78,25 @@ func (appMgr *Manager) processUserDefinedAS3(template string) bool {
 		return false
 	}
 
+	_, found := obj[tenantName(DEFAULT_PARTITION)]
+	switch appMgr.Agent {
+	case "as3":
+		_, foundNetworkPartition := obj[tenantName(strings.TrimSuffix(DEFAULT_PARTITION, "_AS3"))]
+		if found || foundNetworkPartition {
+			log.Error("[AS3] Error in processing the template")
+			log.Errorf("[AS3] CIS managed partitions <%s> and <%s> should not be used in ConfigMap as Tenants\n",
+				DEFAULT_PARTITION, strings.TrimSuffix(DEFAULT_PARTITION, "_AS3"))
+			return false
+		}
+	default:
+		if found {
+			log.Error("[AS3] Error in processing the template")
+			log.Errorf("[AS3] CIS managed partition <%s> should not be used in ConfigMap as Tenants\n",
+				DEFAULT_PARTITION)
+			return false
+		}
+	}
+
 	buffer = make(map[Member]struct{}, 0)
 	epbuffer = make(map[string]struct{}, 0)
 

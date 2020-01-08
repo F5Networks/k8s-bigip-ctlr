@@ -19,6 +19,7 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -923,6 +924,11 @@ func (appMgr *Manager) processCustomProfilesForAS3(sharedApp as3Application) {
 		if ok := createUpdateTLSServer(prof, svcName, sharedApp); ok {
 			// Create Certificate only if the corresponding TLSServer is created
 			createCertificateDecl(prof, sharedApp)
+			tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
+			certs, _ := sharedApp[tlsServerName].(*as3TLSServer)
+			sort.SliceStable(certs.Certificates, func(i, j int) bool {
+				return certs.Certificates[i].Certificate < certs.Certificates[j].Certificate
+			})
 		} else {
 			createUpdateCABundle(prof, caBundleName, sharedApp)
 			if tlsClient == nil {

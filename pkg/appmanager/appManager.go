@@ -957,6 +957,11 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 		log.Debugf("[AS3] Active ConfigMap: (%s)\n", k.AS3Name)
 
 		appMgr.vsQueue.Done(key)
+
+		if !appMgr.steadyState {
+			appMgr.processedItems++
+		}
+
 		log.Debugf("[AS3] Processing AS3 cfgMap (%s) with AS3 Manager.\n", k.AS3Name)
 		appMgr.processUserDefinedAS3(k.AS3Data)
 

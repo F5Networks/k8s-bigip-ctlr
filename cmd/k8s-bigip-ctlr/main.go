@@ -768,6 +768,7 @@ func main() {
 		TrustedCerts:  appMgr.GetBIGIPTrustedCerts(),
 		SSLInsecure:   *sslInsecure,
 		LogResponse:   *logAS3Response,
+		RouteClientV1: appMgrParms.RouteClientV1,
 	}
 	appMgr.PostManager = postmanager.NewPostManager(postMgrParams)
 

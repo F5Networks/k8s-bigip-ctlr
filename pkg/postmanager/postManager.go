@@ -27,19 +27,20 @@ import (
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	routeapi "github.com/openshift/api/route/v1"
+	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
 
 const (
 	timeoutSmall  = 3 * time.Second
 	timeoutMedium = 30 * time.Second
 	timeoutLarge  = 60 * time.Second
+	F5RouterName  = "F5 BIG-IP"
 )
 
 type PostManager struct {
-	postChan     chan bool
-	activeConfig string
-	as3APIURL    string
-	httpClient   *http.Client
+	postChan   chan config
+	httpClient *http.Client
 	Params
 }
 
@@ -50,14 +51,20 @@ type Params struct {
 	TrustedCerts  string
 	SSLInsecure   bool
 	//Log the AS3 response body in Controller logs
-	LogResponse bool
+	LogResponse   bool
+	RouteClientV1 routeclient.RouteV1Interface
+}
+
+type config struct {
+	data      string
+	routes    []*routeapi.Route
+	as3APIURL string
 }
 
 func NewPostManager(params Params) *PostManager {
 	pm := &PostManager{
-		postChan:     make(chan bool),
-		activeConfig: "",
-		Params:       params,
+		postChan: make(chan config),
+		Params:   params,
 	}
 	pm.setupBIGIPRESTClient()
 
@@ -101,10 +108,17 @@ func (postMgr *PostManager) getAS3APIURL(tenants []string) string {
 
 // Write sets activeConfig with the latest config received, so that configWorker can use latest configuration
 // Write enqueues postChan to unblock configWorker, which gets blocked on postChan
-func (postMgr *PostManager) Write(config string, partitions []string) {
-	postMgr.activeConfig = config
-	postMgr.as3APIURL = postMgr.getAS3APIURL(partitions)
-	postMgr.postChan <- true
+func (postMgr *PostManager) Write(
+	data string,
+	partitions []string,
+	routes []*routeapi.Route,
+) {
+	activeConfig := config{
+		data:      data,
+		routes:    routes,
+		as3APIURL: postMgr.getAS3APIURL(partitions),
+	}
+	postMgr.postChan <- activeConfig
 	log.Debug("[AS3] PostManager Accepted the configuration")
 
 	return
@@ -113,33 +127,33 @@ func (postMgr *PostManager) Write(config string, partitions []string) {
 // configWorker blocks on postChan
 // whenever gets unblocked posts active configuration to BIG-IP
 func (postMgr *PostManager) configWorker() {
-	for _ = range postMgr.postChan {
-		posted := postMgr.postConfig()
+	for cfg := range postMgr.postChan {
+		posted := postMgr.postConfig(cfg)
 		// To handle general errors
 		for !posted {
-			posted = postMgr.postOnEventOrTimeout(timeoutMedium)
+			posted = postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
 		}
 	}
 }
 
-func (postMgr *PostManager) postOnEventOrTimeout(timeout time.Duration) bool {
+func (postMgr *PostManager) postOnEventOrTimeout(timeout time.Duration, cfg config) bool {
 	select {
-	case <-postMgr.postChan:
-		return postMgr.postConfig()
+	case newCfg := <-postMgr.postChan:
+		return postMgr.postConfig(newCfg)
 	case <-time.After(timeout):
-		return postMgr.postConfig()
+		return postMgr.postConfig(cfg)
 	}
 }
 
-func (postMgr *PostManager) postConfig() bool {
-	httpReqBody := bytes.NewBuffer([]byte(postMgr.activeConfig))
+func (postMgr *PostManager) postConfig(cfg config) bool {
+	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
 
-	req, err := http.NewRequest("POST", postMgr.as3APIURL, httpReqBody)
+	req, err := http.NewRequest("POST", cfg.as3APIURL, httpReqBody)
 	if err != nil {
 		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
 		return false
 	}
-	log.Debugf("[AS3] POSTing request to %v", postMgr.as3APIURL)
+	log.Debugf("[AS3] POSTing request to %v", cfg.as3APIURL)
 	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
 
 	httpResp, responseMap := postMgr.httpPOST(req)
@@ -149,11 +163,11 @@ func (postMgr *PostManager) postConfig() bool {
 
 	switch httpResp.StatusCode {
 	case http.StatusOK, http.StatusCreated, http.StatusAccepted:
-		return handleResponseStatusOK(responseMap)
+		return postMgr.handleResponseStatusOK(responseMap, cfg)
 	case http.StatusServiceUnavailable:
-		return postMgr.handleResponseStatusServiceUnavailable()
+		return postMgr.handleResponseStatusServiceUnavailable(cfg)
 	default:
-		return postMgr.handleResponseOthers(responseMap)
+		return postMgr.handleResponseOthers(responseMap, cfg)
 	}
 }
 
@@ -182,7 +196,7 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	return httpResp, response
 }
 
-func handleResponseStatusOK(responseMap map[string]interface{}) bool {
+func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}, cfg config) bool {
 	//traverse all response results
 	results := (responseMap["results"]).([]interface{})
 	for _, value := range results {
@@ -190,15 +204,18 @@ func handleResponseStatusOK(responseMap map[string]interface{}) bool {
 		//log result with code, tenant and message
 		log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 	}
+	if postMgr.RouteClientV1 != nil {
+		postMgr.updateRouteAdmitStatus(cfg.routes)
+	}
 	return true
 }
 
-func (postMgr *PostManager) handleResponseStatusServiceUnavailable() bool {
+func (postMgr *PostManager) handleResponseStatusServiceUnavailable(cfg config) bool {
 	log.Debugf("[AS3] Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", timeoutSmall)
-	return postMgr.postOnEventOrTimeout(timeoutSmall)
+	return postMgr.postOnEventOrTimeout(timeoutSmall, cfg)
 }
 
-func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}) bool {
+func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg config) bool {
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
 			v := value.(map[string]interface{})
@@ -212,5 +229,5 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 	if postMgr.LogResponse {
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
-	return postMgr.postOnEventOrTimeout(timeoutMedium)
+	return postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
 }

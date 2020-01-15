@@ -363,10 +363,26 @@ func httpRedirectIRule(port int32) string {
 			set host [HTTP::host]
 			set path [HTTP::path]
 			append host $path
-			set paths [class match -value $host equals https_redirect_dg]
-			if {$paths == ""} {
-				# See if there's an entry that matches all hosts
-				set paths [class match -value "*" equals https_redirect_dg]
+			# Find the number of "/" in the hostpath
+			set rc 0
+			foreach x [split $host {}] {
+			    if {$x eq "/"} {
+					   incr rc
+				   }
+			}
+			# Compares the hostpath with the entries in https_redirect_dg
+			for {set i $rc} {$i >= 0} {incr i -1} {
+				set paths [class match -value $host equals https_redirect_dg]
+				if {$paths == ""} {
+					set host [
+						string range $host 0 [
+							expr {[string last "/" $host]-1}
+						]
+					]
+				}
+				else {
+					break
+				}
 			}
 			if {$paths != ""} {
 				set redir 0
@@ -946,7 +962,7 @@ func (appMgr *Manager) syncIRules() {
 	if !iRef.ab {
 		appMgr.deleteIRule(abDeploymentPathIRuleName)
 	}
-	if !iRef.passthrough && !iRef.reencrypt {
+	if !iRef.passthrough && !iRef.reencrypt && !iRef.edge {
 		appMgr.deleteIRule(sslPassthroughIRuleName)
 	}
 }
@@ -1040,6 +1056,9 @@ func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap) {
 		}
 		for host, pathMap := range hostMap {
 			for path, _ := range pathMap {
+				if path == "/" {
+					path = ""
+				}
 				nsGrp.AddOrUpdateRecord(host+path, path)
 			}
 

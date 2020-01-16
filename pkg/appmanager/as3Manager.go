@@ -19,12 +19,12 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
-	routeapi "github.com/openshift/api/route/v1"
 	"strconv"
 	"strings"
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	routeapi "github.com/openshift/api/route/v1"
 	"github.com/xeipuuv/gojsonschema"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"

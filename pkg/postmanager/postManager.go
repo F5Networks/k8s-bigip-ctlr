@@ -166,6 +166,8 @@ func (postMgr *PostManager) postConfig(cfg config) bool {
 		return postMgr.handleResponseStatusOK(responseMap, cfg)
 	case http.StatusServiceUnavailable:
 		return postMgr.handleResponseStatusServiceUnavailable(cfg)
+	case http.StatusNotFound:
+		return postMgr.handleResponseStatusNotFound(responseMap)
 	default:
 		return postMgr.handleResponseOthers(responseMap, cfg)
 	}
@@ -213,6 +215,14 @@ func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interf
 func (postMgr *PostManager) handleResponseStatusServiceUnavailable(cfg config) bool {
 	log.Debugf("[AS3] Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", timeoutSmall)
 	return postMgr.postOnEventOrTimeout(timeoutSmall, cfg)
+}
+
+func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}) bool {
+	log.Errorf("[AS3] Big-IP Responded with error code: %v", responseMap["code"])
+	if postMgr.LogResponse {
+		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
+	}
+	return true
 }
 
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg config) bool {

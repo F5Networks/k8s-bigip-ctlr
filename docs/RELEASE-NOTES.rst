@@ -9,8 +9,9 @@ Added Functionality
 * Added new command-line options:
   - `--manage-ingress-class-only`: A flag whether to handle Ingresses that do not have the class annotation and with annotation `kubernetes.io/ingress.class` set to `f5`. When set to `true`, process ingress resources with `kubernetes.io/ingress.class` set to `f5` or custom ingress class.
   - `--ingress-class` to define custom ingress class to watch.
-  - Controller now pushes configuration after 3 seconds when encounters http response with code 503 from busy BIG-IP.
-  - Controller now complies with BIG-IP to filter out tenants, with `--filter-tenants` option.
+* Controller now pushes configuration after 3 seconds when encounters http response with code 503 from busy BIG-IP.
+* Controller now complies with BIG-IP to filter out tenants, with `--filter-tenants` option.
+* Controller now does not push configuration if it encounters response code 404 from BIG-IP
 
 Bug Fixes
 `````````

@@ -153,7 +153,7 @@ func (postMgr *PostManager) postConfig(cfg config) bool {
 		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
 		return false
 	}
-	log.Debugf("[AS3] posting request to %v", cfg.as3APIURL)
+	log.Debugf("[AS3] POSTing request to %v", cfg.as3APIURL)
 	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
 
 	httpResp, responseMap := postMgr.httpPOST(req)
@@ -165,7 +165,7 @@ func (postMgr *PostManager) postConfig(cfg config) bool {
 	case http.StatusOK, http.StatusCreated, http.StatusAccepted:
 		return postMgr.handleResponseStatusOK(responseMap, cfg)
 	case http.StatusServiceUnavailable:
-		return postMgr.handleResponseStatusServiceUnavailable(responseMap, cfg)
+		return postMgr.handleResponseStatusServiceUnavailable(cfg)
 	case http.StatusNotFound:
 		return postMgr.handleResponseStatusNotFound(responseMap)
 	default:
@@ -212,19 +212,13 @@ func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interf
 	return true
 }
 
-func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}, cfg config) bool {
-	log.Errorf("[AS3] Big-IP Responded with error code: %v", responseMap["code"])
+func (postMgr *PostManager) handleResponseStatusServiceUnavailable(cfg config) bool {
 	log.Debugf("[AS3] Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", timeoutSmall)
 	return postMgr.postOnEventOrTimeout(timeoutSmall, cfg)
 }
 
 func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}) bool {
-	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])
-	} else {
-		log.Errorf("[AS3] Big-IP Responded with error code: %v", http.StatusNotFound)
-	}
-
+	log.Errorf("[AS3] Big-IP Responded with error code: %v", responseMap["code"])
 	if postMgr.LogResponse {
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
@@ -238,10 +232,8 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 			//log result with code, tenant and message
 			log.Errorf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 		}
-	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
-		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])
 	} else {
-		log.Errorf("[AS3] Big-IP Responded with code: %v", responseMap["code"])
+		log.Errorf("[AS3] Big-IP Responded with error code: %v", responseMap["code"])
 	}
 
 	if postMgr.LogResponse {

@@ -191,6 +191,10 @@ func (appMgr *Manager) getAS3ObjectFromTemplate(
 
 				// Skip if list of serverAddress is not empty
 				mems := (v.(map[string]interface{}))["members"]
+				if mems == nil {
+					continue
+				}
+
 				srvAddrs := ((mems.([]interface{}))[0].(map[string]interface{}))["serverAddresses"]
 				if len(srvAddrs.([]interface{})) != 0 {
 					continue
@@ -408,6 +412,11 @@ func (appMgr *Manager) getTenants(decl as3Declaration) []string {
 
 func (appMgr *Manager) postAS3Config(tempAS3Config AS3Config) {
 	unifiedDecl := tempAS3Config.getUnifiedDeclaration()
+
+	if ok := appMgr.validateAS3Template(string(unifiedDecl)); !ok {
+		log.Error("[AS3] Error in validating declaration")
+		return
+	}
 
 	if DeepEqualJSON(appMgr.as3ActiveConfig.unifiedDeclaration, unifiedDecl) {
 		log.Debug("[AS3] No Change in the Configuration")

@@ -1692,7 +1692,7 @@ func (appMgr *Manager) handleIngressTls(
 		for _, tls := range ing.Spec.TLS {
 			// Check if profile is contained in a Secret
 			if appMgr.useSecrets {
-				secret := appMgr.IngressSSLCtxt[tls.SecretName]
+				secret := appMgr.rsrcSSLCtxt[tls.SecretName]
 				if secret == nil {
 					// No secret, so we assume the profile is a BIG-IP default
 					log.Debugf("No Secret with name '%s' in namespace '%s', "+

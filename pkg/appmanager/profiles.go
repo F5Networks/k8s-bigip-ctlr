@@ -657,7 +657,7 @@ func (appMgr *Manager) checkProfile(
 		*referenced = true
 		// May reference a secret that no longer exists
 		if appMgr.useSecrets {
-			secret := appMgr.IngressSSLCtxt[testName]
+			secret := appMgr.rsrcSSLCtxt[testName]
 			if secret == nil && !strings.ContainsAny(secretName, "/") {
 				// No secret with this name, and name does not
 				// contain "/", meaning it isn't a valid BIG-IP profile

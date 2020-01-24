@@ -139,7 +139,7 @@ type Manager struct {
 	// Orchestration agent: AS3 or CCCL
 	Agent string
 	// Ingress SSL security Context
-	IngressSSLCtxt map[string]*v1.Secret
+	rsrcSSLCtxt map[string]*v1.Secret
 	AS3Manager
 }
 
@@ -275,7 +275,7 @@ func NewManager(params *Params) *Manager {
 		manageIngressClassOnly: params.ManageIngressClassOnly,
 		ingressClass:           params.IngressClass,
 		Agent:                  getValidAgent(params.Agent),
-		IngressSSLCtxt:         make(map[string]*v1.Secret),
+		rsrcSSLCtxt:            make(map[string]*v1.Secret),
 		AS3Manager: AS3Manager{
 			as3Members:         make(map[Member]struct{}, 0),
 			as3Validation:      params.AS3Validation,
@@ -1045,7 +1045,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	dgMap := make(InternalDataGroupMap)
 
 	var stats vsSyncStats
-
+	appMgr.rsrcSSLCtxt = make(map[string]*v1.Secret)
 	if nil != appInf.cfgMapInformer {
 		err = appMgr.syncConfigMaps(&stats, sKey, rsMap, svcPortMap, svc, appInf)
 		if nil != err {
@@ -1159,6 +1159,7 @@ func (appMgr *Manager) syncConfigMaps(
 						"parsing secretName as path instead.", profile.Name, sKey.Namespace)
 					continue
 				}
+				appMgr.rsrcSSLCtxt[profile.Name] = secret
 				err, updated := appMgr.createSecretSslProfile(rsCfg, secret)
 				if err != nil {
 					log.Warningf("%v", err)
@@ -1194,47 +1195,22 @@ func (appMgr *Manager) syncConfigMaps(
 	return nil
 }
 
-func prepareIngressTlsTransientContext(appMgr *Manager, ing *v1beta1.Ingress) {
-
-	// CleanUp Ingress Transient Context
-	for secretName := range appMgr.IngressSSLCtxt {
-		delete(appMgr.IngressSSLCtxt, secretName)
-	}
-
+func prepareIngressSSLContext(appMgr *Manager, ing *v1beta1.Ingress) {
 	// Prepare Ingress SSL Transient Context
 	for _, tls := range ing.Spec.TLS {
+		// Check if TLS Secret already exists
+		if _, ok := appMgr.rsrcSSLCtxt[tls.SecretName]; ok {
+			continue
+		}
 		// Check if profile is contained in a Secret
 		secret, err := appMgr.kubeClient.CoreV1().Secrets(ing.ObjectMeta.Namespace).
 			Get(tls.SecretName, metav1.GetOptions{})
 		if err != nil {
-			appMgr.IngressSSLCtxt[tls.SecretName] = nil
+			appMgr.rsrcSSLCtxt[tls.SecretName] = nil
 			continue
 		}
-		appMgr.IngressSSLCtxt[tls.SecretName] = secret
+		appMgr.rsrcSSLCtxt[tls.SecretName] = secret
 	}
-}
-
-func isServiceInIngressBackEnd(ing *v1beta1.Ingress, svcName string) bool {
-	// This function will check if provided input service is matching
-	// in atleast one backend of ingress resource object, this can be
-	// verified in default backend or the one in rules.
-
-	// Check if service matches in default backend
-	if ing.Spec.Backend != nil && ing.Spec.Backend.ServiceName == svcName {
-		return true
-	}
-
-	// Check if service matches in backends configured in Rules
-	for _, rule := range ing.Spec.Rules {
-		if rule.HTTP != nil {
-			for _, path := range rule.HTTP.Paths {
-				if path.Backend.ServiceName == svcName {
-					return true
-				}
-			}
-		}
-	}
-	return false
 }
 
 func (appMgr *Manager) syncIngresses(
@@ -1258,13 +1234,15 @@ func (appMgr *Manager) syncIngresses(
 		// We need to look at all ingresses in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
 		ing := obj.(*v1beta1.Ingress)
-		if ing.ObjectMeta.Namespace != sKey.Namespace ||
-			!isServiceInIngressBackEnd(ing, sKey.ServiceName) {
+		// TODO: Each ingress resource must be processed for its associated service
+		//  only, existing implementation processes all services available in k8s
+		//  and this approach degrades the performance of processing Ingress resources
+		if ing.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
 
 		if appMgr.useSecrets {
-			prepareIngressTlsTransientContext(appMgr, ing)
+			prepareIngressSSLContext(appMgr, ing)
 		}
 
 		// Resolve first Ingress Host name (if required)

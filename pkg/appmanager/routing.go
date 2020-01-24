@@ -372,7 +372,14 @@ func httpRedirectIRule(port int32) string {
 			}
 			# Compares the hostpath with the entries in https_redirect_dg
 			for {set i $rc} {$i >= 0} {incr i -1} {
-				set paths [class match -value $host equals https_redirect_dg]
+				set paths [class match -value $host equals https_redirect_dg] 
+				# Check if host with combination of "/" matches https_redirect_dg
+				if {$paths == ""} {
+					set hosts ""
+					append hosts $host "/"
+					set paths [class match -value $hosts equals https_redirect_dg] 
+				}
+				# Trim the uri to last slash
 				if {$paths == ""} {
 					set host [
 						string range $host 0 [
@@ -1056,9 +1063,6 @@ func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap) {
 		}
 		for host, pathMap := range hostMap {
 			for path, _ := range pathMap {
-				if path == "/" {
-					path = ""
-				}
 				nsGrp.AddOrUpdateRecord(host+path, path)
 			}
 

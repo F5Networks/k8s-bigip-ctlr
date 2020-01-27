@@ -4,19 +4,29 @@ Release Notes for BIG-IP Controller for Kubernetes
 Next Release
 ------------
 
+1.13.0
+------------
 Added Functionality
 `````````````````````
+* CIS supports Kubernetes 1.16.2.
+    - | Update CIS deployment, `apiVersion` to `apps/v1` and add `spec.selector.matchLabels.app` to match `spec.template.metadata.labels.app`.
 * Added new command-line options:
-  - `--manage-ingress-class-only`: A flag whether to handle Ingresses that do not have the class annotation and with annotation `kubernetes.io/ingress.class` set to `f5`. When set to `true`, process ingress resources with `kubernetes.io/ingress.class` set to `f5` or custom ingress class.
+  - `--manage-ingress-class-only` A flag whether to handle Ingresses that do not have the class annotation and with annotation `kubernetes.io/ingress.class` set to `f5`. When set to `true`, process ingress resources with `kubernetes.io/ingress.class` set to `f5` or custom ingress class.
   - `--ingress-class` to define custom ingress class to watch.
-* Controller now pushes configuration after 3 seconds when encounters http response with code 503 from busy BIG-IP.
-* Controller now complies with BIG-IP to filter out tenants, with `--filter-tenants` option.
-* Controller now does not push configuration if it encounters response code 404 from BIG-IP
+  - `--filter-tenants` A flag whether to enable tenant filtering in BIG-IP.
+* CIS pushes AS3 Configuration after 3 seconds when encounters 503 HTTP response code from BIG-IP.  
+* CIS does not push AS3 configuration when encounters 404 HTTP response code from BIG-IP. 
 
 Bug Fixes
 `````````
-* Controller handles data group correctly with routes/ingress in multiple namespaces.
-* Controller now does not allow userDefinedConfigmap with contoller managed partitions as tenants.
+* CIS handles data groups correctly with routes/ingress in multiple namespaces.
+* CIS does not allow User Defined Configmap with controller managed partitions as tenants.
+* CIS handles HTTP to HTTPS redirect for child paths in routes.
+* :issues:`1077` CIS now doesn't post Warning messages 'Overwriting existing entry for backend' frequently.
+* :issues:`1014` Fixed performance problem with large number of ingress resources.
+* SR - High CPU load in BIG-IP with CIS. CIS doesn’t post data to BIG-IP when there is no change in resources.
+* SR - K8S AS3-declaration errors when using TCP-profile. CIS allows TCP profile update using Override ConfigMap.
+ 
 
 1.12.0
 ------------
@@ -25,7 +35,7 @@ Added Functionality
 * Support AS3 for BIG-IP orchestration with Kubernetes Ingress.
 * Users can override parameters in controller generated AS3 declaration using a new `--override-as3-declaration` option.
 * CIS handles URL paths to the nearest matching parent path for OpenShift Routes.
-* Added new command-line option “--log-as3-response” to log as3 error response.
+* Added new command-line option `--log-as3-response` to log as3 error response.
 
 Bug Fixes
 `````````

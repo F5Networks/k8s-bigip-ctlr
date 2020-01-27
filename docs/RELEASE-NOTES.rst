@@ -11,9 +11,9 @@ Added Functionality
 * CIS supports Kubernetes 1.16.2.
     - | Update CIS deployment, `apiVersion` to `apps/v1` and add `spec.selector.matchLabels.app` to match `spec.template.metadata.labels.app`.
 * Added new command-line options:
-  - `--manage-ingress-class-only` A flag whether to handle Ingresses that do not have the class annotation and with annotation `kubernetes.io/ingress.class` set to `f5`. When set to `true`, process ingress resources with `kubernetes.io/ingress.class` set to `f5` or custom ingress class.
-  - `--ingress-class` to define custom ingress class to watch.
-  - `--filter-tenants` A flag whether to enable tenant filtering in BIG-IP.
+      - `--manage-ingress-class-only` A flag whether to handle Ingresses that do not have the class annotation and with annotation `kubernetes.io/ingress.class` set to `f5`. When set `true`, process ingress resources with `kubernetes.io/ingress.class` set to `f5` or custom ingress class.
+      - `--ingress-class` to define custom ingress class to watch.
+      - `--filter-tenants` A flag whether to enable tenant filtering in BIG-IP.
 * CIS pushes AS3 Configuration after 3 seconds when encounters 503 HTTP response code from BIG-IP.  
 * CIS does not push AS3 configuration when encounters 404 HTTP response code from BIG-IP. 
 

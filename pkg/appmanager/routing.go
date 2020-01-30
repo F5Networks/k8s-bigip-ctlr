@@ -602,6 +602,7 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 		when CLIENTSSL_DATA {
             set sslpath [lindex [SSL::payload] 1]
             set routepath ""
+	    set dflt_pool ""
             
             if { [info exists tls_servername] } {
 				set servername_lower [string tolower $tls_servername]
@@ -652,14 +653,14 @@ func (appMgr *Manager) sslPassthroughIRule() string {
                 set ab_class "/%[1]s/ab_deployment_dg"
                 if { not [class exists $ab_class] } {
                     if { $dflt_pool == "" } then {
-                        log local0.debug "Failed to find pool for $servername_lower"
+                        log local0.debug "Unable to find pool for $servername_lower"
                     } else {
                         pool $dflt_pool
                     }
                 } else {
                     set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
                     if { $selected_pool == "" } then {
-                        log local0.debug "Failed to find pool for $servername_lower"
+                        log local0.debug "Unable to find pool for $servername_lower"
                     } else {
                         pool $selected_pool
                     }

@@ -1,0 +1,60 @@
+package agent
+
+import (
+	"errors"
+)
+
+const (
+	MsgTypeSendFDB  = "FDB"
+	MsgTypeSendARP  = "ARP"
+	MsgTypeSendDecl = "L4L7Decleration"
+)
+
+type CISAgentInterface interface {
+	Initializer
+	Deployer
+	Remover
+	DeInitializer
+	IsImplInAgent(string) bool
+}
+
+// Initializer is the interface which wraps basic Init method.
+type Initializer interface {
+	Init(interface{}) error
+}
+
+// Deployer is the interface which wraps basic Deploy method
+type Deployer interface {
+	Deploy(req interface{}) error
+}
+
+// Remover is the interface which wraps basic Remove method
+type Remover interface {
+	Remove(partition string) error
+}
+
+// De-Initializer is the interface which wraps basic De-Init method.
+type DeInitializer interface {
+	DeInit() error
+}
+
+const (
+	AS3Agent  = "as3"
+	CCCLAgent = "cccl"
+)
+
+func CreateAgent(agentType string) (CISAgentInterface, error) {
+	switch agentType {
+	case AS3Agent:
+		return new(agentAS3), nil
+	case CCCLAgent:
+		return new(agentCCCL), nil
+	// Futuristic Agents
+	//case BIGIQ:
+	//	return new(agentBIGIQ), nil
+	//case FAST:
+	//	return new(agentFAST), nil
+	default:
+		return nil, errors.New("Invalid Agent Type")
+	}
+}

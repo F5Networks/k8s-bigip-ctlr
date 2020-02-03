@@ -4,6 +4,21 @@ Release Notes for BIG-IP Controller for Kubernetes
 Next Release
 ------------
 
+Added Functionality
+`````````````````````
+* AS3 as default agent.
+* Controller supports TEEM feature from AS3.
+* Support for Informer based Override and User defined AS3.
+* Support AS3 3.18 as mandatory version for 2.0.
+* Code refactor to accommodate Agent architecture.
+* Added new option --userdefined-as3-declaration for processing userdefined-as3-cfgMap in the CIS watched namespace.
+
+Bug Fixes
+`````````
+* Controller handles requests sent to unknown hosts for Routes using debug messages.
+* Controller disables mid-stream renegotiation for custom ClientSSL profiles.
+* SR - Multiple ClientSSL support for BIG-IP ClientSSL profiles.
+* :issues:`1233` Controller handles clientSSL annotation and cert/key logging issues.
 
 1.14.0
 ------------

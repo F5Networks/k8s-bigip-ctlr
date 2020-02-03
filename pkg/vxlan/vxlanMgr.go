@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
@@ -91,14 +91,14 @@ func NewVxlanMgr(
 
 func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 	if nil != err {
-		log.Warningf("Vxlan manager (%s) unable to get list of nodes: %v",
+		log.Warningf("[VxLAN] Vxlan manager (%s) unable to get list of nodes: %v",
 			vxm.vxLAN, err)
 		return
 	}
 
 	nodes, ok := obj.([]v1.Node)
 	if false == ok {
-		log.Warningf("Vxlan manager (%s) received poll update with unexpected type",
+		log.Warningf("[VxLAN] Vxlan manager (%s) received poll update with unexpected type",
 			vxm.vxLAN)
 		return
 	}
@@ -142,7 +142,7 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 			var mac string
 			mac, err = parseVtepMac(atn, node.ObjectMeta.Name)
 			if nil != err {
-				log.Errorf("%v", err)
+				log.Errorf("[VxLAN] %v", err)
 			} else if rec.Endpoint != "" {
 				rec.Name = mac
 			}
@@ -161,18 +161,18 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 	)
 
 	if nil != err {
-		log.Warningf("Vxlan manager (%s) failed to write fdb config section: %v",
+		log.Warningf("[VxLAN] Vxlan manager (%s) failed to write fdb config section: %v",
 			vxm.vxLAN, err)
 	} else {
 		select {
 		case <-doneCh:
-			log.Debugf("Vxlan manager (%s) wrote config section: %v",
+			log.Debugf("[VxLAN] Vxlan manager (%s) wrote config section: %v",
 				vxm.vxLAN, records)
 		case e := <-errCh:
-			log.Warningf("Vxlan manager (%s) failed to write config section: %v",
+			log.Warningf("[VxLAN] Vxlan manager (%s) failed to write config section: %v",
 				vxm.vxLAN, e)
 		case <-time.After(time.Second):
-			log.Warningf("Vxlan manager (%s) did not receive write response in 1s",
+			log.Warningf("[VxLAN] Vxlan manager (%s) did not receive write response in 1s",
 				vxm.vxLAN)
 		}
 	}
@@ -182,7 +182,7 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 func ipv4ToMac(addr string) string {
 	ip := strings.Split(addr, ".")
 	if len(ip) != 4 {
-		log.Errorf("Bad IPv4 address format specified for FDB record: %s", addr)
+		log.Errorf("[VxLAN] Bad IPv4 address format specified for FDB record: %s", addr)
 		return ""
 	}
 	var intIP [4]int
@@ -192,17 +192,17 @@ func ipv4ToMac(addr string) string {
 	return fmt.Sprintf("0a:0a:%02x:%02x:%02x:%02x", intIP[0], intIP[1], intIP[2], intIP[3])
 }
 
-// Listen for updates from appmanager containing pod names (for arp entries)
+// Listen for updates from resource containing pod names (for arp entries)
 func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
 	go func() {
-		log.Debugf("Vxlan Manager waiting for pod events from appManager.")
+		log.Debugf("[VxLAN] Vxlan Manager waiting for pod events from appManager.")
 		for {
 			select {
 			case pods := <-vxm.podChan:
-				if pods, ok := pods.([]appmanager.Member); ok {
+				if pods, ok := pods.([]resource.Member); ok {
 					vxm.addArpForPods(pods, kubeClient)
 				} else {
-					log.Errorf("Vxlan Manager could not read Endpoints from appManager channel.")
+					log.Errorf("[VxLAN] Vxlan Manager could not read Endpoints from appManager channel.")
 				}
 			}
 		}
@@ -214,19 +214,19 @@ func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Inter
 	arps := arpSection{}
 	kubePods, err := kubeClient.CoreV1().Pods("").List(metav1.ListOptions{})
 	if nil != err {
-		log.Errorf("Vxlan Manager could not list Kubernetes Pods for ARP entries: %v", err)
+		log.Errorf("[VxLAN] Vxlan Manager could not list Kubernetes Pods for ARP entries: %v", err)
 		return
 	}
 	kubeNodes, err := kubeClient.CoreV1().Nodes().List(metav1.ListOptions{})
 	if nil != err {
-		log.Errorf("Vxlan Manager could not list Kubernetes Nodes for ARP entries: %v", err)
+		log.Errorf("[VxLAN] Vxlan Manager could not list Kubernetes Nodes for ARP entries: %v", err)
 		return
 	}
-	for _, pod := range pods.([]appmanager.Member) {
+	for _, pod := range pods.([]resource.Member) {
 		var mac string
 		mac, err = getVtepMac(pod, kubePods, kubeNodes)
 		if nil != err {
-			log.Errorf("%v", err)
+			log.Errorf("[VxLAN] %v", err)
 			return
 		}
 		entry := arpEntry{
@@ -242,18 +242,18 @@ func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Inter
 	)
 
 	if nil != err {
-		log.Warningf("Vxlan manager (%s) failed to write arp config section: %v",
+		log.Warningf("[VxLAN] Vxlan manager (%s) failed to write arp config section: %v",
 			vxm.vxLAN, err)
 	} else {
 		select {
 		case <-doneCh:
-			log.Debugf("Vxlan manager (%s) wrote config section: %v",
+			log.Debugf("[VxLAN] Vxlan manager (%s) wrote config section: %v",
 				vxm.vxLAN, arps)
 		case e := <-errCh:
-			log.Warningf("Vxlan manager (%s) failed to write config section: %v",
+			log.Warningf("[VxLAN] Vxlan manager (%s) failed to write config section: %v",
 				vxm.vxLAN, e)
 		case <-time.After(time.Second):
-			log.Warningf("Vxlan manager (%s) did not receive write response in 1s",
+			log.Warningf("[VxLAN] Vxlan manager (%s) did not receive write response in 1s",
 				vxm.vxLAN)
 		}
 	}
@@ -261,7 +261,7 @@ func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Inter
 
 // Gets the VtepMac from the Node running this Pod
 func getVtepMac(
-	pod appmanager.Member,
+	pod resource.Member,
 	kubePods *v1.PodList,
 	kubeNodes *v1.NodeList,
 ) (string, error) {

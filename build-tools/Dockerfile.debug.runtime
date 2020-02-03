@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN apt-get remove -y libidn11
 
 COPY bigip-virtual-server_v*.json $APPPATH/vendor/src/f5/schemas/
-COPY as3-schema-3.13.2-1-cis.json $APPPATH/vendor/src/f5/schemas/
+COPY as3-schema-3.18.0-4-cis.json $APPPATH/vendor/src/f5/schemas/
 COPY k8s-bigip-ctlr $APPPATH/bin
 COPY VERSION_BUILD.json $APPPATH/vendor/src/f5/
 COPY --from=builder /go/bin/dlv /app/bin

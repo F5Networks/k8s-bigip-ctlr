@@ -21,6 +21,8 @@ import (
 	"strconv"
 
 	"github.com/xeipuuv/gojsonschema"
+
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 )
 
 // Big-IP ipv4/ipv6 checkers
@@ -28,7 +30,7 @@ type BigIPv4FormatChecker struct{}
 
 func (f BigIPv4FormatChecker) IsFormat(input interface{}) bool {
 	var strInput = input.(string)
-	ip, rd := split_ip_with_route_domain(strInput)
+	ip, rd := Split_ip_with_route_domain(strInput)
 	if rd != "" {
 		if _, err := strconv.Atoi(rd); err != nil {
 			return false
@@ -46,7 +48,7 @@ type BigIPv6FormatChecker struct{}
 
 func (f BigIPv6FormatChecker) IsFormat(input interface{}) bool {
 	var strInput = input.(string)
-	ip, rd := split_ip_with_route_domain(strInput)
+	ip, rd := Split_ip_with_route_domain(strInput)
 	if rd != "" {
 		if _, err := strconv.Atoi(rd); err != nil {
 			return false

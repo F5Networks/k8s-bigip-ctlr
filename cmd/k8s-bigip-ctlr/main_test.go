@@ -443,9 +443,8 @@ var _ = Describe("Main Tests", func() {
 			Expect(nodePoller).ToNot(BeNil(), "Mock poller cannot be nil.")
 
 			vsm := appmanager.NewManager(&appmanager.Params{
-				KubeClient:   fake,
-				ConfigWriter: configWriter,
-				IsNodePort:   true,
+				KubeClient: fake,
+				IsNodePort: true,
 			})
 			err = setupNodePolling(vsm, nodePoller, nil, nil)
 			Expect(err).To(BeNil())
@@ -492,12 +491,11 @@ var _ = Describe("Main Tests", func() {
 			Expect(nodePoller).ToNot(BeNil(), "Mock poller cannot be nil.")
 
 			vsm := appmanager.NewManager(&appmanager.Params{
-				KubeClient:   fakeClient,
-				ConfigWriter: configWriter,
+				KubeClient: fakeClient,
 			})
 			err = setupNodePolling(vsm, nodePoller, nil, nil)
 			Expect(err).To(BeNil())
-			// Fail case from config writer
+			//Fail case from config writer
 			nodePoller = &test.MockPoller{
 				FailStyle: test.ImmediateFail,
 			}

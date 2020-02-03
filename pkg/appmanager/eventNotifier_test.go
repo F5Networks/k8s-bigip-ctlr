@@ -18,7 +18,10 @@ package appmanager
 
 import (
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -134,7 +137,7 @@ var _ = Describe("Event Notifier Tests", func() {
 		var mw *test.MockWriter
 		var namespaces []string
 		BeforeEach(func() {
-			//RegisterBigIPSchemaTypes()
+			RegisterBigIPSchemaTypes()
 
 			mw = &test.MockWriter{
 				FailStyle: test.Success,
@@ -145,7 +148,6 @@ var _ = Describe("Event Notifier Tests", func() {
 
 			mockMgr = newMockAppManager(&Params{
 				KubeClient:             fakeClient,
-				ConfigWriter:           mw,
 				restClient:             test.CreateFakeHTTPClient(),
 				RouteClientV1:          fakeRouteClient.NewSimpleClientset().RouteV1(),
 				IsNodePort:             true,
@@ -155,6 +157,8 @@ var _ = Describe("Event Notifier Tests", func() {
 				IngressClass:           "f5",
 			})
 			namespaces = []string{"ns0", "ns1", "ns2", "ns3", "ns4", "ns5"}
+			mockMgr.appMgr.AgentCIS, _ = agent.CreateAgent(agent.CCCLAgent)
+			mockMgr.appMgr.AgentCIS.Init(&cccl.Params{ConfigWriter: mw})
 			err := mockMgr.startNonLabelMode(namespaces)
 			Expect(err).To(BeNil())
 		})
@@ -187,8 +191,8 @@ var _ = Describe("Event Notifier Tests", func() {
 					},
 				},
 				map[string]string{
-					f5VsBindAddrAnnotation:  bindAddr,
-					f5VsPartitionAnnotation: "velcro",
+					F5VsBindAddrAnnotation:  bindAddr,
+					F5VsPartitionAnnotation: "velcro",
 				},
 			)
 			r = mockMgr.addIngress(ing)

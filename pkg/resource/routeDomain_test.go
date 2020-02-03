@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package appmanager
+package resource
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -53,7 +53,7 @@ var _ = Describe("Route Domain", func() {
 		}
 
 		for _, td := range testData {
-			ip, rd := split_ip_with_route_domain(td.address)
+			ip, rd := Split_ip_with_route_domain(td.address)
 			Expect(ip).To(Equal(td.expectedIP))
 			Expect(rd).To(Equal(td.expectedRD))
 		}

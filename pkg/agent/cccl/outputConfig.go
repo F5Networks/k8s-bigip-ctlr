@@ -14,44 +14,28 @@
  * limitations under the License.
  */
 
-package appmanager
+package cccl
 
 import (
 	"encoding/json"
 	"strings"
 	"time"
 
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
 // Dump out the Virtual Server configs to a file
-func (appMgr *Manager) outputConfig() {
-	appMgr.resources.Lock()
-
-	switch appMgr.Agent {
-	case "as3":
-		if appMgr.processedItems >= appMgr.queueLen || appMgr.steadyState {
-			appMgr.postRouteDeclaration()
-
-			appMgr.steadyState = true
-		}
-	default:
-		appMgr.outputConfigLocked()
-	}
-	appMgr.resources.Unlock()
-}
-
-// Dump out the Virtual Server configs to a file
 // This function MUST be called with the virtualServers
 // lock held.
-func (appMgr *Manager) outputConfigLocked() {
+func (cm *CCCLManager) OutputConfigLocked() {
 	// Initialize the Resources struct as empty
 
 	// Organize the data as a map of arrays of resources (per partition)
 	resources := PartitionMap{}
 
 	// Filter the configs to only those that have active services
-	for _, cfg := range appMgr.resources.GetAllResources() {
+	for _, cfg := range cm.Resources.RsCfgs {
 		if cfg.MetaData.Active == true {
 			initPartitionData(resources, cfg.GetPartition())
 
@@ -97,15 +81,15 @@ func (appMgr *Manager) outputConfigLocked() {
 		}
 	}
 
-	for _, profile := range appMgr.customProfiles.profs {
+	for _, profile := range cm.CustomProfiles.Profs {
 		initPartitionData(resources, profile.Partition)
 		resources[profile.Partition].CustomProfiles = append(resources[profile.Partition].CustomProfiles, profile)
 	}
-	for _, irule := range appMgr.irulesMap {
+	for _, irule := range cm.IrulesMap {
 		initPartitionData(resources, irule.Partition)
 		resources[irule.Partition].IRules = append(resources[irule.Partition].IRules, *irule)
 	}
-	for intDgKey, intDgMap := range appMgr.intDgMap {
+	for intDgKey, intDgMap := range cm.IntDgMap {
 		initPartitionData(resources, intDgKey.Partition)
 		// Join all namespace DG's into one DG before adding.
 		flatDg := intDgMap.FlattenNamespaces()
@@ -117,7 +101,7 @@ func (appMgr *Manager) outputConfigLocked() {
 		}
 	}
 
-	if appMgr.eventChan != nil {
+	if cm.eventChan != nil {
 		// Get all pool members and write them to VxlanMgr to configure ARP entries
 		var allPoolMembers []Member
 		for _, cfg := range resources {
@@ -129,13 +113,9 @@ func (appMgr *Manager) outputConfigLocked() {
 			}
 		}
 
-		for member := range appMgr.as3Members {
-			allPoolMembers = append(allPoolMembers, member)
-		}
-
 		select {
-		case appMgr.eventChan <- allPoolMembers:
-			log.Debugf("AppManager wrote endpoints to VxlanMgr.")
+		case cm.eventChan <- allPoolMembers:
+			log.Debugf("[CCCL] AppManager wrote endpoints to VxlanMgr.")
 		case <-time.After(3 * time.Second):
 		}
 	}
@@ -147,14 +127,14 @@ func (appMgr *Manager) outputConfigLocked() {
 	for partition, partitionConfig := range resources {
 		for vKey, virtual := range partitionConfig.Virtuals {
 			for _, irule := range virtual.IRules {
-				if strings.Contains(irule, sslPassthroughIRuleName) {
-					clientProfCt := virtual.GetProfileCountByContext(customProfileClient)
-					serverProfCt := virtual.GetProfileCountByContext(customProfileServer)
+				if strings.Contains(irule, SslPassthroughIRuleName) {
+					clientProfCt := virtual.GetProfileCountByContext(CustomProfileClient)
+					serverProfCt := virtual.GetProfileCountByContext(CustomProfileServer)
 					if 0 == clientProfCt && 0 == serverProfCt {
 						sslProf := ProfileRef{
 							Partition: "Common",
 							Name:      "clientssl",
-							Context:   customProfileClient,
+							Context:   CustomProfileClient,
 						}
 						resources[partition].Virtuals[vKey].AddOrUpdateProfile(sslProf)
 					}
@@ -163,78 +143,75 @@ func (appMgr *Manager) outputConfigLocked() {
 		}
 	}
 
-	if appMgr.processedItems >= appMgr.queueLen || appMgr.steadyState {
-		doneCh, errCh, err := appMgr.ConfigWriter().SendSection("resources", resources)
-		if nil != err {
-			log.Warningf("Failed to write Big-IP config data: %v", err)
-		} else {
-			select {
-			case <-doneCh:
-				virtualCount := 0
-				iappCount := 0
-				for _, partitionConfig := range resources {
-					virtualCount += len(partitionConfig.Virtuals)
-					iappCount += len(partitionConfig.IApps)
-				}
-				log.Infof("Wrote %v Virtual Server and %v IApp configs",
-					virtualCount, iappCount)
-				if log.LL_DEBUG == log.GetLogLevel() {
-					// Copy everything from resources except CustomProfiles
-					// to be used for debug logging
-					resourceLog := copyResourceData(resources)
-					output, err := json.Marshal(resourceLog)
-					if nil != err {
-						log.Warningf("Failed creating output debug log: %v", err)
-					} else {
-						log.Debugf("LTM Resources: %s", output)
-					}
-				}
-			case e := <-errCh:
-				log.Warningf("Failed to write Big-IP config data: %v", e)
-			case <-time.After(time.Second):
-				log.Warning("Did not receive config write response in 1s")
+	doneCh, errCh, err := cm.ConfigWriter().SendSection("resources", resources)
+	if nil != err {
+		log.Warningf("[CCCL] Failed to write Big-IP config data: %v", err)
+	} else {
+		select {
+		case <-doneCh:
+			virtualCount := 0
+			iappCount := 0
+			for _, partitionConfig := range resources {
+				virtualCount += len(partitionConfig.Virtuals)
+				iappCount += len(partitionConfig.IApps)
 			}
+			log.Infof("[CCCL] Wrote %v Virtual Server and %v IApp configs",
+				virtualCount, iappCount)
+			if log.LL_DEBUG == log.GetLogLevel() {
+				// Copy everything from resources except CustomProfiles
+				// to be used for debug logging
+				resourceLog := copyResourceData(resources)
+				output, err := json.Marshal(resourceLog)
+				if nil != err {
+					log.Warningf("[CCCL] Failed creating output debug log: %v", err)
+				} else {
+					log.Debugf("[CCCL] LTM Resources: %s", output)
+				}
+			}
+		case e := <-errCh:
+			log.Warningf("[CCCL] Failed to write Big-IP config data: %v", e)
+		case <-time.After(time.Second):
+			log.Warning("Did not receive config write response in 1s")
 		}
-		appMgr.steadyState = true
 	}
 }
 
-func (appMgr *Manager) sendFDBEntries() {
-	// Sends FDB details to Vxlan Manager when agent=as3
-
+func (cm *CCCLManager) SendFDBEntries() {
 	// Organize the data as a map of arrays of resources (per partition)
 	resources := PartitionMap{}
 
 	// Filter the configs to only those that have active services
-	for _, cfg := range appMgr.resources.GetAllResources() {
+	for _, cfg := range cm.Resources.RsCfgs {
 		if cfg.MetaData.Active == true {
 			initPartitionData(resources, cfg.GetPartition())
 		}
 	}
 
-	doneCh, errCh, err := appMgr.ConfigWriter().SendSection("resources", resources)
+	doneCh, errCh, err := cm.ConfigWriter().SendSection("resources", resources)
 	if nil != err {
-		log.Warningf("Failed to write FDB Records: %v", err)
+		log.Warningf("[CCCL] Failed to write FDB Records: %v", err)
 		return
 	}
+
 	select {
 	case <-doneCh:
-		log.Infof("Successfully Sent the FDB Records")
+		log.Infof("[CCCL] Successfully Sent the FDB Records")
 	case e := <-errCh:
-		log.Warningf("Failed to write FDB Records: %v", e)
+		log.Warningf("[CCCL] Failed to write FDB Records: %v", e)
 	case <-time.After(time.Second):
 		log.Warning("Did not receive config write response in 1s")
 	}
 }
 
-func (appMgr *Manager) sendARPEntries() {
+func (cm *CCCLManager) SendARPEntries() {
 
+	log.Debugf("[CORE] FDB  Deploy revc")
 	// Get all pool members and write them to VxlanMgr to configure ARP entries
 	resources := PartitionMap{}
 	var allPoolMembers []Member
 
 	// Filter the configs to only those that have active services
-	for _, cfg := range appMgr.resources.GetAllResources() {
+	for _, cfg := range cm.Resources.RsCfgs {
 		if cfg.MetaData.Active == true {
 			initPartitionData(resources, cfg.GetPartition())
 			for _, p := range cfg.Pools {
@@ -249,14 +226,14 @@ func (appMgr *Manager) sendARPEntries() {
 		}
 	}
 
-	if appMgr.eventChan != nil {
-		for member := range appMgr.as3Members {
+	if cm.eventChan != nil {
+		for member := range cm.ResourceRequest.PoolMembers {
 			allPoolMembers = append(allPoolMembers, member)
 		}
 
 		select {
-		case appMgr.eventChan <- allPoolMembers:
-			log.Debugf("AppManager wrote endpoints to VxlanMgr")
+		case cm.eventChan <- allPoolMembers:
+			log.Debugf("[CCCL] AppManager wrote endpoints to VxlanMgr")
 		case <-time.After(3 * time.Second):
 		}
 	}
@@ -266,7 +243,7 @@ func (appMgr *Manager) sendARPEntries() {
 func appendSslProfile(profs []ProfileRef, profile string, context string) []ProfileRef {
 	p := strings.Split(profile, "/")
 	if len(p) != 2 {
-		log.Errorf("Could not parse partition and name from SSL profile: %s", profile)
+		log.Errorf("[CCCL] Could not parse partition and name from SSL profile: %s", profile)
 		return profs
 	} else {
 		return append(profs, ProfileRef{Partition: p[0], Name: p[1], Context: context})

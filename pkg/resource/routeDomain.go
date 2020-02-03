@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-package appmanager
+package resource
 
 import (
 	"regexp"
 )
 
-func split_ip_with_route_domain(address string) (ip string, rd string) {
+func Split_ip_with_route_domain(address string) (ip string, rd string) {
 	// Split the address into the ip and routeDomain (optional) parts
 	//     address is of the form: <ipv4_or_ipv6>[%<routeDomainID>]
 	idRdRegex := regexp.MustCompile(`^([^%]*)%(\d+)$`)

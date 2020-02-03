@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-package appmanager
+package as3
+
+import (
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+)
 
 type (
 	as3Template    string
@@ -183,11 +187,12 @@ type (
 
 	// as3TLSServer maps to TLS_Server in AS3 Resources
 	as3TLSServer struct {
-		Class         string                     `json:"class,omitempty"`
-		Certificates  []as3TLSServerCertificates `json:"certificates,omitempty"`
-		Ciphers       string                     `json:"ciphers,omitempty"`
-		CipherGroup   *as3ResourcePointer        `json:"cipherGroup,omitempty"`
-		Tls1_3Enabled bool                       `json:"tls1_3Enabled,omitempty"`
+		Class                string                     `json:"class,omitempty"`
+		Certificates         []as3TLSServerCertificates `json:"certificates,omitempty"`
+		Ciphers              string                     `json:"ciphers,omitempty"`
+		CipherGroup          *as3ResourcePointer        `json:"cipherGroup,omitempty"`
+		Tls1_3Enabled        bool                       `json:"tls1_3Enabled,omitempty"`
+		RenegotiationEnabled *bool                      `json:"renegotiationEnabled,omitempty"`
 	}
 
 	// as3TLSServerCertificates maps to TLS_Server_certificates in AS3 Resources
@@ -220,4 +225,41 @@ type (
 		Class string `json:"class,omitempty"`
 		IRule string `json:"iRule,omitempty"`
 	}
+
+	// Pool Member
+	//Member struct {
+	//	Address string `json:"address"`
+	//	Port    int32  `json:"port"`
+	//	Session string `json:"session,omitempty"`
+	//}
+
+	// Routes annotation features that are possible by an AS3 declaration can be added here. Initially enabling a WAF
+	// policy is added as an AS3 feature.
+	// | Host + Path | Virtual Server to Apply | WAF Policy Name |
+	// |-------------|-------------------------|-----------------|
+	// Host + Path is a unique record. The columns can be extended to add future features.
+	// InternalF5ResourcesGroup takes OpenShift/Kubernetes namespace as key
+	//InternalF5ResourcesGroup map[string]InternalF5Resources
+	//InternalF5Resources      map[Record]F5Resources
+	//
+	//// AS3 Backend supported features
+	//virtuals int
+	//
+	//Record struct {
+	//	Host string
+	//	Path string
+	//}
+	//
+	//F5Resources struct {
+	//	Virtual   virtuals // 0 - HTTP, 1 - HTTPS, 2 - HTTP/S
+	//	WAFPolicy string
+	//}
+
 )
+
+// Determines which virtual server needs a specific feature applied.
+//const (
+//	HTTP virtuals = iota
+//	HTTPS
+//	HTTPANDS
+//)

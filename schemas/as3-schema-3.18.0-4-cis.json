@@ -1,5 +1,5 @@
 {
-  "$id": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema-3.11.0-3.json",
+  "$id": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "AS3 API Request",
   "description": "AS3 API request body",
@@ -95,6 +95,30 @@
             "object",
             "array"
           ]
+        },
+        "target": {
+          "title": "Optional Target Device",
+          "description": "Optional target device (only applies when configuring with certain hosts such as BIG-IQ)",
+          "type": "object",
+          "properties": {
+            "hostname": {
+              "title": "Host Name",
+              "description": "Host name of managed device to be configured",
+              "type": "string"
+            },
+            "address": {
+              "title": "IP Address",
+              "description": "IP address of managed device to be configured",
+              "type": "string",
+              "format": "f5ip"
+            },
+            "ssgName": {
+              "title": "SSG Name",
+              "description": "Name of shared service group to be configured",
+              "type": "string"
+            }
+          },
+          "maxProperties": 1
         }
       },
       "required": [
@@ -643,9 +667,11 @@
         "url": {
           "title": "URL",
           "description": "The URL to pull the ASM policy from",
-          "type": "string",
-          "minLength": 3,
-          "f5expand": true
+          "allOf": [
+            {
+              "$ref": "#/definitions/Resource_URL"
+            }
+          ]
         },
         "file": {
           "title": "File",
@@ -659,6 +685,37 @@
           "description": "If false (default), the system updates the policy in every AS3 declaration deployment. If true, AS3 creates the policy on first deployment, and leaves it untouched afterwards",
           "type": "boolean",
           "default": false
+        },
+        "enforcementMode": {
+          "title": "Enforcement Mode",
+          "description": "Overrides the enforcement mode setting of the WAF policy",
+          "type": "string",
+          "enum": [
+            "blocking",
+            "transparent"
+          ]
+        },
+        "serverTechnologies": {
+          "title": "Server Technologies",
+          "description": "Define server technologies for the WAF Policy, such as Java Servlets or Apache Struts. Note: This is available in TMOS versions 13.0 and later.",
+          "type": "array",
+          "items": {
+            "title": "Server Technology",
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "disabledSignatures": {
+          "title": "Disabled attack signatures",
+          "description": "Disable various attack signatures by ID.",
+          "type": "array",
+          "items": {
+            "title": "Attack Signature ID",
+            "type": "integer",
+            "minimum": 200000000,
+            "maximum": 399999999
+          },
+          "uniqueItems": true
         }
       },
       "additionalProperties": false,
@@ -687,6 +744,7 @@
           "type": "string",
           "enum": [
             "equals",
+            "does-not-equal",
             "less",
             "greater",
             "less-or-equal",
@@ -784,6 +842,25 @@
       "allOf": [
         {
           "f5bigComponent": "query ltm profile stream"
+        }
+      ]
+    },
+    "Pointer_Existing_TLS_Server_Profile": {
+      "description": "Reference to a TLS Server profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP TLS Server profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile server-ssl"
         }
       ]
     },
@@ -890,6 +967,25 @@
       ],
       "additionalProperties": false
     },
+    "Pointer_FPS_Profile": {
+      "description": "Reference to a FPS Profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP FPS Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query security anti-fraud profile"
+        }
+      ]
+    },
     "TLS_Server": {
       "title": "TLS Server",
       "description": "TLS server parameters (connections arriving to ADC)",
@@ -951,9 +1047,12 @@
         },
         "ciphers": {
           "title": "Ciphers",
-          "description": "Ciphersuite selection string",
-          "type": "string",
-          "default": "DEFAULT"
+          "description": "Ciphersuite selection string. ciphers and cipherGroup are mutually exclusive, only use one.",
+          "type": "string"
+        },
+        "cipherGroup": {
+          "description": "Pointer to a cipherGroup. cipherGroup and ciphers are mutually exclusive, only use one.",
+          "$ref": "#/definitions/Pointer_Cipher_Group"
         },
         "authenticationMode": {
           "title": "Authentication mode",
@@ -1098,8 +1197,20 @@
             "require"
           ]
         },
+        "renegotiationEnabled": {
+          "title": "TLS Renegotiation",
+          "description": "Controls on a per-connection basis how the system responds to mid-stream SSL reconnection requests. When enabled, the system processes mid-stream SSL renegotiation requests.",
+          "type": "boolean",
+          "default": true
+        },
         "staplerOCSPEnabled": {
           "description": "Specifies whether to enable OCSP stapling",
+          "type": "boolean",
+          "default": false
+        },
+        "tls1_3Enabled": {
+          "title": "TLS 1.3",
+          "description": "Allow TLS 1.3 Ciphers. Note: tls1_3Enabled is only supported in tmos version 14.0+.",
           "type": "boolean",
           "default": false
         }
@@ -1146,6 +1257,37 @@
             "required": [
               "authenticationTrustCA"
             ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "ciphers"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "cipherGroup"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "required": [
+                "ciphers",
+                "cipherGroup"
+              ]
+            }
+          },
+          "then": {
+            "properties": {
+              "ciphers": {
+                "default": "DEFAULT"
+              }
+            }
           }
         }
       ],
@@ -2936,9 +3078,22 @@
         },
         "ciphers": {
           "title": "Ciphers",
-          "description": "Ciphersuite selection string",
+          "description": "Ciphersuite selection string. ciphers and cipherGroup are mutually exclusive, only use one.",
+          "type": "string"
+        },
+        "cipherGroup": {
+          "description": "Pointer to a cipherGroup. cipherGroup and ciphers are mutually exclusive, only use one.",
+          "$ref": "#/definitions/Pointer_Cipher_Group"
+        },
+        "authenticationFrequency": {
+          "title": "Authentication frequency",
+          "description": "Client certificate authentication frequency",
           "type": "string",
-          "default": "DEFAULT"
+          "enum": [
+            "one-time",
+            "every-time"
+          ],
+          "default": "one-time"
         },
         "serverName": {
           "title": "Server name",
@@ -3106,8 +3261,47 @@
             "allow",
             "require"
           ]
+        },
+        "tls1_3Enabled": {
+          "title": "TLS 1.3",
+          "description": "Allow TLS 1.3 Ciphers. Note: tls1_3Enabled is only supported in tmos version 14.0+.",
+          "type": "boolean",
+          "default": false
         }
       },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "ciphers"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "cipherGroup"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "required": [
+                "ciphers",
+                "cipherGroup"
+              ]
+            }
+          },
+          "then": {
+            "properties": {
+              "ciphers": {
+                "default": "DEFAULT"
+              }
+            }
+          }
+        }
+      ],
       "additionalProperties": false,
       "required": [
         "class"
@@ -3123,6 +3317,38 @@
       },
       "required": [
         "serviceMain"
+      ]
+    },
+    "Enforcement_iRule": {
+      "description": "Specifies or configures an iRule for use in Enforcement Policies",
+      "title": "Enforcement iRule",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Enforcement_iRule"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "expand": {
+          "title": "Expand",
+          "description": "If true (default), expand backquoted variables in iRule",
+          "type": "boolean",
+          "default": true
+        },
+        "iRule": {
+          "$ref": "#/definitions/iRule_Core"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "iRule"
       ]
     },
     "SSH_Proxy_Profile_Rule_Collection": {
@@ -3355,10 +3581,18 @@
         },
         "minimumMonitors": {
           "title": "Minimum monitors",
-          "description": "Member is down when fewer than minimum monitors report it healthy",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 63
+          "description": "Member is down when fewer than minimum monitors report it healthy. Specify 'all' to require all monitors to be up.",
+          "oneOf": [
+            {
+              "type": "string",
+              "const": "all"
+            },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 63
+            }
+          ]
         },
         "members": {
           "title": "Members",
@@ -3642,6 +3876,29 @@
         }
       ]
     },
+    "Include": {
+      "title": "Include",
+      "description": "Defines inclusion of one part of the schema into another",
+      "properties": {
+        "include": {
+          "description": "Keyword to allow for inclusion of one part of the declaration into another",
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "f5pointer"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "f5pointer"
+              }
+            }
+          ],
+          "f5include": "object"
+        }
+      }
+    },
     "Pointer_DNS_TSIG_Key": {
       "description": "Reference to a DNS TSIG key",
       "type": "object",
@@ -3731,6 +3988,88 @@
         }
       }
     },
+    "Cipher_Rule": {
+      "description": "Configures a cipher rule. This is available in TMOS versions 13.0 and later",
+      "type": "object",
+      "properties": {
+        "class": {
+          "type": "string",
+          "const": "Cipher_Rule"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "cipherSuites": {
+          "description": "Specifies the cipher suites",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "namedGroups": {
+          "description": "Specifies the Elliptic Curve Diffie Hellman key agreement algorithms used to negotiate SSL/TLS connections. namedGroups are only supported on BIG-IP 14.0 and later.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "DEFAULT",
+              "P256",
+              "P384",
+              "X25519"
+            ]
+          }
+        },
+        "signatureAlgorithms": {
+          "description": "Specifies the digital signature algorithms used for authentication. signatureAlgorithms are only supported on BIG-IP 14.0 and later.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "DEFAULT",
+              "DSA-SHA1",
+              "DSA-SHA256",
+              "DSA-SHA384",
+              "DSA-SHA512",
+              "ECDSA-SHA1",
+              "ECDSA-SHA256",
+              "ECDSA-SHA384",
+              "ECDSA-SHA512",
+              "RSA-PKCS1-SHA1",
+              "RSA-PKCS1-SHA256",
+              "RSA-PKCS1-SHA384",
+              "RSA-PKCS1-SHA512",
+              "RSA-PSS-SHA256",
+              "RSA-PSS-SHA384",
+              "RSA-PSS-SHA512"
+            ]
+          }
+        }
+      },
+      "required": [
+        "class"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "cipherSuites"
+          ]
+        },
+        {
+          "required": [
+            "namedGroups"
+          ]
+        },
+        {
+          "required": [
+            "signatureAlgorithms"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
     "Service_UDP": {
       "title": "UDP virtual server",
       "description": "Declares a UDP virtual server (w/optional (D)TLS)",
@@ -3743,7 +4082,7 @@
         },
         "persistenceMethods": {
           "title": "Persistence methods",
-          "description": "Default 'source-address' is generally good",
+          "description": "Default 'source-address' is generally good. Use 'persistenceMethods: []' for no persistence.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/Basic_Persist"
@@ -3753,14 +4092,28 @@
           ]
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Service_UDP_Core"
-      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Service_UDP_Core"
+        }
+      ],
       "required": [
-        "class",
-        "virtualPort"
-      ]
+        "class"
+      ],
+      "if": {
+        "not": {
+          "properties": {
+            "virtualType": {
+              "const": "internal"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "virtualPort"
+        ]
+      }
     },
     "Sender_Tag_Mapping": {
       "title": "Sender and Tag Data Group Mapping",
@@ -3913,6 +4266,25 @@
         "pool"
       ],
       "additionalProperties": false
+    },
+    "Pointer_Bot_Defense_Profile": {
+      "description": "Reference to a bot defense profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP bot defense profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query security bot-defense profile"
+        }
+      ]
     },
     "Traffic_Log_Profile_Response_Settings": {
       "description": "A traffic log profiles response settings",
@@ -4109,7 +4481,7 @@
           "default": true
         },
         "securityEnabled": {
-          "description": "Specifies whether to enable or disable secure FTP traffic for the Big-IP Application Security Manager",
+          "description": "Specifies whether to enable or disable secure FTP traffic for the BIG-IP Application Security Manager",
           "type": "boolean",
           "default": false
         },
@@ -4272,6 +4644,25 @@
         }
       ]
     },
+    "Pointer_PPTP_Profile": {
+      "description": "Reference to a PPTP_Profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP PPTP_Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile pptp"
+        }
+      ]
+    },
     "Pointer_Classification_Category": {
       "description": "Reference to a category classification",
       "type": "object",
@@ -4295,6 +4686,23 @@
       "description": "Reference to a enforcement iRule",
       "type": "object",
       "properties": {
+        "use": {
+          "description": "AS3 pointer to enforcement iRule declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Enforcement_iRule"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
         "bigip": {
           "description": "Pathname of existing BIG-IP PEM iRule",
           "type": "string",
@@ -4489,9 +4897,10 @@
           "default": 4294967295
         },
         "storageFormat": {
-          "description": "Specifies the format type for log messages",
+          "description": "Specifies the format type for log messages. If it is a string it is user-defined",
           "anyOf": [
             {
+              "description": "Use this for user-defined storage format",
               "type": "string",
               "minLength": 1
             },
@@ -4561,7 +4970,7 @@
         },
         "persistenceMethods": {
           "title": "Persistence methods",
-          "description": "Default 'source-address' is generally good",
+          "description": "Default 'source-address' is generally good. Use 'persistenceMethods: []' for no persistence.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/Basic_Persist"
@@ -4575,16 +4984,47 @@
         },
         "profileFTP": {
           "$ref": "#/definitions/Pointer_FTP_Profile"
+        },
+        "profileILX": {
+          "$ref": "#/definitions/Pointer_ILX_Profile"
+        },
+        "profilePPTP": {
+          "$ref": "#/definitions/Pointer_PPTP_Profile"
+        },
+        "profileRTSP": {
+          "$ref": "#/definitions/Pointer_RTSP_Profile"
+        },
+        "profileICAP": {
+          "$ref": "#/definitions/Pointer_ICAP_Profile"
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Service_TCP_Core"
-      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Service_TCP_Core"
+        }
+      ],
       "required": [
-        "class",
-        "virtualPort"
-      ]
+        "class"
+      ],
+      "if": {
+        "not": {
+          "properties": {
+            "virtualType": {
+              "const": "internal"
+            }
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "virtualPort"
+        ],
+        "not": {
+          "required": [
+            "profileICAP"
+          ]
+        }
+      }
     },
     "Pointer_SNAT_Pool": {
       "description": "Reference to a snat pool",
@@ -4643,7 +5083,7 @@
     },
     "Service_Address": {
       "title": "Service address",
-      "description": "Service IP address definition (BIG-IP virtual-address)",
+      "description": "Service IP address definition (BIG-IP virtual-address).  NOTE: When AS3 creates a Service_Address, it is placed in /tenant/serviceAddress (and not /tenant/app/serviceAddress) on the BIG-IP system.",
       "type": "object",
       "properties": {
         "class": {
@@ -4967,8 +5407,10 @@
               "Service_HTTPS",
               "Service_TCP",
               "Service_UDP",
+              "Service_SCTP",
               "Service_L4",
               "Service_Generic",
+              "Service_Forwarding",
               "Service_Address",
               "SNAT_Pool",
               "iRule",
@@ -4984,9 +5426,11 @@
               "FIX_Profile",
               "SIP_Profile",
               "Analytics_Profile",
+              "Analytics_TCP_Profile",
               "FTP_Profile",
               "HTTP_Profile",
               "HTTP_Compress",
+              "HTTP2_Profile",
               "Multiplex_Profile",
               "TCP_Profile",
               "UDP_Profile",
@@ -4997,14 +5441,21 @@
               "Rewrite_Profile",
               "HTTP_Acceleration_Profile",
               "Stream_Profile",
+              "Access_Profile",
+              "ICAP_Profile",
+              "Adapt_Profile",
+              "Cipher_Rule",
+              "Cipher_Group",
               "Firewall_Address_List",
               "Firewall_Port_List",
               "Firewall_Rule_List",
               "Firewall_Policy",
               "NAT_Policy",
               "NAT_Source_Translation",
+              "Protocol_Inspection_Profile",
               "SSH_Proxy_Profile",
               "Data_Group",
+              "DNS_Cache",
               "DNS_Profile",
               "DNS_TSIG_Key",
               "DNS_Zone",
@@ -5027,6 +5478,7 @@
               "Bandwidth_Control_Policy",
               "Enforcement_Policy",
               "Enforcement_Diameter_Endpoint_Profile",
+              "Enforcement_iRule",
               "Enforcement_Radius_AAA_Profile",
               "Enforcement_Profile",
               "Enforcement_Subscriber_Management_Profile",
@@ -5091,6 +5543,18 @@
             "if": {
               "properties": {
                 "class": {
+                  "const": "Service_SCTP"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Service_SCTP"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
                   "const": "Service_L4"
                 }
               }
@@ -5109,6 +5573,18 @@
             },
             "then": {
               "$ref": "#/definitions/Service_Generic"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "Service_Forwarding"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Service_Forwarding"
             }
           },
           {
@@ -5295,6 +5771,18 @@
             "if": {
               "properties": {
                 "class": {
+                  "const": "Analytics_TCP_Profile"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Analytics_TCP_Profile"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
                   "const": "FTP_Profile"
                 }
               }
@@ -5325,6 +5813,18 @@
             },
             "then": {
               "$ref": "#/definitions/HTTP_Compress"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "HTTP2_Profile"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/HTTP2_Profile"
             }
           },
           {
@@ -5451,6 +5951,66 @@
             "if": {
               "properties": {
                 "class": {
+                  "const": "Access_Profile"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Access_Profile"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "ICAP_Profile"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/ICAP_Profile"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "Adapt_Profile"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Adapt_Profile"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "Cipher_Rule"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Cipher_Rule"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "Cipher_Group"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Cipher_Group"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
                   "const": "Firewall_Address_List"
                 }
               }
@@ -5523,6 +6083,18 @@
             "if": {
               "properties": {
                 "class": {
+                  "const": "Protocol_Inspection_Profile"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Protocol_Inspection_Profile"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
                   "const": "SSH_Proxy_Profile"
                 }
               }
@@ -5541,6 +6113,18 @@
             },
             "then": {
               "$ref": "#/definitions/Data_Group"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "DNS_Cache"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/DNS_Cache"
             }
           },
           {
@@ -5811,6 +6395,18 @@
             "if": {
               "properties": {
                 "class": {
+                  "const": "Enforcement_iRule"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Enforcement_iRule"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
                   "const": "Enforcement_Radius_AAA_Profile"
                 }
               }
@@ -5906,8 +6502,8 @@
         ]
       },
       "propertyNames": {
-        "pattern": "^[A-Za-z][0-9A-Za-z_]*$",
-        "maxLength": 64
+        "pattern": "^[A-Za-z]([0-9A-Za-z_.-]{0,188}[0-9A-Za-z_.])?$",
+        "maxLength": 190
       },
       "allOf": [
         {
@@ -5956,6 +6552,18 @@
           },
           "then": {
             "$ref": "#/definitions/Template_udp"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "template": {
+                "const": "sctp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Template_sctp"
           }
         },
         {
@@ -6045,7 +6653,9 @@
           "description": "Specifies the action that the firewall rule will take on matching packets.",
           "enum": [
             "accept",
-            "drop"
+            "drop",
+            "accept-decisively",
+            "reject"
           ]
         },
         "protocol": {
@@ -6291,31 +6901,84 @@
         }
       }
     },
-    "Enforcement_Rule_Forwarding_ICAP": {
-      "description": "Specifies that the flow forwards to the ICAP virtual server",
+    "Pointer_TLS_Client": {
+      "description": "Reference to a TLS Client",
+      "type": "object",
       "properties": {
-        "icapType": {
-          "description": "Specifies the ICAP adaptation type",
+        "use": {
+          "description": "AS3 pointer to TLS Client declaration",
           "type": "string",
-          "enum": [
-            "request",
-            "response",
-            "both"
-          ]
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "TLS_Client"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
         },
-        "icapService": {
-          "description": "ICAP service to route to",
+        "bigip": {
+          "description": "Pathname of existing BIG-IP TLS Client",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile server-ssl"
+        }
+      ]
+    },
+    "Basic_Auth": {
+      "title": "Basic Authentication",
+      "description": "Describes the basic authentication to access a resource",
+      "type": "object",
+      "properties": {
+        "method": {
+          "title": "Authentication Method",
+          "description": "Specifices the authentication method",
+          "type": "string",
+          "const": "basic"
+        },
+        "username": {
+          "title": "Username",
+          "description": "Specifies the user name for authentication",
+          "type": "string"
+        },
+        "passphrase": {
+          "title": "Passphrase",
+          "description": "Specifies the password for authentication",
+          "type": "object",
+          "properties": {
+            "allowReuse": {
+              "description": "If true, other declaration objects may reuse this value",
+              "type": "boolean",
+              "default": false
+            }
+          },
           "allOf": [
             {
-              "$ref": "#/definitions/Pointer_Service"
+              "$ref": "#/definitions/Secret"
             }
-          ]
+          ],
+          "f5fetch": "object",
+          "f5secret": true
         }
       },
       "required": [
-        "icapType",
-        "icapService"
-      ]
+        "method",
+        "username",
+        "passphrase"
+      ],
+      "additionalProperties": false
     },
     "Policy_Action_HTTP_Cookie": {
       "type": "object",
@@ -6399,6 +7062,135 @@
       "required": [],
       "additionalProperties": false
     },
+    "Enforcement_Rule_Forwarding_ICAP": {
+      "description": "Specifies that the flow forwards to the ICAP virtual server",
+      "properties": {
+        "icapType": {
+          "description": "Specifies the ICAP adaptation type",
+          "type": "string",
+          "enum": [
+            "request",
+            "response",
+            "both"
+          ]
+        },
+        "icapService": {
+          "description": "ICAP service to route to",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Service"
+            }
+          ]
+        }
+      },
+      "required": [
+        "icapType",
+        "icapService"
+      ]
+    },
+    "HTTP2_Profile": {
+      "title": "HTTP2 Profile",
+      "type": "object",
+      "description": "HTTP2 profile with configurable options",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "HTTP2_Profile"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "activationMode": {
+          "title": "Activation Mode",
+          "description": "This setting specifies the condition that will cause the BIG-IP system to handle an incoming connection as an HTTP/2 connection.",
+          "type": "string",
+          "enum": [
+            "alpn",
+            "always"
+          ],
+          "default": "alpn"
+        },
+        "concurrentStreamsPerConnection": {
+          "title": "Concurrent streams per connection",
+          "description": "The number of concurrent connections to allow on a single HTTP/2 connection.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256,
+          "default": 10
+        },
+        "connectionIdleTimeout": {
+          "title": "Connection idle timeout",
+          "description": "The number of seconds that a HTTP/2 connection is left open idly before it is closed.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295,
+          "default": 300
+        },
+        "enforceTlsRequirements": {
+          "title": "Enforce TLS requirements",
+          "description": "Enable or disable enforcement of TLS requirements.",
+          "type": "boolean",
+          "default": true
+        },
+        "frameSize": {
+          "title": "Frame size",
+          "description": "The size of the data frames, in bytes, that the HTTP/2 protocol sends to the client.",
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16384,
+          "default": 2048
+        },
+        "headerTableSize": {
+          "title": "Header table size",
+          "description": "The size of the header table, in KB, for the HTTP headers that the HTTP/2 protocol compresses to save bandwidth.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 4096
+        },
+        "includeContentLength": {
+          "title": "Include content length",
+          "description": "Enable to include content-length in HTTP/2 headers.",
+          "type": "boolean",
+          "default": false
+        },
+        "insertHeader": {
+          "title": "Insert header",
+          "description": "This setting specifies whether the BIG-IP system should add an HTTP header to the HTTP request to show that the request was received over HTTP/2.",
+          "type": "boolean",
+          "default": false
+        },
+        "insertHeaderName": {
+          "title": "Insert header name",
+          "description": "This setting specifies the name of the header that the BIG-IP system will add to the HTTP request when the Insert Header is enabled.",
+          "type": "string",
+          "default": "X-HTTP2"
+        },
+        "receiveWindow": {
+          "title": "Receive window",
+          "description": "The flow-control size for upload streams, in KB.",
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 128,
+          "default": 32
+        },
+        "writeSize": {
+          "title": "Write size",
+          "description": "The total size of combined data frames, in bytes, that the HTTP/2 protocol sends in a single write function.",
+          "type": "integer",
+          "minimum": 2048,
+          "maximum": 32768,
+          "default": 16384
+        }
+      },
+      "required": [
+        "class"
+      ]
+    },
     "Pointer_Service": {
       "description": "Reference to a service",
       "type": "object",
@@ -6411,6 +7203,7 @@
             "properties": {
               "class": {
                 "enum": [
+                  "Service_Forwarding",
                   "Service_HTTPS",
                   "Service_HTTP",
                   "Service_TCP",
@@ -6554,6 +7347,106 @@
         }
       ]
     },
+    "Analytics_TCP_Profile": {
+      "title": "TCP Analytics Profile",
+      "type": "object",
+      "description": "TCP Analytics profile with configurable options",
+      "f5modules": [
+        "avr"
+      ],
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Analytics_TCP_Profile"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "collectedStatsInternalLogging": {
+          "title": "Collected Statistics Internal Logging",
+          "description": "Specifies that statistics logs are stored in the system",
+          "type": "boolean",
+          "default": true
+        },
+        "collectedStatsExternalLogging": {
+          "title": "Collected Statistics External Logging",
+          "description": "Specifies that statistics logs are stored on a remote server",
+          "type": "boolean",
+          "default": false
+        },
+        "externalLoggingPublisher": {
+          "$ref": "#/definitions/Pointer_Log_Publisher"
+        },
+        "collectedByClientSide": {
+          "title": "Collected By Client Side",
+          "description": "Specifies that system collects statistics on the client side",
+          "type": "boolean",
+          "default": true
+        },
+        "collectedByServerSide": {
+          "title": "Collected By Server Side",
+          "description": "Specifies that system collects statistics on the server side",
+          "type": "boolean",
+          "default": true
+        },
+        "collectRemoteHostIp": {
+          "title": "Collect Remote Host IP",
+          "description": "Specifies that the system collects IP addresses with which traffic was exchanged",
+          "type": "boolean",
+          "default": false
+        },
+        "collectRemoteHostSubnet": {
+          "title": "Collect Remote Host Subnet",
+          "description": "Specifies that the system saves the address of the subnet with which traffic was exchanged",
+          "type": "boolean",
+          "default": true
+        },
+        "collectNexthop": {
+          "title": "Collect Next Hop Ethernet Address",
+          "description": "Specifies that the system saves the address to which the traffic is being routed",
+          "type": "boolean",
+          "default": false
+        },
+        "collectContinent": {
+          "title": "Collect Continent",
+          "description": "Specifies that the system saves the name of the continent with which traffic was exchanged",
+          "type": "boolean",
+          "default": true
+        },
+        "collectCountry": {
+          "title": "Collect Country",
+          "description": "Specifies that the system saves the name of the country with which traffic was exchanged",
+          "type": "boolean",
+          "default": true
+        },
+        "collectRegion": {
+          "title": "Collect Region",
+          "description": "Specifies that the system saves the name of the region with which traffic was exchanged",
+          "type": "boolean",
+          "default": true
+        },
+        "collectCity": {
+          "title": "Collect City",
+          "description": "Specifies that the system saves the name of the city with which traffic was exchanged",
+          "type": "boolean",
+          "default": false
+        },
+        "collectPostCode": {
+          "title": "Collect Post Code",
+          "description": "Specifies that the system saves the name of the postcode with which traffic was exchanged",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "class"
+      ]
+    },
     "DNS_Zone_DNS_Express": {
       "description": "Configure zone DNS Express settings",
       "properties": {
@@ -6659,8 +7552,10 @@
             "ixfr",
             "mx",
             "ns",
+            "nxdomain",
             "other",
             "ptr",
+            "qdcount",
             "soa",
             "srv",
             "txt",
@@ -7829,10 +8724,43 @@
       "dependencies": {
         "serverTLS": {
           "not": {}
-        }
+        },
+        "profileConnectivity": [
+          "profileAccess"
+        ]
       },
       "required": [
         "class"
+      ]
+    },
+    "Secret_Resource_URL": {
+      "title": "Resource URL",
+      "description": "Describes the URL to remote resource and optional parameters",
+      "oneOf": [
+        {
+          "type": "string",
+          "format": "uri",
+          "f5expand": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "url": {
+              "description": "URL from which to retrieve value",
+              "type": "string",
+              "format": "uri",
+              "f5expand": true
+            },
+            "skipCertificateCheck": {
+              "description": "Skip verification of SSL certificates (default false)",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
       ]
     },
     "Pointer_DNS_Resolver": {
@@ -8069,7 +8997,7 @@
         },
         "virtualAddresses": {
           "title": "Virtual addresses",
-          "description": "Virtual server will listen to each IP address in list.  To accept connections only from certain subnet(s), replace IP address with array [IP-address, accept-from-subnet]",
+          "description": "Virtual server will listen to each IP address in list.  To accept connections only from certain subnet(s), replace IP address with array [IP-address, accept-from-subnet]. IP address can also be replaced by a reference to a Service_Address.",
           "type": "array",
           "items": {
             "if": {
@@ -8086,40 +9014,33 @@
                 "type": "array",
                 "items": {
                   "title": "Virtual address",
-                  "type": "string",
-                  "format": "f5ip"
+                  "if": {
+                    "type": "string"
+                  },
+                  "then": {
+                    "format": "f5ip"
+                  },
+                  "else": {
+                    "$ref": "#/definitions/Pointer_Service_Address"
+                  }
                 },
                 "minItems": 2,
                 "maxItems": 2,
                 "uniqueItems": true
               },
               "else": {
-                "type": "object",
-                "properties": {
-                  "use": {
-                    "title": "Use",
-                    "definition": "AS3 pointer to Service_Address declaration",
-                    "type": "string",
-                    "minLength": 1,
-                    "f5pointsTo": {
-                      "properties": {
-                        "class": {
-                          "const": "Service_Address"
-                        }
-                      },
-                      "required": [
-                        "class"
-                      ]
-                    }
-                  }
-                },
-                "minProperties": 1,
-                "maxProperties": 1
+                "$ref": "#/definitions/Pointer_Service_Address"
               }
             }
           },
           "minItems": 1,
           "uniqueItems": true
+        },
+        "sourceAddress": {
+          "title": "Source address",
+          "description": "Accept connections only from these subnet(s). Only allowed if virtualType is internal, otherwise use virtualAddresses.",
+          "type": "string",
+          "format": "f5ip"
         },
         "enable": {
           "title": "Enable",
@@ -8155,7 +9076,7 @@
             "properties": {
               "use": {
                 "title": "Use",
-                "definition": "AS3 pointer to SNAT pool declaration",
+                "description": "AS3 pointer to SNAT pool declaration",
                 "type": "string",
                 "minLength": 1,
                 "f5pointsTo": {
@@ -8214,12 +9135,27 @@
                   "description": "Pathname of existing BIG-IP iRule",
                   "type": "string",
                   "format": "f5bigip"
+                },
+                "use": {
+                  "title": "Use",
+                  "description": "AS3 pointer to iRule (declared separately)",
+                  "type": "string",
+                  "minLength": 1,
+                  "f5pointsTo": {
+                    "properties": {
+                      "class": {
+                        "const": "iRule"
+                      }
+                    },
+                    "required": [
+                      "class"
+                    ]
+                  }
                 }
               },
               "additionalProperties": false,
-              "required": [
-                "bigip"
-              ],
+              "minimumProperties": 1,
+              "maximumProperties": 1,
               "f5bigComponent": "query ltm rule"
             }
           },
@@ -8251,12 +9187,27 @@
                 "description": "Pathname of existing BIG-IP pool",
                 "type": "string",
                 "format": "f5bigip"
+              },
+              "use": {
+                "title": "Use",
+                "description": "AS3 pointer to pool if any (declared separately)",
+                "type": "string",
+                "minLength": 1,
+                "f5pointsTo": {
+                  "properties": {
+                    "class": {
+                      "const": "Pool"
+                    }
+                  },
+                  "required": [
+                    "class"
+                  ]
+                }
               }
             },
             "additionalProperties": false,
-            "required": [
-              "bigip"
-            ],
+            "minimumProperties": 1,
+            "maximumProperties": 1,
             "f5bigComponent": "query ltm pool"
           }
         },
@@ -8277,76 +9228,26 @@
           "default": "none"
         },
         "policyFirewallEnforced": {
-          "title": "Firewall policy",
-          "description": "AS3 pointer to firewall (ASM) policy declaration",
+          "title": "Firewall policy (enforced)",
           "f5modules": [
             "afm"
           ],
-          "type": "object",
-          "properties": {
-            "bigip": {
-              "title": "BIG-IP firewall policy",
-              "description": "Pathname of existing BIG-IP firewall policy",
-              "type": "string",
-              "format": "f5bigip"
-            },
-            "use": {
-              "title": "Use",
-              "description": "AS3 pointer to firewall policy declaration",
-              "type": "string",
-              "minLength": 1,
-              "f5pointsTo": {
-                "properties": {
-                  "class": {
-                    "const": "Firewall_Policy"
-                  }
-                },
-                "required": [
-                  "class"
-                ]
-              }
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Firewall_Policy"
             }
-          },
-          "additionalProperties": false,
-          "minProperties": 1,
-          "maxProperties": 1,
-          "f5bigComponent": "query security firewall policy"
+          ]
         },
         "policyFirewallStaged": {
-          "title": "Firewall policy",
-          "description": "AS3 pointer to firewall (ASM) policy declaration",
+          "title": "Firewall policy (staged)",
           "f5modules": [
             "afm"
           ],
-          "type": "object",
-          "properties": {
-            "bigip": {
-              "title": "BIG-IP firewall policy",
-              "description": "Pathname of existing BIG-IP firewall policy",
-              "type": "string",
-              "format": "f5bigip"
-            },
-            "use": {
-              "title": "Use",
-              "description": "AS3 pointer to firewall policy declaration",
-              "type": "string",
-              "minLength": 1,
-              "f5pointsTo": {
-                "properties": {
-                  "class": {
-                    "const": "Firewall_Policy"
-                  }
-                },
-                "required": [
-                  "class"
-                ]
-              }
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Firewall_Policy"
             }
-          },
-          "additionalProperties": false,
-          "minProperties": 1,
-          "maxProperties": 1,
-          "f5bigComponent": "query security firewall policy"
+          ]
         },
         "policyNAT": {
           "description": "AS3 pointer to NAT policy declaration",
@@ -8404,7 +9305,7 @@
             "properties": {
               "use": {
                 "title": "Use",
-                "definition": "AS3 pointer to last-hop pool declaration",
+                "description": "AS3 pointer to last-hop pool declaration",
                 "type": "string",
                 "minLength": 1,
                 "f5pointsTo": {
@@ -8450,9 +9351,15 @@
           "type": "boolean",
           "default": true
         },
+        "nat64Enabled": {
+          "title": "Translate IPv6 to IPv4",
+          "description": "If true, translate IPv6 traffic into IPv4 (default false)",
+          "type": "boolean",
+          "default": false
+        },
         "persistenceMethods": {
           "title": "Persistence method(s)",
-          "description": "List of persistence methods (each by name or AS3 pointer).  Element 0 is primary (default) persistence method",
+          "description": "List of persistence methods (each by name or AS3 pointer).  Element 0 is primary (default) persistence method. Use 'persistenceMethods: []' for no persistence.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/Basic_Persist"
@@ -8555,6 +9462,25 @@
         "profileRewrite": {
           "$ref": "#/definitions/Pointer_Rewrite_Profile"
         },
+        "profileProtocolInspection": {
+          "description": "AS3 pointer to Protocol Inspection Profile declaration. Protocol Inspection Profiles are only supported in tmos version 13.1+",
+          "f5modules": [
+            "afm"
+          ],
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Protocol_Inspection_Profile"
+            }
+          ]
+        },
+        "profileBotDefense": {
+          "description": "Attaches a Bot Defense profile to the service. These are only available on BIG-IP 14.1+.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Bot_Defense_Profile"
+            }
+          ]
+        },
         "metadata": {
           "$ref": "#/definitions/Metadata"
         },
@@ -8562,32 +9488,57 @@
           "$ref": "#/definitions/Clone_Pools"
         }
       },
-      "if": {
-        "properties": {
-          "allowVlans": {}
-        },
-        "required": [
-          "allowVlans"
-        ]
-      },
-      "then": {
-        "not": {
-          "properties": {
-            "rejectVlans": {}
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "allowVlans": {}
+            },
+            "required": [
+              "allowVlans"
+            ]
           },
-          "required": [
-            "rejectVlans"
-          ]
+          "then": {
+            "not": {
+              "properties": {
+                "rejectVlans": {}
+              },
+              "required": [
+                "rejectVlans"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "properties": {
+                "virtualType": {
+                  "const": "internal"
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "virtualAddresses"
+            ],
+            "not": {
+              "required": [
+                "sourceAddress"
+              ]
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/Include"
         }
-      },
+      ],
       "dependencies": {
         "fallbackPersistenceMethod": [
           "persistenceMethods"
         ]
-      },
-      "required": [
-        "virtualAddresses"
-      ]
+      }
     },
     "GSLB_Monitor_UDP": {
       "description": "Additional Monitor class properties available when monitorType = udp",
@@ -9193,9 +10144,10 @@
         },
         "congestionControl": {
           "title": "Congestion-control algorithm",
-          "description": "Selects TCP congestion-control algorithm (default 'woodside')",
+          "description": "Selects TCP congestion-control algorithm (default 'woodside'). Note: bbr is only supported in tmos version 14.1+.",
           "type": "string",
           "enum": [
+            "bbr",
             "cdg",
             "chd",
             "cubic",
@@ -10876,6 +11828,42 @@
       "required": [],
       "additionalProperties": false
     },
+    "Pointer_NAT_Source_Translation": {
+      "description": "Reference to a NAT Source Translation",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to NAT Source Translation declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "NAT_Source_Translation"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP NAT Source Translation",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query security nat source-translation"
+        }
+      ]
+    },
     "Security_Log_Profile_Protocol_Transfer": {
       "title": "Protocol Transfer Log Profile",
       "description": "Specifies, when enabled, that the system logs HTTP, FTP, and SMTP protocol security events",
@@ -11149,12 +12137,12 @@
         "pkcs12": {
           "title": "PKCS#12 certificate+key",
           "description": "The pkcs12 value which may be a url to fetch the binary file from or base64 encoded string",
-          "type": "object",
           "if": true,
           "then": {
             "$ref": "#/definitions/F5string"
           },
-          "f5fetch": "pkcs12"
+          "f5fetch": "pkcs12",
+          "f5certExtract": true
         },
         "pkcs12Options": {
           "title": "PKCS#12 certificate+key Options",
@@ -11358,6 +12346,49 @@
         }
       ]
     },
+    "DNS_Cache_Transparent": {
+      "description": "Properties for a DNS transparent cache",
+      "properties": {
+        "answerDefaultZones": {
+          "description": "Specifies whether the system answers DNS queries for the default zones localhost, reverse 127.0.0.1 and ::1, and AS112",
+          "type": "boolean",
+          "default": false
+        },
+        "localZones": {
+          "description": "Configures resource records that a DNS cache uses to resolve matching DNS queries with authoritative DNS responses",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/DNS_Zone_Local"
+          },
+          "propertyNames": {
+            "format": "hostname"
+          }
+        },
+        "messageCacheSize": {
+          "description": "Specifies the maximum size of the message cache in bytes",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "default": 1048576
+        },
+        "recordCacheSize": {
+          "description": "Specifies the maximum size of the resource record (RR) cache in bytes",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295,
+          "default": 10485760
+        },
+        "recordRotationMethod": {
+          "description": "Specifies the resource record rotation method used within cached responses",
+          "type": "string",
+          "enum": [
+            "none",
+            "query-id"
+          ],
+          "default": "none"
+        }
+      }
+    },
     "Security_Log_Profile_Bot_Defense": {
       "title": "Bot Defense Log Profile",
       "description": "Specifies, when enabled, that the system logs events from the Proactive Bot Defense mechanism. Depending on settings, the system logs Illegal requests, Legal requests and BIGIP Challenges.",
@@ -11415,7 +12446,7 @@
       "properties": {
         "persistenceMethods": {
           "title": "Persistence methods",
-          "description": "Default 'cookie' is generally good",
+          "description": "Default 'cookie' is generally good. Use 'persistenceMethods: []' for no persistence.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/Basic_Persist"
@@ -11426,6 +12457,9 @@
         },
         "profileAnalytics": {
           "$ref": "#/definitions/Pointer_Analytics_Profile"
+        },
+        "profileAnalyticsTcp": {
+          "$ref": "#/definitions/Pointer_Analytics_TCP_Profile"
         },
         "profileHTTP": {
           "title": "HTTP profile",
@@ -11473,6 +12507,24 @@
             "f5bigComponent": "query ltm profile http"
           },
           "default": "basic"
+        },
+        "profileHTTP2": {
+          "title": "HTTP/2 profile",
+          "description": "HTTP/2 profile; name of built-in or else AS3 pointer",
+          "if": {
+            "not": {
+              "type": "object"
+            }
+          },
+          "then": {
+            "type": "string",
+            "enum": [
+              "basic"
+            ]
+          },
+          "else": {
+            "$ref": "#/definitions/Pointer_HTTP2_Profile"
+          }
         },
         "profileHTTPCompression": {
           "title": "HTTP compression profile",
@@ -11563,20 +12615,53 @@
         "policyIAM": {
           "title": "IAM policy",
           "description": "AS3 pointer to IAM (APM) policy declaration",
-          "type": "object",
-          "properties": {
-            "bigip": {
-              "title": "BIG-IP IAM policy",
-              "description": "Pathname of existing BIG-IP IAM (APM) policy",
-              "type": "string",
-              "format": "f5bigip"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "bigip"
+          "f5modules": [
+            "apm"
           ],
-          "f5bigComponent": "query apm profile access"
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Access_Profile"
+            }
+          ]
+        },
+        "profileFPS": {
+          "description": "FPS Profile to attach to service",
+          "f5modules": [
+            "fps"
+          ],
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_FPS_Profile"
+            }
+          ]
+        },
+        "profileRequestAdapt": {
+          "$ref": "#/definitions/Pointer_Request_Adapt_Profile"
+        },
+        "profileResponseAdapt": {
+          "$ref": "#/definitions/Pointer_Response_Adapt_Profile"
+        },
+        "profileAccess": {
+          "title": "Access profile",
+          "f5modules": [
+            "apm"
+          ],
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Access_Profile"
+            }
+          ]
+        },
+        "profileConnectivity": {
+          "title": "Connectivity profile",
+          "f5modules": [
+            "apm"
+          ],
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Connectivity_Profile"
+            }
+          ]
         }
       },
       "if": true,
@@ -11791,6 +12876,32 @@
       ],
       "additionalProperties": false
     },
+    "DNS_Zone_Local": {
+      "description": "Configures resource records that a DNS cache uses to resolve matching DNS queries with authoritative DNS responses",
+      "type": "object",
+      "properties": {
+        "type": {
+          "description": "Describes how the cache handles a non-matching query for the local zone",
+          "type": "string",
+          "enum": [
+            "deny",
+            "redirect",
+            "refuse",
+            "static",
+            "transparent",
+            "type-transparent"
+          ],
+          "default": "transparent"
+        },
+        "records": {
+          "description": "A or AAAA record entry",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "Enforcement_Policy": {
       "description": "Configures policies for the Policy Enforcement Manager (PEM)",
       "f5modules": [
@@ -11892,7 +13003,7 @@
     "Analytics_Profile": {
       "title": "Analytics Profile",
       "type": "object",
-      "description": "Analytics profile with configurable options",
+      "description": "HTTP analytics profile with configurable options",
       "f5modules": [
         "avr"
       ],
@@ -12433,6 +13544,74 @@
         }
       ]
     },
+    "Adapt_Profile": {
+      "description": "Configures a request or response Adapt profile or both",
+      "type": "object",
+      "properties": {
+        "class": {
+          "type": "string",
+          "const": "Adapt_Profile"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "messageType": {
+          "description": "The type of Adapt profile. Use both to create a request and response profile with the same property values",
+          "type": "string",
+          "enum": [
+            "response",
+            "request",
+            "request-and-response"
+          ]
+        },
+        "enableHttpAdaptation": {
+          "description": "Enable or disable the adaptation of HTTP requests/responses. They will be forwarded to the internal service",
+          "type": "boolean",
+          "default": true
+        },
+        "internalService": {
+          "description": "Specifies the name of the internal service to use for adapting the request/response",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Service"
+            }
+          ]
+        },
+        "previewSize": {
+          "description": "Specifies the maximum size of the preview buffer",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "default": 1024
+        },
+        "serviceDownAction": {
+          "description": "Specifies the action to take if the internal service doesn't exist or is down",
+          "type": "string",
+          "enum": [
+            "ignore",
+            "reset",
+            "drop"
+          ],
+          "default": "ignore"
+        },
+        "timeout": {
+          "description": "Specifies how long in miliseconds to wait for the internal service before a timeout error will occur",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "default": 0
+        },
+        "allowHTTP10": {
+          "description": "Specifies whether to forward HTTP 1.0 requests/responses",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "class",
+        "messageType"
+      ]
+    },
     "GSLB_Domain_CNAME": {
       "description": "Configures GSLB (Global Server Load Balancing) settings for CNAME domain.",
       "allOf": [
@@ -12453,7 +13632,7 @@
         },
         "persistenceMethods": {
           "title": "Persistence methods",
-          "description": "Default 'source-address' is generally good",
+          "description": "Default 'source-address' is generally good. Use 'persistenceMethods: []' for no persistence.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/Basic_Persist"
@@ -13020,6 +14199,50 @@
       ],
       "additionalProperties": false
     },
+    "ICAP_Profile": {
+      "description": "Configures an ICAP profile",
+      "type": "object",
+      "properties": {
+        "class": {
+          "type": "string",
+          "const": "ICAP_Profile"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "uri": {
+          "description": "Specifies the absolute URI that contains both the complete hostname and the path of the resource to use in the ICAP header. Macro expansion is supported for all attribute values in the ICAP header (e.g. icap://${SERVER_IP}:${SERVER_PORT}/videoOptimization)",
+          "type": "string"
+        },
+        "fromHeader": {
+          "description": "Specifies the 'From' attribute to use in the ICAP header",
+          "type": "string"
+        },
+        "hostHeader": {
+          "description": "Specifies the 'Host' attribute to use in the ICAP header",
+          "type": "string"
+        },
+        "refererHeader": {
+          "description": "Specifies the 'Referer' attribute to use in the ICAP header",
+          "type": "string"
+        },
+        "userAgentHeader": {
+          "description": "Specifies the 'User-Agent' attribute to use in the ICAP header",
+          "type": "string"
+        },
+        "previewLength": {
+          "description": "Specifies the length of the preview in the transaction",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "default": 0
+        }
+      },
+      "required": [
+        "class"
+      ],
+      "additionalProperties": false
+    },
     "DNS_Nameserver": {
       "description": "Configures a DNS nameserver",
       "properties": {
@@ -13433,12 +14656,27 @@
                 "description": "Pathname of existing BIG-IP iRule",
                 "type": "string",
                 "format": "f5bigip"
+              },
+              "use": {
+                "title": "Use",
+                "description": "AS3 pointer to iRule (declared separately)",
+                "type": "string",
+                "minLength": 1,
+                "f5pointsTo": {
+                  "properties": {
+                    "class": {
+                      "const": "iRule"
+                    }
+                  },
+                  "required": [
+                    "class"
+                  ]
+                }
               }
             },
             "additionalProperties": false,
-            "required": [
-              "bigip"
-            ],
+            "minimumProperties": 1,
+            "maximumProperties": 1,
             "f5bigComponent": "query ltm rule"
           }
         }
@@ -13708,6 +14946,42 @@
         "monitorType"
       ]
     },
+    "Pointer_ICAP_Profile": {
+      "description": "Reference to a ICAP Profile",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to ICAP Profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "ICAP_Profile"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP ICAP Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile icap"
+        }
+      ]
+    },
     "Endpoint_Policy": {
       "title": "Endpoint policy",
       "description": "Policy to manage connections based on metadata and content",
@@ -13855,6 +15129,42 @@
           "default": "ssl-client-hello"
         }
       }
+    },
+    "Pointer_Response_Adapt_Profile": {
+      "description": "Reference to a Response Adapt Profile",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to Response Adapt Profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Adapt_Profile"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Response Adapt Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile response-adapt"
+        }
+      ]
     },
     "Pointer_GSLB_Server": {
       "description": "Reference to a GSLB server",
@@ -14023,6 +15333,42 @@
       "additionalProperties": false,
       "minProperties": 1,
       "maxProperties": 1
+    },
+    "Pointer_Analytics_TCP_Profile": {
+      "description": "Reference to a Analytics_TCP_Profile",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to Analytics_TCP_Profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Analytics_TCP_Profile"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Analytics_TCP_Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile tcp-analytics"
+        }
+      ]
     },
     "Pointer_Bot_Signature_Category": {
       "description": "Reference to a bot signature category",
@@ -14306,6 +15652,42 @@
       },
       "additionalProperties": false
     },
+    "Access_Profile": {
+      "description": "Configures an Access Profile",
+      "type": "object",
+      "properties": {
+        "class": {
+          "type": "string",
+          "const": "Access_Profile"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "url": {
+          "title": "URL",
+          "description": "The URL to pull the Access Profile from",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Resource_URL"
+            }
+          ]
+        },
+        "ignoreChanges": {
+          "title": "Ignore changes",
+          "description": "If false (default), the system updates the profile in every AS3 declaration deployment. If true, AS3 creates the profile on first deployment, and leaves it untouched afterwards",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "class",
+        "url"
+      ],
+      "additionalProperties": false
+    },
     "iRule": {
       "title": "iRule",
       "description": "An iRule",
@@ -14329,15 +15711,7 @@
           "default": true
         },
         "iRule": {
-          "description": "Reference to an iRule",
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/F5string"
-          },
-          "f5fetch": "string",
-          "f5expand": {
-            "when": "1/expand"
-          }
+          "$ref": "#/definitions/iRule_Core"
         }
       },
       "additionalProperties": false,
@@ -14520,6 +15894,25 @@
       "allOf": [
         {
           "f5bigComponent": "query ltm classification application"
+        }
+      ]
+    },
+    "Pointer_RTSP_Profile": {
+      "description": "Reference to a Real Time Streaming Protocol Profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Real Time Streaming Protocol Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile rtsp"
         }
       ]
     },
@@ -15066,9 +16459,13 @@
           "type": "string",
           "enum": [
             "equals",
+            "does-not-equal",
             "starts-with",
+            "does-not-start-with",
             "ends-with",
-            "contains"
+            "does-not-end-with",
+            "contains",
+            "does-not-contain"
           ],
           "default": "equals"
         },
@@ -15341,6 +16738,18 @@
         }
       ]
     },
+    "Template_sctp": {
+      "title": "SCTP application",
+      "description": "Declares a SCTP application",
+      "properties": {
+        "serviceMain": {
+          "$ref": "#/definitions/Service_SCTP"
+        }
+      },
+      "required": [
+        "serviceMain"
+      ]
+    },
     "GSLB_Domain": {
       "title": "GSLB Domain",
       "description": "Configures GSLB (Global Server Load Balancing) settings for a domain.",
@@ -15456,6 +16865,25 @@
       "required": [
         "resourceRecordType",
         "domainName"
+      ]
+    },
+    "Pointer_ILX_Profile": {
+      "description": "Reference to a iRules LX Profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP iRules LX Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile ilx"
+        }
       ]
     },
     "HTTP_Profile_Explicit": {
@@ -15690,7 +17118,7 @@
           "title": "Port",
           "description": "L4 port for service (like 443 for HTTPS)",
           "type": "integer",
-          "minimum": 1,
+          "minimum": 0,
           "maximum": 65535
         },
         "address": {
@@ -15709,8 +17137,9 @@
           "title": "Address Translation Port",
           "description": "L4 port for service (like 443 for HTTPS)",
           "type": "integer",
-          "minimum": 1,
-          "maximum": 65535
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0
         },
         "monitors": {
           "title": "Monitors",
@@ -16301,6 +17730,42 @@
         "replace"
       ]
     },
+    "Pointer_Access_Profile": {
+      "description": "Reference to a Access Profile",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to Access Profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Access_Profile"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Access Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query apm profile access"
+        }
+      ]
+    },
     "Data_Group": {
       "title": "Data Group",
       "description": "Configures a data group object which contains list of data",
@@ -16570,6 +18035,16 @@
       "description": "Core attributes of TCP virtual server",
       "type": "object",
       "properties": {
+        "virtualType": {
+          "title": "Virtual addresses",
+          "description": "Type of the virtual",
+          "type": "string",
+          "enum": [
+            "standard",
+            "internal"
+          ],
+          "default": "standard"
+        },
         "virtualPort": {
           "title": "virtual server TCP port",
           "description": "virtual server TCP port",
@@ -16752,6 +18227,9 @@
           },
           "default": "normal"
         },
+        "profileAnalyticsTcp": {
+          "$ref": "#/definitions/Pointer_Analytics_TCP_Profile"
+        },
         "profileSSHProxy": {
           "$ref": "#/definitions/Pointer_SSH_Proxy_Profile"
         },
@@ -16775,20 +18253,18 @@
             }
           },
           "else": {
-            "type": "object",
-            "properties": {
-              "bigip": {
-                "title": "BIG-IP client SSL profile",
-                "description": "Pathname of existing BIG-IP Client SSL profile",
-                "type": "string",
-                "format": "f5bigip"
-              }
+            "if": {
+              "type": "object"
             },
-            "additionalProperties": false,
-            "required": [
-              "bigip"
-            ],
-            "f5bigComponent": "query ltm profile client-ssl"
+            "then": {
+              "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
+            },
+            "else": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
+              }
+            }
           }
         },
         "clientTLS": {
@@ -16811,20 +18287,18 @@
             }
           },
           "else": {
-            "type": "object",
-            "properties": {
-              "bigip": {
-                "title": "BIG-IP server SSL profile",
-                "description": "Pathname of existing BIG-IP Server SSL profile",
-                "type": "string",
-                "format": "f5bigip"
-              }
+            "if": {
+              "type": "object"
             },
-            "additionalProperties": false,
-            "required": [
-              "bigip"
-            ],
-            "f5bigComponent": "query ltm profile server-ssl"
+            "then": {
+              "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
+            },
+            "else": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
+              }
+            }
           }
         },
         "policyEndpoint": {
@@ -16850,6 +18324,43 @@
       "then": {
         "$ref": "#/definitions/Service_Core"
       }
+    },
+    "Service_SCTP": {
+      "title": "SCTP virtual server",
+      "description": "Declares a SCTP virtual server",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Service_SCTP"
+        },
+        "virtualPort": {
+          "title": "virtual server SCTP port",
+          "description": "virtual server port",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "profileSCTP": {
+          "$ref": "#/definitions/Pointer_SCTP_Profile"
+        },
+        "layer4": {
+          "title": "L4 protocol",
+          "description": "For SCTP virtual server, Layer 4 protocol must be SCTP",
+          "type": "string",
+          "const": "sctp",
+          "default": "sctp"
+        }
+      },
+      "if": true,
+      "then": {
+        "$ref": "#/definitions/Service_Core"
+      },
+      "required": [
+        "class",
+        "virtualPort"
+      ]
     },
     "Service_Generic": {
       "description": "Declares a generic virtual server",
@@ -17020,9 +18531,11 @@
         "url": {
           "title": "URL",
           "description": "URL from which secret should be fetched",
-          "type": "string",
-          "format": "url",
-          "f5expand": true
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret_Resource_URL"
+            }
+          ]
         }
       },
       "oneOf": [
@@ -17626,6 +19139,23 @@
       "description": "Reference to a DNS cache",
       "type": "object",
       "properties": {
+        "use": {
+          "description": "AS3 pointer to DNS cache declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "DNS_Cache"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
         "bigip": {
           "description": "Pathname of existing BIG-IP DNS cache",
           "type": "string",
@@ -17638,6 +19168,12 @@
       "allOf": [
         {
           "f5bigComponent": "query ltm dns cache resolver"
+        },
+        {
+          "f5bigComponent": "query ltm dns cache transparent"
+        },
+        {
+          "f5bigComponent": "query ltm dns cache validating-resolver"
         }
       ]
     },
@@ -17790,6 +19326,16 @@
       "description": "Core attributes of UDP virtual server",
       "type": "object",
       "properties": {
+        "virtualType": {
+          "title": "Virtual addresses",
+          "description": "Type of the virtual",
+          "type": "string",
+          "enum": [
+            "standard",
+            "internal"
+          ],
+          "default": "standard"
+        },
         "virtualPort": {
           "title": "Virtual server UDP port",
           "description": "Virtual server UDP port",
@@ -17870,20 +19416,18 @@
             }
           },
           "else": {
-            "type": "object",
-            "properties": {
-              "bigip": {
-                "title": "BIG-IP client SSL profile",
-                "description": "Pathname of existing BIG-IP Client SSL profile",
-                "type": "string",
-                "format": "f5bigip"
-              }
+            "if": {
+              "type": "object"
             },
-            "additionalProperties": false,
-            "required": [
-              "bigip"
-            ],
-            "f5bigComponent": "query ltm profile client-ssl"
+            "then": {
+              "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
+            },
+            "else": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
+              }
+            }
           }
         },
         "clientTLS": {
@@ -17906,20 +19450,18 @@
             }
           },
           "else": {
-            "type": "object",
-            "properties": {
-              "bigip": {
-                "title": "BIG-IP server SSL profile",
-                "description": "Pathname of existing BIG-IP Server SSL profile",
-                "type": "string",
-                "format": "f5bigip"
-              }
+            "if": {
+              "type": "object"
             },
-            "additionalProperties": false,
-            "required": [
-              "bigip"
-            ],
-            "f5bigComponent": "query ltm profile server-ssl"
+            "then": {
+              "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
+            },
+            "else": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
+              }
+            }
           }
         },
         "policyEndpoint": {
@@ -17939,6 +19481,9 @@
         },
         "profileRADIUS": {
           "$ref": "#/definitions/Pointer_Radius_Profile"
+        },
+        "profileTFTP": {
+          "$ref": "#/definitions/Pointer_TFTP_Profile"
         }
       },
       "if": true,
@@ -18058,6 +19603,25 @@
           "required": [
             "service"
           ]
+        }
+      ]
+    },
+    "Pointer_SCTP_Profile": {
+      "description": "Reference to a SCTP Profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP SCTP Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile sctp"
         }
       ]
     },
@@ -18465,7 +20029,8 @@
           "title": "Name",
           "description": "Name of the endpoint policy rule",
           "type": "string",
-          "format": "f5name"
+          "pattern": "^[a-zA-Z0-9_\\-.:%]+$",
+          "maxLength": 64000
         },
         "label": {
           "$ref": "#/definitions/Label"
@@ -18693,7 +20258,7 @@
         },
         "requestChunking": {
           "title": "Request chunking",
-          "description": "Controls handling of HTTP payload chunking in requests from clients (default is 'preserve')",
+          "description": "Controls handling of HTTP payload chunking in requests from clients (default is 'preserve'). Note: 'selective' and 'preserve' will be translated to 'sustain' when TMOS version is 15.0 or newer",
           "type": "string",
           "enum": [
             "selective",
@@ -18704,7 +20269,7 @@
         },
         "responseChunking": {
           "title": "Response chunking",
-          "description": "Controls handling of HTTP payload chunking in responses from pool members (default 'selective' adapts to most situations)",
+          "description": "Controls handling of HTTP payload chunking in responses from pool members (default 'selective' adapts to most situations). Note: 'selective' and 'preserve' will be translated to 'sustain' when TMOS version is 15.0 or newer",
           "type": "string",
           "enum": [
             "selective",
@@ -19490,11 +21055,7 @@
             "type": "string"
           },
           "url": {
-            "title": "URL",
-            "description": "URL from which to retrieve value",
-            "type": "string",
-            "minLength": 3,
-            "f5expand": true
+            "$ref": "#/definitions/Resource_URL"
           },
           "copyFrom": {
             "title": "Copy from",
@@ -19512,6 +21073,18 @@
         "additionalProperties": false,
         "minimumProperties": 1,
         "maximumProperties": 1
+      }
+    },
+    "iRule_Core": {
+      "title": "iRule Core definition",
+      "description": "Reference to an iRule or text of an iRule",
+      "if": true,
+      "then": {
+        "$ref": "#/definitions/F5string"
+      },
+      "f5fetch": "string",
+      "f5expand": {
+        "when": "1/expand"
       }
     },
     "Enforcement_Interception_Endpoint": {
@@ -19685,38 +21258,61 @@
       "additionalProperties": false
     },
     "Pointer_Endpoint_Policy": {
-      "description": "Reference to an Endpoint Policy",
-      "if": {
-        "type": "string"
-      },
-      "then": {
-        "minLength": 1,
-        "f5pointsTo": {
-          "properties": {
-            "class": {
-              "const": "Endpoint_Policy"
-            }
-          },
-          "required": [
-            "class"
-          ]
-        }
-      },
-      "else": {
-        "type": "object",
-        "properties": {
-          "bigip": {
-            "title": "BIG-IP Endpoint policy",
-            "description": "Pathname of existing BIG-IP LTM policy",
-            "type": "string",
-            "format": "f5bigip"
+      "oneOf": [
+        {
+          "description": "AS3 pointer to endpoint policy declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Endpoint_Policy"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
           }
         },
-        "required": [
-          "bigip"
-        ],
-        "f5bigComponent": "query ltm policy"
-      }
+        {
+          "description": "Reference to a endpoint policy",
+          "type": "object",
+          "properties": {
+            "use": {
+              "description": "AS3 pointer to endpoint policy declaration",
+              "type": "string",
+              "minLength": 1,
+              "f5pointsTo": {
+                "properties": {
+                  "class": {
+                    "enum": [
+                      "Endpoint_Policy"
+                    ]
+                  }
+                },
+                "required": [
+                  "class"
+                ]
+              }
+            },
+            "bigip": {
+              "description": "Pathname of existing BIG-IP endpoint policy",
+              "type": "string",
+              "format": "f5bigip"
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 1,
+          "allOf": [
+            {
+              "f5bigComponent": "query ltm policy"
+            }
+          ]
+        }
+      ]
     },
     "NAT_Source_Translation_PortBlockAllocation": {
       "description": "Configure the port block allocation",
@@ -20173,6 +21769,61 @@
         }
       }
     },
+    "Pointer_Existing_TLS_Client_Profile": {
+      "description": "Reference to a TLS Client profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP TLS Client profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile client-ssl"
+        }
+      ]
+    },
+    "Pointer_Protocol_Inspection_Profile": {
+      "description": "Reference to a Protocol Inspection Profile",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to Protocol Inspection Profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Protocol_Inspection_Profile"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Protocol Inspection Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query security protocol-inspection profile"
+        }
+      ]
+    },
     "Template_l4": {
       "title": "L4 application",
       "description": "Declares a L4 application",
@@ -20459,6 +22110,20 @@
             "maxProperties": 1,
             "f5bigComponent": "query security firewall port-list"
           }
+        },
+        "vlans": {
+          "type": "array",
+          "description": "A list of VLANs by BIG-IP pathname",
+          "items": {
+            "bigip": {
+              "title": "BIG-IP VLAN",
+              "description": "Pathname of existing BIG-IP VLAN",
+              "type": "string",
+              "format": "f5bigip"
+            }
+          },
+          "additionalProperties": false,
+          "f5bigComponent": "query net vlan"
         }
       },
       "additionalProperties": false
@@ -20851,6 +22516,78 @@
         }
       ]
     },
+    "Pointer_Cipher_Rule": {
+      "description": "Reference to a cipher rule",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to cipher rule declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Cipher_Rule"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP cipher rule",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm cipher rule"
+        }
+      ]
+    },
+    "Pointer_Request_Adapt_Profile": {
+      "description": "Reference to a Request Adapt Profile",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to Request Adapt Profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Adapt_Profile"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Request Adapt Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile request-adapt"
+        }
+      ]
+    },
     "Enforcement_Radius_AAA_Profile": {
       "description": "Configures a radius AAA profile",
       "f5modules": [
@@ -20933,6 +22670,38 @@
         "class"
       ],
       "additionalProperties": false
+    },
+    "Protocol_Inspection_Profile_Service_Checks": {
+      "description": "A list of checks to attach to the Protocol Inspection Profile",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "check": {
+            "type": "string",
+            "description": "The name of the check"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "drop",
+              "reject"
+            ],
+            "description": "Which action to perform on traffic matching the check",
+            "default": "accept"
+          },
+          "log": {
+            "type": "boolean",
+            "description": "Specifies whether to log the check",
+            "default": true
+          }
+        },
+        "required": [
+          "check"
+        ],
+        "additionalProperties": false
+      }
     },
     "Pointer_Bot_Signature": {
       "description": "Reference to a bot signature",
@@ -21503,6 +23272,9 @@
             "$ref": "#/definitions/Pointer_L4_Profile"
           },
           "default": "basic"
+        },
+        "profileAnalyticsTcp": {
+          "$ref": "#/definitions/Pointer_Analytics_TCP_Profile"
         }
       },
       "if": true,
@@ -21540,6 +23312,12 @@
         "trace": {
           "title": "Trace",
           "description": "If true, AS3 creates a detailed trace of the configuration process for this Tenant for subsequent analysis (default is whole-declaration Controls/trace value).  Warning:  trace files may contain sensitive configuration data",
+          "type": "boolean",
+          "default": false
+        },
+        "traceResponse": {
+          "title": "Trace Response",
+          "description": "If true, the response will contain the trace files",
           "type": "boolean",
           "default": false
         },
@@ -21612,6 +23390,85 @@
       "required": [
         "send",
         "receive"
+      ]
+    },
+    "Pointer_Security_Log_Profile": {
+      "description": "Reference to a Security Log Profile",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to Security Log Profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Security_Log_Profile"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Security Log Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query security log profile"
+        }
+      ]
+    },
+    "DNS_Cache": {
+      "title": "DNS Cache",
+      "description": "Configures a DNS cache",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "DNS_Cache"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "type": {
+          "description": "Type of DNS cache",
+          "type": "string",
+          "enum": [
+            "transparent"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "transparent"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/DNS_Cache_Transparent"
+          }
+        }
+      ],
+      "required": [
+        "class",
+        "type"
       ]
     },
     "Enforcement_Rule_Usage_Hsl": {
@@ -21776,7 +23633,7 @@
         },
         "optimisticLockKey": {
           "title": "Optimistic lock key",
-          "description": "When you deploy a declaration with a non-empty 'key' value here, that activates an optimistic lock on changes to this Tenant.  If the key in your declaration does not match the key AS3 computes for the most-recent previous declaration, then AS3 will NOT update this Tenant and will return an error code.  To use optimistic locking, first retrieve a declaration using option 'opLocks=true' to get the current per-Tenant keys.  Make any changes you desire, then deploy your updated declaration.  Deployment of each Tenant with a key will succeed only if that Tenant has not been modified since the time you retrieved the declaration.  (To overwrite all previous changes to a Tenant simply do NOT include any opportunistic-lock key for that Tenant when you deploy a declaration.  That is the default.)  Note that only keys computed by AS3 may be used here-- you cannot generate your own.",
+          "description": "When you deploy a declaration with a non-empty 'key' value here, that activates an optimistic lock on changes to this Tenant.  If the key in your declaration does not match the key AS3 computes for the most-recent previous declaration, then AS3 will NOT update this Tenant and will return an error code.  To use optimistic locking, first retrieve a declaration using option 'showHash=true' to get the current per-Tenant keys.  Make any changes you desire, then deploy your updated declaration.  Deployment of each Tenant with a key will succeed only if that Tenant has not been modified since the time you retrieved the declaration.  (To overwrite all previous changes to a Tenant simply do NOT include any opportunistic-lock key for that Tenant when you deploy a declaration.  That is the default.)  Note that only keys computed by AS3 may be used here-- you cannot generate your own. If 'showHash=true' is used on a POST then the optimisticLockKey will be shown as a part of the output (This helps to avoid the need to do a GET request).",
           "type": "string",
           "maxLength": 128,
           "default": ""
@@ -21786,8 +23643,8 @@
         "$ref": "#/definitions/Application"
       },
       "propertyNames": {
-        "pattern": "^[A-Za-z][0-9A-Za-z_]*$",
-        "maxLength": 64
+        "pattern": "^[A-Za-z][0-9A-Za-z_.-]*$",
+        "maxLength": 190
       },
       "required": [
         "class"
@@ -22236,6 +24093,83 @@
         "destination"
       ]
     },
+    "Pointer_Connectivity_Profile": {
+      "description": "Reference to a Connectivity Profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Connectivity Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query apm profile connectivity"
+        }
+      ]
+    },
+    "Cipher_Group": {
+      "description": "Configures a Cipher Group. Note: This is available in TMOS versions 13.0 and later.",
+      "type": "object",
+      "properties": {
+        "class": {
+          "type": "string",
+          "const": "Cipher_Group"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "order": {
+          "description": "Configure the order of the specified Cipher Rules.",
+          "type": "string",
+          "enum": [
+            "default",
+            "speed",
+            "strength",
+            "fips",
+            "hardware"
+          ],
+          "default": "default"
+        },
+        "allowCipherRules": {
+          "description": "Allow the following Cipher Rules.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Pointer_Cipher_Rule"
+          },
+          "default": [
+            {
+              "bigip": "/Common/f5-default"
+            }
+          ]
+        },
+        "excludeCipherRules": {
+          "description": "Exclude the following Cipher_Rules from the Allowed list.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Pointer_Cipher_Rule"
+          }
+        },
+        "requireCipherRules": {
+          "description": "Restrict the Allowed list to the following Cipher_Rules.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Pointer_Cipher_Rule"
+          }
+        }
+      },
+      "required": [
+        "class"
+      ],
+      "additionalProperties": false
+    },
     "Pointer_Persist": {
       "description": "Reference to a persistence profile",
       "type": "object",
@@ -22583,6 +24517,32 @@
         }
       ]
     },
+    "Pointer_Service_Address": {
+      "description": "Reference to a Service Address",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to Service Address declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Service_Address"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1
+    },
     "Bandwidth_Control_Policy": {
       "description": "Create a listener to specify how to handle traffic for policy enforcement",
       "type": "object",
@@ -22917,7 +24877,7 @@
           "$ref": "#/definitions/Remark"
         },
         "bundle": {
-          "description": "Reference to a CA bundle",
+          "description": "Reference to a CA bundle or string of PEM encoded certificates",
           "if": true,
           "then": {
             "$ref": "#/definitions/F5string"
@@ -23220,6 +25180,103 @@
         }
       ]
     },
+    "Protocol_Inspection_Profile": {
+      "description": "Protocol Inspection Profile used for configurable BIG-IP AFM intrusion prevention. Note: Protocol Inspection Profiles are only supported in tmos version 13.1+",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Protocol_Inspection_Profile"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "collectAVRStats": {
+          "description": "If true, AVR will collect data from the intrusion prevention profile",
+          "type": "boolean",
+          "default": true
+        },
+        "enableComplianceChecks": {
+          "description": "Specifies whether the compliance checks will be enabled for this profile",
+          "type": "boolean",
+          "default": true
+        },
+        "enableSignatureChecks": {
+          "description": "Specifies whether the signature checks will be enabled for this profile",
+          "type": "boolean",
+          "default": true
+        },
+        "autoAddNewInspections": {
+          "description": "Specifies whether new inspections delivered via IPS IM package will be automatically added to this profile",
+          "type": "boolean",
+          "default": false
+        },
+        "autoPublish": {
+          "description": "Specifies whether the inspections will be automatically updated to the suggested action after the staging period",
+          "type": "boolean",
+          "default": false
+        },
+        "defaultFromProfile": {
+          "description": "Specifies the parent profile. If specified, the new profile will be cloned from the parent",
+          "type": "string"
+        },
+        "services": {
+          "description": "Specifies the services and service checks for this profile",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "description": "The name of the service type",
+                "type": "string",
+                "enum": [
+                  "dhcp",
+                  "dns",
+                  "gtp",
+                  "imap",
+                  "mqtt",
+                  "netbios_ns",
+                  "nntp",
+                  "pop3",
+                  "sip",
+                  "snmp",
+                  "ssl",
+                  "telnet",
+                  "wins",
+                  "diameter",
+                  "ftp",
+                  "http",
+                  "irc",
+                  "mysql",
+                  "netbios_ssn",
+                  "other",
+                  "radius",
+                  "smtp",
+                  "ssh",
+                  "sunrpc",
+                  "tftp"
+                ]
+              },
+              "compliance": {
+                "$ref": "#/definitions/Protocol_Inspection_Profile_Service_Checks"
+              },
+              "signature": {
+                "$ref": "#/definitions/Protocol_Inspection_Profile_Service_Checks"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "DOS_Network_Vector": {
       "description": "Network Denial-of-Service (DoS) vector",
       "type": "object",
@@ -23235,9 +25292,11 @@
             "icmpv6-flood",
             "icmp-frag",
             "ip-frag-flood",
+            "ip-low-ttl",
             "ip-opt-frames",
             "ipv6-ext-hdr-frames",
             "ipv6-frag-flood",
+            "non-tcp-connection",
             "opt-present-with-illegal-len",
             "sweep",
             "tcp-half-open",
@@ -23334,6 +25393,25 @@
         }
       },
       "additionalProperties": false
+    },
+    "Pointer_TFTP_Profile": {
+      "description": "Reference to a TFTP profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP TFTP profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile tftp"
+        }
+      ]
     },
     "Service_Discovery_Consul": {
       "description": "Service Discovery properties for Consul",
@@ -23435,39 +25513,18 @@
           "default": "any"
         },
         "sourceTranslation": {
-          "description": "AS3 pointer to NAT source translation declaration",
-          "type": "object",
-          "f5modules": [
-            "afm"
-          ],
-          "properties": {
-            "use": {
-              "title": "Use",
-              "description": "AS3 pointer to NAT source translation declaration",
-              "type": "string",
-              "minLength": 1,
-              "f5pointsTo": {
-                "properties": {
-                  "class": {
-                    "const": "NAT_Source_Translation"
-                  }
-                },
-                "required": [
-                  "class"
-                ]
-              }
-            },
-            "bigip": {
-              "title": "BIG-IP NAT Source Translation",
-              "description": "Pathname of existing BIG-IP NAT Source Translation",
-              "type": "string",
-              "format": "f5bigip"
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_NAT_Source_Translation"
             }
-          },
-          "additionalProperties": false,
-          "minProperties": 1,
-          "maxProperties": 1,
-          "f5bigComponent": "query security nat source-translation"
+          ]
+        },
+        "securityLogProfile": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Security_Log_Profile"
+            }
+          ]
         }
       },
       "required": [
@@ -23484,6 +25541,44 @@
       },
       "required": [
         "radiusAAAService"
+      ]
+    },
+    "Resource_URL": {
+      "title": "Resource URL",
+      "description": "Describes the URL to remote resource and optional parameters",
+      "oneOf": [
+        {
+          "type": "string",
+          "format": "uri",
+          "f5expand": true
+        },
+        {
+          "type": "object",
+          "properties": {
+            "url": {
+              "description": "URL from which to retrieve value",
+              "type": "string",
+              "format": "uri",
+              "f5expand": true
+            },
+            "skipCertificateCheck": {
+              "description": "Skip verification of SSL certificates (default false)",
+              "type": "boolean",
+              "default": false
+            },
+            "authentication": {
+              "description": "Authentication to the remote source",
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/Basic_Auth"
+                }
+              ]
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
       ]
     },
     "Policy_Action_HTTP_Redirect": {
@@ -23722,6 +25817,15 @@
               "class"
             ]
           }
+        },
+        "clientTLS": {
+          "title": "Client TLS",
+          "description": "AS3 pointer to client TLS Profile",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_TLS_Client"
+            }
+          ]
         }
       },
       "if": true,
@@ -23802,54 +25906,182 @@
       },
       "required": []
     },
-    "Security_Log_Profile_Ip_Intelligence": {
-      "title": "IP Intelligence Log Profile",
-      "description": "Specifies, when enabled, that the system logs IP Intelligence events",
+    "Pointer_Cipher_Group": {
+      "description": "Reference to a cipher group",
+      "type": "object",
       "properties": {
-        "publisher": {
-          "description": "Specifies the name of the log publisher used for logging IP Intelligence events",
-          "type": "object",
-          "properties": {
-            "use": {
-              "title": "Use",
-              "description": "AS3 pointer to log publisher declaration",
-              "type": "string",
-              "minLength": 1,
-              "f5pointsTo": {
-                "properties": {
-                  "class": {
-                    "const": "Log_Publisher"
-                  }
-                },
-                "required": [
-                  "class"
+        "use": {
+          "description": "AS3 pointer to cipher group declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Cipher_Group"
                 ]
               }
             },
-            "bigip": {
-              "title": "BIG-IP log publisher",
-              "description": "Pathname of existing BIG-IP log publisher",
-              "type": "string",
-              "format": "f5bigip"
-            }
-          },
-          "additionalProperties": false,
-          "minProperties": 1,
-          "maxProperties": 1,
-          "f5bigComponent": "query sys log-config publisher"
+            "required": [
+              "class"
+            ]
+          }
         },
-        "logTranslationFields": {
-          "description": "Specifies, when enabled, that the system logs translation values if and when it logs a network firewall event",
-          "type": "boolean",
-          "default": false
-        },
-        "rateLimitAggregate": {
-          "description": "Defines a rate limit for all combined IP intelligence log messages per second",
-          "type": "integer",
-          "default": 4294967295
+        "bigip": {
+          "description": "Pathname of existing BIG-IP cipher group",
+          "type": "string",
+          "format": "f5bigip"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm cipher group"
+        }
+      ]
+    },
+    "Service_Forwarding": {
+      "title": "Forwarding virtual server",
+      "description": "Attributes of a forwarding virtual server",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Service_Forwarding"
+        },
+        "forwardingType": {
+          "title": "Forwarding Type",
+          "description": "Controls whether the forwarding service uses IP or L2 forwarding",
+          "type": "string",
+          "enum": [
+            "ip",
+            "l2"
+          ]
+        },
+        "layer4": {
+          "title": "L4 protocol",
+          "description": "Layer 4 protocol",
+          "type": "string",
+          "default": "any"
+        },
+        "profileL4": {
+          "title": "L4 profile",
+          "description": "L4 profile; name of built-in or else AS3 pointer",
+          "if": {
+            "not": {
+              "type": "object"
+            }
+          },
+          "then": {
+            "type": "string",
+            "enum": [
+              "basic"
+            ]
+          },
+          "else": {
+            "$ref": "#/definitions/Pointer_L4_Profile"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "forwardingType": {
+                "const": "ip"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "translateServerPort": {
+                "type": "boolean",
+                "default": false,
+                "const": false
+              },
+              "translateServerAddress": {
+                "type": "boolean",
+                "default": false,
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "$ref": "#/definitions/Service_Core"
+        }
+      ],
+      "required": [
+        "class",
+        "forwardingType"
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "fallbackPersistenceMethod"
+            ]
+          },
+          {
+            "required": [
+              "persistenceMethods"
+            ]
+          },
+          {
+            "required": [
+              "policyNAT"
+            ]
+          },
+          {
+            "required": [
+              "pool"
+            ]
+          },
+          {
+            "required": [
+              "profileBotDefense"
+            ]
+          },
+          {
+            "required": [
+              "profileDiameterEndpoint"
+            ]
+          },
+          {
+            "required": [
+              "profileDNS"
+            ]
+          },
+          {
+            "required": [
+              "profileIPOther"
+            ]
+          },
+          {
+            "required": [
+              "profileProtocolInspection"
+            ]
+          },
+          {
+            "required": [
+              "profileRewrite"
+            ]
+          },
+          {
+            "required": [
+              "profileTrafficLog"
+            ]
+          },
+          {
+            "required": [
+              "sourceAddress"
+            ]
+          }
+        ]
+      }
     },
     "Radius_Profile": {
       "description": "Configures a RADIUS profile for network traffic load balancing",
@@ -23982,6 +26214,55 @@
       ],
       "additionalProperties": false
     },
+    "Security_Log_Profile_Ip_Intelligence": {
+      "title": "IP Intelligence Log Profile",
+      "description": "Specifies, when enabled, that the system logs IP Intelligence events",
+      "properties": {
+        "publisher": {
+          "description": "Specifies the name of the log publisher used for logging IP Intelligence events",
+          "type": "object",
+          "properties": {
+            "use": {
+              "title": "Use",
+              "description": "AS3 pointer to log publisher declaration",
+              "type": "string",
+              "minLength": 1,
+              "f5pointsTo": {
+                "properties": {
+                  "class": {
+                    "const": "Log_Publisher"
+                  }
+                },
+                "required": [
+                  "class"
+                ]
+              }
+            },
+            "bigip": {
+              "title": "BIG-IP log publisher",
+              "description": "Pathname of existing BIG-IP log publisher",
+              "type": "string",
+              "format": "f5bigip"
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 1,
+          "maxProperties": 1,
+          "f5bigComponent": "query sys log-config publisher"
+        },
+        "logTranslationFields": {
+          "description": "Specifies, when enabled, that the system logs translation values if and when it logs a network firewall event",
+          "type": "boolean",
+          "default": false
+        },
+        "rateLimitAggregate": {
+          "description": "Defines a rate limit for all combined IP intelligence log messages per second",
+          "type": "integer",
+          "default": 4294967295
+        }
+      },
+      "additionalProperties": false
+    },
     "GSLB_Topology_Region": {
       "title": "GSLB Topology Region",
       "description": "Defines a GSLB Topology region",
@@ -24009,6 +26290,42 @@
       },
       "required": [
         "class"
+      ]
+    },
+    "Pointer_HTTP2_Profile": {
+      "description": "Reference to a HTTP/2 Profile",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to HTTP/2 Profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "HTTP2_Profile"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP HTTP/2 Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile http2"
+        }
       ]
     },
     "Pointer_SSL_CRL_File": {
@@ -24427,6 +26744,42 @@
         }
       ]
     },
+    "Pointer_Firewall_Policy": {
+      "description": "Reference to a firewall (AFM) policy",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to firewall (AFM) policy declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Firewall_Policy"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP firewall (AFM) policy",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query security firewall policy"
+        }
+      ]
+    },
     "Template_udp": {
       "title": "UDP application",
       "description": "Declares a UDP application",
@@ -24468,6 +26821,13 @@
           "type": "string",
           "$comment": "IMPORTANT: In enum array, please put current schema version first, oldest-supported version last.  Keep enum array sorted most-recent-first.",
           "enum": [
+            "3.18.0",
+            "3.17.0",
+            "3.16.0",
+            "3.15.0",
+            "3.14.0",
+            "3.13.0",
+            "3.12.0",
             "3.11.0",
             "3.10.0",
             "3.9.0",
@@ -24661,6 +27021,17 @@
               "type": "boolean",
               "default": false
             },
+            "traceResponse": {
+              "title": "Trace Response",
+              "description": "If true, the response will contain the trace files",
+              "type": "boolean",
+              "default": false
+            },
+            "userAgent": {
+              "title": "User Agent",
+              "description": "User Agent information to include in TEEM report",
+              "type": "string"
+            },
             "archiveId": {
               "title": "Archive ID",
               "description": "Read-only property present when you GET a declaration from configuration system.  Archived versions of declaration are identified by a combination of 'id' and 'archiveId'",
@@ -24691,8 +27062,8 @@
         "$ref": "#/definitions/Tenant"
       },
       "propertyNames": {
-        "pattern": "^[A-Za-z][0-9A-Za-z_]*$",
-        "maxLength": 64
+        "pattern": "^[A-Za-z][0-9A-Za-z_.-]*$",
+        "maxLength": 190
       },
       "required": [
         "class",

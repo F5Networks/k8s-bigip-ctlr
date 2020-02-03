@@ -18,7 +18,9 @@ package appmanager
 
 import (
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -40,12 +42,13 @@ var _ = Describe("Routing Tests", func() {
 
 		appMgr := newMockAppManager(&Params{
 			KubeClient:    fakeClient,
-			ConfigWriter:  mw,
 			restClient:    test.CreateFakeHTTPClient(),
 			RouteClientV1: fakeRouteClient.NewSimpleClientset().RouteV1(),
 			IsNodePort:    true,
 			ManageIngress: true,
 		})
+		appMgr.appMgr.AgentCIS, _ = agent.CreateAgent(agent.CCCLAgent)
+		appMgr.appMgr.AgentCIS.Init(&cccl.Params{ConfigWriter: mw})
 		err := appMgr.startNonLabelMode([]string{"test"})
 		Expect(err).To(BeNil())
 		defer appMgr.shutdown()

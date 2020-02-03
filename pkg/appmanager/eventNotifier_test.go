@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -131,21 +132,21 @@ func (fer *FakeEventRecorder) AnnotatedEventf(obj runtime.Object, annotations ma
 var _ = Describe("Event Notifier Tests", func() {
 	Describe("Using Mock Manager", func() {
 		var mockMgr *mockAppManager
-		var mw *test.MockWriter
+		//var mw *test.MockWriter
 		var namespaces []string
 		BeforeEach(func() {
 			//RegisterBigIPSchemaTypes()
 
-			mw = &test.MockWriter{
-				FailStyle: test.Success,
-				Sections:  make(map[string]interface{}),
-			}
+			//mw = &test.MockWriter{
+			//	FailStyle: test.Success,
+			//	Sections:  make(map[string]interface{}),
+			//}
 			fakeClient := fake.NewSimpleClientset()
 			Expect(fakeClient).ToNot(BeNil())
 
 			mockMgr = newMockAppManager(&Params{
 				KubeClient:             fakeClient,
-				ConfigWriter:           mw,
+				//ConfigWriter:           mw,
 				restClient:             test.CreateFakeHTTPClient(),
 				RouteClientV1:          fakeRouteClient.NewSimpleClientset().RouteV1(),
 				IsNodePort:             true,
@@ -187,8 +188,8 @@ var _ = Describe("Event Notifier Tests", func() {
 					},
 				},
 				map[string]string{
-					f5VsBindAddrAnnotation:  bindAddr,
-					f5VsPartitionAnnotation: "velcro",
+					F5VsBindAddrAnnotation:  bindAddr,
+					F5VsPartitionAnnotation: "velcro",
 				},
 			)
 			r = mockMgr.addIngress(ing)

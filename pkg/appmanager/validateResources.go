@@ -18,6 +18,7 @@ package appmanager
 
 import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 
 	routeapi "github.com/openshift/api/route/v1"
 	"k8s.io/api/core/v1"
@@ -29,6 +30,7 @@ func (appMgr *Manager) checkValidConfigMap(
 ) (bool, []*serviceQueueKey) {
 	// Identify the specific service being referenced, and return it if it's
 	// one we care about.
+	log.Debugf("[AS3] ###### 1 Checking valid ConfigMap")
 	var keyList []*serviceQueueKey
 	cm := obj.(*v1.ConfigMap)
 	namespace := cm.ObjectMeta.Namespace
@@ -39,17 +41,24 @@ func (appMgr *Manager) checkValidConfigMap(
 	}
 	//check as3 config map.
 	// if ok, add cfgMap name and data to serviceQueueKey.
-	if ok := appMgr.checkAS3ConfigMap(obj); ok {
-		log.Debugf("[AS3] Found AS3 ConfigMap - %s.", cm.ObjectMeta.Name)
-		key := &serviceQueueKey{
-			Namespace: namespace,
-			AS3Name:   cm.ObjectMeta.Name,
-			AS3Data:   cm.Data["template"],
-		}
-		keyList = append(keyList, key)
-		return true, keyList
-	}
-	cfg, err := parseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
+	//if ok := appMgr.checkAS3ConfigMap(obj); ok {
+	//	labels := cm.ObjectMeta.Labels
+	//	key := &serviceQueueKey{
+	//		Namespace:       namespace,
+	//		OverrideAS3Name: cm.ObjectMeta.Name,
+	//		AS3Data:         cm.Data["template"],
+	//	}
+	//	if _, ok := labels["as3"]; ok {
+	//		log.Debugf("[AS3] ###### 1 Found AS3 ConfigMap - %s.", cm.ObjectMeta.Name)
+	//		key.AS3Name = cm.ObjectMeta.Name
+	//	} else if _, ok := labels["overrideAS3"]; ok {
+	//		log.Debugf("[AS3] ###### 1 Found Override AS3 ConfigMap - %s.", cm.ObjectMeta.Name)
+	//		key.OverrideAS3Name = cm.ObjectMeta.Name
+	//	}
+	//	keyList = append(keyList, key)
+	//	return true, keyList
+	//}
+	cfg, err := ParseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
 	if nil != err {
 		if handleConfigMapParseFailure(appMgr, cm, cfg, err) {
 			// resources is updated if true is returned, write out the config.
@@ -59,14 +68,14 @@ func (appMgr *Manager) checkValidConfigMap(
 	}
 	// This ensures that pool-only mode only logs the message below the first
 	// time we see a config.
-	rsName := formatConfigMapVSName(cm)
+	rsName := FormatConfigMapVSName(cm)
 	// Checking for annotation in VS, not iApp
 	if _, exists := appMgr.resources.GetByName(rsName); !exists &&
 		cfg.MetaData.ResourceType != "iapp" &&
 		cfg.Virtual.VirtualAddress != nil &&
 		cfg.Virtual.VirtualAddress.BindAddr == "" {
 		// Check for IP annotation provided by IPAM system
-		if _, ok := cm.ObjectMeta.Annotations[f5VsBindAddrAnnotation]; !ok {
+		if _, ok := cm.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; !ok {
 			log.Infof("No virtual IP was specified for the virtual server %s creating pool only.",
 				rsName)
 		}
@@ -131,7 +140,7 @@ func (appMgr *Manager) checkValidIngress(
 	}
 
 	bindAddr := ""
-	if addr, ok := ing.ObjectMeta.Annotations[f5VsBindAddrAnnotation]; ok {
+	if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok {
 		bindAddr = addr
 	}
 	var keyList []*serviceQueueKey
@@ -147,20 +156,20 @@ func (appMgr *Manager) checkValidIngress(
 			appMgr.vsSnatPoolName,
 		)
 		var rsType int
-		rsName := formatIngressVSName(bindAddr, portStruct.port)
+		rsName := FormatIngressVSName(bindAddr, portStruct.port)
 		// If rsCfg is nil, delete any resources tied to this Ingress
 		if rsCfg == nil {
 			if nil == ing.Spec.Rules { //single-service
-				rsType = singleServiceIngressType
+				rsType = SingleServiceIngressType
 				serviceName := ing.Spec.Backend.ServiceName
 				servicePort := ing.Spec.Backend.ServicePort.IntVal
-				sKey := serviceKey{serviceName, servicePort, namespace}
+				sKey := ServiceKey{serviceName, servicePort, namespace}
 				if _, ok := appMgr.resources.Get(sKey, rsName); ok {
 					appMgr.resources.Delete(sKey, rsName)
 					appMgr.outputConfig()
 				}
 			} else { //multi-service
-				rsType = multiServiceIngressType
+				rsType = MultiServiceIngressType
 				_, keys := appMgr.resources.GetAllWithName(rsName)
 				for _, key := range keys {
 					appMgr.resources.Delete(key, rsName)
@@ -171,9 +180,9 @@ func (appMgr *Manager) checkValidIngress(
 		}
 
 		// Validate url-rewrite annotations
-		if urlRewrite, ok := ing.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
-			if rsType == multiServiceIngressType {
-				urlRewriteMap := parseAppRootURLRewriteAnnotations(urlRewrite)
+		if urlRewrite, ok := ing.ObjectMeta.Annotations[F5VsURLRewriteAnnotation]; ok {
+			if rsType == MultiServiceIngressType {
+				urlRewriteMap := ParseAppRootURLRewriteAnnotations(urlRewrite)
 				validateURLRewriteAnnotations(rsType, urlRewriteMap)
 			} else {
 				log.Warning("Single service ingress does not support url-rewrite annotation, not processing")
@@ -181,9 +190,9 @@ func (appMgr *Manager) checkValidIngress(
 		}
 
 		// Validate app-root annotations
-		if appRoot, ok := ing.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
-			appRootMap := parseAppRootURLRewriteAnnotations(appRoot)
-			if rsType == singleServiceIngressType {
+		if appRoot, ok := ing.ObjectMeta.Annotations[F5VsAppRootAnnotation]; ok {
+			appRootMap := ParseAppRootURLRewriteAnnotations(appRoot)
+			if rsType == SingleServiceIngressType {
 				if len(appRootMap) > 1 {
 					log.Warning("Single service ingress does not support multiple app-root annotation values, not processing")
 				} else {
@@ -210,7 +219,7 @@ func (appMgr *Manager) checkValidIngress(
 		// It doesn't make sense for single service Ingresses to share a VS
 		if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
 			if (oldCfg.Virtual.PoolName != "" || ing.Spec.Rules == nil) &&
-				oldCfg.MetaData.ingName != ing.ObjectMeta.Name &&
+				oldCfg.MetaData.IngName != ing.ObjectMeta.Name &&
 				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
 				log.Warningf(
 					"Single-service Ingress cannot share the IP and port: '%s:%d'.",
@@ -241,22 +250,23 @@ func (appMgr *Manager) checkValidIngress(
 	return true, keyList
 }
 
+// SNATRA TODO Revisit this AS3
 func (appMgr *Manager) checkValidNode(
 	obj interface{},
 ) (bool, []*serviceQueueKey) {
 	// Check if an active configMap exists.
 	// if exists get it from appMgr struct and return.
 	// if not exists return false, nil.
-	if "" != appMgr.as3ActiveConfig.configmap.Name && "" != appMgr.as3ActiveConfig.configmap.Data {
-		key := &serviceQueueKey{
-			AS3Name: appMgr.as3ActiveConfig.configmap.Name,
-			AS3Data: string(appMgr.as3ActiveConfig.configmap.Data),
-		}
-		var keyList []*serviceQueueKey
-		keyList = append(keyList, key)
-		log.Debugf("[AS3] NodeInformer: ConfigMap '%s' placed in Queue.", appMgr.as3ActiveConfig.configmap.Name)
-		return true, keyList
-	}
+	//if "" != appMgr.as3ActiveConfig.configmap.Name && "" != appMgr.as3ActiveConfig.configmap.Data {
+	//	key := &serviceQueueKey{
+	//		ServiceName: appMgr.as3ActiveConfig.configmap.Name,
+	//		//AS3Data: string(appMgr.as3ActiveConfig.configmap.Data),
+	//	}
+	//	var keyList []*serviceQueueKey
+	//	keyList = append(keyList, key)
+	//	log.Debugf("[AS3] NodeInformer: ConfigMap '%s' placed in Queue.", appMgr.as3ActiveConfig.configmap.Name)
+	//	return true, keyList
+	//}
 	return false, nil
 }
 
@@ -274,8 +284,8 @@ func (appMgr *Manager) checkValidRoute(
 
 	// Validate url-rewrite annotations
 	uri := route.Spec.Host + route.Spec.Path
-	if urlRewrite, ok := route.ObjectMeta.Annotations[f5VsURLRewriteAnnotation]; ok {
-		urlRewriteMap := parseAppRootURLRewriteAnnotations(urlRewrite)
+	if urlRewrite, ok := route.ObjectMeta.Annotations[F5VsURLRewriteAnnotation]; ok {
+		urlRewriteMap := ParseAppRootURLRewriteAnnotations(urlRewrite)
 		if len(urlRewriteMap) > 1 {
 			log.Warning(
 				"Routes do not support multiple app-root annotation values, " +
@@ -284,7 +294,7 @@ func (appMgr *Manager) checkValidRoute(
 			urlRewriteMap[uri] = urlRewriteMap["single"]
 			if _, ok := urlRewriteMap["single"]; ok {
 				delete(urlRewriteMap, "single")
-				validateURLRewriteAnnotations(routeType, urlRewriteMap)
+				validateURLRewriteAnnotations(RouteType, urlRewriteMap)
 			} else {
 				log.Warningf(
 					"URL rewrite annotation: %s does not support targeted values "+
@@ -294,8 +304,8 @@ func (appMgr *Manager) checkValidRoute(
 	}
 
 	// Validate app-root annotations
-	if appRoot, ok := route.ObjectMeta.Annotations[f5VsAppRootAnnotation]; ok {
-		appRootMap := parseAppRootURLRewriteAnnotations(appRoot)
+	if appRoot, ok := route.ObjectMeta.Annotations[F5VsAppRootAnnotation]; ok {
+		appRootMap := ParseAppRootURLRewriteAnnotations(appRoot)
 		if len(appRootMap) > 1 {
 			log.Warning(
 				"Single service ingress does not support multiple url-rewrite " +
@@ -304,7 +314,7 @@ func (appMgr *Manager) checkValidRoute(
 			appRootMap[uri] = appRootMap["single"]
 			if _, ok := appRootMap["single"]; ok {
 				delete(appRootMap, "single")
-				validateAppRootAnnotations(routeType, appRootMap)
+				validateAppRootAnnotations(RouteType, appRootMap)
 			} else {
 				log.Warningf(
 					"App root annotation: %s does not support targeted values "+
@@ -313,7 +323,7 @@ func (appMgr *Manager) checkValidRoute(
 		}
 	}
 
-	svcNames := getRouteServiceNames(route)
+	svcNames := GetRouteServiceNames(route)
 	for _, svcName := range svcNames {
 		key := &serviceQueueKey{
 			ServiceName: svcName,
@@ -326,28 +336,28 @@ func (appMgr *Manager) checkValidRoute(
 
 func validateURLRewriteAnnotations(rsType int, entries map[string]string) {
 	for k, v := range entries {
-		targetURL := parseAnnotationURL(k)
-		valueURL := parseAnnotationURL(v)
+		targetURL := ParseAnnotationURL(k)
+		valueURL := ParseAnnotationURL(v)
 
-		if rsType == multiServiceIngressType && targetURL.Host == "" {
+		if rsType == MultiServiceIngressType && targetURL.Host == "" {
 			log.Warningf(
 				"Invalid annotation: %s=%s need a host target for url-rewrite annotation "+
 					"for multi-service ingress, skipping", k, v)
 			return
 		}
-		if rsType == multiServiceIngressType && targetURL.Path == "" && valueURL.Path != "" {
+		if rsType == MultiServiceIngressType && targetURL.Path == "" && valueURL.Path != "" {
 			log.Warningf(
 				"Invalid annotation: %s=%s need a host and path target for url-rewrite "+
 					"annotation with path for multi-service ingress, skipping", k, v)
 			return
 		}
-		if rsType == routeType && targetURL.Path == "" && valueURL.Path != "" {
+		if rsType == RouteType && targetURL.Path == "" && valueURL.Path != "" {
 			log.Warningf(
 				"Invalid annotation: %s=%s need a path target for url-rewrite annotation "+
 					"with path for route, skipping", k, v)
 			return
 		}
-		if rsType == routeType && targetURL.Host == "" && valueURL.Host != "" {
+		if rsType == RouteType && targetURL.Host == "" && valueURL.Host != "" {
 			log.Warningf(
 				"Invalid annotation: %s=%s need a host target for url-rewrite annotation "+
 					"with host for route, skipping",
@@ -365,16 +375,16 @@ func validateURLRewriteAnnotations(rsType int, entries map[string]string) {
 
 func validateAppRootAnnotations(rsType int, entries map[string]string) {
 	for k, v := range entries {
-		targetURL := parseAnnotationURL(k)
-		valueURL := parseAnnotationURL(v)
+		targetURL := ParseAnnotationURL(k)
+		valueURL := ParseAnnotationURL(v)
 
-		if rsType == multiServiceIngressType && targetURL.Host == "" {
+		if rsType == MultiServiceIngressType && targetURL.Host == "" {
 			log.Warningf(
 				"Invalid annotation: %s=%s need a host target for app-root "+
 					"annotation for multi-service ingress, skipping", k, v)
 			return
 		}
-		if rsType == routeType && targetURL.Path != "" {
+		if rsType == RouteType && targetURL.Path != "" {
 			log.Warningf(
 				"Invalid annotation: %s=%s can not target path for app-root "+
 					"annotation for route, skipping", k, v)
@@ -407,7 +417,14 @@ func (appMgr *Manager) checkAS3ConfigMap(
 	cm := obj.(*v1.ConfigMap)
 	labels := cm.ObjectMeta.Labels
 	if val, ok := labels["as3"]; ok {
+		log.Debugf("[AS3] ###### 1 Found AS3 ConfigMap .............!!!!!!!- %s.", cm.ObjectMeta.Name)
 		log.Debugf("[AS3] Found AS3 config map...")
+		if val == "true" {
+			return true
+		}
+	} else if val, ok := labels["overrideAS3"]; ok {
+		log.Debugf("[AS3] ###### 1 Found Override AS3 ConfigMap ............!!!!!!- %s. FLAG %v", cm.ObjectMeta.Name, val)
+		log.Debugf("[AS3] Found Override AS3 config map...")
 		if val == "true" {
 			return true
 		}

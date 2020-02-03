@@ -17,10 +17,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 	"io/ioutil"
-	"net/http"
+	v1 "k8s.io/api/core/v1"
+	//"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -29,16 +30,19 @@ import (
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/as3"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
+	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
+	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
+	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
+	//bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
+	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	clog "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger/console"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	//"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/spf13/pflag"
 	"golang.org/x/crypto/ssh/terminal"
@@ -46,14 +50,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/labels"
 
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
 
-const as3SchemaLatestURL = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
-const as3SchemaFileName = "as3-schema-3.13.2-1-cis.json"
 
 type globalSection struct {
 	LogLevel       string `json:"log-level,omitempty"`
@@ -87,6 +90,7 @@ var (
 	nodePollInterval *int
 	printVersion     *bool
 	httpAddress      *string
+	dgPath           *string
 
 	namespaces             *[]string
 	useNodeInternal        *bool
@@ -106,22 +110,25 @@ var (
 	manageIngressClassOnly *bool
 	ingressClass           *string
 
-	bigIPURL                  *string
-	bigIPUsername             *string
-	bigIPPassword             *string
-	bigIPPartitions           *[]string
-	credsDir                  *string
-	as3Validation             *bool
-	sslInsecure               *bool
+	bigIPURL           *string
+	bigIPUsername      *string
+	bigIPPassword      *string
+	bigIPPartitions    *[]string
+	credsDir           *string
+	as3Validation      *bool
+	sslInsecure        *bool
 	enableTLS                 *string
 	tls13CipherGroupReference *string
 	ciphers                   *string
+	trustedCerts              *string
 	as3PostDelay              *int
-	trustedCertsCfgmap        *string
-	agent                     *string
-	logAS3Response            *bool
-	overrideAS3Decl           *string
-	filterTenants             *bool
+
+	trustedCertsCfgmap *string
+	agent              *string
+	logAS3Response     *bool
+	overrideAS3Decl    *string
+	userDefinedAS3Decl *string
+	filterTenants      *bool
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -138,6 +145,8 @@ var (
 	isNodePort         bool
 	watchAllNamespaces bool
 	vxlanName          string
+	kubeClient         kubernetes.Interface
+	processNodeUpdate  func (obj interface{}, err error)
 )
 
 func _init() {
@@ -210,6 +219,10 @@ func _init() {
 	overrideAS3UsageStr := "Optional, provide Namespace and Name of that ConfigMap as <namespace>/<configmap-name>." +
 		"The JSON key/values from this ConfigMap will override key/values from internally generated AS3 declaration."
 	overrideAS3Decl = bigIPFlags.String("override-as3-declaration", "", overrideAS3UsageStr)
+	userDefinedCfgMapStr := "Optional, provide Namespace and Name of the User Defined ConfigMap as " +
+		"<namespace>/<configmap-name>. The template in this cfgMap is a JSON string with  JSON key/values" +
+		" will be used as a AS3 declaration in CIS."
+	userDefinedAS3Decl = bigIPFlags.String("userdefined-as3-declaration", "", userDefinedCfgMapStr)
 	filterTenants = kubeFlags.Bool("filter-tenants", false,
 		"Optional, specify whether or not to use tenant filtering API for AS3 declaration")
 	bigIPFlags.Usage = func() {
@@ -432,6 +445,12 @@ func verifyArgs() error {
 				"Usage: --override-as3-declaration=<namespace>/<configmap-name>")
 		}
 	}
+	if *userDefinedAS3Decl != "" {
+		if len(strings.Split(*userDefinedAS3Decl, "/")) != 2 {
+			return fmt.Errorf("Invalid value provided for --userdefined-as3-declaration" +
+				"Usage: --userdefined-as3-declaration=<namespace>/<configmap-name>")
+		}
+	}
 	return nil
 }
 
@@ -502,51 +521,51 @@ func getCredentials() error {
 	return nil
 }
 
-func setupNodePolling(
-	appMgr *appmanager.Manager,
-	np pollers.Poller,
-	eventChan <-chan interface{},
-	kubeClient kubernetes.Interface,
-) error {
-	// Register appMgr to watch for node updates to keep track of watched nodes
-	err := np.RegisterListener(appMgr.ProcessNodeUpdate)
-	if nil != err {
-		return fmt.Errorf("error registering node update listener: %v",
-			err)
-	}
-
-	if 0 != len(vxlanMode) {
-		// If partition is part of vxlanName, extract just the tunnel name
-		tunnelName := vxlanName
-		cleanPath := strings.TrimLeft(vxlanName, "/")
-		slashPos := strings.Index(cleanPath, "/")
-		if slashPos != -1 {
-			tunnelName = cleanPath[slashPos+1:]
-		}
-		vxMgr, err := vxlan.NewVxlanMgr(
-			vxlanMode,
-			tunnelName,
-			appMgr.UseNodeInternal(),
-			appMgr.ConfigWriter(),
-			eventChan,
-		)
-		if nil != err {
-			return fmt.Errorf("error creating vxlan manager: %v", err)
-		}
-
-		// Register vxMgr to watch for node updates to process fdb records
-		err = np.RegisterListener(vxMgr.ProcessNodeUpdate)
-		if nil != err {
-			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
-				err)
-		}
-		if eventChan != nil {
-			vxMgr.ProcessAppmanagerEvents(kubeClient)
-		}
-	}
-
-	return nil
-}
+//func setupNodePolling(
+//	appMgr *appmanager.Manager,
+//	np pollers.Poller,
+//	eventChan <-chan interface{},
+//	kubeClient kubernetes.Interface,
+//) error {
+//	// Register appMgr to watch for node updates to keep track of watched nodes
+//	err := np.RegisterListener(appMgr.ProcessNodeUpdate)
+//	if nil != err {
+//		return fmt.Errorf("error registering node update listener: %v",
+//			err)
+//	}
+//
+//	if 0 != len(vxlanMode) {
+//		// If partition is part of vxlanName, extract just the tunnel name
+//		tunnelName := vxlanName
+//		cleanPath := strings.TrimLeft(vxlanName, "/")
+//		slashPos := strings.Index(cleanPath, "/")
+//		if slashPos != -1 {
+//			tunnelName = cleanPath[slashPos+1:]
+//		}
+//		vxMgr, err := vxlan.NewVxlanMgr(
+//			vxlanMode,
+//			tunnelName,
+//			appMgr.UseNodeInternal(),
+//			appMgr.ConfigWriter(),
+//			eventChan,
+//		)
+//		if nil != err {
+//			return fmt.Errorf("error creating vxlan manager: %v", err)
+//		}
+//
+//		// Register vxMgr to watch for node updates to process fdb records
+//		err = np.RegisterListener(vxMgr.ProcessNodeUpdate)
+//		if nil != err {
+//			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
+//				err)
+//		}
+//		if eventChan != nil {
+//			vxMgr.ProcessAppmanagerEvents(kubeClient)
+//		}
+//	}
+//
+//	return nil
+//}
 
 func createLabel(label string) (labels.Selector, error) {
 	var l labels.Selector
@@ -575,12 +594,12 @@ func GetNamespaces(appMgr *appmanager.Manager) {
 // setup the initial watch based off the flags passed in, if no flags then we
 // watch all namespaces
 func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
-	label := appmanager.DefaultConfigMapLabel
+	label := resource.DefaultConfigMapLabel
 
-	err := appMgr.SetupAS3Informers()
-	if nil != err {
-		log.Warningf("Failed to add AS3 watcher for all namespaces:%v", err)
-	}
+	//err := appMgr.SetupAS3Informers()
+	//if nil != err {
+	//	log.Warningf("Failed to add AS3 watcher for all namespaces:%v", err)
+	//}
 
 	if len(*namespaceLabel) == 0 {
 		ls, err := createLabel(label)
@@ -640,10 +659,12 @@ func main() {
 
 	log.Infof("Starting: Version: %s, BuildInfo: %s", version, buildInfo)
 
-	appmanager.DEFAULT_PARTITION = (*bigIPPartitions)[0]
+	resource.DEFAULT_PARTITION = (*bigIPPartitions)[0]
+	*dgPath = resource.DEFAULT_PARTITION
 	if strings.ToLower(*agent) == "as3" {
-		appmanager.DEFAULT_PARTITION += "_AS3"
+		resource.DEFAULT_PARTITION += "_AS3"
 		*agent = "as3"
+		*dgPath = strings.Join([]string{resource.DEFAULT_PARTITION, "Shared"}, "/")
 	}
 	appmanager.RegisterBigIPSchemaTypes()
 
@@ -652,117 +673,123 @@ func main() {
 		log.Infof("SCALE_PERF: Started controller at: %d", now.Unix())
 	}
 
-	configWriter, err := writer.NewConfigWriter()
-	if nil != err {
-		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
-	}
-	defer configWriter.Stop()
+	//configWriter, err := writer.NewConfigWriter()
+	//if nil != err {
+	//	log.Fatalf("Failed creating ConfigWriter tool: %v", err)
+	//}
+	//defer configWriter.Stop()
 
 	if len(*routeLabel) > 0 {
 		*routeLabel = fmt.Sprintf("f5type in (%s)", *routeLabel)
 	}
-	var routeConfig = appmanager.RouteConfig{
-		RouteVSAddr: *routeVserverAddr,
-		RouteLabel:  *routeLabel,
-		HttpVs:      *routeHttpVs,
-		HttpsVs:     *routeHttpsVs,
-		ClientSSL:   *clientSSL,
-		ServerSSL:   *serverSSL,
-	}
+	//var routeConfig = appmanager.RouteConfig{
+	//	RouteVSAddr: *routeVserverAddr,
+	//	RouteLabel:  *routeLabel,
+	//	HttpVs:      *routeHttpVs,
+	//	HttpsVs:     *routeHttpsVs,
+	//	ClientSSL:   *clientSSL,
+	//	ServerSSL:   *serverSSL,
+	//}
 
-	var appMgrParms = appmanager.Params{
-		ConfigWriter:              configWriter,
-		UseNodeInternal:           *useNodeInternal,
-		IsNodePort:                isNodePort,
-		RouteConfig:               routeConfig,
-		NodeLabelSelector:         *nodeLabelSelector,
-		ResolveIngress:            *resolveIngNames,
-		DefaultIngIP:              *defaultIngIP,
-		VsSnatPoolName:            *vsSnatPoolName,
-		UseSecrets:                *useSecrets,
-		ManageConfigMaps:          *manageConfigMaps,
-		ManageIngress:             *manageIngress,
-		ManageIngressClassOnly:    *manageIngressClassOnly,
-		IngressClass:              *ingressClass,
-		SchemaLocal:               *schemaLocal,
-		AS3Validation:             *as3Validation,
-		EnableTLS:                 *enableTLS,
-		TLS13CipherGroupReference: *tls13CipherGroupReference,
-		Ciphers:                   *ciphers,
-		TrustedCertsCfgmap:        *trustedCertsCfgmap,
-		OverrideAS3Decl:           *overrideAS3Decl,
-		Agent:                     *agent,
-		FilterTenants:             *filterTenants,
-	}
+	var appMgrParms = getAppManagerParams()
+	//appmanager.Params{
+	//	ConfigWriter:           configWriter,
+	//	UseNodeInternal:        *useNodeInternal,
+	//	IsNodePort:             isNodePort,
+	//	RouteConfig:            routeConfig,
+	//	NodeLabelSelector:      *nodeLabelSelector,
+	//	ResolveIngress:         *resolveIngNames,
+	//	DefaultIngIP:           *defaultIngIP,
+	//	VsSnatPoolName:         *vsSnatPoolName,
+	//	UseSecrets:             *useSecrets,
+	//	ManageConfigMaps:       *manageConfigMaps,
+	//	ManageIngress:          *manageIngress,
+	//	ManageIngressClassOnly: *manageIngressClassOnly,
+	//	IngressClass:           *ingressClass,
+	//	SchemaLocal:            *schemaLocal,
+	//	TrustedCertsCfgmap:     *trustedCertsCfgmap,
+	//	Agent:                  *agent,
+	//	DgPath:                 dgPath,
+	//}
+
+	// defer appMgrParms.ConfigWriter.Stop()
 
 	// If running with Flannel, create an event channel that the appManager
 	// uses to send endpoints to the VxlanManager
-	var eventChan chan interface{}
-	if len(*flannelName) > 0 {
-		eventChan = make(chan interface{})
-		appMgrParms.EventChan = eventChan
-	}
+	//var eventChan chan interface{}
+	//if len(*flannelName) > 0 {
+	//	eventChan = make(chan interface{})
+	//	appMgrParms.EventChan = eventChan
+	//}
 
 	// If running in VXLAN mode, extract the partition name from the tunnel
 	// to be used in configuring a net instance of CCCL for that partition
-	var vxlanPartition string
-	if len(vxlanName) > 0 {
-		cleanPath := strings.TrimLeft(vxlanName, "/")
-		slashPos := strings.Index(cleanPath, "/")
-		if slashPos == -1 {
-			// No partition
-			vxlanPartition = "Common"
-		} else {
-			// Partition and name
-			vxlanPartition = cleanPath[:slashPos]
-		}
-	}
+	//var vxlanPartition string
+	//if len(vxlanName) > 0 {
+	//	cleanPath := strings.TrimLeft(vxlanName, "/")
+	//	slashPos := strings.Index(cleanPath, "/")
+	//	if slashPos == -1 {
+	//		// No partition
+	//		vxlanPartition = "Common"
+	//	} else {
+	//		// Partition and name
+	//		vxlanPartition = cleanPath[:slashPos]
+	//	}
+	//}
 
-	gs := globalSection{
-		LogLevel:       *logLevel,
-		VerifyInterval: *verifyInterval,
-		VXLANPartition: vxlanPartition,
-	}
-	bs := bigIPSection{
-		BigIPUsername:   *bigIPUsername,
-		BigIPPassword:   *bigIPPassword,
-		BigIPURL:        *bigIPURL,
-		BigIPPartitions: *bigIPPartitions,
-	}
+	//gs := globalSection{
+	//	LogLevel:       *logLevel,
+	//	VerifyInterval: *verifyInterval,
+	//	VXLANPartition: vxlanPartition,
+	//}
+	//bs := bigIPSection{
+	//	BigIPUsername:   *bigIPUsername,
+	//	BigIPPassword:   *bigIPPassword,
+	//	BigIPURL:        *bigIPURL,
+	//	BigIPPartitions: *bigIPPartitions,
+	//}
+	//
+	//subPidCh, err := startPythonDriver(configWriter, gs, bs, *pythonBaseDir)
+	//if nil != err {
+	//	log.Fatalf("Could not initialize subprocess configuration: %v", err)
+	//}
+	//subPid := <-subPidCh
+	//defer func(pid int) {
+	//	if 0 != pid {
+	//		var proc *os.Process
+	//		proc, err = os.FindProcess(pid)
+	//		if nil != err {
+	//			log.Warningf("Failed to find sub-process on exit: %v", err)
+	//		}
+	//		err = proc.Signal(os.Interrupt)
+	//		if nil != err {
+	//			log.Warningf("Could not stop sub-process on exit: %d - %v", pid, err)
+	//		}
+	//	}
+	//}(subPid)
 
-	subPidCh, err := startPythonDriver(configWriter, gs, bs, *pythonBaseDir)
-	if nil != err {
-		log.Fatalf("Could not initialize subprocess configuration: %v", err)
-	}
-	subPid := <-subPidCh
-	defer func(pid int) {
-		if 0 != pid {
-			var proc *os.Process
-			proc, err = os.FindProcess(pid)
-			if nil != err {
-				log.Warningf("Failed to find sub-process on exit: %v", err)
-			}
-			err = proc.Signal(os.Interrupt)
-			if nil != err {
-				log.Warningf("Could not stop sub-process on exit: %d - %v", pid, err)
-			}
-		}
-	}(subPid)
 
-	var config *rest.Config
-	if *inCluster {
+	/*if *inCluster {
 		config, err = rest.InClusterConfig()
 	} else {
 		config, err = clientcmd.BuildConfigFromFlags("", *kubeConfig)
 	}
 	if err != nil {
 		log.Fatalf("error creating configuration: %v", err)
+	}*/
+
+	config, err := getKubeConfig()
+	if err != nil{
+		os.Exit(1)
 	}
-	// creates the clientset
-	appMgrParms.KubeClient, err = kubernetes.NewForConfig(config)
+	kubeClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Fatalf("error connecting to the client: %v", err)
+		os.Exit(1)
 	}
+
+	// creates the clientset
+	appMgrParms.KubeClient = kubeClient
 	if *manageRoutes {
 		var rclient *routeclient.RouteV1Client
 		rclient, err = routeclient.NewForConfig(config)
@@ -773,50 +800,64 @@ func main() {
 	}
 
 	appMgr := appmanager.NewManager(&appMgrParms)
+	GetNamespaces(appMgr)
+	processNodeUpdate = appMgr.ProcessNodeUpdate
+
+	appMgr.AgentCIS, err = cisAgent.CreateAgent(appMgr.Agent)
+	if err != nil{
+		cleanupOtherAgents(appMgr.Agent, resource.DEFAULT_PARTITION)
+		if err = appMgr.AgentCIS.Init(getAgentParams(appMgr.Agent)); err != nil{
+			log.Fatalf("unable to initialize agent %v error: err: %+v\n",appMgr.Agent, err)
+		}
+		defer appMgr.AgentCIS.DeInit()
+	}
+		//myAgent.Deploy(agent.ResourceConfig{})
+		//myAgent.Remove("k8s_AS3")
+
+	//as3Mgr := as3.NewAS3Manager(getAS3Params())
 
 	// Create PostManager to POST configuration to BIG-IP using AS3
-	var postMgrParams = postmanager.Params{
-		BIGIPUsername: *bigIPUsername,
-		BIGIPPassword: *bigIPPassword,
-		BIGIPURL:      *bigIPURL,
-		TrustedCerts:  appMgr.GetBIGIPTrustedCerts(),
-		SSLInsecure:   *sslInsecure,
-		AS3PostDelay:  *as3PostDelay,
-		LogResponse:   *logAS3Response,
-		RouteClientV1: appMgrParms.RouteClientV1,
-	}
-	appMgr.PostManager = postmanager.NewPostManager(postMgrParams)
+	//var postMgrParams = postmanager.Params{
+	//	BIGIPUsername: *bigIPUsername,
+	//	BIGIPPassword: *bigIPPassword,
+	//	BIGIPURL:      *bigIPURL,
+	//	TrustedCerts:  appMgr.GetBIGIPTrustedCerts(),
+	//	SSLInsecure:   *sslInsecure,
+	//	AS3PostDelay:  *as3PostDelay,
+	//	LogResponse:   *logAS3Response,
+	//	RouteClientV1: appMgrParms.RouteClientV1,
+	//}
+	//as3Mgr.PostManager = postmanager.NewPostManager(postMgrParams)
 
 	// AS3 schema validation using latest AS3 version
-	fetchAS3Schema(appMgr)
+	//fetchAS3Schema(as3Mgr)
 
 	// Delete as3 managed partition when switching back to agent cccl from as3
-	appMgr.DeleteCISManagedPartition()
+	// as3Mgr.DeleteCISManagedPartition()
 
-	GetNamespaces(appMgr)
-	intervalFactor := time.Duration(*nodePollInterval)
-	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
-	err = setupNodePolling(appMgr, np, eventChan, appMgrParms.KubeClient)
-	if nil != err {
-		log.Fatalf("Required polling utility for node updates failed setup: %v",
-			err)
-	}
-
-	np.Run()
-	defer np.Stop()
+	//intervalFactor := time.Duration(*nodePollInterval)
+	//np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
+	//err = setupNodePolling(appMgr, np, eventChan, appMgrParms.KubeClient)
+	//if nil != err {
+	//	log.Fatalf("Required polling utility for node updates failed setup: %v",
+	//		err)
+	//}
+	//
+	//np.Run()
+	//defer np.Stop()
 
 	setupWatchers(appMgr, 30*time.Second)
 	// Expose Prometheus metrics
-	http.Handle("/metrics", promhttp.Handler())
-	// Add health check e.g. is Python process still there?
-	hc := &health.HealthChecker{
-		SubPID: subPid,
-	}
-	http.Handle("/health", hc.HealthCheckHandler())
-	bigIPPrometheus.RegisterMetrics()
-	go func() {
-		log.Fatal(http.ListenAndServe(*httpAddress, nil).Error())
-	}()
+	//http.Handle("/metrics", promhttp.Handler())
+	//// Add health check e.g. is Python process still there?
+	//hc := &health.HealthChecker{
+	//	SubPID: subPid,
+	//}
+	//http.Handle("/health", hc.HealthCheckHandler())
+	//bigIPPrometheus.RegisterMetrics()
+	//go func() {
+	//	log.Fatal(http.ListenAndServe(*httpAddress, nil).Error())
+	//}()
 
 	stopCh := make(chan struct{})
 
@@ -829,48 +870,169 @@ func main() {
 	log.Infof("Exiting - signal %v\n", sig)
 }
 
-func fetchAS3Schema(appMgr *appmanager.Manager) {
-
-	res, resErr := http.Get(as3SchemaLatestURL)
-	if resErr != nil {
-		log.Debugf("Error while fetching latest as3 schema : %v", resErr)
-		fallbackToLocalAS3Schema(appMgr)
-		return
+func cleanupOtherAgents(exclAgent, partition string){
+	agentList := make([]string, 3)
+	agentList = append(agentList, cisAgent.AS3Agent, cisAgent.CCCLAgent)
+	for _, agent := range agentList{
+		if exclAgent != agent{
+			agentCIS, err := cisAgent.CreateAgent(agent)
+			if err != nil{
+				agentCIS.Init(getAgentParams(agent))
+				agentCIS.Remove(partition)
+			}
+		}
 	}
-	if res.StatusCode == http.StatusOK {
-		body, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			log.Debugf("Unable to read the as3 template from json response body : %v", err)
-			fallbackToLocalAS3Schema(appMgr)
-			return
-		}
-		defer res.Body.Close()
-
-		jsonMap := make(map[string]interface{})
-		err = json.Unmarshal(body, &jsonMap)
-		if err != nil {
-			log.Debugf("Unable to unmarshal json response body : %v", err)
-			fallbackToLocalAS3Schema(appMgr)
-			return
-		}
-
-		jsonMap["$id"] = as3SchemaLatestURL
-		byteJSON, err := json.Marshal(jsonMap)
-		if err != nil {
-			log.Debugf("Unable to marshal : %v", err)
-			fallbackToLocalAS3Schema(appMgr)
-			return
-		}
-		appMgr.As3SchemaLatest = string(byteJSON)
-		return
-	}
-	fallbackToLocalAS3Schema(appMgr)
-	return
 }
 
-func fallbackToLocalAS3Schema(appMgr *appmanager.Manager) {
-	appMgr.As3SchemaFlag = true
-	log.Debugf("Unable to fetch the latest AS3 schema : validating AS3 schema with %v", as3SchemaFileName)
-	appMgr.As3SchemaLatest = appMgr.SchemaLocalPath + as3SchemaFileName
-	return
+func getConfigWriter() writer.Writer {
+	configWriter, err := writer.NewConfigWriter()
+	if nil != err {
+		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
+		os.Exit(1)
+	}
+	return configWriter
+}
+
+func getRouteConfig () appmanager.RouteConfig {
+	return appmanager.RouteConfig{
+		RouteVSAddr: *routeVserverAddr,
+		RouteLabel:  *routeLabel,
+		HttpVs:      *routeHttpVs,
+		HttpsVs:     *routeHttpsVs,
+		ClientSSL:   *clientSSL,
+		ServerSSL:   *serverSSL,
+	}
+}
+
+func getAppManagerParams() appmanager.Params{
+	return appmanager.Params{
+		ConfigWriter:           getConfigWriter(), // This will go into CCCL Manager
+		UseNodeInternal:        *useNodeInternal,
+		IsNodePort:             isNodePort,
+		RouteConfig:            getRouteConfig(),
+		NodeLabelSelector:      *nodeLabelSelector,
+		ResolveIngress:         *resolveIngNames,
+		DefaultIngIP:           *defaultIngIP,
+		VsSnatPoolName:         *vsSnatPoolName,
+		UseSecrets:             *useSecrets,
+		ManageConfigMaps:       *manageConfigMaps,
+		ManageIngress:          *manageIngress,
+		ManageIngressClassOnly: *manageIngressClassOnly,
+		IngressClass:           *ingressClass,
+		SchemaLocal:            *schemaLocal,
+		TrustedCertsCfgmap:     *trustedCertsCfgmap,
+		Agent:                  *agent,
+		DgPath:                 *dgPath,
+	}
+}
+
+func getAgentParams(agent string) interface{}{
+	var params interface{}
+	switch agent {
+	case cisAgent.AS3Agent:
+		params = getAS3Params()
+	case cisAgent.CCCLAgent:
+		params = getCCCLParams()
+	}
+	return params
+}
+
+func getAS3Params() *as3.Params{
+	return &as3.Params{
+		SchemaLocal:               *schemaLocal,
+		AS3Validation:             *as3Validation,
+		EnableTLS:                 *enableTLS,
+		TLS13CipherGroupReference: *tls13CipherGroupReference,
+		Ciphers:                   *ciphers,
+		OverrideAS3Decl:           *overrideAS3Decl,
+		UserDefinedAS3Decl:        *userDefinedAS3Decl,
+		Agent:                     *agent, //TODO Remove this later
+		FilterTenants:             *filterTenants,
+		BIGIPUsername: 			   *bigIPUsername,
+		BIGIPPassword:             *bigIPPassword,
+		BIGIPURL:                  *bigIPURL,
+		TrustedCerts:              getBIGIPTrustedCerts(),
+		SSLInsecure:               *sslInsecure,
+		AS3PostDelay:              *as3PostDelay,
+		LogResponse:               *logAS3Response,
+		//RouteClientV1:             appMgrParms.RouteClientV1,
+	}
+}
+
+func getCCCLParams() *cccl.Params{
+	return &cccl.Params{
+		ConfigWriter:        getConfigWriter(),
+		VxLanName:           vxlanName,
+		PythonBaseDir:       *pythonBaseDir,
+		NodePollInterval:    *nodePollInterval,
+		NodeLabelSelector:   *nodeLabelSelector,
+		UseNodeInternal:     *useNodeInternal,
+		VxlanMode:           vxlanMode,
+		KubeClient:          kubeClient,
+		HttpAddress:         *httpAddress,
+		ProcessNodeUpdate:   processNodeUpdate,
+
+		// Global Section
+		GlobalSection: cccl.GlobalSection {
+			LogLevel:        *logLevel,
+			VerifyInterval:  *verifyInterval,
+		},
+		// BIG-IO Section
+		BigIPSection: cccl.BigIPSection{
+			BigIPUsername:   *bigIPUsername,
+			BigIPPassword:   *bigIPPassword,
+			BigIPURL:        *bigIPURL,
+			BigIPPartitions: *bigIPPartitions,
+		},
+	}
+}
+
+func getKubeConfig() (*rest.Config, error) {
+	var config *rest.Config
+	var err error
+	if *inCluster {
+		config, err = rest.InClusterConfig()
+	} else {
+		config, err = clientcmd.BuildConfigFromFlags("", *kubeConfig)
+	}
+	if err != nil {
+		log.Fatalf("error creating configuration: %v", err)
+		return nil, err
+	}
+
+	// creates the clientset
+	return config, nil
+}
+
+// Read certificate from configmap
+func  getBIGIPTrustedCerts() string {
+	namespaceCfgmapSlice := strings.Split(*trustedCertsCfgmap, "/")
+	if len(namespaceCfgmapSlice) != 2 {
+		log.Debugf("[AS3] Invalid trusted-certs-cfgmap option provided.")
+		return ""
+	}
+
+	cm, err := getConfigMapUsingNamespaceAndName(namespaceCfgmapSlice[0], namespaceCfgmapSlice[1])
+	if err != nil {
+		log.Errorf("ConfigMap with name %v not found in namespace: %v, error: %v",
+			namespaceCfgmapSlice[1], namespaceCfgmapSlice[0], err)
+		os.Exit(1)
+	}
+
+	var certs string
+	// Fetch all certificates from configmap
+	for _, v := range cm.Data {
+		certs += v + "\n"
+	}
+	return certs
+}
+
+func  getConfigMapUsingNamespaceAndName(cfgMapNamespace, cfgMapName string) (*v1.ConfigMap, error) {
+	config, _ := getKubeConfig()
+	kubeClient, _ := kubernetes.NewForConfig(config)
+	cfgMap, err := kubeClient.CoreV1().ConfigMaps(cfgMapNamespace).Get(cfgMapName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return cfgMap, err
 }

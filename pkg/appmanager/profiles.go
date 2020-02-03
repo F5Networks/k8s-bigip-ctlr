@@ -24,16 +24,13 @@ import (
 	"strings"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 )
 
-type secretKey struct {
-	Name         string
-	ResourceName string
-}
 
 func (appMgr *Manager) setClientSslProfile(
 	stats *vsSyncStats,
@@ -47,52 +44,52 @@ func (appMgr *Manager) setClientSslProfile(
 	// First handle the Default for SNI profile
 	if appMgr.routeConfig.ClientSSL != "" {
 		// User has provided a name
-		profRef := convertStringToProfileRef(
-			appMgr.routeConfig.ClientSSL, customProfileClient, sKey.Namespace)
+		profRef := ConvertStringToProfileRef(
+			appMgr.routeConfig.ClientSSL, CustomProfileClient, sKey.Namespace)
 		rsCfg.Virtual.AddOrUpdateProfile(profRef)
-		rKey := routeKey{
+		rKey := RouteKey{
 			Name:      route.ObjectMeta.Name,
 			Namespace: route.ObjectMeta.Namespace,
-			Context:   customProfileClient,
+			Context:   CustomProfileClient,
 		}
 		rsCfg.MetaData.RouteProfs[rKey] = appMgr.routeConfig.ClientSSL
 	} else {
 		// No provided name, so we create a default
-		skey := secretKey{
+		skey := SecretKey{
 			Name:         "default-route-clientssl",
 			ResourceName: rsCfg.GetName(),
 		}
-		if _, ok := appMgr.customProfiles.profs[skey]; !ok {
+		if _, ok := appMgr.customProfiles.Profs[skey]; !ok {
 			profile := ProfileRef{
 				Name:      "default-route-clientssl",
 				Partition: rsCfg.Virtual.Partition,
-				Context:   customProfileClient,
+				Context:   CustomProfileClient,
 			}
 			// This is just a basic profile, so we don't need all the fields
 			cp := NewCustomProfile(profile, "", "", "", true, "", "")
-			appMgr.customProfiles.profs[skey] = cp
+			appMgr.customProfiles.Profs[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profile)
 		}
 	}
 	// Now handle the profile from the Route.
 	// If annotation is set, use that profile instead of Route profile.
-	if prof, ok := route.ObjectMeta.Annotations[f5ClientSslProfileAnnotation]; ok {
+	if prof, ok := route.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]; ok {
 		if nil != route.Spec.TLS {
 			log.Warningf("Both clientssl annotation and cert/key provided for Route: %s, "+
 				"using annotation.", route.ObjectMeta.Name)
 			// Delete existing Route profile if it exists
-			profRef := makeRouteClientSSLProfileRef(
+			profRef := MakeRouteClientSSLProfileRef(
 				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
 			rsCfg.Virtual.RemoveProfile(profRef)
 		}
-		profRef := convertStringToProfileRef(prof, customProfileClient, sKey.Namespace)
+		profRef := ConvertStringToProfileRef(prof, CustomProfileClient, sKey.Namespace)
 		if add := rsCfg.Virtual.AddOrUpdateProfile(profRef); add {
 			// Store this annotated profile in the metadata for future reference
 			// if it gets deleted.
-			rKey := routeKey{
+			rKey := RouteKey{
 				Name:      route.ObjectMeta.Name,
 				Namespace: route.ObjectMeta.Namespace,
-				Context:   customProfileClient,
+				Context:   CustomProfileClient,
 			}
 			rsCfg.MetaData.RouteProfs[rKey] = prof
 			stats.vsUpdated += 1
@@ -101,12 +98,12 @@ func (appMgr *Manager) setClientSslProfile(
 		profRef := ProfileRef{
 			Partition: "Common",
 			Name:      "clientssl",
-			Context:   customProfileClient,
+			Context:   CustomProfileClient,
 			Namespace: sKey.Namespace,
 		}
 		// We process the profile from the Route
 		if "" != route.Spec.TLS.Certificate && "" != route.Spec.TLS.Key {
-			profile := makeRouteClientSSLProfileRef(
+			profile := MakeRouteClientSSLProfileRef(
 				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
 
 			cp := NewCustomProfile(
@@ -119,16 +116,16 @@ func (appMgr *Manager) setClientSslProfile(
 				"", // caFile
 			)
 
-			skey := secretKey{
+			skey := SecretKey{
 				Name:         cp.Name,
 				ResourceName: rsCfg.GetName(),
 			}
-			if prof, ok := appMgr.customProfiles.profs[skey]; ok {
+			if prof, ok := appMgr.customProfiles.Profs[skey]; ok {
 				if !reflect.DeepEqual(prof, cp) {
 					stats.cpUpdated += 1
 				}
 			}
-			appMgr.customProfiles.profs[skey] = cp
+			appMgr.customProfiles.Profs[skey] = cp
 			profRef.Partition = cp.Partition
 			profRef.Name = cp.Name
 		} else {
@@ -137,15 +134,15 @@ func (appMgr *Manager) setClientSslProfile(
 		}
 		if add := rsCfg.Virtual.AddOrUpdateProfile(profRef); add {
 			// Remove annotation profile if it exists
-			rKey := routeKey{
+			rKey := RouteKey{
 				Name:      route.ObjectMeta.Name,
 				Namespace: route.ObjectMeta.Namespace,
-				Context:   customProfileClient,
+				Context:   CustomProfileClient,
 			}
 			if profName, ok := rsCfg.MetaData.RouteProfs[rKey]; ok {
 				delete(rsCfg.MetaData.RouteProfs, rKey)
-				profRef := convertStringToProfileRef(
-					profName, customProfileClient, sKey.Namespace)
+				profRef := ConvertStringToProfileRef(
+					profName, CustomProfileClient, sKey.Namespace)
 				rsCfg.Virtual.RemoveProfile(profRef)
 			}
 			stats.vsUpdated += 1
@@ -160,16 +157,16 @@ func (appMgr *Manager) setServerSslProfile(
 	route *routeapi.Route,
 ) string {
 	// Check to see if the server ssl profile should validate its peer
-	peerCert := peerCertIgnored
+	peerCert := PeerCertIgnored
 	if getBooleanAnnotation(
-		route.ObjectMeta.Annotations, f5ServerSslSecureAnnotation, false) {
-		peerCert = peerCertRequired
+		route.ObjectMeta.Annotations, F5ServerSslSecureAnnotation, false) {
+		peerCert = PeerCertRequired
 	}
 
 	// Handle the Default for SNI profile
 	appMgr.handleServerSNIDefaultProfile(rsCfg, peerCert, sKey)
 
-	if prof, ok := route.ObjectMeta.Annotations[f5ServerSslProfileAnnotation]; ok {
+	if prof, ok := route.ObjectMeta.Annotations[F5ServerSslProfileAnnotation]; ok {
 		serverSsl, updated := appMgr.handleServerSslProfileAnnotation(
 			sKey, rsCfg, route, prof)
 		if updated {
@@ -187,7 +184,7 @@ func (appMgr *Manager) setServerSslProfile(
 	profile, added := appMgr.loadDefaultCert()
 	if nil != profile {
 		rsCfg.Virtual.AddOrUpdateProfile(*profile)
-		serverSsl = joinBigipPath(profile.Partition, profile.Name)
+		serverSsl = JoinBigipPath(profile.Partition, profile.Name)
 	}
 	if added {
 		stats.cpUpdated += 1
@@ -202,27 +199,27 @@ func (appMgr *Manager) handleServerSNIDefaultProfile(
 ) {
 	if appMgr.routeConfig.ServerSSL != "" {
 		// User has provided a name
-		prof := convertStringToProfileRef(
-			appMgr.routeConfig.ServerSSL, customProfileServer, sKey.Namespace)
+		prof := ConvertStringToProfileRef(
+			appMgr.routeConfig.ServerSSL, CustomProfileServer, sKey.Namespace)
 		rsCfg.Virtual.AddOrUpdateProfile(prof)
 	} else {
 		// No provided name, so we create a default
-		skey := secretKey{
+		skey := SecretKey{
 			Name:         "default-route-serverssl",
 			ResourceName: rsCfg.GetName(),
 		}
 		appMgr.customProfiles.Lock()
 		defer appMgr.customProfiles.Unlock()
-		if _, ok := appMgr.customProfiles.profs[skey]; !ok {
+		if _, ok := appMgr.customProfiles.Profs[skey]; !ok {
 			profile := ProfileRef{
 				Name:      "default-route-serverssl",
 				Partition: rsCfg.Virtual.Partition,
-				Context:   customProfileServer,
+				Context:   CustomProfileServer,
 			}
 			// This is just a basic profile, so we don't need all the fields
 			cp := NewCustomProfile(profile, "", "", "", true, peerCert,
-				makeCertificateFileName(rsCfg.Virtual.Partition, defaultSslServerCAName))
-			appMgr.customProfiles.profs[skey] = cp
+				MakeCertificateFileName(rsCfg.Virtual.Partition, DefaultSslServerCAName))
+			appMgr.customProfiles.Profs[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profile)
 		}
 	}
@@ -237,11 +234,11 @@ func (appMgr *Manager) handleServerSslProfileAnnotation(
 	if nil != route.Spec.TLS {
 		log.Infof("Both serverssl annotation and CA cert provided for Route: %s, "+
 			"using annotation.", route.ObjectMeta.Name)
-		profRef := makeRouteServerSSLProfileRef(
+		profRef := MakeRouteServerSSLProfileRef(
 			rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
 		rsCfg.Virtual.RemoveProfile(profRef)
 	}
-	partition, name := splitBigipPath(prof, false)
+	partition, name := SplitBigipPath(prof, false)
 	if partition == "" {
 		// BIG-IP considers profiles without partitions as being in Common.
 		log.Warningf("No partition provided in profile name: %v, assuming Common partition.", prof)
@@ -250,22 +247,22 @@ func (appMgr *Manager) handleServerSslProfileAnnotation(
 	profile := ProfileRef{
 		Name:      name,
 		Partition: partition,
-		Context:   customProfileServer,
+		Context:   CustomProfileServer,
 		Namespace: sKey.Namespace,
 	}
 	updated := false
 	if updated = rsCfg.Virtual.AddOrUpdateProfile(profile); updated {
 		// Store this annotated profile in the metadata for future reference
 		// if it gets deleted.
-		rKey := routeKey{
+		rKey := RouteKey{
 			Name:      route.ObjectMeta.Name,
 			Namespace: route.ObjectMeta.Namespace,
-			Context:   customProfileServer,
+			Context:   CustomProfileServer,
 		}
 		rsCfg.MetaData.RouteProfs[rKey] = prof
 		updated = true
 	}
-	return joinBigipPath(profile.Partition, profile.Name), updated
+	return JoinBigipPath(profile.Partition, profile.Name), updated
 }
 
 func (appMgr *Manager) handleDestCACert(
@@ -280,8 +277,8 @@ func (appMgr *Manager) handleDestCACert(
 
 	// Create new SSL server profile with the provided CA Certificate (if required).
 	var caFile string
-	if peerCert == peerCertRequired {
-		caProfRef := makeRouteServerSSLProfileRef(
+	if peerCert == PeerCertRequired {
+		caProfRef := MakeRouteServerSSLProfileRef(
 			rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
 		caProfRef.Name += "-ca"
 		caProf := NewCustomProfile(
@@ -293,16 +290,16 @@ func (appMgr *Manager) handleDestCACert(
 			peerCert,
 			"self",
 		)
-		caKey := secretKey{Name: caProfRef.Name}
-		caExistingProf, ok := appMgr.customProfiles.profs[caKey]
+		caKey := SecretKey{Name: caProfRef.Name}
+		caExistingProf, ok := appMgr.customProfiles.Profs[caKey]
 		if !ok || !reflect.DeepEqual(caProf, caExistingProf) {
-			appMgr.customProfiles.profs[caKey] = caProf
+			appMgr.customProfiles.Profs[caKey] = caProf
 			stats.cpUpdated += 1
 		}
-		caFile = makeCertificateFileName(rsCfg.Virtual.Partition, caProfRef.Name)
+		caFile = MakeCertificateFileName(rsCfg.Virtual.Partition, caProfRef.Name)
 	}
 
-	svrProfRef := makeRouteServerSSLProfileRef(
+	svrProfRef := MakeRouteServerSSLProfileRef(
 		rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
 	svrProf := NewCustomProfile(
 		svrProfRef,
@@ -314,34 +311,34 @@ func (appMgr *Manager) handleDestCACert(
 		caFile,
 	)
 
-	skey := secretKey{
+	skey := SecretKey{
 		Name:         svrProf.Name,
 		ResourceName: rsCfg.GetName(),
 	}
-	svrExistingProf, ok := appMgr.customProfiles.profs[skey]
+	svrExistingProf, ok := appMgr.customProfiles.Profs[skey]
 	if !ok || !reflect.DeepEqual(svrProf, svrExistingProf) {
-		appMgr.customProfiles.profs[skey] = svrProf
+		appMgr.customProfiles.Profs[skey] = svrProf
 		stats.cpUpdated += 1
 	}
 	if updated := rsCfg.Virtual.AddOrUpdateProfile(svrProfRef); updated {
 		// Remove annotation profile if it exists
-		rKey := routeKey{
+		rKey := RouteKey{
 			Name:      route.ObjectMeta.Name,
 			Namespace: route.ObjectMeta.Namespace,
-			Context:   customProfileServer,
+			Context:   CustomProfileServer,
 		}
 		if prof, ok := rsCfg.MetaData.RouteProfs[rKey]; ok {
 			delete(rsCfg.MetaData.RouteProfs, rKey)
-			partition, name := splitBigipPath(prof, false)
+			partition, name := SplitBigipPath(prof, false)
 			rsCfg.Virtual.RemoveProfile(ProfileRef{
 				Name:      name,
 				Partition: partition,
-				Context:   customProfileServer,
+				Context:   CustomProfileServer,
 			})
 		}
 		stats.vsUpdated += 1
 	}
-	return joinBigipPath(svrProfRef.Partition, svrProfRef.Name)
+	return JoinBigipPath(svrProfRef.Partition, svrProfRef.Name)
 }
 
 // Creates a default SNI profile (if needed) and a new profile from a Secret
@@ -361,19 +358,19 @@ func (appMgr *Manager) createSecretSslProfile(
 	}
 
 	// Create Default for SNI profile
-	skey := secretKey{
+	skey := SecretKey{
 		Name:         fmt.Sprintf("default-clientssl-%s", rsCfg.GetName()),
 		ResourceName: rsCfg.GetName(),
 	}
 	sni := ProfileRef{
 		Name:      skey.Name,
 		Partition: rsCfg.Virtual.Partition,
-		Context:   customProfileClient,
+		Context:   CustomProfileClient,
 	}
-	if _, ok := appMgr.customProfiles.profs[skey]; !ok {
+	if _, ok := appMgr.customProfiles.Profs[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
 		cp := NewCustomProfile(sni, "", "", "", true, "", "")
-		appMgr.customProfiles.profs[skey] = cp
+		appMgr.customProfiles.Profs[skey] = cp
 	}
 	rsCfg.Virtual.AddOrUpdateProfile(sni)
 
@@ -381,7 +378,7 @@ func (appMgr *Manager) createSecretSslProfile(
 	profRef := ProfileRef{
 		Name:      secret.ObjectMeta.Name,
 		Partition: rsCfg.Virtual.Partition,
-		Context:   customProfileClient,
+		Context:   CustomProfileClient,
 		Namespace: secret.ObjectMeta.Namespace,
 	}
 	cp := NewCustomProfile(
@@ -393,21 +390,21 @@ func (appMgr *Manager) createSecretSslProfile(
 		"",    // peerCertMode
 		"",    // caFile
 	)
-	skey = secretKey{
+	skey = SecretKey{
 		Name:         cp.Name,
 		ResourceName: rsCfg.GetName(),
 	}
 	appMgr.customProfiles.Lock()
 	defer appMgr.customProfiles.Unlock()
-	if prof, ok := appMgr.customProfiles.profs[skey]; ok {
+	if prof, ok := appMgr.customProfiles.Profs[skey]; ok {
 		if !reflect.DeepEqual(prof, cp) {
-			appMgr.customProfiles.profs[skey] = cp
+			appMgr.customProfiles.Profs[skey] = cp
 			return nil, true
 		} else {
 			return nil, false
 		}
 	}
-	appMgr.customProfiles.profs[skey] = cp
+	appMgr.customProfiles.Profs[skey] = cp
 	return nil, false
 }
 
@@ -465,7 +462,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 			}
 			// If route clientssl has been given via cli, don't remove it
 			if appMgr.routeConfig.ClientSSL != "" {
-				_, rtClient := splitBigipPath(appMgr.routeConfig.ClientSSL, false)
+				_, rtClient := SplitBigipPath(appMgr.routeConfig.ClientSSL, false)
 				if prof.Name == rtClient {
 					continue
 				}
@@ -474,7 +471,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 			}
 			// If route serverssl has been given via cli, don't remove it
 			if appMgr.routeConfig.ServerSSL != "" {
-				_, rtServer := splitBigipPath(appMgr.routeConfig.ServerSSL, false)
+				_, rtServer := SplitBigipPath(appMgr.routeConfig.ServerSSL, false)
 				if prof.Name == rtServer {
 					continue
 				}
@@ -535,7 +532,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 						)
 					}
 					if serverProfile, ok :=
-						ing.ObjectMeta.Annotations[f5ServerSslProfileAnnotation]; ok == true {
+						ing.ObjectMeta.Annotations[F5ServerSslProfileAnnotation]; ok == true {
 						appMgr.checkProfile(
 							prof,
 							&toRemove,
@@ -558,20 +555,20 @@ func (appMgr *Manager) deleteUnusedProfiles(
 						continue
 					}
 					var cliProf, servProf ProfileRef
-					if cli, ok := route.ObjectMeta.Annotations[f5ClientSslProfileAnnotation]; ok {
-						cliProf = convertStringToProfileRef(
-							cli, customProfileClient, route.ObjectMeta.Namespace)
+					if cli, ok := route.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]; ok {
+						cliProf = ConvertStringToProfileRef(
+							cli, CustomProfileClient, route.ObjectMeta.Namespace)
 					} else {
-						cliProf = makeRouteClientSSLProfileRef(
+						cliProf = MakeRouteClientSSLProfileRef(
 							cfg.Virtual.Partition, namespace, route.ObjectMeta.Name)
 					}
 					switch route.Spec.TLS.Termination {
 					case routeapi.TLSTerminationReencrypt:
-						if serv, ok := route.ObjectMeta.Annotations[f5ServerSslProfileAnnotation]; ok {
-							servProf = convertStringToProfileRef(
-								serv, customProfileServer, route.ObjectMeta.Namespace)
+						if serv, ok := route.ObjectMeta.Annotations[F5ServerSslProfileAnnotation]; ok {
+							servProf = ConvertStringToProfileRef(
+								serv, CustomProfileServer, route.ObjectMeta.Namespace)
 						} else {
-							servProf = makeRouteServerSSLProfileRef(
+							servProf = MakeRouteServerSSLProfileRef(
 								cfg.Virtual.Partition, namespace, route.ObjectMeta.Name)
 						}
 					}
@@ -599,15 +596,15 @@ func (appMgr *Manager) deleteUnusedProfiles(
 
 	// Build a map of CA files and maintain a reference count.
 	caRefs := make(map[string]int)
-	for key, profile := range appMgr.customProfiles.profs {
+	for key, profile := range appMgr.customProfiles.Profs {
 		if !profile.SNIDefault && profile.CAFile == "self" {
-			caKey := makeCertificateFileName(profile.Partition, key.Name)
+			caKey := MakeCertificateFileName(profile.Partition, key.Name)
 			caRefs[caKey] = 0
 		}
 	}
 
 	// Now look to delete any created customProfiles
-	for key, profile := range appMgr.customProfiles.profs {
+	for key, profile := range appMgr.customProfiles.Profs {
 		if profile.CAFile == "self" {
 			// Don't touch CA profile
 			continue
@@ -621,7 +618,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 		}
 		if !found {
 			// Profile is not used
-			delete(appMgr.customProfiles.profs, key)
+			delete(appMgr.customProfiles.Profs, key)
 			stats.cpUpdated += 1
 		} else if profile.CAFile != "" {
 			// Add ref for this profile
@@ -631,8 +628,8 @@ func (appMgr *Manager) deleteUnusedProfiles(
 	// Remove CA files that are no longer referenced
 	for caKey, refs := range caRefs {
 		if refs == 0 {
-			delKey := secretKey{Name: extractCertificateName(caKey)}
-			delete(appMgr.customProfiles.profs, delKey)
+			delKey := SecretKey{Name: ExtractCertificateName(caKey)}
+			delete(appMgr.customProfiles.Profs, delKey)
 			stats.cpUpdated += 1
 		}
 	}
@@ -676,16 +673,16 @@ func (appMgr *Manager) loadDefaultCert() (*ProfileRef, bool) {
 	// OpenShift will put the default server SSL cert on each pod. We create a
 	// server SSL profile for it and associate it to any reencrypt routes that
 	// have not explicitly set a certificate.
-	profileName := defaultSslServerCAName
+	profileName := DefaultSslServerCAName
 	profile := ProfileRef{
 		Name:      profileName,
 		Partition: DEFAULT_PARTITION,
-		Context:   customProfileServer,
+		Context:   CustomProfileServer,
 	}
 	appMgr.customProfiles.Lock()
 	defer appMgr.customProfiles.Unlock()
-	skey := secretKey{Name: profileName}
-	_, found := appMgr.customProfiles.profs[skey]
+	skey := SecretKey{Name: profileName}
+	_, found := appMgr.customProfiles.Profs[skey]
 	if !found {
 		path := "/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt"
 		data, err := ioutil.ReadFile(path)
@@ -694,14 +691,14 @@ func (appMgr *Manager) loadDefaultCert() (*ProfileRef, bool) {
 				path, err)
 			return nil, false
 		}
-		appMgr.customProfiles.profs[skey] =
+		appMgr.customProfiles.Profs[skey] =
 			NewCustomProfile(
 				profile,
 				string(data),
 				"",   // no key
 				"",   // no serverName
 				true, //
-				peerCertDefault,
+				PeerCertDefault,
 				"self", // 'self' indicates this file is the CA file
 			)
 	}

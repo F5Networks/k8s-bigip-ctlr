@@ -20,7 +20,7 @@ import (
 	"fmt"
 
 	// appManager is only used because we need the Member type (can't mock it)
-	appMgr "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -347,8 +347,8 @@ var _ = Describe("VxlanMgr Tests", func() {
 		fakeClient.CoreV1().Pods("default").Create(flannelPod)
 
 		vxMgr.ProcessAppmanagerEvents(fakeClient)
-		pod := []appMgr.Member{
-			appMgr.Member{
+		pod := []resource.Member{
+			resource.Member{
 				Address: "1.2.3.4",
 			},
 		}

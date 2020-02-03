@@ -18,6 +18,7 @@ package appmanager
 
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
@@ -32,19 +33,19 @@ import (
 
 var _ = Describe("Health Monitor Tests", func() {
 	var mockMgr *mockAppManager
-	var mw *test.MockWriter
+	//var mw *test.MockWriter
 	var namespace string
 	BeforeEach(func() {
-		mw = &test.MockWriter{
-			FailStyle: test.Success,
-			Sections:  make(map[string]interface{}),
-		}
+		//mw = &test.MockWriter{
+		//	FailStyle: test.Success,
+		//	Sections:  make(map[string]interface{}),
+		//}
 		fakeClient := fake.NewSimpleClientset()
 		Expect(fakeClient).ToNot(BeNil())
 
 		mockMgr = newMockAppManager(&Params{
 			KubeClient:             fakeClient,
-			ConfigWriter:           mw,
+			//ConfigWriter:           mw,
 			restClient:             test.CreateFakeHTTPClient(),
 			RouteClientV1:          fakeRouteClient.NewSimpleClientset().RouteV1(),
 			IsNodePort:             true,
@@ -80,7 +81,7 @@ var _ = Describe("Health Monitor Tests", func() {
 		monitorFound := false
 		if expectSuccess {
 			Expect(len(rc.Pools[poolNdx].MonitorNames)).To(Equal(1))
-			partition, monitorName := splitBigipPath(
+			partition, monitorName := SplitBigipPath(
 				rc.Pools[poolNdx].MonitorNames[0], false)
 			for _, monitor := range rc.Monitors {
 				if monitor.Partition == partition && monitor.Name == monitorName {
@@ -144,7 +145,7 @@ var _ = Describe("Health Monitor Tests", func() {
 		})
 
 		It("confirms ConfigMapMonitor properties", func() {
-			cmm := configMapMonitor{}
+			cmm := ConfigMapMonitor{}
 			cmm.Name = "svc"
 			cmm.Partition = "f5"
 			cmm.Interval = 10
@@ -197,10 +198,10 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			ing := test.NewIngress("ingress", "1", namespace, spec,
 				map[string]string{
-					f5VsBindAddrAnnotation:  "1.2.3.4",
-					f5VsPartitionAnnotation: "velcro",
-					f5VsHttpPortAnnotation:  "443",
-					healthMonitorAnnotation: `[
+					F5VsBindAddrAnnotation:  "1.2.3.4",
+					F5VsPartitionAnnotation: "velcro",
+					F5VsHttpPortAnnotation:  "443",
+					HealthMonitorAnnotation: `[
 						{
 							"path":     "svc1/",
 							"send":     "HTTP GET /test1",
@@ -210,7 +211,7 @@ var _ = Describe("Health Monitor Tests", func() {
 					]`,
 				})
 			emptyIps := []string{}
-			svcKey := serviceKey{
+			svcKey := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svcName,
 				ServicePort: int32(svcPort),
@@ -235,13 +236,13 @@ var _ = Describe("Health Monitor Tests", func() {
 
 			// The first test uses an explicit server name
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svcKey, formatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
 			// The second test uses a wildcard host name
-			ing.ObjectMeta.Annotations[healthMonitorAnnotation] = `[
+			ing.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
 			{
 				"path":     "*/foo",
 				"send":     "HTTP GET /test2",
@@ -251,13 +252,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.updateIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
 			// The third test omits the host part of the path
-			ing.ObjectMeta.Annotations[healthMonitorAnnotation] = `[
+			ing.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
 			{
 				"path":     "/",
 				"send":     "HTTP GET /test3",
@@ -267,13 +268,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.updateIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
 			// The fourth test omits the path entirely (error case)
-			ing.ObjectMeta.Annotations[healthMonitorAnnotation] = `[
+			ing.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
 			{
 				"send":     "HTTP GET /test3",
 				"interval": 5,
@@ -282,7 +283,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.updateIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, formatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, false)
@@ -315,7 +316,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				}
 			}
 			Expect(poolNdx).ToNot(Equal(-1))
-			fullPoolName := joinBigipPath(
+			fullPoolName := JoinBigipPath(
 				rc.Pools[poolNdx].Partition, rc.Pools[poolNdx].Name)
 			actionFound := false
 			for _, rule := range rc.Policies[policyNdx].Rules {
@@ -332,7 +333,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			monitorFound := false
 			if expectSuccess {
 				Expect(len(rc.Pools[poolNdx].MonitorNames)).To(Equal(1))
-				partition, monitorName := splitBigipPath(
+				partition, monitorName := SplitBigipPath(
 					rc.Pools[poolNdx].MonitorNames[0], false)
 				for _, monitor := range rc.Monitors {
 					if monitor.Partition == partition && monitor.Name == monitorName {
@@ -408,11 +409,11 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			ing := test.NewIngress("ingress", "1", namespace, spec,
 				map[string]string{
-					ingressSslRedirect:      "true",
-					f5VsBindAddrAnnotation:  "1.2.3.4",
-					f5VsPartitionAnnotation: "velcro",
-					f5VsHttpPortAnnotation:  "443",
-					healthMonitorAnnotation: `[
+					IngressSslRedirect:      "true",
+					F5VsBindAddrAnnotation:  "1.2.3.4",
+					F5VsPartitionAnnotation: "velcro",
+					F5VsHttpPortAnnotation:  "443",
+					HealthMonitorAnnotation: `[
 					{
 						"path":     "svc2.bar.com/bar",
 						"send":     "HTTP GET /health/bar",
@@ -450,13 +451,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			resources := mockMgr.resources()
 			Expect(resources.PoolCount()).To(Equal(1))
 
-			svc1Key := serviceKey{
+			svc1Key := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc1Name,
 				ServicePort: int32(svc1Port),
 			}
 			Expect(resources.CountOf(svc1Key)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1Key, formatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svc1Key, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -473,13 +474,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 			Expect(resources.PoolCount()).To(Equal(2))
 
-			svc2Key := serviceKey{
+			svc2Key := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc2Name,
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc2Key, formatIngressVSName("1.2.3.4", 443))
+			vsCfgBar, found := resources.Get(svc2Key, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -496,13 +497,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 			Expect(resources.PoolCount()).To(Equal(3))
 
-			svc3Key := serviceKey{
+			svc3Key := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc3Name,
 				ServicePort: int32(svc3Port),
 			}
 			Expect(resources.CountOf(svc3Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc3Key, formatIngressVSName("1.2.3.4", 443))
+			vsCfgBaz, found := resources.Get(svc3Key, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -564,9 +565,9 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			ing := test.NewIngress("ingress", "1", namespace, spec,
 				map[string]string{
-					f5VsBindAddrAnnotation:  "172.16.3.2",
-					f5VsPartitionAnnotation: "velcro",
-					healthMonitorAnnotation: `[
+					F5VsBindAddrAnnotation:  "172.16.3.2",
+					F5VsPartitionAnnotation: "velcro",
+					HealthMonitorAnnotation: `[
 					{
 						"path":     "foo.bar.com/foo",
 						"send":     "HTTP GET /health/foo",
@@ -629,33 +630,33 @@ var _ = Describe("Health Monitor Tests", func() {
 			resources := mockMgr.resources()
 			Expect(resources.PoolCount()).To(Equal(3))
 
-			svc1aKey := serviceKey{
+			svc1aKey := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc1aName,
 				ServicePort: int32(svc1aPort),
 			}
 			Expect(resources.CountOf(svc1aKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1aKey, formatIngressVSName("172.16.3.2", 80))
+			vsCfgFoo, found := resources.Get(svc1aKey, FormatIngressVSName("172.16.3.2", 80))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
-			svc1bKey := serviceKey{
+			svc1bKey := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc1bName,
 				ServicePort: int32(svc1bPort),
 			}
 			Expect(resources.CountOf(svc1bKey)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc1bKey, formatIngressVSName("172.16.3.2", 80))
+			vsCfgBar, found := resources.Get(svc1bKey, FormatIngressVSName("172.16.3.2", 80))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
-			svc2Key := serviceKey{
+			svc2Key := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc2Name,
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc2Key, formatIngressVSName("172.16.3.2", 80))
+			vsCfgBaz, found := resources.Get(svc2Key, FormatIngressVSName("172.16.3.2", 80))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -717,11 +718,11 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			ing := test.NewIngress("ingress", "1", namespace, spec,
 				map[string]string{
-					ingressSslRedirect:      "true",
-					f5VsBindAddrAnnotation:  "1.2.3.4",
-					f5VsPartitionAnnotation: "velcro",
-					f5VsHttpPortAnnotation:  "443",
-					healthMonitorAnnotation: `[
+					IngressSslRedirect:      "true",
+					F5VsBindAddrAnnotation:  "1.2.3.4",
+					F5VsPartitionAnnotation: "velcro",
+					F5VsHttpPortAnnotation:  "443",
+					HealthMonitorAnnotation: `[
 					{
 						"path":     "foo.bar.com/foo",
 						"send":     "HTTP GET /health/foo",
@@ -749,13 +750,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			resources := mockMgr.resources()
 			Expect(resources.PoolCount()).To(Equal(1))
 
-			svc1aKey := serviceKey{
+			svc1aKey := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc1aName,
 				ServicePort: int32(svc1aPort),
 			}
 			Expect(resources.CountOf(svc1aKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1aKey, formatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svc1aKey, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -772,13 +773,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 			Expect(resources.PoolCount()).To(Equal(2))
 
-			svc1bKey := serviceKey{
+			svc1bKey := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc1bName,
 				ServicePort: int32(svc1bPort),
 			}
 			Expect(resources.CountOf(svc1bKey)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc1bKey, formatIngressVSName("1.2.3.4", 443))
+			vsCfgBar, found := resources.Get(svc1bKey, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -795,13 +796,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 			Expect(resources.PoolCount()).To(Equal(3))
 
-			svc2Key := serviceKey{
+			svc2Key := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc2Name,
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc2Key, formatIngressVSName("1.2.3.4", 443))
+			vsCfgBaz, found := resources.Get(svc2Key, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -853,11 +854,11 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			ing := test.NewIngress("ingress", "1", namespace, spec,
 				map[string]string{
-					ingressSslRedirect:      "true",
-					f5VsBindAddrAnnotation:  "1.2.3.4",
-					f5VsPartitionAnnotation: "velcro",
-					f5VsHttpPortAnnotation:  "443",
-					healthMonitorAnnotation: `[
+					IngressSslRedirect:      "true",
+					F5VsBindAddrAnnotation:  "1.2.3.4",
+					F5VsPartitionAnnotation: "velcro",
+					F5VsHttpPortAnnotation:  "443",
+					HealthMonitorAnnotation: `[
 					{
 						"path":     "*/bar",
 						"send":     "HTTP GET /health/bar",
@@ -895,13 +896,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			resources := mockMgr.resources()
 			Expect(resources.PoolCount()).To(Equal(1))
 
-			svc1Key := serviceKey{
+			svc1Key := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc1Name,
 				ServicePort: int32(svc1Port),
 			}
 			Expect(resources.CountOf(svc1Key)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1Key, formatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svc1Key, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -918,13 +919,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 			Expect(resources.PoolCount()).To(Equal(2))
 
-			svc2Key := serviceKey{
+			svc2Key := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc2Name,
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc2Key, formatIngressVSName("1.2.3.4", 443))
+			vsCfgBar, found := resources.Get(svc2Key, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -941,13 +942,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(r).To(BeTrue(), "Endpoints should be processed.")
 			Expect(resources.PoolCount()).To(Equal(3))
 
-			svc3Key := serviceKey{
+			svc3Key := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svc3Name,
 				ServicePort: int32(svc3Port),
 			}
 			Expect(resources.CountOf(svc3Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc3Key, formatIngressVSName("1.2.3.4", 443))
+			vsCfgBaz, found := resources.Get(svc3Key, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -986,7 +987,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 			route := test.NewRoute("route", "1", namespace, spec,
 				map[string]string{
-					healthMonitorAnnotation: `[
+					HealthMonitorAnnotation: `[
 					{
 						"path":     "svc1/",
 						"send":     "HTTP GET /test1",
@@ -996,7 +997,7 @@ var _ = Describe("Health Monitor Tests", func() {
 					}
 				]`,
 				})
-			svcKey := serviceKey{
+			svcKey := ServiceKey{
 				Namespace:   namespace,
 				ServiceName: svcName,
 				ServicePort: int32(svcPort),
@@ -1020,7 +1021,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
 			// The second test uses a wildcard host name
-			route.ObjectMeta.Annotations[healthMonitorAnnotation] = `[
+			route.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
 			{
 				"path":     "*/foo",
 				"send":     "HTTP GET /test2",
@@ -1034,7 +1035,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
 			// The third test omits the host part of the path
-			route.ObjectMeta.Annotations[healthMonitorAnnotation] = `[
+			route.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
 			{
 				"path":     "/",
 				"send":     "HTTP GET /test3",
@@ -1048,7 +1049,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
 			// The fourth test omits the path entirely (error case)
-			route.ObjectMeta.Annotations[healthMonitorAnnotation] = `[
+			route.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
 			{
 				"send":     "HTTP GET /test3",
 				"interval": 5,

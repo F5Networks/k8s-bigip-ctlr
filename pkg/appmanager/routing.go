@@ -20,111 +20,79 @@ import (
 	"bytes"
 	"fmt"
 	"net/url"
+	"strconv"
+
+	//"net/url"
 	"reflect"
 	"sort"
-	"strconv"
+	//"strconv"
 	"strings"
 	"sync"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 
 	routeapi "github.com/openshift/api/route/v1"
 	"k8s.io/api/extensions/v1beta1"
 )
 
-const httpRedirectIRuleName = "http_redirect_irule"
-const abDeploymentPathIRuleName = "ab_deployment_path_irule"
-const sslPassthroughIRuleName = "openshift_passthrough_irule"
 
-// Internal data group for passthrough routes to map server names to pools.
-const passthroughHostsDgName = "ssl_passthrough_servername_dg"
 
-// Internal data group for reencrypt routes.
-const reencryptHostsDgName = "ssl_reencrypt_servername_dg"
 
-// Internal data group for edge routes.
-const edgeHostsDgName = "ssl_edge_servername_dg"
+// TODO SNATRA this must be moved under as3 agent
+// const as3SharedApplication = "Shared"
 
-// Internal data group for reencrypt routes that maps the host name to the
-// server ssl profile.
-const reencryptServerSslDgName = "ssl_reencrypt_serverssl_dg"
-
-// Internal data group for edge routes that maps the host name to the
-// false. This will help Irule to understand ssl should be disabled
-// on serverside.
-const edgeServerSslDgName = "ssl_edge_serverssl_dg"
-
-// Internal data group for https redirect
-const httpsRedirectDgName = "https_redirect_dg"
-
-// Internal data group for ab deployment routes.
-const abDeploymentDgName = "ab_deployment_dg"
-
-// DataGroup flattening.
-type FlattenConflictFunc func(key, oldVal, newVal string) string
-
-var groupFlattenFuncMap = map[string]FlattenConflictFunc{
-	passthroughHostsDgName:   flattenConflictWarn,
-	reencryptHostsDgName:     flattenConflictWarn,
-	edgeHostsDgName:          flattenConflictWarn,
-	reencryptServerSslDgName: flattenConflictWarn,
-	edgeServerSslDgName:      flattenConflictWarn,
-	httpsRedirectDgName:      flattenConflictConcat,
-	abDeploymentDgName:       flattenConflictConcat,
-}
-
-func (r Rules) Len() int { return len(r) }
-func (r Rules) Less(i, j int) bool {
-	iApprootRedirect := strings.Contains(r[i].Name, "app-root-redirect-rule")
-	iApprootForward := strings.Contains(r[i].Name, "app-root-forward-rule")
-	iUrlrewrite := strings.Contains(r[i].Name, "url-rewrite-rule")
-
-	jApprootRedirect := strings.Contains(r[j].Name, "app-root-redirect-rule")
-	jApprootForward := strings.Contains(r[j].Name, "app-root-forward-rule")
-	jUrlrewrite := strings.Contains(r[j].Name, "url-rewrite-rule")
-
-	if iApprootRedirect && !jApprootRedirect {
-		return false
-	}
-	if !iApprootRedirect && jApprootRedirect {
-		return true
-	}
-	if iApprootForward && !jApprootForward {
-		return false
-	}
-	if !iApprootForward && jApprootForward {
-		return true
-	}
-	if iUrlrewrite && !jUrlrewrite {
-		return false
-	}
-	if !iUrlrewrite && jUrlrewrite {
-		return true
-	}
-
-	if r[i].FullURI == r[j].FullURI {
-		if len(r[j].Actions) > 0 && r[j].Actions[0].Reset {
-			return false
-		}
-		return true
-	}
-
-	return r[i].FullURI < r[j].FullURI
-}
-func (r Rules) Swap(i, j int) {
-	r[i], r[j] = r[j], r[i]
-	r[i].Ordinal = i
-	r[j].Ordinal = j
-}
-
+//func (r Rules) Len() int { return len(r) }
+//func (r Rules) Less(i, j int) bool {
+//	iApprootRedirect := strings.Contains(r[i].Name, "app-root-redirect-rule")
+//	iApprootForward := strings.Contains(r[i].Name, "app-root-forward-rule")
+//	iUrlrewrite := strings.Contains(r[i].Name, "url-rewrite-rule")
+//
+//	jApprootRedirect := strings.Contains(r[j].Name, "app-root-redirect-rule")
+//	jApprootForward := strings.Contains(r[j].Name, "app-root-forward-rule")
+//	jUrlrewrite := strings.Contains(r[j].Name, "url-rewrite-rule")
+//
+//	if iApprootRedirect && !jApprootRedirect {
+//		return false
+//	}
+//	if !iApprootRedirect && jApprootRedirect {
+//		return true
+//	}
+//	if iApprootForward && !jApprootForward {
+//		return false
+//	}
+//	if !iApprootForward && jApprootForward {
+//		return true
+//	}
+//	if iUrlrewrite && !jUrlrewrite {
+//		return false
+//	}
+//	if !iUrlrewrite && jUrlrewrite {
+//		return true
+//	}
+//
+//	if r[i].FullURI == r[j].FullURI {
+//		if len(r[j].Actions) > 0 && r[j].Actions[0].Reset {
+//			return false
+//		}
+//		return true
+//	}
+//
+//	return r[i].FullURI < r[j].FullURI
+//}
+//func (r Rules) Swap(i, j int) {
+//	r[i], r[j] = r[j], r[i]
+//	r[i].Ordinal = i
+//	r[j].Ordinal = j
+//}
 type Routes []*routeapi.Route
 
-func createPathSegmentConditions(u *url.URL) []*condition {
-	var c []*condition
+func createPathSegmentConditions(u *url.URL) []*Condition {
+	var c []*Condition
 	path := strings.TrimPrefix(u.EscapedPath(), "/")
 	segments := strings.Split(path, "/")
 	for i, v := range segments {
-		c = append(c, &condition{
+		c = append(c, &Condition{
 			Equals:      true,
 			HTTPURI:     true,
 			PathSegment: true,
@@ -150,16 +118,16 @@ func createRule(uri, poolName, partition, ruleName string) (*Rule, error) {
 	b.WriteRune('/')
 	b.WriteString(poolName)
 
-	a := action{
+	a := Action{
 		Forward: true,
 		Name:    "0",
 		Pool:    b.String(),
 		Request: true,
 	}
 
-	var c []*condition
+	var c []*Condition
 	if true == strings.HasPrefix(uri, "*.") {
-		c = append(c, &condition{
+		c = append(c, &Condition{
 			EndsWith: true,
 			Host:     true,
 			HTTPHost: true,
@@ -169,7 +137,7 @@ func createRule(uri, poolName, partition, ruleName string) (*Rule, error) {
 			Values:   []string{strings.TrimPrefix(u.Host, "*")},
 		})
 	} else if u.Host != "" {
-		c = append(c, &condition{
+		c = append(c, &Condition{
 			Equals:   true,
 			Host:     true,
 			HTTPHost: true,
@@ -186,47 +154,62 @@ func createRule(uri, poolName, partition, ruleName string) (*Rule, error) {
 	rl := Rule{
 		Name:       ruleName,
 		FullURI:    uri,
-		Actions:    []*action{&a},
+		Actions:    []*Action{&a},
 		Conditions: c,
 	}
 
 	log.Debugf("Configured rule: %v", rl)
 	return &rl, nil
 }
+//
+//func createPolicy(rls Rules, policyName, partition string) *Policy {
+//	plcy := Policy{
+//		Controls:  []string{"forwarding"},
+//		Legacy:    true,
+//		Name:      policyName,
+//		Partition: partition,
+//		Requires:  []string{"http"},
+//		Rules:     Rules{},
+//		Strategy:  "/Common/first-match",
+//	}
+//
+//	plcy.Rules = rls
+//
+//	// Check for the existence of the TCP field in the conditions.
+//	// This would indicate that a whitelist rule is in the policy
+//	// and that we need to add the "tcp" requirement to the policy.
+//	requiresTcp := false
+//	for _, x := range rls {
+//		for _, c := range x.Conditions {
+//			if c.Tcp == true {
+//				requiresTcp = true
+//			}
+//		}
+//	}
+//
+//	// Add the tcp requirement if needed; indicated by the presence
+//	// of the TCP field.
+//	if requiresTcp {
+//		plcy.Requires = append(plcy.Requires, "tcp")
+//	}
+//
+//	log.Debugf("Configured policy: %v", plcy)
+//	return &plcy
+//}
 
-func createPolicy(rls Rules, policyName, partition string) *Policy {
-	plcy := Policy{
-		Controls:  []string{"forwarding"},
-		Legacy:    true,
-		Name:      policyName,
-		Partition: partition,
-		Requires:  []string{"http"},
-		Rules:     Rules{},
-		Strategy:  "/Common/first-match",
+
+// format the rule name for an Ingress
+func formatIngressRuleName(host, path, pool string) string {
+	var rule string
+	if path == "" {
+		rule = fmt.Sprintf("ingress_%s_%s", host, pool)
+	} else {
+		// Remove the first slash, then replace any subsequent slashes with '_'
+		path = strings.TrimPrefix(path, "/")
+		path = strings.Replace(path, "/", "_", -1)
+		rule = fmt.Sprintf("ingress_%s_%s_%s", host, path, pool)
 	}
-
-	plcy.Rules = rls
-
-	// Check for the existence of the TCP field in the conditions.
-	// This would indicate that a whitelist rule is in the policy
-	// and that we need to add the "tcp" requirement to the policy.
-	requiresTcp := false
-	for _, x := range rls {
-		for _, c := range x.Conditions {
-			if c.Tcp == true {
-				requiresTcp = true
-			}
-		}
-	}
-
-	// Add the tcp requirement if needed; indicated by the presence
-	// of the TCP field.
-	if requiresTcp {
-		plcy.Requires = append(plcy.Requires, "tcp")
-	}
-
-	log.Debugf("Configured policy: %v", plcy)
-	return &plcy
+	return rule
 }
 
 func processIngressRules(
@@ -243,8 +226,8 @@ func processIngressRules(
 	var urlRewriteRules []*Rule
 	var appRootRules []*Rule
 
-	rlMap := make(ruleMap)
-	wildcards := make(ruleMap)
+	rlMap := make(RuleMap)
+	wildcards := make(RuleMap)
 	urlRewriteRefs := make(map[string]string)
 	appRootRefs := make(map[string][]string)
 
@@ -275,14 +258,14 @@ func processIngressRules(
 
 				// Process url-rewrite annotation
 				if urlRewriteTargetedVal, ok := urlRewriteMap[uri]; ok == true {
-					urlRewriteRule := processURLRewrite(uri, urlRewriteTargetedVal, multiServiceIngressType)
+					urlRewriteRule := ProcessURLRewrite(uri, urlRewriteTargetedVal, MultiServiceIngressType)
 					urlRewriteRules = append(urlRewriteRules, urlRewriteRule)
 					urlRewriteRefs[poolName] = urlRewriteRule.Name
 				}
 
 				// Process app-root annotation
 				if appRootTargetedVal, ok := appRootMap[rule.Host]; ok == true {
-					appRootRulePair := processAppRoot(uri, appRootTargetedVal, fmt.Sprintf("/%s/%s", partition, poolName), multiServiceIngressType)
+					appRootRulePair := ProcessAppRoot(uri, appRootTargetedVal, fmt.Sprintf("/%s/%s", partition, poolName), MultiServiceIngressType)
 					appRootRules = append(appRootRules, appRootRulePair...)
 					if len(appRootRulePair) == 2 {
 						appRootRefs[poolName] = append(appRootRefs[poolName], appRootRulePair[0].Name)
@@ -296,7 +279,7 @@ func processIngressRules(
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	sortrules := func(r ruleMap, rls *Rules, ordinal int) {
+	sortrules := func(r RuleMap, rls *Rules, ordinal int) {
 		for _, v := range r {
 			*rls = append(*rls, v)
 		}
@@ -340,7 +323,7 @@ func processIngressRules(
 		// Whitelists should be used to *prevent* access. So they need to be
 		// a separate condition of *each* rule.
 		for _, x := range rls {
-			cond := condition{
+			cond := Condition{
 				Tcp:     true,
 				Address: true,
 				Matches: true,
@@ -418,10 +401,12 @@ func httpRedirectIRule(port int32) string {
 }
 
 func (appMgr *Manager) selectPoolIRuleFunc() string {
-	dgPath := DEFAULT_PARTITION
-	if appMgr.Agent == "as3" {
+	// SNATRA TODO: This should move into AS3 module
+	//dgPath := DEFAULT_PARTITION
+	dgPath := appMgr.dgPath
+/*	if appMgr.Agent == "as3" {
 		dgPath = strings.Join([]string{DEFAULT_PARTITION, as3SharedApplication}, "/")
-	}
+	}*/
 	iRuleFunc := fmt.Sprintf(`
 		proc select_ab_pool {path default_pool } {
 			set last_slash [string length $path]
@@ -480,10 +465,12 @@ func (appMgr *Manager) abDeploymentPathIRule() string {
 }
 
 func (appMgr *Manager) sslPassthroughIRule() string {
-	dgPath := DEFAULT_PARTITION
-	if appMgr.Agent == "as3" {
-		dgPath = strings.Join([]string{DEFAULT_PARTITION, as3SharedApplication}, "/")
-	}
+	//dgPath := DEFAULT_PARTITION
+	dgPath := appMgr.dgPath
+	// SNATRA TODO: This should move into AS3 module
+	//if appMgr.Agent == "as3" {
+	//	dgPath = strings.Join([]string{DEFAULT_PARTITION, as3SharedApplication}, "/")
+	//}
 	iRule := fmt.Sprintf(`
 		when CLIENT_ACCEPTED {
 			TCP::collect
@@ -726,8 +713,8 @@ func (appMgr *Manager) updatePassthroughRouteDataGroups(
 ) (bool, error) {
 
 	changed := false
-	key := nameRef{
-		Name:      passthroughHostsDgName,
+	key := NameRef{
+		Name:      PassthroughHostsDgName,
 		Partition: partition,
 	}
 
@@ -736,7 +723,7 @@ func (appMgr *Manager) updatePassthroughRouteDataGroups(
 	nsHostDg, found := appMgr.intDgMap[key]
 	if false == found {
 		return false, fmt.Errorf("Internal Data-group /%s/%s does not exist.",
-			partition, passthroughHostsDgName)
+			partition, PassthroughHostsDgName)
 	}
 
 	hostDg, found := nsHostDg[namespace]
@@ -759,9 +746,9 @@ func updateDataGroupForPassthroughRoute(
 	dgMap InternalDataGroupMap,
 ) {
 	hostName := route.Spec.Host
-	svcName := getRouteCanonicalServiceName(route)
-	poolName := formatRoutePoolName(route.ObjectMeta.Namespace, svcName)
-	updateDataGroup(dgMap, passthroughHostsDgName,
+	svcName := GetRouteCanonicalServiceName(route)
+	poolName := FormatRoutePoolName(route.ObjectMeta.Namespace, svcName)
+	updateDataGroup(dgMap, PassthroughHostsDgName,
 		partition, namespace, hostName, poolName)
 }
 
@@ -779,9 +766,9 @@ func updateDataGroupForReencryptRoute(
 	path := route.Spec.Path
 	routePath := hostName + path
 	routePath = strings.TrimSuffix(routePath, "/")
-	svcName := getRouteCanonicalServiceName(route)
-	poolName := formatRoutePoolName(route.ObjectMeta.Namespace, svcName)
-	updateDataGroup(dgMap, reencryptHostsDgName,
+	svcName := GetRouteCanonicalServiceName(route)
+	poolName := FormatRoutePoolName(route.ObjectMeta.Namespace, svcName)
+	updateDataGroup(dgMap, ReencryptHostsDgName,
 		partition, namespace, routePath, poolName)
 }
 
@@ -799,9 +786,9 @@ func updateDataGroupForEdgeRoute(
 	path := route.Spec.Path
 	routePath := hostName + path
 	routePath = strings.TrimSuffix(routePath, "/")
-	svcName := getRouteCanonicalServiceName(route)
-	poolName := formatRoutePoolName(route.ObjectMeta.Namespace, svcName)
-	updateDataGroup(dgMap, edgeHostsDgName,
+	svcName := GetRouteCanonicalServiceName(route)
+	poolName := FormatRoutePoolName(route.ObjectMeta.Namespace, svcName)
+	updateDataGroup(dgMap, EdgeHostsDgName,
 		partition, namespace, routePath, poolName)
 }
 
@@ -814,14 +801,14 @@ func updateDataGroupForABRoute(
 	namespace string,
 	dgMap InternalDataGroupMap,
 ) {
-	if !isRouteABDeployment(route) {
+	if !IsRouteABDeployment(route) {
 		return
 	}
 
 	weightTotal := 0
-	svcs := getRouteServices(route)
+	svcs := GetRouteServices(route)
 	for _, svc := range svcs {
-		weightTotal = weightTotal + svc.weight
+		weightTotal = weightTotal + svc.Weight
 	}
 
 	path := route.Spec.Path
@@ -841,7 +828,7 @@ func updateDataGroupForABRoute(
 		// If all services have 0 weight, openshift requires a 503 to be returned
 		// (see https://docs.openshift.com/container-platform/3.6/architecture
 		//  /networking/routes.html#alternateBackends)
-		updateDataGroup(dgMap, abDeploymentDgName, partition, namespace, key, "")
+		updateDataGroup(dgMap, AbDeploymentDgName, partition, namespace, key, "")
 	} else {
 		// Place each service in a segment between 0.0 and 1.0 that corresponds to
 		// it's ratio percentage.  The order does not matter in regards to which
@@ -849,17 +836,17 @@ func updateDataGroupForABRoute(
 		var entries []string
 		runningWeightTotal := 0
 		for _, svc := range svcs {
-			if svc.weight == 0 {
+			if svc.Weight == 0 {
 				continue
 			}
-			runningWeightTotal = runningWeightTotal + svc.weight
+			runningWeightTotal = runningWeightTotal + svc.Weight
 			weightedSliceThreshold := float64(runningWeightTotal) / float64(weightTotal)
-			pool := formatRoutePoolName(route.ObjectMeta.Namespace, svc.name)
+			pool := FormatRoutePoolName(route.ObjectMeta.Namespace, svc.Name)
 			entry := fmt.Sprintf("%s,%4.3f", pool, weightedSliceThreshold)
 			entries = append(entries, entry)
 		}
 		value := strings.Join(entries, ";")
-		updateDataGroup(dgMap, abDeploymentDgName,
+		updateDataGroup(dgMap, AbDeploymentDgName,
 			partition, namespace, key, value)
 	}
 }
@@ -873,7 +860,7 @@ func updateDataGroup(
 	key string,
 	value string,
 ) {
-	mapKey := nameRef{
+	mapKey := NameRef{
 		Name:      name,
 		Partition: partition,
 	}
@@ -949,19 +936,19 @@ func (appMgr *Manager) syncIRules() {
 	var iRef iruleRef
 	for mapKey, _ := range appMgr.intDgMap {
 		switch mapKey.Name {
-		case httpsRedirectDgName:
+		case HttpsRedirectDgName:
 			iRef.https = true
-		case abDeploymentDgName:
+		case AbDeploymentDgName:
 			iRef.ab = true
-		case passthroughHostsDgName:
+		case PassthroughHostsDgName:
 			iRef.passthrough = true
-		case reencryptHostsDgName:
+		case ReencryptHostsDgName:
 			iRef.reencrypt = true
-		case edgeHostsDgName:
+		case EdgeHostsDgName:
 			iRef.edge = true
-		case reencryptServerSslDgName:
+		case ReencryptServerSslDgName:
 			iRef.reencrypt = true
-		case edgeServerSslDgName:
+		case EdgeServerSslDgName:
 			iRef.edge = true
 		}
 	}
@@ -969,27 +956,27 @@ func (appMgr *Manager) syncIRules() {
 	if !iRef.https {
 		// http redirect rule may have a port appended, so find it
 		for irule, _ := range appMgr.irulesMap {
-			if strings.HasPrefix(irule.Name, httpRedirectIRuleName) {
+			if strings.HasPrefix(irule.Name, HttpRedirectIRuleName) {
 				appMgr.deleteIRule(irule.Name)
 			}
 		}
 	}
 	if !iRef.ab {
-		appMgr.deleteIRule(abDeploymentPathIRuleName)
+		appMgr.deleteIRule(AbDeploymentPathIRuleName)
 	}
 	if !iRef.passthrough && !iRef.reencrypt && !iRef.edge {
-		appMgr.deleteIRule(sslPassthroughIRuleName)
+		appMgr.deleteIRule(SslPassthroughIRuleName)
 	}
 }
 
 // Deletes an IRule from the IRules map, and dereferences it from a Virtual
 func (appMgr *Manager) deleteIRule(rule string) {
-	ref := nameRef{
+	ref := NameRef{
 		Name:      rule,
 		Partition: DEFAULT_PARTITION,
 	}
 	delete(appMgr.irulesMap, ref)
-	fullName := joinBigipPath(DEFAULT_PARTITION, rule)
+	fullName := JoinBigipPath(DEFAULT_PARTITION, rule)
 	for _, cfg := range appMgr.resources.GetAllResources() {
 		if cfg.MetaData.ResourceType == "configmap" ||
 			cfg.MetaData.ResourceType == "iapp" {
@@ -1064,7 +1051,7 @@ func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap) {
 		nsGrp, found := dgMap[skey.Namespace]
 		if !found {
 			nsGrp = &InternalDataGroup{
-				Name:      httpsRedirectDgName,
+				Name:      HttpsRedirectDgName,
 				Partition: DEFAULT_PARTITION,
 			}
 			dgMap[skey.Namespace] = nsGrp
@@ -1078,92 +1065,3 @@ func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap) {
 	}
 }
 
-func flattenConflictWarn(key, oldVal, newVal string) string {
-	fmt.Printf("Found mismatch for key '%v' old value: '%v' new value: '%v'\n", key, oldVal, newVal)
-	return oldVal
-}
-
-func flattenConflictConcat(key, oldVal, newVal string) string {
-	// Tokenize both values and add to a map to ensure uniqueness
-	pathMap := make(map[string]bool)
-	for _, token := range strings.Split(oldVal, "|") {
-		pathMap[token] = true
-	}
-	for _, token := range strings.Split(newVal, "|") {
-		pathMap[token] = true
-	}
-
-	// Convert back to an array
-	paths := []string{}
-	for path, _ := range pathMap {
-		paths = append(paths, path)
-	}
-
-	// Sort the paths to have consistent ordering
-	sort.Strings(paths)
-
-	// Write back out to a delimited string
-	var buf bytes.Buffer
-	for i, path := range paths {
-		if i > 0 {
-			buf.WriteString("|")
-		}
-		buf.WriteString(path)
-	}
-
-	return buf.String()
-}
-
-func (dgnm DataGroupNamespaceMap) FlattenNamespaces() *InternalDataGroup {
-
-	// Try to be efficient in these common cases.
-	if len(dgnm) == 0 {
-		// No namespaces.
-		return nil
-	} else if len(dgnm) == 1 {
-		// Only 1 namespace, just return its dg - no flattening needed.
-		for _, dg := range dgnm {
-			return dg
-		}
-	}
-
-	// Use a map to identify duplicates across namespaces
-	var partition, name string
-	flatMap := make(map[string]string)
-	for _, dg := range dgnm {
-		if partition == "" {
-			partition = dg.Partition
-		}
-		if name == "" {
-			name = dg.Name
-		}
-		for _, rec := range dg.Records {
-			item, found := flatMap[rec.Name]
-			if found {
-				if item != rec.Data {
-					conflictFunc, ok := groupFlattenFuncMap[dg.Name]
-					if !ok {
-						log.Warningf("No DataGroup conflict handler defined for '%v'",
-							dg.Name)
-						conflictFunc = flattenConflictWarn
-					}
-					newVal := conflictFunc(rec.Name, item, rec.Data)
-					flatMap[rec.Name] = newVal
-				}
-			} else {
-				flatMap[rec.Name] = rec.Data
-			}
-		}
-	}
-
-	// Create a new datagroup to hold the flattened results
-	newDg := InternalDataGroup{
-		Partition: partition,
-		Name:      name,
-	}
-	for name, data := range flatMap {
-		newDg.AddOrUpdateRecord(name, data)
-	}
-
-	return &newDg
-}

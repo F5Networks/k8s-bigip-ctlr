@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
@@ -192,14 +192,14 @@ func ipv4ToMac(addr string) string {
 	return fmt.Sprintf("0a:0a:%02x:%02x:%02x:%02x", intIP[0], intIP[1], intIP[2], intIP[3])
 }
 
-// Listen for updates from appmanager containing pod names (for arp entries)
+// Listen for updates from resource containing pod names (for arp entries)
 func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
 	go func() {
 		log.Debugf("Vxlan Manager waiting for pod events from appManager.")
 		for {
 			select {
 			case pods := <-vxm.podChan:
-				if pods, ok := pods.([]appmanager.Member); ok {
+				if pods, ok := pods.([]resource.Member); ok {
 					vxm.addArpForPods(pods, kubeClient)
 				} else {
 					log.Errorf("Vxlan Manager could not read Endpoints from appManager channel.")
@@ -222,7 +222,7 @@ func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Inter
 		log.Errorf("Vxlan Manager could not list Kubernetes Nodes for ARP entries: %v", err)
 		return
 	}
-	for _, pod := range pods.([]appmanager.Member) {
+	for _, pod := range pods.([]resource.Member) {
 		var mac string
 		mac, err = getVtepMac(pod, kubePods, kubeNodes)
 		if nil != err {
@@ -261,7 +261,7 @@ func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Inter
 
 // Gets the VtepMac from the Node running this Pod
 func getVtepMac(
-	pod appmanager.Member,
+	pod resource.Member,
 	kubePods *v1.PodList,
 	kubeNodes *v1.NodeList,
 ) (string, error) {

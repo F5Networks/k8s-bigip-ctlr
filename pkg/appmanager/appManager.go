@@ -27,10 +27,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
@@ -51,25 +52,6 @@ import (
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
 
-const DefaultConfigMapLabel = "f5type in (virtual-server)"
-const vsStatusBindAddrAnnotation = "status.virtual-server.f5.com/ip"
-const ingressSslRedirect = "ingress.kubernetes.io/ssl-redirect"
-const ingressAllowHttp = "ingress.kubernetes.io/allow-http"
-const healthMonitorAnnotation = "virtual-server.f5.com/health"
-const k8sIngressClass = "kubernetes.io/ingress.class"
-const f5VsBindAddrAnnotation = "virtual-server.f5.com/ip"
-const f5VsHttpPortAnnotation = "virtual-server.f5.com/http-port"
-const f5VsHttpsPortAnnotation = "virtual-server.f5.com/https-port"
-const f5VsBalanceAnnotation = "virtual-server.f5.com/balance"
-const f5VsPartitionAnnotation = "virtual-server.f5.com/partition"
-const f5VsURLRewriteAnnotation = "virtual-server.f5.com/rewrite-target-url"
-const f5VsWhitelistSourceRangeAnnotation = "virtual-server.f5.com/whitelist-source-range"
-const f5VsAppRootAnnotation = "virtual-server.f5.com/rewrite-app-root"
-const f5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
-const f5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"
-const f5ServerSslSecureAnnotation = "virtual-server.f5.com/secure-serverssl"
-const defaultSslServerCAName = "openshift_route_cluster_default-ca"
-const f5VsWAFPolicy = "virtual-server.f5.com/waf"
 
 type ResourceMap map[int32][]*ResourceConfig
 
@@ -131,7 +113,7 @@ type Manager struct {
 	// Where the schemas reside locally
 	schemaLocal string
 	// map of rules that have been merged
-	mergedRulesMap map[string]map[string]mergedRuleEntry
+	mergedRulesMap map[string]map[string]MergedRuleEntry
 	// Whether to watch ConfigMap resources or not
 	manageConfigMaps       bool
 	manageIngress          bool
@@ -140,54 +122,16 @@ type Manager struct {
 	// Orchestration agent: AS3 or CCCL
 	Agent string
 	// Ingress SSL security Context
-	rsrcSSLCtxt map[string]*v1.Secret
-	AS3Manager
-}
-
-// AS3Manager holds all the AS3 orchestration specific Data
-type AS3Manager struct {
-	as3Members                map[Member]struct{}
-	as3Validation             bool
-	sslInsecure               bool
-	enableTLS                 string
-	tls13CipherGroupReference string
-	ciphers                   string
-	trustedCertsCfgmap        string
-	// Active User Defined ConfigMap details
-	as3ActiveConfig AS3Config
-	// List of Watched Endpoints for user-defined AS3
-	watchedAS3Endpoints map[string]struct{}
-	// Watched namespaces
-	WatchedNS       WatchedNamespaces
-	As3SchemaLatest string
+	rsrcSSLCtxt            map[string]*v1.Secret
+	WatchedNS              WatchedNamespaces
+	RoutesProcessed        RoutesMap
 	// AS3 Specific features that can be applied to a Route/Ingress
-	intF5Res InternalF5ResourcesGroup
-	// Override existing as3 declaration with this configmap
-	OverrideAS3Decl string
-	// Path of schemas reside locally
-	SchemaLocalPath string
-	// Flag to check schema validation using reference or string
-	As3SchemaFlag bool
+	trustedCertsCfgmap     string
+	intF5Res               InternalF5ResourcesGroup
+	dgPath                 string
+	AgentCIS               cisAgent.CISAgentInterface
 	// Processed routes for updating Admit Status
-	RoutesProcessed RoutesMap
-	// POSTs configuration to BIG-IP using AS3
-	PostManager *postmanager.PostManager
-	// To put list of tenants in BIG-IP REST call URL that are in AS3 declaration
-	FilterTenants bool
-}
-
-// AS3Config consists of all the AS3 related configurations
-type AS3Config struct {
-	configmap          AS3ConfigMap
-	routeConfig        as3ADC
-	overrrideAS3Config as3Declaration
-	unifiedDeclaration as3Declaration
-}
-
-// ActiveAS3ConfigMap user defined ConfigMap for global availability.
-type AS3ConfigMap struct {
-	Name string         // AS3 specific ConfigMap name
-	Data as3Declaration // if AS3 Name is present, populate this with AS3 template data.
+	//AS3Manager
 }
 
 // Watched Namespaces for global availability.
@@ -196,39 +140,69 @@ type WatchedNamespaces struct {
 	NamespaceLabel string
 }
 
+// AS3Manager holds all the AS3 orchestration specific Data
+//type AS3Manager struct {
+//	as3Members                map[Member]struct{}
+//	as3Validation             bool
+//	sslInsecure               bool
+//	enableTLS                 string
+//	tls13CipherGroupReference string
+//	ciphers                   string
+//	trustedCertsCfgmap        string
+//	// Active User Defined ConfigMap details
+//	// SNATRA TODO as3ActiveConfig           AS3Config
+//	// List of Watched Endpoints for user-defined AS3
+//	watchedAS3Endpoints       map[string]struct{}
+//	// Watched namespaces
+//	// SNATRA TODO WatchedNS                 WatchedNamespaces
+//	As3SchemaLatest           string
+//	// AS3 Specific features that can be applied to a Route/Ingress
+//	intF5Res                  InternalF5ResourcesGroup
+//	// Override existing as3 declaration with this configmap
+//	OverrideAS3Decl           string
+//	// User defined AS3 declaration
+//	UserDefinedAS3Decl        string
+//	// Path of schemas reside locally
+//	SchemaLocalPath           string
+//	// Flag to check schema validation using reference or string
+//	As3SchemaFlag             bool
+//	// Processed routes for updating Admit Status
+//	RoutesProcessed           RouteMap
+//	// POSTs configuration to BIG-IP using AS3
+//	PostManager               *postmanager.PostManager
+//	// To put list of tenants in BIG-IP REST call URL that are in AS3 declaration
+//	FilterTenants             bool
+//}
+
+
 // Struct to allow NewManager to receive all or only specific parameters.
 type Params struct {
-	KubeClient        kubernetes.Interface
-	RouteClientV1     routeclient.RouteV1Interface
-	ConfigWriter      writer.Writer
-	UseNodeInternal   bool
-	IsNodePort        bool
-	RouteConfig       RouteConfig
-	ResolveIngress    string
-	DefaultIngIP      string
-	VsSnatPoolName    string
-	NodeLabelSelector string
-	UseSecrets        bool
-	EventChan         chan interface{}
-	// Package local for unit testing only
-	restClient                rest.Interface
-	steadyState               bool
-	broadcasterFunc           NewBroadcasterFunc
-	SchemaLocal               string
-	ManageConfigMaps          bool
-	ManageIngress             bool
-	ManageIngressClassOnly    bool
-	IngressClass              string
-	AS3Validation             bool
-	SSLInsecure               bool
-	EnableTLS                 string
-	TLS13CipherGroupReference string
-	Ciphers                   string
-	TrustedCertsCfgmap        string
-	Agent                     string
-	OverrideAS3Decl           string
-	SchemaLocalPath           string
-	FilterTenants             bool
+	KubeClient             kubernetes.Interface
+	RouteClientV1          routeclient.RouteV1Interface
+	ConfigWriter           writer.Writer //TODO SNATRA Remove this from here
+	UseNodeInternal        bool
+	IsNodePort             bool
+	RouteConfig            RouteConfig
+	ResolveIngress         string
+	DefaultIngIP           string
+	VsSnatPoolName         string
+	NodeLabelSelector      string
+	UseSecrets             bool
+	EventChan              chan interface{}
+	// Package local for untesting only
+	restClient             rest.Interface
+	steadyState            bool
+	broadcasterFunc        NewBroadcasterFunc
+	SchemaLocal            string
+	ManageConfigMaps       bool
+	ManageIngress          bool
+	ManageIngressClassOnly bool
+	IngressClass           string
+	Agent                  string
+	SchemaLocalPath        string
+	TrustedCertsCfgmap     string
+	// Data group path
+	DgPath                 string
 }
 
 // Configuration options for Routes in OpenShift
@@ -258,7 +232,7 @@ func NewManager(params *Params) *Manager {
 		restClientv1:           params.restClient,
 		restClientv1beta1:      params.restClient,
 		routeClientV1:          params.RouteClientV1,
-		configWriter:           params.ConfigWriter,
+		//configWriter:           params.ConfigWriter,
 		useNodeInternal:        params.UseNodeInternal,
 		isNodePort:             params.IsNodePort,
 		steadyState:            params.steadyState,
@@ -276,27 +250,33 @@ func NewManager(params *Params) *Manager {
 		appInformers:           make(map[string]*appInformer),
 		eventNotifier:          NewEventNotifier(params.broadcasterFunc),
 		schemaLocal:            params.SchemaLocal,
-		mergedRulesMap:         make(map[string]map[string]mergedRuleEntry),
+		mergedRulesMap:         make(map[string]map[string]MergedRuleEntry),
 		manageConfigMaps:       params.ManageConfigMaps,
 		manageIngress:          params.ManageIngress,
 		manageIngressClassOnly: params.ManageIngressClassOnly,
 		ingressClass:           params.IngressClass,
 		Agent:                  getValidAgent(params.Agent),
 		rsrcSSLCtxt:            make(map[string]*v1.Secret),
-		AS3Manager: AS3Manager{
-			as3Members:                make(map[Member]struct{}, 0),
-			as3Validation:             params.AS3Validation,
-			sslInsecure:               params.SSLInsecure,
-			enableTLS:                 params.EnableTLS,
-			tls13CipherGroupReference: params.TLS13CipherGroupReference,
-			ciphers:                   params.Ciphers,
-			trustedCertsCfgmap:        params.TrustedCertsCfgmap,
-			OverrideAS3Decl:           params.OverrideAS3Decl,
-			intF5Res:                  make(map[string]InternalF5Resources),
-			SchemaLocalPath:           params.SchemaLocal,
-			RoutesProcessed:           make(RoutesMap),
-			FilterTenants:             params.FilterTenants,
-		},
+		trustedCertsCfgmap:     params.TrustedCertsCfgmap,
+		intF5Res:               make(map[string]InternalF5Resources),
+		RoutesProcessed:        make(RoutesMap),
+		dgPath:                 params.DgPath,
+		//AS3Manager: AS3Manager{
+		//	as3Members:                make(map[Member]struct{}, 0),
+		//	as3Validation:             params.AS3Validation,
+		//	sslInsecure:               params.SSLInsecure,
+		//	enableTLS:                 params.EnableTLS,
+		//	tls13CipherGroupReference: params.TLS13CipherGroupReference,
+		//	ciphers:                   params.Ciphers,
+		//	trustedCertsCfgmap:        params.TrustedCertsCfgmap,
+		//	//OverrideAS3Decl:    params.OverrideAS3Decl,
+		//	//UserDefinedAS3Decl: ,
+		//	intF5Res:                  make(map[string]InternalF5Resources),
+		//	SchemaLocalPath:           params.SchemaLocal,
+		//	FilterTenants:             params.FilterTenants,
+		//	as3ActiveConfig:           AS3Config{configmap: AS3ConfigMap{cfg: params.OverrideAS3Decl},
+		//		overrideConfigmap: AS3ConfigMap{cfg: params.UserDefinedAS3Decl}},
+		//},
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {
 		// This is the normal production case, but need the checks for unit tests.
@@ -489,7 +469,7 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 		appMgr.eventNotifier.deleteNotifierForNamespace(nsName)
 		appMgr.resources.Lock()
 		rsDeleted := 0
-		appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
+		appMgr.resources.ForEach(func(key ServiceKey, cfg *ResourceConfig) {
 			if key.Namespace == nsName {
 				if appMgr.resources.Delete(key, "") {
 					rsDeleted += 1
@@ -522,8 +502,10 @@ func (appMgr *Manager) GetNamespaceLabelInformer() cache.SharedIndexInformer {
 type serviceQueueKey struct {
 	Namespace   string
 	ServiceName string
-	AS3Name     string // as3 Specific configMap name
-	AS3Data     string // if AS3Name is present, populate this with as3 tmpl data
+	Name        string // Name of the resource
+	//OverrideAS3Name string // as3 Specific configMap name
+	//AS3Name         string // as3 Specific configMap name
+	//AS3Data         string // if AS3Name is present, populate this with as3 tmpl data
 }
 
 type appInformer struct {
@@ -634,8 +616,8 @@ func (appMgr *Manager) newAppInformer(
 		log.Infof("Handling ConfigMap resource events.")
 		appInf.cfgMapInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { appMgr.enqueueConfigMap(obj) },
-				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueConfigMap(cur) },
+				AddFunc:    func(obj interface{}) { appMgr.enqueueCreatedConfigMap(obj) },
+				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueUpdatedConfigMap(cur) },
 				DeleteFunc: func(obj interface{}) { appMgr.enqueueDeletedConfigMap(obj) },
 			},
 			resyncPeriod,
@@ -690,7 +672,32 @@ func (appMgr *Manager) newAppInformer(
 	return &appInf
 }
 
-func (appMgr *Manager) enqueueConfigMap(obj interface{}) {
+func (appMgr *Manager) enqueueCreatedConfigMap(obj interface{}) {
+	//cm := obj.(*v1.ConfigMap)
+	//if cmType, ok := appMgr.isAS3CfgMap(cm); ok {
+	//	if appMgr.as3ActiveConfig.isCfgMapAdmitted(cmType, cm.Namespace, cm.Name){
+	//		if appMgr.as3ActiveConfig.isUniqueConfigMap(cmType, "") {
+	//			appMgr.as3ActiveConfig.setCfgMap(cmType, cm.Name, cm.Namespace)
+	//			appMgr.prepareAndPostAS3ConfigMapInServiceQueue(cm, cmType, oprTypeCreate)
+	//		}
+	//	}
+//	} else
+	if ok, keys := appMgr.checkValidConfigMap(obj); ok {
+		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) enqueueUpdatedConfigMap(obj interface{}) {
+	//cm := obj.(*v1.ConfigMap)
+	//if cmType, ok := appMgr.isAS3CfgMap(cm); ok {
+	//	if appMgr.as3ActiveConfig.isCfgMapAdmitted(cmType, cm.Namespace, cm.Name){
+	//		if appMgr.as3ActiveConfig.isUniqueConfigMap(cmType, cm.ObjectMeta.Name) {
+	//			appMgr.prepareAndPostAS3ConfigMapInServiceQueue(cm, cmType, oprTypeUpdate)
+	//		}
+	//	}
+	//} else
 	if ok, keys := appMgr.checkValidConfigMap(obj); ok {
 		for _, key := range keys {
 			appMgr.vsQueue.Add(*key)
@@ -699,18 +706,15 @@ func (appMgr *Manager) enqueueConfigMap(obj interface{}) {
 }
 
 func (appMgr *Manager) enqueueDeletedConfigMap(obj interface{}) {
-	cm := obj.(*v1.ConfigMap)
-	if val, ok := cm.ObjectMeta.Labels["as3"]; ok {
-		if as3Val, err := strconv.ParseBool(val); err == nil {
-			if as3Val {
-				appMgr.as3ActiveConfig.configmap.Data = ""
-				appMgr.as3ActiveConfig.configmap.Name = ""
-				cm.ObjectMeta.Name = ""
-				cm.Data = map[string]string{"template": ""}
-			}
-		}
-	}
-	if ok, keys := appMgr.checkValidConfigMap(cm); ok {
+	//cm := obj.(*v1.ConfigMap)
+	//if cmType, ok := appMgr.isAS3CfgMap(cm); ok {
+	//	if appMgr.as3ActiveConfig.isCfgMapAdmitted(cmType, cm.Namespace, cm.Name) {
+	//		if appMgr.as3ActiveConfig.isUniqueConfigMap(cmType, cm.ObjectMeta.Name) {
+	//			appMgr.prepareAndPostAS3ConfigMapInServiceQueue(cm, cmType, oprTypeDelete)
+	//		}
+	//	}
+	//} else
+	if ok, keys := appMgr.checkValidConfigMap(obj); ok {
 		for _, key := range keys {
 			appMgr.vsQueue.Add(*key)
 		}
@@ -836,10 +840,10 @@ func (appMgr *Manager) IsNodePort() bool {
 func (appMgr *Manager) UseNodeInternal() bool {
 	return appMgr.useNodeInternal
 }
-
-func (appMgr *Manager) ConfigWriter() writer.Writer {
-	return appMgr.configWriter
-}
+//
+//func (appMgr *Manager) ConfigWriter() writer.Writer {
+//	return appMgr.configWriter
+//}
 
 func (appMgr *Manager) Run(stopCh <-chan struct{}) {
 	go appMgr.runImpl(stopCh)
@@ -958,32 +962,15 @@ func (appMgr *Manager) getServiceCount() int {
 
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
-	k := key.(serviceQueueKey)
 	if !appMgr.steadyState && appMgr.processedItems == 0 {
 		appMgr.queueLen = appMgr.getServiceCount()
-	}
-	if len(k.AS3Name) != 0 {
-
-		appMgr.as3ActiveConfig.configmap.Name = k.AS3Name
-		log.Debugf("[AS3] Active ConfigMap: (%s)\n", k.AS3Name)
-
-		appMgr.vsQueue.Done(key)
-
-		if !appMgr.steadyState {
-			appMgr.processedItems++
-		}
-
-		log.Debugf("[AS3] Processing AS3 cfgMap (%s) with AS3 Manager.\n", k.AS3Name)
-		appMgr.processUserDefinedAS3(k.AS3Data)
-
-		appMgr.vsQueue.Forget(key)
-		return false
 	}
 
 	if quit {
 		// The controller is shutting down.
 		return false
 	}
+
 	defer appMgr.vsQueue.Done(key)
 
 	err := appMgr.syncVirtualServer(key.(serviceQueueKey))
@@ -999,6 +986,19 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 	appMgr.vsQueue.AddRateLimited(key)
 
 	return true
+}
+
+func (s *vsSyncStats) isStatsAvailable() bool{
+	switch {
+	case s.vsUpdated > 0,
+		s.vsDeleted > 0,
+		s.cpUpdated > 0,
+		s.dgUpdated > 0,
+		s.poolsUpdated > 0:
+		return true
+	}
+
+	return false
 }
 
 type vsSyncStats struct {
@@ -1057,12 +1057,6 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 
 	var stats vsSyncStats
 	appMgr.rsrcSSLCtxt = make(map[string]*v1.Secret)
-	if nil != appInf.cfgMapInformer {
-		err = appMgr.syncConfigMaps(&stats, sKey, rsMap, svcPortMap, svc, appInf)
-		if nil != err {
-			return err
-		}
-	}
 	if nil != appInf.ingInformer {
 		err = appMgr.syncIngresses(&stats, sKey, rsMap, svcPortMap, svc, appInf, dgMap)
 		if nil != err {
@@ -1071,6 +1065,12 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	}
 	if nil != appInf.routeInformer {
 		err = appMgr.syncRoutes(&stats, sKey, rsMap, svcPortMap, svc, appInf, dgMap)
+		if nil != err {
+			return err
+		}
+	}
+	if nil != appInf.cfgMapInformer {
+		err = appMgr.syncConfigMaps(&stats, sKey, rsMap, svcPortMap, svc, appInf)
 		if nil != err {
 			return err
 		}
@@ -1097,11 +1097,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
 
 	switch {
-	case stats.vsUpdated > 0,
-		stats.vsDeleted > 0,
-		stats.cpUpdated > 0,
-		stats.dgUpdated > 0,
-		stats.poolsUpdated > 0,
+	case stats.isStatsAvailable(),
 		!appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen:
 		{
 			appMgr.outputConfig()
@@ -1119,6 +1115,11 @@ func (appMgr *Manager) syncConfigMaps(
 	svc *v1.Service,
 	appInf *appInformer,
 ) error {
+	// SNATRA TODO
+	//if appMgr.processAS3CfgMapDelete(sKey, stats) {
+	//	return nil
+	//}
+
 	cfgMapsByIndex, err := appInf.cfgMapInformer.GetIndexer().ByIndex(
 		"namespace", sKey.Namespace)
 	if nil != err {
@@ -1135,7 +1136,16 @@ func (appMgr *Manager) syncConfigMaps(
 			continue
 		}
 
-		rsCfg, err := parseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
+		// If as3 specific cfgMap, just continue
+		// SNATRA TODO revisit this code
+		//if _, ok := appMgr.isAS3CfgMap(cm); ok {
+		//	if appMgr.syncAS3ConfigMap(cm.Name, cm.Namespace, cm.Data["template"], stats){
+		//		return nil
+		//	}
+		//	continue
+		//}
+
+		rsCfg, err := ParseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
 		if nil != err {
 			bigIPPrometheus.MonitoredServices.WithLabelValues(cm.ObjectMeta.Namespace, cm.ObjectMeta.Name, "parse-error").Set(1)
 			// Ignore this config map for the time being. When the user updates it
@@ -1146,19 +1156,10 @@ func (appMgr *Manager) syncConfigMaps(
 		}
 		bigIPPrometheus.MonitoredServices.WithLabelValues(cm.ObjectMeta.Namespace, cm.ObjectMeta.Name, "parse-error").Set(0)
 
-		// If as3 just continue
-		if val, ok := cm.ObjectMeta.Labels["as3"]; ok {
-			if as3Val, err := strconv.ParseBool(val); err == nil {
-				if as3Val {
-					continue
-				}
-			}
-		}
-
 		// Check if SSLProfile(s) are contained in Secrets
 		if appMgr.useSecrets {
 			for _, profile := range rsCfg.Virtual.Profiles {
-				if profile.Context != customProfileClient {
+				if profile.Context != CustomProfileClient {
 					continue
 				}
 				// Check if profile is contained in a Secret
@@ -1257,7 +1258,7 @@ func (appMgr *Manager) syncIngresses(
 		}
 
 		// Resolve first Ingress Host name (if required)
-		_, exists := ing.ObjectMeta.Annotations[f5VsBindAddrAnnotation]
+		_, exists := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]
 		if !exists && appMgr.resolveIng != "" {
 			appMgr.resolveIngressHost(ing, sKey.Namespace)
 		}
@@ -1305,7 +1306,7 @@ func (appMgr *Manager) syncIngresses(
 
 			// Handle Ingress health monitors
 			rsName := rsCfg.GetName()
-			hmStr, found := ing.ObjectMeta.Annotations[healthMonitorAnnotation]
+			hmStr, found := ing.ObjectMeta.Annotations[HealthMonitorAnnotation]
 			if found {
 				var monitors AnnotationHealthMonitors
 				err := json.Unmarshal([]byte(hmStr), &monitors)
@@ -1317,7 +1318,7 @@ func (appMgr *Manager) syncIngresses(
 				} else {
 					if nil != ing.Spec.Backend {
 						fullPoolName := fmt.Sprintf("/%s/%s", rsCfg.Virtual.Partition,
-							formatIngressPoolName(sKey.Namespace, sKey.ServiceName))
+							FormatIngressPoolName(sKey.Namespace, sKey.ServiceName))
 						appMgr.handleSingleServiceHealthMonitors(
 							rsName, fullPoolName, rsCfg, ing, monitors)
 					} else {
@@ -1346,7 +1347,7 @@ func (appMgr *Manager) syncIngresses(
 			for _, dep := range depsRemoved {
 				if dep.Kind == ServiceDep {
 					cfgChanged, svcKey := rsCfg.RemovePool(
-						dep.Namespace, formatIngressPoolName(dep.Namespace, dep.Name), appMgr)
+						dep.Namespace, FormatIngressPoolName(dep.Namespace, dep.Name), appMgr.mergedRulesMap)
 					if cfgChanged {
 						stats.poolsUpdated++
 					}
@@ -1391,7 +1392,7 @@ func (appMgr *Manager) syncIngresses(
 					}
 				}
 				if dep.Kind == WhitelistDep {
-					rsCfg.deleteWhitelistCondition(dep.Name)
+					rsCfg.DeleteWhitelistCondition(dep.Name)
 				}
 			}
 
@@ -1419,8 +1420,8 @@ func (appMgr *Manager) syncIngresses(
 		}
 	}
 	if len(svcFwdRulesMap) > 0 {
-		httpsRedirectDg := nameRef{
-			Name:      httpsRedirectDgName,
+		httpsRedirectDg := NameRef{
+			Name:      HttpsRedirectDgName,
 			Partition: DEFAULT_PARTITION,
 		}
 		if _, found := dgMap[httpsRedirectDg]; !found {
@@ -1428,6 +1429,10 @@ func (appMgr *Manager) syncIngresses(
 		}
 		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
 	}
+    //TODO SNATRA
+	//if appMgr.Agent == "as3" && stats.isStatsAvailable() {
+	//	appMgr.as3ActiveConfig.as3RsrcType = resourceTypeIngress
+	//}
 
 	return nil
 }
@@ -1463,13 +1468,13 @@ func (appMgr *Manager) syncRoutes(
 
 		//FIXME(kenr): why do we process services that aren't associated
 		//             with a route?
-		svcName := getRouteCanonicalServiceName(route)
-		if existsRouteServiceName(route, sKey.ServiceName) {
+		svcName := GetRouteCanonicalServiceName(route)
+		if ExistsRouteServiceName(route, sKey.ServiceName) {
 			svcName = sKey.ServiceName
 		}
 
 		// Collect all service names for this Route.
-		svcNames := getRouteServiceNames(route)
+		svcNames := GetRouteServiceNames(route)
 
 		// Get a list of dependencies removed so their pools can be removed.
 		objKey, objDeps := NewObjectDependencies(route)
@@ -1503,7 +1508,7 @@ func (appMgr *Manager) syncRoutes(
 			rsName := rsCfg.GetName()
 
 			// Handle Route health monitors
-			hmStr, exists := route.ObjectMeta.Annotations[healthMonitorAnnotation]
+			hmStr, exists := route.ObjectMeta.Annotations[HealthMonitorAnnotation]
 			if exists {
 				var monitors AnnotationHealthMonitors
 				err := json.Unmarshal([]byte(hmStr), &monitors)
@@ -1530,7 +1535,7 @@ func (appMgr *Manager) syncRoutes(
 					path := route.Spec.Path
 					sslPath := hostName + path
 					sslPath = strings.TrimSuffix(sslPath, "/")
-					updateDataGroup(dgMap, edgeServerSslDgName,
+					updateDataGroup(dgMap, EdgeServerSslDgName,
 						DEFAULT_PARTITION, sKey.Namespace, sslPath, serverSsl)
 
 				case routeapi.TLSTerminationReencrypt:
@@ -1544,7 +1549,7 @@ func (appMgr *Manager) syncRoutes(
 					sslPath := hostName + path
 					sslPath = strings.TrimSuffix(sslPath, "/")
 					if "" != serverSsl {
-						updateDataGroup(dgMap, reencryptServerSslDgName,
+						updateDataGroup(dgMap, ReencryptServerSslDgName,
 							DEFAULT_PARTITION, sKey.Namespace, sslPath, serverSsl)
 					}
 				}
@@ -1554,7 +1559,7 @@ func (appMgr *Manager) syncRoutes(
 			for _, dep := range depsRemoved {
 				if dep.Kind == ServiceDep {
 					cfgChanged, svcKey := rsCfg.RemovePool(
-						dep.Namespace, formatRoutePoolName(dep.Namespace, dep.Name), appMgr)
+						dep.Namespace, FormatRoutePoolName(dep.Namespace, dep.Name), appMgr.mergedRulesMap)
 					if cfgChanged {
 						stats.poolsUpdated++
 					}
@@ -1594,7 +1599,7 @@ func (appMgr *Manager) syncRoutes(
 					}
 				}
 				if dep.Kind == WhitelistDep {
-					rsCfg.deleteWhitelistCondition(dep.Name)
+					rsCfg.DeleteWhitelistCondition(dep.Name)
 				}
 			}
 			// Sort the rules
@@ -1645,8 +1650,8 @@ func (appMgr *Manager) syncRoutes(
 	}
 
 	if len(svcFwdRulesMap) > 0 {
-		httpsRedirectDg := nameRef{
-			Name:      httpsRedirectDgName,
+		httpsRedirectDg := NameRef{
+			Name:      HttpsRedirectDgName,
 			Partition: DEFAULT_PARTITION,
 		}
 		if _, found := dgMap[httpsRedirectDg]; !found {
@@ -1654,6 +1659,10 @@ func (appMgr *Manager) syncRoutes(
 		}
 		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
 	}
+	// TODO SNATRA
+	//if appMgr.Agent == "as3" && stats.isStatsAvailable() {
+	//	appMgr.as3ActiveConfig.as3RsrcType = resourceTypeRoute
+	//}
 
 	return nil
 }
@@ -1666,7 +1675,7 @@ func (appMgr *Manager) processAS3SpecificFeatures(route *routeapi.Route, buffer 
 	}
 
 	// Check for WAF Annotation
-	if wafPolicyName, exists := route.Annotations[f5VsWAFPolicy]; exists {
+	if wafPolicyName, exists := route.Annotations[F5VsWAFPolicy]; exists {
 		buffer[idf] = F5Resources{
 			Virtual:   appMgr.affectedVirtuals(route),
 			WAFPolicy: wafPolicyName,
@@ -1675,8 +1684,8 @@ func (appMgr *Manager) processAS3SpecificFeatures(route *routeapi.Route, buffer 
 }
 
 // Identify which virtuals needs update
-func (appMgr *Manager) affectedVirtuals(route *routeapi.Route) virtuals {
-	var v virtuals = HTTP
+func (appMgr *Manager) affectedVirtuals(route *routeapi.Route) ConstVirtuals {
+	var v ConstVirtuals = HTTP
 	if route.Spec.TLS != nil {
 		v = HTTPS
 
@@ -1688,25 +1697,7 @@ func (appMgr *Manager) affectedVirtuals(route *routeapi.Route) virtuals {
 	return v
 }
 
-// Deletes a whitelist condition if the values match
-func (rsCfg *ResourceConfig) deleteWhitelistCondition(values string) {
-	for _, pol := range rsCfg.Policies {
-		for _, rl := range pol.Rules {
-			for i, cd := range rl.Conditions {
-				var valueStr string
-				for _, val := range cd.Values {
-					valueStr += val + ","
-				}
-				valueStr = strings.TrimSuffix(valueStr, ",")
-				if valueStr == values {
-					copy(rl.Conditions[i:], rl.Conditions[i+1:])
-					rl.Conditions[len(rl.Conditions)-1] = nil
-					rl.Conditions = rl.Conditions[:len(rl.Conditions)-1]
-				}
-			}
-		}
-	}
-}
+
 
 func getBooleanAnnotation(
 	annotations map[string]string,
@@ -1734,13 +1725,13 @@ type portStruct struct {
 func (appMgr *Manager) virtualPorts(ing *v1beta1.Ingress) []portStruct {
 	var httpPort int32
 	var httpsPort int32
-	if port, ok := ing.ObjectMeta.Annotations[f5VsHttpPortAnnotation]; ok == true {
+	if port, ok := ing.ObjectMeta.Annotations[F5VsHttpPortAnnotation]; ok == true {
 		p, _ := strconv.ParseInt(port, 10, 32)
 		httpPort = int32(p)
 	} else {
 		httpPort = DEFAULT_HTTP_PORT
 	}
-	if port, ok := ing.ObjectMeta.Annotations[f5VsHttpsPortAnnotation]; ok == true {
+	if port, ok := ing.ObjectMeta.Annotations[F5VsHttpsPortAnnotation]; ok == true {
 		p, _ := strconv.ParseInt(port, 10, 32)
 		httpsPort = int32(p)
 	} else {
@@ -1748,9 +1739,9 @@ func (appMgr *Manager) virtualPorts(ing *v1beta1.Ingress) []portStruct {
 	}
 	// sslRedirect defaults to true, allowHttp defaults to false.
 	sslRedirect := getBooleanAnnotation(ing.ObjectMeta.Annotations,
-		ingressSslRedirect, true)
+		IngressSslRedirect, true)
 	allowHttp := getBooleanAnnotation(ing.ObjectMeta.Annotations,
-		ingressAllowHttp, false)
+		IngressAllowHttp, false)
 
 	http := portStruct{
 		protocol: "http",
@@ -1841,7 +1832,7 @@ func (appMgr *Manager) handleConfigForType(
 	// config pools.
 	appMgr.syncPoolMembers(rsName, rsCfg)
 
-	svcKey := serviceKey{
+	svcKey := ServiceKey{
 		Namespace:   sKey.Namespace,
 		ServiceName: pool.ServiceName,
 		ServicePort: pool.ServicePort,
@@ -1850,7 +1841,7 @@ func (appMgr *Manager) handleConfigForType(
 	// Match, remove config from rsMap so we don't delete it at the end.
 	// (rsMap contains configs we want to delete).
 	// In the case of Ingress/Routes: If the svc(s) of the currently processed ingress/route
-	// doesn't match the svc in our serviceKey, then we don't want to remove the config from the map.
+	// doesn't match the svc in our ServiceKey, then we don't want to remove the config from the map.
 	// Multiple Ingress/Routes can share a config, so if one Ingress/Route is deleted, then just
 	// the pools for that resource should be deleted from our config. By keeping the config in the map,
 	// we delete the necessary pools later on, while leaving everything else intact.
@@ -1955,7 +1946,7 @@ func (appMgr *Manager) syncPoolMembers(rsName string, rsCfg *ResourceConfig) {
 
 func (appMgr *Manager) updatePoolMembersForNodePort(
 	svc *v1.Service,
-	svcKey serviceKey,
+	svcKey ServiceKey,
 	rsCfg *ResourceConfig,
 	index int,
 ) (bool, string, string) {
@@ -1980,7 +1971,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 
 func (appMgr *Manager) updatePoolMembersForCluster(
 	svc *v1.Service,
-	sKey serviceKey,
+	sKey ServiceKey,
 	rsCfg *ResourceConfig,
 	appInf *appInformer,
 	index int,
@@ -2005,7 +1996,7 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 }
 
 func (appMgr *Manager) deactivateVirtualServer(
-	sKey serviceKey,
+	sKey ServiceKey,
 	rsName string,
 	rsCfg *ResourceConfig,
 	index int,
@@ -2031,6 +2022,7 @@ func (appMgr *Manager) deactivateVirtualServer(
 			rsCfg.MetaData.Active = false
 			rsCfg.Pools[index].Members = nil
 		}
+
 		if !rsCfg.MetaData.Active {
 			log.Debugf("Service delete matching backend '%v', deactivating config '%v'",
 				sKey, rsName)
@@ -2051,7 +2043,7 @@ func (appMgr *Manager) deactivateVirtualServer(
 }
 
 func (appMgr *Manager) saveVirtualServer(
-	sKey serviceKey,
+	sKey ServiceKey,
 	rsName string,
 	newRsCfg *ResourceConfig,
 ) bool {
@@ -2073,7 +2065,7 @@ func (appMgr *Manager) getResourcesForKey(sKey serviceQueueKey) ResourceMap {
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
 	rsMap := make(ResourceMap)
-	appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
+	appMgr.resources.ForEach(func(key ServiceKey, cfg *ResourceConfig) {
 		if key.Namespace == sKey.Namespace &&
 			key.ServiceName == sKey.ServiceName {
 			rsMap[key.ServicePort] =
@@ -2105,7 +2097,7 @@ func (appMgr *Manager) deleteUnusedConfigs(
 	// First delete any configs that we have left over from processing
 	// (Configs that are still valid aren't left over)
 	for port, cfgList := range rsMap {
-		tmpKey := serviceKey{
+		tmpKey := ServiceKey{
 			Namespace:   sKey.Namespace,
 			ServiceName: sKey.ServiceName,
 			ServicePort: port,
@@ -2139,7 +2131,7 @@ func (appMgr *Manager) deleteUnusedResources(
 		for _, pool := range cfg.Pools {
 			// Make sure we aren't processing empty pool
 			if pool.Name != "" {
-				key := serviceKey{
+				key := ServiceKey{
 					ServiceName: pool.ServiceName,
 					ServicePort: pool.ServicePort,
 					Namespace:   namespace,
@@ -2147,8 +2139,8 @@ func (appMgr *Manager) deleteUnusedResources(
 				poolNS := strings.Split(pool.Name, "_")[1]
 				_, ok := appMgr.resources.Get(key, cfg.GetName())
 				if pool.ServiceName == svcName && poolNS == namespace && (!ok || !svcFound) {
-					if updated, svcKey := cfg.RemovePool(namespace, pool.Name, appMgr); updated {
-						appMgr.resources.deleteKeyRefLocked(*svcKey, cfg.GetName())
+					if updated, svcKey := cfg.RemovePool(namespace, pool.Name, appMgr.mergedRulesMap); updated {
+						appMgr.resources.DeleteKeyRefLocked(*svcKey, cfg.GetName())
 						rsUpdated += 1
 					}
 				}
@@ -2167,19 +2159,19 @@ func (appMgr *Manager) setBindAddrAnnotation(
 	if cm.ObjectMeta.Annotations == nil {
 		cm.ObjectMeta.Annotations = make(map[string]string)
 		doUpdate = true
-	} else if cm.ObjectMeta.Annotations[vsStatusBindAddrAnnotation] !=
+	} else if cm.ObjectMeta.Annotations[VsStatusBindAddrAnnotation] !=
 		rsCfg.Virtual.VirtualAddress.BindAddr {
 		doUpdate = true
 	}
 	if doUpdate {
-		cm.ObjectMeta.Annotations[vsStatusBindAddrAnnotation] =
+		cm.ObjectMeta.Annotations[VsStatusBindAddrAnnotation] =
 			rsCfg.Virtual.VirtualAddress.BindAddr
 		_, err := appMgr.kubeClient.CoreV1().ConfigMaps(sKey.Namespace).Update(cm)
 		if nil != err {
 			log.Warningf("Error when creating status IP annotation: %s", err)
 		} else {
 			log.Debugf("Updating ConfigMap %+v annotation - %v: %v",
-				sKey, vsStatusBindAddrAnnotation,
+				sKey, VsStatusBindAddrAnnotation,
 				rsCfg.Virtual.VirtualAddress.BindAddr)
 		}
 	}
@@ -2190,7 +2182,7 @@ func (appMgr *Manager) setIngressStatus(
 	rsCfg *ResourceConfig,
 ) {
 	// Set the ingress status to include the virtual IP
-	ip, _ := split_ip_with_route_domain(rsCfg.Virtual.VirtualAddress.BindAddr)
+	ip, _ := Split_ip_with_route_domain(rsCfg.Virtual.VirtualAddress.BindAddr)
 	lbIngress := v1.LoadBalancerIngress{IP: ip}
 	if len(ing.Status.LoadBalancer.Ingress) == 0 {
 		ing.Status.LoadBalancer.Ingress = append(ing.Status.LoadBalancer.Ingress, lbIngress)
@@ -2294,7 +2286,7 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 	if ing.ObjectMeta.Annotations == nil {
 		ing.ObjectMeta.Annotations = make(map[string]string)
 	}
-	ing.ObjectMeta.Annotations[f5VsBindAddrAnnotation] = ipAddress
+	ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation] = ipAddress
 	_, err = appMgr.kubeClient.ExtensionsV1beta1().Ingresses(namespace).Update(ing)
 	if nil != err {
 		msg := fmt.Sprintf("Error while setting virtual-server IP for Ingress '%s': %s",
@@ -2303,7 +2295,7 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 		appMgr.recordIngressEvent(ing, "IPAnnotationError", msg)
 	} else {
 		msg := fmt.Sprintf("Resolved host '%s' as '%s'; "+
-			"set '%s' annotation with address.", host, ipAddress, f5VsBindAddrAnnotation)
+			"set '%s' annotation with address.", host, ipAddress, F5VsBindAddrAnnotation)
 		log.Info(msg)
 		appMgr.recordIngressEvent(ing, "HostResolvedSuccessfully", msg)
 	}
@@ -2375,13 +2367,13 @@ func handleConfigMapParseFailure(
 			serviceName = cfg.Pools[0].ServiceName
 			servicePort = cfg.Pools[0].ServicePort
 		}
-		sKey := serviceKey{serviceName, servicePort, cm.ObjectMeta.Namespace}
-		rsName := formatConfigMapVSName(cm)
+		sKey := ServiceKey{serviceName, servicePort, cm.ObjectMeta.Namespace}
+		rsName := FormatConfigMapVSName(cm)
 		if _, ok := appMgr.resources.Get(sKey, rsName); ok {
 			appMgr.resources.Lock()
 			defer appMgr.resources.Unlock()
 			appMgr.resources.Delete(sKey, rsName)
-			delete(cm.ObjectMeta.Annotations, vsStatusBindAddrAnnotation)
+			delete(cm.ObjectMeta.Annotations, VsStatusBindAddrAnnotation)
 			appMgr.kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
 			log.Warningf("Deleted virtual server associated with ConfigMap: %v",
 				cm.ObjectMeta.Name)
@@ -2421,11 +2413,11 @@ func (appMgr *Manager) ProcessNodeUpdate(
 		// Compare last set of nodes with new one
 		if !reflect.DeepEqual(newNodes, appMgr.oldNodes) {
 			log.Infof("ProcessNodeUpdate: Change in Node state detected")
-			// serviceKey contains a service port in addition to namespace service
+			// ServiceKey contains a service port in addition to namespace service
 			// name, while the work queue does not use service port. Create a list
 			// of unique work queue keys using a map.
 			items := make(map[serviceQueueKey]int)
-			appMgr.resources.ForEach(func(key serviceKey, cfg *ResourceConfig) {
+			appMgr.resources.ForEach(func(key ServiceKey, cfg *ResourceConfig) {
 				queueKey := serviceQueueKey{
 					Namespace:   key.Namespace,
 					ServiceName: key.ServiceName,
@@ -2499,3 +2491,28 @@ func containsNode(nodes []Node, name string) bool {
 	}
 	return false
 }
+
+
+
+// Read certificate from configmap
+//func (appMgr *Manager) GetBIGIPTrustedCerts() string {
+//	namespaceCfgmapSlice := strings.Split(appMgr.trustedCertsCfgmap, "/")
+//	if len(namespaceCfgmapSlice) != 2 {
+//		log.Debugf("[AS3] Invalid trusted-certs-cfgmap option provided.")
+//		return ""
+//	}
+//
+//	cm, err := appMgr.getConfigMapUsingNamespaceAndName(namespaceCfgmapSlice[0], namespaceCfgmapSlice[1])
+//	if err != nil {
+//		log.Errorf("[AS3] ConfigMap with name %v not found in namespace: %v, error: %v",
+//			namespaceCfgmapSlice[1], namespaceCfgmapSlice[0], err)
+//		return ""
+//	}
+//
+//	var certs string
+//	// Fetch all certificates from configmap
+//	for _, v := range cm.Data {
+//		certs += v + "\n"
+//	}
+//	return certs
+//}

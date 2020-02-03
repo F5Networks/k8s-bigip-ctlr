@@ -30,17 +30,17 @@ import (
 
 var _ = Describe("Routing Tests", func() {
 	It("orders routes", func() {
-		mw := &test.MockWriter{
-			FailStyle: test.Success,
-			Sections:  make(map[string]interface{}),
-		}
+		//mw := &test.MockWriter{
+		//	FailStyle: test.Success,
+		//	Sections:  make(map[string]interface{}),
+		//}
 
 		fakeClient := fake.NewSimpleClientset()
 		Expect(fakeClient).ToNot(BeNil(), "Mock client should not be nil.")
 
 		appMgr := newMockAppManager(&Params{
 			KubeClient:    fakeClient,
-			ConfigWriter:  mw,
+			//ConfigWriter:  mw,
 			restClient:    test.CreateFakeHTTPClient(),
 			RouteClientV1: fakeRouteClient.NewSimpleClientset().RouteV1(),
 			IsNodePort:    true,

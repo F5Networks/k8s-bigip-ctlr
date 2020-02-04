@@ -168,6 +168,8 @@ func (postMgr *PostManager) postConfig(cfg config) bool {
 		return postMgr.handleResponseStatusServiceUnavailable(responseMap, cfg)
 	case http.StatusNotFound:
 		return postMgr.handleResponseStatusNotFound(responseMap)
+	case http.StatusUnprocessableEntity:
+		return postMgr.handleResponseStatusUnprocessableEntity(responseMap, cfg)
 	default:
 		return postMgr.handleResponseOthers(responseMap, cfg)
 	}
@@ -231,7 +233,23 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 	return true
 }
 
+func (postMgr *PostManager) handleResponseStatusUnprocessableEntity(responseMap map[string]interface{}, cfg config) bool {
+	displayErrorResponse(responseMap)
+	if postMgr.LogResponse {
+		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
+	}
+	return postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
+}
+
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg config) bool {
+	displayErrorResponse(responseMap)
+	if postMgr.LogResponse {
+		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
+	}
+	return postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
+}
+
+func displayErrorResponse(responseMap map[string]interface{}) {
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
 			v := value.(map[string]interface{})
@@ -243,9 +261,4 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 	} else {
 		log.Errorf("[AS3] Big-IP Responded with code: %v", responseMap["code"])
 	}
-
-	if postMgr.LogResponse {
-		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
-	}
-	return postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
 }

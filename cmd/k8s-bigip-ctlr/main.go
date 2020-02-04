@@ -113,6 +113,7 @@ var (
 	credsDir           *string
 	as3Validation      *bool
 	sslInsecure        *bool
+	as3PostInterval    *int
 	trustedCertsCfgmap *string
 	agent              *string
 	logAS3Response     *bool
@@ -189,6 +190,8 @@ func _init() {
 		"Optional, when set to false, disables as3 template validation on the controller.")
 	sslInsecure = bigIPFlags.Bool("insecure", false,
 		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
+	as3PostInterval = bigIPFlags.Int("as3-post-interval", 0,
+		"Optional, interval (in seconds) at which to post the AS3 declaration.")
 	logAS3Response = bigIPFlags.Bool("log-as3-response", false,
 		"Optional, when set to true, add the body of AS3 API response in Controller logs.")
 	trustedCertsCfgmap = bigIPFlags.String("trusted-certs-cfgmap", "",
@@ -675,6 +678,7 @@ func main() {
 		IngressClass:           *ingressClass,
 		SchemaLocal:            *schemaLocal,
 		AS3Validation:          *as3Validation,
+		AS3PostInterval:        *as3PostInterval,
 		TrustedCertsCfgmap:     *trustedCertsCfgmap,
 		OverrideAS3Decl:        *overrideAS3Decl,
 		Agent:                  *agent,
@@ -762,13 +766,14 @@ func main() {
 
 	// Create PostManager to POST configuration to BIG-IP using AS3
 	var postMgrParams = postmanager.Params{
-		BIGIPUsername: *bigIPUsername,
-		BIGIPPassword: *bigIPPassword,
-		BIGIPURL:      *bigIPURL,
-		TrustedCerts:  appMgr.GetBIGIPTrustedCerts(),
-		SSLInsecure:   *sslInsecure,
-		LogResponse:   *logAS3Response,
-		RouteClientV1: appMgrParms.RouteClientV1,
+		BIGIPUsername:   *bigIPUsername,
+		BIGIPPassword:   *bigIPPassword,
+		BIGIPURL:        *bigIPURL,
+		TrustedCerts:    appMgr.GetBIGIPTrustedCerts(),
+		SSLInsecure:     *sslInsecure,
+		AS3PostInterval: *as3PostInterval,
+		LogResponse:     *logAS3Response,
+		RouteClientV1:   appMgrParms.RouteClientV1,
 	}
 	appMgr.PostManager = postmanager.NewPostManager(postMgrParams)
 

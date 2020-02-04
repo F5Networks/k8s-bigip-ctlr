@@ -45,11 +45,12 @@ type PostManager struct {
 }
 
 type Params struct {
-	BIGIPUsername string
-	BIGIPPassword string
-	BIGIPURL      string
-	TrustedCerts  string
-	SSLInsecure   bool
+	BIGIPUsername   string
+	BIGIPPassword   string
+	BIGIPURL        string
+	TrustedCerts    string
+	SSLInsecure     bool
+	AS3PostInterval int
 	//Log the AS3 response body in Controller logs
 	LogResponse   bool
 	RouteClientV1 routeclient.RouteV1Interface
@@ -63,7 +64,7 @@ type config struct {
 
 func NewPostManager(params Params) *PostManager {
 	pm := &PostManager{
-		postChan: make(chan config),
+		postChan: make(chan config, 1),
 		Params:   params,
 	}
 	pm.setupBIGIPRESTClient()
@@ -118,7 +119,12 @@ func (postMgr *PostManager) Write(
 		routes:    routes,
 		as3APIURL: postMgr.getAS3APIURL(partitions),
 	}
-	postMgr.postChan <- activeConfig
+	//Always keep latest activeConfig to channel
+	select {
+	case postMgr.postChan <- activeConfig:
+	case <-postMgr.postChan:
+		postMgr.postChan <- activeConfig
+	}
 	log.Debug("[AS3] PostManager Accepted the configuration")
 
 	return
@@ -128,6 +134,13 @@ func (postMgr *PostManager) Write(
 // whenever gets unblocked posts active configuration to BIG-IP
 func (postMgr *PostManager) configWorker() {
 	for cfg := range postMgr.postChan {
+		//interval (in seconds) at which to post the AS3 declaration to BIG-IP.
+		time.Sleep(time.Second * time.Duration(postMgr.AS3PostInterval))
+		select {
+		case cfg = <-postMgr.postChan:
+		case <-time.After(1 * time.Microsecond):
+
+		}
 		posted := postMgr.postConfig(cfg)
 		// To handle general errors
 		for !posted {

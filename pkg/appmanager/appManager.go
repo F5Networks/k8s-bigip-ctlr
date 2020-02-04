@@ -19,7 +19,6 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
 	"net"
 	"reflect"
 	"sort"
@@ -27,6 +26,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
 
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -148,6 +149,7 @@ type AS3Manager struct {
 	as3Members         map[Member]struct{}
 	as3Validation      bool
 	sslInsecure        bool
+	as3PostInterval    int
 	trustedCertsCfgmap string
 	// Active User Defined ConfigMap details
 	as3ActiveConfig AS3Config
@@ -217,6 +219,7 @@ type Params struct {
 	IngressClass           string
 	AS3Validation          bool
 	SSLInsecure            bool
+	AS3PostInterval        int
 	TrustedCertsCfgmap     string
 	Agent                  string
 	OverrideAS3Decl        string
@@ -280,6 +283,7 @@ func NewManager(params *Params) *Manager {
 			as3Members:         make(map[Member]struct{}, 0),
 			as3Validation:      params.AS3Validation,
 			sslInsecure:        params.SSLInsecure,
+			as3PostInterval:    params.AS3PostInterval,
 			trustedCertsCfgmap: params.TrustedCertsCfgmap,
 			OverrideAS3Decl:    params.OverrideAS3Decl,
 			intF5Res:           make(map[string]InternalF5Resources),

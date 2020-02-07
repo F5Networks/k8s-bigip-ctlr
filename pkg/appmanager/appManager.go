@@ -19,7 +19,6 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
 	"net"
 	"reflect"
 	"sort"
@@ -28,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"

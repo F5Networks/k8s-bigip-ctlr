@@ -73,7 +73,8 @@ const f5VsWAFPolicy = "virtual-server.f5.com/waf"
 
 type ResourceMap map[int32][]*ResourceConfig
 
-type RouteMap map[string]*routeapi.Route
+// RoutesMap consists of List of route names indexed by namespace
+type RoutesMap map[string][]string
 
 type Manager struct {
 	resources         *Resources
@@ -165,7 +166,7 @@ type AS3Manager struct {
 	// Flag to check schema validation using reference or string
 	As3SchemaFlag bool
 	// Processed routes for updating Admit Status
-	RoutesProcessed RouteMap
+	RoutesProcessed RoutesMap
 	// POSTs configuration to BIG-IP using AS3
 	PostManager *postmanager.PostManager
 	// To put list of tenants in BIG-IP REST call URL that are in AS3 declaration
@@ -284,6 +285,7 @@ func NewManager(params *Params) *Manager {
 			OverrideAS3Decl:    params.OverrideAS3Decl,
 			intF5Res:           make(map[string]InternalF5Resources),
 			SchemaLocalPath:    params.SchemaLocal,
+			RoutesProcessed:    make(RoutesMap),
 			FilterTenants:      params.FilterTenants,
 		},
 	}
@@ -1430,7 +1432,6 @@ func (appMgr *Manager) syncRoutes(
 	appInf *appInformer,
 	dgMap InternalDataGroupMap,
 ) error {
-	appMgr.RoutesProcessed = make(RouteMap)
 	routeByIndex, err := appInf.getOrderedRoutes(sKey.Namespace)
 	if nil != err {
 		log.Warningf("Unable to list routes for namespace '%v': %v",
@@ -1444,11 +1445,12 @@ func (appMgr *Manager) syncRoutes(
 	// buffer to hold F5Resources till all routes are processed
 	bufferF5Res := InternalF5Resources{}
 
+	var routesProcessed []string
 	for _, route := range routeByIndex {
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
-		appMgr.RoutesProcessed[route.ObjectMeta.Name] = route
+		routesProcessed = append(routesProcessed, route.ObjectMeta.Name)
 
 		//FIXME(kenr): why do we process services that aren't associated
 		//             with a route?
@@ -1615,6 +1617,12 @@ func (appMgr *Manager) syncRoutes(
 		updateDataGroupForABRoute(route, svcName, DEFAULT_PARTITION, sKey.Namespace, dgMap)
 
 		appMgr.processAS3SpecificFeatures(route, bufferF5Res)
+	}
+
+	if len(routesProcessed) != 0 {
+		appMgr.RoutesProcessed[sKey.Namespace] = routesProcessed
+	} else {
+		delete(appMgr.RoutesProcessed, sKey.Namespace)
 	}
 
 	// if buffer is updated then update the appMgr and stats

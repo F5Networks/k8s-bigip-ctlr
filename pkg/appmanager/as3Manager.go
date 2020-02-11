@@ -24,7 +24,6 @@ import (
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	routeapi "github.com/openshift/api/route/v1"
 	"github.com/xeipuuv/gojsonschema"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -434,19 +433,20 @@ func (appMgr *Manager) postAS3Config(tempAS3Config AS3Config) {
 	appMgr.as3ActiveConfig.updateConfig(tempAS3Config)
 
 	var tenants []string = nil
-	var routes []*routeapi.Route
+	routesMap := make(RoutesMap)
 	if appMgr.FilterTenants {
 		tenants = appMgr.getTenants(unifiedDecl)
 	}
 	if appMgr.routeClientV1 != nil {
-		for _, route := range appMgr.RoutesProcessed {
-			routes = append(routes, route)
+		// Send a copy of RoutesProcessed to PostManager as appMgr.RoutesProcessed might change before postmanager processes it
+		for k, v := range appMgr.RoutesProcessed {
+			routesMap[k] = v
 		}
 	}
 	appMgr.PostManager.Write(
 		string(unifiedDecl),
 		tenants,
-		routes,
+		routesMap,
 	)
 }
 

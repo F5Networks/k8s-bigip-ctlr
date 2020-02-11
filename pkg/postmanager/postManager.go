@@ -27,7 +27,6 @@ import (
 	"time"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	routeapi "github.com/openshift/api/route/v1"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
 
@@ -57,7 +56,7 @@ type Params struct {
 
 type config struct {
 	data      string
-	routes    []*routeapi.Route
+	routesMap map[string][]string
 	as3APIURL string
 }
 
@@ -111,11 +110,11 @@ func (postMgr *PostManager) getAS3APIURL(tenants []string) string {
 func (postMgr *PostManager) Write(
 	data string,
 	partitions []string,
-	routes []*routeapi.Route,
+	routesMap map[string][]string,
 ) {
 	activeConfig := config{
 		data:      data,
-		routes:    routes,
+		routesMap: routesMap,
 		as3APIURL: postMgr.getAS3APIURL(partitions),
 	}
 	postMgr.postChan <- activeConfig
@@ -207,7 +206,7 @@ func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interf
 		log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 	}
 	if postMgr.RouteClientV1 != nil {
-		postMgr.updateRouteAdmitStatus(cfg.routes)
+		postMgr.updateRouteAdmitStatus(cfg.routesMap)
 	}
 	return true
 }

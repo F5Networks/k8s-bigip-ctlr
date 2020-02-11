@@ -41,15 +41,18 @@ func isProcessedRoute(route routeapi.Route, routes []*routeapi.Route) bool {
 
 // Clean the MetaData for routes processed in the past and
 // not considered now.
-func (postMgr *PostManager) cleanupMetadata(route routeapi.Route) {
-	if len(route.Status.Ingress) > 1 {
-		for i := 0; i < len(route.Status.Ingress); i++ {
-			if route.Status.Ingress[i].RouterName == F5RouterName {
-				route.Status.Ingress = append(route.Status.Ingress[:i], route.Status.Ingress[i+1:]...)
-				i--
+func (postMgr *PostManager) eraseRouteAdmitStatus(route routeapi.Route) {
+	for i, _ := range route.Status.Ingress {
+		if route.Status.Ingress[i].RouterName == F5RouterName {
+			route.Status.Ingress = append(route.Status.Ingress[:i], route.Status.Ingress[i+1:]...)
+			_, err := postMgr.RouteClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(&route)
+			if err != nil {
+				log.Errorf("[AS3] Error while Erasing Route Admit Status: %v\n", err)
+			} else {
+				log.Debugf("[AS3] Admit Status Erased for Route - %v\n", route.ObjectMeta.Name)
 			}
+			return
 		}
-		postMgr.RouteClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(&route)
 	}
 }
 
@@ -57,11 +60,20 @@ func (postMgr *PostManager) cleanupMetadata(route routeapi.Route) {
 // This must be populated by CIS based on BIG-IP response 200 OK.
 // If BIG-IP response is an error, do care update Ingress.
 // Don't update an existing Ingress object when BIG-IP response is not 200 OK. Its already consumed.
-func (postMgr *PostManager) updateRouteAdmitStatus(routes []*routeapi.Route) {
+func (postMgr *PostManager) updateRouteAdmitStatus(routesMap map[string][]string) {
 	now := getRfc3339Timestamp()
-	for _, route := range routes {
-		Admitted := false
-		if len(route.Status.Ingress) != 0 {
+	var processedRoutes []*routeapi.Route
+	getOptions := metaV1.GetOptions{}
+
+	for namespace, routeNames := range routesMap {
+		for _, routeName := range routeNames {
+			Admitted := false
+			route, err := postMgr.RouteClientV1.Routes(namespace).Get(routeName, getOptions)
+			if err != nil {
+				log.Debugf("Unable to get route to update status. Name: %v, Namespace: %v\n", routeName, namespace)
+				continue
+			}
+			processedRoutes = append(processedRoutes, route)
 			for _, routeIngress := range route.Status.Ingress {
 				if routeIngress.RouterName == F5RouterName {
 					Admitted = true
@@ -78,11 +90,16 @@ func (postMgr *PostManager) updateRouteAdmitStatus(routes []*routeapi.Route) {
 						LastTransitionTime: &now,
 					}},
 				})
-				postMgr.RouteClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(route)
-				log.Debugf("[AS3] Admitted Route -  %v", route.ObjectMeta.Name)
+				_, err := postMgr.RouteClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(route)
+				if err != nil {
+					log.Errorf("[AS3] Error while Updating Route Admit Status: %v\n", err)
+				} else {
+					log.Debugf("[AS3] Admitted Route -  %v", route.ObjectMeta.Name)
+				}
 			}
 		}
 	}
+
 	// Get the list of Routes from all NS and remove updated metadata.
 	allOptions := metaV1.ListOptions{
 		LabelSelector: "",
@@ -93,8 +110,8 @@ func (postMgr *PostManager) updateRouteAdmitStatus(routes []*routeapi.Route) {
 		log.Errorf("[AS3]Error listing Routes: %v", err)
 	}
 	for _, aRoute := range allRoutes.Items {
-		if !isProcessedRoute(aRoute, routes) {
-			postMgr.cleanupMetadata(aRoute)
+		if !isProcessedRoute(aRoute, processedRoutes) {
+			postMgr.eraseRouteAdmitStatus(aRoute)
 		}
 	}
 }

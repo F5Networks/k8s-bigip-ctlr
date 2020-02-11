@@ -1037,10 +1037,14 @@ func (appMgr *Manager) processF5ResourcesForAS3(sharedApp as3Application) {
 		Type:    "waf",
 		Enabled: &enabled,
 	}
+	wafDropAction := &as3Action{
+		Type:  "drop",
+		Event: "request",
+	}
 
 	wafDisableRule := &as3Rule{
 		Name:    "openshift_route_waf_disable",
-		Actions: []*as3Action{wafDisableAction},
+		Actions: []*as3Action{wafDropAction, wafDisableAction},
 	}
 
 	// Add a default WAF disable action to all non-WAF rules

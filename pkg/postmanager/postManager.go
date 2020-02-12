@@ -49,6 +49,7 @@ type Params struct {
 	BIGIPURL      string
 	TrustedCerts  string
 	SSLInsecure   bool
+	AS3PostDelay  int
 	//Log the AS3 response body in Controller logs
 	LogResponse   bool
 	RouteClientV1 routeclient.RouteV1Interface
@@ -62,7 +63,7 @@ type config struct {
 
 func NewPostManager(params Params) *PostManager {
 	pm := &PostManager{
-		postChan: make(chan config),
+		postChan: make(chan config, 1),
 		Params:   params,
 	}
 	pm.setupBIGIPRESTClient()
@@ -117,7 +118,16 @@ func (postMgr *PostManager) Write(
 		routesMap: routesMap,
 		as3APIURL: postMgr.getAS3APIURL(partitions),
 	}
-	postMgr.postChan <- activeConfig
+
+	// Always push latest activeConfig to channel
+	// Case1: Put latest config into the channel
+	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
+	// Either Case1 or Case2 executes, which ensures the above
+	select {
+	case postMgr.postChan <- activeConfig:
+	case <-postMgr.postChan:
+		postMgr.postChan <- activeConfig
+	}
 	log.Debug("[AS3] PostManager Accepted the configuration")
 
 	return
@@ -126,12 +136,27 @@ func (postMgr *PostManager) Write(
 // configWorker blocks on postChan
 // whenever gets unblocked posts active configuration to BIG-IP
 func (postMgr *PostManager) configWorker() {
+	// For the very first post after starting controller, need not wait to post
+	firstPost := true
 	for cfg := range postMgr.postChan {
+		if !firstPost && postMgr.AS3PostDelay != 0 {
+			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
+			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds", postMgr.AS3PostDelay)
+			_ = <-time.After(time.Duration(postMgr.AS3PostDelay) * time.Second)
+		}
+
+		// After postDelay expires pick up latest declaration, if available
+		select {
+		case cfg = <-postMgr.postChan:
+		case <-time.After(1 * time.Microsecond):
+		}
+
 		posted := postMgr.postConfig(cfg)
 		// To handle general errors
 		for !posted {
 			posted = postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
 		}
+		firstPost = false
 	}
 }
 

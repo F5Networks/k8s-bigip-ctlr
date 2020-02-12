@@ -113,6 +113,7 @@ var (
 	credsDir           *string
 	as3Validation      *bool
 	sslInsecure        *bool
+	as3PostDelay       *int
 	trustedCertsCfgmap *string
 	agent              *string
 	logAS3Response     *bool
@@ -189,6 +190,8 @@ func _init() {
 		"Optional, when set to false, disables as3 template validation on the controller.")
 	sslInsecure = bigIPFlags.Bool("insecure", false,
 		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
+	as3PostDelay = bigIPFlags.Int("as3-post-delay", 0,
+		"Optional, time (in seconds) that CIS waits to post the available AS3 declaration.")
 	logAS3Response = bigIPFlags.Bool("log-as3-response", false,
 		"Optional, when set to true, add the body of AS3 API response in Controller logs.")
 	trustedCertsCfgmap = bigIPFlags.String("trusted-certs-cfgmap", "",
@@ -767,6 +770,7 @@ func main() {
 		BIGIPURL:      *bigIPURL,
 		TrustedCerts:  appMgr.GetBIGIPTrustedCerts(),
 		SSLInsecure:   *sslInsecure,
+		AS3PostDelay:  *as3PostDelay,
 		LogResponse:   *logAS3Response,
 		RouteClientV1: appMgrParms.RouteClientV1,
 	}

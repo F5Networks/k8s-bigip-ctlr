@@ -140,8 +140,8 @@ type (
 		VirtualPort            int               `json:"virtualPort,omitempty"`
 		SNAT                   string            `json:"snat,omitempty"`
 		PolicyEndpoint         as3MultiTypeParam `json:"policyEndpoint,omitempty"`
-		ClientTLS              as3MultiTypeParam `json:"clientTLS,omitempty"`
-		ServerTLS              as3MultiTypeParam `json:"serverTLS,omitempty"`
+		ClientTLS              as3MultiTypeParam      `json:"clientTLS,omitempty"`
+		ServerTLS              as3MultiTypeParam     `json:"serverTLS,omitempty"`
 		IRules                 []string          `json:"iRules,omitempty"`
 		Redirect80             *bool             `json:"redirect80,omitempty"`
 		Pool                   string            `json:"pool,omitempty"`

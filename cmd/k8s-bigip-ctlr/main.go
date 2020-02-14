@@ -776,11 +776,11 @@ func main() {
 	}
 	appMgr.PostManager = postmanager.NewPostManager(postMgrParams)
 
-	// Delete as3 managed partition when switching back to agent cccl from as3
-	appMgr.DeleteCISManagedPartition()
-
 	// AS3 schema validation using latest AS3 version
 	fetchAS3Schema(appMgr)
+
+	// Delete as3 managed partition when switching back to agent cccl from as3
+	appMgr.DeleteCISManagedPartition()
 
 	GetNamespaces(appMgr)
 	intervalFactor := time.Duration(*nodePollInterval)

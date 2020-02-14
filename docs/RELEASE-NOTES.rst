@@ -1,13 +1,10 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-Next Release
-------------
-
 1.13.0
-------------
+------
 Added Functionality
-`````````````````````
+```````````````````
 * CIS supports Kubernetes 1.16.2.
     - | Update CIS deployment, `apiVersion` to `apps/v1` and add `spec.selector.matchLabels.app` to match `spec.template.metadata.labels.app`.
 * Added new command-line options:

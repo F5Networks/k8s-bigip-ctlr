@@ -360,7 +360,7 @@ func httpRedirectIRule(port int32) string {
 	iRuleCode := fmt.Sprintf(`
 		when HTTP_REQUEST {
 			# Look for exact match for combination of host name and path
-			set host [HTTP::host]
+			set host [getfield [HTTP::host] ":" 1]
 			set path [HTTP::path]
 			append host $path
 			# Find the number of "/" in the hostpath

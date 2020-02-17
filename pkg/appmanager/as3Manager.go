@@ -518,6 +518,13 @@ func (as3Cfg *AS3Config) getUnifiedDeclaration() as3Declaration {
 		return as3Declaration(unifiedDecl)
 	}
 
+	applicationLength := len(as3Cfg.routeConfig[DEFAULT_PARTITION].(as3Tenant)["Shared"].(as3Application))
+	if applicationLength == 2 {
+		log.Debug("[AS3] Failed to override AS3 Declaration as no resource found.")
+		as3Cfg.unifiedDeclaration = as3Declaration(unifiedDecl)
+		return as3Declaration(unifiedDecl)
+	}
+
 	overriddenUnifiedDecl := ValidateAndOverrideAS3JsonData(string(as3Cfg.overrrideAS3Config), string(unifiedDecl))
 	if overriddenUnifiedDecl == "" {
 		log.Debug("[AS3] Failed to override AS3 Declaration")

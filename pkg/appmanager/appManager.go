@@ -1520,6 +1520,7 @@ func (appMgr *Manager) syncRoutes(
 					hostName := route.Spec.Host
 					path := route.Spec.Path
 					sslPath := hostName + path
+					sslPath = strings.TrimSuffix(sslPath, "/")
 					updateDataGroup(dgMap, edgeServerSslDgName,
 						DEFAULT_PARTITION, sKey.Namespace, sslPath, serverSsl)
 
@@ -1532,6 +1533,7 @@ func (appMgr *Manager) syncRoutes(
 					hostName := route.Spec.Host
 					path := route.Spec.Path
 					sslPath := hostName + path
+					sslPath = strings.TrimSuffix(sslPath, "/")
 					if "" != serverSsl {
 						updateDataGroup(dgMap, reencryptServerSslDgName,
 							DEFAULT_PARTITION, sKey.Namespace, sslPath, serverSsl)

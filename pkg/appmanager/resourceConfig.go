@@ -2056,6 +2056,8 @@ func (appMgr *Manager) handleRouteRules(
 					}
 					svcFwdRulesMap.AddEntry(route.ObjectMeta.Namespace, route.Spec.To.Name,
 						route.Spec.Host, path)
+					rc.AddRuleToPolicy(policyName, rule)
+					setAnnotationRulesForRoute(policyName, virtualName, poolName, urlRewriteRule, appRootRules, rc, appMgr)
 				}
 			}
 		}

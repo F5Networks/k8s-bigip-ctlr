@@ -1669,7 +1669,8 @@ func (appMgr *Manager) affectedVirtuals(route *routeapi.Route) virtuals {
 	if route.Spec.TLS != nil {
 		v = HTTPS
 
-		if route.Spec.TLS.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyAllow {
+		if route.Spec.TLS.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyAllow ||
+			route.Spec.TLS.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyRedirect {
 			v = HTTPANDS
 		}
 	}

@@ -146,10 +146,13 @@ type Manager struct {
 
 // AS3Manager holds all the AS3 orchestration specific Data
 type AS3Manager struct {
-	as3Members         map[Member]struct{}
-	as3Validation      bool
-	sslInsecure        bool
-	trustedCertsCfgmap string
+	as3Members                map[Member]struct{}
+	as3Validation             bool
+	sslInsecure               bool
+	enableTLS                 string
+	tls13CipherGroupReference string
+	ciphers                   string
+	trustedCertsCfgmap        string
 	// Active User Defined ConfigMap details
 	as3ActiveConfig AS3Config
 	// List of Watched Endpoints for user-defined AS3
@@ -208,21 +211,24 @@ type Params struct {
 	UseSecrets        bool
 	EventChan         chan interface{}
 	// Package local for unit testing only
-	restClient             rest.Interface
-	steadyState            bool
-	broadcasterFunc        NewBroadcasterFunc
-	SchemaLocal            string
-	ManageConfigMaps       bool
-	ManageIngress          bool
-	ManageIngressClassOnly bool
-	IngressClass           string
-	AS3Validation          bool
-	SSLInsecure            bool
-	TrustedCertsCfgmap     string
-	Agent                  string
-	OverrideAS3Decl        string
-	SchemaLocalPath        string
-	FilterTenants          bool
+	restClient                rest.Interface
+	steadyState               bool
+	broadcasterFunc           NewBroadcasterFunc
+	SchemaLocal               string
+	ManageConfigMaps          bool
+	ManageIngress             bool
+	ManageIngressClassOnly    bool
+	IngressClass              string
+	AS3Validation             bool
+	SSLInsecure               bool
+	EnableTLS                 string
+	TLS13CipherGroupReference string
+	Ciphers                   string
+	TrustedCertsCfgmap        string
+	Agent                     string
+	OverrideAS3Decl           string
+	SchemaLocalPath           string
+	FilterTenants             bool
 }
 
 // Configuration options for Routes in OpenShift
@@ -278,15 +284,18 @@ func NewManager(params *Params) *Manager {
 		Agent:                  getValidAgent(params.Agent),
 		rsrcSSLCtxt:            make(map[string]*v1.Secret),
 		AS3Manager: AS3Manager{
-			as3Members:         make(map[Member]struct{}, 0),
-			as3Validation:      params.AS3Validation,
-			sslInsecure:        params.SSLInsecure,
-			trustedCertsCfgmap: params.TrustedCertsCfgmap,
-			OverrideAS3Decl:    params.OverrideAS3Decl,
-			intF5Res:           make(map[string]InternalF5Resources),
-			SchemaLocalPath:    params.SchemaLocal,
-			RoutesProcessed:    make(RoutesMap),
-			FilterTenants:      params.FilterTenants,
+			as3Members:                make(map[Member]struct{}, 0),
+			as3Validation:             params.AS3Validation,
+			sslInsecure:               params.SSLInsecure,
+			enableTLS:                 params.EnableTLS,
+			tls13CipherGroupReference: params.TLS13CipherGroupReference,
+			ciphers:                   params.Ciphers,
+			trustedCertsCfgmap:        params.TrustedCertsCfgmap,
+			OverrideAS3Decl:           params.OverrideAS3Decl,
+			intF5Res:                  make(map[string]InternalF5Resources),
+			SchemaLocalPath:           params.SchemaLocal,
+			RoutesProcessed:           make(RoutesMap),
+			FilterTenants:             params.FilterTenants,
 		},
 	}
 	if nil != manager.kubeClient && nil == manager.restClientv1 {

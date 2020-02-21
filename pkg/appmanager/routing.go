@@ -602,7 +602,6 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 		when CLIENTSSL_DATA {
             set sslpath [lindex [SSL::payload] 1]
             set routepath ""
-	    set dflt_pool ""
             
             if { [info exists tls_servername] } {
 				set servername_lower [string tolower $tls_servername]
@@ -773,6 +772,7 @@ func updateDataGroupForReencryptRoute(
 	hostName := route.Spec.Host
 	path := route.Spec.Path
 	routePath := hostName + path
+	routePath = strings.TrimSuffix(routePath, "/")
 	svcName := getRouteCanonicalServiceName(route)
 	poolName := formatRoutePoolName(route.ObjectMeta.Namespace, svcName)
 	updateDataGroup(dgMap, reencryptHostsDgName,
@@ -792,6 +792,7 @@ func updateDataGroupForEdgeRoute(
 	hostName := route.Spec.Host
 	path := route.Spec.Path
 	routePath := hostName + path
+	routePath = strings.TrimSuffix(routePath, "/")
 	svcName := getRouteCanonicalServiceName(route)
 	poolName := formatRoutePoolName(route.ObjectMeta.Namespace, svcName)
 	updateDataGroup(dgMap, edgeHostsDgName,

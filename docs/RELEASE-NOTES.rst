@@ -3,6 +3,9 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 Next Release
 ------------
+Bug Fixes
+`````````
+* :issues: `1160` k8s ingress without spec.rules causing ssl-redirect irule to fail to redirect.
 
 1.13.0
 ------------

@@ -1,0 +1,17 @@
+version: 1.13.0
+args:
+  bigip_partition: f5-bigip-ctlr
+  bigip_url: null
+bigip_login_secret: f5-bigip-ctlr-login
+image:
+  pullPolicy: Always
+  repo: k8s-bigip-ctlr
+  tag: latest
+  user: f5networks
+namespace: kube-system
+rbac:
+  create: true
+resources: {}
+serviceAccount:
+  create: true
+  name: null

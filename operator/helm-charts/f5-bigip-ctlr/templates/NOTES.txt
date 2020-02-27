@@ -1,0 +1,11 @@
+F5 BIG-IP controller: {{ .Release.Name }}
+
+General Controller Documentation:
+- Kubernetes: http://clouddocs.f5.com/containers/latest/kubernetes/index.html
+- OpenShift: http://clouddocs.f5.com/containers/latest/openshift/index.html
+
+Using Ingress? There's a helm chart for that:
+- https://github.com/F5Networks/charts/tree/master/src/stable/f5-bigip-ingress
+
+Using Routes in OpenShift? No helm chart yet, but we do have great documentation:
+- http://clouddocs.f5.com/containers/latest/openshift/kctlr-openshift-routes.html

@@ -1,0 +1,4 @@
+packageName: f5-bigip-ctlr-operator
+channels:
+  - name: beta
+    currentCSV: f5-bigip-ctlr-operator.v1.0.0

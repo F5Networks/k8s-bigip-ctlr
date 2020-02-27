@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: f5-bigip-ctlr-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: f5-bigip-ctlr-operator
+  template:
+    metadata:
+      labels:
+        name: f5-bigip-ctlr-operator
+    spec:
+      serviceAccountName: f5-bigip-ctlr-operator
+      containers:
+        - name: f5-bigip-ctlr-operator
+          # Replace this with the built image name
+          image: registry.connect.redhat.com/f5networks/k8s-bigip-ctlr-operator
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['olm.targetNamespaces']
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "f5-bigip-ctlr-operator"

@@ -1102,6 +1102,7 @@ func updatePolicyWithWAF(ep *as3EndpointPolicy, rec Record, res F5Resources) {
 }
 
 func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
+	_, port := ExtractVirtualAddressAndPort(cfg.Virtual.Destination)
 	for _, pl := range cfg.Policies {
 		//Create EndpointPolicy
 		ep := &as3EndpointPolicy{}
@@ -1115,7 +1116,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			rulesData := &as3Rule{Name: as3FormatedString(rl.Name, cfg.MetaData.ResourceType)}
 
 			//Create condition object
-			createRouteRuleCondition(rl, rulesData)
+			createRouteRuleCondition(rl, rulesData, port)
 
 			//Creat action object
 			createRouteRuleAction(rl, rulesData, cfg.MetaData.ResourceType)
@@ -1213,16 +1214,12 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	svc.Class = "Service_HTTP"
 
-	destination := strings.Split(cfg.Virtual.Destination, "/")
-	ipPort := strings.Split(destination[len(destination)-1], ":")
-	// verify that ip address and port exists else return error.
-	if len(ipPort) == 2 {
-		va := append(svc.VirtualAddresses, ipPort[0])
+	virtualAddress, port := ExtractVirtualAddressAndPort(cfg.Virtual.Destination)
+	// verify that ip address and port exists.
+	if virtualAddress != "" && port != 0 {
+		va := append(svc.VirtualAddresses, virtualAddress)
 		svc.VirtualAddresses = va
-		port, _ := strconv.Atoi(ipPort[1])
 		svc.VirtualPort = port
-	} else {
-		log.Error("Invalid Virtual Server Destination IP address/Port.")
 	}
 
 	svc.SNAT = "auto"
@@ -1242,13 +1239,26 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 }
 
 // Create AS3 Rule Condition for Route
-func createRouteRuleCondition(rl *Rule, rulesData *as3Rule) {
+func createRouteRuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 	for _, c := range rl.Conditions {
 		condition := &as3Condition{}
 		if c.Host {
 			condition.Name = "host"
-			condition.All = &as3PolicyCompareString{
-				Values: c.Values,
+			var values []string
+			// For ports other then 80 and 443, attaching port number to host.
+			// Ex. example.com:8080
+			if port != 80 && port != 443 {
+				for i := range c.Values {
+					val := c.Values[i] + ":" + strconv.Itoa(port)
+					values = append(values, val)
+				}
+				condition.All = &as3PolicyCompareString{
+					Values: values,
+				}
+			} else {
+				condition.All = &as3PolicyCompareString{
+					Values: c.Values,
+				}
 			}
 			if c.HTTPHost {
 				condition.Type = "httpHeader"

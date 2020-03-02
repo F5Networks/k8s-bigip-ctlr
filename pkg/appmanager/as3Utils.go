@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
+	"strings"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
@@ -137,4 +139,18 @@ func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
 	}
 
 	return reflect.DeepEqual(o1, o2)
+}
+
+func ExtractVirtualAddressAndPort(str string) (string, int) {
+	destination := strings.Split(str, "/")
+	ipPort := strings.Split(destination[len(destination)-1], ":")
+	// verify that ip address and port exists else log error.
+	if len(ipPort) == 2 {
+		port, _ := strconv.Atoi(ipPort[1])
+		return ipPort[0], port
+	} else {
+		log.Error("Invalid Virtual Server Destination IP address/Port.")
+		return "", 0
+	}
+
 }

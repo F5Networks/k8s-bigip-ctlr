@@ -1,4 +1,4 @@
-FROM quay.io/operator-framework/helm-operator:v0.12.0
+FROM quay.io/operator-framework/helm-operator:latest
 
 ### Required OpenShift Labels
 LABEL name="F5 BIG-IP Controller Operator" \
@@ -6,7 +6,7 @@ LABEL name="F5 BIG-IP Controller Operator" \
       version="v1.0.0" \
       release="1" \
       summary="F5 BIG-IP Controller Operator" \
-      description="This operator will deploy F5 Controller Ingress Services to the cluster."
+      description="This operator will deploy F5 BIG-IP Controller for Kubernetes and OpenShift into the cluster."
 
 # Required Licenses
 COPY licenses /licenses

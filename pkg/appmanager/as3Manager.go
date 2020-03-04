@@ -893,7 +893,7 @@ func (appMgr *Manager) processCustomProfilesForAS3(sharedApp as3Application) {
 		if svcName == "" {
 			continue
 		}
-		if ok := createUpdateTLSServer(prof, svcName, sharedApp); ok {
+		if ok := appMgr.createUpdateTLSServer(prof, svcName, sharedApp); ok {
 			// Create Certificate only if the corresponding TLSServer is created
 			createCertificateDecl(prof, sharedApp)
 		} else {
@@ -1423,7 +1423,7 @@ func createCertificateDecl(prof CustomProfile, sharedApp as3Application) {
 }
 
 // createUpdateTLSServer creates a new TLSServer instance or updates if one exists already
-func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Application) bool {
+func (appMgr *Manager) createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Application) bool {
 	// A TLSServer profile needs to carry both Certificate and Key
 	if "" != prof.Cert && "" != prof.Key {
 		svc := sharedApp[svcName].(*as3Service)
@@ -1448,6 +1448,14 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 				Certificate: certName,
 			},
 		)
+		if appMgr.enableTLS == "1.2" {
+			tlsServer.Ciphers = appMgr.ciphers
+		} else if appMgr.enableTLS == "1.3" {
+			tlsServer.Tls1_3Enabled = true
+			tlsServer.CipherGroup = &as3ResourcePointer{
+				BigIP: appMgr.tls13CipherGroupReference,
+			}
+		}
 		return true
 	}
 	return false

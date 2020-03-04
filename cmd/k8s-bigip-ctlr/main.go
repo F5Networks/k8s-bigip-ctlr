@@ -106,19 +106,22 @@ var (
 	manageIngressClassOnly *bool
 	ingressClass           *string
 
-	bigIPURL           *string
-	bigIPUsername      *string
-	bigIPPassword      *string
-	bigIPPartitions    *[]string
-	credsDir           *string
-	as3Validation      *bool
-	sslInsecure        *bool
-	as3PostDelay       *int
-	trustedCertsCfgmap *string
-	agent              *string
-	logAS3Response     *bool
-	overrideAS3Decl    *string
-	filterTenants      *bool
+	bigIPURL                  *string
+	bigIPUsername             *string
+	bigIPPassword             *string
+	bigIPPartitions           *[]string
+	credsDir                  *string
+	as3Validation             *bool
+	sslInsecure               *bool
+	enableTLS                 *string
+	tls13CipherGroupReference *string
+	ciphers                   *string
+	as3PostDelay              *int
+	trustedCertsCfgmap        *string
+	agent                     *string
+	logAS3Response            *bool
+	overrideAS3Decl           *string
+	filterTenants             *bool
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -194,6 +197,11 @@ func _init() {
 		"Optional, time (in seconds) that CIS waits to post the available AS3 declaration.")
 	logAS3Response = bigIPFlags.Bool("log-as3-response", false,
 		"Optional, when set to true, add the body of AS3 API response in Controller logs.")
+	enableTLS = bigIPFlags.String("tls-version", "1.2",
+		"Optional, Configure TLS version to be enabled on BIG-IP. TLS1.3 is only supported in tmos version 14.0+.")
+	tls13CipherGroupReference = bigIPFlags.String("cipher-group", "/Common/f5-default",
+		"Optional, Configures a Cipher Group in BIG-IP and reference it here. cipher-group and ciphers are mutually exclusive, only use one.")
+	ciphers = bigIPFlags.String("ciphers", "DEFAULT", "Optional, Configures a ciphersuite selection string. cipher-group and ciphers are mutually exclusive, only use one.")
 	trustedCertsCfgmap = bigIPFlags.String("trusted-certs-cfgmap", "",
 		"Optional, when certificates are provided, adds them to controller’s trusted certificate store.")
 	// TODO: Rephrase agent functionality
@@ -663,25 +671,28 @@ func main() {
 	}
 
 	var appMgrParms = appmanager.Params{
-		ConfigWriter:           configWriter,
-		UseNodeInternal:        *useNodeInternal,
-		IsNodePort:             isNodePort,
-		RouteConfig:            routeConfig,
-		NodeLabelSelector:      *nodeLabelSelector,
-		ResolveIngress:         *resolveIngNames,
-		DefaultIngIP:           *defaultIngIP,
-		VsSnatPoolName:         *vsSnatPoolName,
-		UseSecrets:             *useSecrets,
-		ManageConfigMaps:       *manageConfigMaps,
-		ManageIngress:          *manageIngress,
-		ManageIngressClassOnly: *manageIngressClassOnly,
-		IngressClass:           *ingressClass,
-		SchemaLocal:            *schemaLocal,
-		AS3Validation:          *as3Validation,
-		TrustedCertsCfgmap:     *trustedCertsCfgmap,
-		OverrideAS3Decl:        *overrideAS3Decl,
-		Agent:                  *agent,
-		FilterTenants:          *filterTenants,
+		ConfigWriter:              configWriter,
+		UseNodeInternal:           *useNodeInternal,
+		IsNodePort:                isNodePort,
+		RouteConfig:               routeConfig,
+		NodeLabelSelector:         *nodeLabelSelector,
+		ResolveIngress:            *resolveIngNames,
+		DefaultIngIP:              *defaultIngIP,
+		VsSnatPoolName:            *vsSnatPoolName,
+		UseSecrets:                *useSecrets,
+		ManageConfigMaps:          *manageConfigMaps,
+		ManageIngress:             *manageIngress,
+		ManageIngressClassOnly:    *manageIngressClassOnly,
+		IngressClass:              *ingressClass,
+		SchemaLocal:               *schemaLocal,
+		AS3Validation:             *as3Validation,
+		EnableTLS:                 *enableTLS,
+		TLS13CipherGroupReference: *tls13CipherGroupReference,
+		Ciphers:                   *ciphers,
+		TrustedCertsCfgmap:        *trustedCertsCfgmap,
+		OverrideAS3Decl:           *overrideAS3Decl,
+		Agent:                     *agent,
+		FilterTenants:             *filterTenants,
 	}
 
 	// If running with Flannel, create an event channel that the appManager

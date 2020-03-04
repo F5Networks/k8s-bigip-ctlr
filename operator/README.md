@@ -5,7 +5,8 @@ An Operator is a method of packaging, deploying and managing a Kubernetes applic
 Conceptually, an Operator takes human operational knowledge and encodes it into software that is more easily packaged and shared with consumers. 
 
 F5 BIG-IP Controller Operator is a Service Operator which installs F5 BIG-IP Controller (Container Ingress Services) on Kubernetes and OpenShift platforms and respective supported versions.
- 
+
+F5 Helm Charts - https://github.com/F5Networks/charts
 
 Sample Configuration for kind `F5BigIpCtlr`:
 

@@ -47,9 +47,15 @@ func (appMgr *Manager) setClientSslProfile(
 	// First handle the Default for SNI profile
 	if appMgr.routeConfig.ClientSSL != "" {
 		// User has provided a name
-		prof := convertStringToProfileRef(
+		profRef := convertStringToProfileRef(
 			appMgr.routeConfig.ClientSSL, customProfileClient, sKey.Namespace)
-		rsCfg.Virtual.AddOrUpdateProfile(prof)
+		rsCfg.Virtual.AddOrUpdateProfile(profRef)
+		rKey := routeKey{
+			Name:      route.ObjectMeta.Name,
+			Namespace: route.ObjectMeta.Namespace,
+			Context:   customProfileClient,
+		}
+		rsCfg.MetaData.RouteProfs[rKey] = appMgr.routeConfig.ClientSSL
 	} else {
 		// No provided name, so we create a default
 		skey := secretKey{
@@ -71,8 +77,7 @@ func (appMgr *Manager) setClientSslProfile(
 	// Now handle the profile from the Route.
 	// If annotation is set, use that profile instead of Route profile.
 	if prof, ok := route.ObjectMeta.Annotations[f5ClientSslProfileAnnotation]; ok {
-		if nil != route.Spec.TLS &&
-			("" != route.Spec.TLS.Certificate || "" != route.Spec.TLS.Key) {
+		if nil != route.Spec.TLS {
 			log.Warningf("Both clientssl annotation and cert/key provided for Route: %s, "+
 				"using annotation.", route.ObjectMeta.Name)
 			// Delete existing Route profile if it exists

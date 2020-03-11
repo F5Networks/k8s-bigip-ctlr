@@ -1604,9 +1604,12 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		// If any of the new pools don't already exist, add them
 		for _, newPool := range pools {
 			found := false
-			for _, pl := range cfg.Pools {
+			for i, pl := range cfg.Pools {
 				if pl.Name == newPool.Name {
 					found = true
+					if pl.Balance != newPool.Balance {
+						cfg.Pools[i].Balance = newPool.Balance
+					}
 					break
 				}
 			}
@@ -1878,6 +1881,9 @@ func (appMgr *Manager) createRSConfigFromRoute(
 				// If port has changed, update it
 				if pl.ServicePort != pool.ServicePort {
 					rsCfg.Pools[i].ServicePort = pool.ServicePort
+				}
+				if pl.Balance != pool.Balance {
+					rsCfg.Pools[i].Balance = pool.Balance
 				}
 				found = true
 				break

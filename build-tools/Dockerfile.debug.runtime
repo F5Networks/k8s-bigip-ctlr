@@ -3,7 +3,7 @@ ENV CGO_ENABLE 0
 
 RUN go get github.com/go-delve/delve/cmd/dlv
 
-FROM python:2.7-slim-buster
+FROM python:3.6-slim-buster
 
 ENV APPPATH /app
 

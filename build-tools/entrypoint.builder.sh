@@ -20,7 +20,7 @@ if [ -x /sbin/su-exec ]; then
 else
     adduser --shell /bin/bash --uid $USER_ID ${ADDUSER_FLAG} user
     su_binary=gosu
-    source scl_source enable python27
+    source scl_source enable python36
 fi
 chmod -R 755 /build
 chown -R user:user /build

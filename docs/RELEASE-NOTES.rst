@@ -23,7 +23,7 @@ Bug Fixes
 * Controller incorporates `ASM vulnerability fix <https://support.f5.com/csp/article/K91382300>`_.
 * Schema validation failures not observed when AS3 partition deleted.
 * Edge redirect routes with WAF policy now works in combination with edge allow routes or insecure routes.
-* :issues: `1160` Controller supports HTTPS redirect in ingress when host spec not configured.
+* :issues:`1160` Controller supports HTTPS redirect in ingress when host spec not configured.
 * SR - Controller supports `--default-client-ssl` when operating in AS3 mode.
 
 1.13.0

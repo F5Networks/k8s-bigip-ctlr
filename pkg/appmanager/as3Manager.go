@@ -37,7 +37,7 @@ const (
 	svcAppLabel              = "cis.f5.com/as3-app"
 	svcPoolLabel             = "cis.f5.com/as3-pool"
 	baseAS3Config            = `{
-  "$schema": "https://raw.githubusercontent.com/trinaths/k8s-ingress/master/as3-schema-3.18.0-1-cis.json",
+  "$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/3.18.0/as3-schema-3.18.0-4.json",
   "class": "AS3",
   "declaration": {
     "class": "ADC",

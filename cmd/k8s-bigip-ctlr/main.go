@@ -52,8 +52,8 @@ import (
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
 
-const as3SchemaLatestURL = "https://raw.githubusercontent.com/trinaths/k8s-ingress/master/as3-schema-3.18.0-1-cis.json"
-const as3SchemaFileName = "as3-schema-3.18.0-1-cis.json"
+const as3SchemaLatestURL = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/3.18.0/as3-schema-3.18.0-4.json"
+const as3SchemaFileName = "as3-schema-3.18.0-4-cis.json"
 
 type globalSection struct {
 	LogLevel       string `json:"log-level,omitempty"`

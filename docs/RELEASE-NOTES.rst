@@ -1,11 +1,30 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-Next Release
+1.14.0
 ------------
+Added Functionality
+`````````````````````
+* Added optional command line arguments to support TLS version and Ciphers.
+    -  `--tls-version` to enable specific TLS version 1.2/1.3 on BIG-IP. Default 1.2
+    -  `--ciphers` to configure cipher suite on BIG-IP. Option valid for TLSv1.2
+    -  `--cipher-group` to configure a cipher-group on BIG-IP. Option valid for TLSv1.3
+    Note: both `--ciphers` and `--cipher-group` are mutually exclusive based on the TLS version.
+* Helm charts based `F5 BIG-IP Controller Operator <https://catalog.redhat.com/software/operators/search?p=1&q=f5>`_ published at Redhat Operator Market place.
+* Added optional command line argument `--as3-post-delay` to introduce delay in posting AS3 messages to BIG-IP.
+* Controller is now compatible with OpenShift version 4.2 and AS3 version 3.17.0.
+* CCCL(f5-cccl and f5-ctrlr-agent) and base image packages upgraded from python2.7 to python3.6.
+
 Bug Fixes
 `````````
-* :issues: `1160` k8s ingress without spec.rules causing ssl-redirect irule to fail to redirect.
+* Controller properly updates Route admit status in OpenShift Dashboard.
+* Controller supports update of balance annotation for Routes and Ingress.
+* Controller handles edge routes with path configured as "/"(slash).
+* Controller incorporates `ASM vulnerability fix <https://support.f5.com/csp/article/K91382300>`_.
+* Schema validation failures not observed when AS3 partition deleted.
+* Edge redirect routes with WAF policy now works in combination with edge allow routes or insecure routes.
+* :issues: `1160` Controller supports HTTPS redirect in ingress when host spec not configured.
+* SR - Controller supports `--default-client-ssl` when operating in AS3 mode.
 
 1.13.0
 ------------

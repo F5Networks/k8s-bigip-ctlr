@@ -1,0 +1,10 @@
+apiVersion: "cis.f5.com/v1"
+kind: VirtualServer
+metadata:
+  name: my-new-virtual-server
+spec:
+  host: cafe.example.com
+  pools:
+   pool:
+    path: /coffee
+    service: coffee

@@ -9,9 +9,9 @@ ENV GOLANG_SRC_SHA256 09c43d3336743866f2985f566db0520b36f4992aea2b4b2fd9f52f1704
 RUN REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-rpms && \
 	yum -y update-minimal --disablerepo "*" --enablerepo rhel-7-server-rpms --setopt=tsflags=nodocs \
 	  --security --sec-severity=Important --sec-severity=Critical && \
-	yum -y update scl-utils && \
+	yum -y install scl-utils && \
 	yum -y install --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
-	  gcc openssl golang git make rsync wget python36 && \
+	  gcc openssl golang git make rsync wget rh-python36 && \
 # Add epel repo for dpkg install
 	curl -o epel-release-latest-7.noarch.rpm -SL https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
             --retry 9 --retry-max-time 0 -C - && \
@@ -54,7 +54,7 @@ COPY entrypoint.builder.sh /entrypoint.sh
 COPY requirements.txt /tmp/requirements.txt
 COPY requirements.docs.txt /tmp/requirements.docs.txt
 
-RUN source scl_source enable python36 && \
+RUN source scl_source enable rh-python36 && \
 	pip install --no-cache-dir --upgrade pip && \
 	pip install --no-cache-dir setuptools flake8 && \
 	pip install --no-cache-dir --ignore-installed -r /tmp/requirements.txt && \

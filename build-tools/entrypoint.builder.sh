@@ -12,6 +12,9 @@ export HOME=/home/user
 echo "BASE_OS=$BASE_OS"
 if [[ $BASE_OS == "debian" ]]; then
   ADDUSER_FLAG='--disabled-password --gecos ""'
+  PYTHON_PKG=python36
+else:
+  PYTHON_PKG=rh-pyhton36
 fi
 
 if [ -x /sbin/su-exec ]; then
@@ -20,7 +23,7 @@ if [ -x /sbin/su-exec ]; then
 else
     adduser --shell /bin/bash --uid $USER_ID ${ADDUSER_FLAG} user
     su_binary=gosu
-    source scl_source enable python36
+    source scl_source enable $PYTHON_PKG
 fi
 chmod -R 755 /build
 chown -R user:user /build

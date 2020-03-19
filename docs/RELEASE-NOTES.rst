@@ -4,6 +4,10 @@ Release Notes for BIG-IP Controller for Kubernetes
 Next Release
 ------------
 
+Bug Fixes
+`````````
+* Mid-stream renegotiation is disabled for Custom ClientSSL profiles. This helps fix vulnerability CVE-2009-3555.
+
 
 1.14.0
 ------------

@@ -1446,7 +1446,9 @@ func (appMgr *Manager) createUpdateTLSServer(prof CustomProfile, svcName string,
 				Class:        "TLS_Server",
 				Certificates: []as3TLSServerCertificates{},
 			}
-
+			// RenegotiationEnabled MUST be disabled/false to handle CVE-2009-3555.
+			boolFalse := false
+			tlsServer.RenegotiationEnabled = &boolFalse
 			sharedApp[tlsServerName] = tlsServer
 			svc.ServerTLS = tlsServerName
 			updateVirtualToHTTPS(svc)

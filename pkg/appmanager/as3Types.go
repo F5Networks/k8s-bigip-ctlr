@@ -183,11 +183,12 @@ type (
 
 	// as3TLSServer maps to TLS_Server in AS3 Resources
 	as3TLSServer struct {
-		Class         string                     `json:"class,omitempty"`
-		Certificates  []as3TLSServerCertificates `json:"certificates,omitempty"`
-		Ciphers       string                     `json:"ciphers,omitempty"`
-		CipherGroup   *as3ResourcePointer        `json:"cipherGroup,omitempty"`
-		Tls1_3Enabled bool                       `json:"tls1_3Enabled,omitempty"`
+		Class                string                     `json:"class,omitempty"`
+		RenegotiationEnabled *bool                       `json:"renegotiationEnabled,omitempty"`
+		Certificates         []as3TLSServerCertificates `json:"certificates,omitempty"`
+		Ciphers              string                     `json:"ciphers,omitempty"`
+		CipherGroup          *as3ResourcePointer        `json:"cipherGroup,omitempty"`
+		Tls1_3Enabled        bool                       `json:"tls1_3Enabled,omitempty"`
 	}
 
 	// as3TLSServerCertificates maps to TLS_Server_certificates in AS3 Resources

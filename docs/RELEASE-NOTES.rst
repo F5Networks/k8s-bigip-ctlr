@@ -4,6 +4,10 @@ Release Notes for BIG-IP Controller for Kubernetes
 Next Release
 ------------
 
+Added Functionality
+`````````````````````
+* Controller support TEEMS using `controls` object from AS3.
+
 
 1.14.0
 ------------

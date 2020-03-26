@@ -19,6 +19,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/crmanager"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -87,6 +88,8 @@ var (
 	nodePollInterval *int
 	printVersion     *bool
 	httpAddress      *string
+
+	customResourceMode *bool
 
 	namespaces             *[]string
 	useNodeInternal        *bool
@@ -172,6 +175,9 @@ func _init() {
 		"Optional, print version and exit.")
 	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:8080",
 		"Optional, address to serve http based informations (/metrics and /health).")
+
+	customResourceMode = globalFlags.Bool("custom-resource-mode", false,
+		"Optional, When set to true, controller processes only F5 Custom Resources.")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
@@ -647,6 +653,32 @@ func main() {
 	}
 	appmanager.RegisterBigIPSchemaTypes()
 
+	var config *rest.Config
+	if *inCluster {
+		config, err = rest.InClusterConfig()
+	} else {
+		config, err = clientcmd.BuildConfigFromFlags("", *kubeConfig)
+	}
+	if err != nil {
+		log.Fatalf("error creating configuration: %v", err)
+	}
+
+	if *customResourceMode {
+		crMgr := crmanager.NewCRManager(
+			crmanager.Params{
+				Config:     config,
+				Namespaces: *namespaces,
+			},
+		)
+
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-sigs
+		crMgr.Stop()
+		log.Infof("Exiting - signal %v\n", sig)
+		return
+	}
+
 	if _, isSet := os.LookupEnv("SCALE_PERF_ENABLE"); isSet {
 		now := time.Now()
 		log.Infof("SCALE_PERF: Started controller at: %d", now.Unix())
@@ -749,15 +781,6 @@ func main() {
 		}
 	}(subPid)
 
-	var config *rest.Config
-	if *inCluster {
-		config, err = rest.InClusterConfig()
-	} else {
-		config, err = clientcmd.BuildConfigFromFlags("", *kubeConfig)
-	}
-	if err != nil {
-		log.Fatalf("error creating configuration: %v", err)
-	}
 	// creates the clientset
 	appMgrParms.KubeClient, err = kubernetes.NewForConfig(config)
 	if err != nil {

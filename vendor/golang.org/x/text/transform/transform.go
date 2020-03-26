@@ -6,7 +6,7 @@
 // bytes passing through as well as various transformations. Example
 // transformations provided by other packages include normalization and
 // conversion between character sets.
-package transform
+package transform // import "golang.org/x/text/transform"
 
 import (
 	"bytes"
@@ -493,7 +493,7 @@ func (c *chain) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err erro
 	return dstL.n, srcL.p, err
 }
 
-// Deprecated: use runes.Remove instead.
+// Deprecated: Use runes.Remove instead.
 func RemoveFunc(f func(r rune) bool) Transformer {
 	return removeF(f)
 }

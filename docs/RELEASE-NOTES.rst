@@ -3,6 +3,10 @@ Release Notes for BIG-IP Controller for Kubernetes
 
 Next Release
 ------------
+Bug Fixes
+`````````
+* Controller handles requests sent to a host that is not configured on F5 Virtual Server for Openshift Routes.
+    - Controller will stop throwing Irule TCL errors when user sends requests to a host that is not configured on F5 Virtual Server.
 
 
 1.14.0

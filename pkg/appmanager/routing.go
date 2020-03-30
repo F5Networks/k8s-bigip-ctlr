@@ -567,24 +567,24 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 								if { [class exists $passthru_class] } {
 									set servername_lower [string tolower $tls_servername]
 									SSL::disable serverside
-									set dflt_pool ""
+									set dflt_pool_passthrough ""
 
 									# Disable Serverside SSL for Passthrough Class
-									set dflt_pool [class match -value $servername_lower equals $passthru_class]
-									if { not ($dflt_pool equals "") } {
+									set dflt_pool_passthrough [class match -value $servername_lower equals $passthru_class]
+									if { not ($dflt_pool_passthrough equals "") } {
 										SSL::disable
 										HTTP::disable
 									}
 
 									set ab_class "/%[1]s/ab_deployment_dg"
 									if { not [class exists $ab_class] } {
-										if { $dflt_pool == "" } then {
+										if { $dflt_pool_passthrough == "" } then {
 											log local0.debug "Failed to find pool for $servername_lower"
 										} else {
-											pool $dflt_pool
+											pool $dflt_pool_passthrough
 										}
 									} else {
-										set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
+										set selected_pool [call select_ab_pool $servername_lower $dflt_pool_passthrough]
 										if { $selected_pool == "" } then {
 											log local0.debug "Failed to find pool for $servername_lower"
 										} else {
@@ -657,7 +657,9 @@ func (appMgr *Manager) sslPassthroughIRule() string {
                 }
                 set ab_class "/%[1]s/ab_deployment_dg"
                 if { not [class exists $ab_class] } {
-                    if { $dflt_pool == "" } then {
+                    # Handle requests sent to unknown hosts.
+                    # For valid hosts, Send the request to respective pool.
+                    if { not [info exists dflt_pool] } then {
                         log local0.debug "Unable to find pool for $servername_lower"
                     } else {
                         pool $dflt_pool

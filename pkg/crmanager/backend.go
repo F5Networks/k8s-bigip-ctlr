@@ -1,0 +1,315 @@
+/*-
+ * Copyright (c) 2016-2019, F5 Networks, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package crmanager
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+)
+
+const (
+	as3SharedApplication = "Shared"
+)
+
+//Create AS3 declaration
+func (crMgr *CRManager) createAS3Declaration() as3ADC {
+
+	// Create Shared as3Application object
+	sharedApp := as3Application{}
+	sharedApp["class"] = "Application"
+	sharedApp["template"] = "shared"
+	// Process rscfg to create AS3 Resources
+	crMgr.processResourcesForAS3(sharedApp)
+	// Create AS3 Tenant
+	tenant := as3Tenant{
+		"class":              "Tenant",
+		as3SharedApplication: sharedApp,
+	}
+	as3JSONDecl := as3ADC{
+		apm.DEFAULT_PARTITION: tenant,
+	}
+	return as3JSONDecl
+}
+
+//Process for AS3 Resource
+func (crMgr *CRManager) processResourcesForAS3(sharedApp as3Application) {
+	for _, cfg := range crMgr.resources.GetAllResources() {
+		//Create policies
+		createPoliciesDecl(cfg, sharedApp)
+
+		//Create pools
+		createPoolDecl(cfg, sharedApp)
+
+		//Create AS3 Service for virtual server
+		createServiceDecl(cfg, sharedApp)
+	}
+}
+
+//Create policy declaration
+func createPoliciesDecl(cfg *apm.ResourceConfig, sharedApp as3Application) {
+	_, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	for _, pl := range cfg.Policies {
+		//Create EndpointPolicy
+		ep := &as3EndpointPolicy{}
+		for _, rl := range pl.Rules {
+
+			ep.Class = "Endpoint_Policy"
+			s := strings.Split(pl.Strategy, "/")
+			ep.Strategy = s[len(s)-1]
+
+			//Create rules
+			rulesData := &as3Rule{Name: rl.Name}
+
+			//Create condition object
+			createRuleCondition(rl, rulesData, port)
+
+			//Creat action object
+			createRuleAction(rl, rulesData)
+
+			ep.Rules = append(ep.Rules, rulesData)
+		}
+		//Setting Endpoint_Policy Name
+		sharedApp[pl.Name] = ep
+	}
+}
+
+// Create AS3 Pools for CRD
+func createPoolDecl(cfg *apm.ResourceConfig, sharedApp as3Application) {
+	for _, v := range cfg.Pools {
+		pool := &as3Pool{}
+		pool.LoadBalancingMode = v.Balance
+		pool.Class = "Pool"
+		for _, val := range v.Members {
+			var member as3PoolMember
+			member.AddressDiscovery = "static"
+			member.ServicePort = val.Port
+			member.ServerAddresses = append(member.ServerAddresses, val.Address)
+			pool.Members = append(pool.Members, member)
+		}
+
+		for _, val := range v.MonitorNames {
+			var monitor as3ResourcePointer
+			use := strings.Split(val, "/")
+			monitor.Use = fmt.Sprintf("/%s/%s/%s",
+				apm.DEFAULT_PARTITION,
+				as3SharedApplication,
+				use[len(use)-1],
+			)
+			pool.Monitors = append(pool.Monitors, monitor)
+		}
+		sharedApp[v.Name] = pool
+	}
+}
+
+func updateVirtualToHTTPS(v *as3Service) {
+	v.Class = "Service_HTTPS"
+	redirect80 := false
+	v.Redirect80 = &redirect80
+}
+
+// Create AS3 Service for CRD
+func createServiceDecl(cfg *apm.ResourceConfig, sharedApp as3Application) {
+	svc := &as3Service{}
+	numPolicies := len(cfg.Virtual.Policies)
+	switch {
+	case numPolicies == 1:
+		policyName := cfg.Virtual.Policies[0].Name
+		svc.PolicyEndpoint = fmt.Sprintf("/%s/%s/%s",
+			apm.DEFAULT_PARTITION,
+			as3SharedApplication,
+			policyName)
+	case numPolicies > 1:
+		var peps []as3ResourcePointer
+		for _, pep := range cfg.Virtual.Policies {
+			svc.PolicyEndpoint = append(
+				peps,
+				as3ResourcePointer{
+					BigIP: fmt.Sprintf("/%s/%s/%s",
+						apm.DEFAULT_PARTITION,
+						as3SharedApplication,
+						pep.Name,
+					),
+				},
+			)
+		}
+		svc.PolicyEndpoint = peps
+	case numPolicies == 0:
+		// No policies since we need to handle the pool name.
+		ps := strings.Split(cfg.Virtual.PoolName, "/")
+		if cfg.Virtual.PoolName != "" {
+			svc.Pool = fmt.Sprintf("/%s/%s/%s",
+				apm.DEFAULT_PARTITION,
+				as3SharedApplication,
+				ps[len(ps)-1])
+		}
+	}
+
+	svc.Layer4 = cfg.Virtual.IpProtocol
+	svc.Source = "0.0.0.0/0"
+	svc.TranslateServerAddress = true
+	svc.TranslateServerPort = true
+
+	svc.Class = "Service_HTTP"
+
+	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	// verify that ip address and port exists.
+	if virtualAddress != "" && port != 0 {
+		va := append(svc.VirtualAddresses, virtualAddress)
+		svc.VirtualAddresses = va
+		svc.VirtualPort = port
+	}
+
+	svc.SNAT = "auto"
+	for _, v := range cfg.Virtual.IRules {
+		splits := strings.Split(v, "/")
+		iRuleName := splits[len(splits)-1]
+		svc.IRules = append(svc.IRules, iRuleName)
+	}
+
+	sharedApp[cfg.Virtual.Name] = svc
+}
+
+// Create AS3 Rule Condition for CRD
+func createRuleCondition(rl *apm.Rule, rulesData *as3Rule, port int) {
+	for _, c := range rl.Conditions {
+		condition := &as3Condition{}
+		if c.Host {
+			condition.Name = "host"
+			var values []string
+			// For ports other then 80 and 443, attaching port number to host.
+			// Ex. example.com:8080
+			if port != 80 && port != 443 {
+				for i := range c.Values {
+					val := c.Values[i] + ":" + strconv.Itoa(port)
+					values = append(values, val)
+				}
+				condition.All = &as3PolicyCompareString{
+					Values: values,
+				}
+			} else {
+				condition.All = &as3PolicyCompareString{
+					Values: c.Values,
+				}
+			}
+			if c.HTTPHost {
+				condition.Type = "httpHeader"
+			}
+			if c.Equals {
+				condition.All.Operand = "equals"
+			}
+		} else if c.PathSegment {
+			condition.PathSegment = &as3PolicyCompareString{
+				Values: c.Values,
+			}
+			if c.Name != "" {
+				condition.Name = c.Name
+			}
+			condition.Index = c.Index
+			if c.HTTPURI {
+				condition.Type = "httpUri"
+			}
+			if c.Equals {
+				condition.PathSegment.Operand = "equals"
+			}
+		} else if c.Path {
+			condition.Path = &as3PolicyCompareString{
+				Values: c.Values,
+			}
+			if c.Name != "" {
+				condition.Name = c.Name
+			}
+			condition.Index = c.Index
+			if c.HTTPURI {
+				condition.Type = "httpUri"
+			}
+			if c.Equals {
+				condition.Path.Operand = "equals"
+			}
+		}
+		if c.Request {
+			condition.Event = "request"
+		}
+
+		rulesData.Conditions = append(rulesData.Conditions, condition)
+	}
+}
+
+// Create AS3 Rule Action for CRD
+func createRuleAction(rl *apm.Rule, rulesData *as3Rule) {
+	for _, v := range rl.Actions {
+		action := &as3Action{}
+		if v.Forward {
+			action.Type = "forward"
+		}
+		if v.Request {
+			action.Event = "request"
+		}
+		if v.Redirect {
+			action.Type = "httpRedirect"
+		}
+		if v.HTTPHost {
+			action.Type = "httpHeader"
+		}
+		if v.HTTPURI {
+			action.Type = "httpUri"
+		}
+		if v.Location != "" {
+			action.Location = v.Location
+		}
+		// Handle hostname rewrite.
+		if v.Replace && v.HTTPHost {
+			action.Replace = &as3ActionReplaceMap{
+				Value: v.Value,
+				Name:  "host",
+			}
+		}
+		// handle uri rewrite.
+		if v.Replace && v.HTTPURI {
+			action.Replace = &as3ActionReplaceMap{
+				Value: v.Value,
+			}
+		}
+		p := strings.Split(v.Pool, "/")
+		if v.Pool != "" {
+			action.Select = &as3ActionForwardSelect{
+				Pool: &as3ResourcePointer{
+					Use: p[len(p)-1],
+				},
+			}
+		}
+		rulesData.Actions = append(rulesData.Actions, action)
+	}
+}
+
+//Extract virtual address and port from host URL
+func extractVirtualAddressAndPort(str string) (string, int) {
+	destination := strings.Split(str, "/")
+	ipPort := strings.Split(destination[len(destination)-1], ":")
+	// verify that ip address and port exists else log error.
+	if len(ipPort) == 2 {
+		port, _ := strconv.Atoi(ipPort[1])
+		return ipPort[0], port
+	} else {
+		log.Error("Invalid Virtual Server Destination IP address/Port.")
+		return "", 0
+	}
+
+}

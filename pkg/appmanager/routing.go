@@ -354,10 +354,12 @@ func processIngressRules(
 	return &rls, urlRewriteRefs, appRootRefs
 }
 
-func httpRedirectIRule(port int32) string {
-	// The key in the data group is the host name or * to match all.
-	// The data is a list of paths for the host delimited by '|' or '/' for all.
-	iRuleCode := fmt.Sprintf(`
+func httpRedirectIRule(port int32, path bool) string {
+	var iRuleCode string
+	if path {
+		// The key in the data group is the host name or * to match all.
+		// The data is a list of paths for the host delimited by '|' or '/' for all.
+		iRuleCode = fmt.Sprintf(`
 		when HTTP_REQUEST {
 			set host [HTTP::host]
 			# Check If the request is for ingress with no hostSpec 
@@ -413,6 +415,12 @@ func httpRedirectIRule(port int32) string {
 				}
 			}
 		}`, port)
+	} else {
+		iRuleCode = fmt.Sprintf(`
+		when HTTP_REQUEST {
+			HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]
+                }`, port)
+	}
 
 	return iRuleCode
 }

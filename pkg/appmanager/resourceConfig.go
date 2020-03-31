@@ -1681,6 +1681,10 @@ func (appMgr *Manager) handleIngressTls(
 	}
 
 	var httpsPort int32
+	var httpPath bool
+	if len(ing.Spec.Rules) > 0 {
+		httpPath = true
+	}
 	if port, ok :=
 		ing.ObjectMeta.Annotations[f5VsHttpsPortAnnotation]; ok == true {
 		p, _ := strconv.ParseInt(port, 10, 32)
@@ -1758,7 +1762,7 @@ func (appMgr *Manager) handleIngressTls(
 		log.Debugf("TLS: Applying HTTP redirect iRule.")
 		ruleName := fmt.Sprintf("%s_%d", httpRedirectIRuleName, httpsPort)
 		appMgr.addIRule(ruleName, DEFAULT_PARTITION,
-			httpRedirectIRule(httpsPort))
+			httpRedirectIRule(httpsPort, httpPath))
 		appMgr.addInternalDataGroup(httpsRedirectDgName, DEFAULT_PARTITION)
 		ruleName = joinBigipPath(DEFAULT_PARTITION, ruleName)
 		rsCfg.Virtual.AddIRule(ruleName)
@@ -2019,6 +2023,7 @@ func (appMgr *Manager) handleRouteRules(
 ) {
 	tls := route.Spec.TLS
 	abPathIRuleName := joinBigipPath(DEFAULT_PARTITION, abDeploymentPathIRuleName)
+	httpPath := true
 
 	if abDeployment {
 		rc.DeleteRuleFromPolicy(policyName, rule, appMgr.mergedRulesMap)
@@ -2052,7 +2057,7 @@ func (appMgr *Manager) handleRouteRules(
 					redirectIRuleName := joinBigipPath(DEFAULT_PARTITION,
 						httpRedirectIRuleName)
 					appMgr.addIRule(httpRedirectIRuleName, DEFAULT_PARTITION,
-						httpRedirectIRule(DEFAULT_HTTPS_PORT))
+						httpRedirectIRule(DEFAULT_HTTPS_PORT, httpPath))
 					appMgr.addInternalDataGroup(httpsRedirectDgName, DEFAULT_PARTITION)
 					rc.Virtual.AddIRule(redirectIRuleName)
 					// TLS config indicates to forward http to https.

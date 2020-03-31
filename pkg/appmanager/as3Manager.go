@@ -667,12 +667,29 @@ func (appMgr *Manager) enqueueAS3Endpoints(obj interface{}) {
 	}
 }
 
+func (appMgr *Manager) checkValidAS3Namespace(namespace string) bool {
+
+	homeNamespace := false
+	for _, ns := range appMgr.GetAllWatchedNamespaces() {
+		if ns == "" || ns == namespace {
+			homeNamespace = true
+		}
+	}
+	return homeNamespace
+}
+
 func (appMgr *Manager) checkValidAS3ConfigMap(obj interface{}) (
 	bool, []*serviceQueueKey) {
 
 	var keyList []*serviceQueueKey
 	cm := obj.(*v1.ConfigMap)
 	namespace := cm.ObjectMeta.Namespace
+
+	if !appMgr.checkValidAS3Namespace(namespace) {
+		log.Debugf("[AS3] Found AS3 ConfigMap %s, however it is in a different namespace %s. Skipping.",
+			cm.ObjectMeta.Name, namespace)
+		return false, nil
+	}
 
 	log.Debugf("[AS3] Found AS3 ConfigMap - %s.", cm.ObjectMeta.Name)
 	key := &serviceQueueKey{
@@ -694,6 +711,10 @@ func (appMgr *Manager) checkValidAS3Service(obj interface{}) (
 	var keyList []*serviceQueueKey
 	svc := obj.(*v1.Service)
 	namespace := svc.ObjectMeta.Namespace
+
+	if !appMgr.checkValidAS3Namespace(namespace) {
+		return false, nil
+	}
 
 	key := &serviceQueueKey{
 		ServiceName: svc.ObjectMeta.Name,
@@ -719,6 +740,10 @@ func (appMgr *Manager) checkValidAS3Endpoints(obj interface{}) (
 
 	var keyList []*serviceQueueKey
 	namespace := eps.ObjectMeta.Namespace
+
+	if !appMgr.checkValidAS3Namespace(namespace) {
+		return false, nil
+	}
 
 	key := &serviceQueueKey{
 		ServiceName: eps.ObjectMeta.Name,

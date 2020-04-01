@@ -19,6 +19,7 @@ package crmanager
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	"k8s.io/client-go/util/workqueue"
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/rest"
@@ -32,6 +33,7 @@ type (
 		resourceSelector labels.Selector
 		namespaces       []string
 		resources        apm.Resources
+		rscQueue         workqueue.RateLimitingInterface
 	}
 
 	Params struct {
@@ -43,6 +45,12 @@ type (
 		namespace  string
 		stopCh     chan struct{}
 		vsInformer cache.SharedIndexInformer
+	}
+
+	rqKey struct {
+		namespace string
+		kind      string
+		rscName   string
 	}
 )
 

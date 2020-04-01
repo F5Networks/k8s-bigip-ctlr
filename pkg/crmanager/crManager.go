@@ -18,20 +18,22 @@ package crmanager
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
-
-	cistypesv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/informers/externalversions/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"k8s.io/apimachinery/pkg/labels"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/workqueue"
 )
 
 const (
 	DefaultCustomResourceLabel = "f5cr in (true)"
+	VirtualServer              = "VirtualServer"
+	Service                    = "Service"
+	Endpoint                   = "Endpoint"
 )
 
 func NewCRManager(params Params) *CRManager {
@@ -39,6 +41,8 @@ func NewCRManager(params Params) *CRManager {
 	crMgr := &CRManager{
 		namespaces:  params.Namespaces,
 		crInformers: make(map[string]*CRInformer),
+		rscQueue: workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller"),
 	}
 
 	log.Debug("Custom Resource Manager Created")
@@ -56,7 +60,7 @@ func NewCRManager(params Params) *CRManager {
 		log.Error("Failed to Setup Informers")
 	}
 
-	crMgr.startInformers()
+	go crMgr.Start()
 	return crMgr
 }
 
@@ -96,90 +100,22 @@ func (crMgr *CRManager) setupInformers() error {
 	return nil
 }
 
-func (crMgr *CRManager) watchingAllNamespaces() bool {
-	if 0 == len(crMgr.crInformers) {
-		// Not watching any namespaces.
-		return false
-	}
-	_, watchingAll := crMgr.crInformers[""]
-	return watchingAll
-}
-
-func (crMgr *CRManager) addNamespacedInformer(
-	namespace string,
-) error {
-	if crMgr.watchingAllNamespaces() {
-		return fmt.Errorf(
-			"Cannot add additional namespaces when already watching all.")
-	}
-	if len(crMgr.crInformers) > 0 && "" == namespace {
-		return fmt.Errorf(
-			"Cannot watch all namespaces when already watching specific ones.")
-	}
-	var crInf *CRInformer
-	var found bool
-	if crInf, found = crMgr.crInformers[namespace]; found {
-		return nil
-	}
-	crInf = crMgr.newInformer(namespace)
-	crMgr.crInformers[namespace] = crInf
-	return nil
-}
-
-func (crMgr *CRManager) newInformer(
-	namespace string,
-) *CRInformer {
-	log.Debugf("Creating Informers for Namespace %v", namespace)
-	crOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = crMgr.resourceSelector.String()
-	}
-
-	crInf := &CRInformer{
-		namespace: namespace,
-		stopCh:    make(chan struct{}),
-		vsInformer: cisv1.NewFilteredVirtualServerInformer(
-			crMgr.kubeClient,
-			namespace,
-			0,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-			crOptions,
-		),
-	}
-
-	crInf.vsInformer.AddEventHandler(
-		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { crMgr.enqueueVirtualServer(obj) },
-			UpdateFunc: func(old, cur interface{}) { crMgr.enqueueVirtualServer(cur) },
-			DeleteFunc: func(obj interface{}) { crMgr.enqueueVirtualServer(obj) },
-		},
-	)
-
-	return crInf
-}
-
-func (crMgr *CRManager) enqueueVirtualServer(obj interface{}) {
-	vs := obj.(*cistypesv1.VirtualServer)
-	log.Infof("Enqueueing VirtualServer: %v", vs)
-}
-
-func (crMgr *CRManager) startInformers() {
+func (crMgr *CRManager) Start() {
+	defer utilruntime.HandleCrash()
+	defer crMgr.rscQueue.ShutDown()
 	for _, inf := range crMgr.crInformers {
 		inf.start()
 	}
+
+	stopChan := make(chan struct{})
+	go wait.Until(crMgr.customResourceWorker, time.Second, stopChan)
+
+	<-stopChan
+	crMgr.Stop()
 }
 
 func (crMgr *CRManager) Stop() {
 	for _, inf := range crMgr.crInformers {
 		inf.stop()
 	}
-}
-
-func (crInfr *CRInformer) start() {
-	if crInfr.vsInformer != nil {
-		go crInfr.vsInformer.Run(crInfr.stopCh)
-	}
-}
-
-func (crInfr *CRInformer) stop() {
-	close(crInfr.stopCh)
 }

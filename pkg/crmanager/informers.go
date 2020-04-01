@@ -18,6 +18,7 @@ package crmanager
 
 import (
 	"fmt"
+
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/informers/externalversions/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -25,7 +26,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// start the VirtualServer informer
 func (crInfr *CRInformer) start() {
+	log.Infof("Starting VirtualServer Informer")
 	if crInfr.vsInformer != nil {
 		go crInfr.vsInformer.Run(crInfr.stopCh)
 	}
@@ -113,6 +116,7 @@ func (crMgr *CRManager) enqueueVirtualServer(obj interface{}) {
 		namespace: vs.ObjectMeta.Namespace,
 		kind:      VirtualServer,
 		rscName:   vs.ObjectMeta.Name,
+		rsc:       obj,
 	}
 
 	crMgr.rscQueue.Add(key)

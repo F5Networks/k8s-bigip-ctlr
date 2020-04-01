@@ -18,14 +18,16 @@ type VirtualServer struct {
 
 // VirtualServerSpec is the spec of the VirtualServer resource.
 type VirtualServerSpec struct {
-	Host  string `json:"host"`
-	Pools []Pool `json:"pools"`
+	Host                 string `json:"host"`
+	VirtualServerAddress string `json:"virtualServerAddress"`
+	Pools                []Pool `json:"pools"`
 }
 
 // Pool defines a pool object in BIG-IP.
 type Pool struct {
-	Path    string `json:"path"`
-	Service string `json:"service"`
+	Path        string `json:"path"`
+	Service     string `json:"service"`
+	ServicePort int32  `json:"servicePort"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

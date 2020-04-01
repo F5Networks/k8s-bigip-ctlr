@@ -1,30 +1,12 @@
-apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
+apiVersion: "cis.f5.com/v1"
+kind: VirtualServer
 metadata:
-  name: virtualservers.cis.f5.com
+  name: my-new-virtual-server
+  f5cr: true
 spec:
-  group: cis.f5.com
-  versions:
-    - name: v1
-      served: true
-      storage: true
-      schema:
-        openAPIV3Schema:
-          type: object
-          properties:
-            spec:
-              type: object
-              properties:
-                cronSpec:
-                  type: string
-                image:
-                  type: string
-                replicas:
-                  type: integer
-  scope: Namespaced
-  names:
-    plural: virtualservers
-    singular: virtualserver
-    kind: VirtualServer
-    shortNames:
-    - vs
+  host: cafe.example.com
+  virtualServerAddress: "172.16.3.4"
+  pools:
+  - path: /coffee
+    service: svc-2
+    servicePort: 80

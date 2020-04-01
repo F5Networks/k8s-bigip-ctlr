@@ -43,6 +43,7 @@ func NewCRManager(params Params) *CRManager {
 		crInformers: make(map[string]*CRInformer),
 		rscQueue: workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller"),
+		resources: NewResources(),
 	}
 
 	log.Debug("Custom Resource Manager Created")
@@ -100,9 +101,12 @@ func (crMgr *CRManager) setupInformers() error {
 	return nil
 }
 
+// Start the Custom Resource Manager
 func (crMgr *CRManager) Start() {
+	log.Infof("Starting Custom Resource Manager")
 	defer utilruntime.HandleCrash()
 	defer crMgr.rscQueue.ShutDown()
+
 	for _, inf := range crMgr.crInformers {
 		inf.start()
 	}

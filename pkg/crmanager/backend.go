@@ -49,13 +49,13 @@ func (crMgr *CRManager) AddAS3Agent(params pm.Params) {
 	crMgr.Agent = &AS3Agent{postMgr}
 }
 
-func (agent *AS3Agent) PostConfig(rsCfgs apm.ResourceConfigs) {
+func (agent *AS3Agent) PostConfig(rsCfgs ResourceConfigs) {
 	decl := createAS3Declaration(rsCfgs)
 	agent.Write(string(decl), nil, nil)
 }
 
 //Create AS3 declaration
-func createAS3Declaration(rsCfgs apm.ResourceConfigs) as3Declaration {
+func createAS3Declaration(rsCfgs ResourceConfigs) as3Declaration {
 	var as3Config map[string]interface{}
 	_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
 
@@ -71,7 +71,7 @@ func createAS3Declaration(rsCfgs apm.ResourceConfigs) as3Declaration {
 	return as3Declaration(decl)
 }
 
-func createAS3ADC(rsCfgs apm.ResourceConfigs) as3ADC {
+func createAS3ADC(rsCfgs ResourceConfigs) as3ADC {
 
 	// Create Shared as3Application object
 	sharedApp := as3Application{}
@@ -91,7 +91,7 @@ func createAS3ADC(rsCfgs apm.ResourceConfigs) as3ADC {
 }
 
 //Process for AS3 Resource
-func processResourcesForAS3(rsCfgs apm.ResourceConfigs, sharedApp as3Application) {
+func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
 	for _, cfg := range rsCfgs {
 		//Create policies
 		createPoliciesDecl(cfg, sharedApp)
@@ -105,7 +105,7 @@ func processResourcesForAS3(rsCfgs apm.ResourceConfigs, sharedApp as3Application
 }
 
 //Create policy declaration
-func createPoliciesDecl(cfg *apm.ResourceConfig, sharedApp as3Application) {
+func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	_, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	for _, pl := range cfg.Policies {
 		//Create EndpointPolicy
@@ -133,10 +133,11 @@ func createPoliciesDecl(cfg *apm.ResourceConfig, sharedApp as3Application) {
 }
 
 // Create AS3 Pools for CRD
-func createPoolDecl(cfg *apm.ResourceConfig, sharedApp as3Application) {
+func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	for _, v := range cfg.Pools {
 		pool := &as3Pool{}
-		pool.LoadBalancingMode = v.Balance
+		// TODO
+		// pool.LoadBalancingMode = v.Balance
 		pool.Class = "Pool"
 		for _, val := range v.Members {
 			var member as3PoolMember
@@ -145,7 +146,8 @@ func createPoolDecl(cfg *apm.ResourceConfig, sharedApp as3Application) {
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
 			pool.Members = append(pool.Members, member)
 		}
-
+		// TODO
+		/**
 		for _, val := range v.MonitorNames {
 			var monitor as3ResourcePointer
 			use := strings.Split(val, "/")
@@ -156,6 +158,7 @@ func createPoolDecl(cfg *apm.ResourceConfig, sharedApp as3Application) {
 			)
 			pool.Monitors = append(pool.Monitors, monitor)
 		}
+		**/
 		sharedApp[v.Name] = pool
 	}
 }
@@ -167,7 +170,7 @@ func updateVirtualToHTTPS(v *as3Service) {
 }
 
 // Create AS3 Service for CRD
-func createServiceDecl(cfg *apm.ResourceConfig, sharedApp as3Application) {
+func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	svc := &as3Service{}
 	numPolicies := len(cfg.Virtual.Policies)
 	switch {
@@ -229,7 +232,7 @@ func createServiceDecl(cfg *apm.ResourceConfig, sharedApp as3Application) {
 }
 
 // Create AS3 Rule Condition for CRD
-func createRuleCondition(rl *apm.Rule, rulesData *as3Rule, port int) {
+func createRuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 	for _, c := range rl.Conditions {
 		condition := &as3Condition{}
 		if c.Host {
@@ -294,7 +297,7 @@ func createRuleCondition(rl *apm.Rule, rulesData *as3Rule, port int) {
 }
 
 // Create AS3 Rule Action for CRD
-func createRuleAction(rl *apm.Rule, rulesData *as3Rule) {
+func createRuleAction(rl *Rule, rulesData *as3Rule) {
 	for _, v := range rl.Actions {
 		action := &as3Action{}
 		if v.Forward {

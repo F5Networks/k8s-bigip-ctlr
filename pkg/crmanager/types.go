@@ -19,6 +19,7 @@ package crmanager
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	pm "github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
 	"k8s.io/client-go/util/workqueue"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -34,6 +35,7 @@ type (
 		namespaces       []string
 		resources        apm.Resources
 		rscQueue         workqueue.RateLimitingInterface
+		Agent            *AS3Agent
 	}
 
 	Params struct {
@@ -55,6 +57,10 @@ type (
 )
 
 type (
+	AS3Agent struct {
+		*pm.PostManager
+	}
+
 	as3Template    string
 	as3Declaration string
 

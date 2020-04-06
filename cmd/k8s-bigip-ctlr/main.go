@@ -670,6 +670,17 @@ func main() {
 				Namespaces: *namespaces,
 			},
 		)
+		var postMgrParams = postmanager.Params{
+			BIGIPUsername: *bigIPUsername,
+			BIGIPPassword: *bigIPPassword,
+			BIGIPURL:      *bigIPURL,
+			TrustedCerts:  "",
+			SSLInsecure:   true,
+			AS3PostDelay:  *as3PostDelay,
+			LogResponse:   *logAS3Response,
+			RouteClientV1: nil,
+		}
+		crMgr.AddAS3Agent(postMgrParams)
 
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)

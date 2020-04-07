@@ -67,8 +67,8 @@ def version_selftest():
     ]
     test_sorted = sorted(test_orig)
     if test_orig != test_sorted:
-        print test_orig
-        print test_sorted
+        print(test_orig)
+        print(test_sorted)
         raise Exception("Self-test: version sorting broken")
 
     if Version('10.2.3') < Version('1.1.0'):
@@ -306,11 +306,11 @@ def print_docker_build_args(args):
     }
 
     ret = []
-    for k, v in labels.iteritems():
+    for k, v in labels.items():
         ret.append('--label')
         ret.append(quote('{}={}'.format(k, v)))
 
-    print ' '.join(ret)
+    print(' '.join(ret))
 
 
 def main():
@@ -327,7 +327,7 @@ def main():
     def add_printer(cmd, tmpl, **kwargs):
         def print_func(args):
             ver = VersionInfo(args.version_file)
-            print ver.format(tmpl)
+            print(ver.format(tmpl))
 
         sub = subparsers.add_parser(cmd, **kwargs)
         sub.set_defaults(func=print_func)

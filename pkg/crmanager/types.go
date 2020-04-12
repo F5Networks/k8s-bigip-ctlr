@@ -18,7 +18,6 @@ package crmanager
 
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
 	pm "github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
 	"k8s.io/client-go/util/workqueue"
 
@@ -28,21 +27,24 @@ import (
 )
 
 type (
+	// CRManager defines the structure of Customresource Manager
 	CRManager struct {
+		resources        *Resources
 		kubeClient       versioned.Interface
 		crInformers      map[string]*CRInformer
 		resourceSelector labels.Selector
 		namespaces       []string
-		resources        apm.Resources
 		rscQueue         workqueue.RateLimitingInterface
 		Agent            *AS3Agent
+		// map of rules that have been merged
+		mergedRulesMap map[string]map[string]mergedRuleEntry
 	}
-
+	// Params defines parameters
 	Params struct {
 		Config     *rest.Config
 		Namespaces []string
 	}
-
+	// CRInformer defines the strcuture of Customresource Informer
 	CRInformer struct {
 		namespace  string
 		stopCh     chan struct{}
@@ -53,7 +55,159 @@ type (
 		namespace string
 		kind      string
 		rscName   string
+		rsc       interface{}
 	}
+
+	metaData struct {
+		Active       bool
+		ResourceType string
+		rscName      string
+	}
+
+	// Virtual Server Key - unique server is Name + Port
+	serviceKey struct {
+		ServiceName string
+		ServicePort int32
+		Namespace   string
+	}
+
+	// Virtual server config
+	Virtual struct {
+		Name                  string                `json:"name"`
+		PoolName              string                `json:"pool,omitempty"`
+		Partition             string                `json:"-"`
+		Destination           string                `json:"destination"`
+		Enabled               bool                  `json:"enabled"`
+		IpProtocol            string                `json:"ipProtocol,omitempty"`
+		SourceAddrTranslation SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
+		Policies              []nameRef             `json:"policies,omitempty"`
+		IRules                []string              `json:"rules,omitempty"`
+		Description           string                `json:"description,omitempty"`
+		VirtualAddress        *virtualAddress       `json:"-"`
+	}
+	// Virtuals is slice of virtuals
+	Virtuals []Virtual
+
+	// SourceAddrTranslation is Virtual Server Source Address Translation
+	SourceAddrTranslation struct {
+		Type string `json:"type"`
+		Pool string `json:"pool,omitempty"`
+	}
+
+	// frontend bindaddr and port
+	virtualAddress struct {
+		BindAddr string `json:"bindAddr,omitempty"`
+		Port     int32  `json:"port,omitempty"`
+	}
+
+	// nameRef is virtual server policy/profile reference
+	nameRef struct {
+		Name      string `json:"name"`
+		Partition string `json:"partition"`
+	}
+
+	// ResourceConfig is a Config for a single VirtualServer.
+	ResourceConfig struct {
+		MetaData metaData `json:"-"`
+		Virtual  Virtual  `json:"virtual,omitempty"`
+		Pools    Pools    `json:"pools,omitempty"`
+		Policies Policies `json:"policies,omitempty"`
+	}
+	// ResourceConfigs is group of ResourceConfig
+	ResourceConfigs []*ResourceConfig
+
+	// Pool config
+	Pool struct {
+		Name        string   `json:"name"`
+		Partition   string   `json:"-"`
+		ServiceName string   `json:"-"`
+		ServicePort int32    `json:"-"`
+		Members     []Member `json:"members"`
+	}
+	// Pools is slice of pool
+	Pools []Pool
+
+	// Monitor is Pool health monitor
+	Monitor struct {
+		Name      string `json:"name"`
+		Partition string `json:"-"`
+		Interval  int    `json:"interval,omitempty"`
+		Type      string `json:"type,omitempty"`
+		Send      string `json:"send,omitempty"`
+		Recv      string `json:"recv,omitempty"`
+		Timeout   int    `json:"timeout,omitempty"`
+	}
+	// Monitors  is slice of monitor
+	Monitors []Monitor
+
+	// Rule config for a Policy
+	Rule struct {
+		Name       string       `json:"name"`
+		FullURI    string       `json:"-"`
+		Ordinal    int          `json:"ordinal,omitempty"`
+		Actions    []*action    `json:"actions,omitempty"`
+		Conditions []*condition `json:"conditions,omitempty"`
+	}
+
+	// action config for a Rule
+	action struct {
+		Name      string `json:"name"`
+		Pool      string `json:"pool,omitempty"`
+		HTTPHost  bool   `json:"httpHost,omitempty"`
+		HttpReply bool   `json:"httpReply,omitempty"`
+		HTTPURI   bool   `json:"httpUri,omitempty"`
+		Forward   bool   `json:"forward,omitempty"`
+		Location  string `json:"location,omitempty"`
+		Path      string `json:"path,omitempty"`
+		Redirect  bool   `json:"redirect,omitempty"`
+		Replace   bool   `json:"replace,omitempty"`
+		Request   bool   `json:"request,omitempty"`
+		Reset     bool   `json:"reset,omitempty"`
+		Select    bool   `json:"select,omitempty"`
+		Value     string `json:"value,omitempty"`
+	}
+
+	// condition config for a Rule
+	condition struct {
+		Name            string   `json:"name"`
+		Address         bool     `json:"address,omitempty"`
+		CaseInsensitive bool     `json:"caseInsensitive,omitempty"`
+		Equals          bool     `json:"equals,omitempty"`
+		EndsWith        bool     `json:"endsWith,omitempty"`
+		External        bool     `json:"external,omitempty"`
+		HTTPHost        bool     `json:"httpHost,omitempty"`
+		Host            bool     `json:"host,omitempty"`
+		HTTPURI         bool     `json:"httpUri,omitempty"`
+		Index           int      `json:"index,omitempty"`
+		Matches         bool     `json:"matches,omitempty"`
+		Path            bool     `json:"path,omitempty"`
+		PathSegment     bool     `json:"pathSegment,omitempty"`
+		Present         bool     `json:"present,omitempty"`
+		Remote          bool     `json:"remote,omitempty"`
+		Request         bool     `json:"request,omitempty"`
+		Scheme          bool     `json:"scheme,omitempty"`
+		Tcp             bool     `json:"tcp,omitempty"`
+		Values          []string `json:"values"`
+	}
+
+	// Rules is a slice of Rule
+	Rules   []*Rule
+	ruleMap map[string]*Rule
+
+	// Policy Virtual policy
+	Policy struct {
+		Name        string   `json:"name"`
+		Partition   string   `json:"-"`
+		SubPath     string   `json:"subPath,omitempty"`
+		Controls    []string `json:"controls,omitempty"`
+		Description string   `json:"description,omitempty"`
+		Legacy      bool     `json:"legacy,omitempty"`
+		Requires    []string `json:"requires,omitempty"`
+		Rules       Rules    `json:"rules,omitempty"`
+		Strategy    string   `json:"strategy,omitempty"`
+	}
+	// Policies is slice of policy
+	Policies []Policy
 )
 
 type (

@@ -15,6 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	&& rm -rf /var/lib/apt/lists/*
 
 ENV GOLANG_VERSION 1.12
+
+# licensee dependencies
+RUN apt-get update && apt-get install -y ruby bundler cmake pkg-config git libssl-dev libpng-dev
+RUN gem install licensee
+
 RUN set -eux; \
 	\
 # this "case" statement is generated via "update.sh"

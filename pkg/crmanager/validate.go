@@ -22,7 +22,7 @@ import (
 )
 
 func (crMgr *CRManager) checkValidVirtualServer(
-	rkey rqKey,
+	rkey *rqKey,
 ) bool {
 
 	vkey := rkey.namespace + "/" + rkey.rscName

@@ -41,7 +41,7 @@ func (crMgr *CRManager) processResource() bool {
 		return false
 	}
 	defer crMgr.rscQueue.Done(key)
-	rKey := key.(rqKey)
+	rKey := key.(*rqKey)
 	log.Debugf("Processing Key: %v", rKey)
 
 	// Check the type of resource and process accordingly.
@@ -55,15 +55,15 @@ func (crMgr *CRManager) processResource() bool {
 		crMgr.rscQueue.Forget(key)
 		return true
 	case Service:
-		//TODO
-	default:
-		err := crMgr.syncVirtualServer(rKey)
-		if err != nil {
-			// TODO
-			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-		}
+		// TODO
 		crMgr.rscQueue.Forget(key)
 		return true
+	case Endpoints:
+		// TODO
+		crMgr.rscQueue.Forget(key)
+		return true
+	default:
+		log.Errorf("Unknown resource Kind: %v", rKey.kind)
 	}
 
 	crMgr.rscQueue.AddRateLimited(key)
@@ -71,7 +71,7 @@ func (crMgr *CRManager) processResource() bool {
 	return true
 }
 
-func (crMgr *CRManager) syncVirtualServer(rkey rqKey) error {
+func (crMgr *CRManager) syncVirtualServer(rkey *rqKey) error {
 
 	startTime := time.Now()
 	defer func() {

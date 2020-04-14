@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -33,7 +34,7 @@ const (
 	DefaultCustomResourceLabel = "f5cr in (true)"
 	VirtualServer              = "VirtualServer"
 	Service                    = "Service"
-	Endpoint                   = "Endpoint"
+	Endpoints                  = "Endpoints"
 )
 
 func NewCRManager(params Params) *CRManager {
@@ -81,13 +82,18 @@ func createLabelSelector(label string) (labels.Selector, error) {
 }
 
 func (crMgr *CRManager) setupClients(config *rest.Config) error {
-	kubeClient, err := versioned.NewForConfig(config)
-
+	kubeCRClient, err := versioned.NewForConfig(config)
 	if err != nil {
-		return fmt.Errorf("Failed to create KubeClient: %v", err)
+		return fmt.Errorf("Failed to create Custum Resource kubeClient: %v", err)
+	}
+
+	kubeClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("Failed to create kubeClient: %v", err)
 	}
 
 	log.Debug("Client Created")
+	crMgr.kubeCRClient = kubeCRClient
 	crMgr.kubeClient = kubeClient
 	return nil
 }

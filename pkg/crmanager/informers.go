@@ -18,10 +18,12 @@ package crmanager
 
 import (
 	"fmt"
+	"time"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/informers/externalversions/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -31,6 +33,12 @@ func (crInfr *CRInformer) start() {
 	log.Infof("Starting VirtualServer Informer")
 	if crInfr.vsInformer != nil {
 		go crInfr.vsInformer.Run(crInfr.stopCh)
+	}
+	if crInfr.svcInformer != nil {
+		go crInfr.svcInformer.Run(crInfr.stopCh)
+	}
+	if crInfr.epsInformer != nil {
+		go crInfr.epsInformer.Run(crInfr.stopCh)
 	}
 }
 
@@ -64,6 +72,7 @@ func (crMgr *CRManager) addNamespacedInformer(
 		return nil
 	}
 	crInf = crMgr.newInformer(namespace)
+	crMgr.addEventHandlers(crInf)
 	crMgr.crInformers[namespace] = crInf
 	return nil
 }
@@ -75,19 +84,50 @@ func (crMgr *CRManager) newInformer(
 	crOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = crMgr.resourceSelector.String()
 	}
+	everything := func(options *metav1.ListOptions) {
+		options.LabelSelector = ""
+	}
+	resyncPeriod := 0 * time.Second
+	restClientv1 := crMgr.kubeClient.CoreV1().RESTClient()
 
 	crInf := &CRInformer{
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
 		vsInformer: cisinfv1.NewFilteredVirtualServerInformer(
-			crMgr.kubeClient,
+			crMgr.kubeCRClient,
 			namespace,
-			0,
+			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 			crOptions,
 		),
+		svcInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"services",
+				namespace,
+				everything,
+			),
+			&corev1.Service{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+		epsInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"endpoints",
+				namespace,
+				everything,
+			),
+			&corev1.Endpoints{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
 	}
 
+	return crInf
+}
+
+func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	crInf.vsInformer.AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { crMgr.enqueueVirtualServer(obj) },
@@ -96,7 +136,21 @@ func (crMgr *CRManager) newInformer(
 		},
 	)
 
-	return crInf
+	crInf.svcInformer.AddEventHandler(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { crMgr.enqueueService(obj) },
+			UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueService(cur) },
+			DeleteFunc: func(obj interface{}) { crMgr.enqueueService(obj) },
+		},
+	)
+
+	crInf.epsInformer.AddEventHandler(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
+			UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueEndpoints(cur) },
+			DeleteFunc: func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
+		},
+	)
 }
 
 func (crMgr *CRManager) getNamespaceInformer(
@@ -112,7 +166,7 @@ func (crMgr *CRManager) getNamespaceInformer(
 func (crMgr *CRManager) enqueueVirtualServer(obj interface{}) {
 	vs := obj.(*cisapiv1.VirtualServer)
 	log.Infof("Enqueueing VirtualServer: %v", vs)
-	key := rqKey{
+	key := &rqKey{
 		namespace: vs.ObjectMeta.Namespace,
 		kind:      VirtualServer,
 		rscName:   vs.ObjectMeta.Name,
@@ -120,5 +174,30 @@ func (crMgr *CRManager) enqueueVirtualServer(obj interface{}) {
 	}
 
 	crMgr.rscQueue.Add(key)
+}
 
+func (crMgr *CRManager) enqueueService(obj interface{}) {
+	svc := obj.(*corev1.Service)
+	log.Infof("Enqueueing Service: %v", svc)
+	key := &rqKey{
+		namespace: svc.ObjectMeta.Namespace,
+		kind:      Service,
+		rscName:   svc.ObjectMeta.Name,
+		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueEndpoints(obj interface{}) {
+	eps := obj.(*corev1.Endpoints)
+	log.Infof("Enqueueing Endpoints: %v", eps)
+	key := &rqKey{
+		namespace: eps.ObjectMeta.Namespace,
+		kind:      Endpoints,
+		rscName:   eps.ObjectMeta.Name,
+		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
 }

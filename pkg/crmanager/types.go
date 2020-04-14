@@ -19,18 +19,20 @@ package crmanager
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	pm "github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
-	"k8s.io/client-go/util/workqueue"
 
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 )
 
 type (
-	// CRManager defines the structure of Customresource Manager
+	// CRManager defines the structure of Custom Resource Manager
 	CRManager struct {
 		resources        *Resources
-		kubeClient       versioned.Interface
+		kubeCRClient     versioned.Interface
+		kubeClient       kubernetes.Interface
 		crInformers      map[string]*CRInformer
 		resourceSelector labels.Selector
 		namespaces       []string
@@ -44,11 +46,13 @@ type (
 		Config     *rest.Config
 		Namespaces []string
 	}
-	// CRInformer defines the strcuture of Customresource Informer
+	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
-		namespace  string
-		stopCh     chan struct{}
-		vsInformer cache.SharedIndexInformer
+		namespace   string
+		stopCh      chan struct{}
+		vsInformer  cache.SharedIndexInformer
+		svcInformer cache.SharedIndexInformer
+		epsInformer cache.SharedIndexInformer
 	}
 
 	rqKey struct {

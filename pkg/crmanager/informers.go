@@ -138,7 +138,10 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 
 	crInf.svcInformer.AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { crMgr.enqueueService(obj) },
+			// Ignore AddFunc for service as we dont bother about services until they are
+			// mapped to VirtualServer. Any new service added and mapped to a VirtualServer
+			// will be handled in the VirtualServer Informer AddFunc.
+			// AddFunc:    func(obj interface{}) { crMgr.enqueueService(obj) },
 			UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueService(cur) },
 			DeleteFunc: func(obj interface{}) { crMgr.enqueueService(obj) },
 		},
@@ -146,7 +149,10 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 
 	crInf.epsInformer.AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
+			// Ignore AddFunc for endpoint as we dont bother about endpoints until they are
+			// mapped to VirtualServer. Any new endpoint added and mapped to a Service
+			// will be handled in the Service Informer AddFunc.
+			// AddFunc:    func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
 			UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueEndpoints(cur) },
 			DeleteFunc: func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
 		},

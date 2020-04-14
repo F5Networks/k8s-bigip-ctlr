@@ -17,37 +17,37 @@
 package crmanager
 
 import (
+	"fmt"
+
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
 func (crMgr *CRManager) checkValidVirtualServer(
-	rkey *rqKey,
+	vsResource *cisapiv1.VirtualServer,
 ) bool {
 
-	vkey := rkey.namespace + "/" + rkey.rscName
-	crInf := crMgr.newInformer(rkey.namespace)
-	if nil == crInf {
-		// Not watching this namespace
-		log.Debugf("VirtualServer %v doesnot belong to the watched namespaces", vkey)
-		return false
-	}
+	vsNamespace := vsResource.ObjectMeta.Namespace
+	vsName := vsResource.ObjectMeta.Name
+	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
+
 	// Check if the virtual exists and valid for us.
-	vs, virtualFound, _ := crInf.vsInformer.GetIndexer().GetByKey(rkey.rscName)
+	_, virtualFound, _ := crMgr.crInformers[vsNamespace].
+		vsInformer.GetIndexer().GetByKey(vkey)
 	if !virtualFound {
 		// VirtualServer was deleted. Lets proceed with delete operation.
 		// TODO ==> Delete operation for VirtualServer.
 		//          Typically, we will make a call to some DeleteVirtualServer method.
+		log.Infof("VirtualServer %s Not found, Possibly Deleted", vsName)
 		return false
 	}
 
-	virtual := vs.(*cisapiv1.VirtualServer)
-	bindAddr := virtual.Spec.VirtualServerAddress
+	bindAddr := vsResource.Spec.VirtualServerAddress
 
 	// This ensures that pool-only mode only logs the message below the first
 	// time we see a config.
 	if bindAddr == "" {
-		log.Infof("No IP was specified for the virtual server %s", vkey)
+		log.Infof("No IP was specified for the virtual server %s", vsName)
 		return false
 	}
 

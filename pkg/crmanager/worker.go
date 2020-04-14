@@ -22,6 +22,7 @@ import (
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	v1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
@@ -47,7 +48,8 @@ func (crMgr *CRManager) processResource() bool {
 	// Check the type of resource and process accordingly.
 	switch rKey.kind {
 	case VirtualServer:
-		err := crMgr.syncVirtualServer(rKey)
+		vs := rKey.rsc.(*cisapiv1.VirtualServer)
+		err := crMgr.syncVirtualServer(vs)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -55,11 +57,36 @@ func (crMgr *CRManager) processResource() bool {
 		crMgr.rscQueue.Forget(key)
 		return true
 	case Service:
-		// TODO
+		svc := rKey.rsc.(*v1.Service)
+		virtuals := crMgr.syncService(svc)
+		// No Virtuals are effected with the change in service.
+		if nil == virtuals {
+			break
+		}
+		for _, virtual := range virtuals {
+			err := crMgr.syncVirtualServer(virtual)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			}
+		}
 		crMgr.rscQueue.Forget(key)
 		return true
 	case Endpoints:
-		// TODO
+		ep := rKey.rsc.(*v1.Endpoints)
+		svc := crMgr.syncEndpoints(ep)
+		// No Services are effected with the change in service.
+		if nil == svc {
+			break
+		}
+		virtuals := crMgr.syncService(svc)
+		for _, virtual := range virtuals {
+			err := crMgr.syncVirtualServer(virtual)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			}
+		}
 		crMgr.rscQueue.Forget(key)
 		return true
 	default:
@@ -71,24 +98,125 @@ func (crMgr *CRManager) processResource() bool {
 	return true
 }
 
-func (crMgr *CRManager) syncVirtualServer(rkey *rqKey) error {
+// syncEndpoints gets the service associated with endpoints.
+func (crMgr *CRManager) syncEndpoints(ep *v1.Endpoints) *v1.Service {
+
+	epName := ep.ObjectMeta.Name
+	epNamespace := ep.ObjectMeta.Namespace
+	svcKey := fmt.Sprintf("%s/%s", epNamespace, epName)
+
+	// Create namespaced Informer
+	svc, exists, err := crMgr.crInformers[epNamespace].
+		svcInformer.GetIndexer().GetByKey(svcKey)
+	if err != nil {
+		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
+		return nil
+	}
+	if !exists {
+		log.Infof("Service %v doesn't exist", svcKey)
+		return nil
+	}
+
+	return svc.(*v1.Service)
+}
+
+// syncService gets the List of VirtualServers which are effected by the addition/deletion/updation
+// of service.
+func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
+
+	allVirtuals := crMgr.getAllVirtualServers(svc)
+	if nil == allVirtuals {
+		log.Infof("No VirtualServers founds in namespace %s",
+			svc.ObjectMeta.Namespace)
+		return nil
+	}
+
+	// find VirtualServers that reference the service
+	virtualsForService := getVirtualServersForService(allVirtuals, svc)
+	if nil == virtualsForService {
+		log.Infof("Change in Service %s does not effect any VirtualServer",
+			svc.ObjectMeta.Name)
+		return nil
+	}
+	// Output list of all Virtuals Found.
+	var targetVirtualNames []string
+	for _, vs := range allVirtuals {
+		targetVirtualNames = append(targetVirtualNames, vs.ObjectMeta.Name)
+	}
+	log.Debugf("VirtualServers %v are affected with service %s change",
+		targetVirtualNames, svc.ObjectMeta.Name)
+
+	// TODO
+	// Remove Duplicate entries in the slice targetVirutalServers.
+	// or Add only Unique entries into the slice targetVirutalServers.
+	return virtualsForService
+}
+
+// getAllVirtualServers returns list of all valid VirtualServers in rkey namespace.
+func (crMgr *CRManager) getAllVirtualServers(svc *v1.Service) []*cisapiv1.VirtualServer {
+	var allVirtuals []*cisapiv1.VirtualServer
+	namespace := svc.ObjectMeta.Namespace
+
+	// Get list of VirtualServers and process them.
+	for _, obj := range crMgr.crInformers[namespace].
+		vsInformer.GetIndexer().List() {
+
+		vs := obj.(*cisapiv1.VirtualServer)
+		// TODO
+		// Validate the VirtualServers List to check if all the vs are valid.
+
+		allVirtuals = append(allVirtuals, vs)
+	}
+
+	return allVirtuals
+}
+
+func getVirtualServersForService(allVirtuals []*cisapiv1.VirtualServer,
+	svc *v1.Service) []*cisapiv1.VirtualServer {
+
+	var result []*cisapiv1.VirtualServer
+	svcName := svc.ObjectMeta.Name
+	svcNamespace := svc.ObjectMeta.Namespace
+
+	for _, vs := range allVirtuals {
+		if vs.ObjectMeta.Namespace != svcNamespace {
+			continue
+		}
+
+		isValidVirtual := false
+		for _, pool := range vs.Spec.Pools {
+			if pool.Service == svcName {
+				isValidVirtual = true
+				break
+			}
+		}
+		if !isValidVirtual {
+			continue
+		}
+
+		result = append(result, vs)
+	}
+
+	return result
+}
+
+func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error {
 
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
 		log.Debugf("Finished syncing virtual servers %+v (%v)",
-			rkey, endTime.Sub(startTime))
+			virtual, endTime.Sub(startTime))
 	}()
 	// check if the virutal server matches all the requirements.
-	vkey := rkey.namespace + "/" + rkey.rscName
-	valid := crMgr.checkValidVirtualServer(rkey)
+	vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
+	valid := crMgr.checkValidVirtualServer(virtual)
 	if false == valid {
-		log.Infof("Ignoring VirtualServer %s, invalid configuration or deleted", vkey)
-	}
+		log.Infof("Ignoring VirtualServer %s, invalid configuration or deleted",
+			vkey)
 
-	// Get the VirtualServer object.
-	vs := rkey.rsc
-	virtual := vs.(*cisapiv1.VirtualServer)
+		return nil
+	}
 
 	// Get a list of dependencies removed so their pools can be removed.
 	objKey, objDeps := NewObjectDependencies(virtual)
@@ -107,7 +235,7 @@ func (crMgr *CRManager) syncVirtualServer(rkey *rqKey) error {
 		rsCfg := crMgr.createRSConfigFromVirtualServer(
 			virtual,
 			crMgr.resources,
-			rkey.namespace,
+			virtual.ObjectMeta.Namespace,
 			portStruct,
 		)
 		if rsCfg == nil {

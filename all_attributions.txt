@@ -1,0 +1,1387 @@
+github.com/beorn7/perks
+License:        MIT
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  d64f3bb4282a97b37454b5bb96a8a264a3363dc3
+  Attribution:   Copyright (C) 2013 Blake Mizerany
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       MIT
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/davecgh/go-spew
+License:        ISC
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  d168f98624be864548b2bbf4f198fdbf702d6743
+  Attribution:   Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       ISC
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/evanphx/json-patch
+License:        BSD-3-Clause
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  fed1b226c87fe9fd19df311d12e485cf4d7a40a7
+  Attribution:   Copyright (c) 2014, Evan Phoenix
+  Confidence:    99.15%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  99.15%
+    NCSA similarity:          66.96%
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/gogo/protobuf
+License:        NOASSERTION
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  76cab382eeaaf4cdbe53cf34c7dcbf2727a2270c
+  License:       NOASSERTION
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/golang/groupcache
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  53f121e345a269c39e899d50aec2e8e0f18ebcd4
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/golang/protobuf
+License:        BSD-3-Clause
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Attribution:   Copyright 2010 The Go Authors. All rights reserved.
+  Confidence:    99.15%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  99.15%
+    NCSA similarity:          66.96%
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/google/go-cmp
+License:        BSD-3-Clause
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Attribution:   Copyright (c) 2017 The Go Authors. All rights reserved.
+  Confidence:    99.15%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  99.15%
+    NCSA similarity:          66.96%
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/google/gofuzz
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/googleapis/gnostic
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/hashicorp/golang-lru
+License:        MPL-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  b76b2b95140e8c791e75f0ce3fe35b0be48a9a38
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       MPL-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/hpcloud/tail
+License:        MIT
+Matched files:  LICENSE.txt
+LICENSE.txt:
+  Content hash:  d64f3bb4282a97b37454b5bb96a8a264a3363dc3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       MIT
+Unable to detect the license file path
+github.com/imdario/mergo
+Unable to detect the license type
+github.com/json-iterator/go
+License:        MIT
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  d64f3bb4282a97b37454b5bb96a8a264a3363dc3
+  Attribution:   Copyright (c) 2016 json-iterator
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       MIT
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/matttproud/golang_protobuf_extensions
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/miekg/dns
+License:        NOASSERTION
+Matched files:  LICENSE, COPYRIGHT
+LICENSE:
+  Content hash:  ad4ade129c4d9fc65d4fafde693694e160d82f73
+  License:       NOASSERTION
+COPYRIGHT:
+  Content hash:  4f57c6222da530bb401d59e9be1f1c81761b02cc
+  License:       NOASSERTION
+
+github.com/modern-go/concurrent
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/modern-go/reflect2
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/onsi/ginkgo
+License:        MIT
+Matched files:  LICENSE, README.md
+LICENSE:
+  Content hash:  d64f3bb4282a97b37454b5bb96a8a264a3363dc3
+  Attribution:   Copyright (c) 2013-2014 Onsi Fakhouri
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       MIT
+README.md:
+  Content hash:  cdee763face43eef9346e9b16d3fece1ff1f6454
+  Confidence:    90.00%
+  Matcher:       Licensee::Matchers::Reference
+  License:       MIT
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/onsi/gomega
+License:        MIT
+Matched files:  LICENSE, README.md
+LICENSE:
+  Content hash:  d64f3bb4282a97b37454b5bb96a8a264a3363dc3
+  Attribution:   Copyright (c) 2013-2014 Onsi Fakhouri
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       MIT
+README.md:
+  Content hash:  e3719746d0723f0d0b636046cc716b14e64f3337
+  Confidence:    90.00%
+  Matcher:       Licensee::Matchers::Reference
+  License:       MIT
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/openshift/api
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/openshift/client-go
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/prometheus/client_golang
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/prometheus/client_model
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/prometheus/common
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/prometheus/procfs
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/spf13/pflag
+License:        BSD-3-Clause
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Attribution:   Copyright (c) 2012 Alex Ogier. All rights reserved.
+Copyright (c) 2012 The Go Authors. All rights reserved.
+  Confidence:    99.15%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  99.15%
+    NCSA similarity:          66.96%
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/xeipuuv/gojsonpointer
+License:        Apache-2.0
+Matched files:  LICENSE-APACHE-2.0.txt
+LICENSE-APACHE-2.0.txt:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+Unable to detect the license file path
+github.com/xeipuuv/gojsonreference
+License:        Apache-2.0
+Matched files:  LICENSE-APACHE-2.0.txt
+LICENSE-APACHE-2.0.txt:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+Unable to detect the license file path
+github.com/xeipuuv/gojsonschema
+License:        Apache-2.0
+Matched files:  LICENSE-APACHE-2.0.txt
+LICENSE-APACHE-2.0.txt:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+Unable to detect the license file path
+golang.org/x/crypto
+License:        NOASSERTION
+Matched files:  LICENSE, PATENTS
+LICENSE:
+  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
+  Confidence:    99.15%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  99.15%
+    NCSA similarity:          66.96%
+PATENTS:
+  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSL-1.0 similarity:  29.33%
+
+golang.org/x/net
+License:        NOASSERTION
+Matched files:  LICENSE, PATENTS
+LICENSE:
+  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
+  Confidence:    99.15%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  99.15%
+    NCSA similarity:          66.96%
+PATENTS:
+  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSL-1.0 similarity:  29.33%
+
+golang.org/x/oauth2
+License:        BSD-3-Clause
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
+  Confidence:    99.15%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  99.15%
+    NCSA similarity:          66.96%
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+golang.org/x/sys
+License:        NOASSERTION
+Matched files:  LICENSE, PATENTS
+LICENSE:
+  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
+  Confidence:    99.15%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  99.15%
+    NCSA similarity:          66.96%
+PATENTS:
+  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSL-1.0 similarity:  29.33%
+
+golang.org/x/text
+License:        NOASSERTION
+Matched files:  LICENSE, PATENTS
+LICENSE:
+  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
+  Confidence:    99.15%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  99.15%
+    NCSA similarity:          66.96%
+PATENTS:
+  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSL-1.0 similarity:  29.33%
+
+golang.org/x/time
+License:        NOASSERTION
+Matched files:  LICENSE, PATENTS
+LICENSE:
+  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
+  Confidence:    99.15%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  99.15%
+    NCSA similarity:          66.96%
+PATENTS:
+  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSL-1.0 similarity:  29.33%
+
+google.golang.org/appengine
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+gopkg.in/fsnotify.v1
+License:        BSD-3-Clause
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Attribution:   Copyright (c) 2012 The Go Authors. All rights reserved.
+Copyright (c) 2012 fsnotify Authors. All rights reserved.
+  Confidence:    99.15%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  99.15%
+    NCSA similarity:          66.96%
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+gopkg.in/inf.v0
+License:        NOASSERTION
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  d584d4d93ff276855791486f757001f490ffae8c
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:  97.50%
+    NCSA similarity:          66.67%
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+gopkg.in/tomb.v1
+License:        NOASSERTION
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  5d2c5f8221a5f92d9ece6ac741db97141d17150e
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSD-3-Clause-Clear similarity:  91.47%
+    BSD-4-Clause similarity:        91.41%
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+gopkg.in/yaml.v2
+License:        NOASSERTION
+Matched files:  LICENSE, LICENSE.libyaml, README.md
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+LICENSE.libyaml:
+  Content hash:  45b26c34281865a7b4a103774ce0108fb6190f52
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSL-1.0 similarity:  66.08%
+README.md:
+  Content hash:  62cab2b3c5677444dc582fb2fd3c6559b7ece0ca
+  Confidence:    90.00%
+  Matcher:       Licensee::Matchers::Reference
+  License:       Apache-2.0
+
+k8s.io/api
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+k8s.io/apimachinery
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+k8s.io/client-go
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+k8s.io/klog
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  53f121e345a269c39e899d50aec2e8e0f18ebcd4
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+k8s.io/kube-openapi
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+k8s.io/utils
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+Cannot handle this repo: modules.txt
+sigs.k8s.io/yaml
+License:        NOASSERTION
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  da07d47669f9757716bcd4f38923de55c8a25c29
+  License:       NOASSERTION
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+

@@ -31,9 +31,6 @@ prod: prod-build
 
 verify: fmt vet
 
-docs: _docs
-
-
 godep-restore: check-gopath
 	godep restore
 	rm -rf vendor Godeps
@@ -44,10 +41,6 @@ godep-save: check-gopath
 clean:
 	rm -rf _docker_workspace
 	rm -rf _build
-	rm -rf docs/_build
-	rm -f *_attributions.json
-	rm -f *_attributions.csv
-	rm -f docs/_static/ATTRIBUTIONS.md
 	@echo "Did not clean local go workspace"
 
 info:
@@ -124,46 +117,3 @@ reset-dev-patch:
 
 # Build devloper image
 dev: dev-patch prod-quick reset-dev-patch
-
-#
-# Docs
-#
-doc-preview:
-	rm -rf docs/_build
-	DOCKER_RUN_ARGS="-p 127.0.0.1:8000:8000" \
-	  ./build-tools/docker-docs.sh make -C docs preview
-
-_docs: docs/_static/ATTRIBUTIONS.md always-build
-	./build-tools/docker-docs.sh ./build-tools/make-docs.sh
-
-docker-test:
-	rm -rf docs/_build
-	./build-tools/docker-docs.sh ./build-tools/make-docs.sh
-
-# one-time html build using a docker container
-.PHONY: docker-html
-docker-html:
-	rm -rf docs/_build
-	./build-tools/docker-docs.sh make -C docs/ html
-
-#
-# Attributions Generation
-#
-golang_attributions.json: Godeps/Godeps.json
-	./build-tools/attributions-generator.sh \
-		/usr/local/bin/golang-backend.py --project-path=$(CURDIR)
-
-flatfile_attributions.json: .f5license
-	./build-tools/attributions-generator.sh \
-		/usr/local/bin/flatfile-backend.py --project-path=$(CURDIR)
-
-pip_attributions.json: always-build
-	./build-tools/attributions-generator.sh \
-		/usr/local/bin/pip-backend.py \
-		--requirements=requirements.txt \
-		--project-path=$(CURDIR) \
-
-docs/_static/ATTRIBUTIONS.md: flatfile_attributions.json  golang_attributions.json  pip_attributions.json
-	./build-tools/attributions-generator.sh \
-		node /frontEnd/frontEnd.js --pd $(CURDIR) $(LIC_FLAG)
-	mv ATTRIBUTIONS.md $@

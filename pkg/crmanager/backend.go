@@ -19,11 +19,11 @@ package crmanager
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	"strconv"
 	"strings"
 
 	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
-	pm "github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
@@ -44,14 +44,71 @@ const (
 `
 )
 
-func (crMgr *CRManager) AddAS3Agent(params pm.Params) {
-	postMgr := pm.NewPostManager(params)
-	crMgr.Agent = &AS3Agent{postMgr}
+func (crMgr *CRManager) AddAgent(params AgentParams) {
+	crMgr.Agent = NewAgent(params)
 }
 
-func (agent *AS3Agent) PostConfig(rsCfgs ResourceConfigs) {
+func NewAgent(params AgentParams) *Agent {
+	postMgr := NewPostManager(params.PostParams)
+	configWriter, err := writer.NewConfigWriter()
+	if nil != err {
+		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
+	}
+	agent := &Agent{
+		PostManager:  postMgr,
+		ConfigWriter: configWriter,
+		EventChan:    make(chan interface{}),
+	}
+	// If running in VXLAN mode, extract the partition name from the tunnel
+	// to be used in configuring a net instance of CCCL for that partition
+	var vxlanPartition string
+	if len(params.VXLANName) > 0 {
+		cleanPath := strings.TrimLeft(params.VXLANName, "/")
+		slashPos := strings.Index(cleanPath, "/")
+		if slashPos == -1 {
+			// No partition
+			vxlanPartition = "Common"
+		} else {
+			// Partition and name
+			vxlanPartition = cleanPath[:slashPos]
+		}
+	}
+
+	gs := globalSection{
+		LogLevel:       params.LogLevel,
+		VerifyInterval: params.VerifyInterval,
+		VXLANPartition: vxlanPartition,
+	}
+	bs := bigIPSection{
+		BigIPUsername:   params.PostParams.BIGIPUsername,
+		BigIPPassword:   params.PostParams.BIGIPPassword,
+		BigIPURL:        params.PostParams.BIGIPURL,
+		BigIPPartitions: params.BigIPPartitions,
+	}
+
+	subPidCh, err := startPythonDriver(
+		configWriter,
+		gs,
+		bs,
+		params.PythonBaseDir,
+	)
+	if nil != err {
+		log.Fatalf("Could not initialize subprocess configuration: %v", err)
+	}
+	subPid := <-subPidCh
+	agent.PythonDriverPID = subPid
+
+	return agent
+}
+
+func (agent *Agent) Stop() {
+	agent.ConfigWriter.Stop()
+	stopPythonDriver(agent.PythonDriverPID)
+}
+
+func (agent *Agent) PostConfig(rsCfgs ResourceConfigs) {
 	decl := createAS3Declaration(rsCfgs)
-	agent.Write(string(decl), nil, nil)
+	agent.Write(string(decl), nil)
 }
 
 //Create AS3 declaration

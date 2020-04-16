@@ -18,7 +18,7 @@ package crmanager
 
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
-	pm "github.com/F5Networks/k8s-bigip-ctlr/pkg/postmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -37,7 +37,7 @@ type (
 		resourceSelector labels.Selector
 		namespaces       []string
 		rscQueue         workqueue.RateLimitingInterface
-		Agent            *AS3Agent
+		Agent            *Agent
 		// map of rules that have been merged
 		mergedRulesMap map[string]map[string]mergedRuleEntry
 	}
@@ -215,8 +215,34 @@ type (
 )
 
 type (
-	AS3Agent struct {
-		*pm.PostManager
+	Agent struct {
+		*PostManager
+		ConfigWriter    writer.Writer
+		EventChan       chan interface{}
+		PythonDriverPID int
+	}
+
+	AgentParams struct {
+		PostParams PostParams
+		//VxlnParams      VXLANParams
+		BigIPPartitions []string
+		LogLevel        string
+		VerifyInterval  int
+		VXLANName       string
+		PythonBaseDir   string
+	}
+
+	globalSection struct {
+		LogLevel       string `json:"log-level,omitempty"`
+		VerifyInterval int    `json:"verify-interval,omitempty"`
+		VXLANPartition string `json:"vxlan-partition,omitempty"`
+	}
+
+	bigIPSection struct {
+		BigIPUsername   string   `json:"username,omitempty"`
+		BigIPPassword   string   `json:"password,omitempty"`
+		BigIPURL        string   `json:"url,omitempty"`
+		BigIPPartitions []string `json:"partitions,omitempty"`
 	}
 
 	as3Template    string

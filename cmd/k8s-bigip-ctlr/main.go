@@ -664,24 +664,7 @@ func main() {
 	}
 
 	if *customResourceMode {
-		crMgr := crmanager.NewCRManager(
-			crmanager.Params{
-				Config:     config,
-				Namespaces: *namespaces,
-			},
-		)
-		var postMgrParams = postmanager.Params{
-			BIGIPUsername: *bigIPUsername,
-			BIGIPPassword: *bigIPPassword,
-			BIGIPURL:      *bigIPURL,
-			TrustedCerts:  "",
-			SSLInsecure:   true,
-			AS3PostDelay:  *as3PostDelay,
-			LogResponse:   *logAS3Response,
-			RouteClientV1: nil,
-		}
-		crMgr.AddAS3Agent(postMgrParams)
-
+		crMgr := initCustomResourceManager(config)
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigs
@@ -861,6 +844,39 @@ func main() {
 	sig := <-sigs
 	close(stopCh)
 	log.Infof("Exiting - signal %v\n", sig)
+}
+
+func initCustomResourceManager(
+	config *rest.Config,
+) *crmanager.CRManager {
+	crMgr := crmanager.NewCRManager(
+		crmanager.Params{
+			Config:     config,
+			Namespaces: *namespaces,
+		},
+	)
+
+	postMgrParams := crmanager.PostParams{
+		BIGIPUsername: *bigIPUsername,
+		BIGIPPassword: *bigIPPassword,
+		BIGIPURL:      *bigIPURL,
+		TrustedCerts:  "",
+		SSLInsecure:   true,
+		AS3PostDelay:  *as3PostDelay,
+		LogResponse:   *logAS3Response,
+	}
+
+	agentParams := crmanager.AgentParams{
+		PostParams:      postMgrParams,
+		BigIPPartitions: *bigIPPartitions,
+		LogLevel:        *logLevel,
+		VerifyInterval:  *verifyInterval,
+		VXLANName:       vxlanName,
+		PythonBaseDir:   *pythonBaseDir,
+	}
+	crMgr.AddAgent(agentParams)
+
+	return crMgr
 }
 
 func fetchAS3Schema(appMgr *appmanager.Manager) {

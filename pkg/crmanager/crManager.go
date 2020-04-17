@@ -128,4 +128,5 @@ func (crMgr *CRManager) Stop() {
 	for _, inf := range crMgr.crInformers {
 		inf.stop()
 	}
+	crMgr.Agent.Stop()
 }

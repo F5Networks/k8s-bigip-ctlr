@@ -154,7 +154,7 @@ func formatVirtualServerName(ip string, port int32) string {
 	// Strip any bracket characters; replace special characters ". : /"
 	// with "-" and "%" with ".", for naming purposes
 	ip = strings.Trim(ip, "[]")
-	var replacer = strings.NewReplacer(".", "_", ":", "_", "/", "_", "%", ".")
+	var replacer = strings.NewReplacer(".", "_", ":", "_", "/", "_", "%", ".", "-", "_")
 	ip = replacer.Replace(ip)
 	return fmt.Sprintf("f5_crd_virtualserver_%s_%d", ip, port)
 }
@@ -163,7 +163,7 @@ func formatVirtualServerName(ip string, port int32) string {
 func formatVirtualServerPoolName(namespace, svc string) string {
 	var replacer = strings.NewReplacer(".", "_", ":", "_", "/", "_", "-", "_")
 	svc = replacer.Replace(svc)
-	return fmt.Sprintf("virtualserver_%s_%s", namespace, svc)
+	return fmt.Sprintf("%s_%s", namespace, svc)
 }
 
 // Creates resource config based on VirtualServer resource config
@@ -211,10 +211,12 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 	rules = processVirtualServerRules(
 		vs,
 		pools,
-		cfg.Virtual.Partition,
+		vs.ObjectMeta.Namespace,
 	)
 
-	plcy = createPolicy(*rules, cfg.Virtual.Name, cfg.Virtual.Partition)
+	policyName := cfg.Virtual.Name + "_policy"
+
+	plcy = createPolicy(*rules, policyName, vs.ObjectMeta.Namespace)
 
 	cfg.MetaData.rscName = vs.ObjectMeta.Name
 
@@ -874,4 +876,12 @@ func (rcs ResourceConfigs) GetAllPoolMembers() []Member {
 		}
 	}
 	return allPoolMembers
+}
+
+// AS3NameFormatter formarts resources names according to AS3 convention
+// TODO: Should we use this? Or this will be done in agent?
+func (crMgr *CRManager) AS3NameFormatter(name string) string {
+	replacer := strings.NewReplacer(".", "_", ":", "_", "/", "_", "%", ".", "-", "_")
+	name = replacer.Replace(name)
+	return name
 }

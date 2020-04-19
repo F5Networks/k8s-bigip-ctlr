@@ -251,8 +251,6 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 
 		}
 
-		log.Debugf("resourceconfig looks like %v", rsCfg)
-
 		// Remove any dependencies no longer used by this VirtualServer
 		for _, dep := range depsRemoved {
 			if dep.Kind == RuleDep {
@@ -268,10 +266,10 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 
 		if crMgr.ControllerMode == "nodeport" {
 			_, _, _ =
-				crMgr.updatePoolMembersForNodePort(rsCfg)
+				crMgr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
 		} else {
 			_, _, _ =
-				crMgr.updatePoolMembersForCluster(rsCfg)
+				crMgr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
 		}
 
 		/** TODO ==> To be implemented in ALPHA later stage
@@ -349,15 +347,15 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 
 func (crMgr *CRManager) updatePoolMembersForNodePort(
 	rsCfg *ResourceConfig,
+	namespace string,
 ) (bool, string, string) {
 	// TODO: Can we get rid of counter?
 	index := 0
 	for _, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
-		svcKey := "default/" + svcName
+		svcKey := namespace + "/" + svcName
 		// TODO: Too Many API calls?
-		// TODO: Get ServiceName, Do not use default.
-		service, _, _ := crMgr.crInformers["default"].
+		service, _, _ := crMgr.crInformers[namespace].
 			svcInformer.GetIndexer().GetByKey(svcKey)
 		svc := service.(*v1.Service)
 		// Traverse for all the pools in the Resource Config
@@ -381,16 +379,17 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 
 func (crMgr *CRManager) updatePoolMembersForCluster(
 	rsCfg *ResourceConfig,
+	namespace string,
 ) (bool, string, string) {
 
 	index := 0
 	for _, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
-		svcKey := "default/" + svcName
+		svcKey := namespace + "/" + svcName
 		// TODO: Too Many API calls?
 		// TODO: Get ServiceName, Do not use default.
-		item, found, _ := crMgr.crInformers["default"].
-			epsInformer.GetStore().Get(svcKey)
+		item, found, _ := crMgr.crInformers[namespace].
+			epsInformer.GetIndexer().GetByKey(svcKey)
 		if !found {
 			log.Debugf("Endpoints for service '%v' not found!", svcKey)
 			return false, "", ""
@@ -416,14 +415,17 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 func (crMgr *CRManager) getEndpointsForNodePort(
 	nodePort int32,
 ) []Member {
-	// Fake data, to be replaced by node polling implementation.
+	nodes := crMgr.getNodesFromCache()
 	var members []Member
-	member := Member{
-		Address: "100.100.100.100",
-		Port:    80,
-		Session: "user-enabled",
+	for _, v := range nodes {
+		member := Member{
+			Address: v.Addr,
+			Port:    nodePort,
+			Session: "user-enabled",
+		}
+		members = append(members, member)
 	}
-	members = append(members, member)
+
 	return members
 }
 
@@ -431,13 +433,37 @@ func (crMgr *CRManager) getEndpointsForCluster(
 	portName string,
 	eps *v1.Endpoints,
 ) []Member {
-	// Fake data, to be replaced by node polling implementation.
+	nodes := crMgr.getNodesFromCache()
 	var members []Member
-	member := Member{
-		Address: "100.100.100.100",
-		Port:    80,
-		Session: "user-enabled",
+
+	if eps == nil {
+		return members
 	}
-	members = append(members, member)
+
+	for _, subset := range eps.Subsets {
+		for _, p := range subset.Ports {
+			if portName == p.Name {
+				for _, addr := range subset.Addresses {
+					if containsNode(nodes, *addr.NodeName) {
+						member := Member{
+							Address: addr.IP,
+							Port:    p.Port,
+							Session: "user-enabled",
+						}
+						members = append(members, member)
+					}
+				}
+			}
+		}
+	}
 	return members
+}
+
+func containsNode(nodes []Node, name string) bool {
+	for _, node := range nodes {
+		if node.Name == name {
+			return true
+		}
+	}
+	return false
 }

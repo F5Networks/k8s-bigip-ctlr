@@ -38,13 +38,16 @@ type (
 		namespaces       []string
 		rscQueue         workqueue.RateLimitingInterface
 		Agent            *Agent
+		ControllerMode   string
 		// map of rules that have been merged
 		mergedRulesMap map[string]map[string]mergedRuleEntry
 	}
 	// Params defines parameters
 	Params struct {
-		Config     *rest.Config
-		Namespaces []string
+		Config         *rest.Config
+		Namespaces     []string
+		Agent          *Agent
+		ControllerMode string
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {

@@ -52,20 +52,6 @@ func (rs *Resources) Init() {
 	rs.objDeps = make(ObjectDependencyMap)
 }
 
-type ResourceInterface interface {
-	Init()
-	Assign(key serviceKey, name string, cfg *ResourceConfig)
-	PoolCount() int
-	VirtualCount() int
-	CountOf(key serviceKey) int
-	Get(key serviceKey, name string) (*ResourceConfig, bool)
-	GetAll(key serviceKey) ResourceConfigs
-	GetAllWithName(name string) (ResourceConfigs, []serviceKey)
-	GetAllResources() ResourceConfigs
-	Delete(key serviceKey, name string) bool
-	DependencyDiff(key ObjectDependency, newDeps ObjectDependencies) ([]ObjectDependency, []ObjectDependency)
-}
-
 type mergedRuleEntry struct {
 	RuleName       string
 	OtherRuleNames []string
@@ -168,20 +154,21 @@ func formatVirtualServerName(ip string, port int32) string {
 	// Strip any bracket characters; replace special characters ". : /"
 	// with "-" and "%" with ".", for naming purposes
 	ip = strings.Trim(ip, "[]")
-	var replacer = strings.NewReplacer(".", "-", ":", "-", "/", "-", "%", ".")
+	var replacer = strings.NewReplacer(".", "_", ":", "_", "/", "_", "%", ".")
 	ip = replacer.Replace(ip)
-	return fmt.Sprintf("virtualserver_%s_%d", ip, port)
+	return fmt.Sprintf("f5_crd_virtualserver_%s_%d", ip, port)
 }
 
 // format the pool name for an VirtualServer
 func formatVirtualServerPoolName(namespace, svc string) string {
+	var replacer = strings.NewReplacer(".", "_", ":", "_", "/", "_", "-", "_")
+	svc = replacer.Replace(svc)
 	return fmt.Sprintf("virtualserver_%s_%s", namespace, svc)
 }
 
 // Creates resource config based on VirtualServer resource config
 func (crMgr *CRManager) createRSConfigFromVirtualServer(
 	vs *cisapiv1.VirtualServer,
-	resources *Resources,
 	ns string,
 	pStruct portStruct,
 ) *ResourceConfig {
@@ -232,7 +219,7 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 	cfg.MetaData.rscName = vs.ObjectMeta.Name
 
 	// Check to see if we already have any VirtualServer for this IP:Port
-	if oldCfg, exists := resources.GetByName(cfg.Virtual.Name); exists {
+	if oldCfg, exists := crMgr.resources.GetByName(cfg.Virtual.Name); exists {
 		// If we do, use an existing config
 		cfg.copyConfig(oldCfg)
 
@@ -279,6 +266,7 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 		}
 	}
 
+	crMgr.resources.rsMap[cfg.Virtual.Name] = &cfg
 	return &cfg
 }
 

@@ -19,9 +19,10 @@ package crmanager
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	"strconv"
 	"strings"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -43,10 +44,6 @@ const (
 }
 `
 )
-
-func (crMgr *CRManager) AddAgent(params AgentParams) {
-	crMgr.Agent = NewAgent(params)
-}
 
 func NewAgent(params AgentParams) *Agent {
 	postMgr := NewPostManager(params.PostParams)

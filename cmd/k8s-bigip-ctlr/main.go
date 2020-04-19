@@ -19,7 +19,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/crmanager"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -28,6 +27,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/crmanager"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
@@ -849,12 +850,6 @@ func main() {
 func initCustomResourceManager(
 	config *rest.Config,
 ) *crmanager.CRManager {
-	crMgr := crmanager.NewCRManager(
-		crmanager.Params{
-			Config:     config,
-			Namespaces: *namespaces,
-		},
-	)
 
 	postMgrParams := crmanager.PostParams{
 		BIGIPUsername: *bigIPUsername,
@@ -874,7 +869,16 @@ func initCustomResourceManager(
 		VXLANName:       vxlanName,
 		PythonBaseDir:   *pythonBaseDir,
 	}
-	crMgr.AddAgent(agentParams)
+	agent := crmanager.NewAgent(agentParams)
+
+	crMgr := crmanager.NewCRManager(
+		crmanager.Params{
+			Config:         config,
+			Namespaces:     *namespaces,
+			Agent:          agent,
+			ControllerMode: *poolMemberType,
+		},
+	)
 
 	return crMgr
 }

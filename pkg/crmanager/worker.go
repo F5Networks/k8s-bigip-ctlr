@@ -54,6 +54,7 @@ func (crMgr *CRManager) processResource() bool {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 		}
+		crMgr.Agent.PostConfig(crMgr.resources.GetAllResources())
 		crMgr.rscQueue.Forget(key)
 		return true
 	case Service:
@@ -234,7 +235,6 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 	for _, portStruct := range portStructs {
 		rsCfg := crMgr.createRSConfigFromVirtualServer(
 			virtual,
-			crMgr.resources,
 			virtual.ObjectMeta.Namespace,
 			portStruct,
 		)
@@ -252,6 +252,8 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 
 		}
 
+		log.Debugf("resourceconfig looks like %v", rsCfg)
+
 		// Remove any dependencies no longer used by this VirtualServer
 		for _, dep := range depsRemoved {
 			if dep.Kind == RuleDep {
@@ -263,6 +265,14 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 					}
 				}
 			}
+		}
+
+		if crMgr.ControllerMode == "nodeport" {
+			_, _, _ =
+				crMgr.updatePoolMembersForNodePort(rsCfg)
+		} else {
+			_, _, _ =
+				crMgr.updatePoolMembersForCluster(rsCfg)
 		}
 
 		/** TODO ==> To be implemented in ALPHA later stage
@@ -336,4 +346,99 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 	**/
 
 	return nil
+}
+
+func (crMgr *CRManager) updatePoolMembersForNodePort(
+	rsCfg *ResourceConfig,
+) (bool, string, string) {
+	// TODO: Can we get rid of counter?
+	index := 0
+	for _, pool := range rsCfg.Pools {
+		svcName := pool.ServiceName
+		svcKey := "default/" + svcName
+		// TODO: Too Many API calls?
+		// TODO: Get ServiceName, Do not use default.
+		service, _, _ := crMgr.crInformers["default"].
+			svcInformer.GetIndexer().GetByKey(svcKey)
+		svc := service.(*v1.Service)
+		// Traverse for all the pools in the Resource Config
+		if svc.Spec.Type == v1.ServiceTypeNodePort ||
+			svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+			for _, portSpec := range svc.Spec.Ports {
+				rsCfg.MetaData.Active = true
+				rsCfg.Pools[index].Members =
+					crMgr.getEndpointsForNodePort(portSpec.NodePort)
+
+			}
+		} else {
+			log.Debugf("Requested service backend %s not of NodePort or LoadBalancer type",
+				svcName)
+		}
+	}
+	index++
+
+	return true, "", ""
+}
+
+func (crMgr *CRManager) updatePoolMembersForCluster(
+	rsCfg *ResourceConfig,
+) (bool, string, string) {
+
+	index := 0
+	for _, pool := range rsCfg.Pools {
+		svcName := pool.ServiceName
+		svcKey := "default/" + svcName
+		// TODO: Too Many API calls?
+		// TODO: Get ServiceName, Do not use default.
+		item, found, _ := crMgr.crInformers["default"].
+			epsInformer.GetStore().Get(svcKey)
+		if !found {
+			log.Debugf("Endpoints for service '%v' not found!", svcKey)
+			return false, "", ""
+		}
+		eps, _ := item.(*v1.Endpoints)
+		// Get service
+		service, _, _ := crMgr.crInformers["default"].
+			svcInformer.GetIndexer().GetByKey(svcKey)
+		svc := service.(*v1.Service)
+
+		for _, portSpec := range svc.Spec.Ports {
+			ipPorts := crMgr.getEndpointsForCluster(portSpec.Name, eps)
+			log.Debugf("Found endpoints for backend %+v: %v", svcKey, ipPorts)
+			rsCfg.MetaData.Active = true
+			rsCfg.Pools[index].Members = ipPorts
+		}
+	}
+	index++
+
+	return true, "", ""
+}
+
+func (crMgr *CRManager) getEndpointsForNodePort(
+	nodePort int32,
+) []Member {
+	// Fake data, to be replaced by node polling implementation.
+	var members []Member
+	member := Member{
+		Address: "100.100.100.100",
+		Port:    80,
+		Session: "user-enabled",
+	}
+	members = append(members, member)
+	return members
+}
+
+func (crMgr *CRManager) getEndpointsForCluster(
+	portName string,
+	eps *v1.Endpoints,
+) []Member {
+	// Fake data, to be replaced by node polling implementation.
+	var members []Member
+	member := Member{
+		Address: "100.100.100.100",
+		Port:    80,
+		Session: "user-enabled",
+	}
+	members = append(members, member)
+	return members
 }

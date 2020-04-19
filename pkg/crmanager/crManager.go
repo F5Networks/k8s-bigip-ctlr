@@ -44,7 +44,9 @@ func NewCRManager(params Params) *CRManager {
 		crInformers: make(map[string]*CRInformer),
 		rscQueue: workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller"),
-		resources: NewResources(),
+		resources:      NewResources(),
+		Agent:          params.Agent,
+		ControllerMode: params.ControllerMode,
 	}
 
 	log.Debug("Custom Resource Manager Created")

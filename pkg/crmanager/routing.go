@@ -17,7 +17,6 @@
 package crmanager
 
 import (
-	"bytes"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -101,6 +100,8 @@ func formatVirtualServerRuleName(host, path, pool string) string {
 		path = strings.Replace(path, "/", "_", -1)
 		rule = fmt.Sprintf("vs_%s_%s_%s", host, path, pool)
 	}
+	var replacer = strings.NewReplacer(".", "_", ":", "_", "/", "_", "-", "_")
+	rule = replacer.Replace(rule)
 	return rule
 }
 
@@ -112,16 +113,14 @@ func createRule(uri, poolName, partition, ruleName string) (*Rule, error) {
 	if nil != err {
 		return nil, err
 	}
-	var b bytes.Buffer
-	b.WriteRune('/')
-	b.WriteString(partition)
-	b.WriteRune('/')
-	b.WriteString(poolName)
+	requiredPool := partition + "_" + poolName
+	var replacer = strings.NewReplacer(".", "_", ":", "_", "/", "_", "-", "_")
+	requiredPool = replacer.Replace(requiredPool)
 
 	a := action{
 		Forward: true,
 		Name:    "0",
-		Pool:    b.String(),
+		Pool:    requiredPool,
 		Request: true,
 	}
 
@@ -188,7 +187,7 @@ func createPolicy(rls Rules, policyName, partition string) *Policy {
 		Partition: partition,
 		Requires:  []string{"http"},
 		Rules:     Rules{},
-		Strategy:  "/Common/first-match",
+		Strategy:  "/Common/best-match",
 	}
 
 	plcy.Rules = rls

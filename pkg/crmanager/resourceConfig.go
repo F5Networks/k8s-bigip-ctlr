@@ -860,3 +860,18 @@ func (rc *ResourceConfig) MergeRules(mergedRulesMap map[string]map[string]merged
 	policy.Rules = rules
 	rc.SetPolicy(*policy)
 }
+
+func (rcs ResourceConfigs) GetAllPoolMembers() []Member {
+	// Get all pool members and write them to VxlanMgr to configure ARP entries
+	var allPoolMembers []Member
+
+	for _, cfg := range rcs {
+		// Filter the configs to only those that have active services
+		if cfg.MetaData.Active {
+			for _, pool := range cfg.Pools {
+				allPoolMembers = append(allPoolMembers, pool.Members...)
+			}
+		}
+	}
+	return allPoolMembers
+}

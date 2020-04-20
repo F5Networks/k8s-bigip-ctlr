@@ -18,6 +18,7 @@ package crmanager
 
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -40,14 +41,22 @@ type (
 		Agent            *Agent
 		ControllerMode   string
 		// map of rules that have been merged
-		mergedRulesMap map[string]map[string]mergedRuleEntry
+		mergedRulesMap  map[string]map[string]mergedRuleEntry
+		nodePoller      pollers.Poller
+		oldNodes        []Node
+		UseNodeInternal bool
 	}
 	// Params defines parameters
 	Params struct {
-		Config         *rest.Config
-		Namespaces     []string
-		Agent          *Agent
-		ControllerMode string
+		Config            *rest.Config
+		Namespaces        []string
+		Agent             *Agent
+		ControllerMode    string
+		VXLANName         string
+		VXLANMode         string
+		UseNodeInternal   bool
+		NodePollInterval  int
+		NodeLabelSelector string
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {

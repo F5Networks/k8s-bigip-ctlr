@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
@@ -106,6 +107,25 @@ func (agent *Agent) Stop() {
 func (agent *Agent) PostConfig(rsCfgs ResourceConfigs) {
 	decl := createAS3Declaration(rsCfgs)
 	agent.Write(string(decl), nil)
+
+	allPoolMembers := rsCfgs.GetAllPoolMembers()
+
+	// Convert allPoolMembers to appmanger.Members so that vxlan Manger accepts
+	var allPoolMems []apm.Member
+
+	for _, poolMem := range allPoolMembers {
+		allPoolMems = append(
+			allPoolMems,
+			apm.Member(poolMem),
+		)
+	}
+	if agent.EventChan != nil {
+		select {
+		case agent.EventChan <- allPoolMems:
+			log.Debugf("Custom Resource Manager wrote endpoints to VxlanMgr")
+		case <-time.After(3 * time.Second):
+		}
+	}
 }
 
 //Create AS3 declaration

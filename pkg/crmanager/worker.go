@@ -125,7 +125,7 @@ func (crMgr *CRManager) syncEndpoints(ep *v1.Endpoints) *v1.Service {
 // of service.
 func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
 
-	allVirtuals := crMgr.getAllVirtualServers(svc)
+	allVirtuals := crMgr.getAllVirtualServers(svc.ObjectMeta.Namespace)
 	if nil == allVirtuals {
 		log.Infof("No VirtualServers founds in namespace %s",
 			svc.ObjectMeta.Namespace)
@@ -154,9 +154,8 @@ func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
 }
 
 // getAllVirtualServers returns list of all valid VirtualServers in rkey namespace.
-func (crMgr *CRManager) getAllVirtualServers(svc *v1.Service) []*cisapiv1.VirtualServer {
+func (crMgr *CRManager) getAllVirtualServers(namespace string) []*cisapiv1.VirtualServer {
 	var allVirtuals []*cisapiv1.VirtualServer
-	namespace := svc.ObjectMeta.Namespace
 
 	// Get list of VirtualServers and process them.
 	for _, obj := range crMgr.crInformers[namespace].

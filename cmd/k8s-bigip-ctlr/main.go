@@ -873,10 +873,15 @@ func initCustomResourceManager(
 
 	crMgr := crmanager.NewCRManager(
 		crmanager.Params{
-			Config:         config,
-			Namespaces:     *namespaces,
-			Agent:          agent,
-			ControllerMode: *poolMemberType,
+			Config:            config,
+			Namespaces:        *namespaces,
+			Agent:             agent,
+			ControllerMode:    *poolMemberType,
+			VXLANName:         vxlanName,
+			VXLANMode:         vxlanMode,
+			UseNodeInternal:   *useNodeInternal,
+			NodePollInterval:  *nodePollInterval,
+			NodeLabelSelector: *nodeLabelSelector,
 		},
 	)
 

@@ -44,9 +44,10 @@ func NewCRManager(params Params) *CRManager {
 		crInformers: make(map[string]*CRInformer),
 		rscQueue: workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller"),
-		resources:      NewResources(),
-		Agent:          params.Agent,
-		ControllerMode: params.ControllerMode,
+		resources:       NewResources(),
+		Agent:           params.Agent,
+		ControllerMode:  params.ControllerMode,
+		UseNodeInternal: params.UseNodeInternal,
 	}
 
 	log.Debug("Custom Resource Manager Created")
@@ -64,6 +65,15 @@ func NewCRManager(params Params) *CRManager {
 		log.Error("Failed to Setup Informers")
 	}
 
+	err := crMgr.SetupNodePolling(
+		params.NodePollInterval,
+		params.NodeLabelSelector,
+		params.VXLANMode,
+		params.VXLANName,
+	)
+	if err != nil {
+		log.Errorf("Failed to Setup Node Polling: %v", err)
+	}
 	go crMgr.Start()
 	return crMgr
 }
@@ -119,6 +129,8 @@ func (crMgr *CRManager) Start() {
 		inf.start()
 	}
 
+	crMgr.nodePoller.Run()
+
 	stopChan := make(chan struct{})
 	go wait.Until(crMgr.customResourceWorker, time.Second, stopChan)
 
@@ -130,5 +142,6 @@ func (crMgr *CRManager) Stop() {
 	for _, inf := range crMgr.crInformers {
 		inf.stop()
 	}
+	crMgr.nodePoller.Stop()
 	crMgr.Agent.Stop()
 }

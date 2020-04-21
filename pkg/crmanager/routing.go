@@ -100,8 +100,8 @@ func formatVirtualServerRuleName(host, path, pool string) string {
 		path = strings.Replace(path, "/", "_", -1)
 		rule = fmt.Sprintf("vs_%s_%s_%s", host, path, pool)
 	}
-	var replacer = strings.NewReplacer(".", "_", ":", "_", "/", "_", "-", "_")
-	rule = replacer.Replace(rule)
+
+	rule = AS3NameFormatter(rule)
 	return rule
 }
 
@@ -114,8 +114,7 @@ func createRule(uri, poolName, partition, ruleName string) (*Rule, error) {
 		return nil, err
 	}
 	requiredPool := partition + "_" + poolName
-	var replacer = strings.NewReplacer(".", "_", ":", "_", "/", "_", "-", "_")
-	requiredPool = replacer.Replace(requiredPool)
+	requiredPool = AS3NameFormatter(requiredPool)
 
 	a := action{
 		Forward: true,

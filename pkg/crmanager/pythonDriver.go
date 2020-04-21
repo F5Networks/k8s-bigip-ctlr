@@ -19,12 +19,14 @@ package crmanager
 import (
 	"bufio"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -134,17 +136,17 @@ func runBigIPDriver(pid chan<- int, cmd *exec.Cmd) {
 }
 
 // Start called to run the python driver
-func startPythonDriver(
-	configWriter writer.Writer,
+func (agent *Agent) startPythonDriver(
 	global globalSection,
 	bigIP bigIPSection,
 	pythonBaseDir string,
-) (<-chan int, error) {
+) {
 	var pyCmd string
 
-	err := initializeDriverConfig(configWriter, global, bigIP)
+	err := initializeDriverConfig(agent.ConfigWriter, global, bigIP)
 	if nil != err {
-		return nil, err
+		log.Fatalf("Could not initialize subprocess configuration: %v", err)
+		return
 	}
 
 	subPidCh := make(chan int)
@@ -155,24 +157,40 @@ func startPythonDriver(
 		pyCmd = "bigipconfigdriver.py"
 	}
 	cmd := createDriverCmd(
-		configWriter.GetOutputFilename(),
+		agent.ConfigWriter.GetOutputFilename(),
 		pyCmd,
 	)
 	go runBigIPDriver(subPidCh, cmd)
 
-	return subPidCh, nil
+	subPid := <-subPidCh
+	agent.PythonDriverPID = subPid
+
+	go agent.healthCheckPythonDriver()
+
+	return
 }
 
-func stopPythonDriver(pid int) {
-	if 0 != pid {
+func (agent *Agent) stopPythonDriver() {
+	if 0 != agent.PythonDriverPID {
 		var proc *os.Process
-		proc, err := os.FindProcess(pid)
+		proc, err := os.FindProcess(agent.PythonDriverPID)
 		if nil != err {
 			log.Warningf("Failed to find sub-process on exit: %v", err)
 		}
 		err = proc.Signal(os.Interrupt)
 		if nil != err {
-			log.Warningf("Could not stop sub-process on exit: %d - %v", pid, err)
+			log.Warningf("Could not stop sub-process on exit: %d - %v", agent.PythonDriverPID, err)
 		}
 	}
+}
+
+func (agent *Agent) healthCheckPythonDriver() {
+	// Add health check to track whether Python process still alive
+	hc := &health.HealthChecker{
+		SubPID: agent.PythonDriverPID,
+	}
+	http.Handle("/health", hc.HealthCheckHandler())
+
+	httpAddress := "0.0.0.0:8080"
+	log.Fatal(http.ListenAndServe(httpAddress, nil).Error())
 }

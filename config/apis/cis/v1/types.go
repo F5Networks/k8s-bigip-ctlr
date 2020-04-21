@@ -21,6 +21,7 @@ type VirtualServerSpec struct {
 	Host                 string `json:"host"`
 	VirtualServerAddress string `json:"virtualServerAddress"`
 	Pools                []Pool `json:"pools"`
+	TLS                  bool   `json:"tls"`
 }
 
 // Pool defines a pool object in BIG-IP.

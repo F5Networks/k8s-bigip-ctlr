@@ -84,24 +84,18 @@ func NewAgent(params AgentParams) *Agent {
 		BigIPPartitions: params.BigIPPartitions,
 	}
 
-	subPidCh, err := startPythonDriver(
-		configWriter,
+	agent.startPythonDriver(
 		gs,
 		bs,
 		params.PythonBaseDir,
 	)
-	if nil != err {
-		log.Fatalf("Could not initialize subprocess configuration: %v", err)
-	}
-	subPid := <-subPidCh
-	agent.PythonDriverPID = subPid
 
 	return agent
 }
 
 func (agent *Agent) Stop() {
 	agent.ConfigWriter.Stop()
-	stopPythonDriver(agent.PythonDriverPID)
+	agent.stopPythonDriver()
 }
 
 func (agent *Agent) PostConfig(rsCfgs ResourceConfigs) {

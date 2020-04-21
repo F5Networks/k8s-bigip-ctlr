@@ -265,11 +265,9 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 		}
 
 		if crMgr.ControllerMode == "nodeport" {
-			_, _, _ =
-				crMgr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
+			crMgr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
 		} else {
-			_, _, _ =
-				crMgr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
+			crMgr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
 		}
 
 		/** TODO ==> To be implemented in ALPHA later stage
@@ -348,8 +346,8 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 func (crMgr *CRManager) updatePoolMembersForNodePort(
 	rsCfg *ResourceConfig,
 	namespace string,
-) (bool, string, string) {
-	// TODO: Can we get rid of counter?
+) {
+	// TODO: Can we get rid of counter? and use something better.
 	index := 0
 	for _, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
@@ -371,16 +369,14 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 			log.Debugf("Requested service backend %s not of NodePort or LoadBalancer type",
 				svcName)
 		}
+		index++
 	}
-	index++
-
-	return true, "", ""
 }
 
 func (crMgr *CRManager) updatePoolMembersForCluster(
 	rsCfg *ResourceConfig,
 	namespace string,
-) (bool, string, string) {
+) {
 
 	index := 0
 	for _, pool := range rsCfg.Pools {
@@ -392,11 +388,11 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 			epsInformer.GetIndexer().GetByKey(svcKey)
 		if !found {
 			log.Debugf("Endpoints for service '%v' not found!", svcKey)
-			return false, "", ""
+			continue
 		}
 		eps, _ := item.(*v1.Endpoints)
 		// Get service
-		service, _, _ := crMgr.crInformers["default"].
+		service, _, _ := crMgr.crInformers[namespace].
 			svcInformer.GetIndexer().GetByKey(svcKey)
 		svc := service.(*v1.Service)
 
@@ -406,10 +402,8 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 			rsCfg.MetaData.Active = true
 			rsCfg.Pools[index].Members = ipPorts
 		}
+		index++
 	}
-	index++
-
-	return true, "", ""
 }
 
 func (crMgr *CRManager) getEndpointsForNodePort(

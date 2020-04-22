@@ -106,9 +106,12 @@ func (crMgr *CRManager) syncEndpoints(ep *v1.Endpoints) *v1.Service {
 	epNamespace := ep.ObjectMeta.Namespace
 	svcKey := fmt.Sprintf("%s/%s", epNamespace, epName)
 
-	// Create namespaced Informer
-	svc, exists, err := crMgr.crInformers[epNamespace].
-		svcInformer.GetIndexer().GetByKey(svcKey)
+	crInf, ok := crMgr.getNamespaceInformer(epNamespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", epNamespace)
+		return nil
+	}
+	svc, exists, err := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
 	if err != nil {
 		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
 		return nil
@@ -157,10 +160,13 @@ func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
 func (crMgr *CRManager) getAllVirtualServers(namespace string) []*cisapiv1.VirtualServer {
 	var allVirtuals []*cisapiv1.VirtualServer
 
+	crInf, ok := crMgr.getNamespaceInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
 	// Get list of VirtualServers and process them.
-	for _, obj := range crMgr.crInformers[namespace].
-		vsInformer.GetIndexer().List() {
-
+	for _, obj := range crInf.vsInformer.GetIndexer().List() {
 		vs := obj.(*cisapiv1.VirtualServer)
 		// TODO
 		// Validate the VirtualServers List to check if all the vs are valid.
@@ -352,9 +358,13 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 	for _, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
 		svcKey := namespace + "/" + svcName
+		crInf, ok := crMgr.getNamespaceInformer(namespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", namespace)
+			return
+		}
 		// TODO: Too Many API calls?
-		service, _, _ := crMgr.crInformers[namespace].
-			svcInformer.GetIndexer().GetByKey(svcKey)
+		service, _, _ := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
 		svc := service.(*v1.Service)
 		// Traverse for all the pools in the Resource Config
 		if svc.Spec.Type == v1.ServiceTypeNodePort ||
@@ -384,16 +394,19 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 		svcKey := namespace + "/" + svcName
 		// TODO: Too Many API calls?
 		// TODO: Get ServiceName, Do not use default.
-		item, found, _ := crMgr.crInformers[namespace].
-			epsInformer.GetIndexer().GetByKey(svcKey)
+		crInf, ok := crMgr.getNamespaceInformer(namespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", namespace)
+			return
+		}
+		item, found, _ := crInf.epsInformer.GetIndexer().GetByKey(svcKey)
 		if !found {
 			log.Debugf("Endpoints for service '%v' not found!", svcKey)
 			continue
 		}
 		eps, _ := item.(*v1.Endpoints)
 		// Get service
-		service, _, _ := crMgr.crInformers[namespace].
-			svcInformer.GetIndexer().GetByKey(svcKey)
+		service, _, _ := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
 		svc := service.(*v1.Service)
 
 		for _, portSpec := range svc.Spec.Ports {

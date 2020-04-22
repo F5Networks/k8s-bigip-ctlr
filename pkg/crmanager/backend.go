@@ -46,7 +46,10 @@ const (
 `
 )
 
+var DEFAULT_PARTITION string
+
 func NewAgent(params AgentParams) *Agent {
+	DEFAULT_PARTITION = params.Partition + "_AS3"
 	postMgr := NewPostManager(params.PostParams)
 	configWriter, err := writer.NewConfigWriter()
 	if nil != err {
@@ -54,6 +57,7 @@ func NewAgent(params AgentParams) *Agent {
 	}
 	agent := &Agent{
 		PostManager:  postMgr,
+		Partition:    params.Partition,
 		ConfigWriter: configWriter,
 		EventChan:    make(chan interface{}),
 	}
@@ -81,7 +85,7 @@ func NewAgent(params AgentParams) *Agent {
 		BigIPUsername:   params.PostParams.BIGIPUsername,
 		BigIPPassword:   params.PostParams.BIGIPPassword,
 		BigIPURL:        params.PostParams.BIGIPURL,
-		BigIPPartitions: params.BigIPPartitions,
+		BigIPPartitions: []string{params.Partition},
 	}
 
 	agent.startPythonDriver(
@@ -153,7 +157,7 @@ func createAS3ADC(rsCfgs ResourceConfigs) as3ADC {
 		as3SharedApplication: sharedApp,
 	}
 	as3JSONDecl := as3ADC{
-		apm.DEFAULT_PARTITION: tenant,
+		DEFAULT_PARTITION: tenant,
 	}
 	return as3JSONDecl
 }
@@ -220,7 +224,7 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			var monitor as3ResourcePointer
 			use := strings.Split(val, "/")
 			monitor.Use = fmt.Sprintf("/%s/%s/%s",
-				apm.DEFAULT_PARTITION,
+				DEFAULT_PARTITION,
 				as3SharedApplication,
 				use[len(use)-1],
 			)
@@ -245,7 +249,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	case numPolicies == 1:
 		policyName := cfg.Virtual.Policies[0].Name
 		svc.PolicyEndpoint = fmt.Sprintf("/%s/%s/%s",
-			apm.DEFAULT_PARTITION,
+			DEFAULT_PARTITION,
 			as3SharedApplication,
 			policyName)
 	case numPolicies > 1:
@@ -255,7 +259,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				peps,
 				as3ResourcePointer{
 					BigIP: fmt.Sprintf("/%s/%s/%s",
-						apm.DEFAULT_PARTITION,
+						DEFAULT_PARTITION,
 						as3SharedApplication,
 						pep.Name,
 					),
@@ -268,7 +272,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		ps := strings.Split(cfg.Virtual.PoolName, "/")
 		if cfg.Virtual.PoolName != "" {
 			svc.Pool = fmt.Sprintf("/%s/%s/%s",
-				apm.DEFAULT_PARTITION,
+				DEFAULT_PARTITION,
 				as3SharedApplication,
 				ps[len(ps)-1])
 		}

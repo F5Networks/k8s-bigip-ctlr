@@ -26,7 +26,6 @@ import (
 	"sync"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
@@ -186,11 +185,7 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 	var rules *Rules
 	var plcy *Policy
 
-	if apm.DEFAULT_PARTITION != "" {
-		cfg.Virtual.Partition = apm.DEFAULT_PARTITION
-	} else {
-		cfg.Virtual.Partition = "f5CRD"
-	}
+	cfg.Virtual.Partition = crMgr.Partition + "_AS3"
 
 	if vs.Spec.VirtualServerAddress == "" {
 		// Virtual Server IP is not given, exit with error log.

@@ -31,9 +31,13 @@ func (crMgr *CRManager) checkValidVirtualServer(
 	vsName := vsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 
+	crInf, ok := crMgr.getNamespaceInformer(vsNamespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", vsNamespace)
+		return false
+	}
 	// Check if the virtual exists and valid for us.
-	_, virtualFound, _ := crMgr.crInformers[vsNamespace].
-		vsInformer.GetIndexer().GetByKey(vkey)
+	_, virtualFound, _ := crInf.vsInformer.GetIndexer().GetByKey(vkey)
 	if !virtualFound {
 		// VirtualServer was deleted. Lets proceed with delete operation.
 		// TODO ==> Delete operation for VirtualServer.

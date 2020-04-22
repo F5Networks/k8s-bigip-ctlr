@@ -46,6 +46,7 @@ type (
 		nodePoller      pollers.Poller
 		oldNodes        []Node
 		UseNodeInternal bool
+		initState       bool
 	}
 	// Params defines parameters
 	Params struct {
@@ -235,6 +236,7 @@ type (
 		ConfigWriter    writer.Writer
 		EventChan       chan interface{}
 		PythonDriverPID int
+		activeDecl      as3Declaration
 	}
 
 	AgentParams struct {

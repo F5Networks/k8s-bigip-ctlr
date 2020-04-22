@@ -41,6 +41,11 @@ func (crMgr *CRManager) processResource() bool {
 		log.Debugf("Resource Queue is empty, Going to StandBy Mode")
 		return false
 	}
+	var isLastInQueue, isError bool
+
+	if crMgr.rscQueue.Len() == 0 {
+		isLastInQueue = true
+	}
 	defer crMgr.rscQueue.Done(key)
 	rKey := key.(*rqKey)
 	log.Debugf("Processing Key: %v", rKey)
@@ -53,11 +58,12 @@ func (crMgr *CRManager) processResource() bool {
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			isError = true
 		}
-		crMgr.Agent.PostConfig(crMgr.resources.GetAllResources())
-		crMgr.rscQueue.Forget(key)
-		return true
 	case Service:
+		if crMgr.initState {
+			break
+		}
 		svc := rKey.rsc.(*v1.Service)
 		virtuals := crMgr.syncService(svc)
 		// No Virtuals are effected with the change in service.
@@ -69,11 +75,13 @@ func (crMgr *CRManager) processResource() bool {
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
 			}
 		}
-		crMgr.rscQueue.Forget(key)
-		return true
 	case Endpoints:
+		if crMgr.initState {
+			break
+		}
 		ep := rKey.rsc.(*v1.Endpoints)
 		svc := crMgr.syncEndpoints(ep)
 		// No Services are effected with the change in service.
@@ -86,16 +94,23 @@ func (crMgr *CRManager) processResource() bool {
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
 			}
 		}
-		crMgr.rscQueue.Forget(key)
-		return true
 	default:
 		log.Errorf("Unknown resource Kind: %v", rKey.kind)
 	}
 
-	crMgr.rscQueue.AddRateLimited(key)
+	if isError {
+		crMgr.rscQueue.AddRateLimited(key)
+	} else {
+		crMgr.rscQueue.Forget(key)
+	}
 
+	if isLastInQueue {
+		crMgr.Agent.PostConfig(crMgr.resources.GetAllResources())
+		crMgr.initState = false
+	}
 	return true
 }
 

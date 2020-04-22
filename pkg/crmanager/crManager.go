@@ -48,6 +48,7 @@ func NewCRManager(params Params) *CRManager {
 		Agent:           params.Agent,
 		ControllerMode:  params.ControllerMode,
 		UseNodeInternal: params.UseNodeInternal,
+		initState:       true,
 	}
 
 	log.Debug("Custom Resource Manager Created")

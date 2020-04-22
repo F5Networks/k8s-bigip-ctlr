@@ -19,6 +19,7 @@ package crmanager
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -60,6 +61,7 @@ func NewAgent(params AgentParams) *Agent {
 		Partition:    params.Partition,
 		ConfigWriter: configWriter,
 		EventChan:    make(chan interface{}),
+		activeDecl:   "",
 	}
 	// If running in VXLAN mode, extract the partition name from the tunnel
 	// to be used in configuring a net instance of CCCL for that partition
@@ -104,7 +106,12 @@ func (agent *Agent) Stop() {
 
 func (agent *Agent) PostConfig(rsCfgs ResourceConfigs) {
 	decl := createAS3Declaration(rsCfgs)
+	if DeepEqualJSON(agent.activeDecl, decl) {
+		log.Debug("[AS3] No Change in the Configuration")
+		return
+	}
 	agent.Write(string(decl), nil)
+	agent.activeDecl = decl
 
 	allPoolMembers := rsCfgs.GetAllPoolMembers()
 
@@ -428,4 +435,23 @@ func extractVirtualAddressAndPort(str string) (string, int) {
 		return "", 0
 	}
 
+}
+
+func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
+	if decl1 == "" && decl2 == "" {
+		return true
+	}
+	var o1, o2 interface{}
+
+	err := json.Unmarshal([]byte(decl1), &o1)
+	if err != nil {
+		return false
+	}
+
+	err = json.Unmarshal([]byte(decl2), &o2)
+	if err != nil {
+		return false
+	}
+
+	return reflect.DeepEqual(o1, o2)
 }

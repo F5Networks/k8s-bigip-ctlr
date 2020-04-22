@@ -38,6 +38,7 @@ type (
 		resourceSelector labels.Selector
 		namespaces       []string
 		rscQueue         workqueue.RateLimitingInterface
+		Partition        string
 		Agent            *Agent
 		ControllerMode   string
 		// map of rules that have been merged
@@ -50,6 +51,7 @@ type (
 	Params struct {
 		Config            *rest.Config
 		Namespaces        []string
+		Partition         string
 		Agent             *Agent
 		ControllerMode    string
 		VXLANName         string
@@ -229,6 +231,7 @@ type (
 type (
 	Agent struct {
 		*PostManager
+		Partition       string
 		ConfigWriter    writer.Writer
 		EventChan       chan interface{}
 		PythonDriverPID int
@@ -237,11 +240,11 @@ type (
 	AgentParams struct {
 		PostParams PostParams
 		//VxlnParams      VXLANParams
-		BigIPPartitions []string
-		LogLevel        string
-		VerifyInterval  int
-		VXLANName       string
-		PythonBaseDir   string
+		Partition      string
+		LogLevel       string
+		VerifyInterval int
+		VXLANName      string
+		PythonBaseDir  string
 	}
 
 	globalSection struct {

@@ -862,12 +862,12 @@ func initCustomResourceManager(
 	}
 
 	agentParams := crmanager.AgentParams{
-		PostParams:      postMgrParams,
-		BigIPPartitions: *bigIPPartitions,
-		LogLevel:        *logLevel,
-		VerifyInterval:  *verifyInterval,
-		VXLANName:       vxlanName,
-		PythonBaseDir:   *pythonBaseDir,
+		PostParams:     postMgrParams,
+		Partition:      (*bigIPPartitions)[0],
+		LogLevel:       *logLevel,
+		VerifyInterval: *verifyInterval,
+		VXLANName:      vxlanName,
+		PythonBaseDir:  *pythonBaseDir,
 	}
 	agent := crmanager.NewAgent(agentParams)
 
@@ -875,6 +875,7 @@ func initCustomResourceManager(
 		crmanager.Params{
 			Config:            config,
 			Namespaces:        *namespaces,
+			Partition:         (*bigIPPartitions)[0],
 			Agent:             agent,
 			ControllerMode:    *poolMemberType,
 			VXLANName:         vxlanName,

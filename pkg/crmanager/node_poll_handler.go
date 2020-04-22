@@ -84,8 +84,7 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 	}
 
 	// Only check for updates once we are out of initial state
-	// TODO this block should run when it is not init mode of CR Manager
-	if true {
+	if !crMgr.initState {
 		// Compare last set of nodes with new one
 		if !reflect.DeepEqual(newNodes, crMgr.oldNodes) {
 			log.Infof("ProcessNodeUpdate: Change in Node state detected")

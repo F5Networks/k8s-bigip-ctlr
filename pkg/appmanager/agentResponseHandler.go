@@ -14,13 +14,18 @@
  * limitations under the License.
  */
 
-package postmanager
+package appmanager
 
 import (
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	F5RouterName = "F5 BIG-IP"
 )
 
 // Get the RFC3339Copy of the timestamp for updating the OpenShift Routes
@@ -41,15 +46,15 @@ func isProcessedRoute(route routeapi.Route, routes []*routeapi.Route) bool {
 
 // Clean the MetaData for routes processed in the past and
 // not considered now.
-func (postMgr *PostManager) eraseRouteAdmitStatus(route routeapi.Route) {
+func (appMgr *Manager) eraseRouteAdmitStatus(route routeapi.Route) {
 	for i, _ := range route.Status.Ingress {
 		if route.Status.Ingress[i].RouterName == F5RouterName {
 			route.Status.Ingress = append(route.Status.Ingress[:i], route.Status.Ingress[i+1:]...)
-			_, err := postMgr.RouteClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(&route)
+			_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(&route)
 			if err != nil {
-				log.Errorf("[AS3] Error while Erasing Route Admit Status: %v\n", err)
+				log.Errorf("[CORE] Error while Erasing Route Admit Status: %v\n", err)
 			} else {
-				log.Debugf("[AS3] Admit Status Erased for Route - %v\n", route.ObjectMeta.Name)
+				log.Debugf("[CORE] Admit Status Erased for Route - %v\n", route.ObjectMeta.Name)
 			}
 			return
 		}
@@ -60,17 +65,17 @@ func (postMgr *PostManager) eraseRouteAdmitStatus(route routeapi.Route) {
 // This must be populated by CIS based on BIG-IP response 200 OK.
 // If BIG-IP response is an error, do care update Ingress.
 // Don't update an existing Ingress object when BIG-IP response is not 200 OK. Its already consumed.
-func (postMgr *PostManager) updateRouteAdmitStatus(routesMap map[string][]string) {
+func (appMgr *Manager) updateRouteAdmitStatus() {
 	now := getRfc3339Timestamp()
 	var processedRoutes []*routeapi.Route
 	getOptions := metaV1.GetOptions{}
 
-	for namespace, routeNames := range routesMap {
+	for namespace, routeNames := range appMgr.RoutesProcessed {
 		for _, routeName := range routeNames {
 			Admitted := false
-			route, err := postMgr.RouteClientV1.Routes(namespace).Get(routeName, getOptions)
+			route, err := appMgr.routeClientV1.Routes(namespace).Get(routeName, getOptions)
 			if err != nil {
-				log.Debugf("Unable to get route to update status. Name: %v, Namespace: %v\n", routeName, namespace)
+				log.Debugf("[CORE] Unable to get route to update status. Name: %v, Namespace: %v\n", routeName, namespace)
 				continue
 			}
 			processedRoutes = append(processedRoutes, route)
@@ -90,11 +95,11 @@ func (postMgr *PostManager) updateRouteAdmitStatus(routesMap map[string][]string
 						LastTransitionTime: &now,
 					}},
 				})
-				_, err := postMgr.RouteClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(route)
+				_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(route)
 				if err != nil {
-					log.Errorf("[AS3] Error while Updating Route Admit Status: %v\n", err)
+					log.Errorf("[CORE] Error while Updating Route Admit Status: %v\n", err)
 				} else {
-					log.Debugf("[AS3] Admitted Route -  %v", route.ObjectMeta.Name)
+					log.Debugf("[CORE] Admitted Route -  %v", route.ObjectMeta.Name)
 				}
 			}
 		}
@@ -104,14 +109,41 @@ func (postMgr *PostManager) updateRouteAdmitStatus(routesMap map[string][]string
 	allOptions := metaV1.ListOptions{
 		LabelSelector: "",
 	}
+
 	allNamespaces := ""
-	allRoutes, err := postMgr.RouteClientV1.Routes(allNamespaces).List(allOptions)
+	allRoutes, err := appMgr.routeClientV1.Routes(allNamespaces).List(allOptions)
 	if err != nil {
-		log.Errorf("[AS3]Error listing Routes: %v", err)
+		log.Errorf("[CORE] Error listing Routes: %v", err)
 	}
 	for _, aRoute := range allRoutes.Items {
 		if !isProcessedRoute(aRoute, processedRoutes) {
-			postMgr.eraseRouteAdmitStatus(aRoute)
+			appMgr.eraseRouteAdmitStatus(aRoute)
+		}
+	}
+}
+
+// agentResponseWorker is a go routine blocks on agent Response Chan
+// get unblocked when Agent post agent Response Message on agRspChan
+func (appMgr *Manager) agentResponseWorker() {
+	log.Debugf("[CORE] Agent Response Worker started and blocked on channel  %v", appMgr.agRspChan)
+	for msgRsp := range appMgr.agRspChan {
+		rspMsg := msgRsp.(resource.MessageResponse).ResourceResponse
+		// If admit status is set and if routes are configured appManager
+		// would process route admit status, by default appManager would
+		// process ARP handling aloing with Admit Status for both k8s or OSCP
+		if rspMsg.AdmitStatus {
+			appMgr.deployARP(rspMsg.Members)
+			log.Debugf("[CORE] Sending ARP entries")
+			// if route is configured in appManager
+			if appMgr.routeClientV1 != nil {
+				log.Debugf("[CORE] Updating Route Admit Status")
+				appMgr.updateRouteAdmitStatus()
+			}
+		}
+
+		// if FDB is set, appManager would send this request to L2-L3 agent
+		if rspMsg.FdbRecords {
+			appMgr.deployFDB()
 		}
 	}
 }

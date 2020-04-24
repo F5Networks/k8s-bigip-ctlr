@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-package postmanager
+package as3
 
 import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -31,19 +32,27 @@ import (
 )
 
 const (
+	timeoutNill   = 0 * time.Second
 	timeoutSmall  = 3 * time.Second
 	timeoutMedium = 30 * time.Second
 	timeoutLarge  = 60 * time.Second
-	F5RouterName  = "F5 BIG-IP"
+)
+
+const (
+	responseStatusOk                 = "statusOK"
+	responseStatusCommon             = "statusCommonResponse"
+	responseStatusNotFound           = "statusNotFound"
+	responseStatusServiceUnavailable = "statusServiceUnavailable"
 )
 
 type PostManager struct {
 	postChan   chan config
 	httpClient *http.Client
-	Params
+	activeCfg  config
+	PostParams
 }
 
-type Params struct {
+type PostParams struct {
 	BIGIPUsername string
 	BIGIPPassword string
 	BIGIPURL      string
@@ -57,20 +66,16 @@ type Params struct {
 
 type config struct {
 	data      string
-	routesMap map[string][]string
 	as3APIURL string
 }
 
-func NewPostManager(params Params) *PostManager {
+func NewPostManager(params PostParams) *PostManager {
 	pm := &PostManager{
-		postChan: make(chan config, 1),
-		Params:   params,
+		postChan:   make(chan config, 1),
+		PostParams: params,
 	}
 	pm.setupBIGIPRESTClient()
 
-	// configWorker runs as a separate go routine
-	// blocks on postChan to get new/updated configuration to be posted to BIG-IP
-	go pm.configWorker()
 	return pm
 }
 
@@ -106,83 +111,40 @@ func (postMgr *PostManager) getAS3APIURL(tenants []string) string {
 	return apiURL
 }
 
-// Write sets activeConfig with the latest config received, so that configWorker can use latest configuration
-// Write enqueues postChan to unblock configWorker, which gets blocked on postChan
-func (postMgr *PostManager) Write(
-	data string,
-	partitions []string,
-	routesMap map[string][]string,
-) {
-	activeConfig := config{
+func (postMgr *PostManager) getAS3VersionURL() string {
+	apiURL := postMgr.BIGIPURL + "/mgmt/shared/appsvcs/info"
+	return apiURL
+}
+
+func getTimeDurationForErrorResponse(errRsp string) time.Duration {
+	duration := timeoutNill
+	switch errRsp {
+	case responseStatusCommon:
+		duration = timeoutMedium
+	case responseStatusServiceUnavailable:
+		duration = timeoutSmall
+	}
+	return duration
+}
+
+func (postMgr *PostManager) postConfig(data string, tenants []string) (bool, string) {
+	cfg := config{
 		data:      data,
-		routesMap: routesMap,
-		as3APIURL: postMgr.getAS3APIURL(partitions),
+		as3APIURL: postMgr.getAS3APIURL(tenants),
 	}
-
-	// Always push latest activeConfig to channel
-	// Case1: Put latest config into the channel
-	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
-	// Either Case1 or Case2 executes, which ensures the above
-	select {
-	case postMgr.postChan <- activeConfig:
-	case <-postMgr.postChan:
-		postMgr.postChan <- activeConfig
-	}
-	log.Debug("[AS3] PostManager Accepted the configuration")
-
-	return
-}
-
-// configWorker blocks on postChan
-// whenever gets unblocked posts active configuration to BIG-IP
-func (postMgr *PostManager) configWorker() {
-	// For the very first post after starting controller, need not wait to post
-	firstPost := true
-	for cfg := range postMgr.postChan {
-		if !firstPost && postMgr.AS3PostDelay != 0 {
-			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
-			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds", postMgr.AS3PostDelay)
-			_ = <-time.After(time.Duration(postMgr.AS3PostDelay) * time.Second)
-		}
-
-		// After postDelay expires pick up latest declaration, if available
-		select {
-		case cfg = <-postMgr.postChan:
-		case <-time.After(1 * time.Microsecond):
-		}
-
-		posted := postMgr.postConfig(cfg)
-		// To handle general errors
-		for !posted {
-			posted = postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
-		}
-		firstPost = false
-	}
-}
-
-func (postMgr *PostManager) postOnEventOrTimeout(timeout time.Duration, cfg config) bool {
-	select {
-	case newCfg := <-postMgr.postChan:
-		return postMgr.postConfig(newCfg)
-	case <-time.After(timeout):
-		return postMgr.postConfig(cfg)
-	}
-}
-
-func (postMgr *PostManager) postConfig(cfg config) bool {
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
 
 	req, err := http.NewRequest("POST", cfg.as3APIURL, httpReqBody)
 	if err != nil {
 		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
-		return false
+		return false, responseStatusCommon
 	}
 	log.Debugf("[AS3] posting request to %v", cfg.as3APIURL)
 	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
 
-	httpResp, responseMap := postMgr.httpPOST(req)
+	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
-		return false
+		return false, responseStatusCommon
 	}
 
 	switch httpResp.StatusCode {
@@ -197,7 +159,42 @@ func (postMgr *PostManager) postConfig(cfg config) bool {
 	}
 }
 
-func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map[string]interface{}) {
+func (postMgr *PostManager) GetBigipAS3Version() (string, error) {
+	url := postMgr.getAS3VersionURL()
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
+		return "", err
+	}
+
+	log.Debugf("[AS3] posting GET BIGIP AS3 Version request on %v", url)
+	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+
+	httpResp, responseMap := postMgr.httpReq(req)
+	if httpResp == nil || responseMap == nil {
+		return "", fmt.Errorf("Internal Error")
+	}
+
+	switch httpResp.StatusCode {
+	case http.StatusOK:
+		if responseMap["version"] != nil {
+			versionField := responseMap["version"].(string)
+			as3VersionStr := versionField[:strings.LastIndex(versionField, ".")]
+			return as3VersionStr, nil
+		}
+	case http.StatusNotFound:
+		responseMap["code"] = int(responseMap["code"].(float64))
+		if responseMap["code"] == http.StatusNotFound {
+			return "", fmt.Errorf("App services are not installed on BIGIP,"+
+				" Error response from BIGIP with status code %v", httpResp.StatusCode)
+		}
+		// In case of 503 status code : CIS will exit and auto restart of the
+		// controller might fetch the BIGIP version once BIGIP is available.
+	}
+	return "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+}
+
+func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[string]interface{}) {
 	httpResp, err := postMgr.httpClient.Do(request)
 	if err != nil {
 		log.Errorf("[AS3] REST call error: %v ", err)
@@ -222,7 +219,7 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	return httpResp, response
 }
 
-func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}, cfg config) bool {
+func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}, cfg config) (bool, string) {
 	//traverse all response results
 	results := (responseMap["results"]).([]interface{})
 	for _, value := range results {
@@ -230,19 +227,17 @@ func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interf
 		//log result with code, tenant and message
 		log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 	}
-	if postMgr.RouteClientV1 != nil {
-		postMgr.updateRouteAdmitStatus(cfg.routesMap)
-	}
-	return true
+	return true, responseStatusOk
 }
 
-func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}, cfg config) bool {
+func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}, cfg config) (bool, string) {
 	log.Errorf("[AS3] Big-IP Responded with error code: %v", responseMap["code"])
 	log.Debugf("[AS3] Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", timeoutSmall)
-	return postMgr.postOnEventOrTimeout(timeoutSmall, cfg)
+	//return postMgr.postOnEventOrTimeout(timeoutSmall, cfg)
+	return false, responseStatusServiceUnavailable
 }
 
-func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}) bool {
+func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}) (bool, string) {
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])
 	} else {
@@ -252,10 +247,10 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 	if postMgr.LogResponse {
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
-	return true
+	return true, responseStatusNotFound
 }
 
-func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg config) bool {
+func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg config) (bool, string) {
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
 			v := value.(map[string]interface{})
@@ -271,5 +266,6 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 	if postMgr.LogResponse {
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
-	return postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
+	//return postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
+	return false, responseStatusCommon
 }

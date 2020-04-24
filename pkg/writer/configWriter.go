@@ -89,7 +89,7 @@ func (cw *configWriter) GetOutputFilename() string {
 func (cw *configWriter) Stop() {
 	defer func() {
 		if r := recover(); r != nil {
-			log.Warningf("ConfigWriter (%p) stop called after stop", cw)
+			log.Warningf("[CCCL] ConfigWriter (%p) stop called after stop", cw)
 		}
 	}()
 
@@ -98,7 +98,7 @@ func (cw *configWriter) Stop() {
 	close(cw.dataCh)
 	os.RemoveAll(filepath.Dir(cw.configFile))
 
-	log.Infof("ConfigWriter stopped: %p", cw)
+	log.Infof("[CCCL] ConfigWriter stopped: %p", cw)
 }
 
 func (cw *configWriter) SendSection(
@@ -110,11 +110,11 @@ func (cw *configWriter) SendSection(
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			log.Warningf("ConfigWriter (%p) SendSection called after stop", cw)
+			log.Warningf("[CCCL] ConfigWriter (%p) SendSection called after stop", cw)
 		}
 	}()
 
-	log.Debugf("ConfigWriter (%p) writing section name %s", cw, name)
+	log.Debugf("[CCCL] ConfigWriter (%p) writing section name %s", cw, name)
 
 	done := make(chan struct{})
 	err := make(chan error)
@@ -211,13 +211,13 @@ func (cw *configWriter) waitData() {
 	for {
 		select {
 		case <-cw.stopCh:
-			log.Debugf("ConfigWriter (%p) received stop signal", cw)
+			log.Debugf("[CCCL] ConfigWriter (%p) received stop signal", cw)
 			return
 		case cs := <-cw.dataCh:
 			// check if this section will marshal
 			_, err := json.Marshal(cs.data)
 			if nil != err {
-				log.Warningf("ConfigWriter (%p) received bad json for section (%s): %v",
+				log.Warningf("[CCCL] ConfigWriter (%p) received bad json for section (%s): %v",
 					cw, cs.name, err)
 				go respondErr(cs.errorCh, err)
 			} else {
@@ -225,7 +225,7 @@ func (cw *configWriter) waitData() {
 
 				output, err := json.Marshal(cw.sectionMap)
 				if nil != err {
-					log.Warningf("ConfigWriter (%p) received marshal error (%s): %v",
+					log.Warningf("[CCCL] ConfigWriter (%p) received marshal error (%s): %v",
 						cw, cs.name, err)
 					go respondErr(cs.errorCh, err)
 				}
@@ -233,15 +233,15 @@ func (cw *configWriter) waitData() {
 				wrote, err := cw.lockAndWrite(output)
 				if nil != err {
 					if wrote {
-						log.Warningf("ConfigWriter (%p) errored during write of section (%s): %v",
+						log.Warningf("[CCCL] ConfigWriter (%p) errored during write of section (%s): %v",
 							cw, cs.name, err)
 					} else {
-						log.Warningf("ConfigWriter (%p) failed to write section (%s): %v",
+						log.Warningf("[CCCL] ConfigWriter (%p) failed to write section (%s): %v",
 							cw, cs.name, err)
 					}
 					go respondErr(cs.errorCh, err)
 				} else {
-					log.Debugf("ConfigWriter (%p) successfully wrote section (%s)",
+					log.Debugf("[CCCL] ConfigWriter (%p) successfully wrote section (%s)",
 						cw, cs.name)
 					go respondDone(cs.doneCh)
 				}

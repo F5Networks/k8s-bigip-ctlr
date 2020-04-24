@@ -68,7 +68,7 @@ func NewNodePoller(
 		nodeLabel:    nodeLabel,
 	}
 
-	log.Debugf("NodePoller object created: %p", np)
+	log.Debugf("[CORE] NodePoller object created: %p", np)
 	return np
 }
 
@@ -80,7 +80,7 @@ func (np *nodePoller) Run() error {
 		np.running = true
 		go np.poller()
 		for _, pl := range np.regListeners {
-			log.Debugf("NodePoller (%p) registering cached listener: %p\n",
+			log.Debugf("[CORE] NodePoller (%p) registering cached listener: %p\n",
 				np, pl)
 			np.runListener(pl)
 		}
@@ -88,7 +88,7 @@ func (np *nodePoller) Run() error {
 		return fmt.Errorf("NodePoller Run method called while running")
 	}
 
-	log.Infof("NodePoller started: (%p)", np)
+	log.Infof("[CORE] NodePoller started: (%p)", np)
 	return nil
 }
 
@@ -103,7 +103,7 @@ func (np *nodePoller) Stop() error {
 		return fmt.Errorf("NodePoller Stop method called while stopped")
 	}
 
-	log.Infof("NodePoller stopped: %p", np)
+	log.Infof("[CORE] NodePoller stopped: %p", np)
 	return nil
 }
 
@@ -111,11 +111,11 @@ func (np *nodePoller) RegisterListener(p PollListener) error {
 	np.runningLock.Lock()
 	defer np.runningLock.Unlock()
 
-	log.Infof("NodePoller (%p) registering new listener: %p", np, p)
+	log.Infof("[CORE] NodePoller (%p) registering new listener: %p", np, p)
 
 	np.regListeners = append(np.regListeners, p)
 	if false == np.running {
-		log.Debugf("NodePoller (%p) caching listener %p, poller is not running",
+		log.Debugf("[CORE] NodePoller (%p) caching listener %p, poller is not running",
 			np, p)
 		return nil
 	}
@@ -134,14 +134,14 @@ func (np *nodePoller) runListener(p PollListener) {
 	}
 
 	go func() {
-		log.Debugf("NodePoller (%p) listener goroutine started: %p", np, p)
+		log.Debugf("[CORE] NodePoller (%p) listener goroutine started: %p", np, p)
 		for {
 			select {
 			case <-stopCh:
-				log.Debugf("NodePoller (%p) listener stopped: %p", np, p)
+				log.Debugf("[CORE] NodePoller (%p) listener stopped: %p", np, p)
 				return
 			case pd := <-listener:
-				log.Debugf("NodePoller (%p) listener callback - num items: %v err: %v",
+				log.Debugf("[CORE] NodePoller (%p) listener callback - num items: %v err: %v",
 					np, len(pd.nl), pd.err)
 				p(pd.nl, pd.err)
 			}
@@ -163,12 +163,12 @@ func (np *nodePoller) poller() {
 	var loopTime time.Time
 	remainingInterval := np.pollInterval
 
-	log.Debugf("NodePoller (%p) poller goroutine started", np)
+	log.Debugf("[CORE] NodePoller (%p) poller goroutine started", np)
 
 	for {
 		select {
 		case <-np.stopCh:
-			log.Debugf("NodePoller (%p) stopping poller goroutine", np)
+			log.Debugf("[CORE] NodePoller (%p) stopping poller goroutine", np)
 			np.stopListeners(listeners)
 			return
 		default:
@@ -184,7 +184,7 @@ func (np *nodePoller) poller() {
 			np.lastError = err
 
 			for _, listener := range listeners {
-				log.Debugf("NodePoller (%p) notifying listener: %+v", np, listener)
+				log.Debugf("[CORE] NodePoller (%p) notifying listener: %+v", np, listener)
 				select {
 				case listener.l <- pollData{
 					nl:  np.nodeCache,
@@ -198,11 +198,11 @@ func (np *nodePoller) poller() {
 		loopTime = time.Now()
 		select {
 		case <-np.stopCh:
-			log.Debugf("NodePoller (%p) stopping poller goroutine", np)
+			log.Debugf("[CORE] NodePoller (%p) stopping poller goroutine", np)
 			np.stopListeners(listeners)
 			return
 		case pl := <-np.addCh:
-			log.Debugf("NodePoller (%p) poller goroutine adding listener: %+v",
+			log.Debugf("[CORE] NodePoller (%p) poller goroutine adding listener: %+v",
 				np, pl)
 
 			pl.l <- pollData{
@@ -212,7 +212,7 @@ func (np *nodePoller) poller() {
 
 			since := time.Since(loopTime)
 			remainingInterval = remainingInterval - since
-			log.Debugf("NodePoller (%p) listener add wake up - next poll in %v\n",
+			log.Debugf("[CORE] NodePoller (%p) listener add wake up - next poll in %v\n",
 				np, remainingInterval)
 			if 0 > remainingInterval {
 				remainingInterval = 0
@@ -220,7 +220,7 @@ func (np *nodePoller) poller() {
 
 			listeners = append(listeners, pl)
 		case <-time.After(remainingInterval):
-			log.Debugf("NodePoller (%p) ready to poll, last wait: %v\n",
+			log.Debugf("[CORE] NodePoller (%p) ready to poll, last wait: %v\n",
 				np, remainingInterval)
 			remainingInterval = np.pollInterval
 			doPoll = true

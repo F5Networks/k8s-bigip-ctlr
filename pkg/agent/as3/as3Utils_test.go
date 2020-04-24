@@ -1,9 +1,20 @@
-package appmanager
+package as3
 
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"io/ioutil"
 )
+
+var configPath = "../test/configs/"
+
+func readConfigFile(path string) string {
+	defer GinkgoRecover()
+	data, err := ioutil.ReadFile(path)
+	RegisterFailHandler(Fail)
+	Expect(err).To(BeNil(), "Configuration files should be located in pkg/test/configs.")
+	return string(data)
+}
 
 var _ = Describe("Override Simple Config Map", func() {
 	It("TestValidateJSONStringAndFetchObject", func() {

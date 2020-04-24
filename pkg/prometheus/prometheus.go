@@ -34,7 +34,7 @@ var CurrentErrors = prometheus.NewGaugeVec(
 // further metrics? todo think about
 // RegisterMetrics registers all Prometheus metrics defined above
 func RegisterMetrics() {
-	log.Info("Registered BigIP Metrics")
+	log.Info("[CORE] Registered BigIP Metrics")
 	prometheus.MustRegister(MonitoredNodes)
 	prometheus.MustRegister(MonitoredServices)
 	prometheus.MustRegister(CurrentErrors)

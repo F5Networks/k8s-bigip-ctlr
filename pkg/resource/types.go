@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package appmanager
+package resource
 
 type (
 	// Configs for each BIG-IP partition
@@ -34,7 +34,7 @@ type (
 
 	// Config for a single resource (ConfigMap, Ingress, or Route)
 	ResourceConfig struct {
-		MetaData metaData `json:"-"`
+		MetaData MetaData `json:"-"`
 		Virtual  Virtual  `json:"virtual,omitempty"`
 		IApp     IApp     `json:"iapp,omitempty"`
 		Pools    Pools    `json:"pools,omitempty"`
@@ -43,18 +43,18 @@ type (
 	}
 	ResourceConfigs []*ResourceConfig
 
-	metaData struct {
+	MetaData struct {
 		Active       bool
 		ResourceType string
 		// Only used for Routes (for keeping track of annotated profiles)
-		RouteProfs map[routeKey]string
+		RouteProfs map[RouteKey]string
 		// Name of the Ingress that created this config
 		// Used to prevent single-service Ingresses from sharing virtuals
-		ingName string
+		IngName string
 	}
 
 	// Key used to store annotated profiles for a route
-	routeKey struct {
+	RouteKey struct {
 		Name      string
 		Namespace string
 		Context   string
@@ -80,11 +80,11 @@ type (
 		Enabled               bool                  `json:"enabled"`
 		IpProtocol            string                `json:"ipProtocol,omitempty"`
 		SourceAddrTranslation SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
-		Policies              []nameRef             `json:"policies,omitempty"`
+		Policies              []NameRef             `json:"policies,omitempty"`
 		IRules                []string              `json:"rules,omitempty"`
 		Profiles              ProfileRefs           `json:"profiles,omitempty"`
 		Description           string                `json:"description,omitempty"`
-		VirtualAddress        *virtualAddress       `json:"-"`
+		VirtualAddress        *VirtualAddress       `json:"-"`
 	}
 	Virtuals []Virtual
 
@@ -155,12 +155,12 @@ type (
 		Name       string       `json:"name"`
 		FullURI    string       `json:"-"`
 		Ordinal    int          `json:"ordinal,omitempty"`
-		Actions    []*action    `json:"actions,omitempty"`
-		Conditions []*condition `json:"conditions,omitempty"`
+		Actions    []*Action    `json:"actions,omitempty"`
+		Conditions []*Condition `json:"conditions,omitempty"`
 	}
 
-	// action config for a Rule
-	action struct {
+	// Action config for a Rule
+	Action struct {
 		Name      string `json:"name"`
 		Pool      string `json:"pool,omitempty"`
 		HTTPHost  bool   `json:"httpHost,omitempty"`
@@ -177,8 +177,8 @@ type (
 		Value     string `json:"value,omitempty"`
 	}
 
-	// condition config for a Rule
-	condition struct {
+	// Condition config for a Rule
+	Condition struct {
 		Name            string   `json:"name"`
 		Address         bool     `json:"address,omitempty"`
 		CaseInsensitive bool     `json:"caseInsensitive,omitempty"`
@@ -201,16 +201,16 @@ type (
 	}
 
 	Rules   []*Rule
-	ruleMap map[string]*Rule
+	RuleMap map[string]*Rule
 
 	// virtual server policy/profile reference
-	nameRef struct {
+	NameRef struct {
 		Name      string `json:"name"`
 		Partition string `json:"partition"`
 	}
 
 	// frontend bindaddr and port
-	virtualAddress struct {
+	VirtualAddress struct {
 		BindAddr string `json:"bindAddr,omitempty"`
 		Port     int32  `json:"port,omitempty"`
 	}
@@ -262,7 +262,7 @@ type (
 		} `json:"virtualServer"`
 	}
 
-	configMapMonitor struct {
+	ConfigMapMonitor struct {
 		Name      string `json:"name"`
 		Partition string `json:"partition,omitempty"`
 		Interval  int    `json:"interval,omitempty"`
@@ -276,7 +276,7 @@ type (
 		ServiceName     string             `json:"serviceName"`
 		ServicePort     int32              `json:"servicePort"`
 		PoolMemberAddrs []string           `json:"poolMemberAddrs"`
-		HealthMonitors  []configMapMonitor `json:"healthMonitors,omitempty"`
+		HealthMonitors  []ConfigMapMonitor `json:"healthMonitors,omitempty"`
 	}
 
 	configMapFrontend struct {
@@ -288,13 +288,13 @@ type (
 		// VirtualServer parameters
 		Balance               string                `json:"balance,omitempty"`
 		Mode                  string                `json:"mode,omitempty"`
-		VirtualAddress        *virtualAddress       `json:"virtualAddress,omitempty"`
+		VirtualAddress        *VirtualAddress       `json:"virtualAddress,omitempty"`
 		Destination           string                `json:"destination,omitempty"`
 		Enabled               bool                  `json:"enabled,omitempty"`
 		IpProtocol            string                `json:"ipProtocol,omitempty"`
 		SourceAddrTranslation SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
 		SslProfile            *sslProfile           `json:"sslProfile,omitempty"`
-		Policies              []nameRef             `json:"policies,omitempty"`
+		Policies              []NameRef             `json:"policies,omitempty"`
 		IRules                []string              `json:"rules,omitempty"`
 		Profiles              ProfileRefs           `json:"profiles,omitempty"`
 
@@ -318,17 +318,17 @@ type (
 	}
 	AnnotationHealthMonitors []AnnotationHealthMonitor
 
-	ruleData struct {
-		svcName   string
-		svcPort   int32
-		healthMon AnnotationHealthMonitor
-		assigned  bool
+	RuleData struct {
+		SvcName   string
+		SvcPort   int32
+		HealthMon AnnotationHealthMonitor
+		Assigned  bool
 	}
-	pathToRuleMap map[string]*ruleData
-	hostToPathMap map[string]pathToRuleMap
+	PathToRuleMap map[string]*RuleData
+	HostToPathMap map[string]PathToRuleMap
 
 	// Virtual Server Key - unique server is Name + Port
-	serviceKey struct {
+	ServiceKey struct {
 		ServiceName string
 		ServicePort int32
 		Namespace   string
@@ -341,7 +341,7 @@ type (
 		Code      string `json:"apiAnonymous"`
 	}
 
-	IRulesMap map[nameRef]*IRule
+	IRulesMap map[NameRef]*IRule
 
 	InternalDataGroup struct {
 		Name      string                   `json:"name"`
@@ -356,10 +356,10 @@ type (
 	InternalDataGroupRecords []InternalDataGroupRecord
 
 	DataGroupNamespaceMap map[string]*InternalDataGroup
-	InternalDataGroupMap  map[nameRef]DataGroupNamespaceMap
+	InternalDataGroupMap  map[NameRef]DataGroupNamespaceMap
 
 	// AS3 Backend supported features
-	virtuals int
+	ConstVirtuals int
 
 	// Routes annotation features that are possible by an AS3 declaration can be added here. Initially enabling a WAF
 	// policy is added as an AS3 feature.
@@ -376,14 +376,125 @@ type (
 	}
 
 	F5Resources struct {
-		Virtual   virtuals // 0 - HTTP, 1 - HTTPS, 2 - HTTP/S
+		Virtual   ConstVirtuals // 0 - HTTP, 1 - HTTPS, 2 - HTTP/S
 		WAFPolicy string
+	}
+
+	SecretKey struct {
+		Name         string
+		ResourceName string
+	}
+
+	endPoints struct {
+		members []Member
+	}
+
+	AgentCfgMap struct {
+		GetEndpoints func(string) []Member
+		Data         string
+		Name         string
+		Namespace    string
+		Label        map[string]string
+	}
+
+	AgentResources struct {
+		RsMap  ResourceConfigMap
+		RsCfgs ResourceConfigs
+	}
+
+	ResourceRequest struct {
+		PoolMembers    map[Member]struct{}
+		Resources      *AgentResources
+		CustomProfiles *CustomProfileStore
+		IrulesMap      IRulesMap
+		IntDgMap       InternalDataGroupMap
+		IntF5Res       InternalF5ResourcesGroup
+		AgentCfgmap    []*AgentCfgMap
+	}
+
+	ResourceResponse struct {
+		AdmitStatus bool
+		FdbRecords  bool
+		Members     map[Member]struct{}
+	}
+
+	MessageRequest struct {
+		ReqID   uint
+		MsgType string
+		ResourceRequest
+	}
+
+	MessageResponse struct {
+		ReqID uint
+		ResourceResponse
 	}
 )
 
 // Determines which virtual server needs a specific feature applied.
 const (
-	HTTP virtuals = iota
+	HTTP ConstVirtuals = iota
 	HTTPS
 	HTTPANDS
 )
+
+var DEFAULT_PARTITION string = "k8s"
+
+const (
+	DEFAULT_MODE       string = "tcp"
+	DEFAULT_BALANCE    string = "round-robin"
+	DEFAULT_HTTP_PORT  int32  = 80
+	DEFAULT_HTTPS_PORT int32  = 443
+
+	urlRewriteRulePrefix      = "url-rewrite-rule-"
+	appRootForwardRulePrefix  = "app-root-forward-rule-"
+	appRootRedirectRulePrefix = "app-root-redirect-rule-"
+
+	// Indicator to use an F5 schema
+	schemaIndicator string = "f5schemadb://"
+
+	// Constants for CustomProfile.Type as defined in CCCL
+	CustomProfileAll    string = "all"
+	CustomProfileClient string = "clientside"
+	CustomProfileServer string = "serverside"
+
+	// Constants for CustomProfile.PeerCertMode
+	PeerCertRequired = "require"
+	PeerCertIgnored  = "ignore"
+	PeerCertDefault  = PeerCertIgnored
+
+	// Constants for Resource Types
+	ResourceTypeIngress          string = "ingress"
+	ResourceTypeRoute            string = "route"
+	ResourceTypeCfgMap           string = "cfgMap"
+	DefaultSourceAddrTranslation        = "automap"
+	SnatSourceAddrTranslation           = "snat"
+)
+
+const HttpRedirectIRuleName = "http_redirect_irule"
+const AbDeploymentPathIRuleName = "ab_deployment_path_irule"
+const SslPassthroughIRuleName = "openshift_passthrough_irule"
+
+const DefaultConfigMapLabel = "f5type in (virtual-server)"
+const VsStatusBindAddrAnnotation = "status.virtual-server.f5.com/ip"
+const IngressSslRedirect = "ingress.kubernetes.io/ssl-redirect"
+const IngressAllowHttp = "ingress.kubernetes.io/allow-http"
+const HealthMonitorAnnotation = "virtual-server.f5.com/health"
+const K8sIngressClass = "kubernetes.io/ingress.class"
+const F5VsBindAddrAnnotation = "virtual-server.f5.com/ip"
+const F5VsHttpPortAnnotation = "virtual-server.f5.com/http-port"
+const F5VsHttpsPortAnnotation = "virtual-server.f5.com/https-port"
+const F5VsBalanceAnnotation = "virtual-server.f5.com/balance"
+const F5VsPartitionAnnotation = "virtual-server.f5.com/partition"
+const F5VsURLRewriteAnnotation = "virtual-server.f5.com/rewrite-target-url"
+const F5VsWhitelistSourceRangeAnnotation = "virtual-server.f5.com/whitelist-source-range"
+const F5VsAppRootAnnotation = "virtual-server.f5.com/rewrite-app-root"
+const F5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
+const F5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"
+const F5ServerSslSecureAnnotation = "virtual-server.f5.com/secure-serverssl"
+const DefaultSslServerCAName = "openshift_route_cluster_default-ca"
+const F5VsWAFPolicy = "virtual-server.f5.com/waf"
+const OprTypeCreate = "create"
+const OprTypeModify = "modify"
+const OprTypeDelete = "delete"
+
+//const DefaultSslServerCAName = "openshift_route_cluster_default-ca"

@@ -60,7 +60,6 @@ const (
 
 // AS3Config consists of all the AS3 related configurations
 type AS3Config struct {
-	as3RsrcType        string
 	adc                as3ADC
 	configmap          AS3ConfigMap
 	overrideConfigmap  AS3ConfigMap
@@ -295,6 +294,7 @@ func (am *AS3Manager) DeleteAS3Partition(partition string) {
 }
 
 func (c AS3Config) Init(partition string) {
+	c.adc = as3ADC{}
 	c.adc.initDefault(partition)
 	c.configmap.Init()
 	c.overrideConfigmap.Init()

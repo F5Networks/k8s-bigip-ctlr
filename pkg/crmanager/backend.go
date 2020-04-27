@@ -26,7 +26,7 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
-	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	rsc "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
@@ -116,12 +116,12 @@ func (agent *Agent) PostConfig(rsCfgs ResourceConfigs) {
 	allPoolMembers := rsCfgs.GetAllPoolMembers()
 
 	// Convert allPoolMembers to appmanger.Members so that vxlan Manger accepts
-	var allPoolMems []apm.Member
+	var allPoolMems []rsc.Member
 
 	for _, poolMem := range allPoolMembers {
 		allPoolMems = append(
 			allPoolMems,
-			apm.Member(poolMem),
+			rsc.Member(poolMem),
 		)
 	}
 	if agent.EventChan != nil {

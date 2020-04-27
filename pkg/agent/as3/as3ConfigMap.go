@@ -96,9 +96,11 @@ func (c *AS3Config) prepareAS3OverrideDeclaration(data string) {
 	if !DeepEqualJSON(c.overrideConfigmap.Data, as3Declaration(data)) {
 		c.overrideConfigmap.Data = as3Declaration(data)
 		if c.unifiedDeclaration != "" && !c.isDefaultAS3PartitionEmpty() {
+			c.overrideConfigmap.State = cmActive
 			return
 		}
-		log.Debugf("[AS3] Saving AS3 override, no active configuration available in CIS")
+		c.overrideConfigmap.State = cmActive
+		log.Warningf("[AS3] Saving AS3 override, no active configuration available in CIS")
 	}
 
 	return

@@ -19,6 +19,7 @@ package crmanager
 import (
 	"fmt"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -86,6 +87,7 @@ func processVirtualServerRules(
 
 	rls = append(rls, w...)
 
+	sort.Sort(rls)
 	return &rls
 }
 
@@ -186,7 +188,7 @@ func createPolicy(rls Rules, policyName, partition string) *Policy {
 		Partition: partition,
 		Requires:  []string{"http"},
 		Rules:     Rules{},
-		Strategy:  "/Common/best-match",
+		Strategy:  "/Common/first-match",
 	}
 
 	plcy.Rules = rls
@@ -211,4 +213,58 @@ func createPolicy(rls Rules, policyName, partition string) *Policy {
 
 	log.Debugf("Configured policy: %v", plcy)
 	return &plcy
+}
+
+func (rules Rules) Len() int {
+	return len(rules)
+}
+
+func (rules Rules) Less(i, j int) bool {
+	ruleI := rules[i]
+	ruleJ := rules[j]
+	// Strategy 1: Rule with Highest number of conditions
+	l1 := len(ruleI.Conditions)
+	l2 := len(ruleJ.Conditions)
+	if l1 != l2 {
+		return l1 > l2
+	}
+
+	// Strategy 2: Rule with highest priority sequence of condition types
+	// TODO
+
+	// Strategy 3: "equal" match type takes more priority than others
+	// such as "starts-with", "ends-with", "contains"
+	// TODO: And "start-with" and "ends-with" takes same priority and take
+	// more priority than "contains"
+	getConditionCounters := func(rule *Rule) (int, int) {
+		var (
+			eqCount  int
+			endCount int
+		)
+		for _, cnd := range ruleI.Conditions {
+			if cnd.Equals {
+				eqCount++
+			}
+			if cnd.EndsWith {
+				endCount++
+			}
+		}
+		return eqCount, endCount
+	}
+	eqCountI, endCountI := getConditionCounters(ruleI)
+	eqCountJ, endCountJ := getConditionCounters(ruleJ)
+	if eqCountI != eqCountJ {
+		return eqCountI > eqCountJ
+	}
+	if endCountI != endCountJ {
+		return endCountI > endCountJ
+	}
+
+	// Strategy 4: Lowest Ordinal
+	return ruleI.Ordinal < ruleJ.Ordinal
+
+}
+
+func (rules Rules) Swap(i, j int) {
+	rules[i], rules[j] = rules[j], rules[i]
 }

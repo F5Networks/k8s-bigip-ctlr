@@ -39,9 +39,10 @@ func NewResources() *Resources {
 // Resources is Map of Resource configs
 type Resources struct {
 	sync.Mutex
-	rm      resourceKeyMap
-	rsMap   ResourceConfigMap
-	objDeps ObjectDependencyMap
+	rm       resourceKeyMap
+	rsMap    ResourceConfigMap
+	objDeps  ObjectDependencyMap
+	oldRsMap ResourceConfigMap
 }
 
 // Init is Receiver to initialize the object.
@@ -49,6 +50,7 @@ func (rs *Resources) Init() {
 	rs.rm = make(resourceKeyMap)
 	rs.rsMap = make(ResourceConfigMap)
 	rs.objDeps = make(ObjectDependencyMap)
+	rs.oldRsMap = make(ResourceConfigMap)
 }
 
 type mergedRuleEntry struct {
@@ -878,6 +880,14 @@ func (rcs ResourceConfigs) GetAllPoolMembers() []Member {
 		}
 	}
 	return allPoolMembers
+}
+
+func (rs *Resources) updateOldConfig() {
+	rs.oldRsMap = make(ResourceConfigMap)
+	for k, v := range rs.rsMap {
+		rs.oldRsMap[k] = &ResourceConfig{}
+		rs.oldRsMap[k].copyConfig(v)
+	}
 }
 
 // AS3NameFormatter formarts resources names according to AS3 convention

@@ -18,6 +18,7 @@ package crmanager
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
@@ -107,9 +108,14 @@ func (crMgr *CRManager) processResource() bool {
 		crMgr.rscQueue.Forget(key)
 	}
 
-	if isLastInQueue {
+	if isLastInQueue && !reflect.DeepEqual(
+		crMgr.resources.rsMap,
+		crMgr.resources.oldRsMap,
+	) {
+
 		crMgr.Agent.PostConfig(crMgr.resources.GetAllResources())
 		crMgr.initState = false
+		crMgr.resources.updateOldConfig()
 	}
 	return true
 }

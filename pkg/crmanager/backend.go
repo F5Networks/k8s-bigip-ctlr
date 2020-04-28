@@ -50,7 +50,7 @@ const (
 var DEFAULT_PARTITION string
 
 func NewAgent(params AgentParams) *Agent {
-	DEFAULT_PARTITION = params.Partition + "_AS3"
+	DEFAULT_PARTITION = params.Partition
 	postMgr := NewPostManager(params.PostParams)
 	configWriter, err := writer.NewConfigWriter()
 	if nil != err {
@@ -82,6 +82,7 @@ func NewAgent(params AgentParams) *Agent {
 		LogLevel:       params.LogLevel,
 		VerifyInterval: params.VerifyInterval,
 		VXLANPartition: vxlanPartition,
+		DisableLTM:     true,
 	}
 	bs := bigIPSection{
 		BigIPUsername:   params.PostParams.BIGIPUsername,

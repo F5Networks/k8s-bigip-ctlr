@@ -187,7 +187,7 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 	var rules *Rules
 	var plcy *Policy
 
-	cfg.Virtual.Partition = crMgr.Partition + "_AS3"
+	cfg.Virtual.Partition = crMgr.Partition
 
 	if vs.Spec.VirtualServerAddress == "" {
 		// Virtual Server IP is not given, exit with error log.

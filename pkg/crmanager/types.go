@@ -253,6 +253,7 @@ type (
 		LogLevel       string `json:"log-level,omitempty"`
 		VerifyInterval int    `json:"verify-interval,omitempty"`
 		VXLANPartition string `json:"vxlan-partition,omitempty"`
+		DisableLTM     bool   `json:"disable-ltm,omitempty"`
 	}
 
 	bigIPSection struct {

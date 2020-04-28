@@ -599,7 +599,11 @@ var _ = Describe("Main Tests", func() {
 
 			err := flags.Parse(os.Args)
 			Expect(err).ToNot(BeNil())
-			Expect(called).To(BeTrue())
+			// This implementation changed in spf13 v1.0.3.
+			// Usage() is not called as ContinueOnError is set for unit tests.
+			// So we adopted to the new behaviour introduced.
+			// Refer --> FlagSet.failf() in flag.go
+			Expect(called).To(BeFalse())
 			Expect(len(*openshiftSDNName)).To(Equal(0))
 		})
 

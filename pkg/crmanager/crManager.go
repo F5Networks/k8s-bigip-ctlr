@@ -31,12 +31,17 @@ import (
 )
 
 const (
+	// DefaultCustomResourceLabel is a label used for F5 Custom Resources.
 	DefaultCustomResourceLabel = "f5cr in (true)"
-	VirtualServer              = "VirtualServer"
-	Service                    = "Service"
-	Endpoints                  = "Endpoints"
+	// VirtualServer is a F5 Custom Resource Kind.
+	VirtualServer = "VirtualServer"
+	// Service is a k8s native Service Resource.
+	Service = "Service"
+	// Endpoints is a k8s native Endpoint Resource.
+	Endpoints = "Endpoints"
 )
 
+// NewCRManager creates a new CRManager Instance.
 func NewCRManager(params Params) *CRManager {
 
 	crMgr := &CRManager{
@@ -79,6 +84,8 @@ func NewCRManager(params Params) *CRManager {
 	return crMgr
 }
 
+// createLabelSelector returns label used to identify F5 specific
+// Custom Resources.
 func createLabelSelector(label string) (labels.Selector, error) {
 	var l labels.Selector
 	var err error
@@ -94,6 +101,7 @@ func createLabelSelector(label string) (labels.Selector, error) {
 	return l, nil
 }
 
+// setupClients sets Kubernetes Clients.
 func (crMgr *CRManager) setupClients(config *rest.Config) error {
 	kubeCRClient, err := versioned.NewForConfig(config)
 	if err != nil {
@@ -139,6 +147,7 @@ func (crMgr *CRManager) Start() {
 	crMgr.Stop()
 }
 
+// Stop the Custom Resource Manager.
 func (crMgr *CRManager) Stop() {
 	for _, inf := range crMgr.crInformers {
 		inf.stop()

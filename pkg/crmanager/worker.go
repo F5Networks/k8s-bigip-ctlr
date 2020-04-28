@@ -379,7 +379,11 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 			return
 		}
 		// TODO: Too Many API calls?
-		service, _, _ := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
+		service, exist, _ := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
+		if !exist {
+			log.Debug("Service not found.")
+			return
+		}
 		svc := service.(*v1.Service)
 		// Traverse for all the pools in the Resource Config
 		if svc.Spec.Type == v1.ServiceTypeNodePort ||

@@ -333,6 +333,12 @@ func (c AS3Config) isDefaultAS3PartitionEmpty() bool {
 	return false
 }
 
+// Build Control class with userAgent info
+func (c as3Control) initDefault(userAgent string) {
+	c["class"] = "Controls"
+	c["userAgent"] = userAgent
+}
+
 func (adc as3ADC) initDefault(partition string) {
 	tnt := as3Tenant{}
 	tnt.initDefault()

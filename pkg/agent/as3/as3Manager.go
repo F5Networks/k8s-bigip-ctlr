@@ -99,6 +99,7 @@ type AS3Manager struct {
 	DefaultPartition string
 	ReqChan          chan MessageRequest
 	RspChan          chan interface{}
+	userAgent        string
 	ResourceRequest
 	ResourceResponse
 }
@@ -125,6 +126,7 @@ type Params struct {
 	//Log the AS3 response body in Controller logs
 	LogResponse bool
 	RspChan     chan interface{}
+	UserAgent   string
 }
 
 // Create and return a new app manager that meets the Manager interface
@@ -138,6 +140,7 @@ func NewAS3Manager(params *Params) *AS3Manager {
 		SchemaLocalPath:           params.SchemaLocal,
 		FilterTenants:             params.FilterTenants,
 		RspChan:                   params.RspChan,
+		userAgent:                 params.UserAgent,
 		as3ActiveConfig: AS3Config{
 			configmap:         AS3ConfigMap{cfg: params.UserDefinedAS3Decl},
 			overrideConfigmap: AS3ConfigMap{cfg: params.OverrideAS3Decl},
@@ -264,14 +267,13 @@ func (am *AS3Manager) getUnifiedDeclaration(cfg *AS3Config) as3Declaration {
 }
 
 // Function to prepare empty AS3 declaration
-func getEmptyAs3Declaration(partition string) as3Declaration {
+func (am *AS3Manager) getEmptyAs3Declaration(partition string) as3Declaration {
 	var as3Config map[string]interface{}
 	_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
 	decl := as3Config["declaration"].(map[string]interface{})
 
-	controlObj := make(map[string]interface{})
-	controlObj["class"] = "Controls"
-	controlObj["userAgent"] = "CIS Configured AS3"
+	controlObj := make(as3Control)
+	controlObj.initDefault(am.userAgent)
 	decl["controls"] = controlObj
 	if partition != "" {
 
@@ -284,7 +286,7 @@ func getEmptyAs3Declaration(partition string) as3Declaration {
 // Method to delete any AS3 partition
 func (am *AS3Manager) DeleteAS3Partition(partition string) {
 	tempAS3Config := am.as3ActiveConfig
-	tempAS3Config.configmap.Data = getEmptyAs3Declaration(partition)
+	tempAS3Config.configmap.Data = am.getEmptyAs3Declaration(partition)
 	nilDecl := am.getUnifiedDeclaration(&tempAS3Config)
 	if nilDecl == "" {
 		return

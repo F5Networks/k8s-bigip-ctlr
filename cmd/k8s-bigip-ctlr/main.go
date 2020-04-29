@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -77,6 +78,19 @@ type bigIPSection struct {
 	BigIPURL        string   `json:"url,omitempty"`
 	BigIPPartitions []string `json:"partitions,omitempty"`
 }
+
+// OCP4 Version for TEEM
+type (
+	Ocp4Version struct {
+		Status ClusterVersionStatus `json:"status"`
+	}
+	ClusterVersionStatus struct {
+		History []UpdateHistory `json:"history,omitempty"`
+	}
+	UpdateHistory struct {
+		Version string `json:"version"`
+	}
+)
 
 var (
 	// To be set by build
@@ -159,6 +173,7 @@ var (
 	agRspChan          chan interface{}
 	eventChan          chan interface{}
 	configWriter       writer.Writer
+	k8sVersion         string
 )
 
 func _init() {
@@ -710,7 +725,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Infof("[INIT] Starting: Version: %s, BuildInfo: %s", version, buildInfo)
+	log.Infof("[INIT] Starting: Container Ingress Services - Version: %s, BuildInfo: %s", version, buildInfo)
 
 	resource.DEFAULT_PARTITION = (*bigIPPartitions)[0]
 	dgPath = resource.DEFAULT_PARTITION
@@ -979,6 +994,7 @@ func getAS3Params() *as3.Params {
 		AS3PostDelay:              *as3PostDelay,
 		LogResponse:               *logAS3Response,
 		RspChan:                   agRspChan,
+		UserAgent:                 getUserAgentInfo(),
 	}
 }
 
@@ -1071,4 +1087,39 @@ func getProcessAgentLabelFunc() func(map[string]string, string, string) bool {
 		}
 	}
 	return nil
+}
+
+// Get platform info for TEEM
+func getUserAgentInfo() string {
+	const (
+		versionPathOpenshiftv3 = "/version/openshift"
+		versionPathOpenshiftv4 = "/apis/config.openshift.io/v1/clusterversions/version"
+		versionPathk8s         = "/version"
+	)
+	var versionInfo map[string]string
+	var err error
+	var vInfo []byte
+	rc := kubeClient.Discovery().RESTClient()
+	// support for ocp < 3.11
+	if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv3).DoRaw(); err == nil {
+		if err = json.Unmarshal(vInfo, &versionInfo); err == nil {
+			return fmt.Sprintf("CIS/v%v OCP/%v", version, versionInfo["gitVersion"])
+		}
+	} else if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv4).DoRaw(); err == nil {
+		// support ocp > 4.0
+		var ocp4 Ocp4Version
+		if er := json.Unmarshal(vInfo, &ocp4); er == nil {
+			if len(ocp4.Status.History) > 0 {
+				return fmt.Sprintf("CIS/v%v OCP/v%v", version, ocp4.Status.History[0].Version)
+			}
+			return fmt.Sprintf("CIS/v%v OCP/v4.0.0", version)
+		}
+	} else if vInfo, err = rc.Get().AbsPath(versionPathk8s).DoRaw(); err == nil {
+		// support k8s
+		if er := json.Unmarshal(vInfo, &versionInfo); er == nil {
+			return fmt.Sprintf("CIS/v%v K8S/%v", version, versionInfo["gitVersion"])
+		}
+	}
+	log.Warningf("Unable to fetch user agent details. %v", err)
+	return fmt.Sprintf("CIS/v%v", version)
 }

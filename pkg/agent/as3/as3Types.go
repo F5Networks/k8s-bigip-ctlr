@@ -37,11 +37,15 @@ type (
 	// TODO: Need to remove omitempty tag for the mandatory fields
 	// as3JSONDeclaration maps to ADC in AS3 Resources
 	as3ADC as3JSONWithArbKeys
+
 	// as3Tenant maps to Tenant in AS3 Resources
 	as3Tenant as3JSONWithArbKeys
 
 	// as3Application maps to Application in AS3 Resources
 	as3Application as3JSONWithArbKeys
+
+	// as3Controls maps to Controls in AS3 Resources
+	as3Control as3JSONWithArbKeys
 
 	// as3EndpointPolicy maps to Endpoint_Policy in AS3 Resources
 	as3EndpointPolicy struct {

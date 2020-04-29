@@ -27,13 +27,15 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
+// customResourceWorker starts the Custom Resource Worker.
 func (crMgr *CRManager) customResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
 	for crMgr.processResource() {
 	}
 }
 
-// processResource gets resources from the rscQueue and processes the resource depending  on its kind.
+// processResource gets resources from the rscQueue and processes the resource
+// depending  on its kind.
 func (crMgr *CRManager) processResource() bool {
 
 	key, quit := crMgr.rscQueue.Get()
@@ -120,7 +122,7 @@ func (crMgr *CRManager) processResource() bool {
 	return true
 }
 
-// syncEndpoints gets the service associated with endpoints.
+// syncEndpoints returns the service associated with endpoints.
 func (crMgr *CRManager) syncEndpoints(ep *v1.Endpoints) *v1.Service {
 
 	epName := ep.ObjectMeta.Name
@@ -145,8 +147,8 @@ func (crMgr *CRManager) syncEndpoints(ep *v1.Endpoints) *v1.Service {
 	return svc.(*v1.Service)
 }
 
-// syncService gets the List of VirtualServers which are effected by the addition/deletion/updation
-// of service.
+// syncService gets the List of VirtualServers which are effected
+// by the addition/deletion/updation of service.
 func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
 
 	allVirtuals := crMgr.getAllVirtualServers(svc.ObjectMeta.Namespace)
@@ -172,8 +174,8 @@ func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
 		targetVirtualNames, svc.ObjectMeta.Name)
 
 	// TODO
-	// Remove Duplicate entries in the slice targetVirutalServers.
-	// or Add only Unique entries into the slice targetVirutalServers.
+	// Remove Duplicate entries in the targetVirutalServers.
+	// or Add only Unique entries into the targetVirutalServers.
 	return virtualsForService
 }
 
@@ -198,6 +200,8 @@ func (crMgr *CRManager) getAllVirtualServers(namespace string) []*cisapiv1.Virtu
 	return allVirtuals
 }
 
+// getVirtualServersForService returns list of VirtualServers that are
+// affected by the service under process.
 func getVirtualServersForService(allVirtuals []*cisapiv1.VirtualServer,
 	svc *v1.Service) []*cisapiv1.VirtualServer {
 
@@ -227,6 +231,9 @@ func getVirtualServersForService(allVirtuals []*cisapiv1.VirtualServer,
 	return result
 }
 
+// syncVirtualServer takes the Virtual Server as input and processes it to
+// create a resource config for a new Virtual Server and update the
+// resource config for existing Virtual Server.
 func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error {
 
 	startTime := time.Now()
@@ -297,7 +304,7 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 			crMgr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
 		}
 
-		/** TODO ==> To be implemented in ALPHA later stage
+		/** TODO ==> To be implemented Post Alpha.
 		if ok, found, updated := crMgr.handleConfigForType(
 			rsCfg, rsMap, rsName,
 			crInf, virtual); !ok {
@@ -323,7 +330,7 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 
 	}
 
-	/** TODO ==> To be implemented in ALPHA later stage
+	/** TODO ==> To be implemented post ALPHA.
 	// rsMap stores all resources currently in Resources matching sKey, indexed by port.
 	// At the end of processing, rsMap should only contain configs we want to delete.
 	// If we have a valid config, then we remove it from rsMap.
@@ -370,6 +377,8 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 	return nil
 }
 
+// updatePoolMembersForNodePort updates the pool with pool members for a
+// service created in nodeport mode.
 func (crMgr *CRManager) updatePoolMembersForNodePort(
 	rsCfg *ResourceConfig,
 	namespace string,
@@ -408,6 +417,8 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 	}
 }
 
+// updatePoolMembersForCluster updates the pool with pool members for a
+// service created in cluster mode.
 func (crMgr *CRManager) updatePoolMembersForCluster(
 	rsCfg *ResourceConfig,
 	namespace string,
@@ -418,7 +429,6 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 		svcName := pool.ServiceName
 		svcKey := namespace + "/" + svcName
 		// TODO: Too Many API calls?
-		// TODO: Get ServiceName, Do not use default.
 		crInf, ok := crMgr.getNamespaceInformer(namespace)
 		if !ok {
 			log.Errorf("Informer not found for namespace: %v", namespace)
@@ -444,6 +454,7 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 	}
 }
 
+// getEndpointsForNodePort returns members.
 func (crMgr *CRManager) getEndpointsForNodePort(
 	nodePort int32,
 ) []Member {
@@ -461,6 +472,7 @@ func (crMgr *CRManager) getEndpointsForNodePort(
 	return members
 }
 
+// getEndpointsForCluster returns members.
 func (crMgr *CRManager) getEndpointsForCluster(
 	portName string,
 	eps *v1.Endpoints,
@@ -491,6 +503,7 @@ func (crMgr *CRManager) getEndpointsForCluster(
 	return members
 }
 
+// containsNode returns true for a valid node.
 func containsNode(nodes []Node, name string) bool {
 	for _, node := range nodes {
 		if node.Name == name {

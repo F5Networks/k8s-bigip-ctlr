@@ -62,7 +62,7 @@ WORKDIR $GOPATH
 COPY entrypoint.builder.sh /entrypoint.sh
 COPY requirements.txt /tmp/requirements.txt
 COPY requirements.docs.txt /tmp/requirements.docs.txt
-RUN pip install --no-cache-dir --upgrade pip && \
+RUN pip install --no-cache-dir --upgrade pip==20.0.2 && \
     pip install --no-cache-dir setuptools flake8 virtualenv && \
 	pip install --no-cache-dir -r /tmp/requirements.txt && \
 	pip install --no-cache-dir -r /tmp/requirements.docs.txt && \

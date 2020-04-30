@@ -96,10 +96,10 @@ func NewObjectDependencies(
 	virtual := obj.(*cisapiv1.VirtualServer)
 	// TODO => dep can be replaced with  internal DS rqkey
 	key := ObjectDependency{
-				Kind:      VirtualServer,
-				Name:      virtual.ObjectMeta.Name,
-				Namespace: virtual.ObjectMeta.Namespace,
-			}
+		Kind:      VirtualServer,
+		Name:      virtual.ObjectMeta.Name,
+		Namespace: virtual.ObjectMeta.Namespace,
+	}
 	dep := ObjectDependency{
 		Kind:      key.Kind,
 		Namespace: key.Namespace,
@@ -111,7 +111,7 @@ func NewObjectDependencies(
 			Kind:      RuleDep,
 			Namespace: virtual.ObjectMeta.Namespace,
 			Name:      virtual.Spec.Host + pool.Path,
-			Service:   pool.Service
+			Service:   pool.Service,
 		}
 		deps[dep]++
 	}
@@ -902,6 +902,12 @@ func (rs *Resources) updateOldConfig() {
 		rs.oldRsMap[k] = &ResourceConfig{}
 		rs.oldRsMap[k].copyConfig(v)
 	}
+}
+
+// Deletes respective VirtualServer resource configuration from
+// resource configs.
+func (rs *Resources) deleteVirtualServer(rsName string) {
+	delete(rs.rsMap, rsName)
 }
 
 // AS3NameFormatter formarts resources names according to AS3 convention

@@ -128,11 +128,12 @@ func (crMgr *CRManager) newInformer(
 }
 
 func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
+
 	crInf.vsInformer.AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { crMgr.enqueueVirtualServer(obj) },
 			UpdateFunc: func(old, cur interface{}) { crMgr.enqueueVirtualServer(cur) },
-			DeleteFunc: func(obj interface{}) { crMgr.enqueueVirtualServer(obj) },
+			DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedVirtualServer(obj) },
 		},
 	)
 
@@ -177,6 +178,20 @@ func (crMgr *CRManager) enqueueVirtualServer(obj interface{}) {
 		kind:      VirtualServer,
 		rscName:   vs.ObjectMeta.Name,
 		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueDeletedVirtualServer(obj interface{}) {
+	vs := obj.(*cisapiv1.VirtualServer)
+	log.Infof("Enqueueing VirtualServer: %v", vs)
+	key := &rqKey{
+		namespace: vs.ObjectMeta.Namespace,
+		kind:      VirtualServer,
+		rscName:   vs.ObjectMeta.Name,
+		rsc:       obj,
+		rscDelete: true,
 	}
 
 	crMgr.rscQueue.Add(key)

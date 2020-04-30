@@ -39,10 +39,7 @@ func (crMgr *CRManager) checkValidVirtualServer(
 	// Check if the virtual exists and valid for us.
 	_, virtualFound, _ := crInf.vsInformer.GetIndexer().GetByKey(vkey)
 	if !virtualFound {
-		// VirtualServer was deleted. Lets proceed with delete operation.
-		// TODO ==> Delete operation for VirtualServer.
-		//          Typically, we will make a call to some DeleteVirtualServer method.
-		log.Infof("VirtualServer %s Not found, Possibly Deleted", vsName)
+		log.Infof("VirtualServer %s is invalid", vsName)
 		return false
 	}
 

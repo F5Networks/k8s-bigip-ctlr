@@ -57,6 +57,14 @@ func (crMgr *CRManager) processResource() bool {
 	switch rKey.kind {
 	case VirtualServer:
 		vs := rKey.rsc.(*cisapiv1.VirtualServer)
+		// Handle Deletion of VirtualServer
+		if rKey.rscDelete {
+			// TODO: Handle for TLS
+			// Use portSpec
+			vsName := formatVirtualServerName(vs.Spec.VirtualServerAddress, 80)
+			crMgr.resources.deleteVirtualServer(vsName)
+			break
+		}
 		err := crMgr.syncVirtualServer(vs)
 		if err != nil {
 			// TODO
@@ -246,9 +254,8 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 	vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
 	valid := crMgr.checkValidVirtualServer(virtual)
 	if false == valid {
-		log.Infof("Ignoring VirtualServer %s, invalid configuration or deleted",
+		log.Infof("VirtualServer %s, invalid configuration or not valid",
 			vkey)
-
 		return nil
 	}
 
@@ -399,8 +406,11 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 		// TODO: Too Many API calls?
 		service, exist, _ := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
 		if !exist {
-			log.Debug("Service not found.")
-			return
+			log.Debugf("Service not found %s", svcKey)
+			// Update the pool with empty members
+			var member []Member
+			rsCfg.Pools[index].Members = member
+			continue
 		}
 		svc := service.(*v1.Service)
 		// Traverse for all the pools in the Resource Config
@@ -443,8 +453,16 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 			continue
 		}
 		eps, _ := item.(*v1.Endpoints)
-		// Get service
-		service, _, _ := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
+		// TODO: Too Many API calls?
+		// Get Service
+		service, exist, _ := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
+		if !exist {
+			log.Debugf("Service not found %s", svcKey)
+			// Update the pool with empty members
+			var member []Member
+			rsCfg.Pools[index].Members = member
+			continue
+		}
 		svc := service.(*v1.Service)
 
 		for _, portSpec := range svc.Spec.Ports {

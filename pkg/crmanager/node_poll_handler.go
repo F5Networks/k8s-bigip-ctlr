@@ -97,6 +97,7 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 						VirtualServer,
 						virtual.ObjectMeta.Name,
 						virtual,
+						false,
 					}
 					crMgr.rscQueue.Add(qKey)
 				}

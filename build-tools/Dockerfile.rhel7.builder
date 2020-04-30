@@ -55,7 +55,7 @@ COPY requirements.txt /tmp/requirements.txt
 COPY requirements.docs.txt /tmp/requirements.docs.txt
 
 RUN source scl_source enable rh-python36 && \
-	pip install --no-cache-dir --upgrade pip && \
+	pip install --no-cache-dir --upgrade pip==20.0.2 && \
 	pip install --no-cache-dir setuptools flake8 && \
 	pip install --no-cache-dir --ignore-installed -r /tmp/requirements.txt && \
 	pip install --no-cache-dir -r /tmp/requirements.docs.txt && \

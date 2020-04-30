@@ -288,6 +288,9 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 		// Remove any dependencies no longer used by this VirtualServer
 		for _, dep := range depsRemoved {
 			if dep.Kind == RuleDep {
+				//TODO ==> To be implemented Post Alpha.
+				//Delete unused pool from resource config
+				// rsCfg.DeleteUnusedPool()
 				for _, pol := range rsCfg.Policies {
 					for _, rl := range pol.Rules {
 						if rl.FullURI == dep.Name {

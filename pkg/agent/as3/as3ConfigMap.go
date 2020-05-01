@@ -13,9 +13,16 @@ const (
 	cmInit = iota + 1
 	cmActive
 	cmError
+	cmDeletePending
 )
 
 func (am *AS3Manager) prepareUserDefinedAS3Declaration(cm AgentCfgMap, cfg *AS3Config) {
+	if am.as3ActiveConfig.configmap.isDeletePending() {
+		log.Warningf("[AS3] Cannot Create/Update, deletion of User Defined AS3 cfgMap: %v is in pending state",
+			cfg.configmap.Name)
+		return
+	}
+
 	if am.as3ActiveConfig.configmap.inErrorState(cm.Data) {
 		return
 	}
@@ -108,17 +115,20 @@ func (c *AS3Config) prepareAS3OverrideDeclaration(data string) {
 }
 
 // Method to perform deletion operation on userdefined-as3-cfgmap
-func (am AS3Manager) prepareDeleteUserDefinedAS3(cm AS3ConfigMap) bool {
-	log.Debugf("[AS3] Deleteing User Defined Configmap: %v", cm.Name)
-	defer cm.Reset()
+func (am AS3Manager) prepareDeleteUserDefinedAS3(cm AS3ConfigMap) (bool, string) {
+	log.Debugf("[AS3] Deleting User Defined Configmap: %v", cm.Name)
 	// Fetch all tenants of userdefined-as3-cfgmap
 	if tntList := getTenants(cm.Data); tntList != nil {
 		for _, tnt := range tntList {
 			// Perform deletion for each tenant
-			am.DeleteAS3Partition(tnt)
+			if ok, event := am.DeleteAS3Partition(tnt); !ok {
+				am.as3ActiveConfig.configmap.deletePending()
+				return false, event
+			}
 		}
 	}
-	return true
+	cm.Reset()
+	return true, ""
 }
 
 // method to process AS3 configMaps
@@ -126,16 +136,6 @@ func (am *AS3Manager) processAS3ConfigMap(cm AgentCfgMap, cfg *AS3Config) {
 	name := cm.Name
 	namespace := cm.Namespace
 	data := cm.Data
-
-	// Perform delete operation for cfgMap
-	if data == "" {
-		// Empty data is treated as delete operation for cfgMaps
-		if !am.processAS3CfgMapDelete(name, namespace, cfg) {
-			log.Errorf("[AS3] Failed to perform delete cfgMap with name: %s and namespace %s",
-				name, namespace)
-		}
-		return
-	}
 
 	// Check if the cfgMap is valid, if valid it returns valid
 	// label, for further processing
@@ -228,14 +228,14 @@ func (am *AS3Manager) buildAS3Declaration(obj as3Object, template as3Template, c
 }
 
 // Method to perform delete operations on AS3 cfgMaps(Override and User-define)
-func (am *AS3Manager) processAS3CfgMapDelete(name, namespace string, cfg *AS3Config) bool {
+func (am *AS3Manager) processAS3CfgMapDelete(name, namespace string, cfg *AS3Config) (bool, string) {
 	// Perform delete operation if override-as3-cfgMap
 	if name == cfg.overrideConfigmap.Name && namespace == cfg.overrideConfigmap.Namespace {
 		log.Debugf("[AS3] Deleting Override Config Map %v", name)
 		cfg.overrideConfigmap.Reset()
 		cfg.overrideConfigmap.Data = ""
 		am.as3ActiveConfig.overrideConfigmap = cfg.overrideConfigmap
-		return true
+		return true, ""
 	}
 
 	// Perform delete operation if userdefined-as3-cfgMap
@@ -244,7 +244,7 @@ func (am *AS3Manager) processAS3CfgMapDelete(name, namespace string, cfg *AS3Con
 		am.as3ActiveConfig.configmap.Data = ""
 		return am.prepareDeleteUserDefinedAS3(cfg.configmap)
 	}
-	return false
+	return true, ""
 }
 
 // Method prepares and returns the label selector in string format
@@ -285,9 +285,22 @@ func (cm *AS3ConfigMap) errorState() {
 	}
 }
 
+// Method used to set the configMap into error state
+func (cm *AS3ConfigMap) isDeletePending() bool {
+	if cm.State == cmDeletePending {
+		return true
+	}
+	return false
+}
+
 // Method used to set the configMap into active state
 func (cm *AS3ConfigMap) activeState() {
 	cm.State = cmActive
+}
+
+// Method used to set the configMap into active state
+func (cm *AS3ConfigMap) deletePending() {
+	cm.State = cmDeletePending
 }
 
 // Method to initialize cfgMap

@@ -170,6 +170,16 @@ func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string) {
 	// Process cfgMap if present in Resource Request
 	if am.ResourceRequest.AgentCfgmap != nil {
 		for _, cfgMap := range am.ResourceRequest.AgentCfgmap {
+			// Perform delete operation for cfgMap
+			if cfgMap.Data == "" {
+				// Empty data is treated as delete operation for cfgMaps
+				if ok, event := am.processAS3CfgMapDelete(cfgMap.Name, cfgMap.Namespace, &as3Config); !ok {
+					log.Errorf("[AS3] Failed to perform delete cfgMap with name: %s and namespace %s",
+						cfgMap.Name, cfgMap.Namespace)
+					return ok, event
+				}
+				continue
+			}
 			am.processAS3ConfigMap(*cfgMap, &as3Config)
 		}
 	}
@@ -283,15 +293,15 @@ func (am *AS3Manager) getEmptyAs3Declaration(partition string) as3Declaration {
 }
 
 // Method to delete any AS3 partition
-func (am *AS3Manager) DeleteAS3Partition(partition string) {
+func (am *AS3Manager) DeleteAS3Partition(partition string) (bool, string) {
 	tempAS3Config := am.as3ActiveConfig
 	tempAS3Config.configmap.Data = am.getEmptyAs3Declaration(partition)
 	nilDecl := am.getUnifiedDeclaration(&tempAS3Config)
 	if nilDecl == "" {
-		return
+		return true, ""
 	}
 
-	am.PostManager.postConfig(string(nilDecl), nil)
+	return am.PostManager.postConfig(string(nilDecl), nil)
 }
 
 func (c AS3Config) Init(partition string) {
@@ -348,6 +358,11 @@ func (am *AS3Manager) postOnEventOrTimeout(timeout time.Duration) (bool, string)
 	case msgReq := <-am.ReqChan:
 		return am.postAS3Declaration(msgReq.ResourceRequest)
 	case <-time.After(timeout):
+		if am.as3ActiveConfig.configmap.isDeletePending() {
+			return am.processAS3CfgMapDelete(am.as3ActiveConfig.configmap.Name,
+				am.as3ActiveConfig.configmap.Namespace,
+				&am.as3ActiveConfig)
+		}
 		tenants := getTenants(am.as3ActiveConfig.unifiedDeclaration)
 		unifiedDeclaration := string(am.as3ActiveConfig.unifiedDeclaration)
 		return am.PostManager.postConfig(unifiedDeclaration, tenants)

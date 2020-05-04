@@ -75,6 +75,7 @@ type (
 		kind      string
 		rscName   string
 		rsc       interface{}
+		rscDelete bool
 	}
 
 	metaData struct {

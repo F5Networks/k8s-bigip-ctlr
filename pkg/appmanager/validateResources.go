@@ -21,7 +21,7 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
 	routeapi "github.com/openshift/api/route/v1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 )
 

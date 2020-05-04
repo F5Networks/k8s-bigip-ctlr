@@ -18,17 +18,21 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/crmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"net/http"
 
 	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 	"io/ioutil"
+
 	v1 "k8s.io/api/core/v1"
+
 	//"net/http"
 	"net/url"
 	"os"
@@ -45,6 +49,7 @@ import (
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	clog "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger/console"
+
 	//"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/spf13/pflag"
@@ -85,6 +90,9 @@ var (
 	kubeFlags    *pflag.FlagSet
 	vxlanFlags   *pflag.FlagSet
 	osRouteFlags *pflag.FlagSet
+
+	// Custom Resource
+	customResourceMode *bool
 
 	pythonBaseDir    *string
 	logLevel         *string
@@ -185,6 +193,10 @@ func _init() {
 		"Optional, print version and exit.")
 	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:8080",
 		"Optional, address to serve http based informations (/metrics and /health).")
+
+	// Custom Resource
+	customResourceMode = globalFlags.Bool("custom-resource-mode", false,
+		"Optional, When set to true, controller processes only F5 Custom Resources.")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
@@ -632,6 +644,48 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 	}
 }
 
+func initCustomResourceManager(
+	config *rest.Config,
+) *crmanager.CRManager {
+
+	postMgrParams := crmanager.PostParams{
+		BIGIPUsername: *bigIPUsername,
+		BIGIPPassword: *bigIPPassword,
+		BIGIPURL:      *bigIPURL,
+		TrustedCerts:  "",
+		SSLInsecure:   true,
+		AS3PostDelay:  *as3PostDelay,
+		LogResponse:   *logAS3Response,
+	}
+
+	agentParams := crmanager.AgentParams{
+		PostParams:     postMgrParams,
+		Partition:      (*bigIPPartitions)[0],
+		LogLevel:       *logLevel,
+		VerifyInterval: *verifyInterval,
+		VXLANName:      vxlanName,
+		PythonBaseDir:  *pythonBaseDir,
+	}
+	agent := crmanager.NewAgent(agentParams)
+
+	crMgr := crmanager.NewCRManager(
+		crmanager.Params{
+			Config:            config,
+			Namespaces:        *namespaces,
+			Partition:         (*bigIPPartitions)[0],
+			Agent:             agent,
+			ControllerMode:    *poolMemberType,
+			VXLANName:         vxlanName,
+			VXLANMode:         vxlanMode,
+			UseNodeInternal:   *useNodeInternal,
+			NodePollInterval:  *nodePollInterval,
+			NodeLabelSelector: *nodeLabelSelector,
+		},
+	)
+
+	return crMgr
+}
+
 func main() {
 	err := flags.Parse(os.Args)
 	if nil != err {
@@ -688,6 +742,21 @@ func main() {
 		}
 	}
 
+	config, err := getKubeConfig()
+	if err != nil {
+		os.Exit(1)
+	}
+
+	if *customResourceMode {
+		crMgr := initCustomResourceManager(config)
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-sigs
+		crMgr.Stop()
+		log.Infof("Exiting - signal %v\n", sig)
+		return
+	}
+
 	gs := globalSection{
 		LogLevel:       *logLevel,
 		VerifyInterval: *verifyInterval,
@@ -731,10 +800,6 @@ func main() {
 	agRspChan = make(chan interface{}, 1)
 	var appMgrParms = getAppManagerParams()
 
-	config, err := getKubeConfig()
-	if err != nil {
-		os.Exit(1)
-	}
 	kubeClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Fatalf("[INIT] error connecting to the client: %v", err)

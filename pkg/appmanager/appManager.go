@@ -1965,7 +1965,7 @@ func (appMgr *Manager) saveVirtualServer(
 			// not changed, don't trigger a config write
 			return false
 		}
-		log.Warningf("[CORE] Overwriting existing entry for backend %+v", sKey)
+		log.Warningf("[CORE] Overwriting existing entry for backend %+v and resource %+v", sKey, rsName)
 	}
 	appMgr.resources.Assign(sKey, rsName, newRsCfg)
 	return true

@@ -19,6 +19,7 @@ Bug Fixes
 * Controller disables mid-stream renegotiation for custom ClientSSL profiles.
 * SR - Multiple ClientSSL support for BIG-IP ClientSSL profiles.
 * :issues:`1233` Controller handles clientSSL annotation and cert/key logging issues.
+* Controller handles posting of 'Overwriting existing entry for backend' frequently when different routes configured in different namespaces.
 
 1.14.0
 ------------
@@ -67,7 +68,7 @@ Bug Fixes
 * :issues:`1014` Fixed performance problem with large number of ingress resources.
 * SR - High CPU load in BIG-IP with CIS. CIS doesn’t post data to BIG-IP when there is no change in resources.
 * SR - K8S AS3-declaration errors when using TCP-profile. CIS allows TCP profile update using Override ConfigMap.
- 
+
 
 1.12.0
 ------------

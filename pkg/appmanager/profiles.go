@@ -230,7 +230,7 @@ func (appMgr *Manager) handleServerSslProfileAnnotation(
 	route *routeapi.Route,
 	prof string,
 ) (string, bool) {
-	if nil != route.Spec.TLS {
+	if nil != route.Spec.TLS && ("" != route.Spec.TLS.Certificate && "" != route.Spec.TLS.Key) {
 		log.Infof("[CORE] Both serverssl annotation and CA cert provided for Route: %s, "+
 			"using annotation.", route.ObjectMeta.Name)
 		profRef := MakeRouteServerSSLProfileRef(

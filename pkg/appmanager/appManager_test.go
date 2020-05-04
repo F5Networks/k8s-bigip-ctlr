@@ -94,30 +94,6 @@ var oneSvcTwoPodsConfig = readConfigFile(configPath + "oneSvcTwoPodsConfigExp.js
 
 var twoSvcsFourPortsFourNodesConfig = readConfigFile(configPath + "twoSvcsFourPortsFourNodesConfigExp.json")
 
-type mockAgent struct {
-	name string
-}
-
-func (ag *mockAgent) Init(params interface{}) error {
-	return nil
-}
-
-func (ag *mockAgent) Deploy(req interface{}) error {
-	return nil
-}
-
-func (ag *mockAgent) Remove(partition string) error {
-	return nil
-}
-
-func (ag *mockAgent) DeInit() error {
-	return nil
-}
-
-func (ag *mockAgent) IsImplInAgent(rsrc string) bool {
-	return false
-}
-
 func readConfigFile(path string) string {
 	defer GinkgoRecover()
 	data, err := ioutil.ReadFile(path)

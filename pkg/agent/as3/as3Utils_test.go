@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 )
 
-var configPath = "../test/configs/"
+var configPath = "../../test/configs/"
 
 func readConfigFile(path string) string {
 	defer GinkgoRecover()

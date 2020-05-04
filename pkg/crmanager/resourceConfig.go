@@ -100,14 +100,10 @@ func NewObjectDependencies(
 		Name:      virtual.ObjectMeta.Name,
 		Namespace: virtual.ObjectMeta.Namespace,
 	}
-	dep := ObjectDependency{
-		Kind:      key.Kind,
-		Namespace: key.Namespace,
-		Name:      key.Name,
-	}
-	deps[dep] = 1
+
+	deps[key] = 1
 	for _, pool := range virtual.Spec.Pools {
-		dep = ObjectDependency{
+		dep := ObjectDependency{
 			Kind:      RuleDep,
 			Namespace: virtual.ObjectMeta.Namespace,
 			Name:      virtual.Spec.Host + pool.Path,
@@ -173,14 +169,13 @@ func formatVirtualServerName(ip string, port int32) string {
 
 // format the pool name for an VirtualServer
 func formatVirtualServerPoolName(namespace, svc string) string {
-	svc = AS3NameFormatter(svc)
-	return fmt.Sprintf("%s_%s", namespace, svc)
+	poolName := fmt.Sprintf("%s_%s", namespace, svc)
+	return AS3NameFormatter(poolName)
 }
 
 // Creates resource config based on VirtualServer resource config
 func (crMgr *CRManager) createRSConfigFromVirtualServer(
 	vs *cisapiv1.VirtualServer,
-	ns string,
 	pStruct portStruct,
 ) *ResourceConfig {
 
@@ -215,11 +210,7 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 		pools = append(pools, pool)
 	}
 
-	rules = processVirtualServerRules(
-		vs,
-		pools,
-		vs.ObjectMeta.Namespace,
-	)
+	rules = processVirtualServerRules(vs)
 
 	policyName := cfg.Virtual.Name + "_policy"
 

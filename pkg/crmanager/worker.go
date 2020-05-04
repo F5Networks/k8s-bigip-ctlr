@@ -275,7 +275,6 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 	for _, portStruct := range portStructs {
 		rsCfg := crMgr.createRSConfigFromVirtualServer(
 			virtual,
-			virtual.ObjectMeta.Namespace,
 			portStruct,
 		)
 		if rsCfg == nil {
@@ -289,7 +288,6 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 		var svcs []string
 		for _, pl := range virtual.Spec.Pools {
 			svcs = append(svcs, pl.Service)
-
 		}
 
 		// Remove any dependencies no longer used by this VirtualServer
@@ -308,7 +306,7 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 			}
 		}
 
-		if crMgr.ControllerMode == "nodeport" {
+		if crMgr.ControllerMode == NodePortMode {
 			crMgr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
 		} else {
 			crMgr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
@@ -394,15 +392,16 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 	namespace string,
 ) {
 	// TODO: Can we get rid of counter? and use something better.
-	index := 0
-	for _, pool := range rsCfg.Pools {
+	crInf, ok := crMgr.getNamespaceInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return
+	}
+
+	for index, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
 		svcKey := namespace + "/" + svcName
-		crInf, ok := crMgr.getNamespaceInformer(namespace)
-		if !ok {
-			log.Errorf("Informer not found for namespace: %v", namespace)
-			return
-		}
+
 		// TODO: Too Many API calls?
 		service, exist, _ := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
 		if !exist {
@@ -416,17 +415,16 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 		// Traverse for all the pools in the Resource Config
 		if svc.Spec.Type == v1.ServiceTypeNodePort ||
 			svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+			// TODO: Instead of looping over Spec Ports, get the port from the pool itself
 			for _, portSpec := range svc.Spec.Ports {
 				rsCfg.MetaData.Active = true
 				rsCfg.Pools[index].Members =
 					crMgr.getEndpointsForNodePort(portSpec.NodePort)
-
 			}
 		} else {
 			log.Debugf("Requested service backend %s not of NodePort or LoadBalancer type",
 				svcName)
 		}
-		index++
 	}
 }
 
@@ -437,16 +435,17 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 	namespace string,
 ) {
 
-	index := 0
-	for _, pool := range rsCfg.Pools {
+	crInf, ok := crMgr.getNamespaceInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return
+	}
+
+	for index, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
 		svcKey := namespace + "/" + svcName
+
 		// TODO: Too Many API calls?
-		crInf, ok := crMgr.getNamespaceInformer(namespace)
-		if !ok {
-			log.Errorf("Informer not found for namespace: %v", namespace)
-			return
-		}
 		item, found, _ := crInf.epsInformer.GetIndexer().GetByKey(svcKey)
 		if !found {
 			log.Debugf("Endpoints for service '%v' not found!", svcKey)
@@ -465,13 +464,13 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 		}
 		svc := service.(*v1.Service)
 
+		// TODO: Instead of looping over Spec Ports, get the port from the pool itself
 		for _, portSpec := range svc.Spec.Ports {
 			ipPorts := crMgr.getEndpointsForCluster(portSpec.Name, eps)
 			log.Debugf("Found endpoints for backend %+v: %v", svcKey, ipPorts)
 			rsCfg.MetaData.Active = true
 			rsCfg.Pools[index].Members = ipPorts
 		}
-		index++
 	}
 }
 

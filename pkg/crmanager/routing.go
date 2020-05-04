@@ -31,25 +31,22 @@ import (
 // processVirtualServerRules process rules for VirtualServer
 func processVirtualServerRules(
 	vs *cisapiv1.VirtualServer,
-	pools []Pool,
-	partition string,
 ) *Rules {
-	var err error
-	var uri, poolName string
-	var rl *Rule
-
 	rlMap := make(ruleMap)
 	wildcards := make(ruleMap)
 
 	for _, pl := range vs.Spec.Pools {
-		uri = vs.Spec.Host + pl.Path
-		poolName = pl.Service
+		uri := vs.Spec.Host + pl.Path
 		// Service cannot be empty
-		if poolName == "" {
+		if pl.Service == "" {
 			continue
 		}
+		poolName := formatVirtualServerPoolName(
+			vs.ObjectMeta.Namespace,
+			pl.Service,
+		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, pl.Path, poolName)
-		rl, err = createRule(uri, poolName, partition, ruleName)
+		rl, err := createRule(uri, poolName, ruleName)
 		if nil != err {
 			log.Warningf("Error configuring rule: %v", err)
 			return nil
@@ -59,7 +56,6 @@ func processVirtualServerRules(
 		} else {
 			rlMap[uri] = rl
 		}
-		poolName = ""
 	}
 
 	var wg sync.WaitGroup
@@ -108,20 +104,18 @@ func formatVirtualServerRuleName(host, path, pool string) string {
 }
 
 // Create LTM policy rules
-func createRule(uri, poolName, partition, ruleName string) (*Rule, error) {
+func createRule(uri, poolName, ruleName string) (*Rule, error) {
 	_u := "scheme://" + uri
 	_u = strings.TrimSuffix(_u, "/")
 	u, err := url.Parse(_u)
 	if nil != err {
 		return nil, err
 	}
-	requiredPool := partition + "_" + poolName
-	requiredPool = AS3NameFormatter(requiredPool)
 
 	a := action{
 		Forward: true,
 		Name:    "0",
-		Pool:    requiredPool,
+		Pool:    poolName,
 		Request: true,
 	}
 

@@ -39,6 +39,8 @@ const (
 	Service = "Service"
 	// Endpoints is a k8s native Endpoint Resource.
 	Endpoints = "Endpoints"
+
+	NodePortMode = "nodeport"
 )
 
 // NewCRManager creates a new CRManager Instance.

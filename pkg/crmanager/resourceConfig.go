@@ -75,6 +75,7 @@ type ObjectDependency struct {
 	Kind      string
 	Namespace string
 	Name      string
+	Service   string
 }
 
 // ObjectDependencyMap key is a VirtualServer and the value is a
@@ -91,13 +92,14 @@ type ObjectDependencies map[ObjectDependency]int
 func NewObjectDependencies(
 	obj interface{},
 ) (ObjectDependency, ObjectDependencies) {
-	var key ObjectDependency
 	deps := make(ObjectDependencies)
 	virtual := obj.(*cisapiv1.VirtualServer)
 	// TODO => dep can be replaced with  internal DS rqkey
-	key.Kind = "VirtualServer"
-	key.Namespace = virtual.ObjectMeta.Namespace
-	key.Name = virtual.ObjectMeta.Name
+	key := ObjectDependency{
+				Kind:      VirtualServer,
+				Name:      virtual.ObjectMeta.Name,
+				Namespace: virtual.ObjectMeta.Namespace,
+			}
 	dep := ObjectDependency{
 		Kind:      key.Kind,
 		Namespace: key.Namespace,
@@ -109,6 +111,7 @@ func NewObjectDependencies(
 			Kind:      RuleDep,
 			Namespace: virtual.ObjectMeta.Namespace,
 			Name:      virtual.Spec.Host + pool.Path,
+			Service:   pool.Service
 		}
 		deps[dep]++
 	}
@@ -499,8 +502,13 @@ func (rc *ResourceConfig) DeleteRuleFromPolicy(
 	rule *Rule,
 	mergedRulesMap map[string]map[string]mergedRuleEntry,
 ) {
-	// We currently have at most 1 policy, 'forwarding'
-	policy := rc.FindPolicy("forwarding")
+	var policy *Policy
+	for _, pol := range rc.Policies {
+		if pol.Name == policyName {
+			policy = &pol
+			break
+		}
+	}
 	if nil != policy {
 		for i, r := range policy.Rules {
 			if r.Name == rule.Name && r.FullURI == rule.FullURI {
@@ -518,6 +526,12 @@ func (rc *ResourceConfig) DeleteRuleFromPolicy(
 		}
 	}
 }
+
+//TODO ==> To be implemented Post Alpha.
+//Delete unused pool from resource config
+// Updating or removing the service from virtual may required delete unused pool from rscfg.
+// func (rc *ResourceConfig) DeleteUnusedPool(){
+// }
 
 func (rc *ResourceConfig) RemovePolicy(policy Policy) {
 	toFind := nameRef{

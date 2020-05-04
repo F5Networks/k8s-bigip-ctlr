@@ -218,54 +218,15 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 
 	cfg.MetaData.rscName = vs.ObjectMeta.Name
 
-	// Check to see if we already have any VirtualServer for this IP:Port
-	if oldCfg, exists := crMgr.resources.GetByName(cfg.Virtual.Name); exists {
-		// If we do, use an existing config
-		cfg.copyConfig(oldCfg)
-
-		// If any of the new pools don't already exist, add them
-		for _, newPool := range pools {
-			found := false
-			for _, pl := range cfg.Pools {
-				if pl.Name == newPool.Name {
-					found = true
-					break
-				}
-			}
-			if !found {
-				cfg.Pools = append(cfg.Pools, newPool)
-			}
-		}
-
-		// If any of the new rules already exist, update them; else add them
-		if len(cfg.Policies) > 0 && rules != nil {
-			policy := cfg.Policies[0]
-			for _, newRule := range *rules {
-				found := false
-				for i, rl := range policy.Rules {
-					if rl.Name == newRule.Name && rl.FullURI == newRule.FullURI {
-						found = true
-						policy.Rules[i] = newRule
-						break
-					}
-				}
-				if !found {
-					cfg.AddRuleToPolicy(policy.Name, newRule)
-				}
-			}
-		} else if len(cfg.Policies) == 0 && plcy != nil {
-			cfg.SetPolicy(*plcy)
-		}
-	} else { // This is a new VS for an VirtualServer
-		cfg.MetaData.ResourceType = "virtualServer"
-		cfg.Virtual.Enabled = true
-		cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
-		cfg.Pools = append(cfg.Pools, pools...)
-		if plcy != nil {
-			cfg.SetPolicy(*plcy)
-		}
+	cfg.MetaData.ResourceType = VirtualServer
+	cfg.Virtual.Enabled = true
+	cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
+	cfg.Pools = append(cfg.Pools, pools...)
+	if plcy != nil {
+		cfg.SetPolicy(*plcy)
 	}
 
+	// If virtual server already exists with same name, it gets overridden
 	crMgr.resources.rsMap[cfg.Virtual.Name] = &cfg
 	return &cfg
 }

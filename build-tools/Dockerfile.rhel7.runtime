@@ -30,7 +30,7 @@ RUN microdnf --enablerepo=rhel-7-server-rpms --enablerepo=rhel-7-server-optional
     microdnf --enablerepo=rhel-7-server-rpms update nss-tools nss-softokn nss-util && \
     go-md2man -in /tmp/help.md -out /help.1 && rm -f /tmp/help.md && \
     source scl_source enable rh-python36 && \
-    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --upgrade pip==20.0.2 && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     python -m pip uninstall -y pip && \
     adduser ctlr && \

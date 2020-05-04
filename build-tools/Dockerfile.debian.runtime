@@ -13,7 +13,7 @@ COPY requirements.txt /tmp/requirements.txt
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
     && apt-get upgrade -y \
-    && pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir --upgrade pip==20.0.2 \
     && pip install --no-cache-dir -r /tmp/requirements.txt \
     && apt-get remove -y git
 

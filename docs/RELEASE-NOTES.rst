@@ -7,19 +7,20 @@ Next Release
 Added Functionality
 `````````````````````
 * AS3 as default agent.
-* Controller supports TEEM feature from AS3.
-* Support for Informer based Override and User defined AS3.
+* Controller supports TEEM feature with AS3.
+* Support for Informer based Override and User defined AS3 ConfigMaps.
 * Support AS3 3.18 as mandatory version for 2.0.
 * Code refactor to accommodate Agent architecture.
-* Added new option --userdefined-as3-declaration for processing userdefined-as3-cfgMap in the CIS watched namespace.
+* Added new option `--userdefined-as3-declaration` for processing user defined AS3 Config Map in Controller watched namespace.
+* Multiple ClientSSL support for BIG-IP ClientSSL profiles.
 
 Bug Fixes
 `````````
 * Controller handles requests sent to unknown hosts for Routes using debug messages.
 * Controller disables mid-stream renegotiation for custom ClientSSL profiles.
-* SR - Multiple ClientSSL support for BIG-IP ClientSSL profiles.
 * :issues:`1233` Controller handles clientSSL annotation and cert/key logging issues.
 * Controller handles posting of 'Overwriting existing entry for backend' frequently when different routes configured in different namespaces.
+* Controller updates ServerTLS with unique BIG-IP pointers.
 
 1.14.0
 ------------

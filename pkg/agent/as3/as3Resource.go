@@ -109,7 +109,13 @@ func processIngressTLSProfilesForAS3(virtual *Virtual, svc *as3Service) {
 
 func processRouteTLSProfilesForAS3(metadata *MetaData, svc *as3Service) {
 	var serverTLS []as3ResourcePointer
+	existingProfile := map[string]struct{}{}
+	// handle duplicate BIGIP pointers
 	for key, val := range metadata.RouteProfs {
+		if _, ok := existingProfile[val]; ok {
+			continue
+		}
+		existingProfile[val] = struct{}{}
 		switch key.Context {
 		case CustomProfileClient:
 			// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3

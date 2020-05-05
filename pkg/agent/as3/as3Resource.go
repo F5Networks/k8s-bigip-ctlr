@@ -22,9 +22,12 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
-func (appMgr *AS3Manager) prepareAS3ResourceConfig(routeCfg AS3Config) AS3Config {
-	routeCfg.adc = appMgr.generateAS3ResourceDeclaration()
-
+func (am *AS3Manager) prepareAS3ResourceConfig(routeCfg AS3Config) AS3Config {
+	routeCfg.adc = am.generateAS3ResourceDeclaration()
+	// Support `Controls` class for TEEMs in user-defined AS3 configMap.
+	controlObj := make(as3Control)
+	controlObj.initDefault(am.userAgent)
+	routeCfg.adc["controls"] = controlObj
 	// If default partition is empty, do not perform override operation
 	if routeCfg.isDefaultAS3PartitionEmpty() {
 		routeCfg.overrideConfigmap.Data = ""

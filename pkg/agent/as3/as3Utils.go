@@ -18,11 +18,12 @@ package as3
 import (
 	"encoding/json"
 	"fmt"
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"reflect"
 	"strconv"
 	"strings"
+
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
 func ValidateJSONStringAndFetchObject(jsonData string, jsonObj *map[string]interface{}) error {

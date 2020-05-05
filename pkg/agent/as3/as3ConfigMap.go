@@ -2,9 +2,10 @@ package as3
 
 import (
 	"encoding/json"
+	"strings"
+
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	"strings"
 )
 
 // cfgMap States
@@ -14,19 +15,19 @@ const (
 	cmError
 )
 
-func (m *AS3Manager) prepareUserDefinedAS3Declaration(cm AgentCfgMap, cfg *AS3Config) {
-	if m.as3ActiveConfig.configmap.inErrorState(cm.Data) {
+func (am *AS3Manager) prepareUserDefinedAS3Declaration(cm AgentCfgMap, cfg *AS3Config) {
+	if am.as3ActiveConfig.configmap.inErrorState(cm.Data) {
 		return
 	}
 
 	cfg.configmap.tmpData = cm.Data
 
-	data := m.generateUserDefinedAS3Decleration(cm)
+	data := am.generateUserDefinedAS3Decleration(cm)
 	if data == "" {
 		log.Errorf("[AS3] Error while processing user defined AS3 cfgMap Name: %v",
 			cfg.configmap.Name)
 		cfg.configmap.errorState()
-		m.as3ActiveConfig.configmap = cfg.configmap
+		am.as3ActiveConfig.configmap = cfg.configmap
 		return
 	}
 
@@ -37,17 +38,17 @@ func (m *AS3Manager) prepareUserDefinedAS3Declaration(cm AgentCfgMap, cfg *AS3Co
 }
 
 // Takes an AS3 Template and perform service discovery with Kubernetes to generate AS3 Declaration
-func (m *AS3Manager) generateUserDefinedAS3Decleration(cm AgentCfgMap) as3Declaration {
-	if m.as3Validation == true {
-		if ok := m.validateAS3Template(cm.Data); !ok {
+func (am *AS3Manager) generateUserDefinedAS3Decleration(cm AgentCfgMap) as3Declaration {
+	if am.as3Validation == true {
+		if ok := am.validateAS3Template(cm.Data); !ok {
 			log.Errorf("[AS3] Error validating AS3 template")
 			return ""
 		}
 	}
 
-	if m.as3ActiveConfig.configmap.Data != "" {
+	if am.as3ActiveConfig.configmap.Data != "" {
 		// Handle Delete partitions if modified in cfgMap
-		oldTenants := getTenants(m.as3ActiveConfig.configmap.Data)
+		oldTenants := getTenants(am.as3ActiveConfig.configmap.Data)
 		newTenants := getTenants(as3Declaration(cm.Data))
 		newTntMap := make(map[string]bool)
 		for _, tnt := range newTenants {
@@ -56,12 +57,12 @@ func (m *AS3Manager) generateUserDefinedAS3Decleration(cm AgentCfgMap) as3Declar
 
 		for _, tnt := range oldTenants {
 			if _, ok := newTntMap[tnt]; !ok {
-				m.DeleteAS3Partition(tnt)
+				am.DeleteAS3Partition(tnt)
 			}
 		}
 
 		if len(newTenants) == 0 {
-			return m.getEmptyAs3Declaration("")
+			return am.getEmptyAs3Declaration("")
 		}
 	}
 
@@ -82,7 +83,7 @@ func (m *AS3Manager) generateUserDefinedAS3Decleration(cm AgentCfgMap) as3Declar
 		return ""
 	}
 
-	return m.buildAS3Declaration(obj, templateObj, cm)
+	return am.buildAS3Declaration(obj, templateObj, cm)
 }
 
 // Method to prepare AS3 override declaration
@@ -107,21 +108,21 @@ func (c *AS3Config) prepareAS3OverrideDeclaration(data string) {
 }
 
 // Method to perform deletion operation on userdefined-as3-cfgmap
-func (m AS3Manager) prepareDeleteUserDefinedAS3(cm AS3ConfigMap) bool {
+func (am AS3Manager) prepareDeleteUserDefinedAS3(cm AS3ConfigMap) bool {
 	log.Debugf("[AS3] Deleteing User Defined Configmap: %v", cm.Name)
 	defer cm.Reset()
 	// Fetch all tenants of userdefined-as3-cfgmap
 	if tntList := getTenants(cm.Data); tntList != nil {
 		for _, tnt := range tntList {
 			// Perform deletion for each tenant
-			m.DeleteAS3Partition(tnt)
+			am.DeleteAS3Partition(tnt)
 		}
 	}
 	return true
 }
 
 // method to process AS3 configMaps
-func (m *AS3Manager) processAS3ConfigMap(cm AgentCfgMap, cfg *AS3Config) {
+func (am *AS3Manager) processAS3ConfigMap(cm AgentCfgMap, cfg *AS3Config) {
 	name := cm.Name
 	namespace := cm.Namespace
 	data := cm.Data
@@ -129,7 +130,7 @@ func (m *AS3Manager) processAS3ConfigMap(cm AgentCfgMap, cfg *AS3Config) {
 	// Perform delete operation for cfgMap
 	if data == "" {
 		// Empty data is treated as delete operation for cfgMaps
-		if !m.processAS3CfgMapDelete(name, namespace, cfg) {
+		if !am.processAS3CfgMapDelete(name, namespace, cfg) {
 			log.Errorf("[AS3] Failed to perform delete cfgMap with name: %s and namespace %s",
 				name, namespace)
 		}
@@ -154,20 +155,20 @@ func (m *AS3Manager) processAS3ConfigMap(cm AgentCfgMap, cfg *AS3Config) {
 		}
 	case "as3":
 		if name == cfg.configmap.Name {
-			m.prepareUserDefinedAS3Declaration(cm, cfg)
+			am.prepareUserDefinedAS3Declaration(cm, cfg)
 			return
 		}
 	}
 
 	// If none of the above cases doesn't match, reason can be
 	// override or userdfined cfgMap might not be configured in CIS.
-	cfg.cfgMapNotConfigured(label, namespace, name)
+	cfgMapNotConfigured(label, namespace, name)
 
 	return
 }
 
 // Takes AS3 template and AS3 Object and produce AS3 Declaration
-func (m *AS3Manager) buildAS3Declaration(obj as3Object, template as3Template, cm AgentCfgMap) as3Declaration {
+func (am *AS3Manager) buildAS3Declaration(obj as3Object, template as3Template, cm AgentCfgMap) as3Declaration {
 
 	var tmp interface{}
 
@@ -183,7 +184,7 @@ func (m *AS3Manager) buildAS3Declaration(obj as3Object, template as3Template, cm
 	// Support `Controls` class for TEEMs in user-defined AS3 configMap.
 	declarationObj := (templateJSON["declaration"]).(map[string]interface{})
 	controlObj := make(as3Control)
-	controlObj.initDefault(m.userAgent)
+	controlObj.initDefault(am.userAgent)
 	declarationObj["controls"] = controlObj
 
 	// Initialize Pool members
@@ -192,7 +193,7 @@ func (m *AS3Manager) buildAS3Declaration(obj as3Object, template as3Template, cm
 	for tnt, apps := range obj {
 		for app, pools := range apps {
 			for _, pn := range pools {
-				eps := cm.GetEndpoints(m.getSelector(tnt, app, pn))
+				eps := cm.GetEndpoints(am.getSelector(tnt, app, pn))
 				// Handle an empty value
 				if len(eps) == 0 {
 					continue
@@ -200,7 +201,7 @@ func (m *AS3Manager) buildAS3Declaration(obj as3Object, template as3Template, cm
 				ips := make([]string, 0)
 				for _, v := range eps {
 					ips = append(ips, v.Address)
-					if _, ok := m.ResourceResponse.Members[v]; !ok {
+					if _, ok := am.ResourceResponse.Members[v]; !ok {
 						isPoolUpdated = true
 					}
 					members[v] = struct{}{}
@@ -215,7 +216,7 @@ func (m *AS3Manager) buildAS3Declaration(obj as3Object, template as3Template, cm
 		}
 	}
 
-	m.ResourceResponse.Members = members
+	am.ResourceResponse.Members = members
 
 	declaration, err := json.Marshal(templateJSON)
 
@@ -227,34 +228,30 @@ func (m *AS3Manager) buildAS3Declaration(obj as3Object, template as3Template, cm
 }
 
 // Method to perform delete operations on AS3 cfgMaps(Override and User-define)
-func (m *AS3Manager) processAS3CfgMapDelete(name, namespace string, cfg *AS3Config) bool {
+func (am *AS3Manager) processAS3CfgMapDelete(name, namespace string, cfg *AS3Config) bool {
 	// Perform delete operation if override-as3-cfgMap
 	if name == cfg.overrideConfigmap.Name && namespace == cfg.overrideConfigmap.Namespace {
 		log.Debugf("[AS3] Deleting Override Config Map %v", name)
 		cfg.overrideConfigmap.Reset()
 		cfg.overrideConfigmap.Data = ""
-		m.as3ActiveConfig.overrideConfigmap = cfg.overrideConfigmap
+		am.as3ActiveConfig.overrideConfigmap = cfg.overrideConfigmap
 		return true
 	}
 
 	// Perform delete operation if userdefined-as3-cfgMap
 	if name == cfg.configmap.Name && namespace == cfg.configmap.Namespace {
-		m.as3ActiveConfig.configmap.Reset()
-		m.as3ActiveConfig.configmap.Data = ""
-		return m.prepareDeleteUserDefinedAS3(cfg.configmap)
+		am.as3ActiveConfig.configmap.Reset()
+		am.as3ActiveConfig.configmap.Data = ""
+		return am.prepareDeleteUserDefinedAS3(cfg.configmap)
 	}
 	return false
 }
 
 // Method prepares and returns the label selector in string format
-func (m *AS3Manager) getSelector(tenant tenantName, app appName, pool poolName) string {
-	tenantKey := "cis.f5.com/as3-tenant="
-	appKey := "cis.f5.com/as3-app="
-	poolKey := "cis.f5.com/as3-pool="
-
-	return tenantKey + string(tenant) + "," +
-		appKey + string(app) + "," +
-		poolKey + string(pool)
+func (am *AS3Manager) getSelector(tenant tenantName, app appName, pool poolName) string {
+	return svcTenantLabel + string(tenant) + "," +
+		svcAppLabel + string(app) + "," +
+		svcPoolLabel + string(pool)
 }
 
 // Method to verify if configMap in error state
@@ -314,7 +311,7 @@ func (cm *AS3ConfigMap) Reset() {
 	cm.State = cmInit
 }
 
-func (c AS3Config) cfgMapNotConfigured(cmType, namespace, name string) {
+func cfgMapNotConfigured(cmType, namespace, name string) {
 	switch cmType {
 	case "overrideAS3":
 		log.Debugf("[AS3] Override AS3 configMap with namespace %v"+

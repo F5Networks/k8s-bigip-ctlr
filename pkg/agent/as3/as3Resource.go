@@ -18,6 +18,7 @@ package as3
 
 import (
 	"fmt"
+
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
@@ -36,38 +37,38 @@ func (am *AS3Manager) prepareAS3ResourceConfig(routeCfg AS3Config) AS3Config {
 	return routeCfg
 }
 
-func (appMgr *AS3Manager) generateAS3ResourceDeclaration() as3ADC {
+func (am *AS3Manager) generateAS3ResourceDeclaration() as3ADC {
 	// Create Shared as3Application object for Routes
 	adc := as3ADC{}
 	adc.initDefault(DEFAULT_PARTITION)
 	sharedApp := adc.getAS3SharedApp(DEFAULT_PARTITION)
 
 	// Process CIS Resources to create AS3 Resources
-	appMgr.processResourcesForAS3(sharedApp)
+	am.processResourcesForAS3(sharedApp)
 
 	// Process CustomProfiles
-	appMgr.processCustomProfilesForAS3(sharedApp)
+	am.processCustomProfilesForAS3(sharedApp)
 
 	// Process RouteProfiles
-	appMgr.processProfilesForAS3(sharedApp)
+	am.processProfilesForAS3(sharedApp)
 
 	// For Ingress process SecretName
 	// Process IRules
-	appMgr.processIRulesForAS3(sharedApp)
+	am.processIRulesForAS3(sharedApp)
 
 	// Process DataGroup to be consumed by IRule
-	appMgr.processDataGroupForAS3(sharedApp)
+	am.processDataGroupForAS3(sharedApp)
 
 	// Process F5 Resources
-	appMgr.processF5ResourcesForAS3(sharedApp)
+	am.processF5ResourcesForAS3(sharedApp)
 
 	return adc
 }
 
-func (appMgr *AS3Manager) processProfilesForAS3(sharedApp as3Application) {
+func (am *AS3Manager) processProfilesForAS3(sharedApp as3Application) {
 	// Processes RouteProfs to create AS3 Declaration for Route annotations
 	// Override/Set ServerTLS/ClientTLS in AS3 Service as annotation takes higher priority
-	for svcName, cfg := range appMgr.Resources.RsMap {
+	for svcName, cfg := range am.Resources.RsMap {
 		if svc, ok := sharedApp[as3FormatedString(svcName, cfg.MetaData.ResourceType)].(*as3Service); ok {
 			switch cfg.MetaData.ResourceType {
 			case ResourceTypeRoute:
@@ -130,7 +131,7 @@ func processRouteTLSProfilesForAS3(metadata *MetaData, svc *as3Service) {
 // * Add WAF policy action to the corresponding rules
 // * Add a default WAF disable Rule to corresponding policy
 // * Add WAF disable action to all rules that do not handle WAF
-func (appMgr *AS3Manager) processF5ResourcesForAS3(sharedApp as3Application) {
+func (am *AS3Manager) processF5ResourcesForAS3(sharedApp as3Application) {
 
 	// Identify rules that do not handle waf and add waf disable action to that rule
 	addWAFDisableAction := func(ep *as3EndpointPolicy) {
@@ -162,7 +163,7 @@ func (appMgr *AS3Manager) processF5ResourcesForAS3(sharedApp as3Application) {
 	insecureEP, _ = sharedApp["openshift_insecure_routes"].(*as3EndpointPolicy)
 
 	// Update Rules with WAF action
-	for _, resGroup := range appMgr.IntF5Res {
+	for _, resGroup := range am.IntF5Res {
 		for rec, res := range resGroup {
 			switch res.Virtual {
 			case HTTPS:

@@ -19,7 +19,6 @@ package cccl
 import (
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
-	//routeapi "github.com/openshift/api/route/v1"
 )
 
 // AS3AS3Manager holds all the AS3 orchestration specific Data
@@ -44,6 +43,6 @@ func NewCCCLManager(params *Params) *CCCLManager {
 	return &ccclManager
 }
 
-func (c *CCCLManager) ConfigWriter() writer.Writer {
-	return c.configWriter
+func (cm *CCCLManager) ConfigWriter() writer.Writer {
+	return cm.configWriter
 }

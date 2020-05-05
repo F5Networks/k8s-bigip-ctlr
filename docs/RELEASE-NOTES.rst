@@ -21,6 +21,7 @@ Bug Fixes
 * :issues:`1233` Controller handles clientSSL annotation and cert/key logging issues.
 * Controller handles posting of 'Overwriting existing entry for backend' frequently when different routes configured in different namespaces.
 * Controller updates ServerTLS with unique BIG-IP pointers.
+* Controller sorts ServerName and ServerSSL DataGroups records before posting AS3 declaration to BIG-IP.
 
 1.14.0
 ------------

@@ -18,6 +18,7 @@ package as3
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -104,6 +105,8 @@ func (am *AS3Manager) processDataGroupForAS3(sharedApp as3Application) {
 					}
 					dgMap.Records = append(dgMap.Records, rec)
 				}
+				// sort above create dgMap records.
+				sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
 				sharedApp[as3FormatedString(dg.Name, "")] = dgMap
 			} else {
 				for _, record := range dg.Records {
@@ -117,6 +120,12 @@ func (am *AS3Manager) processDataGroupForAS3(sharedApp as3Application) {
 					}
 					sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
 				}
+				// sort above created
+				sort.Slice(sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records,
+					func(i, j int) bool {
+						return (sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records[i].Key <
+							sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records[j].Key)
+					})
 			}
 		}
 	}

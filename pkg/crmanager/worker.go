@@ -259,16 +259,17 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 		return nil
 	}
 
+	// TODO: Needed to handle multitple VS resources into one VS on BIG-IP
 	// Get a list of dependencies removed so their pools can be removed.
-	objKey, objDeps := NewObjectDependencies(virtual)
-
-	virtualLookupFunc := func(key ObjectDependency) bool {
-		return false
-	}
+	//objKey, objDeps := NewObjectDependencies(virtual)
+	//
+	//virtualLookupFunc := func(key ObjectDependency) bool {
+	//	return false
+	//}
 
 	// TODO ==> UpdateDependencies to get the added and removed deps.
-	_, depsRemoved := crMgr.resources.UpdateDependencies(
-		objKey, objDeps, virtualLookupFunc)
+	//_, depsRemoved := crMgr.resources.UpdateDependencies(
+	//	objKey, objDeps, virtualLookupFunc)
 
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.
 	portStructs := crMgr.virtualPorts(virtual)
@@ -291,20 +292,20 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 		}
 
 		// Remove any dependencies no longer used by this VirtualServer
-		for _, dep := range depsRemoved {
-			if dep.Kind == RuleDep {
-				//TODO ==> To be implemented Post Alpha.
-				//Delete unused pool from resource config
-				// rsCfg.DeleteUnusedPool()
-				for _, pol := range rsCfg.Policies {
-					for _, rl := range pol.Rules {
-						if rl.FullURI == dep.Name {
-							rsCfg.DeleteRuleFromPolicy(pol.Name, rl, crMgr.mergedRulesMap)
-						}
-					}
-				}
-			}
-		}
+		//for _, dep := range depsRemoved {
+		//	if dep.Kind == RuleDep {
+		//		//TODO ==> To be implemented Post Alpha.
+		//		//Delete unused pool from resource config
+		//		// rsCfg.DeleteUnusedPool()
+		//		for _, pol := range rsCfg.Policies {
+		//			for _, rl := range pol.Rules {
+		//				if rl.FullURI == dep.Name {
+		//					rsCfg.DeleteRuleFromPolicy(pol.Name, rl, crMgr.mergedRulesMap)
+		//				}
+		//			}
+		//		}
+		//	}
+		//}
 
 		if crMgr.ControllerMode == NodePortMode {
 			crMgr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)

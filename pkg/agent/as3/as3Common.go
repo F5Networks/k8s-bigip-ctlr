@@ -565,7 +565,12 @@ func (am *AS3Manager) createUpdateTLSServer(prof CustomProfile, svcName string, 
 				Certificate: certName,
 			},
 		)
-
+		if len(tlsServer.Certificates) != 0 {
+			sort.Slice(tlsServer.Certificates,
+				func(i, j int) bool {
+					return (tlsServer.Certificates[i].Certificate < tlsServer.Certificates[j].Certificate)
+				})
+		}
 		if am.enableTLS == "1.2" {
 			tlsServer.Ciphers = am.ciphers
 		} else if am.enableTLS == "1.3" {

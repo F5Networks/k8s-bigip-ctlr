@@ -18,19 +18,19 @@ package as3
 
 import (
 	"fmt"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	//a "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	"github.com/xeipuuv/gojsonschema"
 	"strconv"
 	"strings"
+
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/xeipuuv/gojsonschema"
 )
 
 // Validates the AS3 Template
-func (appMgr *AS3Manager) validateAS3Template(template string) bool {
+func (am *AS3Manager) validateAS3Template(template string) bool {
 	var schemaLoader gojsonschema.JSONLoader
 	// Load AS3 Schema
-	schemaLoader = gojsonschema.NewReferenceLoader(appMgr.As3SchemaLatest)
+	schemaLoader = gojsonschema.NewReferenceLoader(am.As3SchemaLatest)
 	// Load AS3 Template
 	documentLoader := gojsonschema.NewStringLoader(template)
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
@@ -50,8 +50,8 @@ func (appMgr *AS3Manager) validateAS3Template(template string) bool {
 	return true
 }
 
-func (appMgr *AS3Manager) processResourcesForAS3(sharedApp as3Application) {
-	for _, cfg := range appMgr.Resources.RsCfgs {
+func (am *AS3Manager) processResourcesForAS3(sharedApp as3Application) {
+	for _, cfg := range am.Resources.RsCfgs {
 		//Create policies
 		createPoliciesDecl(cfg, sharedApp)
 
@@ -75,9 +75,9 @@ func (appMgr *AS3Manager) processResourcesForAS3(sharedApp as3Application) {
 //	}
 //}
 
-func (appMgr *AS3Manager) processIRulesForAS3(sharedApp as3Application) {
+func (am *AS3Manager) processIRulesForAS3(sharedApp as3Application) {
 	// Create irule declaration
-	for _, v := range appMgr.IrulesMap {
+	for _, v := range am.IrulesMap {
 		iRule := &as3IRules{}
 		iRule.Class = "iRule"
 		iRule.IRule = v.Code
@@ -85,8 +85,8 @@ func (appMgr *AS3Manager) processIRulesForAS3(sharedApp as3Application) {
 	}
 }
 
-func (appMgr *AS3Manager) processDataGroupForAS3(sharedApp as3Application) {
-	for idk, idg := range appMgr.IntDgMap {
+func (am *AS3Manager) processDataGroupForAS3(sharedApp as3Application) {
+	for idk, idg := range am.IntDgMap {
 		for _, dg := range idg {
 			dataGroupRecord, found := sharedApp[as3FormatedString(dg.Name, "")]
 			if !found {
@@ -141,17 +141,17 @@ func getDGRecordValueForAS3(dgName string, sharedApp as3Application) (string, bo
 	return "", false
 }
 
-func (appMgr *AS3Manager) processCustomProfilesForAS3(sharedApp as3Application) {
+func (am *AS3Manager) processCustomProfilesForAS3(sharedApp as3Application) {
 	caBundleName := "serverssl_ca_bundle"
 	var tlsClient *as3TLSClient
 	// TLS Certificates are available in CustomProfiles
-	for key, prof := range appMgr.CustomProfiles.Profs {
+	for key, prof := range am.CustomProfiles.Profs {
 		// Create TLSServer and Certificate for each profile
 		svcName := as3FormatedString(key.ResourceName, deriveResourceTypeFromAS3Value(key.ResourceName))
 		if svcName == "" {
 			continue
 		}
-		if ok := appMgr.createUpdateTLSServer(prof, svcName, sharedApp); ok {
+		if ok := am.createUpdateTLSServer(prof, svcName, sharedApp); ok {
 			// Create Certificate only if the corresponding TLSServer is created
 			createCertificateDecl(prof, sharedApp)
 		} else {
@@ -162,7 +162,7 @@ func (appMgr *AS3Manager) processCustomProfilesForAS3(sharedApp as3Application) 
 			skey := SecretKey{
 				Name: prof.Name + "-ca",
 			}
-			if _, ok := appMgr.CustomProfiles.Profs[skey]; ok && tlsClient != nil {
+			if _, ok := am.CustomProfiles.Profs[skey]; ok && tlsClient != nil {
 				// If a profile exist in customProfiles with key as created above
 				// then it indicates that secure-serverssl needs to be added
 				tlsClient.ValidateCertificate = true
@@ -528,7 +528,7 @@ func createCertificateDecl(prof CustomProfile, sharedApp as3Application) {
 }
 
 // createUpdateTLSServer creates a new TLSServer instance or updates if one exists already
-func (appMgr *AS3Manager) createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Application) bool {
+func (am *AS3Manager) createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Application) bool {
 	// A TLSServer profile needs to carry both Certificate and Key
 	if "" != prof.Cert && "" != prof.Key {
 		svc := sharedApp[svcName].(*as3Service)
@@ -558,12 +558,12 @@ func (appMgr *AS3Manager) createUpdateTLSServer(prof CustomProfile, svcName stri
 			},
 		)
 
-		if appMgr.enableTLS == "1.2" {
-			tlsServer.Ciphers = appMgr.ciphers
-		} else if appMgr.enableTLS == "1.3" {
+		if am.enableTLS == "1.2" {
+			tlsServer.Ciphers = am.ciphers
+		} else if am.enableTLS == "1.3" {
 			tlsServer.Tls1_3Enabled = true
 			tlsServer.CipherGroup = &as3ResourcePointer{
-				BigIP: appMgr.tls13CipherGroupReference,
+				BigIP: am.tls13CipherGroupReference,
 			}
 		}
 

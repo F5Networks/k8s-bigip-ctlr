@@ -27,11 +27,10 @@ import (
 )
 
 const (
-	defaultAS3ConfigMapLabel = "f5type in (virtual-server), as3 in (true)"
-	svcTenantLabel           = "cis.f5.com/as3-tenant"
-	svcAppLabel              = "cis.f5.com/as3-app"
-	svcPoolLabel             = "cis.f5.com/as3-pool"
-	baseAS3Config            = `{
+	svcTenantLabel = "cis.f5.com/as3-tenant="
+	svcAppLabel    = "cis.f5.com/as3-app="
+	svcPoolLabel   = "cis.f5.com/as3-pool="
+	baseAS3Config  = `{
   "$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/3.18.0/as3-schema-3.18.0-4.json",
   "class": "AS3",
   "declaration": {

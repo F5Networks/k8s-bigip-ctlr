@@ -90,7 +90,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			as3Config = mockMgr.as3Mgr.as3ActiveConfig
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmInit),
 				"User configured UserDefinedCfgMap Deleted Successfully.")
 		})
@@ -107,7 +107,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			agentCM.Name = "invalid"
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmActive),
 				"User configured UserDefinedCfgMap Unchanged.")
 		})
@@ -124,7 +124,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			agentCM.Namespace = "invalid"
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmActive),
 				"User configured UserDefinedCfgMap Unchanged.")
 		})
@@ -201,7 +201,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			as3Config = mockMgr.as3Mgr.as3ActiveConfig
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmInit),
 				"User UserDefinedCfgMap Deleted Successfully.")
 		})
@@ -217,7 +217,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			agentCM.Name = "invalid"
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmActive),
 				"User UserDefinedCfgMap Unchanged.")
 		})
@@ -233,7 +233,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			agentCM.Namespace = "invalid"
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmActive),
 				"UserDefinedCfgMap Unchanged.")
 		})
@@ -308,7 +308,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			as3Config = mockMgr.as3Mgr.as3ActiveConfig
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmInit),
 				"User configured override CfgMap Deleted Successfully.")
 		})
@@ -325,7 +325,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			agentCM.Name = "invalid"
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
 				"User configured Override CfgMap Unchanged.")
 		})
@@ -342,7 +342,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			agentCM.Namespace = "invalid"
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
 				"User configured Override CfgMap Unchanged.")
 		})
@@ -396,7 +396,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			as3Config = mockMgr.as3Mgr.as3ActiveConfig
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmInit),
 				"Override CfgMap Deleted Successfully.")
 		})
@@ -412,7 +412,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			agentCM.Name = "invalid"
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
 				"Override CfgMap Unchanged.")
 		})
@@ -428,7 +428,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			// Empty agent configMap Data
 			agentCM.Data = ""
 			agentCM.Namespace = "invalid"
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
+			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
 				"Override CfgMap Unchanged.")
 		})

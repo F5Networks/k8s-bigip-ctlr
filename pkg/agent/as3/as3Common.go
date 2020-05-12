@@ -118,7 +118,6 @@ func (am *AS3Manager) processDataGroupForAS3(sharedApp as3Application) {
 					sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
 				}
 			}
-
 		}
 	}
 }

@@ -121,6 +121,7 @@ func (slice ProfileRefs) Swap(i, j int) {
 
 func (v *Virtual) AddOrUpdateProfile(prof ProfileRef) bool {
 	// The profiles are maintained as a sorted array.
+	// The profiles are maintained as a sorted array.
 	keyFunc := func(i int) bool {
 		return ((v.Profiles[i].Partition > prof.Partition) ||
 			(v.Profiles[i].Partition == prof.Partition &&
@@ -131,7 +132,7 @@ func (v *Virtual) AddOrUpdateProfile(prof ProfileRef) bool {
 	if i < profCt && v.Profiles[i].Partition == prof.Partition &&
 		v.Profiles[i].Name == prof.Name {
 		// found, look for data changed
-		if v.Profiles[i] == prof {
+		if v.Profiles[i].Context == prof.Context {
 			// unchanged
 			return false
 		}

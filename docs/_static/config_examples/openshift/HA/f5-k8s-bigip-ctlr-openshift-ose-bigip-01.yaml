@@ -1,0 +1,61 @@
+  apiVersion: extensions/v1beta1
+  kind: Deployment
+  metadata:
+    name: f5-ose-bigip-01-ctrl
+    namespace: kube-system
+  spec:
+    replicas: 1
+    template:
+      metadata:
+        name: k8s-bigip-ctlr
+        labels:
+          app: k8s-bigip-ctlr
+      spec:
+        # Name of the Service Account bound to a Cluster Role with the required
+        # permissions
+        serviceAccountName: bigip-ctlr
+        containers:
+          - name: k8s-bigip-ctlr
+            image: amit49g/k8s-bigip-ctlr:tsys-1.13-cf-1
+            env:
+              - name: BIGIP_USERNAME
+                valueFrom:
+                  secretKeyRef:
+                    # Replace with the name of the Secret containing your login
+                    # credentials
+                    name: bigip-login
+                    key: username
+              - name: BIGIP_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    # Replace with the name of the Secret containing your login
+                    # credentials
+                    name: bigip-login
+                    key: password
+            command: ["/app/bin/k8s-bigip-ctlr"]
+            args: [
+              "--bigip-username=$(BIGIP_USERNAME)",
+              "--bigip-password=$(BIGIP_PASSWORD)",
+              # Replace with the IP address or hostname of your BIG-IP device
+              "--bigip-url=192.168.200.82",
+              # Replace with the name of the BIG-IP partition you want to manage
+              "--bigip-partition=openshift",
+              "--pool-member-type=cluster",
+              # Replace with the path to the BIG-IP VXLAN connected to the
+              # OpenShift HostSubnet
+              "--openshift-sdn-name=/Common/openshift_vxlan",
+              "--manage-routes=true",
+              "--namespace=f5demo",
+              "--route-vserver-addr=10.192.75.107",
+              # Logging level
+              "--log-level=DEBUG",
+              "--log-as3-response=true",
+              # AS3 override functionality
+              "--override-as3-declaration=f5demo/f5-route-vs-override",
+              # Self-signed cert
+              "--insecure=true",
+              "--agent=as3"
+              ]
+        imagePullSecrets:
+          - name: f5-docker-images
+          - name: bigip-login

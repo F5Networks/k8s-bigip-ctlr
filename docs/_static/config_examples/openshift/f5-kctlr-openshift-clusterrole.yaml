@@ -1,0 +1,52 @@
+# For use in OpenShift clusters
+apiVersion: v1
+kind: ClusterRole
+metadata:
+  annotations:
+    authorization.openshift.io/system-only: "true"
+  name: system:bigip-ctlr
+rules:
+- apiGroups:
+  - ""
+  - "extensions"
+  resources:
+  - nodes
+  - services
+  - endpoints
+  - namespaces
+  - ingresses
+  - routes
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  - "extensions"
+  resources:
+  - configmaps
+  - events
+  - ingresses/status
+  verbs:
+  - get
+  - list
+  - watch
+  - update
+  - create
+  - patch
+
+---
+
+apiVersion: v1
+kind: ClusterRoleBinding
+metadata:
+    name: bigip-ctlr-role
+userNames:
+- system:serviceaccount:kube-system:bigip-ctlr
+subjects:
+- kind: ServiceAccount
+  namespace: kube-system
+  name: bigip-ctlr
+roleRef:
+  name: system:bigip-ctlr

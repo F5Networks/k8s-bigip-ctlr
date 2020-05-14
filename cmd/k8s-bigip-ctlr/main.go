@@ -174,6 +174,7 @@ var (
 	eventChan          chan interface{}
 	configWriter       writer.Writer
 	k8sVersion         string
+	defaultRouteDomain *int
 )
 
 func _init() {
@@ -256,6 +257,7 @@ func _init() {
 	userDefinedAS3Decl = bigIPFlags.String("userdefined-as3-declaration", "", userDefinedCfgMapStr)
 	filterTenants = kubeFlags.Bool("filter-tenants", false,
 		"Optional, specify whether or not to use tenant filtering API for AS3 declaration")
+	defaultRouteDomain = bigIPFlags.Int("default-route-domain", 0, "Default 0. Default Route Domain for this Controller")
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
 	}
@@ -726,7 +728,6 @@ func main() {
 	}
 
 	log.Infof("[INIT] Starting: Container Ingress Services - Version: %s, BuildInfo: %s", version, buildInfo)
-
 	resource.DEFAULT_PARTITION = (*bigIPPartitions)[0]
 	dgPath = resource.DEFAULT_PARTITION
 	if strings.ToLower(*agent) == "as3" {
@@ -995,6 +996,7 @@ func getAS3Params() *as3.Params {
 		LogResponse:               *logAS3Response,
 		RspChan:                   agRspChan,
 		UserAgent:                 getUserAgentInfo(),
+		DefaultRouteDomain:        *defaultRouteDomain,
 	}
 }
 

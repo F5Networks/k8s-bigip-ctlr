@@ -366,6 +366,7 @@ func (t as3Tenant) initDefault() {
 	app := as3Application{}
 	app.initDefault()
 	t[as3class] = as3tenant
+	t[as3routedomain] = DEFAULT_ROUTE_DOMAIN
 	t[as3SharedApplication] = app
 }
 

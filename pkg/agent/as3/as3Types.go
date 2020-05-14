@@ -20,6 +20,8 @@ import (
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 )
 
+var DEFAULT_ROUTE_DOMAIN int = 0
+
 type (
 	as3Template    string
 	as3Declaration string

@@ -49,6 +49,7 @@ const (
 	as3SupportedVersion  = 3.18
 	as3tenant            = "Tenant"
 	as3class             = "class"
+	as3routedomain       = "defaultRouteDomain"
 	as3SharedApplication = "Shared"
 	as3application       = "Application"
 	as3shared            = "shared"
@@ -126,6 +127,7 @@ type Params struct {
 	LogResponse bool
 	RspChan     chan interface{}
 	UserAgent   string
+	DefaultRouteDomain int
 }
 
 // Create and return a new app manager that meets the Manager interface
@@ -158,6 +160,7 @@ func NewAS3Manager(params *Params) *AS3Manager {
 	as3Manager.as3ActiveConfig.configmap.Init()
 
 	as3Manager.fetchAS3Schema()
+	DEFAULT_ROUTE_DOMAIN = params.DefaultRouteDomain
 
 	return &as3Manager
 }

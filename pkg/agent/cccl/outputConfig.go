@@ -29,7 +29,6 @@ import (
 // This function MUST be called with the virtualServers
 // lock held.
 func (cm *CCCLManager) OutputConfigLocked() {
-	// Initialize the Resources struct as empty
 
 	// Organize the data as a map of arrays of resources (per partition)
 	resources := PartitionMap{}
@@ -81,7 +80,7 @@ func (cm *CCCLManager) OutputConfigLocked() {
 		}
 	}
 
-	for _, profile := range cm.CustomProfiles.Profs {
+	for _, profile := range cm.Profs {
 		initPartitionData(resources, profile.Partition)
 		resources[profile.Partition].CustomProfiles = append(resources[profile.Partition].CustomProfiles, profile)
 	}

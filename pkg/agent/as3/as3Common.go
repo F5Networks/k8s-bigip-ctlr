@@ -153,7 +153,7 @@ func (am *AS3Manager) processCustomProfilesForAS3(sharedApp as3Application) {
 	caBundleName := "serverssl_ca_bundle"
 	var tlsClient *as3TLSClient
 	// TLS Certificates are available in CustomProfiles
-	for key, prof := range am.CustomProfiles.Profs {
+	for key, prof := range am.Profs {
 		// Create TLSServer and Certificate for each profile
 		svcName := as3FormatedString(key.ResourceName, deriveResourceTypeFromAS3Value(key.ResourceName))
 		if svcName == "" {
@@ -170,7 +170,7 @@ func (am *AS3Manager) processCustomProfilesForAS3(sharedApp as3Application) {
 			skey := SecretKey{
 				Name: prof.Name + "-ca",
 			}
-			if _, ok := am.CustomProfiles.Profs[skey]; ok && tlsClient != nil {
+			if _, ok := am.Profs[skey]; ok && tlsClient != nil {
 				// If a profile exist in customProfiles with key as created above
 				// then it indicates that secure-serverssl needs to be added
 				tlsClient.ValidateCertificate = true

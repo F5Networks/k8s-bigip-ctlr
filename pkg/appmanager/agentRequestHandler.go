@@ -9,8 +9,17 @@ import (
 // Method to deploy resources on configured agent
 func (appMgr *Manager) deployResource() error {
 	// Generate Agent Request
+
+	// Prepare Custom Profiles Copy
+	Profs := map[SecretKey]CustomProfile{}
+	appMgr.customProfiles.Lock()
+	for k, v := range appMgr.customProfiles.Profs {
+		Profs[k] = v
+	}
+	appMgr.customProfiles.Unlock()
+
 	deployCfg := ResourceRequest{Resources: &AgentResources{RsMap: appMgr.resources.RsMap,
-		RsCfgs: appMgr.resources.GetAllResources()}, CustomProfiles: appMgr.customProfiles,
+		RsCfgs: appMgr.resources.GetAllResources()}, Profs: Profs,
 		IrulesMap: appMgr.irulesMap, IntDgMap: appMgr.intDgMap, IntF5Res: appMgr.intF5Res,
 		AgentCfgmap: appMgr.agentCfgMap}
 	agentReq := MessageRequest{MsgType: cisAgent.MsgTypeSendDecl, ResourceRequest: deployCfg}

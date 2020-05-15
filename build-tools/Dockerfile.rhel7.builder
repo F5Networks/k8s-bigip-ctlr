@@ -1,21 +1,22 @@
-FROM registry.redhat.io/rhel7
+FROM registry.redhat.io/ubi8/ruby-25
 
 # GOLANG install steps
-
+USER root
 ENV GOLANG_VERSION 1.12
 ENV GOLANG_SRC_URL https://golang.org/dl/go$GOLANG_VERSION.src.tar.gz
 ENV GOLANG_SRC_SHA256 09c43d3336743866f2985f566db0520b36f4992aea2b4b2fd9f52f17049e88f2
 
-RUN REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-rpms && \
-	yum -y update-minimal --disablerepo "*" --enablerepo rhel-7-server-rpms --setopt=tsflags=nodocs \
+RUN REPOLIST=rhel-8-for-x86_64-baseos-rpms,rhel-8-for-x86_64-supplementary-rpms,rhel-8-for-x86_64-appstream-rpms && \
+	yum -y update-minimal --disablerepo "*" --enablerepo rhel-8-for-x86_64-baseos-rpms --setopt=tsflags=nodocs \
 	  --security --sec-severity=Important --sec-severity=Critical && \
-	yum -y install scl-utils && \
+	yum -y install scl-utils cmake && \
+	gem install licensee --pre && \
 	yum -y install --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs \
-	  gcc openssl golang git make rsync wget rh-python36 && \
+	  gcc openssl golang git make rsync wget python3 && \
 # Add epel repo for dpkg install
-	curl -o epel-release-latest-7.noarch.rpm -SL https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
+	curl -o epel-release-latest-8.noarch.rpm -SL https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
             --retry 9 --retry-max-time 0 -C - && \
-	rpm -ivh epel-release-latest-7.noarch.rpm && rm epel-release-latest-7.noarch.rpm && \
+	rpm -ivh epel-release-latest-8.noarch.rpm && rm epel-release-latest-8.noarch.rpm && \
 	yum -y install --disablerepo "*" --enablerepo epel --setopt=tsflags=nodocs dpkg && \
 	export GOROOT_BOOTSTRAP="$(go env GOROOT)" && \
 	wget -q "$GOLANG_SRC_URL" -O golang.tar.gz && \
@@ -25,7 +26,8 @@ RUN REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-
 	cd /usr/local/go/src && \
 	./make.bash && \
 	yum -y erase golang && \
-	yum clean all
+	yum clean all && \
+        alternatives --set python /usr/bin/python3
 
 ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
@@ -54,11 +56,10 @@ COPY entrypoint.builder.sh /entrypoint.sh
 COPY requirements.txt /tmp/requirements.txt
 COPY requirements.docs.txt /tmp/requirements.docs.txt
 
-RUN source scl_source enable rh-python36 && \
-	pip install --no-cache-dir --upgrade pip==20.0.2 && \
-	pip install --no-cache-dir setuptools flake8 && \
-	pip install --no-cache-dir --ignore-installed -r /tmp/requirements.txt && \
-	pip install --no-cache-dir -r /tmp/requirements.docs.txt && \
+RUN 	pip3 install --no-cache-dir --upgrade pip==20.0.2 && \
+	pip3 install --no-cache-dir setuptools flake8 && \
+	pip3 install --no-cache-dir --ignore-installed -r /tmp/requirements.txt && \
+	pip3 install --no-cache-dir -r /tmp/requirements.docs.txt && \
 	go get github.com/wadey/gocovmerge && \
 	go get golang.org/x/tools/cmd/cover && \
 	go get github.com/mattn/goveralls && \

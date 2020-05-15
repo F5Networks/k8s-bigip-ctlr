@@ -1,3 +1,12 @@
+---
+name: Bug report
+about: Report a defect in the product
+title: ''
+labels: bug, untriaged
+assignees: ''
+
+---
+
 #### Setup Details
  CIS Version : 2.X      
  Build: f5networks/k8s-bigip-ctlr:latest       
@@ -32,4 +41,3 @@ https://support.f5.com/csp/article/K60974137
 ```  
 
 #### Observations (if any)
-

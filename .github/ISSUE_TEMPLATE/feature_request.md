@@ -1,3 +1,12 @@
+---
+name: Feature request
+about: Request an enhancement or new feature
+title: ''
+labels: feature-request, untriaged
+assignees: ''
+
+---
+
 #### Title
 Title of the feature/enhancement request
 

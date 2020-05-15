@@ -1,4 +1,4 @@
-FROM registry.redhat.io/rhel-atomic
+FROM registry.redhat.io/ubi7/ubi-minimal
 
 LABEL name="f5networks/k8s-bigip-ctlr" \
       vendor="F5 Networks" \

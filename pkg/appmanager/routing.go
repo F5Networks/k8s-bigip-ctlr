@@ -25,6 +25,7 @@ import (
 	//"net/url"
 	"reflect"
 	"sort"
+
 	//"strconv"
 	"strings"
 	"sync"
@@ -257,13 +258,15 @@ func httpRedirectIRule(port int32) string {
 	// The data is a list of paths for the host delimited by '|' or '/' for all.
 	iRuleCode := fmt.Sprintf(`
 		when HTTP_REQUEST {
-			set host [HTTP::host]
-			# Check If the request is for ingress with no hostSpec 
-			#    redirect to https when [HTTP::host] is virtualserver address.
-			# This does not apply for routes as routes cannot be created with no hostSpec.
-			if { [IP::local_addr] equals $host } {
-			    HTTP::redirect https://[getfield [HTTP::host] ":" 1]:443[HTTP::uri]
+			
+			# check if there is an entry in data-groups to accept requests from all domains.
+			# */ represents [* -> Any host / -> default path]
+			set allHosts [class match -value "*/" equals https_redirect_dg]
+			if {$allHosts != ""} {
+				HTTP::redirect https://[getfield [HTTP::host] ":" 1]:443[HTTP::uri]
+				return
 			}
+			set host [HTTP::host]
 			set path [HTTP::path]
 			# Check for the combination of host and path.
 			append host $path

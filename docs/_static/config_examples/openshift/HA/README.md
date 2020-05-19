@@ -165,29 +165,33 @@ Let's create some sample routes. The routes examples in the repo capture most co
 
 ### 5.1 Create example routes
 ```
-oc create -f f5-demo-app-route-deployment.yaml -n f5demo
-oc create -f f5-demo-app-route-service.yaml -n f5demo
-oc create -f f5-demo-app-route-basic.yaml -n f5demo
-oc create -f f5-demo-app-route-balance.yaml -n f5demo
-oc create -f f5-demo-app-route-edge-ssl.yaml -n f5demo
-oc create -f f5-demo-app-route-reencrypt-ssl.yaml -n f5demo
-oc create -f f5-demo-app-route-passthrough-ssl.yaml -n f5demo
-oc create -f f5-demo-app-route-waf.yaml -n f5demo
-oc create -f f5-demo-app-route-ab.yaml -n f5demo
+oc create -f sample-route-deployment.yaml -n f5demo
+oc create -f sample-route-service.yaml -n f5demo
+oc create -f sample-edge-route.yaml -n f5demo
+oc create -f sample-passthrough-route.yaml -n f5demo
+oc create -f sample-reencrypt-route.yaml -n f5demo
+oc create -f sample-route-ab.yaml -n f5demo
+oc create -f sample-route-balance.yaml -n f5demo
+oc create -f sample-route-basic.yaml -n f5demo
+oc create -f sample-route-edge-ssl-waf.yaml -n f5demo
+oc create -f sample-route-waf.yaml -n f5demo
+oc create -f sample-unsecured-route.yaml -n f5demo
 ```
 
 ### 5.2 Delete example routes
 
 ```
-oc delete -f f5-demo-app-route-deployment.yaml -n f5demo
-oc delete -f f5-demo-app-route-service.yaml -n f5demo
-oc delete -f f5-demo-app-route-basic.yaml -n f5demo
-oc delete -f f5-demo-app-route-balance.yaml -n f5demo
-oc delete -f f5-demo-app-route-edge-ssl.yaml -n f5demo
-oc delete -f f5-demo-app-route-reencrypt-ssl.yaml -n f5demo
-oc delete -f f5-demo-app-route-passthrough-ssl.yaml -n f5demo
-oc delete -f f5-demo-app-route-waf.yaml -n f5demo
-oc delete -f f5-demo-app-route-ab.yaml -n f5demo
+oc delete -f sample-route-deployment.yaml -n f5demo
+oc delete -f sample-route-service.yaml -n f5demo
+oc delete -f sample-edge-route.yaml -n f5demo
+oc delete -f sample-passthrough-route.yaml -n f5demo
+oc delete -f sample-reencrypt-route.yaml -n f5demo
+oc delete -f sample-route-ab.yaml -n f5demo
+oc delete -f sample-route-balance.yaml -n f5demo
+oc delete -f sample-route-basic.yaml -n f5demo
+oc delete -f sample-route-edge-ssl-waf.yaml -n f5demo
+oc delete -f sample-route-waf.yaml -n f5demo
+oc delete -f sample-unsecured-route.yaml -n f5demo
 ``` 
 
 ## 6. Enable logging for AS3

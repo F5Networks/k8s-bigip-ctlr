@@ -1,27 +1,52 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
-Next Release
-------------
-
+2.0
+-------------
 Added Functionality
 `````````````````````
-* AS3 as default agent.
-* Controller supports TEEM feature with AS3.
-* Support for Informer based Override and User defined AS3 ConfigMaps.
-* Support AS3 3.18 as mandatory version for 2.0.
-* Code refactor to accommodate Agent architecture.
-* Added new option `--userdefined-as3-declaration` for processing user defined AS3 Config Map in Controller watched namespace.
-* Multiple ClientSSL support for BIG-IP ClientSSL profiles.
+* `as3` is the default agent. Use deployment argument `--agent` to configure `cccl` agent.
+* Custom Resource Definition (CRD) – Alpha available with Custom resource `virtual-server`.
+      - `CRD Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/k8s1.16>`_.
+* Added new optional deployment arguments:
+       -  `--custom-resource-mode` (default `false`) when set `true` processes custom resources only.
+       -  `--userdefined-as3-declaration` for processing user defined AS3 Config Map in CIS watched namespaces.
+* AS3 versions >= 3.18 is required for 2.x releases.
+* CIS is now compatible with:
+       -   OpenShift 4.3.
+       -   BIG-IP 15.1.
+* Base image upgraded to UBI for CIS Container images.
+* Added Support for:
+       -   Multiple BIG-IP ClientSSL profiles for a Virtual Server.
+       -   Informer based Override AS3 ConfigMap.
+       -   `UserAgent` in AS3 Controls object.
+       -   New Attributions Generator  - Licensee.
+       -   GO Modules for dependency management.
+       -   HTTPS health monitoring for passthrough and re-encrypt routes.
+* New RH container registry : registry.connect.redhat.com/f5networks/cntr-ingress-svcs
 
 Bug Fixes
 `````````
-* Controller handles requests sent to unknown hosts for Routes using debug messages.
-* Controller disables mid-stream renegotiation for custom ClientSSL profiles.
-* :issues:`1233` Controller handles clientSSL annotation and cert/key logging issues.
-* Controller handles posting of 'Overwriting existing entry for backend' frequently when different routes configured in different namespaces.
-* Controller updates ServerTLS with unique BIG-IP pointers.
-* Controller sorts ServerName/ServerSSL DataGroups records and TLS Server records before posting AS3 declaration to BIG-IP.
+* CIS handles requests sent to unknown hosts for Routes using debug messages.
+* CIS handles posting of 'Overwriting existing entry for backend' log message frequently when different routes configured in different namespaces.
+* :issues:`1233` CIS handles ClientSSL annotation and cert/key logging issues.
+* :issues:`1145,1185,1295` CIS handles namespace isolation for AS3 configmaps.
+* :issues:`1241,1229` CIS fetches 3.18 AS3 schema locally.
+* :issues:`1191` CIS cleans AS3 managed partition when moved to CCCL as agent. 
+* :issues:`1162` CIS properly handles OpenShift Route admit status.
+* :issues:`1160` CIS handles https redirection for ingress which accepts all common names.
+
+Vulnerability Fixes
+`````````````````````
++------------------+----------------------------------------------------------------+
+| CVE              | Comments                                                       |                                                                                               
++==================+================================================================+
+| CVE-2009-3555    | CIS disables renegotiation for all Custom ClientSSL            |
++------------------+----------------------------------------------------------------+
+
+Limitations
+```````````
+* CIS with cccl as agent, OpenShift A/B route cannot be updated in BIGIP >=v14.1.x due to data group changes.
 
 1.14.0
 ------------

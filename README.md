@@ -15,6 +15,10 @@ for F5 Container Ingress Services for Kubernetes & OpenShift.
 For guides on this and other solutions for Kubernetes, see the
 [F5 Solution Guides for Kubernetes](http://clouddocs.f5.com/containers/latest/kubernetes).
 
+What's New?
+-----------
+Checkout Our VirtualServer Custom Resource ALPHA release [Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/CustomResource.md)
+
 Getting Help
 ------------
 

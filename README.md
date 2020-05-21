@@ -1,17 +1,16 @@
 [![Build Status](https://travis-ci.org/F5Networks/k8s-bigip-ctlr.svg?branch=master)](https://travis-ci.org/F5Networks/k8s-bigip-ctlr) [![Slack](https://f5cloudsolutions.herokuapp.com/badge.svg)](https://f5cloudsolutions.herokuapp.com) [![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg?branch=HEAD)](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr?branch=HEAD)
 
-F5 BIG-IP Controller for Kubernetes
-===================================
+F5 Container Ingress Services for Kubernetes & OpenShift
+========================================================
 
-The F5 BIG-IP Controller for [Kubernetes](http://kubernetes.io/) makes F5 [BIG-IP](https://www.f5.com/products/big-ip-services)
-services available to applications running in Kubernetes.
+The F5 Container Ingress Services for [Kubernetes](http://kubernetes.io/) and [OpenShift](https://www.openshift.com/) makes F5 [BIG-IP](https://www.f5.com/products/big-ip-services) services available to applications running in Kubernetes and OpenShift.
 
 Documentation
 -------------
 
 For instruction on how to use this component, see the
 [docs](http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/latest/)
-for F5 BIG-IP Controller for Kubernetes.
+for F5 Container Ingress Services for Kubernetes & OpenShift.
 
 For guides on this and other solutions for Kubernetes, see the
 [F5 Solution Guides for Kubernetes](http://clouddocs.f5.com/containers/latest/kubernetes).

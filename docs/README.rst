@@ -1,5 +1,5 @@
-F5 BIG-IP Controller for Kubernetes
-===================================
+F5 Container Ingress Services for Kubernetes & OpenShift
+========================================================
 
 |Slack|
 

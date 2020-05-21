@@ -1,5 +1,5 @@
-Release Notes for BIG-IP Controller for Kubernetes
-==================================================
+Release Notes for Container Ingress Services for Kubernetes & OpenShift
+=======================================================================
 
 2.0
 -------------
@@ -7,7 +7,7 @@ Added Functionality
 `````````````````````
 * `as3` is the default agent. Use deployment argument `--agent` to configure `cccl` agent.
 * Custom Resource Definition (CRD) – Alpha available with Custom resource `virtual-server`.
-      - `CRD Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/k8s1.16>`_.
+      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/CustomResource.md>`_.
 * Added new optional deployment arguments:
        -  `--custom-resource-mode` (default `false`) when set `true` processes custom resources only.
        -  `--userdefined-as3-declaration` for processing user defined AS3 Config Map in CIS watched namespaces.
@@ -15,6 +15,7 @@ Added Functionality
 * CIS is now compatible with:
        -   OpenShift 4.3.
        -   BIG-IP 15.1.
+       -   K8S 1.18.
 * Base image upgraded to UBI for CIS Container images.
 * Added Support for:
        -   Multiple BIG-IP ClientSSL profiles for a Virtual Server.
@@ -47,6 +48,10 @@ Vulnerability Fixes
 Limitations
 ```````````
 * CIS with cccl as agent, OpenShift A/B route cannot be updated in BIGIP >=v14.1.x due to data group changes.
+
+Next Upgrade Notes
+``````````````````
+* From CIS 2.1, additional AS3 managed partition "_AS3" will be removed.
 
 1.14.0
 ------------

@@ -131,19 +131,12 @@ func (appMgr *Manager) agentResponseWorker() {
 		// If admit status is set and if routes are configured appManager
 		// would process route admit status, by default appManager would
 		// process ARP handling aloing with Admit Status for both k8s or OSCP
-		if rspMsg.AdmitStatus {
-			appMgr.deployARP(rspMsg.Members)
-			log.Debugf("[CORE] Sending ARP entries")
+		if rspMsg.IsResponseSuccessful == true {
 			// if route is configured in appManager
 			if appMgr.routeClientV1 != nil {
 				log.Debugf("[CORE] Updating Route Admit Status")
 				appMgr.updateRouteAdmitStatus()
 			}
-		}
-
-		// if FDB is set, appManager would send this request to L2-L3 agent
-		if rspMsg.FdbRecords {
-			appMgr.deployFDB()
 		}
 	}
 }

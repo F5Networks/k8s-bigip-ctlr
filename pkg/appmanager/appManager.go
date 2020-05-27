@@ -125,8 +125,6 @@ type Manager struct {
 	intF5Res           InternalF5ResourcesGroup
 	dgPath             string
 	AgentCIS           cisAgent.CISAgentInterface
-	// Applicable when Agent is AS3 to serve ARP/FDB
-	AgentCCCL cisAgent.CISAgentInterface
 	// Processed routes for updating Admit Status
 	agRspChan          chan interface{}
 	processAgentLabels func(map[string]string, string, string) bool

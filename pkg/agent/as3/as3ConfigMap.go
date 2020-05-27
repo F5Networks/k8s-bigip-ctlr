@@ -204,7 +204,7 @@ func (am *AS3Manager) buildAS3Declaration(obj as3Object, template as3Template, c
 				ips := make([]string, 0)
 				for _, v := range eps {
 					ips = append(ips, v.Address)
-					if _, ok := am.ResourceResponse.Members[v]; !ok {
+					if _, ok := am.PoolMembers[v]; !ok {
 						isPoolUpdated = true
 					}
 					members[v] = struct{}{}
@@ -219,7 +219,7 @@ func (am *AS3Manager) buildAS3Declaration(obj as3Object, template as3Template, c
 		}
 	}
 
-	am.ResourceResponse.Members = members
+	am.poolMembers = members
 
 	declaration, err := json.Marshal(templateJSON)
 

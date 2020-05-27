@@ -82,11 +82,10 @@ func (am *AS3Manager) generateUserDefinedAS3Decleration(cm AgentCfgMap) as3Decla
 	}
 
 	_, found := obj[tenantName(DEFAULT_PARTITION)]
-	_, foundNetworkPartition := obj[tenantName(strings.TrimSuffix(DEFAULT_PARTITION, "_AS3"))]
-	if found || foundNetworkPartition {
+	if found {
 		log.Error("[AS3] Error in processing the template")
-		log.Errorf("[AS3] CIS managed partitions <%s> and <%s> should not be used in ConfigMap as Tenants",
-			DEFAULT_PARTITION, strings.TrimSuffix(DEFAULT_PARTITION, "_AS3"))
+		log.Errorf("[AS3] CIS managed partitions <%s> should not be used in ConfigMap as Tenants",
+			DEFAULT_PARTITION)
 		return ""
 	}
 

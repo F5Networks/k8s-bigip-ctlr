@@ -70,6 +70,7 @@ type globalSection struct {
 	LogLevel       string `json:"log-level,omitempty"`
 	VerifyInterval int    `json:"verify-interval,omitempty"`
 	VXLANPartition string `json:"vxlan-partition,omitempty"`
+	DisableLTM     bool   `json:"disable-ltm,omitempty"`
 }
 
 type bigIPSection struct {
@@ -730,7 +731,6 @@ func main() {
 	resource.DEFAULT_PARTITION = (*bigIPPartitions)[0]
 	dgPath = resource.DEFAULT_PARTITION
 	if strings.ToLower(*agent) == "as3" {
-		resource.DEFAULT_PARTITION += "_AS3"
 		*agent = "as3"
 		dgPath = strings.Join([]string{resource.DEFAULT_PARTITION, "Shared"}, "/")
 	}
@@ -772,10 +772,16 @@ func main() {
 		return
 	}
 
+	// When CIS configured as AS3 agent disable LTM in globalSection
+	disableLTM := false
+	if *agent == cisAgent.AS3Agent {
+		disableLTM = true
+	}
 	gs := globalSection{
 		LogLevel:       *logLevel,
 		VerifyInterval: *verifyInterval,
 		VXLANPartition: vxlanPartition,
+		DisableLTM:     disableLTM,
 	}
 	bs := bigIPSection{
 		BigIPUsername:   *bigIPUsername,
@@ -843,12 +849,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Cleanup other agent partitions
-	err = cleanupOtherAgents(*agent, resource.DEFAULT_PARTITION)
-	if err != nil {
-		os.Exit(1)
-	}
-
 	if err = appMgr.AgentCIS.Init(getAgentParams(*agent)); err != nil {
 		log.Fatalf("[INIT] Failed to initialize %v agent, %+v\n", *agent, err)
 		os.Exit(1)
@@ -899,25 +899,6 @@ func main() {
 	sig := <-sigs
 	close(stopCh)
 	log.Infof("[INIT] Exiting - signal %v\n", sig)
-}
-
-func cleanupOtherAgents(exclAgent, partition string) error {
-	var agentList []string
-	agentList = append(agentList, cisAgent.AS3Agent) // This can include cisAgent.CCCLAgent etc.
-	for _, agent := range agentList {
-		if exclAgent != agent {
-			agentCIS, err := cisAgent.CreateAgent(agent)
-			if err != nil {
-				log.Fatalf("[INIT] Failed to create agent: %v", agent)
-				return err
-			}
-			if err = agentCIS.Init(getAgentParams(agent)); err == nil {
-				agentCIS.Remove(partition)
-				agentCIS.DeInit()
-			}
-		}
-	}
-	return nil
 }
 
 func getConfigWriter() writer.Writer {

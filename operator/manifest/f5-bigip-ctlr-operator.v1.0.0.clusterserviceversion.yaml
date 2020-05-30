@@ -10,14 +10,13 @@ metadata:
     certified: 'false'
     createdAt: '2020-02-07'
     description: >-
-      Operator to install F5 Container Ingress Services (CIS)
-      Controller for BIG-IP.
+      Operator to install F5 Container Ingress Services (CIS) for BIG-IP.
     containerImage: 'registry.connect.redhat.com/f5networks/k8s-bigip-ctlr-operator:latest'
     support: F5 Operators Team <f5_cis_operators@f5.com>
     capabilities: Basic Install
     repository: 'https://github.com/F5Networks/k8s-bigip-ctlr'
 spec:
-  displayName: 'F5 BIG-IP Controller'
+  displayName: 'F5 Container Ingress Services'
   description: >
     ## Introduction
 
@@ -32,6 +31,13 @@ spec:
 
     Monitoring the orchestration API server, CIS is able to modify the BIG-IP
     system configuration based on changes made to containerized applications.
+
+    ## Documentation
+
+    Refer to F5 documentation
+
+    - CIS on OpenShift (https://clouddocs.f5.com/containers/latest/userguide/openshift/)
+    - OpenShift Routes (https://clouddocs.f5.com/containers/latest/userguide/routes.html) 
 
     ## Prerequisites 
 
@@ -70,7 +76,7 @@ spec:
     matchLabels: {}
   links:
     - name: Documentation
-      url: 'https://clouddocs.f5.com/containers/v2/'
+      url: 'https://clouddocs.f5.com/containers/latest/'
     - name: Github Repo
       url: 'https://github.com/F5Networks/k8s-bigip-ctlr/operator'
   icon:
@@ -106,7 +112,7 @@ spec:
         statusDescriptors:
         - path: phase
           displayName: Status
-          description: Status of the F5 BIG-IP Controller Operator.
+          description: Status of the F5 Container Ingress Services Operator.
           x-descriptors:
           - 'urn:alm:descriptor:io.kubernetes.phase'
     required: []

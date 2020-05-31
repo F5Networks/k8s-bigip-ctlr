@@ -390,6 +390,7 @@ type (
 	}
 
 	AgentCfgMap struct {
+		Operation    string
 		GetEndpoints func(string) []Member
 		Data         string
 		Name         string

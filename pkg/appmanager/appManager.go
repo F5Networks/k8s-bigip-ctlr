@@ -60,7 +60,7 @@ type Manager struct {
 	customProfiles    *CustomProfileStore
 	irulesMap         IRulesMap
 	intDgMap          InternalDataGroupMap
-	agentCfgMap       []*AgentCfgMap
+	agentCfgMap       map[string]*AgentCfgMap
 	kubeClient        kubernetes.Interface
 	restClientv1      rest.Interface
 	restClientv1beta1 rest.Interface
@@ -225,6 +225,7 @@ func NewManager(params *Params) *Manager {
 		dgPath:                 params.DgPath,
 		agRspChan:              params.AgRspChan,
 		processAgentLabels:     params.ProcessAgentLabels,
+		agentCfgMap:            make(map[string]*AgentCfgMap),
 	}
 
 	// Initialize agent response worker
@@ -369,6 +370,7 @@ func (appMgr *Manager) processNextNamespace() bool {
 
 func (appMgr *Manager) syncNamespace(nsName string) error {
 	startTime := time.Now()
+	var err error
 	defer func() {
 		endTime := time.Now()
 		log.Debugf("[CORE] Finished syncing namespace %+v (%v)",
@@ -415,7 +417,17 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 			}
 		})
 		appMgr.resources.Unlock()
+		// Handle Agent Specific ConfigMaps
+		if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
+			for _, cm := range appMgr.agentCfgMap {
+				if cm.Namespace == nsName {
+					cm.Operation = OprTypeDelete
+					rsDeleted += 1
+				}
+			}
+		}
 		if rsDeleted > 0 {
+			log.Warningf("[CORE] Error looking up namespace '%v': %v\n", nsName, err)
 			appMgr.deployResource()
 		}
 	}
@@ -443,9 +455,6 @@ type serviceQueueKey struct {
 	Name        string // Name of the resource
 	Operation   string
 	Data        string
-	//OverrideAS3Name string // as3 Specific configMap name
-	//AS3Name         string // as3 Specific configMap name
-	//AS3Data         string // if AS3Name is present, populate this with as3 tmpl data
 }
 
 type appInformer struct {
@@ -1022,13 +1031,10 @@ func (appMgr *Manager) syncConfigMaps(
 	appInf *appInformer,
 ) error {
 
-	appMgr.agentCfgMap = []*AgentCfgMap{}
 	// Handle delete cfgMap Operation for Agent
 	if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
 		if sKey.Operation == OprTypeDelete {
-			agntCfgMap := new(AgentCfgMap)
-			agntCfgMap.Init(sKey.Name, sKey.Namespace, "", nil, nil)
-			appMgr.agentCfgMap = append(appMgr.agentCfgMap, agntCfgMap)
+			appMgr.agentCfgMap[sKey.Name].Operation = OprTypeDelete
 			stats.vsDeleted += 1
 			return nil
 		}
@@ -1046,22 +1052,22 @@ func (appMgr *Manager) syncConfigMaps(
 		// We need to look at all config maps in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
 		cm := obj.(*v1.ConfigMap)
-		if cm.ObjectMeta.Namespace != sKey.Namespace {
-			continue
-		}
-
 		if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
 			if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, cm.Namespace); ok {
 				agntCfgMap := new(AgentCfgMap)
 				agntCfgMap.Init(cm.Name, cm.Namespace, cm.Data["template"], cm.Labels, appMgr.getEndpoints)
-				appMgr.agentCfgMap = append(appMgr.agentCfgMap, agntCfgMap)
+				appMgr.agentCfgMap[cm.Name] = agntCfgMap
 				stats.vsUpdated += 1
 			}
 			continue
-		} else {
-			if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, cm.Namespace); !ok {
-				continue
-			}
+		}
+
+		if cm.ObjectMeta.Namespace != sKey.Namespace {
+			continue
+		}
+
+		if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, cm.Namespace); !ok {
+			continue
 		}
 
 		rsCfg, err := ParseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)

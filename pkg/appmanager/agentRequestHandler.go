@@ -18,13 +18,24 @@ func (appMgr *Manager) deployResource() error {
 	}
 	appMgr.customProfiles.Unlock()
 
+	// Initialize cfgMap context
+	agentCfgMapLst := []*AgentCfgMap{}
+	for _, cm := range appMgr.agentCfgMap {
+		agentCfgMapLst = append(agentCfgMapLst, cm)
+	}
 	deployCfg := ResourceRequest{Resources: &AgentResources{RsMap: appMgr.resources.RsMap,
 		RsCfgs: appMgr.resources.GetAllResources()}, Profs: Profs,
 		IrulesMap: appMgr.irulesMap, IntDgMap: appMgr.intDgMap, IntF5Res: appMgr.intF5Res,
-		AgentCfgmap: appMgr.agentCfgMap}
+		AgentCfgmap: agentCfgMapLst}
 	agentReq := MessageRequest{MsgType: cisAgent.MsgTypeSendDecl, ResourceRequest: deployCfg}
 	// Handle resources to agent and deploy to BIG-IP
 	appMgr.AgentCIS.Deploy(agentReq)
+	// Initialize cfgMap context if CfgMaps are removed
+	for name, cm := range appMgr.agentCfgMap {
+		if cm.Operation == OprTypeDelete {
+			delete(appMgr.agentCfgMap, name)
+		}
+	}
 	return nil
 }
 

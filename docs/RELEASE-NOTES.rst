@@ -6,6 +6,13 @@ Next Release
 
 Added Functionality
 ````````````````````
+* CIS supports single partition for AS3 along with L2/L3.
+      - Remove the `_AS3` partition manually.
+
+Bug Fixes
+`````````
+* CIS properly manages AS3 ConfigMaps when configured with namespace-labels.
+
 
 2.0
 -------------

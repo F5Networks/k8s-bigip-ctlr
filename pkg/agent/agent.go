@@ -5,9 +5,7 @@ import (
 )
 
 const (
-	MsgTypeSendFDB  = "FDB"
-	MsgTypeSendARP  = "ARP"
-	MsgTypeSendDecl = "L4L7Decleration"
+	MsgTypeSendDecl = "L4L7Declaration"
 )
 
 type CISAgentInterface interface {

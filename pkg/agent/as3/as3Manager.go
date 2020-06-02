@@ -19,6 +19,7 @@ package as3
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	"strconv"
 	"time"
 
@@ -99,6 +100,8 @@ type AS3Manager struct {
 	ReqChan          chan MessageRequest
 	RspChan          chan interface{}
 	userAgent        string
+	l2l3Agent        L2L3Agent
+	poolMembers      map[Member]struct{}
 	ResourceRequest
 	ResourceResponse
 }
@@ -122,6 +125,8 @@ type Params struct {
 	BIGIPURL           string
 	TrustedCerts       string
 	AS3PostDelay       int
+	ConfigWriter       writer.Writer
+	EventChan          chan interface{}
 	//Log the AS3 response body in Controller logs
 	LogResponse bool
 	RspChan     chan interface{}
@@ -144,6 +149,8 @@ func NewAS3Manager(params *Params) *AS3Manager {
 			configmap:         AS3ConfigMap{cfg: params.UserDefinedAS3Decl},
 			overrideConfigmap: AS3ConfigMap{cfg: params.OverrideAS3Decl},
 		},
+		l2l3Agent: L2L3Agent{eventChan: params.EventChan,
+			configWriter: params.ConfigWriter},
 		PostManager: NewPostManager(PostParams{
 			BIGIPUsername: params.BIGIPUsername,
 			BIGIPPassword: params.BIGIPPassword,
@@ -209,8 +216,6 @@ func (am *AS3Manager) postAS3Config(tempAS3Config AS3Config) (bool, string) {
 	log.Debugf("[AS3] Posting AS3 Declaration")
 
 	am.as3ActiveConfig.updateConfig(tempAS3Config)
-
-	am.sendFDBRecords()
 
 	var tenants []string = nil
 
@@ -345,7 +350,8 @@ func (am *AS3Manager) ConfigDeployer() {
 		firstPost = false
 		if event == responseStatusOk {
 			log.Debugf("[AS3] Preparing response message to response handler")
-			am.sendARPRequest()
+			am.SendARPEntries()
+			am.SendAgentResponse()
 			log.Debugf("[AS3] Sent response message to response handler")
 		}
 	}
@@ -368,17 +374,10 @@ func (am *AS3Manager) postOnEventOrTimeout(timeout time.Duration) (bool, string)
 	}
 }
 
-// Post FDB records on response channel
-func (am *AS3Manager) sendFDBRecords() {
-	agRsp := ResourceResponse{}
-	agRsp.FdbRecords = true
-	am.postAgentResponse(MessageResponse{ResourceResponse: agRsp})
-}
-
 // Post ARP entries over response channel
-func (am *AS3Manager) sendARPRequest() {
+func (am *AS3Manager) SendAgentResponse() {
 	agRsp := am.ResourceResponse
-	agRsp.AdmitStatus = true
+	agRsp.IsResponseSuccessful = true
 	am.postAgentResponse(MessageResponse{ResourceResponse: agRsp})
 }
 

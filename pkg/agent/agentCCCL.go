@@ -22,10 +22,6 @@ func (ag *agentCCCL) Deploy(req interface{}) error {
 	msgReq := req.(resource.MessageRequest)
 	ag.ResourceRequest = msgReq.ResourceRequest
 	switch msgReq.MsgType {
-	case MsgTypeSendFDB:
-		ag.SendFDBEntries()
-	case MsgTypeSendARP:
-		ag.SendARPEntries()
 	case MsgTypeSendDecl:
 		ag.OutputConfigLocked()
 	}

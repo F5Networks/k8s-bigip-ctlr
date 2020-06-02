@@ -2,6 +2,7 @@ package crmanager
 
 import (
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"reflect"
 	"strings"
 	"time"
@@ -155,4 +156,17 @@ func (crMgr *CRManager) getNodes(
 	}
 
 	return watchedNodes, nil
+}
+
+func (crMgr *CRManager) getNodesWithLabel(
+	nodeMemberLabel string,
+) []Node {
+	nodeList, _ := crMgr.kubeClient.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: nodeMemberLabel})
+
+	nodes, err := crMgr.getNodes(nodeList.Items)
+	if nil != err {
+		log.Warningf("Unable to get list of nodes, err=%+v", err)
+		return nil
+	}
+	return nodes
 }

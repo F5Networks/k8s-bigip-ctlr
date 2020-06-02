@@ -171,7 +171,7 @@ func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string) {
 	if am.ResourceRequest.AgentCfgmap != nil {
 		for _, cfgMap := range am.ResourceRequest.AgentCfgmap {
 			// Perform delete operation for cfgMap
-			if cfgMap.Data == "" {
+			if cfgMap.Operation == OprTypeDelete {
 				// Empty data is treated as delete operation for cfgMaps
 				if ok, event := am.processAS3CfgMapDelete(cfgMap.Name, cfgMap.Namespace, &as3Config); !ok {
 					log.Errorf("[AS3] Failed to perform delete cfgMap with name: %s and namespace %s",
@@ -225,7 +225,6 @@ func (cfg *AS3Config) updateConfig(newAS3Cfg AS3Config) {
 	cfg.adc = newAS3Cfg.adc
 	cfg.unifiedDeclaration = newAS3Cfg.unifiedDeclaration
 	cfg.configmap = newAS3Cfg.configmap
-	cfg.overrideConfigmap = newAS3Cfg.overrideConfigmap
 }
 
 func (am *AS3Manager) getUnifiedDeclaration(cfg *AS3Config) as3Declaration {

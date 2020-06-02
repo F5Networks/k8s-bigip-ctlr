@@ -115,7 +115,7 @@ func (c *AS3Config) prepareAS3OverrideDeclaration(data string) {
 }
 
 // Method to perform deletion operation on userdefined-as3-cfgmap
-func (am AS3Manager) prepareDeleteUserDefinedAS3(cm AS3ConfigMap) (bool, string) {
+func (am AS3Manager) prepareDeleteUserDefinedAS3(cm *AS3ConfigMap) (bool, string) {
 	log.Debugf("[AS3] Deleting User Defined Configmap: %v", cm.Name)
 	// Fetch all tenants of userdefined-as3-cfgmap
 	if tntList := getTenants(cm.Data); tntList != nil {
@@ -127,6 +127,7 @@ func (am AS3Manager) prepareDeleteUserDefinedAS3(cm AS3ConfigMap) (bool, string)
 			}
 		}
 	}
+	cm.Data = ""
 	cm.Reset()
 	return true, ""
 }
@@ -151,6 +152,9 @@ func (am *AS3Manager) processAS3ConfigMap(cm AgentCfgMap, cfg *AS3Config) {
 	case "overrideAS3":
 		if name == cfg.overrideConfigmap.Name {
 			cfg.prepareAS3OverrideDeclaration(data)
+			if cfg.overrideConfigmap.State == cmActive {
+				am.as3ActiveConfig.overrideConfigmap = cfg.overrideConfigmap
+			}
 			return
 		}
 	case "as3":
@@ -242,7 +246,7 @@ func (am *AS3Manager) processAS3CfgMapDelete(name, namespace string, cfg *AS3Con
 	if name == cfg.configmap.Name && namespace == cfg.configmap.Namespace {
 		am.as3ActiveConfig.configmap.Reset()
 		am.as3ActiveConfig.configmap.Data = ""
-		return am.prepareDeleteUserDefinedAS3(cfg.configmap)
+		return am.prepareDeleteUserDefinedAS3(&cfg.configmap)
 	}
 	return true, ""
 }

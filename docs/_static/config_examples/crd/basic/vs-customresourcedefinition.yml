@@ -34,6 +34,8 @@ spec:
                         type: string
                       service:
                         type: string
+                      nodeMemberLabel:
+                        type: string
                       servicePort:
                         type: integer
                 virtualServerAddress:

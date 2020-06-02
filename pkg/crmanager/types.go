@@ -156,11 +156,12 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name        string   `json:"name"`
-		Partition   string   `json:"-"`
-		ServiceName string   `json:"-"`
-		ServicePort int32    `json:"-"`
-		Members     []Member `json:"members"`
+		Name            string   `json:"name"`
+		Partition       string   `json:"-"`
+		ServiceName     string   `json:"-"`
+		ServicePort     int32    `json:"-"`
+		Members         []Member `json:"members"`
+		NodeMemberLabel string   `json:"-"`
 	}
 	// Pools is slice of pool
 	Pools []Pool

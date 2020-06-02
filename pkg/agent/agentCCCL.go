@@ -32,11 +32,6 @@ func (ag *agentCCCL) Deploy(req interface{}) error {
 	return nil
 }
 
-func (ag *agentCCCL) Remove(partition string) error {
-	log.Infof("[CCCL] Removing CCCL Partition %v \n", partition)
-	return nil
-}
-
 func (ag *agentCCCL) DeInit() error {
 	log.Infof("[CCCL] DeInitializing CCCL Agent\n")
 	ag.ConfigWriter().Stop()

@@ -539,48 +539,49 @@ func createCertificateDecl(prof CustomProfile, sharedApp as3Application) {
 func (am *AS3Manager) createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Application) bool {
 	// A TLSServer profile needs to carry both Certificate and Key
 	if "" != prof.Cert && "" != prof.Key {
-		svc := sharedApp[svcName].(*as3Service)
-		tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
-		certName := as3FormatedString(prof.Name, deriveResourceTypeFromAS3Value(prof.Name))
+		if svc, ok := sharedApp[svcName].(*as3Service); ok {
+			tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
+			tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
+			if !ok {
+				certName := as3FormatedString(prof.Name, deriveResourceTypeFromAS3Value(prof.Name))
 
-		tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
-		if !ok {
-			tlsServer = &as3TLSServer{
-				Class:        "TLS_Server",
-				Certificates: []as3TLSServerCertificates{},
+				tlsServer = &as3TLSServer{
+					Class:        "TLS_Server",
+					Certificates: []as3TLSServerCertificates{},
+				}
+
+				// RenegotiationEnabled MUST be disabled/false to handle CVE-2009-3555.
+				boolFalse := false
+				tlsServer.RenegotiationEnabled = &boolFalse
+
+				sharedApp[tlsServerName] = tlsServer
+				svc.ServerTLS = tlsServerName
+				updateVirtualToHTTPS(svc)
+
+				tlsServer.Certificates = append(
+					tlsServer.Certificates,
+					as3TLSServerCertificates{
+						Certificate: certName,
+					},
+				)
+				if len(tlsServer.Certificates) != 0 {
+					sort.Slice(tlsServer.Certificates,
+						func(i, j int) bool {
+							return (tlsServer.Certificates[i].Certificate < tlsServer.Certificates[j].Certificate)
+						})
+				}
+				if am.enableTLS == "1.2" {
+					tlsServer.Ciphers = am.ciphers
+				} else if am.enableTLS == "1.3" {
+					tlsServer.Tls1_3Enabled = true
+					tlsServer.CipherGroup = &as3ResourcePointer{
+						BigIP: am.tls13CipherGroupReference,
+					}
+				}
+
+				return true
 			}
-
-			// RenegotiationEnabled MUST be disabled/false to handle CVE-2009-3555.
-			boolFalse := false
-			tlsServer.RenegotiationEnabled = &boolFalse
-
-			sharedApp[tlsServerName] = tlsServer
-			svc.ServerTLS = tlsServerName
-			updateVirtualToHTTPS(svc)
 		}
-
-		tlsServer.Certificates = append(
-			tlsServer.Certificates,
-			as3TLSServerCertificates{
-				Certificate: certName,
-			},
-		)
-		if len(tlsServer.Certificates) != 0 {
-			sort.Slice(tlsServer.Certificates,
-				func(i, j int) bool {
-					return (tlsServer.Certificates[i].Certificate < tlsServer.Certificates[j].Certificate)
-				})
-		}
-		if am.enableTLS == "1.2" {
-			tlsServer.Ciphers = am.ciphers
-		} else if am.enableTLS == "1.3" {
-			tlsServer.Tls1_3Enabled = true
-			tlsServer.CipherGroup = &as3ResourcePointer{
-				BigIP: am.tls13CipherGroupReference,
-			}
-		}
-
-		return true
 	}
 	return false
 }

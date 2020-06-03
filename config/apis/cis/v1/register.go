@@ -38,6 +38,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		SchemeGroupVersion,
 		&VirtualServer{},
 		&VirtualServerList{},
+		&TLSProfile{},
+		&TLSProfileList{},
 	)
 
 	scheme.AddKnownTypes(

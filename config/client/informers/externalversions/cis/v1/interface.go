@@ -24,6 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// TLSProfiles returns a TLSProfileInformer.
+	TLSProfiles() TLSProfileInformer
 	// VirtualServers returns a VirtualServerInformer.
 	VirtualServers() VirtualServerInformer
 }
@@ -37,6 +39,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// TLSProfiles returns a TLSProfileInformer.
+func (v *version) TLSProfiles() TLSProfileInformer {
+	return &tLSProfileInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // VirtualServers returns a VirtualServerInformer.

@@ -18,6 +18,14 @@ limitations under the License.
 
 package v1
 
+// TLSProfileListerExpansion allows custom methods to be added to
+// TLSProfileLister.
+type TLSProfileListerExpansion interface{}
+
+// TLSProfileNamespaceListerExpansion allows custom methods to be added to
+// TLSProfileNamespaceLister.
+type TLSProfileNamespaceListerExpansion interface{}
+
 // VirtualServerListerExpansion allows custom methods to be added to
 // VirtualServerLister.
 type VirtualServerListerExpansion interface{}

@@ -28,6 +28,10 @@ type FakeK8sV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeK8sV1) TLSProfiles(namespace string) v1.TLSProfileInterface {
+	return &FakeTLSProfiles{c, namespace}
+}
+
 func (c *FakeK8sV1) VirtualServers(namespace string) v1.VirtualServerInterface {
 	return &FakeVirtualServers{c, namespace}
 }

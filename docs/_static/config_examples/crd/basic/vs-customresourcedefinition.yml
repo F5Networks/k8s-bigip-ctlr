@@ -9,7 +9,7 @@ spec:
     plural: virtualservers
     shortNames:
       - vs
-    singular: virtualverver
+    singular: virtualserver
   scope: Namespaced
   versions:
     -

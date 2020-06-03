@@ -34,6 +34,10 @@ func (crInfr *CRInformer) start() {
 	if crInfr.vsInformer != nil {
 		go crInfr.vsInformer.Run(crInfr.stopCh)
 	}
+	log.Infof("Starting TLSProfile Informer")
+	if crInfr.tsInformer != nil {
+		go crInfr.tsInformer.Run(crInfr.stopCh)
+	}
 	if crInfr.svcInformer != nil {
 		go crInfr.svcInformer.Run(crInfr.stopCh)
 	}
@@ -94,6 +98,13 @@ func (crMgr *CRManager) newInformer(
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
 		vsInformer: cisinfv1.NewFilteredVirtualServerInformer(
+			crMgr.kubeCRClient,
+			namespace,
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			crOptions,
+		),
+		tsInformer: cisinfv1.NewFilteredTLSProfileInformer(
 			crMgr.kubeCRClient,
 			namespace,
 			resyncPeriod,

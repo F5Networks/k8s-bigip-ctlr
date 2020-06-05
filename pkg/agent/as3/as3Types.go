@@ -88,6 +88,7 @@ type (
 		Host        *as3PolicyCompareString `json:"host,omitempty"`
 		PathSegment *as3PolicyCompareString `json:"pathSegment,omitempty"`
 		Path        *as3PolicyCompareString `json:"path,omitempty"`
+		Address     *as3PolicyCompareString `json:"address,omitempty"`
 	}
 
 	// as3ActionForwardSelect maps to Policy_Action_Forward_Select in AS3 Resources
@@ -104,7 +105,7 @@ type (
 	as3PolicyCompareString struct {
 		CaseSensitive bool     `json:"caseSensitive,omitempty"`
 		Values        []string `json:"values,omitempty"`
-		Operand       string   `json:"operand"`
+		Operand       string   `json:"operand,omitempty"`
 	}
 
 	// as3Pool maps to Pool in AS3 Resources

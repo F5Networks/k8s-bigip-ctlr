@@ -232,6 +232,9 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			s := strings.Split(pl.Strategy, "/")
 			ep.Strategy = s[len(s)-1]
 
+			if strings.HasSuffix(rl.Name, "-reset") {
+				continue
+			}
 			//Create rules
 			rulesData := &as3Rule{Name: as3FormatedString(rl.Name, cfg.MetaData.ResourceType)}
 
@@ -415,6 +418,10 @@ func createAS3RuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 			if c.Equals {
 				condition.Path.Operand = "equals"
 			}
+		} else if c.Tcp {
+			condition.Type = "tcp"
+			condition.Address = &as3PolicyCompareString{}
+			condition.Address.Values = c.Values
 		}
 		if c.Request {
 			condition.Event = "request"

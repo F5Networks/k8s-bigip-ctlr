@@ -19,15 +19,16 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"sync"
+	"time"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"io/ioutil"
-	"os"
-	"sync"
-	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 	routeapi "github.com/openshift/api/route/v1"
@@ -2958,6 +2959,111 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(found).To(BeNil())
 			})
 
+			It("configure allow source range annotation on Ingress", func() {
+				var found *Condition
+
+				// Multi-service Ingress
+				ingressConfig := v1beta1.IngressSpec{
+					Rules: []v1beta1.IngressRule{
+						{Host: "host1",
+							IngressRuleValue: v1beta1.IngressRuleValue{
+								HTTP: &v1beta1.HTTPIngressRuleValue{
+									Paths: []v1beta1.HTTPIngressPath{
+										{Path: "/foo",
+											Backend: v1beta1.IngressBackend{
+												ServiceName: "foo",
+												ServicePort: intstr.IntOrString{IntVal: 80},
+											},
+										},
+										{Path: "/bar",
+											Backend: v1beta1.IngressBackend{
+												ServiceName: "bar",
+												ServicePort: intstr.IntOrString{IntVal: 80},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				barSvc := test.NewService(
+					"bar",
+					"2", namespace,
+					"NodePort",
+					[]v1.ServicePort{{Port: 80, NodePort: 37002}})
+				r := mockMgr.addService(barSvc)
+				Expect(r).To(BeTrue(), "Service should be processed.")
+
+				ingress3 := test.NewIngress(
+					"ingress",
+					"2",
+					namespace,
+					ingressConfig,
+					map[string]string{
+						F5VsBindAddrAnnotation:         "1.2.3.4",
+						F5VsPartitionAnnotation:        "velcro",
+						F5VsAllowSourceRangeAnnotation: "1.2.3.4/32,2.2.2.0/24",
+					})
+				ingress4 := test.NewIngress(
+					"ingress",
+					"2",
+					namespace,
+					ingressConfig,
+					map[string]string{
+						F5VsBindAddrAnnotation:  "2.2.2.2",
+						F5VsPartitionAnnotation: "velcro",
+					})
+				r = mockMgr.addIngress(ingress3)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+				resources := mockMgr.resources()
+
+				rs, ok := resources.Get(
+					ServiceKey{"bar", 80, "default"},
+					FormatIngressVSName("1.2.3.4", 80))
+				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
+				Expect(rs).ToNot(BeNil(), "Ingress should be object.")
+				Expect(rs.MetaData.Active).To(BeTrue())
+
+				// Check to see that the condition
+				Expect(len(rs.Policies)).To(Equal(1))
+				Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+
+				// Check to see if there are three conditions.
+				//
+				// One condition for the /foo rule
+				// One condition for the /bar condition
+				// One condition for the whitelist entry
+				//
+				// as defined in ingressConfig above.
+				Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(3))
+				for _, x := range rs.Policies[0].Rules[0].Conditions {
+					if x.Tcp == true {
+						found = x
+					}
+				}
+				Expect(found).NotTo(BeNil())
+				Expect(found.Values).Should(ConsistOf("1.2.3.4/32", "2.2.2.0/24"))
+
+				mockMgr.deleteIngress(ingress3)
+				r = mockMgr.addIngress(ingress4)
+
+				resources = mockMgr.resources()
+				rs, ok = resources.Get(
+					ServiceKey{"bar", 80, "default"},
+					FormatIngressVSName("2.2.2.2", 80))
+				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
+				Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(2))
+
+				found = nil
+				for _, x := range rs.Policies[0].Rules[0].Conditions {
+					if x.Tcp == true {
+						found = x
+					}
+				}
+				Expect(found).To(BeNil())
+			})
+
 			It("configure whitelist annotation, extra spaces, on Ingress", func() {
 				var found *Condition
 
@@ -3006,6 +3112,87 @@ var _ = Describe("AppManager Tests", func() {
 						F5VsBindAddrAnnotation:             "1.2.3.4",
 						F5VsPartitionAnnotation:            "velcro",
 						F5VsWhitelistSourceRangeAnnotation: "10.10.10.0/24, 192.168.0.0/16, 172.16.0.0/18",
+					})
+				r = mockMgr.addIngress(ingress3)
+				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+				resources := mockMgr.resources()
+
+				rs, ok := resources.Get(
+					ServiceKey{"bar", 80, "default"},
+					FormatIngressVSName("1.2.3.4", 80))
+				Expect(ok).To(BeTrue(), "Ingress should be accessible.")
+				Expect(rs).ToNot(BeNil(), "Ingress should be object.")
+				Expect(rs.MetaData.Active).To(BeTrue())
+
+				// Check to see that the condition
+				Expect(len(rs.Policies)).To(Equal(1))
+				Expect(len(rs.Policies[0].Rules)).To(Equal(1))
+
+				// Check to see if there are three conditions.
+				//
+				// One condition for the /foo rule
+				// One condition for the /bar condition
+				// One condition for the whitelist entry
+				//
+				// as defined in ingressConfig above.
+				Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(3))
+				for _, x := range rs.Policies[0].Rules[0].Conditions {
+					if x.Tcp == true {
+						found = x
+					}
+				}
+				Expect(found).NotTo(BeNil())
+				Expect(found.Values).Should(ConsistOf("10.10.10.0/24", "192.168.0.0/16", "172.16.0.0/18"))
+			})
+
+			It("configure allow source ange annotation, extra spaces, on Ingress", func() {
+				var found *Condition
+
+				// Multi-service Ingress
+				ingressConfig := v1beta1.IngressSpec{
+					Rules: []v1beta1.IngressRule{
+						{
+							Host: "host1",
+							IngressRuleValue: v1beta1.IngressRuleValue{
+								HTTP: &v1beta1.HTTPIngressRuleValue{
+									Paths: []v1beta1.HTTPIngressPath{
+										{
+											Path: "/foo",
+											Backend: v1beta1.IngressBackend{
+												ServiceName: "foo",
+												ServicePort: intstr.IntOrString{IntVal: 80},
+											},
+										},
+										{
+											Path: "/bar",
+											Backend: v1beta1.IngressBackend{
+												ServiceName: "bar",
+												ServicePort: intstr.IntOrString{IntVal: 80},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				barSvc := test.NewService(
+					"bar",
+					"2", namespace,
+					"NodePort",
+					[]v1.ServicePort{{Port: 80, NodePort: 37002}})
+				r := mockMgr.addService(barSvc)
+				Expect(r).To(BeTrue(), "Service should be processed.")
+
+				ingress3 := test.NewIngress(
+					"ingress",
+					"2",
+					namespace,
+					ingressConfig,
+					map[string]string{
+						F5VsBindAddrAnnotation:         "1.2.3.4",
+						F5VsPartitionAnnotation:        "velcro",
+						F5VsAllowSourceRangeAnnotation: "10.10.10.0/24, 192.168.0.0/16, 172.16.0.0/18",
 					})
 				r = mockMgr.addIngress(ingress3)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")

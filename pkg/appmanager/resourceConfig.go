@@ -91,8 +91,12 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	}
 
 	// Handle whitelist-source-range annotation
+	// Handle allow-source-range annotation
 	var whitelistSourceRanges []string
 	if sourceRange, ok := ing.ObjectMeta.Annotations[F5VsWhitelistSourceRangeAnnotation]; ok {
+		//log.Warning("[CORE] Annotation 'whitelist-source-range' will be deprecated in the future with 'allow-source-range'.")
+		whitelistSourceRanges = ParseWhitelistSourceRangeAnnotations(sourceRange)
+	} else if sourceRange, ok := ing.ObjectMeta.Annotations[F5VsAllowSourceRangeAnnotation]; ok {
 		whitelistSourceRanges = ParseWhitelistSourceRangeAnnotations(sourceRange)
 	}
 
@@ -619,9 +623,12 @@ func (appMgr *Manager) handleRouteRules(
 		rc.MergeRules(appMgr.mergedRulesMap)
 	}
 
-	// Add whitelist condition
+	// Add whitelist or allow source condition
 	var whitelistSourceRanges []string
 	if sourceRange, ok := route.ObjectMeta.Annotations[F5VsWhitelistSourceRangeAnnotation]; ok {
+		//log.Warning("[CORE] Annotation 'whitelist-source-range' will be deprecated in the future with 'allow-source-range'.")
+		whitelistSourceRanges = ParseWhitelistSourceRangeAnnotations(sourceRange)
+	} else if sourceRange, ok := route.ObjectMeta.Annotations[F5VsAllowSourceRangeAnnotation]; ok {
 		whitelistSourceRanges = ParseWhitelistSourceRangeAnnotations(sourceRange)
 	}
 	if len(whitelistSourceRanges) > 0 {

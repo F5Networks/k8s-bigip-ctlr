@@ -730,7 +730,7 @@ func main() {
 	if (strings.HasPrefix(*bigIPPassword, "B:")) {
 		*bigIPPassword = strings.TrimPrefix(*bigIPPassword, "B:")
 		var decodeBytes
-		decodeBytes, err := base64.StdEncoding.DecodeString(*bigIPPassword)
+		decodeBytes, err = base64.StdEncoding.DecodeString(*bigIPPassword)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "password base64 error. %v\n", err)
 			flags.Usage()

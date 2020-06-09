@@ -123,7 +123,13 @@ func (crMgr *CRManager) processResource() bool {
 		crMgr.resources.oldRsMap,
 	) {
 
-		crMgr.Agent.PostConfig(crMgr.resources.GetAllResources())
+		config := ResourceConfigWrapper{
+			rsCfgs:   crMgr.resources.GetAllResources(),
+			iRuleMap: crMgr.irulesMap,
+			intDgMap: crMgr.intDgMap,
+		}
+
+		crMgr.Agent.PostConfig(config)
 		crMgr.initState = false
 		crMgr.resources.updateOldConfig()
 	}
@@ -240,7 +246,7 @@ func getVirtualServersForService(allVirtuals []*cisapiv1.VirtualServer,
 }
 
 // syncVirtualServer takes the Virtual Server as input and processes it to
-// create a resource config for a new Virtual Server and update the
+// create a resource config(Internal DataStructure) for a new Virtual Server and update the
 // resource config for existing Virtual Server.
 func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error {
 
@@ -250,6 +256,9 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 		log.Debugf("Finished syncing virtual servers %+v (%v)",
 			virtual, endTime.Sub(startTime))
 	}()
+
+	svcFwdRulesMap := NewServiceFwdRuleMap()
+
 	// check if the virutal server matches all the requirements.
 	vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
 	valid := crMgr.checkValidVirtualServer(virtual)
@@ -259,7 +268,7 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 		return nil
 	}
 
-	// TODO: Needed to handle multitple VS resources into one VS on BIG-IP
+	// TODO: Needed to handle multiple VS resources into one VS on BIG-IP
 	// Get a list of dependencies removed so their pools can be removed.
 	//objKey, objDeps := NewObjectDependencies(virtual)
 	//
@@ -283,6 +292,15 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 			// do not care about
 			continue
 		}
+
+		// Handle TLS configuration for VirtualServer Custom Resource
+		updated := crMgr.handleVirtualServerTLS(rsCfg, virtual, svcFwdRulesMap)
+		if updated {
+			log.Infof("Updated Virtual %s with TLSProfile %s",
+				virtual.ObjectMeta.Name, virtual.Spec.TLSProfileName)
+		}
+
+		log.Infof("ResourceConfig looks like %v", rsCfg)
 
 		// Collect all service names on this VirtualServer.
 		// Used in handleConfigForType.
@@ -382,6 +400,20 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 		}
 	}
 	**/
+	dgMap := make(InternalDataGroupMap)
+	log.Debugf("Length of svcFwdRulesMap is %v", len(svcFwdRulesMap))
+	if len(svcFwdRulesMap) > 0 {
+		httpsRedirectDg := NameRef{
+			Name:      HttpsRedirectDgName,
+			Partition: DEFAULT_PARTITION,
+		}
+		if _, found := dgMap[httpsRedirectDg]; !found {
+			dgMap[httpsRedirectDg] = make(DataGroupNamespaceMap)
+		}
+		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
+	}
+
+	crMgr.syncDataGroups(dgMap, virtual.ObjectMeta.Namespace)
 
 	return nil
 }

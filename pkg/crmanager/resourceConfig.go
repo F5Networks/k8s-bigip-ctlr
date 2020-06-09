@@ -17,7 +17,9 @@
 package crmanager
 
 import (
+	"bytes"
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net"
 	"reflect"
 	"regexp"
@@ -85,8 +87,140 @@ type ObjectDependencyMap map[ObjectDependency]ObjectDependencies
 // RuleDep defines the rule for choosing a service from multiple services in VirtualServer, mainly by path.
 const RuleDep = "Rule"
 
+const (
+	DEFAULT_MODE       string = "tcp"
+	DEFAULT_BALANCE    string = "round-robin"
+	DEFAULT_HTTP_PORT  int32  = 80
+	DEFAULT_HTTPS_PORT int32  = 443
+
+	urlRewriteRulePrefix      = "url-rewrite-rule-"
+	appRootForwardRulePrefix  = "app-root-forward-rule-"
+	appRootRedirectRulePrefix = "app-root-redirect-rule-"
+
+	// Indicator to use an F5 schema
+	schemaIndicator string = "f5schemadb://"
+
+	// Constants for CustomProfile.Type as defined in CCCL
+	CustomProfileAll    string = "all"
+	CustomProfileClient string = "clientside"
+	CustomProfileServer string = "serverside"
+
+	// Constants for CustomProfile.PeerCertMode
+	PeerCertRequired = "require"
+	PeerCertIgnored  = "ignore"
+	PeerCertDefault  = PeerCertIgnored
+
+	// Constants
+	HttpRedirectIRuleName = "http_redirect_irule"
+	// Internal data group for https redirect
+	HttpsRedirectDgName = "https_redirect_dg"
+)
+
+// constants for TLS references
+const (
+	// reference for profiles stored in BIG-IP
+	BIGIP = "bigip"
+	// reference for profiles stores as secrets in k8s cluster
+	Secret = "secret"
+)
+
 // ObjectDependencies contains each dependency and its use count (usually 1)
 type ObjectDependencies map[ObjectDependency]int
+
+// Store of CustomProfiles
+type CustomProfileStore struct {
+	sync.Mutex
+	Profs map[SecretKey]CustomProfile
+}
+
+func NewCustomProfile(
+	profile ProfileRef,
+	cert,
+	key,
+	serverName string,
+	sni bool,
+	peerCertMode,
+	caFile string,
+) CustomProfile {
+	cp := CustomProfile{
+		Name:         profile.Name,
+		Partition:    profile.Partition,
+		Context:      profile.Context,
+		Cert:         cert,
+		Key:          key,
+		ServerName:   serverName,
+		SNIDefault:   sni,
+		PeerCertMode: peerCertMode,
+	}
+	if peerCertMode == PeerCertRequired {
+		cp.CAFile = caFile
+	}
+	return cp
+}
+
+// NewCustomProfiles is a Constructor for CustomProfiles
+func NewCustomProfiles() *CustomProfileStore {
+	var cps CustomProfileStore
+	cps.Profs = make(map[SecretKey]CustomProfile)
+	return &cps
+}
+
+func NewIRule(name, partition, code string) *IRule {
+	return &IRule{
+		Name:      name,
+		Partition: partition,
+		Code:      code,
+	}
+}
+
+// Creates an IRule if it doesn't already exist
+func (crMgr *CRManager) addIRule(name, partition, rule string) {
+	crMgr.irulesMutex.Lock()
+	defer crMgr.irulesMutex.Unlock()
+
+	key := NameRef{
+		Name:      name,
+		Partition: partition,
+	}
+	if _, found := crMgr.irulesMap[key]; !found {
+		crMgr.irulesMap[key] = NewIRule(name, partition, rule)
+	}
+}
+
+// Creates an InternalDataGroup if it doesn't already exist
+func (crMgr *CRManager) addInternalDataGroup(name, partition string) {
+	crMgr.intDgMutex.Lock()
+	defer crMgr.intDgMutex.Unlock()
+
+	key := NameRef{
+		Name:      name,
+		Partition: partition,
+	}
+	if _, found := crMgr.intDgMap[key]; !found {
+		crMgr.intDgMap[key] = make(DataGroupNamespaceMap)
+	}
+}
+
+func JoinBigipPath(partition, objName string) string {
+	if objName == "" {
+		return ""
+	}
+	if partition == "" {
+		return objName
+	}
+	return fmt.Sprintf("/%s/%s", partition, objName)
+}
+
+// Adds an IRule reference to a Virtual object
+func (v *Virtual) AddIRule(ruleName string) bool {
+	for _, irule := range v.IRules {
+		if irule == ruleName {
+			return false
+		}
+	}
+	v.IRules = append(v.IRules, ruleName)
+	return true
+}
 
 // NewObjectDependencies parses an object and returns a map of its dependencies
 func NewObjectDependencies(
@@ -119,41 +253,50 @@ type portStruct struct {
 	port     int32
 }
 
+func (slice ProfileRefs) Less(i, j int) bool {
+	return ((slice[i].Partition < slice[j].Partition) ||
+		(slice[i].Partition == slice[j].Partition &&
+			slice[i].Name < slice[j].Name))
+}
+
+func (slice ProfileRefs) Len() int {
+	return len(slice)
+}
+
+func (slice ProfileRefs) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
 // Return the required ports for VS (depending on sslRedirect/allowHttp vals)
 func (crMgr *CRManager) virtualPorts(vs *cisapiv1.VirtualServer) []portStruct {
 
-	// TODO ==> This will change as we will support custom ports.
+	// TODO: Support Custom ports
 	const DEFAULT_HTTP_PORT int32 = 80
-	//const DEFAULT_HTTPS_PORT int32 = 443
+	const DEFAULT_HTTPS_PORT int32 = 443
 	var httpPort int32
-	// var httpsPort int32
+	var httpsPort int32
 	httpPort = DEFAULT_HTTP_PORT
-	// httpsPort = DEFAULT_HTTPS_PORT
+	httpsPort = DEFAULT_HTTPS_PORT
 
 	http := portStruct{
 		protocol: "http",
 		port:     httpPort,
 	}
-	// Support TLS Type, Create both HTTP and HTTPS
-	/**
+
 	https := portStruct{
 		protocol: "https",
 		port:     httpsPort,
-	}**/
+	}
 	var ports []portStruct
 
-	// Support TLS Type, Create both HTTP and HTTPS
-	/**
-	if len(vs.Spec.TLS) > 0 {
+	if 0 != len(vs.Spec.TLSProfileName) {
 		// 2 virtual servers needed, both HTTP and HTTPS
 		ports = append(ports, http)
 		ports = append(ports, https)
 	} else {
 		// HTTP only
 		ports = append(ports, http)
-	}**/
-
-	ports = append(ports, http)
+	}
 
 	return ports
 }
@@ -229,6 +372,203 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 	// If virtual server already exists with same name, it gets overridden
 	crMgr.resources.rsMap[cfg.Virtual.Name] = &cfg
 	return &cfg
+}
+
+// handleVirtualServerTLS handles TLS configuration for the Virtual Server resource
+// Return value is whether or not a custom profile was updated
+func (crMgr *CRManager) handleVirtualServerTLS(
+	rsCfg *ResourceConfig,
+	vs *cisapiv1.VirtualServer,
+	svcFwdRulesMap ServiceFwdRuleMap,
+) bool {
+	if 0 == len(vs.Spec.TLSProfileName) {
+		// Probably this is a non-tls Virtual Server, nothing to do w.r.t TLS
+		return false
+	}
+
+	var httpsPort int32
+	httpsPort = DEFAULT_HTTPS_PORT
+
+	// If we are processing the HTTPS server,
+	// then we don't need a redirect policy, only profiles
+	if rsCfg.Virtual.VirtualAddress.Port == httpsPort {
+		// Virtual Server related properties
+		// Virtual Server and TLSProfile are assumed to be in same namespace
+		vsNamespace := vs.ObjectMeta.Namespace
+		vsName := vs.ObjectMeta.Name
+
+		// TLSProfile name
+		tlsName := vs.Spec.TLSProfileName
+		tlsKey := fmt.Sprintf("%s/%s", vsNamespace, tlsName)
+
+		// Initialize CustomResource Informer for required namespace
+		crInf, ok := crMgr.getNamespaceInformer(vsNamespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", vsNamespace)
+			return false
+		}
+
+		// TODO: Create Internal Structure to hold TLSProfiles. Make API call only for a new TLSProfile
+		// Check if the TLSProfile exists and valid for us.
+		tlsInterface, tlsFound, _ := crInf.tsInformer.GetIndexer().GetByKey(tlsKey)
+		if !tlsFound {
+			log.Infof("TLSProfile %s is invalid", tlsName)
+			return false
+		}
+
+		// TLSProfile Object
+		tls := tlsInterface.(*cisapiv1.TLSProfile)
+
+		// Process Profile
+		switch tls.Spec.TLS.Reference {
+		case BIGIP:
+			clientSSL := tls.Spec.TLS.ClientSSL
+			serverSSL := tls.Spec.TLS.ServerSSL
+			// Profile is a BIG-IP default
+			log.Debugf("Processing BIGIP referenced profiles for Virtual '%s' using TLSProfile '%s'",
+				vsName, tlsName)
+			// Process referenced BIG-IP clientSSL
+			if clientSSL != "" {
+				clientProfRef := ConvertStringToProfileRef(
+					clientSSL, CustomProfileClient, vsNamespace)
+				rsCfg.Virtual.AddOrUpdateProfile(clientProfRef)
+			}
+			// Process referenced BIG-IP serverSSL
+			if serverSSL != "" {
+				serverProfRef := ConvertStringToProfileRef(
+					serverSSL, CustomProfileServer, vsNamespace)
+				rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
+			}
+			log.Debugf("Updated BIGIP referenced profiles for Virtual '%s' using TLSProfile '%s'",
+				vsName, tlsName)
+			return true
+		case Secret:
+			// Prepare SSL Transient Context
+			// Check if TLS Secret already exists
+			clientSSL := tls.Spec.TLS.ClientSSL
+			if secret, ok := crMgr.SSLContext[clientSSL]; ok {
+				log.Debugf("TLSProfile '%s' is already available with CIS in SSLContext",
+					tlsName)
+				err, _ := crMgr.createSecretSslProfile(rsCfg, secret)
+				if err != nil {
+					log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
+						err, vsName, tlsName)
+					return false
+				}
+			} else {
+				// Check if profile is contained in a Secret
+				// Update the SSL Context if secret found, This is used to avoid api calls
+				log.Debugf("TLSProfile '%s' does not exist with CIS in SSLContext, Store for further use",
+					tlsName)
+				secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
+					Get(clientSSL, metav1.GetOptions{})
+				if err != nil {
+					log.Debugf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
+						clientSSL, vsName, tlsName)
+					return false
+				}
+				crMgr.SSLContext[clientSSL] = secret
+				error, _ := crMgr.createSecretSslProfile(rsCfg, secret)
+				if error != nil {
+					log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
+						error, vsName, tlsName)
+					return false
+				}
+			}
+			profRef := ProfileRef{
+				Partition: rsCfg.Virtual.Partition,
+				Name:      clientSSL,
+				Context:   CustomProfileClient,
+				Namespace: vsNamespace,
+			}
+			rsCfg.Virtual.AddOrUpdateProfile(profRef)
+			return true
+		default:
+			log.Errorf("referenced profile does not exist for Virtual '%s' using TLSProfile '%s'",
+				vsName, tlsName)
+			return false
+		}
+	}
+
+	// httpTraffic defines the behaviour of http Virtual Server on BIG-IP
+	// Possible values are allow, none and redirect
+	httpTraffic := vs.Spec.HTTPTraffic
+	if httpTraffic != "" {
+		// -----------------------------------------------------------------
+		// httpTraffic = allow -> Allows HTTP
+		// httpTraffic = none  -> Only HTTPS
+		// httpTraffic = redirect -> redirects HTTP to HTTPS
+		// -----------------------------------------------------------------
+		if httpTraffic == "redirect" {
+			// set HTTP redirect iRule
+			log.Debugf("Applying HTTP redirect iRule.")
+			ruleName := fmt.Sprintf("%s_%d", HttpRedirectIRuleName, httpsPort)
+			crMgr.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(httpsPort))
+			crMgr.addInternalDataGroup(HttpsRedirectDgName, DEFAULT_PARTITION)
+			ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
+			rsCfg.Virtual.AddIRule(ruleName)
+			host := vs.Spec.Host
+			for _, pool := range vs.Spec.Pools {
+				svcFwdRulesMap.AddEntry(vs.ObjectMeta.Namespace,
+					pool.Service, host, pool.Path)
+			}
+		} else if httpTraffic == "allow" {
+			// State 3, do not apply any policy
+			log.Debugf("[CORE] TLS: Not applying any policies.")
+		}
+	}
+
+	return false
+}
+
+// ConvertStringToProfileRef converts strings to profile references
+func ConvertStringToProfileRef(profileName, context, ns string) ProfileRef {
+	profName := strings.TrimSpace(strings.TrimPrefix(profileName, "/"))
+	parts := strings.Split(profName, "/")
+	profRef := ProfileRef{Context: context, Namespace: ns}
+	switch len(parts) {
+	case 2:
+		profRef.Partition = parts[0]
+		profRef.Name = parts[1]
+	case 1:
+		log.Debugf("[RESOURCE] Partition not provided in profile '%s', using default partition '%s'",
+			profileName, DEFAULT_PARTITION)
+		profRef.Partition = DEFAULT_PARTITION
+		profRef.Name = profileName
+	default:
+		// This is almost certainly an error, but again issue a warning for
+		// improved context here and pass it through to be handled elsewhere.
+		log.Warningf("[RESOURCE] Profile name '%v' is formatted incorrectly.", profileName)
+	}
+	return profRef
+}
+
+// AddOrUpdateProfile updates profile to rsCfg
+func (v *Virtual) AddOrUpdateProfile(prof ProfileRef) bool {
+	// The profiles are maintained as a sorted array.
+	// The profiles are maintained as a sorted array.
+	keyFunc := func(i int) bool {
+		return ((v.Profiles[i].Partition > prof.Partition) ||
+			(v.Profiles[i].Partition == prof.Partition &&
+				v.Profiles[i].Name >= prof.Name))
+	}
+	profCt := v.Profiles.Len()
+	i := sort.Search(profCt, keyFunc)
+	if i < profCt && v.Profiles[i].Partition == prof.Partition &&
+		v.Profiles[i].Name == prof.Name {
+		// found, look for data changed
+		if v.Profiles[i].Context == prof.Context {
+			// unchanged
+			return false
+		}
+	} else {
+		// Insert into the correct position.
+		v.Profiles = append(v.Profiles, ProfileRef{})
+		copy(v.Profiles[i+1:], v.Profiles[i:])
+	}
+	v.Profiles[i] = prof
+
+	return true
 }
 
 // SetVirtualAddress sets a VirtualAddress
@@ -860,6 +1200,193 @@ func (rs *Resources) updateOldConfig() {
 // resource configs.
 func (rs *Resources) deleteVirtualServer(rsName string) {
 	delete(rs.rsMap, rsName)
+}
+
+func NewInternalDataGroup(name, partition string) *InternalDataGroup {
+	// Need to explicitly initialize Records to an empty array so it isn't nil.
+	return &InternalDataGroup{
+		Name:      name,
+		Partition: partition,
+		Records:   []InternalDataGroupRecord{},
+	}
+}
+
+// DataGroup flattening.
+type FlattenConflictFunc func(key, oldVal, newVal string) string
+
+// Internal data group for passthrough routes to map server names to pools.
+const PassthroughHostsDgName = "ssl_passthrough_servername_dg"
+
+// Internal data group for reencrypt routes.
+const ReencryptHostsDgName = "ssl_reencrypt_servername_dg"
+
+// Internal data group for edge routes.
+const EdgeHostsDgName = "ssl_edge_servername_dg"
+
+// Internal data group for reencrypt routes that maps the host name to the
+// server ssl profile.
+const ReencryptServerSslDgName = "ssl_reencrypt_serverssl_dg"
+
+// Internal data group for edge routes that maps the host name to the
+// false. This will help Irule to understand ssl should be disabled
+// on serverside.
+const EdgeServerSslDgName = "ssl_edge_serverssl_dg"
+
+// Internal data group for ab deployment routes.
+const AbDeploymentDgName = "ab_deployment_dg"
+
+var groupFlattenFuncMap = map[string]FlattenConflictFunc{
+	PassthroughHostsDgName:   flattenConflictWarn,
+	ReencryptHostsDgName:     flattenConflictWarn,
+	EdgeHostsDgName:          flattenConflictWarn,
+	ReencryptServerSslDgName: flattenConflictWarn,
+	EdgeServerSslDgName:      flattenConflictWarn,
+	HttpsRedirectDgName:      flattenConflictConcat,
+	AbDeploymentDgName:       flattenConflictConcat,
+}
+
+func flattenConflictConcat(key, oldVal, newVal string) string {
+	// Tokenize both values and add to a map to ensure uniqueness
+	pathMap := make(map[string]bool)
+	for _, token := range strings.Split(oldVal, "|") {
+		pathMap[token] = true
+	}
+	for _, token := range strings.Split(newVal, "|") {
+		pathMap[token] = true
+	}
+
+	// Convert back to an array
+	paths := []string{}
+	for path, _ := range pathMap {
+		paths = append(paths, path)
+	}
+
+	// Sort the paths to have consistent ordering
+	sort.Strings(paths)
+
+	// Write back out to a delimited string
+	var buf bytes.Buffer
+	for i, path := range paths {
+		if i > 0 {
+			buf.WriteString("|")
+		}
+		buf.WriteString(path)
+	}
+
+	return buf.String()
+}
+
+func flattenConflictWarn(key, oldVal, newVal string) string {
+	fmt.Printf("Found mismatch for key '%v' old value: '%v' new value: '%v'\n", key, oldVal, newVal)
+	return oldVal
+}
+
+func (dgnm DataGroupNamespaceMap) FlattenNamespaces() *InternalDataGroup {
+
+	// Try to be efficient in these common cases.
+	if len(dgnm) == 0 {
+		// No namespaces.
+		return nil
+	} else if len(dgnm) == 1 {
+		// Only 1 namespace, just return its dg - no flattening needed.
+		for _, dg := range dgnm {
+			return dg
+		}
+	}
+
+	// Use a map to identify duplicates across namespaces
+	var partition, name string
+	flatMap := make(map[string]string)
+	for _, dg := range dgnm {
+		if partition == "" {
+			partition = dg.Partition
+		}
+		if name == "" {
+			name = dg.Name
+		}
+		for _, rec := range dg.Records {
+			item, found := flatMap[rec.Name]
+			if found {
+				if item != rec.Data {
+					conflictFunc, ok := groupFlattenFuncMap[dg.Name]
+					if !ok {
+						log.Warningf("[RESOURCE] No DataGroup conflict handler defined for '%v'",
+							dg.Name)
+						conflictFunc = flattenConflictWarn
+					}
+					newVal := conflictFunc(rec.Name, item, rec.Data)
+					flatMap[rec.Name] = newVal
+				}
+			} else {
+				flatMap[rec.Name] = rec.Data
+			}
+		}
+	}
+
+	// Create a new datagroup to hold the flattened results
+	newDg := InternalDataGroup{
+		Partition: partition,
+		Name:      name,
+	}
+	for name, data := range flatMap {
+		newDg.AddOrUpdateRecord(name, data)
+	}
+
+	return &newDg
+}
+
+func (slice InternalDataGroupRecords) Less(i, j int) bool {
+	return slice[i].Name < slice[j].Name
+}
+
+func (slice InternalDataGroupRecords) Len() int {
+	return len(slice)
+}
+
+func (slice InternalDataGroupRecords) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
+func (idg *InternalDataGroup) AddOrUpdateRecord(name, data string) bool {
+	// The records are maintained as a sorted array.
+	nameKeyFunc := func(i int) bool {
+		return idg.Records[i].Name >= name
+	}
+	i := sort.Search(idg.Records.Len(), nameKeyFunc)
+	if i < idg.Records.Len() && idg.Records[i].Name == name {
+		if idg.Records[i].Data != data {
+			// name found with different data, update
+			idg.Records[i].Data = data
+			return true
+		}
+		// name found with same data
+		return false
+	}
+
+	// Insert into the correct position.
+	idg.Records = append(idg.Records, InternalDataGroupRecord{})
+	copy(idg.Records[i+1:], idg.Records[i:])
+	idg.Records[i] = InternalDataGroupRecord{Name: name, Data: data}
+
+	return true
+}
+
+func (idg *InternalDataGroup) RemoveRecord(name string) bool {
+	// The records are maintained as a sorted array.
+	nameKeyFunc := func(i int) bool {
+		return idg.Records[i].Name >= name
+	}
+	nbrRecs := idg.Records.Len()
+	i := sort.Search(nbrRecs, nameKeyFunc)
+	if i < nbrRecs && idg.Records[i].Name == name {
+		// found, remove it and adjust the array.
+		nbrRecs -= 1
+		copy(idg.Records[i:], idg.Records[i+1:])
+		idg.Records[nbrRecs] = InternalDataGroupRecord{}
+		idg.Records = idg.Records[:nbrRecs]
+		return true
+	}
+	return false
 }
 
 // AS3NameFormatter formarts resources names according to AS3 convention

@@ -20,12 +20,13 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
-
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"sync"
 )
 
 type (
@@ -47,6 +48,15 @@ type (
 		oldNodes        []Node
 		UseNodeInternal bool
 		initState       bool
+		SSLContext      map[string]*v1.Secret
+		customProfiles  *CustomProfileStore
+		// Mutex for irulesMap
+		irulesMutex sync.Mutex
+		// Mutex for intDgMap
+		intDgMutex sync.Mutex
+		// App informer support
+		irulesMap IRulesMap
+		intDgMap  InternalDataGroupMap
 	}
 	// Params defines parameters
 	Params struct {
@@ -102,6 +112,7 @@ type (
 		IpProtocol            string                `json:"ipProtocol,omitempty"`
 		SourceAddrTranslation SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
 		Policies              []nameRef             `json:"policies,omitempty"`
+		Profiles              ProfileRefs           `json:"profiles,omitempty"`
 		IRules                []string              `json:"rules,omitempty"`
 		Description           string                `json:"description,omitempty"`
 		VirtualAddress        *virtualAddress       `json:"-"`
@@ -136,6 +147,12 @@ type (
 	}
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
+
+	ResourceConfigWrapper struct {
+		rsCfgs   ResourceConfigs
+		iRuleMap IRulesMap
+		intDgMap InternalDataGroupMap
+	}
 
 	// Pool config
 	Pool struct {
@@ -215,6 +232,36 @@ type (
 	Rules   []*Rule
 	ruleMap map[string]*Rule
 
+	// iRules
+	IRule struct {
+		Name      string `json:"name"`
+		Partition string `json:"-"`
+		Code      string `json:"apiAnonymous"`
+	}
+
+	IRulesMap map[NameRef]*IRule
+
+	InternalDataGroup struct {
+		Name      string                   `json:"name"`
+		Partition string                   `json:"-"`
+		Records   InternalDataGroupRecords `json:"records"`
+	}
+
+	InternalDataGroupRecord struct {
+		Name string `json:"name"`
+		Data string `json:"data"`
+	}
+	InternalDataGroupRecords []InternalDataGroupRecord
+
+	DataGroupNamespaceMap map[string]*InternalDataGroup
+	InternalDataGroupMap  map[NameRef]DataGroupNamespaceMap
+
+	// virtual server policy/profile reference
+	NameRef struct {
+		Name      string `json:"name"`
+		Partition string `json:"partition"`
+	}
+
 	// Policy Virtual policy
 	Policy struct {
 		Name        string   `json:"name"`
@@ -229,7 +276,45 @@ type (
 	}
 	// Policies is slice of policy
 	Policies []Policy
+
+	// ProfileRef is a Reference to pre-existing profiles
+	ProfileRef struct {
+		Name      string `json:"name"`
+		Partition string `json:"partition"`
+		Context   string `json:"context"` // 'clientside', 'serverside', or 'all'
+		// Used as reference to which Namespace/Ingress this profile came from
+		// (for deletion purposes)
+		Namespace string `json:"-"`
+	}
+	// ProfileRefs is a list of ProfileRef
+	ProfileRefs []ProfileRef
+
+	SecretKey struct {
+		Name         string
+		ResourceName string
+	}
+
+	// SSL Profile loaded from Secret or Route object
+	CustomProfile struct {
+		Name         string `json:"name"`
+		Partition    string `json:"-"`
+		Context      string `json:"context"` // 'clientside', 'serverside', or 'all'
+		Cert         string `json:"cert"`
+		Key          string `json:"key"`
+		ServerName   string `json:"serverName,omitempty"`
+		SNIDefault   bool   `json:"sniDefault,omitempty"`
+		PeerCertMode string `json:"peerCertMode,omitempty"`
+		CAFile       string `json:"caFile,omitempty"`
+	}
 )
+
+type serviceQueueKey struct {
+	Namespace   string
+	ServiceName string
+	Name        string // Name of the resource
+	Operation   string
+	Data        string
+}
 
 type (
 	Agent struct {

@@ -19,6 +19,7 @@ package crmanager
 import (
 	"fmt"
 	"net/url"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -261,4 +262,160 @@ func (rules Rules) Less(i, j int) bool {
 
 func (rules Rules) Swap(i, j int) {
 	rules[i], rules[j] = rules[j], rules[i]
+}
+
+func httpRedirectIRule(port int32) string {
+	// The key in the data group is the host name or * to match all.
+	// The data is a list of paths for the host delimited by '|' or '/' for all.
+	iRuleCode := fmt.Sprintf(`
+		when HTTP_REQUEST {
+			
+			# check if there is an entry in data-groups to accept requests from all domains.
+			# */ represents [* -> Any host / -> default path]
+			set allHosts [class match -value "*/" equals https_redirect_dg]
+			if {$allHosts != ""} {
+				HTTP::redirect https://[getfield [HTTP::host] ":" 1]:443[HTTP::uri]
+				return
+			}
+			set host [HTTP::host]
+			set path [HTTP::path]
+			# Check for the combination of host and path.
+			append host $path
+			# Find the number of "/" in the hostpath
+			set rc 0
+			foreach x [split $host {}] {
+			    if {$x eq "/"} {
+					   incr rc
+				   }
+			}
+			# Compares the hostpath with the entries in https_redirect_dg
+			for {set i $rc} {$i >= 0} {incr i -1} {
+				set paths [class match -value $host equals https_redirect_dg] 
+				# Check if host with combination of "/" matches https_redirect_dg
+				if {$paths == ""} {
+					set hosts ""
+					append hosts $host "/"
+					set paths [class match -value $hosts equals https_redirect_dg] 
+				}
+				# Trim the uri to last slash
+				if {$paths == ""} {
+					set host [
+						string range $host 0 [
+							expr {[string last "/" $host]-1}
+						]
+					]
+				}
+				else {
+					break
+				}
+			}
+			if {$paths != ""} {
+				set redir 0
+				set prefix ""
+				foreach s [split $paths "|"] {
+					# See if the request path starts with the prefix
+					append prefix "^" $s "($|/*)"
+					if {[HTTP::path] matches_regex $prefix} {
+						set redir 1
+						break
+					}
+				}
+				if {$redir == 1} {
+					HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]
+				}
+			}
+		}`, port)
+
+	return iRuleCode
+}
+
+func NewServiceFwdRuleMap() ServiceFwdRuleMap {
+	return make(ServiceFwdRuleMap)
+}
+
+// key is namespace/serviceName, data is map of host to paths.
+type ServiceFwdRuleMap map[serviceQueueKey]HostFwdRuleMap
+
+// key is fqdn host name, data is map of paths.
+type HostFwdRuleMap map[string]FwdRuleMap
+
+// key is path regex, data unused. Using a map as go doesn't have a set type.
+type FwdRuleMap map[string]bool
+
+func (sfrm ServiceFwdRuleMap) AddEntry(ns, svc, host, path string) {
+	if path == "" {
+		path = "/"
+	}
+	sKey := serviceQueueKey{Namespace: ns, ServiceName: svc}
+	hfrm, found := sfrm[sKey]
+	if !found {
+		hfrm = make(HostFwdRuleMap)
+		sfrm[sKey] = hfrm
+	}
+	frm, found := hfrm[host]
+	if !found {
+		frm = make(FwdRuleMap)
+		hfrm[host] = frm
+	}
+	if _, found = frm[path]; !found {
+		frm[path] = true
+	}
+}
+
+func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap) {
+	// Multiple service keys may reference the same host, so flatten those first
+	for skey, hostMap := range sfrm {
+		nsGrp, found := dgMap[skey.Namespace]
+		if !found {
+			nsGrp = &InternalDataGroup{
+				Name:      HttpsRedirectDgName,
+				Partition: DEFAULT_PARTITION,
+			}
+			dgMap[skey.Namespace] = nsGrp
+		}
+		for host, pathMap := range hostMap {
+			for path, _ := range pathMap {
+				nsGrp.AddOrUpdateRecord(host+path, path)
+			}
+
+		}
+	}
+}
+
+// Update the datagroups cache, indicating if something
+// had changed by updating 'stats', which should rewrite the config.
+func (crMgr *CRManager) syncDataGroups(
+	dgMap InternalDataGroupMap,
+	namespace string,
+) {
+	crMgr.intDgMutex.Lock()
+	defer crMgr.intDgMutex.Unlock()
+
+	// Add new or modified data group records
+	for mapKey, grp := range dgMap {
+		nsDg, found := crMgr.intDgMap[mapKey]
+		if found {
+			if !reflect.DeepEqual(nsDg[namespace], grp[namespace]) {
+				// current namespace records aren't equal
+				nsDg[namespace] = grp[namespace]
+			}
+		} else {
+			crMgr.intDgMap[mapKey] = grp
+		}
+	}
+
+	// Remove non-existent data group records (those that are currently
+	// defined, but aren't part of the new set)
+	for mapKey, nsDg := range crMgr.intDgMap {
+		_, found := dgMap[mapKey]
+		if !found {
+			_, found := nsDg[namespace]
+			if found {
+				delete(nsDg, namespace)
+				if len(nsDg) == 0 {
+					delete(crMgr.intDgMap, mapKey)
+				}
+			}
+		}
+	}
 }

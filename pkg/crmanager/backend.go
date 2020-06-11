@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -105,8 +106,8 @@ func (agent *Agent) Stop() {
 	agent.stopPythonDriver()
 }
 
-func (agent *Agent) PostConfig(rsCfgs ResourceConfigs) {
-	decl := createAS3Declaration(rsCfgs)
+func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
+	decl := createAS3Declaration(config)
 	if DeepEqualJSON(agent.activeDecl, decl) {
 		log.Debug("[AS3] No Change in the Configuration")
 		return
@@ -114,7 +115,7 @@ func (agent *Agent) PostConfig(rsCfgs ResourceConfigs) {
 	agent.Write(string(decl), nil)
 	agent.activeDecl = decl
 
-	allPoolMembers := rsCfgs.GetAllPoolMembers()
+	allPoolMembers := config.rsCfgs.GetAllPoolMembers()
 
 	// Convert allPoolMembers to appmanger.Members so that vxlan Manger accepts
 	var allPoolMems []rsc.Member
@@ -135,12 +136,12 @@ func (agent *Agent) PostConfig(rsCfgs ResourceConfigs) {
 }
 
 //Create AS3 declaration
-func createAS3Declaration(rsCfgs ResourceConfigs) as3Declaration {
+func createAS3Declaration(config ResourceConfigWrapper) as3Declaration {
 	var as3Config map[string]interface{}
 	_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
 
 	adc := as3Config["declaration"].(map[string]interface{})
-	for k, v := range createAS3ADC(rsCfgs) {
+	for k, v := range createAS3ADC(config) {
 		adc[k] = v
 	}
 
@@ -151,14 +152,22 @@ func createAS3Declaration(rsCfgs ResourceConfigs) as3Declaration {
 	return as3Declaration(decl)
 }
 
-func createAS3ADC(rsCfgs ResourceConfigs) as3ADC {
+func createAS3ADC(config ResourceConfigWrapper) as3ADC {
 
 	// Create Shared as3Application object
 	sharedApp := as3Application{}
 	sharedApp["class"] = "Application"
 	sharedApp["template"] = "shared"
 	// Process rscfg to create AS3 Resources
-	processResourcesForAS3(rsCfgs, sharedApp)
+	processResourcesForAS3(config.rsCfgs, sharedApp)
+
+	// Process Profiles
+	processProfilesForAS3(config.rsCfgs, sharedApp)
+
+	processIRulesForAS3(config.iRuleMap, sharedApp)
+
+	processDataGroupForAS3(config.intDgMap, sharedApp)
+
 	// Create AS3 Tenant
 	tenant := as3Tenant{
 		"class":              "Tenant",
@@ -168,6 +177,79 @@ func createAS3ADC(rsCfgs ResourceConfigs) as3ADC {
 		DEFAULT_PARTITION: tenant,
 	}
 	return as3JSONDecl
+}
+
+func processIRulesForAS3(iRuleMao IRulesMap, sharedApp as3Application) {
+	// Create irule declaration
+	for _, v := range iRuleMao {
+		iRule := &as3IRules{}
+		iRule.Class = "iRule"
+		iRule.IRule = v.Code
+		sharedApp[as3FormatedString(v.Name, deriveResourceTypeFromAS3Value(v.Name))] = iRule
+	}
+}
+
+func processDataGroupForAS3(intDgMap InternalDataGroupMap, sharedApp as3Application) {
+	for idk, idg := range intDgMap {
+		for _, dg := range idg {
+			dataGroupRecord, found := sharedApp[as3FormatedString(dg.Name, "")]
+			if !found {
+				dgMap := &as3DataGroup{}
+				dgMap.Class = "Data_Group"
+				dgMap.KeyDataType = "string"
+				for _, record := range dg.Records {
+					var rec as3Record
+					rec.Key = record.Name
+					// To override default Value created for CCCL for certain DG types
+					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
+						rec.Value = val
+					} else {
+						rec.Value = as3FormatedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+					}
+					dgMap.Records = append(dgMap.Records, rec)
+				}
+				// sort above create dgMap records.
+				sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
+				sharedApp[as3FormatedString(dg.Name, "")] = dgMap
+			} else {
+				for _, record := range dg.Records {
+					var rec as3Record
+					rec.Key = record.Name
+					// To override default Value created for CCCL for certain DG types
+					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
+						rec.Value = val
+					} else {
+						rec.Value = as3FormatedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+					}
+					sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
+				}
+				// sort above created
+				sort.Slice(sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records,
+					func(i, j int) bool {
+						return (sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records[i].Key <
+							sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records[j].Key)
+					})
+			}
+		}
+	}
+}
+
+func getDGRecordValueForAS3(dgName string, sharedApp as3Application) (string, bool) {
+	switch dgName {
+	case ReencryptServerSslDgName:
+		for _, v := range sharedApp {
+			if svc, ok := v.(*as3Service); ok && svc.Class == "Service_HTTPS" {
+				if val, ok := svc.ClientTLS.(*as3ResourcePointer); ok {
+					return val.BigIP, true
+				}
+				if val, ok := svc.ClientTLS.(string); ok {
+					return strings.Join([]string{"", DEFAULT_PARTITION, as3SharedApplication, val}, "/"), true
+				}
+				log.Errorf("Unable to find serverssl for Data Group: %v\n", dgName)
+			}
+		}
+	}
+	return "", false
 }
 
 //Process for AS3 Resource
@@ -455,4 +537,51 @@ func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
 	}
 
 	return reflect.DeepEqual(o1, o2)
+}
+
+func processProfilesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
+	for _, cfg := range rsCfgs {
+		if svc, ok := sharedApp[cfg.Virtual.Name].(*as3Service); ok {
+			processTLSProfilesForAS3(&cfg.Virtual, svc)
+		}
+	}
+}
+
+func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service) {
+	// lets discard BIGIP profile creation when there exists a custom profile.
+	for _, profile := range virtual.Profiles {
+		switch profile.Context {
+		case rsc.CustomProfileClient:
+			// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
+			svc.ServerTLS = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+			}
+			updateVirtualToHTTPS(svc)
+		case rsc.CustomProfileServer:
+			// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
+			svc.ClientTLS = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+			}
+			updateVirtualToHTTPS(svc)
+		}
+	}
+}
+
+// Return CustomResource Type.
+func deriveResourceTypeFromAS3Value(val string) string {
+	return VirtualServer
+}
+
+//Replacing "-" with "_" for given string
+// also handling the IP addr to string as per AS3 for Ingress Resource.
+func as3FormatedString(str string, resourceType string) string {
+	var formattedString string
+
+	formattedString = strings.Replace(str, "-", "_", -1)
+	formattedString = strings.ReplaceAll(formattedString, "openshift_route", "osr")
+
+	//Reducing object name length by giving a shortened form of a word.
+	formattedString = strings.ReplaceAll(formattedString, "client_ssl", "cssl")
+	formattedString = strings.ReplaceAll(formattedString, "server_ssl", "sssl")
+	return formattedString
 }

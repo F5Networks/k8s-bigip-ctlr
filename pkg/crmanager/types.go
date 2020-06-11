@@ -17,6 +17,8 @@
 package crmanager
 
 import (
+	"sync"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
@@ -26,7 +28,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"sync"
 )
 
 type (
@@ -149,9 +150,10 @@ type (
 	ResourceConfigs []*ResourceConfig
 
 	ResourceConfigWrapper struct {
-		rsCfgs   ResourceConfigs
-		iRuleMap IRulesMap
-		intDgMap InternalDataGroupMap
+		rsCfgs         ResourceConfigs
+		iRuleMap       IRulesMap
+		intDgMap       InternalDataGroupMap
+		customProfiles *CustomProfileStore
 	}
 
 	// Pool config

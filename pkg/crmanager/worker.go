@@ -124,9 +124,10 @@ func (crMgr *CRManager) processResource() bool {
 	) {
 
 		config := ResourceConfigWrapper{
-			rsCfgs:   crMgr.resources.GetAllResources(),
-			iRuleMap: crMgr.irulesMap,
-			intDgMap: crMgr.intDgMap,
+			rsCfgs:         crMgr.resources.GetAllResources(),
+			iRuleMap:       crMgr.irulesMap,
+			intDgMap:       crMgr.intDgMap,
+			customProfiles: crMgr.customProfiles,
 		}
 
 		crMgr.Agent.PostConfig(config)

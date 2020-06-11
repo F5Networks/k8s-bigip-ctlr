@@ -161,6 +161,9 @@ func createAS3ADC(config ResourceConfigWrapper) as3ADC {
 	// Process rscfg to create AS3 Resources
 	processResourcesForAS3(config.rsCfgs, sharedApp)
 
+	// Process CustomProfiles
+	processCustomProfilesForAS3(config.customProfiles, sharedApp)
+
 	// Process Profiles
 	processProfilesForAS3(config.rsCfgs, sharedApp)
 
@@ -185,14 +188,14 @@ func processIRulesForAS3(iRuleMao IRulesMap, sharedApp as3Application) {
 		iRule := &as3IRules{}
 		iRule.Class = "iRule"
 		iRule.IRule = v.Code
-		sharedApp[as3FormatedString(v.Name, deriveResourceTypeFromAS3Value(v.Name))] = iRule
+		sharedApp[v.Name] = iRule
 	}
 }
 
 func processDataGroupForAS3(intDgMap InternalDataGroupMap, sharedApp as3Application) {
 	for idk, idg := range intDgMap {
 		for _, dg := range idg {
-			dataGroupRecord, found := sharedApp[as3FormatedString(dg.Name, "")]
+			dataGroupRecord, found := sharedApp[dg.Name]
 			if !found {
 				dgMap := &as3DataGroup{}
 				dgMap.Class = "Data_Group"
@@ -204,13 +207,13 @@ func processDataGroupForAS3(intDgMap InternalDataGroupMap, sharedApp as3Applicat
 					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
 						rec.Value = val
 					} else {
-						rec.Value = as3FormatedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+						rec.Value = record.Data
 					}
 					dgMap.Records = append(dgMap.Records, rec)
 				}
 				// sort above create dgMap records.
 				sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
-				sharedApp[as3FormatedString(dg.Name, "")] = dgMap
+				sharedApp[dg.Name] = dgMap
 			} else {
 				for _, record := range dg.Records {
 					var rec as3Record
@@ -219,15 +222,15 @@ func processDataGroupForAS3(intDgMap InternalDataGroupMap, sharedApp as3Applicat
 					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
 						rec.Value = val
 					} else {
-						rec.Value = as3FormatedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+						rec.Value = record.Data
 					}
-					sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
+					sharedApp[dg.Name].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
 				}
 				// sort above created
-				sort.Slice(sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records,
+				sort.Slice(sharedApp[dg.Name].(*as3DataGroup).Records,
 					func(i, j int) bool {
-						return (sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records[i].Key <
-							sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records[j].Key)
+						return (sharedApp[dg.Name].(*as3DataGroup).Records[i].Key <
+							sharedApp[dg.Name].(*as3DataGroup).Records[j].Key)
 					})
 			}
 		}
@@ -567,21 +570,117 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service) {
 	}
 }
 
-// Return CustomResource Type.
-func deriveResourceTypeFromAS3Value(val string) string {
-	return VirtualServer
+func processCustomProfilesForAS3(customProfiles *CustomProfileStore, sharedApp as3Application) {
+	caBundleName := "serverssl_ca_bundle"
+	var tlsClient *as3TLSClient
+	// TLS Certificates are available in CustomProfiles
+	for key, prof := range customProfiles.Profs {
+		// Create TLSServer and Certificate for each profile
+		svcName := key.ResourceName
+		if svcName == "" {
+			continue
+		}
+		if ok := createUpdateTLSServer(prof, svcName, sharedApp); ok {
+			// Create Certificate only if the corresponding TLSServer is created
+			createCertificateDecl(prof, sharedApp)
+		} else {
+			createUpdateCABundle(prof, caBundleName, sharedApp)
+			if tlsClient == nil {
+				tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
+			}
+			skey := SecretKey{
+				Name: prof.Name + "-ca",
+			}
+			if _, ok := customProfiles.Profs[skey]; ok && tlsClient != nil {
+				// If a profile exist in customProfiles with key as created above
+				// then it indicates that secure-serverssl needs to be added
+				tlsClient.ValidateCertificate = true
+			}
+		}
+	}
 }
 
-//Replacing "-" with "_" for given string
-// also handling the IP addr to string as per AS3 for Ingress Resource.
-func as3FormatedString(str string, resourceType string) string {
-	var formattedString string
+// createUpdateTLSServer creates a new TLSServer instance or updates if one exists already
+func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Application) bool {
+	// A TLSServer profile needs to carry both Certificate and Key
+	if "" != prof.Cert && "" != prof.Key {
+		svc := sharedApp[svcName].(*as3Service)
+		tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
+		certName := prof.Name
 
-	formattedString = strings.Replace(str, "-", "_", -1)
-	formattedString = strings.ReplaceAll(formattedString, "openshift_route", "osr")
+		tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
+		if !ok {
+			tlsServer = &as3TLSServer{
+				Class:        "TLS_Server",
+				Certificates: []as3TLSServerCertificates{},
+			}
 
-	//Reducing object name length by giving a shortened form of a word.
-	formattedString = strings.ReplaceAll(formattedString, "client_ssl", "cssl")
-	formattedString = strings.ReplaceAll(formattedString, "server_ssl", "sssl")
-	return formattedString
+			sharedApp[tlsServerName] = tlsServer
+			svc.ServerTLS = tlsServerName
+			updateVirtualToHTTPS(svc)
+		}
+
+		tlsServer.Certificates = append(
+			tlsServer.Certificates,
+			as3TLSServerCertificates{
+				Certificate: certName,
+			},
+		)
+		return true
+	}
+	return false
+}
+
+func createCertificateDecl(prof CustomProfile, sharedApp as3Application) {
+	if "" != prof.Cert && "" != prof.Key {
+		cert := &as3Certificate{
+			Class:       "Certificate",
+			Certificate: prof.Cert,
+			PrivateKey:  prof.Key,
+			ChainCA:     prof.CAFile,
+		}
+		sharedApp[prof.Name] = cert
+	}
+}
+
+func createUpdateCABundle(prof CustomProfile, caBundleName string, sharedApp as3Application) {
+	// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
+	if "" != prof.Cert && "" == prof.Key {
+		caBundle, ok := sharedApp[caBundleName].(*as3CABundle)
+
+		if !ok {
+			caBundle = &as3CABundle{
+				Class:  "CA_Bundle",
+				Bundle: "",
+			}
+			sharedApp[caBundleName] = caBundle
+		}
+		caBundle.Bundle += "\n" + prof.Cert
+	}
+}
+
+func createTLSClient(
+	prof CustomProfile,
+	svcName, caBundleName string,
+	sharedApp as3Application,
+) *as3TLSClient {
+	// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
+	if "" != prof.Cert && "" == prof.Key {
+		svc := sharedApp[svcName].(*as3Service)
+		tlsClientName := fmt.Sprintf("%s_tls_client", svcName)
+
+		tlsClient := &as3TLSClient{
+			Class: "TLS_Client",
+			TrustCA: &as3ResourcePointer{
+				Use: caBundleName,
+			},
+		}
+
+		sharedApp[tlsClientName] = tlsClient
+		svc.ClientTLS = tlsClientName
+		updateVirtualToHTTPS(svc)
+
+		return tlsClient
+	}
+	return nil
 }

@@ -45,6 +45,7 @@ func processVirtualServerRules(
 		poolName := formatVirtualServerPoolName(
 			vs.ObjectMeta.Namespace,
 			pl.Service,
+			pl.NodeMemberLabel,
 		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, pl.Path, poolName)
 		rl, err := createRule(uri, poolName, ruleName)

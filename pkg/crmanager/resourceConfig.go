@@ -311,8 +311,11 @@ func formatVirtualServerName(ip string, port int32) string {
 }
 
 // format the pool name for an VirtualServer
-func formatVirtualServerPoolName(namespace, svc string) string {
+func formatVirtualServerPoolName(namespace, svc string, nodeMemberLabel string) string {
 	poolName := fmt.Sprintf("%s_%s", namespace, svc)
+	if nodeMemberLabel != "" {
+		poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
+	}
 	return AS3NameFormatter(poolName)
 }
 
@@ -345,10 +348,12 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 			Name: formatVirtualServerPoolName(
 				vs.ObjectMeta.Namespace,
 				pl.Service,
+				pl.NodeMemberLabel,
 			),
-			Partition:   cfg.Virtual.Partition,
-			ServiceName: pl.Service,
-			ServicePort: pl.ServicePort,
+			Partition:       cfg.Virtual.Partition,
+			ServiceName:     pl.Service,
+			ServicePort:     pl.ServicePort,
+			NodeMemberLabel: pl.NodeMemberLabel,
 		}
 		pools = append(pools, pool)
 	}
@@ -1392,7 +1397,7 @@ func (idg *InternalDataGroup) RemoveRecord(name string) bool {
 // AS3NameFormatter formarts resources names according to AS3 convention
 // TODO: Should we use this? Or this will be done in agent?
 func AS3NameFormatter(name string) string {
-	replacer := strings.NewReplacer(".", "_", ":", "_", "/", "_", "%", ".", "-", "_")
+	replacer := strings.NewReplacer(".", "_", ":", "_", "/", "_", "%", ".", "-", "_", "=", "_")
 	name = replacer.Replace(name)
 	return name
 }

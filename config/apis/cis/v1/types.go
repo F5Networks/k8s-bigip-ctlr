@@ -27,9 +27,10 @@ type VirtualServerSpec struct {
 
 // Pool defines a pool object in BIG-IP.
 type Pool struct {
-	Path        string `json:"path"`
-	Service     string `json:"service"`
-	ServicePort int32  `json:"servicePort"`
+	Path            string `json:"path"`
+	Service         string `json:"service"`
+	ServicePort     int32  `json:"servicePort"`
+	NodeMemberLabel string `json:"nodeMemberLabel"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

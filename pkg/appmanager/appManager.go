@@ -577,7 +577,7 @@ func (appMgr *Manager) newAppInformer(
 		&cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { appMgr.enqueueService(obj) },
 			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueService(cur) },
-			DeleteFunc: func(obj interface{}) { appMgr.enqueueService(obj) },
+			DeleteFunc: func(obj interface{}) { appMgr.enqueueDeletedService(obj) },
 		},
 		resyncPeriod,
 	)
@@ -646,6 +646,15 @@ func (appMgr *Manager) enqueueDeletedConfigMap(obj interface{}) {
 func (appMgr *Manager) enqueueService(obj interface{}) {
 	if ok, keys := appMgr.checkValidService(obj); ok {
 		for _, key := range keys {
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) enqueueDeletedService(obj interface{}) {
+	if ok, keys := appMgr.checkValidService(obj); ok {
+		for _, key := range keys {
+			key.Operation = OprTypeDelete
 			appMgr.vsQueue.Add(*key)
 		}
 	}
@@ -967,6 +976,14 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 
 	var stats vsSyncStats
 	appMgr.rsrcSSLCtxt = make(map[string]*v1.Secret)
+
+	if nil != svc && nil != appInf.svcInformer {
+		err = appMgr.syncLBServices(&stats, sKey, rsMap, svc, appInf)
+		if nil != err {
+			return err
+		}
+	}
+
 	if nil != appInf.ingInformer {
 		err = appMgr.syncIngresses(&stats, sKey, rsMap, svcPortMap, svc, appInf, dgMap)
 		if nil != err {
@@ -1584,6 +1601,192 @@ func (appMgr *Manager) syncRoutes(
 	return nil
 }
 
+// TODO: Need to be implemented
+func (appMgr *Manager) getExternalIP(svcKey ServiceKey) string {
+	return appMgr.routeConfig.RouteVSAddr
+}
+
+// TODO: Need to be implemented
+func (appMgr *Manager) enquireExternalIP(svcKey ServiceKey) string {
+	return appMgr.routeConfig.RouteVSAddr
+}
+
+func (appMgr *Manager) syncLBServices(
+	stats *vsSyncStats,
+	sKey serviceQueueKey,
+	rsMap ResourceMap,
+	svc *v1.Service,
+	appInf *appInformer,
+) error {
+
+	prepareName := func(res string, svc *v1.Service) string {
+		var replacer = strings.NewReplacer(".", "-", ":", "-", "/", "-", "%", ".")
+
+		name := fmt.Sprintf("%v_%v_%v",
+			res,
+			svc.ObjectMeta.Namespace,
+			svc.ObjectMeta.Name,
+		)
+		name = replacer.Replace(name)
+		return name
+	}
+
+	removeCfgFromrsMap := func(svcPort int32, rsName string) {
+		// Match, remove config from rsMap so we don't delete it at the end.
+		// (rsMap contains configs we want to delete).
+		// In the case of Ingress/Routes: If the svc(s) of the currently processed ingress/route
+		// doesn't match the svc in our ServiceKey, then we don't want to remove the config from the map.
+		// Multiple Ingress/Routes can share a config, so if one Ingress/Route is deleted, then just
+		// the pools for that resource should be deleted from our config. By keeping the config in the map,
+		// we delete the necessary pools later on, while leaving everything else intact.
+		cfgList := rsMap[svcPort]
+		if len(cfgList) == 1 && cfgList[0].GetName() == rsName {
+			delete(rsMap, svcPort)
+		} else if len(cfgList) > 1 {
+			for index, val := range cfgList {
+				if val.GetName() == rsName {
+					cfgList = append(cfgList[:index], cfgList[index+1:]...)
+				}
+			}
+			rsMap[svcPort] = cfgList
+		}
+	}
+
+	svcByIndex, err := appInf.svcInformer.GetIndexer().ByIndex(
+		"namespace", sKey.Namespace)
+	if nil != err {
+		log.Warningf("[CORE] Unable to list Services for namespace '%v': %v",
+			sKey.Namespace, err)
+		return err
+	}
+
+	// Remove rsCfg of other svcs from rsMap
+	// So that these configs will not be deleted at the end
+	for _, obj := range svcByIndex {
+		otherSvc := obj.(*v1.Service)
+		if svc.Name != otherSvc.Name {
+			removeCfgFromrsMap(otherSvc.Spec.Ports[0].Port, prepareName("vserver", otherSvc))
+			continue
+		}
+
+		poolIdx := 0
+		var svcPort int32 = 80
+		if len(svc.Spec.Ports) != 0 {
+			svcPort = svc.Spec.Ports[poolIdx].Port
+		}
+
+		svcKey := ServiceKey{
+			ServiceName: svc.ObjectMeta.Name,
+			ServicePort: svcPort,
+			Namespace:   svc.ObjectMeta.Namespace,
+		}
+
+		// Enquire whether the service already got an IP address
+		ip := appMgr.enquireExternalIP(svcKey)
+
+		if svc.Spec.Type != v1.ServiceTypeLoadBalancer {
+			// Unset LB IP if the service type changed from LB to other
+			if ip != "" {
+				appMgr.unSetLBServiceIngressStatus(svc, ip)
+			}
+			// Just continue so that the config will be in rsMap and it gets deleted at the end
+			continue
+		}
+
+		if sKey.Operation == OprTypeDelete {
+			// Just continue so that the config will be in rsMap and it gets deleted at the end
+			continue
+		}
+
+		lbsvc, exists := svc.ObjectMeta.Annotations[F5VSLBSVCAnnotation]
+		if !exists {
+			log.Infof("[CORE] Ignoring Service: %v/%v as %v is not set",
+				svc.ObjectMeta.Namespace,
+				svc.ObjectMeta.Name,
+				F5VSLBSVCAnnotation,
+			)
+			if ip != "" {
+				// Need to unset the ip if the annotation is removed
+				appMgr.unSetLBServiceIngressStatus(svc, ip)
+			}
+			continue
+		}
+
+		enabled, err := strconv.ParseBool(lbsvc)
+		if err != nil {
+			log.Errorf("[CORE] Error in processing Service: %v/%v as %v is not configured properly",
+				svc.ObjectMeta.Namespace,
+				svc.ObjectMeta.Name,
+				F5VSLBSVCAnnotation,
+			)
+			if ip != "" {
+				// Need to unset the ip if the annotation is improperly configured
+				appMgr.unSetLBServiceIngressStatus(svc, ip)
+			}
+			continue
+		}
+
+		if !enabled {
+			log.Infof("[CORE] Ignoring Service: %v/%v as %v is set to false",
+				svc.ObjectMeta.Namespace,
+				svc.ObjectMeta.Name,
+				F5VSLBSVCAnnotation,
+			)
+			if ip != "" {
+				// Need to unset the ip if the annotation is changed to false (from true)
+				appMgr.unSetLBServiceIngressStatus(svc, ip)
+			}
+			continue
+		}
+
+		extIP := appMgr.getExternalIP(svcKey)
+		if extIP == "" {
+			log.Warningf("Ran out of External IPs, unable to process service: %v/%v", svc.Namespace, svc.Name)
+			continue
+		}
+		rsCfg := &ResourceConfig{}
+
+		rsCfg.Virtual.Name = prepareName("vserver", svc)
+		rsCfg.Virtual.Partition = DEFAULT_PARTITION
+		rsCfg.Virtual.SetVirtualAddress(extIP, DEFAULT_HTTP_PORT)
+
+		rsCfg.MetaData.ResourceType = "LBTypeService"
+		rsCfg.Virtual.Enabled = true
+		SetProfilesForMode("http", rsCfg)
+		rsCfg.Virtual.SourceAddrTranslation = SetSourceAddrTranslation(appMgr.vsSnatPoolName)
+
+		rsCfg.Virtual.PoolName = prepareName("pool", svc)
+
+		rsName := rsCfg.GetName()
+
+		rsCfg.Pools = Pools{
+			{
+				Name:        rsCfg.Virtual.PoolName,
+				Partition:   rsCfg.Virtual.Partition,
+				Balance:     DEFAULT_BALANCE,
+				ServiceName: svc.Name,
+				ServicePort: svc.Spec.Ports[poolIdx].Port,
+			},
+		}
+
+		removeCfgFromrsMap(svcKey.ServicePort, rsName)
+
+		if appMgr.IsNodePort() {
+			appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, poolIdx)
+		} else {
+			appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf, poolIdx)
+		}
+
+		// This will only update the config if the vs actually changed.
+		if appMgr.saveVirtualServer(svcKey, rsName, rsCfg) {
+			stats.vsUpdated += 1
+			ip, _ := Split_ip_with_route_domain(rsCfg.Virtual.VirtualAddress.BindAddr)
+			appMgr.setLBServiceIngressStatus(svc, ip)
+		}
+	}
+	return nil
+}
+
 // Process AS3 Specific features
 func (appMgr *Manager) processAS3SpecificFeatures(route *routeapi.Route, buffer map[Record]F5Resources) {
 	idf := Record{
@@ -2117,6 +2320,68 @@ func (appMgr *Manager) setIngressStatus(
 			rsCfg.GetName(), updateErr)
 		log.Warning(warning)
 		appMgr.recordIngressEvent(ing, "StatusIPError", warning)
+	}
+}
+
+func (appMgr *Manager) setLBServiceIngressStatus(
+	svc *v1.Service,
+	ip string,
+) {
+	// Set the ingress status to include the virtual IP
+	lbIngress := v1.LoadBalancerIngress{IP: ip}
+	if len(svc.Status.LoadBalancer.Ingress) == 0 {
+		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress, lbIngress)
+	} else if svc.Status.LoadBalancer.Ingress[0].IP != ip {
+		svc.Status.LoadBalancer.Ingress[0] = lbIngress
+	}
+
+	_, updateErr := appMgr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(svc)
+	if nil != updateErr {
+		// Multi-service causes the controller to try to update the status multiple times
+		// at once. Ignore this error.
+		if strings.Contains(updateErr.Error(), "object has been modified") {
+			return
+		}
+		warning := fmt.Sprintf(
+			"Error when setting Service LB Ingress status IP: %v", updateErr)
+		log.Warning(warning)
+		appMgr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning)
+	} else {
+		message := fmt.Sprintf("F5 CIS assigned LoadBalancer IP: %v", ip)
+		appMgr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message)
+	}
+}
+
+func (appMgr *Manager) unSetLBServiceIngressStatus(
+	svc *v1.Service,
+	ip string,
+) {
+	index := -1
+	for i, lbIng := range svc.Status.LoadBalancer.Ingress {
+		if lbIng.IP == ip {
+			index = i
+			break
+		}
+	}
+	if index != -1 {
+		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress[:index],
+			svc.Status.LoadBalancer.Ingress[index+1:]...)
+
+		_, updateErr := appMgr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(svc)
+		if nil != updateErr {
+			// Multi-service causes the controller to try to update the status multiple times
+			// at once. Ignore this error.
+			if strings.Contains(updateErr.Error(), "object has been modified") {
+				return
+			}
+			warning := fmt.Sprintf(
+				"Error when unsetting Service LB Ingress status IP: %v", updateErr)
+			log.Warning(warning)
+			appMgr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning)
+		} else {
+			message := fmt.Sprintf("F5 CIS unassigned LoadBalancer IP: %v", ip)
+			appMgr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message)
+		}
 	}
 }
 

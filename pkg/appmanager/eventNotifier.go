@@ -124,3 +124,18 @@ func (appMgr *Manager) recordIngressEvent(
 		namespace, appMgr.kubeClient.CoreV1())
 	evNotifier.recordEvent(ing, v1.EventTypeNormal, reason, message)
 }
+
+// This function expects either an Ingress resource or the name of a VS for
+// an Ingress.
+func (appMgr *Manager) recordLBServiceIngressEvent(
+	svc *v1.Service,
+	eventType string,
+	reason string,
+	message string,
+) {
+	namespace := svc.ObjectMeta.Namespace
+	// Create the event
+	evNotifier := appMgr.eventNotifier.createNotifierForNamespace(
+		namespace, appMgr.kubeClient.CoreV1())
+	evNotifier.recordEvent(svc, eventType, reason, message)
+}

@@ -175,6 +175,7 @@ var (
 	eventChan          chan interface{}
 	configWriter       writer.Writer
 	k8sVersion         string
+	externalIPAddress  *string
 )
 
 func _init() {
@@ -257,6 +258,8 @@ func _init() {
 	userDefinedAS3Decl = bigIPFlags.String("userdefined-as3-declaration", "", userDefinedCfgMapStr)
 	filterTenants = kubeFlags.Bool("filter-tenants", false,
 		"Optional, specify whether or not to use tenant filtering API for AS3 declaration")
+	externalIPAddress = bigIPFlags.String("external-ip-address", "",
+		"Optional, to provide external ip address range to create a free ip pool for usage in service LB")
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
 	}
@@ -933,6 +936,7 @@ func getAppManagerParams() appmanager.Params {
 		AgRspChan:              agRspChan,
 		SchemaLocal:            *schemaLocal,
 		ProcessAgentLabels:     getProcessAgentLabelFunc(),
+		ExternalIP:             *externalIPAddress,
 	}
 }
 

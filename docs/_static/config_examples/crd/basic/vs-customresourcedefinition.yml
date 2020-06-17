@@ -25,6 +25,8 @@ spec:
               properties:
                 host:
                   type: string
+                tlsProfileName:
+                  type: string
                 pools:
                   type: array
                   items:

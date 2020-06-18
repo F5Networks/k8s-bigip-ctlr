@@ -41,6 +41,7 @@ godep-save: check-gopath
 clean:
 	rm -rf _docker_workspace
 	rm -rf _build
+	docker volume rm -f workspace_vol
 	@echo "Did not clean local go workspace"
 
 info:

@@ -27,10 +27,20 @@ type VirtualServerSpec struct {
 
 // Pool defines a pool object in BIG-IP.
 type Pool struct {
-	Path            string `json:"path"`
-	Service         string `json:"service"`
-	ServicePort     int32  `json:"servicePort"`
-	NodeMemberLabel string `json:"nodeMemberLabel"`
+	Path            string  `json:"path"`
+	Service         string  `json:"service"`
+	ServicePort     int32   `json:"servicePort"`
+	NodeMemberLabel string  `json:"nodeMemberLabel"`
+	Monitor         Monitor `json:"monitor"`
+}
+
+// Monitor defines a monitor object in BIG-IP.
+type Monitor struct {
+	Type     string `json:"type"`
+	Send     string `json:"send"`
+	Recv     string `json:"recv"`
+	Interval int    `json:"interval"`
+	Timeout  int    `json:"timeout"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -320,6 +320,12 @@ func formatVirtualServerPoolName(namespace, svc string, nodeMemberLabel string) 
 	return AS3NameFormatter(poolName)
 }
 
+// format the monitor name for an VirtualServer pool
+func formatMonitorName(namespace, svc string, monitorType string) string {
+	monitorName := fmt.Sprintf("%s_%s_%s", namespace, svc, monitorType)
+	return AS3NameFormatter(monitorName)
+}
+
 // Creates resource config based on VirtualServer resource config
 func (crMgr *CRManager) createRSConfigFromVirtualServer(
 	vs *cisapiv1.VirtualServer,
@@ -343,7 +349,7 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 	}
 	// Create VirtualServer in resource config.
 	cfg.Virtual.Name = formatVirtualServerName(bindAddr, pStruct.port)
-
+	var monitors []Monitor
 	for _, pl := range vs.Spec.Pools {
 		pool := Pool{
 			Name: formatVirtualServerPoolName(
@@ -356,6 +362,21 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 			ServicePort:     pl.ServicePort,
 			NodeMemberLabel: pl.NodeMemberLabel,
 		}
+
+		if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
+			pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(DEFAULT_PARTITION,
+				formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type)))
+			monitor := Monitor{
+				Name:      formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type),
+				Partition: cfg.Virtual.Partition,
+				Type:      pl.Monitor.Type,
+				Interval:  pl.Monitor.Interval,
+				Send:      pl.Monitor.Send,
+				Recv:      pl.Monitor.Recv,
+				Timeout:   pl.Monitor.Timeout,
+			}
+			monitors = append(monitors, monitor)
+		}
 		pools = append(pools, pool)
 	}
 
@@ -364,6 +385,8 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 	policyName := cfg.Virtual.Name + "_policy"
 
 	plcy = createPolicy(*rules, policyName, vs.ObjectMeta.Namespace)
+
+	cfg.Monitors = monitors
 
 	cfg.MetaData.rscName = vs.ObjectMeta.Name
 
@@ -1249,20 +1272,20 @@ func NewInternalDataGroup(name, partition string) *InternalDataGroup {
 // DataGroup flattening.
 type FlattenConflictFunc func(key, oldVal, newVal string) string
 
-// Internal data group for passthrough routes to map server names to pools.
+// Internal data group for passthrough termination to map server names to pools.
 const PassthroughHostsDgName = "ssl_passthrough_servername_dg"
 
-// Internal data group for reencrypt routes.
+// Internal data group for reencrypt termination.
 const ReencryptHostsDgName = "ssl_reencrypt_servername_dg"
 
-// Internal data group for edge routes.
+// Internal data group for edge termination.
 const EdgeHostsDgName = "ssl_edge_servername_dg"
 
-// Internal data group for reencrypt routes that maps the host name to the
+// Internal data group for reencrypt termination that maps the host name to the
 // server ssl profile.
 const ReencryptServerSslDgName = "ssl_reencrypt_serverssl_dg"
 
-// Internal data group for edge routes that maps the host name to the
+// Internal data group for edge termination that maps the host name to the
 // false. This will help Irule to understand ssl should be disabled
 // on serverside.
 const EdgeServerSslDgName = "ssl_edge_serverssl_dg"

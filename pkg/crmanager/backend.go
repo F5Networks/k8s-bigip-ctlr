@@ -266,6 +266,9 @@ func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
 
 		//Create AS3 Service for virtual server
 		createServiceDecl(cfg, sharedApp)
+
+		//Create health monitor declaration
+		createMonitorDecl(cfg, sharedApp)
 	}
 }
 
@@ -683,4 +686,39 @@ func createTLSClient(
 		return tlsClient
 	}
 	return nil
+}
+
+//Create health monitor declaration
+func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
+
+	for _, v := range cfg.Monitors {
+		monitor := &as3Monitor{}
+		monitor.Class = "Monitor"
+		monitor.Interval = v.Interval
+		monitor.MonitorType = v.Type
+		monitor.Timeout = v.Timeout
+		val := 0
+		monitor.TargetPort = &val
+		targetAddressStr := ""
+		monitor.TargetAddress = &targetAddressStr
+		//Monitor type
+		switch v.Type {
+		case "http":
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+			monitor.Dscp = &val
+			monitor.Receive = "none"
+			if v.Recv != "" {
+				monitor.Receive = v.Recv
+			}
+			monitor.TimeUnitilUp = &val
+			monitor.Send = v.Send
+		case "https":
+			//Todo: For https monitor type
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+		}
+		sharedApp[v.Name] = monitor
+	}
+
 }

@@ -132,6 +132,7 @@ type (
 		Virtual  Virtual  `json:"virtual,omitempty"`
 		Pools    Pools    `json:"pools,omitempty"`
 		Policies Policies `json:"policies,omitempty"`
+		Monitors Monitors `json:"monitors,omitempty"`
 	}
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig

@@ -181,6 +181,9 @@ func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
 
 		//Create AS3 Service for virtual server
 		createServiceDecl(cfg, sharedApp)
+
+		//Create health monitor declaration
+		createMonitorDecl(cfg, sharedApp)
 	}
 }
 
@@ -455,4 +458,59 @@ func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
 	}
 
 	return reflect.DeepEqual(o1, o2)
+}
+
+//Create health monitor declaration
+func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
+
+	for _, v := range cfg.Monitors {
+		monitor := &as3Monitor{}
+		monitor.Class = "Monitor"
+		monitor.Interval = v.Interval
+		monitor.MonitorType = v.Type
+		monitor.Timeout = v.Timeout
+		val := 0
+		monitor.TargetPort = &val
+		targetAddressStr := ""
+		monitor.TargetAddress = &targetAddressStr
+		//Monitor type
+		switch v.Type {
+		case "http":
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+			monitor.Dscp = &val
+			monitor.Receive = "none"
+			if v.Recv != "" {
+				monitor.Receive = v.Recv
+			}
+			monitor.TimeUnitilUp = &val
+			monitor.Send = v.Send
+		case "https":
+			//Todo: For https monitor type
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+		}
+		sharedApp[as3FormatedString(v.Name, cfg.MetaData.ResourceType)] = monitor
+	}
+
+}
+
+const ResourceTypeIngress string = "ingress"
+
+//Replacing "-" with "_" for given string
+// also handling the IP addr to string as per AS3 for Ingress Resource.
+func as3FormatedString(str string, resourceType string) string {
+	var formattedString string
+	switch resourceType {
+	case ResourceTypeIngress:
+		formattedString = strings.Replace(str, ".", "_", -1)
+		formattedString = strings.Replace(formattedString, "-", "_", -1)
+	default:
+		formattedString = strings.Replace(str, "-", "_", -1)
+		formattedString = strings.ReplaceAll(formattedString, "openshift_route", "osr")
+	}
+	//Reducing object name length by giving a shortened form of a word.
+	formattedString = strings.ReplaceAll(formattedString, "client_ssl", "cssl")
+	formattedString = strings.ReplaceAll(formattedString, "server_ssl", "sssl")
+	return formattedString
 }

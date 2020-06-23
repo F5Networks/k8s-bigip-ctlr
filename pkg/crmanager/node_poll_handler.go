@@ -2,7 +2,6 @@ package crmanager
 
 import (
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"reflect"
 	"strings"
 	"time"
@@ -65,8 +64,9 @@ func (crMgr *CRManager) SetupNodePolling(
 }
 
 type Node struct {
-	Name string
-	Addr string
+	Name   string
+	Addr   string
+	Labels map[string]string
 }
 
 // Check for a change in Node state
@@ -147,8 +147,12 @@ func (crMgr *CRManager) getNodes(
 		for _, addr := range nodeAddrs {
 			if addr.Type == addrType {
 				n := Node{
-					Name: node.ObjectMeta.Name,
-					Addr: addr.Address,
+					Name:   node.ObjectMeta.Name,
+					Addr:   addr.Address,
+					Labels: make(map[string]string),
+				}
+				for k, v := range node.ObjectMeta.Labels {
+					n.Labels[k] = v
 				}
 				watchedNodes = append(watchedNodes, n)
 			}
@@ -161,12 +165,20 @@ func (crMgr *CRManager) getNodes(
 func (crMgr *CRManager) getNodesWithLabel(
 	nodeMemberLabel string,
 ) []Node {
-	nodeList, _ := crMgr.kubeClient.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: nodeMemberLabel})
+	allNodes := crMgr.getNodesFromCache()
 
-	nodes, err := crMgr.getNodes(nodeList.Items)
-	if nil != err {
-		log.Warningf("Unable to get list of nodes, err=%+v", err)
+	label := strings.Split(nodeMemberLabel, "=")
+	if len(label) != 2 {
+		log.Warningf("Invalid NodeMemberLabel: %v", nodeMemberLabel)
 		return nil
+	}
+	labelKey := label[0]
+	labelValue := label[1]
+	var nodes []Node
+	for _, node := range allNodes {
+		if node.Labels[labelKey] == labelValue {
+			nodes = append(nodes, node)
+		}
 	}
 	return nodes
 }

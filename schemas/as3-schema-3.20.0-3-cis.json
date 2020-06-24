@@ -3,44 +3,21 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "AS3 API Request",
   "description": "AS3 API request body",
-  "allOf": [
+  "oneOf": [
     {
-      "if": {
-        "type": "object"
-      },
-      "then": {
-        "if": {
-          "required": [
-            "class"
-          ]
-        },
-        "then": {
-          "oneOf": [
-            {
-              "$ref": "#/definitions/AS3"
-            },
-            {
-              "$ref": "#/definitions/ADC"
-            }
-          ]
-        },
-        "else": {
-          "$ref": "#/definitions/AS3"
-        }
-      },
-      "else": {
-        "oneOf": [
-          {
-            "$ref": "#/definitions/AS3_Patch_Body"
-          },
-          {
-            "$ref": "#/definitions/AS3_Array"
-          },
-          {
-            "$ref": "#/definitions/ADC_Array"
-          }
-        ]
-      }
+      "$ref": "#/definitions/AS3"
+    },
+    {
+      "$ref": "#/definitions/ADC"
+    },
+    {
+      "$ref": "#/definitions/AS3_Patch_Body"
+    },
+    {
+      "$ref": "#/definitions/AS3_Array"
+    },
+    {
+      "$ref": "#/definitions/ADC_Array"
     }
   ],
   "definitions": {
@@ -111,11 +88,6 @@
               "description": "IP address of managed device to be configured",
               "type": "string",
               "format": "f5ip"
-            },
-            "ssgName": {
-              "title": "SSG Name",
-              "description": "Name of shared service group to be configured",
-              "type": "string"
             }
           },
           "maxProperties": 1
@@ -145,9 +117,7 @@
           "title": "Class",
           "description": "Indicates an AS3 request",
           "type": "string",
-          "enum": [
-            "AS3"
-          ]
+          "const": "AS3"
         },
         "action": {
           "title": "Action",
@@ -341,6 +311,7 @@
       "minItems": 1
     },
     "Service_Discovery_Polling_Core": {
+      "type": "object",
       "properties": {
         "addressRealm": {
           "title": "Address realm",
@@ -377,9 +348,11 @@
           "$ref": "#/definitions/Data_Group_Records_Base"
         },
         {
-          "dependencies": {
+          "properties": {
             "records": {
+              "type": "array",
               "items": {
+                "type": "object",
                 "properties": {
                   "key": {
                     "title": "Record Key",
@@ -494,6 +467,20 @@
             "static-nat",
             "static-pat"
           ]
+        },
+        "excludeAddresses": {
+          "description": "Specifies the set of addresses excluded from translation IP addresses available in the pool",
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/definitions/Pointer_Firewall_Address_List"
+              }
+            ]
+          }
         }
       },
       "dependencies": {
@@ -768,6 +755,7 @@
     },
     "Monitor_FTP": {
       "description": "Additional Monitor class properties available when monitorType = ftp",
+      "type": "object",
       "properties": {
         "mode": {
           "title": "Mode",
@@ -1035,6 +1023,22 @@
                     "class"
                   ]
                 }
+              },
+              "proxyCertificate": {
+                "title": "Proxy Certificate",
+                "description": "AS3 pointer to Certificate declaration for SSL forward proxy",
+                "type": "string",
+                "minLength": 1,
+                "f5pointsTo": {
+                  "properties": {
+                    "class": {
+                      "const": "Certificate"
+                    }
+                  },
+                  "required": [
+                    "class"
+                  ]
+                }
               }
             },
             "additionalProperties": false,
@@ -1162,6 +1166,12 @@
           "type": "boolean",
           "default": false
         },
+        "cacheCertificateEnabled": {
+          "title": "Cache Certificate Enabled",
+          "description": "Enables or disables (default) caching certificates by IP address and port number",
+          "type": "boolean",
+          "default": false
+        },
         "c3dOCSPUnknownStatusAction": {
           "title": "C3D OCSP Unknown Status Action",
           "description": "Specifies the BIG-IP action when the OCSP returns unknown status. The default is drop",
@@ -1187,6 +1197,18 @@
           "type": "boolean",
           "default": false
         },
+        "forwardProxyEnabled": {
+          "title": "Forward Proxy Enabled",
+          "description": "Enables or disables (default) SSL forward proxy",
+          "type": "boolean",
+          "default": false
+        },
+        "forwardProxyBypassEnabled": {
+          "title": "Forward Proxy Bypass Enabled",
+          "description": "Enables or disables (default) SSL forward proxy bypass",
+          "type": "boolean",
+          "default": false
+        },
         "ldapStartTLS": {
           "title": "Client-LDAP Profile",
           "description": "Creates a client LDAP profile with the specified activation mode STARTTLS.",
@@ -1208,11 +1230,41 @@
           "type": "boolean",
           "default": false
         },
+        "insertEmptyFragmentsEnabled": {
+          "title": "Insert Empty Fragments Enabled",
+          "description": "Enables a countermeasure against an SSL 3.0/TLS 1.0 protocol vulnerability affecting CBC ciphers. These ciphers cannot be handled by certain broken SSL implementations.",
+          "type": "boolean",
+          "default": false
+        },
+        "singleUseDhEnabled": {
+          "title": "Single Use DH Enabled",
+          "description": "Creates a new key when using temporary/ephemeral DH parameters. This option must be used to prevent small subgroup attacks, when the DH parameters were not generated using strong primes (for example. when using DSA-parameters). If strong primes were used, it is not strictly necessary to generate a new DH key during each handshake, but F5 Networks recommends it. Enable the Single DH Use option whenever temporary or ephemeral DH parameters are used.",
+          "type": "boolean",
+          "default": false
+        },
         "tls1_3Enabled": {
           "title": "TLS 1.3",
           "description": "Allow TLS 1.3 Ciphers. Note: tls1_3Enabled is only supported in tmos version 14.0+.",
           "type": "boolean",
           "default": false
+        },
+        "tls1_2Enabled": {
+          "title": "TLS 1.2",
+          "description": "Allow TLS 1.2 Ciphers.",
+          "type": "boolean",
+          "default": true
+        },
+        "tls1_1Enabled": {
+          "title": "TLS 1.1",
+          "description": "Allow TLS 1.1 Ciphers.",
+          "type": "boolean",
+          "default": true
+        },
+        "tls1_0Enabled": {
+          "title": "TLS 1.0",
+          "description": "Allow TLS 1.0 Ciphers.",
+          "type": "boolean",
+          "default": true
         }
       },
       "additionalProperties": false,
@@ -1298,6 +1350,7 @@
     },
     "DOS_Profile_Application_Stress_Based_Detection_Bad_Actor": {
       "description": "Specifies properties of Behavioral Detection in Stress-based anomaly.\n\nThe following mitigation options are available:\n\n* Conservative protection: If detectionEnabled is true, slows down and rate limits requests from anomalous IP addresses based on its anomaly detection confidence and the server's health.  If signatureDetectionEnabled is true, blocks requests that match the attack signatures.\n* Standard protection: If detectionEnabled is true, slows down requests from anomalous IP addresses based on its anomaly detection confidence and the server's health.  Rate limits requests from anomalous IP addresses and, if necessary, rate limits all requests based on the server's health. Limits the number of concurrent connections from anomalous IP addresses and, if necessary, limits the number of all concurrent connections based on the server's health.  If signatureDetectionEnabled is true, blocks requests that match the attack signatures.\n* Aggressive protection: If detectionEnabled is true, slows down requests from anomalous IP addresses based on its anomaly detection confidence and the server's health.  Rate limits requests from anomalous IP addresses and, if necessary, rate limits all requests based on the server's health. Limits the number of concurrent connections from anomalous IP addresses and, if necessary, limits the number of all concurrent connections based on the server's health.  Proactively performs all protection actions (even before an attack).  Increases the impact of the protection techniques.  If signatureDetectionEnabled is true, blocks requests that match the attack signatures. Increases the impact of blocked requests.",
+      "type": "object",
       "properties": {
         "detectionEnabled": {
           "description": "Enables traffic behavior, server's capacity learning, and anomaly detection",
@@ -1340,6 +1393,7 @@
     },
     "Enforcement_Rule_Flow_Filter": {
       "description": "Defines the flow conditions (Layer 4) that the traffic must meet (or not meet) for this enforcement policy rule to apply",
+      "type": "object",
       "properties": {
         "name": {
           "description": "The name of the flow filter.",
@@ -1841,6 +1895,42 @@
         "resourceRecordType"
       ]
     },
+    "Pointer_Idle_Timeout_Policy": {
+      "description": "Reference to a idle timeout policy",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to idle timeout policy declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Idle_Timeout_Policy"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP idle timeout policy",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query net timer-policy"
+        }
+      ]
+    },
     "Pointer_Firewall_Address_List": {
       "description": "Reference to a firewall address list",
       "type": "object",
@@ -1879,6 +1969,7 @@
     },
     "Enforcement_Rule_Quota": {
       "description": "Specify quota management options",
+      "type": "object",
       "properties": {
         "ratingGroup": {
           "$ref": "#/definitions/Pointer_Enforcement_Rating_Group"
@@ -1907,6 +1998,7 @@
     },
     "Security_Log_Profile_Application": {
       "description": "Specifies, when enabled, that the system logs events from applications.",
+      "type": "object",
       "f5modules": [
         "asm"
       ],
@@ -2469,10 +2561,97 @@
           "f5bigComponent": "query gtm monitor bigip"
         },
         {
+          "f5bigComponent": "query gtm monitor bigip-link"
+        },
+        {
+          "f5bigComponent": "query gtm monitor external"
+        },
+        {
+          "f5bigComponent": "query gtm monitor fire-pass"
+        },
+        {
+          "f5bigComponent": "query gtm monitor ftp"
+        },
+        {
+          "f5bigComponent": "query gtm monitor gateway-icmp"
+        },
+        {
+          "f5bigComponent": "query gtm monitor gtp"
+        },
+        {
           "f5bigComponent": "query gtm monitor http"
         },
         {
           "f5bigComponent": "query gtm monitor https"
+        },
+        {
+          "f5bigComponent": "query gtm monitor imap"
+        },
+        {
+          "f5bigComponent": "query gtm monitor ldap"
+        },
+        {
+          "f5bigComponent": "query gtm monitor mssql"
+        },
+        {
+          "f5bigComponent": "query gtm monitor mysql"
+        },
+        {
+          "f5bigComponent": "query gtm monitor nntp"
+        },
+        {
+          "f5bigComponent": "query gtm monitor none"
+        },
+        {
+          "f5bigComponent": "query gtm monitor oracle"
+        },
+        {
+          "f5bigComponent": "query gtm monitor pop3"
+        },
+        {
+          "f5bigComponent": "query gtm monitor postgresql"
+        },
+        {
+          "f5bigComponent": "query gtm monitor radius"
+        },
+        {
+          "f5bigComponent": "query gtm monitor radius-accounting"
+        },
+        {
+          "f5bigComponent": "query gtm monitor real-server"
+        },
+        {
+          "f5bigComponent": "query gtm monitor scripted"
+        },
+        {
+          "f5bigComponent": "query gtm monitor sip"
+        },
+        {
+          "f5bigComponent": "query gtm monitor smtp"
+        },
+        {
+          "f5bigComponent": "query gtm monitor snmp"
+        },
+        {
+          "f5bigComponent": "query gtm monitor snmp-link"
+        },
+        {
+          "f5bigComponent": "query gtm monitor soap"
+        },
+        {
+          "f5bigComponent": "query gtm monitor tcp"
+        },
+        {
+          "f5bigComponent": "query gtm monitor tcp-half-open"
+        },
+        {
+          "f5bigComponent": "query gtm monitor udp"
+        },
+        {
+          "f5bigComponent": "query gtm monitor wap"
+        },
+        {
+          "f5bigComponent": "query gtm monitor wmi"
         }
       ]
     },
@@ -2529,6 +2708,7 @@
     "Security_Log_Profile_Dos_Application": {
       "title": "DoS Application Log Profile",
       "description": "Specifies, when enabled, that the system logs detected application DoS attacks",
+      "type": "object",
       "f5modules": [
         "asm"
       ],
@@ -2731,6 +2911,7 @@
       ]
     },
     "GSLB_Topology_Record": {
+      "type": "object",
       "properties": {
         "source": {
           "title": "Request Source",
@@ -2755,8 +2936,8 @@
           "description": "Specifies the weight for the topology record. The system load balances to the server object and DNS that matches the record with the highest topology weight",
           "type": "integer",
           "default": 1,
-          "minValue": 0,
-          "maxValue": 4294967295
+          "minimum": 0,
+          "maximum": 4294967295
         }
       },
       "allOf": [
@@ -2841,6 +3022,7 @@
     },
     "Monitor_RADIUS": {
       "description": "Additional Monitor class properties available when monitorType = radius",
+      "type": "object",
       "properties": {
         "username": {
           "title": "Username",
@@ -3150,8 +3332,8 @@
               }
             },
             "additionalProperties": false,
-            "minimumProperties": 1,
-            "maximumProperties": 1,
+            "minProperties": 1,
+            "maxProperties": 1,
             "f5bigComponent": "query sys file ssl-cert"
           }
         },
@@ -3252,6 +3434,18 @@
           "type": "boolean",
           "default": false
         },
+        "forwardProxyEnabled": {
+          "title": "Forward Proxy Enabled",
+          "description": "Enables or disables (default) SSL forward proxy",
+          "type": "boolean",
+          "default": false
+        },
+        "forwardProxyBypassEnabled": {
+          "title": "Forward Proxy Bypass Enabled",
+          "description": "Enables or disables (default) SSL forward proxy bypass",
+          "type": "boolean",
+          "default": false
+        },
         "ldapStartTLS": {
           "title": "Server-LDAP Profile",
           "description": "Creates a client LDAP profile with the specified activation mode STARTTLS.",
@@ -3262,11 +3456,41 @@
             "require"
           ]
         },
+        "insertEmptyFragmentsEnabled": {
+          "title": "Insert Empty Fragments Enabled",
+          "description": "Enables a countermeasure against an SSL 3.0/TLS 1.0 protocol vulnerability affecting CBC ciphers. These ciphers cannot be handled by certain broken SSL implementations.",
+          "type": "boolean",
+          "default": false
+        },
+        "singleUseDhEnabled": {
+          "title": "Single Use DH Enabled",
+          "description": "Creates a new key when using temporary/ephemeral DH parameters. This option must be used to prevent small subgroup attacks, when the DH parameters were not generated using strong primes (for example. when using DSA-parameters). If strong primes were used, it is not strictly necessary to generate a new DH key during each handshake, but F5 Networks recommends it. Enable the Single DH Use option whenever temporary or ephemeral DH parameters are used.",
+          "type": "boolean",
+          "default": false
+        },
         "tls1_3Enabled": {
           "title": "TLS 1.3",
           "description": "Allow TLS 1.3 Ciphers. Note: tls1_3Enabled is only supported in tmos version 14.0+.",
           "type": "boolean",
           "default": false
+        },
+        "tls1_2Enabled": {
+          "title": "TLS 1.2",
+          "description": "Allow TLS 1.2 Ciphers.",
+          "type": "boolean",
+          "default": true
+        },
+        "tls1_1Enabled": {
+          "title": "TLS 1.1",
+          "description": "Allow TLS 1.1 Ciphers.",
+          "type": "boolean",
+          "default": true
+        },
+        "tls1_0Enabled": {
+          "title": "TLS 1.0",
+          "description": "Allow TLS 1.0 Ciphers.",
+          "type": "boolean",
+          "default": true
         }
       },
       "allOf": [
@@ -3310,6 +3534,7 @@
     "Template_https": {
       "title": "HTTPS application",
       "description": "Declares an HTTPS application",
+      "type": "object",
       "properties": {
         "serviceMain": {
           "$ref": "#/definitions/Service_HTTPS"
@@ -3686,6 +3911,7 @@
       "type": "object",
       "allOf": [
         {
+          "type": "object",
           "properties": {
             "event": {
               "description": "When to evaluate this condition in the request-response cycle",
@@ -3702,6 +3928,7 @@
         {
           "oneOf": [
             {
+              "type": "object",
               "properties": {
                 "all": {
                   "description": "Match on the full HTTP cookie",
@@ -3763,6 +3990,7 @@
     },
     "Enforcement_Rule_Forwarding": {
       "description": "Manages the forwarding action and its attributes",
+      "type": "object",
       "properties": {
         "type": {
           "description": "Specifies the type of forwarding action",
@@ -3879,6 +4107,7 @@
     "Include": {
       "title": "Include",
       "description": "Defines inclusion of one part of the schema into another",
+      "type": "object",
       "properties": {
         "include": {
           "description": "Keyword to allow for inclusion of one part of the declaration into another",
@@ -3898,6 +4127,34 @@
           "f5include": "object"
         }
       }
+    },
+    "Idle_Timeout_Policy": {
+      "description": "Destination port based idle timeout policy",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Idle_Timeout_Policy"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "rules": {
+          "description": "List of idle timeout rules",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Idle_Timeout_Rule"
+          }
+        }
+      },
+      "required": [
+        "class"
+      ],
+      "additionalProperties": false
     },
     "Pointer_DNS_TSIG_Key": {
       "description": "Reference to a DNS TSIG key",
@@ -3937,6 +4194,7 @@
     },
     "Monitor_May_Adapt": {
       "description": "Additional Monitor class properties available when monitorType = http, https, tcp, udp, or icmp",
+      "type": "object",
       "properties": {
         "adaptive": {
           "title": "Adaptive",
@@ -4391,6 +4649,111 @@
         "serverTLS"
       ]
     },
+    "Policy_Condition_TCP": {
+      "description": "Match against specific TCP properties",
+      "type": "object",
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "event": {
+              "description": "When to evaluate this condition in the request-response cycle",
+              "type": "string",
+              "enum": [
+                "request",
+                "response"
+              ],
+              "default": "request"
+            }
+          }
+        },
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "address": {
+                  "description": "Specify the address to use",
+                  "oneOf": [
+                    {
+                      "$ref": "#/definitions/Policy_Match_String"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "datagroup": {
+                          "description": "Reference a data-group for the values",
+                          "type": "object",
+                          "properties": {
+                            "bigip": {
+                              "title": "BIG-IP Data-Group",
+                              "description": "Pathname of existing BIG-IP Data-Group",
+                              "type": "string",
+                              "format": "f5bigip"
+                            },
+                            "use": {
+                              "title": "Use",
+                              "description": "AS3 pointer to Data_Group",
+                              "type": "string",
+                              "minLength": 1,
+                              "f5pointsTo": {
+                                "properties": {
+                                  "class": {
+                                    "const": "Data_Group"
+                                  }
+                                },
+                                "required": [
+                                  "class"
+                                ]
+                              }
+                            }
+                          },
+                          "additionalProperties": false,
+                          "minProperties": 1,
+                          "maxProperties": 1,
+                          "f5bigComponent": "query ltm data-group internal"
+                        },
+                        "operand": {
+                          "description": "Specifies the comparison",
+                          "type": "string",
+                          "enum": [
+                            "matches",
+                            "does-not-match"
+                          ],
+                          "default": "matches"
+                        }
+                      },
+                      "required": [
+                        "datagroup"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "address"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "port": {
+                  "description": "Specify the port to use",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Policy_Compare_Number"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "port"
+              ]
+            }
+          ]
+        }
+      ]
+    },
     "SSH_Proxy_Profile_Real_Server_Auth_Info": {
       "description": "Public key that can be used to authenticate real host server to the proxy",
       "type": "object",
@@ -4400,7 +4763,7 @@
           "type": "string"
         }
       },
-      "additionalproperties": false
+      "additionalProperties": false
     },
     "Pointer_Radius_Profile": {
       "description": "Reference to a radius profile",
@@ -4788,6 +5151,7 @@
       ],
       "title": "Network Log Profile",
       "description": "Specifies, when enabled, that the system logs ACL rule matches, TCP events, and/or TCP/IP errors sent to the network firewall",
+      "type": "object",
       "properties": {
         "publisher": {
           "description": "Specifies the name of the log publisher used for logging Network events",
@@ -5176,6 +5540,7 @@
       "description": "Modify HTTP header in request or response",
       "allOf": [
         {
+          "type": "object",
           "properties": {
             "event": {
               "type": "string",
@@ -5191,6 +5556,7 @@
         {
           "oneOf": [
             {
+              "type": "object",
               "properties": {
                 "replace": {
                   "type": "object",
@@ -5217,6 +5583,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "insert": {
                   "type": "object",
@@ -5243,6 +5610,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "remove": {
                   "type": "object",
@@ -5269,6 +5637,7 @@
     },
     "Enforcement_Rule_DTOS_Tethering": {
       "description": "Specifies options for device type, operating system, and tethering detection",
+      "type": "object",
       "properties": {
         "detectDtos": {
           "description": "Specifies the detection of the subscriber's device and the operating system",
@@ -5378,7 +5747,8 @@
         "template": {
           "title": "Template Name",
           "description": "Each application type has certain required and default elements and selects appropriate setup of various ADC/Security features",
-          "type": "string"
+          "type": "string",
+          "default": "generic"
         },
         "schemaOverlay": {
           "title": "Schema Overlay",
@@ -5476,6 +5846,7 @@
               "Endpoint_Policy",
               "Endpoint_Strategy",
               "Bandwidth_Control_Policy",
+              "Idle_Timeout_Policy",
               "Enforcement_Policy",
               "Enforcement_Diameter_Endpoint_Profile",
               "Enforcement_iRule",
@@ -6371,6 +6742,18 @@
             "if": {
               "properties": {
                 "class": {
+                  "const": "Idle_Timeout_Policy"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Idle_Timeout_Policy"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
                   "const": "Enforcement_Policy"
                 }
               }
@@ -6592,8 +6975,7 @@
         }
       ],
       "required": [
-        "class",
-        "template"
+        "class"
       ]
     },
     "JWE": {
@@ -6835,13 +7217,14 @@
           }
         },
         "additionalProperties": false,
-        "minimumProperties": 1,
-        "maximumProperties": 1,
+        "minProperties": 1,
+        "maxProperties": 1,
         "f5bigComponent": "probe ltm persistence dest-addr"
       }
     },
     "Monitor_LDAP": {
       "description": "Additional Monitor class properties available when monitorType = smtp",
+      "type": "object",
       "properties": {
         "username": {
           "title": "Username",
@@ -6944,7 +7327,7 @@
       "properties": {
         "method": {
           "title": "Authentication Method",
-          "description": "Specifices the authentication method",
+          "description": "Specifies the authentication method",
           "type": "string",
           "const": "basic"
         },
@@ -6985,6 +7368,7 @@
       "description": "Modify the request's \"Cookie:\" header",
       "allOf": [
         {
+          "type": "object",
           "properties": {
             "event": {
               "type": "string",
@@ -6999,6 +7383,7 @@
         {
           "oneOf": [
             {
+              "type": "object",
               "properties": {
                 "insert": {
                   "type": "object",
@@ -7025,6 +7410,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "remove": {
                   "type": "object",
@@ -7051,6 +7437,7 @@
     },
     "Enforcement_Rule_Report_Destination_HSL": {
       "description": "Specifies report destination and format",
+      "type": "object",
       "properties": {
         "highSpeedLogPublisher": {
           "$ref": "#/definitions/Pointer_Log_Publisher"
@@ -7064,6 +7451,7 @@
     },
     "Enforcement_Rule_Forwarding_ICAP": {
       "description": "Specifies that the flow forwards to the ICAP virtual server",
+      "type": "object",
       "properties": {
         "icapType": {
           "description": "Specifies the ICAP adaptation type",
@@ -7285,6 +7673,7 @@
     },
     "Enforcement_Rule_Usage_Reporting_Transaction": {
       "description": "Specifies policy enforcement configuration on transaction report for each HTTP transaction",
+      "type": "object",
       "properties": {
         "hostname": {
           "description": "Specifies the maximum HTTP hostname string length option to include in the HTTP transaction report",
@@ -7449,6 +7838,7 @@
     },
     "DNS_Zone_DNS_Express": {
       "description": "Configure zone DNS Express settings",
+      "type": "object",
       "properties": {
         "enabled": {
           "description": "Specifies whether DNS Express is enabled to process queries for this zone",
@@ -8082,6 +8472,7 @@
     "Template_tcp": {
       "title": "TCP application",
       "description": "Declares a TCP application",
+      "type": "object",
       "properties": {
         "serviceMain": {
           "$ref": "#/definitions/Service_TCP"
@@ -8144,6 +8535,7 @@
       "description": "Control over how a connection is persisted",
       "allOf": [
         {
+          "type": "object",
           "properties": {
             "event": {
               "type": "string",
@@ -8160,6 +8552,7 @@
         {
           "oneOf": [
             {
+              "type": "object",
               "properties": {
                 "disable": {
                   "type": "object",
@@ -8173,6 +8566,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "sourceAddress": {
                   "type": "object",
@@ -8205,6 +8599,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "destinationAddress": {
                   "type": "object",
@@ -8237,6 +8632,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "cookieInsert": {
                   "type": "object",
@@ -8266,6 +8662,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "cookieRewrite": {
                   "type": "object",
@@ -8295,6 +8692,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "cookiePassive": {
                   "type": "object",
@@ -8318,6 +8716,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "cookieHash": {
                   "type": "object",
@@ -8365,6 +8764,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "universal": {
                   "type": "object",
@@ -8396,6 +8796,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "hash": {
                   "type": "object",
@@ -8427,6 +8828,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "carp": {
                   "type": "object",
@@ -8466,6 +8868,7 @@
       "type": "object",
       "allOf": [
         {
+          "type": "object",
           "properties": {
             "event": {
               "description": "When to evaluate this condition in the request-response cycle",
@@ -8480,6 +8883,7 @@
         {
           "oneOf": [
             {
+              "type": "object",
               "properties": {
                 "path": {
                   "description": "Match on the URI path",
@@ -8492,7 +8896,7 @@
                 "normalized": {
                   "description": "Normalizes the result to a canonical form to allow consistent comparisons",
                   "type": "boolean",
-                  "default": "false"
+                  "default": false
                 }
               },
               "required": [
@@ -8500,6 +8904,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "scheme": {
                   "description": "Match on the scheme (e.g. http, https, ftp, file)",
@@ -8512,7 +8917,7 @@
                 "normalized": {
                   "description": "Normalizes the result to a canonical form to allow consistent comparisons",
                   "type": "boolean",
-                  "default": "false"
+                  "default": false
                 }
               },
               "required": [
@@ -8520,6 +8925,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "host": {
                   "description": "Match on the hostname in the URI",
@@ -8532,7 +8938,7 @@
                 "normalized": {
                   "description": "Normalizes the result to a canonical form to allow consistent comparisons",
                   "type": "boolean",
-                  "default": "false"
+                  "default": false
                 }
               },
               "required": [
@@ -8540,6 +8946,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "port": {
                   "description": "Match on the port number in the URI",
@@ -8552,7 +8959,7 @@
                 "normalized": {
                   "description": "Normalizes the result to a canonical form to allow consistent comparisons",
                   "type": "boolean",
-                  "default": "false"
+                  "default": false
                 }
               },
               "required": [
@@ -8560,6 +8967,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "extension": {
                   "description": "Match on the file extension in the URI (e.g. jpg, html, cgi)",
@@ -8572,7 +8980,7 @@
                 "normalized": {
                   "description": "Normalizes the result to a canonical form to allow consistent comparisons",
                   "type": "boolean",
-                  "default": "false"
+                  "default": false
                 }
               },
               "required": [
@@ -8580,6 +8988,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "queryString": {
                   "description": "Match against text in the query string",
@@ -8592,7 +9001,7 @@
                 "normalized": {
                   "description": "Normalizes the result to a canonical form to allow consistent comparisons",
                   "type": "boolean",
-                  "default": "false"
+                  "default": false
                 }
               },
               "required": [
@@ -8600,6 +9009,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "queryParameter": {
                   "description": "Match value of the named query parameter from the query string",
@@ -8616,7 +9026,7 @@
                 "normalized": {
                   "description": "Normalizes the result to a canonical form to allow consistent comparisons",
                   "type": "boolean",
-                  "default": "false"
+                  "default": false
                 }
               },
               "required": [
@@ -8625,6 +9035,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "unnamedQueryParameter": {
                   "description": "Match the value of a query parameter by a numeric index instead of by name",
@@ -8642,7 +9053,7 @@
                 "normalized": {
                   "description": "Normalizes the result to a canonical form to allow consistent comparisons",
                   "type": "boolean",
-                  "default": "false"
+                  "default": false
                 }
               },
               "required": [
@@ -8651,6 +9062,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "pathSegment": {
                   "description": "Match a part of the URI path by a numeric index",
@@ -8668,7 +9080,7 @@
                 "normalized": {
                   "description": "Normalizes the result to a canonical form to allow consistent comparisons",
                   "type": "boolean",
-                  "default": "false"
+                  "default": false
                 }
               },
               "required": [
@@ -8677,6 +9089,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "all": {
                   "description": "Match on the full URI",
@@ -8689,7 +9102,7 @@
                 "normalized": {
                   "description": "Normalizes the result to a canonical form to allow consistent comparisons",
                   "type": "boolean",
-                  "default": "false"
+                  "default": false
                 }
               },
               "required": [
@@ -8838,6 +9251,7 @@
         {
           "oneOf": [
             {
+              "type": "object",
               "properties": {
                 "select": {
                   "description": "Select appropriate location for forwarding the connection based on specified parameters",
@@ -8867,7 +9281,8 @@
             "httpHeader",
             "httpUri",
             "httpCookie",
-            "sslExtension"
+            "sslExtension",
+            "tcp"
           ]
         }
       },
@@ -8919,6 +9334,18 @@
           "then": {
             "$ref": "#/definitions/Policy_Condition_SSL_Extension"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "tcp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Policy_Condition_TCP"
+          }
         }
       ],
       "required": [
@@ -8951,7 +9378,7 @@
           "type": "string"
         }
       },
-      "additionalproperties": false
+      "additionalProperties": false
     },
     "NAT_Policy": {
       "description": "Configures network address translation policy",
@@ -8984,6 +9411,69 @@
       ],
       "additionalProperties": false
     },
+    "Idle_Timeout_Rule": {
+      "description": "Idle timeout rule",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Idle timeout rule name",
+          "type": "string",
+          "pattern": "^[A-Za-z_][0-9A-Za-z_/-]*$",
+          "maxLength": 64
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "protocol": {
+          "type": "string",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Enum_Protocols_Idle_Timeout_Policy"
+            }
+          ],
+          "default": "all-other"
+        },
+        "destinationPorts": {
+          "type": "array",
+          "description": "List of ports, port ranges (for example, 80, \"8080-8090\"), or \"all-other\".",
+          "items": {
+            "type": [
+              "integer",
+              "string"
+            ]
+          },
+          "minItems": 1
+        },
+        "idleTimeout": {
+          "description": "Idle timeout in seconds",
+          "type": [
+            "integer",
+            "string"
+          ],
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "immediate",
+                "indefinite",
+                "unspecified"
+              ]
+            }
+          ],
+          "default": "unspecified"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
     "Service_Core": {
       "title": "Virtual-server core",
       "description": "Core attributes of a virtual server",
@@ -8999,6 +9489,7 @@
           "title": "Virtual addresses",
           "description": "Virtual server will listen to each IP address in list.  To accept connections only from certain subnet(s), replace IP address with array [IP-address, accept-from-subnet]. IP address can also be replaced by a reference to a Service_Address.",
           "type": "array",
+          "f5virtualAddress": true,
           "items": {
             "if": {
               "type": "string"
@@ -9035,6 +9526,12 @@
           },
           "minItems": 1,
           "uniqueItems": true
+        },
+        "shareAddresses": {
+          "title": "Share addresses",
+          "description": "A user set boolean that indicates whether the virtualAddresses should be added to or checked for /Common instead of the tenant. This value defaults to false, and so will put the virtualAddresses into their tenant.",
+          "type": "boolean",
+          "default": false
         },
         "sourceAddress": {
           "title": "Source address",
@@ -9098,8 +9595,8 @@
               }
             },
             "additionalProperties": false,
-            "minimumProperties": 1,
-            "maximumProperties": 1,
+            "minProperties": 1,
+            "maxProperties": 1,
             "f5bigComponent": "query ltm snatpool"
           },
           "default": "auto"
@@ -9154,8 +9651,8 @@
                 }
               },
               "additionalProperties": false,
-              "minimumProperties": 1,
-              "maximumProperties": 1,
+              "minProperties": 1,
+              "maxProperties": 1,
               "f5bigComponent": "query ltm rule"
             }
           },
@@ -9206,8 +9703,8 @@
               }
             },
             "additionalProperties": false,
-            "minimumProperties": 1,
-            "maximumProperties": 1,
+            "minProperties": 1,
+            "maxProperties": 1,
             "f5bigComponent": "query ltm pool"
           }
         },
@@ -9226,6 +9723,15 @@
             "L4"
           ],
           "default": "none"
+        },
+        "policyBandwidthControl": {
+          "title": "Bandwidth Control Policy",
+          "description": "AS3 pointer to Bandwidth Control Policy (policy must be static)",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Bandwidth_Control_Policy"
+            }
+          ]
         },
         "policyFirewallEnforced": {
           "title": "Firewall policy (enforced)",
@@ -9284,6 +9790,9 @@
           "maxProperties": 1,
           "f5bigComponent": "query security nat policy"
         },
+        "policyIdleTimeout": {
+          "$ref": "#/definitions/Pointer_Idle_Timeout_Policy"
+        },
         "lastHop": {
           "title": "Last hop",
           "description": "Name of built-in last-hop method or AS3 pointer to last-hop pool (default 'default' means use system setting)",
@@ -9327,17 +9836,33 @@
               }
             },
             "additionalProperties": false,
-            "minimumProperties": 1,
-            "maximumProperties": 1,
+            "minProperties": 1,
+            "maxProperties": 1,
             "f5bigComponent": "query ltm pool"
           },
           "default": "default"
         },
         "translateClientPort": {
           "title": "Translate client port",
-          "description": "If true, hide client's port number from server (default false)",
-          "type": "boolean",
-          "default": false
+          "description": "If true, hide client's port number from server.  A value of true is the same as the string 'change' while a value of false is the same as the string 'preserve'.  The value 'preserve-strict' is the only other allowed value for a string",
+          "type": [
+            "boolean",
+            "string"
+          ],
+          "default": false,
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string",
+              "enum": [
+                "change",
+                "preserve",
+                "preserve-strict"
+              ]
+            }
+          ]
         },
         "translateServerAddress": {
           "title": "Translate server address",
@@ -9486,6 +10011,23 @@
         },
         "clonePools": {
           "$ref": "#/definitions/Clone_Pools"
+        },
+        "maximumBandwidth": {
+          "description": "Specifies the maximum bandwidth allowed, in Mbps.",
+          "f5modules": [
+            "afm"
+          ],
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 1000000
+            },
+            {
+              "type": "string",
+              "const": "infinite"
+            }
+          ]
         }
       },
       "allOf": [
@@ -9542,6 +10084,7 @@
     },
     "GSLB_Monitor_UDP": {
       "description": "Additional Monitor class properties available when monitorType = udp",
+      "type": "object",
       "properties": {
         "debugEnabled": {
           "title": "Debug Enabled",
@@ -9761,6 +10304,7 @@
       ],
       "title": "DoS Network Log Profile",
       "description": "Specifies, when enabled, that the system logs detected network DoS attacks",
+      "type": "object",
       "properties": {
         "publisher": {
           "description": "Specifies the name of the log publisher used for logging Network DoS events",
@@ -9828,7 +10372,11 @@
         },
         "matchValue": {
           "title": "Match Value",
-          "description": "Specifies the value to match"
+          "description": "Specifies the value to match",
+          "type": [
+            "string",
+            "object"
+          ]
         }
       },
       "allOf": [
@@ -10033,6 +10581,42 @@
           "f5bigComponent": "query ltm profile fix"
         }
       ]
+    },
+    "Protocol_Inspection_Profile_Service_Compliance_Checks": {
+      "description": "A list of compliance checks to attach to the Protocol Inspection Profile",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "check": {
+            "type": "string",
+            "description": "The name of the check"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "drop",
+              "reject"
+            ],
+            "description": "Which action to perform on traffic matching the check",
+            "default": "accept"
+          },
+          "log": {
+            "type": "boolean",
+            "description": "Specifies whether to log the check",
+            "default": true
+          },
+          "value": {
+            "type": "string",
+            "description": "Value to use for the check. If a check accepts enumerable values, these should be delimited by spaces."
+          }
+        },
+        "required": [
+          "check"
+        ],
+        "additionalProperties": false
+      }
     },
     "Rewrite_Profile_Set_Cookie_Rule": {
       "description": "A Set-Cookie rule",
@@ -10762,6 +11346,7 @@
     },
     "DNS_TSIG_Key": {
       "description": "Configures a TSIG key",
+      "type": "object",
       "properties": {
         "class": {
           "title": "Class",
@@ -10808,41 +11393,32 @@
       ],
       "additionalProperties": false
     },
-    "Pointer_GSLB_Domain_MX": {
-      "description": "Reference to a GSLB domain",
+    "Policy_Match_String": {
+      "description": "Perform a comparison that either matches or does-not-match",
       "type": "object",
       "properties": {
-        "use": {
-          "description": "AS3 pointer to GSLB domain declaration",
+        "operand": {
+          "description": "Specifies the comparison",
           "type": "string",
-          "minLength": 1,
-          "f5pointsTo": {
-            "properties": {
-              "class": {
-                "enum": [
-                  "GSLB_Domain"
-                ]
-              }
-            },
-            "required": [
-              "class"
-            ]
-          }
+          "enum": [
+            "matches",
+            "does-not-match"
+          ],
+          "default": "matches"
         },
-        "bigip": {
-          "description": "Pathname of existing BIG-IP GSLB domain",
-          "type": "string",
-          "format": "f5bigip"
+        "values": {
+          "description": "A list of strings to compare against",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
         }
       },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1,
-      "allOf": [
-        {
-          "f5bigComponent": "query gtm wideip mx"
-        }
-      ]
+      "required": [
+        "values"
+      ],
+      "additionalProperties": false
     },
     "Pointer_DOS_Profile": {
       "description": "Reference to a DOS Profile",
@@ -10993,13 +11569,13 @@
           "default": "off"
         },
         "blockSuspiscousBrowsers": {
-          "$comments": "maps to application.bot-defense.browswer-legit-enabled",
+          "$comment": "maps to application.bot-defense.browswer-legit-enabled",
           "description": "Detect and block requests from highly suspicious browsers",
           "type": "boolean",
           "default": true
         },
         "issueCaptchaChallenge": {
-          "$comments": "maps to application.bot-defense.browswer-legit-captcha",
+          "$comment": "maps to application.bot-defense.browswer-legit-captcha",
           "description": "Issue CAPTCHA challenges to moderately suspicious browsers",
           "type": "boolean",
           "default": true
@@ -11082,6 +11658,42 @@
         }
       },
       "additionalProperties": false
+    },
+    "Pointer_GSLB_Domain_MX": {
+      "description": "Reference to a GSLB domain",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to GSLB domain declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "GSLB_Domain"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP GSLB domain",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query gtm wideip mx"
+        }
+      ]
     },
     "UDP_Profile": {
       "title": "UDP Profile",
@@ -11294,6 +11906,7 @@
     "Persist_Addr": {
       "title": "Address persistence",
       "description": "Configures an address affinity persistence profile",
+      "type": "object",
       "properties": {
         "duration": {
           "title": "Duration",
@@ -11377,6 +11990,7 @@
       "type": "object",
       "allOf": [
         {
+          "type": "object",
           "properties": {
             "event": {
               "description": "When to evaluate this condition in the request-response cycle",
@@ -11392,6 +12006,7 @@
         {
           "oneOf": [
             {
+              "type": "object",
               "properties": {
                 "serverName": {
                   "description": "Server name indication",
@@ -11407,6 +12022,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "npn": {
                   "description": "Server name indication",
@@ -11428,6 +12044,7 @@
               ]
             },
             {
+              "type": "object",
               "properties": {
                 "alpn": {
                   "description": "Server name indication",
@@ -11454,6 +12071,7 @@
     },
     "GSLB_Monitor_HTTP": {
       "description": "Additional Monitor class properties available when monitorType = http",
+      "type": "object",
       "properties": {
         "reverseEnabled": {
           "title": "Reverse Enabled",
@@ -11813,6 +12431,7 @@
     },
     "Enforcement_Rule_Ran_Congestion": {
       "description": "Detect congestion in the Radio Access Network",
+      "type": "object",
       "properties": {
         "threshold": {
           "description": "Specifies lower threshold bandwidth (in kbps) for a session to be marked as congested",
@@ -11867,6 +12486,7 @@
     "Security_Log_Profile_Protocol_Transfer": {
       "title": "Protocol Transfer Log Profile",
       "description": "Specifies, when enabled, that the system logs HTTP, FTP, and SMTP protocol security events",
+      "type": "object",
       "properties": {
         "publisher": {
           "description": "Specifies where the system sends log messages",
@@ -11938,6 +12558,7 @@
       ],
       "title": "Protocol SIP Log Profile",
       "description": "Specifies, when enabled, that the system logs SIP protocol security events",
+      "type": "object",
       "properties": {
         "publisher": {
           "description": "Specifies the name of the log publisher used for logging SIP protocol security events",
@@ -12348,6 +12969,7 @@
     },
     "DNS_Cache_Transparent": {
       "description": "Properties for a DNS transparent cache",
+      "type": "object",
       "properties": {
         "answerDefaultZones": {
           "description": "Specifies whether the system answers DNS queries for the default zones localhost, reverse 127.0.0.1 and ::1, and AS112",
@@ -12392,6 +13014,7 @@
     "Security_Log_Profile_Bot_Defense": {
       "title": "Bot Defense Log Profile",
       "description": "Specifies, when enabled, that the system logs events from the Proactive Bot Defense mechanism. Depending on settings, the system logs Illegal requests, Legal requests and BIGIP Challenges.",
+      "type": "object",
       "f5modules": [
         "asm"
       ],
@@ -12440,8 +13063,41 @@
       },
       "additionalProperties": false
     },
+    "Protocol_Inspection_Profile_Service_Signature_Checks": {
+      "description": "A list of signature checks to attach to the Protocol Inspection Profile",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "check": {
+            "type": "string",
+            "description": "The name of the check"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "drop",
+              "reject"
+            ],
+            "description": "Which action to perform on traffic matching the check",
+            "default": "accept"
+          },
+          "log": {
+            "type": "boolean",
+            "description": "Specifies whether to log the check",
+            "default": true
+          }
+        },
+        "required": [
+          "check"
+        ],
+        "additionalProperties": false
+      }
+    },
     "Service_HTTP_Core": {
       "title": "HTTP VS core",
+      "type": "object",
       "description": "Core attributes of HTTP(S) virtual server",
       "properties": {
         "persistenceMethods": {
@@ -12510,21 +13166,39 @@
         },
         "profileHTTP2": {
           "title": "HTTP/2 profile",
+          "type": [
+            "string",
+            "object"
+          ],
           "description": "HTTP/2 profile; name of built-in or else AS3 pointer",
-          "if": {
-            "not": {
-              "type": "object"
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "basic"
+              ]
+            },
+            {
+              "$ref": "#/definitions/Pointer_HTTP2_Profile"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "ingress": {
+                  "type": "object",
+                  "description": "Ingress (client-side context) HTTP2 profile. This option is only available on BIG-IP 14.1+.",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Pointer_HTTP2_Profile"
+                    }
+                  ]
+                }
+              },
+              "minProperties": 1,
+              "maxProperties": 1,
+              "additionalProperties": false
             }
-          },
-          "then": {
-            "type": "string",
-            "enum": [
-              "basic"
-            ]
-          },
-          "else": {
-            "$ref": "#/definitions/Pointer_HTTP2_Profile"
-          }
+          ]
         },
         "profileHTTPCompression": {
           "title": "HTTP compression profile",
@@ -12679,9 +13353,11 @@
           "$ref": "#/definitions/Data_Group_Records_Base"
         },
         {
-          "dependencies": {
+          "properties": {
             "records": {
+              "type": "array",
               "items": {
+                "type": "object",
                 "properties": {
                   "key": {
                     "title": "Record Key",
@@ -12701,6 +13377,7 @@
     },
     "Monitor_DNS": {
       "description": "Additional Monitor class properties available when monitorType = dns",
+      "type": "object",
       "properties": {
         "acceptRCODE": {
           "title": "Accept RCODE",
@@ -12851,6 +13528,7 @@
     },
     "Enforcement_Rule_URL_Categorization_Filter": {
       "description": "Defines the category of URL, which provides information about the content type requested by the subscriber",
+      "type": "object",
       "properties": {
         "category": {
           "description": "Specifies which type of URL category you want the rule to affect",
@@ -13267,6 +13945,7 @@
     },
     "Monitor_ICMP": {
       "description": "Additional Monitor class properties available when monitorType = icmp",
+      "type": "object",
       "properties": {
         "transparent": {
           "title": "Transparent",
@@ -13328,6 +14007,7 @@
     "Persist_Cookie": {
       "title": "Cookie persistence",
       "description": "Configures a cookie persistence profile",
+      "type": "object",
       "properties": {
         "duration": {
           "title": "Duration",
@@ -13472,6 +14152,7 @@
     },
     "DNS_Zone": {
       "description": "Configures a DNS zone",
+      "type": "object",
       "properties": {
         "class": {
           "title": "Class",
@@ -13826,6 +14507,7 @@
       ],
       "title": "Classification Log Profile",
       "description": "Specifies, when enabled, that the system logs events from the Classification engine.",
+      "type": "object",
       "properties": {
         "publisher": {
           "description": "Specifies where the system sends log messages",
@@ -13874,6 +14556,7 @@
       ],
       "title": "Protocol DNS Log Profile",
       "description": "Specifies, when enabled, that the system logs DNS security events",
+      "type": "object",
       "properties": {
         "publisher": {
           "description": "Specifies the name of the log publisher used for logging DNS security events",
@@ -14138,6 +14821,7 @@
     },
     "Enforcement_Rule_Modify_HTTP_Header": {
       "description": "Specifies the action to modify the HTTP header when the traffic flow matches the rule matching criteria",
+      "type": "object",
       "properties": {
         "headerName": {
           "description": "Specifies the HTTP header name used by the operation option to modify the HTTP header",
@@ -14245,6 +14929,7 @@
     },
     "DNS_Nameserver": {
       "description": "Configures a DNS nameserver",
+      "type": "object",
       "properties": {
         "class": {
           "title": "Class",
@@ -14341,6 +15026,7 @@
     },
     "Enforcement_Rule_Usage_Reporting_Volume": {
       "description": "Configures volume threshold settings",
+      "type": "object",
       "properties": {
         "downlink": {
           "description": "Send reporting data if the number of octets to the client exceeds the threshold. A value of 0 indicates this feature is disabled.",
@@ -14574,6 +15260,7 @@
     "Persist_Hash": {
       "title": "Hash persistence",
       "description": "Configures a hash persistence profile",
+      "type": "object",
       "properties": {
         "duration": {
           "title": "Duration",
@@ -14675,8 +15362,8 @@
               }
             },
             "additionalProperties": false,
-            "minimumProperties": 1,
-            "maximumProperties": 1,
+            "minProperties": 1,
+            "maxProperties": 1,
             "f5bigComponent": "query ltm rule"
           }
         }
@@ -15241,6 +15928,7 @@
     "Persist_SIP": {
       "title": "SIP info persistence",
       "description": "Configures a Session Initiation Protocol (SIP) persistence profile",
+      "type": "object",
       "properties": {
         "duration": {
           "title": "Duration",
@@ -15303,8 +15991,8 @@
           }
         },
         "additionalProperties": false,
-        "minimumProperties": 1,
-        "maximumProperties": 1,
+        "minProperties": 1,
+        "maxProperties": 1,
         "f5bigComponent": "probe ltm monitor icmp"
       }
     },
@@ -15450,6 +16138,7 @@
     "Template_generic": {
       "title": "Generic application",
       "description": "Declares a generic application",
+      "type": "object",
       "properties": {
         "template": {
           "title": "Template Name",
@@ -15463,6 +16152,7 @@
     },
     "DOS_Profile_Application_Stress_Based_Detection": {
       "description": "Configure the system to prevent DoS attacks based on the server’s health condition. An attack is detected if the system finds the server to be under stress and either of the TPS thresholds are crossed.",
+      "type": "object",
       "properties": {
         "operationMode": {
           "description": "Specifies how the system reacts when it detects an attack",
@@ -15602,7 +16292,7 @@
           "description": "Specifies the profile that this profile will inherit values from",
           "allOf": [
             {
-              "ref": "#/definitions/Pointer_Stream_Profile"
+              "$ref": "#/definitions/Pointer_Stream_Profile"
             }
           ],
           "default": {
@@ -15722,6 +16412,7 @@
     },
     "Monitor_SIP": {
       "description": "Additional Monitor class properties available when monitorType = sip",
+      "type": "object",
       "properties": {
         "protocol": {
           "title": "Protocol",
@@ -15808,6 +16499,7 @@
     },
     "Enforcement_Rule_Forwarding_Route_To_Network": {
       "description": "Specifies that the system forwards the flow to the default destination",
+      "type": "object",
       "properties": {},
       "required": []
     },
@@ -15818,6 +16510,7 @@
       ],
       "title": "Protocol DNS DoS Log Profile",
       "description": "Specifies, when enabled, that the system logs detected DNS DoS attacks",
+      "type": "object",
       "properties": {
         "publisher": {
           "description": "Specifies the name of the log publisher used for logging DNS DoS events",
@@ -16127,8 +16820,9 @@
           "description": "The type of the log destination",
           "type": "string",
           "enum": [
-            "remote-syslog",
+            "management-port",
             "remote-high-speed-log",
+            "remote-syslog",
             "splunk"
           ]
         }
@@ -16137,28 +16831,44 @@
         "class",
         "type"
       ],
-      "if": {
-        "properties": {
-          "type": {
-            "const": "remote-syslog"
-          }
-        }
-      },
-      "then": {
-        "$ref": "#/definitions/Log_Destination_Remote_Syslog"
-      },
-      "else": {
-        "if": {
-          "properties": {
-            "type": {
-              "const": "remote-high-speed-log"
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "management-port"
+              }
             }
+          },
+          "then": {
+            "$ref": "#/definitions/Log_Destination_Management_Port"
           }
         },
-        "then": {
-          "$ref": "#/definitions/Log_Destination_Remote_High_Speed_Log"
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "remote-syslog"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Log_Destination_Remote_Syslog"
+          }
         },
-        "else": {
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "remote-high-speed-log"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Log_Destination_Remote_High_Speed_Log"
+          }
+        },
+        {
           "if": {
             "properties": {
               "type": {
@@ -16170,7 +16880,7 @@
             "$ref": "#/definitions/Log_Destination_Splunk"
           }
         }
-      }
+      ]
     },
     "Firewall_Rule_List": {
       "title": "Firewall Rule List",
@@ -16206,6 +16916,7 @@
     },
     "Enforcement_Rule_Classification_Filter": {
       "description": "Defines the category or application (Layer 7) conditions that the traffic must meet (or not meet) for this enforcement policy rule to apply",
+      "type": "object",
       "properties": {
         "application": {
           "$ref": "#/definitions/Pointer_Classification_Application"
@@ -16278,6 +16989,7 @@
     },
     "DOS_Profile_Application_Rate_Based_Detection": {
       "description": "Configure the system to prevent DoS attacks based on the client side transactions per second (TPS-based detection mode). The system considers traffic to be a DoS attack based on the following calculations:\n\n*  Transaction rate detection interval: The average number of requests per second sent. This is the TPS value that triggered the attack. This number is calculated by the system, by default, every ten seconds.\n* Transaction rate history interval: The average number of requests per second sent. This number is the average number of transactions for the past hour, and it is updated every 10 seconds.\n\nIn TPS-based detection mode, if the ratio of the transaction rate detection interval to the transaction rate history interval is greater than the specific percentage configured, the system detects the URL/site to be under attack, or the IP address/geolocation to be attacking. In order to stop the attack, the system blocks some, or all, requests from the detected IP address/geolocation and/to the attacked URL/site, depending on the configuration of the DoS profile.",
+      "type": "object",
       "properties": {
         "operationMode": {
           "description": "Specifies how the system reacts when it detects an attack",
@@ -16488,6 +17200,26 @@
       ],
       "additionalProperties": false
     },
+    "Security_Log_Profile_Protocol_Inspection": {
+      "f5modules": [
+        "afm",
+        "em"
+      ],
+      "title": "Protocol Inspection Log Profile",
+      "description": "Specifies, when enabled, that the system logs events from the Protocol Inspection engine",
+      "type": "object",
+      "properties": {
+        "publisher": {
+          "$ref": "#/definitions/Pointer_Log_Publisher"
+        },
+        "logPacketPayloadEnabled": {
+          "description": "Enable logging of the packet payload for Protocol Inspection events",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
     "Pointer_Tunnel": {
       "description": "Reference to a network tunnel",
       "type": "object",
@@ -16613,18 +17345,19 @@
           "description": "Specifies the number of seconds a connection can be idle before the connection is eligible for deletion",
           "$comment": "It might be possible to specify a value of 0 and remove the immediate option",
           "if": {
-            "type": "string"
+            "type": "integer"
           },
           "then": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295
+          },
+          "else": {
+            "type": "string",
             "enum": [
               "indefinite",
               "immediate"
             ]
-          },
-          "else": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 4294967295
           },
           "default": 60
         }
@@ -16741,6 +17474,7 @@
     "Template_sctp": {
       "title": "SCTP application",
       "description": "Declares a SCTP application",
+      "type": "object",
       "properties": {
         "serviceMain": {
           "$ref": "#/definitions/Service_SCTP"
@@ -17057,6 +17791,7 @@
       "type": "object",
       "allOf": [
         {
+          "type": "object",
           "properties": {
             "event": {
               "description": "When to evaluate this condition in the request-response cycle",
@@ -17075,6 +17810,7 @@
         {
           "oneOf": [
             {
+              "type": "object",
               "properties": {
                 "all": {
                   "description": "Match on the full HTTP header",
@@ -17101,6 +17837,7 @@
     "GSLB_Virtual_Server": {
       "title": "GSLB virtual server",
       "description": "GSLB virtual server",
+      "type": "object",
       "properties": {
         "label": {
           "$ref": "#/definitions/Label"
@@ -17154,7 +17891,7 @@
         "address",
         "port"
       ],
-      "additionalPropertes": "false"
+      "additionalProperties": false
     },
     "Pool_Member": {
       "title": "Pool member",
@@ -17358,11 +18095,6 @@
                       "format": "f5ip"
                     },
                     "uniqueItems": true
-                  },
-                  "": {
-                    "not": {
-                      "type": "string"
-                    }
                   }
                 },
                 "if": {
@@ -17514,6 +18246,7 @@
     },
     "DNS_Profile": {
       "description": "Configures a Domain Name System (DNS) profile",
+      "type": "object",
       "properties": {
         "class": {
           "title": "Class",
@@ -17688,6 +18421,7 @@
           "description": "Replace URI, path, or query string in request",
           "oneOf": [
             {
+              "type": "object",
               "properties": {
                 "value": {
                   "type": "string",
@@ -17700,6 +18434,7 @@
               "additionalProperties": false
             },
             {
+              "type": "object",
               "properties": {
                 "path": {
                   "type": "string",
@@ -17712,6 +18447,7 @@
               "additionalProperties": false
             },
             {
+              "type": "object",
               "properties": {
                 "queryString": {
                   "type": "string",
@@ -18435,6 +19171,7 @@
     },
     "GSLB_Monitor_TCP": {
       "description": "Additional Monitor class properties available when monitorType = tcp",
+      "type": "object",
       "properties": {
         "reverseEnabled": {
           "title": "Reverse Enabled",
@@ -18648,10 +19385,46 @@
         "remoteHighSpeedLog"
       ]
     },
+    "Pointer_Data_Group": {
+      "description": "Reference to a Data Group",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Data Group",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm data-group internal"
+        }
+      ]
+    },
     "Pointer_FTP_Profile": {
       "description": "Reference to a FTP protocol profile",
       "type": "object",
       "properties": {
+        "use": {
+          "description": "AS3 pointer to FTP protocol profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "FTP_Profile"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
         "bigip": {
           "description": "Pathname of existing BIG-IP FTP protocol profile",
           "type": "string",
@@ -18689,6 +19462,7 @@
     },
     "Enforcement_Rule_Usage_Gx": {
       "description": "Sends usage monitoring data to a PCRF over a Gx interface",
+      "type": "object",
       "properties": {
         "applicationReportingEnabled": {
           "description": "Report APPLICATION_START and APPLICATION_END Event-Triggers when the application start/stop is detected",
@@ -18704,6 +19478,7 @@
     },
     "Monitor_TCP_Half_Open": {
       "description": "Additional Monitor class properties available when monitorType = tcp-half-open",
+      "type": "object",
       "properties": {
         "transparent": {
           "title": "Transparent",
@@ -18808,6 +19583,7 @@
     },
     "Monitor_HTTP": {
       "description": "Additional Monitor class properties available when monitorType = http or https",
+      "type": "object",
       "properties": {
         "send": {
           "title": "Send",
@@ -19179,6 +19955,7 @@
     },
     "Enforcement_Rule_Forwarding_Endpoint": {
       "description": "Specifies that the flow steers to a different destination",
+      "type": "object",
       "properties": {
         "endpoint": {
           "$ref": "#/definitions/Pointer_Enforcement_Forwarding_Endpoint"
@@ -19493,6 +20270,7 @@
     },
     "Monitor_External": {
       "description": "Additional Monitor class properties available when monitorType = external",
+      "type": "object",
       "properties": {
         "pathname": {
           "title": "pathname",
@@ -19561,9 +20339,11 @@
           "$ref": "#/definitions/Data_Group_Records_Base"
         },
         {
-          "dependencies": {
+          "properties": {
             "records": {
+              "type": "array",
               "items": {
+                "type": "object",
                 "properties": {
                   "key": {
                     "title": "Record Key",
@@ -19585,6 +20365,7 @@
       "type": "object",
       "oneOf": [
         {
+          "type": "object",
           "properties": {
             "pool": {
               "$ref": "#/definitions/Pointer_Pool"
@@ -19595,6 +20376,7 @@
           ]
         },
         {
+          "type": "object",
           "properties": {
             "service": {
               "$ref": "#/definitions/Pointer_Service"
@@ -19740,6 +20522,7 @@
     "Persist_TLS_Session": {
       "title": "TLS session persistence",
       "description": "Configures a Secure Socket Layer (SSL) persistence profile",
+      "type": "object",
       "properties": {
         "duration": {
           "title": "Duration",
@@ -20376,7 +21159,7 @@
           "description": "If hstsInsert is true, this value tells each client how long (in seconds; default 7862400 equals 91 days) to wait before refreshing HSTS settings for this service.  Warning:  once a client receives erroneous HSTS settings it will ignore any attempt to correct them until this period has expired",
           "type": "integer",
           "minimum": 0,
-          "maximum": 31557600,
+          "maximum": 4294967295,
           "default": 7862400
         },
         "hstsIncludeSubdomains": {
@@ -20748,6 +21531,36 @@
         }
       ]
     },
+    "Log_Destination_Management_Port": {
+      "description": "Sends received messages to a specified IP address and port through the management interface",
+      "type": "object",
+      "properties": {
+        "address": {
+          "description": "Specifies the IP address that will receive messages from the specified local Log Destination",
+          "type": "string",
+          "format": "f5ip"
+        },
+        "port": {
+          "description": "Specifies the port of the IP address that will receive messages from the specified local Log Destination ",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "protocol": {
+          "description": "Specifies the protocol for the system to use to send logs to the specified location",
+          "type": "string",
+          "enum": [
+            "tcp",
+            "udp"
+          ],
+          "default": "tcp"
+        }
+      },
+      "required": [
+        "address",
+        "port"
+      ]
+    },
     "GSLB_Prober_Pool_Member": {
       "title": "GSLB Prober Pool Member",
       "description": "Declares member of the GSLB prober pool",
@@ -21071,8 +21884,8 @@
           }
         },
         "additionalProperties": false,
-        "minimumProperties": 1,
-        "maximumProperties": 1
+        "minProperties": 1,
+        "maxProperties": 1
       }
     },
     "iRule_Core": {
@@ -21418,6 +22231,7 @@
       "then": {
         "properties": {
           "minimumMonitors": {
+            "type": "integer",
             "default": 1
           }
         }
@@ -21752,6 +22566,7 @@
     },
     "GSLB_Monitor_ICMP": {
       "description": "Additional Monitor class properties available when monitorType = gateway-icmp",
+      "type": "object",
       "properties": {
         "probeInterval": {
           "title": "Probe Interval",
@@ -21827,6 +22642,7 @@
     "Template_l4": {
       "title": "L4 application",
       "description": "Declares a L4 application",
+      "type": "object",
       "properties": {
         "serviceMain": {
           "$ref": "#/definitions/Service_L4"
@@ -21879,6 +22695,7 @@
       ],
       "title": "Protocol SIP DoS Log Profile",
       "description": "Specifies, when enabled, that the system logs detected SIP DoS attacks",
+      "type": "object",
       "properties": {
         "publisher": {
           "description": "Specifies the name of the log publisher used for logging SIP DoS events",
@@ -21991,6 +22808,7 @@
     "Persist_UIE": {
       "title": "Universal persistence",
       "description": "Configures a universal persistence profile",
+      "type": "object",
       "properties": {
         "duration": {
           "title": "Duration",
@@ -22181,6 +22999,7 @@
     "Certificate_Validator_OCSP": {
       "title": "OCSP Certificate Validator",
       "description": "OCSP validator for certificates",
+      "type": "object",
       "properties": {
         "class": {
           "title": "Class",
@@ -22380,6 +23199,7 @@
       "then": {
         "properties": {
           "minimumMonitors": {
+            "type": "integer",
             "default": 1
           }
         }
@@ -22395,6 +23215,7 @@
     },
     "Enforcement_Rule_Usage_Sd": {
       "description": "Sends usage monitoring data to a PCRF over a Sd interface",
+      "type": "object",
       "properties": {
         "applicationReportingEnabled": {
           "description": "Report APPLICATION_START and APPLICATION_END Event-Triggers when the application start/stop is detected",
@@ -22448,6 +23269,7 @@
     },
     "GSLB_Monitor_HTTPS": {
       "description": "Additional Monitor class properties available when monitorType = https",
+      "type": "object",
       "allOf": [
         {
           "properties": {
@@ -22671,38 +23493,6 @@
       ],
       "additionalProperties": false
     },
-    "Protocol_Inspection_Profile_Service_Checks": {
-      "description": "A list of checks to attach to the Protocol Inspection Profile",
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "check": {
-            "type": "string",
-            "description": "The name of the check"
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "accept",
-              "drop",
-              "reject"
-            ],
-            "description": "Which action to perform on traffic matching the check",
-            "default": "accept"
-          },
-          "log": {
-            "type": "boolean",
-            "description": "Specifies whether to log the check",
-            "default": true
-          }
-        },
-        "required": [
-          "check"
-        ],
-        "additionalProperties": false
-      }
-    },
     "Pointer_Bot_Signature": {
       "description": "Reference to a bot signature",
       "type": "object",
@@ -22754,6 +23544,7 @@
     "Template_http": {
       "title": "HTTP application",
       "description": "Declares an HTTP application",
+      "type": "object",
       "properties": {
         "serviceMain": {
           "$ref": "#/definitions/Service_HTTP"
@@ -22765,6 +23556,7 @@
     },
     "Enforcement_Rule_Forwarding_HTTP": {
       "description": "Specifies that traffic affected by this rule should be redirected to the specified URL",
+      "type": "object",
       "properties": {
         "redirectUrl": {
           "description": "Specifies that traffic affected by this rule should be redirected to the specified URL",
@@ -22777,6 +23569,7 @@
     },
     "DOS_Profile_Application_TCP_Dump": {
       "description": "Configure settings to record traffic (perform a TCP dump) when a DoS attack is underway, in order to diagnose the attack vectors and attackers, observe whether and how it was mitigated, and draw conclusions for changing the DoS profile configuration.",
+      "type": "object",
       "properties": {
         "recordTrafficEnabled": {
           "description": "Enables the recording of traffic during attacks",
@@ -23332,6 +24125,7 @@
     },
     "Monitor_Send_Recv": {
       "description": "Additional Monitor class properties available when monitorType = tcp or udp",
+      "type": "object",
       "properties": {
         "send": {
           "title": "Send",
@@ -23473,6 +24267,7 @@
     },
     "Enforcement_Rule_Usage_Hsl": {
       "description": "Sends reporting data to remote HSL servers",
+      "type": "object",
       "properties": {
         "publisher": {
           "$ref": "#/definitions/Pointer_Log_Publisher"
@@ -23795,6 +24590,7 @@
     },
     "Monitor_SMTP": {
       "description": "Additional Monitor class properties available when monitorType = smtp",
+      "type": "object",
       "properties": {
         "domain": {
           "title": "Domain",
@@ -23806,6 +24602,155 @@
         }
       }
     },
+    "Enum_Protocols_Idle_Timeout_Policy": {
+      "description": "Enum values for Idle_Timeout_Policy protocols",
+      "type": "string",
+      "enum": [
+        "3pc",
+        "a/n",
+        "ah",
+        "all-other",
+        "argus",
+        "aris",
+        "ax.25",
+        "bbn-rcc",
+        "bna",
+        "br-sat-mon",
+        "cbt",
+        "cftp",
+        "chaos",
+        "compaq-peer",
+        "cphb",
+        "cpnx",
+        "crdup",
+        "crtp",
+        "dccp",
+        "dcn",
+        "ddp",
+        "ddx",
+        "dgp",
+        "dsr",
+        "egp",
+        "eigrp",
+        "emcon",
+        "encap",
+        "esp",
+        "etherip",
+        "fc",
+        "fire",
+        "ggp",
+        "gmtp",
+        "gre",
+        "hip",
+        "hmp",
+        "hopopt",
+        "i-nlsp",
+        "iatp",
+        "icmp",
+        "idpr",
+        "idpr-cmtp",
+        "idrp",
+        "ifmp",
+        "igmp",
+        "igp",
+        "il",
+        "ip",
+        "ipcomp",
+        "ipcv",
+        "ipencap",
+        "ipip",
+        "iplt",
+        "ippc",
+        "ipv4",
+        "ipv6",
+        "ipv6-auth",
+        "ipv6-crypt",
+        "ipv6-frag",
+        "ipv6-icmp",
+        "ipv6-nonxt",
+        "ipv6-opts",
+        "ipv6-route",
+        "ipx-in-ip",
+        "irtp",
+        "isis",
+        "iso-ip",
+        "iso-tp4",
+        "kryptolan",
+        "l2tp",
+        "larp",
+        "leaf-1",
+        "leaf-2",
+        "manet",
+        "merit-inp",
+        "mfe-nsp",
+        "micp",
+        "mobile",
+        "mobility-header",
+        "mpls-in-ip",
+        "mtp",
+        "mux",
+        "narp",
+        "netblt",
+        "nsfnet-igp",
+        "nvp",
+        "ospf",
+        "pgm",
+        "pim",
+        "pipe",
+        "pnni",
+        "prm",
+        "ptp",
+        "pup",
+        "pvp",
+        "qnx",
+        "rdp",
+        "rohc",
+        "rsvp",
+        "rspv-e2e-ignore",
+        "rvd",
+        "sat-expak",
+        "sat-mon",
+        "scc-sp",
+        "scps",
+        "sctp",
+        "sdrp",
+        "secure-vmtp",
+        "shim6",
+        "skip",
+        "sm",
+        "smp",
+        "snp",
+        "sprite-rpc",
+        "sps",
+        "srp",
+        "sscopmce",
+        "st",
+        "stp",
+        "sun-nd",
+        "swipe",
+        "tcf",
+        "tcp",
+        "tlsp",
+        "tp++",
+        "trunk-1",
+        "trunk-2",
+        "ttp",
+        "udp",
+        "udplite",
+        "uti",
+        "vines",
+        "visa",
+        "vmtp",
+        "vrrp",
+        "wb-expak",
+        "wb-mon",
+        "wesp",
+        "wsn",
+        "xnet",
+        "xns-idp",
+        "xtp"
+      ]
+    },
     "Security_Log_Profile_Ssh_Proxy": {
       "f5modules": [
         "afm",
@@ -23813,6 +24758,7 @@
       ],
       "title": "SSH Proxy Security Log Profile",
       "description": "Specifies, when enabled, that the system logs SSH Proxy events",
+      "type": "object",
       "properties": {
         "publisher": {
           "description": "Specifies the name of the log publisher used for logging SSH Proxy events",
@@ -23901,6 +24847,7 @@
     },
     "Enforcement_Rule_Usage_Reporting": {
       "description": "Send reporting data concerning traffic affected by this rule to either an external analytics system or to a PCRF over a Gx interface",
+      "type": "object",
       "properties": {
         "destination": {
           "description": "Specifies where to send the usage monitoring data",
@@ -24537,11 +25484,21 @@
               "class"
             ]
           }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Service Address",
+          "type": "string",
+          "format": "f5bigip"
         }
       },
       "additionalProperties": false,
       "minProperties": 1,
-      "maxProperties": 1
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm virtual-address"
+        }
+      ]
     },
     "Bandwidth_Control_Policy": {
       "description": "Create a listener to specify how to handle traffic for policy enforcement",
@@ -24803,6 +25760,7 @@
       "then": {
         "properties": {
           "minimumMonitors": {
+            "type": "integer",
             "default": 1
           }
         }
@@ -24942,6 +25900,9 @@
         "protocolDnsDos": {
           "$ref": "#/definitions/Security_Log_Profile_Protocol_Dns_Dos"
         },
+        "protocolInspection": {
+          "$ref": "#/definitions/Security_Log_Profile_Protocol_Inspection"
+        },
         "protocolSip": {
           "$ref": "#/definitions/Security_Log_Profile_Protocol_Sip"
         },
@@ -25045,6 +26006,7 @@
       ],
       "title": "Network Address Translation Log Profile",
       "description": "Specifies, when enabled, that the system logs Firewall NAT events",
+      "type": "object",
       "properties": {
         "publisher": {
           "description": "Specifies the name of the log publisher used for logging Network Address Translation events",
@@ -25262,10 +26224,10 @@
                 ]
               },
               "compliance": {
-                "$ref": "#/definitions/Protocol_Inspection_Profile_Service_Checks"
+                "$ref": "#/definitions/Protocol_Inspection_Profile_Service_Compliance_Checks"
               },
               "signature": {
-                "$ref": "#/definitions/Protocol_Inspection_Profile_Service_Checks"
+                "$ref": "#/definitions/Protocol_Inspection_Profile_Service_Signature_Checks"
               }
             },
             "required": [
@@ -25469,6 +26431,7 @@
       "then": {
         "properties": {
           "minimumMonitors": {
+            "type": "integer",
             "default": 1
           }
         }
@@ -25534,6 +26497,7 @@
     },
     "Enforcement_Rule_Usage_Radius": {
       "description": "Specifies a RADIUS internal virtual server as a reporting destination",
+      "type": "object",
       "properties": {
         "radiusAAAService": {
           "$ref": "#/definitions/Pointer_Service"
@@ -25598,6 +26562,12 @@
         "location": {
           "description": "The new URL for which the system will send a redirect response; you can use a Tcl command substitution for this field",
           "type": "string"
+        },
+        "code": {
+          "description": "HTTP status code for the redirect. Note: code is only supported in tmos version 14.0+.",
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 399
         }
       },
       "required": [
@@ -25606,6 +26576,7 @@
     },
     "Enforcement_Rule_Insert_Content": {
       "description": "Specifies the action to insert content into the webpage",
+      "type": "object",
       "properties": {
         "duration": {
           "description": "Specifies the periodicity of the insert action in seconds",
@@ -25795,6 +26766,7 @@
     },
     "Monitor_HTTPS": {
       "description": "Additional Monitor class properties available when monitorType = https",
+      "type": "object",
       "properties": {
         "ciphers": {
           "title": "Ciphers",
@@ -26217,6 +27189,7 @@
     "Security_Log_Profile_Ip_Intelligence": {
       "title": "IP Intelligence Log Profile",
       "description": "Specifies, when enabled, that the system logs IP Intelligence events",
+      "type": "object",
       "properties": {
         "publisher": {
           "description": "Specifies the name of the log publisher used for logging IP Intelligence events",
@@ -26691,6 +27664,7 @@
     "Persist_MSRDP": {
       "title": "MSRDP persistence",
       "description": "Configures a Microsoft(r) Remote Display Protocol (MSRDP) persistence profile",
+      "type": "object",
       "properties": {
         "duration": {
           "title": "Duration",
@@ -26783,6 +27757,7 @@
     "Template_udp": {
       "title": "UDP application",
       "description": "Declares a UDP application",
+      "type": "object",
       "properties": {
         "serviceMain": {
           "$ref": "#/definitions/Service_UDP"
@@ -26821,6 +27796,8 @@
           "type": "string",
           "$comment": "IMPORTANT: In enum array, please put current schema version first, oldest-supported version last.  Keep enum array sorted most-recent-first.",
           "enum": [
+            "3.20.0",
+            "3.19.0",
             "3.18.0",
             "3.17.0",
             "3.16.0",
@@ -26850,7 +27827,7 @@
         },
         "target": {
           "title": "Target Device",
-          "description": "Trusted BIG-IP or SSG target for config when configuring with BIG-IQ",
+          "description": "Trusted target for config when configuring with BIG-IQ",
           "type": "object",
           "properties": {
             "hostname": {
@@ -26863,11 +27840,6 @@
               "description": "IP address of managed device to be configured",
               "type": "string",
               "format": "f5ip"
-            },
-            "ssgName": {
-              "title": "SSG Name",
-              "description": "Name of shared service group to be configured",
-              "type": "string"
             }
           },
           "maxProperties": 1

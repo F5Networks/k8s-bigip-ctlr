@@ -516,6 +516,13 @@ func NewObjectDependencies(
 				Name:      whiteList,
 			}
 			deps[dep]++
+		} else if whiteList, ok := route.ObjectMeta.Annotations[F5VsAllowSourceRangeAnnotation]; ok {
+			dep = ObjectDependency{
+				Kind:      WhitelistDep,
+				Namespace: route.ObjectMeta.Namespace,
+				Name:      whiteList,
+			}
+			deps[dep]++
 		}
 	case *v1beta1.Ingress:
 		ingress := obj.(*v1beta1.Ingress)
@@ -566,6 +573,13 @@ func NewObjectDependencies(
 			}
 		}
 		if whiteList, ok := ingress.ObjectMeta.Annotations[F5VsWhitelistSourceRangeAnnotation]; ok {
+			dep := ObjectDependency{
+				Kind:      WhitelistDep,
+				Namespace: ingress.ObjectMeta.Namespace,
+				Name:      whiteList,
+			}
+			deps[dep]++
+		} else if whiteList, ok := ingress.ObjectMeta.Annotations[F5VsAllowSourceRangeAnnotation]; ok {
 			dep := ObjectDependency{
 				Kind:      WhitelistDep,
 				Namespace: ingress.ObjectMeta.Namespace,

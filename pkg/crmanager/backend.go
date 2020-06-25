@@ -108,6 +108,7 @@ func (agent *Agent) Stop() {
 
 func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
 	decl := createAS3Declaration(config)
+	log.Infof("AS3 Declaration looks like this: %s", decl)
 	if DeepEqualJSON(agent.activeDecl, decl) {
 		log.Debug("[AS3] No Change in the Configuration")
 		return
@@ -545,25 +546,44 @@ func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
 func processProfilesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
 	for _, cfg := range rsCfgs {
 		if svc, ok := sharedApp[cfg.Virtual.Name].(*as3Service); ok {
-			processTLSProfilesForAS3(&cfg.Virtual, svc)
+			processTLSProfilesForAS3(&cfg.Virtual, svc, cfg.Virtual.Name)
 		}
 	}
 }
 
-func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service) {
+func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName string) {
 	// lets discard BIGIP profile creation when there exists a custom profile.
+	as3ClientSuffix := "_tls_client"
+	as3ServerSuffix := "_tls_server"
 	for _, profile := range virtual.Profiles {
 		switch profile.Context {
 		case rsc.CustomProfileClient:
-			// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
-			svc.ServerTLS = &as3ResourcePointer{
-				BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+			// Profile is stored in a k8s secret
+			if profile.Partition == "" {
+				// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
+				svc.ServerTLS = fmt.Sprintf("/%v/%v/%v%v", DEFAULT_PARTITION,
+					as3SharedApplication, profileName, as3ServerSuffix)
+
+			} else {
+				// Profile is a BIG-IP reference
+				// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
+				svc.ServerTLS = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+				}
 			}
 			updateVirtualToHTTPS(svc)
 		case rsc.CustomProfileServer:
-			// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
-			svc.ClientTLS = &as3ResourcePointer{
-				BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+			// Profile is stored in a k8s secret
+			if profile.Partition == "" {
+				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
+				svc.ClientTLS = fmt.Sprintf("/%v/%v/%v%v", DEFAULT_PARTITION,
+					as3SharedApplication, profileName, as3ClientSuffix)
+			} else {
+				// Profile is a BIG-IP reference
+				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
+				svc.ClientTLS = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+				}
 			}
 			updateVirtualToHTTPS(svc)
 		}

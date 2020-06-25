@@ -451,43 +451,72 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 		case Secret:
 			// Prepare SSL Transient Context
 			// Check if TLS Secret already exists
+			// Process ClientSSL stored as kubernetes secret
 			clientSSL := tls.Spec.TLS.ClientSSL
-			if secret, ok := crMgr.SSLContext[clientSSL]; ok {
-				log.Debugf("TLSProfile '%s' is already available with CIS in SSLContext",
-					tlsName)
-				err, _ := crMgr.createSecretSslProfile(rsCfg, secret)
-				if err != nil {
-					log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
-						err, vsName, tlsName)
-					return false
-				}
-			} else {
-				// Check if profile is contained in a Secret
-				// Update the SSL Context if secret found, This is used to avoid api calls
-				log.Debugf("TLSProfile '%s' does not exist with CIS in SSLContext, Store for further use",
-					tlsName)
-				secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
-					Get(clientSSL, metav1.GetOptions{})
-				if err != nil {
-					log.Debugf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
-						clientSSL, vsName, tlsName)
-					return false
-				}
-				crMgr.SSLContext[clientSSL] = secret
-				error, _ := crMgr.createSecretSslProfile(rsCfg, secret)
-				if error != nil {
-					log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
-						error, vsName, tlsName)
-					return false
+			if clientSSL != "" {
+				if secret, ok := crMgr.SSLContext[clientSSL]; ok {
+					log.Debugf("clientSSL secret %s for TLSProfile '%s' is already available with CIS in "+
+						"SSLContext as clientSSL", secret.ObjectMeta.Name, tlsName)
+					err, _ := crMgr.createSecretSslProfile(rsCfg, secret, CustomProfileClient)
+					if err != nil {
+						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
+							err, vsName, tlsName)
+						return false
+					}
+				} else {
+					// Check if profile is contained in a Secret
+					// Update the SSL Context if secret found, This is used to avoid api calls
+					log.Debugf("clientSSL secret for TLSProfile '%s' does not exist with CIS in "+
+						"SSLContext, Store for further use", tlsName)
+					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
+						Get(clientSSL, metav1.GetOptions{})
+					if err != nil {
+						log.Debugf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
+							clientSSL, vsName, tlsName)
+						return false
+					}
+					crMgr.SSLContext[clientSSL] = secret
+					error, _ := crMgr.createSecretSslProfile(rsCfg, secret, CustomProfileClient)
+					if error != nil {
+						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
+							error, vsName, tlsName)
+						return false
+					}
 				}
 			}
-			profRef := ProfileRef{
-				Partition: rsCfg.Virtual.Partition,
-				Name:      clientSSL,
-				Context:   CustomProfileClient,
-				Namespace: vsNamespace,
+			// Process ServerSSL stored as kubernetes secret
+			serverSSL := tls.Spec.TLS.ServerSSL
+			if serverSSL != "" {
+				if secret, ok := crMgr.SSLContext[serverSSL]; ok {
+					log.Debugf("serverSSL secret %s for TLSProfile '%s' is already available with CIS in"+
+						"SSLContext", secret.ObjectMeta.Name, tlsName)
+					err, _ := crMgr.createSecretSslProfile(rsCfg, secret, CustomProfileServer)
+					if err != nil {
+						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
+							err, vsName, tlsName)
+						return false
+					}
+				} else {
+					// Check if profile is contained in a Secret
+					// Update the SSL Context if secret found, This is used to avoid api calls
+					log.Debugf("serverSSL secret for TLSProfile '%s'  does not exist with CIS in "+
+						"SSLContext, Store for further use", tlsName)
+					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
+						Get(serverSSL, metav1.GetOptions{})
+					if err != nil {
+						log.Debugf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
+							serverSSL, vsName, tlsName)
+						return false
+					}
+					crMgr.SSLContext[serverSSL] = secret
+					error, _ := crMgr.createSecretSslProfile(rsCfg, secret, CustomProfileServer)
+					if error != nil {
+						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
+							error, vsName, tlsName)
+						return false
+					}
+				}
 			}
-			rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			return true
 		default:
 			log.Errorf("referenced profile does not exist for Virtual '%s' using TLSProfile '%s'",

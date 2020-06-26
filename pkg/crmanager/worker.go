@@ -71,6 +71,24 @@ func (crMgr *CRManager) processResource() bool {
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 			isError = true
 		}
+	case TLSProfile:
+		if crMgr.initState {
+			break
+		}
+		tls := rKey.rsc.(*cisapiv1.TLSProfile)
+		virtuals := crMgr.syncTLSProfile(tls)
+		// No Virtuals are effected with the change in TLSProfile.
+		if nil == virtuals {
+			break
+		}
+		for _, virtual := range virtuals {
+			err := crMgr.syncVirtualServer(virtual)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
+			}
+		}
 	case Service:
 		if crMgr.initState {
 			break
@@ -194,6 +212,38 @@ func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
 	return virtualsForService
 }
 
+// syncTLSProfile gets the List of VirtualServers which are effected
+// by the addition/deletion/updation of TLSProfile.
+func (crMgr *CRManager) syncTLSProfile(tls *cisapiv1.TLSProfile) []*cisapiv1.VirtualServer {
+
+	allVirtuals := crMgr.getAllVirtualServers(tls.ObjectMeta.Namespace)
+	if nil == allVirtuals {
+		log.Infof("No VirtualServers founds in namespace %s",
+			tls.ObjectMeta.Namespace)
+		return nil
+	}
+
+	// find VirtualServers that reference the TLSProfile
+	virtualsForTLSProfile := getVirtualServersForTLSProfile(allVirtuals, tls)
+	if nil == virtualsForTLSProfile {
+		log.Infof("Change in TLSProfile %s does not effect any VirtualServer",
+			tls.ObjectMeta.Name)
+		return nil
+	}
+	// Output list of all Virtuals Found.
+	var targetVirtualNames []string
+	for _, vs := range allVirtuals {
+		targetVirtualNames = append(targetVirtualNames, vs.ObjectMeta.Name)
+	}
+	log.Debugf("VirtualServers %v are affected with TLSProfile %s change",
+		targetVirtualNames, tls.ObjectMeta.Name)
+
+	// TODO
+	// Remove Duplicate entries in the targetVirutalServers.
+	// or Add only Unique entries into the targetVirutalServers.
+	return virtualsForTLSProfile
+}
+
 // getAllVirtualServers returns list of all valid VirtualServers in rkey namespace.
 func (crMgr *CRManager) getAllVirtualServers(namespace string) []*cisapiv1.VirtualServer {
 	var allVirtuals []*cisapiv1.VirtualServer
@@ -241,6 +291,24 @@ func getVirtualServersForService(allVirtuals []*cisapiv1.VirtualServer,
 		}
 
 		result = append(result, vs)
+	}
+
+	return result
+}
+
+// getVirtualServersForTLS returns list of VirtualServers that are
+// affected by the TLSProfile under process.
+func getVirtualServersForTLSProfile(allVirtuals []*cisapiv1.VirtualServer,
+	tls *cisapiv1.TLSProfile) []*cisapiv1.VirtualServer {
+
+	var result []*cisapiv1.VirtualServer
+	tlsName := tls.ObjectMeta.Name
+	tlsNamespace := tls.ObjectMeta.Namespace
+
+	for _, vs := range allVirtuals {
+		if vs.ObjectMeta.Namespace == tlsNamespace && vs.Spec.TLSProfileName == tlsName {
+			result = append(result, vs)
+		}
 	}
 
 	return result

@@ -10,6 +10,7 @@ import (
 func (crMgr *CRManager) createSecretSslProfile(
 	rsCfg *ResourceConfig,
 	secret *v1.Secret,
+	context string,
 ) (error, bool) {
 	if _, ok := secret.Data["tls.crt"]; !ok {
 		err := fmt.Errorf("Invalid Secret '%v': 'tls.crt' field not specified.",
@@ -24,26 +25,27 @@ func (crMgr *CRManager) createSecretSslProfile(
 
 	// Create Default for SNI profile
 	skey := SecretKey{
-		Name:         fmt.Sprintf("default-clientssl-%s", rsCfg.GetName()),
+		Name:         fmt.Sprintf("default-%s-%s", context, rsCfg.GetName()),
 		ResourceName: rsCfg.GetName(),
 	}
 	sni := ProfileRef{
 		Name:      skey.Name,
 		Partition: rsCfg.Virtual.Partition,
-		Context:   CustomProfileClient,
+		Context:   context,
 	}
 	if _, ok := crMgr.customProfiles.Profs[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
 		cp := NewCustomProfile(sni, "", "", "", true, "", "")
 		crMgr.customProfiles.Profs[skey] = cp
 	}
-	rsCfg.Virtual.AddOrUpdateProfile(sni)
+	// TODO
+	//rsCfg.Virtual.AddOrUpdateProfile(sni)
 
 	// Now add the resource profile
 	profRef := ProfileRef{
 		Name:      secret.ObjectMeta.Name,
 		Partition: rsCfg.Virtual.Partition,
-		Context:   CustomProfileClient,
+		Context:   context,
 		Namespace: secret.ObjectMeta.Namespace,
 	}
 	cp := NewCustomProfile(
@@ -64,11 +66,13 @@ func (crMgr *CRManager) createSecretSslProfile(
 	if prof, ok := crMgr.customProfiles.Profs[skey]; ok {
 		if !reflect.DeepEqual(prof, cp) {
 			crMgr.customProfiles.Profs[skey] = cp
+			rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			return nil, true
 		} else {
 			return nil, false
 		}
 	}
 	crMgr.customProfiles.Profs[skey] = cp
+	rsCfg.Virtual.AddOrUpdateProfile(profRef)
 	return nil, false
 }

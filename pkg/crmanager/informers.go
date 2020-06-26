@@ -148,6 +148,14 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 		},
 	)
 
+	crInf.tsInformer.AddEventHandler(
+		&cache.ResourceEventHandlerFuncs{
+			// AddFunc:    func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
+			UpdateFunc: func(old, cur interface{}) { crMgr.enqueueTLSServer(cur) },
+			// DeleteFunc: func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
+		},
+	)
+
 	crInf.svcInformer.AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
 			// Ignore AddFunc for service as we dont bother about services until they are
@@ -203,6 +211,19 @@ func (crMgr *CRManager) enqueueDeletedVirtualServer(obj interface{}) {
 		rscName:   vs.ObjectMeta.Name,
 		rsc:       obj,
 		rscDelete: true,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueTLSServer(obj interface{}) {
+	tls := obj.(*cisapiv1.TLSProfile)
+	log.Infof("Enqueueing TLSProfile: %v", tls)
+	key := &rqKey{
+		namespace: tls.ObjectMeta.Namespace,
+		kind:      TLSProfile,
+		rscName:   tls.ObjectMeta.Name,
+		rsc:       obj,
 	}
 
 	crMgr.rscQueue.Add(key)

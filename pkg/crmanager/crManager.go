@@ -36,6 +36,8 @@ const (
 	DefaultCustomResourceLabel = "f5cr in (true)"
 	// VirtualServer is a F5 Custom Resource Kind.
 	VirtualServer = "VirtualServer"
+	// TLSProfile is a F5 Custom Resource Kind
+	TLSProfile = "TLSProfile"
 	// Service is a k8s native Service Resource.
 	Service = "Service"
 	// Endpoints is a k8s native Endpoint Resource.

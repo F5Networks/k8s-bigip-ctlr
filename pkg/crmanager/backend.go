@@ -390,6 +390,12 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	for _, v := range cfg.Virtual.IRules {
 		splits := strings.Split(v, "/")
 		iRuleName := splits[len(splits)-1]
+		if iRuleName == SslPassthroughIRuleName {
+			svc.ServerTLS = &as3ResourcePointer{
+				BigIP: "/Common/clientssl",
+			}
+			updateVirtualToHTTPS(svc)
+		}
 		svc.IRules = append(svc.IRules, iRuleName)
 	}
 

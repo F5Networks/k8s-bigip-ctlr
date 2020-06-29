@@ -696,6 +696,7 @@ func initCustomResourceManager(
 			UseNodeInternal:   *useNodeInternal,
 			NodePollInterval:  *nodePollInterval,
 			NodeLabelSelector: *nodeLabelSelector,
+			DgPath:            dgPath,
 		},
 	)
 

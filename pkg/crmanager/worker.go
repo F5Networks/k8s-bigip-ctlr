@@ -53,6 +53,7 @@ func (crMgr *CRManager) processResource() bool {
 	rKey := key.(*rqKey)
 	log.Debugf("Processing Key: %v", rKey)
 
+	dgMap := make(InternalDataGroupMap)
 	// Check the type of resource and process accordingly.
 	switch rKey.kind {
 	case VirtualServer:
@@ -65,7 +66,7 @@ func (crMgr *CRManager) processResource() bool {
 			crMgr.resources.deleteVirtualServer(vsName)
 			break
 		}
-		err := crMgr.syncVirtualServer(vs)
+		err := crMgr.syncVirtualServer(vs, dgMap)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -82,7 +83,7 @@ func (crMgr *CRManager) processResource() bool {
 			break
 		}
 		for _, virtual := range virtuals {
-			err := crMgr.syncVirtualServer(virtual)
+			err := crMgr.syncVirtualServer(virtual, dgMap)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -100,7 +101,7 @@ func (crMgr *CRManager) processResource() bool {
 			break
 		}
 		for _, virtual := range virtuals {
-			err := crMgr.syncVirtualServer(virtual)
+			err := crMgr.syncVirtualServer(virtual, dgMap)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -119,7 +120,7 @@ func (crMgr *CRManager) processResource() bool {
 		}
 		virtuals := crMgr.syncService(svc)
 		for _, virtual := range virtuals {
-			err := crMgr.syncVirtualServer(virtual)
+			err := crMgr.syncVirtualServer(virtual, dgMap)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -241,6 +242,7 @@ func (crMgr *CRManager) syncTLSProfile(tls *cisapiv1.TLSProfile) []*cisapiv1.Vir
 	// TODO
 	// Remove Duplicate entries in the targetVirutalServers.
 	// or Add only Unique entries into the targetVirutalServers.
+
 	return virtualsForTLSProfile
 }
 
@@ -317,7 +319,7 @@ func getVirtualServersForTLSProfile(allVirtuals []*cisapiv1.VirtualServer,
 // syncVirtualServer takes the Virtual Server as input and processes it to
 // create a resource config(Internal DataStructure) for a new Virtual Server and update the
 // resource config for existing Virtual Server.
-func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error {
+func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer, dgMap InternalDataGroupMap) error {
 
 	startTime := time.Now()
 	defer func() {
@@ -363,7 +365,7 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 		}
 
 		// Handle TLS configuration for VirtualServer Custom Resource
-		updated := crMgr.handleVirtualServerTLS(rsCfg, virtual, svcFwdRulesMap)
+		updated := crMgr.handleVirtualServerTLS(rsCfg, virtual, svcFwdRulesMap, dgMap)
 		if updated {
 			log.Infof("Updated Virtual %s with TLSProfile %s",
 				virtual.ObjectMeta.Name, virtual.Spec.TLSProfileName)
@@ -469,7 +471,7 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer) error
 		}
 	}
 	**/
-	dgMap := make(InternalDataGroupMap)
+
 	log.Debugf("Length of svcFwdRulesMap is %v", len(svcFwdRulesMap))
 	if len(svcFwdRulesMap) > 0 {
 		httpsRedirectDg := NameRef{

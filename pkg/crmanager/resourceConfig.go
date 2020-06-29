@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
+	v1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
@@ -114,7 +115,8 @@ const (
 	// Constants
 	HttpRedirectIRuleName = "http_redirect_irule"
 	// Internal data group for https redirect
-	HttpsRedirectDgName = "https_redirect_dg"
+	HttpsRedirectDgName     = "https_redirect_dg"
+	SslPassthroughIRuleName = "passthrough_irule"
 )
 
 // constants for TLS references
@@ -400,6 +402,7 @@ func (crMgr *CRManager) createRSConfigFromVirtualServer(
 
 	// If virtual server already exists with same name, it gets overridden
 	crMgr.resources.rsMap[cfg.Virtual.Name] = &cfg
+
 	return &cfg
 }
 
@@ -409,6 +412,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.VirtualServer,
 	svcFwdRulesMap ServiceFwdRuleMap,
+	dgMap InternalDataGroupMap,
 ) bool {
 	if 0 == len(vs.Spec.TLSProfileName) {
 		// Probably this is a non-tls Virtual Server, nothing to do w.r.t TLS
@@ -447,6 +451,52 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 
 		// TLSProfile Object
 		tls := tlsInterface.(*cisapiv1.TLSProfile)
+		// TLS Cert/Key
+		for _, pl := range vs.Spec.Pools {
+			if "" != vs.Spec.TLSProfileName &&
+				pl.ServicePort == DEFAULT_HTTPS_PORT {
+				switch tls.Spec.TLS.Termination {
+				case "edge":
+					serverSsl := "false"
+					hostName := vs.Spec.Host
+					path := pl.Path
+					sslPath := hostName + path
+					sslPath = strings.TrimSuffix(sslPath, "/")
+					updateDataGroup(dgMap, EdgeServerSslDgName,
+						DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)
+
+				case "reencrypt":
+					hostName := vs.Spec.Host
+					path := pl.Path
+					sslPath := hostName + path
+					sslPath = strings.TrimSuffix(sslPath, "/")
+					serverSsl := AS3NameFormatter("f5_crd_" + vs.Spec.VirtualServerAddress + "_tls_client")
+					if "" != tls.Spec.TLS.ServerSSL {
+						updateDataGroup(dgMap, ReencryptServerSslDgName,
+							DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)
+					}
+				}
+			}
+		}
+		//Create datagroups
+		if "" != tls.Spec.TLS.Termination {
+			switch tls.Spec.TLS.Termination {
+			case "passthrough":
+				updateDataGroupForPassthrough(vs, DEFAULT_PARTITION,
+					vs.ObjectMeta.Namespace, dgMap)
+			case "reencrypt":
+				updateDataGroupForReencrypt(vs, DEFAULT_PARTITION,
+					vs.ObjectMeta.Namespace, dgMap)
+			case "edge":
+				updateDataGroupForEdge(vs, DEFAULT_PARTITION,
+					vs.ObjectMeta.Namespace, dgMap)
+			}
+		}
+		crMgr.handleDataGroupIRules(
+			rsCfg,
+			vs.ObjectMeta.Name,
+			tls,
+		)
 
 		// Process Profile
 		switch tls.Spec.TLS.Reference {
@@ -1453,4 +1503,37 @@ func AS3NameFormatter(name string) string {
 	replacer := strings.NewReplacer(".", "_", ":", "_", "/", "_", "%", ".", "-", "_", "=", "_")
 	name = replacer.Replace(name)
 	return name
+}
+
+func (crMgr *CRManager) handleDataGroupIRules(
+	rc *ResourceConfig,
+	// vs *cisapiv1.VirtualServer,
+	virtualName string,
+	tls *v1.TLSProfile,
+) {
+	termination := tls.Spec.TLS.Termination
+	// For https
+	if nil != tls {
+		passThroughIRuleName := JoinBigipPath(DEFAULT_PARTITION,
+			SslPassthroughIRuleName)
+		switch termination {
+		case "edge":
+			crMgr.addIRule(
+				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
+			crMgr.addInternalDataGroup(EdgeHostsDgName, DEFAULT_PARTITION)
+			crMgr.addInternalDataGroup(EdgeServerSslDgName, DEFAULT_PARTITION)
+			rc.Virtual.AddIRule(passThroughIRuleName)
+		case "passthrough":
+			crMgr.addIRule(
+				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
+			crMgr.addInternalDataGroup(PassthroughHostsDgName, DEFAULT_PARTITION)
+			rc.Virtual.AddIRule(passThroughIRuleName)
+		case "reencrypt":
+			crMgr.addIRule(
+				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
+			crMgr.addInternalDataGroup(ReencryptHostsDgName, DEFAULT_PARTITION)
+			crMgr.addInternalDataGroup(ReencryptServerSslDgName, DEFAULT_PARTITION)
+			rc.Virtual.AddIRule(passThroughIRuleName)
+		}
+	}
 }

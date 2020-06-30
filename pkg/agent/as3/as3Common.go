@@ -415,6 +415,10 @@ func createAS3RuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 			if c.Equals {
 				condition.Path.Operand = "equals"
 			}
+		} else if c.Tcp {
+			condition.Type = "tcp"
+			condition.Address = &as3PolicyCompareString{}
+			condition.Address.Values = c.Values
 		}
 		if c.Request {
 			condition.Event = "request"
@@ -430,6 +434,9 @@ func createAS3RuleAction(rl *Rule, rulesData *as3Rule, resourceType string) {
 		action := &as3Action{}
 		if v.Forward {
 			action.Type = "forward"
+		}
+		if v.Reset {
+			action.Type = "drop"
 		}
 		if v.Request {
 			action.Event = "request"

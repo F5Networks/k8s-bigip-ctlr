@@ -334,6 +334,12 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer
 		return nil
 	}
 
+	// validate TLSProfile
+	validation := validateTLSProfile(obj.(*cisapiv1.TLSProfile))
+	if validation == false {
+		return nil
+	}
+
 	// TLSProfile Object
 	return obj.(*cisapiv1.TLSProfile)
 }

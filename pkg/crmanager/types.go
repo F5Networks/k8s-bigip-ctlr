@@ -141,10 +141,11 @@ type (
 
 	// ResourceConfig is a Config for a single VirtualServer.
 	ResourceConfig struct {
-		MetaData metaData `json:"-"`
-		Virtual  Virtual  `json:"virtual,omitempty"`
-		Pools    Pools    `json:"pools,omitempty"`
-		Policies Policies `json:"policies,omitempty"`
+		MetaData metaData  `json:"-"`
+		Virtual  Virtual   `json:"virtual,omitempty"`
+		Pools    Pools     `json:"pools,omitempty"`
+		Policies Policies  `json:"policies,omitempty"`
+		Monitors []Monitor `json:"monitors,omitempty"`
 	}
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
@@ -164,6 +165,7 @@ type (
 		ServicePort     int32    `json:"-"`
 		Members         []Member `json:"members"`
 		NodeMemberLabel string   `json:"-"`
+		MonitorNames    []string `json:"monitors,omitempty"`
 	}
 	// Pools is slice of pool
 	Pools []Pool

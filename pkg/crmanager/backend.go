@@ -154,7 +154,6 @@ func createAS3Declaration(config ResourceConfigWrapper) as3Declaration {
 }
 
 func createAS3ADC(config ResourceConfigWrapper) as3ADC {
-
 	// Create Shared as3Application object
 	sharedApp := as3Application{}
 	sharedApp["class"] = "Application"
@@ -262,6 +261,9 @@ func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
 		//Create policies
 		createPoliciesDecl(cfg, sharedApp)
 
+		//Create health monitor declaration
+		createMonitorDecl(cfg, sharedApp)
+
 		//Create pools
 		createPoolDecl(cfg, sharedApp)
 
@@ -312,8 +314,6 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
 			pool.Members = append(pool.Members, member)
 		}
-		// TODO
-		/**
 		for _, val := range v.MonitorNames {
 			var monitor as3ResourcePointer
 			use := strings.Split(val, "/")
@@ -324,7 +324,6 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			)
 			pool.Monitors = append(pool.Monitors, monitor)
 		}
-		**/
 		sharedApp[v.Name] = pool
 	}
 }
@@ -703,4 +702,43 @@ func createTLSClient(
 		return tlsClient
 	}
 	return nil
+}
+
+//Create health monitor declaration
+func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
+
+	for _, v := range cfg.Monitors {
+		monitor := &as3Monitor{}
+		monitor.Class = "Monitor"
+		monitor.Interval = v.Interval
+		monitor.MonitorType = v.Type
+		monitor.Timeout = v.Timeout
+		val := 0
+		monitor.TargetPort = &val
+		targetAddressStr := ""
+		monitor.TargetAddress = &targetAddressStr
+		//Monitor type
+		switch v.Type {
+		case "http":
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+			monitor.Dscp = &val
+			monitor.Receive = "none"
+			if v.Recv != "" {
+				monitor.Receive = v.Recv
+			}
+			monitor.TimeUnitilUp = &val
+			monitor.Send = v.Send
+		case "https":
+			//Todo: For https monitor type
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+			if v.Recv != "" {
+				monitor.Receive = v.Recv
+			}
+			monitor.Send = v.Send
+		}
+		sharedApp[v.Name] = monitor
+	}
+
 }

@@ -18,8 +18,9 @@ package crmanager
 
 import (
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -63,6 +64,7 @@ func NewCRManager(params Params) *CRManager {
 		customProfiles:  NewCustomProfiles(),
 		irulesMap:       make(IRulesMap),
 		intDgMap:        make(InternalDataGroupMap),
+		dgPath:          params.DgPath,
 	}
 
 	log.Debug("Custom Resource Manager Created")

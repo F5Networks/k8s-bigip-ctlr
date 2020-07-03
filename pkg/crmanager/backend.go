@@ -348,10 +348,10 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	case numPolicies > 1:
 		var peps []as3ResourcePointer
 		for _, pep := range cfg.Virtual.Policies {
-			svc.PolicyEndpoint = append(
+			peps = append(
 				peps,
 				as3ResourcePointer{
-					BigIP: fmt.Sprintf("/%s/%s/%s",
+					Use: fmt.Sprintf("/%s/%s/%s",
 						DEFAULT_PARTITION,
 						as3SharedApplication,
 						pep.Name,

@@ -18,6 +18,7 @@ package crmanager
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -45,6 +46,15 @@ const (
 	Endpoints = "Endpoints"
 
 	NodePortMode = "nodeport"
+
+	PolicyControlForward = "forwarding"
+
+	// TLS Terminations
+	TLS_EDGE        = "edge"
+	TLS_REENCRYPT   = "reencrypt"
+	TLS_PASSTHROUGH = "passthrough"
+	TLS_REDIRECT    = "redirect"
+	TLS_ALLOW       = "allow"
 )
 
 // NewCRManager creates a new CRManager Instance.
@@ -64,7 +74,7 @@ func NewCRManager(params Params) *CRManager {
 		customProfiles:  NewCustomProfiles(),
 		irulesMap:       make(IRulesMap),
 		intDgMap:        make(InternalDataGroupMap),
-		dgPath:          params.DgPath,
+		dgPath:          strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 	}
 
 	log.Debug("Custom Resource Manager Created")

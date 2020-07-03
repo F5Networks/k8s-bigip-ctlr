@@ -72,7 +72,6 @@ type (
 		UseNodeInternal   bool
 		NodePollInterval  int
 		NodeLabelSelector string
-		DgPath            string
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {

@@ -178,7 +178,7 @@ func createPathSegmentConditions(u *url.URL) []*condition {
 
 func createPolicy(rls Rules, policyName, partition string) *Policy {
 	plcy := Policy{
-		Controls:  []string{"forwarding"},
+		Controls:  []string{PolicyControlForward},
 		Legacy:    true,
 		Name:      policyName,
 		Partition: partition,
@@ -187,25 +187,7 @@ func createPolicy(rls Rules, policyName, partition string) *Policy {
 		Strategy:  "/Common/first-match",
 	}
 
-	plcy.Rules = rls
-
-	// Check for the existence of the TCP field in the conditions.
-	// This would indicate that a whitelist rule is in the policy
-	// and that we need to add the "tcp" requirement to the policy.
-	requiresTcp := false
-	for _, x := range rls {
-		for _, c := range x.Conditions {
-			if c.Tcp == true {
-				requiresTcp = true
-			}
-		}
-	}
-
-	// Add the tcp requirement if needed; indicated by the presence
-	// of the TCP field.
-	if requiresTcp {
-		plcy.Requires = append(plcy.Requires, "tcp")
-	}
+	plcy.AddRules(&rls)
 
 	log.Debugf("Configured policy: %v", plcy)
 	return &plcy
@@ -379,6 +361,63 @@ func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap) {
 				nsGrp.AddOrUpdateRecord(host+path, path)
 			}
 
+		}
+	}
+}
+
+func (crMgr *CRManager) handleVSDeleteForDataGroups(
+	virtual *cisapiv1.VirtualServer,
+) {
+	if len(virtual.Spec.TLSProfileName) == 0 {
+		return
+	}
+	namespace := virtual.ObjectMeta.Namespace
+	tls := crMgr.getTLSProfileForVirtualServer(virtual)
+	var dgNames []string
+	switch tls.Spec.TLS.Termination {
+	case TLS_EDGE:
+		dgNames = append(dgNames, EdgeServerSslDgName, EdgeHostsDgName)
+	case TLS_REENCRYPT:
+		dgNames = append(dgNames, ReencryptServerSslDgName, ReencryptHostsDgName)
+	case TLS_PASSTHROUGH:
+		dgNames = append(dgNames, PassthroughHostsDgName)
+	}
+
+	if virtual.Spec.HTTPTraffic == TLS_REDIRECT {
+		dgNames = append(dgNames, HttpsRedirectDgName)
+	}
+
+	for _, dgName := range dgNames {
+		refKey := NameRef{
+			Name:      dgName,
+			Partition: DEFAULT_PARTITION,
+		}
+
+		if nsDg, found := crMgr.intDgMap[refKey]; found {
+			if nsGrp, found := nsDg[namespace]; found {
+				host := virtual.Spec.Host
+				for _, pool := range virtual.Spec.Pools {
+					recKey := host
+					if dgName != PassthroughHostsDgName {
+						recKey = strings.TrimSuffix(host+pool.Path, "/")
+					}
+					if dgName != HttpsRedirectDgName {
+						path := pool.Path
+						if path == "" {
+							path = "/"
+						}
+						recKey = host + path
+					}
+
+					nsGrp.RemoveRecord(recKey)
+				}
+				if len(nsGrp.Records) == 0 {
+					delete(nsDg, namespace)
+				}
+				if len(nsDg) == 0 {
+					delete(crMgr.intDgMap, refKey)
+				}
+			}
 		}
 	}
 }
@@ -698,60 +737,43 @@ func (crMgr *CRManager) selectPoolIRuleFunc() string {
 	return iRuleFunc
 }
 
-// Update a data group map based on a passthrough termination.
-func updateDataGroupForPassthrough(
-	vs *cisapiv1.VirtualServer,
-	partition string,
-	namespace string,
-	dgMap InternalDataGroupMap,
+func updateDataGroupOfDgName(
+	intDgMap InternalDataGroupMap,
+	virtual *cisapiv1.VirtualServer,
+	dgName string,
 ) {
-	hostName := vs.Spec.Host
-	// svcName := vs.Spec.Pools
-	for _, pl := range vs.Spec.Pools {
-		poolName := formatVirtualServerPoolName(vs.ObjectMeta.Namespace, pl.Service, "")
-		updateDataGroup(dgMap, PassthroughHostsDgName,
-			partition, namespace, hostName, poolName)
-	}
-}
+	hostName := virtual.Spec.Host
+	namespace := virtual.ObjectMeta.Namespace
 
-// Update a data group map based on a reencrypt termination.
-func updateDataGroupForReencrypt(
-	vs *cisapiv1.VirtualServer,
-	partition string,
-	namespace string,
-	dgMap InternalDataGroupMap,
-) {
-	// Combination of hostName and path are used as key in reencrypt Datagroup.
-	// Servername and path from the ssl::payload of clientssl_data Irule event is
-	// used as value in reencrypt Datagroup.
-	hostName := vs.Spec.Host
-	for _, pl := range vs.Spec.Pools {
-		path := pl.Path
-		routePath := hostName + path
-		poolName := formatVirtualServerPoolName(vs.ObjectMeta.Namespace, pl.Service, "")
-		updateDataGroup(dgMap, ReencryptHostsDgName,
-			partition, namespace, routePath, poolName)
-	}
-}
-
-// Update a data group map based on a edge termination.
-func updateDataGroupForEdge(
-	vs *cisapiv1.VirtualServer,
-	partition string,
-	namespace string,
-	dgMap InternalDataGroupMap,
-) {
-	// Combination of hostName and path are used as key in edge Datagroup.
-	// Servername and path from the ssl::payload of clientssl_data Irule event is
-	// used as value in edge Datagroup.
-	hostName := vs.Spec.Host
-	for _, pl := range vs.Spec.Pools {
-		path := pl.Path
-		routePath := hostName + path
-		routePath = strings.TrimSuffix(routePath, "/")
-		poolName := formatVirtualServerPoolName(vs.ObjectMeta.Namespace, pl.Service, "")
-		updateDataGroup(dgMap, EdgeHostsDgName,
-			partition, namespace, routePath, poolName)
+	switch dgName {
+	case EdgeHostsDgName, ReencryptHostsDgName:
+		// Combination of hostName and path are used as key in edge Datagroup.
+		// Servername and path from the ssl::payload of clientssl_data Irule event is
+		// used as value in edge and reencrypt Datagroup.
+		for _, pl := range virtual.Spec.Pools {
+			path := pl.Path
+			routePath := hostName + path
+			routePath = strings.TrimSuffix(routePath, "/")
+			poolName := formatVirtualServerPoolName(namespace, pl.Service, "")
+			updateDataGroup(intDgMap, dgName,
+				DEFAULT_PARTITION, namespace, routePath, poolName)
+		}
+	case PassthroughHostsDgName:
+		for _, pl := range virtual.Spec.Pools {
+			poolName := formatVirtualServerPoolName(namespace, pl.Service, "")
+			updateDataGroup(intDgMap, dgName,
+				DEFAULT_PARTITION, namespace, hostName, poolName)
+		}
+	case HttpsRedirectDgName:
+		for _, pl := range virtual.Spec.Pools {
+			path := pl.Path
+			if path == "" {
+				path = "/"
+			}
+			routePath := hostName + path
+			updateDataGroup(intDgMap, dgName,
+				DEFAULT_PARTITION, namespace, routePath, path)
+		}
 	}
 }
 

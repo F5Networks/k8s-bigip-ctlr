@@ -53,20 +53,11 @@ func (crMgr *CRManager) processResource() bool {
 	rKey := key.(*rqKey)
 	log.Debugf("Processing Key: %v", rKey)
 
-	dgMap := make(InternalDataGroupMap)
 	// Check the type of resource and process accordingly.
 	switch rKey.kind {
 	case VirtualServer:
-		vs := rKey.rsc.(*cisapiv1.VirtualServer)
-		// Handle Deletion of VirtualServer
-		if rKey.rscDelete {
-			// TODO: Handle for TLS
-			// Use portSpec
-			vsName := formatVirtualServerName(vs.Spec.VirtualServerAddress, 80)
-			crMgr.resources.deleteVirtualServer(vsName)
-			break
-		}
-		err := crMgr.syncVirtualServer(vs, dgMap)
+		virtual := rKey.rsc.(*cisapiv1.VirtualServer)
+		err := crMgr.syncVirtualServers(virtual, rKey.rscDelete)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -83,7 +74,7 @@ func (crMgr *CRManager) processResource() bool {
 			break
 		}
 		for _, virtual := range virtuals {
-			err := crMgr.syncVirtualServer(virtual, dgMap)
+			err := crMgr.syncVirtualServers(virtual, false)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -101,7 +92,7 @@ func (crMgr *CRManager) processResource() bool {
 			break
 		}
 		for _, virtual := range virtuals {
-			err := crMgr.syncVirtualServer(virtual, dgMap)
+			err := crMgr.syncVirtualServers(virtual, false)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -120,7 +111,7 @@ func (crMgr *CRManager) processResource() bool {
 		}
 		virtuals := crMgr.syncService(svc)
 		for _, virtual := range virtuals {
-			err := crMgr.syncVirtualServer(virtual, dgMap)
+			err := crMgr.syncVirtualServers(virtual, false)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -256,7 +247,14 @@ func (crMgr *CRManager) getAllVirtualServers(namespace string) []*cisapiv1.Virtu
 		return nil
 	}
 	// Get list of VirtualServers and process them.
-	for _, obj := range crInf.vsInformer.GetIndexer().List() {
+	orderedVSs, err := crInf.vsInformer.GetIndexer().ByIndex("namespace", namespace)
+	if err != nil {
+		log.Errorf("Unable to get list of VirtualServers for namespace '%v': %v",
+			namespace, err)
+		return nil
+	}
+
+	for _, obj := range orderedVSs {
 		vs := obj.(*cisapiv1.VirtualServer)
 		// TODO
 		// Validate the VirtualServers List to check if all the vs are valid.
@@ -316,10 +314,37 @@ func getVirtualServersForTLSProfile(allVirtuals []*cisapiv1.VirtualServer,
 	return result
 }
 
-// syncVirtualServer takes the Virtual Server as input and processes it to
-// create a resource config(Internal DataStructure) for a new Virtual Server and update the
-// resource config for existing Virtual Server.
-func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer, dgMap InternalDataGroupMap) error {
+func (crMgr *CRManager) getTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer) *cisapiv1.TLSProfile {
+	tlsName := vs.Spec.TLSProfileName
+	namespace := vs.ObjectMeta.Namespace
+	tlsKey := fmt.Sprintf("%s/%s", namespace, tlsName)
+
+	// Initialize CustomResource Informer for required namespace
+	crInf, ok := crMgr.getNamespaceInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
+
+	// TODO: Create Internal Structure to hold TLSProfiles. Make API call only for a new TLSProfile
+	// Check if the TLSProfile exists and valid for us.
+	obj, tlsFound, _ := crInf.tsInformer.GetIndexer().GetByKey(tlsKey)
+	if !tlsFound {
+		log.Infof("TLSProfile %s is invalid", tlsName)
+		return nil
+	}
+
+	// TLSProfile Object
+	return obj.(*cisapiv1.TLSProfile)
+}
+
+// syncVirtualServers takes the Virtual Server as input and processes all
+// associated VirtualServers to create a resource config(Internal DataStructure)
+// or to update if exists already.
+func (crMgr *CRManager) syncVirtualServers(
+	virtual *cisapiv1.VirtualServer,
+	isVSDeleted bool,
+) error {
 
 	startTime := time.Now()
 	defer func() {
@@ -328,163 +353,104 @@ func (crMgr *CRManager) syncVirtualServer(virtual *cisapiv1.VirtualServer, dgMap
 			virtual, endTime.Sub(startTime))
 	}()
 
-	svcFwdRulesMap := NewServiceFwdRuleMap()
-
-	// check if the virutal server matches all the requirements.
-	vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
-	valid := crMgr.checkValidVirtualServer(virtual)
-	if false == valid {
-		log.Infof("VirtualServer %s, invalid configuration or not valid",
-			vkey)
-		return nil
+	// Skip validation for a deleted Virtual Server
+	if !isVSDeleted {
+		// check if the virutal server matches all the requirements.
+		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
+		valid := crMgr.checkValidVirtualServer(virtual)
+		if false == valid {
+			log.Infof("VirtualServer %s, invalid configuration or not valid",
+				vkey)
+			return nil
+		}
 	}
 
-	// TODO: Needed to handle multiple VS resources into one VS on BIG-IP
-	// Get a list of dependencies removed so their pools can be removed.
-	//objKey, objDeps := NewObjectDependencies(virtual)
-	//
-	//virtualLookupFunc := func(key ObjectDependency) bool {
-	//	return false
-	//}
+	allVirtuals := crMgr.getAllVirtualServers(virtual.ObjectMeta.Namespace)
 
-	// TODO ==> UpdateDependencies to get the added and removed deps.
-	//_, depsRemoved := crMgr.resources.UpdateDependencies(
-	//	objKey, objDeps, virtualLookupFunc)
+	var virtuals []*cisapiv1.VirtualServer
 
+	// Prepare list of associated VirtualServers to be processed
+	// In the event of deletion, exclude the deleted VirtualServer
+	for _, v := range allVirtuals {
+		if v.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress &&
+			!(isVSDeleted && v.ObjectMeta.Name == virtual.ObjectMeta.Name) {
+			virtuals = append(virtuals, v)
+		}
+	}
+
+	if isVSDeleted {
+		crMgr.handleVSDeleteForDataGroups(virtual)
+	}
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.
 	portStructs := crMgr.virtualPorts(virtual)
+
+	// vsMap holds Resource Configs of current virtuals temporarily
+	vsMap := make(ResourceConfigMap)
+	processingError := false
+
 	for _, portStruct := range portStructs {
-		rsCfg := crMgr.createRSConfigFromVirtualServer(
-			virtual,
-			portStruct,
+		// TODO: Add Route Domain
+		rsName := formatVirtualServerName(
+			virtual.Spec.VirtualServerAddress,
+			portStruct.port,
 		)
-		if rsCfg == nil {
-			// Currently, an error is returned only if the VirtualServer is one we
-			// do not care about
+		if len(virtuals) == 0 {
+			crMgr.resources.deleteVirtualServer(rsName)
 			continue
 		}
+		rsCfg := &ResourceConfig{}
+		rsCfg.Virtual.Partition = crMgr.Partition
+		rsCfg.MetaData.ResourceType = VirtualServer
+		rsCfg.Virtual.Enabled = true
+		rsCfg.Virtual.Name = rsName
+		rsCfg.Virtual.SetVirtualAddress(
+			virtual.Spec.VirtualServerAddress,
+			portStruct.port,
+		)
 
-		// Handle TLS configuration for VirtualServer Custom Resource
-		updated := crMgr.handleVirtualServerTLS(rsCfg, virtual, svcFwdRulesMap, dgMap)
-		if updated {
-			log.Infof("Updated Virtual %s with TLSProfile %s",
-				virtual.ObjectMeta.Name, virtual.Spec.TLSProfileName)
+		for _, vrt := range virtuals {
+			crMgr.prepareRSConfigFromVirtualServer(
+				rsCfg,
+				vrt,
+			)
+
+			if len(virtual.Spec.TLSProfileName) != 0 {
+				// Handle TLS configuration for VirtualServer Custom Resource
+				processed := crMgr.handleVirtualServerTLS(rsCfg, virtual)
+				if !processed {
+					// Processing failed
+					// Stop processing further virtuals
+					processingError = true
+					break
+				}
+
+				log.Debugf("Updated Virtual %s with TLSProfile %s",
+					virtual.ObjectMeta.Name, virtual.Spec.TLSProfileName)
+			}
 		}
 
-		log.Infof("ResourceConfig looks like %v", rsCfg)
+		log.Debugf("ResourceConfig looks like %v", rsCfg)
 
-		// Collect all service names on this VirtualServer.
-		// Used in handleConfigForType.
-		var svcs []string
-		for _, pl := range virtual.Spec.Pools {
-			svcs = append(svcs, pl.Service)
+		if processingError {
+			break
 		}
 
-		// Remove any dependencies no longer used by this VirtualServer
-		//for _, dep := range depsRemoved {
-		//	if dep.Kind == RuleDep {
-		//		//TODO ==> To be implemented Post Alpha.
-		//		//Delete unused pool from resource config
-		//		// rsCfg.DeleteUnusedPool()
-		//		for _, pol := range rsCfg.Policies {
-		//			for _, rl := range pol.Rules {
-		//				if rl.FullURI == dep.Name {
-		//					rsCfg.DeleteRuleFromPolicy(pol.Name, rl, crMgr.mergedRulesMap)
-		//				}
-		//			}
-		//		}
-		//	}
-		//}
+		// Save ResourceConfig in temporary Map
+		vsMap[rsName] = rsCfg
 
 		if crMgr.ControllerMode == NodePortMode {
 			crMgr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
 		} else {
 			crMgr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
 		}
-
-		/** TODO ==> To be implemented Post Alpha.
-		if ok, found, updated := crMgr.handleConfigForType(
-			rsCfg, rsMap, rsName,
-			crInf, virtual); !ok {
-			stats.vsUpdated += updated
-			continue
-		} else {
-			if updated > 0 && !appMgr.processAllMultiSvc(len(rsCfg.Pools),
-				rsCfg.GetName()) {
-				updated -= 1
-			}
-			stats.vsFound += found
-			stats.vsUpdated += updated
-			if updated > 0 {
-				msg := fmt.Sprintf(
-					"Created a ResourceConfig '%v' for the Ingress.",
-					rsCfg.GetName())
-				appMgr.recordIngressEvent(ing, "ResourceConfigured", msg)
-			}
-		}
-		// Set the Ingress Status IP address
-		appMgr.setIngressStatus(ing, rsCfg)
-		**/
-
 	}
 
-	/** TODO ==> To be implemented post ALPHA.
-	// rsMap stores all resources currently in Resources matching sKey, indexed by port.
-	// At the end of processing, rsMap should only contain configs we want to delete.
-	// If we have a valid config, then we remove it from rsMap.
-	rsMap := appMgr.getResourcesForKey(sKey)
-	dgMap := make(InternalDataGroupMap)
-
-	var stats vsSyncStats
-	appMgr.rsrcSSLCtxt = make(map[string]*v1.Secret)
-	// Update internal data groups if changed
-	appMgr.syncDataGroups(&stats, dgMap, sKey.Namespace)
-	// Delete IRules if necessary
-	appMgr.syncIRules()
-
-
-	if len(rsMap) > 0 {
-		// We get here when there are ports defined in the service that don't
-		// have a corresponding config map.
-		stats.vsDeleted += appMgr.deleteUnusedConfigs(sKey, rsMap)
-		stats.vsUpdated += appMgr.deleteUnusedResources(sKey, svcFound)
-
-	} else if !svcFound {
-		stats.vsUpdated += appMgr.deleteUnusedResources(sKey, svcFound)
-	}
-
-	log.Debugf("Updated %v of %v virtual server configs, deleted %v",
-		stats.vsUpdated, stats.vsFound, stats.vsDeleted)
-
-	// delete any custom profiles that are no longer referenced
-	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
-
-	switch {
-	case stats.vsUpdated > 0,
-		stats.vsDeleted > 0,
-		stats.cpUpdated > 0,
-		stats.dgUpdated > 0,
-		stats.poolsUpdated > 0,
-		!appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen:
-		{
-			appMgr.outputConfig()
+	if !processingError {
+		// Update rsMap with ResourceConfigs created for the current virtuals
+		for rsName, rsCfg := range vsMap {
+			crMgr.resources.rsMap[rsName] = rsCfg
 		}
 	}
-	**/
-
-	log.Debugf("Length of svcFwdRulesMap is %v", len(svcFwdRulesMap))
-	if len(svcFwdRulesMap) > 0 {
-		httpsRedirectDg := NameRef{
-			Name:      HttpsRedirectDgName,
-			Partition: DEFAULT_PARTITION,
-		}
-		if _, found := dgMap[httpsRedirectDg]; !found {
-			dgMap[httpsRedirectDg] = make(DataGroupNamespaceMap)
-		}
-		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
-	}
-
-	crMgr.syncDataGroups(dgMap, virtual.ObjectMeta.Namespace)
 
 	return nil
 }

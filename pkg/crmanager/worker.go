@@ -330,7 +330,7 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer
 	// Check if the TLSProfile exists and valid for us.
 	obj, tlsFound, _ := crInf.tsInformer.GetIndexer().GetByKey(tlsKey)
 	if !tlsFound {
-		log.Infof("TLSProfile %s is invalid", tlsName)
+		log.Errorf("TLSProfile %s is invalid", tlsName)
 		return nil
 	}
 

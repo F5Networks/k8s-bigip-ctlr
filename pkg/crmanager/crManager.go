@@ -50,11 +50,12 @@ const (
 	PolicyControlForward = "forwarding"
 
 	// TLS Terminations
-	TLS_EDGE        = "edge"
-	TLS_REENCRYPT   = "reencrypt"
-	TLS_PASSTHROUGH = "passthrough"
-	TLS_REDIRECT    = "redirect"
-	TLS_ALLOW       = "allow"
+	TLSEdge             = "edge"
+	TLSReencrypt        = "reencrypt"
+	TLSPassthrough      = "passthrough"
+	TLSRedirectInsecure = "redirect"
+	TLSAllowInsecure    = "allow"
+	TLSNoInsecure       = "none"
 )
 
 // NewCRManager creates a new CRManager Instance.

@@ -414,6 +414,9 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 		// TLSProfile Object
 		tlsName := vs.Spec.TLSProfileName
 		tls := crMgr.getTLSProfileForVirtualServer(vs)
+		if tls == nil {
+			return false
+		}
 
 		// Process Profile
 		switch tls.Spec.TLS.Reference {
@@ -516,7 +519,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			if "" != vs.Spec.TLSProfileName &&
 				pl.ServicePort == DEFAULT_HTTPS_PORT {
 				switch tls.Spec.TLS.Termination {
-				case TLS_EDGE:
+				case TLSEdge:
 					serverSsl := "false"
 					hostName := vs.Spec.Host
 					path := pl.Path
@@ -525,7 +528,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					updateDataGroup(crMgr.intDgMap, EdgeServerSslDgName,
 						DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)
 
-				case TLS_REENCRYPT:
+				case TLSReencrypt:
 					hostName := vs.Spec.Host
 					path := pl.Path
 					sslPath := hostName + path
@@ -541,19 +544,19 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 		//Create datagroups
 		if "" != vs.Spec.TLSProfileName {
 			switch tls.Spec.TLS.Termination {
-			case TLS_PASSTHROUGH:
+			case TLSPassthrough:
 				updateDataGroupOfDgName(
 					crMgr.intDgMap,
 					vs,
 					PassthroughHostsDgName,
 				)
-			case TLS_REENCRYPT:
+			case TLSReencrypt:
 				updateDataGroupOfDgName(
 					crMgr.intDgMap,
 					vs,
 					ReencryptHostsDgName,
 				)
-			case TLS_EDGE:
+			case TLSEdge:
 				updateDataGroupOfDgName(
 					crMgr.intDgMap,
 					vs,
@@ -580,7 +583,8 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 		// httpTraffic = none  -> Only HTTPS
 		// httpTraffic = redirect -> redirects HTTP to HTTPS
 		// -----------------------------------------------------------------
-		if httpTraffic == TLS_REDIRECT {
+		switch httpTraffic {
+		case TLSRedirectInsecure:
 			// set HTTP redirect iRule
 			log.Debugf("Applying HTTP redirect iRule.")
 			ruleName := fmt.Sprintf("%s_%d", HttpRedirectIRuleName, httpsPort)
@@ -592,13 +596,15 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 				vs,
 				HttpsRedirectDgName,
 			)
-		} else if httpTraffic == TLS_ALLOW {
+		case TLSAllowInsecure:
 			// State 3, do not apply any policy
 			log.Debugf("[CORE] TLS: Not applying any policies.")
+		case TLSNoInsecure:
+			// TODO: Need to block insecure traffic
 		}
 	}
 
-	return false
+	return true
 }
 
 // ConvertStringToProfileRef converts strings to profile references
@@ -1521,18 +1527,18 @@ func (crMgr *CRManager) handleDataGroupIRules(
 		passThroughIRuleName := JoinBigipPath(DEFAULT_PARTITION,
 			SslPassthroughIRuleName)
 		switch termination {
-		case TLS_EDGE:
+		case TLSEdge:
 			crMgr.addIRule(
 				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
 			crMgr.addInternalDataGroup(EdgeHostsDgName, DEFAULT_PARTITION)
 			crMgr.addInternalDataGroup(EdgeServerSslDgName, DEFAULT_PARTITION)
 			rc.Virtual.AddIRule(passThroughIRuleName)
-		case TLS_PASSTHROUGH:
+		case TLSPassthrough:
 			crMgr.addIRule(
 				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
 			crMgr.addInternalDataGroup(PassthroughHostsDgName, DEFAULT_PARTITION)
 			rc.Virtual.AddIRule(passThroughIRuleName)
-		case TLS_REENCRYPT:
+		case TLSReencrypt:
 			crMgr.addIRule(
 				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
 			crMgr.addInternalDataGroup(ReencryptHostsDgName, DEFAULT_PARTITION)

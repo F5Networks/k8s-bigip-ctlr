@@ -373,17 +373,20 @@ func (crMgr *CRManager) handleVSDeleteForDataGroups(
 	}
 	namespace := virtual.ObjectMeta.Namespace
 	tls := crMgr.getTLSProfileForVirtualServer(virtual)
+	if tls == nil {
+		return
+	}
 	var dgNames []string
 	switch tls.Spec.TLS.Termination {
-	case TLS_EDGE:
+	case TLSEdge:
 		dgNames = append(dgNames, EdgeServerSslDgName, EdgeHostsDgName)
-	case TLS_REENCRYPT:
+	case TLSReencrypt:
 		dgNames = append(dgNames, ReencryptServerSslDgName, ReencryptHostsDgName)
-	case TLS_PASSTHROUGH:
+	case TLSPassthrough:
 		dgNames = append(dgNames, PassthroughHostsDgName)
 	}
 
-	if virtual.Spec.HTTPTraffic == TLS_REDIRECT {
+	if virtual.Spec.HTTPTraffic == TLSRedirectInsecure {
 		dgNames = append(dgNames, HttpsRedirectDgName)
 	}
 

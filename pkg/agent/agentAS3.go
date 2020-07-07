@@ -37,6 +37,13 @@ func (ag *agentAS3) Deploy(req interface{}) error {
 	return nil
 }
 
+//TODO: Remove this post CIS2.2
+func (ag *agentAS3) Remove(partition string) error {
+	log.Debugf("[AS3] Removing Partition %v_AS3 \n", partition)
+	ag.DeleteAS3Partition(partition + "_AS3")
+	return nil
+}
+
 func (ag *agentAS3) DeInit() error {
 	close(ag.RspChan)
 	close(ag.ReqChan)

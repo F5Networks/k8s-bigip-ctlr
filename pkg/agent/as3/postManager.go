@@ -159,12 +159,12 @@ func (postMgr *PostManager) postConfig(data string, tenants []string) (bool, str
 	}
 }
 
-func (postMgr *PostManager) GetBigipAS3Version() (string, error) {
+func (postMgr *PostManager) GetBigipAS3Version() (string, string, error) {
 	url := postMgr.getAS3VersionURL()
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
-		return "", err
+		return "", "", err
 	}
 
 	log.Debugf("[AS3] posting GET BIGIP AS3 Version request on %v", url)
@@ -172,26 +172,25 @@ func (postMgr *PostManager) GetBigipAS3Version() (string, error) {
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
-		return "", fmt.Errorf("Internal Error")
+		return "", "", fmt.Errorf("Internal Error")
 	}
-
 	switch httpResp.StatusCode {
 	case http.StatusOK:
 		if responseMap["version"] != nil {
-			versionField := responseMap["version"].(string)
-			as3VersionStr := versionField[:strings.LastIndex(versionField, ".")]
-			return as3VersionStr, nil
+			as3VersionStr := responseMap["version"].(string)
+			as3versionreleaseStr := responseMap["release"].(string)
+			return as3VersionStr, as3versionreleaseStr, nil
 		}
 	case http.StatusNotFound:
 		responseMap["code"] = int(responseMap["code"].(float64))
 		if responseMap["code"] == http.StatusNotFound {
-			return "", fmt.Errorf("App services are not installed on BIGIP,"+
+			return "", "", fmt.Errorf("App services are not installed on BIGIP,"+
 				" Error response from BIGIP with status code %v", httpResp.StatusCode)
 		}
 		// In case of 503 status code : CIS will exit and auto restart of the
 		// controller might fetch the BIGIP version once BIGIP is available.
 	}
-	return "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+	return "", "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
 }
 
 func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[string]interface{}) {

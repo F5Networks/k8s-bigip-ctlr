@@ -391,7 +391,7 @@ type (
 
 	AgentCfgMap struct {
 		Operation    string
-		GetEndpoints func(string) []Member
+		GetEndpoints func(string, string) []Member
 		Data         string
 		Name         string
 		Namespace    string
@@ -404,13 +404,13 @@ type (
 	}
 
 	ResourceRequest struct {
-		PoolMembers map[Member]struct{}
-		Resources   *AgentResources
-		Profs       map[SecretKey]CustomProfile
-		IrulesMap   IRulesMap
-		IntDgMap    InternalDataGroupMap
-		IntF5Res    InternalF5ResourcesGroup
-		AgentCfgmap []*AgentCfgMap
+		PoolMembers  map[Member]struct{}
+		Resources    *AgentResources
+		Profs        map[SecretKey]CustomProfile
+		IrulesMap    IRulesMap
+		IntDgMap     InternalDataGroupMap
+		IntF5Res     InternalF5ResourcesGroup
+		AgentCfgmaps []*AgentCfgMap
 	}
 
 	ResourceResponse struct {

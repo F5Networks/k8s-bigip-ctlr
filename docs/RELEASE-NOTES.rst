@@ -23,7 +23,7 @@ Added Functionality
       - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/CustomResource.md>`_.
 * Added new optional deployment arguments:
        -  `--custom-resource-mode` (default `false`) when set `true` processes custom resources only.
-       -  `--userdefined-as3-declaration` for processing user defined AS3 Config Map in CIS watched namespaces.
+       -  `defined-as3-declaration` for processing user defined AS3 Config Map in CIS watched namespaces.
 * AS3 versions >= 3.18 is required for 2.x releases.
 * CIS is now compatible with:
        -   OpenShift 4.3.

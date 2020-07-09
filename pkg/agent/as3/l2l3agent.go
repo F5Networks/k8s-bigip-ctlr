@@ -29,44 +29,31 @@ type L2L3Agent struct {
 	eventChan    chan interface{}
 }
 
-// Create a partition entry in the map if it doesn't exists
-func initPartitionData(resources PartitionMap, partition string) {
-	if _, ok := resources[partition]; !ok {
-		resources[partition] = &BigIPConfig{}
-	}
-}
-
 func (am *AS3Manager) SendARPEntries() {
+
+	if am.l2l3Agent.eventChan == nil {
+		return
+	}
 	// Get all pool members and write them to VxlanMgr to configure ARP entries
-	resources := PartitionMap{}
 	var allPoolMembers []Member
 
 	// Filter the configs to only those that have active services
 	for _, cfg := range am.Resources.RsCfgs {
 		if cfg.MetaData.Active == true {
-			initPartitionData(resources, cfg.GetPartition())
-			for _, p := range cfg.Pools {
-				resources[p.Partition].Pools = appendPool(resources[p.Partition].Pools, p)
+			for _, pool := range cfg.Pools {
+				allPoolMembers = append(allPoolMembers, pool.Members...)
 			}
 		}
 	}
 
-	for _, cfg := range resources {
-		for _, pool := range cfg.Pools {
-			allPoolMembers = append(allPoolMembers, pool.Members...)
-		}
+	for _, cfgMap := range am.as3ActiveConfig.configmaps {
+		allPoolMembers = append(allPoolMembers, cfgMap.endPoints...)
 	}
 
-	if am.l2l3Agent.eventChan != nil {
-		for member := range am.poolMembers {
-			allPoolMembers = append(allPoolMembers, member)
-		}
-
-		select {
-		case am.l2l3Agent.eventChan <- allPoolMembers:
-			log.Debugf("[AS3] AppManager wrote endpoints to VxlanMgr")
-		case <-time.After(3 * time.Second):
-		}
+	select {
+	case am.l2l3Agent.eventChan <- allPoolMembers:
+		log.Debugf("[AS3] AppManager wrote endpoints to VxlanMgr")
+	case <-time.After(3 * time.Second):
 	}
 }
 

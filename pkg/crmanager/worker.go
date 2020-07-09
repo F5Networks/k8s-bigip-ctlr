@@ -330,7 +330,7 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer
 	// Check if the TLSProfile exists and valid for us.
 	obj, tlsFound, _ := crInf.tsInformer.GetIndexer().GetByKey(tlsKey)
 	if !tlsFound {
-		log.Infof("TLSProfile %s is invalid", tlsName)
+		log.Errorf("TLSProfile %s does not exist", tlsName)
 		return nil
 	}
 
@@ -373,6 +373,7 @@ func (crMgr *CRManager) syncVirtualServers(
 	// In the event of deletion, exclude the deleted VirtualServer
 	for _, v := range allVirtuals {
 		if v.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress &&
+			v.Spec.Host == virtual.Spec.Host &&
 			!(isVSDeleted && v.ObjectMeta.Name == virtual.ObjectMeta.Name) {
 			virtuals = append(virtuals, v)
 		}
@@ -429,11 +430,13 @@ func (crMgr *CRManager) syncVirtualServers(
 			}
 		}
 
-		log.Debugf("ResourceConfig looks like %v", rsCfg)
-
 		if processingError {
+			log.Errorf("Cannot Publish VirtualServer %s with invalid/non-existing TLSProfile %s",
+				virtual.ObjectMeta.Name, virtual.Spec.TLSProfileName)
 			break
 		}
+
+		log.Debugf("ResourceConfig looks like %v", rsCfg)
 
 		// Save ResourceConfig in temporary Map
 		vsMap[rsName] = rsCfg

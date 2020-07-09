@@ -311,7 +311,7 @@ func formatVirtualServerName(ip string, port int32) string {
 	// with "-" and "%" with ".", for naming purposes
 	ip = strings.Trim(ip, "[]")
 	ip = AS3NameFormatter(ip)
-	return fmt.Sprintf("f5_crd_virtualserver_%s_%d", ip, port)
+	return fmt.Sprintf("crd_%s_%d", ip, port)
 }
 
 // format the pool name for an VirtualServer
@@ -332,18 +332,21 @@ func formatMonitorName(namespace, svc string, monitorType string) string {
 // Prepares resource config based on VirtualServer resource config
 func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	rsCfg *ResourceConfig,
-	vrt *cisapiv1.VirtualServer,
+	vs *cisapiv1.VirtualServer,
 ) {
+
+	var httpPort int32
+	httpPort = DEFAULT_HTTP_PORT
 
 	var pools Pools
 	var rules *Rules
 	var plcy *Policy
 
 	var monitors []Monitor
-	for _, pl := range vrt.Spec.Pools {
+	for _, pl := range vs.Spec.Pools {
 		pool := Pool{
 			Name: formatVirtualServerPoolName(
-				vrt.ObjectMeta.Namespace,
+				vs.ObjectMeta.Namespace,
 				pl.Service,
 				pl.NodeMemberLabel,
 			),
@@ -355,9 +358,9 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 
 		if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
 			pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(DEFAULT_PARTITION,
-				formatMonitorName(vrt.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type)))
+				formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type)))
 			monitor := Monitor{
-				Name:      formatMonitorName(vrt.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type),
+				Name:      formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type),
 				Partition: rsCfg.Virtual.Partition,
 				Type:      pl.Monitor.Type,
 				Interval:  pl.Monitor.Interval,
@@ -372,7 +375,14 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
 
-	rules = processVirtualServerRules(vrt)
+	// Do not Create Virtual Server L7 Forwarding policies if HTTPTraffic is set to None or Redirect
+	if len(vs.Spec.TLSProfileName) > 0 &&
+		rsCfg.Virtual.VirtualAddress.Port == httpPort &&
+		(vs.Spec.HTTPTraffic == TLSNoInsecure || vs.Spec.HTTPTraffic == TLSRedirectInsecure) {
+		return
+	}
+
+	rules = processVirtualServerRules(vs)
 
 	// Update the existing policy with rules
 	// Otherwise create new policy and set
@@ -382,8 +392,8 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 		return
 	}
 
-	policyName := rsCfg.Virtual.Name + "_policy"
-	plcy = createPolicy(*rules, policyName, vrt.ObjectMeta.Namespace)
+	policyName := rsCfg.Virtual.Name + "_" + vs.Spec.Host + "_policy"
+	plcy = createPolicy(*rules, policyName, vs.ObjectMeta.Namespace)
 	if plcy != nil {
 		rsCfg.SetPolicy(*plcy)
 	}
@@ -414,6 +424,9 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 		// TLSProfile Object
 		tlsName := vs.Spec.TLSProfileName
 		tls := crMgr.getTLSProfileForVirtualServer(vs)
+		if tls == nil {
+			return false
+		}
 
 		// Process Profile
 		switch tls.Spec.TLS.Reference {
@@ -456,18 +469,18 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					// Check if profile is contained in a Secret
 					// Update the SSL Context if secret found, This is used to avoid api calls
 					log.Debugf("clientSSL secret for TLSProfile '%s' does not exist with CIS in "+
-						"SSLContext, Store for further use", tlsName)
+						"SSLContext", tlsName)
 					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
 						Get(clientSSL, metav1.GetOptions{})
 					if err != nil {
-						log.Debugf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
+						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
 							clientSSL, vsName, tlsName)
 						return false
 					}
 					crMgr.SSLContext[clientSSL] = secret
 					error, _ := crMgr.createSecretSslProfile(rsCfg, secret, CustomProfileClient)
 					if error != nil {
-						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
+						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
 							error, vsName, tlsName)
 						return false
 					}
@@ -489,18 +502,18 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					// Check if profile is contained in a Secret
 					// Update the SSL Context if secret found, This is used to avoid api calls
 					log.Debugf("serverSSL secret for TLSProfile '%s'  does not exist with CIS in "+
-						"SSLContext, Store for further use", tlsName)
+						"SSLContext", tlsName)
 					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
 						Get(serverSSL, metav1.GetOptions{})
 					if err != nil {
-						log.Debugf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
+						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
 							serverSSL, vsName, tlsName)
 						return false
 					}
 					crMgr.SSLContext[serverSSL] = secret
 					error, _ := crMgr.createSecretSslProfile(rsCfg, secret, CustomProfileServer)
 					if error != nil {
-						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
+						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
 							error, vsName, tlsName)
 						return false
 					}
@@ -516,7 +529,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			if "" != vs.Spec.TLSProfileName &&
 				pl.ServicePort == DEFAULT_HTTPS_PORT {
 				switch tls.Spec.TLS.Termination {
-				case TLS_EDGE:
+				case TLSEdge:
 					serverSsl := "false"
 					hostName := vs.Spec.Host
 					path := pl.Path
@@ -525,7 +538,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					updateDataGroup(crMgr.intDgMap, EdgeServerSslDgName,
 						DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)
 
-				case TLS_REENCRYPT:
+				case TLSReencrypt:
 					hostName := vs.Spec.Host
 					path := pl.Path
 					sslPath := hostName + path
@@ -541,19 +554,19 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 		//Create datagroups
 		if "" != vs.Spec.TLSProfileName {
 			switch tls.Spec.TLS.Termination {
-			case TLS_PASSTHROUGH:
+			case TLSPassthrough:
 				updateDataGroupOfDgName(
 					crMgr.intDgMap,
 					vs,
 					PassthroughHostsDgName,
 				)
-			case TLS_REENCRYPT:
+			case TLSReencrypt:
 				updateDataGroupOfDgName(
 					crMgr.intDgMap,
 					vs,
 					ReencryptHostsDgName,
 				)
-			case TLS_EDGE:
+			case TLSEdge:
 				updateDataGroupOfDgName(
 					crMgr.intDgMap,
 					vs,
@@ -580,9 +593,11 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 		// httpTraffic = none  -> Only HTTPS
 		// httpTraffic = redirect -> redirects HTTP to HTTPS
 		// -----------------------------------------------------------------
-		if httpTraffic == TLS_REDIRECT {
+		switch httpTraffic {
+		case TLSRedirectInsecure:
 			// set HTTP redirect iRule
 			log.Debugf("Applying HTTP redirect iRule.")
+			log.Debugf("Redirect HTTP(insecure) requests for VirtualServer %s", vs.ObjectMeta.Name)
 			ruleName := fmt.Sprintf("%s_%d", HttpRedirectIRuleName, httpsPort)
 			crMgr.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(httpsPort))
 			ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
@@ -592,13 +607,18 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 				vs,
 				HttpsRedirectDgName,
 			)
-		} else if httpTraffic == TLS_ALLOW {
+		case TLSAllowInsecure:
 			// State 3, do not apply any policy
-			log.Debugf("[CORE] TLS: Not applying any policies.")
+			log.Debugf("Allow HTTP(insecure) requests for VirtualServer %s", vs.ObjectMeta.Name)
+		case TLSNoInsecure:
+			//if policy := rsCfg.FindPolicy(PolicyControlForward); policy != nil {
+			//	rsCfg.RemovePolicy(*policy)
+			//}
+			log.Debugf("Disable HTTP(insecure) requests for VirtualServer %s", vs.ObjectMeta.Name)
 		}
 	}
 
-	return false
+	return true
 }
 
 // ConvertStringToProfileRef converts strings to profile references
@@ -1521,18 +1541,18 @@ func (crMgr *CRManager) handleDataGroupIRules(
 		passThroughIRuleName := JoinBigipPath(DEFAULT_PARTITION,
 			SslPassthroughIRuleName)
 		switch termination {
-		case TLS_EDGE:
+		case TLSEdge:
 			crMgr.addIRule(
 				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
 			crMgr.addInternalDataGroup(EdgeHostsDgName, DEFAULT_PARTITION)
 			crMgr.addInternalDataGroup(EdgeServerSslDgName, DEFAULT_PARTITION)
 			rc.Virtual.AddIRule(passThroughIRuleName)
-		case TLS_PASSTHROUGH:
+		case TLSPassthrough:
 			crMgr.addIRule(
 				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
 			crMgr.addInternalDataGroup(PassthroughHostsDgName, DEFAULT_PARTITION)
 			rc.Virtual.AddIRule(passThroughIRuleName)
-		case TLS_REENCRYPT:
+		case TLSReencrypt:
 			crMgr.addIRule(
 				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
 			crMgr.addInternalDataGroup(ReencryptHostsDgName, DEFAULT_PARTITION)

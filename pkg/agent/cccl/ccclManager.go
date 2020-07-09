@@ -30,7 +30,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 )
 
-// AS3AS3Manager holds all the AS3 orchestration specific Data
+// AS3AS3Manager holds all the AS3 orchestration specific config
 type CCCLManager struct {
 	configWriter writer.Writer
 	eventChan    chan interface{}

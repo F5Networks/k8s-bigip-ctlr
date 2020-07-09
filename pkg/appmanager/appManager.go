@@ -1050,6 +1050,11 @@ func (appMgr *Manager) syncConfigMaps(
 		// We need to look at all config maps in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
 		cm := obj.(*v1.ConfigMap)
+
+		if cm.ObjectMeta.Namespace != sKey.Namespace {
+			continue
+		}
+
 		if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
 			if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, cm.Namespace); ok {
 				agntCfgMap := new(AgentCfgMap)
@@ -1057,14 +1062,6 @@ func (appMgr *Manager) syncConfigMaps(
 				appMgr.agentCfgMap[cm.Name] = agntCfgMap
 				stats.vsUpdated += 1
 			}
-			continue
-		}
-
-		if cm.ObjectMeta.Namespace != sKey.Namespace {
-			continue
-		}
-
-		if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, cm.Namespace); !ok {
 			continue
 		}
 
@@ -2418,7 +2415,7 @@ func containsNode(nodes []Node, name string) bool {
 // When controller is in ClusterIP mode, returns a list of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
 
-func (m *Manager) getEndpoints(selector string) []Member {
+func (m *Manager) getEndpoints(selector, namespace string) []Member {
 	var members []Member
 
 	svcListOptions := metav1.ListOptions{
@@ -2426,7 +2423,7 @@ func (m *Manager) getEndpoints(selector string) []Member {
 	}
 
 	// Identify services that matches the given label
-	services, err := m.kubeClient.CoreV1().Services(v1.NamespaceAll).List(svcListOptions)
+	services, err := m.kubeClient.CoreV1().Services(namespace).List(svcListOptions)
 
 	if err != nil {
 		log.Errorf("[CORE] Error getting service list. %v", err)

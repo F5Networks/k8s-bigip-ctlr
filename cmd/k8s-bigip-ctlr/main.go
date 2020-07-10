@@ -855,6 +855,10 @@ func main() {
 	}
 	defer appMgr.AgentCIS.DeInit()
 
+	// Cleanup DEFAULT_PARTITION_AS3 partitions
+	//TODO: Remove this post CIS2.2
+	appMgr.AgentCIS.Remove(resource.DEFAULT_PARTITION)
+
 	GetNamespaces(appMgr)
 	intervalFactor := time.Duration(*nodePollInterval)
 	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
@@ -975,6 +979,12 @@ func getCCCLParams() *cccl.Params {
 	return &cccl.Params{
 		ConfigWriter: getConfigWriter(),
 		EventChan:    eventChan,
+		//ToDo: Remove this post 2.2 release
+		BIGIPUsername: *bigIPUsername,
+		BIGIPPassword: *bigIPPassword,
+		BIGIPURL:      *bigIPURL,
+		TrustedCerts:  getBIGIPTrustedCerts(),
+		SSLInsecure:   *sslInsecure,
 	}
 }
 

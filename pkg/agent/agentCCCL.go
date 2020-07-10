@@ -28,6 +28,13 @@ func (ag *agentCCCL) Deploy(req interface{}) error {
 	return nil
 }
 
+//TODO: Remove this post CIS2.2
+func (ag *agentCCCL) Remove(partition string) error {
+	log.Infof("[CCCL] Removing Partition %v_AS3 \n", partition)
+	ag.DeleteAS3Partition(partition + "_AS3")
+	return nil
+}
+
 func (ag *agentCCCL) DeInit() error {
 	log.Infof("[CCCL] DeInitializing CCCL Agent\n")
 	ag.ConfigWriter().Stop()

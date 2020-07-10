@@ -11,6 +11,7 @@ const (
 type CISAgentInterface interface {
 	Initializer
 	Deployer
+	Remover
 	DeInitializer
 	IsImplInAgent(string) bool
 }
@@ -28,6 +29,11 @@ type Deployer interface {
 // De-Initializer is the interface which wraps basic De-Init method.
 type DeInitializer interface {
 	DeInit() error
+}
+
+// Remover is the interface which wraps basic Remove method
+type Remover interface {
+	Remove(partition string) error
 }
 
 const (

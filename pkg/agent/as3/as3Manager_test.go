@@ -17,6 +17,7 @@ package as3
 
 import (
 	"encoding/json"
+
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -510,7 +511,8 @@ var _ = Describe("AS3Manager Tests", func() {
 
 			var tempAS3Config AS3Config
 			tempAS3Config.adc = as3ADC(routeConfig)
-
+			mockMgr.as3Mgr.as3Version = "3.20.0"
+			mockMgr.as3Mgr.as3Release = "3.20.0-3"
 			result := mockMgr.as3Mgr.getUnifiedDeclaration(&tempAS3Config)
 
 			Expect(string(result)).To(MatchJSON(routedecl), "Failed to Create JSON with correct configuration")

@@ -50,6 +50,8 @@ import (
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
 
+const EXTERNAL_IP_RANGE_COUNT = 20
+
 type ResourceMap map[int32][]*ResourceConfig
 
 // RoutesMap consists of List of route names indexed by namespace
@@ -128,6 +130,7 @@ type Manager struct {
 	// Processed routes for updating Admit Status
 	agRspChan          chan interface{}
 	processAgentLabels func(map[string]string, string, string) bool
+	externalIPList     []string
 }
 
 // Watched Namespaces for global availability.
@@ -165,6 +168,7 @@ type Params struct {
 	DgPath             string
 	AgRspChan          chan interface{}
 	ProcessAgentLabels func(map[string]string, string, string) bool
+	ExternalIP         string
 }
 
 // Configuration options for Routes in OpenShift
@@ -224,6 +228,7 @@ func NewManager(params *Params) *Manager {
 		agRspChan:              params.AgRspChan,
 		processAgentLabels:     params.ProcessAgentLabels,
 		agentCfgMap:            make(map[string]*AgentCfgMap),
+		externalIPList:         GenerateExternalIPAddr(params.ExternalIP),
 	}
 
 	// Initialize agent response worker
@@ -2478,4 +2483,72 @@ func (m *Manager) getEndpoints(selector string) []Member {
 	}
 
 	return members
+}
+
+// GenerateExternalIPAddr ...
+func GenerateExternalIPAddr(extip string) []string {
+	if extip == "" {
+		return nil
+	}
+	var StartRangeIP, EndRangeIP, Subnet, ExternalIPType string
+	ipLower := strings.ToLower(extip)
+	ipRangeS := strings.Split(ipLower, "-")
+	ipRangeE := strings.Split(ipRangeS[1], ",/")
+	log.Debugf(ipRangeS[0], " : ", ipRangeE[0], " : ", ipRangeE[1])
+
+	StartRangeIP = ipRangeS[0]
+	EndRangeIP = ipRangeE[0]
+	Subnet = ipRangeE[1]
+
+	//endip validation
+	ipEnd, _, err := net.ParseCIDR(EndRangeIP + "/" + Subnet)
+	if err != nil {
+		log.Debugf("[CORE] err : %v ", err)
+		return nil
+	}
+
+	//startip validation
+	ipStart, ipnetStart, err := net.ParseCIDR(StartRangeIP + "/" + Subnet)
+	if err != nil {
+		log.Debugf("[CORE] err : %v ", err)
+		return nil
+	}
+
+	ExternalIPType = ipv4or6(extip)
+	log.Debugf("[CORE] external-ip-address is of type : %v ", ExternalIPType)
+
+	var ips []string
+	for ; ipnetStart.Contains(ipStart); inc(ipStart) {
+		ips = append(ips, ipStart.String())
+		if len(ips) == EXTERNAL_IP_RANGE_COUNT {
+			break
+		}
+		if ipStart.String() == ipEnd.String() {
+			break
+		}
+	}
+	return ips[:]
+}
+
+func inc(ip net.IP) {
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
+}
+
+//external-ip-address parameter is of type ipv4 or ipv6
+func ipv4or6(s string) string {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '.':
+			return "IPv4"
+		case ':':
+			return "IPv6"
+		}
+	}
+	return "Invalid Address"
+
 }

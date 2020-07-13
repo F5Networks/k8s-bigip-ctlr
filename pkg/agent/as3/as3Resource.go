@@ -23,18 +23,13 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
-func (am *AS3Manager) prepareAS3ResourceConfig(routeCfg AS3Config) AS3Config {
-	routeCfg.adc = am.generateAS3ResourceDeclaration()
+func (am *AS3Manager) prepareAS3ResourceConfig() as3ADC {
+	adc := am.generateAS3ResourceDeclaration()
 	// Support `Controls` class for TEEMs in user-defined AS3 configMap.
 	controlObj := make(as3Control)
 	controlObj.initDefault(am.userAgent)
-	routeCfg.adc["controls"] = controlObj
-	// If default partition is empty, do not perform override operation
-	if routeCfg.isDefaultAS3PartitionEmpty() {
-		routeCfg.overrideConfigmap.Data = ""
-	}
-
-	return routeCfg
+	adc["controls"] = controlObj
+	return adc
 }
 
 func (am *AS3Manager) generateAS3ResourceDeclaration() as3ADC {
@@ -69,7 +64,7 @@ func (am *AS3Manager) processProfilesForAS3(sharedApp as3Application) {
 	// Processes RouteProfs to create AS3 Declaration for Route annotations
 	// Override/Set ServerTLS/ClientTLS in AS3 Service as annotation takes higher priority
 	for svcName, cfg := range am.Resources.RsMap {
-		if svc, ok := sharedApp[as3FormatedString(svcName, cfg.MetaData.ResourceType)].(*as3Service); ok {
+		if svc, ok := sharedApp[as3FormattedString(svcName, cfg.MetaData.ResourceType)].(*as3Service); ok {
 			switch cfg.MetaData.ResourceType {
 			case ResourceTypeRoute:
 				processRouteTLSProfilesForAS3(&cfg.MetaData, svc)

@@ -15,13 +15,13 @@
  */
 package as3
 
+/*
 import (
-	"encoding/json"
-
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
+
 
 type mockAS3Manager struct {
 	as3Mgr *AS3Manager
@@ -33,7 +33,7 @@ func newMockAS3Manager(params *Params) *mockAS3Manager {
 	}
 }
 
-func mockGetEndPoints(string) []Member {
+func mockGetEndPoints(string, string) []Member {
 	return []Member{{Address: "1.1.1.1", Port: 80},
 		{Address: "2.2.2.2", Port: 80}}
 }
@@ -70,13 +70,10 @@ var _ = Describe("AS3Manager Tests", func() {
 		It("Create user configured Userdefined AS3 cfgMap with valid JSON", func() {
 			as3Config := newMockAS3Config()
 			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			as3Config.configmap.cfg = "default/testCfgMap"
 			mockMgr.as3Mgr.as3ActiveConfig = as3Config
 			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive),
-				"User configured UserDefinedCfgMap Created Successfully.")
+			mockMgr.as3Mgr.prepareResourceAS3ConfigMaps()
+
 		})
 		It("Delete user configured Userdefined AS3 cfgMap with valid name and namespace", func() {
 			as3Config := newMockAS3Config()
@@ -88,7 +85,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
 			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			as3Config = mockMgr.as3Mgr.as3ActiveConfig
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -105,7 +102,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
 			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			agentCM.Name = "invalid"
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -122,7 +119,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
 			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			agentCM.Namespace = "invalid"
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -199,7 +196,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
 			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			as3Config = mockMgr.as3Mgr.as3ActiveConfig
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -215,7 +212,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
 			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			agentCM.Name = "invalid"
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -231,7 +228,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
 			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			agentCM.Namespace = "invalid"
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -305,8 +302,8 @@ var _ = Describe("AS3Manager Tests", func() {
 			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			as3Config = mockMgr.as3Mgr.as3ActiveConfig
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -322,8 +319,8 @@ var _ = Describe("AS3Manager Tests", func() {
 			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			agentCM.Name = "invalid"
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -339,8 +336,8 @@ var _ = Describe("AS3Manager Tests", func() {
 			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			agentCM.Namespace = "invalid"
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -393,8 +390,8 @@ var _ = Describe("AS3Manager Tests", func() {
 			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			as3Config = mockMgr.as3Mgr.as3ActiveConfig
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -409,8 +406,8 @@ var _ = Describe("AS3Manager Tests", func() {
 			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			agentCM.Name = "invalid"
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -425,8 +422,8 @@ var _ = Describe("AS3Manager Tests", func() {
 			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
 			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
 			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap Data
+			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
+			// Empty agent configMap config
 			agentCM.Operation = OprTypeDelete
 			agentCM.Namespace = "invalid"
 			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
@@ -510,9 +507,10 @@ var _ = Describe("AS3Manager Tests", func() {
 			Expect(err).To(BeNil(), "Original Config should be json")
 
 			var tempAS3Config AS3Config
-			tempAS3Config.adc = as3ADC(routeConfig)
 			mockMgr.as3Mgr.as3Version = "3.20.0"
 			mockMgr.as3Mgr.as3Release = "3.20.0-3"
+			tempAS3Config.resourceConfig = as3ADC(routeConfig)
+
 			result := mockMgr.as3Mgr.getUnifiedDeclaration(&tempAS3Config)
 
 			Expect(string(result)).To(MatchJSON(routedecl), "Failed to Create JSON with correct configuration")
@@ -529,7 +527,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			data = readConfigFile(configPath + "as3_route.json")
 			err := json.Unmarshal([]byte(data), &routeCfg)
 			Expect(err).To(BeNil(), "Route Config should be json")
-			tempAS3Config.adc = routeCfg
+			tempAS3Config.resourceConfig = routeCfg
 
 			result := mockMgr.as3Mgr.getUnifiedDeclaration(&tempAS3Config)
 
@@ -537,3 +535,4 @@ var _ = Describe("AS3Manager Tests", func() {
 		})
 	})
 })
+*/

@@ -25,7 +25,7 @@ func (appMgr *Manager) deployResource() error {
 	deployCfg := ResourceRequest{Resources: &AgentResources{RsMap: appMgr.resources.RsMap,
 		RsCfgs: appMgr.resources.GetAllResources()}, Profs: Profs,
 		IrulesMap: appMgr.irulesMap, IntDgMap: appMgr.intDgMap, IntF5Res: appMgr.intF5Res,
-		AgentCfgmap: agentCfgMapLst}
+		AgentCfgmaps: agentCfgMapLst}
 	agentReq := MessageRequest{MsgType: cisAgent.MsgTypeSendDecl, ResourceRequest: deployCfg}
 	// Handle resources to agent and deploy to BIG-IP
 	appMgr.AgentCIS.Deploy(agentReq)

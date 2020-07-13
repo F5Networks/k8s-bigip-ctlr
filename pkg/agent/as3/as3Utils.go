@@ -79,10 +79,10 @@ func ValidateAndOverrideAS3JsonData(srcJsonData string, dstJsonData string) stri
 		}
 	}
 
-	// Return empty string if the Merged JSON Data fails the Marshall test
+	// Return empty string if the Merged JSON config fails the Marshall test
 	mergedJsonData, err := json.Marshal(mergeRecursive(srcJsonObj, dstJsonObj))
 	if err != nil {
-		log.Errorf("[AS3] CIS failed to merge JSON Data !!!: %v", err)
+		log.Errorf("[AS3] CIS failed to merge JSON config !!!: %v", err)
 		return ""
 	}
 	return string(mergedJsonData)
@@ -155,7 +155,7 @@ func ExtractVirtualAddressAndPort(str string) (string, int) {
 
 }
 
-func DeepEqualAS3ArbitaryJsonObject(obj1, obj2 map[string]interface{}) bool {
+func DeepEqualAS3ArbitraryJsonObject(obj1, obj2 map[string]interface{}) bool {
 	if len(obj1) == 0 && len(obj2) == 0 {
 		return true
 	}
@@ -293,45 +293,12 @@ func getClass(obj interface{}) string {
 		// If not a json object it doesn't have class attribute
 		return ""
 	}
-	cl, ok := cfg["class"].(string)
+	cl, ok := cfg["class"]
 	if !ok {
 		log.Debugf("No class attribute found")
 		return ""
 	}
-	return cl
-}
-
-// Traverses through the AS3 JSON using the information passed from buildAS3Declaration,
-// parses the AS3 JSON and populates it with pool members
-func updatePoolMembers(tnt tenantName, app appName, pn poolName, ips []string, port int32,
-	templateJSON map[string]interface{}) map[string]interface{} {
-
-	// Get the declaration object from AS3 Json
-	dec := (templateJSON["declaration"]).(map[string]interface{})
-	// Get the tenant object from AS3 Json
-	tet := (dec[string(tnt)]).(map[string]interface{})
-
-	// Continue with the poolName and replace the as3 template with poolMembers
-	toName := (tet[string(app)].(map[string]interface{}))
-	pool := (toName[string(pn)].(map[string]interface{}))
-	poolmem := (((pool["members"]).([]interface{}))[0]).(map[string]interface{})
-
-	// Replace pool member IP addresses
-	poolmem["serverAddresses"] = ips
-	// Replace port number
-	poolmem["servicePort"] = port
-	return templateJSON
-}
-
-func (c AS3Config) isDefaultAS3PartitionEmpty() bool {
-	// Check if it is an empty default AS3 declaration
-	defADC := as3ADC{}
-	defADC.initDefault(DEFAULT_PARTITION)
-	if DeepEqualAS3ArbitaryJsonObject(c.adc.getAS3Partition(DEFAULT_PARTITION),
-		defADC.getAS3Partition(DEFAULT_PARTITION)) {
-		return true
-	}
-	return false
+	return cl.(string)
 }
 
 // Build Control class with userAgent info
@@ -383,7 +350,7 @@ func (a as3Application) initDefault() {
 
 //Replacing "-" with "_" for given string
 // also handling the IP addr to string as per AS3 for Ingress Resource.
-func as3FormatedString(str string, resourceType string) string {
+func as3FormattedString(str string, resourceType string) string {
 	var formattedString string
 	switch resourceType {
 	case ResourceTypeIngress:

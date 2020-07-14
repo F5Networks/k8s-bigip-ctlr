@@ -285,6 +285,20 @@ func (am *AS3Manager) getEmptyAs3Declaration(partition string) as3Declaration {
 	return as3Declaration(data)
 }
 
+// Function to prepare tenantobjects
+func (am *AS3Manager) getTenantObjects(partitions []string) string {
+	var as3Config map[string]interface{}
+	baseAS3ConfigEmpty := fmt.Sprintf(baseAS3Config, am.as3Version, am.as3Release, am.as3Version)
+	_ = json.Unmarshal([]byte(baseAS3ConfigEmpty), &as3Config)
+	decl := as3Config["declaration"].(map[string]interface{})
+	for _, partition := range partitions {
+
+		decl[partition] = map[string]string{"class": "Tenant"}
+	}
+	data, _ := json.Marshal(as3Config)
+	return string(data)
+}
+
 func (am *AS3Manager) getDeletedTenants(curTenantMap map[string]interface{}) []string {
 	prevTenants := getTenants(am.as3ActiveConfig.unifiedDeclaration)
 	var deletedTenants []string

@@ -2,6 +2,7 @@ package as3
 
 import (
 	"encoding/json"
+
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
@@ -16,8 +17,10 @@ const (
 	F5TypeLabel      = "f5type"
 	VSLabel          = "virtual-server"
 	TrueLabel        = "true"
+	FalseLabel       = "false"
 	OverrideAS3Label = "overrideAS3"
 	AS3Label         = "as3"
+	StagingAS3Label  = "stagingAS3"
 )
 
 func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
@@ -72,6 +75,17 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			} else {
 				overriderAS3CfgmapData = rscCfgMap.Data
 			}
+		case StagingAS3Label:
+			tenants := getTenants(as3Declaration(rscCfgMap.Data))
+			cfgmap := &AS3ConfigMap{
+				Name:      rscCfgMap.Name,
+				Namespace: rscCfgMap.Namespace,
+			}
+			rscCfgMap.Data = am.getTenantObjects(tenants)
+			tenantMap, endPoints := am.processCfgMap(rscCfgMap)
+			cfgmap.config = tenantMap
+			cfgmap.endPoints = endPoints
+			as3Cfgmaps = append(as3Cfgmaps, cfgmap)
 		}
 	}
 	return as3Cfgmaps, overriderAS3CfgmapData
@@ -79,6 +93,11 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 
 func (am *AS3Manager) isValidConfigmap(cfgmap *AgentCfgMap) (string, bool) {
 	if val, ok := cfgmap.Label[F5TypeLabel]; ok && val == VSLabel {
+		if val, ok := cfgmap.Label[OverrideAS3Label]; ok && val == FalseLabel {
+			log.Errorf("[AS3] Removing Override Configuration: %v", am.OverriderCfgMapName)
+			cfgmap.Operation = OprTypeDelete
+			return OverrideAS3Label, true
+		}
 		if val, ok := cfgmap.Label[OverrideAS3Label]; ok && val == TrueLabel {
 			overriderName := cfgmap.Namespace + "/" + cfgmap.Name
 			if len(am.OverriderCfgMapName) > 0 && (am.OverriderCfgMapName != overriderName) {
@@ -88,9 +107,10 @@ func (am *AS3Manager) isValidConfigmap(cfgmap *AgentCfgMap) (string, bool) {
 			return OverrideAS3Label, true
 		} else if val, ok := cfgmap.Label[AS3Label]; ok && val == TrueLabel {
 			return AS3Label, true
+		} else if val, ok := cfgmap.Label[AS3Label]; ok && val == FalseLabel {
+			return StagingAS3Label, true
 		}
 	}
-
 	return "", false
 }
 

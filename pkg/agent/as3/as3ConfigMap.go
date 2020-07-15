@@ -64,12 +64,14 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			as3Cfgmaps = append(as3Cfgmaps, cfgmap)
 
 		case OverrideAS3Label:
-			if rscCfgMap.Operation != OprTypeDelete {
+			if rscCfgMap.Operation == OprTypeDelete {
+				// In the event of deletion config of overriderAS3Cfgmap stays empty
+				// So that nothing gets overridden
+				log.Debugf("Setting overriderAS3CfgmapData to Empty")
+				overriderAS3CfgmapData = ""
+			} else {
 				overriderAS3CfgmapData = rscCfgMap.Data
 			}
-			// In the event of deletion config of overriderAS3Cfgmap stays empty
-			// So that nothing gets overridden
-			overriderAS3CfgmapData = ""
 		}
 	}
 	return as3Cfgmaps, overriderAS3CfgmapData
@@ -79,7 +81,7 @@ func (am *AS3Manager) isValidConfigmap(cfgmap *AgentCfgMap) (string, bool) {
 	if val, ok := cfgmap.Label[F5TypeLabel]; ok && val == VSLabel {
 		if val, ok := cfgmap.Label[OverrideAS3Label]; ok && val == TrueLabel {
 			overriderName := cfgmap.Namespace + "/" + cfgmap.Name
-			if am.OverriderCfgMapName != overriderName {
+			if len(am.OverriderCfgMapName) > 0 && (am.OverriderCfgMapName != overriderName) {
 				log.Errorf("[AS3] Invalid overrider cfgMap: %v", am.OverriderCfgMapName)
 				return "", false
 			}

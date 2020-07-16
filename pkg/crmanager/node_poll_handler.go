@@ -2,6 +2,7 @@ package crmanager
 
 import (
 	"fmt"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	"reflect"
 	"strings"
 	"time"
@@ -88,22 +89,41 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 	if !crMgr.initState {
 		// Compare last set of nodes with new one
 		if !reflect.DeepEqual(newNodes, crMgr.oldNodes) {
-			log.Infof("ProcessNodeUpdate: Change in Node state detected")
-
-			for _, ns := range crMgr.namespaces {
-				virtuals := crMgr.getAllVirtualServers(ns)
-				for _, virtual := range virtuals {
-					qKey := &rqKey{
-						ns,
-						VirtualServer,
-						virtual.ObjectMeta.Name,
-						virtual,
-						false,
+			log.Debugf("Processing Node Updates")
+			// Handle NodeLabelUpdates
+			if crMgr.ControllerMode == NodePortMode {
+				if crMgr.watchingAllNamespaces() {
+					crInf, _ := crMgr.getNamespaceInformer("")
+					virtuals := crInf.vsInformer.GetIndexer().List()
+					if len(virtuals) != 0 {
+						for _, virtual := range virtuals {
+							vs := virtual.(*cisapiv1.VirtualServer)
+							qKey := &rqKey{
+								vs.ObjectMeta.Namespace,
+								VirtualServer,
+								vs.ObjectMeta.Name,
+								vs,
+								false,
+							}
+							crMgr.rscQueue.Add(qKey)
+						}
 					}
-					crMgr.rscQueue.Add(qKey)
+				} else {
+					for _, ns := range crMgr.namespaces {
+						virtuals := crMgr.getAllVirtualServers(ns)
+						for _, virtual := range virtuals {
+							qKey := &rqKey{
+								ns,
+								VirtualServer,
+								virtual.ObjectMeta.Name,
+								virtual,
+								false,
+							}
+							crMgr.rscQueue.Add(qKey)
+						}
+					}
 				}
 			}
-
 			// Update node cache
 			crMgr.oldNodes = newNodes
 		}

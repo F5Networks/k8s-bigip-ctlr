@@ -276,9 +276,10 @@ func getAS3ObjectFromTemplate(
 					" tenant: %s\n", an, tn)
 			}
 		}
-		if len(as3[tenantName(tn)]) == 0 {
-			log.Debugf("[AS3] No applications declared for tenant: %s\n", tn)
-		}
+		//TODO: Fix this post 2.1
+		// if len(as3[tenantName(tn)]) == 0 {
+		// 	log.Debugf("[AS3] No applications declared for tenant: %s\n", tn)
+		// }
 	}
 	if len(as3) == 0 {
 		log.Error("[AS3] No tenants declared in AS3 template")

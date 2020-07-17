@@ -1053,9 +1053,9 @@ func getProcessAgentLabelFunc() func(map[string]string, string, string) bool {
 				}
 				return true
 			}
-			if m["overrideAS3"] == "true" {
+			if m["overrideAS3"] == "true" || m["overrideAS3"] == "false" {
 				return funCMapOptions(*overriderAS3CfgmapName)
-			} else if m["as3"] == "true" {
+			} else if m["as3"] == "true" || m["as3"] == "false" {
 				return funCMapOptions(*userDefinedAS3Decl)
 			}
 			return false

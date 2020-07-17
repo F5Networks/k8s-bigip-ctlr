@@ -353,7 +353,7 @@ func (am *AS3Manager) ConfigDeployer() {
 		for !posted {
 			timeout := getTimeDurationForErrorResponse(event)
 			log.Debugf("[AS3] Error handling for event %v", event)
-			posted, event = am.postOnEventOrTimeout(timeout, msgReq.ResourceRequest)
+			posted, event = am.postOnEventOrTimeout(timeout)
 		}
 		firstPost = false
 		if event == responseStatusOk {
@@ -366,12 +366,17 @@ func (am *AS3Manager) ConfigDeployer() {
 }
 
 // Helper method used by configDeployer to handle error responses received from BIG-IP
-func (am *AS3Manager) postOnEventOrTimeout(timeout time.Duration, rsReq ResourceRequest) (bool, string) {
+func (am *AS3Manager) postOnEventOrTimeout(timeout time.Duration) (bool, string) {
 	select {
 	case msgReq := <-am.ReqChan:
 		return am.postAS3Declaration(msgReq.ResourceRequest)
 	case <-time.After(timeout):
-		return am.postAS3Declaration(rsReq)
+		var tenants []string = nil
+		if am.FilterTenants {
+			tenants = getTenants(am.as3ActiveConfig.unifiedDeclaration)
+		}
+		unifiedDeclaration := string(am.as3ActiveConfig.unifiedDeclaration)
+		return am.PostManager.postConfig(unifiedDeclaration, tenants)
 	}
 }
 

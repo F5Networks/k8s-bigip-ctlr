@@ -2,7 +2,7 @@ package crmanager
 
 import (
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	"reflect"
 	"strings"
 	"time"
@@ -65,8 +65,9 @@ func (crMgr *CRManager) SetupNodePolling(
 }
 
 type Node struct {
-	Name string
-	Addr string
+	Name   string
+	Addr   string
+	Labels map[string]string
 }
 
 // Check for a change in Node state
@@ -88,22 +89,41 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 	if !crMgr.initState {
 		// Compare last set of nodes with new one
 		if !reflect.DeepEqual(newNodes, crMgr.oldNodes) {
-			log.Infof("ProcessNodeUpdate: Change in Node state detected")
-
-			for _, ns := range crMgr.namespaces {
-				virtuals := crMgr.getAllVirtualServers(ns)
-				for _, virtual := range virtuals {
-					qKey := &rqKey{
-						ns,
-						VirtualServer,
-						virtual.ObjectMeta.Name,
-						virtual,
-						false,
+			log.Debugf("Processing Node Updates")
+			// Handle NodeLabelUpdates
+			if crMgr.ControllerMode == NodePortMode {
+				if crMgr.watchingAllNamespaces() {
+					crInf, _ := crMgr.getNamespaceInformer("")
+					virtuals := crInf.vsInformer.GetIndexer().List()
+					if len(virtuals) != 0 {
+						for _, virtual := range virtuals {
+							vs := virtual.(*cisapiv1.VirtualServer)
+							qKey := &rqKey{
+								vs.ObjectMeta.Namespace,
+								VirtualServer,
+								vs.ObjectMeta.Name,
+								vs,
+								false,
+							}
+							crMgr.rscQueue.Add(qKey)
+						}
 					}
-					crMgr.rscQueue.Add(qKey)
+				} else {
+					for _, ns := range crMgr.namespaces {
+						virtuals := crMgr.getAllVirtualServers(ns)
+						for _, virtual := range virtuals {
+							qKey := &rqKey{
+								ns,
+								VirtualServer,
+								virtual.ObjectMeta.Name,
+								virtual,
+								false,
+							}
+							crMgr.rscQueue.Add(qKey)
+						}
+					}
 				}
 			}
-
 			// Update node cache
 			crMgr.oldNodes = newNodes
 		}
@@ -147,8 +167,12 @@ func (crMgr *CRManager) getNodes(
 		for _, addr := range nodeAddrs {
 			if addr.Type == addrType {
 				n := Node{
-					Name: node.ObjectMeta.Name,
-					Addr: addr.Address,
+					Name:   node.ObjectMeta.Name,
+					Addr:   addr.Address,
+					Labels: make(map[string]string),
+				}
+				for k, v := range node.ObjectMeta.Labels {
+					n.Labels[k] = v
 				}
 				watchedNodes = append(watchedNodes, n)
 			}
@@ -161,12 +185,20 @@ func (crMgr *CRManager) getNodes(
 func (crMgr *CRManager) getNodesWithLabel(
 	nodeMemberLabel string,
 ) []Node {
-	nodeList, _ := crMgr.kubeClient.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: nodeMemberLabel})
+	allNodes := crMgr.getNodesFromCache()
 
-	nodes, err := crMgr.getNodes(nodeList.Items)
-	if nil != err {
-		log.Warningf("Unable to get list of nodes, err=%+v", err)
+	label := strings.Split(nodeMemberLabel, "=")
+	if len(label) != 2 {
+		log.Warningf("Invalid NodeMemberLabel: %v", nodeMemberLabel)
 		return nil
+	}
+	labelKey := label[0]
+	labelValue := label[1]
+	var nodes []Node
+	for _, node := range allNodes {
+		if node.Labels[labelKey] == labelValue {
+			nodes = append(nodes, node)
+		}
 	}
 	return nodes
 }

@@ -18,8 +18,10 @@ package crmanager
 
 import (
 	"fmt"
-	v1 "k8s.io/api/core/v1"
+	"strings"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -36,12 +38,24 @@ const (
 	DefaultCustomResourceLabel = "f5cr in (true)"
 	// VirtualServer is a F5 Custom Resource Kind.
 	VirtualServer = "VirtualServer"
+	// TLSProfile is a F5 Custom Resource Kind
+	TLSProfile = "TLSProfile"
 	// Service is a k8s native Service Resource.
 	Service = "Service"
 	// Endpoints is a k8s native Endpoint Resource.
 	Endpoints = "Endpoints"
 
 	NodePortMode = "nodeport"
+
+	PolicyControlForward = "forwarding"
+
+	// TLS Terminations
+	TLSEdge             = "edge"
+	TLSReencrypt        = "reencrypt"
+	TLSPassthrough      = "passthrough"
+	TLSRedirectInsecure = "redirect"
+	TLSAllowInsecure    = "allow"
+	TLSNoInsecure       = "none"
 )
 
 // NewCRManager creates a new CRManager Instance.
@@ -61,6 +75,7 @@ func NewCRManager(params Params) *CRManager {
 		customProfiles:  NewCustomProfiles(),
 		irulesMap:       make(IRulesMap),
 		intDgMap:        make(InternalDataGroupMap),
+		dgPath:          strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 	}
 
 	log.Debug("Custom Resource Manager Created")

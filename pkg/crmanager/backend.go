@@ -108,6 +108,7 @@ func (agent *Agent) Stop() {
 
 func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
 	decl := createAS3Declaration(config)
+	log.Infof("AS3 Declaration looks like this: %s", decl)
 	if DeepEqualJSON(agent.activeDecl, decl) {
 		log.Debug("[AS3] No Change in the Configuration")
 		return
@@ -153,7 +154,6 @@ func createAS3Declaration(config ResourceConfigWrapper) as3Declaration {
 }
 
 func createAS3ADC(config ResourceConfigWrapper) as3ADC {
-
 	// Create Shared as3Application object
 	sharedApp := as3Application{}
 	sharedApp["class"] = "Application"
@@ -261,6 +261,9 @@ func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
 		//Create policies
 		createPoliciesDecl(cfg, sharedApp)
 
+		//Create health monitor declaration
+		createMonitorDecl(cfg, sharedApp)
+
 		//Create pools
 		createPoolDecl(cfg, sharedApp)
 
@@ -311,8 +314,6 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
 			pool.Members = append(pool.Members, member)
 		}
-		// TODO
-		/**
 		for _, val := range v.MonitorNames {
 			var monitor as3ResourcePointer
 			use := strings.Split(val, "/")
@@ -323,7 +324,6 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			)
 			pool.Monitors = append(pool.Monitors, monitor)
 		}
-		**/
 		sharedApp[v.Name] = pool
 	}
 }
@@ -348,10 +348,10 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	case numPolicies > 1:
 		var peps []as3ResourcePointer
 		for _, pep := range cfg.Virtual.Policies {
-			svc.PolicyEndpoint = append(
+			peps = append(
 				peps,
 				as3ResourcePointer{
-					BigIP: fmt.Sprintf("/%s/%s/%s",
+					Use: fmt.Sprintf("/%s/%s/%s",
 						DEFAULT_PARTITION,
 						as3SharedApplication,
 						pep.Name,
@@ -390,6 +390,12 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	for _, v := range cfg.Virtual.IRules {
 		splits := strings.Split(v, "/")
 		iRuleName := splits[len(splits)-1]
+		if iRuleName == SslPassthroughIRuleName {
+			svc.ServerTLS = &as3ResourcePointer{
+				BigIP: "/Common/clientssl",
+			}
+			updateVirtualToHTTPS(svc)
+		}
 		svc.IRules = append(svc.IRules, iRuleName)
 	}
 
@@ -545,25 +551,44 @@ func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
 func processProfilesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
 	for _, cfg := range rsCfgs {
 		if svc, ok := sharedApp[cfg.Virtual.Name].(*as3Service); ok {
-			processTLSProfilesForAS3(&cfg.Virtual, svc)
+			processTLSProfilesForAS3(&cfg.Virtual, svc, cfg.Virtual.Name)
 		}
 	}
 }
 
-func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service) {
+func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName string) {
 	// lets discard BIGIP profile creation when there exists a custom profile.
+	as3ClientSuffix := "_tls_client"
+	as3ServerSuffix := "_tls_server"
 	for _, profile := range virtual.Profiles {
 		switch profile.Context {
 		case rsc.CustomProfileClient:
-			// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
-			svc.ServerTLS = &as3ResourcePointer{
-				BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+			// Profile is stored in a k8s secret
+			if profile.Partition == "" {
+				// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
+				svc.ServerTLS = fmt.Sprintf("/%v/%v/%v%v", DEFAULT_PARTITION,
+					as3SharedApplication, profileName, as3ServerSuffix)
+
+			} else {
+				// Profile is a BIG-IP reference
+				// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
+				svc.ServerTLS = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+				}
 			}
 			updateVirtualToHTTPS(svc)
 		case rsc.CustomProfileServer:
-			// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
-			svc.ClientTLS = &as3ResourcePointer{
-				BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+			// Profile is stored in a k8s secret
+			if profile.Partition == "" {
+				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
+				svc.ClientTLS = fmt.Sprintf("/%v/%v/%v%v", DEFAULT_PARTITION,
+					as3SharedApplication, profileName, as3ClientSuffix)
+			} else {
+				// Profile is a BIG-IP reference
+				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
+				svc.ClientTLS = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+				}
 			}
 			updateVirtualToHTTPS(svc)
 		}
@@ -683,4 +708,43 @@ func createTLSClient(
 		return tlsClient
 	}
 	return nil
+}
+
+//Create health monitor declaration
+func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
+
+	for _, v := range cfg.Monitors {
+		monitor := &as3Monitor{}
+		monitor.Class = "Monitor"
+		monitor.Interval = v.Interval
+		monitor.MonitorType = v.Type
+		monitor.Timeout = v.Timeout
+		val := 0
+		monitor.TargetPort = &val
+		targetAddressStr := ""
+		monitor.TargetAddress = &targetAddressStr
+		//Monitor type
+		switch v.Type {
+		case "http":
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+			monitor.Dscp = &val
+			monitor.Receive = "none"
+			if v.Recv != "" {
+				monitor.Receive = v.Recv
+			}
+			monitor.TimeUnitilUp = &val
+			monitor.Send = v.Send
+		case "https":
+			//Todo: For https monitor type
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+			if v.Recv != "" {
+				monitor.Receive = v.Recv
+			}
+			monitor.Send = v.Send
+		}
+		sharedApp[v.Name] = monitor
+	}
+
 }

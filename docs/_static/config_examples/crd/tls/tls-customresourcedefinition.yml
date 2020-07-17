@@ -27,14 +27,18 @@ spec:
                   type: array
                   items:
                     type: string
+                    pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
                 tls:
                   type: object
                   properties:
                     termination:
                       type: string
+                      enum: [edge, reencrypt, passthrough]
                     clientSSL:
                       type: string
                     serverSSL:
                       type: string
                     reference:
                       type: string
+                  required:
+                    - clientSSL

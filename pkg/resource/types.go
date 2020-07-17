@@ -391,7 +391,7 @@ type (
 
 	AgentCfgMap struct {
 		Operation    string
-		GetEndpoints func(string) []Member
+		GetEndpoints func(string, string) []Member
 		Data         string
 		Name         string
 		Namespace    string
@@ -404,13 +404,13 @@ type (
 	}
 
 	ResourceRequest struct {
-		PoolMembers map[Member]struct{}
-		Resources   *AgentResources
-		Profs       map[SecretKey]CustomProfile
-		IrulesMap   IRulesMap
-		IntDgMap    InternalDataGroupMap
-		IntF5Res    InternalF5ResourcesGroup
-		AgentCfgmap []*AgentCfgMap
+		PoolMembers  map[Member]struct{}
+		Resources    *AgentResources
+		Profs        map[SecretKey]CustomProfile
+		IrulesMap    IRulesMap
+		IntDgMap     InternalDataGroupMap
+		IntF5Res     InternalF5ResourcesGroup
+		AgentCfgmaps []*AgentCfgMap
 	}
 
 	ResourceResponse struct {
@@ -486,6 +486,7 @@ const F5VsBalanceAnnotation = "virtual-server.f5.com/balance"
 const F5VsPartitionAnnotation = "virtual-server.f5.com/partition"
 const F5VsURLRewriteAnnotation = "virtual-server.f5.com/rewrite-target-url"
 const F5VsWhitelistSourceRangeAnnotation = "virtual-server.f5.com/whitelist-source-range"
+const F5VsAllowSourceRangeAnnotation = "virtual-server.f5.com/allow-source-range"
 const F5VsAppRootAnnotation = "virtual-server.f5.com/rewrite-app-root"
 const F5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
 const F5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"

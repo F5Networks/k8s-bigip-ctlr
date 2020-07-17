@@ -148,12 +148,12 @@ var (
 	trustedCerts              *string
 	as3PostDelay              *int
 
-	trustedCertsCfgmap *string
-	agent              *string
-	logAS3Response     *bool
-	overrideAS3Decl    *string
-	userDefinedAS3Decl *string
-	filterTenants      *bool
+	trustedCertsCfgmap     *string
+	agent                  *string
+	logAS3Response         *bool
+	overriderAS3CfgmapName *string
+	userDefinedAS3Decl     *string
+	filterTenants          *bool
 
 	vxlanMode        string
 	openshiftSDNName *string
@@ -250,7 +250,7 @@ func _init() {
 		"Optional, when set to cccl, orchestration agent will be CCCL instead of AS3")
 	overrideAS3UsageStr := "Optional, provide Namespace and Name of that ConfigMap as <namespace>/<configmap-name>." +
 		"The JSON key/values from this ConfigMap will override key/values from internally generated AS3 declaration."
-	overrideAS3Decl = bigIPFlags.String("override-as3-declaration", "", overrideAS3UsageStr)
+	overriderAS3CfgmapName = bigIPFlags.String("override-as3-declaration", "", overrideAS3UsageStr)
 	userDefinedCfgMapStr := "Optional, provide Namespace and Name of the User Defined ConfigMap as " +
 		"<namespace>/<configmap-name>. The template in this cfgMap is a JSON string with  JSON key/values" +
 		" will be used as a AS3 declaration in CIS."
@@ -471,8 +471,8 @@ func verifyArgs() error {
 			return fmt.Errorf("Missing required parameter route-vserver-addr")
 		}
 	}
-	if *overrideAS3Decl != "" {
-		if len(strings.Split(*overrideAS3Decl, "/")) != 2 {
+	if *overriderAS3CfgmapName != "" {
+		if len(strings.Split(*overriderAS3CfgmapName, "/")) != 2 {
 			return fmt.Errorf("Invalid value provided for --override-as3-declaration" +
 				"Usage: --override-as3-declaration=<namespace>/<configmap-name>")
 		}
@@ -855,6 +855,10 @@ func main() {
 	}
 	defer appMgr.AgentCIS.DeInit()
 
+	// Cleanup DEFAULT_PARTITION_AS3 partitions
+	//TODO: Remove this post CIS2.2
+	appMgr.AgentCIS.Remove(resource.DEFAULT_PARTITION)
+
 	GetNamespaces(appMgr)
 	intervalFactor := time.Duration(*nodePollInterval)
 	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
@@ -954,7 +958,7 @@ func getAS3Params() *as3.Params {
 		EnableTLS:                 *enableTLS,
 		TLS13CipherGroupReference: *tls13CipherGroupReference,
 		Ciphers:                   *ciphers,
-		OverrideAS3Decl:           *overrideAS3Decl,
+		OverriderCfgMapName:       *overriderAS3CfgmapName,
 		UserDefinedAS3Decl:        *userDefinedAS3Decl,
 		FilterTenants:             *filterTenants,
 		BIGIPUsername:             *bigIPUsername,
@@ -975,6 +979,12 @@ func getCCCLParams() *cccl.Params {
 	return &cccl.Params{
 		ConfigWriter: getConfigWriter(),
 		EventChan:    eventChan,
+		//ToDo: Remove this post 2.2 release
+		BIGIPUsername: *bigIPUsername,
+		BIGIPPassword: *bigIPPassword,
+		BIGIPURL:      *bigIPURL,
+		TrustedCerts:  getBIGIPTrustedCerts(),
+		SSLInsecure:   *sslInsecure,
 	}
 }
 
@@ -1044,7 +1054,7 @@ func getProcessAgentLabelFunc() func(map[string]string, string, string) bool {
 				return true
 			}
 			if m["overrideAS3"] == "true" {
-				return funCMapOptions(*overrideAS3Decl)
+				return funCMapOptions(*overriderAS3CfgmapName)
 			} else if m["as3"] == "true" {
 				return funCMapOptions(*userDefinedAS3Decl)
 			}

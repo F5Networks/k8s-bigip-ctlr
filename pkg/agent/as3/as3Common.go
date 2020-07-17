@@ -82,14 +82,14 @@ func (am *AS3Manager) processIRulesForAS3(sharedApp as3Application) {
 		iRule := &as3IRules{}
 		iRule.Class = "iRule"
 		iRule.IRule = v.Code
-		sharedApp[as3FormatedString(v.Name, deriveResourceTypeFromAS3Value(v.Name))] = iRule
+		sharedApp[as3FormattedString(v.Name, deriveResourceTypeFromAS3Value(v.Name))] = iRule
 	}
 }
 
 func (am *AS3Manager) processDataGroupForAS3(sharedApp as3Application) {
 	for idk, idg := range am.IntDgMap {
 		for _, dg := range idg {
-			dataGroupRecord, found := sharedApp[as3FormatedString(dg.Name, "")]
+			dataGroupRecord, found := sharedApp[as3FormattedString(dg.Name, "")]
 			if !found {
 				dgMap := &as3DataGroup{}
 				dgMap.Class = "Data_Group"
@@ -101,13 +101,13 @@ func (am *AS3Manager) processDataGroupForAS3(sharedApp as3Application) {
 					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
 						rec.Value = val
 					} else {
-						rec.Value = as3FormatedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+						rec.Value = as3FormattedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
 					}
 					dgMap.Records = append(dgMap.Records, rec)
 				}
 				// sort above create dgMap records.
 				sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
-				sharedApp[as3FormatedString(dg.Name, "")] = dgMap
+				sharedApp[as3FormattedString(dg.Name, "")] = dgMap
 			} else {
 				for _, record := range dg.Records {
 					var rec as3Record
@@ -116,15 +116,15 @@ func (am *AS3Manager) processDataGroupForAS3(sharedApp as3Application) {
 					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
 						rec.Value = val
 					} else {
-						rec.Value = as3FormatedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
+						rec.Value = as3FormattedString(record.Data, deriveResourceTypeFromAS3Value(record.Data))
 					}
-					sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
+					sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
 				}
 				// sort above created
-				sort.Slice(sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records,
+				sort.Slice(sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records,
 					func(i, j int) bool {
-						return (sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records[i].Key <
-							sharedApp[as3FormatedString(dg.Name, "")].(*as3DataGroup).Records[j].Key)
+						return (sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records[i].Key <
+							sharedApp[as3FormattedString(dg.Name, "")].(*as3DataGroup).Records[j].Key)
 					})
 			}
 		}
@@ -142,7 +142,7 @@ func getDGRecordValueForAS3(dgName string, sharedApp as3Application) (string, bo
 				if val, ok := svc.ClientTLS.(string); ok {
 					return strings.Join([]string{"", DEFAULT_PARTITION, as3SharedApplication, val}, "/"), true
 				}
-				log.Errorf("Unable to find serverssl for Data Group: %v\n", dgName)
+				log.Errorf("Unable to find serverssl for config Group: %v\n", dgName)
 			}
 		}
 	}
@@ -155,7 +155,7 @@ func (am *AS3Manager) processCustomProfilesForAS3(sharedApp as3Application) {
 	// TLS Certificates are available in CustomProfiles
 	for key, prof := range am.Profs {
 		// Create TLSServer and Certificate for each profile
-		svcName := as3FormatedString(key.ResourceName, deriveResourceTypeFromAS3Value(key.ResourceName))
+		svcName := as3FormattedString(key.ResourceName, deriveResourceTypeFromAS3Value(key.ResourceName))
 		if svcName == "" {
 			continue
 		}
@@ -233,7 +233,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			ep.Strategy = s[len(s)-1]
 
 			//Create rules
-			rulesData := &as3Rule{Name: as3FormatedString(rl.Name, cfg.MetaData.ResourceType)}
+			rulesData := &as3Rule{Name: as3FormattedString(rl.Name, cfg.MetaData.ResourceType)}
 
 			//Create condition object
 			createAS3RuleCondition(rl, rulesData, port)
@@ -247,7 +247,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			pl.Name = strings.Title(pl.Name)
 		}
 		//Setting Endpoint_Policy Name
-		sharedApp[as3FormatedString(pl.Name, cfg.MetaData.ResourceType)] = ep
+		sharedApp[as3FormattedString(pl.Name, cfg.MetaData.ResourceType)] = ep
 	}
 }
 
@@ -270,11 +270,11 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			monitor.Use = fmt.Sprintf("/%s/%s/%s",
 				DEFAULT_PARTITION,
 				as3SharedApplication,
-				as3FormatedString(use[len(use)-1], cfg.MetaData.ResourceType),
+				as3FormattedString(use[len(use)-1], cfg.MetaData.ResourceType),
 			)
 			pool.Monitors = append(pool.Monitors, monitor)
 		}
-		sharedApp[as3FormatedString(v.Name, cfg.MetaData.ResourceType)] = pool
+		sharedApp[as3FormattedString(v.Name, cfg.MetaData.ResourceType)] = pool
 	}
 }
 
@@ -297,7 +297,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		svc.PolicyEndpoint = fmt.Sprintf("/%s/%s/%s",
 			DEFAULT_PARTITION,
 			as3SharedApplication,
-			as3FormatedString(policyName, cfg.MetaData.ResourceType))
+			as3FormattedString(policyName, cfg.MetaData.ResourceType))
 	case numPolicies > 1:
 		var peps []as3ResourcePointer
 		for _, pep := range cfg.Virtual.Policies {
@@ -323,7 +323,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.Pool = fmt.Sprintf("/%s/%s/%s",
 				DEFAULT_PARTITION,
 				as3SharedApplication,
-				as3FormatedString(ps[len(ps)-1], cfg.MetaData.ResourceType))
+				as3FormattedString(ps[len(ps)-1], cfg.MetaData.ResourceType))
 		}
 	}
 
@@ -353,10 +353,10 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			}
 			updateVirtualToHTTPS(svc)
 		}
-		svc.IRules = append(svc.IRules, as3FormatedString(iRuleName, cfg.MetaData.ResourceType))
+		svc.IRules = append(svc.IRules, as3FormattedString(iRuleName, cfg.MetaData.ResourceType))
 	}
 
-	sharedApp[as3FormatedString(cfg.Virtual.Name, cfg.MetaData.ResourceType)] = svc
+	sharedApp[as3FormattedString(cfg.Virtual.Name, cfg.MetaData.ResourceType)] = svc
 }
 
 // Create AS3 Rule Condition for Route
@@ -415,6 +415,10 @@ func createAS3RuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 			if c.Equals {
 				condition.Path.Operand = "equals"
 			}
+		} else if c.Tcp {
+			condition.Type = "tcp"
+			condition.Address = &as3PolicyCompareString{}
+			condition.Address.Values = c.Values
 		}
 		if c.Request {
 			condition.Event = "request"
@@ -430,6 +434,9 @@ func createAS3RuleAction(rl *Rule, rulesData *as3Rule, resourceType string) {
 		action := &as3Action{}
 		if v.Forward {
 			action.Type = "forward"
+		}
+		if v.Reset {
+			action.Type = "drop"
 		}
 		if v.Request {
 			action.Event = "request"
@@ -463,7 +470,7 @@ func createAS3RuleAction(rl *Rule, rulesData *as3Rule, resourceType string) {
 		if v.Pool != "" {
 			action.Select = &as3ActionForwardSelect{
 				Pool: &as3ResourcePointer{
-					Use: as3FormatedString(p[len(p)-1], resourceType),
+					Use: as3FormattedString(p[len(p)-1], resourceType),
 				},
 			}
 		}
@@ -501,7 +508,7 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			adaptiveFalse := false
 			monitor.Adaptive = &adaptiveFalse
 		}
-		sharedApp[as3FormatedString(v.Name, cfg.MetaData.ResourceType)] = monitor
+		sharedApp[as3FormattedString(v.Name, cfg.MetaData.ResourceType)] = monitor
 	}
 
 }
@@ -531,7 +538,7 @@ func createCertificateDecl(prof CustomProfile, sharedApp as3Application) {
 			ChainCA:     prof.CAFile,
 		}
 
-		sharedApp[as3FormatedString(prof.Name, deriveResourceTypeFromAS3Value(prof.Name))] = cert
+		sharedApp[as3FormattedString(prof.Name, deriveResourceTypeFromAS3Value(prof.Name))] = cert
 	}
 }
 
@@ -542,14 +549,12 @@ func (am *AS3Manager) createUpdateTLSServer(prof CustomProfile, svcName string, 
 		if svc, ok := sharedApp[svcName].(*as3Service); ok {
 			tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
 			tlsServer, ok := sharedApp[tlsServerName].(*as3TLSServer)
+			certName := as3FormattedString(prof.Name, deriveResourceTypeFromAS3Value(prof.Name))
 			if !ok {
-				certName := as3FormatedString(prof.Name, deriveResourceTypeFromAS3Value(prof.Name))
-
 				tlsServer = &as3TLSServer{
 					Class:        "TLS_Server",
 					Certificates: []as3TLSServerCertificates{},
 				}
-
 				// RenegotiationEnabled MUST be disabled/false to handle CVE-2009-3555.
 				boolFalse := false
 				tlsServer.RenegotiationEnabled = &boolFalse
@@ -557,30 +562,30 @@ func (am *AS3Manager) createUpdateTLSServer(prof CustomProfile, svcName string, 
 				sharedApp[tlsServerName] = tlsServer
 				svc.ServerTLS = tlsServerName
 				updateVirtualToHTTPS(svc)
-
-				tlsServer.Certificates = append(
-					tlsServer.Certificates,
-					as3TLSServerCertificates{
-						Certificate: certName,
-					},
-				)
-				if len(tlsServer.Certificates) != 0 {
-					sort.Slice(tlsServer.Certificates,
-						func(i, j int) bool {
-							return (tlsServer.Certificates[i].Certificate < tlsServer.Certificates[j].Certificate)
-						})
-				}
-				if am.enableTLS == "1.2" {
-					tlsServer.Ciphers = am.ciphers
-				} else if am.enableTLS == "1.3" {
-					tlsServer.Tls1_3Enabled = true
-					tlsServer.CipherGroup = &as3ResourcePointer{
-						BigIP: am.tls13CipherGroupReference,
-					}
-				}
-
-				return true
 			}
+			tlsServer.Certificates = append(
+				tlsServer.Certificates,
+				as3TLSServerCertificates{
+					Certificate: certName,
+				},
+			)
+			if len(tlsServer.Certificates) != 0 {
+				sort.Slice(tlsServer.Certificates,
+					func(i, j int) bool {
+						return (tlsServer.Certificates[i].Certificate < tlsServer.Certificates[j].Certificate)
+					})
+			}
+			if am.enableTLS == "1.2" {
+				tlsServer.Ciphers = am.ciphers
+			} else if am.enableTLS == "1.3" {
+				tlsServer.Tls1_3Enabled = true
+				tlsServer.CipherGroup = &as3ResourcePointer{
+					BigIP: am.tls13CipherGroupReference,
+				}
+			}
+
+			return true
+
 		}
 	}
 	return false

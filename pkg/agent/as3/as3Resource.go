@@ -18,6 +18,7 @@ package as3
 
 import (
 	"fmt"
+	"sort"
 
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -89,7 +90,8 @@ func processIngressTLSProfilesForAS3(virtual *Virtual, svc *as3Service) {
 					BigIP: fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
 				}
 				serverTLS = append(serverTLS, rsPointer)
-				svc.ServerTLS = serverTLS
+				// svc.ServerTLS = serverTLS
+
 				updateVirtualToHTTPS(svc)
 			case CustomProfileServer:
 				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
@@ -99,6 +101,10 @@ func processIngressTLSProfilesForAS3(virtual *Virtual, svc *as3Service) {
 				updateVirtualToHTTPS(svc)
 			}
 		}
+	}
+	if len(serverTLS) > 0 {
+		sortedServerTLS := getSortedServerTLS(serverTLS)
+		svc.ServerTLS = sortedServerTLS
 	}
 }
 
@@ -116,7 +122,7 @@ func processRouteTLSProfilesForAS3(metadata *MetaData, svc *as3Service) {
 			// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
 			rsPointer := as3ResourcePointer{BigIP: val}
 			serverTLS = append(serverTLS, rsPointer)
-			svc.ServerTLS = serverTLS
+			// svc.ServerTLS = serverTLS
 			updateVirtualToHTTPS(svc)
 		case CustomProfileServer:
 			// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
@@ -126,6 +132,31 @@ func processRouteTLSProfilesForAS3(metadata *MetaData, svc *as3Service) {
 			updateVirtualToHTTPS(svc)
 		}
 	}
+	if len(serverTLS) > 0 {
+		sortedServerTLS := getSortedServerTLS(serverTLS)
+		svc.ServerTLS = sortedServerTLS
+	}
+
+}
+
+//Get sorted ServerTLS by value
+func getSortedServerTLS(serverTLS []as3ResourcePointer) []as3ResourcePointer {
+	if len(serverTLS) == 1 {
+		return serverTLS
+	}
+	var ref []string
+	for _, val := range serverTLS {
+		ref = append(ref, val.BigIP)
+	}
+	sort.Strings(ref)
+	var sortedServerTLS []as3ResourcePointer
+	for _, val := range ref {
+		rsPointer := as3ResourcePointer{
+			BigIP: val,
+		}
+		sortedServerTLS = append(sortedServerTLS, rsPointer)
+	}
+	return sortedServerTLS
 }
 
 // processF5ResourcesForAS3 does the following steps to implement WAF

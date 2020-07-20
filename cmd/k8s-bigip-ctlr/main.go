@@ -251,10 +251,6 @@ func _init() {
 	overrideAS3UsageStr := "Optional, provide Namespace and Name of that ConfigMap as <namespace>/<configmap-name>." +
 		"The JSON key/values from this ConfigMap will override key/values from internally generated AS3 declaration."
 	overriderAS3CfgmapName = bigIPFlags.String("override-as3-declaration", "", overrideAS3UsageStr)
-	userDefinedCfgMapStr := "Optional, provide Namespace and Name of the User Defined ConfigMap as " +
-		"<namespace>/<configmap-name>. The template in this cfgMap is a JSON string with  JSON key/values" +
-		" will be used as a AS3 declaration in CIS."
-	userDefinedAS3Decl = bigIPFlags.String("userdefined-as3-declaration", "", userDefinedCfgMapStr)
 	filterTenants = kubeFlags.Bool("filter-tenants", false,
 		"Optional, specify whether or not to use tenant filtering API for AS3 declaration")
 	bigIPFlags.Usage = func() {
@@ -475,12 +471,6 @@ func verifyArgs() error {
 		if len(strings.Split(*overriderAS3CfgmapName, "/")) != 2 {
 			return fmt.Errorf("Invalid value provided for --override-as3-declaration" +
 				"Usage: --override-as3-declaration=<namespace>/<configmap-name>")
-		}
-	}
-	if *userDefinedAS3Decl != "" {
-		if len(strings.Split(*userDefinedAS3Decl, "/")) != 2 {
-			return fmt.Errorf("Invalid value provided for --userdefined-as3-declaration" +
-				"Usage: --userdefined-as3-declaration=<namespace>/<configmap-name>")
 		}
 	}
 	return nil

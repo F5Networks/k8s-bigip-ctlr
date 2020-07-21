@@ -206,7 +206,7 @@ func (am *AS3Manager) postAS3Config(tempAS3Config AS3Config) (bool, string) {
 	var tenants []string = nil
 
 	if am.FilterTenants {
-		tenants = getTenants(unifiedDecl)
+		tenants = getTenants(unifiedDecl, true)
 	}
 
 	return am.PostManager.postConfig(string(unifiedDecl), tenants)
@@ -300,7 +300,7 @@ func (am *AS3Manager) getTenantObjects(partitions []string) string {
 }
 
 func (am *AS3Manager) getDeletedTenants(curTenantMap map[string]interface{}) []string {
-	prevTenants := getTenants(am.as3ActiveConfig.unifiedDeclaration)
+	prevTenants := getTenants(am.as3ActiveConfig.unifiedDeclaration, false)
 	var deletedTenants []string
 
 	for _, tnt := range prevTenants {
@@ -373,7 +373,7 @@ func (am *AS3Manager) postOnEventOrTimeout(timeout time.Duration) (bool, string)
 	case <-time.After(timeout):
 		var tenants []string = nil
 		if am.FilterTenants {
-			tenants = getTenants(am.as3ActiveConfig.unifiedDeclaration)
+			tenants = getTenants(am.as3ActiveConfig.unifiedDeclaration, true)
 		}
 		unifiedDeclaration := string(am.as3ActiveConfig.unifiedDeclaration)
 		return am.PostManager.postConfig(unifiedDeclaration, tenants)

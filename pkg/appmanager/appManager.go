@@ -1032,7 +1032,8 @@ func (appMgr *Manager) syncConfigMaps(
 	// Handle delete cfgMap Operation for Agent
 	if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
 		if sKey.Operation == OprTypeDelete {
-			appMgr.agentCfgMap[sKey.Name].Operation = OprTypeDelete
+			key := sKey.Namespace + "/" + sKey.Name
+			appMgr.agentCfgMap[key].Operation = OprTypeDelete
 			stats.vsDeleted += 1
 			return nil
 		}
@@ -1059,8 +1060,17 @@ func (appMgr *Manager) syncConfigMaps(
 			if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, cm.Namespace); ok {
 				agntCfgMap := new(AgentCfgMap)
 				agntCfgMap.Init(cm.Name, cm.Namespace, cm.Data["template"], cm.Labels, appMgr.getEndpoints)
-				appMgr.agentCfgMap[cm.Name] = agntCfgMap
-				stats.vsUpdated += 1
+				key := cm.Namespace + "/" + cm.Name
+				if cfgMap, ok := appMgr.agentCfgMap[key]; ok {
+					if cfgMap.Data != cm.Data["template"] {
+						appMgr.agentCfgMap[key] = agntCfgMap
+						stats.vsUpdated += 1
+					}
+
+				} else {
+					appMgr.agentCfgMap[key] = agntCfgMap
+					stats.vsUpdated += 1
+				}
 			}
 			continue
 		}

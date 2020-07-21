@@ -30,9 +30,9 @@ func (appMgr *Manager) deployResource() error {
 	// Handle resources to agent and deploy to BIG-IP
 	appMgr.AgentCIS.Deploy(agentReq)
 	// Initialize cfgMap context if CfgMaps are removed
-	for name, cm := range appMgr.agentCfgMap {
+	for key, cm := range appMgr.agentCfgMap {
 		if cm.Operation == OprTypeDelete {
-			delete(appMgr.agentCfgMap, name)
+			delete(appMgr.agentCfgMap, key)
 		}
 	}
 	return nil

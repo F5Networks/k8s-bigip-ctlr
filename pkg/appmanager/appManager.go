@@ -1065,6 +1065,12 @@ func (appMgr *Manager) syncConfigMaps(
 					if cfgMap.Data != cm.Data["template"] {
 						appMgr.agentCfgMap[key] = agntCfgMap
 						stats.vsUpdated += 1
+					} else if cm.Labels["as3"] != cfgMap.Label["as3"] {
+						appMgr.agentCfgMap[key] = agntCfgMap
+						stats.vsUpdated += 1
+					} else if cm.Labels["overrideAS3"] != cfgMap.Label["overrideAS3"] {
+						appMgr.agentCfgMap[key] = agntCfgMap
+						stats.vsUpdated += 1
 					}
 
 				} else {

@@ -503,7 +503,7 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 		}
 
 		when CLIENTSSL_DATA {
-            set sslpath [lindex [SSL::payload] 1]
+            set sslpath [lindex [split [SSL::payload]] 1]
             set routepath ""
             
             if { [info exists tls_servername] } {

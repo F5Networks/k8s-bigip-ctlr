@@ -195,6 +195,7 @@ func getTenants(decl as3Declaration, includeEmptyTenant bool) []string {
 		if tnt["class"] != "Tenant" {
 			continue
 		}
+		//To delete a parttion we should not consider previously deleted partitions
 		if !includeEmptyTenant && len(tnt) < 2 {
 			continue
 		}

@@ -628,6 +628,9 @@ func processCustomProfilesForAS3(customProfiles *CustomProfileStore, sharedApp a
 func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Application) bool {
 	// A TLSServer profile needs to carry both Certificate and Key
 	if "" != prof.Cert && "" != prof.Key {
+		if sharedApp[svcName] == nil {
+			return false
+		}
 		svc := sharedApp[svcName].(*as3Service)
 		tlsServerName := fmt.Sprintf("%s_tls_server", svcName)
 		certName := prof.Name

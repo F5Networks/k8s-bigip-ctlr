@@ -163,7 +163,7 @@ func DeepEqualAS3ArbitraryJsonObject(obj1, obj2 map[string]interface{}) bool {
 	return reflect.DeepEqual(obj1, obj2)
 }
 
-func getTenants(decl as3Declaration) []string {
+func getTenants(decl as3Declaration, includeEmptyTenant bool) []string {
 
 	var tmpl interface{}
 	if decl != "" {
@@ -195,7 +195,10 @@ func getTenants(decl as3Declaration) []string {
 		if tnt["class"] != "Tenant" {
 			continue
 		}
-
+		//To delete a parttion we should not consider previously deleted partitions
+		if !includeEmptyTenant && len(tnt) < 2 {
+			continue
+		}
 		tenants = append(tenants, tn)
 	}
 

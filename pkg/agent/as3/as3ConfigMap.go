@@ -76,7 +76,7 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 				overriderAS3CfgmapData = rscCfgMap.Data
 			}
 		case StagingAS3Label:
-			tenants := getTenants(as3Declaration(rscCfgMap.Data))
+			tenants := getTenants(as3Declaration(rscCfgMap.Data), true)
 			cfgmap := &AS3ConfigMap{
 				Name:      rscCfgMap.Name,
 				Namespace: rscCfgMap.Namespace,

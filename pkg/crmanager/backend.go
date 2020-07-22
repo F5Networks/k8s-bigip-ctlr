@@ -108,7 +108,6 @@ func (agent *Agent) Stop() {
 
 func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
 	decl := createAS3Declaration(config)
-	log.Infof("AS3 Declaration looks like this: %s", decl)
 	if DeepEqualJSON(agent.activeDecl, decl) {
 		log.Debug("[AS3] No Change in the Configuration")
 		return

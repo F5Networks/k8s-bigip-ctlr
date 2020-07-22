@@ -4258,8 +4258,8 @@ var _ = Describe("AppManager Tests", func() {
 				expectedEventCt = 2
 
 				// Use a valid custom DNS server (ip address)
-				mockMgr.appMgr.resolveIng = "193.221.113.53"
-				hostResolution("msn.com", true, false)
+				mockMgr.appMgr.resolveIng = "8.8.8.8"
+				hostResolution("google.com", true, false)
 				events = mockMgr.getFakeEvents(namespace)
 				events = events[ignoreEventCt:]
 				ignoreEventCt += expectedEventCt

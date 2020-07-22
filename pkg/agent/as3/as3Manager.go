@@ -117,7 +117,6 @@ type Params struct {
 	Ciphers                   string
 	//Agent                     string
 	OverriderCfgMapName string
-	UserDefinedAS3Decl  string
 	SchemaLocalPath     string
 	FilterTenants       bool
 	BIGIPUsername       string
@@ -190,6 +189,7 @@ func (am *AS3Manager) postAS3Config(tempAS3Config AS3Config) (bool, string) {
 	}
 
 	if DeepEqualJSON(am.as3ActiveConfig.unifiedDeclaration, unifiedDecl) {
+		log.Debug("[AS3] No Change in the Configuration.")
 		return true, ""
 	}
 
@@ -335,7 +335,6 @@ func (am *AS3Manager) ConfigDeployer() {
 	// For the very first post after starting controller, need not wait to post
 	firstPost := true
 	for msgReq := range am.ReqChan {
-
 		if !firstPost && am.PostManager.AS3PostDelay != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
 			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds", am.PostManager.AS3PostDelay)

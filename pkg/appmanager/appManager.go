@@ -56,18 +56,19 @@ type ResourceMap map[int32][]*ResourceConfig
 type RoutesMap map[string][]string
 
 type Manager struct {
-	resources         *Resources
-	customProfiles    *CustomProfileStore
-	irulesMap         IRulesMap
-	intDgMap          InternalDataGroupMap
-	agentCfgMap       map[string]*AgentCfgMap
-	kubeClient        kubernetes.Interface
-	restClientv1      rest.Interface
-	restClientv1beta1 rest.Interface
-	routeClientV1     routeclient.RouteV1Interface
-	steadyState       bool
-	queueLen          int
-	processedItems    int
+	resources           *Resources
+	customProfiles      *CustomProfileStore
+	irulesMap           IRulesMap
+	intDgMap            InternalDataGroupMap
+	agentCfgMap         map[string]*AgentCfgMap
+	agentCfgMapEndpoint map[string][]Member
+	kubeClient          kubernetes.Interface
+	restClientv1        rest.Interface
+	restClientv1beta1   rest.Interface
+	routeClientV1       routeclient.RouteV1Interface
+	steadyState         bool
+	queueLen            int
+	processedItems      int
 	// Use internal node IPs
 	useNodeInternal bool
 	// Running in nodeport (or cluster) mode
@@ -224,6 +225,7 @@ func NewManager(params *Params) *Manager {
 		agRspChan:              params.AgRspChan,
 		processAgentLabels:     params.ProcessAgentLabels,
 		agentCfgMap:            make(map[string]*AgentCfgMap),
+		agentCfgMapEndpoint:    make(map[string][]Member),
 	}
 
 	// Initialize agent response worker
@@ -1031,11 +1033,29 @@ func (appMgr *Manager) syncConfigMaps(
 
 	// Handle delete cfgMap Operation for Agent
 	if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
+		key := sKey.Namespace + "/" + sKey.Name
 		if sKey.Operation == OprTypeDelete {
-			key := sKey.Namespace + "/" + sKey.Name
 			appMgr.agentCfgMap[key].Operation = OprTypeDelete
 			stats.vsDeleted += 1
+			delete(appMgr.agentCfgMapEndpoint, key)
 			return nil
+		}
+		if nil != svc {
+			selector := "cis.f5.com/as3-tenant=" + svc.ObjectMeta.Labels["cis.f5.com/as3-tenant"] + "," +
+				"cis.f5.com/as3-app=" + svc.ObjectMeta.Labels["cis.f5.com/as3-app"] + "," +
+				"cis.f5.com/as3-pool=" + svc.ObjectMeta.Labels["cis.f5.com/as3-pool"]
+			members := appMgr.getEndpoints(selector, sKey.Namespace)
+			if _, ok := appMgr.agentCfgMapEndpoint[key]; !ok {
+				if len(members) != 0 {
+					appMgr.agentCfgMapEndpoint[key] = members
+				}
+			} else {
+				if len(members) != len(appMgr.agentCfgMapEndpoint[key]) {
+					stats.vsUpdated += 1
+				} else if !reflect.DeepEqual(members, appMgr.agentCfgMapEndpoint[key]) {
+					stats.vsUpdated += 1
+				}
+			}
 		}
 	}
 
@@ -1062,7 +1082,7 @@ func (appMgr *Manager) syncConfigMaps(
 				agntCfgMap.Init(cm.Name, cm.Namespace, cm.Data["template"], cm.Labels, appMgr.getEndpoints)
 				key := cm.Namespace + "/" + cm.Name
 				if cfgMap, ok := appMgr.agentCfgMap[key]; ok {
-					if cfgMap.Data != cm.Data["template"] {
+					if cfgMap.Data != cm.Data["template"] || cm.Labels["as3"] != cfgMap.Label["as3"] || cm.Labels["overrideAS3"] != cfgMap.Label["overrideAS3"] {
 						appMgr.agentCfgMap[key] = agntCfgMap
 						stats.vsUpdated += 1
 					}

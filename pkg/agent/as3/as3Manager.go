@@ -189,7 +189,6 @@ func (am *AS3Manager) postAS3Config(tempAS3Config AS3Config) (bool, string) {
 	}
 
 	if DeepEqualJSON(am.as3ActiveConfig.unifiedDeclaration, unifiedDecl) {
-		log.Debug("[AS3] No Change in the Configuration.")
 		return true, ""
 	}
 

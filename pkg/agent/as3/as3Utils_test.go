@@ -1,9 +1,10 @@
 package as3
 
 import (
+	"io/ioutil"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"io/ioutil"
 )
 
 var configPath = "../../test/configs/"
@@ -60,7 +61,7 @@ var _ = Describe("JSON comparision of AS3 declaration", func() {
 var _ = Describe("Tenant parsing in AS3 declaration", func() {
 	It("Get Tenants from a declaration", func() {
 		cmcfg1 := readConfigFile(configPath + "as3config_multi_cm_unified.json")
-		tenants := getTenants(as3Declaration(cmcfg1), true)
+		tenants := getTenants(as3Declaration(cmcfg1), false)
 		Expect(tenants).To(Equal([]string{"Tenant1", "Tenant2"}), "Failed to get tenants")
 	})
 })

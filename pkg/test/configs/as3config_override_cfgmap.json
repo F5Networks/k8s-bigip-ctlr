@@ -1,0 +1,13 @@
+{
+    "declaration": {
+        "openshift": {
+            "Shared": {
+                "https_ose_vserver": {
+                    "virtualAddresses": [
+                        "10.192.75.107%0"
+                    ]
+                }
+            }
+        }
+    }
+}

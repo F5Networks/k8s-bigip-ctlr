@@ -317,11 +317,6 @@ func (am *AS3Manager) DeleteAS3Partition(partition string) (bool, string) {
 	return am.PostManager.postConfig(string(emptyAS3Declaration), nil)
 }
 
-func (c AS3Config) Init(partition string) {
-	c.resourceConfig = as3ADC{}
-	c.resourceConfig.initDefault(partition)
-}
-
 // fetchAS3Schema ...
 func (am *AS3Manager) fetchAS3Schema() {
 	log.Debugf("[AS3] Validating AS3 schema with  %v", as3SchemaFileName)

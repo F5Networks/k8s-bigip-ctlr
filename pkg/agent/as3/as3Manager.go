@@ -102,8 +102,9 @@ type AS3Manager struct {
 	l2l3Agent        L2L3Agent
 	ResourceRequest
 	ResourceResponse
-	as3Version string
-	as3Release string
+	as3Version                string
+	as3Release                string
+	unprocessableEntityStatus bool
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -127,11 +128,12 @@ type Params struct {
 	ConfigWriter        writer.Writer
 	EventChan           chan interface{}
 	//Log the AS3 response body in Controller logs
-	LogResponse bool
-	RspChan     chan interface{}
-	UserAgent   string
-	As3Version  string
-	As3Release  string
+	LogResponse               bool
+	RspChan                   chan interface{}
+	UserAgent                 string
+	As3Version                string
+	As3Release                string
+	unprocessableEntityStatus bool
 }
 
 // Create and return a new app manager that meets the Manager interface
@@ -187,10 +189,8 @@ func (am *AS3Manager) postAS3Config(tempAS3Config AS3Config) (bool, string) {
 	if unifiedDecl == "" {
 		return true, ""
 	}
-
 	if DeepEqualJSON(am.as3ActiveConfig.unifiedDeclaration, unifiedDecl) {
-		log.Debug("[AS3] No Change in the Configuration.")
-		return true, ""
+		return !am.unprocessableEntityStatus, ""
 	}
 
 	if am.as3Validation == true {
@@ -329,6 +329,7 @@ func (am *AS3Manager) fetchAS3Schema() {
 func (am *AS3Manager) ConfigDeployer() {
 	// For the very first post after starting controller, need not wait to post
 	firstPost := true
+	am.unprocessableEntityStatus = false
 	for msgReq := range am.ReqChan {
 		if !firstPost && am.PostManager.AS3PostDelay != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
@@ -345,12 +346,14 @@ func (am *AS3Manager) ConfigDeployer() {
 		posted, event := am.postAS3Declaration(msgReq.ResourceRequest)
 		// To handle general errors
 		for !posted {
+			am.unprocessableEntityStatus = true
 			timeout := getTimeDurationForErrorResponse(event)
 			log.Debugf("[AS3] Error handling for event %v", event)
 			posted, event = am.postOnEventOrTimeout(timeout)
 		}
 		firstPost = false
 		if event == responseStatusOk {
+			am.unprocessableEntityStatus = false
 			log.Debugf("[AS3] Preparing response message to response handler")
 			am.SendARPEntries()
 			am.SendAgentResponse()

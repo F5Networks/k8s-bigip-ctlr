@@ -73,7 +73,7 @@
             "bigip": "/Common/tcp"
           },
           "virtualAddresses": [
-            "10.192.75.106%0"
+            "10.192.75.107%0"
           ],
           "virtualPort": 443,
           "snat": "auto"
@@ -96,102 +96,6 @@
           "virtualPort": 80,
           "snat": "auto",
           "policyEndpoint": "/openshift/Shared/openshift_insecure_routes"
-        }
-      }
-    },
-    "Tenant1": {
-      "class": "Tenant",
-      "App1": {
-        "class": "Application",
-        "template": "http",
-        "serviceMain": {
-          "class": "Service_HTTP",
-          "virtualAddresses": [
-            "10.0.1.10"
-          ],
-          "pool": "web_pool",
-          "policyWAF": {
-            "bigip": "/Common/linux-high"
-          }
-        },
-        "service1": {
-          "class": "Service_HTTP",
-          "virtualAddresses": [
-            "10.0.1.10"
-          ],
-          "pool": "db_pool",
-          "policyWAF": {
-            "bigip": "/Common/linux-high"
-          }
-        },
-        "db_pool": {
-          "class": "Pool",
-          "monitors": [
-            "http"
-          ],
-          "members": [
-            {
-              "servicePort": 80,
-              "serverAddresses": [
-                "1.1.1.1",
-                "2.2.2.2"
-              ]
-            }
-          ]
-        },
-        "web_pool": {
-          "class": "Pool",
-          "monitors": [
-            "http"
-          ],
-          "members": [
-            {
-              "servicePort": 80,
-              "serverAddresses": [
-                "1.1.1.1",
-                "2.2.2.2"
-              ]
-            }
-          ]
-        }
-      },
-      "App2": {
-        "class": "Application",
-        "template": "generic",
-        "service": {
-          "virtualAddresses": [
-            "10.0.1.10"
-          ],
-          "pool": "web_pool"
-        },
-        "web_pool": {
-          "class": "Pool",
-          "monitors": [
-            "http"
-          ],
-          "members": [
-            {
-              "servicePort": 90,
-              "serverAddresses": [
-                "1.1.1.1"
-              ]
-            }
-          ]
-        },
-        "db_pool": {
-          "class": "Pool",
-          "monitors": [
-            "http"
-          ],
-          "members": [
-            {
-              "servicePort": 80,
-              "serverAddresses": [
-                "1.1.1.1",
-                "2.2.2.2"
-              ]
-            }
-          ]
         }
       }
     }

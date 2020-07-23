@@ -11,95 +11,103 @@
       "class": "Controls",
       "userAgent": "CIS Configured AS3"
     },
-    "openshift": {
+    "Tenant1": {
       "class": "Tenant",
-      "Shared": {
+      "App1": {
         "class": "Application",
-        "template": "shared",
-        "openshift_insecure_routes": {
-          "rules": [
-            {
-              "name": "openshift_route_f5demo_f5_demo_app_route",
-              "conditions": [
-                {
-                  "type": "httpHeader",
-                  "name": "host",
-                  "event": "request",
-                  "all": {
-                    "values": [
-                      "mysite.f5demo.com"
-                    ],
-                    "operand": "equals"
-                  }
-                }
-              ],
-              "actions": [
-                {
-                  "type": "forward",
-                  "event": "request",
-                  "select": {
-                    "pool": {
-                      "use": "openshift_f5demo_f5_demo_app_route"
-                    }
-                  }
-                }
-              ]
-            }
+        "template": "http",
+        "serviceMain": {
+          "class": "Service_HTTP",
+          "virtualAddresses": [
+            "10.0.1.10"
           ],
-          "strategy": "first-match",
-          "class": "Endpoint_Policy"
+          "pool": "web_pool",
+          "policyWAF": {
+            "bigip": "/Common/linux-high"
+          }
         },
-        "openshift_f5demo_f5_demo_app_route": {
-          "loadBalancingMode": "least-connections-node",
+        "service1": {
+          "class": "Service_HTTP",
+          "virtualAddresses": [
+            "10.0.1.10"
+          ],
+          "pool": "db_pool",
+          "policyWAF": {
+            "bigip": "/Common/linux-high"
+          }
+        },
+        "db_pool": {
+          "class": "Pool",
+          "monitors": [
+            "http"
+          ],
           "members": [
             {
-              "addressDiscovery": "static",
-              "servicePort": 8080,
-              "serverAddresses": []
+              "servicePort": 80,
+              "serverAddresses": [
+                "1.1.1.1",
+                "2.2.2.2"
+              ]
             }
-          ],
-          "class": "Pool"
+          ]
         },
-        "https_ose_vserver": {
-          "layer4": "tcp",
-          "source": "0.0.0.0/0",
-          "translateServerAddress": true,
-          "translateServerPort": true,
-          "class": "Service_HTTP",
-          "profileHTTP": {
-            "bigip": "/Common/http"
-          },
-          "profileTCP": {
-            "bigip": "/Common/tcp"
-          },
-          "virtualAddresses": [
-            "10.192.75.106%0"
+        "web_pool": {
+          "class": "Pool",
+          "monitors": [
+            "http"
           ],
-          "virtualPort": 443,
-          "snat": "auto"
+          "members": [
+            {
+              "servicePort": 80,
+              "serverAddresses": [
+                "1.1.1.1",
+                "2.2.2.2"
+              ]
+            }
+          ]
+        }
+      },
+      "App2": {
+        "class": "Application",
+        "template": "generic",
+        "service": {
+          "virtualAddresses": [
+            "10.0.1.10"
+          ],
+          "pool": "web_pool"
         },
-        "ose_vserver": {
-          "layer4": "tcp",
-          "source": "0.0.0.0/0",
-          "translateServerAddress": true,
-          "translateServerPort": true,
-          "class": "Service_HTTP",
-          "profileHTTP": {
-            "bigip": "/Common/http"
-          },
-          "profileTCP": {
-            "bigip": "/Common/tcp"
-          },
-          "virtualAddresses": [
-            "10.192.75.106%0"
+        "web_pool": {
+          "class": "Pool",
+          "monitors": [
+            "http"
           ],
-          "virtualPort": 80,
-          "snat": "auto",
-          "policyEndpoint": "/openshift/Shared/openshift_insecure_routes"
+          "members": [
+            {
+              "servicePort": 90,
+              "serverAddresses": [
+                "1.1.1.1"
+              ]
+            }
+          ]
+        },
+        "db_pool": {
+          "class": "Pool",
+          "monitors": [
+            "http"
+          ],
+          "members": [
+            {
+              "servicePort": 80,
+              "serverAddresses": [
+                "1.1.1.1",
+                "2.2.2.2"
+              ]
+            }
+          ]
         }
       }
     },
-    "Tenant1": {
+    "Tenant2": {
       "class": "Tenant",
       "App1": {
         "class": "Application",

@@ -15,42 +15,26 @@
  */
 package as3
 
-/*
 import (
+	"encoding/json"
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-
 type mockAS3Manager struct {
-	as3Mgr *AS3Manager
+	*AS3Manager
 }
 
 func newMockAS3Manager(params *Params) *mockAS3Manager {
 	return &mockAS3Manager{
-		as3Mgr: NewAS3Manager(params),
+		NewAS3Manager(params),
 	}
 }
 
 func mockGetEndPoints(string, string) []Member {
 	return []Member{{Address: "1.1.1.1", Port: 80},
 		{Address: "2.2.2.2", Port: 80}}
-}
-
-func newMockAgentCfgMap(label, config string) *AgentCfgMap {
-	return &AgentCfgMap{GetEndpoints: mockGetEndPoints,
-		Data:      readConfigFile(configPath + config),
-		Namespace: "default",
-		Name:      "testCfgMap",
-		Label:     map[string]string{label: "true", "f5type": "virtual-server"},
-	}
-}
-
-func newMockAS3Config() AS3Config {
-	as3Cfg := AS3Config{}
-	as3Cfg.Init("test_AS3")
-	return as3Cfg
 }
 
 func (m *mockAS3Manager) shutdown() error {
@@ -60,399 +44,13 @@ func (m *mockAS3Manager) shutdown() error {
 var _ = Describe("AS3Manager Tests", func() {
 	var mockMgr *mockAS3Manager
 	BeforeEach(func() {
-		mockMgr = newMockAS3Manager(&Params{})
+		mockMgr = newMockAS3Manager(&Params{
+			As3Version: "3.20.0",
+			As3Release: "3.20.0-3",
+		})
 	})
 	AfterEach(func() {
 		mockMgr.shutdown()
-	})
-
-	Describe("User Configured  user defined AS3 ConfigMap", func() {
-		It("Create user configured Userdefined AS3 cfgMap with valid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.prepareResourceAS3ConfigMaps()
-
-		})
-		It("Delete user configured Userdefined AS3 cfgMap with valid name and namespace", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			as3Config.configmap.cfg = "default/testCfgMap"
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
-			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			as3Config = mockMgr.as3Mgr.as3ActiveConfig
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmInit),
-				"User configured UserDefinedCfgMap Deleted Successfully.")
-		})
-		It("Delete user configured userdefined AS3 cfgMap with invalid name", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			as3Config.configmap.cfg = "default/testCfgMap"
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
-			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			agentCM.Name = "invalid"
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive),
-				"User configured UserDefinedCfgMap Unchanged.")
-		})
-		It("Delete user configured userdefined AS3 cfgMap with invalid namespace", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			as3Config.configmap.cfg = "default/testCfgMap"
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
-			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			agentCM.Namespace = "invalid"
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive),
-				"User configured UserDefinedCfgMap Unchanged.")
-		})
-		It("Validate Userdefined AS3 cfgMap against agent cfgMap", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			as3Config.configmap.cfg = "default/testCfgMap"
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			label, ok := mockMgr.as3Mgr.as3ActiveConfig.isValidAS3CfgMap("testCfgMap",
-				"default", agentCM.Label)
-			Expect(ok).To(Equal(true),
-				"UserDefined AS3 configMap validated successfully.")
-			Expect(label).To(Equal("as3"),
-				"UserDefinedCfgMap has a correct label as 'as3'.")
-		})
-		It("Prepare user configured Userdefined AS3 cfgMap with valid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.cfg = "default/testCfgMap"
-			as3Config.configmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.prepareUserDefinedAS3Declaration(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive),
-				"User configured UserDefinedCfgMap Prepared Successfully.")
-		})
-		It("Create user configured Userdefined AS3 cfgMap with invalid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.cfg = "default/testCfgMap"
-			as3Config.configmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			agentCM.Data = readConfigFile(configPath + "as3config_invalid_JSON.json")
-			mockMgr.as3Mgr.prepareUserDefinedAS3Declaration(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmError),
-				"Update of user configured UserDefinedCfgMap Unsuccessful.")
-		})
-		It("Generate user configured Userdefined AS3 cfgMap with valid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.cfg = "default/testCfgMap"
-			as3Config.configmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			data := mockMgr.as3Mgr.generateUserDefinedAS3Decleration(*agentCM)
-			Expect(data).NotTo(Equal(""),
-				"User configured UserDefinedCfgMap generated Successfully.")
-		})
-	})
-
-	Describe("Labels based User defined AS3 ConfigMap", func() {
-		It("Create Userdefined AS3 cfgMap with valid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive),
-				"UserDefinedCfgMap Created Successfully.")
-		})
-		It("Delete Userdefined AS3 cfgMap with valid name and namespace", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
-			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			as3Config = mockMgr.as3Mgr.as3ActiveConfig
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmInit),
-				"User UserDefinedCfgMap Deleted Successfully.")
-		})
-		It("Delete userdefined AS3 cfgMap with invalid name", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
-			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			agentCM.Name = "invalid"
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive),
-				"User UserDefinedCfgMap Unchanged.")
-		})
-		It("Delete userdefined AS3 cfgMap with invalid namespace", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive), "UserDefinedCfgMap created.")
-			Expect(string(as3Config.configmap.Data)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			agentCM.Namespace = "invalid"
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive),
-				"UserDefinedCfgMap Unchanged.")
-		})
-		It("Validate Userdefined AS3 cfgMap against agent cfgMap", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			label, ok := mockMgr.as3Mgr.as3ActiveConfig.isValidAS3CfgMap("testCfgMap",
-				"default", agentCM.Label)
-			Expect(ok).To(Equal(true),
-				"UserDefined AS3 configMap validated successfully.")
-			Expect(label).To(Equal("as3"),
-				"UserDefinedCfgMap has a correct label as 'as3'.")
-		})
-		It("Prepare user configured Userdefined AS3 cfgMap with valid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			mockMgr.as3Mgr.prepareUserDefinedAS3Declaration(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmActive),
-				"UserDefinedCfgMap Prepared Successfully.")
-		})
-		It("Create Userdefined AS3 cfgMap with invalid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			agentCM.Data = readConfigFile(configPath + "as3config_invalid_JSON.json")
-			mockMgr.as3Mgr.prepareUserDefinedAS3Declaration(*agentCM, &as3Config)
-			Expect(as3Config.configmap.State).To(Equal(cmInit),
-				"Update of UserDefinedCfgMap Unsuccessful.")
-		})
-		It("Generate Userdefined AS3 cfgMap with valid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid user-defined-config-map option
-			as3Config.configmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("as3", "as3config_valid.json")
-			data := mockMgr.as3Mgr.generateUserDefinedAS3Decleration(*agentCM)
-			Expect(data).NotTo(Equal(""),
-				"UserDefinedCfgMap generated Successfully.")
-		})
-	})
-
-	Describe("User configured Override AS3 ConfigMap", func() {
-		It("Create user configured Override AS3 cfgMap with valid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.Init()
-			as3Config.overrideConfigmap.cfg = "default/testCfgMap"
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
-				"User configured Override CfgMap Created Successfully.")
-		})
-		It("Delete user configured 'override AS3 cfgMap with valid name and namespace", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.Init()
-			as3Config.overrideConfigmap.cfg = "default/testCfgMap"
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			as3Config = mockMgr.as3Mgr.as3ActiveConfig
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmInit),
-				"User configured override CfgMap Deleted Successfully.")
-		})
-		It("Delete user configured override AS3 cfgMap with invalid name", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.Init()
-			as3Config.overrideConfigmap.cfg = "default/testCfgMap"
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			agentCM.Name = "invalid"
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
-				"User configured Override CfgMap Unchanged.")
-		})
-		It("Delete user configured override AS3 cfgMap with invalid namespace", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.Init()
-			as3Config.overrideConfigmap.cfg = "default/testCfgMap"
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			agentCM.Namespace = "invalid"
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
-				"User configured Override CfgMap Unchanged.")
-		})
-		It("Validate Userdefined AS3 cfgMap against agent cfgMap", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.Init()
-			as3Config.overrideConfigmap.cfg = "default/testCfgMap"
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			label, ok := mockMgr.as3Mgr.as3ActiveConfig.isValidAS3CfgMap("testCfgMap",
-				"default", agentCM.Label)
-			Expect(ok).To(Equal(true),
-				"Override AS3 configMap validated successfully.")
-			Expect(label).To(Equal("overrideAS3"),
-				"Override CfgMap has a correct label as 'as3'.")
-		})
-		It("Prepare user configured override AS3 cfgMap with valid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.cfg = "default/testCfgMap"
-			as3Config.overrideConfigmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			as3Config.prepareAS3OverrideDeclaration(agentCM.Data)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
-				"User configured Override CfgMap Prepared Successfully.")
-		})
-	})
-
-	Describe("Labels based Override AS3 ConfigMap", func() {
-		It("Create Override AS3 cfgMap with valid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
-				"Override CfgMap Created Successfully.")
-		})
-		It("Delete override AS3 cfgMap with valid name and namespace", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			as3Config = mockMgr.as3Mgr.as3ActiveConfig
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmInit),
-				"Override CfgMap Deleted Successfully.")
-		})
-		It("Delete Override AS3 cfgMap with invalid name", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			agentCM.Name = "invalid"
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
-				"Override CfgMap Unchanged.")
-		})
-		It("Delete override AS3 cfgMap with invalid namespace", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			mockMgr.as3Mgr.processAS3ConfigMap(*agentCM, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive), "Override CfgMap created.")
-			Expect(string(as3Config.overrideConfigmap.config)).NotTo(Equal(""), "Should have data.")
-			// Empty agent configMap config
-			agentCM.Operation = OprTypeDelete
-			agentCM.Namespace = "invalid"
-			mockMgr.as3Mgr.processAS3CfgMapDelete(agentCM.Name, agentCM.Namespace, &as3Config)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
-				"Override CfgMap Unchanged.")
-		})
-		It("Validate Userdefined AS3 cfgMap against agent cfgMap", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.Init()
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			label, ok := mockMgr.as3Mgr.as3ActiveConfig.isValidAS3CfgMap("testCfgMap",
-				"default", agentCM.Label)
-			Expect(ok).To(Equal(true),
-				"Override AS3 configMap validated successfully.")
-			Expect(label).To(Equal("overrideAS3"),
-				"Override CfgMap has a correct label as 'as3'.")
-		})
-		It("Prepare override AS3 cfgMap with valid JSON", func() {
-			as3Config := newMockAS3Config()
-			// Valid override-config-map option
-			as3Config.overrideConfigmap.Init()
-			mockMgr.as3Mgr.as3ActiveConfig = as3Config
-			agentCM := newMockAgentCfgMap("overrideAS3", "as3config_override_simple_cfgmap_resource.json")
-			as3Config.prepareAS3OverrideDeclaration(agentCM.Data)
-			Expect(as3Config.overrideConfigmap.State).To(Equal(cmActive),
-				"Override CfgMap Prepared Successfully.")
-		})
 	})
 
 	Describe("Validating AS3 ConfigMap with AS3Manager", func() {
@@ -462,7 +60,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			Expect(ok).To(Equal(false), "AS3 Template is not a valid JSON.")
 		})
 		It("AS3 declaration with all Tenants, Applications and Pools", func() {
-			data := readConfigFile(configPath + "as3config_valid.json")
+			data := readConfigFile(configPath + "as3config_valid_1.json")
 			_, ok := getAS3ObjectFromTemplate(as3Template(data))
 			Expect(ok).To(Equal(true), "AS3 Template parsed succesfully.")
 		})
@@ -489,50 +87,209 @@ var _ = Describe("AS3Manager Tests", func() {
 	})
 
 	Describe("Validate Generated Unified Declaration", func() {
-		It("Unified Declaration only with User Defined ConfigMap", func() {
-			data := readConfigFile(configPath + "as3config_valid.json")
+		It("Unified Declaration only with User Defined ConfigMaps", func() {
+			cmcfg1 := readConfigFile(configPath + "as3config_valid_1.json")
+			cmcfg2 := readConfigFile(configPath + "as3config_valid_2.json")
+			unified := readConfigFile(configPath + "as3config_multi_cm_unified.json")
 
-			var tempAS3Config AS3Config
-			tempAS3Config.configmap.Data = as3Declaration(data)
+			mockMgr.ResourceRequest.AgentCfgmaps = append(
+				mockMgr.ResourceRequest.AgentCfgmaps,
+				&AgentCfgMap{
+					GetEndpoints: mockGetEndPoints,
+					Name:         "cfgmap1",
+					Namespace:    "default",
+					Data:         cmcfg1,
+					Label: map[string]string{
+						AS3Label:    TrueLabel,
+						F5TypeLabel: VSLabel,
+					},
+				},
+				&AgentCfgMap{
+					GetEndpoints: mockGetEndPoints,
+					Name:         "cfgmap2",
+					Namespace:    "default",
+					Data:         cmcfg2,
+					Label: map[string]string{
+						AS3Label:    TrueLabel,
+						F5TypeLabel: VSLabel,
+					},
+				},
+			)
+			as3config := &AS3Config{}
+			as3config.configmaps, _ = mockMgr.prepareResourceAS3ConfigMaps()
 
-			result := mockMgr.as3Mgr.getUnifiedDeclaration(&tempAS3Config)
+			result := mockMgr.getUnifiedDeclaration(as3config)
 
-			Expect(string(result)).To(MatchJSON(data), "Failed to Create JSON with correct configuration")
+			Expect(string(result)).To(MatchJSON(unified), "Failed to Create JSON with correct configuration")
 		})
 		It("Unified Declaration only with Openshift Route", func() {
-			var routeConfig map[string]interface{}
-			routedecl := readConfigFile(configPath + "as3_route_declaration.json")
+			var routeAdc map[string]interface{}
+			routeCfg := readConfigFile(configPath + "as3_route_declaration.json")
 			route := readConfigFile(configPath + "as3_route.json")
-			err := json.Unmarshal([]byte(route), &routeConfig)
+			err := json.Unmarshal([]byte(route), &routeAdc)
 			Expect(err).To(BeNil(), "Original Config should be json")
 
 			var tempAS3Config AS3Config
-			mockMgr.as3Mgr.as3Version = "3.20.0"
-			mockMgr.as3Mgr.as3Release = "3.20.0-3"
-			tempAS3Config.resourceConfig = as3ADC(routeConfig)
+			tempAS3Config.resourceConfig = routeAdc
 
-			result := mockMgr.as3Mgr.getUnifiedDeclaration(&tempAS3Config)
+			result := mockMgr.getUnifiedDeclaration(&tempAS3Config)
 
-			Expect(string(result)).To(MatchJSON(routedecl), "Failed to Create JSON with correct configuration")
+			Expect(string(result)).To(MatchJSON(routeCfg), "Failed to Create JSON with correct configuration")
 		})
 		It("Unified Declaration with User Defined ConfigMap and Openshift Route", func() {
-			var routeCfg map[string]interface{}
-			var tempAS3Config AS3Config
+			var routeAdc map[string]interface{}
 
 			unifiedConfig := readConfigFile(configPath + "as3_route_cfgmap_declaration.json")
 
-			data := readConfigFile(configPath + "as3config_valid.json")
-			tempAS3Config.configmap.Data = as3Declaration(data)
+			cmCfg := readConfigFile(configPath + "as3config_valid_1.json")
+			mockMgr.ResourceRequest.AgentCfgmaps = append(
+				mockMgr.ResourceRequest.AgentCfgmaps,
+				&AgentCfgMap{
+					GetEndpoints: mockGetEndPoints,
+					Name:         "cfgmap",
+					Namespace:    "default",
+					Data:         cmCfg,
+					Label: map[string]string{
+						AS3Label:    TrueLabel,
+						F5TypeLabel: VSLabel,
+					},
+				},
+			)
+			as3config := &AS3Config{}
+			as3config.configmaps, _ = mockMgr.prepareResourceAS3ConfigMaps()
 
-			data = readConfigFile(configPath + "as3_route.json")
-			err := json.Unmarshal([]byte(data), &routeCfg)
+			routeCfg := readConfigFile(configPath + "as3_route.json")
+			err := json.Unmarshal([]byte(routeCfg), &routeAdc)
 			Expect(err).To(BeNil(), "Route Config should be json")
-			tempAS3Config.resourceConfig = routeCfg
+			as3config.resourceConfig = routeAdc
 
-			result := mockMgr.as3Mgr.getUnifiedDeclaration(&tempAS3Config)
+			result := mockMgr.getUnifiedDeclaration(as3config)
+
+			Expect(string(result)).To(MatchJSON(unifiedConfig), "Failed to Create JSON with correct configuration")
+
+			ok := DeepEqualJSON(as3Declaration(unifiedConfig), result)
+			Expect(ok).To(BeTrue())
+		})
+		It("Validate staging of Configmap", func() {
+			cfgmap := &AgentCfgMap{
+				Label: map[string]string{
+					AS3Label:    FalseLabel,
+					F5TypeLabel: VSLabel,
+				},
+			}
+			label, valid := mockMgr.isValidConfigmap(cfgmap)
+			Expect(label).To(Equal(StagingAS3Label), "Wrong Label")
+			Expect(valid).To(BeTrue())
+		})
+	})
+
+	Describe("Validate Labels of Configmaps", func() {
+		It("Validate non f5type Configmap", func() {
+			cfgmap := &AgentCfgMap{
+				Label: map[string]string{
+					"app": "some-app",
+				},
+			}
+			label, valid := mockMgr.isValidConfigmap(cfgmap)
+			Expect(label).To(Equal(""), "Wrong Label")
+			Expect(valid).To(BeFalse())
+		})
+		It("Validate non f5type Configmap", func() {
+			cfgmap := &AgentCfgMap{
+				Label: map[string]string{
+					"f5type": "virtual-serverssssss",
+				},
+			}
+			label, valid := mockMgr.isValidConfigmap(cfgmap)
+			Expect(label).To(Equal(""), "Wrong Label")
+			Expect(valid).To(BeFalse())
+		})
+		It("Validate staging of Configmap", func() {
+			cfgmap := &AgentCfgMap{
+				Label: map[string]string{
+					AS3Label:    FalseLabel,
+					F5TypeLabel: VSLabel,
+				},
+			}
+			label, valid := mockMgr.isValidConfigmap(cfgmap)
+			Expect(label).To(Equal(StagingAS3Label), "Wrong Label")
+			Expect(valid).To(BeTrue())
+		})
+
+		It("Validate Override configmap labels", func() {
+			cfgmap := &AgentCfgMap{
+				Label: map[string]string{
+					OverrideAS3Label: FalseLabel,
+					F5TypeLabel:      VSLabel,
+				},
+			}
+			label, valid := mockMgr.isValidConfigmap(cfgmap)
+			Expect(label).To(Equal(OverrideAS3Label), "Wrong Label")
+			Expect(valid).To(BeTrue())
+			Expect(cfgmap.Operation).To(Equal(OprTypeDelete))
+		})
+	})
+
+	Describe("Validate Override Configmap", func() {
+		It("Override CIS generated config with Override Configmap", func() {
+			var routeAdc map[string]interface{}
+
+			unifiedConfig := readConfigFile(configPath + "as3_route_declaration_overridden.json")
+
+			ovrdCmCfg := readConfigFile(configPath + "as3config_override_cfgmap.json")
+			mockMgr.ResourceRequest.AgentCfgmaps = append(
+				mockMgr.ResourceRequest.AgentCfgmaps,
+				&AgentCfgMap{
+					GetEndpoints: mockGetEndPoints,
+					Name:         "override_cfgmap",
+					Namespace:    "default",
+					Data:         ovrdCmCfg,
+					Label: map[string]string{
+						OverrideAS3Label: TrueLabel,
+						F5TypeLabel:      VSLabel,
+					},
+				},
+			)
+			as3config := &AS3Config{}
+			_, as3config.overrideConfigmapData = mockMgr.prepareResourceAS3ConfigMaps()
+
+			routeCfg := readConfigFile(configPath + "as3_route.json")
+			err := json.Unmarshal([]byte(routeCfg), &routeAdc)
+			Expect(err).To(BeNil(), "Route Config should be json")
+			as3config.resourceConfig = routeAdc
+
+			result := mockMgr.getUnifiedDeclaration(as3config)
 
 			Expect(string(result)).To(MatchJSON(unifiedConfig), "Failed to Create JSON with correct configuration")
 		})
+
+		It("Validate Override configmap with wrong name", func() {
+			mockMgr.OverriderCfgMapName = "default/ovCfgmap"
+			cfgmap := &AgentCfgMap{
+				Label: map[string]string{
+					OverrideAS3Label: TrueLabel,
+					F5TypeLabel:      VSLabel,
+				},
+				Namespace: "default",
+				Name:      "wrongname",
+			}
+			label, valid := mockMgr.isValidConfigmap(cfgmap)
+			Expect(label).To(Equal(""), "Wrong Label")
+			Expect(valid).To(BeFalse())
+		})
+		It("Validate Override configmap with wrong namespace", func() {
+			mockMgr.OverriderCfgMapName = "default/ovCfgmap"
+			cfgmap := &AgentCfgMap{
+				Label: map[string]string{
+					OverrideAS3Label: TrueLabel,
+					F5TypeLabel:      VSLabel,
+				},
+				Namespace: "wrongnamespace",
+				Name:      "ovCfgmap",
+			}
+			label, valid := mockMgr.isValidConfigmap(cfgmap)
+			Expect(label).To(Equal(""), "Wrong Label")
+			Expect(valid).To(BeFalse())
+		})
 	})
 })
-*/

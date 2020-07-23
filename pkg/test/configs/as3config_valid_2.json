@@ -8,7 +8,7 @@
         "id": "123abc",
         "label": "AS3",
         "remark": "HTTPS with predictive-node pool",
-        "Tenant1": {
+        "Tenant2": {
             "class": "Tenant",
             "App1": {
                 "class": "Application",

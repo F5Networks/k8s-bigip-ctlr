@@ -1,9 +1,10 @@
 package as3
 
 import (
+	"io/ioutil"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"io/ioutil"
 )
 
 var configPath = "../../test/configs/"

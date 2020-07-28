@@ -1,7 +1,7 @@
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
-  name: f5-bigip-ctlr-operator.v1.0.0
+  name: f5-bigip-ctlr-operator.v1.1.0
   namespace: placeholder
   annotations:
     alm-examples: >-
@@ -51,9 +51,9 @@ spec:
 
     ```
   maturity: beta
-  version: 1.0.0
+  version: 1.1.0
   replaces: ''
-  minKubeVersion: 1.13.0
+  minKubeVersion: 2.0.0
   keywords:
     - Ingress Controller
     - BIGIP

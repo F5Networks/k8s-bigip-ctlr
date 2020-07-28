@@ -36,45 +36,22 @@ spec:
       containers:
       - name: {{ template "f5-bigip-ctlr.name" . }}
         image: "{{ .Values.image.user }}/{{ .Values.image.repo }}:{{ .Values.version }}"
-{{- if .Values.bigip_login_secret }}
-        env:
-          - name: BIGIP_USERNAME
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Values.bigip_login_secret }}
-                key: username
-          - name: BIGIP_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: {{ .Values.bigip_login_secret }}
-                key: password
-{{ else }}
         volumeMounts:
         - name: bigip-creds
           mountPath: "/tmp/creds"
           readOnly: true
-{{- end }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command:
         - /app/bin/k8s-bigip-ctlr
         args:
-{{- if .Values.bigip_login_secret }}
-        - --bigip-username
-        - $(BIGIP_USERNAME)
-        - --bigip-password
-        - $(BIGIP_PASSWORD)
-{{ else }}
         - --credentials-directory
         - /tmp/creds
-{{- end }}
         {{- range $key, $value := .Values.args }}
         - --{{ $key | replace "_" "-"}}
         - {{ $value | quote }}
         {{- end }}
-{{- if not .Values.secret_env }}
       volumes:
       - name: bigip-creds
         secret:
            secretName: {{ .Values.bigip_login_secret }}
-{{- end }}
 {{- end }}

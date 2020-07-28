@@ -100,7 +100,8 @@ different terminations(for same domain), one with edge and another with re-encry
 # VirtualServer
    * Schema Validation
      - OpenAPI Schema Validation
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/basic/vs-customresourcedefinitions.yml
+     
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/basic/vs-customresourcedefinition.yml
 
 
 **VirtualServer Components**
@@ -135,7 +136,8 @@ different terminations(for same domain), one with edge and another with re-encry
 ## TLSProfile
    * Schema Validation
      - OpenAPI Schema Validation
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/tls/tls-customresourcedefinitions.yml
+     
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/tls/tls-customresourcedefinition.yml
 
 
 **TLSProfile Components**
@@ -202,6 +204,10 @@ kubectl create -f sample-nodeport-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
  ```sh
 kubectl create -f sample-cluster-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 ```
+
+## Examples
+
+   https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd
 
 ## To Be Implemented
 * TLSProfile Support with k8s secrets

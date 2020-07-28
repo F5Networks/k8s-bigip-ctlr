@@ -116,7 +116,7 @@ General
 |                       |         |          |                                  | configuration matches the state of           |                |
 |                       |         |          |                                  | the orchestration system.                    |                |
 |                       |         |          |                                  |                                              |                |
-|                       |         |          |                                  | **This value is not currently configurable** |                |
+|                       |         |          |                                  |                                              |                |
 +-----------------------+---------+----------+----------------------------------+----------------------------------------------+----------------+
 | vs-snat-pool-name     | string  | Optional | n/a                              | Name of the SNAT pool that all virtual       |                |
 |                       |         |          |                                  | servers will reference. If it is not         |                |

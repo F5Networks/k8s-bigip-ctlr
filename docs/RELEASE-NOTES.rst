@@ -32,7 +32,7 @@ Added Functionality
              *  Supports TLSProfile CRD with BIG-IP reference client and server SSL profiles
              *  Supports TLSProfile CRD with K8S secrets reference for client SSL profiles.
              *  `CRD schema definition for both Virtual server and TLSProfile <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml>`_.
-             *  `CRD examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/CustomResource.md>`_.
+             *  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd>`_.
 
 Bug Fixes
 `````````
@@ -61,7 +61,8 @@ Guidelines for upgrading to CIS 2.1
 * Those migrating from agent CCCL to agent AS3 :
      - User should clean up LTM resources in BIG-IP partition created by CCCL before migrating to CIS 2.1. 
           Steps to clean up LTM resources in BIG-IP partition using AS3
-           *  Use this POST call: "https://<bigip-ip>/mgmt/shared/appsvcs/declare?async=true" along with this `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/example-empty-AS3-declaration.yaml>`_.
+           *  Use below POST call along with this `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/example-empty-AS3-declaration.yaml>`_.
+                - https://<bigip-ip>/mgmt/shared/appsvcs/declare?async=true
            *  Note: Please modify <bigip-ip> in above POST call and <bigip-partition> name in `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/example-empty-AS3-declaration.yaml>`_
 
 2.0

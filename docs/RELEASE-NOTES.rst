@@ -1,18 +1,68 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
-------------
-
+2.1
+-------------
 Added Functionality
-````````````````````
-* CIS supports single partition for AS3 along with L2/L3.
-      - Remove the `_AS3` partition manually.
+```````````````````
+* CIS will not create `_AS3` partition anymore.
+    -  CIS uses single partition(i.e. `--bigip-partition`) to configure both LTM and NET configuration.      
+    -  Additional AS3 managed partition _AS3 will be removed if exists.
+* Enhanced performance for lower BIG-IP CPU Utilization with optimized CCCL calls.
+* AS3 versions >= 3.18 required for CIS 2.x releases.
+* CIS is now compatible with:
+   -  OpenShift 4.4.5.
+   -  AS3 3.20.
+* Added support for:
+   -  Multiple AS3 ConfigMaps.
+   -  AS3 label switching in AS3 ConfigMap resource
+          *  when set to False, CIS deletes the existing Configuration (or) CIS ignores AS3 ConfigMap.
+          *  When set to True, CIS reads the corresponding AS3 ConfigMap.
+   -  Added Whitelist feature support for agent AS3 using policy endpoint condition
+          *  New annotation "allow-source-range" added parallel to "whitelist-source-range".
+* Deprecated `--userdefined-as3-declaration` CIS deployment option as CIS now supports Multiple AS3 ConfigMaps
+* Custom Resource Definition (CRD) – Preview available with TLS support.
+    - Few Highlights of this Preview CRD version:
+             *  Supports single partition to configure both LTM and NET configuration.
+             *  Supports both unsecured and TLS CRD.
+             *  Supports single domain per Virtual server
+             *  Supports merging multiple virtual servers into single BIG-IP VIP referring to single domain
+             *  Added Health montior support
+             *  Supports nodelabel in Virtual server CRD
+             *  Supports TLSProfile CRD with BIG-IP reference client and server SSL profiles
+             *  Supports TLSProfile CRD with K8S secrets reference for client SSL profiles.
+             *  `CRD schema definition for both Virtual server and TLSProfile <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml>`_.
+             *  `CRD examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/CustomResource.md>`_.
 
 Bug Fixes
 `````````
-* CIS properly manages AS3 ConfigMaps when configured with namespace-labels.
+* :issues:`1420` Enhanced performance for lower BIG-IP CPU Utilization with optimized CCCL calls.
+* :issues:`1362` CIS supports HTTP Header with iv-groups
+* :issues:`1388,1311` CIS properly manages AS3 ConfigMaps when configured with namespace-labels.
+* :issues:`1337` CIS supports multiple AS3 ConfigMaps
+* :issues:`1171` CIS will not create `_AS3` partition anymore
 
+Vulnerability Fixes
+```````````````````
++------------------+------------------------------------------------------------------------------------+
+| CVE              | Comments                                                                           |                                                                                               
++==================+====================================================================================+
+| CVE-2018-5543    | CIS Operator uses --credentials-directory by default for BIG-IP credentials        |
++------------------+------------------------------------------------------------------------------------+
+
+Archived CF and Mesos Github repos
+``````````````````````````````````
+* These GitHub repository has been archived and is read-only. This projects are no longer actively maintained
+     -     `cf-bigip-ctlr <https://github.com/F5Networks/cf-bigip-ctlr>`_
+     -     `marathon-bigip-ctlr <https://github.com/F5Networks/marathon-bigip-ctlr>`_
+
+Guidelines for upgrading to CIS 2.1
+```````````````````````````````````
+* Those migrating from agent CCCL to agent AS3 :
+     - User should clean up LTM resources in BIG-IP partition created by CCCL before migrating to CIS 2.1. 
+          Steps to clean up LTM resources in BIG-IP partition using AS3
+           *  Use this POST call: "https://<bigip-ip>/mgmt/shared/appsvcs/declare?async=true" along with this `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/example-empty-AS3-declaration.yaml>`_.
+           *  Note: Please modify <bigip-ip> in above POST call and <bigip-partition> name in `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/example-empty-AS3-declaration.yaml>`_
 
 2.0
 -------------

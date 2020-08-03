@@ -53,6 +53,8 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			if am.as3Validation == true {
 				if ok := am.validateAS3Template(rscCfgMap.Data); !ok {
 					log.Errorf("[AS3] Error validating AS3 template")
+					log.Errorf("[AS3] Error in processing the ConfigMap: %v/%v",
+						rscCfgMap.Namespace, rscCfgMap.Name)
 					continue
 				}
 			}
@@ -124,6 +126,8 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 	obj, ok := getAS3ObjectFromTemplate(as3Tmpl)
 	if !ok {
 		log.Errorf("[AS3] Error processing AS3 template")
+		log.Errorf("[AS3] Error in processing the ConfigMap: %v/%v",
+			rscCfgMap.Namespace, rscCfgMap.Name)
 		return nil, nil
 	}
 
@@ -175,6 +179,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 				poolMem["serverAddresses"] = ips
 				// Replace port number
 				poolMem["servicePort"] = port
+				log.Debugf("[AS3] Updating AS3 Template for tenant '%s' app '%s' pool '%s', ", tnt, app, pn)
 			}
 		}
 		tenantMap[string(tnt)] = tenantObj

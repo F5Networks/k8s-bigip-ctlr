@@ -307,7 +307,17 @@ func getVirtualServersForTLSProfile(allVirtuals []*cisapiv1.VirtualServer,
 
 	for _, vs := range allVirtuals {
 		if vs.ObjectMeta.Namespace == tlsNamespace && vs.Spec.TLSProfileName == tlsName {
-			result = append(result, vs)
+			found := false
+			for _, host := range tls.Spec.Hosts {
+				if vs.Spec.Host == host {
+					result = append(result, vs)
+					found = true
+					break
+				}
+			}
+			if !found {
+				log.Errorf("TLSProfile hostname is not same as virtual host %s for profile %s", vs.Spec.Host, vs.Spec.TLSProfileName)
+			}
 		}
 	}
 
@@ -340,8 +350,16 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer
 		return nil
 	}
 
-	// TLSProfile Object
-	return obj.(*cisapiv1.TLSProfile)
+	tlsProfile := obj.(*cisapiv1.TLSProfile)
+	for _, host := range tlsProfile.Spec.Hosts {
+		if host == vs.Spec.Host {
+			// TLSProfile Object
+			return tlsProfile
+		}
+	}
+	log.Errorf("TLSProfile %s with host %s does not match with virtual server %s host.", tlsName, vs.Spec.Host, vs.ObjectMeta.Name)
+	return nil
+
 }
 
 // syncVirtualServers takes the Virtual Server as input and processes all

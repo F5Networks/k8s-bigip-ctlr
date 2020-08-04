@@ -2,6 +2,7 @@ package as3
 
 import (
 	"io/ioutil"
+	"sort"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -62,6 +63,7 @@ var _ = Describe("Tenant parsing in AS3 declaration", func() {
 	It("Get Tenants from a declaration", func() {
 		cmcfg1 := readConfigFile(configPath + "as3config_multi_cm_unified.json")
 		tenants := getTenants(as3Declaration(cmcfg1), true)
+		sort.Strings(tenants)
 		Expect(tenants).To(Equal([]string{"Tenant1", "Tenant2"}), "Failed to get tenants")
 	})
 })

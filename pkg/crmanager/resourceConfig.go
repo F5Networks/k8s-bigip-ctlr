@@ -318,6 +318,8 @@ func formatVirtualServerName(ip string, port int32) string {
 func formatVirtualServerPoolName(namespace, svc string, nodeMemberLabel string) string {
 	poolName := fmt.Sprintf("%s_%s", namespace, svc)
 	if nodeMemberLabel != "" {
+		replacer := strings.NewReplacer("=", "_")
+		nodeMemberLabel = replacer.Replace(nodeMemberLabel)
 		poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
 	}
 	return AS3NameFormatter(poolName)
@@ -459,7 +461,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 				if secret, ok := crMgr.SSLContext[clientSSL]; ok {
 					log.Debugf("clientSSL secret %s for TLSProfile '%s' is already available with CIS in "+
 						"SSLContext as clientSSL", secret.ObjectMeta.Name, tlsName)
-					err, _ := crMgr.createSecretSslProfile(rsCfg, secret, CustomProfileClient)
+					err, _ := crMgr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
 					if err != nil {
 						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
 							err, vsName, tlsName)
@@ -468,8 +470,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 				} else {
 					// Check if profile is contained in a Secret
 					// Update the SSL Context if secret found, This is used to avoid api calls
-					log.Debugf("clientSSL secret for TLSProfile '%s' does not exist with CIS in "+
-						"SSLContext", tlsName)
+					log.Debugf("saving clientSSL secret for TLSProfile '%s' into SSLContext", tlsName)
 					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
 						Get(clientSSL, metav1.GetOptions{})
 					if err != nil {
@@ -478,7 +479,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 						return false
 					}
 					crMgr.SSLContext[clientSSL] = secret
-					error, _ := crMgr.createSecretSslProfile(rsCfg, secret, CustomProfileClient)
+					error, _ := crMgr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
 					if error != nil {
 						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
 							error, vsName, tlsName)
@@ -492,7 +493,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 				if secret, ok := crMgr.SSLContext[serverSSL]; ok {
 					log.Debugf("serverSSL secret %s for TLSProfile '%s' is already available with CIS in"+
 						"SSLContext", secret.ObjectMeta.Name, tlsName)
-					err, _ := crMgr.createSecretSslProfile(rsCfg, secret, CustomProfileServer)
+					err, _ := crMgr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
 					if err != nil {
 						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
 							err, vsName, tlsName)
@@ -501,8 +502,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 				} else {
 					// Check if profile is contained in a Secret
 					// Update the SSL Context if secret found, This is used to avoid api calls
-					log.Debugf("serverSSL secret for TLSProfile '%s'  does not exist with CIS in "+
-						"SSLContext", tlsName)
+					log.Debugf("saving serverSSL secret for TLSProfile '%s' into SSLContext", tlsName)
 					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
 						Get(serverSSL, metav1.GetOptions{})
 					if err != nil {
@@ -511,7 +511,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 						return false
 					}
 					crMgr.SSLContext[serverSSL] = secret
-					error, _ := crMgr.createSecretSslProfile(rsCfg, secret, CustomProfileServer)
+					error, _ := crMgr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
 					if error != nil {
 						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
 							error, vsName, tlsName)
@@ -526,8 +526,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 		}
 		// TLS Cert/Key
 		for _, pl := range vs.Spec.Pools {
-			if "" != vs.Spec.TLSProfileName &&
-				pl.ServicePort == DEFAULT_HTTPS_PORT {
+			if "" != vs.Spec.TLSProfileName {
 				switch tls.Spec.TLS.Termination {
 				case TLSEdge:
 					serverSsl := "false"
@@ -543,7 +542,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					path := pl.Path
 					sslPath := hostName + path
 					sslPath = strings.TrimSuffix(sslPath, "/")
-					serverSsl := AS3NameFormatter("f5_crd_" + vs.Spec.VirtualServerAddress + "_tls_client")
+					serverSsl := AS3NameFormatter("crd_" + vs.Spec.VirtualServerAddress + "_tls_client")
 					if "" != tls.Spec.TLS.ServerSSL {
 						updateDataGroup(crMgr.intDgMap, ReencryptServerSslDgName,
 							DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)

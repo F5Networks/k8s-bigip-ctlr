@@ -561,6 +561,11 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					PassthroughHostsDgName,
 				)
 			case TLSReencrypt:
+				if vs.Spec.HTTPTraffic == TLSAllowInsecure {
+					log.Errorf("Error in processing Virtual '%s' using TLSProfile '%s' as httpTraffic is configured as ALLOW for reencrypt Termination",
+						vsName, tlsName)
+					return false
+				}
 				updateDataGroupOfDgName(
 					crMgr.intDgMap,
 					vs,

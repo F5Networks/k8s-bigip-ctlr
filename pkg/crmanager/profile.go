@@ -2,8 +2,9 @@ package crmanager
 
 import (
 	"fmt"
-	v1 "k8s.io/api/core/v1"
 	"reflect"
+
+	v1 "k8s.io/api/core/v1"
 )
 
 // Creates a new ClientSSL profile from a Secret

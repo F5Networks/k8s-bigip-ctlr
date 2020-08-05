@@ -28,6 +28,8 @@ spec:
                   pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
                 httpTraffic:
                   type: string
+                tlsProfileName:
+                  type: string
                 pools:
                   type: array
                   items:

@@ -179,7 +179,6 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 				poolMem["serverAddresses"] = ips
 				// Replace port number
 				poolMem["servicePort"] = port
-				log.Debugf("[AS3] Updating AS3 Template for tenant '%s' app '%s' pool '%s', ", tnt, app, pn)
 			}
 		}
 		tenantMap[string(tnt)] = tenantObj

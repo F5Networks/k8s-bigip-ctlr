@@ -186,7 +186,7 @@ func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
 	// find VirtualServers that reference the service
 	virtualsForService := getVirtualServersForService(allVirtuals, svc)
 	if nil == virtualsForService {
-		log.Infof("Change in Service %s does not effect any VirtualServer",
+		log.Debugf("Change in Service %s does not effect any VirtualServer",
 			svc.ObjectMeta.Name)
 		return nil
 	}

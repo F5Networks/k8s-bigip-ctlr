@@ -231,7 +231,7 @@ func (crMgr *CRManager) enqueueTLSServer(obj interface{}) {
 
 func (crMgr *CRManager) enqueueService(obj interface{}) {
 	svc := obj.(*corev1.Service)
-	log.Infof("Enqueueing Service: %v", svc)
+	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
 		namespace: svc.ObjectMeta.Namespace,
 		kind:      Service,
@@ -244,7 +244,7 @@ func (crMgr *CRManager) enqueueService(obj interface{}) {
 
 func (crMgr *CRManager) enqueueEndpoints(obj interface{}) {
 	eps := obj.(*corev1.Endpoints)
-	log.Infof("Enqueueing Endpoints: %v", eps)
+	log.Debugf("Enqueueing Endpoints: %v", eps)
 	key := &rqKey{
 		namespace: eps.ObjectMeta.Namespace,
 		kind:      Endpoints,

@@ -30,10 +30,14 @@ import (
 )
 
 const (
-	svcTenantLabel       = "cis.f5.com/as3-tenant="
-	svcAppLabel          = "cis.f5.com/as3-app="
-	svcPoolLabel         = "cis.f5.com/as3-pool="
-	as3SupportedVersion  = 3.18
+	svcTenantLabel      = "cis.f5.com/as3-tenant="
+	svcAppLabel         = "cis.f5.com/as3-app="
+	svcPoolLabel        = "cis.f5.com/as3-pool="
+	as3SupportedVersion = 3.18
+	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema
+	as3Version           = 3.21
+	defaultAS3Version    = "3.21.0"
+	defaultAS3Build      = "4"
 	as3tenant            = "Tenant"
 	as3class             = "class"
 	as3SharedApplication = "Shared"
@@ -41,7 +45,7 @@ const (
 	as3shared            = "shared"
 	as3template          = "template"
 	//as3SchemaLatestURL   = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
-	as3SchemaFileName = "as3-schema-3.20.0-3-cis.json"
+	as3SchemaFileName = "as3-schema-3.21.0-4-cis.json"
 )
 
 var baseAS3Config = `{
@@ -406,17 +410,25 @@ func (am *AS3Manager) IsBigIPAppServicesAvailable() error {
 		return err
 	}
 	versionstr := version[:strings.LastIndex(version, ".")]
-	bigIPVersion, err := strconv.ParseFloat(versionstr, 64)
+	bigIPAS3Version, err := strconv.ParseFloat(versionstr, 64)
 	if err != nil {
 		log.Errorf("[AS3] Error while converting AS3 version to float")
 		return err
 	}
-	if bigIPVersion >= as3SupportedVersion {
+	if bigIPAS3Version >= as3SupportedVersion && bigIPAS3Version <= as3Version {
 		log.Debugf("[AS3] BIGIP is serving with AS3 version: %v", version)
+		return nil
+	}
+
+	if bigIPAS3Version > as3Version {
+		am.as3Version = defaultAS3Version
+		as3Build := defaultAS3Build
+		am.as3Release = am.as3Version + "-" + as3Build
+		log.Debugf("[AS3] BIGIP is serving with AS3 version: %v", bigIPAS3Version)
 		return nil
 	}
 
 	return fmt.Errorf("CIS versions >= 2.0 are compatible with AS3 versions >= %v. "+
 		"Upgrade AS3 version in BIGIP from %v to %v or above.", as3SupportedVersion,
-		bigIPVersion, as3SupportedVersion)
+		bigIPAS3Version, as3SupportedVersion)
 }

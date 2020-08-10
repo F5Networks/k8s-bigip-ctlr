@@ -625,6 +625,40 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 	return true
 }
 
+// validate TLSProfile
+// validation includes valid parameters for the type of termination(edge, re-encrypt and Pass-through)
+func validateTLSProfile(tls *cisapiv1.TLSProfile) bool {
+	//validation for re-encrypt termination
+	if tls.Spec.TLS.Termination == "reencrypt" {
+		// Should contain both client and server SSL profiles
+		if (tls.Spec.TLS.ClientSSL == "") || (tls.Spec.TLS.ServerSSL == "") {
+			log.Errorf("TLSProfile %s of type re-encrypt termination should contain both "+
+				"ClientSSL and ServerSSL", tls.ObjectMeta.Name)
+			return false
+		}
+	} else if tls.Spec.TLS.Termination == "edge" {
+		// Should contain only client SSL
+		if tls.Spec.TLS.ClientSSL == "" {
+			log.Errorf("TLSProfile %s of type edge termination should contain Client SSL",
+				tls.ObjectMeta.Name)
+			return false
+		}
+		if tls.Spec.TLS.ServerSSL != "" {
+			log.Errorf("TLSProfile %s of type edge termination should NOT contain ServerSSL",
+				tls.ObjectMeta.Name)
+			return false
+		}
+	} else {
+		// Pass-through
+		if (tls.Spec.TLS.ClientSSL != "") || (tls.Spec.TLS.ServerSSL != "") {
+			log.Errorf("TLSProfile %s of type Pass-through termination should NOT contain either "+
+				"ClientSSL or ServerSSL", tls.ObjectMeta.Name)
+			return false
+		}
+	}
+	return true
+}
+
 // ConvertStringToProfileRef converts strings to profile references
 func ConvertStringToProfileRef(profileName, context, ns string) ProfileRef {
 	profName := strings.TrimSpace(strings.TrimPrefix(profileName, "/"))

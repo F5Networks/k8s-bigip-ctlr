@@ -757,13 +757,13 @@ func updateDataGroupOfDgName(
 			path := pl.Path
 			routePath := hostName + path
 			routePath = strings.TrimSuffix(routePath, "/")
-			poolName := formatVirtualServerPoolName(namespace, pl.Service, "")
+			poolName := formatVirtualServerPoolName(namespace, pl.Service, pl.NodeMemberLabel)
 			updateDataGroup(intDgMap, dgName,
 				DEFAULT_PARTITION, namespace, routePath, poolName)
 		}
 	case PassthroughHostsDgName:
 		for _, pl := range virtual.Spec.Pools {
-			poolName := formatVirtualServerPoolName(namespace, pl.Service, "")
+			poolName := formatVirtualServerPoolName(namespace, pl.Service, pl.NodeMemberLabel)
 			updateDataGroup(intDgMap, dgName,
 				DEFAULT_PARTITION, namespace, hostName, poolName)
 		}

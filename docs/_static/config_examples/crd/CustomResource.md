@@ -133,6 +133,8 @@ different terminations(for same domain), one with edge and another with re-encry
 | interval | Int | required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
    
+ **Note: Health Monitor associated with the first path will be considere if multiple path has same backend** 
+
 ## TLSProfile
    * Schema Validation
      - OpenAPI Schema Validation

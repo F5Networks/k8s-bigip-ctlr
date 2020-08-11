@@ -343,7 +343,7 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	var pools Pools
 	var rules *Rules
 	var plcy *Policy
-
+	var poolExist bool
 	var monitors []Monitor
 	for _, pl := range vs.Spec.Pools {
 		pool := Pool{
@@ -356,6 +356,16 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 			ServiceName:     pl.Service,
 			ServicePort:     pl.ServicePort,
 			NodeMemberLabel: pl.NodeMemberLabel,
+		}
+		for _, p := range pools {
+			if pool.Name == p.Name {
+				poolExist = true
+				break
+			}
+		}
+		if poolExist {
+			poolExist = false
+			continue
 		}
 
 		if pl.Monitor.Send != "" && pl.Monitor.Type != "" {

@@ -143,7 +143,7 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	crInf.vsInformer.AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { crMgr.enqueueVirtualServer(obj) },
-			UpdateFunc: func(old, cur interface{}) { crMgr.enqueueVirtualServer(cur) },
+			UpdateFunc: func(old, cur interface{}) { crMgr.enqueueUpdatedVirtualServer(old, cur) },
 			DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedVirtualServer(obj) },
 		},
 	)
@@ -197,6 +197,33 @@ func (crMgr *CRManager) enqueueVirtualServer(obj interface{}) {
 		kind:      VirtualServer,
 		rscName:   vs.ObjectMeta.Name,
 		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) {
+	oldVS := oldObj.(*cisapiv1.VirtualServer)
+	newVS := newObj.(*cisapiv1.VirtualServer)
+
+	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress {
+		log.Infof("Enqueueing VirtualServer: %v", oldVS)
+		key := &rqKey{
+			namespace: oldVS.ObjectMeta.Namespace,
+			kind:      VirtualServer,
+			rscName:   oldVS.ObjectMeta.Name,
+			rsc:       oldObj,
+			rscDelete: true,
+		}
+		crMgr.rscQueue.Add(key)
+	}
+
+	log.Infof("Enqueueing VirtualServer: %v", newVS)
+	key := &rqKey{
+		namespace: newVS.ObjectMeta.Namespace,
+		kind:      VirtualServer,
+		rscName:   newVS.ObjectMeta.Name,
+		rsc:       newObj,
 	}
 
 	crMgr.rscQueue.Add(key)

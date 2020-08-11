@@ -158,6 +158,16 @@ type (
 		customProfiles *CustomProfileStore
 	}
 
+	// Holds Records of a DataGroup
+	DgMapRecord struct {
+		Name      string `json:"name"`
+		Partition string `json:"-"`
+		Namespace string `json:"name"`
+		Key       string `json:"name"`
+		Value     string `json:"name"`
+	}
+	DgMapRecords []DgMapRecord
+
 	// Pool config
 	Pool struct {
 		Name            string   `json:"name"`

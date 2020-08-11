@@ -411,6 +411,7 @@ func (crMgr *CRManager) syncVirtualServers(
 
 	// vsMap holds Resource Configs of current virtuals temporarily
 	vsMap := make(ResourceConfigMap)
+	dgMap := make(DataGroupMap)
 	processingError := false
 
 	for _, portStruct := range portStructs {
@@ -433,7 +434,11 @@ func (crMgr *CRManager) syncVirtualServers(
 			portStruct.port,
 		)
 
+		var dgMapRecords DgMapRecords
+		var dgMapRecordsUpdated DgMapRecords
+		var processed bool
 		for _, vrt := range virtuals {
+
 			crMgr.prepareRSConfigFromVirtualServer(
 				rsCfg,
 				vrt,
@@ -441,7 +446,7 @@ func (crMgr *CRManager) syncVirtualServers(
 
 			if len(virtual.Spec.TLSProfileName) != 0 {
 				// Handle TLS configuration for VirtualServer Custom Resource
-				processed := crMgr.handleVirtualServerTLS(rsCfg, virtual)
+				processed, dgMapRecordsUpdated = crMgr.handleVirtualServerTLS(rsCfg, dgMapRecords, virtual)
 				if !processed {
 					// Processing failed
 					// Stop processing further virtuals
@@ -464,6 +469,8 @@ func (crMgr *CRManager) syncVirtualServers(
 
 		// Save ResourceConfig in temporary Map
 		vsMap[rsName] = rsCfg
+		// save DataGroups in temporary Map
+		dgMap[rsName] = dgMapRecordsUpdated
 
 		if crMgr.ControllerMode == NodePortMode {
 			crMgr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
@@ -476,6 +483,12 @@ func (crMgr *CRManager) syncVirtualServers(
 		// Update rsMap with ResourceConfigs created for the current virtuals
 		for rsName, rsCfg := range vsMap {
 			crMgr.resources.rsMap[rsName] = rsCfg
+		}
+		for _, dgRecords := range dgMap {
+			for _, dgRecord := range dgRecords {
+				updateDataGroup(crMgr.intDgMap, dgRecord.Name, dgRecord.Partition,
+					dgRecord.Namespace, dgRecord.Key, dgRecord.Value)
+			}
 		}
 	}
 

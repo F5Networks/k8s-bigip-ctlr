@@ -740,46 +740,6 @@ func (crMgr *CRManager) selectPoolIRuleFunc() string {
 	return iRuleFunc
 }
 
-func updateDataGroupOfDgName(
-	intDgMap InternalDataGroupMap,
-	virtual *cisapiv1.VirtualServer,
-	dgName string,
-) {
-	hostName := virtual.Spec.Host
-	namespace := virtual.ObjectMeta.Namespace
-
-	switch dgName {
-	case EdgeHostsDgName, ReencryptHostsDgName:
-		// Combination of hostName and path are used as key in edge Datagroup.
-		// Servername and path from the ssl::payload of clientssl_data Irule event is
-		// used as value in edge and reencrypt Datagroup.
-		for _, pl := range virtual.Spec.Pools {
-			path := pl.Path
-			routePath := hostName + path
-			routePath = strings.TrimSuffix(routePath, "/")
-			poolName := formatVirtualServerPoolName(namespace, pl.Service, pl.NodeMemberLabel)
-			updateDataGroup(intDgMap, dgName,
-				DEFAULT_PARTITION, namespace, routePath, poolName)
-		}
-	case PassthroughHostsDgName:
-		for _, pl := range virtual.Spec.Pools {
-			poolName := formatVirtualServerPoolName(namespace, pl.Service, pl.NodeMemberLabel)
-			updateDataGroup(intDgMap, dgName,
-				DEFAULT_PARTITION, namespace, hostName, poolName)
-		}
-	case HttpsRedirectDgName:
-		for _, pl := range virtual.Spec.Pools {
-			path := pl.Path
-			if path == "" {
-				path = "/"
-			}
-			routePath := hostName + path
-			updateDataGroup(intDgMap, dgName,
-				DEFAULT_PARTITION, namespace, routePath, path)
-		}
-	}
-}
-
 // Add or update a data group record
 func updateDataGroup(
 	intDgMap InternalDataGroupMap,

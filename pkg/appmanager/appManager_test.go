@@ -3979,7 +3979,7 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(rs).ToNot(BeNil(), "Route should be object.")
 
 					Expect(resources.PoolCount()).To(Equal(1))
-					Expect(len(rs.Policies)).To(Equal(0))
+					Expect(len(rs.Policies)).To(Equal(1))
 
 					// Update to real service
 					route.Spec.To.Name = svc1Name
@@ -3988,7 +3988,7 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(resources.PoolCount()).To(Equal(3))
 					rs, _ = resources.Get(
 						ServiceKey{svc1Name, 80, "default"}, "ose-vserver")
-					Expect(len(rs.Policies)).To(Equal(0))
+					Expect(len(rs.Policies)).To(Equal(1))
 
 					// Remove an alternate service
 					mockMgr.deleteService(bazSvc)

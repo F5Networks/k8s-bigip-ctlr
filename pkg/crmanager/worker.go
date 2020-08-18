@@ -395,6 +395,7 @@ func (crMgr *CRManager) syncVirtualServers(
 
 	// Prepare list of associated VirtualServers to be processed
 	// In the event of deletion, exclude the deleted VirtualServer
+	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
 	for _, v := range allVirtuals {
 		if v.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress &&
 			v.Spec.Host == virtual.Spec.Host &&
@@ -434,14 +435,16 @@ func (crMgr *CRManager) syncVirtualServers(
 		)
 
 		for _, vrt := range virtuals {
+			log.Debugf("Processing Virtual Server %s for port %v",
+				vrt.ObjectMeta.Name, portStruct.port)
 			crMgr.prepareRSConfigFromVirtualServer(
 				rsCfg,
 				vrt,
 			)
 
-			if len(virtual.Spec.TLSProfileName) != 0 {
+			if len(vrt.Spec.TLSProfileName) != 0 {
 				// Handle TLS configuration for VirtualServer Custom Resource
-				processed := crMgr.handleVirtualServerTLS(rsCfg, virtual)
+				processed := crMgr.handleVirtualServerTLS(rsCfg, vrt)
 				if !processed {
 					// Processing failed
 					// Stop processing further virtuals
@@ -450,17 +453,14 @@ func (crMgr *CRManager) syncVirtualServers(
 				}
 
 				log.Debugf("Updated Virtual %s with TLSProfile %s",
-					virtual.ObjectMeta.Name, virtual.Spec.TLSProfileName)
+					vrt.ObjectMeta.Name, vrt.Spec.TLSProfileName)
 			}
 		}
 
 		if processingError {
-			log.Errorf("Cannot Publish VirtualServer %s with invalid/non-existing TLSProfile %s",
-				virtual.ObjectMeta.Name, virtual.Spec.TLSProfileName)
+			log.Errorf("Cannot Publish VirtualServer %s", virtual.ObjectMeta.Name)
 			break
 		}
-
-		log.Debugf("ResourceConfig looks like %v", rsCfg)
 
 		// Save ResourceConfig in temporary Map
 		vsMap[rsName] = rsCfg

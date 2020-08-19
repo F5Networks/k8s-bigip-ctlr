@@ -691,7 +691,7 @@ func createTLSClient(
 	sharedApp as3Application,
 ) *as3TLSClient {
 	// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
-	if "" != prof.Cert && "" == prof.Key {
+	if _, ok := sharedApp[svcName]; "" != prof.Cert && "" == prof.Key && ok {
 		svc := sharedApp[svcName].(*as3Service)
 		tlsClientName := fmt.Sprintf("%s_tls_client", svcName)
 

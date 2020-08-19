@@ -1,4 +1,4 @@
-# Container Ingress Services using Virtual Server Custom Resource 
+# Custom Resource Definitions 
 
 This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release). This is an ALPHA release which supports limited features. Check for the Supported Features and TO BE Implemented sections to understand in detail about the features.  
 
@@ -13,7 +13,7 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
 * CIS supports 2 Custom Resources at this point of time.
   - VirtualServer
   - TLSProfile
-  
+   
 ## VirtualServer
 
 * VirtualServer resource defines load balancing configuration for a domain name. 
@@ -31,6 +31,13 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
    - path: /coffee
      service: svc-2
      servicePort: 80
+```
+
+## Label
+* CIS will only process custom resources with f5cr Label as true. 
+```
+   labels:
+     f5cr: "true"  
 ```
 
 **Note: The above VirtualServer is insecure, Attach a TLSProfile to make it secure**
@@ -212,7 +219,6 @@ kubectl create -f sample-cluster-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
    https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd
 
 ## To Be Implemented
-* TLSProfile Support with k8s secrets
 * A/B Deployment
 * Support for WAF
 * Rewrite Rules
@@ -220,5 +226,5 @@ kubectl create -f sample-cluster-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 
 ## Note
 * “--custom-resource-mode=true” deploys CIS in Custom Resource Mode.
-* CIS does not watch for ingress/routes when deployed in CRD Mode.
-* CIS does not support combination of CRDs with any of Ingress/Routes or Configmaps.
+* CIS does not watch for ingress/routes/configmaps when deployed in CRD Mode.
+* CIS does not support combination of CRDs with any of Ingress/Routes and Configmaps.

@@ -609,9 +609,8 @@ func processCustomProfilesForAS3(customProfiles *CustomProfileStore, sharedApp a
 			createCertificateDecl(prof, sharedApp)
 		} else {
 			createUpdateCABundle(prof, caBundleName, sharedApp)
-			if tlsClient == nil {
-				tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
-			}
+			tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
+
 			skey := SecretKey{
 				Name: prof.Name + "-ca",
 			}

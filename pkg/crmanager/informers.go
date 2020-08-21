@@ -270,14 +270,24 @@ func (crMgr *CRManager) enqueueService(obj interface{}) {
 }
 
 func (crMgr *CRManager) enqueueEndpoints(obj interface{}) {
+	flag := true
 	eps := obj.(*corev1.Endpoints)
 	log.Debugf("Enqueueing Endpoints: %v", eps)
-	key := &rqKey{
-		namespace: eps.ObjectMeta.Namespace,
-		kind:      Endpoints,
-		rscName:   eps.ObjectMeta.Name,
-		rsc:       obj,
+	ignoreeplist := []string{"kube-dns", "kube-scheduler", "kube-controller-manager", "docker-registry", "kubernetes", "registry-console", "router", "kubelet", "console", "alertmanager-main", "alertmanager-operated", "cluster-monitoring-operator", "grafana", "kube-state-metrics", "node-exporter", "prometheus-k8s", "prometheus-operated", "prometheus-operatorwebconsole"}
+	for _, epname := range ignoreeplist {
+		if eps.ObjectMeta.Name == epname {
+			flag = false
+			break
+		}
 	}
+	if flag {
+		key := &rqKey{
+			namespace: eps.ObjectMeta.Namespace,
+			kind:      Endpoints,
+			rscName:   eps.ObjectMeta.Name,
+			rsc:       obj,
+		}
 
-	crMgr.rscQueue.Add(key)
+		crMgr.rscQueue.Add(key)
+	}
 }

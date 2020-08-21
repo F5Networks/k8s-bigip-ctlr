@@ -202,8 +202,9 @@ func processDataGroupForAS3(intDgMap InternalDataGroupMap, sharedApp as3Applicat
 				for _, record := range dg.Records {
 					var rec as3Record
 					rec.Key = record.Name
+					virtualAddress := extractVirtualAddress(record.Data)
 					// To override default Value created for CCCL for certain DG types
-					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
+					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, virtualAddress); ok {
 						rec.Value = val
 					} else {
 						rec.Value = record.Data
@@ -217,8 +218,9 @@ func processDataGroupForAS3(intDgMap InternalDataGroupMap, sharedApp as3Applicat
 				for _, record := range dg.Records {
 					var rec as3Record
 					rec.Key = record.Name
+					virtualAddress := extractVirtualAddress(record.Data)
 					// To override default Value created for CCCL for certain DG types
-					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
+					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, virtualAddress); ok {
 						rec.Value = val
 					} else {
 						rec.Value = record.Data
@@ -236,11 +238,20 @@ func processDataGroupForAS3(intDgMap InternalDataGroupMap, sharedApp as3Applicat
 	}
 }
 
-func getDGRecordValueForAS3(dgName string, sharedApp as3Application) (string, bool) {
+func extractVirtualAddress(str string) string {
+	var address string
+	if strings.HasPrefix(str, "crd_") && strings.HasSuffix(str, "_tls_client") {
+		address = strings.ReplaceAll(strings.TrimRight(strings.TrimLeft(str, "crd_"), "_tls_client"), "_", ".")
+	}
+	return address
+}
+
+func getDGRecordValueForAS3(dgName string, sharedApp as3Application, virtualAddress string) (string, bool) {
 	switch dgName {
 	case ReencryptServerSslDgName:
 		for _, v := range sharedApp {
-			if svc, ok := v.(*as3Service); ok && svc.Class == "Service_HTTPS" {
+			if svc, ok := v.(*as3Service); ok && svc.Class == "Service_HTTPS" &&
+				svc.VirtualAddresses[0] == virtualAddress {
 				if val, ok := svc.ClientTLS.(*as3ResourcePointer); ok {
 					return val.BigIP, true
 				}

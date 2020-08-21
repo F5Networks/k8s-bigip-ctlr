@@ -44,4 +44,14 @@ rules:
       - events
       - ingresses/status
       - routes/status
+  - verbs:
+      - get
+      - list
+      - watch
+      - update
+    apiGroups:
+      - cis.f5.com
+    resources:
+      - virtualservers
+      - tlsprofiles
 {{- end -}}

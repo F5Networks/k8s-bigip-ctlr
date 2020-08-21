@@ -532,6 +532,10 @@ func (appMgr *Manager) handleRouteRules(
 	tls := route.Spec.TLS
 	abPathIRuleName := JoinBigipPath(DEFAULT_PARTITION, AbDeploymentPathIRuleName)
 
+	if abDeployment {
+		rc.DeleteRuleFromPolicy(policyName, rule, appMgr.mergedRulesMap)
+	}
+
 	if protocol == "http" {
 		if nil == tls || len(tls.Termination) == 0 {
 			if abDeployment {
@@ -539,7 +543,6 @@ func (appMgr *Manager) handleRouteRules(
 					AbDeploymentPathIRuleName, DEFAULT_PARTITION, appMgr.abDeploymentPathIRule())
 				appMgr.addInternalDataGroup(AbDeploymentDgName, DEFAULT_PARTITION)
 				rc.Virtual.AddIRule(abPathIRuleName)
-				rc.AddRuleToPolicy(policyName, rule)
 			} else {
 				rc.AddRuleToPolicy(policyName, rule)
 				SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc)
@@ -588,7 +591,6 @@ func (appMgr *Manager) handleRouteRules(
 						AbDeploymentPathIRuleName, DEFAULT_PARTITION, appMgr.abDeploymentPathIRule())
 					appMgr.addInternalDataGroup(AbDeploymentDgName, DEFAULT_PARTITION)
 					rc.Virtual.AddIRule(abPathIRuleName)
-					rc.AddRuleToPolicy(policyName, rule)
 				} else {
 					appMgr.addIRule(
 						SslPassthroughIRuleName, DEFAULT_PARTITION, appMgr.sslPassthroughIRule())
@@ -598,7 +600,6 @@ func (appMgr *Manager) handleRouteRules(
 					rc.AddRuleToPolicy(policyName, rule)
 					SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc)
 				}
-				rc.AddRuleToPolicy(policyName, rule)
 			case routeapi.TLSTerminationPassthrough:
 				appMgr.addIRule(
 					SslPassthroughIRuleName, DEFAULT_PARTITION, appMgr.sslPassthroughIRule())
@@ -610,8 +611,8 @@ func (appMgr *Manager) handleRouteRules(
 				appMgr.addInternalDataGroup(ReencryptHostsDgName, DEFAULT_PARTITION)
 				appMgr.addInternalDataGroup(ReencryptServerSslDgName, DEFAULT_PARTITION)
 				rc.Virtual.AddIRule(passThroughIRuleName)
-				rc.AddRuleToPolicy(policyName, rule)
 				if !abDeployment {
+					rc.AddRuleToPolicy(policyName, rule)
 					SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc)
 				}
 			}

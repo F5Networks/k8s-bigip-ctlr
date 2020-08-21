@@ -257,16 +257,25 @@ func (crMgr *CRManager) enqueueTLSServer(obj interface{}) {
 }
 
 func (crMgr *CRManager) enqueueService(obj interface{}) {
+	flag := true
 	svc := obj.(*corev1.Service)
 	log.Debugf("Enqueueing Service: %v", svc)
-	key := &rqKey{
-		namespace: svc.ObjectMeta.Namespace,
-		kind:      Service,
-		rscName:   svc.ObjectMeta.Name,
-		rsc:       obj,
+	ignoresvcList := []string{"kube-dns", "kube-scheduler", "kube-controller-manager", "docker-registry", "kubernetes", "registry-console", "router", "kubelet", "console", "alertmanager-main", "alertmanager-operated", "cluster-monitoring-operator", "grafana", "kube-state-metrics", "node-exporter", "prometheus-k8s", "prometheus-operated", "prometheus-operatorwebconsole"}
+	for _, svcName := range ignoresvcList {
+		if svc.ObjectMeta.Name == svcName {
+			flag = false
+			break
+		}
 	}
-
-	crMgr.rscQueue.Add(key)
+	if flag {
+		key := &rqKey{
+			namespace: svc.ObjectMeta.Namespace,
+			kind:      Service,
+			rscName:   svc.ObjectMeta.Name,
+			rsc:       obj,
+		}
+		crMgr.rscQueue.Add(key)
+	}
 }
 
 func (crMgr *CRManager) enqueueEndpoints(obj interface{}) {

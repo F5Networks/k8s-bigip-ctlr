@@ -31,12 +31,7 @@ prod: prod-build
 
 verify: fmt vet
 
-godep-restore: check-gopath
-	godep restore
-	rm -rf vendor Godeps
-
-godep-save: check-gopath
-	godep save ./...
+docs: _docs
 
 clean:
 	rm -rf _docker_workspace
@@ -118,3 +113,23 @@ reset-dev-patch:
 
 # Build devloper image
 dev: dev-patch prod-quick reset-dev-patch
+
+# Docs
+#
+doc-preview:
+	rm -rf docs/_build
+	DOCKER_RUN_ARGS="-p 127.0.0.1:8000:8000" \
+	  ./build-tools/docker-docs.sh make -C docs preview
+
+_docs: always-build
+	./build-tools/docker-docs.sh ./build-tools/make-docs.sh
+
+docker-test:
+	rm -rf docs/_build
+	./build-tools/docker-docs.sh ./build-tools/make-docs.sh
+
+# one-time html build using a docker container
+.PHONY: docker-html
+docker-html:
+	rm -rf docs/_build
+	./build-tools/docker-docs.sh make -C docs/ html

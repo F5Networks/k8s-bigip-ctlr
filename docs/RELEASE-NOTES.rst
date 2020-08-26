@@ -41,7 +41,7 @@ Limitations
 Added Functionality
 ```````````````````
 * CIS will not create `_AS3` partition anymore.
-    -  CIS uses single partition(i.e. `--bigip-partition`) to configure both LTM and NET configuration.      
+    -  CIS uses single partition(i.e. `--bigip-partition`) to configure both LTM and NET configuration.
     -  Removes Additional AS3 managed partition _AS3, if exists.
 * Enhanced performance for lower BIG-IP CPU Utilization with optimized CCCL calls.
 * CIS 2.x releases requires AS3 versions >= 3.18.
@@ -80,7 +80,7 @@ Bug Fixes
 Vulnerability Fixes
 ```````````````````
 +------------------+------------------------------------------------------------------------------------+
-| CVE              | Comments                                                                           |                                                                                               
+| CVE              | Comments                                                                           |
 +==================+====================================================================================+
 | CVE-2018-5543    | CIS Operator uses --credentials-directory by default for BIG-IP credentials        |
 +------------------+------------------------------------------------------------------------------------+
@@ -94,7 +94,7 @@ Archived CF and Mesos Github repos
 Guidelines for upgrading to CIS 2.1
 ```````````````````````````````````
 * Those migrating from agent CCCL to agent AS3 :
-     - User should clean up LTM resources in BIG-IP partition created by CCCL before migrating to CIS 2.1. 
+     - User should clean up LTM resources in BIG-IP partition created by CCCL before migrating to CIS 2.1.
           Steps to clean up LTM resources in BIG-IP partition using AS3
            *  Use below POST call along with this `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/example-empty-AS3-declaration.yaml>`_.
                 - mgmt/shared/appsvcs/declare
@@ -132,14 +132,14 @@ Bug Fixes
 * :issues:`1233` CIS handles ClientSSL annotation and cert/key logging issues.
 * :issues:`1145,1185,1295` CIS handles namespace isolation for AS3 configmaps.
 * :issues:`1241,1229` CIS fetches 3.18 AS3 schema locally.
-* :issues:`1191` CIS cleans AS3 managed partition when moved to CCCL as agent. 
+* :issues:`1191` CIS cleans AS3 managed partition when moved to CCCL as agent.
 * :issues:`1162` CIS properly handles OpenShift Route admit status.
 * :issues:`1160` CIS handles https redirection for ingress which accepts all common names.
 
 Vulnerability Fixes
 `````````````````````
 +------------------+----------------------------------------------------------------+
-| CVE              | Comments                                                       |                                                                                               
+| CVE              | Comments                                                       |
 +==================+================================================================+
 | CVE-2009-3555    | CIS disables renegotiation for all Custom ClientSSL            |
 +------------------+----------------------------------------------------------------+
@@ -187,8 +187,8 @@ Added Functionality
       - `--manage-ingress-class-only` A flag whether to handle Ingresses that do not have the class annotation and with annotation `kubernetes.io/ingress.class` set to `f5`. When set `true`, process ingress resources with `kubernetes.io/ingress.class` set to `f5` or custom ingress class.
       - `--ingress-class` to define custom ingress class to watch.
       - `--filter-tenants` A flag whether to enable tenant filtering in BIG-IP.
-* CIS pushes AS3 Configuration after 3 seconds when encounters 503 HTTP response code from BIG-IP.  
-* CIS does not push AS3 configuration when encounters 404 HTTP response code from BIG-IP. 
+* CIS pushes AS3 Configuration after 3 seconds when encounters 503 HTTP response code from BIG-IP.
+* CIS does not push AS3 configuration when encounters 404 HTTP response code from BIG-IP.
 
 Bug Fixes
 `````````
@@ -244,7 +244,7 @@ Added Functionality
 * Added support for OpenShift version 4.1.
     - | Controller service account needs ``cluster-admin`` role. Before upgrading controller to v1.11.0 and above, update cluster role as follows:
       | ``oc adm policy add-cluster-role-to-user cluster-admin -z <service-account-name> -n <namespace>``
-* Added support for Alternate Backend Deployment in OpenShift Routes while using as3 backend. 
+* Added support for Alternate Backend Deployment in OpenShift Routes while using as3 backend.
 * Controller updates Route status in Openshift Web Console (OpenShift 3.11 and below).
 * Controller includes the body of AS3 API call error responses in Debug logs.
 * Added support for validating AS3 JSON against the latest schema. Controller downloads the latest schema during startup.

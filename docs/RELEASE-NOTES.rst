@@ -1,6 +1,41 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+2.1.1
+-------------
+Added Functionality
+`````````````````````
+* CIS is now compatible with:
+       -   OpenShift 4.5.
+       -   AS3 3.21.
+* Custom Resource Definition (CRD) – Preview version available with `virtual-server` and `TLSProfile` custom resources.
+      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/CustomResource.md>`_.
+* Custom Resource Definition (CRD) – Added Support for k8s Secrets with TLSProfile Custom Resource.
+* Custom Resource Definition (CRD) – Improved the strategy of processing `virtual-server` and `TLSProfile` custom resources.
+* Custom Resource Definition (CRD) – Added support for installation using Helm and Operator.
+* Custom Resource Definition (CRD) – Streamlined logs to provide insightful information in INFO and remove unwanted information in DEBUG mode.
+
+Bug Fixes
+`````````
+* :issues:`1467` AS3 ERROR declaration.schemaVersion must be one of the following with Controller version 2.1.0.
+* :issues:`1433` Template is not valid. When using CIS 2.1 with AS3 version: 3.21.0.
+* :issues:`1440` Optional health check parameters don't appear to be optional.
+* Fixed issues with processing multiple services with same annotations in AS3 ConfigMap mode.
+        - When there are multiple services with same annotations, CIS updates the oldest service endpoints in BIG-IP.
+* Fixed issues with continuous AS3 declarations in CRD mode.
+* Fixed issues with re-encrypt termination on multiple domains in CRD mode.
+* Fixed issues with crashing of CIS in CRD mode.
+        - When user removes f5cr label from `VirtualServer` or `TLSProfile` custom resources.
+        - When user deletes `TLSProfile` custom resource. This behaviour is intermittent.
+* Fixed issues with processing of unwanted endpoint and service changes in CRD mode.
+
+Limitations
+```````````
+* During restarts, CIS fails to read `TLSProfile` custom resource. This behaviour is intermittent.
+* CIS does not update the endpoint changes on BIG-IP in CRD mode. This behaviour is intermittent.
+* CIS does not validate secrets and BIG-IP profiles provided in `TLSProfile` custom resource.
+* CIS supports only port 80 and 443 for BIG-IP Virtual servers in CRD mode.
+
 2.1
 -------------
 Added Functionality
@@ -423,7 +458,7 @@ Bug Fixes
 
 Limitations
 ```````````
-* Cannot apply app-root and url-rewrite annotations to the same resource; see: :issues:`675`
+* Cannot apply app-root and url-rewrite annotations to the same resource; see: :issues:675
 * If an older controller created resources, upgrading to the new version could
   result in a python exception when adding metadata to virtuals: :issues:`683`
 * If running the controller in cluster mode without a vxlan name, pool members are not created: :issues:`686`
@@ -433,12 +468,12 @@ v1.4.2
 
 Bug Fixes
 `````````
-* :issues:`549` - Using IP annotation on ConfigMaps would result in the virtual server getting a port of 0.
-* :issues:`551` - Memory leak in python subprocess
-* :cccl-issue:`211` - Memory leak in f5-cccl submodule
-* :issues:`555` - Controller high CPU usage when inactive
-* :issues:`510` - Change behavior of controller on startup when encountering errors
-* :issues:`567` - Clean up all objects (including iRules and datagroups) when deleting Routes.
+* :issues:549 - Using IP annotation on ConfigMaps would result in the virtual server getting a port of 0.
+* :issues:551 - Memory leak in python subprocess
+* :cccl-issue:211 - Memory leak in f5-cccl submodule
+* :issues:555 - Controller high CPU usage when inactive
+* :issues:510 - Change behavior of controller on startup when encountering errors
+* :issues:567 - Clean up all objects (including iRules and datagroups) when deleting Routes.
 
 v1.4.1
 ------

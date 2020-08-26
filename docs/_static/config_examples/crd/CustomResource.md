@@ -91,6 +91,7 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
 different terminations(for same domain), one with edge and another with re-encrypt. Todo this he needs to create two VirtualServers one with edge TLSProfile and another with re-encrypt TLSProfile.
   - Both the VirutalServers should be created with same virtualServerAddress
 * Single or Group of VirtualServers(with same virtualServerAddress) will be created as one common BIG-IP-VirtualServer.
+* If user want to update secure virtual (TLS Virtual) server to insecure virtual (non-TLS server) server. User needs to delete the secure virtual server first and create a new virtual server.
 
 ## How CIS works with CRDs
 

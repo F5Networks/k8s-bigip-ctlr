@@ -1,0 +1,14 @@
+apiVersion: cis.f5.com/v1
+kind: TLSProfile
+metadata:
+  name: reencrypt-tls
+  labels:
+    f5cr: "true"
+spec:
+  tls:
+    termination: reencrypt
+    clientSSL: /Common/clientssl
+    serverSSL: /Common/serverssl
+    reference: bigip
+  hosts:
+  - coffee.example.com

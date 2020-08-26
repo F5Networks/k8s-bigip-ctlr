@@ -1,5 +1,5 @@
 /*-
-* Copyright (c) 2016-2019, F5 Networks, Inc.
+* Copyright (c) 2016-2020, F5 Networks, Inc.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	crInf.vsInformer.AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { crMgr.enqueueVirtualServer(obj) },
-			UpdateFunc: func(old, cur interface{}) { crMgr.enqueueVirtualServer(cur) },
+			UpdateFunc: func(old, cur interface{}) { crMgr.enqueueUpdatedVirtualServer(old, cur) },
 			DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedVirtualServer(obj) },
 		},
 	)
@@ -202,6 +202,33 @@ func (crMgr *CRManager) enqueueVirtualServer(obj interface{}) {
 	crMgr.rscQueue.Add(key)
 }
 
+func (crMgr *CRManager) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) {
+	oldVS := oldObj.(*cisapiv1.VirtualServer)
+	newVS := newObj.(*cisapiv1.VirtualServer)
+
+	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress {
+		log.Infof("Enqueueing VirtualServer: %v", oldVS)
+		key := &rqKey{
+			namespace: oldVS.ObjectMeta.Namespace,
+			kind:      VirtualServer,
+			rscName:   oldVS.ObjectMeta.Name,
+			rsc:       oldObj,
+			rscDelete: true,
+		}
+		crMgr.rscQueue.Add(key)
+	}
+
+	log.Infof("Enqueueing VirtualServer: %v", newVS)
+	key := &rqKey{
+		namespace: newVS.ObjectMeta.Namespace,
+		kind:      VirtualServer,
+		rscName:   newVS.ObjectMeta.Name,
+		rsc:       newObj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
 func (crMgr *CRManager) enqueueDeletedVirtualServer(obj interface{}) {
 	vs := obj.(*cisapiv1.VirtualServer)
 	log.Infof("Enqueueing VirtualServer: %v", vs)
@@ -230,27 +257,46 @@ func (crMgr *CRManager) enqueueTLSServer(obj interface{}) {
 }
 
 func (crMgr *CRManager) enqueueService(obj interface{}) {
+	flag := true
 	svc := obj.(*corev1.Service)
-	log.Infof("Enqueueing Service: %v", svc)
-	key := &rqKey{
-		namespace: svc.ObjectMeta.Namespace,
-		kind:      Service,
-		rscName:   svc.ObjectMeta.Name,
-		rsc:       obj,
+	log.Debugf("Enqueueing Service: %v", svc)
+	ignoresvcList := []string{"kube-dns", "kube-scheduler", "kube-controller-manager", "docker-registry", "kubernetes", "registry-console", "router", "kubelet", "console", "alertmanager-main", "alertmanager-operated", "cluster-monitoring-operator", "grafana", "kube-state-metrics", "node-exporter", "prometheus-k8s", "prometheus-operated", "prometheus-operatorwebconsole"}
+	for _, svcName := range ignoresvcList {
+		if svc.ObjectMeta.Name == svcName {
+			flag = false
+			break
+		}
 	}
-
-	crMgr.rscQueue.Add(key)
+	if flag {
+		key := &rqKey{
+			namespace: svc.ObjectMeta.Namespace,
+			kind:      Service,
+			rscName:   svc.ObjectMeta.Name,
+			rsc:       obj,
+		}
+		crMgr.rscQueue.Add(key)
+	}
 }
 
 func (crMgr *CRManager) enqueueEndpoints(obj interface{}) {
+	flag := true
 	eps := obj.(*corev1.Endpoints)
-	log.Infof("Enqueueing Endpoints: %v", eps)
-	key := &rqKey{
-		namespace: eps.ObjectMeta.Namespace,
-		kind:      Endpoints,
-		rscName:   eps.ObjectMeta.Name,
-		rsc:       obj,
+	log.Debugf("Enqueueing Endpoints: %v", eps)
+	ignoreeplist := []string{"kube-dns", "kube-scheduler", "kube-controller-manager", "docker-registry", "kubernetes", "registry-console", "router", "kubelet", "console", "alertmanager-main", "alertmanager-operated", "cluster-monitoring-operator", "grafana", "kube-state-metrics", "node-exporter", "prometheus-k8s", "prometheus-operated", "prometheus-operatorwebconsole"}
+	for _, epname := range ignoreeplist {
+		if eps.ObjectMeta.Name == epname {
+			flag = false
+			break
+		}
 	}
+	if flag {
+		key := &rqKey{
+			namespace: eps.ObjectMeta.Namespace,
+			kind:      Endpoints,
+			rscName:   eps.ObjectMeta.Name,
+			rsc:       obj,
+		}
 
-	crMgr.rscQueue.Add(key)
+		crMgr.rscQueue.Add(key)
+	}
 }

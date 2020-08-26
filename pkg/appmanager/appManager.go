@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2016-2019, F5 Networks, Inc.
+ * Copyright (c) 2016-2020, F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -2434,6 +2434,23 @@ func containsNode(nodes []Node, name string) bool {
 	return false
 }
 
+type byTimestamp []v1.Service
+
+//sort services by timestamp
+func (slice byTimestamp) Len() int {
+	return len(slice)
+}
+
+func (slice byTimestamp) Less(i, j int) bool {
+	d1 := slice[i].GetCreationTimestamp()
+	d2 := slice[j].GetCreationTimestamp()
+	return d1.Before(&d2)
+}
+
+func (slice byTimestamp) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
 // Performs Service discovery for the given AS3 Pool and returns a pool.
 // Service discovery is loosely coupled with Kubernetes Service labels. A Kubernetes Service is treated as a match for
 // an AS3 Pool, if the Kubernetes Service have the following labels and their values matches corresponding AS3
@@ -2461,14 +2478,16 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 	}
 
 	if len(services.Items) > 1 {
-		svcNames := ""
+		svcName := ""
+		sort.Sort(byTimestamp(services.Items))
+		//picking up the oldest service
+		services.Items = services.Items[:1]
 
 		for _, service := range services.Items {
-			svcNames += fmt.Sprintf("Service: %v, Namespace: %v \n", service.Name, service.Namespace)
+			svcName += fmt.Sprintf("Service: %v, Namespace: %v,Timestamp: %v\n", service.Name, service.Namespace, service.GetCreationTimestamp())
 		}
 
-		log.Errorf("[CORE] Multiple Services are tagged for this pool. Ignoring all endpoints.\n%v", svcNames)
-		return members
+		log.Warningf("[CORE] Multiple Services are tagged for this pool. Using oldest service endpoints.\n%v", svcName)
 	}
 
 	for _, service := range services.Items {

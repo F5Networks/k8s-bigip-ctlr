@@ -996,6 +996,14 @@
           "type": "boolean",
           "default": false
         },
+        "cacheTimeout": {
+          "title": "Cache Timeout",
+          "description": "Sets the cache timeout (in seconds)",
+          "type": "integer",
+          "maximum": 86400,
+          "minimum": 0,
+          "default": 3600
+        },
         "certificates": {
           "title": "Certificates",
           "description": "Primary and (optional) additional certificates (order is significant, element 0 is primary cert)",
@@ -3257,6 +3265,14 @@
           "type": "string",
           "format": "hostname",
           "default": "none"
+        },
+        "cacheTimeout": {
+          "title": "Cache Timeout",
+          "description": "Sets the cache timeout (in seconds)",
+          "type": "integer",
+          "maximum": 86400,
+          "minimum": 0,
+          "default": 3600
         },
         "ciphers": {
           "title": "Ciphers",
@@ -9527,6 +9543,17 @@
           "minItems": 1,
           "uniqueItems": true
         },
+        "serviceDownImmediateAction": {
+          "title": "Service Down Immediate Action",
+          "description": "Specifies the immediate action the BIG-IP system should respond with upon the receipt of the initial client's SYN packet if the availability status of the virtual server is Offline or Unavailable. This is supported for the virtual server of Standard type and TCP protocol. The default value is none.",
+          "type": "string",
+          "enum": [
+            "none",
+            "drop",
+            "reset"
+          ],
+          "default": "none"
+        },
         "shareAddresses": {
           "title": "Share addresses",
           "description": "A user set boolean that indicates whether the virtualAddresses should be added to or checked for /Common instead of the tenant. This value defaults to false, and so will put the virtualAddresses into their tenant.",
@@ -12981,9 +13008,6 @@
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/DNS_Zone_Local"
-          },
-          "propertyNames": {
-            "format": "hostname"
           }
         },
         "messageCacheSize": {
@@ -16644,7 +16668,7 @@
           "description": "Maximum number of response octets to buffer before deciding whether to apply compression (default 4096)",
           "type": "integer",
           "minimum": 256,
-          "maximum": 32768,
+          "maximum": 4294967295,
           "default": 4096
         },
         "contentTypeExcludes": {
@@ -17885,6 +17909,11 @@
           "items": {
             "$ref": "#/definitions/Pointer_GSLB_Monitor"
           }
+        },
+        "name": {
+          "title": "Name",
+          "description": "Specifies the name of the Virtual Server",
+          "type": "string"
         }
       },
       "required": [
@@ -27796,6 +27825,7 @@
           "type": "string",
           "$comment": "IMPORTANT: In enum array, please put current schema version first, oldest-supported version last.  Keep enum array sorted most-recent-first.",
           "enum": [
+            "3.21.0",
             "3.20.0",
             "3.19.0",
             "3.18.0",

@@ -125,7 +125,7 @@ General
 
 .. note::
 
-   - The :code:`python-basedir` setting lets you specify the path to an alternate python agent that can bridge between the |kctlr| and `F5 CCCL <https://github.com/f5devcentral/f5-cccl>`_.
+   - The :code:`python-basedir` setting lets you specify the path to an alternate python agent that can bridge between the |kctlr| and F5-CCCL.
 
    - The time it takes for the |kctlr| to reapply the system configurations to the BIG-IP device is normally low (a few ms) and won't cause service disruption. 
 
@@ -359,7 +359,7 @@ See the `Integration Overview`_ for more information about F5 resources.
 | f5type        | Tells ``k8s-bigip-ctlr`` about resources it       |                                               |
 |               | should watch                                      |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
-| schema        | Verifies the ``data`` blob                        | See the `F5 schema versions`_ table           |
+| schema        | Verifies the ``data`` blob                        | See the F5 schema versions table              |
 +---------------+---------------------------------------------------+-----------------------------------------------+
 | data          | Defines the F5 resource                           |                                               |
 +---------------+---------------------------------------------------+-----------------------------------------------+
@@ -379,7 +379,7 @@ The `F5 schema`_ allows the |kctlr| to communicate with BIG-IP systems.
 
    While all versions of the BIG-IP Controller and F5 schema are backwards-compatible, using an older schema may limit Controller functionality. Be sure to use the schema version that corresponds with your Controller version to ensure access to the full feature set.
 
-   See the `F5 schema versions`_ table for schema and Controller version compatibility.
+   See the F5 schema versions table for schema and Controller version compatibility.
 
 .. _frontend:
 
@@ -434,11 +434,11 @@ sslProfile [#ssl]_         JSON object       Optional                   BIG-IP S
 
 .. note::
 
-   If you include ``virtualAddress`` in your Resource definition, you can specify the ``bindAddr`` and ``port`` you want the virtual server to use. Omit the ``virtualAddress`` section if you want to create `pools without virtual servers`_.
+   If you include ``virtualAddress`` in your Resource definition, you can specify the ``bindAddr`` and ``port`` you want the virtual server to use. Omit the ``virtualAddress`` section if you want to create pools without virtual servers.
 
    If you're creating pools without virtual servers, **you should already have a BIG-IP virtual server** that handles client connections configured with an iRule or local traffic policy that can forward requests to the correct pool for the Service.
 
-   You can also `assign IP addresses to BIG-IP virtual servers using IPAM`_.
+   You can also assign IP addresses to BIG-IP virtual servers using IPAM.
 
 .. _iapp f5 resource:
 
@@ -800,29 +800,29 @@ Example Configuration Files
 - :fonticon:`fa fa-download` :download:`example-vs-resource.json </_static/config_examples/example-vs-resource.json>`
 - :fonticon:`fa fa-download` :download:`example-vs-resource-iapp.json </_static/config_examples/example-vs-resource-iapp.json>`
 - :fonticon:`fa fa-download` :download:`example-advanced-vs-resource-iapp.json </_static/config_examples/example-advanced-vs-resource-iapp.json>`
-- :fonticon:`fa fa-download` :download:`single-service-ingress.yaml </_static/config_examples/single-service-ingress.yaml>`
-- :fonticon:`fa fa-download` :download:`single-service-tls-ingress.yaml </_static/config_examples/single-service-tls-ingress.yaml>`
-- :fonticon:`fa fa-download` :download:`simple-ingress-fanout.yaml </_static/config_examples/simple-ingress-fanout.yaml>`
-- :fonticon:`fa fa-download` :download:`name-based-ingress.yaml </_static/config_examples/name-based-ingress.yaml>`
-- :fonticon:`fa fa-download` :download:`ingress-with-health-monitors.yaml </_static/config_examples/ingress-with-health-monitors.yaml>`
+- :fonticon:`fa fa-download` :download:`single-service-ingress.yaml </_static/config_examples/ingress/single-service-ingress.yaml>`
+- :fonticon:`fa fa-download` :download:`single-service-tls-ingress.yaml </_static/config_examples/ingress/single-service-tls-ingress.yaml>`
+- :fonticon:`fa fa-download` :download:`simple-ingress-fanout.yaml </_static/config_examples/ingress/simple-ingress-fanout.yaml>`
+- :fonticon:`fa fa-download` :download:`name-based-ingress.yaml </_static/config_examples/ingress/name-based-ingress.yaml>`
+- :fonticon:`fa fa-download` :download:`ingress-with-health-monitors.yaml </_static/config_examples/ingress/ingress-with-health-monitors.yaml>`
 - :fonticon:`fa fa-download` :download:`sample-rbac.yaml </_static/config_examples/sample-rbac.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-app-root-annotation.yaml </_static/config_examples/sample-app-root-annotation.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-url-rewrite-annotation.yaml </_static/config_examples/sample-url-rewrite-annotation.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-app-root-annotation.yaml </_static/config_examples/ingress/sample-app-root-annotation.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-url-rewrite-annotation.yaml </_static/config_examples/ingress/sample-url-rewrite-annotation.yaml>`
 
 OpenShift
 `````````
 
-- :fonticon:`fa fa-download` :download:`sample-unsecured-route.yaml </_static/config_examples/sample-unsecured-route.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-edge-route.yaml </_static/config_examples/sample-edge-route.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-passthrough-route.yaml </_static/config_examples/sample-passthrough-route.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-reencrypt-route.yaml </_static/config_examples/sample-reencrypt-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-unsecured-route.yaml </_static/config_examples/openshift/routes/sample-unsecured-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-edge-route.yaml </_static/config_examples/openshift/routes/sample-edge-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-passthrough-route.yaml </_static/config_examples/openshift/routes/sample-passthrough-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-reencrypt-route.yaml </_static/config_examples/openshift/routes/sample-reencrypt-route.yaml>`
 
 
 
 .. rubric:: **Footnotes**
 .. [#objectpartition] The |kctlr| creates and manages objects in the BIG-IP partition defined in the `F5 resource`_ ConfigMap. **It cannot manage objects in the** ``/Common`` **partition**.
 .. [#nodeportmode] The |kctlr| forwards traffic to the NodePort assigned to the Service by Kubernetes. See the `Kubernetes Service`_ documentation for more information.
-.. [#lb] The |kctlr| supports BIG-IP load balancing algorithms that do not require additional configuration parameters. You can view the full list of supported algorithms in the `f5-cccl schema <https://github.com/f5devcentral/f5-cccl/blob/03e22c4779ceb88f529337ade3ca31ddcd57e4c8/f5_cccl/schemas/cccl-ltm-api-schema.yml#L515>`_. See the `BIG-IP Local Traffic Management Basics user guide <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/ltm-basics-13-0-0/4.html>`_ for information about each load balancing mode.
+.. [#lb] The |kctlr| supports BIG-IP load balancing algorithms that do not require additional configuration parameters. You can view the full list of supported algorithms in the f5-cccl schema. See the `BIG-IP Local Traffic Management Basics user guide <https://support.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/ltm-basics-13-0-0/4.html>`_ for information about each load balancing mode.
 .. [#ba] The Controller supports BIG-IP `route domain`_ specific addresses.
 .. [#ssl] If you want to configure multiple SSL profiles, use ``f5ProfileNames`` instead of ``f5ProfileName``. The two parameters are mutually exclusive.
 .. [#hm1] Required if defining the ``virtual-server.f5.com/health`` Ingress/Route annotation.

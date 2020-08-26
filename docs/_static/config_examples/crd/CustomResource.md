@@ -1,4 +1,4 @@
-# Container Ingress Services using Virtual Server Custom Resource 
+# Custom Resource Definitions 
 
 This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release). This is an ALPHA release which supports limited features. Check for the Supported Features and TO BE Implemented sections to understand in detail about the features.  
 
@@ -13,7 +13,7 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
 * CIS supports 2 Custom Resources at this point of time.
   - VirtualServer
   - TLSProfile
-  
+   
 ## VirtualServer
 
 * VirtualServer resource defines load balancing configuration for a domain name. 
@@ -31,6 +31,13 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
    - path: /coffee
      service: svc-2
      servicePort: 80
+```
+
+## Label
+* CIS will only process custom resources with f5cr Label as true. 
+```
+   labels:
+     f5cr: "true"  
 ```
 
 **Note: The above VirtualServer is insecure, Attach a TLSProfile to make it secure**
@@ -84,6 +91,7 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
 different terminations(for same domain), one with edge and another with re-encrypt. Todo this he needs to create two VirtualServers one with edge TLSProfile and another with re-encrypt TLSProfile.
   - Both the VirutalServers should be created with same virtualServerAddress
 * Single or Group of VirtualServers(with same virtualServerAddress) will be created as one common BIG-IP-VirtualServer.
+* If user want to update secure virtual (TLS Virtual) server to insecure virtual (non-TLS server) server. User needs to delete the secure virtual server first and create a new virtual server.
 
 ## How CIS works with CRDs
 
@@ -100,7 +108,8 @@ different terminations(for same domain), one with edge and another with re-encry
 # VirtualServer
    * Schema Validation
      - OpenAPI Schema Validation
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/basic/vs-customresourcedefinitions.yml
+     
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/basic/vs-customresourcedefinition.yml
 
 
 **VirtualServer Components**
@@ -132,10 +141,13 @@ different terminations(for same domain), one with edge and another with re-encry
 | interval | Int | required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
    
+ **Note: Health Monitor associated with the first path will be considere if multiple path has same backend** 
+
 ## TLSProfile
    * Schema Validation
      - OpenAPI Schema Validation
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/tls/tls-customresourcedefinitions.yml
+     
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/tls/tls-customresourcedefinition.yml
 
 
 **TLSProfile Components**
@@ -203,8 +215,11 @@ kubectl create -f sample-nodeport-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 kubectl create -f sample-cluster-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 ```
 
+## Examples
+
+   https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd
+
 ## To Be Implemented
-* TLSProfile Support with k8s secrets
 * A/B Deployment
 * Support for WAF
 * Rewrite Rules
@@ -212,5 +227,5 @@ kubectl create -f sample-cluster-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 
 ## Note
 * “--custom-resource-mode=true” deploys CIS in Custom Resource Mode.
-* CIS does not watch for ingress/routes when deployed in CRD Mode.
-* CIS does not support combination of CRDs with any of Ingress/Routes or Configmaps.
+* CIS does not watch for ingress/routes/configmaps when deployed in CRD Mode.
+* CIS does not support combination of CRDs with any of Ingress/Routes and Configmaps.

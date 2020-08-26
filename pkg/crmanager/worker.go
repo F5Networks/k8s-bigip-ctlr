@@ -1,5 +1,5 @@
 /*-
-* Copyright (c) 2016-2019, F5 Networks, Inc.
+* Copyright (c) 2016-2020, F5 Networks, Inc.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -186,7 +186,7 @@ func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
 	// find VirtualServers that reference the service
 	virtualsForService := getVirtualServersForService(allVirtuals, svc)
 	if nil == virtualsForService {
-		log.Infof("Change in Service %s does not effect any VirtualServer",
+		log.Debugf("Change in Service %s does not effect any VirtualServer",
 			svc.ObjectMeta.Name)
 		return nil
 	}
@@ -307,7 +307,17 @@ func getVirtualServersForTLSProfile(allVirtuals []*cisapiv1.VirtualServer,
 
 	for _, vs := range allVirtuals {
 		if vs.ObjectMeta.Namespace == tlsNamespace && vs.Spec.TLSProfileName == tlsName {
-			result = append(result, vs)
+			found := false
+			for _, host := range tls.Spec.Hosts {
+				if vs.Spec.Host == host {
+					result = append(result, vs)
+					found = true
+					break
+				}
+			}
+			if !found {
+				log.Errorf("TLSProfile hostname is not same as virtual host %s for profile %s", vs.Spec.Host, vs.Spec.TLSProfileName)
+			}
 		}
 	}
 
@@ -334,8 +344,22 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer
 		return nil
 	}
 
-	// TLSProfile Object
-	return obj.(*cisapiv1.TLSProfile)
+	// validate TLSProfile
+	validation := validateTLSProfile(obj.(*cisapiv1.TLSProfile))
+	if validation == false {
+		return nil
+	}
+
+	tlsProfile := obj.(*cisapiv1.TLSProfile)
+	for _, host := range tlsProfile.Spec.Hosts {
+		if host == vs.Spec.Host {
+			// TLSProfile Object
+			return tlsProfile
+		}
+	}
+	log.Errorf("TLSProfile %s with host %s does not match with virtual server %s host.", tlsName, vs.Spec.Host, vs.ObjectMeta.Name)
+	return nil
+
 }
 
 // syncVirtualServers takes the Virtual Server as input and processes all
@@ -371,6 +395,7 @@ func (crMgr *CRManager) syncVirtualServers(
 
 	// Prepare list of associated VirtualServers to be processed
 	// In the event of deletion, exclude the deleted VirtualServer
+	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
 	for _, v := range allVirtuals {
 		if v.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress &&
 			v.Spec.Host == virtual.Spec.Host &&
@@ -410,14 +435,16 @@ func (crMgr *CRManager) syncVirtualServers(
 		)
 
 		for _, vrt := range virtuals {
+			log.Debugf("Processing Virtual Server %s for port %v",
+				vrt.ObjectMeta.Name, portStruct.port)
 			crMgr.prepareRSConfigFromVirtualServer(
 				rsCfg,
 				vrt,
 			)
 
-			if len(virtual.Spec.TLSProfileName) != 0 {
+			if len(vrt.Spec.TLSProfileName) != 0 {
 				// Handle TLS configuration for VirtualServer Custom Resource
-				processed := crMgr.handleVirtualServerTLS(rsCfg, virtual)
+				processed := crMgr.handleVirtualServerTLS(rsCfg, vrt)
 				if !processed {
 					// Processing failed
 					// Stop processing further virtuals
@@ -426,17 +453,14 @@ func (crMgr *CRManager) syncVirtualServers(
 				}
 
 				log.Debugf("Updated Virtual %s with TLSProfile %s",
-					virtual.ObjectMeta.Name, virtual.Spec.TLSProfileName)
+					vrt.ObjectMeta.Name, vrt.Spec.TLSProfileName)
 			}
 		}
 
 		if processingError {
-			log.Errorf("Cannot Publish VirtualServer %s with invalid/non-existing TLSProfile %s",
-				virtual.ObjectMeta.Name, virtual.Spec.TLSProfileName)
+			log.Errorf("Cannot Publish VirtualServer %s", virtual.ObjectMeta.Name)
 			break
 		}
-
-		log.Debugf("ResourceConfig looks like %v", rsCfg)
 
 		// Save ResourceConfig in temporary Map
 		vsMap[rsName] = rsCfg

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2016-2019, F5 Networks, Inc.
+ * Copyright (c) 2016-2020, F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -202,8 +202,9 @@ func processDataGroupForAS3(intDgMap InternalDataGroupMap, sharedApp as3Applicat
 				for _, record := range dg.Records {
 					var rec as3Record
 					rec.Key = record.Name
+					virtualAddress := extractVirtualAddress(record.Data)
 					// To override default Value created for CCCL for certain DG types
-					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
+					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, virtualAddress); ok {
 						rec.Value = val
 					} else {
 						rec.Value = record.Data
@@ -217,8 +218,9 @@ func processDataGroupForAS3(intDgMap InternalDataGroupMap, sharedApp as3Applicat
 				for _, record := range dg.Records {
 					var rec as3Record
 					rec.Key = record.Name
+					virtualAddress := extractVirtualAddress(record.Data)
 					// To override default Value created for CCCL for certain DG types
-					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp); ok {
+					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, virtualAddress); ok {
 						rec.Value = val
 					} else {
 						rec.Value = record.Data
@@ -236,16 +238,25 @@ func processDataGroupForAS3(intDgMap InternalDataGroupMap, sharedApp as3Applicat
 	}
 }
 
-func getDGRecordValueForAS3(dgName string, sharedApp as3Application) (string, bool) {
+func extractVirtualAddress(str string) string {
+	var address string
+	if strings.HasPrefix(str, "crd_") && strings.HasSuffix(str, "_tls_client") {
+		address = strings.ReplaceAll(strings.TrimRight(strings.TrimLeft(str, "crd_"), "_tls_client"), "_", ".")
+	}
+	return address
+}
+
+func getDGRecordValueForAS3(dgName string, sharedApp as3Application, virtualAddress string) (string, bool) {
 	switch dgName {
 	case ReencryptServerSslDgName:
 		for _, v := range sharedApp {
-			if svc, ok := v.(*as3Service); ok && svc.Class == "Service_HTTPS" {
+			if svc, ok := v.(*as3Service); ok && svc.Class == "Service_HTTPS" &&
+				svc.VirtualAddresses[0] == virtualAddress {
 				if val, ok := svc.ClientTLS.(*as3ResourcePointer); ok {
 					return val.BigIP, true
 				}
 				if val, ok := svc.ClientTLS.(string); ok {
-					return strings.Join([]string{"", DEFAULT_PARTITION, as3SharedApplication, val}, "/"), true
+					return strings.Join([]string{"", val}, ""), true
 				}
 				log.Errorf("Unable to find serverssl for Data Group: %v\n", dgName)
 			}
@@ -609,9 +620,8 @@ func processCustomProfilesForAS3(customProfiles *CustomProfileStore, sharedApp a
 			createCertificateDecl(prof, sharedApp)
 		} else {
 			createUpdateCABundle(prof, caBundleName, sharedApp)
-			if tlsClient == nil {
-				tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
-			}
+			tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
+
 			skey := SecretKey{
 				Name: prof.Name + "-ca",
 			}
@@ -692,7 +702,7 @@ func createTLSClient(
 	sharedApp as3Application,
 ) *as3TLSClient {
 	// For TLSClient only Cert (DestinationCACertificate) is given and key is empty string
-	if "" != prof.Cert && "" == prof.Key {
+	if _, ok := sharedApp[svcName]; "" != prof.Cert && "" == prof.Key && ok {
 		svc := sharedApp[svcName].(*as3Service)
 		tlsClientName := fmt.Sprintf("%s_tls_client", svcName)
 

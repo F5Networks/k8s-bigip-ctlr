@@ -1,11 +1,40 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
-------------
+2.1.1
+-------------
+Added Functionality
+`````````````````````
+* CIS is now compatible with:
+       -   OpenShift 4.5.
+       -   AS3 3.21.
+* Custom Resource Definition (CRD) – Preview version available with `virtual-server` and `TLSProfile` custom resources.
+      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/CustomResource.md>`_.
+* Custom Resource Definition (CRD) – Added Support for k8s Secrets with TLSProfile Custom Resource.
+* Custom Resource Definition (CRD) – Improved the strategy of processing `virtual-server` and `TLSProfile` custom resources.
+* Custom Resource Definition (CRD) – Added support for installation using Helm and Operator.
+* Custom Resource Definition (CRD) – Streamlined logs to provide insightful information in INFO and remove unwanted information in DEBUG mode.
 
 Bug Fixes
 `````````
+* :issues:`1467` AS3 ERROR declaration.schemaVersion must be one of the following with Controller version 2.1.0.
+* :issues:`1433` Template is not valid. When using CIS 2.1 with AS3 version: 3.21.0.
+* :issues:`1440` Optional health check parameters don't appear to be optional.
+* Fixed issues with processing multiple services with same annotations in AS3 ConfigMap mode.
+        - When there are multiple services with same annotations, CIS updates the oldest service endpoints in BIG-IP.
+* Fixed issues with continuous AS3 declarations in CRD mode.
+* Fixed issues with re-encrypt termination on multiple domains in CRD mode.
+* Fixed issues with crashing of CIS in CRD mode.
+        - When user removes f5cr label from `VirtualServer` or `TLSProfile` custom resources.
+        - When user deletes `TLSProfile` custom resource. This behaviour is intermittent.
+* Fixed issues with processing of unwanted endpoint and service changes in CRD mode.
+
+Limitations
+```````````
+* During restarts, CIS fails to read `TLSProfile` custom resource. This behaviour is intermittent.
+* CIS does not update the endpoint changes on BIG-IP in CRD mode. This behaviour is intermittent.
+* CIS does not validate secrets and BIG-IP profiles provided in `TLSProfile` custom resource.
+* CIS supports only port 80 and 443 for BIG-IP Virtual servers in CRD mode.
 
 2.1
 -------------
@@ -13,9 +42,9 @@ Added Functionality
 ```````````````````
 * CIS will not create `_AS3` partition anymore.
     -  CIS uses single partition(i.e. `--bigip-partition`) to configure both LTM and NET configuration.      
-    -  Additional AS3 managed partition _AS3 will be removed if exists.
+    -  Removes Additional AS3 managed partition _AS3, if exists.
 * Enhanced performance for lower BIG-IP CPU Utilization with optimized CCCL calls.
-* AS3 versions >= 3.18 required for CIS 2.x releases.
+* CIS 2.x releases requires AS3 versions >= 3.18.
 * CIS is now compatible with:
    -  OpenShift 4.4.5.
    -  AS3 3.20.
@@ -58,7 +87,7 @@ Vulnerability Fixes
 
 Archived CF and Mesos Github repos
 ``````````````````````````````````
-* These GitHub repository has been archived and is read-only. This projects are no longer actively maintained
+* This projects are no longer actively maintained
      -     `cf-bigip-ctlr <https://github.com/F5Networks/cf-bigip-ctlr>`_
      -     `marathon-bigip-ctlr <https://github.com/F5Networks/marathon-bigip-ctlr>`_
 
@@ -68,7 +97,7 @@ Guidelines for upgrading to CIS 2.1
      - User should clean up LTM resources in BIG-IP partition created by CCCL before migrating to CIS 2.1. 
           Steps to clean up LTM resources in BIG-IP partition using AS3
            *  Use below POST call along with this `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/example-empty-AS3-declaration.yaml>`_.
-                - https://<bigip-ip>/mgmt/shared/appsvcs/declare?async=true
+                - mgmt/shared/appsvcs/declare
            *  Note: Please modify <bigip-ip> in above POST call and <bigip-partition> name in `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/example-empty-AS3-declaration.yaml>`_
 
 2.0
@@ -81,7 +110,7 @@ Added Functionality
 * Added new optional deployment arguments:
        -  `--custom-resource-mode` (default `false`) when set `true` processes custom resources only.
        -  `defined-as3-declaration` for processing user defined AS3 Config Map in CIS watched namespaces.
-* AS3 versions >= 3.18 is required for 2.x releases.
+* CIS Requires AS3 versions >= 3.18 for 2.x releases.
 * CIS is now compatible with:
        -   OpenShift 4.3.
        -   BIG-IP 15.1.
@@ -117,11 +146,11 @@ Vulnerability Fixes
 
 Limitations
 ```````````
-* CIS with cccl as agent, OpenShift A/B route cannot be updated in BIGIP >=v14.1.x due to data group changes.
+* CIS in cccl mode, cannot update OpenShift A/B route in BIGIP >=v14.1.x due to data group changes.
 
 Next Upgrade Notes
 ``````````````````
-* From CIS 2.1, additional AS3 managed partition "_AS3" will be removed.
+* CIS removes additional AS3 managed partition "_AS3" from release 2.1
 
 1.14.0
 ------------
@@ -429,7 +458,7 @@ Bug Fixes
 
 Limitations
 ```````````
-* Cannot apply app-root and url-rewrite annotations to the same resource; see: :issues:`675`
+* Cannot apply app-root and url-rewrite annotations to the same resource; see: :issues:675
 * If an older controller created resources, upgrading to the new version could
   result in a python exception when adding metadata to virtuals: :issues:`683`
 * If running the controller in cluster mode without a vxlan name, pool members are not created: :issues:`686`
@@ -439,21 +468,21 @@ v1.4.2
 
 Bug Fixes
 `````````
-* :issues:`549` - Using IP annotation on ConfigMaps would result in the virtual server getting a port of 0.
-* :issues:`551` - Memory leak in python subprocess
-* :cccl-issue:`211` - Memory leak in f5-cccl submodule
-* :issues:`555` - Controller high CPU usage when inactive
-* :issues:`510` - Change behavior of controller on startup when encountering errors
-* :issues:`567` - Clean up all objects (including iRules and datagroups) when deleting Routes.
+* :issues:549 - Using IP annotation on ConfigMaps would result in the virtual server getting a port of 0.
+* :issues:551 - Memory leak in python subprocess
+* :cccl-issue:211 - Memory leak in f5-cccl submodule
+* :issues:555 - Controller high CPU usage when inactive
+* :issues:510 - Change behavior of controller on startup when encountering errors
+* :issues:567 - Clean up all objects (including iRules and datagroups) when deleting Routes.
 
 v1.4.1
 ------
 
 Bug Fixes
 `````````
-* :issues:`517` - Controller deletes SSL profiles off of Ingress virtual servers if watching multiple namespaces.
-* :issues:`471` - When updating routes, old service pools are not removed until after a refresh cycle.
-* :cccl-issue:`208` - Address compatibility for BIG-IP v13.0 Health Monitor interval and timeout.
+* (github-517)Controller deletes SSL profiles off of Ingress virtual servers if watching multiple namespaces.
+* (github-471)When updating routes, old service pools are not removed until after a refresh cycle.
+* (github-228)Address compatibility for BIG-IP v13.0 Health Monitor interval and timeout.
 
 v1.4.0
 ------
@@ -479,12 +508,12 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`341` - HTTPS redirect applies to individual Routes instead of all Routes.
-* :issues:`344` - Create default for SNI profile when using Ingress custom profiles from Secrets.
-* :issues:`460` - Remove risk that pools will update with wrong members after a node update (NodePort mode).
-* :issues:`428` - Controller writes unnecessary updates when no config changes occurred.
-* :issues:`506` - Controller stops updating BIG-IP after an exception occurs in the python driver.
-* :cccl-issue:`198` - Corrected a comparison problem in CCCL that caused unnecessary updates for BIG-IP Virtual Server resources.
+* (github-341)HTTPS redirect applies to individual Routes instead of all Routes.
+* (github-344)Create default for SNI profile when using Ingress custom profiles from Secrets.
+* (github-460)Remove risk that pools will update with wrong members after a node update (NodePort mode).
+* (github-428)Controller writes unnecessary updates when no config changes occurred.
+* (github-506)Controller stops updating BIG-IP after an exception occurs in the python driver.
+* (github-198)Corrected a comparison problem in CCCL that caused unnecessary updates for BIG-IP Virtual Server resources.
 
 Limitations
 ```````````
@@ -499,7 +528,7 @@ Limitations
   - `Download and install the latest iApps templates`_.
   - `Set the service to use the newer iApp template`_.
 
-* Check BIG-IP version compatibility on Application Services (iApps) before deploying. See Application Services Integration iApp `[#16] <https://github.com/F5Networks/f5-application-services-integration-iApp/issues/16>`_ for more information.
+* Check BIG-IP version compatibility on Application Services (iApps) before deploying. See Application Services Integration iApp.
 * Cannot delete ARP entries on BIG-IP v11.6.1 when running the Controller in Kubernetes with Flannel VXLAN enabled.
 * The controller will exit at startup if it cannot establish a connection with the BIG-IP.
 
@@ -553,17 +582,16 @@ Bug Fixes
 Limitations
 ```````````
 
-* OpenShift - Does not currently support redirect for individual Routes. If a Route specifies
+* OpenShift - (github-341)Does not currently support redirect for individual Routes. If a Route specifies
   "insecureEdgeTerminationPolicy" as "Redirect", the http virtual server will enable this policy for all Routes.
-  `[#341] <https://github.com/F5Networks/k8s-bigip-ctlr/issues/341>`_
 
 v1.1.1
 ------
 
 Bug Fixes
 `````````
-* Fix SIGSEV on non-"f5" valued class annotation `[#311] <https://github.com/F5Networks/k8s-bigip-ctlr/issues/311>`_
-* Remove default pool for Ingress and Routes `[#288] <https://github.com/F5Networks/k8s-bigip-ctlr/issues/288>`_
+* (github-311)Fix SIGSEV on non-"f5" valued class annotation.
+* (github-288)Remove default pool for Ingress and Routes.
 
 v1.1.0
 ------

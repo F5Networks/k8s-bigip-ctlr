@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2016-2019, F5 Networks, Inc.
+ * Copyright (c) 2016-2020, F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package appmanager
 
 import (
 	"fmt"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
@@ -27,7 +28,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

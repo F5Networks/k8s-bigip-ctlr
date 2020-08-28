@@ -386,6 +386,13 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	svc.TranslateServerAddress = true
 	svc.TranslateServerPort = true
 
+	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
+		svc.SNAT = cfg.Virtual.SNAT
+	} else {
+		svc.SNAT = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.SNAT),
+		}
+	}
 	svc.Class = "Service_HTTP"
 
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
@@ -396,7 +403,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		svc.VirtualPort = port
 	}
 
-	svc.SNAT = "auto"
 	for _, v := range cfg.Virtual.IRules {
 		splits := strings.Split(v, "/")
 		iRuleName := splits[len(splits)-1]

@@ -323,8 +323,9 @@ func formatVirtualServerName(ip string, port int32) string {
 }
 
 // format the pool name for an VirtualServer
-func formatVirtualServerPoolName(namespace, svc string, nodeMemberLabel string) string {
-	poolName := fmt.Sprintf("%s_%s", namespace, svc)
+func formatVirtualServerPoolName(namespace, svc string, port int32, nodeMemberLabel string) string {
+	servicePort := fmt.Sprint(port)
+	poolName := fmt.Sprintf("%s_%s_%s", namespace, svc, servicePort)
 	if nodeMemberLabel != "" {
 		replacer := strings.NewReplacer("=", "_")
 		nodeMemberLabel = replacer.Replace(nodeMemberLabel)
@@ -359,6 +360,7 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 			Name: formatVirtualServerPoolName(
 				vs.ObjectMeta.Namespace,
 				pl.Service,
+				pl.ServicePort,
 				pl.NodeMemberLabel,
 			),
 			Partition:       rsCfg.Virtual.Partition,

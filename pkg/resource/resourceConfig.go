@@ -311,6 +311,16 @@ func ExistsRouteServiceName(route *routeapi.Route, expSvcName string) bool {
 	return false
 }
 
+// Verify if the service is associated with the route as AlternateBackend
+func IsABServiceOfRoute(route *routeapi.Route, expSvcName string) bool {
+	for _, svc := range route.Spec.AlternateBackends {
+		if expSvcName == svc.Name {
+			return true
+		}
+	}
+	return false
+}
+
 func IsRouteABDeployment(route *routeapi.Route) bool {
 	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0
 }

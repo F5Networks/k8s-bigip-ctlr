@@ -432,7 +432,15 @@ func (appMgr *Manager) createRSConfigFromRoute(
 	}
 	// Create the rule
 	uri := route.Spec.Host + route.Spec.Path
-	rule, err := CreateRule(uri, pool.Name, pool.Partition, FormatRouteRuleName(route))
+
+	var rule *Rule
+	if IsABServiceOfRoute(route, svcName) {
+		poolName := FormatRoutePoolName(route.ObjectMeta.Namespace, route.Spec.To.Name)
+		rule, err = CreateRule(uri, poolName, pool.Partition, FormatRouteRuleName(route))
+	} else {
+		rule, err = CreateRule(uri, pool.Name, pool.Partition, FormatRouteRuleName(route))
+	}
+
 	if nil != err {
 		err = fmt.Errorf("Error configuring rule for Route %s: %v", route.ObjectMeta.Name, err)
 		return &rsCfg, err, Pool{}

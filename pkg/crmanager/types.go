@@ -118,6 +118,7 @@ type (
 		IRules                []string              `json:"rules,omitempty"`
 		Description           string                `json:"description,omitempty"`
 		VirtualAddress        *virtualAddress       `json:"-"`
+		SNAT                  string                `json:"snat,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -479,7 +480,7 @@ type (
 		Class                  string            `json:"class,omitempty"`
 		VirtualAddresses       []string          `json:"virtualAddresses,omitempty"`
 		VirtualPort            int               `json:"virtualPort,omitempty"`
-		SNAT                   string            `json:"snat,omitempty"`
+		SNAT                   as3MultiTypeParam `json:"snat,omitempty"`
 		PolicyEndpoint         as3MultiTypeParam `json:"policyEndpoint,omitempty"`
 		ClientTLS              as3MultiTypeParam `json:"clientTLS,omitempty"`
 		ServerTLS              as3MultiTypeParam `json:"serverTLS,omitempty"`

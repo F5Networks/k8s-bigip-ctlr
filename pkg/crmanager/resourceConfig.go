@@ -94,6 +94,7 @@ const (
 	DEFAULT_BALANCE    string = "round-robin"
 	DEFAULT_HTTP_PORT  int32  = 80
 	DEFAULT_HTTPS_PORT int32  = 443
+	DEFAULT_SNAT       string = "auto"
 
 	urlRewriteRulePrefix      = "url-rewrite-rule-"
 	appRootForwardRulePrefix  = "app-root-forward-rule-"
@@ -339,7 +340,8 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 
 	var httpPort int32
 	httpPort = DEFAULT_HTTP_PORT
-
+	var snat string
+	snat = DEFAULT_SNAT
 	var pools Pools
 	var rules *Rules
 	var plcy *Policy
@@ -387,6 +389,12 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
 
+	// set the SNAT policy to auto is it's not defined by end user
+	if vs.Spec.SNAT == "" {
+		rsCfg.Virtual.SNAT = snat
+	} else {
+		rsCfg.Virtual.SNAT = vs.Spec.SNAT
+	}
 	// Do not Create Virtual Server L7 Forwarding policies if HTTPTraffic is set to None or Redirect
 	if len(vs.Spec.TLSProfileName) > 0 &&
 		rsCfg.Virtual.VirtualAddress.Port == httpPort &&

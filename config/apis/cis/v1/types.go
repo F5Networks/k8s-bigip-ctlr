@@ -23,6 +23,7 @@ type VirtualServerSpec struct {
 	Pools                []Pool `json:"pools"`
 	TLSProfileName       string `json:"tlsProfileName"`
 	HTTPTraffic          string `json:"httpTraffic,omitempty"`
+	SNAT          		 string `json:"snat,omitempty"`
 }
 
 // Pool defines a pool object in BIG-IP.

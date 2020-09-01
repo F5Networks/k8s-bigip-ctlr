@@ -330,6 +330,7 @@ type (
 		EventChan       chan interface{}
 		PythonDriverPID int
 		activeDecl      as3Declaration
+		userAgent       string
 	}
 
 	AgentParams struct {
@@ -340,6 +341,7 @@ type (
 		VerifyInterval int
 		VXLANName      string
 		PythonBaseDir  string
+		UserAgent      string
 	}
 
 	globalSection struct {

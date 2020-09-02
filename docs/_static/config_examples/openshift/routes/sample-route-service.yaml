@@ -4,7 +4,6 @@ metadata:
     name: f5-demo-app-route-basic
     labels:
         name: f5-demo-app-route-basic
-    namespace: f5demo
 spec:
     type: ClusterIP
     ports:
@@ -20,7 +19,6 @@ metadata:
     name: f5-demo-app-route-balance
     labels:
         name: f5-demo-app-route-balance
-    namespace: f5demo
 spec:
     type: ClusterIP
     ports:
@@ -36,7 +34,6 @@ metadata:
     name: f5-demo-app-route-edge-ssl
     labels:
         name: f5-demo-app-route-edge-ssl
-    namespace: f5demo
 spec:
     type: ClusterIP
     ports:
@@ -52,7 +49,6 @@ metadata:
     name: f5-demo-app-route-reencrypt-ssl
     labels:
         name: f5-demo-app-route-reencrypt-ssl
-    namespace: f5demo
 spec:
     type: ClusterIP
     ports:
@@ -68,7 +64,6 @@ metadata:
     name: f5-demo-app-route-passthrough-ssl
     labels:
         name: f5-demo-app-route-passthrough-ssl
-    namespace: f5demo
 spec:
     type: ClusterIP
     ports:
@@ -84,7 +79,6 @@ metadata:
     name: f5-demo-app-route-waf
     labels:
         name: f5-demo-app-route-waf
-    namespace: f5demo
 spec:
     type: ClusterIP
     ports:
@@ -100,7 +94,6 @@ metadata:
     name: f5-demo-app-route-edge-ssl-waf
     labels:
         name: f5-demo-app-route-edge-ssl-waf
-    namespace: f5demo
 spec:
     type: ClusterIP
     ports:
@@ -109,3 +102,18 @@ spec:
             targetPort: 8080
     selector:
         app: f5-demo-app-route-edge-ssl-waf
+---
+apiVersion: v1
+kind: Service
+metadata:
+    name: svc1
+    labels:
+        name: svc1
+spec:
+    type: ClusterIP
+    ports:
+        -
+            port: 443
+            targetPort: 443
+    selector:
+        app: svc1

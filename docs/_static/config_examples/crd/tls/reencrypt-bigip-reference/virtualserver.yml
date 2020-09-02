@@ -6,7 +6,7 @@ metadata:
   name: coffee-virtual-server
   namespace: default
 spec:
-  tlsProfileName: reencrypt-tls
+  tlsProfileName: reencrypt-tls-coffee
   host: coffee.example.com
   pools:
     - path: /lattee

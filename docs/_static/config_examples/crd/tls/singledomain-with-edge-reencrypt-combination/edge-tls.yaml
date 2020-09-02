@@ -9,6 +9,6 @@ spec:
   hosts:
     - tea.example.com
   tls:
-    clientSSL: clientssl
+    clientSSL: tea-secret
     reference: secret
     termination: edge

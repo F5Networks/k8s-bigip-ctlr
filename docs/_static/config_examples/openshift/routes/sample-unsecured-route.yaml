@@ -3,8 +3,8 @@ kind: Route
 metadata:
   labels:
     name: svc1
+    f5type: systest
   name: svc1-route-unsecured
-  namespace: default
   annotations:
 spec:
   host: svc1-route.local

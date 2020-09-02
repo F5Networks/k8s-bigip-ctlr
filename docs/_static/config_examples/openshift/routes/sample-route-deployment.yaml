@@ -123,3 +123,21 @@ spec:
         ports:
         - containerPort: 8080
           protocol: TCP
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: svc1
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: svc1
+    spec:
+      containers:
+      - name: svc1
+        image: f5devcentral/f5-demo-httpd
+        ports:
+        - containerPort: 443
+          protocol: TCP   

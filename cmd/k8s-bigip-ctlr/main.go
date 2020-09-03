@@ -670,6 +670,7 @@ func initCustomResourceManager(
 		VerifyInterval: *verifyInterval,
 		VXLANName:      vxlanName,
 		PythonBaseDir:  *pythonBaseDir,
+                UserAgent:      getUserAgentInfo(),
 	}
 	agent := crmanager.NewAgent(agentParams)
 
@@ -756,6 +757,12 @@ func main() {
 		os.Exit(1)
 	}
 
+        kubeClient, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("[INIT] error connecting to the client: %v", err)
+		os.Exit(1)
+	}
+
 	if *customResourceMode {
 		crMgr := initCustomResourceManager(config)
 		sigs := make(chan os.Signal, 1)
@@ -814,12 +821,6 @@ func main() {
 
 	agRspChan = make(chan interface{}, 1)
 	var appMgrParms = getAppManagerParams()
-
-	kubeClient, err = kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Fatalf("[INIT] error connecting to the client: %v", err)
-		os.Exit(1)
-	}
 
 	// creates the clientset
 	appMgrParms.KubeClient = kubeClient

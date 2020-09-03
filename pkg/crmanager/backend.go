@@ -63,6 +63,7 @@ func NewAgent(params AgentParams) *Agent {
 		ConfigWriter: configWriter,
 		EventChan:    make(chan interface{}),
 		activeDecl:   "",
+                userAgent:    params.UserAgent,
 	}
 	// If running in VXLAN mode, extract the partition name from the tunnel
 	// to be used in configuring a net instance of CCCL for that partition
@@ -107,7 +108,7 @@ func (agent *Agent) Stop() {
 }
 
 func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
-	decl := createAS3Declaration(config)
+	decl := createAS3Declaration(config, agent.userAgent)
 	if DeepEqualJSON(agent.activeDecl, decl) {
 		log.Debug("[AS3] No Change in the Configuration")
 		return
@@ -136,7 +137,7 @@ func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
 }
 
 //Create AS3 declaration
-func createAS3Declaration(config ResourceConfigWrapper) as3Declaration {
+func createAS3Declaration(config ResourceConfigWrapper, userAgentInfo string) as3Declaration {
 	var as3Config map[string]interface{}
 	_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
 
@@ -144,6 +145,11 @@ func createAS3Declaration(config ResourceConfigWrapper) as3Declaration {
 	for k, v := range createAS3ADC(config) {
 		adc[k] = v
 	}
+          
+        controlObj := make(map[string]interface{})
+	controlObj["class"] = "Controls"
+	controlObj["userAgent"] = userAgentInfo
+	adc["controls"] = controlObj
 
 	decl, err := json.Marshal(as3Config)
 	if err != nil {

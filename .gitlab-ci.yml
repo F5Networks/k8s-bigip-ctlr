@@ -1,27 +1,20 @@
 stages:
   - Build
-  - Test
 
 Build-Image:
-  tags: 
-    - docker-executor
+  tags:
+    - rhel_builder
   stage: Build
-  image: docker
-  artifacts:
-    paths:
-      - shared-vars.sh
-  
+
   script:
-    - apk update
-    - apk add git make python coreutils bash sudo
     - if [ "$DOCKER_NAMESPACE" == "" ]; then DOCKER_NAMESPACE="local"; fi
-    - export BASE_PUSH_TARGET="$DOCKER_NAMESPACE/k8s-bigip-ctlr"
+    - export BASE_PUSH_TARGET="$CI_REGISTRY/$DOCKER_NAMESPACE/k8s-bigip-ctlr"
     - |
-      if [ "$CI_REGISTRY_PASSWORD" == "" -o "$CI_REGISTRY_USER" == "" -o $DOCKER_NAMESPACE == "" ]; then
-        echo "[INFO] Docker user, password, or namespace vars absent from travis-ci."
+      if [ "$CI_REGISTRY_PASSWORD" == "" -o "$CI_REGISTRY_USER" == "" -o $DOCKER_NAMESPACE == "" -o $CI_REGISTRY == "" ]; then
+        echo "[INFO] Docker registry, user, password, or namespace vars absent from Gitlab environment variable."
         echo "[INFO] See README.md section 'build' to configure travis with DockerHub."
       else
-        docker login -u="$CI_REGISTRY_USER" -p="$CI_REGISTRY_PASSWORD"
+        docker login $CI_REGISTRY -u="$CI_REGISTRY_USER" -p="$CI_REGISTRY_PASSWORD"
         DOCKER_READY="true"
       fi
     - export BUILD_VERSION=$(build-tools/version-tool version)
@@ -43,83 +36,20 @@ Build-Image:
         export LICENSE_STRICT=false
       fi
     - export CLEAN_BUILD=true
-    - export BASE_OS=debian
+    - export BASE_OS=rhel7
     - make prod
-    - echo "export BUILD_IMG_TAG=$BUILD_IMG_TAG;" >> shared-vars.sh 
+    - echo "export BUILD_IMG_TAG=$BUILD_IMG_TAG;" >> shared-vars.sh
     - |
       if [ "$DOCKER_READY" ]; then
-      
-        docker tag "$IMG_TAG" "$BASE_PUSH_TARGET" 
+        docker push $IMG_TAG
+        docker tag "$IMG_TAG" "$BASE_PUSH_TARGET"
         docker push "$BASE_PUSH_TARGET:latest"
         docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_STAMP"
         docker push "$BASE_PUSH_TARGET:$BUILD_STAMP"
-                
+
         docker tag "$IMG_TAG" "$BASE_PUSH_TARGET:$BUILD_VERSION"
         docker push "$BASE_PUSH_TARGET:$BUILD_VERSION"
-        
+
         docker tag "$IMG_TAG" "$BUILD_IMG_TAG"
-        docker push "$BUILD_IMG_TAG" 
+        docker push "$BUILD_IMG_TAG"
       fi
-OSCP-Cluster-Mode:
-  tags: 
-    - oscp
-
-  stage: Test
-  before_script:
-    - source shared-vars.sh   
-  only:
-    - schedules
-  allow_failure: true
-  script:
-    - |
-      SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
-      sed -i  "/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\"," ~/testenv_symbols/testenv_symbols.json
-      cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags="${INCLUDE_TAGS}" --orchestration=openshift --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags="${EXCLUDE_TAGS}";
-      if [ $(cat $HOME/test_results/${SESSION}-cluster/${SESSION}-cluster-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Test failed"; exit 1; fi 
-OSCP-Nodeport-Mode:
-  tags: 
-    - oscp
-
-  stage: Test
-  before_script:
-    - source shared-vars.sh   
-  only:
-    - schedules
-  allow_failure: true
-  script:
-    - |
-      SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
-      sed -i  "/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\"," ~/testenv_symbols/testenv_symbols.json
-      cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags="${INCLUDE_TAGS}" --orchestration=openshift --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags="${EXCLUDE_TAGS}" ;
-      if [ $(cat $HOME/test_results/${SESSION}-nodeport/${SESSION}-nodeport-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Test failed"; exit 1; fi 
-K8s-Cluster-Mode:
-  tags: 
-    - k8s
-  stage: Test
-  before_script:
-    - source shared-vars.sh 
-  only:
-    - schedules
-  allow_failure: true
-  script:
-    - |
-      SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
-      sed -i  "/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\"," ~/testenv_symbols/testenv_symbols.json
-      cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-cluster --include-tags="${INCLUDE_TAGS}" --orchestration=k8s --pool-mode=cluster --namespace-mode=${NAMESPACE_MODE} --exclude-tags="${EXCLUDE_TAGS}";
-      if [ $(cat $HOME/test_results/${SESSION}-cluster/${SESSION}-cluster-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Test failed"; exit 1; fi 
-K8s-Nodeport-Mode:
-  tags: 
-    - k8s
-  stage: Test
-  before_script:
-    - source shared-vars.sh 
-  only:
-    - schedules
-  allow_failure: true
-  script:
-    - |
-      SESSION=$(echo $BUILD_IMG_TAG | awk -F ':' '{print $2}')
-      sed -i  "/bigip_controller_img/c\    \"bigip_controller_img\": \"${BUILD_IMG_TAG}\"," ~/testenv_symbols/testenv_symbols.json
-      cd $HOME/${TEST_DIR} && scripts/run_systests.sh   --project=bigip_ctlr --session=${SESSION}-nodeport --include-tags="${INCLUDE_TAGS}" --orchestration=k8s --pool-mode=nodeport --namespace-mode=${NAMESPACE_MODE} --exclude-tags="${EXCLUDE_TAGS}";
-      if [ $(cat $HOME/test_results/${SESSION}-nodeport/${SESSION}-nodeport-sessionresult.json | jq -r '.result') != "pass" ]; then echo "Test failed"; exit 1; fi 
-

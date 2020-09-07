@@ -275,13 +275,20 @@ func (slice ProfileRefs) Swap(i, j int) {
 // Return the required ports for VS (depending on sslRedirect/allowHttp vals)
 func (crMgr *CRManager) virtualPorts(vs *cisapiv1.VirtualServer) []portStruct {
 
-	// TODO: Support Custom ports
-	const DEFAULT_HTTP_PORT int32 = 80
-	const DEFAULT_HTTPS_PORT int32 = 443
 	var httpPort int32
 	var httpsPort int32
-	httpPort = DEFAULT_HTTP_PORT
-	httpsPort = DEFAULT_HTTPS_PORT
+
+	if vs.Spec.VirtualServerHTTPPort == 0 {
+		httpPort = 80
+	} else {
+		httpPort = vs.Spec.VirtualServerHTTPPort
+	}
+
+	if vs.Spec.VirtualServerHTTPSPort == 0 {
+		httpsPort = 443
+	} else {
+		httpsPort = vs.Spec.VirtualServerHTTPSPort
+	}
 
 	http := portStruct{
 		protocol: "http",
@@ -431,7 +438,12 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 	}
 
 	var httpsPort int32
-	httpsPort = DEFAULT_HTTPS_PORT
+
+	if vs.Spec.VirtualServerHTTPSPort == 0 {
+		httpsPort = 443
+	} else {
+		httpsPort = vs.Spec.VirtualServerHTTPSPort
+	}
 
 	// If we are processing the HTTPS server,
 	// then we don't need a redirect policy, only profiles

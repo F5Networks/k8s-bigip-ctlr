@@ -344,7 +344,7 @@ func formatMonitorName(namespace, svc string, monitorType string) string {
 func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.VirtualServer,
-) {
+) error {
 
 	var httpPort int32
 	httpPort = DEFAULT_HTTP_PORT
@@ -408,17 +408,20 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	if len(vs.Spec.TLSProfileName) > 0 &&
 		rsCfg.Virtual.VirtualAddress.Port == httpPort &&
 		(vs.Spec.HTTPTraffic == TLSNoInsecure || vs.Spec.HTTPTraffic == TLSRedirectInsecure) {
-		return
+		return nil
 	}
 
 	rules = processVirtualServerRules(vs)
+	if rules == nil {
+		return fmt.Errorf("failed to create LTM Rules")
+	}
 
 	// Update the existing policy with rules
 	// Otherwise create new policy and set
 	if policy := rsCfg.FindPolicy(PolicyControlForward); policy != nil {
 		policy.AddRules(rules)
 		rsCfg.SetPolicy(*policy)
-		return
+		return nil
 	}
 
 	policyName := rsCfg.Virtual.Name + "_" + vs.Spec.Host + "_policy"
@@ -426,6 +429,8 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	if plcy != nil {
 		rsCfg.SetPolicy(*plcy)
 	}
+
+	return nil
 }
 
 // handleVirtualServerTLS handles TLS configuration for the Virtual Server resource

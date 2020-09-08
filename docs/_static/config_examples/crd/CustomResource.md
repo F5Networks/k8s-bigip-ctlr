@@ -120,6 +120,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | pools | List of pool | required | NA | List of BIG-IP Pool members |
 | virtualServerAddress | String | required | NA | IP Address of BIG-IP Virtual Server |
 | TLSProfile | String | optional | NA | Describes the TLS configuration for BIG-IP Virtual Server |
+| appRootRewrite | String | optional | NA |  Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path |
 
 **Pool Components**
 
@@ -130,6 +131,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | nodeMemberLabel | String | optional | NA | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode |
 | servicePort | String | required | NA | Port to access Service |
 | monitor | String | Optional | NA | Health Monitor to check the health of Pool Members |
+| rewrite | String | Optional | NA | Rewrites the path in the HTTP Header while submitting the request to Server in the pool |
 
 **Health Monitor**
 

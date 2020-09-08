@@ -19,6 +19,7 @@ package crmanager
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
@@ -362,6 +363,23 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer
 
 }
 
+func getRewriteMap(rewriteRecords []string, defaultKey string) map[string]string {
+	rwMap := make(map[string]string)
+	for _, rec := range rewriteRecords {
+		kvPair := strings.Split(rec, "=")
+		if len(kvPair) == 2 {
+			if kvPair[0] != "" && kvPair[1] != "" {
+				rwMap[kvPair[0]] = kvPair[1]
+			}
+		} else if rec[0] == '/' {
+			rwMap[defaultKey] = defaultKey + rec
+		} else {
+			rwMap[defaultKey] = rec
+		}
+	}
+	return rwMap
+}
+
 // syncVirtualServers takes the Virtual Server as input and processes all
 // associated VirtualServers to create a resource config(Internal DataStructure)
 // or to update if exists already.
@@ -396,11 +414,12 @@ func (crMgr *CRManager) syncVirtualServers(
 	// Prepare list of associated VirtualServers to be processed
 	// In the event of deletion, exclude the deleted VirtualServer
 	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
-	for _, v := range allVirtuals {
-		if v.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress &&
-			v.Spec.Host == virtual.Spec.Host &&
-			!(isVSDeleted && v.ObjectMeta.Name == virtual.ObjectMeta.Name) {
-			virtuals = append(virtuals, v)
+	for _, vrt := range allVirtuals {
+		if vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress &&
+			vrt.Spec.Host == virtual.Spec.Host &&
+			!(isVSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
+
+			virtuals = append(virtuals, vrt)
 		}
 	}
 
@@ -437,10 +456,14 @@ func (crMgr *CRManager) syncVirtualServers(
 		for _, vrt := range virtuals {
 			log.Debugf("Processing Virtual Server %s for port %v",
 				vrt.ObjectMeta.Name, portStruct.port)
-			crMgr.prepareRSConfigFromVirtualServer(
+			err := crMgr.prepareRSConfigFromVirtualServer(
 				rsCfg,
 				vrt,
 			)
+			if err != nil {
+				processingError = true
+				break
+			}
 
 			if len(vrt.Spec.TLSProfileName) != 0 {
 				// Handle TLS configuration for VirtualServer Custom Resource

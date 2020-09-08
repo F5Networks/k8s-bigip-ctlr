@@ -35,9 +35,29 @@ func processVirtualServerRules(
 ) *Rules {
 	rlMap := make(ruleMap)
 	wildcards := make(ruleMap)
+	var redirects []*Rule
+
+	appRoot := "/"
+
+	if vs.Spec.RewriteAppRoot != "" {
+		ruleName := formatVirtualServerRuleName(vs.Spec.Host, "redirectto", vs.Spec.RewriteAppRoot)
+		rl, err := createRedirectRule(vs.Spec.Host+appRoot, vs.Spec.RewriteAppRoot, ruleName)
+		if nil != err {
+			log.Errorf("Error configuring redirect rule: %v", err)
+			return nil
+		}
+		redirects = append(redirects, rl)
+
+	}
 
 	for _, pl := range vs.Spec.Pools {
 		uri := vs.Spec.Host + pl.Path
+
+		path := pl.Path
+		if pl.Path == "/" {
+			uri = vs.Spec.Host + vs.Spec.RewriteAppRoot
+			path = vs.Spec.RewriteAppRoot
+		}
 		// Service cannot be empty
 		if pl.Service == "" {
 			continue
@@ -48,17 +68,49 @@ func processVirtualServerRules(
 			pl.ServicePort,
 			pl.NodeMemberLabel,
 		)
-		ruleName := formatVirtualServerRuleName(vs.Spec.Host, pl.Path, poolName)
+		ruleName := formatVirtualServerRuleName(vs.Spec.Host, path, poolName)
 		rl, err := createRule(uri, poolName, ruleName)
 		if nil != err {
-			log.Warningf("Error configuring rule: %v", err)
+			log.Errorf("Error configuring rule: %v", err)
 			return nil
 		}
-		if true == strings.HasPrefix(uri, "*.") {
+		if pl.Rewrite != "" {
+			rewriteActions, err := getRewriteActions(
+				path,
+				pl.Rewrite,
+				len(rl.Actions),
+			)
+			if nil != err {
+				log.Errorf("Error configuring rule: %v", err)
+				return nil
+			}
+			rl.Actions = append(rl.Actions, rewriteActions...)
+		}
+
+		if pl.Path == "/" {
+			redirects = append(redirects, rl)
+		} else if true == strings.HasPrefix(uri, "*.") {
 			wildcards[uri] = rl
 		} else {
 			rlMap[uri] = rl
 		}
+	}
+
+	if vs.Spec.RewriteAppRoot != "" && len(redirects) != 2 {
+		log.Error("AppRoot path not found for rewriting")
+		return nil
+	}
+
+	if rlMap[vs.Spec.Host] == nil && len(redirects) == 2 {
+		rl := &Rule{
+			Name:    formatVirtualServerRuleName(vs.Spec.Host, "", redirects[1].Actions[0].Pool),
+			FullURI: vs.Spec.Host,
+			Actions: redirects[1].Actions,
+			Conditions: []*condition{
+				redirects[1].Conditions[0],
+			},
+		}
+		redirects = append(redirects, rl)
 	}
 
 	var wg sync.WaitGroup
@@ -87,6 +139,7 @@ func processVirtualServerRules(
 	rls = append(rls, w...)
 
 	sort.Sort(rls)
+	rls = append(redirects, rls...)
 	return &rls
 }
 
@@ -194,6 +247,98 @@ func createPolicy(rls Rules, policyName, partition string) *Policy {
 	return &plcy
 }
 
+func getRewriteActions(path, rwPath string, actionNameIndex int) ([]*action, error) {
+
+	if rwPath == "" {
+		return nil, fmt.Errorf("Empty Path")
+	}
+
+	var actions []*action
+
+	if rwPath != "" {
+		if path != "" {
+			actions = append(actions, &action{
+				Name:    fmt.Sprintf("%d", actionNameIndex),
+				HTTPURI: true,
+				Path:    path,
+				Replace: true,
+				Request: true,
+				Value:   rwPath,
+			})
+		} else {
+			actions = append(actions, &action{
+				Name:    fmt.Sprintf("%d", actionNameIndex),
+				HTTPURI: true,
+				Replace: true,
+				Request: true,
+				Value:   rwPath,
+			})
+		}
+	}
+	return actions, nil
+}
+
+func createRedirectRule(source, target, ruleName string) (*Rule, error) {
+	_u := "scheme://" + source
+	_u = strings.TrimSuffix(_u, "/")
+	u, err := url.Parse(_u)
+	if nil != err {
+		return nil, err
+	}
+
+	redirectAction := action{
+		Name:      "0",
+		HttpReply: true,
+		Location:  target,
+		Redirect:  true,
+		Request:   true,
+	}
+
+	var conds []*condition
+	if true == strings.HasPrefix(source, "*.") {
+		conds = append(conds, &condition{
+			EndsWith: true,
+			Host:     true,
+			HTTPHost: true,
+			Name:     "0",
+			Index:    0,
+			Request:  true,
+			Values:   []string{strings.TrimPrefix(u.Host, "*")},
+		})
+	} else if u.Host != "" {
+		conds = append(conds, &condition{
+			Equals:   true,
+			Host:     true,
+			HTTPHost: true,
+			Name:     "0",
+			Index:    0,
+			Request:  true,
+			Values:   []string{u.Host},
+		})
+	}
+	rootCondition := &condition{
+		Name:    "0",
+		Equals:  true,
+		HTTPURI: true,
+		Index:   0,
+		Path:    true,
+		Request: true,
+		Values:  []string{"/"},
+	}
+	conds = append(conds, rootCondition)
+
+	rl := Rule{
+		Name:       ruleName,
+		FullURI:    source,
+		Ordinal:    0,
+		Actions:    []*action{&redirectAction},
+		Conditions: conds,
+	}
+
+	log.Debugf("Configured rule: %v", rl)
+	return &rl, nil
+}
+
 func (rules Rules) Len() int {
 	return len(rules)
 }
@@ -210,6 +355,20 @@ func (rules Rules) Less(i, j int) bool {
 
 	// Strategy 2: Rule with highest priority sequence of condition types
 	// TODO
+	pathExists := func(rule *Rule) bool {
+		for _, cnd := range rule.Conditions {
+			if cnd.Path {
+				return true
+			}
+		}
+		return false
+	}
+	if pathExists(ruleI) {
+		return true
+	}
+	if pathExists(ruleJ) {
+		return true
+	}
 
 	// Strategy 3: "equal" match type takes more priority than others
 	// such as "starts-with", "ends-with", "contains"
@@ -220,7 +379,7 @@ func (rules Rules) Less(i, j int) bool {
 			eqCount  int
 			endCount int
 		)
-		for _, cnd := range ruleI.Conditions {
+		for _, cnd := range rule.Conditions {
 			if cnd.Equals {
 				eqCount++
 			}

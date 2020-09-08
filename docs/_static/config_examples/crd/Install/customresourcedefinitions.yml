@@ -32,6 +32,9 @@ spec:
                   type: string
                 tlsProfileName:
                   type: string
+                appRootRewrite:
+                  type: string
+                  pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
                 pools:
                   type: array
                   items:
@@ -50,6 +53,9 @@ spec:
                         type: integer
                         minimum: 1
                         maximum: 65535
+                      rewrite:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
                       monitor:
                         type: object
                         properties:

@@ -514,9 +514,11 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 			svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			// TODO: Instead of looping over Spec Ports, get the port from the pool itself
 			for _, portSpec := range svc.Spec.Ports {
-				rsCfg.MetaData.Active = true
-				rsCfg.Pools[index].Members =
-					crMgr.getEndpointsForNodePort(portSpec.NodePort, pool.NodeMemberLabel)
+				if portSpec.Port == pool.ServicePort {
+					rsCfg.MetaData.Active = true
+					rsCfg.Pools[index].Members =
+						crMgr.getEndpointsForNodePort(portSpec.NodePort, pool.NodeMemberLabel)
+				}
 			}
 		} else {
 			log.Debugf("Requested service backend %s not of NodePort or LoadBalancer type",
@@ -563,10 +565,12 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 
 		// TODO: Instead of looping over Spec Ports, get the port from the pool itself
 		for _, portSpec := range svc.Spec.Ports {
-			ipPorts := crMgr.getEndpointsForCluster(portSpec.Name, eps)
+			ipPorts := crMgr.getEndpointsForCluster(portSpec.Name, eps, pool.ServicePort)
 			log.Debugf("Found endpoints for backend %+v: %v", svcKey, ipPorts)
 			rsCfg.MetaData.Active = true
-			rsCfg.Pools[index].Members = ipPorts
+			if len(ipPorts) > 0 {
+				rsCfg.Pools[index].Members = ipPorts
+			}
 		}
 	}
 }
@@ -599,6 +603,7 @@ func (crMgr *CRManager) getEndpointsForNodePort(
 func (crMgr *CRManager) getEndpointsForCluster(
 	portName string,
 	eps *v1.Endpoints,
+	servicePort int32,
 ) []Member {
 	nodes := crMgr.getNodesFromCache()
 	var members []Member
@@ -609,7 +614,7 @@ func (crMgr *CRManager) getEndpointsForCluster(
 
 	for _, subset := range eps.Subsets {
 		for _, p := range subset.Ports {
-			if portName == p.Name {
+			if portName == p.Name && servicePort == p.Port {
 				for _, addr := range subset.Addresses {
 					if containsNode(nodes, *addr.NodeName) {
 						member := Member{

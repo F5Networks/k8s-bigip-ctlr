@@ -119,6 +119,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | host | String | required | NA |  Virtual Host |
 | pools | List of pool | required | NA | List of BIG-IP Pool members |
 | virtualServerAddress | String | required | NA | IP Address of BIG-IP Virtual Server |
+| virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
 | TLSProfile | String | optional | NA | Describes the TLS configuration for BIG-IP Virtual Server |
 | appRootRewrite | String | optional | NA |  Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path |
 

@@ -435,10 +435,18 @@ func (crMgr *CRManager) syncVirtualServers(
 
 	for _, portStruct := range portStructs {
 		// TODO: Add Route Domain
-		rsName := formatVirtualServerName(
-			virtual.Spec.VirtualServerAddress,
-			portStruct.port,
-		)
+		var rsName string
+		if virtual.Spec.VirtualServerName != "" {
+			rsName = formatCustomVirtualServerName(
+				virtual.Spec.VirtualServerName,
+				portStruct.port,
+			)
+		} else {
+			rsName = formatVirtualServerName(
+				virtual.Spec.VirtualServerAddress,
+				portStruct.port,
+			)
+		}
 		if len(virtuals) == 0 {
 			crMgr.resources.deleteVirtualServer(rsName)
 			continue

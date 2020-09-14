@@ -322,6 +322,14 @@ func formatVirtualServerName(ip string, port int32) string {
 	return fmt.Sprintf("crd_%s_%d", ip, port)
 }
 
+// format the virtual server name for an VirtualServer
+func formatCustomVirtualServerName(name string, port int32) string {
+	// Replace special characters ". : /"
+	// with "-" and "%" with ".", for naming purposes
+	name = AS3NameFormatter(name)
+	return fmt.Sprintf("%s_%d", name, port)
+}
+
 // format the pool name for an VirtualServer
 func formatVirtualServerPoolName(namespace, svc string, port int32, nodeMemberLabel string) string {
 	servicePort := fmt.Sprint(port)

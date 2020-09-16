@@ -798,15 +798,16 @@ func (crMgr *CRManager) sslPassthroughIRule() string {
 					}
                 }
                 set ab_class "/%[1]s/ab_deployment_dg"
-                if { not [class exists $ab_class] } {
-                    # Handle requests sent to unknown hosts.
-                    # For valid hosts, Send the request to respective pool.
-                    if { not [info exists dflt_pool] } then {
-                        log local0.debug "Unable to find pool for $servername_lower"
-                    } else {
-                        pool $dflt_pool
-                    }
+                # Handle requests sent to unknown hosts.
+                # For valid hosts, Send the request to respective pool.
+                if { not [info exists dflt_pool] } then {
+                	 reject 
+                	 event disable all 
+                	 return 
                 } else {
+                	pool $dflt_pool
+                }
+                if { [class exists $ab_class] } {
                     set selected_pool [call select_ab_pool $servername_lower $dflt_pool]
                     if { $selected_pool == "" } then {
                         log local0.debug "Unable to find pool for $servername_lower"

@@ -18,6 +18,14 @@ limitations under the License.
 
 package v1
 
+// NginxCisConnectorListerExpansion allows custom methods to be added to
+// NginxCisConnectorLister.
+type NginxCisConnectorListerExpansion interface{}
+
+// NginxCisConnectorNamespaceListerExpansion allows custom methods to be added to
+// NginxCisConnectorNamespaceLister.
+type NginxCisConnectorNamespaceListerExpansion interface{}
+
 // TLSProfileListerExpansion allows custom methods to be added to
 // TLSProfileLister.
 type TLSProfileListerExpansion interface{}

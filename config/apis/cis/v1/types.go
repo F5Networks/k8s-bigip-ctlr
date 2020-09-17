@@ -94,3 +94,36 @@ type TLSProfileList struct {
 
 	Items []TLSProfile `json:"items"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// NginxCisConnector is a Custom Resource for KIC Ingress
+type NginxCisConnector struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   NginxCisConnectorSpec   `json:"spec"`
+	Status NginxCisConnectorStatus `json:"status"`
+}
+
+// NginxCisConnectorSpec is Spec for NginxCisConnector
+type NginxCisConnectorSpec struct {
+	VirtualServerAddress string                `json:"virtualServerAddress"`
+	Selector             *metav1.LabelSelector `json:"selector"`
+}
+
+// NginxCisConnectorStatus is Status for NginxCisConnector
+type NginxCisConnectorStatus struct {
+	ProcessedByCIS bool `json:"processedByCIS"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// NginxCisConnectorList is list of NginxCisConnector
+type NginxCisConnectorList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []NginxCisConnector `json:"items"`
+}

@@ -343,8 +343,9 @@ func formatVirtualServerPoolName(namespace, svc string, port int32, nodeMemberLa
 }
 
 // format the monitor name for an VirtualServer pool
-func formatMonitorName(namespace, svc string, monitorType string) string {
-	monitorName := fmt.Sprintf("%s_%s_%s", namespace, svc, monitorType)
+func formatMonitorName(namespace, svc string, monitorType string, port int32) string {
+	servicePort := fmt.Sprint(port)
+	monitorName := fmt.Sprintf("%s_%s_%s_%s", namespace, svc, monitorType, servicePort)
 	return AS3NameFormatter(monitorName)
 }
 
@@ -389,9 +390,9 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 
 		if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
 			pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(DEFAULT_PARTITION,
-				formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type)))
+				formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort)))
 			monitor := Monitor{
-				Name:      formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type),
+				Name:      formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort),
 				Partition: rsCfg.Virtual.Partition,
 				Type:      pl.Monitor.Type,
 				Interval:  pl.Monitor.Interval,

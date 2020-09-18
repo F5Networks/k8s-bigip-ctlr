@@ -116,21 +116,21 @@ different terminations(for same domain), one with edge and another with re-encry
 
 | PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
 | ------ | ------ | ------ | ------ | ------ |
-| host | String | required | NA |  Virtual Host |
-| pools | List of pool | required | NA | List of BIG-IP Pool members |
-| virtualServerAddress | String | required | NA | IP Address of BIG-IP Virtual Server |
+| host | String | Required | NA |  Virtual Host |
+| pools | List of pool | Required | NA | List of BIG-IP Pool members |
+| virtualServerAddress | String | Required | NA | IP Address of BIG-IP Virtual Server |
 | virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
-| TLSProfile | String | optional | NA | Describes the TLS configuration for BIG-IP Virtual Server |
-| appRootRewrite | String | optional | NA |  Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path |
+| TLSProfile | String | Optional | NA | Describes the TLS configuration for BIG-IP Virtual Server |
+| appRootRewrite | String | Optional | NA |  Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path |
 
 **Pool Components**
 
 | PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
 | ------ | ------ | ------ | ------ | ------ |
-| path | String | required | NA |  Path to access the service |
-| service | String | required | NA | Service deployed in kubernetes cluster |
-| nodeMemberLabel | String | optional | NA | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode |
-| servicePort | String | required | NA | Port to access Service |
+| path | String | Required | NA |  Path to access the service |
+| service | String | Required | NA | Service deployed in kubernetes cluster |
+| nodeMemberLabel | String | Optional | NA | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode |
+| servicePort | String | Required | NA | Port to access Service |
 | monitor | String | Optional | NA | Health Monitor to check the health of Pool Members |
 | rewrite | String | Optional | NA | Rewrites the path in the HTTP Header while submitting the request to Server in the pool |
 
@@ -138,14 +138,12 @@ different terminations(for same domain), one with edge and another with re-encry
 
 | PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
 | ------ | ------ | ------ | ------ | ------ |
-| type | String | required | NA |  http or https |
-| send | String | optional | “GET /rn” | HTTP request string to send. |
-| recv | String | optional | NA | String or RegEx pattern to match in first 5,120 bytes of backend response. |
-| interval | Int | required | 5 | Seconds between health queries |
+| type | String | Required | NA |  http or https |
+| send | String | Required | “GET /rn” | HTTP request string to send. |
+| recv | String | Optional | NA | String or RegEx pattern to match in first 5,120 bytes of backend response. |
+| interval | Int | Required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
    
- **Note: Health Monitor associated with the first path will be considere if multiple path has same backend** 
-
 ## TLSProfile
    * Schema Validation
      - OpenAPI Schema Validation
@@ -157,10 +155,10 @@ different terminations(for same domain), one with edge and another with re-encry
 
 | PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
 | ------ | ------ | ------ | ------ | ------ |
-| termination | String | required | NA |  Termination on BIG-IP Virtual Server. Allowed options are [edge, reencrypt, passthrough] |
-| clientSSL | String | required | NA | ClientSSL Profile on the BIG-IP. Example /Common/clientssl |
-| serverSSL | String | optional | NA | ServerSSL Profile on the BIG-IP. Example /Common/serverssl |
-| reference | String | required | NA | Describes the location of profile, BIG-IP or k8s Secrets. We currently support BIG-IP profiles only |
+| termination | String | Required | NA |  Termination on BIG-IP Virtual Server. Allowed options are [edge, reencrypt, passthrough] |
+| clientSSL | String | Required | NA | ClientSSL Profile on the BIG-IP. Example /Common/clientssl |
+| serverSSL | String | Optional | NA | ServerSSL Profile on the BIG-IP. Example /Common/serverssl |
+| reference | String | Required | NA | Describes the location of profile, BIG-IP or k8s Secrets. We currently support BIG-IP profiles only |
 
 ## Prerequisites
 Since CIS is using the AS3 declarative API we need the AS3 extension installed on BIG-IP. Follow the link to install AS3 3.18 is required for CIS 2.0.

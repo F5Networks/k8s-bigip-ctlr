@@ -471,7 +471,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 
 		// TLSProfile Object
 		tlsName := vs.Spec.TLSProfileName
-		tls := crMgr.getTLSProfileForVirtualServer(vs)
+		tls := crMgr.getTLSProfileForVirtualServer(vs, vsNamespace)
 		if tls == nil {
 			return false
 		}

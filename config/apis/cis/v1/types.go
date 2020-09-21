@@ -27,6 +27,7 @@ type VirtualServerSpec struct {
 	TLSProfileName         string `json:"tlsProfileName"`
 	HTTPTraffic            string `json:"httpTraffic,omitempty"`
 	SNAT                   string `json:"snat,omitempty"`
+	WAF                    string `json:"waf,omitempty"`
 	RewriteAppRoot         string `json:"rewriteAppRoot,omitempty"`
 }
 

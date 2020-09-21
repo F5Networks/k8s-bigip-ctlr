@@ -35,6 +35,9 @@ spec:
                 appRootRewrite:
                   type: string
                   pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                waf:
+                  type: string
+                  pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
                 pools:
                   type: array
                   items:

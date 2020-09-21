@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -266,4 +267,69 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
 	return postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
+}
+
+// GetBigipAS3Version ...
+func (postMgr *PostManager) GetBigipAS3Version() error {
+	url := postMgr.getAS3VersionURL()
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Errorf("Creating new HTTP request error: %v ", err)
+		return err
+	}
+
+	log.Infof("Posting GET BIGIP AS3 Version request on %v", url)
+	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+
+	httpResp, responseMap := postMgr.httpReq(req)
+	if httpResp == nil || responseMap == nil {
+		return fmt.Errorf("Internal Error")
+	}
+
+	switch httpResp.StatusCode {
+	case http.StatusOK:
+		if responseMap["version"] != nil {
+			as3VersionStr := responseMap["version"].(string)
+			as3versionreleaseStr := responseMap["release"].(string)
+			log.Infof("BIGIP is serving with AS3 version : %v ", as3VersionStr+"-"+as3versionreleaseStr)
+			return nil
+		}
+	case http.StatusNotFound:
+		if int(responseMap["code"].(float64)) == http.StatusNotFound {
+			return fmt.Errorf("AS3 RPM is not installed on BIGIP,"+
+				" Error response from BIGIP with status code %v", httpResp.StatusCode)
+		}
+	}
+	return fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+}
+
+func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[string]interface{}) {
+	httpResp, err := postMgr.httpClient.Do(request)
+	if err != nil {
+		log.Errorf("REST call error: %v ", err)
+		return nil, nil
+	}
+	defer httpResp.Body.Close()
+
+	body, err := ioutil.ReadAll(httpResp.Body)
+	if err != nil {
+		log.Errorf("REST call response error: %v ", err)
+		return nil, nil
+	}
+	var response map[string]interface{}
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		log.Errorf("Response body unmarshal failed: %v\n", err)
+		if postMgr.LogResponse {
+			log.Errorf("Raw response from Big-IP: %v", string(body))
+		}
+		return nil, nil
+	}
+	return httpResp, response
+}
+
+func (postMgr *PostManager) getAS3VersionURL() string {
+	apiURL := postMgr.BIGIPURL + "/mgmt/shared/appsvcs/info"
+	return apiURL
+
 }

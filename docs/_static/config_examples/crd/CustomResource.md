@@ -64,6 +64,8 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
     - coffee.example.com
 ```
 
+**Known Issue: CIS fails to read TLSProfile Intermittently, We are working with Kubernetes to fix this [issue](https://github.com/kubernetes/code-generator/issues/116)**
+
 ## VirtualServer with TLSProfile
 
 * VirtualServer with TLSProfile is used to specify the TLS termination. TLS termination relies on SNI. Any non-SNI traffic received on port 443 may result in connection issues. Below example shows how to attach a TLSProfile to a VirtualServer.

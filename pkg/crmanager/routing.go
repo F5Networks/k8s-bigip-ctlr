@@ -532,7 +532,7 @@ func (crMgr *CRManager) handleVSDeleteForDataGroups(
 		return
 	}
 	namespace := virtual.ObjectMeta.Namespace
-	tls := crMgr.getTLSProfileForVirtualServer(virtual)
+	tls := crMgr.getTLSProfileForVirtualServer(virtual, namespace)
 	if tls == nil {
 		return
 	}

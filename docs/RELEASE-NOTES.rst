@@ -1,6 +1,18 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+2.2.0
+-------------
+Added Functionality
+`````````````````````
+
+Bug Fixes
+`````````
+
+Limitations
+```````````
+* CIS fails to read TLSProfile Intermittently, We are working with Kubernetes to fix this `issue <https://github.com/kubernetes/code-generator/issues/116>`_.
+
 2.1.1
 -------------
 Added Functionality

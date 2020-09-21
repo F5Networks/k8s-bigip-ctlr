@@ -325,9 +325,10 @@ func getVirtualServersForTLSProfile(allVirtuals []*cisapiv1.VirtualServer,
 	return result
 }
 
-func (crMgr *CRManager) getTLSProfileForVirtualServer(vs *cisapiv1.VirtualServer) *cisapiv1.TLSProfile {
+func (crMgr *CRManager) getTLSProfileForVirtualServer(
+	vs *cisapiv1.VirtualServer,
+	namespace string) *cisapiv1.TLSProfile {
 	tlsName := vs.Spec.TLSProfileName
-	namespace := vs.ObjectMeta.Namespace
 	tlsKey := fmt.Sprintf("%s/%s", namespace, tlsName)
 
 	// Initialize CustomResource Informer for required namespace

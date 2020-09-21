@@ -30,13 +30,17 @@ import (
 
 // start the VirtualServer informer
 func (crInfr *CRInformer) start() {
-	log.Infof("Starting VirtualServer Informer")
 	if crInfr.vsInformer != nil {
+		log.Infof("Starting VirtualServer Informer")
 		go crInfr.vsInformer.Run(crInfr.stopCh)
 	}
-	log.Infof("Starting TLSProfile Informer")
 	if crInfr.tsInformer != nil {
+		log.Infof("Starting TLSProfile Informer")
 		go crInfr.tsInformer.Run(crInfr.stopCh)
+	}
+	if crInfr.nccInformer != nil {
+		log.Infof("Starting NginxCisConnector Informer")
+		go crInfr.nccInformer.Run(crInfr.stopCh)
 	}
 	if crInfr.svcInformer != nil {
 		go crInfr.svcInformer.Run(crInfr.stopCh)
@@ -97,20 +101,6 @@ func (crMgr *CRManager) newInformer(
 	crInf := &CRInformer{
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
-		vsInformer: cisinfv1.NewFilteredVirtualServerInformer(
-			crMgr.kubeCRClient,
-			namespace,
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-			crOptions,
-		),
-		tsInformer: cisinfv1.NewFilteredTLSProfileInformer(
-			crMgr.kubeCRClient,
-			namespace,
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-			crOptions,
-		),
 		svcInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				restClientv1,
@@ -135,48 +125,90 @@ func (crMgr *CRManager) newInformer(
 		),
 	}
 
+	if crMgr.NginxCISConnectMode {
+		crInf.nccInformer = cisinfv1.NewFilteredNginxCisConnectorInformer(
+			crMgr.kubeCRClient,
+			namespace,
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			everything,
+		)
+	} else {
+		crInf.vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
+			crMgr.kubeCRClient,
+			namespace,
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			crOptions,
+		)
+		crInf.tsInformer = cisinfv1.NewFilteredTLSProfileInformer(
+			crMgr.kubeCRClient,
+			namespace,
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			crOptions,
+		)
+	}
+
 	return crInf
 }
 
 func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
+	if crInf.vsInformer != nil {
+		crInf.vsInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { crMgr.enqueueVirtualServer(obj) },
+				UpdateFunc: func(old, cur interface{}) { crMgr.enqueueUpdatedVirtualServer(old, cur) },
+				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedVirtualServer(obj) },
+			},
+		)
+	}
 
-	crInf.vsInformer.AddEventHandler(
-		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { crMgr.enqueueVirtualServer(obj) },
-			UpdateFunc: func(old, cur interface{}) { crMgr.enqueueUpdatedVirtualServer(old, cur) },
-			DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedVirtualServer(obj) },
-		},
-	)
+	if crInf.tsInformer != nil {
+		crInf.tsInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				// AddFunc:    func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
+				UpdateFunc: func(old, cur interface{}) { crMgr.enqueueTLSServer(cur) },
+				// DeleteFunc: func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
+			},
+		)
+	}
 
-	crInf.tsInformer.AddEventHandler(
-		&cache.ResourceEventHandlerFuncs{
-			// AddFunc:    func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
-			UpdateFunc: func(old, cur interface{}) { crMgr.enqueueTLSServer(cur) },
-			// DeleteFunc: func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
-		},
-	)
+	if crInf.nccInformer != nil {
+		crInf.nccInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { crMgr.enqueueNginxCisConnector(obj) },
+				UpdateFunc: func(oldObj, newObj interface{}) { crMgr.enqueueUpdatedNginxCisConnector(oldObj, newObj) },
+				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedNginxCisConnector(obj) },
+			},
+		)
+	}
 
-	crInf.svcInformer.AddEventHandler(
-		&cache.ResourceEventHandlerFuncs{
-			// Ignore AddFunc for service as we dont bother about services until they are
-			// mapped to VirtualServer. Any new service added and mapped to a VirtualServer
-			// will be handled in the VirtualServer Informer AddFunc.
-			// AddFunc:    func(obj interface{}) { crMgr.enqueueService(obj) },
-			UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueService(cur) },
-			DeleteFunc: func(obj interface{}) { crMgr.enqueueService(obj) },
-		},
-	)
+	if crInf.svcInformer != nil {
+		crInf.svcInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				// Ignore AddFunc for service as we dont bother about services until they are
+				// mapped to VirtualServer. Any new service added and mapped to a VirtualServer
+				// will be handled in the VirtualServer Informer AddFunc.
+				// AddFunc:    func(obj interface{}) { crMgr.enqueueService(obj) },
+				UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueService(cur) },
+				DeleteFunc: func(obj interface{}) { crMgr.enqueueService(obj) },
+			},
+		)
+	}
 
-	crInf.epsInformer.AddEventHandler(
-		&cache.ResourceEventHandlerFuncs{
-			// Ignore AddFunc for endpoint as we dont bother about endpoints until they are
-			// mapped to VirtualServer. Any new endpoint added and mapped to a Service
-			// will be handled in the Service Informer AddFunc.
-			// AddFunc:    func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
-			UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueEndpoints(cur) },
-			DeleteFunc: func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
-		},
-	)
+	if crInf.epsInformer != nil {
+		crInf.epsInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				// Ignore AddFunc for endpoint as we dont bother about endpoints until they are
+				// mapped to VirtualServer. Any new endpoint added and mapped to a Service
+				// will be handled in the Service Informer AddFunc.
+				// AddFunc:    func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
+				UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueEndpoints(cur) },
+				DeleteFunc: func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
+			},
+		)
+	}
 }
 
 func (crMgr *CRManager) getNamespaceInformer(
@@ -254,6 +286,60 @@ func (crMgr *CRManager) enqueueTLSServer(obj interface{}) {
 		kind:      TLSProfile,
 		rscName:   tls.ObjectMeta.Name,
 		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueNginxCisConnector(obj interface{}) {
+	ncc := obj.(*cisapiv1.NginxCisConnector)
+	log.Infof("Enqueueing NginxCisConnector: %v", ncc)
+	key := &rqKey{
+		namespace: ncc.ObjectMeta.Namespace,
+		kind:      NginxCisConnector,
+		rscName:   ncc.ObjectMeta.Name,
+		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueDeletedNginxCisConnector(obj interface{}) {
+	ncc := obj.(*cisapiv1.NginxCisConnector)
+	log.Infof("Enqueueing NginxCisConnector: %v on Delete", ncc)
+	key := &rqKey{
+		namespace: ncc.ObjectMeta.Namespace,
+		kind:      NginxCisConnector,
+		rscName:   ncc.ObjectMeta.Name,
+		rsc:       obj,
+		rscDelete: true,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueUpdatedNginxCisConnector(oldObj, newObj interface{}) {
+	oldNCC := oldObj.(*cisapiv1.NginxCisConnector)
+	newNCC := newObj.(*cisapiv1.NginxCisConnector)
+
+	if oldNCC.Spec.VirtualServerAddress != newNCC.Spec.VirtualServerAddress {
+		key := &rqKey{
+			namespace: oldNCC.ObjectMeta.Namespace,
+			kind:      NginxCisConnector,
+			rscName:   oldNCC.ObjectMeta.Name,
+			rsc:       oldNCC,
+			rscDelete: true,
+		}
+
+		crMgr.rscQueue.Add(key)
+	}
+
+	log.Infof("Enqueueing NginxCisConnector: %v on Update", newNCC)
+	key := &rqKey{
+		namespace: newNCC.ObjectMeta.Namespace,
+		kind:      NginxCisConnector,
+		rscName:   newNCC.ObjectMeta.Name,
+		rsc:       newNCC,
 	}
 
 	crMgr.rscQueue.Add(key)

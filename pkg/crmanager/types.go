@@ -59,6 +59,8 @@ type (
 		irulesMap IRulesMap
 		intDgMap  InternalDataGroupMap
 		dgPath    string
+
+		NginxCISConnectMode bool
 	}
 	// Params defines parameters
 	Params struct {
@@ -72,6 +74,8 @@ type (
 		UseNodeInternal   bool
 		NodePollInterval  int
 		NodeLabelSelector string
+
+		NginxCISConnectMode bool
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
@@ -79,6 +83,7 @@ type (
 		stopCh      chan struct{}
 		vsInformer  cache.SharedIndexInformer
 		tsInformer  cache.SharedIndexInformer
+		nccInformer cache.SharedIndexInformer
 		svcInformer cache.SharedIndexInformer
 		epsInformer cache.SharedIndexInformer
 	}

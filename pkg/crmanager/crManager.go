@@ -40,6 +40,8 @@ const (
 	VirtualServer = "VirtualServer"
 	// TLSProfile is a F5 Custom Resource Kind
 	TLSProfile = "TLSProfile"
+	// NginxCisConnector is a Custom Resource used by both F5 and Nginx
+	NginxCisConnector = "NginxCisConnector"
 	// Service is a k8s native Service Resource.
 	Service = "Service"
 	// Endpoints is a k8s native Endpoint Resource.
@@ -76,6 +78,8 @@ func NewCRManager(params Params) *CRManager {
 		irulesMap:       make(IRulesMap),
 		intDgMap:        make(InternalDataGroupMap),
 		dgPath:          strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
+
+		NginxCISConnectMode: params.NginxCISConnectMode,
 	}
 
 	log.Debug("Custom Resource Manager Created")
@@ -162,7 +166,11 @@ func (crMgr *CRManager) Start() {
 	crMgr.nodePoller.Run()
 
 	stopChan := make(chan struct{})
-	go wait.Until(crMgr.customResourceWorker, time.Second, stopChan)
+	if crMgr.NginxCISConnectMode {
+		go wait.Until(crMgr.nccResourceWorker, time.Second, stopChan)
+	} else {
+		go wait.Until(crMgr.customResourceWorker, time.Second, stopChan)
+	}
 
 	<-stopChan
 	crMgr.Stop()

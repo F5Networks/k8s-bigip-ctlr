@@ -155,7 +155,6 @@ func (crMgr *CRManager) Start() {
 	log.Infof("Starting Custom Resource Manager")
 	defer utilruntime.HandleCrash()
 	defer crMgr.rscQueue.ShutDown()
-
 	for _, inf := range crMgr.crInformers {
 		inf.start()
 	}

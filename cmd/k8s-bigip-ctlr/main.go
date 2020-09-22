@@ -765,6 +765,12 @@ func main() {
 
 	if *customResourceMode {
 		crMgr := initCustomResourceManager(config)
+		err = crMgr.Agent.GetBigipAS3Version()
+		if err != nil {
+			log.Errorf("%v", err)
+			crMgr.Stop()
+			os.Exit(1)
+		}
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigs

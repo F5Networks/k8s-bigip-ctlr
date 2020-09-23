@@ -191,7 +191,7 @@ func (crMgr *CRManager) getNamespaceInformer(
 
 func (crMgr *CRManager) enqueueVirtualServer(obj interface{}) {
 	vs := obj.(*cisapiv1.VirtualServer)
-	log.Infof("Enqueueing VirtualServer: %v", vs)
+	log.Debugf("Enqueueing VirtualServer: %v", vs)
 	key := &rqKey{
 		namespace: vs.ObjectMeta.Namespace,
 		kind:      VirtualServer,
@@ -210,7 +210,7 @@ func (crMgr *CRManager) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 		oldVS.Spec.VirtualServerHTTPPort != newVS.Spec.VirtualServerHTTPPort ||
 		oldVS.Spec.VirtualServerHTTPSPort != newVS.Spec.VirtualServerHTTPSPort ||
 		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerAddress {
-		log.Infof("Enqueueing VirtualServer: %v", oldVS)
+		log.Debugf("Enqueueing VirtualServer: %v", oldVS)
 		key := &rqKey{
 			namespace: oldVS.ObjectMeta.Namespace,
 			kind:      VirtualServer,
@@ -221,7 +221,7 @@ func (crMgr *CRManager) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 		crMgr.rscQueue.Add(key)
 	}
 
-	log.Infof("Enqueueing VirtualServer: %v", newVS)
+	log.Debugf("Enqueueing VirtualServer: %v", newVS)
 	key := &rqKey{
 		namespace: newVS.ObjectMeta.Namespace,
 		kind:      VirtualServer,
@@ -234,7 +234,7 @@ func (crMgr *CRManager) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 
 func (crMgr *CRManager) enqueueDeletedVirtualServer(obj interface{}) {
 	vs := obj.(*cisapiv1.VirtualServer)
-	log.Infof("Enqueueing VirtualServer: %v", vs)
+	log.Debugf("Enqueueing VirtualServer: %v", vs)
 	key := &rqKey{
 		namespace: vs.ObjectMeta.Namespace,
 		kind:      VirtualServer,

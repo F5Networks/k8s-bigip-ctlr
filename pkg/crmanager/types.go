@@ -119,6 +119,7 @@ type (
 		Description           string                `json:"description,omitempty"`
 		VirtualAddress        *virtualAddress       `json:"-"`
 		SNAT                  string                `json:"snat,omitempty"`
+		WAF                   string                `json:"waf,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -487,6 +488,7 @@ type (
 		IRules                 []string          `json:"iRules,omitempty"`
 		Redirect80             *bool             `json:"redirect80,omitempty"`
 		Pool                   string            `json:"pool,omitempty"`
+		WAF                    as3MultiTypeParam `json:"policyWAF,omitempty"`
 	}
 
 	// as3Monitor maps to the following in AS3 Resources

@@ -399,6 +399,14 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			BigIP: fmt.Sprintf("%v", cfg.Virtual.SNAT),
 		}
 	}
+
+	//Attaching WAF policy
+	if cfg.Virtual.WAF != "" {
+		svc.WAF = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.WAF),
+		}
+	}
+
 	svc.Class = "Service_HTTP"
 
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)

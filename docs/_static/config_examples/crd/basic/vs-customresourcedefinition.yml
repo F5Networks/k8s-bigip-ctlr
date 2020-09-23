@@ -30,6 +30,14 @@ spec:
                   type: string
                 snat:
                   type: string
+                tlsProfileName:
+                  type: string
+                appRootRewrite:
+                  type: string
+                  pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                waf:
+                  type: string
+                  pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
                 pools:
                   type: array
                   items:
@@ -48,7 +56,10 @@ spec:
                         type: integer
                         minimum: 1
                         maximum: 65535
-                      monitor: 
+                      rewrite:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                      monitor:
                         type: object
                         properties:
                           type:
@@ -61,7 +72,7 @@ spec:
                           interval:
                             type: integer
                           timeout:
-                            type: integer  
+                            type: integer
                         required:
                           - type
                           - send
@@ -81,4 +92,4 @@ spec:
                   minimum: 1
                   maximum: 65535
               required:
-                - virtualServerAddress  
+                - virtualServerAddress

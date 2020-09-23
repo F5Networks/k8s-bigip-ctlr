@@ -413,6 +413,12 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	} else {
 		rsCfg.Virtual.SNAT = vs.Spec.SNAT
 	}
+
+	// set the WAF policy
+	if vs.Spec.WAF != "" {
+		rsCfg.Virtual.WAF = vs.Spec.WAF
+	}
+
 	// Do not Create Virtual Server L7 Forwarding policies if HTTPTraffic is set to None or Redirect
 	if len(vs.Spec.TLSProfileName) > 0 &&
 		rsCfg.Virtual.VirtualAddress.Port == httpPort &&

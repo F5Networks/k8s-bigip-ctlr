@@ -107,7 +107,8 @@ var (
 	osRouteFlags *pflag.FlagSet
 
 	// Custom Resource
-	customResourceMode *bool
+	customResourceMode  *bool
+	nginxCISConnectMode *bool
 
 	pythonBaseDir    *string
 	logLevel         *string
@@ -212,6 +213,8 @@ func _init() {
 	// Custom Resource
 	customResourceMode = globalFlags.Bool("custom-resource-mode", false,
 		"Optional, When set to true, controller processes only F5 Custom Resources.")
+	nginxCISConnectMode = globalFlags.Bool("nginx-cis-connect-mode", false,
+		"Optional, When set to true, controller processes only NginxCisConnector Resources.")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
@@ -686,6 +689,8 @@ func initCustomResourceManager(
 			UseNodeInternal:   *useNodeInternal,
 			NodePollInterval:  *nodePollInterval,
 			NodeLabelSelector: *nodeLabelSelector,
+
+			NginxCISConnectMode: *nginxCISConnectMode,
 		},
 	)
 
@@ -763,7 +768,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *customResourceMode {
+	if *customResourceMode || *nginxCISConnectMode {
 		crMgr := initCustomResourceManager(config)
 		err = crMgr.Agent.GetBigipAS3Version()
 		if err != nil {

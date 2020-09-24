@@ -24,6 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// NginxCisConnectors returns a NginxCisConnectorInformer.
+	NginxCisConnectors() NginxCisConnectorInformer
 	// TLSProfiles returns a TLSProfileInformer.
 	TLSProfiles() TLSProfileInformer
 	// VirtualServers returns a VirtualServerInformer.
@@ -39,6 +41,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// NginxCisConnectors returns a NginxCisConnectorInformer.
+func (v *version) NginxCisConnectors() NginxCisConnectorInformer {
+	return &nginxCisConnectorInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // TLSProfiles returns a TLSProfileInformer.

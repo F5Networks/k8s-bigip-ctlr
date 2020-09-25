@@ -22,4 +22,6 @@ type NginxCisConnectorExpansion interface{}
 
 type TLSProfileExpansion interface{}
 
+type TransportServerExpansion interface{}
+
 type VirtualServerExpansion interface{}

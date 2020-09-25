@@ -34,6 +34,14 @@ type TLSProfileListerExpansion interface{}
 // TLSProfileNamespaceLister.
 type TLSProfileNamespaceListerExpansion interface{}
 
+// TransportServerListerExpansion allows custom methods to be added to
+// TransportServerLister.
+type TransportServerListerExpansion interface{}
+
+// TransportServerNamespaceListerExpansion allows custom methods to be added to
+// TransportServerNamespaceLister.
+type TransportServerNamespaceListerExpansion interface{}
+
 // VirtualServerListerExpansion allows custom methods to be added to
 // VirtualServerLister.
 type VirtualServerListerExpansion interface{}

@@ -42,6 +42,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&TLSProfileList{},
 		&NginxCisConnector{},
 		&NginxCisConnectorList{},
+		&TransportServer{},
+		&TransportServerList{},
 	)
 
 	scheme.AddKnownTypes(

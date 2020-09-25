@@ -132,7 +132,7 @@ type NginxCisConnectorList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:validation:Optional
 
-// TransportServer defines the non-HTTP VirtualServer resource.
+// TransportServer defines the VirtualServer resource.
 type TransportServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -143,7 +143,10 @@ type TransportServer struct {
 // TransportServerSpec is the spec of the VirtualServer resource.
 type TransportServerSpec struct {
 	VirtualServerAddress string `json:"virtualServerAddress"`
-	VirtualServerPort    int32  `json:"virtualServerHTTPSPort"`
+	VirtualServerPort    int32  `json:"virtualServerPort"`
+	VirtualServerName    string `json:"virtualServerName"`
+	Mode                 string `json:"mode"`
+	SNAT                 string `json:"snat"`
 	Pool                 Pool   `json:"pool"`
 }
 

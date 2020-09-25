@@ -38,6 +38,10 @@ func (crInfr *CRInformer) start() {
 		log.Infof("Starting TLSProfile Informer")
 		go crInfr.tlsInformer.Run(crInfr.stopCh)
 	}
+	if crInfr.tsInformer != nil {
+		log.Infof("Starting TransportServer Informer")
+		go crInfr.tsInformer.Run(crInfr.stopCh)
+	}
 	if crInfr.nccInformer != nil {
 		log.Infof("Starting NginxCisConnector Informer")
 		go crInfr.nccInformer.Run(crInfr.stopCh)
@@ -148,6 +152,13 @@ func (crMgr *CRManager) newInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 			crOptions,
 		)
+		crInf.tsInformer = cisinfv1.NewFilteredTransportServerInformer(
+			crMgr.kubeCRClient,
+			namespace,
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			crOptions,
+		)
 	}
 
 	return crInf
@@ -170,6 +181,16 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 				// AddFunc:    func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
 				UpdateFunc: func(old, cur interface{}) { crMgr.enqueueTLSServer(cur) },
 				// DeleteFunc: func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
+			},
+		)
+	}
+
+	if crInf.tsInformer != nil {
+		crInf.tsInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { crMgr.enqueueTransportServer(obj) },
+				UpdateFunc: func(old, cur interface{}) { crMgr.enqueueUpdatedTransportServer(old, cur) },
+				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedTransportServer(obj) },
 			},
 		)
 	}
@@ -241,7 +262,7 @@ func (crMgr *CRManager) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress ||
 		oldVS.Spec.VirtualServerHTTPPort != newVS.Spec.VirtualServerHTTPPort ||
 		oldVS.Spec.VirtualServerHTTPSPort != newVS.Spec.VirtualServerHTTPSPort ||
-		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerAddress {
+		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerName {
 		log.Debugf("Enqueueing VirtualServer: %v", oldVS)
 		key := &rqKey{
 			namespace: oldVS.ObjectMeta.Namespace,
@@ -286,6 +307,62 @@ func (crMgr *CRManager) enqueueTLSServer(obj interface{}) {
 		kind:      TLSProfile,
 		rscName:   tls.ObjectMeta.Name,
 		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueTransportServer(obj interface{}) {
+	ts := obj.(*cisapiv1.TransportServer)
+	log.Infof("Enqueueing TransportServer: %v", ts)
+	key := &rqKey{
+		namespace: ts.ObjectMeta.Namespace,
+		kind:      TransportServer,
+		rscName:   ts.ObjectMeta.Name,
+		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueUpdatedTransportServer(oldObj, newObj interface{}) {
+	oldVS := oldObj.(*cisapiv1.TransportServer)
+	newVS := newObj.(*cisapiv1.TransportServer)
+
+	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress ||
+		oldVS.Spec.VirtualServerPort != newVS.Spec.VirtualServerPort ||
+		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerName {
+		log.Debugf("Enqueueing TransportServer: %v", oldVS)
+		key := &rqKey{
+			namespace: oldVS.ObjectMeta.Namespace,
+			kind:      TransportServer,
+			rscName:   oldVS.ObjectMeta.Name,
+			rsc:       oldObj,
+			rscDelete: true,
+		}
+		crMgr.rscQueue.Add(key)
+	}
+
+	log.Debugf("Enqueueing TransportServer: %v", newVS)
+	key := &rqKey{
+		namespace: newVS.ObjectMeta.Namespace,
+		kind:      TransportServer,
+		rscName:   newVS.ObjectMeta.Name,
+		rsc:       newObj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueDeletedTransportServer(obj interface{}) {
+	vs := obj.(*cisapiv1.TransportServer)
+	log.Debugf("Enqueueing TransportServer: %v", vs)
+	key := &rqKey{
+		namespace: vs.ObjectMeta.Namespace,
+		kind:      TransportServer,
+		rscName:   vs.ObjectMeta.Name,
+		rsc:       obj,
+		rscDelete: true,
 	}
 
 	crMgr.rscQueue.Add(key)

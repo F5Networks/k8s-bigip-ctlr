@@ -83,6 +83,7 @@ type (
 		stopCh      chan struct{}
 		vsInformer  cache.SharedIndexInformer
 		tlsInformer cache.SharedIndexInformer
+		tsInformer  cache.SharedIndexInformer
 		nccInformer cache.SharedIndexInformer
 		svcInformer cache.SharedIndexInformer
 		epsInformer cache.SharedIndexInformer
@@ -125,6 +126,7 @@ type (
 		VirtualAddress        *virtualAddress       `json:"-"`
 		SNAT                  string                `json:"snat,omitempty"`
 		WAF                   string                `json:"waf,omitempty"`
+		Mode                  string                `json:"mode,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -494,6 +496,7 @@ type (
 		Redirect80             *bool             `json:"redirect80,omitempty"`
 		Pool                   string            `json:"pool,omitempty"`
 		WAF                    as3MultiTypeParam `json:"policyWAF,omitempty"`
+		ProfileL4              string            `json:"profileL4,omitempty"`
 	}
 
 	// as3Monitor maps to the following in AS3 Resources
@@ -509,8 +512,8 @@ type (
 		TimeUnitilUp      *int    `json:"timeUntilUp,omitempty"`
 		Adaptive          *bool   `json:"adaptive,omitempty"`
 		Dscp              *int    `json:"dscp,omitempty"`
-		Receive           string  `json:"receive,omitempty"`
-		Send              string  `json:"send,omitempty"`
+		Receive           string  `json:"receive"`
+		Send              string  `json:"send"`
 		TargetPort        *int    `json:"targetPort,omitempty"`
 		ClientCertificate string  `json:"clientCertificate,omitempty"`
 		Ciphers           string  `json:"ciphers,omitempty"`

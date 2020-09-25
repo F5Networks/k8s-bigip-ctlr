@@ -54,3 +54,35 @@ func (crMgr *CRManager) checkValidVirtualServer(
 
 	return true
 }
+
+func (crMgr *CRManager) checkValidTransportServer(
+	tsResource *cisapiv1.TransportServer,
+) bool {
+
+	vsNamespace := tsResource.ObjectMeta.Namespace
+	vsName := tsResource.ObjectMeta.Name
+	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
+
+	crInf, ok := crMgr.getNamespaceInformer(vsNamespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", vsNamespace)
+		return false
+	}
+	// Check if the virtual exists and valid for us.
+	_, virtualFound, _ := crInf.tsInformer.GetIndexer().GetByKey(vkey)
+	if !virtualFound {
+		log.Infof("TransportServer %s is invalid", vsName)
+		return false
+	}
+
+	bindAddr := tsResource.Spec.VirtualServerAddress
+
+	// This ensures that pool-only mode only logs the message below the first
+	// time we see a config.
+	if bindAddr == "" {
+		log.Infof("No IP was specified for the transport server %s", vsName)
+		return false
+	}
+
+	return true
+}

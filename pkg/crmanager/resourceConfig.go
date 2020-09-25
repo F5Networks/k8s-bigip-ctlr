@@ -1651,3 +1651,64 @@ func (crMgr *CRManager) handleDataGroupIRules(
 		}
 	}
 }
+
+// Prepares resource config based on VirtualServer resource config
+func (crMgr *CRManager) prepareRSConfigFromTransportServer(
+	rsCfg *ResourceConfig,
+	vs *cisapiv1.TransportServer,
+) error {
+
+	var pools Pools
+	var poolExist bool
+	var monitors []Monitor
+	var snat string
+	snat = DEFAULT_SNAT
+	pool := Pool{
+		Name: formatVirtualServerPoolName(
+			vs.ObjectMeta.Namespace,
+			vs.Spec.Pool.Service,
+			vs.Spec.Pool.ServicePort,
+			vs.Spec.Pool.NodeMemberLabel,
+		),
+		Partition:       rsCfg.Virtual.Partition,
+		ServiceName:     vs.Spec.Pool.Service,
+		ServicePort:     vs.Spec.Pool.ServicePort,
+		NodeMemberLabel: vs.Spec.Pool.NodeMemberLabel,
+	}
+	for _, p := range pools {
+		if pool.Name == p.Name {
+			poolExist = true
+			break
+		}
+	}
+	if poolExist {
+		poolExist = false
+		return nil
+	}
+
+	if vs.Spec.Pool.Monitor.Type != "" {
+		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(DEFAULT_PARTITION,
+			formatMonitorName(vs.ObjectMeta.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.Monitor.Type, vs.Spec.Pool.ServicePort)))
+		monitor := Monitor{
+			Name:      formatMonitorName(vs.ObjectMeta.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.Monitor.Type, vs.Spec.Pool.ServicePort),
+			Partition: rsCfg.Virtual.Partition,
+			Type:      vs.Spec.Pool.Monitor.Type,
+			Interval:  vs.Spec.Pool.Monitor.Interval,
+			Send:      "",
+			Recv:      "",
+			Timeout:   vs.Spec.Pool.Monitor.Timeout,
+		}
+		monitors = append(monitors, monitor)
+	}
+	pools = append(pools, pool)
+	rsCfg.Virtual.Mode = vs.Spec.Mode
+	rsCfg.Pools = append(rsCfg.Pools, pools...)
+	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
+	// set the SNAT policy to auto is it's not defined by end user
+	if vs.Spec.SNAT == "" {
+		rsCfg.Virtual.SNAT = snat
+	} else {
+		rsCfg.Virtual.SNAT = vs.Spec.SNAT
+	}
+	return nil
+}

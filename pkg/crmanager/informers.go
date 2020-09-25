@@ -34,9 +34,9 @@ func (crInfr *CRInformer) start() {
 		log.Infof("Starting VirtualServer Informer")
 		go crInfr.vsInformer.Run(crInfr.stopCh)
 	}
-	if crInfr.tsInformer != nil {
+	if crInfr.tlsInformer != nil {
 		log.Infof("Starting TLSProfile Informer")
-		go crInfr.tsInformer.Run(crInfr.stopCh)
+		go crInfr.tlsInformer.Run(crInfr.stopCh)
 	}
 	if crInfr.nccInformer != nil {
 		log.Infof("Starting NginxCisConnector Informer")
@@ -141,7 +141,7 @@ func (crMgr *CRManager) newInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 			crOptions,
 		)
-		crInf.tsInformer = cisinfv1.NewFilteredTLSProfileInformer(
+		crInf.tlsInformer = cisinfv1.NewFilteredTLSProfileInformer(
 			crMgr.kubeCRClient,
 			namespace,
 			resyncPeriod,
@@ -164,8 +164,8 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 		)
 	}
 
-	if crInf.tsInformer != nil {
-		crInf.tsInformer.AddEventHandler(
+	if crInf.tlsInformer != nil {
+		crInf.tlsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				// AddFunc:    func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
 				UpdateFunc: func(old, cur interface{}) { crMgr.enqueueTLSServer(cur) },

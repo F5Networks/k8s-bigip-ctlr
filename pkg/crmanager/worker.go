@@ -340,7 +340,7 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(
 
 	// TODO: Create Internal Structure to hold TLSProfiles. Make API call only for a new TLSProfile
 	// Check if the TLSProfile exists and valid for us.
-	obj, tlsFound, _ := crInf.tsInformer.GetIndexer().GetByKey(tlsKey)
+	obj, tlsFound, _ := crInf.tlsInformer.GetIndexer().GetByKey(tlsKey)
 	if !tlsFound {
 		log.Errorf("TLSProfile %s does not exist", tlsName)
 		return nil

@@ -82,7 +82,7 @@ type (
 		namespace   string
 		stopCh      chan struct{}
 		vsInformer  cache.SharedIndexInformer
-		tsInformer  cache.SharedIndexInformer
+		tlsInformer cache.SharedIndexInformer
 		nccInformer cache.SharedIndexInformer
 		svcInformer cache.SharedIndexInformer
 		epsInformer cache.SharedIndexInformer

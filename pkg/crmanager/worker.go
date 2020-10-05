@@ -480,10 +480,18 @@ func (crMgr *CRManager) syncVirtualServers(
 				portStruct.port,
 			)
 		}
-		if len(virtuals) == 0 {
+
+		// Delete rsCfg if no corresponding virtuals exist
+		// Delete rsCfg if it is HTTP rsCfg and the CR VirtualServer does not have
+		// TLSAllowInsecure or TLSRedirectInsecure as HTTPTraffic
+		if (len(virtuals) == 0) ||
+			(portStruct.protocol == "http" &&
+				!(virtual.Spec.HTTPTraffic == TLSAllowInsecure ||
+					virtual.Spec.HTTPTraffic == TLSRedirectInsecure)) {
 			crMgr.resources.deleteVirtualServer(rsName)
 			continue
 		}
+
 		rsCfg := &ResourceConfig{}
 		rsCfg.Virtual.Partition = crMgr.Partition
 		rsCfg.MetaData.ResourceType = VirtualServer

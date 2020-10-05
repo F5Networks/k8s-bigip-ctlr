@@ -82,24 +82,44 @@ func (crMgr *CRManager) processResource() bool {
 				isError = true
 			}
 		}
+	case TransportServer:
+		virtual := rKey.rsc.(*cisapiv1.TransportServer)
+		err := crMgr.syncTransportServers(virtual, rKey.rscDelete)
+		if err != nil {
+			// TODO
+			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			isError = true
+		}
 	case Service:
 		if crMgr.initState {
 			break
 		}
 		svc := rKey.rsc.(*v1.Service)
 		virtuals := crMgr.syncService(svc)
-		// No Virtuals are effected with the change in service.
-		if nil == virtuals {
-			break
-		}
-		for _, virtual := range virtuals {
-			err := crMgr.syncVirtualServers(virtual, false)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isError = true
+		// If nil No Virtuals are effected with the change in service.
+		if nil != virtuals {
+			for _, virtual := range virtuals {
+				err := crMgr.syncVirtualServers(virtual, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
 			}
 		}
+		//Sync service for Transport Server virtuals
+		tsVirtuals := crMgr.syncServiceForTransportServer(svc)
+		if nil != tsVirtuals {
+			for _, virtual := range tsVirtuals {
+				err := crMgr.syncTransportServers(virtual, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
+			}
+		}
+
 	case Endpoints:
 		if crMgr.initState {
 			break
@@ -117,6 +137,18 @@ func (crMgr *CRManager) processResource() bool {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 				isError = true
+			}
+		}
+		//Sync service for Transport Server virtuals
+		tsVirtuals := crMgr.syncServiceForTransportServer(svc)
+		if nil != tsVirtuals {
+			for _, virtual := range tsVirtuals {
+				err := crMgr.syncTransportServers(virtual, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
 			}
 		}
 	default:
@@ -340,7 +372,7 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(
 
 	// TODO: Create Internal Structure to hold TLSProfiles. Make API call only for a new TLSProfile
 	// Check if the TLSProfile exists and valid for us.
-	obj, tlsFound, _ := crInf.tsInformer.GetIndexer().GetByKey(tlsKey)
+	obj, tlsFound, _ := crInf.tlsInformer.GetIndexer().GetByKey(tlsKey)
 	if !tlsFound {
 		log.Errorf("TLSProfile %s does not exist", tlsName)
 		return nil
@@ -671,4 +703,200 @@ func containsNode(nodes []Node, name string) bool {
 		}
 	}
 	return false
+}
+
+// syncTransportServers takes the Transport Server as input and processes all
+// associated TransportServers to create a resource config(Internal DataStructure)
+// or to update if exists already.
+func (crMgr *CRManager) syncTransportServers(
+	virtual *cisapiv1.TransportServer,
+	isTSDeleted bool,
+) error {
+	startTime := time.Now()
+	defer func() {
+		endTime := time.Now()
+		log.Debugf("Finished syncing transport servers %+v (%v)",
+			virtual, endTime.Sub(startTime))
+	}()
+
+	// Skip validation for a deleted Virtual Server
+	if !isTSDeleted {
+		// check if the virutal server matches all the requirements.
+		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
+		valid := crMgr.checkValidTransportServer(virtual)
+		if false == valid {
+			log.Infof("TransportServer %s, invalid configuration or not valid",
+				vkey)
+			return nil
+		}
+	}
+	allVirtuals := crMgr.getAllTransportServers(virtual.ObjectMeta.Namespace)
+
+	var virtuals []*cisapiv1.TransportServer
+
+	// Prepare list of associated VirtualServers to be processed
+	// In the event of deletion, exclude the deleted VirtualServer
+	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
+	for _, vrt := range allVirtuals {
+		if vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress &&
+			!isTSDeleted {
+			virtuals = append(virtuals, vrt)
+		}
+	}
+
+	if isTSDeleted {
+		// crMgr.handleVSDeleteForDataGroups(tVirtual)
+	}
+
+	// vsMap holds Resource Configs of current virtuals temporarily
+	vsMap := make(ResourceConfigMap)
+	processingError := false
+	var rsName string
+	if virtual.Spec.VirtualServerName != "" {
+		rsName = formatCustomVirtualServerName(
+			virtual.Spec.VirtualServerName,
+			virtual.Spec.VirtualServerPort,
+		)
+	} else {
+		rsName = formatVirtualServerName(
+			virtual.Spec.VirtualServerAddress,
+			virtual.Spec.VirtualServerPort,
+		)
+	}
+	if len(virtuals) == 0 {
+		crMgr.resources.deleteVirtualServer(rsName)
+		return nil
+	}
+
+	rsCfg := &ResourceConfig{}
+	rsCfg.Virtual.Partition = crMgr.Partition
+	rsCfg.MetaData.ResourceType = TransportServer
+	rsCfg.Virtual.Enabled = true
+	rsCfg.Virtual.Name = rsName
+	rsCfg.Virtual.SetVirtualAddress(
+		virtual.Spec.VirtualServerAddress,
+		virtual.Spec.VirtualServerPort,
+	)
+
+	for _, vrt := range virtuals {
+		log.Debugf("Processing Transport Server %s for port %v",
+			vrt.ObjectMeta.Name, vrt.Spec.VirtualServerPort)
+		err := crMgr.prepareRSConfigFromTransportServer(
+			rsCfg,
+			vrt,
+		)
+		if err != nil {
+			processingError = true
+			break
+		}
+
+		if processingError {
+			log.Errorf("Cannot Publish TransportServer %s", virtual.ObjectMeta.Name)
+			break
+		}
+
+		// Save ResourceConfig in temporary Map
+		vsMap[rsName] = rsCfg
+
+		if crMgr.ControllerMode == NodePortMode {
+			crMgr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
+		} else {
+			crMgr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
+		}
+	}
+	if !processingError {
+		// Update rsMap with ResourceConfigs created for the current transport virtuals
+		for rsName, rsCfg := range vsMap {
+			crMgr.resources.rsMap[rsName] = rsCfg
+		}
+	}
+	return nil
+
+}
+
+// getAllTransportServers returns list of all valid TransportServers in rkey namespace.
+func (crMgr *CRManager) getAllTransportServers(namespace string) []*cisapiv1.TransportServer {
+	var allVirtuals []*cisapiv1.TransportServer
+
+	crInf, ok := crMgr.getNamespaceInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
+	// Get list of VirtualServers and process them.
+	orderedVSs, err := crInf.tsInformer.GetIndexer().ByIndex("namespace", namespace)
+	if err != nil {
+		log.Errorf("Unable to get list of TransportServers for namespace '%v': %v",
+			namespace, err)
+		return nil
+	}
+
+	for _, obj := range orderedVSs {
+		vs := obj.(*cisapiv1.TransportServer)
+		// TODO
+		// Validate the TransportServers List to check if all the vs are valid.
+
+		allVirtuals = append(allVirtuals, vs)
+	}
+
+	return allVirtuals
+}
+
+// syncServiceForTransportServer gets the List of VirtualServers which are effected
+// by the addition/deletion/updation of service.
+func (crMgr *CRManager) syncServiceForTransportServer(svc *v1.Service) []*cisapiv1.TransportServer {
+
+	allVirtuals := crMgr.getAllTransportServers(svc.ObjectMeta.Namespace)
+	if nil == allVirtuals {
+		log.Infof("No VirtualServers for TransportServer founds in namespace %s",
+			svc.ObjectMeta.Namespace)
+		return nil
+	}
+
+	// find VirtualServers that reference the service
+	virtualsForService := getVirtualServersForTransportServerService(allVirtuals, svc)
+	if nil == virtualsForService {
+		log.Debugf("Change in Service %s does not effect any VirtualServer for TransportServer",
+			svc.ObjectMeta.Name)
+		return nil
+	}
+	// Output list of all Virtuals Found.
+	var targetVirtualNames []string
+	for _, vs := range allVirtuals {
+		targetVirtualNames = append(targetVirtualNames, vs.ObjectMeta.Name)
+	}
+	log.Debugf("VirtualServers for TransportServer %v are affected with service %s change",
+		targetVirtualNames, svc.ObjectMeta.Name)
+
+	// TODO
+	// Remove Duplicate entries in the targetVirutalServers.
+	// or Add only Unique entries into the targetVirutalServers.
+	return virtualsForService
+}
+
+// getVirtualServersForTransportServerService returns list of VirtualServers that are
+// affected by the service under process.
+func getVirtualServersForTransportServerService(allVirtuals []*cisapiv1.TransportServer,
+	svc *v1.Service) []*cisapiv1.TransportServer {
+
+	var result []*cisapiv1.TransportServer
+	svcName := svc.ObjectMeta.Name
+	svcNamespace := svc.ObjectMeta.Namespace
+
+	for _, vs := range allVirtuals {
+		if vs.ObjectMeta.Namespace != svcNamespace {
+			continue
+		}
+
+		isValidVirtual := false
+		if vs.Spec.Pool.Service == svcName {
+			isValidVirtual = true
+		}
+		if !isValidVirtual {
+			continue
+		}
+		result = append(result, vs)
+	}
+
+	return result
 }

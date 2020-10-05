@@ -36,7 +36,7 @@ type Pool struct {
 	Path            string  `json:"path,omitempty"`
 	Service         string  `json:"service"`
 	ServicePort     int32   `json:"servicePort"`
-	NodeMemberLabel string  `json:"nodeMemberLabel"`
+	NodeMemberLabel string  `json:"nodeMemberLabel,omitempty"`
 	Monitor         Monitor `json:"monitor"`
 	Rewrite         string  `json:"rewrite,omitempty"`
 }
@@ -126,4 +126,36 @@ type NginxCisConnectorList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []NginxCisConnector `json:"items"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:validation:Optional
+
+// TransportServer defines the VirtualServer resource.
+type TransportServer struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec TransportServerSpec `json:"spec"`
+}
+
+// TransportServerSpec is the spec of the VirtualServer resource.
+type TransportServerSpec struct {
+	VirtualServerAddress string `json:"virtualServerAddress"`
+	VirtualServerPort    int32  `json:"virtualServerPort"`
+	VirtualServerName    string `json:"virtualServerName"`
+	Mode                 string `json:"mode"`
+	SNAT                 string `json:"snat"`
+	Pool                 Pool   `json:"pool"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// TransportServerList is list of TransportServer
+type TransportServerList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []TransportServer `json:"items"`
 }

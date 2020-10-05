@@ -283,8 +283,15 @@ func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
 		//Create pools
 		createPoolDecl(cfg, sharedApp)
 
-		//Create AS3 Service for virtual server
-		createServiceDecl(cfg, sharedApp)
+		switch cfg.MetaData.ResourceType {
+		case VirtualServer:
+			//Create AS3 Service for virtual server
+			createServiceDecl(cfg, sharedApp)
+		case TransportServer:
+			//Create AS3 Service for transport virtual server
+			createTransportServiceDecl(cfg, sharedApp)
+		}
+
 	}
 }
 
@@ -775,8 +782,45 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				monitor.Receive = v.Recv
 			}
 			monitor.Send = v.Send
+		case "tcp":
+			adaptiveFalse := false
+			monitor.Adaptive = &adaptiveFalse
+			monitor.Receive = v.Recv
+			monitor.Send = v.Send
 		}
 		sharedApp[v.Name] = monitor
 	}
 
+}
+
+// Create AS3 transport Service for CRD
+func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
+	svc := &as3Service{}
+
+	if cfg.Virtual.Mode == "standard" {
+		svc.Class = "Service_TCP"
+	} else if cfg.Virtual.Mode == "performance" {
+		svc.Class = "Service_L4"
+	}
+	svc.ProfileL4 = "basic"
+	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
+		svc.SNAT = cfg.Virtual.SNAT
+	} else {
+		svc.SNAT = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.SNAT),
+		}
+	}
+
+	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
+	// verify that ip address and port exists.
+	if virtualAddress != "" && port != 0 {
+		va := append(svc.VirtualAddresses, virtualAddress)
+		svc.VirtualAddresses = va
+		svc.VirtualPort = port
+	}
+	for _, pool := range cfg.Pools {
+		svc.Pool = pool.Name
+	}
+
+	sharedApp[cfg.Virtual.Name] = svc
 }

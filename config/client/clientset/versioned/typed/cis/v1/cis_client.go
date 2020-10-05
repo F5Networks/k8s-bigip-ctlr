@@ -28,6 +28,7 @@ type K8sV1Interface interface {
 	RESTClient() rest.Interface
 	NginxCisConnectorsGetter
 	TLSProfilesGetter
+	TransportServersGetter
 	VirtualServersGetter
 }
 
@@ -42,6 +43,10 @@ func (c *K8sV1Client) NginxCisConnectors(namespace string) NginxCisConnectorInte
 
 func (c *K8sV1Client) TLSProfiles(namespace string) TLSProfileInterface {
 	return newTLSProfiles(c, namespace)
+}
+
+func (c *K8sV1Client) TransportServers(namespace string) TransportServerInterface {
+	return newTransportServers(c, namespace)
 }
 
 func (c *K8sV1Client) VirtualServers(namespace string) VirtualServerInterface {

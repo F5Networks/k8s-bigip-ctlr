@@ -115,6 +115,8 @@ const (
 
 	// Constants
 	HttpRedirectIRuleName = "http_redirect_irule"
+	// Constants
+	HttpRedirectNoHostIRuleName = "http_redirect_irule_nohost"
 	// Internal data group for https redirect
 	HttpsRedirectDgName     = "https_redirect_dg"
 	SslPassthroughIRuleName = "passthrough_irule"
@@ -634,6 +636,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 		crMgr.handleDataGroupIRules(
 			rsCfg,
 			vs.ObjectMeta.Name,
+			vs.Spec.Host,
 			tls,
 		)
 
@@ -654,8 +657,14 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			// set HTTP redirect iRule
 			log.Debugf("Applying HTTP redirect iRule.")
 			log.Debugf("Redirect HTTP(insecure) requests for VirtualServer %s", vs.ObjectMeta.Name)
-			ruleName := fmt.Sprintf("%s_%d", HttpRedirectIRuleName, httpsPort)
-			crMgr.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(httpsPort))
+			var ruleName string
+			if vs.Spec.Host == "" {
+				ruleName = fmt.Sprintf("%s_%d", HttpRedirectNoHostIRuleName, httpsPort)
+				crMgr.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRuleNoHost(httpsPort))
+			} else {
+				ruleName = fmt.Sprintf("%s_%d", HttpRedirectIRuleName, httpsPort)
+				crMgr.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(httpsPort))
+			}
 			ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
 			rsCfg.Virtual.AddIRule(ruleName)
 			updateDataGroupOfDgName(
@@ -1621,8 +1630,8 @@ func AS3NameFormatter(name string) string {
 
 func (crMgr *CRManager) handleDataGroupIRules(
 	rc *ResourceConfig,
-	// vs *cisapiv1.VirtualServer,
 	virtualName string,
+	vsHost string,
 	tls *v1.TLSProfile,
 ) {
 	// For https
@@ -1636,17 +1645,17 @@ func (crMgr *CRManager) handleDataGroupIRules(
 				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
 			crMgr.addInternalDataGroup(EdgeHostsDgName, DEFAULT_PARTITION)
 			crMgr.addInternalDataGroup(EdgeServerSslDgName, DEFAULT_PARTITION)
-			rc.Virtual.AddIRule(passThroughIRuleName)
 		case TLSPassthrough:
 			crMgr.addIRule(
 				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
 			crMgr.addInternalDataGroup(PassthroughHostsDgName, DEFAULT_PARTITION)
-			rc.Virtual.AddIRule(passThroughIRuleName)
 		case TLSReencrypt:
 			crMgr.addIRule(
 				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
 			crMgr.addInternalDataGroup(ReencryptHostsDgName, DEFAULT_PARTITION)
 			crMgr.addInternalDataGroup(ReencryptServerSslDgName, DEFAULT_PARTITION)
+		}
+		if vsHost != "" {
 			rc.Virtual.AddIRule(passThroughIRuleName)
 		}
 	}

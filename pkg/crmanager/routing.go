@@ -213,9 +213,18 @@ func createRule(uri, poolName, ruleName string) (*Rule, error) {
 }
 
 func createPathSegmentConditions(u *url.URL) []*condition {
+
 	var c []*condition
 	path := strings.TrimPrefix(u.EscapedPath(), "/")
 	segments := strings.Split(path, "/")
+
+	// Incase of a No-Host Virtual Server Custom Resource with path as "/"
+	// Example: vs.Spec.Host = ""  && vs.Spec.Pools[0].path = "/"
+	// Create an empty condition(no condition). This will forward the traffic
+	// to pool(referred at path "/") when no other conditions are matched.
+	if segments[0] == "" {
+		return c
+	}
 	for i, v := range segments {
 		c = append(c, &condition{
 			Equals:      true,
@@ -407,6 +416,20 @@ func (rules Rules) Swap(i, j int) {
 	rules[i], rules[j] = rules[j], rules[i]
 }
 
+// httpRedirectIRuleNoHost redirects traffic to BIG-IP https vs
+// for hostLess CRDs.
+func httpRedirectIRuleNoHost(port int32) string {
+	// The key in the data group is the host name or * to match all.
+	// The data is a list of paths for the host delimited by '|' or '/' for all.
+	iRuleCode := fmt.Sprintf(`
+		when HTTP_REQUEST {
+			HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]	
+		}`, port)
+	return iRuleCode
+}
+
+// httpRedirectIRule redirects traffic to BIG-IP https vs
+// except for the hostLess CRDs.
 func httpRedirectIRule(port int32) string {
 	// The key in the data group is the host name or * to match all.
 	// The data is a list of paths for the host delimited by '|' or '/' for all.

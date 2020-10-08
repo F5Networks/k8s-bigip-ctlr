@@ -413,6 +413,20 @@ func getRewriteMap(rewriteRecords []string, defaultKey string) map[string]string
 	return rwMap
 }
 
+func isTLSVirtualServer(vrt *cisapiv1.VirtualServer) bool {
+	return len(vrt.Spec.TLSProfileName) != 0
+}
+
+func doesVSHandleHTTP(vrt *cisapiv1.VirtualServer) bool {
+	if !isTLSVirtualServer(vrt) {
+		// If it is not TLS VirtualServer(HTTPS), then it is HTTP server
+		return true
+	}
+	// If Allow or Redirect happens then HTTP Traffic is being handled.
+	return vrt.Spec.HTTPTraffic == TLSAllowInsecure ||
+		vrt.Spec.HTTPTraffic == TLSRedirectInsecure
+}
+
 // syncVirtualServers takes the Virtual Server as input and processes all
 // associated VirtualServers to create a resource config(Internal DataStructure)
 // or to update if exists already.
@@ -482,12 +496,9 @@ func (crMgr *CRManager) syncVirtualServers(
 		}
 
 		// Delete rsCfg if no corresponding virtuals exist
-		// Delete rsCfg if it is HTTP rsCfg and the CR VirtualServer does not have
-		// TLSAllowInsecure or TLSRedirectInsecure as HTTPTraffic
+		// Delete rsCfg if it is HTTP rsCfg and the CR VirtualServer does not handle HTTPTraffic
 		if (len(virtuals) == 0) ||
-			(portStruct.protocol == "http" &&
-				!(virtual.Spec.HTTPTraffic == TLSAllowInsecure ||
-					virtual.Spec.HTTPTraffic == TLSRedirectInsecure)) {
+			(portStruct.protocol == "http" && !doesVSHandleHTTP(virtual)) {
 			crMgr.resources.deleteVirtualServer(rsName)
 			continue
 		}
@@ -514,7 +525,7 @@ func (crMgr *CRManager) syncVirtualServers(
 				break
 			}
 
-			if len(vrt.Spec.TLSProfileName) != 0 {
+			if isTLSVirtualServer(vrt) {
 				// Handle TLS configuration for VirtualServer Custom Resource
 				processed := crMgr.handleVirtualServerTLS(rsCfg, vrt)
 				if !processed {

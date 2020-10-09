@@ -60,7 +60,7 @@ func (am *AS3Manager) processResourcesForAS3(sharedApp as3Application) {
 		createMonitorDecl(cfg, sharedApp)
 
 		//Create pools
-		createPoolDecl(cfg, sharedApp)
+		createPoolDecl(cfg, sharedApp, am.shareNodes)
 
 		//Create AS3 Service for virtual server
 		createServiceDecl(cfg, sharedApp)
@@ -252,7 +252,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 }
 
 // Create AS3 Pools for Route
-func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
+func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool) {
 	for _, v := range cfg.Pools {
 		pool := &as3Pool{}
 		pool.LoadBalancingMode = v.Balance
@@ -263,6 +263,9 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			member.ServicePort = val.Port
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
 			pool.Members = append(pool.Members, member)
+			if shareNodes {
+				member.ShareNodes = shareNodes
+			}
 		}
 		for _, val := range v.MonitorNames {
 			var monitor as3ResourcePointer

@@ -164,7 +164,7 @@ func createAS3ADC(config ResourceConfigWrapper) as3ADC {
 	sharedApp["class"] = "Application"
 	sharedApp["template"] = "shared"
 	// Process rscfg to create AS3 Resources
-	processResourcesForAS3(config.rsCfgs, sharedApp)
+	processResourcesForAS3(config.rsCfgs, sharedApp, config.shareNodes)
 
 	// Process CustomProfiles
 	processCustomProfilesForAS3(config.customProfiles, sharedApp)
@@ -272,7 +272,7 @@ func getDGRecordValueForAS3(dgName string, sharedApp as3Application, virtualAddr
 }
 
 //Process for AS3 Resource
-func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
+func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application, shareNodes bool) {
 	for _, cfg := range rsCfgs {
 		//Create policies
 		createPoliciesDecl(cfg, sharedApp)
@@ -281,7 +281,7 @@ func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
 		createMonitorDecl(cfg, sharedApp)
 
 		//Create pools
-		createPoolDecl(cfg, sharedApp)
+		createPoolDecl(cfg, sharedApp, shareNodes)
 
 		switch cfg.MetaData.ResourceType {
 		case VirtualServer:
@@ -324,7 +324,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 }
 
 // Create AS3 Pools for CRD
-func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
+func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool) {
 	for _, v := range cfg.Pools {
 		pool := &as3Pool{}
 		// TODO
@@ -335,6 +335,9 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			member.AddressDiscovery = "static"
 			member.ServicePort = val.Port
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
+			if shareNodes {
+				member.ShareNodes = shareNodes
+			}
 			pool.Members = append(pool.Members, member)
 		}
 		for _, val := range v.MonitorNames {

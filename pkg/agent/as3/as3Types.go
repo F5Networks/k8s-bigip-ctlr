@@ -121,6 +121,7 @@ type (
 		AddressDiscovery string   `json:"addressDiscovery,omitempty"`
 		ServerAddresses  []string `json:"serverAddresses,omitempty"`
 		ServicePort      int32    `json:"servicePort,omitempty"`
+		ShareNodes       bool     `json:"shareNodes,omitempty"`
 	}
 
 	// as3ResourcePointer maps to following in AS3 Resources

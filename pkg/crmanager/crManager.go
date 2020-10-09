@@ -82,6 +82,7 @@ func NewCRManager(params Params) *CRManager {
 		dgPath:          strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 
 		NginxCISConnectMode: params.NginxCISConnectMode,
+		shareNodes:          params.ShareNodes,
 	}
 
 	log.Debug("Custom Resource Manager Created")

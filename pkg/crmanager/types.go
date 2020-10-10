@@ -61,6 +61,7 @@ type (
 		dgPath    string
 
 		NginxCISConnectMode bool
+		shareNodes          bool
 	}
 	// Params defines parameters
 	Params struct {
@@ -76,6 +77,7 @@ type (
 		NodeLabelSelector string
 
 		NginxCISConnectMode bool
+		ShareNodes          bool
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
@@ -165,6 +167,7 @@ type (
 		iRuleMap       IRulesMap
 		intDgMap       InternalDataGroupMap
 		customProfiles *CustomProfileStore
+		shareNodes     bool
 	}
 
 	// Pool config
@@ -462,6 +465,7 @@ type (
 		AddressDiscovery string   `json:"addressDiscovery,omitempty"`
 		ServerAddresses  []string `json:"serverAddresses,omitempty"`
 		ServicePort      int32    `json:"servicePort,omitempty"`
+		ShareNodes       bool     `json:"shareNodes,omitempty"`
 	}
 
 	// as3ResourcePointer maps to following in AS3 Resources

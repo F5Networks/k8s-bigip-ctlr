@@ -109,6 +109,7 @@ type AS3Manager struct {
 	as3Version                string
 	as3Release                string
 	unprocessableEntityStatus bool
+	shareNodes                bool
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -133,6 +134,7 @@ type Params struct {
 	EventChan           chan interface{}
 	//Log the AS3 response body in Controller logs
 	LogResponse               bool
+	ShareNodes                bool
 	RspChan                   chan interface{}
 	UserAgent                 string
 	As3Version                string
@@ -155,6 +157,7 @@ func NewAS3Manager(params *Params) *AS3Manager {
 		as3Version:                params.As3Version,
 		as3Release:                params.As3Release,
 		OverriderCfgMapName:       params.OverriderCfgMapName,
+		shareNodes:                params.ShareNodes,
 		l2l3Agent: L2L3Agent{eventChan: params.EventChan,
 			configWriter: params.ConfigWriter},
 		PostManager: NewPostManager(PostParams{

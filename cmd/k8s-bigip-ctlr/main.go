@@ -152,6 +152,7 @@ var (
 	trustedCertsCfgmap     *string
 	agent                  *string
 	logAS3Response         *bool
+	shareNodes             *bool
 	overriderAS3CfgmapName *string
 	filterTenants          *bool
 
@@ -240,6 +241,8 @@ func _init() {
 		"Optional, time (in seconds) that CIS waits to post the available AS3 declaration.")
 	logAS3Response = bigIPFlags.Bool("log-as3-response", false,
 		"Optional, when set to true, add the body of AS3 API response in Controller logs.")
+	shareNodes = bigIPFlags.Bool("share-nodes", false,
+		"Optional, when set to true, node will be shared among partition.")
 	enableTLS = bigIPFlags.String("tls-version", "1.2",
 		"Optional, Configure TLS version to be enabled on BIG-IP. TLS1.3 is only supported in tmos version 14.0+.")
 	tls13CipherGroupReference = bigIPFlags.String("cipher-group", "/Common/f5-default",
@@ -691,6 +694,7 @@ func initCustomResourceManager(
 			NodeLabelSelector: *nodeLabelSelector,
 
 			NginxCISConnectMode: *nginxCISConnectMode,
+			ShareNodes:          *shareNodes,
 		},
 	)
 
@@ -973,6 +977,7 @@ func getAS3Params() *as3.Params {
 		SSLInsecure:               *sslInsecure,
 		AS3PostDelay:              *as3PostDelay,
 		LogResponse:               *logAS3Response,
+		ShareNodes:                *shareNodes,
 		RspChan:                   agRspChan,
 		UserAgent:                 getUserAgentInfo(),
 		ConfigWriter:              getConfigWriter(),

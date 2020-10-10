@@ -171,8 +171,8 @@ func (crMgr *CRManager) processResource() bool {
 			iRuleMap:       crMgr.irulesMap,
 			intDgMap:       crMgr.intDgMap,
 			customProfiles: crMgr.customProfiles,
+			shareNodes:     crMgr.shareNodes,
 		}
-
 		crMgr.Agent.PostConfig(config)
 		crMgr.initState = false
 		crMgr.resources.updateOldConfig()

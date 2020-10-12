@@ -17,7 +17,7 @@ For guides on this and other solutions for Kubernetes, see the
 
 What's New?
 -----------
-Checkout Our VirtualServer Custom Resource ALPHA release [Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/CustomResource.md)
+Support for Custom Resource Definitions [Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/CustomResource.md)
 
 Getting Help
 ------------

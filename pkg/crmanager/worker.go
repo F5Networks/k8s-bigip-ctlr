@@ -385,6 +385,15 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(
 	}
 
 	tlsProfile := obj.(*cisapiv1.TLSProfile)
+
+	if len(vs.Spec.Host) == 0 {
+		// VirtualServer without host may be used for group of services
+		// which are common amongst multiple hosts. Example: Error Page
+		// application may be common for multiple hosts.
+		// However, each host use a unique TLSProfile w.r.t SNI
+		return tlsProfile
+	}
+
 	for _, host := range tlsProfile.Spec.Hosts {
 		if host == vs.Spec.Host {
 			// TLSProfile Object

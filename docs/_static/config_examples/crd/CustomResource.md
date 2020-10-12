@@ -9,6 +9,13 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
 * A custom resource is an extension of the Kubernetes API that is not necessarily available in a default Kubernetes installation. It represents a customization of a particular Kubernetes installation. However, many core Kubernetes functions are now built using custom resources, making Kubernetes more modular.
 *  Custom resources can appear and disappear in a running cluster through dynamic registration, and cluster admins can update custom resources independently of the cluster itself. Once a custom resource is installed, users can create and access its objects using kubectl, just as they do for built-in resources like Pods.
 
+## Label
+* CIS will only process custom resources with f5cr Label as true. 
+```
+   labels:
+     f5cr: "true"  
+```
+
 ## Contents
 * CIS supports 2 Custom Resources at this point of time.
   - VirtualServer
@@ -16,7 +23,7 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
    
 ## VirtualServer
 
-* VirtualServer resource defines load balancing configuration for a domain name. 
+* VirtualServer resource defines the load balancing configuration. 
 ```
  apiVersion: "cis.f5.com/v1"
  kind: VirtualServer
@@ -31,13 +38,6 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
    - path: /coffee
      service: svc-2
      servicePort: 80
-```
-
-## Label
-* CIS will only process custom resources with f5cr Label as true. 
-```
-   labels:
-     f5cr: "true"  
 ```
 
 **Note: The above VirtualServer is insecure, Attach a TLSProfile to make it secure**
@@ -118,7 +118,7 @@ different terminations(for same domain), one with edge and another with re-encry
 
 | PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
 | ------ | ------ | ------ | ------ | ------ |
-| host | String | Required | NA |  Virtual Host |
+| host | String | Optional | NA |  Virtual Host |
 | pools | List of pool | Required | NA | List of BIG-IP Pool members |
 | virtualServerAddress | String | Required | NA | IP Address of BIG-IP Virtual Server |
 | virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |

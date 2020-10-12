@@ -10,7 +10,7 @@ before_install:
   - docker pull golang:1.11.1
   - docker pull node:6.11.0-slim
   - docker pull f5devcentral/containthedocs
-
+  - pyenv global 3.7.1
 script:
   - set -e
   - docker run --rm -it -v `pwd`:`pwd` -w `pwd` node:6.11.0-slim build-tools/schema-tests.sh

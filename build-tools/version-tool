@@ -12,6 +12,10 @@ from datetime import datetime
 from pipes import quote
 
 
+def cmp(a, b):
+    return (a > b) - (a < b)
+
+
 def normalize(s):
     """Convert to integer."""
     try:
@@ -67,8 +71,8 @@ def version_selftest():
     ]
     test_sorted = sorted(test_orig)
     if test_orig != test_sorted:
-        print test_orig
-        print test_sorted
+        print(test_orig)
+        print(test_sorted)
         raise Exception("Self-test: version sorting broken")
 
     if Version('10.2.3') < Version('1.1.0'):
@@ -110,12 +114,29 @@ class Version(object):
         self.pre = m.group('prerel') or ''
         self.build = m.group('build') or ''
 
-    def __cmp__(self, other):
+    def __lt__(self, other):
         """Define comparison operator."""
-        return cmp(self.major, other.major) or \
+        output = cmp(self.major, other.major) or \
             cmp(self.minor, other.minor) or \
             cmp(self.patch, other.patch) or \
             pre_cmp(self.pre, other.pre)
+        return True if output == -1 else False
+
+    def __eq__(self, other):
+        """Define comparison operator."""
+        output = cmp(self.major, other.major) or \
+            cmp(self.minor, other.minor) or \
+            cmp(self.patch, other.patch) or \
+            pre_cmp(self.pre, other.pre)
+        return True if output == 0 else False
+
+    def __gt__(self, other):
+        """Define comparison operator."""
+        output = cmp(self.major, other.major) or \
+            cmp(self.minor, other.minor) or \
+            cmp(self.patch, other.patch) or \
+            pre_cmp(self.pre, other.pre)
+        return True if output == 1 else False
 
     def __str__(self):
         """Define string operator."""
@@ -161,7 +182,7 @@ class VersionInfo(object):
         # listed in the version-file. The version or a pre-release of the
         # version must be represented
         tags = check_output(['git', 'tag', '-l', '--contains', 'HEAD'
-                             ]).splitlines()
+                             ]).decode().splitlines()
         tag_versions = []
         for t in tags:
             try:
@@ -194,7 +215,7 @@ class VersionInfo(object):
         # If the there is a tag matching the version file, it must point at the
         # current commit.
         as_tag = 'v' + data
-        check_tag = check_output(['git', 'tag', '-l', as_tag]).strip()
+        check_tag = check_output(['git', 'tag', '-l', as_tag]).decode().strip()
         if check_tag != "":
             # Make sure v$VERSION is a tag pointing at HEAD
             rc = subprocess.call(
@@ -206,7 +227,7 @@ class VersionInfo(object):
                                 "and it isn't the current commit")
 
         # Add extra info
-        self._vers['sha'] = check_output(['git', 'rev-parse', 'HEAD']).strip()
+        self._vers['sha'] = check_output(['git', 'rev-parse', 'HEAD']).decode().strip()
         self._vers['version_str'] = self.version_str()
         self._vers['build_info'] = self.buildinfo()
 
@@ -227,7 +248,7 @@ class VersionInfo(object):
         # sha = check_output(['git', 'rev-parse', 'HEAD'])
         sha_info = check_output([
             'git', 'describe', '--match=DO_NOT_CREATE_THIS_TAG',
-            '--always', '--dirty']).strip()
+            '--always', '--dirty']).decode().strip()
         datestr = datetime.now().strftime('%Y%m%d%H%M%S')
         ci_info = self._ci_info()
         if ci_info:
@@ -294,8 +315,8 @@ def print_docker_build_args(args):
     ver = VersionInfo(args.version_file)
 
     """
-    OVERRIDE_VERSION can be passed in as a config parameter to the Jenkins 
-    build job. This will override the version label in the Docker image. 
+    OVERRIDE_VERSION can be passed in as a config parameter to the Jenkins
+    build job. This will override the version label in the Docker image.
     """
     version = ver.version_str()
     if os.environ.get('OVERRIDE_VERSION', None):
@@ -306,11 +327,11 @@ def print_docker_build_args(args):
     }
 
     ret = []
-    for k, v in labels.iteritems():
+    for k, v in labels.items():
         ret.append('--label')
         ret.append(quote('{}={}'.format(k, v)))
 
-    print ' '.join(ret)
+    print(' '.join(ret))
 
 
 def main():
@@ -327,7 +348,7 @@ def main():
     def add_printer(cmd, tmpl, **kwargs):
         def print_func(args):
             ver = VersionInfo(args.version_file)
-            print ver.format(tmpl)
+            print(ver.format(tmpl))
 
         sub = subparsers.add_parser(cmd, **kwargs)
         sub.set_defaults(func=print_func)

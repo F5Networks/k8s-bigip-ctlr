@@ -95,6 +95,30 @@ different terminations(for same domain), one with edge and another with re-encry
 * Single or Group of VirtualServers(with same virtualServerAddress) will be created as one common BIG-IP-VirtualServer.
 * If user want to update secure virtual (TLS Virtual) server to insecure virtual (non-TLS server) server. User needs to delete the secure virtual server first and create a new virtual server.
 
+## Transport Server
+
+* TransportServer resource expose non-HTTP traffic configuration for a virtual server address in BIG-IP. 
+```
+ apiVersion: "cis.f5.com/v1"
+ kind: TransportServer
+ metadata:
+   name: transport-server
+   labels:
+     f5cr: "true"
+ spec:
+   virtualServerAddress: "172.16.3.9"
+   virtualServerPort: 8585
+   mode: standard
+   snat: auto
+   pool:
+     service: svc-3
+     servicePort: 8181
+     monitor:
+      type: tcp
+      interval: 10
+      timeout: 10
+```
+
 ## How CIS works with CRDs
 
 * CIS registers to the kubernetes client-go using informers to retrieve Virtual Server, TLSProfile, Service, Endpoint and Node creation, updation and deletion events. Resources identified from such events will be pushed to a Resource Queue maintained by CIS.
@@ -161,6 +185,40 @@ different terminations(for same domain), one with edge and another with re-encry
 | clientSSL | String | Required | NA | ClientSSL Profile on the BIG-IP. Example /Common/clientssl |
 | serverSSL | String | Optional | NA | ServerSSL Profile on the BIG-IP. Example /Common/serverssl |
 | reference | String | Required | NA | Describes the location of profile, BIG-IP or k8s Secrets. We currently support BIG-IP profiles only |
+
+# TransportServer
+   * Schema Validation
+     - OpenAPI Schema Validation
+     
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/basic/vs-customresourcedefinition.yml
+
+
+**TransportServer Components**
+
+| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
+| ------ | ------ | ------ | ------ | ------ |
+| pool | pool | Required | NA | BIG-IP Pool member |
+| virtualServerAddress | String | Required | NA | IP Address of BIG-IP Virtual Server |
+| virtualServerPort | String | Required | NA | Port Address of BIG-IP Virtual Server |
+| virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
+| mode | String | Required | NA |  "standard" or "performance". A Standard mode transport server processes connections using the full proxy architecture. A Performance mode transport server uses FastL4 packet-by-packet TCP behavior. |
+| snat | String | Optional | auto |  |
+
+**Pool Components**
+
+| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
+| ------ | ------ | ------ | ------ | ------ |
+| service | String | Required | NA | Service deployed in kubernetes cluster |
+| servicePort | String | Required | NA | Port to access Service |
+| monitor | String | Optional | NA | Health Monitor to check the health of Pool Members |
+
+**Health Monitor**
+
+| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
+| ------ | ------ | ------ | ------ | ------ |
+| type | String | Required | NA |  http or https |
+| interval | Int | Required | 5 | Seconds between health queries |
+| timeout | Int | Optional | 16 | Seconds before query fails |
 
 ## Prerequisites
 Since CIS is using the AS3 declarative API we need the AS3 extension installed on BIG-IP. Follow the link to install AS3 3.18 is required for CIS 2.0.

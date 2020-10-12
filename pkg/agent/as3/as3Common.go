@@ -262,10 +262,10 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 			member.AddressDiscovery = "static"
 			member.ServicePort = val.Port
 			member.ServerAddresses = append(member.ServerAddresses, val.Address)
-			pool.Members = append(pool.Members, member)
 			if shareNodes {
 				member.ShareNodes = shareNodes
 			}
+			pool.Members = append(pool.Members, member)
 		}
 		for _, val := range v.MonitorNames {
 			var monitor as3ResourcePointer

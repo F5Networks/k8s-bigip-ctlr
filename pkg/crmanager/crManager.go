@@ -48,6 +48,8 @@ const (
 	Service = "Service"
 	// Endpoints is a k8s native Endpoint Resource.
 	Endpoints = "Endpoints"
+	// Namespace is k8s namespace
+	Namespace = "Namespace"
 
 	NodePortMode = "nodeport"
 
@@ -66,7 +68,7 @@ const (
 func NewCRManager(params Params) *CRManager {
 
 	crMgr := &CRManager{
-		namespaces:  params.Namespaces,
+		namespaces:  make(map[string]bool),
 		crInformers: make(map[string]*CRInformer),
 		rscQueue: workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller"),
@@ -86,21 +88,39 @@ func NewCRManager(params Params) *CRManager {
 	}
 
 	log.Debug("Custom Resource Manager Created")
-	if len(params.Namespaces) == 0 {
-		crMgr.namespaces = []string{""}
-		log.Debug("No namespaces provided. Watching all namespaces")
-	}
+
 	crMgr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 
 	if err := crMgr.setupClients(params.Config); err != nil {
 		log.Errorf("Failed to Setup Clients: %v", err)
 	}
 
-	if err := crMgr.setupInformers(); err != nil {
+	namespaceSelector, err := createLabelSelector(params.NamespaceLabel)
+
+	if err != nil {
+		if len(params.Namespaces) == 0 {
+			crMgr.namespaces[""] = true
+			log.Debug("No namespaces provided. Watching all namespaces")
+		} else {
+			for _, ns := range params.Namespaces {
+				crMgr.namespaces[ns] = true
+			}
+		}
+	} else {
+		err2 := crMgr.createNamespaceLabeledInformer(namespaceSelector)
+		if err2 != nil {
+			for _, v := range crMgr.nsInformer.nsInformer.GetIndexer().List() {
+				ns := v.(*v1.Namespace)
+				crMgr.namespaces[ns.ObjectMeta.Name] = true
+			}
+		}
+	}
+
+	if err3 := crMgr.setupInformers(); err3 != nil {
 		log.Error("Failed to Setup Informers")
 	}
 
-	err := crMgr.SetupNodePolling(
+	err = crMgr.SetupNodePolling(
 		params.NodePollInterval,
 		params.NodeLabelSelector,
 		params.VXLANMode,
@@ -149,7 +169,7 @@ func (crMgr *CRManager) setupClients(config *rest.Config) error {
 }
 
 func (crMgr *CRManager) setupInformers() error {
-	for _, n := range crMgr.namespaces {
+	for n, _ := range crMgr.namespaces {
 		if err := crMgr.addNamespacedInformer(n); err != nil {
 			log.Errorf("Unable to setup informer for namespace: %v, Error:%v", n, err)
 		}
@@ -164,6 +184,10 @@ func (crMgr *CRManager) Start() {
 	defer crMgr.rscQueue.ShutDown()
 	for _, inf := range crMgr.crInformers {
 		inf.start()
+	}
+
+	if crMgr.nsInformer != nil {
+		crMgr.nsInformer.start()
 	}
 
 	crMgr.nodePoller.Run()
@@ -184,6 +208,10 @@ func (crMgr *CRManager) Stop() {
 	for _, inf := range crMgr.crInformers {
 		inf.stop()
 	}
+	if crMgr.nsInformer != nil {
+		crMgr.nsInformer.stop()
+	}
+
 	crMgr.nodePoller.Stop()
 	crMgr.Agent.Stop()
 }

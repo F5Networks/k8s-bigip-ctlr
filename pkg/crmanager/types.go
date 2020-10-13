@@ -37,8 +37,10 @@ type (
 		kubeCRClient     versioned.Interface
 		kubeClient       kubernetes.Interface
 		crInformers      map[string]*CRInformer
+		nsInformer       *NSInformer
 		resourceSelector labels.Selector
-		namespaces       []string
+		namespacesMutex  sync.Mutex
+		namespaces       map[string]bool
 		rscQueue         workqueue.RateLimitingInterface
 		Partition        string
 		Agent            *Agent
@@ -67,6 +69,7 @@ type (
 	Params struct {
 		Config            *rest.Config
 		Namespaces        []string
+		NamespaceLabel    string
 		Partition         string
 		Agent             *Agent
 		ControllerMode    string
@@ -91,6 +94,10 @@ type (
 		epsInformer cache.SharedIndexInformer
 	}
 
+	NSInformer struct {
+		stopCh     chan struct{}
+		nsInformer cache.SharedIndexInformer
+	}
 	rqKey struct {
 		namespace string
 		kind      string

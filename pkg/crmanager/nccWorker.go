@@ -264,7 +264,7 @@ func (crMgr *CRManager) syncNginxCisConnector(
 func (crMgr *CRManager) getAllNginxCisConnectors(namespace string) []*cisapiv1.NginxCisConnector {
 	var allNCCs []*cisapiv1.NginxCisConnector
 
-	crInf, ok := crMgr.getNamespaceInformer(namespace)
+	crInf, ok := crMgr.getNamespacedInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil

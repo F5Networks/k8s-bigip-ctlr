@@ -93,7 +93,7 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 			// Handle NodeLabelUpdates
 			if crMgr.ControllerMode == NodePortMode {
 				if crMgr.watchingAllNamespaces() {
-					crInf, _ := crMgr.getNamespaceInformer("")
+					crInf, _ := crMgr.getNamespacedInformer("")
 					virtuals := crInf.vsInformer.GetIndexer().List()
 					if len(virtuals) != 0 {
 						for _, virtual := range virtuals {
@@ -109,7 +109,9 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 						}
 					}
 				} else {
-					for _, ns := range crMgr.namespaces {
+					crMgr.namespacesMutex.Lock()
+					defer crMgr.namespacesMutex.Unlock()
+					for ns, _ := range crMgr.namespaces {
 						virtuals := crMgr.getAllVirtualServers(ns)
 						for _, virtual := range virtuals {
 							qKey := &rqKey{

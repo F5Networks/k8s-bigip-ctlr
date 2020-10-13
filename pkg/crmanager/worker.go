@@ -45,11 +45,8 @@ func (crMgr *CRManager) processResource() bool {
 		log.Debugf("Resource Queue is empty, Going to StandBy Mode")
 		return false
 	}
-	var isLastInQueue, isError bool
+	var isError bool
 
-	if crMgr.rscQueue.Len() == 0 {
-		isLastInQueue = true
-	}
 	defer crMgr.rscQueue.Done(key)
 	rKey := key.(*rqKey)
 	log.Debugf("Processing Key: %v", rKey)
@@ -151,6 +148,42 @@ func (crMgr *CRManager) processResource() bool {
 				}
 			}
 		}
+	case Namespace:
+		ns := rKey.rsc.(*v1.Namespace)
+		nsName := ns.ObjectMeta.Name
+		if rKey.rscDelete {
+			for _, vrt := range crMgr.getAllVirtualServers(nsName) {
+				err := crMgr.syncVirtualServers(vrt, true)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
+			}
+
+			for _, ts := range crMgr.getAllTransportServers(nsName) {
+				err := crMgr.syncTransportServers(ts, true)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
+			}
+
+			crMgr.crInformers[nsName].stop()
+			delete(crMgr.crInformers, nsName)
+			crMgr.namespacesMutex.Lock()
+			delete(crMgr.namespaces, nsName)
+			crMgr.namespacesMutex.Unlock()
+			log.Debugf("Removed Namespace: '%v' from CIS scope", nsName)
+		} else {
+			crMgr.namespacesMutex.Lock()
+			crMgr.namespaces[nsName] = true
+			crMgr.namespacesMutex.Unlock()
+			_ = crMgr.addNamespacedInformer(nsName)
+			crMgr.crInformers[nsName].start()
+			log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
+		}
 	default:
 		log.Errorf("Unknown resource Kind: %v", rKey.kind)
 	}
@@ -161,7 +194,7 @@ func (crMgr *CRManager) processResource() bool {
 		crMgr.rscQueue.Forget(key)
 	}
 
-	if isLastInQueue && !reflect.DeepEqual(
+	if crMgr.rscQueue.Len() == 0 && !reflect.DeepEqual(
 		crMgr.resources.rsMap,
 		crMgr.resources.oldRsMap,
 	) {
@@ -187,7 +220,7 @@ func (crMgr *CRManager) syncEndpoints(ep *v1.Endpoints) *v1.Service {
 	epNamespace := ep.ObjectMeta.Namespace
 	svcKey := fmt.Sprintf("%s/%s", epNamespace, epName)
 
-	crInf, ok := crMgr.getNamespaceInformer(epNamespace)
+	crInf, ok := crMgr.getNamespacedInformer(epNamespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", epNamespace)
 		return nil
@@ -274,7 +307,7 @@ func (crMgr *CRManager) syncTLSProfile(tls *cisapiv1.TLSProfile) []*cisapiv1.Vir
 func (crMgr *CRManager) getAllVirtualServers(namespace string) []*cisapiv1.VirtualServer {
 	var allVirtuals []*cisapiv1.VirtualServer
 
-	crInf, ok := crMgr.getNamespaceInformer(namespace)
+	crInf, ok := crMgr.getNamespacedInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -364,7 +397,7 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(
 	tlsKey := fmt.Sprintf("%s/%s", namespace, tlsName)
 
 	// Initialize CustomResource Informer for required namespace
-	crInf, ok := crMgr.getNamespaceInformer(namespace)
+	crInf, ok := crMgr.getNamespacedInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -581,7 +614,7 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 	namespace string,
 ) {
 	// TODO: Can we get rid of counter? and use something better.
-	crInf, ok := crMgr.getNamespaceInformer(namespace)
+	crInf, ok := crMgr.getNamespacedInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return
@@ -626,7 +659,7 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 	namespace string,
 ) {
 
-	crInf, ok := crMgr.getNamespaceInformer(namespace)
+	crInf, ok := crMgr.getNamespacedInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return
@@ -846,7 +879,7 @@ func (crMgr *CRManager) syncTransportServers(
 func (crMgr *CRManager) getAllTransportServers(namespace string) []*cisapiv1.TransportServer {
 	var allVirtuals []*cisapiv1.TransportServer
 
-	crInf, ok := crMgr.getNamespaceInformer(namespace)
+	crInf, ok := crMgr.getNamespacedInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil

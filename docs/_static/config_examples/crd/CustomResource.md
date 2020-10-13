@@ -148,6 +148,8 @@ different terminations(for same domain), one with edge and another with re-encry
 | virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
 | TLSProfile | String | Optional | NA | Describes the TLS configuration for BIG-IP Virtual Server |
 | rewriteAppRoot | String | Optional | NA |  Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path |
+| waf | String | Optional | NA | Reference to WAF policy on BIG-IP |
+| snat | String | Optional | auto | Reference to SNAT pool on BIG-IP or Other allowed value is: "none" |
 
 **Pool Components**
 
@@ -275,6 +277,9 @@ kubectl create -f sample-nodeport-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
  ```sh
 kubectl create -f sample-cluster-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 ```
+## Share Nodes
+
+CIS deployment parameter `--share-nodes` can be used to share the pool member nodes among multiple BIG-IP tenants. `--share-nodes=true` will create nodes on `/Common` partition.
 
 ## Examples
 
@@ -282,7 +287,6 @@ kubectl create -f sample-cluster-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 
 ## To Be Implemented
 * A/B Deployment
-* Support for WAF
 * Rewrite Rules
 * ErrorPage
 

@@ -32,7 +32,7 @@ spec:
                   type: string
                 tlsProfileName:
                   type: string
-                appRootRewrite:
+                rewriteAppRoot:
                   type: string
                   pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
                 waf:

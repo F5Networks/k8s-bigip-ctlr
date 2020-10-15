@@ -31,7 +31,7 @@ func (crMgr *CRManager) checkValidVirtualServer(
 	vsName := vsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 
-	crInf, ok := crMgr.getNamespaceInformer(vsNamespace)
+	crInf, ok := crMgr.getNamespacedInformer(vsNamespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", vsNamespace)
 		return false
@@ -63,7 +63,7 @@ func (crMgr *CRManager) checkValidTransportServer(
 	vsName := tsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 
-	crInf, ok := crMgr.getNamespaceInformer(vsNamespace)
+	crInf, ok := crMgr.getNamespacedInformer(vsNamespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", vsNamespace)
 		return false

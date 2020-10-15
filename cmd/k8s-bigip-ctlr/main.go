@@ -684,6 +684,7 @@ func initCustomResourceManager(
 		crmanager.Params{
 			Config:            config,
 			Namespaces:        *namespaces,
+			NamespaceLabel:    *namespaceLabel,
 			Partition:         (*bigIPPartitions)[0],
 			Agent:             agent,
 			ControllerMode:    *poolMemberType,

@@ -18,6 +18,7 @@ package crmanager
 
 import (
 	"fmt"
+	"k8s.io/apimachinery/pkg/labels"
 	"time"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
@@ -30,28 +31,42 @@ import (
 
 // start the VirtualServer informer
 func (crInfr *CRInformer) start() {
+	var cacheSyncs []cache.InformerSynced
+
 	if crInfr.vsInformer != nil {
 		log.Infof("Starting VirtualServer Informer")
 		go crInfr.vsInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.vsInformer.HasSynced)
 	}
 	if crInfr.tlsInformer != nil {
 		log.Infof("Starting TLSProfile Informer")
 		go crInfr.tlsInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.tlsInformer.HasSynced)
 	}
 	if crInfr.tsInformer != nil {
 		log.Infof("Starting TransportServer Informer")
 		go crInfr.tsInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.tsInformer.HasSynced)
 	}
 	if crInfr.nccInformer != nil {
 		log.Infof("Starting NginxCisConnector Informer")
 		go crInfr.nccInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.nccInformer.HasSynced)
 	}
 	if crInfr.svcInformer != nil {
 		go crInfr.svcInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.svcInformer.HasSynced)
 	}
 	if crInfr.epsInformer != nil {
 		go crInfr.epsInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.epsInformer.HasSynced)
 	}
+
+	cache.WaitForNamedCacheSync(
+		"F5 CIS CRD Controller",
+		crInfr.stopCh,
+		cacheSyncs...,
+	)
 }
 
 func (crInfr *CRInformer) stop() {
@@ -83,13 +98,13 @@ func (crMgr *CRManager) addNamespacedInformer(
 	if crInf, found = crMgr.crInformers[namespace]; found {
 		return nil
 	}
-	crInf = crMgr.newInformer(namespace)
+	crInf = crMgr.newNamespacedInformer(namespace)
 	crMgr.addEventHandlers(crInf)
 	crMgr.crInformers[namespace] = crInf
 	return nil
 }
 
-func (crMgr *CRManager) newInformer(
+func (crMgr *CRManager) newNamespacedInformer(
 	namespace string,
 ) *CRInformer {
 	log.Debugf("Creating Informers for Namespace %v", namespace)
@@ -232,7 +247,7 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	}
 }
 
-func (crMgr *CRManager) getNamespaceInformer(
+func (crMgr *CRManager) getNamespacedInformer(
 	namespace string,
 ) (*CRInformer, bool) {
 	if crMgr.watchingAllNamespaces() {
@@ -465,4 +480,84 @@ func (crMgr *CRManager) enqueueEndpoints(obj interface{}) {
 
 		crMgr.rscQueue.Add(key)
 	}
+}
+
+func (nsInfr *NSInformer) start() {
+	if nsInfr.nsInformer != nil {
+		log.Infof("Starting Namespace Informer")
+		go nsInfr.nsInformer.Run(nsInfr.stopCh)
+	}
+}
+
+func (nsInfr *NSInformer) stop() {
+	close(nsInfr.stopCh)
+}
+
+func (crMgr *CRManager) createNamespaceLabeledInformer(selector labels.Selector) error {
+	namespaceOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = selector.String()
+	}
+
+	if nil != crMgr.nsInformer && nil != crMgr.nsInformer.nsInformer {
+		return fmt.Errorf("Already have a namespace label informer added.")
+	}
+	if 0 != len(crMgr.crInformers) {
+		return fmt.Errorf("Cannot set a namespace label informer when informers " +
+			"have been setup for one or more namespaces.")
+	}
+
+	resyncPeriod := 0 * time.Second
+	restClientv1 := crMgr.kubeClient.CoreV1().RESTClient()
+
+	crMgr.nsInformer = &NSInformer{
+		stopCh: make(chan struct{}),
+		nsInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"namespaces",
+				"",
+				namespaceOptions,
+			),
+			&corev1.Namespace{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+	}
+
+	crMgr.nsInformer.nsInformer.AddEventHandlerWithResyncPeriod(
+		&cache.ResourceEventHandlerFuncs{
+			AddFunc:    func(obj interface{}) { crMgr.enqueueNamespace(obj) },
+			DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedNamespace(obj) },
+		},
+		resyncPeriod,
+	)
+
+	return nil
+}
+
+func (crMgr *CRManager) enqueueNamespace(obj interface{}) {
+	ns := obj.(*corev1.Namespace)
+	log.Infof("Enqueueing Namespace: %v", ns)
+	key := &rqKey{
+		namespace: ns.ObjectMeta.Namespace,
+		kind:      Namespace,
+		rscName:   ns.ObjectMeta.Name,
+		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueDeletedNamespace(obj interface{}) {
+	ns := obj.(*corev1.Namespace)
+	log.Infof("Enqueueing Namespace: %v on Delete", ns)
+	key := &rqKey{
+		namespace: ns.ObjectMeta.Namespace,
+		kind:      Namespace,
+		rscName:   ns.ObjectMeta.Name,
+		rsc:       obj,
+		rscDelete: true,
+	}
+
+	crMgr.rscQueue.Add(key)
 }

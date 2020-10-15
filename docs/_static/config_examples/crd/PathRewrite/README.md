@@ -1,8 +1,8 @@
-# App Root Rewrite (appRootRewrite)
+# App Root Rewrite (rewriteAppRoot)
 Redirecting the application to specific path when request made with root path "/".
 The path changes, but the pool with path "/" gets served.
 
-Eg: appRootRewrite
+Eg: rewriteAppRoot
 ```
 apiVersion: "cis.f5.com/v1"
 kind: VirtualServer
@@ -14,7 +14,7 @@ spec:
   # This is an insecure virtual, Please use TLSProfile to secure the virtual
   # check out tls examples to understand more.
   virtualServerAddress: "172.16.3.6"
-  appRootRewrite: /home
+  rewriteAppRoot: /home
   host: collage.example.com
   pools:
     - path: /
@@ -65,7 +65,7 @@ spec:
   # This is an insecure virtual, Please use TLSProfile to secure the virtual
   # check out tls examples to understand more.
   virtualServerAddress: "172.16.3.6"
-  appRootRewrite: /home
+  rewriteAppRoot: /home
   host: collage.example.com
   pools:
     - path: /

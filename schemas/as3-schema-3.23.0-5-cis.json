@@ -1,5 +1,5 @@
 {
-  "$id": "urn:uuid:85626792-9ee7-46bb-8fc8-4ba708cfdc1d",
+  "$id": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "AS3 API Request",
   "description": "AS3 API request body",

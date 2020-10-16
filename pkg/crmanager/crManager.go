@@ -97,7 +97,7 @@ func NewCRManager(params Params) *CRManager {
 
 	namespaceSelector, err := createLabelSelector(params.NamespaceLabel)
 
-	if err != nil {
+	if params.NamespaceLabel == "" || err != nil {
 		if len(params.Namespaces) == 0 {
 			crMgr.namespaces[""] = true
 			log.Debug("No namespaces provided. Watching all namespaces")

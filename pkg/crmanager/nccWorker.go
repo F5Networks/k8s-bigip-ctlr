@@ -226,7 +226,7 @@ func (crMgr *CRManager) syncNginxCisConnector(
 
 		rsCfg := &ResourceConfig{}
 		rsCfg.Virtual.Partition = crMgr.Partition
-		rsCfg.MetaData.ResourceType = NginxCisConnector
+		rsCfg.MetaData.ResourceType = VirtualServer
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
 		rsCfg.Virtual.SNAT = DEFAULT_SNAT

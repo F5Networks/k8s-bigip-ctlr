@@ -6,12 +6,12 @@ Two options which can be used to configure are :
     1. virtualServerHTTPPort
     2. virtualServerHTTPSPort
 
-## cusotm-http-port.yml
+## custom-http-port.yml
 
 By deploying this yaml file in your cluster, CIS will create a Virtual Server on BIG-IP with VIP custom http  port as 500 
 It will load balance the traffic for domain cafe.example.com
 
-## cusotm-https-port.yml
+## custom-https-port.yml
 
 By deploying this yaml file in your cluster, CIS will create a Virtual Server on BIG-IP with VIP custom https port as 500 
 It will load balance the traffic for domain cafe.example.com

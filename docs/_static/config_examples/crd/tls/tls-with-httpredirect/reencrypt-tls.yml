@@ -7,8 +7,8 @@ metadata:
 spec:
   tls:
     termination: reencrypt
-    clientSSL: /common/clientssl
-    serverSSL: /common/serverssl
+    clientSSL: /Common/clientssl
+    serverSSL: /Common/serverssl
     reference: bigip
   hosts:
   - coffee.example.com

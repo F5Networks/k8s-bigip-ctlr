@@ -287,7 +287,6 @@ CIS deployment parameter `--share-nodes` can be used to share the pool member no
 
 ## To Be Implemented
 * A/B Deployment
-* Rewrite Rules
 * ErrorPage
 
 ## Note

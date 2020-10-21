@@ -5,13 +5,43 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 -------------
 Added Functionality
 `````````````````````
+**Custom Resource Definition (CRD)**
+
+* Multiple ports in a single service. 
+* `TrasnsportServer` Custom Resource.
+* VirtualServer Custom Resource without Host Parameter.
+* Share Nodes implementation for CRD, Ingress and Routes.
+* WAF Integration.
+* SNAT in VirtualServer CRD. 
+* Option to configure Virtual address port. 
+* App-Root Rewrite and Path Rewrite. 
+* Health Monitor for each pool member. 
+* Option to configure VirtualServer name.
+* Nginx CIS connector.
+* Namespace label.
+* CRD TEEMs Integration.
+* Support for AS3 3.23.
+* Upgraded AS3 Schema validation version from v3.11.0-3 to v3.18.0-4.
+* Schema - <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml>`_.
+* Examples - <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd>`_.
 
 Bug Fixes
 `````````
+**Custom Resource Definition (CRD)**
+
+* Verify the AS3 installation on BIGIP in CRD Mode.
+* Streamlined logs.
+* Fix unnecessary creation of HTTP VirtulServer when httpTraffic is None. 
+
+**Routes**
+
+* Fix FlipFlop of Policy with AB deployment Routes.
+* Remove unwanted logs from IRule.
 
 Limitations
 ```````````
-* CIS fails to read TLSProfile Intermittently, We are working with Kubernetes to fix this `issue <https://github.com/kubernetes/code-generator/issues/116>`_.
+* Modifying VirtualServer address leads to traffic loss intermittently. Delete and re-create the VirtualServer as an alternative.
+* VirtualServers with same host and virtualServerAddress should maintain same parameters except pool, tlsProfileName and monitors. 
 
 2.1.1
 -------------

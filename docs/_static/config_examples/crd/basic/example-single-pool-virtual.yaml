@@ -7,8 +7,8 @@ metadata:
 spec:
   # This is an insecure virtual, Please use TLSProfile to secure the virtual
   # check out tls examples to understand more.
-  host: cafe.example.com
-  virtualServerAddress: "172.16.3.4"
+  host: caffee.example.com
+  virtualServerAddress: "172.16.3.8"
   pools:
   - path: /coffee
     service: svc-2

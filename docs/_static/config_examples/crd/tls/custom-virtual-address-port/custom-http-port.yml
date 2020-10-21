@@ -5,8 +5,8 @@ metadata:
   labels:
     f5cr: "true"
 spec:
-  host: cafe.example.com
-  virtualServerAddress: "172.16.3.4"
+  host: latte.example.com
+  virtualServerAddress: "172.16.3.10"
   virtualServerHTTPPort: 8080
   pools:
   - path: /coffee

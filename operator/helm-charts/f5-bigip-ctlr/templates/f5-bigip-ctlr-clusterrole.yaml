@@ -54,4 +54,5 @@ rules:
     resources:
       - virtualservers
       - tlsprofiles
+      - transportservers
 {{- end -}}

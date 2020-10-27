@@ -44,6 +44,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&NginxCisConnectorList{},
 		&TransportServer{},
 		&TransportServerList{},
+		&ExternalDNS{},
+		&ExternalDNSList{},
 	)
 
 	scheme.AddKnownTypes(

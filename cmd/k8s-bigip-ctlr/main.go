@@ -1097,12 +1097,18 @@ func getUserAgentInfo() string {
 	// support for ocp < 3.11
 	if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv3).DoRaw(); err == nil {
 		if err = json.Unmarshal(vInfo, &versionInfo); err == nil {
+			if *nginxCISConnectMode {
+				return fmt.Sprintf("CIS/v%v OCP/%v NCC", version, versionInfo["gitVersion"])
+			}
 			return fmt.Sprintf("CIS/v%v OCP/%v", version, versionInfo["gitVersion"])
 		}
 	} else if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv4).DoRaw(); err == nil {
 		// support ocp > 4.0
 		var ocp4 Ocp4Version
 		if er := json.Unmarshal(vInfo, &ocp4); er == nil {
+			if *nginxCISConnectMode {
+				return fmt.Sprintf("CIS/v%v OCP/v4.0.0 NCC", version)
+			}
 			if len(ocp4.Status.History) > 0 {
 				return fmt.Sprintf("CIS/v%v OCP/v%v", version, ocp4.Status.History[0].Version)
 			}
@@ -1111,6 +1117,9 @@ func getUserAgentInfo() string {
 	} else if vInfo, err = rc.Get().AbsPath(versionPathk8s).DoRaw(); err == nil {
 		// support k8s
 		if er := json.Unmarshal(vInfo, &versionInfo); er == nil {
+			if *nginxCISConnectMode {
+				return fmt.Sprintf("CIS/v%v K8S/%v NCC", version, versionInfo["gitVersion"])
+			}
 			return fmt.Sprintf("CIS/v%v K8S/%v", version, versionInfo["gitVersion"])
 		}
 	}

@@ -19,6 +19,7 @@ package crmanager
 import (
 	"fmt"
 	"k8s.io/apimachinery/pkg/labels"
+	"reflect"
 	"time"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
@@ -435,7 +436,7 @@ func (crMgr *CRManager) enqueueUpdatedNginxCisConnector(oldObj, newObj interface
 	oldNCC := oldObj.(*cisapiv1.NginxCisConnector)
 	newNCC := newObj.(*cisapiv1.NginxCisConnector)
 
-	if oldNCC.Spec.VirtualServerAddress != newNCC.Spec.VirtualServerAddress {
+	if oldNCC.Spec.VirtualServerAddress != newNCC.Spec.VirtualServerAddress || reflect.DeepEqual(oldNCC.Spec.IRules, newNCC.Spec.IRules) {
 		key := &rqKey{
 			namespace: oldNCC.ObjectMeta.Namespace,
 			kind:      NginxCisConnector,

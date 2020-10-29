@@ -463,13 +463,29 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	for _, v := range cfg.Virtual.IRules {
 		splits := strings.Split(v, "/")
 		iRuleName := splits[len(splits)-1]
-		if iRuleName == SslPassthroughIRuleName {
-			svc.ServerTLS = &as3ResourcePointer{
-				BigIP: "/Common/clientssl",
+		matched := false
+		var IRules []interface{}
+		for _, b := range IRuleList {
+			if iRuleName == b {
+				matched = true
 			}
-			updateVirtualToHTTPS(svc)
 		}
-		svc.IRules = append(svc.IRules, iRuleName)
+		if matched {
+			if iRuleName == SslPassthroughIRuleName {
+				svc.ServerTLS = &as3ResourcePointer{
+					BigIP: "/Common/clientssl",
+				}
+				updateVirtualToHTTPS(svc)
+			}
+			IRules = append(IRules, iRuleName)
+		} else {
+			irule := &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", v),
+			}
+			IRules = append(IRules, irule)
+		}
+		svc.IRules = IRules
+
 	}
 
 	sharedApp[cfg.Virtual.Name] = svc

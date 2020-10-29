@@ -111,6 +111,7 @@ type NginxCisConnector struct {
 type NginxCisConnectorSpec struct {
 	VirtualServerAddress string                `json:"virtualServerAddress"`
 	Selector             *metav1.LabelSelector `json:"selector"`
+	IRules               []string              `json:"iRules,omitempty"`
 }
 
 // NginxCisConnectorStatus is Status for NginxCisConnector

@@ -230,6 +230,9 @@ func (crMgr *CRManager) syncNginxCisConnector(
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
 		rsCfg.Virtual.SNAT = DEFAULT_SNAT
+		if len(ncc.Spec.IRules) > 0 {
+			rsCfg.Virtual.IRules = ncc.Spec.IRules
+		}
 		rsCfg.Virtual.SetVirtualAddress(
 			ncc.Spec.VirtualServerAddress,
 			port.Port,

@@ -126,6 +126,9 @@ const (
 	SslPassthroughIRuleName = "passthrough_irule"
 )
 
+// Irule list
+var IRuleList = [...]string{SslPassthroughIRuleName, HttpRedirectNoHostIRuleName, HttpRedirectIRuleName}
+
 // constants for TLS references
 const (
 	// reference for profiles stored in BIG-IP

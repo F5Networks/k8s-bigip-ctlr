@@ -461,7 +461,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	}
 
 	for _, v := range cfg.Virtual.IRules {
-		log.Infof("Found IRule %v", v)
 		splits := strings.Split(v, "/")
 		iRuleName := splits[len(splits)-1]
 		matched := false

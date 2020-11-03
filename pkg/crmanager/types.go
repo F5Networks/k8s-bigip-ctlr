@@ -84,14 +84,15 @@ type (
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
-		namespace   string
-		stopCh      chan struct{}
-		vsInformer  cache.SharedIndexInformer
-		tlsInformer cache.SharedIndexInformer
-		tsInformer  cache.SharedIndexInformer
-		nccInformer cache.SharedIndexInformer
-		svcInformer cache.SharedIndexInformer
-		epsInformer cache.SharedIndexInformer
+		namespace    string
+		stopCh       chan struct{}
+		svcInformer  cache.SharedIndexInformer
+		epsInformer  cache.SharedIndexInformer
+		vsInformer   cache.SharedIndexInformer
+		tlsInformer  cache.SharedIndexInformer
+		tsInformer   cache.SharedIndexInformer
+		nccInformer  cache.SharedIndexInformer
+		ednsInformer cache.SharedIndexInformer
 	}
 
 	NSInformer struct {
@@ -110,6 +111,7 @@ type (
 		Active       bool
 		ResourceType string
 		rscName      string
+		hosts        []string
 	}
 
 	// Virtual Server Key - unique server is Name + Port
@@ -169,12 +171,33 @@ type (
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
 
+	DNSConfig map[string]WideIP
+
+	WideIPs struct {
+		WideIPs []WideIP `json:"wideIPs"`
+	}
+
+	WideIP struct {
+		DomainName string     `json:"name"`
+		RecordType string     `json:"recordType"`
+		LBMethod   string     `json:"LoadBalancingMode"`
+		Pools      []GSLBPool `json:"pools"`
+	}
+	GSLBPool struct {
+		Name       string   `json:"name"`
+		RecordType string   `json:"recordType"`
+		LBMethod   string   `json:"LoadBalancingMode"`
+		Members    []string `json:"members"`
+		Monitor    *Monitor `json:"monitor,omitempty"`
+	}
+
 	ResourceConfigWrapper struct {
 		rsCfgs         ResourceConfigs
 		iRuleMap       IRulesMap
 		intDgMap       InternalDataGroupMap
 		customProfiles *CustomProfileStore
 		shareNodes     bool
+		dnsConfig      DNSConfig
 	}
 
 	// Pool config
@@ -197,7 +220,7 @@ type (
 		Interval  int    `json:"interval,omitempty"`
 		Type      string `json:"type,omitempty"`
 		Send      string `json:"send,omitempty"`
-		Recv      string `json:"recv,omitempty"`
+		Recv      string `json:"recv"`
 		Timeout   int    `json:"timeout,omitempty"`
 	}
 	// Monitors  is slice of monitor
@@ -368,6 +391,7 @@ type (
 		VerifyInterval int    `json:"verify-interval,omitempty"`
 		VXLANPartition string `json:"vxlan-partition,omitempty"`
 		DisableLTM     bool   `json:"disable-ltm,omitempty"`
+		GTM            bool   `json:"gtm,omitempty"`
 	}
 
 	bigIPSection struct {

@@ -43,10 +43,12 @@ func NewResources() *Resources {
 // Resources is Map of Resource configs
 type Resources struct {
 	sync.Mutex
-	rm       resourceKeyMap
-	rsMap    ResourceConfigMap
-	objDeps  ObjectDependencyMap
-	oldRsMap ResourceConfigMap
+	rm           resourceKeyMap
+	rsMap        ResourceConfigMap
+	objDeps      ObjectDependencyMap
+	oldRsMap     ResourceConfigMap
+	dnsConfig    DNSConfig
+	oldDNSConfig DNSConfig
 }
 
 // Init is Receiver to initialize the object.
@@ -55,6 +57,8 @@ func (rs *Resources) Init() {
 	rs.rsMap = make(ResourceConfigMap)
 	rs.objDeps = make(ObjectDependencyMap)
 	rs.oldRsMap = make(ResourceConfigMap)
+	rs.dnsConfig = make(DNSConfig)
+	rs.oldDNSConfig = make(DNSConfig)
 }
 
 type mergedRuleEntry struct {
@@ -1424,6 +1428,10 @@ func (rs *Resources) updateOldConfig() {
 	for k, v := range rs.rsMap {
 		rs.oldRsMap[k] = &ResourceConfig{}
 		rs.oldRsMap[k].copyConfig(v)
+	}
+	rs.oldDNSConfig = make(DNSConfig)
+	for k, v := range rs.dnsConfig {
+		rs.oldDNSConfig[k] = v
 	}
 }
 

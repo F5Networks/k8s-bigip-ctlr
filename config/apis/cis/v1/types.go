@@ -180,10 +180,11 @@ type ExternalDNSSpec struct {
 }
 
 type DNSPool struct {
-	Name           string  `json:"name"`
-	DataServerName string  `json:"dataServerName"`
-	DNSRecordType  string  `json:"dnsRecordType"`
-	Monitor        Monitor `json:"monitor"`
+	Name              string  `json:"name"`
+	DataServerName    string  `json:"dataServerName"`
+	DNSRecordType     string  `json:"dnsRecordType"`
+	LoadBalanceMethod string  `json:"loadBalanceMethod"`
+	Monitor           Monitor `json:"monitor"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

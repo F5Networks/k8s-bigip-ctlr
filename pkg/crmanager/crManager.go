@@ -42,8 +42,10 @@ const (
 	TLSProfile = "TLSProfile"
 	// NginxCisConnector is a Custom Resource used by both F5 and Nginx
 	NginxCisConnector = "NginxCisConnector"
-	//TransportServer is a F5 Custom Resource Kind
+	// TransportServer is a F5 Custom Resource Kind
 	TransportServer = "TransportServer"
+	// ExternalDNS is a F5 Customr Resource Kind
+	ExternalDNS = "ExternalDNS"
 	// Service is a k8s native Service Resource.
 	Service = "Service"
 	// Endpoints is a k8s native Endpoint Resource.

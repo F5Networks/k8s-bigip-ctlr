@@ -1,0 +1,21 @@
+apiVersion: "cis.f5.com/v1"
+kind: ExternalDNS
+metadata:
+  name: exdns
+  labels:
+    f5cr: "true"
+spec:
+  domainName: example.com
+  dnsRecordType: A
+  loadBalanceMethod: round-robin
+  pools:
+  - name: example.site1.com
+    dnsRecordType: A
+    loadBalanceMethod: round-robin
+    dataServerName: /Common/GSLBServer
+    monitor:
+      type: https
+      send: "GET /"
+      recv: ""
+      interval: 10
+      timeout: 10

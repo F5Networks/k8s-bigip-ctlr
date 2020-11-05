@@ -28,6 +28,10 @@ type FakeK8sV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeK8sV1) ExternalDNSs(namespace string) v1.ExternalDNSInterface {
+	return &FakeExternalDNSs{c, namespace}
+}
+
 func (c *FakeK8sV1) NginxCisConnectors(namespace string) v1.NginxCisConnectorInterface {
 	return &FakeNginxCisConnectors{c, namespace}
 }

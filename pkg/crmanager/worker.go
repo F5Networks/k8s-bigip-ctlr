@@ -87,6 +87,9 @@ func (crMgr *CRManager) processResource() bool {
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 			isError = true
 		}
+	case ExternalDNS:
+		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
+		crMgr.syncExternalDNS(edns)
 	case Service:
 		if crMgr.initState {
 			break
@@ -194,10 +197,9 @@ func (crMgr *CRManager) processResource() bool {
 		crMgr.rscQueue.Forget(key)
 	}
 
-	if crMgr.rscQueue.Len() == 0 && !reflect.DeepEqual(
-		crMgr.resources.rsMap,
-		crMgr.resources.oldRsMap,
-	) {
+	if crMgr.rscQueue.Len() == 0 &&
+		(!reflect.DeepEqual(crMgr.resources.rsMap, crMgr.resources.oldRsMap) ||
+			!reflect.DeepEqual(crMgr.resources.dnsConfig, crMgr.resources.oldDNSConfig)) {
 
 		config := ResourceConfigWrapper{
 			rsCfgs:         crMgr.resources.GetAllResources(),
@@ -205,6 +207,7 @@ func (crMgr *CRManager) processResource() bool {
 			intDgMap:       crMgr.intDgMap,
 			customProfiles: crMgr.customProfiles,
 			shareNodes:     crMgr.shareNodes,
+			dnsConfig:      crMgr.resources.dnsConfig,
 		}
 		crMgr.Agent.PostConfig(config)
 		crMgr.initState = false
@@ -550,6 +553,7 @@ func (crMgr *CRManager) syncVirtualServers(
 		rsCfg.MetaData.ResourceType = VirtualServer
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
+		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 		rsCfg.Virtual.SetVirtualAddress(
 			virtual.Spec.VirtualServerAddress,
 			portStruct.port,
@@ -598,9 +602,17 @@ func (crMgr *CRManager) syncVirtualServers(
 	}
 
 	if !processingError {
+		var newVSCreated bool
 		// Update rsMap with ResourceConfigs created for the current virtuals
 		for rsName, rsCfg := range vsMap {
+			if _, ok := crMgr.resources.rsMap[rsName]; !ok {
+				newVSCreated = true
+			}
 			crMgr.resources.rsMap[rsName] = rsCfg
+		}
+		if newVSCreated {
+			// TODO: Need to improve the algorithm by taking "host" as a factor
+			crMgr.ProcessAllExternalDNS()
 		}
 	}
 
@@ -960,4 +972,90 @@ func getVirtualServersForTransportServerService(allVirtuals []*cisapiv1.Transpor
 	}
 
 	return result
+}
+
+func (crMgr *CRManager) syncExternalDNS(edns *cisapiv1.ExternalDNS) {
+
+	wip := WideIP{
+		DomainName: edns.Spec.DomainName,
+		RecordType: edns.Spec.DNSRecordType,
+		LBMethod:   edns.Spec.LoadBalanceMethod,
+	}
+	if edns.Spec.DNSRecordType == "" {
+		wip.RecordType = "A"
+	}
+	if edns.Spec.LoadBalanceMethod == "" {
+		wip.LBMethod = "round-robin"
+	}
+
+	log.Debugf("Processing WideIP: %v", edns.Spec.DomainName)
+
+	for _, pl := range edns.Spec.Pools {
+		log.Debugf("Processing WideIP Pool: %v", pl.Name)
+		pool := GSLBPool{
+			Name:       pl.Name,
+			RecordType: pl.DNSRecordType,
+			LBMethod:   pl.LoadBalanceMethod,
+		}
+
+		if pl.DNSRecordType == "" {
+			pool.RecordType = "A"
+		}
+		if pl.LoadBalanceMethod == "" {
+			pool.LBMethod = "round-robin"
+		}
+
+		for vsName, vs := range crMgr.resources.rsMap {
+			var found bool
+			for _, host := range vs.MetaData.hosts {
+				if host == edns.Spec.DomainName {
+					found = true
+					break
+				}
+			}
+			if found {
+				log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("%v:/%v/Shared/%v",
+					pl.DataServerName, DEFAULT_PARTITION, vsName))
+				pool.Members = append(
+					pool.Members,
+					fmt.Sprintf("%v:/%v/Shared/%v",
+						pl.DataServerName, DEFAULT_PARTITION, vsName),
+				)
+			}
+		}
+		if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
+			// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
+			pool.Monitor = &Monitor{
+				Name:      pl.Name + "_monitor",
+				Partition: "Common",
+				Type:      pl.Monitor.Type,
+				Interval:  pl.Monitor.Interval,
+				Send:      pl.Monitor.Send,
+				Recv:      pl.Monitor.Recv,
+				Timeout:   pl.Monitor.Timeout,
+			}
+		}
+		wip.Pools = append(wip.Pools, pool)
+	}
+
+	crMgr.resources.dnsConfig[wip.DomainName] = wip
+	return
+}
+
+func (crMgr *CRManager) ProcessAllExternalDNS() {
+	for ns, crInf := range crMgr.crInformers {
+		// TODO: It does not support the case of all namespaces (""). Need to Fix.
+		nsEDNSs, err := crInf.ednsInformer.GetIndexer().ByIndex("namespace", ns)
+		if err != nil {
+			log.Errorf("Unable to get list of ExternalDNSs for namespace '%v': %v",
+				ns, err)
+			continue
+		}
+		log.Debugf("Processing all ExternalDNS: %v, Namespace: %v.", len(nsEDNSs), ns)
+
+		for _, obj := range nsEDNSs {
+			edns := obj.(*cisapiv1.ExternalDNS)
+			crMgr.syncExternalDNS(edns)
+		}
+	}
 }

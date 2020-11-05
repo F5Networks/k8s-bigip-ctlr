@@ -159,3 +159,40 @@ type TransportServerList struct {
 
 	Items []TransportServer `json:"items"`
 }
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:validation:Optional
+
+// ExternalDNS defines the DNS resource.
+type ExternalDNS struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec ExternalDNSSpec `json:"spec"`
+}
+
+type ExternalDNSSpec struct {
+	DomainName        string    `json:"domainName"`
+	DNSRecordType     string    `json:"dnsRecordType"`
+	LoadBalanceMethod string    `json:"loadBalanceMethod"`
+	Pools             []DNSPool `json:"pools"`
+}
+
+type DNSPool struct {
+	Name              string  `json:"name"`
+	DataServerName    string  `json:"dataServerName"`
+	DNSRecordType     string  `json:"dnsRecordType"`
+	LoadBalanceMethod string  `json:"loadBalanceMethod"`
+	Monitor           Monitor `json:"monitor"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// ExternalDNSList is list of ExternalDNS
+type ExternalDNSList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []ExternalDNS `json:"items"`
+}

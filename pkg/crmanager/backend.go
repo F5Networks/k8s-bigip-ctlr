@@ -85,6 +85,7 @@ func NewAgent(params AgentParams) *Agent {
 		VerifyInterval: params.VerifyInterval,
 		VXLANPartition: vxlanPartition,
 		DisableLTM:     true,
+		GTM:            true,
 	}
 	bs := bigIPSection{
 		BigIPUsername:   params.PostParams.BIGIPUsername,
@@ -108,6 +109,7 @@ func (agent *Agent) Stop() {
 }
 
 func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
+	agent.PostGTMConfig(config)
 	decl := createAS3Declaration(config, agent.userAgent)
 	if DeepEqualJSON(agent.activeDecl, decl) {
 		log.Debug("[AS3] No Change in the Configuration")
@@ -132,6 +134,37 @@ func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
 		case agent.EventChan <- allPoolMems:
 			log.Debugf("Custom Resource Manager wrote endpoints to VxlanMgr")
 		case <-time.After(3 * time.Second):
+		}
+	}
+}
+
+func (agent Agent) PostGTMConfig(config ResourceConfigWrapper) {
+
+	dnsConfig := make(map[string]interface{})
+	wideIPs := WideIPs{}
+	for _, v := range config.dnsConfig {
+		wideIPs.WideIPs = append(wideIPs.WideIPs, v)
+	}
+
+	if len(wideIPs.WideIPs) == 0 {
+		return
+	}
+
+	// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
+	dnsConfig["Common"] = wideIPs
+
+	doneCh, errCh, err := agent.ConfigWriter.SendSection("gtm", dnsConfig)
+
+	if nil != err {
+		log.Warningf("Failed to write gtm config section: %v", err)
+	} else {
+		select {
+		case <-doneCh:
+			log.Debugf("Wrote gtm config section: %v", config.dnsConfig)
+		case e := <-errCh:
+			log.Warningf("Failed to write gtm config section: %v", e)
+		case <-time.After(time.Second):
+			log.Warningf("Did not receive write response in 1s")
 		}
 	}
 }

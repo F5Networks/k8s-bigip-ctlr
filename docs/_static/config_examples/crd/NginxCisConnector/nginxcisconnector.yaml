@@ -4,6 +4,8 @@ metadata:
   name: my-nginxcisconnector
 spec:
   virtualServerAddress: "172.16.3.4"
+  iRules:
+    - /Common/test-irule
   selector:
     matchLabels:
       app: nginx-kic

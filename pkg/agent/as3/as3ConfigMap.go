@@ -166,15 +166,18 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 				if len(eps) == 0 {
 					continue
 				}
-				members = append(members, eps...)
+				poolMem := (((poolObj["members"]).([]interface{}))[0]).(map[string]interface{})
 
 				var ips []string
+				var port int32
 				for _, v := range eps {
-					ips = append(ips, v.Address)
+					if int(v.Port) == int(poolMem["servicePort"].(float64)) {
+						ips = append(ips, v.Address)
+						members = append(members, v)
+						port = v.Port
+					}
 				}
-				port := eps[0].Port
 
-				poolMem := (((poolObj["members"]).([]interface{}))[0]).(map[string]interface{})
 				// Replace pool member IP addresses
 				poolMem["serverAddresses"] = ips
 				// Replace port number

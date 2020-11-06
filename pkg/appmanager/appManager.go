@@ -2505,17 +2505,22 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 			for _, endpoints := range endpointsList.Items {
 				for _, subset := range endpoints.Subsets {
 					for _, address := range subset.Addresses {
-						member := Member{
-							Address: address.IP,
-							Port:    subset.Ports[0].Port,
+						for _, port := range subset.Ports {
+							member := Member{
+								Address: address.IP,
+								Port:    port.Port,
+							}
+							members = append(members, member)
 						}
-						members = append(members, member)
+
 					}
 				}
 			}
 		} else { // Controller is in NodePort mode.
 			if service.Spec.Type == v1.ServiceTypeNodePort {
-				members = m.getEndpointsForNodePort(service.Spec.Ports[0].NodePort)
+				for _, port := range service.Spec.Ports {
+					members = m.getEndpointsForNodePort(port.NodePort)
+				}
 			} /* else {
 				msg := fmt.Sprintf("[CORE] Requested service backend '%+v' not of NodePort type", service.Name)
 				log.Debug(msg)

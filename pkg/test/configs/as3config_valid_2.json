@@ -53,7 +53,7 @@
                     ],
                     "members": [
                         {
-                            "servicePort": 90,
+                            "servicePort": 80,
                             "serverAddresses": [
                             ]
                         }
@@ -90,7 +90,7 @@
                     ],
                     "members": [
                         {
-                            "servicePort": 90,
+                            "servicePort": 80,
                             "serverAddresses": [
                             ]
                         }

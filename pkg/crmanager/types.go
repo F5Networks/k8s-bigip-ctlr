@@ -123,21 +123,24 @@ type (
 
 	// Virtual server config
 	Virtual struct {
-		Name                  string                `json:"name"`
-		PoolName              string                `json:"pool,omitempty"`
-		Partition             string                `json:"-"`
-		Destination           string                `json:"destination"`
-		Enabled               bool                  `json:"enabled"`
-		IpProtocol            string                `json:"ipProtocol,omitempty"`
-		SourceAddrTranslation SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
-		Policies              []nameRef             `json:"policies,omitempty"`
-		Profiles              ProfileRefs           `json:"profiles,omitempty"`
-		IRules                []string              `json:"rules,omitempty"`
-		Description           string                `json:"description,omitempty"`
-		VirtualAddress        *virtualAddress       `json:"-"`
-		SNAT                  string                `json:"snat,omitempty"`
-		WAF                   string                `json:"waf,omitempty"`
-		Mode                  string                `json:"mode,omitempty"`
+		Name                   string                `json:"name"`
+		PoolName               string                `json:"pool,omitempty"`
+		Partition              string                `json:"-"`
+		Destination            string                `json:"destination"`
+		Enabled                bool                  `json:"enabled"`
+		IpProtocol             string                `json:"ipProtocol,omitempty"`
+		SourceAddrTranslation  SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
+		Policies               []nameRef             `json:"policies,omitempty"`
+		Profiles               ProfileRefs           `json:"profiles,omitempty"`
+		IRules                 []string              `json:"rules,omitempty"`
+		Description            string                `json:"description,omitempty"`
+		VirtualAddress         *virtualAddress       `json:"-"`
+		SNAT                   string                `json:"snat,omitempty"`
+		WAF                    string                `json:"waf,omitempty"`
+		Mode                   string                `json:"mode,omitempty"`
+		TranslateServerAddress bool                  `json:"translateServerAddress"`
+		TranslateServerPort    bool                  `json:"translateServerPort"`
+		Source                 string                `json:"source,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual

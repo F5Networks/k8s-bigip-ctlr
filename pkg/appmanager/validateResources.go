@@ -72,6 +72,8 @@ func (appMgr *Manager) checkValidConfigMap(
 	// time we see a config.
 	rsName := FormatConfigMapVSName(cm)
 	// Checking for annotation in VS, not iApp
+	appMgr.resources.Lock()
+	defer appMgr.resources.Unlock()
 	if _, exists := appMgr.resources.GetByName(rsName); !exists &&
 		cfg.MetaData.ResourceType != "iapp" &&
 		cfg.Virtual.VirtualAddress != nil &&

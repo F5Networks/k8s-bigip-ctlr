@@ -2311,9 +2311,9 @@ func handleConfigMapParseFailure(
 		}
 		sKey := ServiceKey{serviceName, servicePort, cm.ObjectMeta.Namespace}
 		rsName := FormatConfigMapVSName(cm)
+		appMgr.resources.Lock()
+		defer appMgr.resources.Unlock()
 		if _, ok := appMgr.resources.Get(sKey, rsName); ok {
-			appMgr.resources.Lock()
-			defer appMgr.resources.Unlock()
 			appMgr.resources.Delete(sKey, rsName)
 			delete(cm.ObjectMeta.Annotations, VsStatusBindAddrAnnotation)
 			appMgr.kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)

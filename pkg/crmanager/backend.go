@@ -393,6 +393,36 @@ func updateVirtualToHTTPS(v *as3Service) {
 	v.Redirect80 = &redirect80
 }
 
+// Process Irules for CRD
+func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
+	for _, v := range cfg.Virtual.IRules {
+		splits := strings.Split(v, "/")
+		iRuleName := splits[len(splits)-1]
+		matched := false
+		var IRules []interface{}
+		for _, b := range IRuleList {
+			if iRuleName == b {
+				matched = true
+			}
+		}
+		if matched {
+			if iRuleName == SslPassthroughIRuleName {
+				svc.ServerTLS = &as3ResourcePointer{
+					BigIP: "/Common/clientssl",
+				}
+				updateVirtualToHTTPS(svc)
+			}
+			IRules = append(IRules, iRuleName)
+		} else {
+			irule := &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", v),
+			}
+			IRules = append(IRules, irule)
+		}
+		svc.IRules = IRules
+	}
+}
+
 // Create AS3 Service for CRD
 func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	svc := &as3Service{}
@@ -459,35 +489,8 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		svc.VirtualAddresses = va
 		svc.VirtualPort = port
 	}
-
-	for _, v := range cfg.Virtual.IRules {
-		splits := strings.Split(v, "/")
-		iRuleName := splits[len(splits)-1]
-		matched := false
-		var IRules []interface{}
-		for _, b := range IRuleList {
-			if iRuleName == b {
-				matched = true
-			}
-		}
-		if matched {
-			if iRuleName == SslPassthroughIRuleName {
-				svc.ServerTLS = &as3ResourcePointer{
-					BigIP: "/Common/clientssl",
-				}
-				updateVirtualToHTTPS(svc)
-			}
-			IRules = append(IRules, iRuleName)
-		} else {
-			irule := &as3ResourcePointer{
-				BigIP: fmt.Sprintf("%v", v),
-			}
-			IRules = append(IRules, irule)
-		}
-		svc.IRules = IRules
-
-	}
-
+	//process irules for crd
+	processIrulesForCRD(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }
 
@@ -862,7 +865,15 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			BigIP: fmt.Sprintf("%v", cfg.Virtual.SNAT),
 		}
 	}
-
+	if cfg.Virtual.TranslateServerAddress == true {
+		svc.TranslateServerAddress = cfg.Virtual.TranslateServerAddress
+	}
+	if cfg.Virtual.TranslateServerPort == true {
+		svc.TranslateServerPort = cfg.Virtual.TranslateServerPort
+	}
+	if cfg.Virtual.Source != "" {
+		svc.Source = cfg.Virtual.Source
+	}
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	// verify that ip address and port exists.
 	if virtualAddress != "" && port != 0 {
@@ -873,6 +884,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	for _, pool := range cfg.Pools {
 		svc.Pool = pool.Name
 	}
-
+	//process irules for crd
+	processIrulesForCRD(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

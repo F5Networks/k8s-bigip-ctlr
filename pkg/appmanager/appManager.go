@@ -1853,12 +1853,16 @@ func (appMgr *Manager) handleConfigForType(
 	var reason string
 	var msg string
 
-	if appMgr.IsNodePort() {
-		correctBackend, reason, msg =
-			appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
+	if svc.ObjectMeta.Labels["component"] == "apiserver" && svc.ObjectMeta.Labels["provider"] == "kubernetes" {
+		appMgr.exposeKubernetesService(svc, svcKey, rsCfg, appInf, plIdx)
 	} else {
-		correctBackend, reason, msg =
-			appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf, plIdx)
+		if appMgr.IsNodePort() {
+			correctBackend, reason, msg =
+				appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
+		} else {
+			correctBackend, reason, msg =
+				appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf, plIdx)
+		}
 	}
 
 	// This will only update the config if the vs actually changed.
@@ -2537,4 +2541,43 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 	}
 
 	return members
+}
+
+func (appMgr *Manager) exposeKubernetesService(
+	svc *v1.Service,
+	sKey ServiceKey,
+	rsCfg *ResourceConfig,
+	appInf *appInformer,
+	index int,
+) (bool, string, string) {
+	svcKey := sKey.Namespace + "/" + sKey.ServiceName
+	item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
+	if !found {
+		msg := fmt.Sprintf("Endpoints for service '%v' not found!", svcKey)
+		log.Debug(msg)
+		return false, "EndpointsNotFound", msg
+	}
+	eps, _ := item.(*v1.Endpoints)
+	for _, portSpec := range svc.Spec.Ports {
+		if portSpec.Port == sKey.ServicePort {
+			var members []Member
+			for _, subset := range eps.Subsets {
+				for _, p := range subset.Ports {
+					if portSpec.Name == p.Name {
+						for _, addr := range subset.Addresses {
+							member := Member{
+								Address: addr.IP,
+								Port:    p.Port,
+							}
+							members = append(members, member)
+						}
+					}
+				}
+			}
+			log.Debugf("[CORE] Found endpoints for backend %+v: %v", sKey, members)
+			rsCfg.MetaData.Active = true
+			rsCfg.Pools[index].Members = members
+		}
+	}
+	return true, "", ""
 }

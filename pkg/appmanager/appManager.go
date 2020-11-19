@@ -1040,20 +1040,28 @@ func (appMgr *Manager) syncConfigMaps(
 			return nil
 		}
 		if nil != svc {
-			selector := "cis.f5.com/as3-tenant=" + svc.ObjectMeta.Labels["cis.f5.com/as3-tenant"] + "," +
-				"cis.f5.com/as3-app=" + svc.ObjectMeta.Labels["cis.f5.com/as3-app"] + "," +
-				"cis.f5.com/as3-pool=" + svc.ObjectMeta.Labels["cis.f5.com/as3-pool"]
-			//TODO: Sorting endpoints members
-			members := appMgr.getEndpoints(selector, sKey.Namespace)
-			if _, ok := appMgr.agentCfgMapEndpoint[key]; !ok {
-				if len(members) != 0 {
-					appMgr.agentCfgMapEndpoint[key] = members
-					stats.vsUpdated += 1
-				}
-			} else {
-				if len(members) != len(appMgr.agentCfgMapEndpoint[key]) || !reflect.DeepEqual(members, appMgr.agentCfgMapEndpoint[key]) {
-					stats.vsUpdated += 1
-					appMgr.agentCfgMapEndpoint[key] = members
+			tntLabel, tntOk := svc.ObjectMeta.Labels["cis.f5.com/as3-tenant"]
+			appLabel, appOk := svc.ObjectMeta.Labels["cis.f5.com/as3-app"]
+			poolLabel, poolOk := svc.ObjectMeta.Labels["cis.f5.com/as3-pool"]
+
+			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
+			if tntOk && appOk && poolOk {
+				key := sKey.Namespace + "/" + sKey.ServiceName
+				selector := "cis.f5.com/as3-tenant=" + tntLabel + "," +
+					"cis.f5.com/as3-app=" + appLabel + "," +
+					"cis.f5.com/as3-pool=" + poolLabel
+				//TODO: Sorting endpoints members
+				members := appMgr.getEndpoints(selector, sKey.Namespace)
+				if _, ok := appMgr.agentCfgMapEndpoint[key]; !ok {
+					if len(members) != 0 {
+						appMgr.agentCfgMapEndpoint[key] = members
+						stats.vsUpdated += 1
+					}
+				} else {
+					if len(members) != len(appMgr.agentCfgMapEndpoint[key]) || !reflect.DeepEqual(members, appMgr.agentCfgMapEndpoint[key]) {
+						stats.vsUpdated += 1
+						appMgr.agentCfgMapEndpoint[key] = members
+					}
 				}
 			}
 		}

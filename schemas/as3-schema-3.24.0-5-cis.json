@@ -119,6 +119,11 @@
           "type": "string",
           "const": "AS3"
         },
+        "$schema": {
+          "description": "URL of schema against which to validate. Used by validation in your local environment only (via Visual Studio Code, for example)",
+          "type": "string",
+          "format": "uri"
+        },
         "action": {
           "title": "Action",
           "description": "Indicates desired action:  'deploy' means deploy the included declaration to targetHost; 'dry-run' does NOT deploy the declaration but does do everything short of changing targetHost's configuration; 'patch' modifies the declaration based on the provided set of commands and then deploys the updated declaration; 'redeploy' causes an old declaration from targetHost's declaration history to be re-deployed (property redeployAge (default 0) selects the old declaration, and note redeployUpdateMode as well); 'retrieve' returns a copy of a previously-deployed declaration; 'remove' deletes the declaration or declaration component.",
@@ -2128,6 +2133,15 @@
                       "$ref": "#/definitions/Pointer_HTTP2_Profile"
                     }
                   ]
+                },
+                "egress": {
+                  "type": "object",
+                  "description": "Egress (server-side context) HTTP2 profile. This option is only available on BIG-IP 14.1+.",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Pointer_HTTP2_Profile"
+                    }
+                  ]
                 }
               },
               "minProperties": 1,
@@ -2284,6 +2298,18 @@
           "allOf": [
             {
               "$ref": "#/definitions/Pointer_Per_Request_Access_Policy"
+            }
+          ]
+        },
+        "profileVdi": {
+          "title": "VDI profile",
+          "description": "VDI profile to attach to servie.",
+          "f5modules": [
+            "apm"
+          ],
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_VDI_Profile"
             }
           ]
         }
@@ -3752,6 +3778,12 @@
         "nat64Enabled": {
           "title": "Translate IPv6 to IPv4",
           "description": "If true, translate IPv6 traffic into IPv4 (default false)",
+          "type": "boolean",
+          "default": false
+        },
+        "httpMrfRoutingEnabled": {
+          "title": "HTTP MRF Router",
+          "description": "Specifies whether to use the HTTP message routing framework (MRF) functionality. Note: This is available in TMOS versions 14.1 and later.",
           "type": "boolean",
           "default": false
         },
@@ -5344,6 +5376,19 @@
                 "type": "integer",
                 "minimum": 0,
                 "default": 5
+              },
+              "fqdnPrefix": {
+                "description": "String to prepend onto the hostname to create the node name",
+                "type": "string",
+                "oneOf": [
+                  {
+                    "pattern": "^[A-Za-z][0-9A-Za-z_.-]*$"
+                  },
+                  {
+                    "const": ""
+                  }
+                ],
+                "default": ""
               }
             },
             "if": {
@@ -5990,6 +6035,11 @@
           "description": "If true, the server certificate is verified against the list of supplied/default CAs when making requests to the Consul API.",
           "type": "boolean",
           "default": true
+        },
+        "jmesPathQuery": {
+          "title": "JMESPath Query",
+          "type": "string",
+          "description": "Custom JMESPath Query"
         }
       },
       "if": {
@@ -6425,6 +6475,14 @@
           "type": "string",
           "default": "",
           "f5expand": true
+        },
+        "environmentVariables": {
+          "description": "Specifies user defined command line parameters that the external program requires.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
         }
       },
       "oneOf": [
@@ -18040,6 +18098,26 @@
           "default": 1,
           "minimum": 0,
           "maximum": 65535
+        },
+        "dependsOn": {
+          "description": "Specifies the name of the virtual server on which this pool member depends.",
+          "type": [
+            "string",
+            "array"
+          ],
+          "oneOf": [
+            {
+              "type": "string",
+              "const": "none"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^/Common/Shared/.*:.*"
+              }
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -18073,6 +18151,26 @@
           "default": 1,
           "minimum": 0,
           "maximum": 65535
+        },
+        "dependsOn": {
+          "description": "Specifies the name of the virtual server on which this pool member depends.",
+          "type": [
+            "string",
+            "array"
+          ],
+          "oneOf": [
+            {
+              "type": "string",
+              "const": "none"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^/Common/Shared/.*:.*"
+              }
+            }
+          ]
         }
       },
       "additionalProperties": false,
@@ -28726,6 +28824,25 @@
         }
       ]
     },
+    "Pointer_VDI_Profile": {
+      "description": "Reference to a VDI profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP VDI profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query apm profile vdi"
+        }
+      ]
+    },
     "Pointer_VLAN": {
       "description": "Reference to a VLAN",
       "type": "object",
@@ -28794,6 +28911,11 @@
           "type": "string",
           "const": "ADC"
         },
+        "$schema": {
+          "description": "URL of schema against which to validate. Used by validation in your local environment only (via Visual Studio Code, for example)",
+          "type": "string",
+          "format": "uri"
+        },
         "updateMode": {
           "title": "Update mode",
           "description": "When set to 'selective' (default) AS3 does not modify Tenants not referenced in the declaration.  Otherwise ('complete') AS3 removes unreferenced Tenants.",
@@ -28810,6 +28932,7 @@
           "type": "string",
           "$comment": "IMPORTANT: In enum array, please put current schema version first, oldest-supported version last.  Keep enum array sorted most-recent-first.",
           "enum": [
+            "3.24.0",
             "3.23.0",
             "3.22.0",
             "3.21.0",
@@ -29051,8 +29174,17 @@
         "$ref": "#/definitions/Tenant"
       },
       "propertyNames": {
-        "pattern": "^[A-Za-z][0-9A-Za-z_.-]*$",
-        "maxLength": 190
+        "oneOf": [
+          {
+            "pattern": "^[A-Za-z][0-9A-Za-z_.-]*$",
+            "maxLength": 190
+          },
+          {
+            "enum": [
+              "$schema"
+            ]
+          }
+        ]
       },
       "required": [
         "class",

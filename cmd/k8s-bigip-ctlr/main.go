@@ -99,12 +99,13 @@ var (
 	buildInfo string
 
 	// Flag sets and supported flags
-	flags        *pflag.FlagSet
-	globalFlags  *pflag.FlagSet
-	bigIPFlags   *pflag.FlagSet
-	kubeFlags    *pflag.FlagSet
-	vxlanFlags   *pflag.FlagSet
-	osRouteFlags *pflag.FlagSet
+	flags         *pflag.FlagSet
+	globalFlags   *pflag.FlagSet
+	bigIPFlags    *pflag.FlagSet
+	kubeFlags     *pflag.FlagSet
+	vxlanFlags    *pflag.FlagSet
+	osRouteFlags  *pflag.FlagSet
+	gtmBigIPFlags *pflag.FlagSet
 
 	// Custom Resource
 	customResourceMode  *bool
@@ -167,6 +168,11 @@ var (
 	clientSSL        *string
 	serverSSL        *string
 
+	gtmBigIPURL      *string
+	gtmBigIPUsername *string
+	gtmBigIPPassword *string
+	gtmCredsDir      *string
+
 	// package variables
 	isNodePort         bool
 	watchAllNamespaces bool
@@ -185,6 +191,7 @@ func _init() {
 	kubeFlags = pflag.NewFlagSet("Kubernetes", pflag.PanicOnError)
 	vxlanFlags = pflag.NewFlagSet("VXLAN", pflag.PanicOnError)
 	osRouteFlags = pflag.NewFlagSet("OpenShift Routes", pflag.PanicOnError)
+	gtmBigIPFlags = pflag.NewFlagSet("GTM", pflag.PanicOnError)
 
 	// Flag wrapping
 	var err error
@@ -356,11 +363,26 @@ func _init() {
 		fmt.Fprintf(os.Stderr, "  Openshift Routes:\n%s\n", osRouteFlags.FlagUsagesWrapped(width))
 	}
 
+	// GTM Big IP flags
+	gtmBigIPURL = gtmBigIPFlags.String("gtm-bigip-url", "",
+		"Optional, URL for the GTM Big-IP")
+	gtmBigIPUsername = gtmBigIPFlags.String("gtm-bigip-username", "",
+		"Optional, user name for the GTM Big-IP user account.")
+	gtmBigIPPassword = gtmBigIPFlags.String("gtm-bigip-password", "",
+		"Optional, password for the GMT Big-IP user account.")
+	gtmCredsDir = gtmBigIPFlags.String("gtm-credentials-directory", "",
+		"Optional, directory that contains the GTM BIG-IP username, password, and/or "+
+			"url files. To be used instead of username, password, and/or url arguments.")
+	gtmBigIPFlags.Usage = func() {
+		fmt.Fprintf(os.Stderr, "  GTM:\n%s\n", gtmBigIPFlags.FlagUsagesWrapped(width))
+	}
+
 	flags.AddFlagSet(globalFlags)
 	flags.AddFlagSet(bigIPFlags)
 	flags.AddFlagSet(kubeFlags)
 	flags.AddFlagSet(vxlanFlags)
 	flags.AddFlagSet(osRouteFlags)
+	flags.AddFlagSet(gtmBigIPFlags)
 
 	flags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage of %s\n", os.Args[0])
@@ -369,6 +391,7 @@ func _init() {
 		kubeFlags.Usage()
 		vxlanFlags.Usage()
 		osRouteFlags.Usage()
+		gtmBigIPFlags.Usage()
 	}
 }
 
@@ -548,6 +571,61 @@ func getCredentials() error {
 	return nil
 }
 
+func getGTMCredentials() {
+	if len(*gtmCredsDir) > 0 {
+		var usr, pass, gtmBigipURL string
+		if strings.HasSuffix(*gtmCredsDir, "/") {
+			usr = *gtmCredsDir + "username"
+			pass = *gtmCredsDir + "password"
+			gtmBigipURL = *gtmCredsDir + "url"
+		} else {
+			usr = *gtmCredsDir + "/username"
+			pass = *gtmCredsDir + "/password"
+			gtmBigipURL = *gtmCredsDir + "/url"
+		}
+
+		setField := func(field *string, filename, fieldType string) {
+			fileBytes, readErr := ioutil.ReadFile(filename)
+			if readErr != nil {
+				log.Debug(fmt.Sprintf(
+					"No %s in credentials directory, falling back to CLI argument", fieldType))
+				if len(*field) == 0 {
+					log.Errorf(fmt.Sprintf("GTM BIG-IP %s not specified", fieldType))
+				}
+			} else {
+				*field = string(fileBytes)
+			}
+		}
+
+		setField(gtmBigIPUsername, usr, "username")
+		setField(gtmBigIPPassword, pass, "password")
+		setField(gtmBigIPURL, gtmBigipURL, "url")
+	}
+	// Verify URL is valid
+	u, err := url.Parse(*gtmBigIPURL)
+	if nil != err {
+		log.Errorf("Error parsing url: %s", err)
+	}
+
+	if len(u.Scheme) == 0 {
+		*gtmBigIPURL = "https://" + *gtmBigIPURL
+		u, err = url.Parse(*gtmBigIPURL)
+		if nil != err {
+			log.Errorf("Error parsing url: %s", err)
+		}
+	}
+
+	if u.Scheme != "https" {
+		log.Errorf("Invalid GTM BIGIP-URL protocol: '%s' - Must be 'https'",
+			u.Scheme)
+	}
+
+	if len(u.Path) > 0 && u.Path != "/" {
+		log.Errorf("GTM BIGIP-URL path must be empty or '/'; check URL formatting and/or remove %s from path",
+			u.Path)
+	}
+}
+
 func setupNodePolling(
 	appMgr *appmanager.Manager,
 	np pollers.Poller,
@@ -669,8 +747,15 @@ func initCustomResourceManager(
 		LogResponse:   *logAS3Response,
 	}
 
+	GtmParams := crmanager.GTMParams{
+		GTMBigIpUsername: *gtmBigIPUsername,
+		GTMBigIpPassword: *gtmBigIPPassword,
+		GTMBigIpUrl:      *gtmBigIPURL,
+	}
+
 	agentParams := crmanager.AgentParams{
 		PostParams:     postMgrParams,
+		GTMParams:      GtmParams,
 		Partition:      (*bigIPPartitions)[0],
 		LogLevel:       *logLevel,
 		VerifyInterval: *verifyInterval,
@@ -774,6 +859,7 @@ func main() {
 	}
 
 	if *customResourceMode || *nginxCISConnectMode {
+		getGTMCredentials()
 		crMgr := initCustomResourceManager(config)
 		err = crMgr.Agent.GetBigipAS3Version()
 		if err != nil {

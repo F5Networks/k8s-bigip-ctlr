@@ -54,6 +54,12 @@ type PostParams struct {
 	LogResponse bool
 }
 
+type GTMParams struct {
+	GTMBigIpUsername string
+	GTMBigIpPassword string
+	GTMBigIpUrl      string
+}
+
 type config struct {
 	data      string
 	routesMap map[string][]string

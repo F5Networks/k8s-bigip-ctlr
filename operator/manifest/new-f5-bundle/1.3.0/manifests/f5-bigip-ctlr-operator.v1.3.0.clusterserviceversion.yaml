@@ -52,7 +52,6 @@ spec:
     ```
   maturity: beta
   version: 1.3.0
-  replaces: ''
   minKubeVersion: 1.13.0
   keywords:
     - Ingress Controller

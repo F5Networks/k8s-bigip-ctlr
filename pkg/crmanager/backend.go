@@ -158,10 +158,6 @@ func (agent Agent) PostGTMConfig(config ResourceConfigWrapper) {
 		wideIPs.WideIPs = append(wideIPs.WideIPs, v)
 	}
 
-	if len(wideIPs.WideIPs) == 0 {
-		return
-	}
-
 	// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
 	dnsConfig["Common"] = wideIPs
 

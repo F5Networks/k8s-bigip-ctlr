@@ -380,6 +380,7 @@ type (
 
 	AgentParams struct {
 		PostParams PostParams
+		GTMParams  GTMParams
 		//VxlnParams      VXLANParams
 		Partition      string
 		LogLevel       string
@@ -402,6 +403,12 @@ type (
 		BigIPPassword   string   `json:"password,omitempty"`
 		BigIPURL        string   `json:"url,omitempty"`
 		BigIPPartitions []string `json:"partitions,omitempty"`
+	}
+
+	gtmBigIPSection struct {
+		GtmBigIPUsername string `json:"username,omitempty"`
+		GtmBigIPPassword string `json:"password,omitempty"`
+		GtmBigIPURL      string `json:"url,omitempty"`
 	}
 
 	as3Template    string

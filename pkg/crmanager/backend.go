@@ -407,11 +407,11 @@ func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 		iRuleName := splits[len(splits)-1]
 		matched := false
 		var IRules []interface{}
-		for _, b := range IRuleList {
-			if iRuleName == b {
-				matched = true
-			}
+		iRuleNoPort := iRuleName[:strings.LastIndex(iRuleName, "_")]
+		if iRuleNoPort == HttpRedirectIRuleName || iRuleName == HttpRedirectNoHostIRuleName+"_"+fmt.Sprint(svc.VirtualPort) || iRuleName == SslPassthroughIRuleName {
+			matched = true
 		}
+
 		if matched {
 			if iRuleName == SslPassthroughIRuleName {
 				svc.ServerTLS = &as3ResourcePointer{

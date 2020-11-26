@@ -1056,11 +1056,13 @@ func (appMgr *Manager) syncConfigMaps(
 					if len(members) != 0 {
 						appMgr.agentCfgMapEndpoint[key] = members
 						stats.vsUpdated += 1
+						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
 					}
 				} else {
 					if len(members) != len(appMgr.agentCfgMapEndpoint[key]) || !reflect.DeepEqual(members, appMgr.agentCfgMapEndpoint[key]) {
 						stats.vsUpdated += 1
 						appMgr.agentCfgMapEndpoint[key] = members
+						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
 					}
 				}
 			}
@@ -2539,7 +2541,6 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 			}*/
 		}
 	}
-
 	return members
 }
 

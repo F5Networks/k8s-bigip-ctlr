@@ -45,6 +45,9 @@ args:
   # insecure: true
   # custom-resource-mode: true
   # log-as3-response: true
+  # gtm-bigip-password
+  # gtm-bigip-url
+  # gtm-bigip-username
 image:
   # Use the tag to target a specific version of the Controller
   user: f5networks

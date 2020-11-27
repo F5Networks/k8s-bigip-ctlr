@@ -3,7 +3,7 @@ kind: F5BigIpCtlr
 metadata:
   name: f5-server
 spec:
-  version: 2.2.0
+  version: 2.2.1
   args:
     log_as3_response: true
     manage_routes: true

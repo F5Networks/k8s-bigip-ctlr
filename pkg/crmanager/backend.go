@@ -408,7 +408,7 @@ func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 		matched := false
 		var IRules []interface{}
 		iRuleNoPort := iRuleName[:strings.LastIndex(iRuleName, "_")]
-		if iRuleNoPort == HttpRedirectIRuleName || iRuleName == HttpRedirectNoHostIRuleName+"_"+fmt.Sprint(svc.VirtualPort) || iRuleName == SslPassthroughIRuleName {
+		if iRuleNoPort == HttpRedirectIRuleName || iRuleNoPort == HttpRedirectNoHostIRuleName || iRuleName == SslPassthroughIRuleName {
 			matched = true
 		}
 

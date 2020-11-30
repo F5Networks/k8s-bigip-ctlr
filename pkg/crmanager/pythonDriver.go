@@ -42,9 +42,16 @@ func initializeDriverConfig(
 		return fmt.Errorf("config writer argument cannot be nil")
 	}
 
-	sectionNames := []string{"global", "bigip", "gtm_bigip"}
-	for i, v := range []interface{}{global, bigIP, gtm} {
-		doneCh, errCh, err := configWriter.SendSection(sectionNames[i], v)
+	sections := make(map[string]interface{})
+
+	sections["global"] = global
+	sections["bigip"] = bigIP
+	if global.GTM {
+		sections["gtm_bigip"] = gtm
+	}
+
+	for k, v := range sections {
+		doneCh, errCh, err := configWriter.SendSection(k, v)
 		if nil != err {
 			return fmt.Errorf("failed writing global config section: %v", err)
 		}
@@ -52,7 +59,7 @@ func initializeDriverConfig(
 		case <-doneCh:
 		case e := <-errCh:
 			return fmt.Errorf("failed writing section %s - %v: %v",
-				sectionNames[i], e, v)
+				k, e, v)
 		case <-time.After(1000 * time.Millisecond):
 			log.Warning("Did not receive config write response in 1 second")
 		}

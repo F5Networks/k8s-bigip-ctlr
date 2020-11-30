@@ -94,10 +94,15 @@ func NewAgent(params AgentParams) *Agent {
 		BigIPPartitions: []string{params.Partition},
 	}
 
-	gtm := gtmBigIPSection{
-		GtmBigIPUsername: params.GTMParams.GTMBigIpUsername,
-		GtmBigIPPassword: params.GTMParams.GTMBigIpPassword,
-		GtmBigIPURL:      params.GTMParams.GTMBigIpUrl,
+	var gtm gtmBigIPSection
+	if len(params.GTMParams.GTMBigIpUsername) == 0 || len(params.GTMParams.GTMBigIpPassword) == 0 || len(params.GTMParams.GTMBigIpUrl) == 0 {
+		gs.GTM = false
+	} else {
+		gtm = gtmBigIPSection{
+			GtmBigIPUsername: params.GTMParams.GTMBigIpUsername,
+			GtmBigIPPassword: params.GTMParams.GTMBigIpPassword,
+			GtmBigIPURL:      params.GTMParams.GTMBigIpUrl,
+		}
 	}
 
 	agent.startPythonDriver(

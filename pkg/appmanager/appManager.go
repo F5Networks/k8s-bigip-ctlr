@@ -61,7 +61,7 @@ type Manager struct {
 	irulesMap           IRulesMap
 	intDgMap            InternalDataGroupMap
 	agentCfgMap         map[string]*AgentCfgMap
-	agentCfgMapEndpoint map[string][]Member
+	agentCfgMapSvcCache map[string]*SvcEndPointsCache
 	kubeClient          kubernetes.Interface
 	restClientv1        rest.Interface
 	restClientv1beta1   rest.Interface
@@ -178,6 +178,11 @@ type RouteConfig struct {
 	ServerSSL   string
 }
 
+type SvcEndPointsCache struct {
+	members     []Member
+	labelString string
+}
+
 var RoutesProcessed []*routeapi.Route
 
 // Create and return a new app manager that meets the Manager interface
@@ -225,7 +230,7 @@ func NewManager(params *Params) *Manager {
 		agRspChan:              params.AgRspChan,
 		processAgentLabels:     params.ProcessAgentLabels,
 		agentCfgMap:            make(map[string]*AgentCfgMap),
-		agentCfgMapEndpoint:    make(map[string][]Member),
+		agentCfgMapSvcCache:    make(map[string]*SvcEndPointsCache),
 	}
 
 	// Initialize agent response worker
@@ -1044,26 +1049,41 @@ func (appMgr *Manager) syncConfigMaps(
 			appLabel, appOk := svc.ObjectMeta.Labels["cis.f5.com/as3-app"]
 			poolLabel, poolOk := svc.ObjectMeta.Labels["cis.f5.com/as3-pool"]
 
+			selector := "cis.f5.com/as3-tenant=" + tntLabel + "," +
+				"cis.f5.com/as3-app=" + appLabel + "," +
+				"cis.f5.com/as3-pool=" + poolLabel
+
+			key := sKey.Namespace + "/" + sKey.ServiceName
+
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
-				key := sKey.Namespace + "/" + sKey.ServiceName
-				selector := "cis.f5.com/as3-tenant=" + tntLabel + "," +
-					"cis.f5.com/as3-app=" + appLabel + "," +
-					"cis.f5.com/as3-pool=" + poolLabel
 				//TODO: Sorting endpoints members
 				members := appMgr.getEndpoints(selector, sKey.Namespace)
-				if _, ok := appMgr.agentCfgMapEndpoint[key]; !ok {
+
+				if _, ok := appMgr.agentCfgMapSvcCache[key]; !ok {
 					if len(members) != 0 {
-						appMgr.agentCfgMapEndpoint[key] = members
-						stats.vsUpdated += 1
+						appMgr.agentCfgMapSvcCache[key] = &SvcEndPointsCache{
+							members:     members,
+							labelString: selector,
+						}
+						stats.poolsUpdated += 1
 						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
 					}
 				} else {
-					if len(members) != len(appMgr.agentCfgMapEndpoint[key]) || !reflect.DeepEqual(members, appMgr.agentCfgMapEndpoint[key]) {
-						stats.vsUpdated += 1
-						appMgr.agentCfgMapEndpoint[key] = members
+					sc := &SvcEndPointsCache{
+						members:     members,
+						labelString: selector,
+					}
+					if len(sc.members) != len(appMgr.agentCfgMapSvcCache[key].members) || !reflect.DeepEqual(sc, appMgr.agentCfgMapSvcCache[key]) {
+						stats.poolsUpdated += 1
+						appMgr.agentCfgMapSvcCache[key] = sc
 						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
 					}
+				}
+			} else {
+				if _, ok := appMgr.agentCfgMapSvcCache[key]; ok {
+					stats.poolsUpdated += 1
+					delete(appMgr.agentCfgMapSvcCache, key)
 				}
 			}
 		}

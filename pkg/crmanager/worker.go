@@ -89,7 +89,7 @@ func (crMgr *CRManager) processResource() bool {
 		}
 	case ExternalDNS:
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
-		crMgr.syncExternalDNS(edns)
+		crMgr.syncExternalDNS(edns, rKey.rscDelete)
 	case Service:
 		if crMgr.initState {
 			break
@@ -974,8 +974,12 @@ func getVirtualServersForTransportServerService(allVirtuals []*cisapiv1.Transpor
 	return result
 }
 
-func (crMgr *CRManager) syncExternalDNS(edns *cisapiv1.ExternalDNS) {
+func (crMgr *CRManager) syncExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
+	if isDelete {
+		delete(crMgr.resources.dnsConfig, edns.Spec.DomainName)
+		return
+	}
 	wip := WideIP{
 		DomainName: edns.Spec.DomainName,
 		RecordType: edns.Spec.DNSRecordType,
@@ -1055,7 +1059,7 @@ func (crMgr *CRManager) ProcessAllExternalDNS() {
 
 		for _, obj := range nsEDNSs {
 			edns := obj.(*cisapiv1.ExternalDNS)
-			crMgr.syncExternalDNS(edns)
+			crMgr.syncExternalDNS(edns, false)
 		}
 	}
 }

@@ -236,8 +236,8 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 		crInf.ednsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { crMgr.enqueueExternalDNS(obj) },
-				UpdateFunc: func(oldObj, newObj interface{}) { crMgr.enqueueExternalDNS(newObj) },
-				// DeleteFunc: nil,
+				UpdateFunc: func(oldObj, newObj interface{}) { crMgr.enqueueUpdatedExternalDNS(oldObj, newObj) },
+				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedExternalDNS(obj) },
 			})
 	}
 
@@ -466,6 +466,47 @@ func (crMgr *CRManager) enqueueExternalDNS(obj interface{}) {
 		kind:      ExternalDNS,
 		rscName:   edns.ObjectMeta.Name,
 		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
+	oldEDNS := oldObj.(*cisapiv1.ExternalDNS)
+	edns := newObj.(*cisapiv1.ExternalDNS)
+
+	if oldEDNS.Spec.DomainName != edns.Spec.DomainName {
+		key := &rqKey{
+			namespace: oldEDNS.ObjectMeta.Namespace,
+			kind:      ExternalDNS,
+			rscName:   oldEDNS.ObjectMeta.Name,
+			rsc:       oldEDNS,
+			rscDelete: true,
+		}
+
+		crMgr.rscQueue.Add(key)
+	}
+
+	log.Infof("Enqueueing Updated ExternalDNS: %v", edns)
+	key := &rqKey{
+		namespace: edns.ObjectMeta.Namespace,
+		kind:      ExternalDNS,
+		rscName:   edns.ObjectMeta.Name,
+		rsc:       edns,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueDeletedExternalDNS(obj interface{}) {
+	edns := obj.(*cisapiv1.ExternalDNS)
+	log.Infof("Enqueueing ExternalDNS: %v", edns)
+	key := &rqKey{
+		namespace: edns.ObjectMeta.Namespace,
+		kind:      ExternalDNS,
+		rscName:   edns.ObjectMeta.Name,
+		rsc:       obj,
+		rscDelete: true,
 	}
 
 	crMgr.rscQueue.Add(key)

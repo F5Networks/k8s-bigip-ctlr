@@ -1,6 +1,38 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+2.2.1
+-------------
+Added Functionality
+```````````````````
+* CIS is now compatible with:
+    -  OpenShift 4.6.4.
+    -  AS3 3.24.
+* CIS supports OVN-Kubernetes CNI for Standalone and HA with OSCP 4.5.
+* External DNS CRD – Preview available in CRD mode.
+    -  Supports single CIS to configure both LTM and GTM configuration.
+    -  Supports external DNS for GTM configuration.
+    -  Create wide-IP on BigIP using Virtual server CRD's domain name
+    -  Multi cluster support for same domain
+    -  Health montior support for monitoring GSLB pools
+    -  CIS deployment parameter added `--gtm-bigip-url`, `--gtm-bigip-username`, `--gtm-bigip-password` and `--gtm-credentials-directory` for External DNS.
+    -  `CRD schema definition for External DNS <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/config_examples/crd/ExternalDNS/%20externaldns-customresourcedefinition.yml>`_.
+    -  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/ExternalDNS>`_.
+
+Bug Fixes
+`````````
+* :issues:`1464` CIS AS3 does not support k8s services has multiple port.
+* :issues:`1391` Expose Kubernetes api services via F5 ingress crashes CIS.
+* :issues:`1527` Service Discovery logs not being output.
+* SR - Fix for concurrent map read and write with configmap processing.
+* SR - Improved performance by skipping the processing of endpoints for unassociated services
+
+Limitations
+```````````
+* On updating or deleting CIS virtual server CRD's virtualServerAddress for a domain, CIS does not update the GSLB pool members.
+* CIS is unable to delete the Wide-IP without Health Monitor.
+* CIS is unable to delete the Health Monitor when there are no virtual server CRD available for a domain name.
+
 2.2.0
 -------------
 Added Functionality
@@ -488,15 +520,15 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`552` - Controller properly creates Secret SSL profiles for ConfigMaps.
-* :issues:`592` - Node label selector works properly in cluster mode.
-* :issues:`603` - Pool only mode no longer prints excessive logs.
-* :issues:`608` - Single service Ingresses cannot share virtual servers.
-* :issues:`636` - Controller configures default ssl profiles for Routes when specified via CLI.
-* :issues:`635` - Controller cleans up policy rules when an Ingress removes them.
-* :issues:`638` - Ingress extended paths no longer break BIG-IP GUI links.
-* :issues:`649` - Route annotation profiles are no longer ignored.
-* :cccl-issue:`214` - Keys and certificates are now installed onto the managed partition.
+* :issues:552 - Controller properly creates Secret SSL profiles for ConfigMaps.
+* :issues:592 - Node label selector works properly in cluster mode.
+* :issues:603 - Pool only mode no longer prints excessive logs.
+* :issues:608 - Single service Ingresses cannot share virtual servers.
+* :issues:636 - Controller configures default ssl profiles for Routes when specified via CLI.
+* :issues:635 - Controller cleans up policy rules when an Ingress removes them.
+* :issues:638 - Ingress extended paths no longer break BIG-IP GUI links.
+* :issues:649 - Route annotation profiles are no longer ignored.
+* :cccl-issue:214 - Keys and certificates are now installed onto the managed partition.
 
 Limitations
 ```````````

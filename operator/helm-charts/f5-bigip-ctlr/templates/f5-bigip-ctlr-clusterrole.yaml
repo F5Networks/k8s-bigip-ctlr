@@ -55,4 +55,5 @@ rules:
       - virtualservers
       - tlsprofiles
       - transportservers
+      - externaldnss
 {{- end -}}

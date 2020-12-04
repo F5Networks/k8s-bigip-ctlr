@@ -34,9 +34,9 @@ const (
 	svcAppLabel         = "cis.f5.com/as3-app="
 	svcPoolLabel        = "cis.f5.com/as3-pool="
 	as3SupportedVersion = 3.18
-	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema
-	as3Version           = 3.23
-	defaultAS3Version    = "3.23.0"
+	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
+	as3Version           = 3.24
+	defaultAS3Version    = "3.24.0"
 	defaultAS3Build      = "5"
 	as3tenant            = "Tenant"
 	as3class             = "class"
@@ -45,7 +45,7 @@ const (
 	as3shared            = "shared"
 	as3template          = "template"
 	//as3SchemaLatestURL   = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
-	as3SchemaFileName = "as3-schema-3.23.0-5-cis.json"
+	as3SchemaFileName = "as3-schema-3.24.0-5-cis.json"
 )
 
 var baseAS3Config = `{

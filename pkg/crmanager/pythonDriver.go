@@ -36,14 +36,22 @@ func initializeDriverConfig(
 	configWriter writer.Writer,
 	global globalSection,
 	bigIP bigIPSection,
+	gtm gtmBigIPSection,
 ) error {
 	if nil == configWriter {
 		return fmt.Errorf("config writer argument cannot be nil")
 	}
 
-	sectionNames := []string{"global", "bigip"}
-	for i, v := range []interface{}{global, bigIP} {
-		doneCh, errCh, err := configWriter.SendSection(sectionNames[i], v)
+	sections := make(map[string]interface{})
+
+	sections["global"] = global
+	sections["bigip"] = bigIP
+	if global.GTM {
+		sections["gtm_bigip"] = gtm
+	}
+
+	for k, v := range sections {
+		doneCh, errCh, err := configWriter.SendSection(k, v)
 		if nil != err {
 			return fmt.Errorf("failed writing global config section: %v", err)
 		}
@@ -51,7 +59,7 @@ func initializeDriverConfig(
 		case <-doneCh:
 		case e := <-errCh:
 			return fmt.Errorf("failed writing section %s - %v: %v",
-				sectionNames[i], e, v)
+				k, e, v)
 		case <-time.After(1000 * time.Millisecond):
 			log.Warning("Did not receive config write response in 1 second")
 		}
@@ -139,11 +147,12 @@ func runBigIPDriver(pid chan<- int, cmd *exec.Cmd) {
 func (agent *Agent) startPythonDriver(
 	global globalSection,
 	bigIP bigIPSection,
+	gtmBigIP gtmBigIPSection,
 	pythonBaseDir string,
 ) {
 	var pyCmd string
 
-	err := initializeDriverConfig(agent.ConfigWriter, global, bigIP)
+	err := initializeDriverConfig(agent.ConfigWriter, global, bigIP, gtmBigIP)
 	if nil != err {
 		log.Fatalf("Could not initialize subprocess configuration: %v", err)
 		return

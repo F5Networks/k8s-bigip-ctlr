@@ -26,6 +26,7 @@ import (
 
 type K8sV1Interface interface {
 	RESTClient() rest.Interface
+	ExternalDNSsGetter
 	NginxCisConnectorsGetter
 	TLSProfilesGetter
 	TransportServersGetter
@@ -35,6 +36,10 @@ type K8sV1Interface interface {
 // K8sV1Client is used to interact with features provided by the k8s.nginx.org group.
 type K8sV1Client struct {
 	restClient rest.Interface
+}
+
+func (c *K8sV1Client) ExternalDNSs(namespace string) ExternalDNSInterface {
+	return newExternalDNSs(c, namespace)
 }
 
 func (c *K8sV1Client) NginxCisConnectors(namespace string) NginxCisConnectorInterface {

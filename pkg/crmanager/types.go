@@ -84,14 +84,15 @@ type (
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
-		namespace   string
-		stopCh      chan struct{}
-		vsInformer  cache.SharedIndexInformer
-		tlsInformer cache.SharedIndexInformer
-		tsInformer  cache.SharedIndexInformer
-		nccInformer cache.SharedIndexInformer
-		svcInformer cache.SharedIndexInformer
-		epsInformer cache.SharedIndexInformer
+		namespace    string
+		stopCh       chan struct{}
+		svcInformer  cache.SharedIndexInformer
+		epsInformer  cache.SharedIndexInformer
+		vsInformer   cache.SharedIndexInformer
+		tlsInformer  cache.SharedIndexInformer
+		tsInformer   cache.SharedIndexInformer
+		nccInformer  cache.SharedIndexInformer
+		ednsInformer cache.SharedIndexInformer
 	}
 
 	NSInformer struct {
@@ -110,6 +111,7 @@ type (
 		Active       bool
 		ResourceType string
 		rscName      string
+		hosts        []string
 	}
 
 	// Virtual Server Key - unique server is Name + Port
@@ -121,21 +123,24 @@ type (
 
 	// Virtual server config
 	Virtual struct {
-		Name                  string                `json:"name"`
-		PoolName              string                `json:"pool,omitempty"`
-		Partition             string                `json:"-"`
-		Destination           string                `json:"destination"`
-		Enabled               bool                  `json:"enabled"`
-		IpProtocol            string                `json:"ipProtocol,omitempty"`
-		SourceAddrTranslation SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
-		Policies              []nameRef             `json:"policies,omitempty"`
-		Profiles              ProfileRefs           `json:"profiles,omitempty"`
-		IRules                []string              `json:"rules,omitempty"`
-		Description           string                `json:"description,omitempty"`
-		VirtualAddress        *virtualAddress       `json:"-"`
-		SNAT                  string                `json:"snat,omitempty"`
-		WAF                   string                `json:"waf,omitempty"`
-		Mode                  string                `json:"mode,omitempty"`
+		Name                   string                `json:"name"`
+		PoolName               string                `json:"pool,omitempty"`
+		Partition              string                `json:"-"`
+		Destination            string                `json:"destination"`
+		Enabled                bool                  `json:"enabled"`
+		IpProtocol             string                `json:"ipProtocol,omitempty"`
+		SourceAddrTranslation  SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
+		Policies               []nameRef             `json:"policies,omitempty"`
+		Profiles               ProfileRefs           `json:"profiles,omitempty"`
+		IRules                 []string              `json:"rules,omitempty"`
+		Description            string                `json:"description,omitempty"`
+		VirtualAddress         *virtualAddress       `json:"-"`
+		SNAT                   string                `json:"snat,omitempty"`
+		WAF                    string                `json:"waf,omitempty"`
+		Mode                   string                `json:"mode,omitempty"`
+		TranslateServerAddress bool                  `json:"translateServerAddress"`
+		TranslateServerPort    bool                  `json:"translateServerPort"`
+		Source                 string                `json:"source,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -169,12 +174,33 @@ type (
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
 
+	DNSConfig map[string]WideIP
+
+	WideIPs struct {
+		WideIPs []WideIP `json:"wideIPs"`
+	}
+
+	WideIP struct {
+		DomainName string     `json:"name"`
+		RecordType string     `json:"recordType"`
+		LBMethod   string     `json:"LoadBalancingMode"`
+		Pools      []GSLBPool `json:"pools"`
+	}
+	GSLBPool struct {
+		Name       string   `json:"name"`
+		RecordType string   `json:"recordType"`
+		LBMethod   string   `json:"LoadBalancingMode"`
+		Members    []string `json:"members"`
+		Monitor    *Monitor `json:"monitor,omitempty"`
+	}
+
 	ResourceConfigWrapper struct {
 		rsCfgs         ResourceConfigs
 		iRuleMap       IRulesMap
 		intDgMap       InternalDataGroupMap
 		customProfiles *CustomProfileStore
 		shareNodes     bool
+		dnsConfig      DNSConfig
 	}
 
 	// Pool config
@@ -197,7 +223,7 @@ type (
 		Interval  int    `json:"interval,omitempty"`
 		Type      string `json:"type,omitempty"`
 		Send      string `json:"send,omitempty"`
-		Recv      string `json:"recv,omitempty"`
+		Recv      string `json:"recv"`
 		Timeout   int    `json:"timeout,omitempty"`
 	}
 	// Monitors  is slice of monitor
@@ -354,6 +380,7 @@ type (
 
 	AgentParams struct {
 		PostParams PostParams
+		GTMParams  GTMParams
 		//VxlnParams      VXLANParams
 		Partition      string
 		LogLevel       string
@@ -368,6 +395,7 @@ type (
 		VerifyInterval int    `json:"verify-interval,omitempty"`
 		VXLANPartition string `json:"vxlan-partition,omitempty"`
 		DisableLTM     bool   `json:"disable-ltm,omitempty"`
+		GTM            bool   `json:"gtm,omitempty"`
 	}
 
 	bigIPSection struct {
@@ -375,6 +403,12 @@ type (
 		BigIPPassword   string   `json:"password,omitempty"`
 		BigIPURL        string   `json:"url,omitempty"`
 		BigIPPartitions []string `json:"partitions,omitempty"`
+	}
+
+	gtmBigIPSection struct {
+		GtmBigIPUsername string `json:"username,omitempty"`
+		GtmBigIPPassword string `json:"password,omitempty"`
+		GtmBigIPURL      string `json:"url,omitempty"`
 	}
 
 	as3Template    string
@@ -503,7 +537,7 @@ type (
 		PolicyEndpoint         as3MultiTypeParam `json:"policyEndpoint,omitempty"`
 		ClientTLS              as3MultiTypeParam `json:"clientTLS,omitempty"`
 		ServerTLS              as3MultiTypeParam `json:"serverTLS,omitempty"`
-		IRules                 []string          `json:"iRules,omitempty"`
+		IRules                 as3MultiTypeParam `json:"iRules,omitempty"`
 		Redirect80             *bool             `json:"redirect80,omitempty"`
 		Pool                   string            `json:"pool,omitempty"`
 		WAF                    as3MultiTypeParam `json:"policyWAF,omitempty"`

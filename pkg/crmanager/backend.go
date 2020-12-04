@@ -85,6 +85,7 @@ func NewAgent(params AgentParams) *Agent {
 		VerifyInterval: params.VerifyInterval,
 		VXLANPartition: vxlanPartition,
 		DisableLTM:     true,
+		GTM:            true,
 	}
 	bs := bigIPSection{
 		BigIPUsername:   params.PostParams.BIGIPUsername,
@@ -93,9 +94,21 @@ func NewAgent(params AgentParams) *Agent {
 		BigIPPartitions: []string{params.Partition},
 	}
 
+	var gtm gtmBigIPSection
+	if len(params.GTMParams.GTMBigIpUsername) == 0 || len(params.GTMParams.GTMBigIpPassword) == 0 || len(params.GTMParams.GTMBigIpUrl) == 0 {
+		gs.GTM = false
+	} else {
+		gtm = gtmBigIPSection{
+			GtmBigIPUsername: params.GTMParams.GTMBigIpUsername,
+			GtmBigIPPassword: params.GTMParams.GTMBigIpPassword,
+			GtmBigIPURL:      params.GTMParams.GTMBigIpUrl,
+		}
+	}
+
 	agent.startPythonDriver(
 		gs,
 		bs,
+		gtm,
 		params.PythonBaseDir,
 	)
 
@@ -108,6 +121,7 @@ func (agent *Agent) Stop() {
 }
 
 func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
+	agent.PostGTMConfig(config)
 	decl := createAS3Declaration(config, agent.userAgent)
 	if DeepEqualJSON(agent.activeDecl, decl) {
 		log.Debug("[AS3] No Change in the Configuration")
@@ -132,6 +146,33 @@ func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
 		case agent.EventChan <- allPoolMems:
 			log.Debugf("Custom Resource Manager wrote endpoints to VxlanMgr")
 		case <-time.After(3 * time.Second):
+		}
+	}
+}
+
+func (agent Agent) PostGTMConfig(config ResourceConfigWrapper) {
+
+	dnsConfig := make(map[string]interface{})
+	wideIPs := WideIPs{}
+	for _, v := range config.dnsConfig {
+		wideIPs.WideIPs = append(wideIPs.WideIPs, v)
+	}
+
+	// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
+	dnsConfig["Common"] = wideIPs
+
+	doneCh, errCh, err := agent.ConfigWriter.SendSection("gtm", dnsConfig)
+
+	if nil != err {
+		log.Warningf("Failed to write gtm config section: %v", err)
+	} else {
+		select {
+		case <-doneCh:
+			log.Debugf("Wrote gtm config section: %v", config.dnsConfig)
+		case e := <-errCh:
+			log.Warningf("Failed to write gtm config section: %v", e)
+		case <-time.After(time.Second):
+			log.Warningf("Did not receive write response in 1s")
 		}
 	}
 }
@@ -360,6 +401,36 @@ func updateVirtualToHTTPS(v *as3Service) {
 	v.Redirect80 = &redirect80
 }
 
+// Process Irules for CRD
+func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
+	for _, v := range cfg.Virtual.IRules {
+		splits := strings.Split(v, "/")
+		iRuleName := splits[len(splits)-1]
+		matched := false
+		var IRules []interface{}
+		iRuleNoPort := iRuleName[:strings.LastIndex(iRuleName, "_")]
+		if iRuleNoPort == HttpRedirectIRuleName || iRuleNoPort == HttpRedirectNoHostIRuleName || iRuleName == SslPassthroughIRuleName {
+			matched = true
+		}
+
+		if matched {
+			if iRuleName == SslPassthroughIRuleName {
+				svc.ServerTLS = &as3ResourcePointer{
+					BigIP: "/Common/clientssl",
+				}
+				updateVirtualToHTTPS(svc)
+			}
+			IRules = append(IRules, iRuleName)
+		} else {
+			irule := &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", v),
+			}
+			IRules = append(IRules, irule)
+		}
+		svc.IRules = IRules
+	}
+}
+
 // Create AS3 Service for CRD
 func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	svc := &as3Service{}
@@ -426,19 +497,8 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		svc.VirtualAddresses = va
 		svc.VirtualPort = port
 	}
-
-	for _, v := range cfg.Virtual.IRules {
-		splits := strings.Split(v, "/")
-		iRuleName := splits[len(splits)-1]
-		if iRuleName == SslPassthroughIRuleName {
-			svc.ServerTLS = &as3ResourcePointer{
-				BigIP: "/Common/clientssl",
-			}
-			updateVirtualToHTTPS(svc)
-		}
-		svc.IRules = append(svc.IRules, iRuleName)
-	}
-
+	//process irules for crd
+	processIrulesForCRD(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }
 
@@ -813,7 +873,15 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			BigIP: fmt.Sprintf("%v", cfg.Virtual.SNAT),
 		}
 	}
-
+	if cfg.Virtual.TranslateServerAddress == true {
+		svc.TranslateServerAddress = cfg.Virtual.TranslateServerAddress
+	}
+	if cfg.Virtual.TranslateServerPort == true {
+		svc.TranslateServerPort = cfg.Virtual.TranslateServerPort
+	}
+	if cfg.Virtual.Source != "" {
+		svc.Source = cfg.Virtual.Source
+	}
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	// verify that ip address and port exists.
 	if virtualAddress != "" && port != 0 {
@@ -824,6 +892,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	for _, pool := range cfg.Pools {
 		svc.Pool = pool.Name
 	}
-
+	//process irules for crd
+	processIrulesForCRD(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

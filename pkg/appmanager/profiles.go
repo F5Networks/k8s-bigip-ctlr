@@ -429,6 +429,8 @@ func (appMgr *Manager) deleteUnusedProfiles(
 	}
 	// Loop through and delete any profileRefs for cfgs that are
 	// no longer referenced, or have been deleted
+	appMgr.resources.Lock()
+	defer appMgr.resources.Unlock()
 	for _, cfg := range appMgr.resources.GetAllResources() {
 		if cfg.MetaData.ResourceType == "iapp" {
 			continue

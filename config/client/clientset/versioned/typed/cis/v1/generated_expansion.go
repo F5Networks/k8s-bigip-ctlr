@@ -18,6 +18,8 @@ limitations under the License.
 
 package v1
 
+type ExternalDNSExpansion interface{}
+
 type NginxCisConnectorExpansion interface{}
 
 type TLSProfileExpansion interface{}

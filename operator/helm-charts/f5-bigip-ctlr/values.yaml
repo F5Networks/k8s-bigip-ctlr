@@ -1,16 +1,65 @@
-version: latest
-args:
-  bigip_partition: f5-bigip-ctlr
-  bigip_url: null
+# For additional information on installing the k8-bigip-ctlr please see:
+# Kubernetes: http://clouddocs.f5.com/containers/latest/kubernetes/kctlr-app-install.html
+# OpenShift: http://clouddocs.f5.com/containers/latest/openshift/kctlr-openshift-app-install.html#install-kctlr-openshift
+#
+# access / permissions / RBAC
+# To create a secret using kubectl see
+# http://clouddocs.f5.com/containers/latest/kubernetes/kctlr-secrets.html#secret-bigip-login
 bigip_login_secret: f5-bigip-ctlr-login
-image:
-  pullPolicy: Always
-  repo: k8s-bigip-ctlr
-  user: f5networks
-namespace: kube-system
 rbac:
   create: true
-resources: {}
 serviceAccount:
+  # Specifies whether a service account should be created
   create: true
-  name: null
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name:
+# This namespace is where the Controller lives;
+namespace: kube-system
+args:
+  # See http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/latest/#controller-configuration-parameters
+  # NOTE: helm has difficulty with values using `-`; `_` are used for naming
+  # and are replaced with `-` during rendering.
+  # REQUIRED Params
+  bigip_url: ~
+  bigip_partition: f5-bigip-ctlr
+  # OPTIONAL PARAMS -- uncomment and provide values for those you wish to use.
+  # verify_interval:
+  # node-poll_interval:
+  # log_level:
+  # python_basedir: ~
+  # VXLAN
+  # openshift_sdn_name:
+  # flannel_name:
+  # KUBERNETES
+  # default_ingress_ip:
+  # kubeconfig:
+  # namespace:
+  # namespace_label:
+  # node_label_selector:
+  # pool_member_type:
+  # resolve_ingress_names:
+  # running_in_cluster:
+  # use_node_internal:
+  # use_secrets:
+  # insecure: true
+  # custom-resource-mode: true
+  # log-as3-response: true
+  # gtm-bigip-password
+  # gtm-bigip-url
+  # gtm-bigip-username
+image:
+  # Use the tag to target a specific version of the Controller
+  user: f5networks
+  repo: k8s-bigip-ctlr
+  pullPolicy: Always
+resources: {}
+  # If you want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #  cpu: 100m
+  #  memory: 128Mi
+  # requests:
+  #  cpu: 100m
+  #  memory: 128Mi
+version: latest

@@ -18,6 +18,14 @@ limitations under the License.
 
 package v1
 
+// ExternalDNSListerExpansion allows custom methods to be added to
+// ExternalDNSLister.
+type ExternalDNSListerExpansion interface{}
+
+// ExternalDNSNamespaceListerExpansion allows custom methods to be added to
+// ExternalDNSNamespaceLister.
+type ExternalDNSNamespaceListerExpansion interface{}
+
 // NginxCisConnectorListerExpansion allows custom methods to be added to
 // NginxCisConnectorLister.
 type NginxCisConnectorListerExpansion interface{}

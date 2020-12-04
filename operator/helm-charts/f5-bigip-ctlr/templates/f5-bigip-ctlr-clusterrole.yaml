@@ -54,4 +54,6 @@ rules:
     resources:
       - virtualservers
       - tlsprofiles
+      - transportservers
+      - externaldnss
 {{- end -}}

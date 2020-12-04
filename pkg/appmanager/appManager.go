@@ -61,7 +61,7 @@ type Manager struct {
 	irulesMap           IRulesMap
 	intDgMap            InternalDataGroupMap
 	agentCfgMap         map[string]*AgentCfgMap
-	agentCfgMapEndpoint map[string][]Member
+	agentCfgMapSvcCache map[string]*SvcEndPointsCache
 	kubeClient          kubernetes.Interface
 	restClientv1        rest.Interface
 	restClientv1beta1   rest.Interface
@@ -178,6 +178,11 @@ type RouteConfig struct {
 	ServerSSL   string
 }
 
+type SvcEndPointsCache struct {
+	members     []Member
+	labelString string
+}
+
 var RoutesProcessed []*routeapi.Route
 
 // Create and return a new app manager that meets the Manager interface
@@ -225,7 +230,7 @@ func NewManager(params *Params) *Manager {
 		agRspChan:              params.AgRspChan,
 		processAgentLabels:     params.ProcessAgentLabels,
 		agentCfgMap:            make(map[string]*AgentCfgMap),
-		agentCfgMapEndpoint:    make(map[string][]Member),
+		agentCfgMapSvcCache:    make(map[string]*SvcEndPointsCache),
 	}
 
 	// Initialize agent response worker
@@ -1040,20 +1045,45 @@ func (appMgr *Manager) syncConfigMaps(
 			return nil
 		}
 		if nil != svc {
-			selector := "cis.f5.com/as3-tenant=" + svc.ObjectMeta.Labels["cis.f5.com/as3-tenant"] + "," +
-				"cis.f5.com/as3-app=" + svc.ObjectMeta.Labels["cis.f5.com/as3-app"] + "," +
-				"cis.f5.com/as3-pool=" + svc.ObjectMeta.Labels["cis.f5.com/as3-pool"]
-			//TODO: Sorting endpoints members
-			members := appMgr.getEndpoints(selector, sKey.Namespace)
-			if _, ok := appMgr.agentCfgMapEndpoint[key]; !ok {
-				if len(members) != 0 {
-					appMgr.agentCfgMapEndpoint[key] = members
-					stats.vsUpdated += 1
+			tntLabel, tntOk := svc.ObjectMeta.Labels["cis.f5.com/as3-tenant"]
+			appLabel, appOk := svc.ObjectMeta.Labels["cis.f5.com/as3-app"]
+			poolLabel, poolOk := svc.ObjectMeta.Labels["cis.f5.com/as3-pool"]
+
+			selector := "cis.f5.com/as3-tenant=" + tntLabel + "," +
+				"cis.f5.com/as3-app=" + appLabel + "," +
+				"cis.f5.com/as3-pool=" + poolLabel
+
+			key := sKey.Namespace + "/" + sKey.ServiceName
+
+			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
+			if tntOk && appOk && poolOk {
+				//TODO: Sorting endpoints members
+				members := appMgr.getEndpoints(selector, sKey.Namespace)
+
+				if _, ok := appMgr.agentCfgMapSvcCache[key]; !ok {
+					if len(members) != 0 {
+						appMgr.agentCfgMapSvcCache[key] = &SvcEndPointsCache{
+							members:     members,
+							labelString: selector,
+						}
+						stats.poolsUpdated += 1
+						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
+					}
+				} else {
+					sc := &SvcEndPointsCache{
+						members:     members,
+						labelString: selector,
+					}
+					if len(sc.members) != len(appMgr.agentCfgMapSvcCache[key].members) || !reflect.DeepEqual(sc, appMgr.agentCfgMapSvcCache[key]) {
+						stats.poolsUpdated += 1
+						appMgr.agentCfgMapSvcCache[key] = sc
+						log.Debugf("[CORE] Discovered members for service %v is %v", key, members)
+					}
 				}
 			} else {
-				if len(members) != len(appMgr.agentCfgMapEndpoint[key]) || !reflect.DeepEqual(members, appMgr.agentCfgMapEndpoint[key]) {
-					stats.vsUpdated += 1
-					appMgr.agentCfgMapEndpoint[key] = members
+				if _, ok := appMgr.agentCfgMapSvcCache[key]; ok {
+					stats.poolsUpdated += 1
+					delete(appMgr.agentCfgMapSvcCache, key)
 				}
 			}
 		}
@@ -1845,12 +1875,16 @@ func (appMgr *Manager) handleConfigForType(
 	var reason string
 	var msg string
 
-	if appMgr.IsNodePort() {
-		correctBackend, reason, msg =
-			appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
+	if svc.ObjectMeta.Labels["component"] == "apiserver" && svc.ObjectMeta.Labels["provider"] == "kubernetes" {
+		appMgr.exposeKubernetesService(svc, svcKey, rsCfg, appInf, plIdx)
 	} else {
-		correctBackend, reason, msg =
-			appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf, plIdx)
+		if appMgr.IsNodePort() {
+			correctBackend, reason, msg =
+				appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
+		} else {
+			correctBackend, reason, msg =
+				appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf, plIdx)
+		}
 	}
 
 	// This will only update the config if the vs actually changed.
@@ -2311,9 +2345,9 @@ func handleConfigMapParseFailure(
 		}
 		sKey := ServiceKey{serviceName, servicePort, cm.ObjectMeta.Namespace}
 		rsName := FormatConfigMapVSName(cm)
+		appMgr.resources.Lock()
+		defer appMgr.resources.Unlock()
 		if _, ok := appMgr.resources.Get(sKey, rsName); ok {
-			appMgr.resources.Lock()
-			defer appMgr.resources.Unlock()
 			appMgr.resources.Delete(sKey, rsName)
 			delete(cm.ObjectMeta.Annotations, VsStatusBindAddrAnnotation)
 			appMgr.kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
@@ -2505,23 +2539,66 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 			for _, endpoints := range endpointsList.Items {
 				for _, subset := range endpoints.Subsets {
 					for _, address := range subset.Addresses {
-						member := Member{
-							Address: address.IP,
-							Port:    subset.Ports[0].Port,
+						for _, port := range subset.Ports {
+							member := Member{
+								Address: address.IP,
+								Port:    port.Port,
+							}
+							members = append(members, member)
 						}
-						members = append(members, member)
+
 					}
 				}
 			}
 		} else { // Controller is in NodePort mode.
 			if service.Spec.Type == v1.ServiceTypeNodePort {
-				members = m.getEndpointsForNodePort(service.Spec.Ports[0].NodePort)
+				for _, port := range service.Spec.Ports {
+					members = m.getEndpointsForNodePort(port.NodePort)
+				}
 			} /* else {
 				msg := fmt.Sprintf("[CORE] Requested service backend '%+v' not of NodePort type", service.Name)
 				log.Debug(msg)
 			}*/
 		}
 	}
-
 	return members
+}
+
+func (appMgr *Manager) exposeKubernetesService(
+	svc *v1.Service,
+	sKey ServiceKey,
+	rsCfg *ResourceConfig,
+	appInf *appInformer,
+	index int,
+) (bool, string, string) {
+	svcKey := sKey.Namespace + "/" + sKey.ServiceName
+	item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
+	if !found {
+		msg := fmt.Sprintf("Endpoints for service '%v' not found!", svcKey)
+		log.Debug(msg)
+		return false, "EndpointsNotFound", msg
+	}
+	eps, _ := item.(*v1.Endpoints)
+	for _, portSpec := range svc.Spec.Ports {
+		if portSpec.Port == sKey.ServicePort {
+			var members []Member
+			for _, subset := range eps.Subsets {
+				for _, p := range subset.Ports {
+					if portSpec.Name == p.Name {
+						for _, addr := range subset.Addresses {
+							member := Member{
+								Address: addr.IP,
+								Port:    p.Port,
+							}
+							members = append(members, member)
+						}
+					}
+				}
+			}
+			log.Debugf("[CORE] Found endpoints for backend %+v: %v", sKey, members)
+			rsCfg.MetaData.Active = true
+			rsCfg.Pools[index].Members = members
+		}
+	}
+	return true, "", ""
 }

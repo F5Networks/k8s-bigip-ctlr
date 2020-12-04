@@ -226,10 +226,17 @@ func (crMgr *CRManager) syncNginxCisConnector(
 
 		rsCfg := &ResourceConfig{}
 		rsCfg.Virtual.Partition = crMgr.Partition
-		rsCfg.MetaData.ResourceType = VirtualServer
+		rsCfg.MetaData.ResourceType = "TransportServer"
+		rsCfg.Virtual.Mode = "standard"
+		rsCfg.Virtual.TranslateServerAddress = true
+		rsCfg.Virtual.TranslateServerPort = true
+		rsCfg.Virtual.Source = "0.0.0.0/0"
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
 		rsCfg.Virtual.SNAT = DEFAULT_SNAT
+		if len(ncc.Spec.IRules) > 0 {
+			rsCfg.Virtual.IRules = ncc.Spec.IRules
+		}
 		rsCfg.Virtual.SetVirtualAddress(
 			ncc.Spec.VirtualServerAddress,
 			port.Port,

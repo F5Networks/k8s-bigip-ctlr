@@ -17,9 +17,11 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
 ```
 
 ## Contents
-* CIS supports 2 Custom Resources at this point of time.
+* CIS supports following Custom Resources at this point of time.
   - VirtualServer
   - TLSProfile
+  - TransportServer
+  - ExternalDNS
    
 ## VirtualServer
 
@@ -118,6 +120,39 @@ different terminations(for same domain), one with edge and another with re-encry
       interval: 10
       timeout: 10
 ```
+
+## ExternalDNS
+
+* ExternalDNS CRD's allows you to control DNS records dynamically via Kubernetes/OSCP resources in a DNS provider-agnostic way. 
+```
+apiVersion: "cis.f5.com/v1"
+kind: ExternalDNS
+metadata:
+  name: exdns
+  labels:
+    f5cr: "true"
+spec:
+  domainName: example.com
+  dnsRecordType: A
+  loadBalanceMethod: round-robin
+  pools:
+  - name: example.site1.com
+    dnsRecordType: A
+    loadBalanceMethod: round-robin
+    dataServerName: /Common/GSLBServer
+    monitor:
+      type: https
+      send: "GET /"
+      recv: ""
+      interval: 10
+      timeout: 10
+```
+
+Note: 
+* To set up external DNS using BIG-IP GTM user needs to first manually configure GSLB → Datacenter and GSLB → Server on BIG-IP common partition.
+
+Known Issues:
+* CIS does not update the GSLB pool members when virtual server CRD's virtualServerAddress is updated or virtual server CRD is deleted for a domain.
 
 ## How CIS works with CRDs
 
@@ -222,6 +257,46 @@ different terminations(for same domain), one with edge and another with re-encry
 | interval | Int | Required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
 
+
+# ExternalDNS
+   * Schema Validation
+     - OpenAPI Schema Validation
+     
+        https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/config_examples/crd/ExternalDNS/%20externaldns-customresourcedefinition.yml
+
+
+**ExternalDNS Components**
+
+| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
+| ------ | ------ | ------ | ------ | ------ |
+| domainName | String | Required | NA | Domain name of virtual server CRD |
+| dnsRecordType | String | Required | A | DNS record type |
+| loadBalancerMethod | String | Required | round-robin | Load balancing method for DNS traffic |
+| pools | pool | Optional | NA | GTM Pools |
+
+**Pool Components**
+
+| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
+| ------ | ------ | ------ | ------ | ------ |
+| name | String | Required | NA | Name of the GSLB pool |
+| dnsRecordType | String | Optional | NA | DNS record type |
+| loadBalancerMethod | String | Optional | round-robin | Load balancing method for DNS traffic |
+| dataServerName | String | Required | NA | Name of the GSLB server on BIG-IP (i.e. /Common/SiteName) |
+| monitor | Monitor | Optional | NA | Monitor for GSLB Pool |
+
+
+Note: The user needs to mention the same GSLB DataServer Name to dataServerName field, which is create on the BIG-IP common partition.
+
+**GSLB Monitor Components**
+
+| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
+| ------ | ------ | ------ | ------ | ------ |
+| type | String | Required | NA |  http or https |
+| send | String | Required | NA | Send string for monitor i.e. "GET /health  HTTP/1.1\r\nHOST: example.com\r\n" |
+| recv | String | Optional | NA | Receive string and can be empty |
+| interval | Int | Required | 5 | Seconds between health queries |
+| timeout | Int | Optional | 16 | Seconds before query fails |
+
 ## Prerequisites
 Since CIS is using the AS3 declarative API we need the AS3 extension installed on BIG-IP. Follow the link to install AS3 3.18 is required for CIS 2.0.
  
@@ -280,6 +355,11 @@ kubectl create -f sample-cluster-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 ## Share Nodes
 
 CIS deployment parameter `--share-nodes` can be used to share the pool member nodes among multiple BIG-IP tenants. `--share-nodes=true` will create nodes on `/Common` partition.
+
+## External DNS
+
+CIS deployment parameter `--gtm-bigip-url`, `--gtm-bigip-username`, `--gtm-bigip-password` and `--gtm-credentials-directory` can be used to configure External DNS.
+
 
 ## Examples
 

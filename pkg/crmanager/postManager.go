@@ -195,6 +195,8 @@ func (postMgr *PostManager) postConfig(cfg config) bool {
 		return postMgr.handleResponseStatusServiceUnavailable(responseMap, cfg)
 	case http.StatusNotFound:
 		return postMgr.handleResponseStatusNotFound(responseMap)
+	case http.StatusUnprocessableEntity:
+		return postMgr.handleResponseStatusServiceUnavailable(responseMap, cfg)
 	default:
 		return postMgr.handleResponseOthers(responseMap, cfg)
 	}

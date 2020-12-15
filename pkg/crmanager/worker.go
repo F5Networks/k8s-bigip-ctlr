@@ -17,15 +17,17 @@
 package crmanager
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
-	"reflect"
-	"strings"
-	"time"
-
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"reflect"
+	"strings"
+	"time"
 )
 
 // customResourceWorker starts the Custom Resource Worker.
@@ -422,6 +424,14 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(
 
 	tlsProfile := obj.(*cisapiv1.TLSProfile)
 
+	if tlsProfile.Spec.TLS.Reference == "secret" {
+		clientSecret, _ := crMgr.kubeClient.CoreV1().Secrets(namespace).Get(tlsProfile.Spec.TLS.ClientSSL, metav1.GetOptions{})
+		//validate clientSSL certificates and hostname
+		match := checkCertificateHost(clientSecret, vs.Spec.Host)
+		if match == false {
+			return nil
+		}
+	}
 	if len(vs.Spec.Host) == 0 {
 		// VirtualServer without host may be used for group of services
 		// which are common amongst multiple hosts. Example: Error Page
@@ -1076,4 +1086,24 @@ func (crMgr *CRManager) ProcessAllExternalDNS() {
 			crMgr.syncExternalDNS(edns, false)
 		}
 	}
+}
+
+//Validate certificate hostname
+func checkCertificateHost(res *v1.Secret, host string) bool {
+	cert, certErr := tls.X509KeyPair(res.Data["tls.crt"], res.Data["tls.key"])
+	if certErr != nil {
+		log.Errorf("Failed to validate TLS cert and key: %v", certErr)
+		return false
+	}
+	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		log.Errorf("failed to parse certificate; %s", err)
+		return false
+	}
+	ok := x509cert.VerifyHostname(host)
+	if ok != nil {
+		log.Errorf("host in virtualserver does not match certificate name: %v", ok)
+		return false
+	}
+	return true
 }

@@ -17,6 +17,9 @@
 package appmanager
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
@@ -266,7 +269,14 @@ func (appMgr *Manager) checkValidRoute(
 		// Not watching this namespace
 		return false, nil
 	}
-
+	if nil != route.Spec.TLS {
+		ok := checkCertificateHost(route.Spec.Host, route.Spec.TLS.Certificate, route.Spec.TLS.Key)
+		if !ok {
+			//Invalid certificate and key
+			log.Debugf("[CORE] Invalid certificate and key for route: %v", route.ObjectMeta.Name)
+			return false, nil
+		}
+	}
 	// Validate url-rewrite annotations
 	uri := route.Spec.Host + route.Spec.Path
 	if urlRewrite, ok := route.ObjectMeta.Annotations[F5VsURLRewriteAnnotation]; ok {
@@ -388,4 +398,24 @@ func validateAppRootAnnotations(rsType int, entries map[string]string) {
 			return
 		}
 	}
+}
+
+//Validate certificate hostname
+func checkCertificateHost(host string, certificate string, key string) bool {
+	cert, certErr := tls.X509KeyPair([]byte(certificate), []byte(key))
+	if certErr != nil {
+		log.Errorf("[CORE] Failed to validate TLS cert and key: %v", certErr)
+		return false
+	}
+	x509cert, err := x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		log.Errorf("[CORE] Failed to parse certificate for host %v : %s", host, err)
+		return false
+	}
+	ok := x509cert.VerifyHostname(host)
+	if ok != nil {
+		log.Errorf("[CORE] Hostname in route does not match with certificate hostname: %v", ok)
+		return false
+	}
+	return true
 }

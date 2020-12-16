@@ -414,12 +414,10 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
 
 	// set the SNAT policy to auto is it's not defined by end user
-	if rsCfg.Virtual.SNAT == "" {
-		if vs.Spec.SNAT == "" {
-			rsCfg.Virtual.SNAT = snat
-		} else {
-			rsCfg.Virtual.SNAT = vs.Spec.SNAT
-		}
+	if vs.Spec.SNAT == "" {
+		rsCfg.Virtual.SNAT = snat
+	} else {
+		rsCfg.Virtual.SNAT = vs.Spec.SNAT
 	}
 
 	// set the WAF policy

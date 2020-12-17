@@ -1438,9 +1438,19 @@ func (appMgr *Manager) syncRoutes(
 	bufferF5Res := InternalF5Resources{}
 
 	var routesProcessed []string
+	routePathMap := make(map[string]string)
 	for _, route := range routeByIndex {
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
+		}
+		key := route.Spec.Host + route.Spec.Path
+		if host, ok := routePathMap[key]; ok {
+			if host == route.Spec.Host {
+				log.Debugf("[CORE] Route exist with same host: %v and path: %v", route.Spec.Host, route.Spec.Path)
+				continue
+			}
+		} else {
+			routePathMap[key] = route.Spec.Host
 		}
 		routesProcessed = append(routesProcessed, route.ObjectMeta.Name)
 

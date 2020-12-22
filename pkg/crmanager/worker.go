@@ -517,20 +517,29 @@ func (crMgr *CRManager) syncVirtualServers(
 	// In the event of deletion, exclude the deleted VirtualServer
 	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
 
-	uniqueHostPath := make(map[string]string)
-
+	uniqueHostPath := make(map[string][]string)
 	for _, vrt := range allVirtuals {
 		if vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress &&
 			vrt.Spec.Host == virtual.Spec.Host &&
 			!(isVSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
 			isUnique := true
-			for _, pool := range virtual.Spec.Pools {
-				if _, ok := uniqueHostPath[pool.Path]; ok {
-					isUnique = false
-					log.Errorf("Discarding the virtual server : %v in Namespace : %v  due to duplicate path", virtual.Spec.VirtualServerAddress, virtual.ObjectMeta.Namespace)
-					break
+		op:
+			for _, pool := range vrt.Spec.Pools {
+				uniquePaths := uniqueHostPath[virtual.Spec.Host]
+				if len(uniquePaths) > 0 {
+					for _, path := range uniquePaths {
+						//check if path already exists in host map
+						if pool.Path == path {
+							isUnique = false
+							log.Errorf("Discarding the virtual server : %v in Namespace %v : %v  due to duplicate path",
+								virtual.Spec.VirtualServerAddress, virtual.ObjectMeta.Namespace, virtual.ObjectMeta.Name)
+							break op
+						} else {
+							uniqueHostPath[virtual.Spec.Host] = append(uniqueHostPath[virtual.Spec.Host], pool.Path)
+						}
+					}
 				} else {
-					uniqueHostPath[pool.Path] = virtual.Spec.Host
+					uniqueHostPath[virtual.Spec.Host] = append(uniqueHostPath[virtual.Spec.Host], pool.Path)
 				}
 			}
 			if isUnique {

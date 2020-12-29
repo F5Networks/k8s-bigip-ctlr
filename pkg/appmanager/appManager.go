@@ -570,8 +570,12 @@ func (appMgr *Manager) newAppInformer(
 		log.Infof("[CORE] Handling ConfigMap resource events.")
 		appInf.cfgMapInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { appMgr.enqueueCreatedConfigMap(obj) },
-				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueUpdatedConfigMap(cur) },
+				AddFunc: func(obj interface{}) { appMgr.enqueueCreatedConfigMap(obj) },
+				UpdateFunc: func(old, cur interface{}) {
+					if !reflect.DeepEqual(old, cur) {
+						appMgr.enqueueUpdatedConfigMap(cur)
+					}
+				},
 				DeleteFunc: func(obj interface{}) { appMgr.enqueueDeletedConfigMap(obj) },
 			},
 			resyncPeriod,

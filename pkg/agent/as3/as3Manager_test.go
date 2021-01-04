@@ -34,8 +34,8 @@ func newMockAS3Manager(params *Params) *mockAS3Manager {
 }
 
 func mockGetEndPoints(string, string) []Member {
-	return []Member{{Address: "1.1.1.1", Port: 80},
-		{Address: "2.2.2.2", Port: 80}}
+	return []Member{{Address: "1.1.1.1", Port: 80, SvcPort: 80},
+		{Address: "2.2.2.2", Port: 80, SvcPort: 80}}
 }
 
 func (m *mockAS3Manager) shutdown() error {

@@ -1111,6 +1111,13 @@ func (appMgr *Manager) syncConfigMaps(
 		}
 
 		if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
+			//ignore invalid as3 configmaps if found.
+			if sKey.Operation != OprTypeDelete {
+				err := validateConfigJson(cm.Data["template"])
+				if err != nil {
+					continue
+				}
+			}
 			if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, cm.Namespace); ok {
 				agntCfgMap := new(AgentCfgMap)
 				agntCfgMap.Init(cm.Name, cm.Namespace, cm.Data["template"], cm.Labels, appMgr.getEndpoints)

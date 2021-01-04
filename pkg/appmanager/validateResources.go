@@ -19,7 +19,7 @@ package appmanager
 import (
 	"crypto/tls"
 	"crypto/x509"
-
+	"encoding/json"
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
@@ -44,6 +44,14 @@ func (appMgr *Manager) checkValidConfigMap(
 	//check if config map is agent specific implementation.
 	//if ok, add cfgMap name and data to serviceQueueKey.
 	if ok := appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap); ok {
+		//check if configmap has valid json and ignore the cfmap if invalid.
+		if oprType != OprTypeDelete {
+			err := validateConfigJson(cm.Data["template"])
+			if err != nil {
+				log.Errorf("Error processing configmap %v in namespace: %v with err: %v", cm.Name, cm.Namespace, err)
+				return false, nil
+			}
+		}
 		if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, namespace); ok {
 			key := &serviceQueueKey{
 				Namespace: namespace,
@@ -418,4 +426,11 @@ func checkCertificateHost(host string, certificate string, key string) bool {
 		return false
 	}
 	return true
+}
+
+//validate config json
+func validateConfigJson(tmpConfig string) error {
+	var tmp interface{}
+	err := json.Unmarshal([]byte(tmpConfig), &tmp)
+	return err
 }

@@ -1954,7 +1954,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 					svcKey, portSpec.NodePort)
 				rsCfg.MetaData.Active = true
 				rsCfg.Pools[index].Members =
-					appMgr.getEndpointsForNodePort(portSpec.NodePort)
+					appMgr.getEndpointsForNodePort(portSpec.NodePort, portSpec.Port)
 			}
 		}
 		return true, "", ""
@@ -2317,6 +2317,7 @@ func (appMgr *Manager) getEndpointsForCluster(
 						member := Member{
 							Address: addr.IP,
 							Port:    p.Port,
+							SvcPort: p.Port,
 							Session: "user-enabled",
 						}
 						members = append(members, member)
@@ -2329,7 +2330,7 @@ func (appMgr *Manager) getEndpointsForCluster(
 }
 
 func (appMgr *Manager) getEndpointsForNodePort(
-	nodePort int32,
+	nodePort, port int32,
 ) []Member {
 	nodes := appMgr.getNodesFromCache()
 	var members []Member
@@ -2337,6 +2338,7 @@ func (appMgr *Manager) getEndpointsForNodePort(
 		member := Member{
 			Address: v.Addr,
 			Port:    nodePort,
+			SvcPort: port,
 			Session: "user-enabled",
 		}
 		members = append(members, member)
@@ -2574,7 +2576,7 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 		} else { // Controller is in NodePort mode.
 			if service.Spec.Type == v1.ServiceTypeNodePort {
 				for _, port := range service.Spec.Ports {
-					members = m.getEndpointsForNodePort(port.NodePort)
+					members = m.getEndpointsForNodePort(port.NodePort, port.Port)
 				}
 			} /* else {
 				msg := fmt.Sprintf("[CORE] Requested service backend '%+v' not of NodePort type", service.Name)

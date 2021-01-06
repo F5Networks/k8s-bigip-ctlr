@@ -33,6 +33,7 @@
             {
               "address":"127.0.0.3",
               "port":37001,
+              "svcPort": 80,
               "session":"user-enabled"
             }
           ]

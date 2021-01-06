@@ -55,11 +55,13 @@
             {
               "address":"10.2.96.0",
               "port":80,
+              "svcPort":80,
               "session":"user-enabled"
             },
             {
               "address":"10.2.96.3",
               "port":80,
+              "svcPort":80,
               "session":"user-enabled"
             }
           ]
@@ -71,11 +73,13 @@
             {
               "address":"10.2.96.1",
               "port":8080,
+              "svcPort": 8080,
               "session":"user-enabled"
             },
             {
               "address":"10.2.96.2",
               "port":8080,
+              "svcPort": 8080,
               "session":"user-enabled"
             }
           ]

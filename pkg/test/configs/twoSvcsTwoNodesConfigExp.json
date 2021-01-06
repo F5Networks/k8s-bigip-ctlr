@@ -60,11 +60,13 @@
             {
               "address":"127.0.0.1",
               "port":37001,
+              "svcPort": 80,
               "session":"user-enabled"
             },
             {
               "address":"127.0.0.2",
               "port":37001,
+              "svcPort": 80,
               "session":"user-enabled"
             }
           ]
@@ -76,11 +78,13 @@
             {
               "address":"127.0.0.1",
               "port":30001,
+              "svcPort": 80,
               "session":"user-enabled"
             },
             {
               "address":"127.0.0.2",
               "port":30001,
+              "svcPort": 80,
               "session":"user-enabled"
             }
           ],

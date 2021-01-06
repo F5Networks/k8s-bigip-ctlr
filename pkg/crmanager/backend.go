@@ -27,7 +27,6 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
-	rsc "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
@@ -133,12 +132,12 @@ func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
 	allPoolMembers := config.rsCfgs.GetAllPoolMembers()
 
 	// Convert allPoolMembers to appmanger.Members so that vxlan Manger accepts
-	var allPoolMems []rsc.Member
+	var allPoolMems []Member
 
 	for _, poolMem := range allPoolMembers {
 		allPoolMems = append(
 			allPoolMems,
-			rsc.Member(poolMem),
+			Member(poolMem),
 		)
 	}
 	if agent.EventChan != nil {
@@ -662,7 +661,7 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 	as3ServerSuffix := "_tls_server"
 	for _, profile := range virtual.Profiles {
 		switch profile.Context {
-		case rsc.CustomProfileClient:
+		case CustomProfileClient:
 			// Profile is stored in a k8s secret
 			if profile.Partition == "" {
 				// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
@@ -677,7 +676,7 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 				}
 			}
 			updateVirtualToHTTPS(svc)
-		case rsc.CustomProfileServer:
+		case CustomProfileServer:
 			// Profile is stored in a k8s secret
 			if profile.Partition == "" {
 				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3

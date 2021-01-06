@@ -440,12 +440,13 @@ func (m *mockAppManager) getFakeEvents(ns string) []FakeEvent {
 	return []FakeEvent{}
 }
 
-func generateExpectedAddrs(port int32, ips []string) []Member {
+func generateExpectedAddrs(port, svcport int32, ips []string) []Member {
 	var ret []Member
 	for _, ip := range ips {
 		member := Member{
 			Address: ip,
 			Port:    port,
+			SvcPort: svcport,
 			Session: "user-enabled",
 		}
 		ret = append(ret, member)
@@ -568,6 +569,7 @@ func validateServiceIps(serviceName, namespace string, svcPorts []v1.ServicePort
 					member := Member{
 						Address: ip,
 						Port:    p.Port,
+						SvcPort: p.Port,
 						Session: "user-enabled",
 					}
 					expectedIps = append(expectedIps, member)
@@ -1085,7 +1087,7 @@ var _ = Describe("AppManager Tests", func() {
 					ServiceKey{"foo", 80, namespace}, FormatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(30001, addrs)),
+					Equal(generateExpectedAddrs(30001, 80, addrs)),
 					"Existing NodePort should be set on address.")
 				rs, ok = resources.Get(
 					ServiceKey{"foo", 8080, namespace}, FormatConfigMapVSName(cfgFoo8080))
@@ -1112,13 +1114,13 @@ var _ = Describe("AppManager Tests", func() {
 					ServiceKey{"foo", 80, namespace}, FormatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(20001, addrs)),
+					Equal(generateExpectedAddrs(20001, 80, addrs)),
 					"Existing NodePort should be set on address.")
 				rs, ok = resources.Get(
 					ServiceKey{"foo", 8080, namespace}, FormatConfigMapVSName(cfgFoo8080))
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(45454, addrs)),
+					Equal(generateExpectedAddrs(45454, 8080, addrs)),
 					"Existing NodePort should be set on address.")
 				rs, ok = resources.Get(
 					ServiceKey{"foo", 9090, namespace}, FormatConfigMapVSName(cfgFoo9090))
@@ -1204,7 +1206,6 @@ var _ = Describe("AppManager Tests", func() {
 				case <-time.After(time.Second * 30):
 					Fail("Timed out expecting node channel notification.")
 				}
-
 				validateConfig(mw, twoSvcsThreeNodesConfig)
 				resources := mockMgr.resources()
 
@@ -1349,7 +1350,6 @@ var _ = Describe("AppManager Tests", func() {
 				case <-time.After(time.Second * 30):
 					Fail("Timed out expecting service channel notification.")
 				}
-
 				validateConfig(mw, twoSvcTwoPodsConfig)
 
 				go func() {
@@ -1471,7 +1471,7 @@ var _ = Describe("AppManager Tests", func() {
 					ServiceKey{"foo", 80, namespace}, FormatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, 80, addrs)))
 
 				// Second Service ADDED
 				r = mockMgr.addService(bar)
@@ -1481,7 +1481,7 @@ var _ = Describe("AppManager Tests", func() {
 					ServiceKey{"bar", 80, namespace}, FormatConfigMapVSName(cfgBar))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, addrs)))
 
 				// ConfigMap ADDED second foo port
 				r = mockMgr.addConfigMap(cfgFoo8080)
@@ -1491,17 +1491,17 @@ var _ = Describe("AppManager Tests", func() {
 					ServiceKey{"foo", 8080, namespace}, FormatConfigMapVSName(cfgFoo8080))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(38001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(38001, 8080, addrs)))
 				rs, ok = resources.Get(
 					ServiceKey{"foo", 80, namespace}, FormatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, 80, addrs)))
 				rs, ok = resources.Get(
 					ServiceKey{"bar", 80, namespace}, FormatConfigMapVSName(cfgBar))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, addrs)))
 
 				// ConfigMap ADDED third foo port
 				r = mockMgr.addConfigMap(cfgFoo9090)
@@ -1511,22 +1511,22 @@ var _ = Describe("AppManager Tests", func() {
 					ServiceKey{"foo", 9090, namespace}, FormatConfigMapVSName(cfgFoo9090))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(39001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(39001, 9090, addrs)))
 				rs, ok = resources.Get(
 					ServiceKey{"foo", 8080, namespace}, FormatConfigMapVSName(cfgFoo8080))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(38001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(38001, 8080, addrs)))
 				rs, ok = resources.Get(
 					ServiceKey{"foo", 80, namespace}, FormatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(30001, 80, addrs)))
 				rs, ok = resources.Get(
 					ServiceKey{"bar", 80, namespace}, FormatConfigMapVSName(cfgBar))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, addrs)))
 
 				// Nodes ADDED
 				_, err = fakeClient.CoreV1().Nodes().Create(extraNode)
@@ -1540,25 +1540,25 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(30001, append(addrs, "127.0.0.3"))))
+					Equal(generateExpectedAddrs(30001, 80, append(addrs, "127.0.0.3"))))
 				rs, ok = resources.Get(
 					ServiceKey{"bar", 80, namespace}, FormatConfigMapVSName(cfgBar))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(37001, append(addrs, "127.0.0.3"))))
+					Equal(generateExpectedAddrs(37001, 80, append(addrs, "127.0.0.3"))))
 				rs, ok = resources.Get(
 					ServiceKey{"foo", 8080, namespace}, FormatConfigMapVSName(cfgFoo8080))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(38001, append(addrs, "127.0.0.3"))))
+					Equal(generateExpectedAddrs(38001, 8080, append(addrs, "127.0.0.3"))))
 				rs, ok = resources.Get(
 					ServiceKey{"foo", 9090, namespace}, FormatConfigMapVSName(cfgFoo9090))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(39001, append(addrs, "127.0.0.3"))))
+					Equal(generateExpectedAddrs(39001, 9090, append(addrs, "127.0.0.3"))))
 				validateConfig(mw, twoSvcsFourPortsFourNodesConfig)
 
 				// ConfigMap DELETED third foo port
@@ -1611,12 +1611,12 @@ var _ = Describe("AppManager Tests", func() {
 					ServiceKey{"foo", 80, namespace}, FormatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(30001, []string{"127.0.0.3"})))
+					Equal(generateExpectedAddrs(30001, 80, []string{"127.0.0.3"})))
 				rs, ok = resources.Get(
 					ServiceKey{"bar", 80, namespace}, FormatConfigMapVSName(cfgBar))
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
+					Equal(generateExpectedAddrs(37001, 80, []string{"127.0.0.3"})))
 				validateConfig(mw, twoSvcsOneNodeConfig)
 
 				// ConfigMap DELETED
@@ -1795,7 +1795,7 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok := resources.Get(
 					ServiceKey{"foo", 80, namespace}, FormatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue(), "Service should be accessible.")
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, []string{"127.0.0.3"})))
 
 				r = mockMgr.addService(servBar)
 				Expect(r).To(BeFalse(), "Service should not be processed.")
@@ -1805,7 +1805,7 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					ServiceKey{"foo", 80, namespace}, FormatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue(), "Service should be accessible.")
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, []string{"127.0.0.3"})))
 
 				r = mockMgr.updateService(servBar)
 				Expect(r).To(BeFalse(), "Service should not be processed.")
@@ -1815,14 +1815,14 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					ServiceKey{"foo", 80, namespace}, FormatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue(), "Service should be accessible.")
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, []string{"127.0.0.3"})))
 
 				r = mockMgr.deleteService(servBar)
 				Expect(r).To(BeFalse(), "Service should not be processed.")
 				rs, ok = resources.Get(
 					ServiceKey{"foo", 80, namespace}, FormatConfigMapVSName(cfgFoo))
 				Expect(ok).To(BeTrue(), "Service should not have been deleted.")
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, []string{"127.0.0.3"})))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, []string{"127.0.0.3"})))
 			})
 
 			It("processes Iapp updates - NodePort", func() {
@@ -1886,7 +1886,7 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					ServiceKey{"iapp1", 80, namespace}, FormatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(10101, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(10101, 80, addrs)))
 
 				// Second Service ADDED
 				r = mockMgr.addService(iapp2)
@@ -1895,11 +1895,11 @@ var _ = Describe("AppManager Tests", func() {
 				rs, ok = resources.Get(
 					ServiceKey{"iapp1", 80, namespace}, FormatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(10101, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(10101, 80, addrs)))
 				rs, ok = resources.Get(
 					ServiceKey{"iapp2", 80, namespace}, FormatConfigMapVSName(cfgIapp2))
 				Expect(ok).To(BeTrue())
-				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(20202, addrs)))
+				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(20202, 80, addrs)))
 
 				// ConfigMap UPDATED
 				r = mockMgr.updateConfigMap(cfgIapp1)
@@ -1922,12 +1922,12 @@ var _ = Describe("AppManager Tests", func() {
 					ServiceKey{"iapp1", 80, namespace}, FormatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(10101, append(addrs, "192.168.0.4"))))
+					Equal(generateExpectedAddrs(10101, 80, append(addrs, "192.168.0.4"))))
 				rs, ok = resources.Get(
 					ServiceKey{"iapp2", 80, namespace}, FormatConfigMapVSName(cfgIapp2))
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(20202, append(addrs, "192.168.0.4"))))
+					Equal(generateExpectedAddrs(20202, 80, append(addrs, "192.168.0.4"))))
 				validateConfig(mw, twoIappsThreeNodesConfig)
 
 				// Nodes DELETED
@@ -1943,12 +1943,12 @@ var _ = Describe("AppManager Tests", func() {
 					ServiceKey{"iapp1", 80, namespace}, FormatConfigMapVSName(cfgIapp1))
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(10101, []string{"192.168.0.0", "192.168.0.4"})))
+					Equal(generateExpectedAddrs(10101, 80, []string{"192.168.0.0", "192.168.0.4"})))
 				rs, ok = resources.Get(
 					ServiceKey{"iapp2", 80, namespace}, FormatConfigMapVSName(cfgIapp2))
 				Expect(ok).To(BeTrue())
 				Expect(rs.Pools[0].Members).To(
-					Equal(generateExpectedAddrs(20202, []string{"192.168.0.0", "192.168.0.4"})))
+					Equal(generateExpectedAddrs(20202, 80, []string{"192.168.0.0", "192.168.0.4"})))
 				validateConfig(mw, twoIappsOneNodeConfig)
 
 				// ConfigMap DELETED
@@ -2236,7 +2236,6 @@ var _ = Describe("AppManager Tests", func() {
 					[]string{"10.2.96.7"}, []string{}, endptPorts)
 				r = mockMgr.addEndpoints(badEndpts)
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
-
 				validateServiceIps(svcName, namespace, svcPorts, readyIps, resources)
 
 				// Move an endpoint from ready to not ready and make sure it

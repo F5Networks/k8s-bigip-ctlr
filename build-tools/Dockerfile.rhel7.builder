@@ -2,9 +2,9 @@ FROM registry.redhat.io/ubi8/ruby-25
 
 # GOLANG install steps
 USER root
-ENV GOLANG_VERSION 1.12
+ENV GOLANG_VERSION 1.15
 ENV GOLANG_SRC_URL https://golang.org/dl/go$GOLANG_VERSION.src.tar.gz
-ENV GOLANG_SRC_SHA256 09c43d3336743866f2985f566db0520b36f4992aea2b4b2fd9f52f17049e88f2
+ENV GOLANG_SRC_SHA256 69438f7ed4f532154ffaf878f3dfd83747e7a00b70b3556eddabf7aaee28ac3a
 
 RUN REPOLIST=rhel-8-for-x86_64-baseos-rpms,rhel-8-for-x86_64-supplementary-rpms,rhel-8-for-x86_64-appstream-rpms && \
 	yum -y update-minimal --disablerepo "*" --enablerepo rhel-8-for-x86_64-baseos-rpms --setopt=tsflags=nodocs \

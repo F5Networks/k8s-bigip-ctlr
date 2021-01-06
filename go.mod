@@ -1,6 +1,6 @@
 module github.com/F5Networks/k8s-bigip-ctlr
 
-go 1.12
+go 1.15
 
 require (
 	github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a // indirect

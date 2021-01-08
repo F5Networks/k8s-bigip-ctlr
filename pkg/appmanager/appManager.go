@@ -2566,6 +2566,7 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 							member := Member{
 								Address: address.IP,
 								Port:    port.Port,
+								SvcPort: port.Port,
 							}
 							members = append(members, member)
 						}

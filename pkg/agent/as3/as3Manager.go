@@ -118,6 +118,7 @@ type Params struct {
 	SchemaLocal               string
 	AS3Validation             bool
 	SSLInsecure               bool
+	IPAM                      bool
 	EnableTLS                 string
 	TLS13CipherGroupReference string
 	Ciphers                   string

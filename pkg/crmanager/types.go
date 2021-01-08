@@ -22,7 +22,9 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	"github.com/f5devcentral/f5-ipam-controller/pkg/ipammachinery"
 	v1 "k8s.io/api/core/v1"
+	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -36,6 +38,7 @@ type (
 		resources        *Resources
 		kubeCRClient     versioned.Interface
 		kubeClient       kubernetes.Interface
+		kubeAPIClient    *extClient.Clientset
 		crInformers      map[string]*CRInformer
 		nsInformer       *NSInformer
 		resourceSelector labels.Selector
@@ -64,6 +67,8 @@ type (
 
 		NginxCISConnectMode bool
 		shareNodes          bool
+		ipamCli             *ipammachinery.IPAMClient
+		ipamCR              string
 	}
 	// Params defines parameters
 	Params struct {
@@ -81,6 +86,7 @@ type (
 
 		NginxCISConnectMode bool
 		ShareNodes          bool
+		IPAM                bool
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {

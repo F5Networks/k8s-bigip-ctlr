@@ -20,14 +20,16 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"reflect"
 	"strings"
 	"time"
+
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	ficV1 "github.com/f5devcentral/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
 // customResourceWorker starts the Custom Resource Worker.
@@ -92,6 +94,12 @@ func (crMgr *CRManager) processResource() bool {
 	case ExternalDNS:
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
 		crMgr.syncExternalDNS(edns, rKey.rscDelete)
+	case IPAM:
+		ipam := rKey.rsc.(*ficV1.F5IPAM)
+		virtuals := crMgr.syncIPAM(ipam)
+		for _, vs := range virtuals {
+			crMgr.syncVirtualServers(vs, false)
+		}
 	case Service:
 		if crMgr.initState {
 			break
@@ -336,6 +344,29 @@ func (crMgr *CRManager) getAllVirtualServers(namespace string) []*cisapiv1.Virtu
 	return allVirtuals
 }
 
+// getAllVirtualServers returns list of all valid VirtualServers in rkey namespace.
+func (crMgr *CRManager) getAllVSFromAllNamespaces() []*cisapiv1.VirtualServer {
+	var allVirtuals []*cisapiv1.VirtualServer
+
+	crInf, ok := crMgr.getNamespacedInformer("")
+	if !ok {
+		log.Errorf("Informer not found all namespace.")
+		return allVirtuals
+	}
+	// Get list of VirtualServers and process them.
+	objs := crInf.vsInformer.GetIndexer().List()
+
+	for _, obj := range objs {
+		vs := obj.(*cisapiv1.VirtualServer)
+		// TODO
+		// Validate the VirtualServers List to check if all the vs are valid.
+
+		allVirtuals = append(allVirtuals, vs)
+	}
+
+	return allVirtuals
+}
+
 // getVirtualServersForService returns list of VirtualServers that are
 // affected by the service under process.
 func getVirtualServersForService(allVirtuals []*cisapiv1.VirtualServer,
@@ -518,8 +549,9 @@ func (crMgr *CRManager) syncVirtualServers(
 	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
 
 	uniqueHostPath := make(map[string][]string)
+	var cidr string
 	for _, vrt := range allVirtuals {
-		if vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress &&
+		if (crMgr.ipamCli != nil || vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress) &&
 			vrt.Spec.Host == virtual.Spec.Host &&
 			!(isVSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
 			isUnique := true
@@ -544,12 +576,29 @@ func (crMgr *CRManager) syncVirtualServers(
 			}
 			if isUnique {
 				virtuals = append(virtuals, vrt)
+				if vrt.Spec.Cidr != "" {
+					cidr = vrt.Spec.Cidr
+				}
 			}
 		}
 	}
 
 	if isVSDeleted {
 		crMgr.handleVSDeleteForDataGroups(virtual)
+	}
+	var ip string
+	if crMgr.ipamCli != nil {
+		ip = crMgr.requestIP(cidr, virtual.Spec.Host)
+		log.Debugf("[ipam] requested IP for host %v is: %v", virtual.Spec.Host, ip)
+		if ip == "" {
+			log.Debugf("[ipam] requested IP for host %v is empty.", virtual.Spec.Host)
+			return nil
+		}
+	} else {
+		if virtual.Spec.VirtualServerAddress == "" {
+			return fmt.Errorf("No VirtualServer address or IPAM found.")
+		}
+		ip = virtual.Spec.VirtualServerAddress
 	}
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.
 	portStructs := crMgr.virtualPorts(virtual)
@@ -568,7 +617,7 @@ func (crMgr *CRManager) syncVirtualServers(
 			)
 		} else {
 			rsName = formatVirtualServerName(
-				virtual.Spec.VirtualServerAddress,
+				ip,
 				portStruct.port,
 			)
 		}
@@ -578,6 +627,8 @@ func (crMgr *CRManager) syncVirtualServers(
 		if (len(virtuals) == 0) ||
 			(portStruct.protocol == "http" && !doesVSHandleHTTP(virtual)) {
 			crMgr.resources.deleteVirtualServer(rsName)
+			//TODO: what if last VirtualServer does not have cidr
+			crMgr.releaseIP(virtual.Spec.Cidr, virtual.Spec.Host)
 			continue
 		}
 
@@ -588,7 +639,7 @@ func (crMgr *CRManager) syncVirtualServers(
 		rsCfg.Virtual.Name = rsName
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 		rsCfg.Virtual.SetVirtualAddress(
-			virtual.Spec.VirtualServerAddress,
+			ip,
 			portStruct.port,
 		)
 
@@ -606,7 +657,7 @@ func (crMgr *CRManager) syncVirtualServers(
 
 			if isTLSVirtualServer(vrt) {
 				// Handle TLS configuration for VirtualServer Custom Resource
-				processed := crMgr.handleVirtualServerTLS(rsCfg, vrt)
+				processed := crMgr.handleVirtualServerTLS(rsCfg, vrt, ip)
 				if !processed {
 					// Processing failed
 					// Stop processing further virtuals
@@ -650,6 +701,68 @@ func (crMgr *CRManager) syncVirtualServers(
 	}
 
 	return nil
+}
+
+func (crMgr *CRManager) getIPAMCR() *ficV1.F5IPAM {
+	cr := strings.Split(crMgr.ipamCR, "/")
+	if len(cr) != 2 {
+		log.Errorf("[ipam] error while retriving IPAM namespace and name.")
+		return nil
+	}
+	ipamCR, err := crMgr.ipamCli.Get(cr[0], cr[1])
+	if err != nil {
+		log.Errorf("[ipam] error while retriving IPAM custom resource.")
+		return nil
+	}
+	return ipamCR
+}
+
+//Request IPAM for virtual IP address
+func (crMgr *CRManager) requestIP(cidr string, host string) string {
+	ipamCR := crMgr.getIPAMCR()
+	if ipamCR == nil {
+		return ""
+	}
+	for _, ipst := range ipamCR.Status.IPStatus {
+		if ipst.Cidr == cidr && ipst.Host == host {
+			return ipst.IP
+		}
+	}
+	for _, hst := range ipamCR.Spec.HostSpecs {
+		if hst.Cidr == cidr && hst.Host == host {
+			return ""
+		}
+	}
+
+	ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
+	ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs, &ficV1.HostSpec{
+		Host: host,
+		Cidr: cidr,
+	})
+
+	crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
+	return ""
+
+}
+
+func (crMgr *CRManager) releaseIP(cidr string, host string) {
+	ipamCR := crMgr.getIPAMCR()
+	if ipamCR == nil {
+		return
+	}
+	index := -1
+	for i, hostSpec := range ipamCR.Spec.HostSpecs {
+		if hostSpec.Cidr == cidr && hostSpec.Host == host {
+			index = i
+			break
+		}
+	}
+	if index != -1 {
+		ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index:]...)
+		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
+		log.Debug("[ipam] Updating ipam hostspec.")
+		crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
+	}
 }
 
 // updatePoolMembersForNodePort updates the pool with pool members for a
@@ -1007,6 +1120,22 @@ func getVirtualServersForTransportServerService(allVirtuals []*cisapiv1.Transpor
 	return result
 }
 
+//Sync IPAM resource
+func (crMgr *CRManager) syncIPAM(ipam *ficV1.F5IPAM) []*cisapiv1.VirtualServer {
+	log.Debug("[ipam] sync ipam starting...")
+	var allVS, vss []*cisapiv1.VirtualServer
+	allVS = crMgr.getAllVSFromAllNamespaces()
+	for _, status := range ipam.Status.IPStatus {
+		for _, vs := range allVS {
+			if status.Host == vs.Spec.Host {
+				vss = append(vss, vs)
+				break
+			}
+		}
+	}
+	return vss
+}
+
 func (crMgr *CRManager) syncExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
 	if isDelete {
@@ -1111,7 +1240,11 @@ func checkCertificateHost(res *v1.Secret, host string) bool {
 	}
 	ok := x509cert.VerifyHostname(host)
 	if ok != nil {
-		log.Errorf("host in virtualserver does not match certificate name: %v", ok)
+		//TODO: Fix x509ignoreCN issue if not set.
+		if strings.Contains(ok.Error(), "GODEBUG=x509ignoreCN=0") {
+			return true
+		}
+		log.Errorf("host in virtualserver... does not match certificate name: %v", ok)
 		return false
 	}
 	return true

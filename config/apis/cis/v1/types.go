@@ -20,6 +20,7 @@ type VirtualServer struct {
 type VirtualServerSpec struct {
 	Host                   string `json:"host"`
 	VirtualServerAddress   string `json:"virtualServerAddress"`
+	Cidr                   string `json:"cidr"`
 	VirtualServerName      string `json:"virtualServerName"`
 	VirtualServerHTTPPort  int32  `json:"virtualServerHTTPPort"`
 	VirtualServerHTTPSPort int32  `json:"virtualServerHTTPSPort"`

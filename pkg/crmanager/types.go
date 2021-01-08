@@ -621,6 +621,7 @@ type (
 	Member struct {
 		Address string `json:"address"`
 		Port    int32  `json:"port"`
+		SvcPort int32  `json:"svcPort,omitempty"`
 		Session string `json:"session,omitempty"`
 	}
 )

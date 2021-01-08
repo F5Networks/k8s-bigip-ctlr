@@ -25,9 +25,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
-
+	rsc "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 )
 
 const (
@@ -131,13 +131,13 @@ func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
 
 	allPoolMembers := config.rsCfgs.GetAllPoolMembers()
 
-	// Convert allPoolMembers to appmanger.Members so that vxlan Manger accepts
-	var allPoolMems []Member
+	// Convert allPoolMembers to rsc.Members so that vxlan Manger accepts
+	var allPoolMems []rsc.Member
 
 	for _, poolMem := range allPoolMembers {
 		allPoolMems = append(
 			allPoolMems,
-			Member(poolMem),
+			rsc.Member(poolMem),
 		)
 	}
 	if agent.EventChan != nil {

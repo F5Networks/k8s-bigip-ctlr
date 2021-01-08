@@ -461,6 +461,7 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 func (crMgr *CRManager) handleVirtualServerTLS(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.VirtualServer,
+	ip string,
 ) bool {
 	if 0 == len(vs.Spec.TLSProfileName) {
 		// Probably this is a non-tls Virtual Server, nothing to do w.r.t TLS
@@ -602,7 +603,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					path := pl.Path
 					sslPath := hostName + path
 					sslPath = strings.TrimSuffix(sslPath, "/")
-					serverSsl := AS3NameFormatter("crd_" + vs.Spec.VirtualServerAddress + "_tls_client")
+					serverSsl := AS3NameFormatter("crd_" + ip + "_tls_client")
 					if "" != tls.Spec.TLS.ServerSSL {
 						updateDataGroup(crMgr.intDgMap, ReencryptServerSslDgName,
 							DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)

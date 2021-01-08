@@ -43,13 +43,21 @@ func (crMgr *CRManager) checkValidVirtualServer(
 		return false
 	}
 
-	bindAddr := vsResource.Spec.VirtualServerAddress
+	if crMgr.ipamCli == nil {
+		bindAddr := vsResource.Spec.VirtualServerAddress
 
-	// This ensures that pool-only mode only logs the message below the first
-	// time we see a config.
-	if bindAddr == "" {
-		log.Infof("No IP was specified for the virtual server %s", vsName)
-		return false
+		// This ensures that pool-only mode only logs the message below the first
+		// time we see a config.
+		if bindAddr == "" {
+			log.Infof("No IP was specified for the virtual server %s", vsName)
+			return false
+		}
+	} else {
+		cidr := vsResource.Spec.Cidr
+		if cidr == "" {
+			log.Infof("No CIDR was specified for the virtual server %s", vsName)
+			return false
+		}
 	}
 
 	return true

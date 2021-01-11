@@ -2577,7 +2577,7 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 		} else { // Controller is in NodePort mode.
 			if service.Spec.Type == v1.ServiceTypeNodePort {
 				for _, port := range service.Spec.Ports {
-					members = m.getEndpointsForNodePort(port.NodePort, port.Port)
+					members = append(members, m.getEndpointsForNodePort(port.NodePort, port.Port)...)
 				}
 			} /* else {
 				msg := fmt.Sprintf("[CORE] Requested service backend '%+v' not of NodePort type", service.Name)

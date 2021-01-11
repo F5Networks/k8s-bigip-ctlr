@@ -2016,6 +2016,51 @@
           "description": "If true, AS3 redirects HTTP traffic to any virtualAddress on port 80 to virtualPort",
           "type": "boolean",
           "default": true
+        },
+        "profileHTTP2": {
+          "title": "HTTP/2 profile",
+          "type": [
+            "string",
+            "object"
+          ],
+          "description": "HTTP/2 profile; name of built-in or else AS3 pointer",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "basic"
+              ]
+            },
+            {
+              "$ref": "#/definitions/Pointer_HTTP2_Profile"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "ingress": {
+                  "type": "object",
+                  "description": "Ingress (client-side context) HTTP2 profile. This option is only available on BIG-IP 14.1+.",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Pointer_HTTP2_Profile"
+                    }
+                  ]
+                },
+                "egress": {
+                  "type": "object",
+                  "description": "Egress (server-side context) HTTP2 profile. This option is only available on BIG-IP 14.1+.",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Pointer_HTTP2_Profile"
+                    }
+                  ]
+                }
+              },
+              "minProperties": 1,
+              "maxProperties": 1,
+              "additionalProperties": false
+            }
+          ]
         }
       },
       "if": true,
@@ -2104,51 +2149,6 @@
             "f5bigComponent": "query ltm profile http"
           },
           "default": "basic"
-        },
-        "profileHTTP2": {
-          "title": "HTTP/2 profile",
-          "type": [
-            "string",
-            "object"
-          ],
-          "description": "HTTP/2 profile; name of built-in or else AS3 pointer",
-          "oneOf": [
-            {
-              "type": "string",
-              "enum": [
-                "basic"
-              ]
-            },
-            {
-              "$ref": "#/definitions/Pointer_HTTP2_Profile"
-            },
-            {
-              "type": "object",
-              "properties": {
-                "ingress": {
-                  "type": "object",
-                  "description": "Ingress (client-side context) HTTP2 profile. This option is only available on BIG-IP 14.1+.",
-                  "allOf": [
-                    {
-                      "$ref": "#/definitions/Pointer_HTTP2_Profile"
-                    }
-                  ]
-                },
-                "egress": {
-                  "type": "object",
-                  "description": "Egress (server-side context) HTTP2 profile. This option is only available on BIG-IP 14.1+.",
-                  "allOf": [
-                    {
-                      "$ref": "#/definitions/Pointer_HTTP2_Profile"
-                    }
-                  ]
-                }
-              },
-              "minProperties": 1,
-              "maxProperties": 1,
-              "additionalProperties": false
-            }
-          ]
         },
         "profileHTTPCompression": {
           "title": "HTTP compression profile",
@@ -5825,6 +5825,12 @@
           "description": "Azure subscription ID",
           "type": "string"
         },
+        "useManagedIdentity": {
+          "title": "Use Managed Identity",
+          "description": "Use Azure managed identity rather than directoryId, applicationId, and apiAccessKey",
+          "type": "boolean",
+          "default": false
+        },
         "directoryId": {
           "title": "(Azure) Directory ID",
           "description": "Azure Active Directory ID (AKA tenant ID)",
@@ -5879,10 +5885,7 @@
       },
       "required": [
         "resourceGroup",
-        "subscriptionId",
-        "directoryId",
-        "applicationId",
-        "apiAccessKey"
+        "subscriptionId"
       ],
       "allOf": [
         {
@@ -5929,6 +5932,47 @@
                 "tagValue"
               ]
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "useManagedIdentity": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "allOf": [
+              {
+                "not": {
+                  "required": [
+                    "directoryId"
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "required": [
+                    "applicationId"
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "required": [
+                    "apiAccessKey"
+                  ]
+                }
+              }
+            ]
+          },
+          "else": {
+            "required": [
+              "directoryId",
+              "applicationId",
+              "apiAccessKey"
+            ]
           }
         }
       ]
@@ -6074,6 +6118,7 @@
         "enum": [
           "http",
           "https",
+          "http2",
           "icmp",
           "tcp-half-open",
           "tcp"
@@ -6137,6 +6182,7 @@
             "ftp",
             "http",
             "https",
+            "http2",
             "icmp",
             "ldap",
             "mysql",
@@ -6234,139 +6280,151 @@
             "if": {
               "properties": {
                 "monitorType": {
-                  "const": "external"
+                  "const": "http2"
                 }
               }
             },
             "then": {
-              "$ref": "#/definitions/Monitor_External"
+              "$ref": "#/definitions/Monitor_HTTP2"
             },
             "else": {
               "if": {
                 "properties": {
                   "monitorType": {
-                    "const": "tcp"
+                    "const": "external"
                   }
                 }
               },
               "then": {
-                "properties": {
-                  "dscp": {
-                    "title": "IP DSCP",
-                    "description": "Value for IP DSCP (ex-TOS) field (default 0)",
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 63,
-                    "default": 0
-                  }
-                },
-                "if": true,
-                "then": {
-                  "$ref": "#/definitions/Monitor_Send_Recv"
-                }
+                "$ref": "#/definitions/Monitor_External"
               },
               "else": {
                 "if": {
                   "properties": {
                     "monitorType": {
-                      "const": "udp"
+                      "const": "tcp"
                     }
                   }
                 },
                 "then": {
-                  "$ref": "#/definitions/Monitor_Send_Recv"
+                  "properties": {
+                    "dscp": {
+                      "title": "IP DSCP",
+                      "description": "Value for IP DSCP (ex-TOS) field (default 0)",
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 63,
+                      "default": 0
+                    }
+                  },
+                  "if": true,
+                  "then": {
+                    "$ref": "#/definitions/Monitor_Send_Recv"
+                  }
                 },
                 "else": {
                   "if": {
                     "properties": {
                       "monitorType": {
-                        "const": "smtp"
+                        "const": "udp"
                       }
                     }
                   },
                   "then": {
-                    "$ref": "#/definitions/Monitor_SMTP"
+                    "$ref": "#/definitions/Monitor_Send_Recv"
                   },
                   "else": {
                     "if": {
                       "properties": {
                         "monitorType": {
-                          "const": "mysql"
+                          "const": "smtp"
                         }
                       }
                     },
                     "then": {
-                      "$ref": "#/definitions/Monitor_MySQL"
+                      "$ref": "#/definitions/Monitor_SMTP"
                     },
                     "else": {
                       "if": {
                         "properties": {
                           "monitorType": {
-                            "const": "sip"
+                            "const": "mysql"
                           }
                         }
                       },
                       "then": {
-                        "$ref": "#/definitions/Monitor_SIP"
+                        "$ref": "#/definitions/Monitor_MySQL"
                       },
                       "else": {
                         "if": {
                           "properties": {
                             "monitorType": {
-                              "const": "tcp-half-open"
+                              "const": "sip"
                             }
                           }
                         },
                         "then": {
-                          "$ref": "#/definitions/Monitor_TCP_Half_Open"
+                          "$ref": "#/definitions/Monitor_SIP"
                         },
                         "else": {
                           "if": {
                             "properties": {
                               "monitorType": {
-                                "const": "ldap"
+                                "const": "tcp-half-open"
                               }
                             }
                           },
                           "then": {
-                            "$ref": "#/definitions/Monitor_LDAP"
+                            "$ref": "#/definitions/Monitor_TCP_Half_Open"
                           },
                           "else": {
                             "if": {
                               "properties": {
                                 "monitorType": {
-                                  "const": "dns"
+                                  "const": "ldap"
                                 }
                               }
                             },
                             "then": {
-                              "$ref": "#/definitions/Monitor_DNS"
+                              "$ref": "#/definitions/Monitor_LDAP"
                             },
                             "else": {
                               "if": {
                                 "properties": {
                                   "monitorType": {
-                                    "const": "radius"
+                                    "const": "dns"
                                   }
                                 }
                               },
                               "then": {
-                                "$ref": "#/definitions/Monitor_RADIUS"
+                                "$ref": "#/definitions/Monitor_DNS"
                               },
                               "else": {
                                 "if": {
                                   "properties": {
                                     "monitorType": {
-                                      "const": "ftp"
+                                      "const": "radius"
                                     }
                                   }
                                 },
                                 "then": {
-                                  "$ref": "#/definitions/Monitor_FTP"
+                                  "$ref": "#/definitions/Monitor_RADIUS"
                                 },
                                 "else": {
-                                  "$comment": "Unrecognized monitorType.",
-                                  "not": {}
+                                  "if": {
+                                    "properties": {
+                                      "monitorType": {
+                                        "const": "ftp"
+                                      }
+                                    }
+                                  },
+                                  "then": {
+                                    "$ref": "#/definitions/Monitor_FTP"
+                                  },
+                                  "else": {
+                                    "$comment": "Unrecognized monitorType.",
+                                    "not": {}
+                                  }
                                 }
                               }
                             }
@@ -6543,7 +6601,7 @@
       }
     },
     "Monitor_HTTP": {
-      "description": "Additional Monitor class properties available when monitorType = http or https",
+      "description": "Additional Monitor class properties available when monitorType = http or https or http2",
       "type": "object",
       "properties": {
         "send": {
@@ -6668,6 +6726,39 @@
               "$ref": "#/definitions/Pointer_TLS_Client"
             }
           ]
+        }
+      },
+      "if": true,
+      "then": {
+        "$ref": "#/definitions/Monitor_HTTP"
+      }
+    },
+    "Monitor_HTTP2": {
+      "description": "Additional Monitor class properties available when monitorType = http2. Requires TMOS version 15.1 or newer.",
+      "type": "object",
+      "properties": {
+        "clientTLS": {
+          "title": "Client TLS",
+          "description": "AS3 pointer to client TLS Profile",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_TLS_Client"
+            }
+          ]
+        },
+        "receive": {
+          "title": "Receive = up",
+          "description": "Mark node up upon receipt of this (backquote-expanded) string",
+          "type": "string",
+          "default": "HTTP/2.",
+          "f5expand": true
+        },
+        "send": {
+          "title": "Send",
+          "description": "Send this (backquote-expanded) string to query node",
+          "type": "string",
+          "default": "GET /\\r\\n\\r\\n",
+          "f5expand": true
         }
       },
       "if": true,
@@ -7487,12 +7578,6 @@
             "require"
           ]
         },
-        "renegotiationEnabled": {
-          "title": "TLS Renegotiation",
-          "description": "Controls on a per-connection basis how the system responds to mid-stream SSL reconnection requests. When enabled, the system processes mid-stream SSL renegotiation requests.",
-          "type": "boolean",
-          "default": true
-        },
         "staplerOCSPEnabled": {
           "description": "Specifies whether to enable OCSP stapling",
           "type": "boolean",
@@ -7531,6 +7616,18 @@
         "tls1_0Enabled": {
           "title": "TLS 1.0",
           "description": "Allow TLS 1.0 Ciphers.",
+          "type": "boolean",
+          "default": true
+        },
+        "renegotiationEnabled": {
+          "title": "Renegotiation",
+          "description": "Controls on a per-connection basis how the system responds to mid-stream SSL reconnection requests.",
+          "type": "boolean",
+          "default": true
+        },
+        "retainCertificateEnabled": {
+          "title": "Retain Certificate",
+          "description": "When enabled, server certificate is retained in SSL session.",
           "type": "boolean",
           "default": true
         }
@@ -7897,6 +7994,18 @@
         "tls1_0Enabled": {
           "title": "TLS 1.0",
           "description": "Allow TLS 1.0 Ciphers.",
+          "type": "boolean",
+          "default": true
+        },
+        "renegotiationEnabled": {
+          "title": "Renegotiation",
+          "description": "Controls on a per-connection basis how the system responds to mid-stream SSL reconnection requests.",
+          "type": "boolean",
+          "default": true
+        },
+        "retainCertificateEnabled": {
+          "title": "Retain Certificate",
+          "description": "When enabled, server certificate is retained in SSL session.",
           "type": "boolean",
           "default": true
         }
@@ -10452,9 +10561,14 @@
           "type": "boolean",
           "default": true
         },
+        "synCookieAllowlist": {
+          "title": "SYN cookie allowlist",
+          "description": "If true, after a client responds successfully to a SYN cookie challenge, the system accepts additional connection requests from that client without challenge for 30 seconds.",
+          "type": "boolean"
+        },
         "synCookieWhitelist": {
           "title": "SYN cookie whitelist",
-          "description": "If true, after a client responds successfully to a SYN cookie challenge, the system accepts additional connection requests from that client without challenge for 30 seconds (default false)",
+          "description": "Deprecated.  Replaced with functionally equivalent synCookieAllowlist.  If true, after a client responds successfully to a SYN cookie challenge, the system accepts additional connection requests from that client without challenge for 30 seconds.",
           "type": "boolean",
           "default": false
         },
@@ -10576,7 +10690,10 @@
       "additionalProperties": false,
       "required": [
         "class"
-      ]
+      ],
+      "f5aliases": {
+        "synCookieAllowlist": "synCookieWhitelist"
+      }
     },
     "UDP_Profile": {
       "title": "UDP Profile",
@@ -15051,7 +15168,7 @@
           ]
         },
         "whitelist": {
-          "description": "Specifies the default whitelist address list for the system to use to determine which IP addresses are legitimate. The system does not examine traffic from the IP addresses in the list when performing DoS prevention.",
+          "description": "Specifies the default allowlist address list for the system to use to determine which IP addresses are legitimate. The system does not examine traffic from the IP addresses in the list when performing DoS prevention.",
           "allOf": [
             {
               "$ref": "#/definitions/Pointer_Firewall_Address_List"
@@ -15059,7 +15176,7 @@
           ]
         },
         "applicationWhitelist": {
-          "description": "Specifies the IP addresses and subnets whitelist configuration for Application Security (Overrides the global whitelist)",
+          "description": "Specifies the IP addresses and subnets allowlist configuration for Application Security (Overrides the global allowlist)",
           "f5modules": [
             "asm"
           ],
@@ -15072,42 +15189,42 @@
       },
       "additionalProperties": false
     },
-    "DOS_Auto_Blacklist_Settings": {
-      "description": "Adds the source IP address to the blacklist category assigned to the Denial-of-Service (DoS) vector",
+    "DOS_Auto_Denylist_Settings": {
+      "description": "Adds the source IP address to the denylist category assigned to the Denial-of-Service (DoS) vector",
       "type": "object",
       "properties": {
         "enabled": {
-          "description": "Specifies if automatic blacklist management should be used",
+          "description": "Specifies if automatic denylist management should be used",
           "type": "boolean",
           "default": false
         },
         "category": {
-          "description": "Specifies the blacklist category assigned to the DoS vector. The settings for this category determine IP Intelligence actions, logging settings, and blacklist publisher settings.",
+          "description": "Specifies the denylist category assigned to the DoS vector. The settings for this category determine IP Intelligence actions, logging settings, and denylist publisher settings.",
           "default": {
             "bigip": "/Common/denial_of_service"
           },
           "allOf": [
             {
-              "$ref": "#/definitions/Pointer_Blacklist_Category"
+              "$ref": "#/definitions/Pointer_Denylist_Category"
             }
           ]
         },
         "attackDetectionTime": {
-          "description": "Specifies the time in seconds before a vector is blacklisted",
+          "description": "Specifies the time in seconds before a vector is denylisted",
           "type": "integer",
           "minimum": 1,
           "maximum": 4294967295,
           "default": 60
         },
         "categoryDuration": {
-          "description": "Specifies the time in seconds before the blacklist entry is removed",
+          "description": "Specifies the time in seconds before the denylist entry is removed",
           "type": "integer",
           "minimum": 60,
           "maximum": 4294967295,
           "default": 14400
         },
         "externalAdvertisementEnabled": {
-          "description": "Specifies that addresses that are identified for blacklisting are advertised to BGP routers, as configured per blacklist category in Blacklist Publisher",
+          "description": "Specifies that addresses that are identified for denylisting are advertised to BGP routers, as configured per denylist category in Blacklist Publisher",
           "type": "boolean",
           "default": false
         }
@@ -15208,7 +15325,7 @@
       "additionalProperties": false
     },
     "DOS_Profile_Application_Bot_Defense": {
-      "description": "AS3 provides defense against bot attacks by detecting and stopping them before the attacks start to grow, by performing the following:\n\n* The system sends a client-side JavaScript challenge to the browser.\n* If the challenge is met, the system adds a cookie to the second request. This cookie is active until the session ends, and the system does not add any more cookies to further requests during that session.\n* The system drops requests sent by browsers that do not answer the system’s initial JavaScript challenge, assuming they are bots that do not support JavaScript.\n\nNote: This feature requires browsers to allow JavaScript.\n\nImportant: The proactive bot defense feature works also in Transparent mode. This means that the system will replace responses with client side JavaScript also in Transparent mode, and if the client cannot run JavaScript, it will not be able to receive the server responses.\n\nImportant: If you enable Proactive Bot Defense and your web site uses CORS (Cross-Origin Resource Sharing), we recommend that you add the CORS URLs to the proactive bot URL whitelist.\n\nThis method is intended to complement, not replace, the other mitigation methods.",
+      "description": "AS3 provides defense against bot attacks by detecting and stopping them before the attacks start to grow, by performing the following:\n\n* The system sends a client-side JavaScript challenge to the browser.\n* If the challenge is met, the system adds a cookie to the second request. This cookie is active until the session ends, and the system does not add any more cookies to further requests during that session.\n* The system drops requests sent by browsers that do not answer the system’s initial JavaScript challenge, assuming they are bots that do not support JavaScript.\n\nNote: This feature requires browsers to allow JavaScript.\n\nImportant: The proactive bot defense feature works also in Transparent mode. This means that the system will replace responses with client side JavaScript also in Transparent mode, and if the client cannot run JavaScript, it will not be able to receive the server responses.\n\nImportant: If you enable Proactive Bot Defense and your web site uses CORS (Cross-Origin Resource Sharing), we recommend that you add the CORS URLs to the proactive bot URL allowlist.\n\nThis method is intended to complement, not replace, the other mitigation methods.",
       "type": "object",
       "properties": {
         "mode": {
@@ -16116,15 +16233,15 @@
           "default": false
         },
         "scrubbingCategory": {
-          "description": "Specifies the IP intelligence blacklist category to which scrubbed IPs are sent",
+          "description": "Specifies the IP intelligence denylist category to which scrubbed IPs are sent",
           "allOf": [
             {
-              "$ref": "#/definitions/Pointer_Blacklist_Category"
+              "$ref": "#/definitions/Pointer_Denylist_Category"
             }
           ]
         },
         "scrubbingDuration": {
-          "description": "Specify the duration in seconds for which an IP address is added to the blacklist category",
+          "description": "Specify the duration in seconds for which an IP address is added to the denylist category",
           "type": "integer",
           "minimum": 60,
           "maximum": 4294967295,
@@ -16224,7 +16341,7 @@
         "autoBlacklistSettings": {
           "allOf": [
             {
-              "$ref": "#/definitions/DOS_Auto_Blacklist_Settings"
+              "$ref": "#/definitions/DOS_Auto_Denylist_Settings"
             }
           ],
           "default": {}
@@ -16344,7 +16461,7 @@
         "autoBlacklistSettings": {
           "allOf": [
             {
-              "$ref": "#/definitions/DOS_Auto_Blacklist_Settings"
+              "$ref": "#/definitions/DOS_Auto_Denylist_Settings"
             }
           ],
           "default": {}
@@ -16465,7 +16582,7 @@
         "autoBlacklistSettings": {
           "allOf": [
             {
-              "$ref": "#/definitions/DOS_Auto_Blacklist_Settings"
+              "$ref": "#/definitions/DOS_Auto_Denylist_Settings"
             }
           ],
           "default": {}
@@ -18099,6 +18216,12 @@
           "minimum": 0,
           "maximum": 65535
         },
+        "enabled": {
+          "title": "Enabled",
+          "description": "When true (default), the system can use the pool member and its resources for load balancing requests",
+          "type": "boolean",
+          "default": true
+        },
         "dependsOn": {
           "description": "Specifies the name of the virtual server on which this pool member depends.",
           "type": [
@@ -18152,6 +18275,12 @@
           "minimum": 0,
           "maximum": 65535
         },
+        "enabled": {
+          "title": "Enabled",
+          "description": "When true (default), the system can use the pool member and its resources for load balancing requests",
+          "type": "boolean",
+          "default": true
+        },
         "dependsOn": {
           "description": "Specifies the name of the virtual server on which this pool member depends.",
           "type": [
@@ -18198,6 +18327,12 @@
           "minimum": 0,
           "maximum": 65535
         },
+        "enabled": {
+          "title": "Enabled",
+          "description": "When true (default), the system can use the pool member and its resources for load balancing requests",
+          "type": "boolean",
+          "default": true
+        },
         "domainName": {
           "title": "Domain Name",
           "description": "Specifies the domain name for this pool member",
@@ -18242,6 +18377,12 @@
         },
         "remark": {
           "$ref": "#/definitions/Remark"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "description": "When true (default), the system can use the pool member and its resources for load balancing requests",
+          "type": "boolean",
+          "default": true
         },
         "domainName": {
           "title": "Domain Name",
@@ -25239,12 +25380,12 @@
         }
       ]
     },
-    "Pointer_Blacklist_Category": {
-      "description": "Reference to a blacklist category",
+    "Pointer_Denylist_Category": {
+      "description": "Reference to a denylist category",
       "type": "object",
       "properties": {
         "bigip": {
-          "description": "Pathname of existing BIG-IP blacklist category",
+          "description": "Pathname of existing BIG-IP denylist category",
           "type": "string",
           "format": "f5bigip"
         }
@@ -26823,6 +26964,9 @@
         },
         {
           "f5bigComponent": "query gtm monitor https"
+        },
+        {
+          "f5bigComponent": "query gtm monitor http2"
         },
         {
           "f5bigComponent": "query gtm monitor imap"
@@ -28932,6 +29076,7 @@
           "type": "string",
           "$comment": "IMPORTANT: In enum array, please put current schema version first, oldest-supported version last.  Keep enum array sorted most-recent-first.",
           "enum": [
+            "3.25.0",
             "3.24.0",
             "3.23.0",
             "3.22.0",

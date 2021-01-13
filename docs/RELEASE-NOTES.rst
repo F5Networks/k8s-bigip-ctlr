@@ -1,6 +1,33 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+2.2.2
+-------------
+Added Functionality
+```````````````````
+* CIS is now compatible with:
+    -  OpenShift 4.6.4.
+    -  Kubernetes 1.19
+    -  BIGIP v16
+    -  AS3 3.25.
+* CIS handles validation of BIG-IP ClientSSL/ServerSSL.
+* Support for error handling in CRDs.
+
+Bug Fixes
+`````````
+* :issues:`1557` iRule openshift_passthrough_irule logs various TCL errors.
+* :issues:`1584` iRule openshift_passthrough_irule logs TCL errors - can't read "tls_extensions_len”.
+* :issues:`1602` ConfigMap not working for 2.2.1 but works for 2.2.0.
+* SR - CIS now properly handles incorrect configMap with syntax errors.
+* CIS now log messages when processing multiple EDNS.
+* CIS now handles deletion of GTM configuration when there is no EDNS configuration after CIS restarts/starts.
+* CIS now handles the duplicate and invalid routes properly.
+* CIS now updates global parameters SNAT by every Virtual server pointing to the same hostname.
+* CIs handles duplicate path issue with virtual server pointing to same host or virtual address.
+* CIS handles MAC address parsing issue with new flannel versions.
+* CIS now processes configMap updates properly.
+
+
 2.2.1
 -------------
 Added Functionality

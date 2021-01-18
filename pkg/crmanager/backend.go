@@ -402,12 +402,18 @@ func updateVirtualToHTTPS(v *as3Service) {
 
 // Process Irules for CRD
 func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
+	var IRules []interface{}
 	for _, v := range cfg.Virtual.IRules {
 		splits := strings.Split(v, "/")
 		iRuleName := splits[len(splits)-1]
 		matched := false
-		var IRules []interface{}
-		iRuleNoPort := iRuleName[:strings.LastIndex(iRuleName, "_")]
+		var iRuleNoPort string
+		lastIndex := strings.LastIndex(iRuleName, "_")
+		if lastIndex > 0 {
+			iRuleNoPort = iRuleName[:lastIndex]
+		} else {
+			iRuleNoPort = iRuleName
+		}
 		if iRuleNoPort == HttpRedirectIRuleName || iRuleNoPort == HttpRedirectNoHostIRuleName || iRuleName == SslPassthroughIRuleName {
 			matched = true
 		}

@@ -31,6 +31,7 @@ type VirtualServerSpec struct {
 	WAF                    string   `json:"waf,omitempty"`
 	RewriteAppRoot         string   `json:"rewriteAppRoot,omitempty"`
 	AllowVLANs             []string `json:"allowVlans,omitempty"`
+	IRules                  []string `json:"iRules,omitempty"`
 }
 
 // Pool defines a pool object in BIG-IP.

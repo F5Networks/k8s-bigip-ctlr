@@ -418,6 +418,8 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.SNAT = vs.Spec.SNAT
 	} else if vs.Spec.SNAT == "" && rsCfg.Virtual.SNAT == "" {
 		rsCfg.Virtual.SNAT = snat
+	} else {
+		rsCfg.Virtual.SNAT = vs.Spec.SNAT
 	}
 
 	// set the WAF policy

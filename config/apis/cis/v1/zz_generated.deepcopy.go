@@ -208,6 +208,11 @@ func (in *NginxCisConnectorSpec) DeepCopyInto(out *NginxCisConnectorSpec) {
 		*out = new(metav1.LabelSelector)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.IRules != nil {
+		in, out := &in.IRules, &out.IRules
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

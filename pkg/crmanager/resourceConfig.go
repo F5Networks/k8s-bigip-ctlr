@@ -413,8 +413,10 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
 
-	// set the SNAT policy to auto is it's not defined by end user
-	if vs.Spec.SNAT == "" {
+	// set the SNAT policy to auto  if it's not defined by end user
+	if rsCfg.Virtual.SNAT != "" && vs.Spec.SNAT != "" {
+		rsCfg.Virtual.SNAT = vs.Spec.SNAT
+	} else if vs.Spec.SNAT == "" && rsCfg.Virtual.SNAT == "" {
 		rsCfg.Virtual.SNAT = snat
 	} else {
 		rsCfg.Virtual.SNAT = vs.Spec.SNAT

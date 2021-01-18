@@ -171,7 +171,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 				var ips []string
 				var port int32
 				for _, v := range eps {
-					if int(v.Port) == int(poolMem["servicePort"].(float64)) {
+					if int(v.SvcPort) == int(poolMem["servicePort"].(float64)) {
 						ips = append(ips, v.Address)
 						members = append(members, v)
 						port = v.Port

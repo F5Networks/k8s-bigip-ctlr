@@ -99,21 +99,25 @@
               {
                 "address":"127.0.0.0",
                 "port":37001,
+                "svcPort": 80,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.1",
                 "port":37001,
+                "svcPort": 80,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.2",
                 "port":37001,
+                "svcPort": 80,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.3",
                 "port":37001,
+                "svcPort": 80,
                 "session":"user-enabled"
               }
             ],
@@ -126,21 +130,25 @@
               {
                 "address":"127.0.0.0",
                 "port":30001,
+                "svcPort": 80,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.1",
                 "port":30001,
+                "svcPort": 80,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.2",
                 "port":30001,
+                "svcPort": 80,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.3",
                 "port":30001,
+                "svcPort": 80,
                 "session":"user-enabled"
               }
             ],
@@ -155,21 +163,25 @@
               {
                 "address":"127.0.0.0",
                 "port":38001,
+                "svcPort": 8080,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.1",
                 "port":38001,
+                "svcPort": 8080,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.2",
                 "port":38001,
+                "svcPort": 8080,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.3",
                 "port":38001,
+                "svcPort": 8080,
                 "session":"user-enabled"
               }
             ],
@@ -182,21 +194,25 @@
               {
                 "address":"127.0.0.0",
                 "port":39001,
+                "svcPort": 9090,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.1",
                 "port":39001,
+                "svcPort": 9090,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.2",
                 "port":39001,
+                "svcPort": 9090,
                 "session":"user-enabled"
               },
               {
                 "address":"127.0.0.3",
                 "port":39001,
+                "svcPort": 9090,
                 "session":"user-enabled"
               }
             ],

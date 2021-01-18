@@ -570,8 +570,12 @@ func (appMgr *Manager) newAppInformer(
 		log.Infof("[CORE] Handling ConfigMap resource events.")
 		appInf.cfgMapInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { appMgr.enqueueCreatedConfigMap(obj) },
-				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueUpdatedConfigMap(cur) },
+				AddFunc: func(obj interface{}) { appMgr.enqueueCreatedConfigMap(obj) },
+				UpdateFunc: func(old, cur interface{}) {
+					if !reflect.DeepEqual(old, cur) {
+						appMgr.enqueueUpdatedConfigMap(cur)
+					}
+				},
 				DeleteFunc: func(obj interface{}) { appMgr.enqueueDeletedConfigMap(obj) },
 			},
 			resyncPeriod,
@@ -1107,6 +1111,13 @@ func (appMgr *Manager) syncConfigMaps(
 		}
 
 		if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
+			//ignore invalid as3 configmaps if found.
+			if sKey.Operation != OprTypeDelete {
+				err := validateConfigJson(cm.Data["template"])
+				if err != nil {
+					continue
+				}
+			}
 			if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, cm.Namespace); ok {
 				agntCfgMap := new(AgentCfgMap)
 				agntCfgMap.Init(cm.Name, cm.Namespace, cm.Data["template"], cm.Labels, appMgr.getEndpoints)
@@ -1438,9 +1449,19 @@ func (appMgr *Manager) syncRoutes(
 	bufferF5Res := InternalF5Resources{}
 
 	var routesProcessed []string
+	routePathMap := make(map[string]string)
 	for _, route := range routeByIndex {
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
+		}
+		key := route.Spec.Host + route.Spec.Path
+		if host, ok := routePathMap[key]; ok {
+			if host == route.Spec.Host {
+				log.Debugf("[CORE] Route exist with same host: %v and path: %v", route.Spec.Host, route.Spec.Path)
+				continue
+			}
+		} else {
+			routePathMap[key] = route.Spec.Host
 		}
 		routesProcessed = append(routesProcessed, route.ObjectMeta.Name)
 
@@ -1933,7 +1954,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 					svcKey, portSpec.NodePort)
 				rsCfg.MetaData.Active = true
 				rsCfg.Pools[index].Members =
-					appMgr.getEndpointsForNodePort(portSpec.NodePort)
+					appMgr.getEndpointsForNodePort(portSpec.NodePort, portSpec.Port)
 			}
 		}
 		return true, "", ""
@@ -2296,6 +2317,7 @@ func (appMgr *Manager) getEndpointsForCluster(
 						member := Member{
 							Address: addr.IP,
 							Port:    p.Port,
+							SvcPort: p.Port,
 							Session: "user-enabled",
 						}
 						members = append(members, member)
@@ -2308,7 +2330,7 @@ func (appMgr *Manager) getEndpointsForCluster(
 }
 
 func (appMgr *Manager) getEndpointsForNodePort(
-	nodePort int32,
+	nodePort, port int32,
 ) []Member {
 	nodes := appMgr.getNodesFromCache()
 	var members []Member
@@ -2316,6 +2338,7 @@ func (appMgr *Manager) getEndpointsForNodePort(
 		member := Member{
 			Address: v.Addr,
 			Port:    nodePort,
+			SvcPort: port,
 			Session: "user-enabled",
 		}
 		members = append(members, member)
@@ -2543,6 +2566,7 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 							member := Member{
 								Address: address.IP,
 								Port:    port.Port,
+								SvcPort: port.Port,
 							}
 							members = append(members, member)
 						}
@@ -2553,7 +2577,7 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 		} else { // Controller is in NodePort mode.
 			if service.Spec.Type == v1.ServiceTypeNodePort {
 				for _, port := range service.Spec.Ports {
-					members = m.getEndpointsForNodePort(port.NodePort)
+					members = append(members, m.getEndpointsForNodePort(port.NodePort, port.Port)...)
 				}
 			} /* else {
 				msg := fmt.Sprintf("[CORE] Requested service backend '%+v' not of NodePort type", service.Name)

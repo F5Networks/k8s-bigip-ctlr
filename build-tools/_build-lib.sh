@@ -51,7 +51,7 @@ get_builddir() {
 }
 
 # This is the expected output location, from the release build container
-RELEASE_PLATFORM=linux-amd64-release-go1.12
+RELEASE_PLATFORM=linux-amd64-release-go1.15
 
 NO_CACHE_ARGS=""
 if $CLEAN_BUILD; then
@@ -97,6 +97,7 @@ ginkgo_test_with_coverage () {
     ginkgo -r -compilers 1 -keepGoing -trace -randomizeAllSpecs -progress --nodes 4 -cover
     echo "Gathering unit test code coverage for 'release' build..."
     gather_coverage $WKDIR
+    chmod 755 -R $WKDIR
     rm -rf $WKDIR
     export GOPATH=/build
   )

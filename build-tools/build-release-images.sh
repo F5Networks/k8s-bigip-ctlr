@@ -36,7 +36,7 @@ docker rm -f cp-temp
 
 cp requirements.txt $WKDIR/
 cp schemas/bigip-virtual-server_v*.json $WKDIR/
-cp schemas/as3-schema-3.24.0-5-cis.json $WKDIR/
+cp schemas/as3-schema-3.25.0-3-cis.json $WKDIR/
 cp LICENSE $WKDIR/
 cp $CURDIR/help.md $WKDIR/help.md
 echo "{\"version\": \"${VERSION_INFO}\", \"build\": \"${BUILD_INFO}\"}" \

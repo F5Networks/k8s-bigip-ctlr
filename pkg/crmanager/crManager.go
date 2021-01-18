@@ -21,10 +21,13 @@ import (
 	"strings"
 	"time"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	ficV1 "github.com/f5devcentral/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
+	"github.com/f5devcentral/f5-ipam-controller/pkg/ipammachinery"
+	v1 "k8s.io/api/core/v1"
+	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -46,6 +49,8 @@ const (
 	TransportServer = "TransportServer"
 	// ExternalDNS is a F5 Customr Resource Kind
 	ExternalDNS = "ExternalDNS"
+	// IPAM is a F5 Customr Resource Kind
+	IPAM = "IPAM"
 	// Service is a k8s native Service Resource.
 	Service = "Service"
 	// Endpoints is a k8s native Endpoint Resource.
@@ -56,6 +61,10 @@ const (
 	NodePortMode = "nodeport"
 
 	PolicyControlForward = "forwarding"
+	// Namespace for IPAM CRD
+	IPAMNamespace = "kube-system"
+	//Name for ipam CR
+	ipamCRName = "ipam"
 
 	// TLS Terminations
 	TLSEdge             = "edge"
@@ -131,8 +140,58 @@ func NewCRManager(params Params) *CRManager {
 	if err != nil {
 		log.Errorf("Failed to Setup Node Polling: %v", err)
 	}
+	if params.IPAM {
+		ipamParams := ipammachinery.Params{
+			Config:        params.Config,
+			EventHandlers: crMgr.getEventHandlerForIPAM(),
+			Namespaces:    []string{IPAMNamespace},
+		}
+
+		ipamClient := ipammachinery.NewIPAMClient(ipamParams)
+		crMgr.ipamCli = ipamClient
+
+		crMgr.registerIPAMCRD()
+		time.Sleep(3 * time.Second)
+		crMgr.createIPAMResource()
+	}
+
 	go crMgr.Start()
 	return crMgr
+}
+
+//Register IPAM CRD
+func (crMgr *CRManager) registerIPAMCRD() {
+	err := ipammachinery.RegisterCRD(crMgr.kubeAPIClient)
+	if err != nil {
+		log.Debugf("[IPAM] error while registering CRD %v", err)
+	}
+}
+
+//Create IPAM CRD
+func (crMgr *CRManager) createIPAMResource() error {
+
+	crName := ipamCRName + "." + DEFAULT_PARTITION
+	f5ipam := &ficV1.F5IPAM{
+		ObjectMeta: metaV1.ObjectMeta{
+			Name: crName,
+		},
+		Spec: ficV1.F5IPAMSpec{
+			HostSpecs: make([]*ficV1.HostSpec, 0),
+		},
+		Status: ficV1.F5IPAMStatus{
+			IPStatus: make([]*ficV1.IPSpec, 0),
+		},
+	}
+
+	// f5ipam.SetResourceVersion(obj.ResourceVersion)
+	ipamCR, err := crMgr.ipamCli.Create(IPAMNamespace, f5ipam)
+	crMgr.ipamCR = IPAMNamespace + "/" + crName
+	if err != nil {
+		log.Debugf("[ipam] error while creating IPAM custom resource. %v", err)
+		return err
+	}
+	log.Debugf("[ipam] Created IPAM Custom Resource: \n%v\n", ipamCR)
+	return nil
 }
 
 // createLabelSelector returns label used to identify F5 specific
@@ -164,7 +223,17 @@ func (crMgr *CRManager) setupClients(config *rest.Config) error {
 		return fmt.Errorf("Failed to create kubeClient: %v", err)
 	}
 
+	var ipamCRConfig *rest.Config
+	if ipamCRConfig, err = rest.InClusterConfig(); err != nil {
+		log.Errorf("error creating client configuration: %v", err)
+	}
+	kubeIPAMClient, err := extClient.NewForConfig(ipamCRConfig)
+	if err != nil {
+		log.Errorf("Failed to create client: %v", err)
+	}
+
 	log.Debug("Client Created")
+	crMgr.kubeAPIClient = kubeIPAMClient
 	crMgr.kubeCRClient = kubeCRClient
 	crMgr.kubeClient = kubeClient
 	return nil
@@ -192,6 +261,10 @@ func (crMgr *CRManager) Start() {
 		crMgr.nsInformer.start()
 	}
 
+	if crMgr.ipamCli != nil {
+		go crMgr.ipamCli.Start()
+	}
+
 	crMgr.nodePoller.Run()
 
 	stopChan := make(chan struct{})
@@ -216,4 +289,7 @@ func (crMgr *CRManager) Stop() {
 
 	crMgr.nodePoller.Stop()
 	crMgr.Agent.Stop()
+	if crMgr.ipamCli != nil {
+		crMgr.ipamCli.Stop()
+	}
 }

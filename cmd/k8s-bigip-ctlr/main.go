@@ -144,6 +144,7 @@ var (
 	credsDir                  *string
 	as3Validation             *bool
 	sslInsecure               *bool
+	ipam                      *bool
 	enableTLS                 *string
 	tls13CipherGroupReference *string
 	ciphers                   *string
@@ -244,6 +245,8 @@ func _init() {
 		"Optional, when set to false, disables as3 template validation on the controller.")
 	sslInsecure = bigIPFlags.Bool("insecure", false,
 		"Optional, when set to true, enable insecure SSL communication to BIGIP.")
+	ipam = bigIPFlags.Bool("ipam", false,
+		"Optional, when set to true, enable ipam feature for CRD.")
 	as3PostDelay = bigIPFlags.Int("as3-post-delay", 0,
 		"Optional, time (in seconds) that CIS waits to post the available AS3 declaration.")
 	logAS3Response = bigIPFlags.Bool("log-as3-response", false,
@@ -780,6 +783,7 @@ func initCustomResourceManager(
 			NodeLabelSelector: *nodeLabelSelector,
 
 			NginxCISConnectMode: *nginxCISConnectMode,
+			IPAM:                *ipam,
 			ShareNodes:          *shareNodes,
 		},
 	)
@@ -1062,6 +1066,7 @@ func getAS3Params() *as3.Params {
 		BIGIPURL:                  *bigIPURL,
 		TrustedCerts:              getBIGIPTrustedCerts(),
 		SSLInsecure:               *sslInsecure,
+		IPAM:                      *ipam,
 		AS3PostDelay:              *as3PostDelay,
 		LogResponse:               *logAS3Response,
 		ShareNodes:                *shareNodes,

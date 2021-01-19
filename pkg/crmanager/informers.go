@@ -18,14 +18,15 @@ package crmanager
 
 import (
 	"fmt"
-	"k8s.io/apimachinery/pkg/labels"
 	"time"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/informers/externalversions/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	ficV1 "github.com/f5devcentral/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -266,6 +267,69 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 			},
 		)
 	}
+}
+
+func (crMgr *CRManager) getEventHandlerForIPAM() *cache.ResourceEventHandlerFuncs {
+	return &cache.ResourceEventHandlerFuncs{
+		AddFunc:    func(obj interface{}) { crMgr.enqueueIPAM(obj) },
+		UpdateFunc: func(oldObj, newObj interface{}) { crMgr.enqueueUpdatedIPAM(oldObj, newObj) },
+		DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedIPAM(obj) },
+	}
+}
+
+func (crMgr *CRManager) enqueueIPAM(obj interface{}) {
+	ipamObj := obj.(*ficV1.F5IPAM)
+	log.Infof("Enqueueing IPAM: %v", ipamObj)
+	key := &rqKey{
+		namespace: ipamObj.ObjectMeta.Namespace,
+		kind:      IPAM,
+		rscName:   ipamObj.ObjectMeta.Name,
+		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
+	oldIpam := oldObj.(*ficV1.F5IPAM)
+	curIpam := newObj.(*ficV1.F5IPAM)
+
+	log.Infof("Enqueueing Old IPAM: %v", oldIpam)
+	// if oldIpam.Spec.HostSpecs != curIpam.Spec.HostSpecs {
+	// 	key := &rqKey{
+	// 		namespace: oldIpam.ObjectMeta.Namespace,
+	// 		kind:      IPAM,
+	// 		rscName:   oldIpam.ObjectMeta.Name,
+	// 		rsc:       oldObj,
+	// 		rscDelete: true,
+	// 	}
+
+	// 	crMgr.rscQueue.Add(key)
+	// }
+
+	log.Infof("Enqueueing Updated IPAM: %v", curIpam)
+	key := &rqKey{
+		namespace: curIpam.ObjectMeta.Namespace,
+		kind:      IPAM,
+		rscName:   curIpam.ObjectMeta.Name,
+		rsc:       newObj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueDeletedIPAM(obj interface{}) {
+	ipamObj := obj.(*ficV1.F5IPAM)
+	log.Infof("Enqueueing IPAM: %v", ipamObj)
+	key := &rqKey{
+		namespace: ipamObj.ObjectMeta.Namespace,
+		kind:      IPAM,
+		rscName:   ipamObj.ObjectMeta.Name,
+		rsc:       obj,
+		rscDelete: true,
+	}
+
+	crMgr.rscQueue.Add(key)
 }
 
 func (crMgr *CRManager) getNamespacedInformer(

@@ -551,7 +551,7 @@ func (crMgr *CRManager) syncVirtualServers(
 	uniqueHostPath := make(map[string][]string)
 	var cidr string
 	for _, vrt := range allVirtuals {
-		if (crMgr.ipamCli != nil || vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress) &&
+		if ((crMgr.ipamCli != nil && vrt.Spec.Cidr == virtual.Spec.Cidr) || vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress) &&
 			vrt.Spec.Host == virtual.Spec.Host &&
 			!(isVSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
 			isUnique := true
@@ -585,11 +585,15 @@ func (crMgr *CRManager) syncVirtualServers(
 
 	var ip string
 	if crMgr.ipamCli != nil {
-		ip = crMgr.requestIP(cidr, virtual.Spec.Host)
-		log.Debugf("[ipam] requested IP for host %v is: %v", virtual.Spec.Host, ip)
-		if ip == "" {
-			log.Debugf("[ipam] requested IP for host %v is empty.", virtual.Spec.Host)
-			return nil
+		if isVSDeleted && len(virtuals) == 0 {
+			ip = crMgr.releaseIP(virtual.Spec.Cidr, virtual.Spec.Host)
+		} else {
+			ip = crMgr.requestIP(cidr, virtual.Spec.Host)
+			log.Debugf("[ipam] requested IP for host %v is: %v", virtual.Spec.Host, ip)
+			if ip == "" {
+				log.Debugf("[ipam] requested IP for host %v is empty.", virtual.Spec.Host)
+				return nil
+			}
 		}
 	} else {
 		if virtual.Spec.VirtualServerAddress == "" {
@@ -603,7 +607,6 @@ func (crMgr *CRManager) syncVirtualServers(
 	// vsMap holds Resource Configs of current virtuals temporarily
 	vsMap := make(ResourceConfigMap)
 	processingError := false
-
 	for _, portStruct := range portStructs {
 		// TODO: Add Route Domain
 		var rsName string
@@ -628,7 +631,6 @@ func (crMgr *CRManager) syncVirtualServers(
 		if (len(virtuals) == 0) ||
 			(portStruct.protocol == "http" && !doesVSHandleHTTP(virtual)) {
 			crMgr.deleteVirtualServer(rsName)
-			crMgr.releaseIP(virtual.Spec.Cidr, virtual.Spec.Host)
 			continue
 		}
 
@@ -720,7 +722,7 @@ func (crMgr *CRManager) getIPAMCR() *ficV1.F5IPAM {
 //Request IPAM for virtual IP address
 func (crMgr *CRManager) requestIP(cidr string, host string) string {
 	ipamCR := crMgr.getIPAMCR()
-	if ipamCR == nil {
+	if ipamCR == nil || cidr == "" || host == "" {
 		return ""
 	}
 	for _, ipst := range ipamCR.Status.IPStatus {
@@ -728,6 +730,7 @@ func (crMgr *CRManager) requestIP(cidr string, host string) string {
 			return ipst.IP
 		}
 	}
+	//Check if HostSpec is already updated with Host and Cidr
 	for _, hst := range ipamCR.Spec.HostSpecs {
 		if hst.Cidr == cidr && hst.Host == host {
 			return ""
@@ -741,28 +744,42 @@ func (crMgr *CRManager) requestIP(cidr string, host string) string {
 	})
 
 	crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
+	log.Debugf("[ipam] Updated IPAM CR.")
 	return ""
 
 }
 
-func (crMgr *CRManager) releaseIP(cidr string, host string) {
+func (crMgr *CRManager) releaseIP(cidr string, host string) string {
 	ipamCR := crMgr.getIPAMCR()
-	if ipamCR == nil {
-		return
+	var ip string
+	if ipamCR == nil || cidr == "" || host == "" {
+		return ip
 	}
 	index := -1
+	//Find index for deleted host
 	for i, hostSpec := range ipamCR.Spec.HostSpecs {
 		if hostSpec.Cidr == cidr && hostSpec.Host == host {
 			index = i
 			break
 		}
 	}
-	if index != -1 {
-		ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index:]...)
-		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
-		log.Debug("[ipam] Updating ipam hostspec.")
-		crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
+	//Find IP address for deleted host
+	for _, ipst := range ipamCR.Status.IPStatus {
+		if ipst.Cidr == cidr && ipst.Host == host {
+			ip = ipst.IP
+		}
 	}
+	if index != -1 {
+		ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index+1:]...)
+		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
+		_, err := crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
+		if err != nil {
+			log.Errorf("[ipam] ipam hostspec update error: %v", err)
+			return ""
+		}
+		log.Debug("[ipam] Updated IPAM CR hostspec while releasing IP.")
+	}
+	return ip
 }
 
 // updatePoolMembersForNodePort updates the pool with pool members for a

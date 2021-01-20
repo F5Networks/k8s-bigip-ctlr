@@ -426,6 +426,8 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	if vs.Spec.WAF != "" {
 		rsCfg.Virtual.WAF = vs.Spec.WAF
 	}
+	//Attach allowVlans.
+	rsCfg.Virtual.AllowVlans = vs.Spec.AllowVlans
 
 	// Do not Create Virtual Server L7 Forwarding policies if HTTPTraffic is set to None or Redirect
 	if len(vs.Spec.TLSProfileName) > 0 &&

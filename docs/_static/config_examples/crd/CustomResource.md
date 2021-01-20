@@ -185,6 +185,7 @@ Known Issues:
 | rewriteAppRoot | String | Optional | NA |  Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path |
 | waf | String | Optional | NA | Reference to WAF policy on BIG-IP |
 | snat | String | Optional | auto | Reference to SNAT pool on BIG-IP or Other allowed value is: "none" |
+| allowVlans | List of Vlans | Optional | NA | list of Vlan objects to allow traffic from |  
 
 **Pool Components**
 

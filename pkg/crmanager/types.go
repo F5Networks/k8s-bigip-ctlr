@@ -147,6 +147,7 @@ type (
 		TranslateServerAddress bool                  `json:"translateServerAddress"`
 		TranslateServerPort    bool                  `json:"translateServerPort"`
 		Source                 string                `json:"source,omitempty"`
+		AllowVlans             []string              `json:"allowVlans,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -532,22 +533,23 @@ type (
 	// - Service_TCP
 	// - Service_UDP
 	as3Service struct {
-		Layer4                 string            `json:"layer4,omitempty"`
-		Source                 string            `json:"source,omitempty"`
-		TranslateServerAddress bool              `json:"translateServerAddress,omitempty"`
-		TranslateServerPort    bool              `json:"translateServerPort,omitempty"`
-		Class                  string            `json:"class,omitempty"`
-		VirtualAddresses       []string          `json:"virtualAddresses,omitempty"`
-		VirtualPort            int               `json:"virtualPort,omitempty"`
-		SNAT                   as3MultiTypeParam `json:"snat,omitempty"`
-		PolicyEndpoint         as3MultiTypeParam `json:"policyEndpoint,omitempty"`
-		ClientTLS              as3MultiTypeParam `json:"clientTLS,omitempty"`
-		ServerTLS              as3MultiTypeParam `json:"serverTLS,omitempty"`
-		IRules                 as3MultiTypeParam `json:"iRules,omitempty"`
-		Redirect80             *bool             `json:"redirect80,omitempty"`
-		Pool                   string            `json:"pool,omitempty"`
-		WAF                    as3MultiTypeParam `json:"policyWAF,omitempty"`
-		ProfileL4              string            `json:"profileL4,omitempty"`
+		Layer4                 string               `json:"layer4,omitempty"`
+		Source                 string               `json:"source,omitempty"`
+		TranslateServerAddress bool                 `json:"translateServerAddress,omitempty"`
+		TranslateServerPort    bool                 `json:"translateServerPort,omitempty"`
+		Class                  string               `json:"class,omitempty"`
+		VirtualAddresses       []string             `json:"virtualAddresses,omitempty"`
+		VirtualPort            int                  `json:"virtualPort,omitempty"`
+		SNAT                   as3MultiTypeParam    `json:"snat,omitempty"`
+		PolicyEndpoint         as3MultiTypeParam    `json:"policyEndpoint,omitempty"`
+		ClientTLS              as3MultiTypeParam    `json:"clientTLS,omitempty"`
+		ServerTLS              as3MultiTypeParam    `json:"serverTLS,omitempty"`
+		IRules                 as3MultiTypeParam    `json:"iRules,omitempty"`
+		Redirect80             *bool                `json:"redirect80,omitempty"`
+		Pool                   string               `json:"pool,omitempty"`
+		WAF                    as3MultiTypeParam    `json:"policyWAF,omitempty"`
+		ProfileL4              string               `json:"profileL4,omitempty"`
+		AllowVlans             []as3ResourcePointer `json:"allowVlans,omitempty"`
 	}
 
 	// as3Monitor maps to the following in AS3 Resources

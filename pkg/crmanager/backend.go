@@ -486,7 +486,17 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			BigIP: fmt.Sprintf("%v", cfg.Virtual.WAF),
 		}
 	}
-
+	//Attach allowVlans if exist.
+	var vlans []as3ResourcePointer
+	for _, va := range cfg.Virtual.AllowVlans {
+		vlans = append(
+			vlans,
+			as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", va),
+			},
+		)
+	}
+	svc.AllowVlans = vlans
 	svc.Class = "Service_HTTP"
 
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)

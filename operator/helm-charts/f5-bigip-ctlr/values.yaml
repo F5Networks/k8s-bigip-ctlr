@@ -48,6 +48,7 @@ args:
   # gtm-bigip-password
   # gtm-bigip-url
   # gtm-bigip-username
+  # ipam: true
 image:
   # Use the tag to target a specific version of the Controller
   user: f5networks

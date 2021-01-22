@@ -1,6 +1,13 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+2.2.3
+-------------
+Bug Fix
+`````````
+* :issues:`1646` Virtual Server demoted from CMP when updating to CISv2.2.2
+
+
 2.2.2
 -------------
 Added Functionality

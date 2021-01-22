@@ -20,7 +20,6 @@ Bug Fixes
 * :issues:`1602` ConfigMap not working for 2.2.1 but works for 2.2.0.
 * SR - CIS now properly handles incorrect configMap with syntax errors.
 * CIS now log messages when processing multiple EDNS.
-* CIS now handles deletion of GTM configuration when there is no EDNS configuration after CIS restarts/starts.
 * CIS now handles the duplicate and invalid routes properly.
 * CIS now updates global parameters SNAT by every Virtual server pointing to the same hostname.
 * CIs handles duplicate path issue with virtual server pointing to same host or virtual address.

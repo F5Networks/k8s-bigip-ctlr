@@ -211,7 +211,26 @@ spec:
                 - virtualServerAddress
                 - virtualServerPort
                 - pool
-
+      additionalPrinterColumns:
+      - name: virtualServerAddress
+        type: string
+        description: IP address of virtualServer
+        jsonPath: .spec.virtualServerAddress
+      - name: virtualServerPort
+        type: integer
+        description: Port of virtualServer
+        jsonPath: .spec.virtualServerPort
+      - name: pool
+        type: string
+        description: Name of service
+        jsonPath: .spec.pool.service
+      - name: poolPort
+        type: string
+        description: Port of service
+        jsonPath: .spec.pool.servicePort
+      - name: Age
+        type: date
+        jsonPath: .metadata.creationTimestamp
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition

@@ -8,6 +8,8 @@
 bigip_login_secret: f5-bigip-ctlr-login
 rbac:
   create: true
+crd:
+  create: true
 serviceAccount:
   # Specifies whether a service account should be created
   create: true

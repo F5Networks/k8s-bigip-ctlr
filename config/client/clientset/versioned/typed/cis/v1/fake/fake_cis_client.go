@@ -32,8 +32,8 @@ func (c *FakeK8sV1) ExternalDNSs(namespace string) v1.ExternalDNSInterface {
 	return &FakeExternalDNSs{c, namespace}
 }
 
-func (c *FakeK8sV1) NginxCisConnectors(namespace string) v1.NginxCisConnectorInterface {
-	return &FakeNginxCisConnectors{c, namespace}
+func (c *FakeK8sV1) IngressLinks(namespace string) v1.IngressLinkInterface {
+	return &FakeIngressLinks{c, namespace}
 }
 
 func (c *FakeK8sV1) TLSProfiles(namespace string) v1.TLSProfileInterface {

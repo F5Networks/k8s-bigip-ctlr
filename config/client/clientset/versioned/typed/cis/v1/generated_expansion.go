@@ -20,7 +20,7 @@ package v1
 
 type ExternalDNSExpansion interface{}
 
-type NginxCisConnectorExpansion interface{}
+type IngressLinkExpansion interface{}
 
 type TLSProfileExpansion interface{}
 

@@ -65,10 +65,10 @@ type (
 		intDgMap  InternalDataGroupMap
 		dgPath    string
 
-		NginxCISConnectMode bool
-		shareNodes          bool
-		ipamCli             *ipammachinery.IPAMClient
-		ipamCR              string
+		IngressLinkMode bool
+		shareNodes      bool
+		ipamCli         *ipammachinery.IPAMClient
+		ipamCR          string
 	}
 	// Params defines parameters
 	Params struct {
@@ -84,9 +84,9 @@ type (
 		NodePollInterval  int
 		NodeLabelSelector string
 
-		NginxCISConnectMode bool
-		ShareNodes          bool
-		IPAM                bool
+		IngressLinkMode bool
+		ShareNodes      bool
+		IPAM            bool
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
@@ -97,7 +97,7 @@ type (
 		vsInformer   cache.SharedIndexInformer
 		tlsInformer  cache.SharedIndexInformer
 		tsInformer   cache.SharedIndexInformer
-		nccInformer  cache.SharedIndexInformer
+		ilInformer   cache.SharedIndexInformer
 		ednsInformer cache.SharedIndexInformer
 	}
 

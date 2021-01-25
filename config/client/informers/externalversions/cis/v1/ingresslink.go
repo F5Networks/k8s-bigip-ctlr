@@ -31,59 +31,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// NginxCisConnectorInformer provides access to a shared informer and lister for
-// NginxCisConnectors.
-type NginxCisConnectorInformer interface {
+// IngressLinkInformer provides access to a shared informer and lister for
+// IngressLinks.
+type IngressLinkInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.NginxCisConnectorLister
+	Lister() v1.IngressLinkLister
 }
 
-type nginxCisConnectorInformer struct {
+type ingressLinkInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewNginxCisConnectorInformer constructs a new informer for NginxCisConnector type.
+// NewIngressLinkInformer constructs a new informer for IngressLink type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewNginxCisConnectorInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredNginxCisConnectorInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewIngressLinkInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredIngressLinkInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredNginxCisConnectorInformer constructs a new informer for NginxCisConnector type.
+// NewFilteredIngressLinkInformer constructs a new informer for IngressLink type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredNginxCisConnectorInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredIngressLinkInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().NginxCisConnectors(namespace).List(options)
+				return client.K8sV1().IngressLinks(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().NginxCisConnectors(namespace).Watch(options)
+				return client.K8sV1().IngressLinks(namespace).Watch(options)
 			},
 		},
-		&cisv1.NginxCisConnector{},
+		&cisv1.IngressLink{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *nginxCisConnectorInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredNginxCisConnectorInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *ingressLinkInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredIngressLinkInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *nginxCisConnectorInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&cisv1.NginxCisConnector{}, f.defaultInformer)
+func (f *ingressLinkInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&cisv1.IngressLink{}, f.defaultInformer)
 }
 
-func (f *nginxCisConnectorInformer) Lister() v1.NginxCisConnectorLister {
-	return v1.NewNginxCisConnectorLister(f.Informer().GetIndexer())
+func (f *ingressLinkInformer) Lister() v1.IngressLinkLister {
+	return v1.NewIngressLinkLister(f.Informer().GetIndexer())
 }

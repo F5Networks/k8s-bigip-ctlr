@@ -108,8 +108,8 @@ var (
 	gtmBigIPFlags *pflag.FlagSet
 
 	// Custom Resource
-	customResourceMode  *bool
-	nginxCISConnectMode *bool
+	customResourceMode *bool
+	ingressLinkMode    *bool
 
 	pythonBaseDir    *string
 	logLevel         *string
@@ -222,8 +222,8 @@ func _init() {
 	// Custom Resource
 	customResourceMode = globalFlags.Bool("custom-resource-mode", false,
 		"Optional, When set to true, controller processes only F5 Custom Resources.")
-	nginxCISConnectMode = globalFlags.Bool("nginx-cis-connect-mode", false,
-		"Optional, When set to true, controller processes only NginxCisConnector Resources.")
+	ingressLinkMode = globalFlags.Bool("ingress-link-mode", false,
+		"Optional, When set to true, controller processes only IngressLink Resources.")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
@@ -782,9 +782,9 @@ func initCustomResourceManager(
 			NodePollInterval:  *nodePollInterval,
 			NodeLabelSelector: *nodeLabelSelector,
 
-			NginxCISConnectMode: *nginxCISConnectMode,
-			IPAM:                *ipam,
-			ShareNodes:          *shareNodes,
+			IngressLinkMode: *ingressLinkMode,
+			IPAM:            *ipam,
+			ShareNodes:      *shareNodes,
 		},
 	)
 
@@ -862,7 +862,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *customResourceMode || *nginxCISConnectMode {
+	if *customResourceMode || *ingressLinkMode {
 		getGTMCredentials()
 		crMgr := initCustomResourceManager(config)
 		err = crMgr.Agent.GetBigipAS3Version()
@@ -1188,8 +1188,8 @@ func getUserAgentInfo() string {
 	// support for ocp < 3.11
 	if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv3).DoRaw(); err == nil {
 		if err = json.Unmarshal(vInfo, &versionInfo); err == nil {
-			if *nginxCISConnectMode {
-				return fmt.Sprintf("CIS/v%v OCP/%v NCC", version, versionInfo["gitVersion"])
+			if *ingressLinkMode {
+				return fmt.Sprintf("CIS/v%v OCP/%v IngressLink", version, versionInfo["gitVersion"])
 			}
 			return fmt.Sprintf("CIS/v%v OCP/%v", version, versionInfo["gitVersion"])
 		}
@@ -1197,8 +1197,8 @@ func getUserAgentInfo() string {
 		// support ocp > 4.0
 		var ocp4 Ocp4Version
 		if er := json.Unmarshal(vInfo, &ocp4); er == nil {
-			if *nginxCISConnectMode {
-				return fmt.Sprintf("CIS/v%v OCP/v4.0.0 NCC", version)
+			if *ingressLinkMode {
+				return fmt.Sprintf("CIS/v%v OCP/v4.0.0 IngressLink", version)
 			}
 			if len(ocp4.Status.History) > 0 {
 				return fmt.Sprintf("CIS/v%v OCP/v%v", version, ocp4.Status.History[0].Version)
@@ -1208,8 +1208,8 @@ func getUserAgentInfo() string {
 	} else if vInfo, err = rc.Get().AbsPath(versionPathk8s).DoRaw(); err == nil {
 		// support k8s
 		if er := json.Unmarshal(vInfo, &versionInfo); er == nil {
-			if *nginxCISConnectMode {
-				return fmt.Sprintf("CIS/v%v K8S/%v NCC", version, versionInfo["gitVersion"])
+			if *ingressLinkMode {
+				return fmt.Sprintf("CIS/v%v K8S/%v IngressLink", version, versionInfo["gitVersion"])
 			}
 			return fmt.Sprintf("CIS/v%v K8S/%v", version, versionInfo["gitVersion"])
 		}

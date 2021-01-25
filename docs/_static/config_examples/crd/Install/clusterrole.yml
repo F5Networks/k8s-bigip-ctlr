@@ -12,7 +12,7 @@ rules:
     resources: ["configmaps", "events", "ingresses/status"]
     verbs: ["get", "list", "watch", "update", "create", "patch"]
   - apiGroups: ["cis.f5.com"]
-    resources: ["virtualservers", "tlsprofiles", "transportservers", "nginxcisconnectors", "externaldnss"]
+    resources: ["virtualservers", "tlsprofiles", "transportservers", "ingresslinks", "externaldnss"]
     verbs: ["get", "list", "watch", "update"]
   - apiGroups: ["", "extensions"]
     resources: ["secrets"]

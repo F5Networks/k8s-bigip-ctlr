@@ -27,7 +27,7 @@ import (
 type K8sV1Interface interface {
 	RESTClient() rest.Interface
 	ExternalDNSsGetter
-	NginxCisConnectorsGetter
+	IngressLinksGetter
 	TLSProfilesGetter
 	TransportServersGetter
 	VirtualServersGetter
@@ -42,8 +42,8 @@ func (c *K8sV1Client) ExternalDNSs(namespace string) ExternalDNSInterface {
 	return newExternalDNSs(c, namespace)
 }
 
-func (c *K8sV1Client) NginxCisConnectors(namespace string) NginxCisConnectorInterface {
-	return newNginxCisConnectors(c, namespace)
+func (c *K8sV1Client) IngressLinks(namespace string) IngressLinkInterface {
+	return newIngressLinks(c, namespace)
 }
 
 func (c *K8sV1Client) TLSProfiles(namespace string) TLSProfileInterface {

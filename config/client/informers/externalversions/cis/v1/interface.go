@@ -26,8 +26,8 @@ import (
 type Interface interface {
 	// ExternalDNSs returns a ExternalDNSInformer.
 	ExternalDNSs() ExternalDNSInformer
-	// NginxCisConnectors returns a NginxCisConnectorInformer.
-	NginxCisConnectors() NginxCisConnectorInformer
+	// IngressLinks returns a IngressLinkInformer.
+	IngressLinks() IngressLinkInformer
 	// TLSProfiles returns a TLSProfileInformer.
 	TLSProfiles() TLSProfileInformer
 	// TransportServers returns a TransportServerInformer.
@@ -52,9 +52,9 @@ func (v *version) ExternalDNSs() ExternalDNSInformer {
 	return &externalDNSInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// NginxCisConnectors returns a NginxCisConnectorInformer.
-func (v *version) NginxCisConnectors() NginxCisConnectorInformer {
-	return &nginxCisConnectorInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// IngressLinks returns a IngressLinkInformer.
+func (v *version) IngressLinks() IngressLinkInformer {
+	return &ingressLinkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // TLSProfiles returns a TLSProfileInformer.

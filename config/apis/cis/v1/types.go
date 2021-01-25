@@ -18,18 +18,19 @@ type VirtualServer struct {
 
 // VirtualServerSpec is the spec of the VirtualServer resource.
 type VirtualServerSpec struct {
-	Host                   string `json:"host"`
-	VirtualServerAddress   string `json:"virtualServerAddress"`
-	Cidr                   string `json:"cidr"`
-	VirtualServerName      string `json:"virtualServerName"`
-	VirtualServerHTTPPort  int32  `json:"virtualServerHTTPPort"`
-	VirtualServerHTTPSPort int32  `json:"virtualServerHTTPSPort"`
-	Pools                  []Pool `json:"pools"`
-	TLSProfileName         string `json:"tlsProfileName"`
-	HTTPTraffic            string `json:"httpTraffic,omitempty"`
-	SNAT                   string `json:"snat,omitempty"`
-	WAF                    string `json:"waf,omitempty"`
-	RewriteAppRoot         string `json:"rewriteAppRoot,omitempty"`
+	Host                   string   `json:"host"`
+	VirtualServerAddress   string   `json:"virtualServerAddress"`
+	Cidr                   string   `json:"cidr"`
+	VirtualServerName      string   `json:"virtualServerName"`
+	VirtualServerHTTPPort  int32    `json:"virtualServerHTTPPort"`
+	VirtualServerHTTPSPort int32    `json:"virtualServerHTTPSPort"`
+	Pools                  []Pool   `json:"pools"`
+	TLSProfileName         string   `json:"tlsProfileName"`
+	HTTPTraffic            string   `json:"httpTraffic,omitempty"`
+	SNAT                   string   `json:"snat,omitempty"`
+	WAF                    string   `json:"waf,omitempty"`
+	RewriteAppRoot         string   `json:"rewriteAppRoot,omitempty"`
+	AllowVlans             []string `json:"allowVlans,omitempty"`
 }
 
 // Pool defines a pool object in BIG-IP.

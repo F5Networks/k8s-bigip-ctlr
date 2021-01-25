@@ -40,6 +40,11 @@ spec:
                 waf:
                   type: string
                   pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                allowVlans:
+                  items:
+                    type: string
+                    pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_]+\/?)*$'
+                  type: array
                 pools:
                   type: array
                   items:

@@ -488,7 +488,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	}
 	//Attach allowVlans if exist.
 	var vlans []as3ResourcePointer
-	for _, va := range cfg.Virtual.AllowVlans {
+	for _, va := range cfg.Virtual.AllowVLANs {
 		vlans = append(
 			vlans,
 			as3ResourcePointer{
@@ -496,7 +496,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			},
 		)
 	}
-	svc.AllowVlans = vlans
+	svc.AllowVLANs = vlans
 	svc.Class = "Service_HTTP"
 
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
@@ -900,6 +900,13 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	}
 	for _, pool := range cfg.Pools {
 		svc.Pool = pool.Name
+	}
+
+	if cfg.Virtual.AllowVLANs != nil {
+		for _, vlan := range cfg.Virtual.AllowVLANs {
+			vlans := as3ResourcePointer{BigIP: vlan}
+			svc.AllowVLANs = append(svc.AllowVLANs, vlans)
+		}
 	}
 	//process irules for crd
 	processIrulesForCRD(cfg, svc)

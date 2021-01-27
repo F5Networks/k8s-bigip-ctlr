@@ -147,7 +147,7 @@ type (
 		TranslateServerAddress bool                  `json:"translateServerAddress"`
 		TranslateServerPort    bool                  `json:"translateServerPort"`
 		Source                 string                `json:"source,omitempty"`
-		AllowVlans             []string              `json:"allowVlans,omitempty"`
+		AllowVLANs             []string              `json:"allowVlans,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -549,7 +549,7 @@ type (
 		Pool                   string               `json:"pool,omitempty"`
 		WAF                    as3MultiTypeParam    `json:"policyWAF,omitempty"`
 		ProfileL4              string               `json:"profileL4,omitempty"`
-		AllowVlans             []as3ResourcePointer `json:"allowVlans,omitempty"`
+		AllowVLANs             []as3ResourcePointer `json:"allowVlans,omitempty"`
 	}
 
 	// as3Monitor maps to the following in AS3 Resources

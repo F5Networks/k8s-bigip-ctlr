@@ -30,7 +30,7 @@ type VirtualServerSpec struct {
 	SNAT                   string   `json:"snat,omitempty"`
 	WAF                    string   `json:"waf,omitempty"`
 	RewriteAppRoot         string   `json:"rewriteAppRoot,omitempty"`
-	AllowVlans             []string `json:"allowVlans,omitempty"`
+	AllowVLANs             []string `json:"allowVlans,omitempty"`
 }
 
 // Pool defines a pool object in BIG-IP.
@@ -145,12 +145,13 @@ type TransportServer struct {
 
 // TransportServerSpec is the spec of the VirtualServer resource.
 type TransportServerSpec struct {
-	VirtualServerAddress string `json:"virtualServerAddress"`
-	VirtualServerPort    int32  `json:"virtualServerPort"`
-	VirtualServerName    string `json:"virtualServerName"`
-	Mode                 string `json:"mode"`
-	SNAT                 string `json:"snat"`
-	Pool                 Pool   `json:"pool"`
+	VirtualServerAddress string   `json:"virtualServerAddress"`
+	VirtualServerPort    int32    `json:"virtualServerPort"`
+	VirtualServerName    string   `json:"virtualServerName"`
+	Mode                 string   `json:"mode"`
+	SNAT                 string   `json:"snat"`
+	Pool                 Pool     `json:"pool"`
+	AllowVLANs           []string `json:"allowVlans,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

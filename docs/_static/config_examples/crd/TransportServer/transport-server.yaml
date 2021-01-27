@@ -11,6 +11,7 @@ spec:
   virtualServerName: my-ts
   mode: standard
   snat: auto
+  allowVlans: ["/Common/devtraffic"]
   pool:
     service: svc-1
     servicePort: 8181

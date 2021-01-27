@@ -186,6 +186,11 @@ spec:
                   enum: [standard, performance]
                 snat:
                   type: string
+                allowVlans:
+                  items:
+                    type: string
+                    pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_]+\/?)*$'
+                  type: array
                 pool:
                   type: object
                   properties:

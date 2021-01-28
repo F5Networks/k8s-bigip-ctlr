@@ -455,6 +455,10 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 		rsCfg.SetPolicy(*plcy)
 	}
 
+	// Attach user specified iRules
+	if len(vs.Spec.IRules) > 0 {
+		rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, vs.Spec.IRules...)
+	}
 	return nil
 }
 

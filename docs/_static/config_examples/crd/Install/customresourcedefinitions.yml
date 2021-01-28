@@ -45,6 +45,10 @@ spec:
                     type: string
                     pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_]+\/?)*$'
                   type: array
+                iRules:
+                  type: array
+                  items:
+                    type: string
                 pools:
                   type: array
                   items:

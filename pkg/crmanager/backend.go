@@ -904,10 +904,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		svc.VirtualAddresses = va
 		svc.VirtualPort = port
 	}
-	for _, pool := range cfg.Pools {
-		svc.Pool = pool.Name
-	}
-
+	svc.Pool = cfg.Virtual.PoolName
 	if cfg.Virtual.AllowVLANs != nil {
 		for _, vlan := range cfg.Virtual.AllowVLANs {
 			vlans := as3ResourcePointer{BigIP: vlan}

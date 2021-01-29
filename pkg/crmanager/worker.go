@@ -987,17 +987,29 @@ func (crMgr *CRManager) syncTransportServers(
 		return nil
 	}
 
-	rsCfg := &ResourceConfig{}
-	rsCfg.Virtual.Partition = crMgr.Partition
-	rsCfg.MetaData.ResourceType = TransportServer
-	rsCfg.Virtual.Enabled = true
-	rsCfg.Virtual.Name = rsName
-	rsCfg.Virtual.SetVirtualAddress(
-		virtual.Spec.VirtualServerAddress,
-		virtual.Spec.VirtualServerPort,
-	)
-
 	for _, vrt := range virtuals {
+
+		if virtual.Spec.VirtualServerName != "" {
+			rsName = formatCustomVirtualServerName(
+				vrt.Spec.VirtualServerName,
+				vrt.Spec.VirtualServerPort,
+			)
+		} else {
+			rsName = formatVirtualServerName(
+				vrt.Spec.VirtualServerAddress,
+				vrt.Spec.VirtualServerPort,
+			)
+		}
+		
+		rsCfg := &ResourceConfig{}
+		rsCfg.Virtual.Partition = crMgr.Partition
+		rsCfg.MetaData.ResourceType = TransportServer
+		rsCfg.Virtual.Enabled = true
+		rsCfg.Virtual.Name = rsName
+		rsCfg.Virtual.SetVirtualAddress(
+			vrt.Spec.VirtualServerAddress,
+			vrt.Spec.VirtualServerPort,
+		)
 		log.Debugf("Processing Transport Server %s for port %v",
 			vrt.ObjectMeta.Name, vrt.Spec.VirtualServerPort)
 		err := crMgr.prepareRSConfigFromTransportServer(

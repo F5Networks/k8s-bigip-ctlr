@@ -382,11 +382,6 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 	dgPath := appMgr.dgPath
 
 	iRule := fmt.Sprintf(`
-		proc close_connection {} {
-    		reject 
-    		event disable all 
-    		return 
-		}
 		when CLIENT_ACCEPTED {
 			TCP::collect
 		}
@@ -397,8 +392,8 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 			# Bytes 3-4 are the TLS payload length.
 			# Bytes 5-$tls_payload_len are the TLS payload.
 			binary scan [TCP::payload] cSS tls_content_type tls_version tls_payload_len
-			if { ! [ expr { [info exists tls_content_type] && [string is integer -strict $tls_content_type] } ] }  { global close_connection }
-			if { ! [ expr { [info exists tls_version] && [string is integer -strict $tls_version] } ] }  { global close_connection }
+			if { ! [ expr { [info exists tls_content_type] && [string is integer -strict $tls_content_type] } ] }  { reject ; event disable all; return; }
+			if { ! [ expr { [info exists tls_version] && [string is integer -strict $tls_version] } ] }  { reject ; event disable all; return; }
 			switch -exact $tls_version {
 				"769" -
 				"770" -
@@ -409,7 +404,7 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 						# record type, and a value of 1 signifies that the handshake record is
 						# a ClientHello.
 						binary scan [TCP::payload] @5c tls_handshake_record_type
-						if { ! [ expr { [info exists tls_handshake_record_type] && [string is integer -strict $tls_handshake_record_type] } ] }  { global close_connection } 
+						if { ! [ expr { [info exists tls_handshake_record_type] && [string is integer -strict $tls_handshake_record_type] } ] }  { reject ; event disable all; return; } 
 						if { $tls_handshake_record_type == 1 } {
 							# Bytes 6-8 are the handshake length (which we ignore).
 							# Bytes 9-10 are the TLS version (which we ignore).
@@ -421,33 +416,33 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 
 							# Skip the session ID.
 							binary scan [TCP::payload] @${record_offset}c tls_session_id_len
-							if { ! [ expr { [info exists tls_session_id_len] && [string is integer -strict $tls_session_id_len] } ] }  { global close_connection } 
+							if { ! [ expr { [info exists tls_session_id_len] && [string is integer -strict $tls_session_id_len] } ] }  { reject ; event disable all; return; } 
 							incr record_offset [expr {1 + $tls_session_id_len}]
 
 							# Skip the cipher_suites field.
 							binary scan [TCP::payload] @${record_offset}S tls_cipher_suites_len
-							if { ! [ expr { [info exists tls_cipher_suites_len] && [string is integer -strict $tls_cipher_suites_len] } ] }  { global close_connection } 
+							if { ! [ expr { [info exists tls_cipher_suites_len] && [string is integer -strict $tls_cipher_suites_len] } ] }  { reject ; event disable all; return; } 
 							incr record_offset [expr {2 + $tls_cipher_suites_len}]
 
 							# Skip the compression_methods field.
 							binary scan [TCP::payload] @${record_offset}c tls_compression_methods_len
-							if { ! [ expr { [info exists tls_compression_methods_len] && [string is integer -strict $tls_compression_methods_len] } ] }  { global close_connection } 
+							if { ! [ expr { [info exists tls_compression_methods_len] && [string is integer -strict $tls_compression_methods_len] } ] }  { reject ; event disable all; return; } 
 							incr record_offset [expr {1 + $tls_compression_methods_len}]
 
 							# Get the number of extensions, and store the extensions.
 							binary scan [TCP::payload] @${record_offset}S tls_extensions_len
-							if { ! [ expr { [info exists tls_extensions_len] && [string is integer -strict $tls_extensions_len] } ] }  { global close_connection }
+							if { ! [ expr { [info exists tls_extensions_len] && [string is integer -strict $tls_extensions_len] } ] }  { reject ; event disable all; return; }
 							incr record_offset 2
 							binary scan [TCP::payload] @${record_offset}a* tls_extensions
-							if { ! [info exists tls_extensions] }  { global close_connection }
+							if { ! [info exists tls_extensions] }  { reject ; event disable all; return; }
 							for { set extension_start 0 }
 									{ $tls_extensions_len - $extension_start == abs($tls_extensions_len - $extension_start) }
 									{ incr extension_start 4 } {
 								# Bytes 0-1 of the extension are the extension type.
 								# Bytes 2-3 of the extension are the extension length.
 								binary scan $tls_extensions @${extension_start}SS extension_type extension_len
-								if { ! [ expr { [info exists extension_type] && [string is integer -strict $extension_type] } ] }  { global close_connection }
-								if { ! [ expr { [info exists extension_len] && [string is integer -strict $extension_len] } ] }  { global close_connection }
+								if { ! [ expr { [info exists extension_type] && [string is integer -strict $extension_type] } ] }  { reject ; event disable all; return; }
+								if { ! [ expr { [info exists extension_len] && [string is integer -strict $extension_len] } ] }  { reject ; event disable all; return; }
 
 								# Extension type 00 is the ServerName extension.
 								if { $extension_type == "00" } {
@@ -456,7 +451,7 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 									# Byte 6 of the extension is the SNI type.
 									set sni_type_offset [expr {$extension_start + 6}]
 									binary scan $tls_extensions @${sni_type_offset}S sni_type
-									if { ! [ expr { [info exists sni_type] && [string is integer -strict $sni_type] } ] }  { global close_connection } 
+									if { ! [ expr { [info exists sni_type] && [string is integer -strict $sni_type] } ] }  { reject ; event disable all; return; } 
 
 									# Type 0 is host_name.
 									if { $sni_type == "0" } {
@@ -464,7 +459,7 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 										# length.
 										set sni_len_offset [expr {$extension_start + 7}]
 										binary scan $tls_extensions @${sni_len_offset}S sni_len
-										if { ! [ expr { [info exists sni_len] && [string is integer -strict $sni_len] } ] }  { global close_connection } 
+										if { ! [ expr { [info exists sni_len] && [string is integer -strict $sni_len] } ] }  { reject ; event disable all; return; } 
 
 										# Bytes 9-$sni_len are the SNI data (host_name).
 										set sni_start [expr {$extension_start + 9}]
@@ -519,7 +514,7 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 
          when CLIENTSSL_DATA {
             if { [llength [split [SSL::payload]]] < 1 }{
-                global close_connection
+                reject ; event disable all; return;
                 }
             set sslpath [lindex [split [SSL::payload]] 1]
             set routepath ""
@@ -574,7 +569,7 @@ func (appMgr *Manager) sslPassthroughIRule() string {
                 # Handle requests sent to unknown hosts.
                 # For valid hosts, Send the request to respective pool.
                 if { not [info exists dflt_pool] } then {
-                	 global close_connection
+                	 reject ; event disable all; return;
                 } else {
                 	pool $dflt_pool
                 }

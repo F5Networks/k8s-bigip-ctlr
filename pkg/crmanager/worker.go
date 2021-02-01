@@ -957,7 +957,7 @@ func (crMgr *CRManager) syncTransportServers(
 	// In the event of deletion, exclude the deleted VirtualServer
 	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
 	for _, vrt := range allVirtuals {
-		if vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress &&
+		if vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress && vrt.Spec.VirtualServerPort == virtual.Spec.VirtualServerPort &&
 			!isTSDeleted {
 			virtuals = append(virtuals, vrt)
 		}

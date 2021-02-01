@@ -1685,7 +1685,6 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 ) error {
 
 	var pools Pools
-	var poolExist bool
 	var monitors []Monitor
 	var snat string
 	snat = DEFAULT_SNAT
@@ -1700,16 +1699,6 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 		ServiceName:     vs.Spec.Pool.Service,
 		ServicePort:     vs.Spec.Pool.ServicePort,
 		NodeMemberLabel: vs.Spec.Pool.NodeMemberLabel,
-	}
-	for _, p := range pools {
-		if pool.Name == p.Name {
-			poolExist = true
-			break
-		}
-	}
-	if poolExist {
-		poolExist = false
-		return nil
 	}
 
 	if vs.Spec.Pool.Monitor.Type != "" {
@@ -1728,6 +1717,7 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 	}
 	pools = append(pools, pool)
 	rsCfg.Virtual.Mode = vs.Spec.Mode
+	rsCfg.Virtual.PoolName = pool.Name
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
 	// set the SNAT policy to auto is it's not defined by end user

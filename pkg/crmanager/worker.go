@@ -1240,11 +1240,7 @@ func checkCertificateHost(res *v1.Secret, host string) bool {
 	}
 	ok := x509cert.VerifyHostname(host)
 	if ok != nil {
-		//TODO: Fix x509ignoreCN issue if not set.
-		if strings.Contains(ok.Error(), "GODEBUG=x509ignoreCN=0") {
-			return true
-		}
-		log.Errorf("host in virtualserver... does not match certificate name: %v", ok)
+		log.Errorf("Hostname in virtualserver does not match with certificate hostname: %v", ok)
 		return false
 	}
 	return true

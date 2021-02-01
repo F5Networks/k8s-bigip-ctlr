@@ -277,7 +277,10 @@ func (appMgr *Manager) checkValidRoute(
 		// Not watching this namespace
 		return false, nil
 	}
-	if nil != route.Spec.TLS {
+
+	_, sslAnnotation := route.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]
+	// Validate hostname if certificate is not provided in SSL annotations
+	if nil != route.Spec.TLS && !sslAnnotation {
 		ok := checkCertificateHost(route.Spec.Host, route.Spec.TLS.Certificate, route.Spec.TLS.Key)
 		if !ok {
 			//Invalid certificate and key

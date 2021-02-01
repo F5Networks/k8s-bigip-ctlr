@@ -31,6 +31,9 @@ COPY k8s-bigip-ctlr $APPPATH/bin
 COPY VERSION_BUILD.json $APPPATH/vendor/src/f5/
 COPY --from=builder /go/bin/dlv /app/bin
 
+# Enable CN Certificate validation 
+ENV GODEBUG x509ignoreCN=0
+
 USER ctlr
 EXPOSE 40000
 # Run the run application in the projects bin directory.

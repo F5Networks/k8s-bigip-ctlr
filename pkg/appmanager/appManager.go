@@ -935,8 +935,8 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
-		log.Debugf("[CORE] Finished syncing virtual servers %+v %+v (%v)",
-			sKey.Name, sKey.Namespace, endTime.Sub(startTime))
+		log.Debugf("[CORE] Finished syncing virtual servers %+v in namespace %+v (%v)",
+			sKey.ServiceName, sKey.Namespace, endTime.Sub(startTime))
 	}()
 	// Get the informers for the namespace. This will tell us if we care about
 	// this item.

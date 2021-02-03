@@ -43,8 +43,8 @@ const (
 	VirtualServer = "VirtualServer"
 	// TLSProfile is a F5 Custom Resource Kind
 	TLSProfile = "TLSProfile"
-	// NginxCisConnector is a Custom Resource used by both F5 and Nginx
-	NginxCisConnector = "NginxCisConnector"
+	// IngressLink is a Custom Resource used by both F5 and Nginx
+	IngressLink = "IngressLink"
 	// TransportServer is a F5 Custom Resource Kind
 	TransportServer = "TransportServer"
 	// ExternalDNS is a F5 Customr Resource Kind
@@ -94,8 +94,8 @@ func NewCRManager(params Params) *CRManager {
 		intDgMap:        make(InternalDataGroupMap),
 		dgPath:          strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 
-		NginxCISConnectMode: params.NginxCISConnectMode,
-		shareNodes:          params.ShareNodes,
+		IngressLinkMode: params.IngressLinkMode,
+		shareNodes:      params.ShareNodes,
 	}
 
 	log.Debug("Custom Resource Manager Created")
@@ -268,8 +268,8 @@ func (crMgr *CRManager) Start() {
 	crMgr.nodePoller.Run()
 
 	stopChan := make(chan struct{})
-	if crMgr.NginxCISConnectMode {
-		go wait.Until(crMgr.nccResourceWorker, time.Second, stopChan)
+	if crMgr.IngressLinkMode {
+		go wait.Until(crMgr.ilResourceWorker, time.Second, stopChan)
 	} else {
 		go wait.Until(crMgr.customResourceWorker, time.Second, stopChan)
 	}

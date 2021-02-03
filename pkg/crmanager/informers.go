@@ -49,10 +49,10 @@ func (crInfr *CRInformer) start() {
 		go crInfr.tsInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.tsInformer.HasSynced)
 	}
-	if crInfr.nccInformer != nil {
-		log.Infof("Starting NginxCisConnector Informer")
-		go crInfr.nccInformer.Run(crInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, crInfr.nccInformer.HasSynced)
+	if crInfr.ilInformer != nil {
+		log.Infof("Starting IngressLink Informer")
+		go crInfr.ilInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.ilInformer.HasSynced)
 	}
 	if crInfr.ednsInformer != nil {
 		log.Infof("Starting ExternalDNS Informer")
@@ -150,8 +150,8 @@ func (crMgr *CRManager) newNamespacedInformer(
 		),
 	}
 
-	if crMgr.NginxCISConnectMode {
-		crInf.nccInformer = cisinfv1.NewFilteredNginxCisConnectorInformer(
+	if crMgr.IngressLinkMode {
+		crInf.ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
 			crMgr.kubeCRClient,
 			namespace,
 			resyncPeriod,
@@ -223,12 +223,12 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 		)
 	}
 
-	if crInf.nccInformer != nil {
-		crInf.nccInformer.AddEventHandler(
+	if crInf.ilInformer != nil {
+		crInf.ilInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { crMgr.enqueueNginxCisConnector(obj) },
-				UpdateFunc: func(oldObj, newObj interface{}) { crMgr.enqueueUpdatedNginxCisConnector(oldObj, newObj) },
-				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedNginxCisConnector(obj) },
+				AddFunc:    func(obj interface{}) { crMgr.enqueueIngressLink(obj) },
+				UpdateFunc: func(oldObj, newObj interface{}) { crMgr.enqueueUpdatedIngressLink(oldObj, newObj) },
+				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedIngressLink(obj) },
 			},
 		)
 	}
@@ -468,26 +468,26 @@ func (crMgr *CRManager) enqueueDeletedTransportServer(obj interface{}) {
 	crMgr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueNginxCisConnector(obj interface{}) {
-	ncc := obj.(*cisapiv1.NginxCisConnector)
-	log.Infof("Enqueueing NginxCisConnector: %v", ncc)
+func (crMgr *CRManager) enqueueIngressLink(obj interface{}) {
+	ingLink := obj.(*cisapiv1.IngressLink)
+	log.Infof("Enqueueing IngressLink: %v", ingLink)
 	key := &rqKey{
-		namespace: ncc.ObjectMeta.Namespace,
-		kind:      NginxCisConnector,
-		rscName:   ncc.ObjectMeta.Name,
+		namespace: ingLink.ObjectMeta.Namespace,
+		kind:      IngressLink,
+		rscName:   ingLink.ObjectMeta.Name,
 		rsc:       obj,
 	}
 
 	crMgr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueDeletedNginxCisConnector(obj interface{}) {
-	ncc := obj.(*cisapiv1.NginxCisConnector)
-	log.Infof("Enqueueing NginxCisConnector: %v on Delete", ncc)
+func (crMgr *CRManager) enqueueDeletedIngressLink(obj interface{}) {
+	ingLink := obj.(*cisapiv1.IngressLink)
+	log.Infof("Enqueueing IngressLink: %v on Delete", ingLink)
 	key := &rqKey{
-		namespace: ncc.ObjectMeta.Namespace,
-		kind:      NginxCisConnector,
-		rscName:   ncc.ObjectMeta.Name,
+		namespace: ingLink.ObjectMeta.Namespace,
+		kind:      IngressLink,
+		rscName:   ingLink.ObjectMeta.Name,
 		rsc:       obj,
 		rscDelete: true,
 	}
@@ -495,28 +495,28 @@ func (crMgr *CRManager) enqueueDeletedNginxCisConnector(obj interface{}) {
 	crMgr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueUpdatedNginxCisConnector(oldObj, newObj interface{}) {
-	oldNCC := oldObj.(*cisapiv1.NginxCisConnector)
-	newNCC := newObj.(*cisapiv1.NginxCisConnector)
+func (crMgr *CRManager) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
+	oldIngLink := oldObj.(*cisapiv1.IngressLink)
+	newIngLink := newObj.(*cisapiv1.IngressLink)
 
-	if oldNCC.Spec.VirtualServerAddress != newNCC.Spec.VirtualServerAddress {
+	if oldIngLink.Spec.VirtualServerAddress != newIngLink.Spec.VirtualServerAddress {
 		key := &rqKey{
-			namespace: oldNCC.ObjectMeta.Namespace,
-			kind:      NginxCisConnector,
-			rscName:   oldNCC.ObjectMeta.Name,
-			rsc:       oldNCC,
+			namespace: oldIngLink.ObjectMeta.Namespace,
+			kind:      IngressLink,
+			rscName:   oldIngLink.ObjectMeta.Name,
+			rsc:       oldIngLink,
 			rscDelete: true,
 		}
 
 		crMgr.rscQueue.Add(key)
 	}
 
-	log.Infof("Enqueueing NginxCisConnector: %v on Update", newNCC)
+	log.Infof("Enqueueing IngressLink: %v on Update", newIngLink)
 	key := &rqKey{
-		namespace: newNCC.ObjectMeta.Namespace,
-		kind:      NginxCisConnector,
-		rscName:   newNCC.ObjectMeta.Name,
-		rsc:       newNCC,
+		namespace: newIngLink.ObjectMeta.Namespace,
+		kind:      IngressLink,
+		rscName:   newIngLink.ObjectMeta.Name,
+		rsc:       newIngLink,
 	}
 
 	crMgr.rscQueue.Add(key)

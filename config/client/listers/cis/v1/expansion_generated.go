@@ -26,13 +26,13 @@ type ExternalDNSListerExpansion interface{}
 // ExternalDNSNamespaceLister.
 type ExternalDNSNamespaceListerExpansion interface{}
 
-// NginxCisConnectorListerExpansion allows custom methods to be added to
-// NginxCisConnectorLister.
-type NginxCisConnectorListerExpansion interface{}
+// IngressLinkListerExpansion allows custom methods to be added to
+// IngressLinkLister.
+type IngressLinkListerExpansion interface{}
 
-// NginxCisConnectorNamespaceListerExpansion allows custom methods to be added to
-// NginxCisConnectorNamespaceLister.
-type NginxCisConnectorNamespaceListerExpansion interface{}
+// IngressLinkNamespaceListerExpansion allows custom methods to be added to
+// IngressLinkNamespaceLister.
+type IngressLinkNamespaceListerExpansion interface{}
 
 // TLSProfileListerExpansion allows custom methods to be added to
 // TLSProfileLister.

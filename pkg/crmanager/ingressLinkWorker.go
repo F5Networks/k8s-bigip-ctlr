@@ -30,14 +30,14 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
-// customResourceWorker starts the Custom Resource Worker.
-func (crMgr *CRManager) nccResourceWorker() {
+// ilResourceWorker starts the Custom Resource Worker.
+func (crMgr *CRManager) ilResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
-	for crMgr.processNCCResource() {
+	for crMgr.processILResource() {
 	}
 }
 
-func (crMgr *CRManager) processNCCResource() bool {
+func (crMgr *CRManager) processILResource() bool {
 
 	key, quit := crMgr.rscQueue.Get()
 	if quit {
@@ -56,20 +56,20 @@ func (crMgr *CRManager) processNCCResource() bool {
 
 	// Check the type of resource and process accordingly.
 	switch rKey.kind {
-	case NginxCisConnector:
-		ncc := rKey.rsc.(*cisapiv1.NginxCisConnector)
-		log.Infof("Worker got NginxCisConnector: %v\n", ncc)
-		log.Infof("NginxCisConnector Selector: %v\n", ncc.Spec.Selector.String())
-		err := crMgr.syncNginxCisConnector(ncc, rKey.rscDelete)
+	case IngressLink:
+		ingLink := rKey.rsc.(*cisapiv1.IngressLink)
+		log.Infof("Worker got IngressLink: %v\n", ingLink)
+		log.Infof("IngressLink Selector: %v\n", ingLink.Spec.Selector.String())
+		err := crMgr.syncIngressLink(ingLink, rKey.rscDelete)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 			isError = true
 		}
 	case Service, Endpoints:
-		nccs := crMgr.getAllNginxCisConnectors(rKey.namespace)
+		ingLinks := crMgr.getAllIngressLinks(rKey.namespace)
 
-		if nccs == nil {
+		if ingLinks == nil {
 			break
 		}
 
@@ -86,9 +86,9 @@ func (crMgr *CRManager) processNCCResource() bool {
 
 		var err error
 
-		for _, ncc := range nccs {
+		for _, ingLink := range ingLinks {
 			matched := true
-			for k, v := range ncc.Spec.Selector.MatchLabels {
+			for k, v := range ingLink.Spec.Selector.MatchLabels {
 				if svc.ObjectMeta.Labels[k] != v {
 					matched = false
 					break
@@ -97,7 +97,7 @@ func (crMgr *CRManager) processNCCResource() bool {
 			if !matched {
 				continue
 			}
-			err = crMgr.syncNginxCisConnector(ncc, false)
+			err = crMgr.syncIngressLink(ingLink, false)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -148,9 +148,9 @@ func (svcs Services) Swap(i, j int) {
 	svcs[i], svcs[j] = svcs[j], svcs[i]
 }
 
-func (crMgr *CRManager) getKICServiceOfNCC(ncc *cisapiv1.NginxCisConnector) (*v1.Service, error) {
+func (crMgr *CRManager) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink) (*v1.Service, error) {
 	selector := ""
-	for k, v := range ncc.Spec.Selector.MatchLabels {
+	for k, v := range ingLink.Spec.Selector.MatchLabels {
 		selector += fmt.Sprintf("%v=%v,", k, v)
 	}
 	selector = selector[:len(selector)-1]
@@ -160,15 +160,15 @@ func (crMgr *CRManager) getKICServiceOfNCC(ncc *cisapiv1.NginxCisConnector) (*v1
 	}
 
 	// Identify services that matches the given label
-	serviceList, err := crMgr.kubeClient.CoreV1().Services(ncc.ObjectMeta.Namespace).List(svcListOptions)
+	serviceList, err := crMgr.kubeClient.CoreV1().Services(ingLink.ObjectMeta.Namespace).List(svcListOptions)
 
 	if err != nil {
-		log.Errorf("Error getting service list From NginxCisConnector. Error: %v", err)
+		log.Errorf("Error getting service list From IngressLink. Error: %v", err)
 		return nil, err
 	}
 
 	if len(serviceList.Items) == 0 {
-		log.Infof("No services for with labels : %v", ncc.Spec.Selector.MatchLabels)
+		log.Infof("No services for with labels : %v", ingLink.Spec.Selector.MatchLabels)
 		return nil, nil
 	}
 
@@ -180,23 +180,23 @@ func (crMgr *CRManager) getKICServiceOfNCC(ncc *cisapiv1.NginxCisConnector) (*v1
 	return &serviceList.Items[0], nil
 }
 
-func (crMgr *CRManager) syncNginxCisConnector(
-	ncc *cisapiv1.NginxCisConnector,
-	isNCCDeleted bool,
+func (crMgr *CRManager) syncIngressLink(
+	ingLink *cisapiv1.IngressLink,
+	isILDeleted bool,
 ) error {
 
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
-		log.Debugf("Finished syncing NginxCisController %+v (%v)",
-			ncc, endTime.Sub(startTime))
+		log.Debugf("Finished syncing Ingress Links %+v (%v)",
+			ingLink, endTime.Sub(startTime))
 	}()
 
-	if isNCCDeleted {
+	if isILDeleted {
 		var delRes []string
 		for k, _ := range crMgr.resources.rsMap {
-			rsName := "ncc_" + formatVirtualServerName(
-				ncc.Spec.VirtualServerAddress,
+			rsName := "ingress_link_" + formatVirtualServerName(
+				ingLink.Spec.VirtualServerAddress,
 				0,
 			)
 			if strings.HasPrefix(k, rsName[:len(rsName)-1]) {
@@ -209,7 +209,7 @@ func (crMgr *CRManager) syncNginxCisConnector(
 		return nil
 	}
 
-	svc, err := crMgr.getKICServiceOfNCC(ncc)
+	svc, err := crMgr.getKICServiceOfIngressLink(ingLink)
 	if err != nil {
 		return err
 	}
@@ -219,8 +219,8 @@ func (crMgr *CRManager) syncNginxCisConnector(
 	}
 
 	for _, port := range svc.Spec.Ports {
-		rsName := "ncc_" + formatVirtualServerName(
-			ncc.Spec.VirtualServerAddress,
+		rsName := "ingress_link_" + formatVirtualServerName(
+			ingLink.Spec.VirtualServerAddress,
 			port.Port,
 		)
 
@@ -234,11 +234,11 @@ func (crMgr *CRManager) syncNginxCisConnector(
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
 		rsCfg.Virtual.SNAT = DEFAULT_SNAT
-		if len(ncc.Spec.IRules) > 0 {
-			rsCfg.Virtual.IRules = ncc.Spec.IRules
+		if len(ingLink.Spec.IRules) > 0 {
+			rsCfg.Virtual.IRules = ingLink.Spec.IRules
 		}
 		rsCfg.Virtual.SetVirtualAddress(
-			ncc.Spec.VirtualServerAddress,
+			ingLink.Spec.VirtualServerAddress,
 			port.Port,
 		)
 
@@ -259,17 +259,17 @@ func (crMgr *CRManager) syncNginxCisConnector(
 		crMgr.resources.rsMap[rsName] = rsCfg
 
 		if crMgr.ControllerMode == NodePortMode {
-			crMgr.updatePoolMembersForNodePort(rsCfg, ncc.ObjectMeta.Namespace)
+			crMgr.updatePoolMembersForNodePort(rsCfg, ingLink.ObjectMeta.Namespace)
 		} else {
-			crMgr.updatePoolMembersForCluster(rsCfg, ncc.ObjectMeta.Namespace)
+			crMgr.updatePoolMembersForCluster(rsCfg, ingLink.ObjectMeta.Namespace)
 		}
 	}
 
 	return nil
 }
 
-func (crMgr *CRManager) getAllNginxCisConnectors(namespace string) []*cisapiv1.NginxCisConnector {
-	var allNCCs []*cisapiv1.NginxCisConnector
+func (crMgr *CRManager) getAllIngressLinks(namespace string) []*cisapiv1.IngressLink {
+	var allIngLinks []*cisapiv1.IngressLink
 
 	crInf, ok := crMgr.getNamespacedInformer(namespace)
 	if !ok {
@@ -277,20 +277,20 @@ func (crMgr *CRManager) getAllNginxCisConnectors(namespace string) []*cisapiv1.N
 		return nil
 	}
 	// Get list of VirtualServers and process them.
-	orderedNCCs, err := crInf.nccInformer.GetIndexer().ByIndex("namespace", namespace)
+	orderedIngLinks, err := crInf.ilInformer.GetIndexer().ByIndex("namespace", namespace)
 	if err != nil {
 		log.Errorf("Unable to get list of VirtualServers for namespace '%v': %v",
 			namespace, err)
 		return nil
 	}
 
-	for _, obj := range orderedNCCs {
-		ncc := obj.(*cisapiv1.NginxCisConnector)
+	for _, obj := range orderedIngLinks {
+		ingLink := obj.(*cisapiv1.IngressLink)
 		// TODO
-		// Validate the NginxCisController List to check if all the vs are valid.
+		// Validate the IngressLink List to check if all the vs are valid.
 
-		allNCCs = append(allNCCs, ncc)
+		allIngLinks = append(allIngLinks, ingLink)
 	}
 
-	return allNCCs
+	return allIngLinks
 }

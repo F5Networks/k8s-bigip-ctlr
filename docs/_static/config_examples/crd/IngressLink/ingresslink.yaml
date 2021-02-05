@@ -1,11 +1,12 @@
 apiVersion: "cis.f5.com/v1"
 kind: IngressLink
 metadata:
-  name: ingress-link
+  name: nginx-ingress
+  namespace: nginx-ingress
 spec:
-  virtualServerAddress: "172.16.3.4"
+  virtualServerAddress: "192.168.10.5"
   iRules:
-    - /Common/test-irule
+    - /Common/Proxy_Protocol_iRule
   selector:
     matchLabels:
-      app: nginx-kic
+      app: ingresslink

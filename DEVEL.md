@@ -48,19 +48,10 @@ When doing code reviews, here are some things to be considered.
 
 # Managing vendors
 
-Dependencies are managed with godep.
-For details, see https://github.com/tools/godep
+Dependencies are managed with gomod.
+For details, see https://blog.golang.org/using-go-modules
 
-If you just want to build, or make changes that don't affect dependencies, there is nothing special to do.
-
-If your change to modify dependencies, you will need to deal with godep. CThe In general, you will want to:
-
-1. `make godep-restore` - This will install all your dependencies into $GOPATH, and remove the vendor directory.
-   go build will find the versions of the dependencies in $GOPATH, allowing you to easily modify them
-2. Hack. install/upgrade deps with go get. Build/test locally with `make all test`
-3. `make godep-save` - Save the dependencies that are used by the project.
-4. Git diff Godeps/Godeps.json to see what the dependency changes were, to make sure they are expected.
-5. `git add vendor; git commit` - Commit the new vendored versions as its own commit.
+If you just want to build, or make changes that don't affect dependencies, there is nothing special to do. If your change to modify dependencies, you will need to deal with gomod. 
 
 ## Gotchas
 

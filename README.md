@@ -69,12 +69,11 @@ make prod BASE_OS=rhel7
 
 ### Alternate, unofficial build
 
-A normal go and godep toolchain can be used as well
+A normal go toolchain can be used as well
 
 Prerequisites:
-- go 1.7
+- go 1.15
 - $GOPATH pointing at a valid go workspace
-- godep (Only needed to modify vendor's packages)
 - python
 - virtualenv
 

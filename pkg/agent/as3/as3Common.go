@@ -534,11 +534,21 @@ func createUpdateCABundle(prof CustomProfile, caBundleName string, sharedApp as3
 
 func createCertificateDecl(prof CustomProfile, sharedApp as3Application) {
 	if "" != prof.Cert && "" != prof.Key {
-		cert := &as3Certificate{
-			Class:       "Certificate",
-			Certificate: prof.Cert,
-			PrivateKey:  prof.Key,
-			ChainCA:     prof.CAFile,
+		var cert *as3Certificate
+		if prof.PeerCertMode == PeerCertRequired {
+			cert = &as3Certificate{
+				Class:       "Certificate",
+				Certificate: prof.Cert,
+				PrivateKey:  prof.Key,
+				ChainCA:     prof.CAFile,
+			}
+		} else {
+			cert = &as3Certificate{
+				Class:       "Certificate",
+				Certificate: prof.Cert,
+				PrivateKey:  prof.Key,
+				ChainCA:     prof.ChainCA,
+			}
 		}
 
 		sharedApp[as3FormattedString(prof.Name, deriveResourceTypeFromAS3Value(prof.Name))] = cert

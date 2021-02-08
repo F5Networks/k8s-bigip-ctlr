@@ -758,6 +758,7 @@ var _ = Describe("Resource Config Tests", func() {
 					"srver",
 					false,
 					PeerCertDefault,
+					"",
 					"")
 				refs := virtual.ReferencesProfile(cprof)
 				Expect(refs).To(BeFalse())
@@ -780,6 +781,7 @@ var _ = Describe("Resource Config Tests", func() {
 						"srver",
 						false,
 						PeerCertDefault,
+						"",
 						"")
 					refs := virtual.ReferencesProfile(cprof)
 					Expect(refs).To(BeTrue())
@@ -791,6 +793,7 @@ var _ = Describe("Resource Config Tests", func() {
 						"srver",
 						false,
 						PeerCertDefault,
+						"",
 						"")
 					refs := virtual.ReferencesProfile(cprof)
 					Expect(refs).To(BeFalse())

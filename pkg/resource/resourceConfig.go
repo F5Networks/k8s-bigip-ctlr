@@ -2407,6 +2407,7 @@ func NewCustomProfile(
 	sni bool,
 	peerCertMode,
 	caFile string,
+	chainCA string,
 ) CustomProfile {
 	cp := CustomProfile{
 		Name:         profile.Name,
@@ -2417,6 +2418,7 @@ func NewCustomProfile(
 		ServerName:   serverName,
 		SNIDefault:   sni,
 		PeerCertMode: peerCertMode,
+		ChainCA:      chainCA,
 	}
 	if peerCertMode == PeerCertRequired {
 		cp.CAFile = caFile

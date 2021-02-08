@@ -583,9 +583,6 @@ func (crMgr *CRManager) syncVirtualServers(
 		}
 	}
 
-	if isVSDeleted {
-		crMgr.handleVSDeleteForDataGroups(virtual)
-	}
 	var ip string
 	if crMgr.ipamCli != nil {
 		ip = crMgr.requestIP(cidr, virtual.Spec.Host)
@@ -622,12 +619,15 @@ func (crMgr *CRManager) syncVirtualServers(
 			)
 		}
 
+		if isVSDeleted {
+			crMgr.handleVSDeleteForDataGroups(virtual, rsName)
+		}
+
 		// Delete rsCfg if no corresponding virtuals exist
 		// Delete rsCfg if it is HTTP rsCfg and the CR VirtualServer does not handle HTTPTraffic
 		if (len(virtuals) == 0) ||
 			(portStruct.protocol == "http" && !doesVSHandleHTTP(virtual)) {
-			crMgr.resources.deleteVirtualServer(rsName)
-			//TODO: what if last VirtualServer does not have cidr
+			crMgr.deleteVirtualServer(rsName)
 			crMgr.releaseIP(virtual.Spec.Cidr, virtual.Spec.Host)
 			continue
 		}

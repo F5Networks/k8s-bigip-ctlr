@@ -430,7 +430,7 @@ func httpRedirectIRuleNoHost(port int32) string {
 
 // httpRedirectIRule redirects traffic to BIG-IP https vs
 // except for the hostLess CRDs.
-func httpRedirectIRule(port int32) string {
+func httpRedirectIRule(port int32, rsVSName string) string {
 	// The key in the data group is the host name or * to match all.
 	// The data is a list of paths for the host delimited by '|' or '/' for all.
 	iRuleCode := fmt.Sprintf(`
@@ -438,7 +438,7 @@ func httpRedirectIRule(port int32) string {
 			
 			# check if there is an entry in data-groups to accept requests from all domains.
 			# */ represents [* -> Any host / -> default path]
-			set allHosts [class match -value "*/" equals https_redirect_dg]
+			set allHosts [class match -value "*/" equals %[2]s_https_redirect_dg]
 			if {$allHosts != ""} {
 				HTTP::redirect https://[getfield [HTTP::host] ":" 1]:443[HTTP::uri]
 				return
@@ -456,12 +456,12 @@ func httpRedirectIRule(port int32) string {
 			}
 			# Compares the hostpath with the entries in https_redirect_dg
 			for {set i $rc} {$i >= 0} {incr i -1} {
-				set paths [class match -value $host equals https_redirect_dg] 
+				set paths [class match -value $host equals %[2]s_https_redirect_dg]
 				# Check if host with combination of "/" matches https_redirect_dg
 				if {$paths == ""} {
 					set hosts ""
 					append hosts $host "/"
-					set paths [class match -value $hosts equals https_redirect_dg] 
+					set paths [class match -value $hosts equals %[2]s_https_redirect_dg]
 				}
 				# Trim the uri to last slash
 				if {$paths == ""} {
@@ -487,10 +487,10 @@ func httpRedirectIRule(port int32) string {
 					}
 				}
 				if {$redir == 1} {
-					HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]
+					HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%[1]d[HTTP::uri]
 				}
 			}
-		}`, port)
+		}`, port, rsVSName)
 
 	return iRuleCode
 }
@@ -550,6 +550,7 @@ func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap) {
 
 func (crMgr *CRManager) handleVSDeleteForDataGroups(
 	virtual *cisapiv1.VirtualServer,
+	rsVSName string,
 ) {
 	if len(virtual.Spec.TLSProfileName) == 0 {
 		return
@@ -575,7 +576,7 @@ func (crMgr *CRManager) handleVSDeleteForDataGroups(
 
 	for _, dgName := range dgNames {
 		refKey := NameRef{
-			Name:      dgName,
+			Name:      getRSCfgResName(rsVSName, dgName),
 			Partition: DEFAULT_PARTITION,
 		}
 
@@ -646,7 +647,7 @@ func (crMgr *CRManager) syncDataGroups(
 	}
 }
 
-func (crMgr *CRManager) sslPassthroughIRule() string {
+func (crMgr *CRManager) sslPassthroughIRule(rsVSName string) string {
 	dgPath := crMgr.dgPath
 
 	iRule := fmt.Sprintf(`
@@ -738,7 +739,7 @@ func (crMgr *CRManager) sslPassthroughIRule() string {
 								incr extension_start $extension_len
 							}
 							if { [info exists tls_servername] } {
-								set passthru_class "/%[1]s/ssl_passthrough_servername_dg"
+								set passthru_class "/%[1]s/%[2]s_ssl_passthrough_servername_dg"
 								if { [class exists $passthru_class] } {
 									set servername_lower [string tolower $tls_servername]
 									SSL::disable serverside
@@ -751,10 +752,10 @@ func (crMgr *CRManager) sslPassthroughIRule() string {
 										HTTP::disable
 									}
 
-									set ab_class "/%[1]s/ab_deployment_dg"
+									set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
 									if { not [class exists $ab_class] } {
 										if { $dflt_pool_passthrough == "" } then {
-											log local0.debug "Failed to find pool for $servername_lower"
+											log local0.debug "Failed to find pool for $servername_lower $"
 										} else {
 											pool $dflt_pool_passthrough
 										}
@@ -802,8 +803,8 @@ func (crMgr *CRManager) sslPassthroughIRule() string {
 				}
 				# Disable serverside ssl and enable only for reencrypt routes													
                 SSL::disable serverside
-				set reencrypt_class "/%[1]s/ssl_reencrypt_servername_dg"
-				set edge_class "/%[1]s/ssl_edge_servername_dg"
+				set reencrypt_class "/%[1]s/%[2]s_ssl_reencrypt_servername_dg"
+				set edge_class "/%[1]s/%[2]s_ssl_edge_servername_dg"
                 if { [class exists $reencrypt_class] || [class exists $edge_class] } {
 					# Compares the routepath with the entries in ssl_reencrypt_servername_dg and
 					# ssl_edge_servername_dg.
@@ -833,7 +834,7 @@ func (crMgr *CRManager) sslPassthroughIRule() string {
 						}
 					}
                 }
-                set ab_class "/%[1]s/ab_deployment_dg"
+                set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
                 # Handle requests sent to unknown hosts.
                 # For valid hosts, Send the request to respective pool.
                 if { not [info exists dflt_pool] } then {
@@ -854,8 +855,8 @@ func (crMgr *CRManager) sslPassthroughIRule() string {
         }
 
 		when SERVER_CONNECTED {
-			set reencryptssl_class "/%[1]s/ssl_reencrypt_serverssl_dg"
-			set edgessl_class "/%[1]s/ssl_edge_serverssl_dg"
+			set reencryptssl_class "/%[1]s/%[2]s_ssl_reencrypt_serverssl_dg"
+			set edgessl_class "/%[1]s/%[2]s_ssl_edge_serverssl_dg"
 			if { [info exists sslpath] and [class exists $reencryptssl_class] } {
 				# Find the nearest child path which matches the reencrypt_class
 				for {set i $rc} {$i >= 0} {incr i -1} {
@@ -888,20 +889,20 @@ func (crMgr *CRManager) sslPassthroughIRule() string {
 						SSL::profile $reen
 				}
 			}
-        }`, dgPath)
+        }`, dgPath, rsVSName)
 
-	iRuleCode := fmt.Sprintf("%s\n\n%s", crMgr.selectPoolIRuleFunc(), iRule)
+	iRuleCode := fmt.Sprintf("%s\n\n%s", crMgr.selectPoolIRuleFunc(rsVSName), iRule)
 
 	return iRuleCode
 }
 
-func (crMgr *CRManager) selectPoolIRuleFunc() string {
+func (crMgr *CRManager) selectPoolIRuleFunc(rsVSName string) string {
 	dgPath := crMgr.dgPath
 
 	iRuleFunc := fmt.Sprintf(`
 		proc select_ab_pool {path default_pool } {
 			set last_slash [string length $path]
-			set ab_class "/%s/ab_deployment_dg"
+			set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
 			while {$last_slash >= 0} {
 				if {[class match $path equals $ab_class]} then {
 					break
@@ -930,7 +931,7 @@ func (crMgr *CRManager) selectPoolIRuleFunc() string {
 				HTTP::respond 503
 			}
 			return $default_pool
-		}`, dgPath)
+		}`, dgPath, rsVSName)
 
 	return iRuleFunc
 }
@@ -938,11 +939,13 @@ func (crMgr *CRManager) selectPoolIRuleFunc() string {
 func updateDataGroupOfDgName(
 	intDgMap InternalDataGroupMap,
 	virtual *cisapiv1.VirtualServer,
+	rsVSName string,
 	dgName string,
 ) {
 	hostName := virtual.Spec.Host
 	namespace := virtual.ObjectMeta.Namespace
 
+	rsDGName := getRSCfgResName(rsVSName, dgName)
 	switch dgName {
 	case EdgeHostsDgName, ReencryptHostsDgName:
 		// Combination of hostName and path are used as key in edge Datagroup.
@@ -953,13 +956,13 @@ func updateDataGroupOfDgName(
 			routePath := hostName + path
 			routePath = strings.TrimSuffix(routePath, "/")
 			poolName := formatVirtualServerPoolName(namespace, pl.Service, pl.ServicePort, pl.NodeMemberLabel)
-			updateDataGroup(intDgMap, dgName,
+			updateDataGroup(intDgMap, rsDGName,
 				DEFAULT_PARTITION, namespace, routePath, poolName)
 		}
 	case PassthroughHostsDgName:
 		for _, pl := range virtual.Spec.Pools {
 			poolName := formatVirtualServerPoolName(namespace, pl.Service, pl.ServicePort, pl.NodeMemberLabel)
-			updateDataGroup(intDgMap, dgName,
+			updateDataGroup(intDgMap, rsDGName,
 				DEFAULT_PARTITION, namespace, hostName, poolName)
 		}
 	case HttpsRedirectDgName:
@@ -969,7 +972,7 @@ func updateDataGroupOfDgName(
 				path = "/"
 			}
 			routePath := hostName + path
-			updateDataGroup(intDgMap, dgName,
+			updateDataGroup(intDgMap, rsDGName,
 				DEFAULT_PARTITION, namespace, routePath, path)
 		}
 	}

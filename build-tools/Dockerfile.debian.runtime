@@ -25,6 +25,9 @@ COPY as3-schema-3.25.0-3-cis.json $APPPATH/vendor/src/f5/schemas/
 COPY k8s-bigip-ctlr $APPPATH/bin
 COPY VERSION_BUILD.json $APPPATH/vendor/src/f5/
 
+# Enable CN Certificate validation 
+ENV GODEBUG x509ignoreCN=0
+
 USER ctlr
 
 # Run the run application in the projects bin directory.

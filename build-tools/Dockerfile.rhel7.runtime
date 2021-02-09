@@ -49,6 +49,9 @@ RUN echo $'#!/bin/sh\n\
 	  exec $APPPATH/bin/k8s-bigip-ctlr.real "$@"' > $APPPATH/bin/k8s-bigip-ctlr && \
     chmod +x $APPPATH/bin/k8s-bigip-ctlr
 
+# Enable CN Certificate validation 
+ENV GODEBUG x509ignoreCN=0
+
 USER ctlr
 
 # Run the run application in the projects bin directory.

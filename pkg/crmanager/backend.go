@@ -293,8 +293,7 @@ func extractVirtualAddress(str string) string {
 }
 
 func getDGRecordValueForAS3(dgName string, sharedApp as3Application, virtualAddress string) (string, bool) {
-	switch dgName {
-	case ReencryptServerSslDgName:
+	if strings.HasSuffix(dgName, ReencryptServerSslDgName) {
 		for _, v := range sharedApp {
 			if svc, ok := v.(*as3Service); ok && svc.Class == "Service_HTTPS" &&
 				svc.VirtualAddresses[0] == virtualAddress {
@@ -406,7 +405,7 @@ func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 	for _, v := range cfg.Virtual.IRules {
 		splits := strings.Split(v, "/")
 		iRuleName := splits[len(splits)-1]
-		matched := false
+
 		var iRuleNoPort string
 		lastIndex := strings.LastIndex(iRuleName, "_")
 		if lastIndex > 0 {
@@ -414,21 +413,14 @@ func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 		} else {
 			iRuleNoPort = iRuleName
 		}
-		if iRuleNoPort == HttpRedirectIRuleName || iRuleNoPort == HttpRedirectNoHostIRuleName || iRuleName == SslPassthroughIRuleName {
-			matched = true
-		}
+		if strings.HasSuffix(iRuleNoPort, HttpRedirectIRuleName) ||
+			strings.HasSuffix(iRuleNoPort, HttpRedirectNoHostIRuleName) ||
+			strings.HasSuffix(iRuleName, SslPassthroughIRuleName) {
 
-		if matched {
-			if iRuleName == SslPassthroughIRuleName {
-				svc.ServerTLS = &as3ResourcePointer{
-					BigIP: "/Common/clientssl",
-				}
-				updateVirtualToHTTPS(svc)
-			}
 			IRules = append(IRules, iRuleName)
 		} else {
 			irule := &as3ResourcePointer{
-				BigIP: fmt.Sprintf("%v", v),
+				BigIP: v,
 			}
 			IRules = append(IRules, irule)
 		}

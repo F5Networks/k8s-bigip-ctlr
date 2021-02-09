@@ -197,6 +197,14 @@ func (crMgr *CRManager) addIRule(name, partition, rule string) {
 	}
 }
 
+func (crMgr *CRManager) removeIRule(name, partition string) {
+	key := NameRef{
+		Name:      name,
+		Partition: partition,
+	}
+	delete(crMgr.irulesMap, key)
+}
+
 // Creates an InternalDataGroup if it doesn't already exist
 func (crMgr *CRManager) addInternalDataGroup(name, partition string) DataGroupNamespaceMap {
 	crMgr.intDgMutex.Lock()
@@ -601,7 +609,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					path := pl.Path
 					sslPath := hostName + path
 					sslPath = strings.TrimSuffix(sslPath, "/")
-					updateDataGroup(crMgr.intDgMap, EdgeServerSslDgName,
+					updateDataGroup(crMgr.intDgMap, getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName),
 						DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)
 
 				case TLSReencrypt:
@@ -611,7 +619,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					sslPath = strings.TrimSuffix(sslPath, "/")
 					serverSsl := AS3NameFormatter("crd_" + ip + "_tls_client")
 					if "" != tls.Spec.TLS.ServerSSL {
-						updateDataGroup(crMgr.intDgMap, ReencryptServerSslDgName,
+						updateDataGroup(crMgr.intDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
 							DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)
 					}
 				}
@@ -624,6 +632,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 				updateDataGroupOfDgName(
 					crMgr.intDgMap,
 					vs,
+					rsCfg.Virtual.Name,
 					PassthroughHostsDgName,
 				)
 			case TLSReencrypt:
@@ -635,12 +644,14 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 				updateDataGroupOfDgName(
 					crMgr.intDgMap,
 					vs,
+					rsCfg.Virtual.Name,
 					ReencryptHostsDgName,
 				)
 			case TLSEdge:
 				updateDataGroupOfDgName(
 					crMgr.intDgMap,
 					vs,
+					rsCfg.Virtual.Name,
 					EdgeHostsDgName,
 				)
 			}
@@ -672,17 +683,18 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			log.Debugf("Redirect HTTP(insecure) requests for VirtualServer %s", vs.ObjectMeta.Name)
 			var ruleName string
 			if vs.Spec.Host == "" {
-				ruleName = fmt.Sprintf("%s_%d", HttpRedirectNoHostIRuleName, httpsPort)
+				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectNoHostIRuleName), httpsPort)
 				crMgr.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRuleNoHost(httpsPort))
 			} else {
-				ruleName = fmt.Sprintf("%s_%d", HttpRedirectIRuleName, httpsPort)
-				crMgr.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(httpsPort))
+				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectIRuleName), httpsPort)
+				crMgr.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(httpsPort, rsCfg.Virtual.Name))
 			}
 			ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
 			rsCfg.Virtual.AddIRule(ruleName)
 			updateDataGroupOfDgName(
 				crMgr.intDgMap,
 				vs,
+				rsCfg.Virtual.Name,
 				HttpsRedirectDgName,
 			)
 		case TLSAllowInsecure:
@@ -1646,7 +1658,7 @@ func AS3NameFormatter(name string) string {
 }
 
 func (crMgr *CRManager) handleDataGroupIRules(
-	rc *ResourceConfig,
+	rsCfg *ResourceConfig,
 	virtualName string,
 	vsHost string,
 	tls *v1.TLSProfile,
@@ -1655,26 +1667,35 @@ func (crMgr *CRManager) handleDataGroupIRules(
 	if nil != tls {
 		termination := tls.Spec.TLS.Termination
 		passThroughIRuleName := JoinBigipPath(DEFAULT_PARTITION,
-			SslPassthroughIRuleName)
+			getRSCfgResName(rsCfg.Virtual.Name, SslPassthroughIRuleName))
 		switch termination {
 		case TLSEdge:
 			crMgr.addIRule(
-				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
-			crMgr.addInternalDataGroup(EdgeHostsDgName, DEFAULT_PARTITION)
-			crMgr.addInternalDataGroup(EdgeServerSslDgName, DEFAULT_PARTITION)
+				getRSCfgResName(rsCfg.Virtual.Name, SslPassthroughIRuleName), DEFAULT_PARTITION, crMgr.sslPassthroughIRule(rsCfg.Virtual.Name))
+			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), DEFAULT_PARTITION)
+			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName), DEFAULT_PARTITION)
 		case TLSPassthrough:
 			crMgr.addIRule(
-				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
-			crMgr.addInternalDataGroup(PassthroughHostsDgName, DEFAULT_PARTITION)
+				getRSCfgResName(rsCfg.Virtual.Name, SslPassthroughIRuleName), DEFAULT_PARTITION, crMgr.sslPassthroughIRule(rsCfg.Virtual.Name))
+			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, PassthroughHostsDgName), DEFAULT_PARTITION)
 		case TLSReencrypt:
 			crMgr.addIRule(
-				SslPassthroughIRuleName, DEFAULT_PARTITION, crMgr.sslPassthroughIRule())
-			crMgr.addInternalDataGroup(ReencryptHostsDgName, DEFAULT_PARTITION)
-			crMgr.addInternalDataGroup(ReencryptServerSslDgName, DEFAULT_PARTITION)
+				getRSCfgResName(rsCfg.Virtual.Name, SslPassthroughIRuleName), DEFAULT_PARTITION, crMgr.sslPassthroughIRule(rsCfg.Virtual.Name))
+			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptHostsDgName), DEFAULT_PARTITION)
+			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName), DEFAULT_PARTITION)
 		}
 		if vsHost != "" {
-			rc.Virtual.AddIRule(passThroughIRuleName)
+			rsCfg.Virtual.AddIRule(passThroughIRuleName)
 		}
+	}
+}
+
+func (crMgr *CRManager) deleteVirtualServer(rsName string) {
+	if rsCfg, ok := crMgr.resources.rsMap[rsName]; ok {
+		for _, iruleName := range rsCfg.Virtual.IRules {
+			crMgr.removeIRule(strings.Split(iruleName, "/")[2], DEFAULT_PARTITION)
+		}
+		crMgr.resources.deleteVirtualServer(rsName)
 	}
 }
 
@@ -1729,4 +1750,8 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 	//set allowed VLAN's per TS config
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
 	return nil
+}
+
+func getRSCfgResName(rsVSName, resName string) string {
+	return fmt.Sprintf("%s_%s", rsVSName, resName)
 }

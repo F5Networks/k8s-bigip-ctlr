@@ -1384,9 +1384,6 @@ func (appMgr *Manager) syncIngresses(
 						}
 					}
 				}
-				if dep.Kind == WhitelistDep {
-					rsCfg.DeleteWhitelistCondition(dep.Name)
-				}
 			}
 
 			if ok, found, updated := appMgr.handleConfigForType(
@@ -1598,7 +1595,7 @@ func (appMgr *Manager) syncRoutes(
 					}
 				}
 				if dep.Kind == WhitelistDep {
-					rsCfg.DeleteWhitelistCondition(dep.Name)
+					rsCfg.DeleteWhitelistCondition()
 				}
 			}
 			// Sort the rules

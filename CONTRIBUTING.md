@@ -86,4 +86,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 ### Contributor License Agreement
-Individuals or business entities who contribute to this project must have completed and submitted the [F5® Contributor License Agreement](http://clouddocs.f5.com/containers/v1/cla_landing.html) to ContainerConnector_CLA@f5.com prior to their code submission being included in this project. Please include your github handle in the CLA email.
+Individuals or business entities who contribute to this project must have completed and submitted the [F5® Contributor License Agreement](http://clouddocs.f5.com/containers/v2/cla_landing.html) to ContainerConnector_CLA@f5.com prior to their code submission being included in this project. Please include your github handle in the CLA email.

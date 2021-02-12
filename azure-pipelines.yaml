@@ -10,10 +10,9 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  imageName: 'n.srivastav/k8s-bigip-ctlr-azure'
-  serviceConnection: 'n.srivastav'
-  redhatRepo: 'lohiya'
-  redhatConnection: 'lohiya.redhat'
+  imageName: 'f5networks/k8s-bigip-ctlr-devel'
+  serviceConnection: 'quay-bot'
+  redhatConnection: 'redhat-bot'
 
 steps:
   - task: Docker@2
@@ -35,7 +34,7 @@ steps:
       Dockerfile: build-tools/Dockerfile-int
       buildContext: .
       tags: $(Build.SourceVersion)
-      arguments: "--build-arg BUILD_INFO=$(BUILD_INFO) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS)"
+      arguments: "--build-arg BUILD_INFO=azure-$(Build.BuildId)-$(Build.SourceVersion) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS)"
   - task: Docker@2
     displayName: Push image to quay.io
     inputs:

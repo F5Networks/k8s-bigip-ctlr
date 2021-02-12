@@ -52,8 +52,8 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 
 			if am.as3Validation == true {
 				if ok := am.validateAS3Template(rscCfgMap.Data); !ok {
-					log.Errorf("[AS3] Error validating AS3 template")
-					log.Errorf("[AS3] Error in processing the ConfigMap: %v/%v",
+					log.Errorf("[AS3][Configmap] Error validating AS3 template")
+					log.Errorf("[AS3][Configmap] Error in processing the ConfigMap: %v/%v",
 						rscCfgMap.Namespace, rscCfgMap.Name)
 					continue
 				}
@@ -125,8 +125,8 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 	as3Tmpl := as3Template(rscCfgMap.Data)
 	obj, ok := getAS3ObjectFromTemplate(as3Tmpl)
 	if !ok {
-		log.Errorf("[AS3] Error processing AS3 template")
-		log.Errorf("[AS3] Error in processing the ConfigMap: %v/%v",
+		log.Errorf("[AS3][Configmap] Error processing AS3 template")
+		log.Errorf("[AS3]Error in processing the ConfigMap: %v/%v",
 			rscCfgMap.Namespace, rscCfgMap.Name)
 		return nil, nil
 	}

@@ -1,0 +1,45 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+  - master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  imageName: 'n.srivastav/k8s-bigip-ctlr-azure'
+  serviceConnection: 'n.srivastav'
+  redhatRepo: 'lohiya'
+  redhatConnection: 'lohiya.redhat'
+
+steps:
+  - task: Docker@2
+    displayName: Login to redhat registry
+    inputs:
+      command: login
+      containerRegistry: $(redhatConnection)
+  - task: Docker@2
+    displayName: Login to quay registry
+    inputs:
+      command: login
+      containerRegistry: $(serviceConnection)
+  - task: Docker@2
+    displayName: Build from Red Hat Universal Base Image
+    inputs:
+      command: build
+      containerRegistry: $(serviceConnection)
+      repository: $(imageName)
+      Dockerfile: build-tools/Dockerfile-int
+      buildContext: .
+      tags: $(Build.SourceVersion)
+      arguments: "--build-arg BUILD_INFO=$(BUILD_INFO) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS)"
+  - task: Docker@2
+    displayName: Push image to quay.io
+    inputs:
+      command: push
+      containerRegistry: $(serviceConnection)
+      repository: $(imageName)
+      tags: $(Build.SourceVersion)

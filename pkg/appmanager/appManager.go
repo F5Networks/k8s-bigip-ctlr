@@ -1957,6 +1957,10 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 					appMgr.getEndpointsForNodePort(portSpec.NodePort, portSpec.Port)
 			}
 		}
+		//check if endpoints are found
+		if rsCfg.Pools[index].Members == nil{
+			log.Errorf("[Core]Endpoints could not be fetched for service '#{svcKey.ServiceName}' with port '#{svcKey.ServicePort}'")
+		}
 		return true, "", ""
 	} else {
 		msg := fmt.Sprintf("[CORE] Requested service backend '%+v' not of NodePort or LoadBalancer type",
@@ -1988,6 +1992,10 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 			rsCfg.MetaData.Active = true
 			rsCfg.Pools[index].Members = ipPorts
 		}
+	}
+	//check if endpoints are found
+	if rsCfg.Pools[index].Members == nil{
+		log.Errorf("[Core]Endpoints could not be fetched for service '#{svcKey}' with port '#{sKey.ServicePort}'")
 	}
 	return true, "", ""
 }

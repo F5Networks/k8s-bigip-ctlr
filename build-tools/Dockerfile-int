@@ -1,4 +1,4 @@
-FROM quay.io/n.srivastav/k8s-bigip-ctlr-azure:base_builder as base
+FROM quay.io/f5networks/rhel8_base_builder:latest as base
 
 ENV BASE_PATH "$GOPATH/src/github.com/F5Networks"
 RUN mkdir -p "$BASE_PATH"

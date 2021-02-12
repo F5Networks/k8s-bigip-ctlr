@@ -11,9 +11,8 @@ pool:
 
 variables:
   imageName: 'f5networks/k8s-bigip-ctlr-devel'
-  serviceConnection: 'quay-bot'
+  quayConnection: 'quay-bot'
   redhatConnection: 'redhat-bot'
-
 steps:
   - task: Docker@2
     displayName: Login to redhat registry
@@ -24,12 +23,12 @@ steps:
     displayName: Login to quay registry
     inputs:
       command: login
-      containerRegistry: $(serviceConnection)
+      containerRegistry: $(quayConnection)
   - task: Docker@2
     displayName: Build from Red Hat Universal Base Image
     inputs:
       command: build
-      containerRegistry: $(serviceConnection)
+      containerRegistry: $(quayConnection)
       repository: $(imageName)
       Dockerfile: build-tools/Dockerfile-int
       buildContext: .
@@ -39,6 +38,6 @@ steps:
     displayName: Push image to quay.io
     inputs:
       command: push
-      containerRegistry: $(serviceConnection)
+      containerRegistry: $(quayConnection)
       repository: $(imageName)
       tags: $(Build.SourceVersion)

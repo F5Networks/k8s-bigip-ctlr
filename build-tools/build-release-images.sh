@@ -30,7 +30,9 @@ docker run -v workspace_vol:/build -d --name cp-temp alpine tail -f /dev/null
 # copying CIS binary to local
 docker cp cp-temp:/build/out/$RELEASE_PLATFORM/bin/k8s-bigip-ctlr $WKDIR/
 # copy attributions to local
-docker cp cp-temp:/build/all_attributions.txt $CURDIR/../../k8s-bigip-ctlr
+if [ $LICENSE == 1 ]; then
+  docker cp cp-temp:/build/all_attributions.txt $CURDIR/../../k8s-bigip-ctlr
+fi
 #Removing the temporory container
 docker rm -f cp-temp
 

@@ -1,6 +1,16 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next Release
+-------------
+* :issues:`1457` Each Client request will be logged on BIG-IP when http2-profile is associated to VS
+* :issues:`1498` In iRule openshift_passthrough_irule the variable "$dflt_pool" could not be set correctly when http/2-profile is linked to VS
+
+Limitations
+```````````
+* For AB routes HTTP2 traffic does not distribute properly when http2-profile is associated to VS
+
+
 2.2.3
 -------------
 Bug Fix

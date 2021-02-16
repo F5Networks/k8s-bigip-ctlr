@@ -32,7 +32,7 @@ LABEL name="f5networks/k8s-bigip-ctlr" \
 
 ENV APPPATH /app
 
-RUN mkdir -p "$APPPATH/bin" \
+RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
  && chmod -R 755 "$APPPATH"
 
 WORKDIR $APPPATH
@@ -40,26 +40,52 @@ ARG BUILD_INFO
 ARG VERSION_INFO
 
 COPY $BASE_PATH/$REPO_NAME/build-tools/help.md /tmp/
-#COPY LICENSE /licenses/
+COPY $BASE_PATH/$REPO_NAME/LICENSE /licenses/
+COPY $BASE_PATH/$REPO_NAME/requirements.txt /tmp/requirements.txt
+COPY ["$BASE_PATH/$REPO_NAME/schemas/as3-schema-3.25.0-3-cis.json", \
+    "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.0.json",\
+    "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.1.json",\
+    "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.2.json",\
+    "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.3.json",\
+    "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.4.json",\
+    "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.5.json",\
+    "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.6.json",\
+    "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.7.json",\
+    "$APPPATH/vendor/src/f5/schemas/"]
+
 # Add epel repo for golang-github-cpuguy83-go-md2man install
 RUN	curl -o epel-release-latest-7.noarch.rpm -SL https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
             --retry 9 --retry-max-time 0 -C - && \
 	rpm -ivh epel-release-latest-7.noarch.rpm && rm epel-release-latest-7.noarch.rpm && \
-	microdnf -y install --enablerepo=epel --setopt=tsflags=nodocs golang-github-cpuguy83-go-md2man
+	microdnf -y install --enablerepo=epel --setopt=tsflags=nodocs golang-github-cpuguy83-go-md2man && \
+	rpm -e epel-release
 RUN microdnf --enablerepo=ubi-7 \
       --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms install --nodocs \
       rh-python36 git shadow-utils && \
     microdnf update && \
     microdnf --enablerepo=ubi-7 --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms update nss-tools nss-softokn nss-util && \
     go-md2man -in /tmp/help.md -out /help.1 && rm -f /tmp/help.md && \
+    source scl_source enable rh-python36 && \
+    pip install --no-cache-dir --upgrade pip==20.0.2 && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    python -m pip uninstall -y pip && \
     adduser ctlr && \
     microdnf remove golang-github-cpuguy83-go-md2man git fipscheck fipscheck-lib  less libedit \
     libgnome-keyring openssh openssh-clients  perl-Git  perl-TermReadKey  perl-macros  rsync shadow-utils && \
     microdnf clean all \
     && echo "{\"version\": \"${VERSION_INFO}\", \"build\": \"${BUILD_INFO}\"}" \
-          > $APPPATH/VERSION_BUILD.json
+          > $APPPATH/vendor/src/f5/VERSION_BUILD.json
 
-COPY --from=base "/build/mnt/linux-amd64-release-go1.15/bin/k8s-bigip-ctlr" $APPPATH/bin
+COPY --from=base "/build/mnt/linux-amd64-release-go1.15/bin/k8s-bigip-ctlr" $APPPATH/bin/k8s-bigip-ctlr.real
+
+# entrypoint to enable scl python at runtime
+RUN echo $'#!/bin/sh\n\
+	  source scl_source enable rh-python36\n\
+	  exec $APPPATH/bin/k8s-bigip-ctlr.real "$@"' > $APPPATH/bin/k8s-bigip-ctlr && \
+    chmod +x $APPPATH/bin/k8s-bigip-ctlr
+
+# Enable CN Certificate validation
+ENV GODEBUG x509ignoreCN=0
 
 USER ctlr
 

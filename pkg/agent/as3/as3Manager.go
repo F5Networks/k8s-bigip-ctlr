@@ -107,6 +107,7 @@ type AS3Manager struct {
 	ResourceRequest
 	ResourceResponse
 	as3Version                string
+	as3SchemaVersion          string
 	as3Release                string
 	unprocessableEntityStatus bool
 	shareNodes                bool
@@ -140,6 +141,7 @@ type Params struct {
 	UserAgent                 string
 	As3Version                string
 	As3Release                string
+	As3SchemaVersion          string
 	unprocessableEntityStatus bool
 }
 
@@ -157,6 +159,7 @@ func NewAS3Manager(params *Params) *AS3Manager {
 		userAgent:                 params.UserAgent,
 		as3Version:                params.As3Version,
 		as3Release:                params.As3Release,
+		as3SchemaVersion:          params.As3SchemaVersion,
 		OverriderCfgMapName:       params.OverriderCfgMapName,
 		shareNodes:                params.ShareNodes,
 		l2l3Agent: L2L3Agent{eventChan: params.EventChan,
@@ -231,7 +234,7 @@ func (am *AS3Manager) getUnifiedDeclaration(cfg *AS3Config) as3Declaration {
 	// Need to process Routes
 	var as3Obj map[string]interface{}
 
-	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, am.as3Version, am.as3Release, am.as3Version)
+	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, am.as3Version, am.as3Release, am.as3SchemaVersion)
 	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Obj)
 	adc, _ := as3Obj["declaration"].(map[string]interface{})
 
@@ -278,7 +281,7 @@ func (am *AS3Manager) getUnifiedDeclaration(cfg *AS3Config) as3Declaration {
 // Function to prepare empty AS3 declaration
 func (am *AS3Manager) getEmptyAs3Declaration(partition string) as3Declaration {
 	var as3Config map[string]interface{}
-	baseAS3ConfigEmpty := fmt.Sprintf(baseAS3Config, am.as3Version, am.as3Release, am.as3Version)
+	baseAS3ConfigEmpty := fmt.Sprintf(baseAS3Config, am.as3Version, am.as3Release, am.as3SchemaVersion)
 	_ = json.Unmarshal([]byte(baseAS3ConfigEmpty), &as3Config)
 	decl := as3Config["declaration"].(map[string]interface{})
 
@@ -296,7 +299,7 @@ func (am *AS3Manager) getEmptyAs3Declaration(partition string) as3Declaration {
 // Function to prepare tenantobjects
 func (am *AS3Manager) getTenantObjects(partitions []string) string {
 	var as3Config map[string]interface{}
-	baseAS3ConfigEmpty := fmt.Sprintf(baseAS3Config, am.as3Version, am.as3Release, am.as3Version)
+	baseAS3ConfigEmpty := fmt.Sprintf(baseAS3Config, am.as3Version, am.as3Release, am.as3SchemaVersion)
 	_ = json.Unmarshal([]byte(baseAS3ConfigEmpty), &as3Config)
 	decl := as3Config["declaration"].(map[string]interface{})
 	for _, partition := range partitions {
@@ -405,9 +408,10 @@ func (am *AS3Manager) postAgentResponse(msgRsp MessageResponse) {
 // compatible with BIG-IP, it will return with error if any one of the
 // requirements are not met
 func (am *AS3Manager) IsBigIPAppServicesAvailable() error {
-	version, build, err := am.PostManager.GetBigipAS3Version()
+	version, build, schemaVersion, err := am.PostManager.GetBigipAS3Version()
 	am.as3Version = version
 	as3Build := build
+	am.as3SchemaVersion = schemaVersion
 	am.as3Release = am.as3Version + "-" + as3Build
 	if err != nil {
 		log.Errorf("[AS3] %v ", err)
@@ -426,6 +430,7 @@ func (am *AS3Manager) IsBigIPAppServicesAvailable() error {
 
 	if bigIPAS3Version > as3Version {
 		am.as3Version = defaultAS3Version
+		am.as3SchemaVersion = fmt.Sprintf("%.2f.0", as3Version)
 		as3Build := defaultAS3Build
 		am.as3Release = am.as3Version + "-" + as3Build
 		log.Debugf("[AS3] BIGIP is serving with AS3 version: %v", bigIPAS3Version)

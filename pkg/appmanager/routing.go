@@ -569,7 +569,10 @@ func (appMgr *Manager) sslPassthroughIRule() string {
                 # Handle requests sent to unknown hosts.
                 # For valid hosts, Send the request to respective pool.
                 if { not [info exists dflt_pool] } then {
-                	 reject ; event disable all; return;
+                	 # Allowing HTTP2 traffic to be handled by policies and closing the connection for HTTP/1.1 unknown hosts.
+                	 if { not ([SSL::payload] starts_with "PRI * HTTP/2.0") } {
+                	    reject ; event disable all; return;
+                    }
                 } else {
                 	pool $dflt_pool
                 }

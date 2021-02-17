@@ -65,7 +65,7 @@ func (appMgr *Manager) setClientSslProfile(
 				Context:   CustomProfileClient,
 			}
 			// This is just a basic profile, so we don't need all the fields
-			cp := NewCustomProfile(profile, "", "", "", true, "", "")
+			cp := NewCustomProfile(profile, "", "", "", true, "", "", "")
 			appMgr.customProfiles.Profs[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profile)
 		}
@@ -103,16 +103,30 @@ func (appMgr *Manager) setClientSslProfile(
 		if "" != route.Spec.TLS.Certificate && "" != route.Spec.TLS.Key {
 			profile := MakeRouteClientSSLProfileRef(
 				rsCfg.Virtual.Partition, sKey.Namespace, route.ObjectMeta.Name)
-
-			cp := NewCustomProfile(
-				profile,
-				route.Spec.TLS.Certificate,
-				route.Spec.TLS.Key,
-				route.Spec.Host,
-				false,
-				"", // peerCertMode
-				"", // caFile
-			)
+			var cp CustomProfile
+			if "" != route.Spec.TLS.CACertificate {
+				cp = NewCustomProfile(
+					profile,
+					route.Spec.TLS.Certificate,
+					route.Spec.TLS.Key,
+					route.Spec.Host,
+					false,
+					"",                           // peerCertMode
+					"",                           // caFile
+					route.Spec.TLS.CACertificate, //chainCA
+				)
+			} else {
+				cp = NewCustomProfile(
+					profile,
+					route.Spec.TLS.Certificate,
+					route.Spec.TLS.Key,
+					route.Spec.Host,
+					false,
+					"", // peerCertMode
+					"", // caFile
+					"",
+				)
+			}
 
 			skey := SecretKey{
 				Name:         cp.Name,
@@ -216,7 +230,7 @@ func (appMgr *Manager) handleServerSNIDefaultProfile(
 			}
 			// This is just a basic profile, so we don't need all the fields
 			cp := NewCustomProfile(profile, "", "", "", true, peerCert,
-				MakeCertificateFileName(rsCfg.Virtual.Partition, DefaultSslServerCAName))
+				MakeCertificateFileName(rsCfg.Virtual.Partition, DefaultSslServerCAName), "")
 			appMgr.customProfiles.Profs[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profile)
 		}
@@ -287,6 +301,7 @@ func (appMgr *Manager) handleDestCACert(
 			false,
 			peerCert,
 			"self",
+			"",
 		)
 		caKey := SecretKey{Name: caProfRef.Name}
 		caExistingProf, ok := appMgr.customProfiles.Profs[caKey]
@@ -307,6 +322,7 @@ func (appMgr *Manager) handleDestCACert(
 		false,
 		peerCert,
 		caFile,
+		"",
 	)
 
 	skey := SecretKey{
@@ -367,7 +383,7 @@ func (appMgr *Manager) createSecretSslProfile(
 	}
 	if _, ok := appMgr.customProfiles.Profs[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
-		cp := NewCustomProfile(sni, "", "", "", true, "", "")
+		cp := NewCustomProfile(sni, "", "", "", true, "", "", "")
 		appMgr.customProfiles.Profs[skey] = cp
 	}
 	rsCfg.Virtual.AddOrUpdateProfile(sni)
@@ -387,6 +403,7 @@ func (appMgr *Manager) createSecretSslProfile(
 		false, // sni
 		"",    // peerCertMode
 		"",    // caFile
+		"",
 	)
 	skey = SecretKey{
 		Name:         cp.Name,
@@ -700,6 +717,7 @@ func (appMgr *Manager) loadDefaultCert() (*ProfileRef, bool) {
 				true, //
 				PeerCertDefault,
 				"self", // 'self' indicates this file is the CA file
+				"",
 			)
 	}
 	return &profile, !found

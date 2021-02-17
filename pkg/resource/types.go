@@ -253,6 +253,7 @@ type (
 		SNIDefault   bool   `json:"sniDefault,omitempty"`
 		PeerCertMode string `json:"peerCertMode,omitempty"`
 		CAFile       string `json:"caFile,omitempty"`
+		ChainCA      string `json:"chainCA,onitempty"`
 	}
 
 	// Used to unmarshal ConfigMap data

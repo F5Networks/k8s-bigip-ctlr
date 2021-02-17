@@ -8,6 +8,10 @@
 bigip_login_secret: f5-bigip-ctlr-login
 rbac:
   create: true
+# To decide whether to install CRD schema definitions or not
+crd:
+  # Installs CRD schema definitions only when crd.install and args.custom_resource_mode are set to true
+  install: true
 serviceAccount:
   # Specifies whether a service account should be created
   create: true
@@ -43,17 +47,48 @@ args:
   # use_node_internal:
   # use_secrets:
   # insecure: true
-  # custom-resource-mode: true
-  # log-as3-response: true
-  # gtm-bigip-password
-  # gtm-bigip-url
-  # gtm-bigip-username
-  # ipam: true
+  # custom_resource_mode: true
+  # log_as3_response: true
+  # gtm_bigip_password: 
+  # gtm_bigip_url: 
+  # gtm_bigip_username: 
+  # ipam : true
 image:
   # Use the tag to target a specific version of the Controller
   user: f5networks
   repo: k8s-bigip-ctlr
   pullPolicy: Always
+# Labels for assigning pod(s) to specific node(s).
+nodeSelector: {} 
+  # Example:
+     # node-role.kubernetes.io/master: ""
+# Tolerations to match node taints.
+tolerations: []
+  # Example:
+      # - effect: NoSchedule
+      #   key: node-role.kubernetes.io/master
+livenessProbe: {}
+ # Example:
+   #failureThreshold: 3
+   #httpGet:
+   #   path: /health
+   #   port: 8080
+   #   scheme: HTTP
+   #initialDelaySeconds: 15
+   #periodSeconds: 15
+   #successThreshold: 1
+   #timeoutSeconds: 15
+readinessProbe: {}
+ # Example:
+   #failureThreshold: 3
+   #httpGet:
+   #   path: /health
+   #   port: 8080
+   #   scheme: HTTP
+   #initialDelaySeconds: 30
+   #periodSeconds: 30
+   #successThreshold: 1
+   #timeoutSeconds: 15
 resources: {}
   # If you want to specify resources, uncomment the following
   # lines, adjust them as necessary, and remove the curly braces after 'resources:'.

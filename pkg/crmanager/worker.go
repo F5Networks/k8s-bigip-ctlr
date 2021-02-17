@@ -585,8 +585,10 @@ func (crMgr *CRManager) syncVirtualServers(
 
 	var ip string
 	if crMgr.ipamCli != nil {
-		if isVSDeleted && len(virtuals) == 0 {
+		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
 			ip = crMgr.releaseIP(virtual.Spec.Cidr, virtual.Spec.Host)
+		} else if virtual.Spec.VirtualServerAddress != "" {
+			ip = virtual.Spec.VirtualServerAddress
 		} else {
 			ip = crMgr.requestIP(cidr, virtual.Spec.Host)
 			log.Debugf("[ipam] requested IP for host %v is: %v", virtual.Spec.Host, ip)

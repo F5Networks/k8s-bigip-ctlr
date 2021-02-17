@@ -73,7 +73,7 @@ pre-build:
 	git describe --all --long --always
 
 prod-build: pre-build
-	@echo "Building with minimal instrumentation..."
+	@echo "Building with running tests..."
 	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
 	RUN_TESTS=1 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
 	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
@@ -81,10 +81,16 @@ prod-build: pre-build
 prod-quick: prod-build-quick
 
 prod-build-quick: pre-build
-	@echo "Building with running tests..."
+	@echo "Building with minimal instrumentation..."
 	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
 	RUN_TESTS=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
 	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
+
+prod-license: pre-build
+	@echo "Building with running test and all_attributions.txt will be generated..."
+	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
+	LICENSE=1 RUN_TESTS=1 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
+	LICENSE=1 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
 
 debug: pre-build
 	@echo "Building with debug support..."

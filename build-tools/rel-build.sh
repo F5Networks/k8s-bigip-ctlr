@@ -6,18 +6,20 @@ set -ex
 CURDIR="$(dirname $BASH_SOURCE)"
 RUN_TESTS=${RUN_TESTS:-1}
 DEBUG=${DEBUG:-1}
+LICENSE=${LICENSE:-0}
 
 . $CURDIR/_build-lib.sh
 BUILDDIR=$(get_builddir)
 export BUILDDIR=$BUILDDIR
 
-if $LICENSE; then
+if [ $LICENSE == 1 ]; then
   # Licensee need this path to generate attributions
   vendor_dir="$CURDIR/../../k8s-bigip-ctlr/vendor"
   . $CURDIR/attributions-generator.sh
   # Run the attributions and save the content to a local file.
-  generate_attributions_licensee $vendor_dir >> /tmp/all_attributions.txt
+  generate_attributions_licensee $vendor_dir >> /build/all_attributions.txt
 fi
+
 DEBUG=$DEBUG go_install $(all_cmds)
 
 if [ $RUN_TESTS -eq 1 ]; then

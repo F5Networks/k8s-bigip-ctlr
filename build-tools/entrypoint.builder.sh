@@ -13,7 +13,7 @@ echo "BASE_OS=$BASE_OS"
 if [[ $BASE_OS == "debian" ]]; then
   ADDUSER_FLAG='--disabled-password --gecos ""'
   PYTHON_PKG=python36
-else:
+else
   PYTHON_PKG=rh-pyhton36
 fi
 

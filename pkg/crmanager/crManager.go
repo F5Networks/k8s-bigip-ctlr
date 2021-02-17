@@ -73,6 +73,10 @@ const (
 	TLSRedirectInsecure = "redirect"
 	TLSAllowInsecure    = "allow"
 	TLSNoInsecure       = "none"
+
+	// HTTP Events for LTM Policy
+	HTTPRequest    = "HTTPRequest"
+	TLSClientHello = "TLSClientHello"
 )
 
 // NewCRManager creates a new CRManager Instance.

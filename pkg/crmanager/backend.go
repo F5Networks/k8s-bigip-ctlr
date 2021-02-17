@@ -415,7 +415,7 @@ func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 		}
 		if strings.HasSuffix(iRuleNoPort, HttpRedirectIRuleName) ||
 			strings.HasSuffix(iRuleNoPort, HttpRedirectNoHostIRuleName) ||
-			strings.HasSuffix(iRuleName, SslPassthroughIRuleName) {
+			strings.HasSuffix(iRuleName, TLSIRuleName) {
 
 			IRules = append(IRules, iRuleName)
 		} else {
@@ -465,10 +465,16 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		}
 	}
 
-	svc.Layer4 = cfg.Virtual.IpProtocol
-	svc.Source = "0.0.0.0/0"
-	svc.TranslateServerAddress = true
-	svc.TranslateServerPort = true
+	if len(cfg.Virtual.PersistenceMethods) == 0 {
+		svc.Layer4 = cfg.Virtual.IpProtocol
+		svc.Source = "0.0.0.0/0"
+		svc.TranslateServerAddress = true
+		svc.TranslateServerPort = true
+		svc.Class = "Service_HTTP"
+	} else {
+		svc.PersistenceMethods = cfg.Virtual.PersistenceMethods
+		svc.Class = "Service_TCP"
+	}
 
 	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
 		svc.SNAT = cfg.Virtual.SNAT
@@ -495,7 +501,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		)
 	}
 	svc.AllowVLANs = vlans
-	svc.Class = "Service_HTTP"
 
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	// verify that ip address and port exists.
@@ -513,6 +518,34 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 func createRuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 	for _, c := range rl.Conditions {
 		condition := &as3Condition{}
+		if c.SSLExtensionClient {
+			condition.Name = "host"
+			condition.Type = "sslExtension"
+			condition.Event = "ssl-client-hello"
+
+			// For ports other then 80 and 443, attaching port number to host.
+			// Ex. example.com:8080
+			if port != 80 && port != 443 {
+				var values []string
+				for i := range c.Values {
+					val := c.Values[i] + ":" + strconv.Itoa(port)
+					values = append(values, val)
+				}
+				condition.ServerName = &as3PolicyCompareString{
+					Values: values,
+				}
+			} else {
+				condition.ServerName = &as3PolicyCompareString{
+					Values: c.Values,
+				}
+			}
+			if c.Equals {
+				condition.ServerName.Operand = "equals"
+			}
+			rulesData.Conditions = append(rulesData.Conditions, condition)
+			continue
+		}
+
 		if c.Host {
 			condition.Name = "host"
 			var values []string

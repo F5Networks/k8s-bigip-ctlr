@@ -5,7 +5,8 @@ Next Release
 -------------
 Added Functionality
 ```````````````````
-* Added support for AS3 schema version
+* Added Passthrough TLS Termination Feature
+* Added support for AS3 schema versiion
 
 Bug Fixes
 `````````

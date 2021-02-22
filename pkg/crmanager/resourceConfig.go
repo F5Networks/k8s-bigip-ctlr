@@ -122,8 +122,8 @@ const (
 	// Constants
 	HttpRedirectNoHostIRuleName = "http_redirect_irule_nohost"
 	// Internal data group for https redirect
-	HttpsRedirectDgName     = "https_redirect_dg"
-	SslPassthroughIRuleName = "passthrough_irule"
+	HttpsRedirectDgName = "https_redirect_dg"
+	TLSIRuleName        = "tls_irule"
 )
 
 // constants for TLS references
@@ -444,7 +444,7 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 		return nil
 	}
 
-	rules = processVirtualServerRules(vs)
+	rules = crMgr.prepareVirtualServerRules(vs)
 	if rules == nil {
 		return fmt.Errorf("failed to create LTM Rules")
 	}
@@ -503,6 +503,11 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 		tls := crMgr.getTLSProfileForVirtualServer(vs, vsNamespace)
 		if tls == nil {
 			return false
+		}
+
+		if tls.Spec.TLS.Termination == TLSPassthrough {
+			rsCfg.Virtual.PersistenceMethods = []string{"tls-session-id"}
+			return true
 		}
 
 		// Process Profile
@@ -628,13 +633,6 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 		//Create datagroups
 		if "" != vs.Spec.TLSProfileName {
 			switch tls.Spec.TLS.Termination {
-			case TLSPassthrough:
-				updateDataGroupOfDgName(
-					crMgr.intDgMap,
-					vs,
-					rsCfg.Virtual.Name,
-					PassthroughHostsDgName,
-				)
 			case TLSReencrypt:
 				if vs.Spec.HTTPTraffic == TLSAllowInsecure {
 					log.Errorf("Error in processing Virtual '%s' using TLSProfile '%s' as httpTraffic is configured as ALLOW for reencrypt Termination",
@@ -1474,9 +1472,6 @@ func NewInternalDataGroup(name, partition string) *InternalDataGroup {
 // DataGroup flattening.
 type FlattenConflictFunc func(key, oldVal, newVal string) string
 
-// Internal data group for passthrough termination to map server names to pools.
-const PassthroughHostsDgName = "ssl_passthrough_servername_dg"
-
 // Internal data group for reencrypt termination.
 const ReencryptHostsDgName = "ssl_reencrypt_servername_dg"
 
@@ -1496,7 +1491,6 @@ const EdgeServerSslDgName = "ssl_edge_serverssl_dg"
 const AbDeploymentDgName = "ab_deployment_dg"
 
 var groupFlattenFuncMap = map[string]FlattenConflictFunc{
-	PassthroughHostsDgName:   flattenConflictWarn,
 	ReencryptHostsDgName:     flattenConflictWarn,
 	EdgeHostsDgName:          flattenConflictWarn,
 	ReencryptServerSslDgName: flattenConflictWarn,
@@ -1666,26 +1660,22 @@ func (crMgr *CRManager) handleDataGroupIRules(
 	// For https
 	if nil != tls {
 		termination := tls.Spec.TLS.Termination
-		passThroughIRuleName := JoinBigipPath(DEFAULT_PARTITION,
-			getRSCfgResName(rsCfg.Virtual.Name, SslPassthroughIRuleName))
+		tlsIRuleName := JoinBigipPath(DEFAULT_PARTITION,
+			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName))
 		switch termination {
 		case TLSEdge:
 			crMgr.addIRule(
-				getRSCfgResName(rsCfg.Virtual.Name, SslPassthroughIRuleName), DEFAULT_PARTITION, crMgr.sslPassthroughIRule(rsCfg.Virtual.Name))
+				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, crMgr.getTLSIRule(rsCfg.Virtual.Name))
 			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), DEFAULT_PARTITION)
 			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName), DEFAULT_PARTITION)
-		case TLSPassthrough:
-			crMgr.addIRule(
-				getRSCfgResName(rsCfg.Virtual.Name, SslPassthroughIRuleName), DEFAULT_PARTITION, crMgr.sslPassthroughIRule(rsCfg.Virtual.Name))
-			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, PassthroughHostsDgName), DEFAULT_PARTITION)
 		case TLSReencrypt:
 			crMgr.addIRule(
-				getRSCfgResName(rsCfg.Virtual.Name, SslPassthroughIRuleName), DEFAULT_PARTITION, crMgr.sslPassthroughIRule(rsCfg.Virtual.Name))
+				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, crMgr.getTLSIRule(rsCfg.Virtual.Name))
 			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptHostsDgName), DEFAULT_PARTITION)
 			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName), DEFAULT_PARTITION)
 		}
 		if vsHost != "" {
-			rsCfg.Virtual.AddIRule(passThroughIRuleName)
+			rsCfg.Virtual.AddIRule(tlsIRuleName)
 		}
 	}
 }

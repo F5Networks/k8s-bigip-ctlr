@@ -148,6 +148,7 @@ type (
 		TranslateServerPort    bool                  `json:"translateServerPort"`
 		Source                 string                `json:"source,omitempty"`
 		AllowVLANs             []string              `json:"allowVlans,omitempty"`
+		PersistenceMethods     []string              `json:"-"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -284,6 +285,8 @@ type (
 		Scheme          bool     `json:"scheme,omitempty"`
 		Tcp             bool     `json:"tcp,omitempty"`
 		Values          []string `json:"values"`
+
+		SSLExtensionClient bool `json:"-"`
 	}
 
 	// Rules is a slice of Rule
@@ -481,6 +484,7 @@ type (
 		Host        *as3PolicyCompareString `json:"host,omitempty"`
 		PathSegment *as3PolicyCompareString `json:"pathSegment,omitempty"`
 		Path        *as3PolicyCompareString `json:"path,omitempty"`
+		ServerName  *as3PolicyCompareString `json:"serverName,omitempty"`
 	}
 
 	// as3ActionForwardSelect maps to Policy_Action_Forward_Select in AS3 Resources
@@ -550,6 +554,7 @@ type (
 		WAF                    as3MultiTypeParam    `json:"policyWAF,omitempty"`
 		ProfileL4              string               `json:"profileL4,omitempty"`
 		AllowVLANs             []as3ResourcePointer `json:"allowVlans,omitempty"`
+		PersistenceMethods     []string             `json:"persistenceMethods,omitempty"`
 	}
 
 	// as3Monitor maps to the following in AS3 Resources

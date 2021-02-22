@@ -29,8 +29,8 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
-// processVirtualServerRules process rules for VirtualServer
-func processVirtualServerRules(
+// prepareVirtualServerRules prepares LTM Policy rules for VirtualServer
+func (crMgr *CRManager) prepareVirtualServerRules(
 	vs *cisapiv1.VirtualServer,
 ) *Rules {
 	rlMap := make(ruleMap)
@@ -51,17 +51,25 @@ func processVirtualServerRules(
 	}
 
 	for _, pl := range vs.Spec.Pools {
-		uri := vs.Spec.Host + pl.Path
-
-		path := pl.Path
-		if pl.Path == "/" {
-			uri = vs.Spec.Host + vs.Spec.RewriteAppRoot
-			path = vs.Spec.RewriteAppRoot
-		}
 		// Service cannot be empty
 		if pl.Service == "" {
 			continue
 		}
+
+		uri := vs.Spec.Host + pl.Path
+
+		path := pl.Path
+		tls := crMgr.getTLSProfileForVirtualServer(vs, vs.Namespace)
+
+		if tls != nil && tls.Spec.TLS.Termination == TLSPassthrough {
+			path = "/"
+		}
+
+		if pl.Path == "/" {
+			uri = vs.Spec.Host + vs.Spec.RewriteAppRoot
+			path = vs.Spec.RewriteAppRoot
+		}
+
 		poolName := formatVirtualServerPoolName(
 			vs.ObjectMeta.Namespace,
 			pl.Service,
@@ -69,7 +77,14 @@ func processVirtualServerRules(
 			pl.NodeMemberLabel,
 		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, path, poolName)
-		rl, err := createRule(uri, poolName, ruleName)
+		var err error
+		var event string
+		if tls != nil && tls.Spec.TLS.Termination == TLSPassthrough {
+			event = TLSClientHello
+		} else {
+			event = HTTPRequest
+		}
+		rl, err := createRule(uri, poolName, ruleName, event)
 		if nil != err {
 			log.Errorf("Error configuring rule: %v", err)
 			return nil
@@ -160,7 +175,7 @@ func formatVirtualServerRuleName(host, path, pool string) string {
 }
 
 // Create LTM policy rules
-func createRule(uri, poolName, ruleName string) (*Rule, error) {
+func createRule(uri, poolName, ruleName, event string) (*Rule, error) {
 	_u := "scheme://" + uri
 	_u = strings.TrimSuffix(_u, "/")
 	u, err := url.Parse(_u)
@@ -172,40 +187,54 @@ func createRule(uri, poolName, ruleName string) (*Rule, error) {
 		Forward: true,
 		Name:    "0",
 		Pool:    poolName,
-		Request: true,
 	}
 
-	var c []*condition
+	if event == HTTPRequest {
+		a.Request = true
+	}
+
+	var conditions []*condition
+	var cond *condition
 	if true == strings.HasPrefix(uri, "*.") {
-		c = append(c, &condition{
+		cond = &condition{
 			EndsWith: true,
 			Host:     true,
 			HTTPHost: true,
 			Name:     "0",
 			Index:    0,
-			Request:  true,
 			Values:   []string{strings.TrimPrefix(u.Host, "*")},
-		})
+		}
 	} else if u.Host != "" {
-		c = append(c, &condition{
+		cond = &condition{
 			Equals:   true,
 			Host:     true,
 			HTTPHost: true,
 			Name:     "0",
 			Index:    0,
-			Request:  true,
 			Values:   []string{u.Host},
-		})
+		}
 	}
+	if cond != nil {
+		switch event {
+		case HTTPRequest:
+			cond.Request = true
+		case TLSClientHello:
+			cond.SSLExtensionClient = true
+			cond.Equals = true
+		}
+
+		conditions = append(conditions, cond)
+	}
+
 	if 0 != len(u.EscapedPath()) {
-		c = append(c, createPathSegmentConditions(u)...)
+		conditions = append(conditions, createPathSegmentConditions(u)...)
 	}
 
 	rl := Rule{
 		Name:       ruleName,
 		FullURI:    uri,
 		Actions:    []*action{&a},
-		Conditions: c,
+		Conditions: conditions,
 	}
 
 	log.Debugf("Configured rule: %v", rl)
@@ -566,8 +595,6 @@ func (crMgr *CRManager) handleVSDeleteForDataGroups(
 		dgNames = append(dgNames, EdgeServerSslDgName, EdgeHostsDgName)
 	case TLSReencrypt:
 		dgNames = append(dgNames, ReencryptServerSslDgName, ReencryptHostsDgName)
-	case TLSPassthrough:
-		dgNames = append(dgNames, PassthroughHostsDgName)
 	}
 
 	if virtual.Spec.HTTPTraffic == TLSRedirectInsecure {
@@ -585,9 +612,6 @@ func (crMgr *CRManager) handleVSDeleteForDataGroups(
 				host := virtual.Spec.Host
 				for _, pool := range virtual.Spec.Pools {
 					recKey := host
-					if dgName != PassthroughHostsDgName {
-						recKey = strings.TrimSuffix(host+pool.Path, "/")
-					}
 					if dgName != HttpsRedirectDgName {
 						path := pool.Path
 						if path == "" {
@@ -647,7 +671,7 @@ func (crMgr *CRManager) syncDataGroups(
 	}
 }
 
-func (crMgr *CRManager) sslPassthroughIRule(rsVSName string) string {
+func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
 	dgPath := crMgr.dgPath
 
 	iRule := fmt.Sprintf(`
@@ -961,12 +985,6 @@ func updateDataGroupOfDgName(
 			poolName := formatVirtualServerPoolName(namespace, pl.Service, pl.ServicePort, pl.NodeMemberLabel)
 			updateDataGroup(intDgMap, rsDGName,
 				DEFAULT_PARTITION, namespace, routePath, poolName)
-		}
-	case PassthroughHostsDgName:
-		for _, pl := range virtual.Spec.Pools {
-			poolName := formatVirtualServerPoolName(namespace, pl.Service, pl.ServicePort, pl.NodeMemberLabel)
-			updateDataGroup(intDgMap, rsDGName,
-				DEFAULT_PARTITION, namespace, hostName, poolName)
 		}
 	case HttpsRedirectDgName:
 		for _, pl := range virtual.Spec.Pools {

@@ -102,6 +102,30 @@ spec:
                   type: integer
                   minimum: 1
                   maximum: 65535
+      additionalPrinterColumns:
+        - name: host
+          type: string
+          description: hostname
+          jsonPath: .spec.host
+        - name: tlsProfileName
+          type: string
+          description: TLS Profile attached
+          jsonPath: .spec.tlsProfileName
+        - name: httpTraffic
+          type: string
+          description: Http Traffic Termination
+          jsonPath: .spec.httpTraffic
+        - name: cidr
+          type: string
+          description: Subnet of virtual server
+          jsonPath: .spec.cidr
+        - name: virtualServerAddress
+          type: string
+          description: IP address of virtualServer
+          jsonPath: .spec.virtualServerAddress
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
 
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -317,3 +341,11 @@ spec:
                       - dataServerName
               required:
                 - domainName
+      additionalPrinterColumns:
+        - name: domainName
+          type: string
+          description: Domain name of virtual server resource
+          jsonPath: .spec.domainName
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

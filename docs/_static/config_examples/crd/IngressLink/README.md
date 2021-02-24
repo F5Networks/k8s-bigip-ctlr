@@ -12,44 +12,44 @@ Minimum version to use IngressLink:
 | 2.3+ | v13.1+ | 1.10+ | 3.18+ | 
 
 
-## Configuration 
+## Configuration
 
-### 1.  Create IngressLink Custom Resource Definition 
+### 1.  Create IngressLink Custom Resource Definition
 
 Create IngressLink Custom Resource definition as follows:
-    
+
     kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/IngressLink/ingresslink-customresourcedefinition.yaml
-    
+
 
 ### 2. Create the Proxy iRule on Bigip
 
-* Login to BigIp GUI 
+* Login to BigIp GUI
 * On the Main tab, click Local Traffic > iRules.
 * Click Create.
 * In the Name field, type name as "Proxy_Protocol_iRule".
-* In the Definition field, Copy the definition from [Proxy_Protocol_iRule](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/doc/docs/_static/config_examples/crd/IngressLink/Proxy_Protocol_iRule) file.
+* In the Definition field, Copy the definition from [Proxy_Protocol_iRule](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/IngressLink/Proxy_Protocol_iRule) file.
 * Click Finished.
 
-### 3. Install the CIS Controller 
+### 3. Install the CIS Controller
 
 * Refer to [CIS Installation guide](https://clouddocs.f5.com/containers/latest/userguide/cis-helm.html) to install Container Ingress Services on Kubernetes or Openshift
 * Make sure that you deployed CIS in CRD mode (use "--custom-resource-mode=true" and "--ingress-link-mode=true" in your CIS Configuration. This is specific to this preview)
 
 ### 4. Install the Nginx Ingress Controller
 
-* Refer to [Integration with F5 Container Ingress Services](https://github.com/nginxinc/kubernetes-ingress/blob/master/docs-web/integration-with-cis.md#1-install-the-ingress-controller-with-the-integration-enabled) to deploy NGINX Ingress Controller
+* Refer to [Integration with F5 Container Ingress Services](https://github.com/nginxinc/kubernetes-ingress/blob/master/docs-web/integration-with-cis.md) to deploy NGINX Ingress Controller
 
 ### 5. Create an IngressLink Resource
-    
+
 * Download the sample IngressLink Resource:
-    
-    ```curl -OL https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/doc/docs/_static/config_examples/crd/IngressLink/ingresslink.yaml```
+
+  ```curl -OL https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/doc/docs/_static/config_examples/crd/IngressLink/ingresslink.yaml```
 
 * Update the "virtualServerAddress" parameter in the ingresslink.yaml resource. This IP address will be used to configure the BIG-IP device. It will be used to accept traffic and load balance it among the NGINX Ingress Controller pods.
 
-    ```kubectl apply -f ingresslink.yaml```
+  ```kubectl apply -f ingresslink.yaml```
 
-##### Note: 
+##### Note:
 1. The name of the app label selector in IngressLink resource should match the labels of the service which exposes the NGINX Ingress Controller.
 2. The service which exposes the NGINX Ingress Controller should be of type nodeport.
 
@@ -69,7 +69,7 @@ Let's test the traffic (in this example we used 192.168.10.5 as our VirtualServe
     Server address: 10.12.0.18:80
     Server name: coffee-7586895968-r26zn
     ...
-    
+
 Also, if you check the status of the cafe-ingress, you will see the IP of the VirtualServerAddress (in this example we used 192.168.10.5 as our VirtualServerAddress):
 ```
 $ kubectl get ing cafe-ingress

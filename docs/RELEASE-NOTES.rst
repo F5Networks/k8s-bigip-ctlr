@@ -1,22 +1,38 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.3.0
 -------------
 Added Functionality
 ```````````````````
-* Added Passthrough TLS Termination Feature
-* Added support for AS3 schema versiion
+* CIS supports IP address assignment to Virtual Server CRD using `F5 IPAM Controller <https://github.com/f5devcentral/f5-ipam-controller/releases>`_. Refer for `Examples <https://github.com/f5devcentral/f5-ipam-controller/blob/main/README.md>`_.
+* CIS allows user to leverage Virtual IP address using either `F5 IPAM Controller <https://github.com/f5devcentral/f5-ipam-controller/releases>`_ or virtualServerAddress field in VirtualServer CRD
+* Support Passthrough termination for TLS CRD
+* Added support for AS3 schema minor versions
+* :issues:`1631` Support `caCertificate` for OpenShift Routes
+* :issues:`1571` iRule reference for VirtualServer CRDs
+* :issues:`1592` :issues:`1621` Enabling VLANS for VirtualServer and TransportServer CRDs
+* Updated CR Kind from `NginxCisConnector` to `IngressLink`
+* Helm Chart Enhancements:
+    - Added Support for `livenessProbe <https://github.com/F5Networks/charts/issues/34>`_, `ReadinessProbe <https://github.com/F5Networks/charts/issues/34>`_, `nodeSelectors <https://github.com/F5Networks/charts/issues/38>`_, `tolerations <https://github.com/F5Networks/charts/issues/38>`_.
+    - :issues:`1632`  Added Support for skipping CRDs.
 
 Bug Fixes
 `````````
-* :issues:`1457` Each Client request will be logged on BIG-IP when http2-profile is associated to VS
-* :issues:`1498` In iRule openshift_passthrough_irule the variable "$dflt_pool" could not be set correctly when http/2-profile is linked to VS
-* :issues:`1458` CISv2.1.0 does not delete LTM-Policy reset-rule when OpenShift-annotation for whitelist-source-range will be removed 
+* :issues:`1457` Each Client request get logged on BIG-IP when http2-profile associated to VS
+* :issues:`1458` CISv2.1.0 does not delete LTM-Policy reset-rule when removed the whitelist-source-range OpenShift annotation
+* :issues:`1498` openshift_passthrough_irule could not set the variable "$dflt_pool" correctly when http/2-profile linked to VS
+* :issues:`1565` Logs should distinguish configmap and Ingress errors
+* :issues:`1641` Debug log sKey.ServiceName in syncVirtualServer
+* :issues:`1671` TransportServer assigns wrong pool/service
+* SR: CIS fail to update pod arp on BigIP,"Attempted to mutate read-only attribute(s)"
+* CIS allowing to access all non-belonging pool members from a single reachable VIP in CRD mode.
 
 Limitations
 ```````````
-* For AB routes HTTP2 traffic does not distribute properly when http2-profile is associated to VS
+* For AB routes HTTP2 traffic does not distribute properly when http2-profile associated to VS
+* Workaround for CIS in `IPAM mode <https://github.com/f5devcentral/f5-ipam-controller/blob/main/README.md>`_.
+* Removing virtualServerAddress field from VSCRD in non-IPAM mode may flush corresponding BIGIP configuration
 
 
 2.2.3
@@ -90,23 +106,23 @@ Added Functionality
 `````````````````````
 **Custom Resource Definition (CRD)**
 
-* Multiple ports in a single service. 
+* Multiple ports in a single service.
 * `TrasnsportServer` Custom Resource.
 * VirtualServer Custom Resource without Host Parameter.
 * Share Nodes implementation for CRD, Ingress and Routes.
 * WAF Integration.
-* SNAT in VirtualServer CRD. 
-* Option to configure Virtual address port. 
-* App-Root Rewrite and Path Rewrite. 
-* Health Monitor for each pool member. 
+* SNAT in VirtualServer CRD.
+* Option to configure Virtual address port.
+* App-Root Rewrite and Path Rewrite.
+* Health Monitor for each pool member.
 * Option to configure VirtualServer name.
 * Nginx CIS connector.
 * Namespace label.
 * CRD TEEMs Integration.
 * Support for AS3 3.23.
 * Upgraded AS3 Schema validation version from v3.11.0-3 to v3.18.0-4.
-* Schema - <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml>`_.
-* Examples - <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd>`_.
+* `CRD Schema <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml>`_.
+* `CRD Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd>`_.
 
 Bug Fixes
 `````````
@@ -114,7 +130,7 @@ Bug Fixes
 
 * Verify the AS3 installation on BIGIP in CRD Mode.
 * Streamlined logs.
-* Fix unnecessary creation of HTTP VirtulServer when httpTraffic is None. 
+* Fix unnecessary creation of HTTP VirtulServer when httpTraffic is None.
 
 **Routes**
 
@@ -124,7 +140,7 @@ Bug Fixes
 Limitations
 ```````````
 * Modifying VirtualServer address leads to traffic loss intermittently. Delete and re-create the VirtualServer as an alternative.
-* VirtualServers with same host and virtualServerAddress should maintain same parameters except pool, tlsProfileName and monitors. 
+* VirtualServers with same host and virtualServerAddress should maintain same parameters except pool, tlsProfileName and monitors.
 
 2.1.1
 -------------
@@ -166,7 +182,7 @@ Limitations
 Added Functionality
 ```````````````````
 * CIS will not create `_AS3` partition anymore.
-    -  CIS uses single partition(i.e. `--bigip-partition`) to configure both LTM and NET configuration.      
+    -  CIS uses single partition(i.e. `--bigip-partition`) to configure both LTM and NET configuration.
     -  Removes Additional AS3 managed partition _AS3, if exists.
 * Enhanced performance for lower BIG-IP CPU Utilization with optimized CCCL calls.
 * CIS 2.x releases requires AS3 versions >= 3.18.
@@ -205,7 +221,7 @@ Bug Fixes
 Vulnerability Fixes
 ```````````````````
 +------------------+------------------------------------------------------------------------------------+
-| CVE              | Comments                                                                           |                                                                                               
+| CVE              | Comments                                                                           |
 +==================+====================================================================================+
 | CVE-2018-5543    | CIS Operator uses --credentials-directory by default for BIG-IP credentials        |
 +------------------+------------------------------------------------------------------------------------+
@@ -219,7 +235,7 @@ Archived CF and Mesos Github repos
 Guidelines for upgrading to CIS 2.1
 ```````````````````````````````````
 * Those migrating from agent CCCL to agent AS3 :
-     - User should clean up LTM resources in BIG-IP partition created by CCCL before migrating to CIS 2.1. 
+     - User should clean up LTM resources in BIG-IP partition created by CCCL before migrating to CIS 2.1.
           Steps to clean up LTM resources in BIG-IP partition using AS3
            *  Use below POST call along with this `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/example-empty-AS3-declaration.yaml>`_.
                 - mgmt/shared/appsvcs/declare
@@ -257,14 +273,14 @@ Bug Fixes
 * :issues:`1233` CIS handles ClientSSL annotation and cert/key logging issues.
 * :issues:`1145,1185,1295` CIS handles namespace isolation for AS3 configmaps.
 * :issues:`1241,1229` CIS fetches 3.18 AS3 schema locally.
-* :issues:`1191` CIS cleans AS3 managed partition when moved to CCCL as agent. 
+* :issues:`1191` CIS cleans AS3 managed partition when moved to CCCL as agent.
 * :issues:`1162` CIS properly handles OpenShift Route admit status.
 * :issues:`1160` CIS handles https redirection for ingress which accepts all common names.
 
 Vulnerability Fixes
 `````````````````````
 +------------------+----------------------------------------------------------------+
-| CVE              | Comments                                                       |                                                                                               
+| CVE              | Comments                                                       |
 +==================+================================================================+
 | CVE-2009-3555    | CIS disables renegotiation for all Custom ClientSSL            |
 +------------------+----------------------------------------------------------------+
@@ -312,8 +328,8 @@ Added Functionality
       - `--manage-ingress-class-only` A flag whether to handle Ingresses that do not have the class annotation and with annotation `kubernetes.io/ingress.class` set to `f5`. When set `true`, process ingress resources with `kubernetes.io/ingress.class` set to `f5` or custom ingress class.
       - `--ingress-class` to define custom ingress class to watch.
       - `--filter-tenants` A flag whether to enable tenant filtering in BIG-IP.
-* CIS pushes AS3 Configuration after 3 seconds when encounters 503 HTTP response code from BIG-IP.  
-* CIS does not push AS3 configuration when encounters 404 HTTP response code from BIG-IP. 
+* CIS pushes AS3 Configuration after 3 seconds when encounters 503 HTTP response code from BIG-IP.
+* CIS does not push AS3 configuration when encounters 404 HTTP response code from BIG-IP.
 
 Bug Fixes
 `````````
@@ -369,7 +385,7 @@ Added Functionality
 * Added support for OpenShift version 4.1.
     - | Controller service account needs ``cluster-admin`` role. Before upgrading controller to v1.11.0 and above, update cluster role as follows:
       | ``oc adm policy add-cluster-role-to-user cluster-admin -z <service-account-name> -n <namespace>``
-* Added support for Alternate Backend Deployment in OpenShift Routes while using as3 backend. 
+* Added support for Alternate Backend Deployment in OpenShift Routes while using as3 backend.
 * Controller updates Route status in Openshift Web Console (OpenShift 3.11 and below).
 * Controller includes the body of AS3 API call error responses in Debug logs.
 * Added support for validating AS3 JSON against the latest schema. Controller downloads the latest schema during startup.
@@ -444,7 +460,7 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`736` - Added support for Google Container Engine (GKE) LoadBalancer service. Validated against Kubernetes 1.13.4.
+* :issues:736 - Added support for Google Container Engine (GKE) LoadBalancer service. Validated against Kubernetes 1.13.4.
 
 Limitations
 ```````````
@@ -474,8 +490,8 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`810` - Controller doesn't delete services and recreates during bigip-ctlr pod restart
-* :issues:`718` - Namespaces that start with a number does not cause errors
+* :issues:810 - Controller doesn't delete services and recreates during bigip-ctlr pod restart
+* :issues:718 - Namespaces that start with a number does not cause errors
 
 Limitations
 ```````````
@@ -494,7 +510,7 @@ Vulnerability Addresses
 
 Bug fixes
 `````````
-* :issues:`789` - Controller properly creates https redirect for child paths in k8s Ingress.
+* :issues:789 - Controller properly creates https redirect for child paths in k8s Ingress.
 * Fixes an issue in openshift where communication breaks with clients with no SNI support.
 
 v1.7.0
@@ -504,24 +520,24 @@ Added Functionality
 ```````````````````
 * Added `--manage-configmaps` argument to CC to prevent or allow CC to respond to ConfigMap events. Defaults to `true`.
 * Added `virtual-server.f5.com/whitelist-source-range` Ingress/Route annotation to support IP CIDR whitelisting.
-* :issues:`699` - Ability to configure health monitor type in Ingress/Route annotation. Http is the default.
+* :issues:699 - Ability to configure health monitor type in Ingress/Route annotation. Http is the default.
 * Changed container base image to use debian-slim.
 
 Bug Fixes
 `````````
-* :issues:`735` - Deleted rules from routes and ingresses on the same service not cleaned up properly.
-* :issues:`753` - Controller doesn't delete and recreate annotation-based policy rules.
-* :issues:`755` - Controller implements best-match by setting first-match and sorting rules in reverse lexical order.
-* :issues:`765` - Controller properly sorts Route rules in reverse lexical order.
+* :issues:735 - Deleted rules from routes and ingresses on the same service not cleaned up properly.
+* :issues:753 - Controller doesn't delete and recreate annotation-based policy rules.
+* :issues:755 - Controller implements best-match by setting first-match and sorting rules in reverse lexical order.
+* :issues:765 - Controller properly sorts Route rules in reverse lexical order.
 
 v1.6.1
 ------
 
 Bug Fixes
 `````````
-* :issues:`486` - User cannot configure the controller to manage the Common partition.
-* :issues:`743` - Controller doesn't temporarily remove entire BIG-IP configs after deleting a single service.
-* :issues:`746` - Log messages and documentation added to ensure Route profile configuration is clear.
+* :issues:486 - User cannot configure the controller to manage the Common partition.
+* :issues:743 - Controller doesn't temporarily remove entire BIG-IP configs after deleting a single service.
+* :issues:746 - Log messages and documentation added to ensure Route profile configuration is clear.
 
 v1.6.0
 ------
@@ -548,8 +564,8 @@ v1.5.1
 
 Bug Fixes
 `````````
-* :issues:`683` - Controller upgrades properly with new metadata field.
-* :issues:`686` - Controller in cluster mode does not rely on vxlan name to configure pool members.
+* :issues:683 - Controller upgrades properly with new metadata field.
+* :issues:686 - Controller in cluster mode does not rely on vxlan name to configure pool members.
 
 v1.5.0
 ------
@@ -559,7 +575,7 @@ Added Functionality
 * Support for virtual server source address translation configuration.
 * Support for app-root and url-rewrite annotations.
 * Added controller name and version to the metadata of certain BIG-IP LTM resources managed by the controller.
-* :issues:`433` - Support for pre-existing server ssl profiles for Ingresses.
+* :issues:433 - Support for pre-existing server ssl profiles for Ingresses.
 * Added support for attaching OpenShift Routes to existing BIG-IP virtual servers.
 * Added support for Kubernetes version 1.8.
 * Added support for OpenShift Origin version 3.7.
@@ -585,8 +601,8 @@ Limitations
 ```````````
 * Cannot apply app-root and url-rewrite annotations to the same resource; see: :issues:675
 * If an older controller created resources, upgrading to the new version could
-  result in a python exception when adding metadata to virtuals: :issues:`683`
-* If running the controller in cluster mode without a vxlan name, pool members are not created: :issues:`686`
+  result in a python exception when adding metadata to virtuals: :issues:683
+* If running the controller in cluster mode without a vxlan name, pool members are not created: :issues:686
 
 v1.4.2
 ------

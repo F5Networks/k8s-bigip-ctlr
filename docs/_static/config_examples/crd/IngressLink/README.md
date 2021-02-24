@@ -27,7 +27,7 @@ Create IngressLink Custom Resource definition as follows:
 * On the Main tab, click Local Traffic > iRules.
 * Click Create.
 * In the Name field, type name as "Proxy_Protocol_iRule".
-* In the Definition field, Copy the definition from [Proxy_Protocol_iRule](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/doc/docs/_static/config_examples/crd/IngressLink/Proxy_Protocol_iRule) file.
+* In the Definition field, Copy the definition from [Proxy_Protocol_iRule](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/IngressLink/Proxy_Protocol_iRule) file.
 * Click Finished.
 
 ### 3. Install the CIS Controller 
@@ -37,7 +37,7 @@ Create IngressLink Custom Resource definition as follows:
 
 ### 4. Install the Nginx Ingress Controller
 
-* Refer to [Integration with F5 Container Ingress Services](https://github.com/nginxinc/kubernetes-ingress/blob/master/docs-web/integration-with-cis.md#1-install-the-ingress-controller-with-the-integration-enabled) to deploy NGINX Ingress Controller
+* Refer to [Integration with F5 Container Ingress Services](https://github.com/nginxinc/kubernetes-ingress/blob/master/docs-web/integration-with-cis.md) to deploy NGINX Ingress Controller
 
 ### 5. Create an IngressLink Resource
     

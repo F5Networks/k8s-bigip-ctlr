@@ -5,18 +5,42 @@ Next Release
 -------------
 Added Functionality
 ```````````````````
-* Added Passthrough TLS Termination Feature
-* Added support for AS3 schema versiion
 
 Bug Fixes
 `````````
-* :issues:`1457` Each Client request will be logged on BIG-IP when http2-profile is associated to VS
-* :issues:`1498` In iRule openshift_passthrough_irule the variable "$dflt_pool" could not be set correctly when http/2-profile is linked to VS
-* :issues:`1458` CISv2.1.0 does not delete LTM-Policy reset-rule when OpenShift-annotation for whitelist-source-range will be removed 
+
+2.3.0
+-------------
+Added Functionality
+```````````````````
+* CIS supports IP address assignment to Virtual Server CRD using `F5 IPAM Controller<https://github.com/f5devcentral/f5-ipam-controller/releases>`_. Refer for `Examples<https://github.com/f5devcentral/f5-ipam-controller/blob/main/README.md>`_.
+* CIS allows user to leverage Virtual IP address using either `F5 IPAM Controller<https://github.com/f5devcentral/f5-ipam-controller/releases>`_ or virtualServerAddress field in VirtualServer CRD
+* Support Passthrough termination for TLS CRD
+* Added support for AS3 schema minor versions
+* :issues:`1631` Support `caCertificate` for OpenShift Routes
+* :issues:`1571` iRule reference for VirtualServer CRDs
+* :issues:`1592` :issues:`1621` Enabling VLANS for VirtualServer and TransportServer CRDs
+* Updated CR Kind from `NginxCisConnector` to `IngressLink`
+* Helm Chart Enhancements:
+    - Added Support for `livenessProbe<https://github.com/F5Networks/charts/issues/34>`_, `ReadinessProbe<https://github.com/F5Networks/charts/issues/34>`_, `nodeSelectors<https://github.com/F5Networks/charts/issues/38>`_, `tolerations<https://github.com/F5Networks/charts/issues/38>`_.
+    - :issues:`1632`  Added Support for skipping CRDs.
+
+Bug Fixes
+`````````
+* :issues:`1457` Each Client request get logged on BIG-IP when http2-profile associated to VS
+* :issues:`1458` CISv2.1.0 does not delete LTM-Policy reset-rule when removed the whitelist-source-range OpenShift annotation
+* :issues:`1498` openshift_passthrough_irule could not set the variable "$dflt_pool" correctly when http/2-profile linked to VS
+* :issues:`1565` Logs should distinguish configmap and Ingress errors
+* :issues:`1641` Debug log sKey.ServiceName in syncVirtualServer
+* :issues:`1671` TransportServer assigns wrong pool/service
+* SR: CIS fail to update pod arp on BigIP,"Attempted to mutate read-only attribute(s)"
+* CIS allowing to access all non-belonging pool members from a single reachable VIP in CRD mode.
 
 Limitations
 ```````````
-* For AB routes HTTP2 traffic does not distribute properly when http2-profile is associated to VS
+* For AB routes HTTP2 traffic does not distribute properly when http2-profile associated to VS
+* Workaround for CIS in `IPAM mode <https://github.com/f5devcentral/f5-ipam-controller/blob/main/README.md>`_.
+* Removing virtualServerAddress field from VSCRD in non-IPAM mode may flush corresponding BIGIP configuration
 
 
 2.2.3
@@ -494,7 +518,7 @@ Vulnerability Addresses
 
 Bug fixes
 `````````
-* :issues:`789` - Controller properly creates https redirect for child paths in k8s Ingress.
+* :issues:789 - Controller properly creates https redirect for child paths in k8s Ingress.
 * Fixes an issue in openshift where communication breaks with clients with no SNI support.
 
 v1.7.0
@@ -504,24 +528,24 @@ Added Functionality
 ```````````````````
 * Added `--manage-configmaps` argument to CC to prevent or allow CC to respond to ConfigMap events. Defaults to `true`.
 * Added `virtual-server.f5.com/whitelist-source-range` Ingress/Route annotation to support IP CIDR whitelisting.
-* :issues:`699` - Ability to configure health monitor type in Ingress/Route annotation. Http is the default.
+* :issues:699 - Ability to configure health monitor type in Ingress/Route annotation. Http is the default.
 * Changed container base image to use debian-slim.
 
 Bug Fixes
 `````````
-* :issues:`735` - Deleted rules from routes and ingresses on the same service not cleaned up properly.
-* :issues:`753` - Controller doesn't delete and recreate annotation-based policy rules.
-* :issues:`755` - Controller implements best-match by setting first-match and sorting rules in reverse lexical order.
-* :issues:`765` - Controller properly sorts Route rules in reverse lexical order.
+* :issues:735 - Deleted rules from routes and ingresses on the same service not cleaned up properly.
+* :issues:753 - Controller doesn't delete and recreate annotation-based policy rules.
+* :issues:755 - Controller implements best-match by setting first-match and sorting rules in reverse lexical order.
+* :issues:765 - Controller properly sorts Route rules in reverse lexical order.
 
 v1.6.1
 ------
 
 Bug Fixes
 `````````
-* :issues:`486` - User cannot configure the controller to manage the Common partition.
-* :issues:`743` - Controller doesn't temporarily remove entire BIG-IP configs after deleting a single service.
-* :issues:`746` - Log messages and documentation added to ensure Route profile configuration is clear.
+* :issues:486 - User cannot configure the controller to manage the Common partition.
+* :issues:743 - Controller doesn't temporarily remove entire BIG-IP configs after deleting a single service.
+* :issues:746 - Log messages and documentation added to ensure Route profile configuration is clear.
 
 v1.6.0
 ------
@@ -548,8 +572,8 @@ v1.5.1
 
 Bug Fixes
 `````````
-* :issues:`683` - Controller upgrades properly with new metadata field.
-* :issues:`686` - Controller in cluster mode does not rely on vxlan name to configure pool members.
+* :issues:683 - Controller upgrades properly with new metadata field.
+* :issues:686 - Controller in cluster mode does not rely on vxlan name to configure pool members.
 
 v1.5.0
 ------
@@ -559,7 +583,7 @@ Added Functionality
 * Support for virtual server source address translation configuration.
 * Support for app-root and url-rewrite annotations.
 * Added controller name and version to the metadata of certain BIG-IP LTM resources managed by the controller.
-* :issues:`433` - Support for pre-existing server ssl profiles for Ingresses.
+* :issues:433 - Support for pre-existing server ssl profiles for Ingresses.
 * Added support for attaching OpenShift Routes to existing BIG-IP virtual servers.
 * Added support for Kubernetes version 1.8.
 * Added support for OpenShift Origin version 3.7.

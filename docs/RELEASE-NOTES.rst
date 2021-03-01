@@ -1,14 +1,18 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+
 Next Release
 -------------
 Added Functionality
 ```````````````````
+Integrated the ingress link mode with CRD mode
 
 Bug Fixes
 `````````
 * SR - Fix continuous overwrites with iapp in cccl mode
+
+
 2.3.0
 -------------
 Added Functionality

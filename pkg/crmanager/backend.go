@@ -885,7 +885,7 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				monitor.Receive = v.Recv
 			}
 			monitor.Send = v.Send
-		case "tcp":
+		case "tcp", "udp":
 			adaptiveFalse := false
 			monitor.Adaptive = &adaptiveFalse
 			monitor.Receive = v.Recv
@@ -901,9 +901,18 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	svc := &as3Service{}
 
 	if cfg.Virtual.Mode == "standard" {
-		svc.Class = "Service_TCP"
+		if cfg.Virtual.IpProtocol == "udp" {
+			svc.Class = "Service_UDP"
+		} else {
+			svc.Class = "Service_TCP"
+		}
 	} else if cfg.Virtual.Mode == "performance" {
 		svc.Class = "Service_L4"
+		if cfg.Virtual.IpProtocol == "udp" {
+			svc.Layer4 = "udp"
+		} else {
+			svc.Layer4 = "tcp"
+		}
 	}
 	svc.ProfileL4 = "basic"
 	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {

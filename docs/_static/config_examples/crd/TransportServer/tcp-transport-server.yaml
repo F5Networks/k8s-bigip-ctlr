@@ -3,12 +3,12 @@ kind: TransportServer
 metadata:
   labels:
     f5cr: "true"
-  name: my-transport-server
+  name: svc1-tcp-transport-server
   namespace: default
 spec:
   virtualServerAddress: "172.16.3.9"
   virtualServerPort: 8544
-  virtualServerName: my-ts
+  virtualServerName: svc1-tcp-ts
   mode: standard
   snat: auto
   allowVlans: ["/Common/devtraffic"]

@@ -624,6 +624,7 @@ func (crMgr *CRManager) syncVirtualServers(
 		rsCfg.MetaData.ResourceType = VirtualServer
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
+
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 		rsCfg.Virtual.SetVirtualAddress(
 			ip,

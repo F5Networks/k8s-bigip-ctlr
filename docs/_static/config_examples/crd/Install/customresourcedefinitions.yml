@@ -49,6 +49,25 @@ spec:
                   type: array
                   items:
                     type: string
+                serviceAddress:
+                  type: array
+                  maxItems: 1
+                  items:
+                    type: object
+                    properties:
+                      arpEnabled:
+                        type: boolean
+                      icmpEcho:
+                        type: string
+                        enum: [enable, disable, selective]
+                      routeAdvertisement:
+                        type: string
+                        enum: [enable, disable, selective, always, any, all]
+                      spanningEnabled:
+                        type: boolean
+                      trafficGroup:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
                 pools:
                   type: array
                   items:
@@ -219,6 +238,25 @@ spec:
                     type: string
                     pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_]+\/?)*$'
                   type: array
+                serviceAddress:
+                  type: array
+                  maxItems: 1
+                  items:
+                    type: object
+                    properties:
+                      arpEnabled:
+                        type: boolean
+                      icmpEcho:
+                        type: string
+                        enum: [enable, disable, selective]
+                      routeAdvertisement:
+                        type: string
+                        enum: [enable, disable, selective, always, any, all]
+                      spanningEnabled:
+                        type: boolean
+                      trafficGroup:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
                 pool:
                   type: object
                   properties:

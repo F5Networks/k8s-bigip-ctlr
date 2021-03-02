@@ -388,6 +388,12 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.SNAT = vs.Spec.SNAT
 	}
 
+	if len(rsCfg.ServiceAddress) == 0 {
+		for _, sa := range vs.Spec.ServiceIPAddress {
+			rsCfg.ServiceAddress = append(rsCfg.ServiceAddress, ServiceAddress(sa))
+		}
+	}
+
 	// set the WAF policy
 	if vs.Spec.WAF != "" {
 		rsCfg.Virtual.WAF = vs.Spec.WAF

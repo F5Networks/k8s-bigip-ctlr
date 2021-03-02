@@ -179,7 +179,7 @@ Known Issues:
 | ------ | ------ | ------ | ------ | ------ |
 | host | String | Optional | NA |  Virtual Host |
 | pools | List of pool | Required | NA | List of BIG-IP Pool members |
-| virtualServerAddress | String | Required | NA | IP Address of BIG-IP Virtual Server |
+| virtualServerAddress | String | Required | NA | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address. |
 | virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
 | TLSProfile | String | Optional | NA | Describes the TLS configuration for BIG-IP Virtual Server |
 | rewriteAppRoot | String | Optional | NA |  Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path |
@@ -197,6 +197,16 @@ Known Issues:
 | servicePort | String | Required | NA | Port to access Service |
 | monitor | String | Optional | NA | Health Monitor to check the health of Pool Members |
 | rewrite | String | Optional | NA | Rewrites the path in the HTTP Header while submitting the request to Server in the pool |
+
+**Service_Address Components**
+
+| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
+| ------ | ------ | ------ | ------ | ------ |
+| arpEnabled | Boolean | Optional | true |  If true (default), the system services ARP requests on this address |
+| icmpEcho | String | Optional | “enable” | If true (default), the system answers ICMP echo requests on this address. Values: “enable”, “disable”, “selective” |
+| routeAdvertisement | String | Optional | “disable” | If true, the route is advertised. Values: “enable”, “disable”, “selective”, “always”, “any”, “all” |
+| spanningEnabled | Boolean | Optional | false | Enable all BIG-IP systems in device group to listen for and process traffic on the same virtual address |
+| trafficGroup | String | Optional | "default" | Specifies the traffic group which the Service_Address belongs. |
 
 **Health Monitor**
 
@@ -236,7 +246,7 @@ Known Issues:
 | PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
 | ------ | ------ | ------ | ------ | ------ |
 | pool | pool | Required | NA | BIG-IP Pool member |
-| virtualServerAddress | String | Required | NA | IP Address of BIG-IP Virtual Server |
+| virtualServerAddress | String | Required | NA | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address. |
 | virtualServerPort | String | Required | NA | Port Address of BIG-IP Virtual Server |
 | virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
 | mode | String | Required | NA |  "standard" or "performance". A Standard mode transport server processes connections using the full proxy architecture. A Performance mode transport server uses FastL4 packet-by-packet TCP behavior. |
@@ -250,6 +260,16 @@ Known Issues:
 | service | String | Required | NA | Service deployed in kubernetes cluster |
 | servicePort | String | Required | NA | Port to access Service |
 | monitor | String | Optional | NA | Health Monitor to check the health of Pool Members |
+
+**Service_Address Components**
+
+| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
+| ------ | ------ | ------ | ------ | ------ |
+| arpEnabled | Boolean | Optional | true |  If true (default), the system services ARP requests on this address |
+| icmpEcho | String | Optional | “enable” | If true (default), the system answers ICMP echo requests on this address. Values: “enable”, “disable”, “selective” |
+| routeAdvertisement | String | Optional | “disable” | If true, the route is advertised. Values: “enable”, “disable”, “selective”, “always”, “any”, “all” |
+| spanningEnabled | Boolean | Optional | false | Enable all BIG-IP systems in device group to listen for and process traffic on the same virtual address |
+| trafficGroup | String | Optional | "default" | Specifies the traffic group which the Service_Address belongs. |
 
 **Health Monitor**
 

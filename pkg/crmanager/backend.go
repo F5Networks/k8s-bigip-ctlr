@@ -505,13 +505,43 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	// verify that ip address and port exists.
 	if virtualAddress != "" && port != 0 {
-		va := append(svc.VirtualAddresses, virtualAddress)
-		svc.VirtualAddresses = va
-		svc.VirtualPort = port
+		if len(cfg.ServiceAddress) == 0 {
+			va := append(svc.VirtualAddresses, virtualAddress)
+			svc.VirtualAddresses = va
+			svc.VirtualPort = port
+		} else if len(cfg.ServiceAddress) == 1 {
+			//Attach Service Address
+			serviceAddressName := createServiceAddressDecl(cfg, virtualAddress, sharedApp)
+			sa := &as3ResourcePointer{
+				Use: serviceAddressName,
+			}
+			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
+			svc.VirtualPort = port
+		} else {
+			log.Error("Invalid Virtual Server Destination IP address/Port.")
+		}
 	}
 	//process irules for crd
 	processIrulesForCRD(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
+}
+
+// Create AS3 Service Address for Virtual Server Address
+func createServiceAddressDecl(cfg *ResourceConfig, virtualAddress string, sharedApp as3Application) string {
+	var name string
+	for _, sa := range cfg.ServiceAddress {
+		serviceAddress := &as3ServiceAddress{}
+		serviceAddress.Class = "Service_Address"
+		serviceAddress.ArpEnabled = sa.ArpEnabled
+		serviceAddress.ICMPEcho = sa.ICMPEcho
+		serviceAddress.RouteAdvertisement = sa.RouteAdvertisement
+		serviceAddress.SpanningEnabled = sa.SpanningEnabled
+		serviceAddress.TrafficGroup = sa.TrafficGroup
+		serviceAddress.VirtualAddress = virtualAddress
+		name = "crd_service_address_" + strings.Replace(virtualAddress, ".", "_", -1)
+		sharedApp[name] = serviceAddress
+	}
+	return name
 }
 
 // Create AS3 Rule Condition for CRD
@@ -925,9 +955,21 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	// verify that ip address and port exists.
 	if virtualAddress != "" && port != 0 {
-		va := append(svc.VirtualAddresses, virtualAddress)
-		svc.VirtualAddresses = va
-		svc.VirtualPort = port
+		if len(cfg.ServiceAddress) == 0 {
+			va := append(svc.VirtualAddresses, virtualAddress)
+			svc.VirtualAddresses = va
+			svc.VirtualPort = port
+		} else if len(cfg.ServiceAddress) == 1 {
+			//Attach Service Address
+			serviceAddressName := createServiceAddressDecl(cfg, virtualAddress, sharedApp)
+			sa := &as3ResourcePointer{
+				Use: serviceAddressName,
+			}
+			svc.VirtualAddresses = append(svc.VirtualAddresses, sa)
+			svc.VirtualPort = port
+		} else {
+			log.Error("Invalid Virtual Server Destination IP address/Port.")
+		}
 	}
 	svc.Pool = cfg.Virtual.PoolName
 	if cfg.Virtual.AllowVLANs != nil {

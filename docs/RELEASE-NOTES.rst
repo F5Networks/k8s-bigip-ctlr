@@ -9,6 +9,8 @@ Added Functionality
 Bug Fixes
 `````````
 * SR - Fix continuous overwrites with iapp in cccl mode
+* CIS supports service address reference in virtual server CRD.
+
 2.3.0
 -------------
 Added Functionality

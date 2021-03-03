@@ -482,23 +482,6 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(
 
 }
 
-func getRewriteMap(rewriteRecords []string, defaultKey string) map[string]string {
-	rwMap := make(map[string]string)
-	for _, rec := range rewriteRecords {
-		kvPair := strings.Split(rec, "=")
-		if len(kvPair) == 2 {
-			if kvPair[0] != "" && kvPair[1] != "" {
-				rwMap[kvPair[0]] = kvPair[1]
-			}
-		} else if rec[0] == '/' {
-			rwMap[defaultKey] = defaultKey + rec
-		} else {
-			rwMap[defaultKey] = rec
-		}
-	}
-	return rwMap
-}
-
 func isTLSVirtualServer(vrt *cisapiv1.VirtualServer) bool {
 	return len(vrt.Spec.TLSProfileName) != 0
 }

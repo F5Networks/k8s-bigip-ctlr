@@ -19,7 +19,6 @@ package crmanager
 import (
 	"fmt"
 	"net/url"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -524,59 +523,6 @@ func httpRedirectIRule(port int32, rsVSName string) string {
 	return iRuleCode
 }
 
-func NewServiceFwdRuleMap() ServiceFwdRuleMap {
-	return make(ServiceFwdRuleMap)
-}
-
-// key is namespace/serviceName, data is map of host to paths.
-type ServiceFwdRuleMap map[serviceQueueKey]HostFwdRuleMap
-
-// key is fqdn host name, data is map of paths.
-type HostFwdRuleMap map[string]FwdRuleMap
-
-// key is path regex, data unused. Using a map as go doesn't have a set type.
-type FwdRuleMap map[string]bool
-
-func (sfrm ServiceFwdRuleMap) AddEntry(ns, svc, host, path string) {
-	if path == "" {
-		path = "/"
-	}
-	sKey := serviceQueueKey{Namespace: ns, ServiceName: svc}
-	hfrm, found := sfrm[sKey]
-	if !found {
-		hfrm = make(HostFwdRuleMap)
-		sfrm[sKey] = hfrm
-	}
-	frm, found := hfrm[host]
-	if !found {
-		frm = make(FwdRuleMap)
-		hfrm[host] = frm
-	}
-	if _, found = frm[path]; !found {
-		frm[path] = true
-	}
-}
-
-func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap) {
-	// Multiple service keys may reference the same host, so flatten those first
-	for skey, hostMap := range sfrm {
-		nsGrp, found := dgMap[skey.Namespace]
-		if !found {
-			nsGrp = &InternalDataGroup{
-				Name:      HttpsRedirectDgName,
-				Partition: DEFAULT_PARTITION,
-			}
-			dgMap[skey.Namespace] = nsGrp
-		}
-		for host, pathMap := range hostMap {
-			for path, _ := range pathMap {
-				nsGrp.AddOrUpdateRecord(host+path, path)
-			}
-
-		}
-	}
-}
-
 func (crMgr *CRManager) handleVSDeleteForDataGroups(
 	virtual *cisapiv1.VirtualServer,
 	rsVSName string,
@@ -627,44 +573,6 @@ func (crMgr *CRManager) handleVSDeleteForDataGroups(
 				}
 				if len(nsDg) == 0 {
 					delete(crMgr.intDgMap, refKey)
-				}
-			}
-		}
-	}
-}
-
-// Update the datagroups cache, indicating if something
-// had changed by updating 'stats', which should rewrite the config.
-func (crMgr *CRManager) syncDataGroups(
-	dgMap InternalDataGroupMap,
-	namespace string,
-) {
-	crMgr.intDgMutex.Lock()
-	defer crMgr.intDgMutex.Unlock()
-
-	// Add new or modified data group records
-	for mapKey, grp := range dgMap {
-		nsDg, found := crMgr.intDgMap[mapKey]
-		if found {
-			if !reflect.DeepEqual(nsDg[namespace], grp[namespace]) {
-				// current namespace records aren't equal
-				nsDg[namespace] = grp[namespace]
-			}
-		} else {
-			crMgr.intDgMap[mapKey] = grp
-		}
-	}
-
-	// Remove non-existent data group records (those that are currently
-	// defined, but aren't part of the new set)
-	for mapKey, nsDg := range crMgr.intDgMap {
-		_, found := dgMap[mapKey]
-		if !found {
-			_, found := nsDg[namespace]
-			if found {
-				delete(nsDg, namespace)
-				if len(nsDg) == 0 {
-					delete(crMgr.intDgMap, mapKey)
 				}
 			}
 		}

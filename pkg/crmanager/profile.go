@@ -64,8 +64,7 @@ func (crMgr *CRManager) createSecretClientSSLProfile(
 		Name:         cp.Name,
 		ResourceName: rsCfg.GetName(),
 	}
-	crMgr.customProfiles.Lock()
-	defer crMgr.customProfiles.Unlock()
+
 	if prof, ok := crMgr.customProfiles.Profs[skey]; ok {
 		if !reflect.DeepEqual(prof, cp) {
 			crMgr.customProfiles.Profs[skey] = cp
@@ -132,8 +131,7 @@ func (crMgr *CRManager) createSecretServerSSLProfile(
 		Name:         cp.Name,
 		ResourceName: rsCfg.GetName(),
 	}
-	crMgr.customProfiles.Lock()
-	defer crMgr.customProfiles.Unlock()
+
 	if prof, ok := crMgr.customProfiles.Profs[skey]; ok {
 		if !reflect.DeepEqual(prof, cp) {
 			crMgr.customProfiles.Profs[skey] = cp

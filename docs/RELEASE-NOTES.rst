@@ -1,6 +1,14 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next Release
+-------------
+Added Functionality
+```````````````````
+
+Bug Fixes
+`````````
+* SR - Fix continuous overwrites with iapp in cccl mode
 2.3.0
 -------------
 Added Functionality

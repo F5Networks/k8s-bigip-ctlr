@@ -48,18 +48,12 @@ type (
 		Partition        string
 		Agent            *Agent
 		ControllerMode   string
-		// map of rules that have been merged
-		mergedRulesMap  map[string]map[string]mergedRuleEntry
-		nodePoller      pollers.Poller
-		oldNodes        []Node
-		UseNodeInternal bool
-		initState       bool
-		SSLContext      map[string]*v1.Secret
-		customProfiles  *CustomProfileStore
-		// Mutex for irulesMap
-		irulesMutex sync.Mutex
-		// Mutex for intDgMap
-		intDgMutex sync.Mutex
+		nodePoller       pollers.Poller
+		oldNodes         []Node
+		UseNodeInternal  bool
+		initState        bool
+		SSLContext       map[string]*v1.Secret
+		customProfiles   *CustomProfileStore
 		// App informer support
 		irulesMap IRulesMap
 		intDgMap  InternalDataGroupMap
@@ -369,14 +363,6 @@ type (
 	}
 )
 
-type serviceQueueKey struct {
-	Namespace   string
-	ServiceName string
-	Name        string // Name of the resource
-	Operation   string
-	Data        string
-}
-
 type (
 	Agent struct {
 		*PostManager
@@ -421,16 +407,7 @@ type (
 		GtmBigIPURL      string `json:"url,omitempty"`
 	}
 
-	as3Template    string
 	as3Declaration string
-
-	poolName   string
-	appName    string
-	tenantName string
-
-	pool      []Member
-	tenant    map[appName][]poolName
-	as3Object map[tenantName]tenant
 
 	as3JSONWithArbKeys map[string]interface{}
 

@@ -34,7 +34,6 @@ const (
 	timeoutSmall  = 3 * time.Second
 	timeoutMedium = 30 * time.Second
 	timeoutLarge  = 60 * time.Second
-	F5RouterName  = "F5 BIG-IP"
 )
 
 type PostManager struct {

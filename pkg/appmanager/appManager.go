@@ -1935,6 +1935,14 @@ func (appMgr *Manager) syncPoolMembers(rsName string, rsCfg *ResourceConfig) {
 				}
 			}
 		}
+		//for iApp resource update IAppPoolMemberTable with members found for pool.
+		if rsCfg.MetaData.ResourceType == "iapp" {
+			for _, p := range rsCfg.Pools {
+				if rsCfg.IApp.Name == p.Name {
+					rsCfg.IApp.IAppPoolMemberTable.Members = p.Members
+				}
+			}
+		}
 	}
 }
 
@@ -1955,8 +1963,8 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 			}
 		}
 		//check if endpoints are found
-		if rsCfg.Pools[index].Members == nil{
-			log.Errorf("[Core]Endpoints could not be fetched for service '#{svcKey.ServiceName}' with port '#{svcKey.ServicePort}'")
+		if rsCfg.Pools[index].Members == nil {
+			log.Errorf("[CORE]Endpoints could not be fetched for service %v with port %v", svcKey.ServiceName, svcKey.ServicePort)
 		}
 		return true, "", ""
 	} else {
@@ -1991,8 +1999,8 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 		}
 	}
 	//check if endpoints are found
-	if rsCfg.Pools[index].Members == nil{
-		log.Errorf("[Core]Endpoints could not be fetched for service '#{svcKey}' with port '#{sKey.ServicePort}'")
+	if rsCfg.Pools[index].Members == nil {
+		log.Errorf("[CORE]Endpoints could not be fetched for service %v with port %v", sKey.ServiceName, sKey.ServicePort)
 	}
 	return true, "", ""
 }

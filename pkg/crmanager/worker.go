@@ -1029,6 +1029,7 @@ func (crMgr *CRManager) syncTransportServers(
 	rsCfg.MetaData.ResourceType = TransportServer
 	rsCfg.Virtual.Enabled = true
 	rsCfg.Virtual.Name = rsName
+	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
 	rsCfg.Virtual.SetVirtualAddress(
 		virtual.Spec.VirtualServerAddress,
 		virtual.Spec.VirtualServerPort,

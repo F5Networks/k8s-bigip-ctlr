@@ -212,6 +212,9 @@ spec:
                 mode: 
                   type: string
                   enum: [standard, performance]
+                type:
+                  type: string
+                  enum: [tcp, udp]
                 snat:
                   type: string
                 allowVlans:
@@ -234,7 +237,7 @@ spec:
                       properties:
                         type:
                           type: string
-                          enum: [tcp]
+                          enum: [tcp, udp]
                         interval:
                           type: integer
                         timeout:

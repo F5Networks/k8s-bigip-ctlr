@@ -147,6 +147,7 @@ type TransportServerSpec struct {
 	SNAT                 string   `json:"snat"`
 	Pool                 Pool     `json:"pool"`
 	AllowVLANs           []string `json:"allowVlans,omitempty"`
+	Type                 string   `json:"type,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -32,14 +32,22 @@ generate_attributions_licensee() {
               echo "Unable to detect the license type"
               continue
             fi
-            licensee detect $vendor/$repo/$projects/$package;
             # Licensee is not able to detect the license file path.
             # Need to raise an issue with licensee.
             if [ $projects == "xeipuuv" ] || [ $projects == "hpcloud" ]
-            then	
+            then
+              license_text="License:        Apache-2.0
+Matched files:  LICENSE-APACHE-2.0.txt
+LICENSE-APACHE-2.0.txt:
+  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0"
+            echo "$license_text"
             echo "Unable to detect the license file path"
             continue
-            fi	
+            fi
+            licensee detect $vendor/$repo/$projects/$package
             licensee license-path $vendor/$repo/$projects/$package | xargs head -25
             echo
         done ; 

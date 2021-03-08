@@ -46,7 +46,6 @@ spec:
             "--pool-member-type=nodeport",
             "--insecure",
             "--custom-resource-mode=true",
-            "--ingress-link-mode=true",
             # for secure communication provide the internal ca certificates using config-map with below option and remove insecure parameter
             #"--trusted-certs-cfgmap=<namespace/configmap>",
           ]

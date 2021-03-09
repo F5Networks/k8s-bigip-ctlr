@@ -145,6 +145,15 @@ type (
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
 
+	// ServiceAddress Service IP address definition (BIG-IP virtual-address).
+	ServiceAddress struct {
+		ArpEnabled         bool   `json:"arpEnabled,omitempty"`
+		ICMPEcho           string `json:"icmpEcho,omitempty"`
+		RouteAdvertisement string `json:"routeAdvertisement,omitempty"`
+		TrafficGroup       string `json:"trafficGroup,omitempty"`
+		SpanningEnabled    bool   `json:"spanningEnabled,omitempty"`
+	}
+
 	// SourceAddrTranslation is Virtual Server Source Address Translation
 	SourceAddrTranslation struct {
 		Type string `json:"type"`
@@ -165,11 +174,12 @@ type (
 
 	// ResourceConfig is a Config for a single VirtualServer.
 	ResourceConfig struct {
-		MetaData metaData  `json:"-"`
-		Virtual  Virtual   `json:"virtual,omitempty"`
-		Pools    Pools     `json:"pools,omitempty"`
-		Policies Policies  `json:"policies,omitempty"`
-		Monitors []Monitor `json:"monitors,omitempty"`
+		MetaData       metaData         `json:"-"`
+		Virtual        Virtual          `json:"virtual,omitempty"`
+		Pools          Pools            `json:"pools,omitempty"`
+		Policies       Policies         `json:"policies,omitempty"`
+		Monitors       []Monitor        `json:"monitors,omitempty"`
+		ServiceAddress []ServiceAddress `json:"serviceAddress,omitempty"`
 	}
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
@@ -517,7 +527,7 @@ type (
 		TranslateServerAddress bool                 `json:"translateServerAddress,omitempty"`
 		TranslateServerPort    bool                 `json:"translateServerPort,omitempty"`
 		Class                  string               `json:"class,omitempty"`
-		VirtualAddresses       []string             `json:"virtualAddresses,omitempty"`
+		VirtualAddresses       []as3MultiTypeParam  `json:"virtualAddresses,omitempty"`
 		VirtualPort            int                  `json:"virtualPort,omitempty"`
 		SNAT                   as3MultiTypeParam    `json:"snat,omitempty"`
 		PolicyEndpoint         as3MultiTypeParam    `json:"policyEndpoint,omitempty"`
@@ -530,6 +540,17 @@ type (
 		ProfileL4              string               `json:"profileL4,omitempty"`
 		AllowVLANs             []as3ResourcePointer `json:"allowVlans,omitempty"`
 		PersistenceMethods     []string             `json:"persistenceMethods,omitempty"`
+	}
+
+	// as3ServiceAddress maps to VirtualAddress in AS3 Resources
+	as3ServiceAddress struct {
+		Class              string `json:"class,omitempty"`
+		VirtualAddress     string `json:"virtualAddress,omitempty"`
+		ArpEnabled         bool   `json:"arpEnabled"`
+		ICMPEcho           string `json:"icmpEcho,omitempty"`
+		RouteAdvertisement string `json:"routeAdvertisement,omitempty"`
+		TrafficGroup       string `json:"trafficGroup,omitempty,omitempty"`
+		SpanningEnabled    bool   `json:"spanningEnabled"`
 	}
 
 	// as3Monitor maps to the following in AS3 Resources

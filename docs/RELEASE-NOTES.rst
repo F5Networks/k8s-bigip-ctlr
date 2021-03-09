@@ -5,6 +5,7 @@ Next Release
 -------------
 Added Functionality
 ```````````````````
+* CIS supports service address reference in virtual server CRD.
 * Integrated the ingress link mode with CRD mode
 * :issues:`1573` Added support for type UDP Transport Server CRD
 

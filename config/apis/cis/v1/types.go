@@ -18,20 +18,30 @@ type VirtualServer struct {
 
 // VirtualServerSpec is the spec of the VirtualServer resource.
 type VirtualServerSpec struct {
-	Host                   string   `json:"host"`
-	VirtualServerAddress   string   `json:"virtualServerAddress"`
-	Cidr                   string   `json:"cidr"`
-	VirtualServerName      string   `json:"virtualServerName"`
-	VirtualServerHTTPPort  int32    `json:"virtualServerHTTPPort"`
-	VirtualServerHTTPSPort int32    `json:"virtualServerHTTPSPort"`
-	Pools                  []Pool   `json:"pools"`
-	TLSProfileName         string   `json:"tlsProfileName"`
-	HTTPTraffic            string   `json:"httpTraffic,omitempty"`
-	SNAT                   string   `json:"snat,omitempty"`
-	WAF                    string   `json:"waf,omitempty"`
-	RewriteAppRoot         string   `json:"rewriteAppRoot,omitempty"`
-	AllowVLANs             []string `json:"allowVlans,omitempty"`
-	IRules                 []string `json:"iRules,omitempty"`
+	Host                   string           `json:"host"`
+	VirtualServerAddress   string           `json:"virtualServerAddress"`
+	Cidr                   string           `json:"cidr"`
+	VirtualServerName      string           `json:"virtualServerName"`
+	VirtualServerHTTPPort  int32            `json:"virtualServerHTTPPort"`
+	VirtualServerHTTPSPort int32            `json:"virtualServerHTTPSPort"`
+	Pools                  []Pool           `json:"pools"`
+	TLSProfileName         string           `json:"tlsProfileName"`
+	HTTPTraffic            string           `json:"httpTraffic,omitempty"`
+	SNAT                   string           `json:"snat,omitempty"`
+	WAF                    string           `json:"waf,omitempty"`
+	RewriteAppRoot         string           `json:"rewriteAppRoot,omitempty"`
+	AllowVLANs             []string         `json:"allowVlans,omitempty"`
+	IRules                 []string         `json:"iRules,omitempty"`
+	ServiceIPAddress       []ServiceAddress `json:"serviceAddress"`
+}
+
+// ServiceAddress Service IP address definition (BIG-IP virtual-address).
+type ServiceAddress struct {
+	ArpEnabled         bool   `json:"arpEnabled,omitempty"`
+	ICMPEcho           string `json:"icmpEcho,omitempty"`
+	RouteAdvertisement string `json:"routeAdvertisement,omitempty"`
+	TrafficGroup       string `json:"trafficGroup,omitempty,omitempty"`
+	SpanningEnabled    bool   `json:"spanningEnabled,omitempty"`
 }
 
 // Pool defines a pool object in BIG-IP.
@@ -140,14 +150,15 @@ type TransportServer struct {
 
 // TransportServerSpec is the spec of the VirtualServer resource.
 type TransportServerSpec struct {
-	VirtualServerAddress string   `json:"virtualServerAddress"`
-	VirtualServerPort    int32    `json:"virtualServerPort"`
-	VirtualServerName    string   `json:"virtualServerName"`
-	Mode                 string   `json:"mode"`
-	SNAT                 string   `json:"snat"`
-	Pool                 Pool     `json:"pool"`
-	AllowVLANs           []string `json:"allowVlans,omitempty"`
-	Type                 string   `json:"type,omitempty"`
+	VirtualServerAddress string           `json:"virtualServerAddress"`
+	VirtualServerPort    int32            `json:"virtualServerPort"`
+	VirtualServerName    string           `json:"virtualServerName"`
+	Mode                 string           `json:"mode"`
+	SNAT                 string           `json:"snat"`
+	Pool                 Pool             `json:"pool"`
+	AllowVLANs           []string         `json:"allowVlans,omitempty"`
+	Type                 string           `json:"type,omitempty"`
+	ServiceIPAddress     []ServiceAddress `json:"serviceAddress"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

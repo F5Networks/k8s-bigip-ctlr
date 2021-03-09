@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -91,6 +92,16 @@ func (crMgr *CRManager) processResource() bool {
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 			isError = true
 		}
+	case IngressLink:
+		ingLink := rKey.rsc.(*cisapiv1.IngressLink)
+		log.Infof("Worker got IngressLink: %v\n", ingLink)
+		log.Infof("IngressLink Selector: %v\n", ingLink.Spec.Selector.String())
+		err := crMgr.syncIngressLink(ingLink, rKey.rscDelete)
+		if err != nil {
+			// TODO
+			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			isError = true
+		}
 	case ExternalDNS:
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
 		crMgr.syncExternalDNS(edns, rKey.rscDelete)
@@ -129,6 +140,18 @@ func (crMgr *CRManager) processResource() bool {
 				}
 			}
 		}
+		//Sync service for Ingress Links
+		ingLinks := crMgr.syncServiceForIngressLinks(svc)
+		if nil != ingLinks {
+			for _, ingLink := range ingLinks {
+				err := crMgr.syncIngressLink(ingLink, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
+			}
+		}
 
 	case Endpoints:
 		if crMgr.initState {
@@ -154,6 +177,18 @@ func (crMgr *CRManager) processResource() bool {
 		if nil != tsVirtuals {
 			for _, virtual := range tsVirtuals {
 				err := crMgr.syncTransportServers(virtual, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
+			}
+		}
+		//Sync service for Ingress Links
+		ingLinks := crMgr.syncServiceForIngressLinks(svc)
+		if nil != ingLinks {
+			for _, ingLink := range ingLinks {
+				err := crMgr.syncIngressLink(ingLink, false)
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -994,6 +1029,7 @@ func (crMgr *CRManager) syncTransportServers(
 	rsCfg.MetaData.ResourceType = TransportServer
 	rsCfg.Virtual.Enabled = true
 	rsCfg.Virtual.Name = rsName
+	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
 	rsCfg.Virtual.SetVirtualAddress(
 		virtual.Spec.VirtualServerAddress,
 		virtual.Spec.VirtualServerPort,
@@ -1246,4 +1282,221 @@ func checkCertificateHost(res *v1.Secret, host string) bool {
 		return false
 	}
 	return true
+}
+
+func (crMgr *CRManager) syncIngressLink(
+	ingLink *cisapiv1.IngressLink,
+	isILDeleted bool,
+) error {
+
+	startTime := time.Now()
+	defer func() {
+		endTime := time.Now()
+		log.Debugf("Finished syncing Ingress Links %+v (%v)",
+			ingLink, endTime.Sub(startTime))
+	}()
+
+	if isILDeleted {
+		var delRes []string
+		for k, _ := range crMgr.resources.rsMap {
+			rsName := "ingress_link_" + formatVirtualServerName(
+				ingLink.Spec.VirtualServerAddress,
+				0,
+			)
+			if strings.HasPrefix(k, rsName[:len(rsName)-1]) {
+				delRes = append(delRes, k)
+			}
+		}
+		for _, rsname := range delRes {
+			delete(crMgr.resources.rsMap, rsname)
+		}
+		return nil
+	}
+
+	svc, err := crMgr.getKICServiceOfIngressLink(ingLink)
+	if err != nil {
+		return err
+	}
+
+	if svc == nil {
+		return nil
+	}
+
+	for _, port := range svc.Spec.Ports {
+		rsName := "ingress_link_" + formatVirtualServerName(
+			ingLink.Spec.VirtualServerAddress,
+			port.Port,
+		)
+
+		rsCfg := &ResourceConfig{}
+		rsCfg.Virtual.Partition = crMgr.Partition
+		rsCfg.MetaData.ResourceType = "TransportServer"
+		rsCfg.Virtual.Mode = "standard"
+		rsCfg.Virtual.TranslateServerAddress = true
+		rsCfg.Virtual.TranslateServerPort = true
+		rsCfg.Virtual.Source = "0.0.0.0/0"
+		rsCfg.Virtual.Enabled = true
+		rsCfg.Virtual.Name = rsName
+		rsCfg.Virtual.SNAT = DEFAULT_SNAT
+		if len(ingLink.Spec.IRules) > 0 {
+			rsCfg.Virtual.IRules = ingLink.Spec.IRules
+		}
+		rsCfg.Virtual.SetVirtualAddress(
+			ingLink.Spec.VirtualServerAddress,
+			port.Port,
+		)
+
+		pool := Pool{
+			Name: formatVirtualServerPoolName(
+				svc.ObjectMeta.Namespace,
+				svc.ObjectMeta.Name,
+				port.Port,
+				"",
+			),
+			Partition:   rsCfg.Virtual.Partition,
+			ServiceName: svc.ObjectMeta.Name,
+			ServicePort: port.Port,
+		}
+		rsCfg.Virtual.PoolName = pool.Name
+		rsCfg.Pools = append(rsCfg.Pools, pool)
+
+		crMgr.resources.rsMap[rsName] = rsCfg
+
+		if crMgr.ControllerMode == NodePortMode {
+			crMgr.updatePoolMembersForNodePort(rsCfg, ingLink.ObjectMeta.Namespace)
+		} else {
+			crMgr.updatePoolMembersForCluster(rsCfg, ingLink.ObjectMeta.Namespace)
+		}
+	}
+
+	return nil
+}
+
+func (crMgr *CRManager) getAllIngressLinks(namespace string) []*cisapiv1.IngressLink {
+	var allIngLinks []*cisapiv1.IngressLink
+
+	crInf, ok := crMgr.getNamespacedInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
+	// Get list of VirtualServers and process them.
+	orderedIngLinks, err := crInf.ilInformer.GetIndexer().ByIndex("namespace", namespace)
+	if err != nil {
+		log.Errorf("Unable to get list of VirtualServers for namespace '%v': %v",
+			namespace, err)
+		return nil
+	}
+
+	for _, obj := range orderedIngLinks {
+		ingLink := obj.(*cisapiv1.IngressLink)
+		// TODO
+		// Validate the IngressLink List to check if all the vs are valid.
+
+		allIngLinks = append(allIngLinks, ingLink)
+	}
+
+	return allIngLinks
+}
+
+// syncServiceForIngressLinks gets the List of ingressLink which are effected
+// by the addition/deletion/updation of service.
+func (crMgr *CRManager) syncServiceForIngressLinks(svc *v1.Service) []*cisapiv1.IngressLink {
+	ingLinks := crMgr.getAllIngressLinks(svc.ObjectMeta.Namespace)
+	if nil == ingLinks {
+		log.Infof("No IngressLink founds in namespace %s",
+			svc.ObjectMeta.Namespace)
+		return nil
+	}
+	ingresslinksForService := getIngressLinkForService(ingLinks, svc)
+
+	if nil == ingresslinksForService {
+		log.Debugf("Change in Service %s does not effect any IngressLink",
+			svc.ObjectMeta.Name)
+		return nil
+	}
+
+	// Output list of all IngressLinks Found.
+	var targetILNames []string
+	for _, il := range ingLinks {
+		targetILNames = append(targetILNames, il.ObjectMeta.Name)
+	}
+	log.Debugf("IngressLinks %v are affected with service %s change",
+		targetILNames, svc.ObjectMeta.Name)
+	// TODO
+	// Remove Duplicate entries in the targetILNames.
+	// or Add only Unique entries into the targetILNames.
+	return ingresslinksForService
+}
+
+// getIngressLinkForService returns list of ingressLinks that are
+// affected by the service under process.
+func getIngressLinkForService(allIngressLinks []*cisapiv1.IngressLink,
+	svc *v1.Service) []*cisapiv1.IngressLink {
+
+	var result []*cisapiv1.IngressLink
+	svcNamespace := svc.ObjectMeta.Namespace
+
+	// find IngressLinks which reference the service
+	for _, ingLink := range allIngressLinks {
+		if ingLink.ObjectMeta.Namespace != svcNamespace {
+			continue
+		}
+		for k, v := range ingLink.Spec.Selector.MatchLabels {
+			if svc.ObjectMeta.Labels[k] == v {
+				result = append(result, ingLink)
+			}
+		}
+	}
+
+	return result
+}
+
+func (crMgr *CRManager) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink) (*v1.Service, error) {
+	selector := ""
+	for k, v := range ingLink.Spec.Selector.MatchLabels {
+		selector += fmt.Sprintf("%v=%v,", k, v)
+	}
+	selector = selector[:len(selector)-1]
+
+	svcListOptions := metav1.ListOptions{
+		LabelSelector: selector,
+	}
+
+	// Identify services that matches the given label
+	serviceList, err := crMgr.kubeClient.CoreV1().Services(ingLink.ObjectMeta.Namespace).List(svcListOptions)
+
+	if err != nil {
+		log.Errorf("Error getting service list From IngressLink. Error: %v", err)
+		return nil, err
+	}
+
+	if len(serviceList.Items) == 0 {
+		log.Infof("No services for with labels : %v", ingLink.Spec.Selector.MatchLabels)
+		return nil, nil
+	}
+
+	if len(serviceList.Items) == 1 {
+		return &serviceList.Items[0], nil
+	}
+
+	sort.Sort(Services(serviceList.Items))
+	return &serviceList.Items[0], nil
+}
+
+type Services []v1.Service
+
+//sort services by timestamp
+func (svcs Services) Len() int {
+	return len(svcs)
+}
+
+func (svcs Services) Less(i, j int) bool {
+	d1 := svcs[i].GetCreationTimestamp()
+	d2 := svcs[j].GetCreationTimestamp()
+	return d1.Before(&d2)
+}
+
+func (svcs Services) Swap(i, j int) {
+	svcs[i], svcs[j] = svcs[j], svcs[i]
 }

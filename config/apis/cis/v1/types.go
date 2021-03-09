@@ -31,7 +31,7 @@ type VirtualServerSpec struct {
 	WAF                    string   `json:"waf,omitempty"`
 	RewriteAppRoot         string   `json:"rewriteAppRoot,omitempty"`
 	AllowVLANs             []string `json:"allowVlans,omitempty"`
-	IRules                  []string `json:"iRules,omitempty"`
+	IRules                 []string `json:"iRules,omitempty"`
 }
 
 // Pool defines a pool object in BIG-IP.
@@ -147,6 +147,7 @@ type TransportServerSpec struct {
 	SNAT                 string   `json:"snat"`
 	Pool                 Pool     `json:"pool"`
 	AllowVLANs           []string `json:"allowVlans,omitempty"`
+	Type                 string   `json:"type,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -92,5 +92,12 @@ func (crMgr *CRManager) checkValidTransportServer(
 		return false
 	}
 
+	if tsResource.Spec.Type == "" {
+		tsResource.Spec.Type = "tcp"
+	} else if !(tsResource.Spec.Type == "udp" || tsResource.Spec.Type == "tcp") {
+		log.Errorf("Invalid type value for transport server %s. Supported values are tcp and udp only", vsName)
+		return false
+	}
+
 	return true
 }

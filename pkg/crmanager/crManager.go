@@ -97,8 +97,6 @@ func NewCRManager(params Params) *CRManager {
 		irulesMap:       make(IRulesMap),
 		intDgMap:        make(InternalDataGroupMap),
 		dgPath:          strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
-
-		IngressLinkMode: params.IngressLinkMode,
 		shareNodes:      params.ShareNodes,
 	}
 
@@ -272,11 +270,7 @@ func (crMgr *CRManager) Start() {
 	crMgr.nodePoller.Run()
 
 	stopChan := make(chan struct{})
-	if crMgr.IngressLinkMode {
-		go wait.Until(crMgr.ilResourceWorker, time.Second, stopChan)
-	} else {
-		go wait.Until(crMgr.customResourceWorker, time.Second, stopChan)
-	}
+	go wait.Until(crMgr.customResourceWorker, time.Second, stopChan)
 
 	<-stopChan
 	crMgr.Stop()

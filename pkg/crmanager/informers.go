@@ -150,44 +150,42 @@ func (crMgr *CRManager) newNamespacedInformer(
 		),
 	}
 
-	if crMgr.IngressLinkMode {
-		crInf.ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-			crMgr.kubeCRClient,
-			namespace,
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-			everything,
-		)
-	} else {
-		crInf.vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
-			crMgr.kubeCRClient,
-			namespace,
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-			crOptions,
-		)
-		crInf.tlsInformer = cisinfv1.NewFilteredTLSProfileInformer(
-			crMgr.kubeCRClient,
-			namespace,
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-			crOptions,
-		)
-		crInf.tsInformer = cisinfv1.NewFilteredTransportServerInformer(
-			crMgr.kubeCRClient,
-			namespace,
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-			crOptions,
-		)
-		crInf.ednsInformer = cisinfv1.NewFilteredExternalDNSInformer(
-			crMgr.kubeCRClient,
-			namespace,
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-			crOptions,
-		)
-	}
+	crInf.ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
+		crMgr.kubeCRClient,
+		namespace,
+		resyncPeriod,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		everything,
+	)
+
+	crInf.vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
+		crMgr.kubeCRClient,
+		namespace,
+		resyncPeriod,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		crOptions,
+	)
+	crInf.tlsInformer = cisinfv1.NewFilteredTLSProfileInformer(
+		crMgr.kubeCRClient,
+		namespace,
+		resyncPeriod,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		crOptions,
+	)
+	crInf.tsInformer = cisinfv1.NewFilteredTransportServerInformer(
+		crMgr.kubeCRClient,
+		namespace,
+		resyncPeriod,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		crOptions,
+	)
+	crInf.ednsInformer = cisinfv1.NewFilteredExternalDNSInformer(
+		crMgr.kubeCRClient,
+		namespace,
+		resyncPeriod,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		crOptions,
+	)
 
 	return crInf
 }

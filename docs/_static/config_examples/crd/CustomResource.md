@@ -99,7 +99,8 @@ different terminations(for same domain), one with edge and another with re-encry
 
 ## Transport Server
 
-* TransportServer resource expose non-HTTP traffic configuration for a virtual server address in BIG-IP. 
+* TransportServer resource expose non-HTTP traffic configuration for a virtual server address in BIG-IP.
+* `spec.type` value can be used to distinguish a TCP/UDP transport sever. For a list of supported options, check [here] (#transportserver)  
 ```
  apiVersion: "cis.f5.com/v1"
  kind: TransportServer
@@ -239,6 +240,7 @@ Known Issues:
 | virtualServerAddress | String | Required | NA | IP Address of BIG-IP Virtual Server |
 | virtualServerPort | String | Required | NA | Port Address of BIG-IP Virtual Server |
 | virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
+| type | String | Optional | tcp | "tcp" or "udp" L4 transport server type |
 | mode | String | Required | NA |  "standard" or "performance". A Standard mode transport server processes connections using the full proxy architecture. A Performance mode transport server uses FastL4 packet-by-packet TCP behavior. |
 | snat | String | Optional | auto |  |
 | allowVlans | List of Vlans | Optional | Allow traffic from all VLANS | list of Vlan objects to allow traffic from |

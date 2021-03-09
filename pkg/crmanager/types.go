@@ -55,14 +55,12 @@ type (
 		SSLContext       map[string]*v1.Secret
 		customProfiles   *CustomProfileStore
 		// App informer support
-		irulesMap IRulesMap
-		intDgMap  InternalDataGroupMap
-		dgPath    string
-
-		IngressLinkMode bool
-		shareNodes      bool
-		ipamCli         *ipammachinery.IPAMClient
-		ipamCR          string
+		irulesMap  IRulesMap
+		intDgMap   InternalDataGroupMap
+		dgPath     string
+		shareNodes bool
+		ipamCli    *ipammachinery.IPAMClient
+		ipamCR     string
 	}
 	// Params defines parameters
 	Params struct {

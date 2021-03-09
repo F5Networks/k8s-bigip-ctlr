@@ -18,7 +18,7 @@ Minimum version to use IngressLink:
 
 Create IngressLink Custom Resource definition as follows:
 
-    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/IngressLink/ingresslink-customresourcedefinition.yaml
+    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml
 
 
 ### 2. Create the Proxy iRule on Bigip
@@ -33,7 +33,7 @@ Create IngressLink Custom Resource definition as follows:
 ### 3. Install the CIS Controller
 
 * Refer to [CIS Installation guide](https://clouddocs.f5.com/containers/latest/userguide/cis-helm.html) to install Container Ingress Services on Kubernetes or Openshift
-* Make sure that you deployed CIS in CRD mode (use "--custom-resource-mode=true" and "--ingress-link-mode=true" in your CIS Configuration. This is specific to this preview)
+* Make sure that you deployed CIS in CRD mode (use "--custom-resource-mode=true" in your CIS Configuration.)
 
 ### 4. Install the Nginx Ingress Controller
 

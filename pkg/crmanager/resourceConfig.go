@@ -1125,6 +1125,7 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 	}
 	pools = append(pools, pool)
 	rsCfg.Virtual.Mode = vs.Spec.Mode
+	rsCfg.Virtual.IpProtocol = vs.Spec.Type
 	rsCfg.Virtual.PoolName = pool.Name
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)

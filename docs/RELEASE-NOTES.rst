@@ -19,8 +19,8 @@ Limitations
 -------------
 Added Functionality
 ```````````````````
-* CIS supports IP address assignment to Virtual Server CRD using `F5 IPAM Controller <https://github.com/f5devcentral/f5-ipam-controller/releases>`_. Refer for `Examples <https://github.com/f5devcentral/f5-ipam-controller/blob/main/README.md>`_.
-* CIS allows user to leverage Virtual IP address using either `F5 IPAM Controller <https://github.com/f5devcentral/f5-ipam-controller/releases>`_ or virtualServerAddress field in VirtualServer CRD
+* CIS supports IP address assignment to Virtual Server CRD using `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`_. Refer for `Examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
+* CIS allows user to leverage Virtual IP address using either `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`_ or virtualServerAddress field in VirtualServer CRD
 * Support Passthrough termination for TLS CRD
 * Added support for AS3 schema minor versions
 * :issues:`1631` Support `caCertificate` for OpenShift Routes
@@ -45,7 +45,7 @@ Bug Fixes
 Limitations
 ```````````
 * For AB routes HTTP2 traffic does not distribute properly when http2-profile associated to VS
-* Workaround for CIS in `IPAM mode <https://github.com/f5devcentral/f5-ipam-controller/blob/main/README.md>`_.
+* Workaround for CIS in `IPAM mode <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
 * Removing virtualServerAddress field from VSCRD in non-IPAM mode may flush corresponding BIGIP configuration
 
 

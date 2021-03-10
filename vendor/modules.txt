@@ -1,3 +1,14 @@
+# github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210308133217-973939b92f66
+## explicit
+github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1
+github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned
+github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned/scheme
+github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned/typed/fic/v1
+github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/informers/externalversions/fic/v1
+github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/informers/externalversions/internalinterfaces
+github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/listers/fic/v1
+github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery
+github.com/F5Networks/f5-ipam-controller/pkg/vlogger
 # github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
 github.com/beorn7/perks/quantile
 # github.com/davecgh/go-spew v1.1.1
@@ -5,17 +16,6 @@ github.com/davecgh/go-spew/spew
 # github.com/evanphx/json-patch v4.2.0+incompatible
 ## explicit
 github.com/evanphx/json-patch
-# github.com/f5devcentral/f5-ipam-controller v0.0.0-20210113154725-8379f3c0c7c5
-## explicit
-github.com/f5devcentral/f5-ipam-controller/pkg/ipamapis/apis/fic/v1
-github.com/f5devcentral/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned
-github.com/f5devcentral/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned/scheme
-github.com/f5devcentral/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned/typed/fic/v1
-github.com/f5devcentral/f5-ipam-controller/pkg/ipamapis/client/informers/externalversions/fic/v1
-github.com/f5devcentral/f5-ipam-controller/pkg/ipamapis/client/informers/externalversions/internalinterfaces
-github.com/f5devcentral/f5-ipam-controller/pkg/ipamapis/client/listers/fic/v1
-github.com/f5devcentral/f5-ipam-controller/pkg/ipammachinery
-github.com/f5devcentral/f5-ipam-controller/pkg/vlogger
 # github.com/fsnotify/fsnotify v1.4.9
 github.com/fsnotify/fsnotify
 # github.com/go-logr/logr v0.1.0

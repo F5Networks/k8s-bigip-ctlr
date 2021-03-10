@@ -17,14 +17,15 @@
 package crmanager
 
 import (
+	"sort"
+	"time"
+
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sort"
-	"time"
 )
 
 var configPath = "../../test/configs/"
@@ -98,18 +99,19 @@ var _ = Describe("Worker Tests", func() {
 			var IngressLinks []*cisapiv1.IngressLink
 			IngressLinks = append(IngressLinks, IngressLink1, IngressLink2)
 			ingresslinksForService := getIngressLinkForService(IngressLinks, foo)
-			Expect(ingresslinksForService[0]).To(Equal(IngressLink1),  "Should return the Ingresslink1 object")
+			Expect(ingresslinksForService[0]).To(Equal(IngressLink1), "Should return the Ingresslink1 object")
 		})
 		It("Validating service are sorted properly", func() {
 			fooPorts := []v1.ServicePort{newServicePort("port0", 8080)}
 			foo := test.NewService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
 			bar := test.NewService("bar", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
 			bar.ObjectMeta.CreationTimestamp = metav1.NewTime(time.Now())
+			time.Sleep(10 * time.Millisecond)
 			foo.ObjectMeta.CreationTimestamp = metav1.NewTime(time.Now())
 			var services Services
 			services = append(services, *foo, *bar)
 			sort.Sort(services)
-			Expect(services[0].Name).To(Equal("bar"),  "Should return the service name as bar")
+			Expect(services[0].Name).To(Equal("bar"), "Should return the service name as bar")
 		})
 	})
 })

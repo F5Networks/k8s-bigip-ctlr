@@ -1,8 +1,42 @@
+github.com/F5Networks/f5-ipam-controller
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
 github.com/beorn7/perks
 License:        MIT
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  d64f3bb4282a97b37454b5bb96a8a264a3363dc3
+  Content hash:  4c2c763d64bbc7ef2e58b0ec6d06d90cee9755c9
   Attribution:   Copyright (C) 2013 Blake Mizerany
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
@@ -37,7 +71,7 @@ github.com/davecgh/go-spew
 License:        ISC
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  d168f98624be864548b2bbf4f198fdbf702d6743
+  Content hash:  7fcb74e2084b361556b8285d6f800495d0d5e36a
   Attribution:   Copyright (c) 2012-2016 Dave Collins <dave@davec.name>
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
@@ -72,49 +106,15 @@ github.com/evanphx/json-patch
 License:        BSD-3-Clause
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  fed1b226c87fe9fd19df311d12e485cf4d7a40a7
+  Content hash:  0efe94390eb408b88574fd22716b5161bda903a5
   Attribution:   Copyright (c) 2014, Evan Phoenix
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.35%
-
-                                 Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-
-github.com/f5devcentral/f5-ipam-controller
-License:        Apache-2.0
-Matched files:  LICENSE
-LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
-  Confidence:    100.00%
-  Matcher:       Licensee::Matchers::Exact
-  License:       Apache-2.0
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.51%
+    BSD-3-Clause-Clear similarity:  84.40%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -145,16 +145,16 @@ github.com/fsnotify/fsnotify
 License:        BSD-3-Clause
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2012 The Go Authors. All rights reserved.
 Copyright (c) 2012-2019 fsnotify Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -185,7 +185,7 @@ github.com/go-logr/logr
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -219,12 +219,12 @@ github.com/gogo/protobuf
 License:        NOASSERTION
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  76cab382eeaaf4cdbe53cf34c7dcbf2727a2270c
+  Content hash:  6f884d703b5b2cd6ff744b19003bdbbb8d1f5e87
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSD-3-Clause-Clear similarity:  89.06%
-    BSD-4-Clause similarity:        88.64%
-    BSD-3-Clause similarity:        86.67%
+    BSD-3-Clause-Clear similarity:  88.24%
+    BSD-4-Clause similarity:        87.50%
+    BSD-3-Clause similarity:        80.13%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -255,7 +255,7 @@ github.com/golang/groupcache
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  53f121e345a269c39e899d50aec2e8e0f18ebcd4
+  Content hash:  70b6b935f8e5b81cd3013d1f41c2d633fe5b9227
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -289,15 +289,15 @@ github.com/golang/protobuf
 License:        BSD-3-Clause
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright 2010 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -328,15 +328,15 @@ github.com/google/go-cmp
 License:        BSD-3-Clause
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2017 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -367,7 +367,7 @@ github.com/google/gofuzz
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -401,7 +401,7 @@ github.com/googleapis/gnostic
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -435,7 +435,7 @@ github.com/hashicorp/golang-lru
 License:        MPL-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  b76b2b95140e8c791e75f0ce3fe35b0be48a9a38
+  Content hash:  8a7b6ea0dace7d1e3f7415834bf78575bda7972c
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       MPL-2.0
@@ -471,7 +471,7 @@ github.com/json-iterator/go
 License:        MIT
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  d64f3bb4282a97b37454b5bb96a8a264a3363dc3
+  Content hash:  4c2c763d64bbc7ef2e58b0ec6d06d90cee9755c9
   Attribution:   Copyright (c) 2016 json-iterator
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
@@ -506,7 +506,7 @@ github.com/matttproud/golang_protobuf_extensions
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -540,25 +540,25 @@ github.com/miekg/dns
 License:        NOASSERTION
 Matched files:  LICENSE, COPYRIGHT
 LICENSE:
-  Content hash:  ad4ade129c4d9fc65d4fafde693694e160d82f73
+  Content hash:  e225e64821dfe0b2a62ad54da77a76aa173f1aac
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSD-3-Clause-Clear similarity:  89.47%
-    BSD-4-Clause similarity:        88.30%
-    BSD-3-Clause similarity:        86.03%
+    BSD-3-Clause-Clear similarity:  88.64%
+    BSD-4-Clause similarity:        87.18%
+    BSD-3-Clause similarity:        79.60%
 COPYRIGHT:
   Content hash:  4f57c6222da530bb401d59e9be1f1c81761b02cc
   License:       NOASSERTION
   Closest non-matching licenses:
-    ISC similarity:        15.87%
-    Zlib similarity:       15.60%
-    Unlicense similarity:  14.42%
+    ISC similarity:   12.27%
+    0BSD similarity:  11.68%
+    Zlib similarity:  11.11%
 
 github.com/modern-go/concurrent
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -592,7 +592,7 @@ github.com/modern-go/reflect2
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -626,7 +626,7 @@ github.com/nxadm/tail
 License:        MIT
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  d64f3bb4282a97b37454b5bb96a8a264a3363dc3
+  Content hash:  4c2c763d64bbc7ef2e58b0ec6d06d90cee9755c9
   Attribution:   © Copyright 2015 Hewlett Packard Enterprise Development LP
 Copyright (c) 2014 ActiveState
   Confidence:    100.00%
@@ -662,7 +662,7 @@ github.com/onsi/ginkgo
 License:        MIT
 Matched files:  LICENSE, README.md
 LICENSE:
-  Content hash:  d64f3bb4282a97b37454b5bb96a8a264a3363dc3
+  Content hash:  4c2c763d64bbc7ef2e58b0ec6d06d90cee9755c9
   Attribution:   Copyright (c) 2013-2014 Onsi Fakhouri
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
@@ -673,9 +673,9 @@ README.md:
   Matcher:       Licensee::Matchers::Reference
   License:       MIT
   Closest non-matching licenses:
-    WTFPL similarity:  2.94%
-    0BSD similarity:   1.63%
-    ISC similarity:    1.45%
+    WTFPL similarity:  1.80%
+    0BSD similarity:   0.95%
+    ISC similarity:    0.84%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -706,20 +706,20 @@ github.com/onsi/gomega
 License:        MIT
 Matched files:  LICENSE, README.md
 LICENSE:
-  Content hash:  d64f3bb4282a97b37454b5bb96a8a264a3363dc3
+  Content hash:  4c2c763d64bbc7ef2e58b0ec6d06d90cee9755c9
   Attribution:   Copyright (c) 2013-2014 Onsi Fakhouri
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       MIT
 README.md:
-  Content hash:  e3719746d0723f0d0b636046cc716b14e64f3337
+  Content hash:  c9fa1e8ff0bd7f0a422ca98f3d8b9e85ddc96866
   Confidence:    90.00%
   Matcher:       Licensee::Matchers::Reference
   License:       MIT
   Closest non-matching licenses:
-    WTFPL similarity:  14.08%
-    Zlib similarity:   8.97%
-    0BSD similarity:   7.94%
+    WTFPL similarity:  10.42%
+    Zlib similarity:   5.45%
+    0BSD similarity:   5.10%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -750,7 +750,7 @@ github.com/openshift/api
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -784,7 +784,7 @@ github.com/openshift/client-go
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -818,7 +818,7 @@ github.com/prometheus/client_golang
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -852,7 +852,7 @@ github.com/prometheus/client_model
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -886,7 +886,7 @@ github.com/prometheus/common
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -920,7 +920,7 @@ github.com/prometheus/procfs
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -954,16 +954,16 @@ github.com/spf13/pflag
 License:        BSD-3-Clause
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2012 Alex Ogier. All rights reserved.
 Copyright (c) 2012 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -1021,57 +1021,57 @@ golang.org/x/crypto
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 PATENTS:
-  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:  29.07%
-    MS-PL similarity:    27.46%
-    UPL-1.0 similarity:  27.33%
+    BSL-1.0 similarity:       24.89%
+    BSD-2-Clause similarity:  22.81%
+    Unlicense similarity:     22.05%
 
 golang.org/x/net
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 PATENTS:
-  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:  29.07%
-    MS-PL similarity:    27.46%
-    UPL-1.0 similarity:  27.33%
+    BSL-1.0 similarity:       24.89%
+    BSD-2-Clause similarity:  22.81%
+    Unlicense similarity:     22.05%
 
 golang.org/x/oauth2
 License:        BSD-3-Clause
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -1102,112 +1102,112 @@ golang.org/x/sys
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 PATENTS:
-  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:  29.07%
-    MS-PL similarity:    27.46%
-    UPL-1.0 similarity:  27.33%
+    BSL-1.0 similarity:       24.89%
+    BSD-2-Clause similarity:  22.81%
+    Unlicense similarity:     22.05%
 
 golang.org/x/term
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 PATENTS:
-  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:  29.07%
-    MS-PL similarity:    27.46%
-    UPL-1.0 similarity:  27.33%
+    BSL-1.0 similarity:       24.89%
+    BSD-2-Clause similarity:  22.81%
+    Unlicense similarity:     22.05%
 
 golang.org/x/text
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 PATENTS:
-  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:  29.07%
-    MS-PL similarity:    27.46%
-    UPL-1.0 similarity:  27.33%
+    BSL-1.0 similarity:       24.89%
+    BSD-2-Clause similarity:  22.81%
+    Unlicense similarity:     22.05%
 
 golang.org/x/time
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 PATENTS:
-  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:  29.07%
-    MS-PL similarity:    27.46%
-    UPL-1.0 similarity:  27.33%
+    BSL-1.0 similarity:       24.89%
+    BSD-2-Clause similarity:  22.81%
+    Unlicense similarity:     22.05%
 
 golang.org/x/xerrors
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2019 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 PATENTS:
-  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:  29.07%
-    MS-PL similarity:    27.46%
-    UPL-1.0 similarity:  27.33%
+    BSL-1.0 similarity:       24.89%
+    BSD-2-Clause similarity:  22.81%
+    Unlicense similarity:     22.05%
 
 google.golang.org/appengine
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -1241,33 +1241,33 @@ google.golang.org/protobuf
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:
-  Content hash:  9c54fd18ccf970ec95e5156d3c4cc7aa2921e159
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
   Attribution:   Copyright (c) 2018 The Go Authors. All rights reserved.
-  Confidence:    99.15%
+  Confidence:    99.17%
   Matcher:       Licensee::Matchers::Dice
   License:       BSD-3-Clause
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        99.15%
-    BSD-4-Clause similarity:        90.62%
-    BSD-3-Clause-Clear similarity:  90.00%
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 PATENTS:
-  Content hash:  d43f86c25b45352d4dbc18180de1f4806db5ceaf
+  Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSL-1.0 similarity:  29.07%
-    MS-PL similarity:    27.46%
-    UPL-1.0 similarity:  27.33%
+    BSL-1.0 similarity:       24.89%
+    BSD-2-Clause similarity:  22.81%
+    Unlicense similarity:     22.05%
 
 gopkg.in/inf.v0
 License:        NOASSERTION
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  d584d4d93ff276855791486f757001f490ffae8c
+  Content hash:  7b0e2bac37a30d718bfc75509619e4f42ca4e6cd
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSD-3-Clause similarity:        96.69%
-    BSD-4-Clause similarity:        91.05%
-    BSD-3-Clause-Clear similarity:  90.42%
+    BSD-3-Clause similarity:        97.14%
+    BSD-4-Clause similarity:        86.86%
+    BSD-3-Clause-Clear similarity:  85.71%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -1298,12 +1298,12 @@ gopkg.in/tomb.v1
 License:        NOASSERTION
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  5d2c5f8221a5f92d9ece6ac741db97141d17150e
+  Content hash:  e5c732022159a876ea0cd1f7f83026cbed688456
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSD-3-Clause-Clear similarity:  91.47%
-    BSD-4-Clause similarity:        91.05%
-    BSD-3-Clause similarity:        88.97%
+    BSD-3-Clause-Clear similarity:  91.95%
+    BSD-4-Clause similarity:        91.89%
+    BSD-3-Clause similarity:        84.10%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -1334,32 +1334,32 @@ gopkg.in/yaml.v2
 License:        NOASSERTION
 Matched files:  LICENSE, LICENSE.libyaml, README.md
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
 LICENSE.libyaml:
-  Content hash:  45b26c34281865a7b4a103774ce0108fb6190f52
+  Content hash:  2cc1637af353ddd47af259970dfb3c74e024654e
   License:       NOASSERTION
   Closest non-matching licenses:
-    MIT similarity:      78.97%
-    NCSA similarity:     72.20%
-    BSL-1.0 similarity:  66.08%
+    MIT similarity:      68.63%
+    BSL-1.0 similarity:  67.26%
+    NCSA similarity:     66.17%
 README.md:
   Content hash:  62cab2b3c5677444dc582fb2fd3c6559b7ece0ca
   Confidence:    90.00%
   Matcher:       Licensee::Matchers::Reference
   License:       Apache-2.0
   Closest non-matching licenses:
-    WTFPL similarity:  11.27%
-    0BSD similarity:   4.76%
-    ISC similarity:    4.26%
+    WTFPL similarity:  7.77%
+    0BSD similarity:   2.96%
+    ISC similarity:    2.61%
 
 k8s.io/api
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -1393,7 +1393,7 @@ k8s.io/apiextensions-apiserver
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -1427,7 +1427,7 @@ k8s.io/apimachinery
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -1461,7 +1461,7 @@ k8s.io/client-go
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -1495,7 +1495,7 @@ k8s.io/klog
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  53f121e345a269c39e899d50aec2e8e0f18ebcd4
+  Content hash:  70b6b935f8e5b81cd3013d1f41c2d633fe5b9227
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -1529,7 +1529,7 @@ k8s.io/kube-openapi
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -1563,7 +1563,7 @@ k8s.io/utils
 License:        Apache-2.0
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  ab3901051663cb8ee5dea9ebdff406ad136910e3
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
@@ -1598,12 +1598,12 @@ sigs.k8s.io/yaml
 License:        NOASSERTION
 Matched files:  LICENSE
 LICENSE:
-  Content hash:  da07d47669f9757716bcd4f38923de55c8a25c29
+  Content hash:  9b1bd4a3a09187e460442902051cee624bd8ce57
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSD-3-Clause-Clear similarity:  62.99%
-    BSD-4-Clause similarity:        61.58%
-    BSD-3-Clause similarity:        60.62%
+    BSD-3-Clause-Clear similarity:  46.83%
+    BSD-4-Clause similarity:        45.68%
+    BSD-3-Clause similarity:        43.51%
 
                                  Apache License
                            Version 2.0, January 2004

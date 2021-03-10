@@ -21,10 +21,10 @@ import (
 	"strings"
 	"time"
 
+	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
+	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	ficV1 "github.com/f5devcentral/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	"github.com/f5devcentral/f5-ipam-controller/pkg/ipammachinery"
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"

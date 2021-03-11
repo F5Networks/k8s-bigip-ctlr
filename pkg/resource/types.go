@@ -30,18 +30,28 @@ type (
 		IRules             []IRule             `json:"iRules,omitempty"`
 		InternalDataGroups []InternalDataGroup `json:"internalDataGroups,omitempty"`
 		IApps              []IApp              `json:"iapps,omitempty"`
+		ServiceIPAddress   []ServiceAddress    `json:"serviceAddress,omitempty"`
 	}
 
 	// Config for a single resource (ConfigMap, Ingress, or Route)
 	ResourceConfig struct {
-		MetaData MetaData `json:"-"`
-		Virtual  Virtual  `json:"virtual,omitempty"`
-		IApp     IApp     `json:"iapp,omitempty"`
-		Pools    Pools    `json:"pools,omitempty"`
-		Monitors Monitors `json:"monitors,omitempty"`
-		Policies Policies `json:"policies,omitempty"`
+		MetaData       MetaData         `json:"-"`
+		Virtual        Virtual          `json:"virtual,omitempty"`
+		IApp           IApp             `json:"iapp,omitempty"`
+		Pools          Pools            `json:"pools,omitempty"`
+		Monitors       Monitors         `json:"monitors,omitempty"`
+		Policies       Policies         `json:"policies,omitempty"`
+		ServiceAddress []ServiceAddress `json:"serviceAddress,omitempty"`
 	}
 	ResourceConfigs []*ResourceConfig
+
+	ServiceAddress struct {
+		ArpEnabled         bool   `json:"arpEnabled,omitempty"`
+		ICMPEcho           string `json:"icmpEcho,omitempty"`
+		RouteAdvertisement string `json:"routeAdvertisement,omitempty"`
+		TrafficGroup       string `json:"trafficGroup,omitempty,omitempty"`
+		SpanningEnabled    bool   `json:"spanningEnabled,omitempty"`
+	}
 
 	MetaData struct {
 		Active       bool

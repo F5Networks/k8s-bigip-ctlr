@@ -255,6 +255,7 @@ Known Issues:
 | mode | String | Required | NA |  "standard" or "performance". A Standard mode transport server processes connections using the full proxy architecture. A Performance mode transport server uses FastL4 packet-by-packet TCP behavior. |
 | snat | String | Optional | auto |  |
 | allowVlans | List of Vlans | Optional | Allow traffic from all VLANS | list of Vlan objects to allow traffic from |
+| httpTraffic | String | Optional | NA | Describes whether http traffic should be allowed, redirected or dropped (allow, redirect, none) |
 
 **Pool Components**
 

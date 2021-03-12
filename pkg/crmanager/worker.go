@@ -569,9 +569,15 @@ func (crMgr *CRManager) syncVirtualServers(
 	uniqueHostPath := make(map[string][]string)
 	var cidr string
 	for _, vrt := range allVirtuals {
-		if ((crMgr.ipamCli != nil && vrt.Spec.Cidr == virtual.Spec.Cidr) || vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress) &&
-			vrt.Spec.Host == virtual.Spec.Host &&
+		if vrt.Spec.Host == virtual.Spec.Host &&
 			!(isVSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
+			if crMgr.ipamCli != nil && vrt.Spec.Cidr != virtual.Spec.Cidr {
+				log.Debugf("Same host is configured with different CIDR : , %v ", vrt.Spec.Host)
+				return nil
+			} else if vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress {
+				log.Debugf("Same host is configured with different VirtualServerAddress : %v ", vrt.Spec.VirtualServerName)
+				return nil
+			}
 			isUnique := true
 		op:
 			for _, pool := range vrt.Spec.Pools {
@@ -750,10 +756,16 @@ func (crMgr *CRManager) requestIP(cidr string, host string) string {
 			return ipst.IP
 		}
 	}
-	//Check if HostSpec is already updated with Host and Cidr
+
 	for _, hst := range ipamCR.Spec.HostSpecs {
-		if hst.Cidr == cidr && hst.Host == host {
-			return ""
+		if hst.Host == host {
+			if hst.Cidr == cidr {
+				//Check if HostSpec is already updated with Host and Cidr
+				return ""
+			} else {
+				crMgr.releaseIP(hst.Cidr, hst.Host)
+				break
+			}
 		}
 	}
 

@@ -13,7 +13,9 @@ ARG LICENSE
 
 # Copy Source code to workdir
 COPY . .
-RUN /bin/bash -ex $BASE_PATH/$REPO_NAME/build-tools/rel-build.sh
+COPY build-tools/help.md /tmp/
+RUN  go-md2man -in /tmp/help.md -out /help.1 && rm -f /tmp/help.md && \
+     /bin/bash -ex $BASE_PATH/$REPO_NAME/build-tools/rel-build.sh
 
 
 FROM registry.redhat.io/ubi7/ubi-minimal as final
@@ -53,24 +55,19 @@ COPY ["$BASE_PATH/$REPO_NAME/schemas/as3-schema-3.25.0-3-cis.json", \
     "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.7.json",\
     "$APPPATH/vendor/src/f5/schemas/"]
 
-# Add epel repo for golang-github-cpuguy83-go-md2man install
-RUN	curl -o epel-release-latest-7.noarch.rpm -SL https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm \
-            --retry 9 --retry-max-time 0 -C - && \
-	rpm -ivh epel-release-latest-7.noarch.rpm && rm epel-release-latest-7.noarch.rpm && \
-	microdnf -y install --enablerepo=epel --setopt=tsflags=nodocs golang-github-cpuguy83-go-md2man && \
-	rpm -e epel-release
+COPY --from=base "/help.1" /
+
 RUN microdnf --enablerepo=ubi-7 \
       --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms install --nodocs \
       rh-python36 git shadow-utils && \
     microdnf update && \
     microdnf --enablerepo=ubi-7 --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms update nss-tools nss-softokn nss-util && \
-    go-md2man -in /tmp/help.md -out /help.1 && rm -f /tmp/help.md && \
     source scl_source enable rh-python36 && \
     pip install --no-cache-dir --upgrade pip==20.0.2 && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     python -m pip uninstall -y pip && \
     adduser ctlr && \
-    microdnf remove golang-github-cpuguy83-go-md2man git fipscheck fipscheck-lib  less libedit \
+    microdnf remove git fipscheck fipscheck-lib  less libedit \
     libgnome-keyring openssh openssh-clients  perl-Git  perl-TermReadKey  perl-macros  rsync shadow-utils && \
     microdnf clean all \
     && echo "{\"version\": \"${VERSION_INFO}\", \"build\": \"${BUILD_INFO}\"}" \

@@ -20,7 +20,7 @@ type VirtualServer struct {
 type VirtualServerSpec struct {
 	Host                   string           `json:"host"`
 	VirtualServerAddress   string           `json:"virtualServerAddress"`
-	Cidr                   string           `json:"cidr"`
+	IPAMLabel              string           `json:"ipamLabel"`
 	VirtualServerName      string           `json:"virtualServerName"`
 	VirtualServerHTTPPort  int32            `json:"virtualServerHTTPPort"`
 	VirtualServerHTTPSPort int32            `json:"virtualServerHTTPSPort"`
@@ -159,6 +159,7 @@ type TransportServerSpec struct {
 	AllowVLANs           []string         `json:"allowVlans,omitempty"`
 	Type                 string           `json:"type,omitempty"`
 	ServiceIPAddress     []ServiceAddress `json:"serviceAddress"`
+	IPAMLabel            string           `json:"ipamLabel"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

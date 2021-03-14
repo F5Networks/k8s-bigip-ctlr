@@ -22,9 +22,10 @@ type F5IPAMSpec struct {
 }
 
 type HostSpec struct {
-	Host string `json:"host,omitempty"`
-	Key  string `json:"key,omitempty"`
-	Cidr string `json:"cidr,omitempty"`
+	Host      string `json:"host,omitempty"`
+	Key       string `json:"key,omitempty"`
+	CIDR      string `json:"cidr,omitempty"`
+	IPAMLabel string `json:"ipamLabel,omitempty"`
 }
 
 type F5IPAMStatus struct {
@@ -32,10 +33,11 @@ type F5IPAMStatus struct {
 }
 
 type IPSpec struct {
-	Host string `json:"host,omitempty"`
-	Key  string `json:"key,omitempty"`
-	Cidr string `json:"cidr,omitempty"`
-	IP   string `json:"ip,omitempty"`
+	Host      string `json:"host,omitempty"`
+	Key       string `json:"key,omitempty"`
+	CIDR      string `json:"cidr,omitempty"`
+	IPAMLabel string `json:"ipamLabel,omitempty"`
+	IP        string `json:"ip,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

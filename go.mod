@@ -3,7 +3,7 @@ module github.com/F5Networks/k8s-bigip-ctlr
 go 1.15
 
 require (
-	github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210308133217-973939b92f66
+	github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210310053552-3397aa195d14
 	github.com/evanphx/json-patch v4.2.0+incompatible // indirect
 	github.com/golang/groupcache v0.0.0-20170421005642-b710c8433bd1 // indirect
 	github.com/googleapis/gnostic v0.0.0-20190828010002-635450e9295f // indirect

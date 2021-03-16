@@ -1141,6 +1141,13 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 	} else {
 		rsCfg.Virtual.SNAT = vs.Spec.SNAT
 	}
+
+	if len(rsCfg.ServiceAddress) == 0 {
+		for _, sa := range vs.Spec.ServiceIPAddress {
+			rsCfg.ServiceAddress = append(rsCfg.ServiceAddress, ServiceAddress(sa))
+		}
+	}
+
 	//set allowed VLAN's per TS config
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
 	return nil

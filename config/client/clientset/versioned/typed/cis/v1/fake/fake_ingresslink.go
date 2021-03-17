@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -39,7 +41,7 @@ var ingresslinksResource = schema.GroupVersionResource{Group: "k8s.nginx.org", V
 var ingresslinksKind = schema.GroupVersionKind{Group: "k8s.nginx.org", Version: "v1", Kind: "IngressLink"}
 
 // Get takes name of the ingressLink, and returns the corresponding ingressLink object, and an error if there is any.
-func (c *FakeIngressLinks) Get(name string, options v1.GetOptions) (result *cisv1.IngressLink, err error) {
+func (c *FakeIngressLinks) Get(ctx context.Context, name string, options v1.GetOptions) (result *cisv1.IngressLink, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(ingresslinksResource, c.ns, name), &cisv1.IngressLink{})
 
@@ -50,7 +52,7 @@ func (c *FakeIngressLinks) Get(name string, options v1.GetOptions) (result *cisv
 }
 
 // List takes label and field selectors, and returns the list of IngressLinks that match those selectors.
-func (c *FakeIngressLinks) List(opts v1.ListOptions) (result *cisv1.IngressLinkList, err error) {
+func (c *FakeIngressLinks) List(ctx context.Context, opts v1.ListOptions) (result *cisv1.IngressLinkList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(ingresslinksResource, ingresslinksKind, c.ns, opts), &cisv1.IngressLinkList{})
 
@@ -72,14 +74,14 @@ func (c *FakeIngressLinks) List(opts v1.ListOptions) (result *cisv1.IngressLinkL
 }
 
 // Watch returns a watch.Interface that watches the requested ingressLinks.
-func (c *FakeIngressLinks) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeIngressLinks) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(ingresslinksResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a ingressLink and creates it.  Returns the server's representation of the ingressLink, and an error, if there is any.
-func (c *FakeIngressLinks) Create(ingressLink *cisv1.IngressLink) (result *cisv1.IngressLink, err error) {
+func (c *FakeIngressLinks) Create(ctx context.Context, ingressLink *cisv1.IngressLink, opts v1.CreateOptions) (result *cisv1.IngressLink, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(ingresslinksResource, c.ns, ingressLink), &cisv1.IngressLink{})
 
@@ -90,7 +92,7 @@ func (c *FakeIngressLinks) Create(ingressLink *cisv1.IngressLink) (result *cisv1
 }
 
 // Update takes the representation of a ingressLink and updates it. Returns the server's representation of the ingressLink, and an error, if there is any.
-func (c *FakeIngressLinks) Update(ingressLink *cisv1.IngressLink) (result *cisv1.IngressLink, err error) {
+func (c *FakeIngressLinks) Update(ctx context.Context, ingressLink *cisv1.IngressLink, opts v1.UpdateOptions) (result *cisv1.IngressLink, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(ingresslinksResource, c.ns, ingressLink), &cisv1.IngressLink{})
 
@@ -101,7 +103,7 @@ func (c *FakeIngressLinks) Update(ingressLink *cisv1.IngressLink) (result *cisv1
 }
 
 // Delete takes name of the ingressLink and deletes it. Returns an error if one occurs.
-func (c *FakeIngressLinks) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeIngressLinks) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(ingresslinksResource, c.ns, name), &cisv1.IngressLink{})
 
@@ -109,15 +111,15 @@ func (c *FakeIngressLinks) Delete(name string, options *v1.DeleteOptions) error 
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeIngressLinks) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(ingresslinksResource, c.ns, listOptions)
+func (c *FakeIngressLinks) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(ingresslinksResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &cisv1.IngressLinkList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched ingressLink.
-func (c *FakeIngressLinks) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *cisv1.IngressLink, err error) {
+func (c *FakeIngressLinks) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *cisv1.IngressLink, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(ingresslinksResource, c.ns, name, pt, data, subresources...), &cisv1.IngressLink{})
 

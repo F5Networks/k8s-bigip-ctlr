@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -39,7 +41,7 @@ var tlsprofilesResource = schema.GroupVersionResource{Group: "k8s.nginx.org", Ve
 var tlsprofilesKind = schema.GroupVersionKind{Group: "k8s.nginx.org", Version: "v1", Kind: "TLSProfile"}
 
 // Get takes name of the tLSProfile, and returns the corresponding tLSProfile object, and an error if there is any.
-func (c *FakeTLSProfiles) Get(name string, options v1.GetOptions) (result *cisv1.TLSProfile, err error) {
+func (c *FakeTLSProfiles) Get(ctx context.Context, name string, options v1.GetOptions) (result *cisv1.TLSProfile, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(tlsprofilesResource, c.ns, name), &cisv1.TLSProfile{})
 
@@ -50,7 +52,7 @@ func (c *FakeTLSProfiles) Get(name string, options v1.GetOptions) (result *cisv1
 }
 
 // List takes label and field selectors, and returns the list of TLSProfiles that match those selectors.
-func (c *FakeTLSProfiles) List(opts v1.ListOptions) (result *cisv1.TLSProfileList, err error) {
+func (c *FakeTLSProfiles) List(ctx context.Context, opts v1.ListOptions) (result *cisv1.TLSProfileList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(tlsprofilesResource, tlsprofilesKind, c.ns, opts), &cisv1.TLSProfileList{})
 
@@ -72,14 +74,14 @@ func (c *FakeTLSProfiles) List(opts v1.ListOptions) (result *cisv1.TLSProfileLis
 }
 
 // Watch returns a watch.Interface that watches the requested tLSProfiles.
-func (c *FakeTLSProfiles) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeTLSProfiles) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(tlsprofilesResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a tLSProfile and creates it.  Returns the server's representation of the tLSProfile, and an error, if there is any.
-func (c *FakeTLSProfiles) Create(tLSProfile *cisv1.TLSProfile) (result *cisv1.TLSProfile, err error) {
+func (c *FakeTLSProfiles) Create(ctx context.Context, tLSProfile *cisv1.TLSProfile, opts v1.CreateOptions) (result *cisv1.TLSProfile, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(tlsprofilesResource, c.ns, tLSProfile), &cisv1.TLSProfile{})
 
@@ -90,7 +92,7 @@ func (c *FakeTLSProfiles) Create(tLSProfile *cisv1.TLSProfile) (result *cisv1.TL
 }
 
 // Update takes the representation of a tLSProfile and updates it. Returns the server's representation of the tLSProfile, and an error, if there is any.
-func (c *FakeTLSProfiles) Update(tLSProfile *cisv1.TLSProfile) (result *cisv1.TLSProfile, err error) {
+func (c *FakeTLSProfiles) Update(ctx context.Context, tLSProfile *cisv1.TLSProfile, opts v1.UpdateOptions) (result *cisv1.TLSProfile, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(tlsprofilesResource, c.ns, tLSProfile), &cisv1.TLSProfile{})
 
@@ -101,7 +103,7 @@ func (c *FakeTLSProfiles) Update(tLSProfile *cisv1.TLSProfile) (result *cisv1.TL
 }
 
 // Delete takes name of the tLSProfile and deletes it. Returns an error if one occurs.
-func (c *FakeTLSProfiles) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeTLSProfiles) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(tlsprofilesResource, c.ns, name), &cisv1.TLSProfile{})
 
@@ -109,15 +111,15 @@ func (c *FakeTLSProfiles) Delete(name string, options *v1.DeleteOptions) error {
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeTLSProfiles) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(tlsprofilesResource, c.ns, listOptions)
+func (c *FakeTLSProfiles) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(tlsprofilesResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &cisv1.TLSProfileList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched tLSProfile.
-func (c *FakeTLSProfiles) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *cisv1.TLSProfile, err error) {
+func (c *FakeTLSProfiles) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *cisv1.TLSProfile, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(tlsprofilesResource, c.ns, name, pt, data, subresources...), &cisv1.TLSProfile{})
 

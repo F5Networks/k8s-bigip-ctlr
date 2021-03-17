@@ -26,8 +26,10 @@ import (
 )
 
 // ExternalDNSLister helps list ExternalDNSs.
+// All objects returned here must be treated as read-only.
 type ExternalDNSLister interface {
 	// List lists all ExternalDNSs in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.ExternalDNS, err error)
 	// ExternalDNSs returns an object that can list and get ExternalDNSs.
 	ExternalDNSs(namespace string) ExternalDNSNamespaceLister
@@ -58,10 +60,13 @@ func (s *externalDNSLister) ExternalDNSs(namespace string) ExternalDNSNamespaceL
 }
 
 // ExternalDNSNamespaceLister helps list and get ExternalDNSs.
+// All objects returned here must be treated as read-only.
 type ExternalDNSNamespaceLister interface {
 	// List lists all ExternalDNSs in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.ExternalDNS, err error)
 	// Get retrieves the ExternalDNS from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.ExternalDNS, error)
 	ExternalDNSNamespaceListerExpansion
 }

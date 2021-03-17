@@ -19,6 +19,8 @@ limitations under the License.
 package fake
 
 import (
+	"context"
+
 	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
@@ -39,7 +41,7 @@ var externaldnssResource = schema.GroupVersionResource{Group: "k8s.nginx.org", V
 var externaldnssKind = schema.GroupVersionKind{Group: "k8s.nginx.org", Version: "v1", Kind: "ExternalDNS"}
 
 // Get takes name of the externalDNS, and returns the corresponding externalDNS object, and an error if there is any.
-func (c *FakeExternalDNSs) Get(name string, options v1.GetOptions) (result *cisv1.ExternalDNS, err error) {
+func (c *FakeExternalDNSs) Get(ctx context.Context, name string, options v1.GetOptions) (result *cisv1.ExternalDNS, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewGetAction(externaldnssResource, c.ns, name), &cisv1.ExternalDNS{})
 
@@ -50,7 +52,7 @@ func (c *FakeExternalDNSs) Get(name string, options v1.GetOptions) (result *cisv
 }
 
 // List takes label and field selectors, and returns the list of ExternalDNSs that match those selectors.
-func (c *FakeExternalDNSs) List(opts v1.ListOptions) (result *cisv1.ExternalDNSList, err error) {
+func (c *FakeExternalDNSs) List(ctx context.Context, opts v1.ListOptions) (result *cisv1.ExternalDNSList, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewListAction(externaldnssResource, externaldnssKind, c.ns, opts), &cisv1.ExternalDNSList{})
 
@@ -72,14 +74,14 @@ func (c *FakeExternalDNSs) List(opts v1.ListOptions) (result *cisv1.ExternalDNSL
 }
 
 // Watch returns a watch.Interface that watches the requested externalDNSs.
-func (c *FakeExternalDNSs) Watch(opts v1.ListOptions) (watch.Interface, error) {
+func (c *FakeExternalDNSs) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(externaldnssResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a externalDNS and creates it.  Returns the server's representation of the externalDNS, and an error, if there is any.
-func (c *FakeExternalDNSs) Create(externalDNS *cisv1.ExternalDNS) (result *cisv1.ExternalDNS, err error) {
+func (c *FakeExternalDNSs) Create(ctx context.Context, externalDNS *cisv1.ExternalDNS, opts v1.CreateOptions) (result *cisv1.ExternalDNS, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewCreateAction(externaldnssResource, c.ns, externalDNS), &cisv1.ExternalDNS{})
 
@@ -90,7 +92,7 @@ func (c *FakeExternalDNSs) Create(externalDNS *cisv1.ExternalDNS) (result *cisv1
 }
 
 // Update takes the representation of a externalDNS and updates it. Returns the server's representation of the externalDNS, and an error, if there is any.
-func (c *FakeExternalDNSs) Update(externalDNS *cisv1.ExternalDNS) (result *cisv1.ExternalDNS, err error) {
+func (c *FakeExternalDNSs) Update(ctx context.Context, externalDNS *cisv1.ExternalDNS, opts v1.UpdateOptions) (result *cisv1.ExternalDNS, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewUpdateAction(externaldnssResource, c.ns, externalDNS), &cisv1.ExternalDNS{})
 
@@ -101,7 +103,7 @@ func (c *FakeExternalDNSs) Update(externalDNS *cisv1.ExternalDNS) (result *cisv1
 }
 
 // Delete takes name of the externalDNS and deletes it. Returns an error if one occurs.
-func (c *FakeExternalDNSs) Delete(name string, options *v1.DeleteOptions) error {
+func (c *FakeExternalDNSs) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewDeleteAction(externaldnssResource, c.ns, name), &cisv1.ExternalDNS{})
 
@@ -109,15 +111,15 @@ func (c *FakeExternalDNSs) Delete(name string, options *v1.DeleteOptions) error 
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *FakeExternalDNSs) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(externaldnssResource, c.ns, listOptions)
+func (c *FakeExternalDNSs) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(externaldnssResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &cisv1.ExternalDNSList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched externalDNS.
-func (c *FakeExternalDNSs) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *cisv1.ExternalDNS, err error) {
+func (c *FakeExternalDNSs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *cisv1.ExternalDNS, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(externaldnssResource, c.ns, name, pt, data, subresources...), &cisv1.ExternalDNS{})
 

@@ -17,6 +17,7 @@
 package appmanager
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
@@ -244,7 +245,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 					"tls.key": []byte("testkey"),
 				},
 			}
-			_, err := mockMgr.appMgr.kubeClient.CoreV1().Secrets(namespace).Create(secret)
+			_, err := mockMgr.appMgr.kubeClient.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
 
 			spec := v1beta1.IngressSpec{

@@ -17,6 +17,7 @@
 package vxlan
 
 import (
+	"context"
 	"fmt"
 
 	// appManager is only used because we need the Member type (can't mock it)
@@ -343,8 +344,8 @@ var _ = Describe("VxlanMgr Tests", func() {
 			},
 		}
 
-		fakeClient.CoreV1().Nodes().Create(&flannelNode)
-		fakeClient.CoreV1().Pods("default").Create(flannelPod)
+		fakeClient.CoreV1().Nodes().Create(context.TODO(), &flannelNode, metav1.CreateOptions{})
+		fakeClient.CoreV1().Pods("default").Create(context.TODO(), flannelPod, metav1.CreateOptions{})
 
 		vxMgr.ProcessAppmanagerEvents(fakeClient)
 		pod := []resource.Member{

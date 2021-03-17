@@ -17,6 +17,7 @@
 package crmanager
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -493,7 +494,7 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(
 	tlsProfile := obj.(*cisapiv1.TLSProfile)
 
 	if tlsProfile.Spec.TLS.Reference == "secret" {
-		clientSecret, _ := crMgr.kubeClient.CoreV1().Secrets(namespace).Get(tlsProfile.Spec.TLS.ClientSSL, metav1.GetOptions{})
+		clientSecret, _ := crMgr.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), tlsProfile.Spec.TLS.ClientSSL, metav1.GetOptions{})
 		//validate clientSSL certificates and hostname
 		match := checkCertificateHost(clientSecret, vs.Spec.Host)
 		if match == false {
@@ -1603,7 +1604,7 @@ func (crMgr *CRManager) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink
 	}
 
 	// Identify services that matches the given label
-	serviceList, err := crMgr.kubeClient.CoreV1().Services(ingLink.ObjectMeta.Namespace).List(svcListOptions)
+	serviceList, err := crMgr.kubeClient.CoreV1().Services(ingLink.ObjectMeta.Namespace).List(context.TODO(), svcListOptions)
 
 	if err != nil {
 		log.Errorf("Error getting service list From IngressLink. Error: %v", err)
@@ -1635,7 +1636,7 @@ func (crMgr *CRManager) setLBServiceIngressStatus(
 		svc.Status.LoadBalancer.Ingress[0] = lbIngress
 	}
 
-	_, updateErr := crMgr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(svc)
+	_, updateErr := crMgr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
 	if nil != updateErr {
 		// Multi-service causes the controller to try to update the status multiple times
 		// at once. Ignore this error.
@@ -1667,7 +1668,7 @@ func (crMgr *CRManager) unSetLBServiceIngressStatus(
 		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress[:index],
 			svc.Status.LoadBalancer.Ingress[index+1:]...)
 
-		_, updateErr := crMgr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(svc)
+		_, updateErr := crMgr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
 		if nil != updateErr {
 			// Multi-service causes the controller to try to update the status multiple times
 			// at once. Ignore this error.

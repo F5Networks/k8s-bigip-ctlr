@@ -248,8 +248,6 @@ func (crMgr *CRManager) processResource() bool {
 
 		config := ResourceConfigWrapper{
 			rsCfgs:         crMgr.resources.GetAllResources(),
-			iRuleMap:       crMgr.irulesMap,
-			intDgMap:       crMgr.intDgMap,
 			customProfiles: crMgr.customProfiles,
 			shareNodes:     crMgr.shareNodes,
 			dnsConfig:      crMgr.resources.dnsConfig,
@@ -648,10 +646,6 @@ func (crMgr *CRManager) syncVirtualServers(
 			)
 		}
 
-		if isVSDeleted {
-			crMgr.handleVSDeleteForDataGroups(virtual, rsName)
-		}
-
 		// Delete rsCfg if no corresponding virtuals exist
 		// Delete rsCfg if it is HTTP rsCfg and the CR VirtualServer does not handle HTTPTraffic
 		if (len(virtuals) == 0) ||
@@ -670,6 +664,8 @@ func (crMgr *CRManager) syncVirtualServers(
 			ip,
 			portStruct.port,
 		)
+		rsCfg.IntDgMap = make(InternalDataGroupMap)
+		rsCfg.IRulesMap = make(IRulesMap)
 
 		for _, vrt := range virtuals {
 			log.Debugf("Processing Virtual Server %s for port %v",

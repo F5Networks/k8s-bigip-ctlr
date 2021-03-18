@@ -54,13 +54,10 @@ type (
 		initState        bool
 		SSLContext       map[string]*v1.Secret
 		customProfiles   *CustomProfileStore
-		// App informer support
-		irulesMap  IRulesMap
-		intDgMap   InternalDataGroupMap
-		dgPath     string
-		shareNodes bool
-		ipamCli    *ipammachinery.IPAMClient
-		ipamCR     string
+		dgPath           string
+		shareNodes       bool
+		ipamCli          *ipammachinery.IPAMClient
+		ipamCR           string
 	}
 	// Params defines parameters
 	Params struct {
@@ -179,6 +176,8 @@ type (
 		Policies       Policies         `json:"policies,omitempty"`
 		Monitors       []Monitor        `json:"monitors,omitempty"`
 		ServiceAddress []ServiceAddress `json:"serviceAddress,omitempty"`
+		IRulesMap      IRulesMap
+		IntDgMap       InternalDataGroupMap
 	}
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
@@ -205,8 +204,6 @@ type (
 
 	ResourceConfigWrapper struct {
 		rsCfgs         ResourceConfigs
-		iRuleMap       IRulesMap
-		intDgMap       InternalDataGroupMap
 		customProfiles *CustomProfileStore
 		shareNodes     bool
 		dnsConfig      DNSConfig

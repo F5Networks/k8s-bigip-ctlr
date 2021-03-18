@@ -76,9 +76,8 @@ type (
 		NodePollInterval  int
 		NodeLabelSelector string
 
-		IngressLinkMode bool
-		ShareNodes      bool
-		IPAM            bool
+		ShareNodes bool
+		IPAM       bool
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
@@ -228,13 +227,14 @@ type (
 
 	// Monitor is Pool health monitor
 	Monitor struct {
-		Name      string `json:"name"`
-		Partition string `json:"-"`
-		Interval  int    `json:"interval,omitempty"`
-		Type      string `json:"type,omitempty"`
-		Send      string `json:"send,omitempty"`
-		Recv      string `json:"recv"`
-		Timeout   int    `json:"timeout,omitempty"`
+		Name       string `json:"name"`
+		Partition  string `json:"-"`
+		Interval   int    `json:"interval,omitempty"`
+		Type       string `json:"type,omitempty"`
+		Send       string `json:"send,omitempty"`
+		Recv       string `json:"recv"`
+		Timeout    int    `json:"timeout,omitempty"`
+		TargetPort int    `json:"timeout,omitempty"`
 	}
 	// Monitors  is slice of monitor
 	Monitors []Monitor

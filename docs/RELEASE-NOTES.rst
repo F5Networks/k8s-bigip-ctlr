@@ -14,6 +14,7 @@ Bug Fixes
 `````````
 * SR - Fix continuous overwrites with iapp in cccl mode
 * Fix Stale Datagroup issue
+* :issues: `1723` Fix for ECDSA-signed certificates in Openshift routes
 
 Limitations
 ```````````

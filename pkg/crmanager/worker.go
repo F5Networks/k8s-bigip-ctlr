@@ -1624,6 +1624,81 @@ func (crMgr *CRManager) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink
 	return &serviceList.Items[0], nil
 }
 
+func (crMgr *CRManager) setLBServiceIngressStatus(
+	svc *v1.Service,
+	ip string,
+) {
+	// Set the ingress status to include the virtual IP
+	lbIngress := v1.LoadBalancerIngress{IP: ip}
+	if len(svc.Status.LoadBalancer.Ingress) == 0 {
+		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress, lbIngress)
+	} else if svc.Status.LoadBalancer.Ingress[0].IP != ip {
+		svc.Status.LoadBalancer.Ingress[0] = lbIngress
+	}
+
+	_, updateErr := crMgr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(svc)
+	if nil != updateErr {
+		// Multi-service causes the controller to try to update the status multiple times
+		// at once. Ignore this error.
+		if strings.Contains(updateErr.Error(), "object has been modified") {
+			return
+		}
+		warning := fmt.Sprintf(
+			"Error when setting Service LB Ingress status IP: %v", updateErr)
+		log.Warning(warning)
+		crMgr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning)
+	} else {
+		message := fmt.Sprintf("F5 CIS assigned LoadBalancer IP: %v", ip)
+		crMgr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message)
+	}
+}
+
+func (crMgr *CRManager) unSetLBServiceIngressStatus(
+	svc *v1.Service,
+	ip string,
+) {
+	index := -1
+	for i, lbIng := range svc.Status.LoadBalancer.Ingress {
+		if lbIng.IP == ip {
+			index = i
+			break
+		}
+	}
+	if index != -1 {
+		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress[:index],
+			svc.Status.LoadBalancer.Ingress[index+1:]...)
+
+		_, updateErr := crMgr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(svc)
+		if nil != updateErr {
+			// Multi-service causes the controller to try to update the status multiple times
+			// at once. Ignore this error.
+			if strings.Contains(updateErr.Error(), "object has been modified") {
+				return
+			}
+			warning := fmt.Sprintf(
+				"Error when unsetting Service LB Ingress status IP: %v", updateErr)
+			log.Warning(warning)
+			crMgr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning)
+		} else {
+			message := fmt.Sprintf("F5 CIS unassigned LoadBalancer IP: %v", ip)
+			crMgr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message)
+		}
+	}
+}
+
+func (crMgr *CRManager) recordLBServiceIngressEvent(
+	svc *v1.Service,
+	eventType string,
+	reason string,
+	message string,
+) {
+	namespace := svc.ObjectMeta.Namespace
+	// Create the event
+	evNotifier := crMgr.eventNotifier.CreateNotifierForNamespace(
+		namespace, crMgr.kubeClient.CoreV1())
+	evNotifier.RecordEvent(svc, eventType, reason, message)
+}
+
 type Services []v1.Service
 
 //sort services by timestamp

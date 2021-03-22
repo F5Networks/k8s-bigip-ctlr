@@ -1370,7 +1370,7 @@ func (crMgr *CRManager) syncIngressLink(
 			ServicePort: port.Port,
 		}
 		monitorName := fmt.Sprintf("%s_monitor", pool.Name)
-		rsCfg.Monitors = append(rsCfg.Monitors, Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 20, Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 10, TargetPort: 8081})
+		rsCfg.Monitors = append(rsCfg.Monitors, Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 20, Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 10, TargetPort: 31580})
 		pool.MonitorNames = append(pool.MonitorNames, monitorName)
 		rsCfg.Virtual.PoolName = pool.Name
 		rsCfg.Pools = append(rsCfg.Pools, pool)

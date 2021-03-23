@@ -212,9 +212,9 @@ func createAS3ADC(config ResourceConfigWrapper) as3ADC {
 	// Process Profiles
 	processProfilesForAS3(config.rsCfgs, sharedApp)
 
-	processIRulesForAS3(config.iRuleMap, sharedApp)
+	processIRulesForAS3(config, sharedApp)
 
-	processDataGroupForAS3(config.intDgMap, sharedApp)
+	processDataGroupForAS3(config, sharedApp)
 
 	// Create AS3 Tenant
 	tenant := as3Tenant{
@@ -227,58 +227,62 @@ func createAS3ADC(config ResourceConfigWrapper) as3ADC {
 	return as3JSONDecl
 }
 
-func processIRulesForAS3(iRuleMao IRulesMap, sharedApp as3Application) {
-	// Create irule declaration
-	for _, v := range iRuleMao {
-		iRule := &as3IRules{}
-		iRule.Class = "iRule"
-		iRule.IRule = v.Code
-		sharedApp[v.Name] = iRule
+func processIRulesForAS3(config ResourceConfigWrapper, sharedApp as3Application) {
+	for _, rsCfg := range config.rsCfgs {
+		// Create irule declaration
+		for _, v := range rsCfg.IRulesMap {
+			iRule := &as3IRules{}
+			iRule.Class = "iRule"
+			iRule.IRule = v.Code
+			sharedApp[v.Name] = iRule
+		}
 	}
 }
 
-func processDataGroupForAS3(intDgMap InternalDataGroupMap, sharedApp as3Application) {
-	for idk, idg := range intDgMap {
-		for _, dg := range idg {
-			dataGroupRecord, found := sharedApp[dg.Name]
-			if !found {
-				dgMap := &as3DataGroup{}
-				dgMap.Class = "Data_Group"
-				dgMap.KeyDataType = "string"
-				for _, record := range dg.Records {
-					var rec as3Record
-					rec.Key = record.Name
-					virtualAddress := extractVirtualAddress(record.Data)
-					// To override default Value created for CCCL for certain DG types
-					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, virtualAddress); ok {
-						rec.Value = val
-					} else {
-						rec.Value = record.Data
+func processDataGroupForAS3(config ResourceConfigWrapper, sharedApp as3Application) {
+	for _, rsCfg := range config.rsCfgs {
+		for idk, idg := range rsCfg.IntDgMap {
+			for _, dg := range idg {
+				dataGroupRecord, found := sharedApp[dg.Name]
+				if !found {
+					dgMap := &as3DataGroup{}
+					dgMap.Class = "Data_Group"
+					dgMap.KeyDataType = "string"
+					for _, record := range dg.Records {
+						var rec as3Record
+						rec.Key = record.Name
+						virtualAddress := extractVirtualAddress(record.Data)
+						// To override default Value created for CCCL for certain DG types
+						if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, virtualAddress); ok {
+							rec.Value = val
+						} else {
+							rec.Value = record.Data
+						}
+						dgMap.Records = append(dgMap.Records, rec)
 					}
-					dgMap.Records = append(dgMap.Records, rec)
-				}
-				// sort above create dgMap records.
-				sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
-				sharedApp[dg.Name] = dgMap
-			} else {
-				for _, record := range dg.Records {
-					var rec as3Record
-					rec.Key = record.Name
-					virtualAddress := extractVirtualAddress(record.Data)
-					// To override default Value created for CCCL for certain DG types
-					if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, virtualAddress); ok {
-						rec.Value = val
-					} else {
-						rec.Value = record.Data
+					// sort above create dgMap records.
+					sort.Slice(dgMap.Records, func(i, j int) bool { return (dgMap.Records[i].Key < dgMap.Records[j].Key) })
+					sharedApp[dg.Name] = dgMap
+				} else {
+					for _, record := range dg.Records {
+						var rec as3Record
+						rec.Key = record.Name
+						virtualAddress := extractVirtualAddress(record.Data)
+						// To override default Value created for CCCL for certain DG types
+						if val, ok := getDGRecordValueForAS3(idk.Name, sharedApp, virtualAddress); ok {
+							rec.Value = val
+						} else {
+							rec.Value = record.Data
+						}
+						sharedApp[dg.Name].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
 					}
-					sharedApp[dg.Name].(*as3DataGroup).Records = append(dataGroupRecord.(*as3DataGroup).Records, rec)
+					// sort above created
+					sort.Slice(sharedApp[dg.Name].(*as3DataGroup).Records,
+						func(i, j int) bool {
+							return (sharedApp[dg.Name].(*as3DataGroup).Records[i].Key <
+								sharedApp[dg.Name].(*as3DataGroup).Records[j].Key)
+						})
 				}
-				// sort above created
-				sort.Slice(sharedApp[dg.Name].(*as3DataGroup).Records,
-					func(i, j int) bool {
-						return (sharedApp[dg.Name].(*as3DataGroup).Records[i].Key <
-							sharedApp[dg.Name].(*as3DataGroup).Records[j].Key)
-					})
 			}
 		}
 	}

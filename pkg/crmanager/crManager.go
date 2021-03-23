@@ -94,8 +94,6 @@ func NewCRManager(params Params) *CRManager {
 		initState:       true,
 		SSLContext:      make(map[string]*v1.Secret),
 		customProfiles:  NewCustomProfiles(),
-		irulesMap:       make(IRulesMap),
-		intDgMap:        make(InternalDataGroupMap),
 		dgPath:          strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 		shareNodes:      params.ShareNodes,
 	}

@@ -13,6 +13,7 @@ Added Functionality
 Bug Fixes
 `````````
 * SR - Fix continuous overwrites with iapp in cccl mode
+* Fix Stale Datagroup issue
 
 Limitations
 ```````````

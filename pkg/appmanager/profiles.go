@@ -17,6 +17,8 @@
 package appmanager
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -127,7 +129,10 @@ func (appMgr *Manager) setClientSslProfile(
 					"",
 				)
 			}
-
+			//check if ecdsa cert.MatchToSNI on TLS_Server adds servername on clientssl profile
+			if isECDSA(route.Spec.TLS.Certificate, route.Spec.TLS.Key) {
+				cp.MatchToSNI = route.Spec.Host
+			}
 			skey := SecretKey{
 				Name:         cp.Name,
 				ResourceName: rsCfg.GetName(),
@@ -721,4 +726,14 @@ func (appMgr *Manager) loadDefaultCert() (*ProfileRef, bool) {
 			)
 	}
 	return &profile, !found
+}
+
+//check if cert is ecdsa signed
+func isECDSA(certificate string, key string) bool {
+	cert, _ := tls.X509KeyPair([]byte(certificate), []byte(key))
+	x509cert, _ := x509.ParseCertificate(cert.Certificate[0])
+	if pka := x509cert.PublicKeyAlgorithm.String(); pka == "ECDSA" {
+		return true
+	}
+	return false
 }

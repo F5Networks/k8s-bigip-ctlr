@@ -1416,8 +1416,7 @@ func checkCertificateHost(res *v1.Secret, host string) bool {
 	}
 	ok := x509cert.VerifyHostname(host)
 	if ok != nil {
-		log.Errorf("Hostname in virtualserver does not match with certificate hostname: %v", ok)
-		return false
+		log.Debugf("Error: Hostname in virtualserver does not match with certificate hostname: %v", ok)
 	}
 	return true
 }

@@ -21,6 +21,7 @@ import (
 
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	v1 "k8s.io/api/core/v1"
@@ -41,6 +42,7 @@ type (
 		kubeAPIClient    *extClient.Clientset
 		crInformers      map[string]*CRInformer
 		nsInformer       *NSInformer
+		eventNotifier    *apm.EventNotifier
 		resourceSelector labels.Selector
 		namespacesMutex  sync.Mutex
 		namespaces       map[string]bool

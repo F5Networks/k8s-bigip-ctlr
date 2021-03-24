@@ -24,6 +24,7 @@ import (
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -96,6 +97,7 @@ func NewCRManager(params Params) *CRManager {
 		customProfiles:  NewCustomProfiles(),
 		dgPath:          strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 		shareNodes:      params.ShareNodes,
+		eventNotifier:   apm.NewEventNotifier(nil),
 	}
 
 	log.Debug("Custom Resource Manager Created")

@@ -411,7 +411,7 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 		// Clean up all resources that reference a removed namespace
 		appInf.stopInformers()
 		appMgr.removeNamespaceLocked(nsName)
-		appMgr.eventNotifier.deleteNotifierForNamespace(nsName)
+		appMgr.eventNotifier.DeleteNotifierForNamespace(nsName)
 		appMgr.resources.Lock()
 		rsDeleted := 0
 		appMgr.resources.ForEach(func(key ServiceKey, cfg *ResourceConfig) {

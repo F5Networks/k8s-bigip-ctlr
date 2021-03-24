@@ -107,9 +107,13 @@ func (crMgr *CRManager) processResource() bool {
 		crMgr.syncExternalDNS(edns, rKey.rscDelete)
 	case IPAM:
 		ipam := rKey.rsc.(*ficV1.F5IPAM)
-		virtuals := crMgr.syncIPAM(ipam)
+		virtuals := crMgr.syncIPAMVS(ipam)
 		for _, vs := range virtuals {
 			crMgr.syncVirtualServers(vs, false)
+		}
+		TSVirtuals := crMgr.syncIPAMTS(ipam)
+		for _, ts := range TSVirtuals {
+			crMgr.syncTransportServers(ts, false)
 		}
 	case Service:
 		if crMgr.initState {
@@ -565,12 +569,12 @@ func (crMgr *CRManager) syncVirtualServers(
 	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
 
 	uniqueHostPath := make(map[string][]string)
-	var cidr string
+	var ipamLabel string
 	for _, vrt := range allVirtuals {
 		if vrt.Spec.Host == virtual.Spec.Host &&
 			!(isVSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
-			if crMgr.ipamCli != nil && vrt.Spec.Cidr != virtual.Spec.Cidr {
-				log.Debugf("Same host is configured with different CIDR : , %v ", vrt.Spec.Host)
+			if crMgr.ipamCli != nil && vrt.Spec.IPAMLabel != virtual.Spec.IPAMLabel {
+				log.Debugf("Same host is configured with different ipma label : , %v ", vrt.Spec.Host)
 				return nil
 			} else if vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress {
 				log.Debugf("Same host is configured with different VirtualServerAddress : %v ", vrt.Spec.VirtualServerName)
@@ -598,8 +602,8 @@ func (crMgr *CRManager) syncVirtualServers(
 			}
 			if isUnique {
 				virtuals = append(virtuals, vrt)
-				if vrt.Spec.Cidr != "" {
-					cidr = vrt.Spec.Cidr
+				if vrt.Spec.IPAMLabel != "" {
+					ipamLabel = vrt.Spec.IPAMLabel
 				}
 			}
 		}
@@ -608,11 +612,11 @@ func (crMgr *CRManager) syncVirtualServers(
 	var ip string
 	if crMgr.ipamCli != nil {
 		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
-			ip = crMgr.releaseIP(virtual.Spec.Cidr, virtual.Spec.Host)
+			ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, "")
 		} else if virtual.Spec.VirtualServerAddress != "" {
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
-			ip = crMgr.requestIP(cidr, virtual.Spec.Host)
+			ip = crMgr.requestIP(ipamLabel, virtual.Spec.Host, "")
 			log.Debugf("[ipam] requested IP for host %v is: %v", virtual.Spec.Host, ip)
 			if ip == "" {
 				log.Debugf("[ipam] requested IP for host %v is empty.", virtual.Spec.Host)
@@ -742,34 +746,69 @@ func (crMgr *CRManager) getIPAMCR() *ficV1.F5IPAM {
 }
 
 //Request IPAM for virtual IP address
-func (crMgr *CRManager) requestIP(cidr string, host string) string {
+func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) string {
 	ipamCR := crMgr.getIPAMCR()
-	if ipamCR == nil || cidr == "" || host == "" {
+	if ipamCR == nil || ipamLabel == "" {
 		return ""
 	}
-	for _, ipst := range ipamCR.Status.IPStatus {
-		if ipst.Cidr == cidr && ipst.Host == host {
-			return ipst.IP
-		}
-	}
 
-	for _, hst := range ipamCR.Spec.HostSpecs {
-		if hst.Host == host {
-			if hst.Cidr == cidr {
-				//Check if HostSpec is already updated with Host and Cidr
-				return ""
-			} else {
-				crMgr.releaseIP(hst.Cidr, hst.Host)
-				break
+	if host != "" {
+		//For VS server
+		for _, ipst := range ipamCR.Status.IPStatus {
+			if ipst.IPAMLabel == ipamLabel && ipst.Host == host {
+				return ipst.IP
 			}
 		}
-	}
 
-	ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
-	ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs, &ficV1.HostSpec{
-		Host: host,
-		Cidr: cidr,
-	})
+		for _, hst := range ipamCR.Spec.HostSpecs {
+			if hst.Host == host {
+				if hst.IPAMLabel == ipamLabel {
+					//Check if HostSpec is already updated with IPAMLabel and Host
+					return ""
+				} else {
+					//Check this for key and host both
+					crMgr.releaseIP(hst.IPAMLabel, hst.Host, "")
+					break
+				}
+			}
+		}
+
+		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
+		ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs, &ficV1.HostSpec{
+			Host:      host,
+			IPAMLabel: ipamLabel,
+		})
+	} else if key != "" {
+		//For Transport Server
+		for _, ipst := range ipamCR.Status.IPStatus {
+			if ipst.IPAMLabel == ipamLabel && ipst.Key == key {
+				return ipst.IP
+			}
+		}
+
+		for _, hst := range ipamCR.Spec.HostSpecs {
+			if hst.Key == key {
+				if hst.IPAMLabel == ipamLabel {
+					//Check if HostSpec is already updated with IPAMLabel and Key
+					return ""
+				} else {
+					//Check this for key and host both
+					crMgr.releaseIP(hst.IPAMLabel, "", hst.Key)
+					break
+				}
+			}
+		}
+
+		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
+		ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs, &ficV1.HostSpec{
+			Key:       key,
+			IPAMLabel: ipamLabel,
+		})
+
+	} else {
+		log.Debugf("[IPAM] Invalid host and key.")
+		return ""
+	}
 
 	crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
 	log.Debugf("[ipam] Updated IPAM CR.")
@@ -777,36 +816,66 @@ func (crMgr *CRManager) requestIP(cidr string, host string) string {
 
 }
 
-func (crMgr *CRManager) releaseIP(cidr string, host string) string {
+func (crMgr *CRManager) releaseIP(ipamLabel string, host string, key string) string {
 	ipamCR := crMgr.getIPAMCR()
 	var ip string
-	if ipamCR == nil || cidr == "" || host == "" {
+	if ipamCR == nil || ipamLabel == "" {
 		return ip
 	}
 	index := -1
-	//Find index for deleted host
-	for i, hostSpec := range ipamCR.Spec.HostSpecs {
-		if hostSpec.Cidr == cidr && hostSpec.Host == host {
-			index = i
-			break
+	if host != "" {
+		//Find index for deleted host
+		for i, hostSpec := range ipamCR.Spec.HostSpecs {
+			if hostSpec.IPAMLabel == ipamLabel && hostSpec.Host == host {
+				index = i
+				break
+			}
 		}
-	}
-	//Find IP address for deleted host
-	for _, ipst := range ipamCR.Status.IPStatus {
-		if ipst.Cidr == cidr && ipst.Host == host {
-			ip = ipst.IP
+		//Find IP address for deleted host
+		for _, ipst := range ipamCR.Status.IPStatus {
+			if ipst.IPAMLabel == ipamLabel && ipst.Host == host {
+				ip = ipst.IP
+			}
 		}
-	}
-	if index != -1 {
-		ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index+1:]...)
-		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
-		_, err := crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
-		if err != nil {
-			log.Errorf("[ipam] ipam hostspec update error: %v", err)
-			return ""
+		if index != -1 {
+			ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index+1:]...)
+			ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
+			_, err := crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
+			if err != nil {
+				log.Errorf("[ipam] ipam hostspec update error: %v", err)
+				return ""
+			}
+			log.Debug("[ipam] Updated IPAM CR hostspec while releasing IP.")
 		}
-		log.Debug("[ipam] Updated IPAM CR hostspec while releasing IP.")
+	} else if key != "" {
+		//Find index for deleted key
+		for i, hostSpec := range ipamCR.Spec.HostSpecs {
+			if hostSpec.IPAMLabel == ipamLabel && hostSpec.Key == key {
+				index = i
+				break
+			}
+		}
+		//Find IP address for deleted host
+		for _, ipst := range ipamCR.Status.IPStatus {
+			if ipst.IPAMLabel == ipamLabel && ipst.Key == key {
+				ip = ipst.IP
+			}
+		}
+		if index != -1 {
+			ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index+1:]...)
+			ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
+			_, err := crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
+			if err != nil {
+				log.Errorf("[ipam] ipam hostspec update error: %v", err)
+				return ""
+			}
+			log.Debug("[ipam] Updated IPAM CR hostspec while releasing IP.")
+		}
+
+	} else {
+		log.Debugf("[IPAM] Invalid host and key.")
 	}
+
 	return ip
 }
 
@@ -1000,7 +1069,7 @@ func (crMgr *CRManager) syncTransportServers(
 
 	// Prepare list of associated VirtualServers to be processed
 	// In the event of deletion, exclude the deleted VirtualServer
-	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
+	log.Debugf("Process all the Transport Servers which share same VirtualServerAddress")
 	for _, vrt := range allVirtuals {
 		if vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress && vrt.Spec.VirtualServerPort == virtual.Spec.VirtualServerPort &&
 			!isTSDeleted {
@@ -1010,6 +1079,29 @@ func (crMgr *CRManager) syncTransportServers(
 
 	if isTSDeleted {
 		// crMgr.handleVSDeleteForDataGroups(tVirtual)
+	}
+
+	var ip string
+	var key string
+	key = virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name + "_ts"
+	if crMgr.ipamCli != nil {
+		if isTSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
+			ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, "", key)
+		} else if virtual.Spec.VirtualServerAddress != "" {
+			ip = virtual.Spec.VirtualServerAddress
+		} else {
+			ip = crMgr.requestIP(virtual.Spec.IPAMLabel, "", key)
+			log.Debugf("[ipam] requested IP for TS %v is: %v", virtual.ObjectMeta.Name, ip)
+			if ip == "" {
+				log.Debugf("[ipam] requested IP for TS %v is empty.", virtual.ObjectMeta.Name)
+				return nil
+			}
+		}
+	} else {
+		if virtual.Spec.VirtualServerAddress == "" {
+			return fmt.Errorf("No VirtualServer address in TS or IPAM found.")
+		}
+		ip = virtual.Spec.VirtualServerAddress
 	}
 
 	// vsMap holds Resource Configs of current virtuals temporarily
@@ -1023,7 +1115,7 @@ func (crMgr *CRManager) syncTransportServers(
 		)
 	} else {
 		rsName = formatVirtualServerName(
-			virtual.Spec.VirtualServerAddress,
+			ip,
 			virtual.Spec.VirtualServerPort,
 		)
 	}
@@ -1039,7 +1131,7 @@ func (crMgr *CRManager) syncTransportServers(
 	rsCfg.Virtual.Name = rsName
 	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
 	rsCfg.Virtual.SetVirtualAddress(
-		virtual.Spec.VirtualServerAddress,
+		ip,
 		virtual.Spec.VirtualServerPort,
 	)
 
@@ -1077,6 +1169,28 @@ func (crMgr *CRManager) syncTransportServers(
 	}
 	return nil
 
+}
+
+// getAllTransportServers returns list of all valid TransportServers in rkey namespace.
+func (crMgr *CRManager) getAllTSFromAllNamespaces() []*cisapiv1.TransportServer {
+	var allVirtuals []*cisapiv1.TransportServer
+
+	crInf, ok := crMgr.getNamespacedInformer("")
+	if !ok {
+		log.Errorf("Informer not found for all namespace.")
+		return allVirtuals
+	}
+	// Get list of VirtualServers and process them.
+	orderedVSs := crInf.tsInformer.GetIndexer().List()
+	for _, obj := range orderedVSs {
+		vs := obj.(*cisapiv1.TransportServer)
+		// TODO
+		// Validate the TransportServers List to check if all the vs are valid.
+
+		allVirtuals = append(allVirtuals, vs)
+	}
+
+	return allVirtuals
 }
 
 // getAllTransportServers returns list of all valid TransportServers in rkey namespace.
@@ -1166,8 +1280,8 @@ func getVirtualServersForTransportServerService(allVirtuals []*cisapiv1.Transpor
 	return result
 }
 
-//Sync IPAM resource
-func (crMgr *CRManager) syncIPAM(ipam *ficV1.F5IPAM) []*cisapiv1.VirtualServer {
+//Sync IPAM resource with VS
+func (crMgr *CRManager) syncIPAMVS(ipam *ficV1.F5IPAM) []*cisapiv1.VirtualServer {
 	log.Debug("[ipam] sync ipam starting...")
 	var allVS, vss []*cisapiv1.VirtualServer
 	allVS = crMgr.getAllVSFromAllNamespaces()
@@ -1180,6 +1294,22 @@ func (crMgr *CRManager) syncIPAM(ipam *ficV1.F5IPAM) []*cisapiv1.VirtualServer {
 		}
 	}
 	return vss
+}
+
+//Sync IPAM resource with TS
+func (crMgr *CRManager) syncIPAMTS(ipam *ficV1.F5IPAM) []*cisapiv1.TransportServer {
+	var allTS, tss []*cisapiv1.TransportServer
+	allTS = crMgr.getAllTSFromAllNamespaces()
+	for _, status := range ipam.Status.IPStatus {
+		for _, ts := range allTS {
+			key := ts.ObjectMeta.Namespace + "/" + ts.ObjectMeta.Name + "_ts"
+			if status.Key == key {
+				tss = append(tss, ts)
+				break
+			}
+		}
+	}
+	return tss
 }
 
 func (crMgr *CRManager) syncExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {

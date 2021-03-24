@@ -53,9 +53,9 @@ func (crMgr *CRManager) checkValidVirtualServer(
 			return false
 		}
 	} else {
-		cidr := vsResource.Spec.Cidr
-		if cidr == "" {
-			log.Infof("No CIDR was specified for the virtual server %s", vsName)
+		ipamLabel := vsResource.Spec.IPAMLabel
+		if ipamLabel == "" {
+			log.Infof("No ipamLabel was specified for the virtual server %s", vsName)
 			return false
 		}
 	}
@@ -85,11 +85,19 @@ func (crMgr *CRManager) checkValidTransportServer(
 
 	bindAddr := tsResource.Spec.VirtualServerAddress
 
-	// This ensures that pool-only mode only logs the message below the first
-	// time we see a config.
-	if bindAddr == "" {
-		log.Infof("No IP was specified for the transport server %s", vsName)
-		return false
+	if crMgr.ipamCli == nil {
+		// This ensures that pool-only mode only logs the message below the first
+		// time we see a config.
+		if bindAddr == "" {
+			log.Infof("No IP was specified for the transport server %s", vsName)
+			return false
+		}
+	} else {
+		ipamLabel := tsResource.Spec.IPAMLabel
+		if ipamLabel == "" {
+			log.Infof("No ipamLabel was specified for the transport server %s", vsName)
+			return false
+		}
 	}
 
 	if tsResource.Spec.Type == "" {

@@ -9,6 +9,7 @@ Added Functionality
 * Integrated the ingress link mode with CRD mode
 * Added implicit Health Monitor for ingress link resource
 * :issues:`1573` Added support for type UDP Transport Server CRD
+* CIS supports IP address assignment to Transport Server CRD using `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`_. Refer for `Examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_. 
 
 Bug Fixes
 `````````

@@ -80,7 +80,7 @@ var _ = Describe("Worker Tests", func() {
 	})
 
 	Describe("Validating Ingress link functions", func() {
-		It("Validating getIngressLinkForService filters the correct ingresslink resource", func() {
+		It("Validating filterIngressLinkForService filters the correct ingresslink resource", func() {
 			fooPorts := []v1.ServicePort{newServicePort("port0", 8080)}
 			foo := test.NewService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
 			label1 := make(map[string]string)
@@ -98,7 +98,7 @@ var _ = Describe("Worker Tests", func() {
 			IngressLink2 := NewIngressLink("ingresslink2", "1", "dummy", "", iRules, selctor)
 			var IngressLinks []*cisapiv1.IngressLink
 			IngressLinks = append(IngressLinks, IngressLink1, IngressLink2)
-			ingresslinksForService := getIngressLinkForService(IngressLinks, foo)
+			ingresslinksForService := filterIngressLinkForService(IngressLinks, foo)
 			Expect(ingresslinksForService[0]).To(Equal(IngressLink1), "Should return the Ingresslink1 object")
 		})
 		It("Validating service are sorted properly", func() {

@@ -60,7 +60,7 @@ func (crMgr *CRManager) processResource() bool {
 	switch rKey.kind {
 	case VirtualServer:
 		virtual := rKey.rsc.(*cisapiv1.VirtualServer)
-		err := crMgr.syncVirtualServers(virtual, rKey.rscDelete)
+		err := crMgr.processVirtualServers(virtual, rKey.rscDelete)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -71,13 +71,13 @@ func (crMgr *CRManager) processResource() bool {
 			break
 		}
 		tls := rKey.rsc.(*cisapiv1.TLSProfile)
-		virtuals := crMgr.syncTLSProfile(tls)
+		virtuals := crMgr.getVirtualsForTLSProfile(tls)
 		// No Virtuals are effected with the change in TLSProfile.
 		if nil == virtuals {
 			break
 		}
 		for _, virtual := range virtuals {
-			err := crMgr.syncVirtualServers(virtual, false)
+			err := crMgr.processVirtualServers(virtual, false)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -86,7 +86,7 @@ func (crMgr *CRManager) processResource() bool {
 		}
 	case TransportServer:
 		virtual := rKey.rsc.(*cisapiv1.TransportServer)
-		err := crMgr.syncTransportServers(virtual, rKey.rscDelete)
+		err := crMgr.processTransportServers(virtual, rKey.rscDelete)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -96,7 +96,7 @@ func (crMgr *CRManager) processResource() bool {
 		ingLink := rKey.rsc.(*cisapiv1.IngressLink)
 		log.Infof("Worker got IngressLink: %v\n", ingLink)
 		log.Infof("IngressLink Selector: %v\n", ingLink.Spec.Selector.String())
-		err := crMgr.syncIngressLink(ingLink, rKey.rscDelete)
+		err := crMgr.processIngressLink(ingLink, rKey.rscDelete)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -104,27 +104,27 @@ func (crMgr *CRManager) processResource() bool {
 		}
 	case ExternalDNS:
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
-		crMgr.syncExternalDNS(edns, rKey.rscDelete)
+		crMgr.processExternalDNS(edns, rKey.rscDelete)
 	case IPAM:
 		ipam := rKey.rsc.(*ficV1.F5IPAM)
-		virtuals := crMgr.syncIPAMVS(ipam)
+		virtuals := crMgr.getVirtualServersForIPAM(ipam)
 		for _, vs := range virtuals {
-			crMgr.syncVirtualServers(vs, false)
+			crMgr.processVirtualServers(vs, false)
 		}
-		TSVirtuals := crMgr.syncIPAMTS(ipam)
+		TSVirtuals := crMgr.getTransportServersForIPAM(ipam)
 		for _, ts := range TSVirtuals {
-			crMgr.syncTransportServers(ts, false)
+			crMgr.processTransportServers(ts, false)
 		}
 	case Service:
 		if crMgr.initState {
 			break
 		}
 		svc := rKey.rsc.(*v1.Service)
-		virtuals := crMgr.syncService(svc)
+		virtuals := crMgr.getVirtualServersForService(svc)
 		// If nil No Virtuals are effected with the change in service.
 		if nil != virtuals {
 			for _, virtual := range virtuals {
-				err := crMgr.syncVirtualServers(virtual, false)
+				err := crMgr.processVirtualServers(virtual, false)
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -133,10 +133,10 @@ func (crMgr *CRManager) processResource() bool {
 			}
 		}
 		//Sync service for Transport Server virtuals
-		tsVirtuals := crMgr.syncServiceForTransportServer(svc)
+		tsVirtuals := crMgr.getTransportServersForService(svc)
 		if nil != tsVirtuals {
 			for _, virtual := range tsVirtuals {
-				err := crMgr.syncTransportServers(virtual, false)
+				err := crMgr.processTransportServers(virtual, false)
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -145,10 +145,10 @@ func (crMgr *CRManager) processResource() bool {
 			}
 		}
 		//Sync service for Ingress Links
-		ingLinks := crMgr.syncServiceForIngressLinks(svc)
+		ingLinks := crMgr.getIngressLinksForService(svc)
 		if nil != ingLinks {
 			for _, ingLink := range ingLinks {
-				err := crMgr.syncIngressLink(ingLink, false)
+				err := crMgr.processIngressLink(ingLink, false)
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -162,14 +162,14 @@ func (crMgr *CRManager) processResource() bool {
 			break
 		}
 		ep := rKey.rsc.(*v1.Endpoints)
-		svc := crMgr.syncEndpoints(ep)
+		svc := crMgr.getServiceForEndpoints(ep)
 		// No Services are effected with the change in service.
 		if nil == svc {
 			break
 		}
-		virtuals := crMgr.syncService(svc)
+		virtuals := crMgr.getVirtualServersForService(svc)
 		for _, virtual := range virtuals {
-			err := crMgr.syncVirtualServers(virtual, false)
+			err := crMgr.processVirtualServers(virtual, false)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -177,10 +177,10 @@ func (crMgr *CRManager) processResource() bool {
 			}
 		}
 		//Sync service for Transport Server virtuals
-		tsVirtuals := crMgr.syncServiceForTransportServer(svc)
+		tsVirtuals := crMgr.getTransportServersForService(svc)
 		if nil != tsVirtuals {
 			for _, virtual := range tsVirtuals {
-				err := crMgr.syncTransportServers(virtual, false)
+				err := crMgr.processTransportServers(virtual, false)
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -189,10 +189,10 @@ func (crMgr *CRManager) processResource() bool {
 			}
 		}
 		//Sync service for Ingress Links
-		ingLinks := crMgr.syncServiceForIngressLinks(svc)
+		ingLinks := crMgr.getIngressLinksForService(svc)
 		if nil != ingLinks {
 			for _, ingLink := range ingLinks {
-				err := crMgr.syncIngressLink(ingLink, false)
+				err := crMgr.processIngressLink(ingLink, false)
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -205,7 +205,7 @@ func (crMgr *CRManager) processResource() bool {
 		nsName := ns.ObjectMeta.Name
 		if rKey.rscDelete {
 			for _, vrt := range crMgr.getAllVirtualServers(nsName) {
-				err := crMgr.syncVirtualServers(vrt, true)
+				err := crMgr.processVirtualServers(vrt, true)
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -214,7 +214,7 @@ func (crMgr *CRManager) processResource() bool {
 			}
 
 			for _, ts := range crMgr.getAllTransportServers(nsName) {
-				err := crMgr.syncTransportServers(ts, true)
+				err := crMgr.processTransportServers(ts, true)
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -263,8 +263,8 @@ func (crMgr *CRManager) processResource() bool {
 	return true
 }
 
-// syncEndpoints returns the service associated with endpoints.
-func (crMgr *CRManager) syncEndpoints(ep *v1.Endpoints) *v1.Service {
+// getServiceForEndpoints returns the service associated with endpoints.
+func (crMgr *CRManager) getServiceForEndpoints(ep *v1.Endpoints) *v1.Service {
 
 	epName := ep.ObjectMeta.Name
 	epNamespace := ep.ObjectMeta.Namespace
@@ -288,9 +288,9 @@ func (crMgr *CRManager) syncEndpoints(ep *v1.Endpoints) *v1.Service {
 	return svc.(*v1.Service)
 }
 
-// syncService gets the List of VirtualServers which are effected
+// getVirtualServersForService gets the List of VirtualServers which are effected
 // by the addition/deletion/updation of service.
-func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
+func (crMgr *CRManager) getVirtualServersForService(svc *v1.Service) []*cisapiv1.VirtualServer {
 
 	allVirtuals := crMgr.getAllVirtualServers(svc.ObjectMeta.Namespace)
 	if nil == allVirtuals {
@@ -300,7 +300,7 @@ func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
 	}
 
 	// find VirtualServers that reference the service
-	virtualsForService := getVirtualServersForService(allVirtuals, svc)
+	virtualsForService := filterVirtualServersForService(allVirtuals, svc)
 	if nil == virtualsForService {
 		log.Debugf("Change in Service %s does not effect any VirtualServer",
 			svc.ObjectMeta.Name)
@@ -320,9 +320,9 @@ func (crMgr *CRManager) syncService(svc *v1.Service) []*cisapiv1.VirtualServer {
 	return virtualsForService
 }
 
-// syncTLSProfile gets the List of VirtualServers which are effected
+// getVirtualsForTLSProfile gets the List of VirtualServers which are effected
 // by the addition/deletion/updation of TLSProfile.
-func (crMgr *CRManager) syncTLSProfile(tls *cisapiv1.TLSProfile) []*cisapiv1.VirtualServer {
+func (crMgr *CRManager) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*cisapiv1.VirtualServer {
 
 	allVirtuals := crMgr.getAllVirtualServers(tls.ObjectMeta.Namespace)
 	if nil == allVirtuals {
@@ -404,9 +404,9 @@ func (crMgr *CRManager) getAllVSFromAllNamespaces() []*cisapiv1.VirtualServer {
 	return allVirtuals
 }
 
-// getVirtualServersForService returns list of VirtualServers that are
+// filterVirtualServersForService returns list of VirtualServers that are
 // affected by the service under process.
-func getVirtualServersForService(allVirtuals []*cisapiv1.VirtualServer,
+func filterVirtualServersForService(allVirtuals []*cisapiv1.VirtualServer,
 	svc *v1.Service) []*cisapiv1.VirtualServer {
 
 	var result []*cisapiv1.VirtualServer
@@ -533,10 +533,10 @@ func doesVSHandleHTTP(vrt *cisapiv1.VirtualServer) bool {
 		vrt.Spec.HTTPTraffic == TLSRedirectInsecure
 }
 
-// syncVirtualServers takes the Virtual Server as input and processes all
+// processVirtualServers takes the Virtual Server as input and processes all
 // associated VirtualServers to create a resource config(Internal DataStructure)
 // or to update if exists already.
-func (crMgr *CRManager) syncVirtualServers(
+func (crMgr *CRManager) processVirtualServers(
 	virtual *cisapiv1.VirtualServer,
 	isVSDeleted bool,
 ) error {
@@ -1038,10 +1038,10 @@ func containsNode(nodes []Node, name string) bool {
 	return false
 }
 
-// syncTransportServers takes the Transport Server as input and processes all
+// processTransportServers takes the Transport Server as input and processes all
 // associated TransportServers to create a resource config(Internal DataStructure)
 // or to update if exists already.
-func (crMgr *CRManager) syncTransportServers(
+func (crMgr *CRManager) processTransportServers(
 	virtual *cisapiv1.TransportServer,
 	isTSDeleted bool,
 ) error {
@@ -1221,9 +1221,9 @@ func (crMgr *CRManager) getAllTransportServers(namespace string) []*cisapiv1.Tra
 	return allVirtuals
 }
 
-// syncServiceForTransportServer gets the List of VirtualServers which are effected
+// getTransportServersForService gets the List of VirtualServers which are effected
 // by the addition/deletion/updation of service.
-func (crMgr *CRManager) syncServiceForTransportServer(svc *v1.Service) []*cisapiv1.TransportServer {
+func (crMgr *CRManager) getTransportServersForService(svc *v1.Service) []*cisapiv1.TransportServer {
 
 	allVirtuals := crMgr.getAllTransportServers(svc.ObjectMeta.Namespace)
 	if nil == allVirtuals {
@@ -1233,7 +1233,7 @@ func (crMgr *CRManager) syncServiceForTransportServer(svc *v1.Service) []*cisapi
 	}
 
 	// find VirtualServers that reference the service
-	virtualsForService := getVirtualServersForTransportServerService(allVirtuals, svc)
+	virtualsForService := filterTransportServersForService(allVirtuals, svc)
 	if nil == virtualsForService {
 		log.Debugf("Change in Service %s does not effect any VirtualServer for TransportServer",
 			svc.ObjectMeta.Name)
@@ -1253,9 +1253,9 @@ func (crMgr *CRManager) syncServiceForTransportServer(svc *v1.Service) []*cisapi
 	return virtualsForService
 }
 
-// getVirtualServersForTransportServerService returns list of VirtualServers that are
+// filterTransportServersForService returns list of VirtualServers that are
 // affected by the service under process.
-func getVirtualServersForTransportServerService(allVirtuals []*cisapiv1.TransportServer,
+func filterTransportServersForService(allVirtuals []*cisapiv1.TransportServer,
 	svc *v1.Service) []*cisapiv1.TransportServer {
 
 	var result []*cisapiv1.TransportServer
@@ -1280,8 +1280,8 @@ func getVirtualServersForTransportServerService(allVirtuals []*cisapiv1.Transpor
 	return result
 }
 
-//Sync IPAM resource with VS
-func (crMgr *CRManager) syncIPAMVS(ipam *ficV1.F5IPAM) []*cisapiv1.VirtualServer {
+// Get List of VirtualServers associated with the IPAM resource
+func (crMgr *CRManager) getVirtualServersForIPAM(ipam *ficV1.F5IPAM) []*cisapiv1.VirtualServer {
 	log.Debug("[ipam] sync ipam starting...")
 	var allVS, vss []*cisapiv1.VirtualServer
 	allVS = crMgr.getAllVSFromAllNamespaces()
@@ -1296,8 +1296,8 @@ func (crMgr *CRManager) syncIPAMVS(ipam *ficV1.F5IPAM) []*cisapiv1.VirtualServer
 	return vss
 }
 
-//Sync IPAM resource with TS
-func (crMgr *CRManager) syncIPAMTS(ipam *ficV1.F5IPAM) []*cisapiv1.TransportServer {
+// Get List of TransportServers associated with the IPAM resource
+func (crMgr *CRManager) getTransportServersForIPAM(ipam *ficV1.F5IPAM) []*cisapiv1.TransportServer {
 	var allTS, tss []*cisapiv1.TransportServer
 	allTS = crMgr.getAllTSFromAllNamespaces()
 	for _, status := range ipam.Status.IPStatus {
@@ -1312,7 +1312,7 @@ func (crMgr *CRManager) syncIPAMTS(ipam *ficV1.F5IPAM) []*cisapiv1.TransportServ
 	return tss
 }
 
-func (crMgr *CRManager) syncExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
+func (crMgr *CRManager) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
 	if isDelete {
 		delete(crMgr.resources.dnsConfig, edns.Spec.DomainName)
@@ -1397,7 +1397,7 @@ func (crMgr *CRManager) ProcessAllExternalDNS() {
 
 		for _, obj := range nsEDNSs {
 			edns := obj.(*cisapiv1.ExternalDNS)
-			crMgr.syncExternalDNS(edns, false)
+			crMgr.processExternalDNS(edns, false)
 		}
 	}
 }
@@ -1422,7 +1422,7 @@ func checkCertificateHost(res *v1.Secret, host string) bool {
 	return true
 }
 
-func (crMgr *CRManager) syncIngressLink(
+func (crMgr *CRManager) processIngressLink(
 	ingLink *cisapiv1.IngressLink,
 	isILDeleted bool,
 ) error {
@@ -1539,16 +1539,16 @@ func (crMgr *CRManager) getAllIngressLinks(namespace string) []*cisapiv1.Ingress
 	return allIngLinks
 }
 
-// syncServiceForIngressLinks gets the List of ingressLink which are effected
+// getIngressLinksForService gets the List of ingressLink which are effected
 // by the addition/deletion/updation of service.
-func (crMgr *CRManager) syncServiceForIngressLinks(svc *v1.Service) []*cisapiv1.IngressLink {
+func (crMgr *CRManager) getIngressLinksForService(svc *v1.Service) []*cisapiv1.IngressLink {
 	ingLinks := crMgr.getAllIngressLinks(svc.ObjectMeta.Namespace)
 	if nil == ingLinks {
 		log.Infof("No IngressLink founds in namespace %s",
 			svc.ObjectMeta.Namespace)
 		return nil
 	}
-	ingresslinksForService := getIngressLinkForService(ingLinks, svc)
+	ingresslinksForService := filterIngressLinkForService(ingLinks, svc)
 
 	if nil == ingresslinksForService {
 		log.Debugf("Change in Service %s does not effect any IngressLink",
@@ -1569,9 +1569,9 @@ func (crMgr *CRManager) syncServiceForIngressLinks(svc *v1.Service) []*cisapiv1.
 	return ingresslinksForService
 }
 
-// getIngressLinkForService returns list of ingressLinks that are
+// filterIngressLinkForService returns list of ingressLinks that are
 // affected by the service under process.
-func getIngressLinkForService(allIngressLinks []*cisapiv1.IngressLink,
+func filterIngressLinkForService(allIngressLinks []*cisapiv1.IngressLink,
 	svc *v1.Service) []*cisapiv1.IngressLink {
 
 	var result []*cisapiv1.IngressLink

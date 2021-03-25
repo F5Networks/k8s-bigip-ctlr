@@ -557,7 +557,7 @@ func (crMgr *CRManager) processVirtualServers(
 		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
 		valid := crMgr.checkValidVirtualServer(virtual)
 		if false == valid {
-			log.Infof("VirtualServer %s, invalid configuration or not valid",
+			log.Errorf("VirtualServer %s, is not valid",
 				vkey)
 			return nil
 		}
@@ -1064,7 +1064,7 @@ func (crMgr *CRManager) processTransportServers(
 		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
 		valid := crMgr.checkValidTransportServer(virtual)
 		if false == valid {
-			log.Infof("TransportServer %s, invalid configuration or not valid",
+			log.Errorf("TransportServer %s, is not valid",
 				vkey)
 			return nil
 		}

@@ -33,6 +33,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
+const nginxMonitorPort int32 = 8081
+
 // customResourceWorker starts the Custom Resource Worker.
 func (crMgr *CRManager) customResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
@@ -1458,8 +1460,18 @@ func (crMgr *CRManager) processIngressLink(
 	if svc == nil {
 		return nil
 	}
-
+	targetPort := nginxMonitorPort
+	if crMgr.ControllerMode == NodePortMode {
+		targetPort = getNodeport(svc, nginxMonitorPort)
+		if targetPort == 0 {
+			log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
+		}
+	}
 	for _, port := range svc.Spec.Ports {
+		//for nginx health monitor port skip vs creation
+		if port.Port == nginxMonitorPort {
+			continue
+		}
 		rsName := "ingress_link_" + formatVirtualServerName(
 			ingLink.Spec.VirtualServerAddress,
 			port.Port,
@@ -1495,7 +1507,10 @@ func (crMgr *CRManager) processIngressLink(
 			ServicePort: port.Port,
 		}
 		monitorName := fmt.Sprintf("%s_monitor", pool.Name)
-		rsCfg.Monitors = append(rsCfg.Monitors, Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 20, Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 10, TargetPort: 8081})
+		rsCfg.Monitors = append(
+			rsCfg.Monitors,
+			Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 20,
+				Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 10, TargetPort: targetPort})
 		pool.MonitorNames = append(pool.MonitorNames, monitorName)
 		rsCfg.Virtual.PoolName = pool.Name
 		rsCfg.Pools = append(rsCfg.Pools, pool)
@@ -1713,4 +1728,13 @@ func (svcs Services) Less(i, j int) bool {
 
 func (svcs Services) Swap(i, j int) {
 	svcs[i], svcs[j] = svcs[j], svcs[i]
+}
+
+func getNodeport(svc *v1.Service, servicePort int32) int32 {
+	for _, port := range svc.Spec.Ports {
+		if port.Port == servicePort {
+			return port.NodePort
+		}
+	}
+	return 0
 }

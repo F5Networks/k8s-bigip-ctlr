@@ -233,7 +233,7 @@ type (
 		Send       string `json:"send,omitempty"`
 		Recv       string `json:"recv"`
 		Timeout    int    `json:"timeout,omitempty"`
-		TargetPort int    `json:"timeout,omitempty"`
+		TargetPort int32  `json:"targetPort,omitempty"`
 	}
 	// Monitors  is slice of monitor
 	Monitors []Monitor
@@ -567,7 +567,7 @@ type (
 		Dscp              *int    `json:"dscp,omitempty"`
 		Receive           string  `json:"receive"`
 		Send              string  `json:"send"`
-		TargetPort        *int    `json:"targetPort,omitempty"`
+		TargetPort        *int32  `json:"targetPort,omitempty"`
 		ClientCertificate string  `json:"clientCertificate,omitempty"`
 		Ciphers           string  `json:"ciphers,omitempty"`
 	}

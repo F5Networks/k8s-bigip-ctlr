@@ -118,11 +118,32 @@ func (crMgr *CRManager) processResource() bool {
 		for _, ts := range TSVirtuals {
 			crMgr.processTransportServers(ts, false)
 		}
+
+		services := crMgr.syncAndGetServicesForIPAM(ipam)
+		for _, svc := range services {
+			err := crMgr.processLBServices(svc, false)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
+			}
+		}
+
 	case Service:
+		svc := rKey.rsc.(*v1.Service)
+		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+			err := crMgr.processLBServices(svc, rKey.rscDelete)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
+			}
+			break
+		}
 		if crMgr.initState {
 			break
 		}
-		svc := rKey.rsc.(*v1.Service)
+
 		virtuals := crMgr.getVirtualServersForService(svc)
 		// If nil No Virtuals are effected with the change in service.
 		if nil != virtuals {
@@ -254,10 +275,10 @@ func (crMgr *CRManager) processResource() bool {
 			!reflect.DeepEqual(crMgr.resources.dnsConfig, crMgr.resources.oldDNSConfig)) {
 
 		config := ResourceConfigWrapper{
-			rsCfgs:         crMgr.resources.GetAllResources(),
-			customProfiles: crMgr.customProfiles,
-			shareNodes:     crMgr.shareNodes,
-			dnsConfig:      crMgr.resources.dnsConfig,
+			rsCfgs:             crMgr.resources.GetAllResources(),
+			customProfiles:     crMgr.customProfiles,
+			shareNodes:         crMgr.shareNodes,
+			dnsConfig:          crMgr.resources.dnsConfig,
 			defaultRouteDomain: crMgr.defaultRouteDomain,
 		}
 		crMgr.Agent.PostConfig(config)
@@ -1287,6 +1308,26 @@ func filterTransportServersForService(allVirtuals []*cisapiv1.TransportServer,
 	return result
 }
 
+func (crMgr *CRManager) getAllServicesFromAllNamespaces() []*v1.Service {
+	var svcList []*v1.Service
+	if crMgr.watchingAllNamespaces() {
+		objList := crMgr.crInformers[""].svcInformer.GetIndexer().List()
+		for _, obj := range objList {
+			svcList = append(svcList, obj.(*v1.Service))
+		}
+		return svcList
+	}
+
+	for ns, _ := range crMgr.namespaces {
+		objList := crMgr.crInformers[ns].svcInformer.GetIndexer().List()
+		for _, obj := range objList {
+			svcList = append(svcList, obj.(*v1.Service))
+		}
+	}
+
+	return svcList
+}
+
 // Get List of VirtualServers associated with the IPAM resource
 func (crMgr *CRManager) getVirtualServersForIPAM(ipam *ficV1.F5IPAM) []*cisapiv1.VirtualServer {
 	log.Debug("[ipam] sync ipam starting...")
@@ -1317,6 +1358,97 @@ func (crMgr *CRManager) getTransportServersForIPAM(ipam *ficV1.F5IPAM) []*cisapi
 		}
 	}
 	return tss
+}
+
+func (crMgr *CRManager) syncAndGetServicesForIPAM(ipam *ficV1.F5IPAM) []*v1.Service {
+
+	allServices := crMgr.getAllServicesFromAllNamespaces()
+	if allServices == nil {
+		return nil
+	}
+	var svcList []*v1.Service
+	var staleSpec []*ficV1.IPSpec
+	for _, IPSpec := range ipam.Status.IPStatus {
+		for _, svc := range allServices {
+			svcKey := svc.Namespace + "/" + svc.Name + "_svc"
+			if IPSpec.Key == svcKey {
+				if svc.Spec.Type != v1.ServiceTypeLoadBalancer {
+					staleSpec = append(staleSpec, IPSpec)
+					crMgr.eraseLBServiceIngressStatus(svc)
+				} else {
+					svcList = append(svcList, svc)
+				}
+			}
+		}
+	}
+
+	for _, IPSpec := range staleSpec {
+		crMgr.releaseIP(IPSpec.IPAMLabel, "", IPSpec.Key)
+	}
+
+	return svcList
+}
+
+func (crMgr *CRManager) processLBServices(
+	svc *v1.Service,
+	isSVCDeleted bool,
+) error {
+	if crMgr.ipamCli == nil {
+		log.Error("IPAM is not enabled, Unable to process Services of Type LoadBalancer")
+		return nil
+	}
+
+	ipamLabel, ok := svc.Annotations[LBServiceIPAMLabelAnnotation]
+	if !ok {
+		log.Errorf("Not found %v in %v/%v. Unable to process.",
+			LBServiceIPAMLabelAnnotation,
+			svc.Namespace,
+			svc.Name,
+		)
+		return nil
+	}
+
+	svcKey := svc.Namespace + "/" + svc.Name + "_svc"
+
+	ip := crMgr.requestIP(ipamLabel, "", svcKey)
+
+	if ip == "" {
+		log.Debugf("IP address not available, yet, for service service: %s/%s", svc.Namespace, svc.Name)
+		return nil
+	}
+
+	rsName := fmt.Sprintf("vs_lb_svc_%s_%s_%s", svc.Namespace, svc.Name, ip)
+
+	if isSVCDeleted {
+		crMgr.releaseIP(ipamLabel, "", svcKey)
+		crMgr.unSetLBServiceIngressStatus(svc, ip)
+		delete(crMgr.resources.rsMap, rsName)
+		return nil
+	}
+
+	crMgr.setLBServiceIngressStatus(svc, ip)
+
+	rsCfg := &ResourceConfig{}
+	rsCfg.Virtual.Partition = crMgr.Partition
+	rsCfg.MetaData.ResourceType = TransportServer
+	rsCfg.Virtual.Enabled = true
+	rsCfg.Virtual.Name = rsName
+	rsCfg.Virtual.SetVirtualAddress(
+		ip,
+		svc.Spec.Ports[0].Port,
+	)
+
+	_ = crMgr.prepareRSConfigFromLBService(rsCfg, svc)
+
+	if crMgr.ControllerMode == NodePortMode {
+		crMgr.updatePoolMembersForNodePort(rsCfg, svc.Namespace)
+	} else {
+		crMgr.updatePoolMembersForCluster(rsCfg, svc.Namespace)
+	}
+
+	crMgr.resources.rsMap[rsName] = rsCfg
+
+	return nil
 }
 
 func (crMgr *CRManager) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
@@ -1676,6 +1808,14 @@ func (crMgr *CRManager) unSetLBServiceIngressStatus(
 	svc *v1.Service,
 	ip string,
 ) {
+
+	svcName := svc.Namespace + "/" + svc.Name
+	svc, err := crMgr.kubeClient.CoreV1().Services(svc.Namespace).Get(context.TODO(), svc.Name, metav1.GetOptions{})
+	if err != nil {
+		log.Debugf("Unable to Update Status of Service: %v due to unavailability", svcName)
+		return
+	}
+
 	index := -1
 	for i, lbIng := range svc.Status.LoadBalancer.Ingress {
 		if lbIng.IP == ip {
@@ -1683,15 +1823,18 @@ func (crMgr *CRManager) unSetLBServiceIngressStatus(
 			break
 		}
 	}
+
 	if index != -1 {
 		svc.Status.LoadBalancer.Ingress = append(svc.Status.LoadBalancer.Ingress[:index],
 			svc.Status.LoadBalancer.Ingress[index+1:]...)
 
-		_, updateErr := crMgr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc, metav1.UpdateOptions{})
+		_, updateErr := crMgr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
+			context.TODO(), svc, metav1.UpdateOptions{})
 		if nil != updateErr {
 			// Multi-service causes the controller to try to update the status multiple times
 			// at once. Ignore this error.
 			if strings.Contains(updateErr.Error(), "object has been modified") {
+				log.Debugf("Error while updating service: %v. %v", svcName, updateErr.Error())
 				return
 			}
 			warning := fmt.Sprintf(
@@ -1702,6 +1845,30 @@ func (crMgr *CRManager) unSetLBServiceIngressStatus(
 			message := fmt.Sprintf("F5 CIS unassigned LoadBalancer IP: %v", ip)
 			crMgr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message)
 		}
+	}
+}
+
+func (crMgr *CRManager) eraseLBServiceIngressStatus(
+	svc *v1.Service,
+) {
+	svc.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{}
+
+	_, updateErr := crMgr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
+		context.TODO(), svc, metav1.UpdateOptions{})
+	if nil != updateErr {
+		// Multi-service causes the controller to try to update the status multiple times
+		// at once. Ignore this error.
+		if strings.Contains(updateErr.Error(), "object has been modified") {
+			log.Debugf("Error while updating service: %v/%v. %v", svc.Namespace, svc.Name, updateErr.Error())
+			return
+		}
+		warning := fmt.Sprintf(
+			"Error when erasing Service LB Ingress status IP: %v", updateErr)
+		log.Warning(warning)
+		crMgr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning)
+	} else {
+		message := fmt.Sprintf("F5 CIS erased LoadBalancer IP in Status")
+		crMgr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message)
 	}
 }
 

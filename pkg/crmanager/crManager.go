@@ -78,6 +78,8 @@ const (
 	// HTTP Events for LTM Policy
 	HTTPRequest    = "HTTPRequest"
 	TLSClientHello = "TLSClientHello"
+
+	LBServiceIPAMLabelAnnotation = "cis.f5.com/ipamLabel"
 )
 
 // NewCRManager creates a new CRManager Instance.

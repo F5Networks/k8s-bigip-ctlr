@@ -29,8 +29,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	v1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	v1 "k8s.io/api/core/v1"
 )
 
 // NewResources is Constructor for Resources
@@ -1059,7 +1059,7 @@ func (crMgr *CRManager) handleDataGroupIRules(
 	rsCfg *ResourceConfig,
 	virtualName string,
 	vsHost string,
-	tls *v1.TLSProfile,
+	tls *cisapiv1.TLSProfile,
 ) {
 	// For https
 	if nil != tls {
@@ -1146,6 +1146,32 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 
 	//set allowed VLAN's per TS config
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
+	return nil
+}
+
+// Prepares resource config based on VirtualServer resource config
+func (crMgr *CRManager) prepareRSConfigFromLBService(
+	rsCfg *ResourceConfig,
+	svc *v1.Service,
+) error {
+
+	poolName := formatVirtualServerPoolName(
+		svc.Namespace,
+		svc.Name,
+		svc.Spec.Ports[0].Port,
+		"")
+	pool := Pool{
+		Name:            poolName,
+		Partition:       rsCfg.Virtual.Partition,
+		ServiceName:     svc.Name,
+		ServicePort:     svc.Spec.Ports[0].Port,
+		NodeMemberLabel: "",
+	}
+	rsCfg.Pools = Pools{pool}
+	rsCfg.Virtual.PoolName = poolName
+	rsCfg.Virtual.SNAT = DEFAULT_SNAT
+	rsCfg.Virtual.Mode = "standard"
+
 	return nil
 }
 

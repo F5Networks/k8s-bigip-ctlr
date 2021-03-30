@@ -171,7 +171,7 @@ Known Issues:
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/basic/vs-customresourcedefinition.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml
 
 
 **VirtualServer Components**
@@ -224,7 +224,7 @@ Known Issues:
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/tls/tls-customresourcedefinition.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml
 
 
 **TLSProfile Components**
@@ -240,7 +240,7 @@ Known Issues:
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/basic/vs-customresourcedefinition.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml
 
 
 **TransportServer Components**
@@ -288,7 +288,7 @@ Known Issues:
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/config_examples/crd/ExternalDNS/%20externaldns-customresourcedefinition.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml
 
 
 **ExternalDNS Components**

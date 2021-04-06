@@ -182,7 +182,6 @@ type (
 		ServiceAddress []ServiceAddress `json:"serviceAddress,omitempty"`
 		IRulesMap      IRulesMap
 		IntDgMap       InternalDataGroupMap
-
 	}
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig

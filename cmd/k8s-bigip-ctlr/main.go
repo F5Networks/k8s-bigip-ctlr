@@ -224,7 +224,7 @@ func _init() {
 	customResourceMode = globalFlags.Bool("custom-resource-mode", false,
 		"Optional, When set to true, controller processes only F5 Custom Resources.")
 	defaultRouteDomain = globalFlags.Int("default-route-domain", 0,
-		"Optional, When set to true, controller processes only F5 Custom Resources.")
+		"Optional, CIS uses this value while configuring AS3 Declaration with respective route domain ")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))

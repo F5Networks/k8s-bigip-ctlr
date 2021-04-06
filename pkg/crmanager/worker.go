@@ -771,6 +771,7 @@ func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) str
 				} else {
 					//Check this for key and host both
 					crMgr.releaseIP(hst.IPAMLabel, hst.Host, "")
+					ipamCR = crMgr.getIPAMCR()
 					break
 				}
 			}
@@ -797,6 +798,7 @@ func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) str
 				} else {
 					//Check this for key and host both
 					crMgr.releaseIP(hst.IPAMLabel, "", hst.Key)
+					ipamCR = crMgr.getIPAMCR()
 					break
 				}
 			}
@@ -878,7 +880,8 @@ func (crMgr *CRManager) releaseIP(ipamLabel string, host string, key string) str
 	} else {
 		log.Debugf("[IPAM] Invalid host and key.")
 	}
-
+	//Workaround: To sync with FIC
+	time.Sleep(3 * time.Second)
 	return ip
 }
 

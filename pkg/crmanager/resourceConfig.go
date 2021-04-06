@@ -17,6 +17,7 @@
 package crmanager
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"reflect"
@@ -516,7 +517,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					// Update the SSL Context if secret found, This is used to avoid api calls
 					log.Debugf("saving clientSSL secret for TLSProfile '%s' into SSLContext", tlsName)
 					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
-						Get(clientSSL, metav1.GetOptions{})
+						Get(context.TODO(), clientSSL, metav1.GetOptions{})
 					if err != nil {
 						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
 							clientSSL, vsName, tlsName)
@@ -548,7 +549,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					// Update the SSL Context if secret found, This is used to avoid api calls
 					log.Debugf("saving serverSSL secret for TLSProfile '%s' into SSLContext", tlsName)
 					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
-						Get(serverSSL, metav1.GetOptions{})
+						Get(context.TODO(), serverSSL, metav1.GetOptions{})
 					if err != nil {
 						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
 							serverSSL, vsName, tlsName)

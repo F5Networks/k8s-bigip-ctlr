@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -1130,7 +1131,7 @@ func getBIGIPTrustedCerts() string {
 }
 
 func getConfigMapUsingNamespaceAndName(cfgMapNamespace, cfgMapName string) (*v1.ConfigMap, error) {
-	cfgMap, err := kubeClient.CoreV1().ConfigMaps(cfgMapNamespace).Get(cfgMapName, metav1.GetOptions{})
+	cfgMap, err := kubeClient.CoreV1().ConfigMaps(cfgMapNamespace).Get(context.TODO(), cfgMapName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1185,11 +1186,11 @@ func getUserAgentInfo() string {
 	var vInfo []byte
 	rc := kubeClient.Discovery().RESTClient()
 	// support for ocp < 3.11
-	if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv3).DoRaw(); err == nil {
+	if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv3).DoRaw(context.TODO()); err == nil {
 		if err = json.Unmarshal(vInfo, &versionInfo); err == nil {
 			return fmt.Sprintf("CIS/v%v OCP/%v", version, versionInfo["gitVersion"])
 		}
-	} else if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv4).DoRaw(); err == nil {
+	} else if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv4).DoRaw(context.TODO()); err == nil {
 		// support ocp > 4.0
 		var ocp4 Ocp4Version
 		if er := json.Unmarshal(vInfo, &ocp4); er == nil {
@@ -1198,7 +1199,7 @@ func getUserAgentInfo() string {
 			}
 			return fmt.Sprintf("CIS/v%v OCP/v4.0.0", version)
 		}
-	} else if vInfo, err = rc.Get().AbsPath(versionPathk8s).DoRaw(); err == nil {
+	} else if vInfo, err = rc.Get().AbsPath(versionPathk8s).DoRaw(context.TODO()); err == nil {
 		// support k8s
 		if er := json.Unmarshal(vInfo, &versionInfo); er == nil {
 			return fmt.Sprintf("CIS/v%v K8S/%v", version, versionInfo["gitVersion"])

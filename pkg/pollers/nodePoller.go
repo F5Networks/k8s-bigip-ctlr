@@ -17,6 +17,7 @@
 package pollers
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -178,7 +179,7 @@ func (np *nodePoller) poller() {
 			doPoll = false
 
 			// LabelSelector
-			nodes, err := np.kubeClient.CoreV1().Nodes().List(metav1.ListOptions{LabelSelector: np.nodeLabel})
+			nodes, err := np.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: np.nodeLabel})
 			bigIPPrometheus.MonitoredNodes.WithLabelValues(np.nodeLabel).Set(float64(len(nodes.Items)))
 			np.nodeCache = nodes.Items
 			np.lastError = err

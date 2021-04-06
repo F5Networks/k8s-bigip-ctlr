@@ -26,8 +26,10 @@ import (
 )
 
 // TLSProfileLister helps list TLSProfiles.
+// All objects returned here must be treated as read-only.
 type TLSProfileLister interface {
 	// List lists all TLSProfiles in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.TLSProfile, err error)
 	// TLSProfiles returns an object that can list and get TLSProfiles.
 	TLSProfiles(namespace string) TLSProfileNamespaceLister
@@ -58,10 +60,13 @@ func (s *tLSProfileLister) TLSProfiles(namespace string) TLSProfileNamespaceList
 }
 
 // TLSProfileNamespaceLister helps list and get TLSProfiles.
+// All objects returned here must be treated as read-only.
 type TLSProfileNamespaceLister interface {
 	// List lists all TLSProfiles in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.TLSProfile, err error)
 	// Get retrieves the TLSProfile from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.TLSProfile, error)
 	TLSProfileNamespaceListerExpansion
 }

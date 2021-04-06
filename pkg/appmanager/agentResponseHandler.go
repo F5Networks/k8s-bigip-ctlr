@@ -17,6 +17,7 @@
 package appmanager
 
 import (
+	"context"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
@@ -50,7 +51,7 @@ func (appMgr *Manager) eraseRouteAdmitStatus(route routeapi.Route) {
 	for i, _ := range route.Status.Ingress {
 		if route.Status.Ingress[i].RouterName == F5RouterName {
 			route.Status.Ingress = append(route.Status.Ingress[:i], route.Status.Ingress[i+1:]...)
-			_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(&route)
+			_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), &route, metaV1.UpdateOptions{})
 			if err != nil {
 				log.Errorf("[CORE] Error while Erasing Route Admit Status: %v\n", err)
 			} else {
@@ -73,7 +74,7 @@ func (appMgr *Manager) updateRouteAdmitStatus() {
 	for namespace, routeNames := range appMgr.RoutesProcessed {
 		for _, routeName := range routeNames {
 			Admitted := false
-			route, err := appMgr.routeClientV1.Routes(namespace).Get(routeName, getOptions)
+			route, err := appMgr.routeClientV1.Routes(namespace).Get(context.TODO(),routeName, getOptions)
 			if err != nil {
 				log.Debugf("[CORE] Unable to get route to update status. Name: %v, Namespace: %v\n", routeName, namespace)
 				continue
@@ -95,7 +96,7 @@ func (appMgr *Manager) updateRouteAdmitStatus() {
 						LastTransitionTime: &now,
 					}},
 				})
-				_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(route)
+				_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(),route, metaV1.UpdateOptions{})
 				if err != nil {
 					log.Errorf("[CORE] Error while Updating Route Admit Status: %v\n", err)
 				} else {
@@ -111,7 +112,7 @@ func (appMgr *Manager) updateRouteAdmitStatus() {
 	}
 
 	allNamespaces := ""
-	allRoutes, err := appMgr.routeClientV1.Routes(allNamespaces).List(allOptions)
+	allRoutes, err := appMgr.routeClientV1.Routes(allNamespaces).List(context.TODO(),allOptions)
 	if err != nil {
 		log.Errorf("[CORE] Error listing Routes: %v", err)
 	}

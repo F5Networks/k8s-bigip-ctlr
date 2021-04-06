@@ -219,6 +219,7 @@ func createAS3ADC(config ResourceConfigWrapper) as3ADC {
 	// Create AS3 Tenant
 	tenant := as3Tenant{
 		"class":              "Tenant",
+		"defaultRouteDomain": config.defaultRouteDomain,
 		as3SharedApplication: sharedApp,
 	}
 	as3JSONDecl := as3ADC{

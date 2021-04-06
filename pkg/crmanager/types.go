@@ -60,6 +60,7 @@ type (
 		shareNodes       bool
 		ipamCli          *ipammachinery.IPAMClient
 		ipamCR           string
+		defaultRouteDomain int
 	}
 	// Params defines parameters
 	Params struct {
@@ -77,6 +78,7 @@ type (
 
 		ShareNodes bool
 		IPAM       bool
+		DefaultRouteDomain int
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
@@ -180,6 +182,7 @@ type (
 		ServiceAddress []ServiceAddress `json:"serviceAddress,omitempty"`
 		IRulesMap      IRulesMap
 		IntDgMap       InternalDataGroupMap
+
 	}
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
@@ -209,6 +212,7 @@ type (
 		customProfiles *CustomProfileStore
 		shareNodes     bool
 		dnsConfig      DNSConfig
+		defaultRouteDomain int
 	}
 
 	// Pool config

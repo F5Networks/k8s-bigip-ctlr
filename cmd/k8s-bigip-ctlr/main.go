@@ -109,6 +109,7 @@ var (
 
 	// Custom Resource
 	customResourceMode *bool
+	defaultRouteDomain *int
 
 	pythonBaseDir    *string
 	logLevel         *string
@@ -220,6 +221,8 @@ func _init() {
 
 	// Custom Resource
 	customResourceMode = globalFlags.Bool("custom-resource-mode", false,
+		"Optional, When set to true, controller processes only F5 Custom Resources.")
+	defaultRouteDomain = globalFlags.Int("default-route-domain", 0,
 		"Optional, When set to true, controller processes only F5 Custom Resources.")
 
 	globalFlags.Usage = func() {
@@ -780,6 +783,7 @@ func initCustomResourceManager(
 			NodeLabelSelector: *nodeLabelSelector,
 			IPAM:              *ipam,
 			ShareNodes:        *shareNodes,
+			DefaultRouteDomain: *defaultRouteDomain,
 		},
 	)
 

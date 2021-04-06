@@ -257,6 +257,7 @@ func (crMgr *CRManager) processResource() bool {
 			customProfiles: crMgr.customProfiles,
 			shareNodes:     crMgr.shareNodes,
 			dnsConfig:      crMgr.resources.dnsConfig,
+			defaultRouteDomain: crMgr.defaultRouteDomain,
 		}
 		crMgr.Agent.PostConfig(config)
 		crMgr.initState = false

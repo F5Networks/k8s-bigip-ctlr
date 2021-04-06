@@ -98,6 +98,7 @@ func NewCRManager(params Params) *CRManager {
 		dgPath:          strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 		shareNodes:      params.ShareNodes,
 		eventNotifier:   apm.NewEventNotifier(nil),
+		defaultRouteDomain: params.DefaultRouteDomain,
 	}
 
 	log.Debug("Custom Resource Manager Created")

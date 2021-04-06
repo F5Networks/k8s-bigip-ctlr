@@ -19,6 +19,7 @@ limitations under the License.
 package v1
 
 import (
+	"context"
 	"time"
 
 	v1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
@@ -37,14 +38,14 @@ type TLSProfilesGetter interface {
 
 // TLSProfileInterface has methods to work with TLSProfile resources.
 type TLSProfileInterface interface {
-	Create(*v1.TLSProfile) (*v1.TLSProfile, error)
-	Update(*v1.TLSProfile) (*v1.TLSProfile, error)
-	Delete(name string, options *metav1.DeleteOptions) error
-	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
-	Get(name string, options metav1.GetOptions) (*v1.TLSProfile, error)
-	List(opts metav1.ListOptions) (*v1.TLSProfileList, error)
-	Watch(opts metav1.ListOptions) (watch.Interface, error)
-	Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.TLSProfile, err error)
+	Create(ctx context.Context, tLSProfile *v1.TLSProfile, opts metav1.CreateOptions) (*v1.TLSProfile, error)
+	Update(ctx context.Context, tLSProfile *v1.TLSProfile, opts metav1.UpdateOptions) (*v1.TLSProfile, error)
+	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
+	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.TLSProfile, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*v1.TLSProfileList, error)
+	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.TLSProfile, err error)
 	TLSProfileExpansion
 }
 
@@ -63,20 +64,20 @@ func newTLSProfiles(c *K8sV1Client, namespace string) *tLSProfiles {
 }
 
 // Get takes name of the tLSProfile, and returns the corresponding tLSProfile object, and an error if there is any.
-func (c *tLSProfiles) Get(name string, options metav1.GetOptions) (result *v1.TLSProfile, err error) {
+func (c *tLSProfiles) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.TLSProfile, err error) {
 	result = &v1.TLSProfile{}
 	err = c.client.Get().
 		Namespace(c.ns).
 		Resource("tlsprofiles").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // List takes label and field selectors, and returns the list of TLSProfiles that match those selectors.
-func (c *tLSProfiles) List(opts metav1.ListOptions) (result *v1.TLSProfileList, err error) {
+func (c *tLSProfiles) List(ctx context.Context, opts metav1.ListOptions) (result *v1.TLSProfileList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -87,13 +88,13 @@ func (c *tLSProfiles) List(opts metav1.ListOptions) (result *v1.TLSProfileList, 
 		Resource("tlsprofiles").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Watch returns a watch.Interface that watches the requested tLSProfiles.
-func (c *tLSProfiles) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+func (c *tLSProfiles) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -104,71 +105,74 @@ func (c *tLSProfiles) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 		Resource("tlsprofiles").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Watch()
+		Watch(ctx)
 }
 
 // Create takes the representation of a tLSProfile and creates it.  Returns the server's representation of the tLSProfile, and an error, if there is any.
-func (c *tLSProfiles) Create(tLSProfile *v1.TLSProfile) (result *v1.TLSProfile, err error) {
+func (c *tLSProfiles) Create(ctx context.Context, tLSProfile *v1.TLSProfile, opts metav1.CreateOptions) (result *v1.TLSProfile, err error) {
 	result = &v1.TLSProfile{}
 	err = c.client.Post().
 		Namespace(c.ns).
 		Resource("tlsprofiles").
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(tLSProfile).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Update takes the representation of a tLSProfile and updates it. Returns the server's representation of the tLSProfile, and an error, if there is any.
-func (c *tLSProfiles) Update(tLSProfile *v1.TLSProfile) (result *v1.TLSProfile, err error) {
+func (c *tLSProfiles) Update(ctx context.Context, tLSProfile *v1.TLSProfile, opts metav1.UpdateOptions) (result *v1.TLSProfile, err error) {
 	result = &v1.TLSProfile{}
 	err = c.client.Put().
 		Namespace(c.ns).
 		Resource("tlsprofiles").
 		Name(tLSProfile.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(tLSProfile).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }
 
 // Delete takes name of the tLSProfile and deletes it. Returns an error if one occurs.
-func (c *tLSProfiles) Delete(name string, options *metav1.DeleteOptions) error {
+func (c *tLSProfiles) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("tlsprofiles").
 		Name(name).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *tLSProfiles) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
+func (c *tLSProfiles) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	if listOpts.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
 		Resource("tlsprofiles").
-		VersionedParams(&listOptions, scheme.ParameterCodec).
+		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
-		Body(options).
-		Do().
+		Body(&opts).
+		Do(ctx).
 		Error()
 }
 
 // Patch applies the patch and returns the patched tLSProfile.
-func (c *tLSProfiles) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.TLSProfile, err error) {
+func (c *tLSProfiles) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.TLSProfile, err error) {
 	result = &v1.TLSProfile{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
 		Resource("tlsprofiles").
-		SubResource(subresources...).
 		Name(name).
+		SubResource(subresources...).
+		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(data).
-		Do().
+		Do(ctx).
 		Into(result)
 	return
 }

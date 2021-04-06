@@ -26,8 +26,10 @@ import (
 )
 
 // IngressLinkLister helps list IngressLinks.
+// All objects returned here must be treated as read-only.
 type IngressLinkLister interface {
 	// List lists all IngressLinks in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.IngressLink, err error)
 	// IngressLinks returns an object that can list and get IngressLinks.
 	IngressLinks(namespace string) IngressLinkNamespaceLister
@@ -58,10 +60,13 @@ func (s *ingressLinkLister) IngressLinks(namespace string) IngressLinkNamespaceL
 }
 
 // IngressLinkNamespaceLister helps list and get IngressLinks.
+// All objects returned here must be treated as read-only.
 type IngressLinkNamespaceLister interface {
 	// List lists all IngressLinks in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.IngressLink, err error)
 	// Get retrieves the IngressLink from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.IngressLink, error)
 	IngressLinkNamespaceListerExpansion
 }

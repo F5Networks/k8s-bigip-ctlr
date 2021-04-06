@@ -17,6 +17,7 @@
 package appmanager
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -553,11 +554,11 @@ func (appMgr *Manager) newAppInformer(
 			&cache.ListWatch{
 				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 					options.LabelSelector = appMgr.routeConfig.RouteLabel
-					return appMgr.routeClientV1.Routes(namespace).List(options)
+					return appMgr.routeClientV1.Routes(namespace).List(context.TODO(), options)
 				},
 				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 					options.LabelSelector = appMgr.routeConfig.RouteLabel
-					return appMgr.routeClientV1.Routes(namespace).Watch(options)
+					return appMgr.routeClientV1.Routes(namespace).Watch(context.TODO(), options)
 				},
 			},
 			&routeapi.Route{},
@@ -854,7 +855,7 @@ func (appMgr *Manager) GetAllWatchedNamespaces() []string {
 		NsListOptions := metav1.ListOptions{
 			LabelSelector: appMgr.WatchedNS.NamespaceLabel,
 		}
-		nsL, err := appMgr.kubeClient.CoreV1().Namespaces().List(NsListOptions)
+		nsL, err := appMgr.kubeClient.CoreV1().Namespaces().List(context.TODO(), NsListOptions)
 		if err != nil {
 			log.Errorf("[CORE] Error getting Namespaces with Namespace label - %v.", err)
 		}
@@ -871,7 +872,7 @@ func (appMgr *Manager) GetAllWatchedNamespaces() []string {
 func (appMgr *Manager) getServiceCount() int {
 	qLen := 0
 	for _, ns := range appMgr.GetAllWatchedNamespaces() {
-		services, err := appMgr.kubeClient.CoreV1().Services(ns).List(metav1.ListOptions{})
+		services, err := appMgr.kubeClient.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{})
 		qLen += len(services.Items)
 		if err != nil {
 			log.Errorf("[CORE] Failed getting Services from watched namespace : %v.", err)
@@ -1156,7 +1157,7 @@ func (appMgr *Manager) syncConfigMaps(
 				}
 				// Check if profile is contained in a Secret
 				secret, err := appMgr.kubeClient.CoreV1().Secrets(cm.ObjectMeta.Namespace).
-					Get(profile.Name, metav1.GetOptions{})
+					Get(context.TODO(), profile.Name, metav1.GetOptions{})
 				if err != nil {
 					// No secret, so we assume the profile is a BIG-IP default
 					log.Debugf("[CORE] No Secret with name '%s' in namespace '%s', "+
@@ -1209,7 +1210,7 @@ func prepareIngressSSLContext(appMgr *Manager, ing *v1beta1.Ingress) {
 		}
 		// Check if profile is contained in a Secret
 		secret, err := appMgr.kubeClient.CoreV1().Secrets(ing.ObjectMeta.Namespace).
-			Get(tls.SecretName, metav1.GetOptions{})
+			Get(context.TODO(), tls.SecretName, metav1.GetOptions{})
 		if err != nil {
 			appMgr.rsrcSSLCtxt[tls.SecretName] = nil
 			continue
@@ -2176,7 +2177,7 @@ func (appMgr *Manager) setBindAddrAnnotation(
 	if doUpdate {
 		cm.ObjectMeta.Annotations[VsStatusBindAddrAnnotation] =
 			rsCfg.Virtual.VirtualAddress.BindAddr
-		_, err := appMgr.kubeClient.CoreV1().ConfigMaps(sKey.Namespace).Update(cm)
+		_, err := appMgr.kubeClient.CoreV1().ConfigMaps(sKey.Namespace).Update(context.TODO(), cm, metav1.UpdateOptions{})
 		if nil != err {
 			log.Warningf("[CORE] Error when creating status IP annotation: %s", err)
 		} else {
@@ -2200,7 +2201,7 @@ func (appMgr *Manager) setIngressStatus(
 		ing.Status.LoadBalancer.Ingress[0] = lbIngress
 	}
 	_, updateErr := appMgr.kubeClient.ExtensionsV1beta1().
-		Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(ing)
+		Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ing, metav1.UpdateOptions{})
 	if nil != updateErr {
 		// Multi-service causes the controller to try to update the status multiple times
 		// at once. Ignore this error.
@@ -2297,7 +2298,7 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 		ing.ObjectMeta.Annotations = make(map[string]string)
 	}
 	ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation] = ipAddress
-	_, err = appMgr.kubeClient.ExtensionsV1beta1().Ingresses(namespace).Update(ing)
+	_, err = appMgr.kubeClient.ExtensionsV1beta1().Ingresses(namespace).Update(context.TODO(), ing, metav1.UpdateOptions{})
 	if nil != err {
 		msg := fmt.Sprintf("Error while setting virtual-server IP for Ingress '%s': %s",
 			ing.ObjectMeta.Name, err)
@@ -2386,7 +2387,7 @@ func handleConfigMapParseFailure(
 		if _, ok := appMgr.resources.Get(sKey, rsName); ok {
 			appMgr.resources.Delete(sKey, rsName)
 			delete(cm.ObjectMeta.Annotations, VsStatusBindAddrAnnotation)
-			appMgr.kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(cm)
+			appMgr.kubeClient.CoreV1().ConfigMaps(cm.ObjectMeta.Namespace).Update(context.TODO(), cm, metav1.UpdateOptions{})
 			log.Warningf("[CORE] Deleted virtual server associated with ConfigMap: %v",
 				cm.ObjectMeta.Name)
 			return true
@@ -2540,7 +2541,7 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 	}
 
 	// Identify services that matches the given label
-	services, err := m.kubeClient.CoreV1().Services(namespace).List(svcListOptions)
+	services, err := m.kubeClient.CoreV1().Services(namespace).List(context.TODO(), svcListOptions)
 
 	if err != nil {
 		log.Errorf("[CORE] Error getting service list. %v", err)
@@ -2562,7 +2563,7 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 
 	for _, service := range services.Items {
 		if m.isNodePort == false { // Controller is in ClusterIP Mode
-			endpointsList, err := m.kubeClient.CoreV1().Endpoints(service.Namespace).List(
+			endpointsList, err := m.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
 				metav1.ListOptions{
 					FieldSelector: "metadata.name=" + service.Name,
 				},

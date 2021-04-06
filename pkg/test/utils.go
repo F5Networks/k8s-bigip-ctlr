@@ -303,7 +303,7 @@ func (fns *fakeNegotiatedSerializer) SupportedMediaTypes() []runtime.SerializerI
 		PrettySerializer: nil,
 		StreamSerializer: &runtime.StreamSerializerInfo{
 			EncodesAsText: true,
-			Serializer:    &fakeDecoder{IsWatching: true},
+			Serializer:    runtime.NewCodec(nil,nil),
 			Framer:        &fakeFrame{},
 		},
 	}

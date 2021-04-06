@@ -18,6 +18,7 @@ package appmanager
 
 import (
 	"fmt"
+	"k8s.io/klog/v2"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 
@@ -105,8 +106,15 @@ func (feb *FakeEventBroadcaster) StartLogging(logf func(format string, args ...i
 	return nil
 }
 
+func (feb *FakeEventBroadcaster) StartStructuredLogging(verbosity klog.Level) watch.Interface {
+	return nil
+}
+
 func (feb *FakeEventBroadcaster) NewRecorder(scheme *runtime.Scheme, source v1.EventSource) record.EventRecorder {
 	return &feb.EventRecorder
+}
+
+func (feb *FakeEventBroadcaster) Shutdown() {
 }
 
 // record.EventRecorder interface methods

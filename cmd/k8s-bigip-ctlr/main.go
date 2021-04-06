@@ -110,6 +110,7 @@ var (
 
 	// Custom Resource
 	customResourceMode *bool
+	defaultRouteDomain *int
 
 	pythonBaseDir    *string
 	logLevel         *string
@@ -222,6 +223,8 @@ func _init() {
 	// Custom Resource
 	customResourceMode = globalFlags.Bool("custom-resource-mode", false,
 		"Optional, When set to true, controller processes only F5 Custom Resources.")
+	defaultRouteDomain = globalFlags.Int("default-route-domain", 0,
+		"Optional, CIS uses this value as default Route Domain in BIG-IP ")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
@@ -781,6 +784,7 @@ func initCustomResourceManager(
 			NodeLabelSelector: *nodeLabelSelector,
 			IPAM:              *ipam,
 			ShareNodes:        *shareNodes,
+			DefaultRouteDomain: *defaultRouteDomain,
 		},
 	)
 

@@ -558,7 +558,7 @@ func (crMgr *CRManager) processVirtualServers(
 		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
 		valid := crMgr.checkValidVirtualServer(virtual)
 		if false == valid {
-			log.Infof("VirtualServer %s, invalid configuration or not valid",
+			log.Errorf("VirtualServer %s, is not valid",
 				vkey)
 			return nil
 		}
@@ -772,6 +772,7 @@ func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) str
 				} else {
 					//Check this for key and host both
 					crMgr.releaseIP(hst.IPAMLabel, hst.Host, "")
+					ipamCR = crMgr.getIPAMCR()
 					break
 				}
 			}
@@ -798,6 +799,7 @@ func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) str
 				} else {
 					//Check this for key and host both
 					crMgr.releaseIP(hst.IPAMLabel, "", hst.Key)
+					ipamCR = crMgr.getIPAMCR()
 					break
 				}
 			}
@@ -879,7 +881,8 @@ func (crMgr *CRManager) releaseIP(ipamLabel string, host string, key string) str
 	} else {
 		log.Debugf("[IPAM] Invalid host and key.")
 	}
-
+	//Workaround: To sync with FIC
+	time.Sleep(3 * time.Second)
 	return ip
 }
 
@@ -1062,7 +1065,7 @@ func (crMgr *CRManager) processTransportServers(
 		vkey := virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name
 		valid := crMgr.checkValidTransportServer(virtual)
 		if false == valid {
-			log.Infof("TransportServer %s, invalid configuration or not valid",
+			log.Errorf("TransportServer %s, is not valid",
 				vkey)
 			return nil
 		}

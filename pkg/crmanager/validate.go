@@ -42,9 +42,8 @@ func (crMgr *CRManager) checkValidVirtualServer(
 		log.Infof("VirtualServer %s is invalid", vsName)
 		return false
 	}
-
+	bindAddr := vsResource.Spec.VirtualServerAddress
 	if crMgr.ipamCli == nil {
-		bindAddr := vsResource.Spec.VirtualServerAddress
 
 		// This ensures that pool-only mode only logs the message below the first
 		// time we see a config.
@@ -54,7 +53,7 @@ func (crMgr *CRManager) checkValidVirtualServer(
 		}
 	} else {
 		ipamLabel := vsResource.Spec.IPAMLabel
-		if ipamLabel == "" {
+		if ipamLabel == "" && bindAddr == "" {
 			log.Infof("No ipamLabel was specified for the virtual server %s", vsName)
 			return false
 		}
@@ -94,7 +93,7 @@ func (crMgr *CRManager) checkValidTransportServer(
 		}
 	} else {
 		ipamLabel := tsResource.Spec.IPAMLabel
-		if ipamLabel == "" {
+		if ipamLabel == "" && bindAddr == "" {
 			log.Infof("No ipamLabel was specified for the transport server %s", vsName)
 			return false
 		}

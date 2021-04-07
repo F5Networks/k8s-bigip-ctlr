@@ -148,10 +148,10 @@ func RegisterCRD(clientset extClient.Interface) error {
 							},
 						},
 					},
-					"ipStatus": {
+					"status": {
 						Type: "object",
 						Properties: map[string]apiextensionv1beta1.JSONSchemaProps{
-							"ipStatus": {
+							"IPStatus": {
 								Type: "array",
 								Items: &apiextensionv1beta1.JSONSchemaPropsOrArray{
 									Schema: &apiextensionv1beta1.JSONSchemaProps{Type: "object", Properties: map[string]apiextensionv1beta1.JSONSchemaProps{

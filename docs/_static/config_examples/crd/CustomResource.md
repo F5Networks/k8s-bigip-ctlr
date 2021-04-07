@@ -181,6 +181,7 @@ Known Issues:
 | host | String | Optional | NA |  Virtual Host |
 | pools | List of pool | Required | NA | List of BIG-IP Pool members |
 | virtualServerAddress | String | Optional | NA | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address. |
+| serviceAddress | List of service address | Optional | NA | Service address definition allows you to add a number of properties to your (virtual) server address |
 | ipamLabel | String | Optional | NA | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.|
 | virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
 | TLSProfile | String | Optional | NA | Describes the TLS configuration for BIG-IP Virtual Server |
@@ -250,6 +251,7 @@ Known Issues:
 | pool | pool | Required | NA | BIG-IP Pool member |
 | virtualServerAddress | String | Optional | NA | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address. |
 | ipamLabel | String | Optional | NA | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.|
+| serviceAddress | List of service address | Optional | NA | Service address definition allows you to add a number of properties to your (virtual) server address |
 | virtualServerPort | String | Required | NA | Port Address of BIG-IP Virtual Server |
 | virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
 | type | String | Optional | tcp | "tcp" or "udp" L4 transport server type |

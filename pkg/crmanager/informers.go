@@ -18,6 +18,7 @@ package crmanager
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
@@ -29,6 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 )
+
+var K8SCoreServices = [...]string{"kube-dns", "kube-scheduler", "kube-controller-manager", "docker-registry", "kubernetes", "registry-console", "router", "kubelet", "console", "alertmanager-main", "alertmanager-operated", "cluster-monitoring-operator", "grafana", "kube-state-metrics", "node-exporter", "prometheus-k8s", "prometheus-operated", "prometheus-operatorwebconsole"}
 
 // start the VirtualServer informer
 func (crInfr *CRInformer) start() {
@@ -204,7 +207,7 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	if crInf.tlsInformer != nil {
 		crInf.tlsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				// AddFunc:    func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
+				AddFunc:    func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
 				UpdateFunc: func(old, cur interface{}) { crMgr.enqueueTLSServer(cur) },
 				// DeleteFunc: func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
 			},
@@ -243,12 +246,9 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	if crInf.svcInformer != nil {
 		crInf.svcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				// Ignore AddFunc for service as we dont bother about services until they are
-				// mapped to VirtualServer. Any new service added and mapped to a VirtualServer
-				// will be handled in the VirtualServer Informer AddFunc.
-				// AddFunc:    func(obj interface{}) { crMgr.enqueueService(obj) },
-				UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueService(cur) },
-				DeleteFunc: func(obj interface{}) { crMgr.enqueueService(obj) },
+				AddFunc:    func(obj interface{}) { crMgr.enqueueService(obj) },
+				UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueUpdatedService(obj, cur) },
+				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedService(obj) },
 			},
 		)
 	}
@@ -256,10 +256,7 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	if crInf.epsInformer != nil {
 		crInf.epsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				// Ignore AddFunc for endpoint as we dont bother about endpoints until they are
-				// mapped to VirtualServer. Any new endpoint added and mapped to a Service
-				// will be handled in the Service Informer AddFunc.
-				// AddFunc:    func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
+				AddFunc:    func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
 				UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueEndpoints(cur) },
 				DeleteFunc: func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
 			},
@@ -292,18 +289,9 @@ func (crMgr *CRManager) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
 	oldIpam := oldObj.(*ficV1.F5IPAM)
 	curIpam := newObj.(*ficV1.F5IPAM)
 
-	log.Infof("Enqueueing Old IPAM: %v", oldIpam)
-	// if oldIpam.Spec.HostSpecs != curIpam.Spec.HostSpecs {
-	// 	key := &rqKey{
-	// 		namespace: oldIpam.ObjectMeta.Namespace,
-	// 		kind:      IPAM,
-	// 		rscName:   oldIpam.ObjectMeta.Name,
-	// 		rsc:       oldObj,
-	// 		rscDelete: true,
-	// 	}
-
-	// 	crMgr.rscQueue.Add(key)
-	// }
+	if reflect.DeepEqual(oldIpam.Status, curIpam.Status) {
+		return
+	}
 
 	log.Infof("Enqueueing Updated IPAM: %v", curIpam)
 	key := &rqKey{
@@ -578,48 +566,92 @@ func (crMgr *CRManager) enqueueDeletedExternalDNS(obj interface{}) {
 }
 
 func (crMgr *CRManager) enqueueService(obj interface{}) {
-	flag := true
 	svc := obj.(*corev1.Service)
-	log.Debugf("Enqueueing Service: %v", svc)
-	ignoresvcList := []string{"kube-dns", "kube-scheduler", "kube-controller-manager", "docker-registry", "kubernetes", "registry-console", "router", "kubelet", "console", "alertmanager-main", "alertmanager-operated", "cluster-monitoring-operator", "grafana", "kube-state-metrics", "node-exporter", "prometheus-k8s", "prometheus-operated", "prometheus-operatorwebconsole"}
-	for _, svcName := range ignoresvcList {
+	// Ignore K8S Core Services
+	for _, svcName := range K8SCoreServices {
 		if svc.ObjectMeta.Name == svcName {
-			flag = false
-			break
+			return
 		}
 	}
-	if flag {
+	log.Debugf("Enqueueing Service: %v", svc)
+	key := &rqKey{
+		namespace: svc.ObjectMeta.Namespace,
+		kind:      Service,
+		rscName:   svc.ObjectMeta.Name,
+		rsc:       obj,
+	}
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueUpdatedService(obj, cur interface{}) {
+	svc := obj.(*corev1.Service)
+	curSvc := cur.(*corev1.Service)
+	// Ignore K8S Core Services
+	for _, svcName := range K8SCoreServices {
+		if svc.ObjectMeta.Name == svcName {
+			return
+		}
+	}
+
+	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
+		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) {
+		log.Debugf("Enqueueing Old Service: %v", svc)
 		key := &rqKey{
 			namespace: svc.ObjectMeta.Namespace,
 			kind:      Service,
 			rscName:   svc.ObjectMeta.Name,
 			rsc:       obj,
+			rscDelete: true,
 		}
 		crMgr.rscQueue.Add(key)
 	}
+
+	log.Debugf("Enqueueing Updated Service: %v", curSvc)
+	key := &rqKey{
+		namespace: curSvc.ObjectMeta.Namespace,
+		kind:      Service,
+		rscName:   curSvc.ObjectMeta.Name,
+		rsc:       cur,
+	}
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueDeletedService(obj interface{}) {
+	svc := obj.(*corev1.Service)
+	// Ignore K8S Core Services
+	for _, svcName := range K8SCoreServices {
+		if svc.ObjectMeta.Name == svcName {
+			return
+		}
+	}
+	log.Debugf("Enqueueing Service: %v", svc)
+	key := &rqKey{
+		namespace: svc.ObjectMeta.Namespace,
+		kind:      Service,
+		rscName:   svc.ObjectMeta.Name,
+		rsc:       obj,
+		rscDelete: true,
+	}
+	crMgr.rscQueue.Add(key)
 }
 
 func (crMgr *CRManager) enqueueEndpoints(obj interface{}) {
-	flag := true
 	eps := obj.(*corev1.Endpoints)
-	log.Debugf("Enqueueing Endpoints: %v", eps)
-	ignoreeplist := []string{"kube-dns", "kube-scheduler", "kube-controller-manager", "docker-registry", "kubernetes", "registry-console", "router", "kubelet", "console", "alertmanager-main", "alertmanager-operated", "cluster-monitoring-operator", "grafana", "kube-state-metrics", "node-exporter", "prometheus-k8s", "prometheus-operated", "prometheus-operatorwebconsole"}
-	for _, epname := range ignoreeplist {
+	// Ignore K8S Core Services
+	for _, epname := range K8SCoreServices {
 		if eps.ObjectMeta.Name == epname {
-			flag = false
-			break
+			return
 		}
 	}
-	if flag {
-		key := &rqKey{
-			namespace: eps.ObjectMeta.Namespace,
-			kind:      Endpoints,
-			rscName:   eps.ObjectMeta.Name,
-			rsc:       obj,
-		}
+	log.Debugf("Enqueueing Endpoints: %v", eps)
+	key := &rqKey{
+		namespace: eps.ObjectMeta.Namespace,
+		kind:      Endpoints,
+		rscName:   eps.ObjectMeta.Name,
+		rsc:       obj,
+	}
 
-		crMgr.rscQueue.Add(key)
-	}
+	crMgr.rscQueue.Add(key)
 }
 
 func (nsInfr *NSInformer) start() {

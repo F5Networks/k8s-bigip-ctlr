@@ -3,7 +3,7 @@ module github.com/F5Networks/k8s-bigip-ctlr
 go 1.15
 
 require (
-	github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210330104030-abec2ec8b278
+	github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210408104926-329c86830f37
 	github.com/miekg/dns v1.0.14
 	github.com/onsi/ginkgo v1.14.2
 	github.com/onsi/gomega v1.10.4

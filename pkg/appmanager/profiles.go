@@ -731,9 +731,11 @@ func (appMgr *Manager) loadDefaultCert() (*ProfileRef, bool) {
 //check if cert is ecdsa signed
 func isECDSA(certificate string, key string) bool {
 	cert, _ := tls.X509KeyPair([]byte(certificate), []byte(key))
-	x509cert, _ := x509.ParseCertificate(cert.Certificate[0])
-	if pka := x509cert.PublicKeyAlgorithm.String(); pka == "ECDSA" {
-		return true
+	if len(cert.Certificate) > 0 {
+		x509cert, _ := x509.ParseCertificate(cert.Certificate[0])
+		if pka := x509cert.PublicKeyAlgorithm.String(); pka == "ECDSA" {
+			return true
+		}
 	}
 	return false
 }

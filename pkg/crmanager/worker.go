@@ -601,9 +601,12 @@ func (crMgr *CRManager) processVirtualServers(
 			if crMgr.ipamCli != nil && vrt.Spec.IPAMLabel != virtual.Spec.IPAMLabel {
 				log.Debugf("Same host is configured with different ipma label : , %v ", vrt.Spec.Host)
 				return nil
-			} else if vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress {
+			} else if vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress && vrt.Spec.Host != "" && virtual.Spec.Host != "" {
 				log.Debugf("Same host is configured with different VirtualServerAddress : %v ", vrt.Spec.VirtualServerName)
 				return nil
+			}
+			if virtual.Spec.Host == "" && vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress {
+				continue
 			}
 			isUnique := true
 		op:

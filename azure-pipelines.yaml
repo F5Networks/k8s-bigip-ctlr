@@ -24,6 +24,10 @@ steps:
     inputs:
       command: login
       containerRegistry: $(quayConnection)
+  - task: CmdLine@2
+    displayName: Compile documentation
+    inputs:
+      script: 'make docs'
   - task: Docker@2
     displayName: Build from Red Hat Universal Base Image
     inputs:

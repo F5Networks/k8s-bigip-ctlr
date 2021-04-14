@@ -57,8 +57,6 @@ templates_path = ['_templates']
 
 source_suffix = {
             '.rst': 'restructuredtext',
-            '.txt': 'markdown',
-            '.md': 'markdown',
         }
 
 
@@ -70,8 +68,8 @@ source_encoding = 'utf-8-sig'
 master_doc = 'index'
 
 # General information about the project.
-project = 'F5 BIG-IP Controller for Kubernetes'
-copyright = '2018 F5 Networks Inc'
+project = 'F5 Controller Ingress Services for Kubernetes'
+copyright = '2021 F5 Networks Inc'
 author = 'F5 Networks'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -96,59 +94,13 @@ extlinks = {'issues': ('https://github.com/F5Networks/k8s-bigip-ctlr/issues/%s',
 
 # Substitutions
 rst_epilog = '''
-.. |url-version| replace:: %(url_version)s
-.. |release-notes| raw:: html
 
-    <a href="http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/%(url_version)s/RELEASE-NOTES.html">Release Notes</a>
-.. |attributions| raw:: html
-
-    <a href="http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/%(url_version)s/_static/ATTRIBUTIONS.html">Attributions</a>
-.. |kctlr| replace:: :code:`k8s-bigip-ctlr`
-.. |kctlr-long| replace:: F5 BIG-IP Controller for Kubernetes
-.. _F5 Resource: %(base_url)s/containers/v2/kubernetes/kctlr-f5-resource.html#f5-resource-properties
-.. _Kubernetes Ingress: https://kubernetes.io/docs/concepts/services-networking/ingress/
-.. _Flannel VxLAN in Kubernetes: %(base_url)s/containers/latest/kubernetes/flannel-bigip-info.html
-.. _user documentation: %(base_url)s/containers/latest/kubernetes/index.html
-.. _Integration Overview: %(base_url)s/containers/latest/kubernetes/index.html
-.. _Assign IP addresses to BIG-IP virtual servers using IPAM: %(base_url)s/containers/latest/kubernetes/kctlr-manage-bigip-objects.html#attach-pools-to-a-virtual-server-using-ipam
-.. _pools without virtual servers: %(base_url)s/containers/latest/kubernetes/kctlr-manage-bigip-objects.html#pools-without-virtual-servers
-.. _Expose Services to External Traffic using Ingresses: %(base_url)s/containers/latest/kubernetes/kctlr-ingress.html
-.. _f5 schema versions: %(base_url)s/containers/latest/releases_and_versioning.html#f5-schema
-.. _replace the OpenShift F5 Router with the BIG-IP Controller: %(base_url)s/containers/latest/openshift/replace-f5-router.html
-.. _secure your BIG-IP credentials: %(base_url)s/containers/latest/kubernetes/kctlr-secrets.html
-.. _Kubernetes: https://kubernetes.io/
-.. _Kubernetes Service: https://kubernetes.io/docs/concepts/services-networking/service/
-.. _Kubernetes Annotation: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
-.. _Kubernetes clusters: https://kubernetes.io/docs/concepts/cluster-administration/cluster-administration-overview/
-.. _NodePort: https://kubernetes.io/docs/concepts/services-networking/service/#nodeport
-.. _ClusterIP: https://kubernetes.io/docs/concepts/services-networking/connect-applications-service/
 .. _iApps: https://www.f5.com/products/f5-technologies
-.. _Kubernetes pods: https://kubernetes.io/docs/user-guide/pods/
-.. _Kubernetes Ingress: https://kubernetes.io/docs/concepts/services-networking/ingress/
-.. _Kubernetes Secrets: https://kubernetes.io/docs/concepts/configuration/secret/
-.. _iApp table: https://devcentral.f5.com/wiki/iApp.Working-with-Tables.ashx
-.. _Kubernetes Service Type: https://kubernetes.io/docs/concepts/services-networking/service/
-.. _OpenShift: https://www.openshift.com/
-.. _NodePort mode: %(base_url)s/containers/latest/kubernetes/kctlr-modes.html
-.. _OpenShift Route: https://docs.openshift.org/1.4/dev_guide/routes.html
-.. _Overview of SNAT features: https://support.f5.com/csp/article/K7820
-.. _route domain: https://techdocs.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/tmos-routing-administration-12-1-1/9.html
-.. _`F5 Controller Agent`: https://github.com/f5devcentral/f5-ctlr-agent
-.. _Manage OpenShift Routes:  %(base_url)s/containers/latest/openshift/kctlr-openshift-routes.html
-.. _Kubernetes Installation: %(base_url)s/containers/latest/kubernetes/kctlr-app-install.html
-.. _OpenShift Installation: %(base_url)s/containers/latest/openshift/kctlr-openshift-app-install.html
 .. _f5-bigip-ctlr chart: https://github.com/F5Networks/charts/tree/master/src/stable/f5-bigip-ctlr
 .. _helm: https://helm.sh/
 .. _f5-bigip-ingress chart: https://github.com/F5Networks/charts/tree/master/src/stable/f5-bigip-ingress
-.. _F5 AS3 Extension: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/
-.. _F5 AS3 Installation: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/userguide/installation.html
-.. _F5 AS3 User Guide: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/userguide/
-.. _F5 AS3 Reference Guide: %(base_url)s/products/extensions/f5-appsvcs-extension/latest/refguide/
-.. _Container Ingress Services and AS3 Extension integration: %(base_url)s/containers/v2/kubernetes/kctlr-k8s-as3.html
-''' % {
-    'url_version': version,
-    'base_url': 'http://clouddocs.f5.com'
-}
+
+'''
 
 # The language for content autogenerated by Sphinx. Refer to documentation
 # for a list of supported languages.
@@ -179,8 +131,9 @@ exclude_patterns = [
      'requirements.txt',
      '*.swp',
      '*.swx',
+     '*.yaml',
+     '*.md',
      '*~',
-    'README.rst',
      ]
 
 # The reST default role (used for this markup: `text`) to use for all

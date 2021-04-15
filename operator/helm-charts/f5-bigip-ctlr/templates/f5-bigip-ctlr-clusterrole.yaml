@@ -44,6 +44,7 @@ rules:
       - events
       - ingresses/status
       - routes/status
+      - services/status
   - verbs:
       - get
       - list
@@ -56,6 +57,7 @@ rules:
       - tlsprofiles
       - transportservers
       - externaldnss
+      - ingresslinks
 {{- if .Values.args.ipam }}
   - verbs:
       - get
@@ -68,6 +70,7 @@ rules:
       - fic.f5.com
     resources:
       - f5ipams
+      - f5ipams/status
   - verbs:
       - get
       - list

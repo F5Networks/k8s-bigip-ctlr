@@ -191,6 +191,15 @@ func (crMgr *CRManager) processResource() bool {
 		if nil == svc {
 			break
 		}
+		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+			err := crMgr.processLBServices(svc, rKey.rscDelete)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
+			}
+			break
+		}
 		virtuals := crMgr.getVirtualServersForService(svc)
 		for _, virtual := range virtuals {
 			err := crMgr.processVirtualServers(virtual, false)

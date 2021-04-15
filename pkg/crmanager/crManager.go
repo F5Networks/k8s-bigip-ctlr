@@ -90,16 +90,16 @@ func NewCRManager(params Params) *CRManager {
 		crInformers: make(map[string]*CRInformer),
 		rscQueue: workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller"),
-		resources:       NewResources(),
-		Agent:           params.Agent,
-		ControllerMode:  params.ControllerMode,
-		UseNodeInternal: params.UseNodeInternal,
-		initState:       true,
-		SSLContext:      make(map[string]*v1.Secret),
-		customProfiles:  NewCustomProfiles(),
-		dgPath:          strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
-		shareNodes:      params.ShareNodes,
-		eventNotifier:   apm.NewEventNotifier(nil),
+		resources:          NewResources(),
+		Agent:              params.Agent,
+		ControllerMode:     params.ControllerMode,
+		UseNodeInternal:    params.UseNodeInternal,
+		initState:          true,
+		SSLContext:         make(map[string]*v1.Secret),
+		customProfiles:     NewCustomProfiles(),
+		dgPath:             strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
+		shareNodes:         params.ShareNodes,
+		eventNotifier:      apm.NewEventNotifier(nil),
 		defaultRouteDomain: params.DefaultRouteDomain,
 	}
 
@@ -245,9 +245,10 @@ func (crMgr *CRManager) setupClients(config *rest.Config) error {
 }
 
 func (crMgr *CRManager) setupInformers() error {
-	for n, _ := range crMgr.namespaces {
+	for n := range crMgr.namespaces {
 		if err := crMgr.addNamespacedInformer(n); err != nil {
 			log.Errorf("Unable to setup informer for namespace: %v, Error:%v", n, err)
+			return err
 		}
 	}
 	return nil

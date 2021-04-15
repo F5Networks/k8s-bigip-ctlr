@@ -17,6 +17,7 @@ Bug Fixes
 * SR - Fix continuous overwrites with iapp in cccl mode
 * Fix Stale Datagroup issue
 * :issues: `1723` Fix for ECDSA-signed certificates in Openshift routes
+* Fix to post virtual and transport server declarations when CIS is configured to watch namespaces
 
 Limitations
 ```````````

@@ -808,7 +808,6 @@ func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) str
 				} else {
 					//Check this for key and host both
 					crMgr.releaseIP(hst.IPAMLabel, hst.Host, "")
-					ipamCR = crMgr.getIPAMCR()
 					break
 				}
 			}
@@ -835,7 +834,6 @@ func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) str
 				} else {
 					//Check this for key and host both
 					crMgr.releaseIP(hst.IPAMLabel, "", hst.Key)
-					ipamCR = crMgr.getIPAMCR()
 					break
 				}
 			}
@@ -852,7 +850,7 @@ func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) str
 		return ""
 	}
 
-	_, err := crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
+	_, err := crMgr.ipamCli.Update(ipamCR)
 	if err != nil {
 		log.Errorf("[ipam] Error updating IPAM CR : %v", err)
 	} else {
@@ -886,7 +884,7 @@ func (crMgr *CRManager) releaseIP(ipamLabel string, host string, key string) str
 		if index != -1 {
 			ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index+1:]...)
 			ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
-			_, err := crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
+			_, err := crMgr.ipamCli.Update(ipamCR)
 			if err != nil {
 				log.Errorf("[ipam] ipam hostspec update error: %v", err)
 				return ""
@@ -910,7 +908,7 @@ func (crMgr *CRManager) releaseIP(ipamLabel string, host string, key string) str
 		if index != -1 {
 			ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index+1:]...)
 			ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
-			_, err := crMgr.ipamCli.Update(IPAMNamespace, ipamCR)
+			_, err := crMgr.ipamCli.Update(ipamCR)
 			if err != nil {
 				log.Errorf("[ipam] ipam hostspec update error: %v", err)
 				return ""
@@ -921,8 +919,7 @@ func (crMgr *CRManager) releaseIP(ipamLabel string, host string, key string) str
 	} else {
 		log.Debugf("[IPAM] Invalid host and key.")
 	}
-	//Workaround: To sync with FIC
-	time.Sleep(3 * time.Second)
+
 	return ip
 }
 

@@ -206,7 +206,8 @@ func (crMgr *CRManager) createIPAMResource() error {
 	crName := frameIPAMResourceName(crMgr.Agent.BIGIPURL)
 	f5ipam := &ficV1.F5IPAM{
 		ObjectMeta: metaV1.ObjectMeta{
-			Name: crName,
+			Name:      crName,
+			Namespace: IPAMNamespace,
 		},
 		Spec: ficV1.F5IPAMSpec{
 			HostSpecs: make([]*ficV1.HostSpec, 0),
@@ -217,7 +218,7 @@ func (crMgr *CRManager) createIPAMResource() error {
 	}
 
 	// f5ipam.SetResourceVersion(obj.ResourceVersion)
-	ipamCR, err := crMgr.ipamCli.Create(IPAMNamespace, f5ipam)
+	ipamCR, err := crMgr.ipamCli.Create(f5ipam)
 	crMgr.ipamCR = IPAMNamespace + "/" + crName
 	if err != nil {
 		log.Debugf("[ipam] error while creating IPAM custom resource. %v", err)

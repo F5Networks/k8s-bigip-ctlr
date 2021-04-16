@@ -42,6 +42,8 @@ github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210408052559-865e93e27002 h1
 github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210408052559-865e93e27002/go.mod h1:CmFEoeFEf4TfRWFpF8nhd9+HbkLm4vjhltH/XmullFg=
 github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210408104926-329c86830f37 h1:DVRSlf3/NGy4bwZFaSQjUp/4fNFH2G/2IsWMUCT1NKk=
 github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210408104926-329c86830f37/go.mod h1:CmFEoeFEf4TfRWFpF8nhd9+HbkLm4vjhltH/XmullFg=
+github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210416093847-f0eeef5171d9 h1:3w2mkTPX6r0eP3mBTY+jRM8pzpIrWNjoWih4rI7HBlU=
+github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210416093847-f0eeef5171d9/go.mod h1:CmFEoeFEf4TfRWFpF8nhd9+HbkLm4vjhltH/XmullFg=
 github.com/NYTimes/gziphandler v0.0.0-20170623195520-56545f4a5d46/go.mod h1:3wb06e3pkSAbeQ52E9H9iFoQsEEwGN64994WTCIhntQ=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/PuerkitoBio/purell v1.1.1 h1:WEQqlqaGbrPkxLJWfBwQmfEAE1Z7ONdDLqrN38tNFfI=

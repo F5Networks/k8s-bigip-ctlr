@@ -18,6 +18,8 @@ package crmanager
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"strings"
 	"time"
 
@@ -175,7 +177,33 @@ func (crMgr *CRManager) registerIPAMCRD() {
 //Create IPAM CRD
 func (crMgr *CRManager) createIPAMResource() error {
 
-	crName := ipamCRName + "." + DEFAULT_PARTITION
+	frameIPAMResourceName := func(bipUrl string) string {
+		log.Debugf("BIP URL: %v", bipUrl)
+		if net.ParseIP(bipUrl) != nil {
+			return strings.Join([]string{ipamCRName, bipUrl, DEFAULT_PARTITION}, ".")
+		}
+
+		u, err := url.Parse(bipUrl)
+		if err != nil {
+			log.Errorf("Unable to frame IPAM resource name in standard format")
+			return strings.Join([]string{ipamCRName, DEFAULT_PARTITION}, ".")
+		}
+		var host string
+		if strings.Contains(u.Host, ":") {
+			host, _, _ = net.SplitHostPort(u.Host)
+		} else {
+			host = u.Host
+		}
+
+		if host == "" {
+			log.Errorf("Unable to frame IPAM resource name in standard format")
+			return strings.Join([]string{ipamCRName, DEFAULT_PARTITION}, ".")
+		}
+
+		return strings.Join([]string{ipamCRName, host, DEFAULT_PARTITION}, ".")
+	}
+
+	crName := frameIPAMResourceName(crMgr.Agent.BIGIPURL)
 	f5ipam := &ficV1.F5IPAM{
 		ObjectMeta: metaV1.ObjectMeta{
 			Name: crName,

@@ -1119,7 +1119,7 @@ func (crMgr *CRManager) processTransportServers(
 	log.Debugf("Process all the Transport Servers which share same VirtualServerAddress")
 	for _, vrt := range allVirtuals {
 		if vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress && vrt.Spec.VirtualServerPort == virtual.Spec.VirtualServerPort &&
-			!isTSDeleted {
+			(!isTSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
 			virtuals = append(virtuals, vrt)
 		}
 	}

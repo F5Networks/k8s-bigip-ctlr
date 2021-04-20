@@ -368,7 +368,7 @@ kubectl create -f clusterrole.yml [-n kube-system]
 ```
 
 **Supported Controller Modes: NodePort and Cluster**
-* [CIS Architecture](https://clouddocs.f5.com/containers/v2/kubernetes/kctlr-modes.html)
+* [CIS Architecture](https://clouddocs.f5.com/containers/latest/userguide/config-options.html)
 
 * Deploy k8s-bigip-ctlr in nodeport and customresource mode.
   - Download the below file and execute the command as shown.
@@ -380,9 +380,7 @@ kubectl create -f sample-nodeport-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 
 ## Cluster Mode
 **Add BIG-IP device to VXLAN**
-* [Overview of CIS VXLAN](https://clouddocs.f5.com/containers/v2/kubernetes/flannel-bigip-info.html)
-* [Configure VXLAN with CIS](https://clouddocs.f5.com/containers/v2/kubernetes/kctlr-use-bigip-k8s.html)
-
+* [Configure VXLAN with CIS](https://clouddocs.f5.com/containers/latest/userguide/cis-installation.html#creating-vxlan-tunnels)
 * Deploy k8s-bigip-ctlr in cluster and customresource mode.
   - Download the below file and execute the command as shown.
  

@@ -28,7 +28,7 @@ spec:
                   pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
                 httpTraffic:
                   type: string
-                cidr:
+                ipamLabel:
                   type: string
                 snat:
                   type: string
@@ -49,6 +49,25 @@ spec:
                   type: array
                   items:
                     type: string
+                serviceAddress:
+                  type: array
+                  maxItems: 1
+                  items:
+                    type: object
+                    properties:
+                      arpEnabled:
+                        type: boolean
+                      icmpEcho:
+                        type: string
+                        enum: [enable, disable, selective]
+                      routeAdvertisement:
+                        type: string
+                        enum: [enable, disable, selective, always, any, all]
+                      spanningEnabled:
+                        type: boolean
+                      trafficGroup:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
                 pools:
                   type: array
                   items:
@@ -115,10 +134,10 @@ spec:
           type: string
           description: Http Traffic Termination
           jsonPath: .spec.httpTraffic
-        - name: cidr
+        - name: ipamLabel
           type: string
-          description: Subnet of virtual server
-          jsonPath: .spec.cidr
+          description: ipamLabel for virtual server
+          jsonPath: .spec.ipamLabel
         - name: virtualServerAddress
           type: string
           description: IP address of virtualServer
@@ -171,7 +190,7 @@ spec:
                     reference:
                       type: string
                   required:
-                    - clientSSL
+                    - termination
 
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -209,9 +228,12 @@ spec:
                 virtualServerName:
                   type: string
                   pattern: '^([A-z0-9-_+])*([A-z0-9])$'
-                mode:
+                mode: 
                   type: string
                   enum: [standard, performance]
+                type:
+                  type: string
+                  enum: [tcp, udp]
                 snat:
                   type: string
                 allowVlans:
@@ -219,6 +241,27 @@ spec:
                     type: string
                     pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_]+\/?)*$'
                   type: array
+                ipamLabel:
+                  type: string
+                serviceAddress:
+                  type: array
+                  maxItems: 1
+                  items:
+                    type: object
+                    properties:
+                      arpEnabled:
+                        type: boolean
+                      icmpEcho:
+                        type: string
+                        enum: [enable, disable, selective]
+                      routeAdvertisement:
+                        type: string
+                        enum: [enable, disable, selective, always, any, all]
+                      spanningEnabled:
+                        type: boolean
+                      trafficGroup:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
                 pool:
                   type: object
                   properties:
@@ -234,7 +277,7 @@ spec:
                       properties:
                         type:
                           type: string
-                          enum: [tcp]
+                          enum: [tcp, udp]
                         interval:
                           type: integer
                         timeout:
@@ -243,32 +286,31 @@ spec:
                         - type
                         - interval
                   required:
-                    - service
-                    - servicePort
+                      - service
+                      - servicePort
               required:
-                - virtualServerAddress
                 - virtualServerPort
                 - pool
       additionalPrinterColumns:
-        - name: virtualServerAddress
-          type: string
-          description: IP address of virtualServer
-          jsonPath: .spec.virtualServerAddress
-        - name: virtualServerPort
-          type: integer
-          description: Port of virtualServer
-          jsonPath: .spec.virtualServerPort
-        - name: pool
-          type: string
-          description: Name of service
-          jsonPath: .spec.pool.service
-        - name: poolPort
-          type: string
-          description: Port of service
-          jsonPath: .spec.pool.servicePort
-        - name: Age
-          type: date
-          jsonPath: .metadata.creationTimestamp
+      - name: virtualServerAddress
+        type: string
+        description: IP address of virtualServer
+        jsonPath: .spec.virtualServerAddress
+      - name: virtualServerPort
+        type: integer
+        description: Port of virtualServer
+        jsonPath: .spec.virtualServerPort
+      - name: pool
+        type: string
+        description: Name of service
+        jsonPath: .spec.pool.service
+      - name: poolPort
+        type: string
+        description: Port of service
+        jsonPath: .spec.pool.servicePort
+      - name: Age
+        type: date
+        jsonPath: .metadata.creationTimestamp
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -349,3 +391,43 @@ spec:
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ingresslinks.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: IngressLink
+    shortNames:
+      - il
+    singular: ingresslink
+    plural: ingresslinks
+  scope: Namespaced
+  versions:
+    -
+      name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                virtualServerAddress:
+                  type: string
+                  pattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
+                iRules:
+                  type: array
+                  items:
+                    type: string
+                selector:
+                  properties:
+                    matchLabels:
+                      additionalProperties:
+                        type: string
+                      type: object
+                  type: object

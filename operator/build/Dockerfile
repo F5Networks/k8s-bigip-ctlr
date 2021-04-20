@@ -3,7 +3,7 @@ FROM quay.io/operator-framework/helm-operator:latest
 ### Required OpenShift Labels
 LABEL name="F5 BIG-IP Controller Operator" \
       vendor="F5 Networks Inc" \
-      version="v1.6.0" \
+      version="v1.7.0" \
       release="1" \
       summary="F5 BIG-IP Controller Operator" \
       description="This operator will deploy F5 BIG-IP Controller for Kubernetes and OpenShift into the cluster."

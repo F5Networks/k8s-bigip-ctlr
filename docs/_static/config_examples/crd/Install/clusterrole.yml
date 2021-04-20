@@ -15,7 +15,7 @@ rules:
     resources: ["virtualservers", "tlsprofiles", "transportservers", "ingresslinks", "externaldnss"]
     verbs: ["get", "list", "watch", "update"]
   - apiGroups: ["fic.f5.com"]
-      resources: ["f5ipams"]
+      resources: ["f5ipams", "f5ipams/status"]
       verbs: ["get", "list", "watch", "update", "create", "patch"]
   - apiGroups: ["apiextensions.k8s.io"]
       resources: ["customresourcedefinitions"]

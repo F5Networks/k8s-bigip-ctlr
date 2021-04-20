@@ -17,6 +17,7 @@
 package crmanager
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"reflect"
@@ -28,8 +29,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	v1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	v1 "k8s.io/api/core/v1"
 )
 
 // NewResources is Constructor for Resources
@@ -174,34 +175,34 @@ func NewIRule(name, partition, code string) *IRule {
 }
 
 // Creates an IRule if it doesn't already exist
-func (crMgr *CRManager) addIRule(name, partition, rule string) {
+func (rsCfg *ResourceConfig) addIRule(name, partition, rule string) {
 	key := NameRef{
 		Name:      name,
 		Partition: partition,
 	}
-	if _, found := crMgr.irulesMap[key]; !found {
-		crMgr.irulesMap[key] = NewIRule(name, partition, rule)
+	if _, found := rsCfg.IRulesMap[key]; !found {
+		rsCfg.IRulesMap[key] = NewIRule(name, partition, rule)
 	}
 }
 
-func (crMgr *CRManager) removeIRule(name, partition string) {
+func (rsCfg *ResourceConfig) removeIRule(name, partition string) {
 	key := NameRef{
 		Name:      name,
 		Partition: partition,
 	}
-	delete(crMgr.irulesMap, key)
+	delete(rsCfg.IRulesMap, key)
 }
 
 // Creates an InternalDataGroup if it doesn't already exist
-func (crMgr *CRManager) addInternalDataGroup(name, partition string) DataGroupNamespaceMap {
+func (rsCfg *ResourceConfig) addInternalDataGroup(name, partition string) DataGroupNamespaceMap {
 	key := NameRef{
 		Name:      name,
 		Partition: partition,
 	}
-	if _, found := crMgr.intDgMap[key]; !found {
-		crMgr.intDgMap[key] = make(DataGroupNamespaceMap)
+	if _, found := rsCfg.IntDgMap[key]; !found {
+		rsCfg.IntDgMap[key] = make(DataGroupNamespaceMap)
 	}
-	return crMgr.intDgMap[key]
+	return rsCfg.IntDgMap[key]
 }
 
 func JoinBigipPath(partition, objName string) string {
@@ -516,7 +517,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					// Update the SSL Context if secret found, This is used to avoid api calls
 					log.Debugf("saving clientSSL secret for TLSProfile '%s' into SSLContext", tlsName)
 					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
-						Get(clientSSL, metav1.GetOptions{})
+						Get(context.TODO(), clientSSL, metav1.GetOptions{})
 					if err != nil {
 						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
 							clientSSL, vsName, tlsName)
@@ -548,7 +549,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					// Update the SSL Context if secret found, This is used to avoid api calls
 					log.Debugf("saving serverSSL secret for TLSProfile '%s' into SSLContext", tlsName)
 					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
-						Get(serverSSL, metav1.GetOptions{})
+						Get(context.TODO(), serverSSL, metav1.GetOptions{})
 					if err != nil {
 						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
 							serverSSL, vsName, tlsName)
@@ -578,7 +579,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					path := pl.Path
 					sslPath := hostName + path
 					sslPath = strings.TrimSuffix(sslPath, "/")
-					updateDataGroup(crMgr.intDgMap, getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName),
+					updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName),
 						DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)
 
 				case TLSReencrypt:
@@ -588,7 +589,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					sslPath = strings.TrimSuffix(sslPath, "/")
 					serverSsl := AS3NameFormatter("crd_" + ip + "_tls_client")
 					if "" != tls.Spec.TLS.ServerSSL {
-						updateDataGroup(crMgr.intDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
+						updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
 							DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)
 					}
 				}
@@ -604,14 +605,14 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					return false
 				}
 				updateDataGroupOfDgName(
-					crMgr.intDgMap,
+					rsCfg.IntDgMap,
 					vs,
 					rsCfg.Virtual.Name,
 					ReencryptHostsDgName,
 				)
 			case TLSEdge:
 				updateDataGroupOfDgName(
-					crMgr.intDgMap,
+					rsCfg.IntDgMap,
 					vs,
 					rsCfg.Virtual.Name,
 					EdgeHostsDgName,
@@ -646,15 +647,15 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			var ruleName string
 			if vs.Spec.Host == "" {
 				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectNoHostIRuleName), httpsPort)
-				crMgr.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRuleNoHost(httpsPort))
+				rsCfg.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRuleNoHost(httpsPort))
 			} else {
 				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectIRuleName), httpsPort)
-				crMgr.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(httpsPort, rsCfg.Virtual.Name))
+				rsCfg.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(httpsPort, rsCfg.Virtual.Name))
 			}
 			ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
 			rsCfg.Virtual.AddIRule(ruleName)
 			updateDataGroupOfDgName(
-				crMgr.intDgMap,
+				rsCfg.IntDgMap,
 				vs,
 				rsCfg.Virtual.Name,
 				HttpsRedirectDgName,
@@ -1058,7 +1059,7 @@ func (crMgr *CRManager) handleDataGroupIRules(
 	rsCfg *ResourceConfig,
 	virtualName string,
 	vsHost string,
-	tls *v1.TLSProfile,
+	tls *cisapiv1.TLSProfile,
 ) {
 	// For https
 	if nil != tls {
@@ -1067,15 +1068,15 @@ func (crMgr *CRManager) handleDataGroupIRules(
 			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName))
 		switch termination {
 		case TLSEdge:
-			crMgr.addIRule(
+			rsCfg.addIRule(
 				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, crMgr.getTLSIRule(rsCfg.Virtual.Name))
-			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), DEFAULT_PARTITION)
-			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName), DEFAULT_PARTITION)
+			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), DEFAULT_PARTITION)
+			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName), DEFAULT_PARTITION)
 		case TLSReencrypt:
-			crMgr.addIRule(
+			rsCfg.addIRule(
 				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, crMgr.getTLSIRule(rsCfg.Virtual.Name))
-			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptHostsDgName), DEFAULT_PARTITION)
-			crMgr.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName), DEFAULT_PARTITION)
+			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptHostsDgName), DEFAULT_PARTITION)
+			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName), DEFAULT_PARTITION)
 		}
 		if vsHost != "" {
 			rsCfg.Virtual.AddIRule(tlsIRuleName)
@@ -1084,12 +1085,7 @@ func (crMgr *CRManager) handleDataGroupIRules(
 }
 
 func (crMgr *CRManager) deleteVirtualServer(rsName string) {
-	if rsCfg, ok := crMgr.resources.rsMap[rsName]; ok {
-		for _, iruleName := range rsCfg.Virtual.IRules {
-			crMgr.removeIRule(strings.Split(iruleName, "/")[2], DEFAULT_PARTITION)
-		}
-		crMgr.resources.deleteVirtualServer(rsName)
-	}
+	crMgr.resources.deleteVirtualServer(rsName)
 }
 
 // Prepares resource config based on VirtualServer resource config
@@ -1150,6 +1146,32 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 
 	//set allowed VLAN's per TS config
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
+	return nil
+}
+
+// Prepares resource config based on VirtualServer resource config
+func (crMgr *CRManager) prepareRSConfigFromLBService(
+	rsCfg *ResourceConfig,
+	svc *v1.Service,
+) error {
+
+	poolName := formatVirtualServerPoolName(
+		svc.Namespace,
+		svc.Name,
+		svc.Spec.Ports[0].Port,
+		"")
+	pool := Pool{
+		Name:            poolName,
+		Partition:       rsCfg.Virtual.Partition,
+		ServiceName:     svc.Name,
+		ServicePort:     svc.Spec.Ports[0].Port,
+		NodeMemberLabel: "",
+	}
+	rsCfg.Pools = Pools{pool}
+	rsCfg.Virtual.PoolName = poolName
+	rsCfg.Virtual.SNAT = DEFAULT_SNAT
+	rsCfg.Virtual.Mode = "standard"
+
 	return nil
 }
 

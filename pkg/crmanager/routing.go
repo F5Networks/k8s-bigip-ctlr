@@ -523,62 +523,6 @@ func httpRedirectIRule(port int32, rsVSName string) string {
 	return iRuleCode
 }
 
-func (crMgr *CRManager) handleVSDeleteForDataGroups(
-	virtual *cisapiv1.VirtualServer,
-	rsVSName string,
-) {
-	if len(virtual.Spec.TLSProfileName) == 0 {
-		return
-	}
-	namespace := virtual.ObjectMeta.Namespace
-	tls := crMgr.getTLSProfileForVirtualServer(virtual, namespace)
-	if tls == nil {
-		return
-	}
-	var dgNames []string
-	switch tls.Spec.TLS.Termination {
-	case TLSEdge:
-		dgNames = append(dgNames, EdgeServerSslDgName, EdgeHostsDgName)
-	case TLSReencrypt:
-		dgNames = append(dgNames, ReencryptServerSslDgName, ReencryptHostsDgName)
-	}
-
-	if virtual.Spec.HTTPTraffic == TLSRedirectInsecure {
-		dgNames = append(dgNames, HttpsRedirectDgName)
-	}
-
-	for _, dgName := range dgNames {
-		refKey := NameRef{
-			Name:      getRSCfgResName(rsVSName, dgName),
-			Partition: DEFAULT_PARTITION,
-		}
-
-		if nsDg, found := crMgr.intDgMap[refKey]; found {
-			if nsGrp, found := nsDg[namespace]; found {
-				host := virtual.Spec.Host
-				for _, pool := range virtual.Spec.Pools {
-					recKey := host
-					if dgName != HttpsRedirectDgName {
-						path := pool.Path
-						if path == "" {
-							path = "/"
-						}
-						recKey = host + path
-					}
-
-					nsGrp.RemoveRecord(recKey)
-				}
-				if len(nsGrp.Records) == 0 {
-					delete(nsDg, namespace)
-				}
-				if len(nsDg) == 0 {
-					delete(crMgr.intDgMap, refKey)
-				}
-			}
-		}
-	}
-}
-
 func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
 	dgPath := crMgr.dgPath
 

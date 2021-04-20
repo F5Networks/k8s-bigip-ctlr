@@ -44,8 +44,15 @@ LICENSE-APACHE-2.0.txt:
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0"
             echo "$license_text"
-            echo "Unable to detect the license file path"
+            head -25 $vendor/$repo/$projects/$package/LICENSE-APACHE-2.0.txt
             continue
+            fi
+            if [ $projects == "cespare" ]  && [ $package == "xxhash" ]
+            then
+              package=$package/v2
+              licensee detect $vendor/$repo/$projects/$package
+              head -25 $vendor/$repo/$projects/$package/LICENSE.txt
+              continue
             fi
             licensee detect $vendor/$repo/$projects/$package
             licensee license-path $vendor/$repo/$projects/$package | xargs head -25
@@ -53,6 +60,14 @@ LICENSE-APACHE-2.0.txt:
         done ; 
         else 
         echo $repo/$projects ;
+        if [ $repo == "k8s.io" ]  && [ $projects == "klog" ]
+        then
+          projects=$projects/v2
+        fi
+        if [ $repo == "sigs.k8s.io" ]  && [ $projects == "structured-merge-diff" ]
+        then
+          projects=$projects/v4
+        fi
         licensee detect $vendor/$repo/$projects;
         licensee license-path $vendor/$repo/$projects | xargs head -25
         echo

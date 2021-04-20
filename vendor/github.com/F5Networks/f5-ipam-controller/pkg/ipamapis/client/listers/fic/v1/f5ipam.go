@@ -26,8 +26,10 @@ import (
 )
 
 // F5IPAMLister helps list F5IPAMs.
+// All objects returned here must be treated as read-only.
 type F5IPAMLister interface {
 	// List lists all F5IPAMs in the indexer.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.F5IPAM, err error)
 	// F5IPAMs returns an object that can list and get F5IPAMs.
 	F5IPAMs(namespace string) F5IPAMNamespaceLister
@@ -58,10 +60,13 @@ func (s *f5IPAMLister) F5IPAMs(namespace string) F5IPAMNamespaceLister {
 }
 
 // F5IPAMNamespaceLister helps list and get F5IPAMs.
+// All objects returned here must be treated as read-only.
 type F5IPAMNamespaceLister interface {
 	// List lists all F5IPAMs in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.F5IPAM, err error)
 	// Get retrieves the F5IPAM from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.F5IPAM, error)
 	F5IPAMNamespaceListerExpansion
 }

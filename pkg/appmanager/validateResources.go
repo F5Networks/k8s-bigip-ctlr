@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 
@@ -425,8 +426,7 @@ func checkCertificateHost(host string, certificate string, key string) bool {
 	}
 	ok := x509cert.VerifyHostname(host)
 	if ok != nil {
-		log.Errorf("[CORE] Hostname in route does not match with certificate hostname: %v", ok)
-		return false
+		log.Debugf("[CORE] Error: Hostname in route does not match with certificate hostname: %v", ok)
 	}
 	return true
 }

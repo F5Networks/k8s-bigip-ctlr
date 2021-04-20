@@ -21,6 +21,7 @@ import (
 
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	v1 "k8s.io/api/core/v1"
@@ -41,6 +42,7 @@ type (
 		kubeAPIClient    *extClient.Clientset
 		crInformers      map[string]*CRInformer
 		nsInformer       *NSInformer
+		eventNotifier    *apm.EventNotifier
 		resourceSelector labels.Selector
 		namespacesMutex  sync.Mutex
 		namespaces       map[string]bool
@@ -54,13 +56,11 @@ type (
 		initState        bool
 		SSLContext       map[string]*v1.Secret
 		customProfiles   *CustomProfileStore
-		// App informer support
-		irulesMap  IRulesMap
-		intDgMap   InternalDataGroupMap
-		dgPath     string
-		shareNodes bool
-		ipamCli    *ipammachinery.IPAMClient
-		ipamCR     string
+		dgPath           string
+		shareNodes       bool
+		ipamCli          *ipammachinery.IPAMClient
+		ipamCR           string
+		defaultRouteDomain int
 	}
 	// Params defines parameters
 	Params struct {
@@ -78,6 +78,7 @@ type (
 
 		ShareNodes bool
 		IPAM       bool
+		DefaultRouteDomain int
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
@@ -179,6 +180,8 @@ type (
 		Policies       Policies         `json:"policies,omitempty"`
 		Monitors       []Monitor        `json:"monitors,omitempty"`
 		ServiceAddress []ServiceAddress `json:"serviceAddress,omitempty"`
+		IRulesMap      IRulesMap
+		IntDgMap       InternalDataGroupMap
 	}
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
@@ -205,11 +208,10 @@ type (
 
 	ResourceConfigWrapper struct {
 		rsCfgs         ResourceConfigs
-		iRuleMap       IRulesMap
-		intDgMap       InternalDataGroupMap
 		customProfiles *CustomProfileStore
 		shareNodes     bool
 		dnsConfig      DNSConfig
+		defaultRouteDomain int
 	}
 
 	// Pool config
@@ -234,7 +236,7 @@ type (
 		Send       string `json:"send,omitempty"`
 		Recv       string `json:"recv"`
 		Timeout    int    `json:"timeout,omitempty"`
-		TargetPort int    `json:"timeout,omitempty"`
+		TargetPort int32  `json:"targetPort,omitempty"`
 	}
 	// Monitors  is slice of monitor
 	Monitors []Monitor
@@ -568,7 +570,7 @@ type (
 		Dscp              *int    `json:"dscp,omitempty"`
 		Receive           string  `json:"receive"`
 		Send              string  `json:"send"`
-		TargetPort        *int    `json:"targetPort,omitempty"`
+		TargetPort        *int32  `json:"targetPort,omitempty"`
 		ClientCertificate string  `json:"clientCertificate,omitempty"`
 		Ciphers           string  `json:"ciphers,omitempty"`
 	}

@@ -56,7 +56,7 @@ func NewEventNotifier(bfunc NewBroadcasterFunc) *EventNotifier {
 }
 
 // Create a notifier for a namespace, or return the existing one
-func (en *EventNotifier) createNotifierForNamespace(
+func (en *EventNotifier) CreateNotifierForNamespace(
 	namespace string,
 	coreIntf corev1.CoreV1Interface,
 ) *NamespaceEventNotifier {
@@ -82,7 +82,7 @@ func (en *EventNotifier) createNotifierForNamespace(
 }
 
 // Get the notifier for a namespace
-func (en *EventNotifier) getNotifierForNamespace(
+func (en *EventNotifier) GetNotifierForNamespace(
 	namespace string,
 ) *NamespaceEventNotifier {
 
@@ -96,13 +96,13 @@ func (en *EventNotifier) getNotifierForNamespace(
 	return evNotifier
 }
 
-func (en *EventNotifier) deleteNotifierForNamespace(namespace string) {
+func (en *EventNotifier) DeleteNotifierForNamespace(namespace string) {
 	en.mutex.Lock()
 	defer en.mutex.Unlock()
 	delete(en.notifierMap, namespace)
 }
 
-func (nen *NamespaceEventNotifier) recordEvent(
+func (nen *NamespaceEventNotifier) RecordEvent(
 	obj runtime.Object,
 	eventType,
 	reason,
@@ -120,7 +120,7 @@ func (appMgr *Manager) recordIngressEvent(
 ) {
 	namespace := ing.ObjectMeta.Namespace
 	// Create the event
-	evNotifier := appMgr.eventNotifier.createNotifierForNamespace(
+	evNotifier := appMgr.eventNotifier.CreateNotifierForNamespace(
 		namespace, appMgr.kubeClient.CoreV1())
-	evNotifier.recordEvent(ing, v1.EventTypeNormal, reason, message)
+	evNotifier.RecordEvent(ing, v1.EventTypeNormal, reason, message)
 }

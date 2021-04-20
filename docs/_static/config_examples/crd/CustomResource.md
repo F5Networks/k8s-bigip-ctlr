@@ -180,7 +180,9 @@ Known Issues:
 | ------ | ------ | ------ | ------ | ------ |
 | host | String | Optional | NA |  Virtual Host |
 | pools | List of pool | Required | NA | List of BIG-IP Pool members |
-| virtualServerAddress | String | Required | NA | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address. |
+| virtualServerAddress | String | Optional | NA | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address. |
+| serviceAddress | List of service address | Optional | NA | Service address definition allows you to add a number of properties to your (virtual) server address |
+| ipamLabel | String | Optional | NA | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.|
 | virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
 | TLSProfile | String | Optional | NA | Describes the TLS configuration for BIG-IP Virtual Server |
 | rewriteAppRoot | String | Optional | NA |  Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path |
@@ -247,7 +249,9 @@ Known Issues:
 | PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
 | ------ | ------ | ------ | ------ | ------ |
 | pool | pool | Required | NA | BIG-IP Pool member |
-| virtualServerAddress | String | Required | NA | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address. |
+| virtualServerAddress | String | Optional | NA | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address. |
+| ipamLabel | String | Optional | NA | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.|
+| serviceAddress | List of service address | Optional | NA | Service address definition allows you to add a number of properties to your (virtual) server address |
 | virtualServerPort | String | Required | NA | Port Address of BIG-IP Virtual Server |
 | virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
 | type | String | Optional | tcp | "tcp" or "udp" L4 transport server type |
@@ -321,6 +325,16 @@ Note: The user needs to mention the same GSLB DataServer Name to dataServerName 
 | interval | Int | Required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
 
+## IP address management using the IPAM controller
+
+CIS can manage the virtual server address for VS and TS using the IPAM controller. The IPAM controller is a container provided by F5 for IP address management and it runs in parallel to the F5 ingress controller a pod in the Kubernetes/Openshift cluster. You can use the F5 IPAM controller to automatically allocate IP addresses to Virtual Servers, Transport Servers from a specified IP address range. You can specify this IP range in the IPAM Controller deployment file while deploying the IPAM controller.
+
+Specify the IPAM label `--ipamLabel` as an argument in VS and TS CRD.
+Example: `--ipamLabel="Prod"`
+
+-Link to IPAM Controller details
+
+
 ## Prerequisites
 Since CIS is using the AS3 declarative API we need the AS3 extension installed on BIG-IP. Follow the link to install AS3 3.18 is required for CIS 2.0.
  
@@ -354,7 +368,7 @@ kubectl create -f clusterrole.yml [-n kube-system]
 ```
 
 **Supported Controller Modes: NodePort and Cluster**
-* [CIS Architecture](https://clouddocs.f5.com/containers/v2/kubernetes/kctlr-modes.html)
+* [CIS Architecture](https://clouddocs.f5.com/containers/latest/userguide/config-options.html)
 
 * Deploy k8s-bigip-ctlr in nodeport and customresource mode.
   - Download the below file and execute the command as shown.
@@ -366,9 +380,7 @@ kubectl create -f sample-nodeport-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 
 ## Cluster Mode
 **Add BIG-IP device to VXLAN**
-* [Overview of CIS VXLAN](https://clouddocs.f5.com/containers/v2/kubernetes/flannel-bigip-info.html)
-* [Configure VXLAN with CIS](https://clouddocs.f5.com/containers/v2/kubernetes/kctlr-use-bigip-k8s.html)
-
+* [Configure VXLAN with CIS](https://clouddocs.f5.com/containers/latest/userguide/cis-installation.html#creating-vxlan-tunnels)
 * Deploy k8s-bigip-ctlr in cluster and customresource mode.
   - Download the below file and execute the command as shown.
  

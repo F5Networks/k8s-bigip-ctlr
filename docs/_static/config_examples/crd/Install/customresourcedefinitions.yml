@@ -28,7 +28,7 @@ spec:
                   pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
                 httpTraffic:
                   type: string
-                cidr:
+                ipamLabel:
                   type: string
                 snat:
                   type: string
@@ -134,10 +134,10 @@ spec:
           type: string
           description: Http Traffic Termination
           jsonPath: .spec.httpTraffic
-        - name: cidr
+        - name: ipamLabel
           type: string
-          description: Subnet of virtual server
-          jsonPath: .spec.cidr
+          description: ipamLabel for virtual server
+          jsonPath: .spec.ipamLabel
         - name: virtualServerAddress
           type: string
           description: IP address of virtualServer
@@ -241,6 +241,8 @@ spec:
                     type: string
                     pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_]+\/?)*$'
                   type: array
+                ipamLabel:
+                  type: string
                 serviceAddress:
                   type: array
                   maxItems: 1
@@ -287,7 +289,6 @@ spec:
                       - service
                       - servicePort
               required:
-                - virtualServerAddress
                 - virtualServerPort
                 - pool
       additionalPrinterColumns:

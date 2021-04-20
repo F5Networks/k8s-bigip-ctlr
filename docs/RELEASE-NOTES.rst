@@ -1,26 +1,47 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.4.0
 -------------
 Added Functionality
 ```````````````````
-* CIS supports service address reference in virtual server CRD.
-* Integrated the ingress link mode with CRD mode
-* Added implicit Health Monitor for ingress link resource
-* :issues:`1573` Added support for type UDP Transport Server CRD
-* CIS supports IP address assignment to Transport Server CRD using `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`_. Refer for `Examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
-* Added Service Type LoadBalancer support in CRD Mode
+* CIS is now compatible with:
+    -  Kubernetes 1.20
+* CIS supports IP address assignment to kubernetes service type LoadBalancer using `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`_. Refer for `Examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
+* CIS supports IP address assignment to TransportServer Custom Resources using `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`_. Refer for `Examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
+* Added support for defaultRouteDomain in custom resource mode.
+* CIS supports service address reference in VirtualServer and TransportServer Custom Resources.
+* Integrated the IngressLink mode with CRD mode.
+* CIS supports implicit Health Monitor for IngressLink resource.
+* Improved data group handling for VirtualServer custom resource.
+* Helm Chart Enhancements:
+    - Updated the Custom Resource Definitions for VirtualServer and TransportServer resources.
+    - Added the IngressLink Custom Resource installation using Helm charts.
+    - Updated the RBAC to support service type LoadBalancer.
 
 Bug Fixes
 `````````
-* SR - Fix continuous overwrites with iapp in cccl mode
-* Fix Stale Datagroup issue
-* :issues: `1723` Fix for ECDSA-signed certificates in Openshift routes
-* Fix to post virtual and transport server declarations when CIS is configured to watch namespaces
+* SR - Fix continuous overwrites with iApp in cccl mode.
+* :issues:`1573` Added support for type UDP Transport Server CRD.
+* :issues:`1723` BIG-IP selects wrong certificate with ECDSA-signed certificate.
+* :issues:`1645` Certificate-check added in CISv2.2.2 logs too often.
+* :issues:`1730` Partition default_route_domain is being reset while creating VirtualServer via CRD to 0.
+* :issues:`1767` HTTPs redirect Data Group entry not cleaned up.
+
+Vulnerability Fixes
+```````````````````
++------------------+----------------------------------------------------------------+
+| CVE              | Comments                                                       |
++==================+================================================================+
+| CVE-2020-1747    | Upgraded the PyYaml package in f5-cccl repository              |
++------------------+----------------------------------------------------------------+
+| CVE-2020-25659   | Removed unused package cryptography in f5-cccl repository      |
++------------------+----------------------------------------------------------------+
 
 Limitations
 ```````````
+* :issues:`1508` VXLAN tunnel name starting with prefix "k8s" is not supported. CIS uses prefix "k8s" to differentiate managed and user created resources.
+
 
 2.3.0
 -------------
@@ -413,13 +434,13 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`790` Controller properly handles OpenShift path based routes with TLS.
-* :issues:`1016` Controller now logs INFO messages to STDOUT instead of STDERR.
+* :issues: 790 Controller properly handles OpenShift path based routes with TLS.
+* :issues: 1016 Controller now logs INFO messages to STDOUT instead of STDERR.
 * Controller provides readable help message in logs when ``--router-vserver-addr`` is not configured.
 
 Limitations
 ```````````
-* Limitations for Openshift Routes orchestration through AS3 backend are available `here <https://clouddocs.f5.com/containers/latest/openshift/kctlr-use-as3-backend.html>`_.
+* Limitations for Openshift Routes orchestration through AS3 backend are available `here <https://clouddocs.f5.com/containers/latest/>`_.
 
 v1.10.0
 ------------
@@ -438,20 +459,20 @@ Bug Fixes
 
 Limitations
 ```````````
-* Limitations for Openshift Routes orchestration through AS3 backend are available `here <https://clouddocs.f5.com/containers/latest/openshift/kctlr-use-as3-backend.html>`_.
+* Limitations for Openshift Routes orchestration through AS3 backend are available `here <https://clouddocs.f5.com/containers/latest/>`_.
 
 v1.9.2
 ------------
 Bug Fixes
 `````````
 * Controller handles http redirects without entering into an infinite loop.
-* :issues:`810` Controller does not delete resources in BIG-IP and recreates during controller pod restart.
+* :issues:810 Controller does not delete resources in BIG-IP and recreates during controller pod restart.
 
 v1.9.1
 ------
 Added Functionality
 `````````````````````
-* Added support for `establishing trust <https://clouddocs.f5.com/containers/v2/kubernetes/kctlr-as3-cert-trust.html>`_ with remote BIG-IP systems using either the device or CA certificates.
+* Added support for `establishing trust <https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html#as3-parameters>`_ with remote BIG-IP systems using either the device or CA certificates.
 * Added support for AS3 3.11.
 
 Bug Fixes
@@ -461,7 +482,7 @@ Bug Fixes
 * Improves performance when handling changes in Endpoints associated with AS3 Declarations.
 * Improves performance when handling node updates in AS3 Declarations.
 * Improves performance when applying AS3 Declarations to BIG-IP.
-* :issues:`797` - Controller uses ``flannel.alpha.coreos.com/public-ip`` as VTEP endpoint.
+* :issues:797 - Controller uses ``flannel.alpha.coreos.com/public-ip`` as VTEP endpoint.
 
 Vulnerability Fixes
 ```````````````````
@@ -656,7 +677,7 @@ Added Functionality
   - Create VxLAN forwarding database (FDB) addresses for route domains.
   - Ability to change the default route domain for a partition managed by an F5 controller after the controller has deployed.
 
-* Support for `Flannel VxLAN in Kubernetes`_.
+* Support for `Flannel VxLAN in Kubernetes<https://clouddocs.f5.com/containers/latest/>`_.
 * Enhanced options for configuring Virtual IP addresses for Ingress resources:
 
   - Ingresses with the same IP address and port can share a virtual server.
@@ -734,7 +755,7 @@ Added Functionality
   - This includes unsecured, edge, passthrough, and re-encrypt Routes.
 
 * This is a feature-complete upgrade from the OpenShift F5Router.
-  See `Replace the OpenShift F5 Router with the BIG-IP Controller <http://clouddocs.f5.com/containers/latest/openshift/replace-f5-router.html>`_ for more information.
+  See `Replace the OpenShift F5 Router with the BIG-IP Controller <https://clouddocs.f5.com/containers/latest/>`_ for more information.
 
 Bug Fixes
 `````````

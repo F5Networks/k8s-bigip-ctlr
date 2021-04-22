@@ -1,0 +1,393 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: virtualservers.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: VirtualServer
+    plural: virtualservers
+    shortNames:
+      - vs
+    singular: virtualserver
+  scope: Namespaced
+  versions:
+    -
+      name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                host:
+                  type: string
+                  pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
+                httpTraffic:
+                  type: string
+                ipamLabel:
+                  type: string
+                snat:
+                  type: string
+                tlsProfileName:
+                  type: string
+                rewriteAppRoot:
+                  type: string
+                  pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                waf:
+                  type: string
+                  pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                allowVlans:
+                  items:
+                    type: string
+                    pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_]+\/?)*$'
+                  type: array
+                iRules:
+                  type: array
+                  items:
+                    type: string
+                serviceAddress:
+                  type: array
+                  maxItems: 1
+                  items:
+                    type: object
+                    properties:
+                      arpEnabled:
+                        type: boolean
+                      icmpEcho:
+                        type: string
+                        enum: [enable, disable, selective]
+                      routeAdvertisement:
+                        type: string
+                        enum: [enable, disable, selective, always, any, all]
+                      spanningEnabled:
+                        type: boolean
+                      trafficGroup:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                pools:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      path:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                      service:
+                        type: string
+                        pattern: '^([A-z0-9-_+])*([A-z0-9])$'
+                      nodeMemberLabel:
+                        type: string
+                        pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
+                      servicePort:
+                        type: integer
+                        minimum: 1
+                        maximum: 65535
+                      rewrite:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                      monitor:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                            enum: [http, https]
+                          send:
+                            type: string
+                          recv:
+                            type: string
+                          interval:
+                            type: integer
+                          timeout:
+                            type: integer
+                        required:
+                          - type
+                          - send
+                          - interval
+                virtualServerAddress:
+                  type: string
+                  pattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
+                virtualServerName:
+                  type: string
+                  pattern: '^([A-z0-9-_+])*([A-z0-9])$'
+                virtualServerHTTPPort:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+                virtualServerHTTPSPort:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+      additionalPrinterColumns:
+        - name: host
+          type: string
+          description: hostname
+          jsonPath: .spec.host
+        - name: tlsProfileName
+          type: string
+          description: TLS Profile attached
+          jsonPath: .spec.tlsProfileName
+        - name: httpTraffic
+          type: string
+          description: Http Traffic Termination
+          jsonPath: .spec.httpTraffic
+        - name: ipamLabel
+          type: string
+          description: ipamLabel for virtual server
+          jsonPath: .spec.ipamLabel
+        - name: virtualServerAddress
+          type: string
+          description: IP address of virtualServer
+          jsonPath: .spec.virtualServerAddress
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: tlsprofiles.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: TLSProfile
+    plural: tlsprofiles
+    shortNames:
+      - tls
+    singular: tlsprofile
+  scope: Namespaced
+  versions:
+    -
+      name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                hosts:
+                  type: array
+                  items:
+                    type: string
+                    pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
+                tls:
+                  type: object
+                  properties:
+                    termination:
+                      type: string
+                      enum: [edge, reencrypt, passthrough]
+                    clientSSL:
+                      type: string
+                    serverSSL:
+                      type: string
+                    reference:
+                      type: string
+                  required:
+                    - termination
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: transportservers.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: TransportServer
+    plural: transportservers
+    shortNames:
+      - ts
+    singular: transportserver
+  scope: Namespaced
+  versions:
+    -
+      name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                virtualServerAddress:
+                  type: string
+                  pattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
+                virtualServerPort:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+                virtualServerName:
+                  type: string
+                  pattern: '^([A-z0-9-_+])*([A-z0-9])$'
+                mode: 
+                  type: string
+                  enum: [standard, performance]
+                type:
+                  type: string
+                  enum: [tcp, udp]
+                snat:
+                  type: string
+                allowVlans:
+                  items:
+                    type: string
+                    pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_]+\/?)*$'
+                  type: array
+                ipamLabel:
+                  type: string
+                serviceAddress:
+                  type: array
+                  maxItems: 1
+                  items:
+                    type: object
+                    properties:
+                      arpEnabled:
+                        type: boolean
+                      icmpEcho:
+                        type: string
+                        enum: [enable, disable, selective]
+                      routeAdvertisement:
+                        type: string
+                        enum: [enable, disable, selective, always, any, all]
+                      spanningEnabled:
+                        type: boolean
+                      trafficGroup:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                pool:
+                  type: object
+                  properties:
+                    service:
+                      type: string
+                      pattern: '^([A-z0-9-_+])*([A-z0-9])$'
+                    servicePort:
+                      type: integer
+                      minimum: 1
+                      maximum: 65535
+                    monitor:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          enum: [tcp, udp]
+                        interval:
+                          type: integer
+                        timeout:
+                          type: integer
+                      required:
+                        - type
+                        - interval
+                  required:
+                      - service
+                      - servicePort
+              required:
+                - virtualServerPort
+                - pool
+      additionalPrinterColumns:
+      - name: virtualServerAddress
+        type: string
+        description: IP address of virtualServer
+        jsonPath: .spec.virtualServerAddress
+      - name: virtualServerPort
+        type: integer
+        description: Port of virtualServer
+        jsonPath: .spec.virtualServerPort
+      - name: pool
+        type: string
+        description: Name of service
+        jsonPath: .spec.pool.service
+      - name: poolPort
+        type: string
+        description: Port of service
+        jsonPath: .spec.pool.servicePort
+      - name: Age
+        type: date
+        jsonPath: .metadata.creationTimestamp
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: externaldnss.cis.f5.com
+spec:
+  group: cis.f5.com
+  names:
+    kind: ExternalDNS
+    plural: externaldnss
+    shortNames:
+      - edns
+    singular: externaldns
+  scope: Namespaced
+  versions:
+    -
+      name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                domainName:
+                  type: string
+                  pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
+                dnsRecordType:
+                  type: string
+                  pattern: 'A'
+                loadBalanceMethod:
+                  type: string
+                pools:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
+                      dataServerName:
+                        type: string
+                      dnsRecordType:
+                        type: string
+                        pattern: 'A'
+                      loadBalanceMethod:
+                        type: string
+                      monitor:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                            enum: [http, https]
+                          send:
+                            type: string
+                          recv:
+                            type: string
+                          interval:
+                            type: integer
+                          timeout:
+                            type: integer
+                        required:
+                          - type
+                          - send
+                          - interval
+                    required:
+                      - name
+                      - dataServerName
+              required:
+                - domainName
+      additionalPrinterColumns:
+        - name: domainName
+          type: string
+          description: Domain name of virtual server resource
+          jsonPath: .spec.domainName
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

@@ -274,6 +274,11 @@ func (crMgr *CRManager) getEventHandlerForIPAM() *cache.ResourceEventHandlerFunc
 
 func (crMgr *CRManager) enqueueIPAM(obj interface{}) {
 	ipamObj := obj.(*ficV1.F5IPAM)
+
+	if ipamObj.Namespace+"/"+ipamObj.Name != crMgr.ipamCR {
+		return
+	}
+
 	log.Infof("Enqueueing IPAM: %v", ipamObj)
 	key := &rqKey{
 		namespace: ipamObj.ObjectMeta.Namespace,
@@ -288,6 +293,10 @@ func (crMgr *CRManager) enqueueIPAM(obj interface{}) {
 func (crMgr *CRManager) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
 	oldIpam := oldObj.(*ficV1.F5IPAM)
 	curIpam := newObj.(*ficV1.F5IPAM)
+
+	if curIpam.Namespace+"/"+curIpam.Name != crMgr.ipamCR {
+		return
+	}
 
 	if reflect.DeepEqual(oldIpam.Status, curIpam.Status) {
 		return
@@ -306,6 +315,11 @@ func (crMgr *CRManager) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
 
 func (crMgr *CRManager) enqueueDeletedIPAM(obj interface{}) {
 	ipamObj := obj.(*ficV1.F5IPAM)
+
+	if ipamObj.Namespace+"/"+ipamObj.Name != crMgr.ipamCR {
+		return
+	}
+
 	log.Infof("Enqueueing IPAM: %v", ipamObj)
 	key := &rqKey{
 		namespace: ipamObj.ObjectMeta.Namespace,

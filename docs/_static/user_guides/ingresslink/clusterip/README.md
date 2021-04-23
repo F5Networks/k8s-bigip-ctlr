@@ -1,6 +1,6 @@
-# F5 IngressLink using ClusterIP
+# F5 IngressLink using ClusterIP User Guide
 
-The F5 IngressLink is addressing modern app delivery at scale/large. IngressLink is a resource definition defined between BIG-IP and Nginx using F5 Container Ingress Service and Nginx Ingress Service. The purpose of this page is to documented and simply the configuration and steps required to preview Ingresslink
+The F5 IngressLink is addressing modern app delivery at scale/large. IngressLink is a resource definition defined between BIG-IP and Nginx using F5 Container Ingress Service and Nginx Ingress Service. The purpose of this user guide is to documented and simply the configuration and steps required to configure Ingresslink
 
 **Currently available as a public preview**,  F5 IngressLink is the first true integration between BIG-IP and NGINX technologies. F5 IngressLink was built to support customers with modern, container application workloads that use both BIG-IP Container Ingress Services and NGINX Ingress Controller for Kubernetes. It’s an elegant control plane solution that offers a unified method of working with both technologies from a single interface—offering the best of BIG-IP and NGINX and fostering better collaboration across NetOps and DevOps teams. The diagram below demonstrates this use-case.
 
@@ -20,12 +20,12 @@ Minimum version to use IngressLink:
 
 | CIS | BIGIP | NGINX+ IC | AS3 |
 | ------ | ------ | ------ | ------ |
-| 2.3+ | v13.1+ | 1.10+ | 3.18+ | 
+| 2.4+ | v13.1+ | 1.10+ | 3.18+ | 
 
 * Recommend AS3 version 3.25 [repo](https://github.com/F5Networks/f5-appsvcs-extension/releases/tag/v3.25.0)
-* CIS 2.3 private build [repo](https://github.com/F5Networks/k8s-bigip-ctlr/releases/tag/v2.3.0)
+* CIS 2.4 private build [repo](https://github.com/F5Networks/k8s-bigip-ctlr/releases/tag/v2.4.0)
 * NGINX+ IC [repo](coming)
-* Github [documentation](coming)
+* Product Documentation [documentation](https://clouddocs.f5.com/containers/latest/userguide/ingresslink/)
 
 ## Configure F5 IngressLink with Kubernetes
 
@@ -41,7 +41,7 @@ Proxy Protocol is required by NGINX to provide the applications PODs with the or
 * In the Name field, type name as "Proxy_Protocol_iRule".
 * In the Definition field, Copy the definition from "Proxy_Protocol_iRule" file. Click Finished.
 
-Proxy_Protocol_iRule [repo](https://github.com/mdditt2000/kubernetes-1-19/blob/master/cis%202.3/ingresslink/big-ip/proxy-protocal/irule)
+Proxy_Protocol_iRule [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/ingresslink/clusterip/big-ip/proxy-protocal/irule)
 
 **Step 2**
 
@@ -63,7 +63,7 @@ Create CIS IngressLink Custom Resource definition schema as follows:
 
     kubectl create -f customresourcedefinition.yaml
 
-cis-crd-schema [repo](https://github.com/mdditt2000/kubernetes-1-19/blob/master/cis%202.3/nico/clusterip/ingresslink/cis/cis-crd-schema/customresourcedefinition.yaml)
+cis-crd-schema [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/ingresslink/clusterip/cis/cis-crd-schema/customresourcedefinition.yaml)
 
 Update the bigip address, partition and other details(image, imagePullSecrets, etc) in CIS deployment file and Install CIS Controller in ClusterIP mode as follows:
 
@@ -85,13 +85,13 @@ Additionally, if you are deploying the CIS in Cluster Mode you need to have foll
 kubectl create -f f5-cis-deployment.yaml
 ```
 
-cis-deployment [repo](https://github.com/mdditt2000/kubernetes-1-19/blob/master/cis%202.3/nico/clusterip/ingresslink/cis/cis-deployment/f5-cis-deployment.yaml)
+cis-deployment [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/ingresslink/clusterip/cis/cis-deployment/f5-cis-deployment.yaml)
 
 Configure BIG-IP as a node in the Kubernetes cluster. This is required for OVN Kubernetes using ClusterIP
 
     kubectl create -f f5-bigip-node.yaml
 
-bigip-node [repo](https://github.com/mdditt2000/kubernetes-1-19/blob/master/cis%202.3/nico/clusterip/ingresslink/cis/cis-deployment/f5-bigip-node.yaml)
+bigip-node [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/ingresslink/clusterip/cis/cis-deployment/f5-bigip-node.yaml)
 
 Verify CIS deployment
 
@@ -164,7 +164,7 @@ Update the ip-address in IngressLink resource and iRule which is created in Step
 
 Note: The name of the app label selector in IngressLink resource should match the labels of the nginx-ingress service created in step-3.
 
-crd-resource [repo](https://github.com/mdditt2000/kubernetes-1-19/blob/master/cis%202.3/nico/clusterip/ingresslink/cis/crd-resource/vs-ingresslink.yaml)
+crd-resource [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/ingresslink/clusterip/cis/crd-resource/vs-ingresslink.yaml)
 
 **Step 5**
 
@@ -184,7 +184,7 @@ Create an Ingress resource:
 
     kubectl create -f cafe-ingress.yaml
 
-demo application [repo](https://github.com/mdditt2000/kubernetes-1-19/tree/master/cis%202.3/nico/clusterip/ingresslink/ingress-example)
+demo application [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/ingresslink/clusterip/ingress-example)
 
 **Step 6**
 

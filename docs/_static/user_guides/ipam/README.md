@@ -60,7 +60,7 @@ Deploy CIS
 kubectl create -f f5-cluster-deployment.yaml
 ```
 
-cis-deployment [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/ipam/cis-deployment/f5-cluster-deployment.yaml)
+cis-deployment [repo](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/user_guides/ipam/cis-deployment/f5-cluster-deployment.yaml)
 
 ## F5 IPAM Deploy Configuration Options
 
@@ -137,7 +137,7 @@ I0420 17:10:47.903745       1 shared_informer.go:247] Caches are synced for F5 I
 2021/04/20 17:12:35 [DEBUG] Processing Key: &{0xc00055a840 0xc000154160 Update}
 ```
 
-ipam-deployment [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/ipam/crd/big-ip-60-cluster/ipam-deployment/f5-ipam-deployment.yaml)
+ipam-deployment [repo](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/user_guides/ipam/crd/big-ip-60-cluster/ipam-deployment/f5-ipam-deployment.yaml)
 
 
 ## Configuring CIS CRD to work with F5 IPAM Controller for the following hosts
@@ -203,7 +203,7 @@ kubectl create -f vs-mysite.yaml
 kubectl create -f vs-myapp.yaml
 ```
 
-crd-example [repo](ttps://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/ipam/crd/big-ip-60-cluster/crd-example)
+crd-example [repo](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/user_guides/ipam/crd/big-ip-60-cluster/crd-example)
 
 ## Logging output when the virtualserver is created
 

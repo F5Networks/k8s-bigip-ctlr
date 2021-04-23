@@ -103,8 +103,8 @@ spec:
 
 **Note: Second node create a unique podCIDR**
 
-* f5-bigip-node-91.yaml [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/k8s-ha/big-ip-91/f5-bigip-node-91.yaml)
-* f5-bigip-node-92.yaml [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/k8s-ha/big-ip-91/f5-bigip-node-92.yaml)
+* f5-bigip-node-91.yaml [repo](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/user_guides/k8s-ha/big-ip-91/f5-bigip-node-91.yaml)
+* f5-bigip-node-92.yaml [repo](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/user_guides/k8s-ha/big-ip-91/f5-bigip-node-92.yaml)
 
 ## Create self-ip
 
@@ -124,11 +124,11 @@ bigip2
 
 bigip1
 
-![bigip1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/k8s-ha/diagrams/2021-04-13_10-08-15.png)
+![bigip1](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/user_guides/k8s-ha/diagrams/2021-04-13_10-08-15.png)
 
 bigip2
 
-![bigip2](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/k8s-ha/diagrams/2021-04-13_10-10-04.png)
+![bigip2](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/user_guides/k8s-ha/diagrams/2021-04-13_10-10-04.png)
 
 ## Deploy CIS for each BIG-IP
 
@@ -153,13 +153,13 @@ Configuration options available in the CIS controller
 ```
 
 bigip1
-* f5-bigip-ctlr-deployment-91.yaml [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/k8s-ha/big-ip-91/f5-bigip-ctlr-deployment-91.yaml)
+* f5-bigip-ctlr-deployment-91.yaml [repo](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/user_guides/k8s-ha/big-ip-91/f5-bigip-ctlr-deployment-91.yaml)
 
 bigip2
-* f5-bigip-ctlr-deployment-92.yaml [repo](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/k8s-ha/big-ip-92/f5-bigip-ctlr-deployment-92.yaml)
+* f5-bigip-ctlr-deployment-92.yaml [repo](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/user_guides/k8s-ha/big-ip-92/f5-bigip-ctlr-deployment-92.yaml)
 
 ## Disclosures
 
 This solution works but you cannot have ANY floating IP addresses. If the K8S nodes are pointing to the BIG-IP internal floating self-ip you would need to remove the self-ip and configure a default gateway forwarding VIP as shown in the diagram below. This is created in Common
  
- ![defaultgatewa](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/user_guides/k8s-ha/diagrams/2021-04-13_13-17-33.png)
+ ![defaultgatewa](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/user_guides/k8s-ha/diagrams/2021-04-13_13-17-33.png)

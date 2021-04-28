@@ -10,6 +10,7 @@ Added Functionality
 Bug Fixes
 `````````
 * :issues: `1737` Inconsistent ordering of policy rules when adding an Ingress path
+* Fix Deleting Stale Specs from IPAM CR when CIS restarts
 
 Limitations
 ```````````

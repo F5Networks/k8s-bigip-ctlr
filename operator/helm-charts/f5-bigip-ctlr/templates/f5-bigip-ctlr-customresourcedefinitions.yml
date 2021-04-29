@@ -1,6 +1,10 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/instance: f5-bigip-ctlr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: f5-bigip-ctlr
   name: virtualservers.cis.f5.com
 spec:
   group: cis.f5.com
@@ -121,6 +125,11 @@ spec:
                   type: integer
                   minimum: 1
                   maximum: 65535
+            status:
+              type: object
+              properties:
+                vsAddress:
+                  type: string
       additionalPrinterColumns:
         - name: host
           type: string
@@ -142,14 +151,24 @@ spec:
           type: string
           description: IP address of virtualServer
           jsonPath: .spec.virtualServerAddress
+        - name: vsAddress
+          type: string
+          description: IP address of virtualServer
+          jsonPath: .status.vsAddress
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
 
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/instance: f5-bigip-ctlr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: f5-bigip-ctlr
   name: tlsprofiles.cis.f5.com
 spec:
   group: cis.f5.com
@@ -196,6 +215,10 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/instance: f5-bigip-ctlr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: f5-bigip-ctlr
   name: transportservers.cis.f5.com
 spec:
   group: cis.f5.com
@@ -315,6 +338,10 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/instance: f5-bigip-ctlr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: f5-bigip-ctlr
   name: externaldnss.cis.f5.com
 spec:
   group: cis.f5.com
@@ -395,6 +422,10 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/instance: f5-bigip-ctlr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: f5-bigip-ctlr
   name: ingresslinks.cis.f5.com
 spec:
   group: cis.f5.com

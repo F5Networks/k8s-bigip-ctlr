@@ -4,6 +4,9 @@ apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: {{ template "f5-bigip-ctlr.fullname" . }}
   labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ template "f5-bigip-ctlr.name" . }}
     app: {{ template "f5-bigip-ctlr.name" . }}
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}

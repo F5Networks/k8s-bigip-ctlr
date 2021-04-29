@@ -34,7 +34,7 @@ args:
   # KUBERNETES
   # default_ingress_ip:
   # kubeconfig:
-  # namespace:
+  # namespaces: ["foo", "bar"]
   # namespace_label:
   # node_label_selector:
   # pool_member_type:
@@ -54,13 +54,20 @@ image:
   user: f5networks
   repo: k8s-bigip-ctlr
   pullPolicy: Always
-resources: {}
-  # If you want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #  cpu: 100m
-  #  memory: 128Mi
-  # requests:
-  #  cpu: 100m
-#  memory: 128Mi
-version: latest
+#  version: latest
+# affinity:
+#   nodeAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       nodeSelectorTerms:
+#       - matchExpressions:
+#         - key: kubernetes.io/arch
+#           operator: Exists
+# securityContext:
+#   runAsUser: 1000
+#   runAsGroup: 3000
+#   fsGroup: 2000
+# If you want to specify resources, uncomment the following
+# limits_cpu: 100m
+# limits_memory: 512Mi
+# requests_cpu: 100m
+# requests_memory: 512Mi

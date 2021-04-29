@@ -1,6 +1,10 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/instance: f5-bigip-ctlr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: f5-bigip-ctlr
   name: virtualservers.cis.f5.com
 spec:
   group: cis.f5.com
@@ -150,6 +154,10 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/instance: f5-bigip-ctlr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: f5-bigip-ctlr
   name: tlsprofiles.cis.f5.com
 spec:
   group: cis.f5.com
@@ -196,6 +204,10 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/instance: f5-bigip-ctlr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: f5-bigip-ctlr
   name: transportservers.cis.f5.com
 spec:
   group: cis.f5.com
@@ -315,6 +327,10 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/instance: f5-bigip-ctlr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: f5-bigip-ctlr
   name: externaldnss.cis.f5.com
 spec:
   group: cis.f5.com
@@ -395,6 +411,10 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
+  labels:
+    app.kubernetes.io/instance: f5-bigip-ctlr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: f5-bigip-ctlr
   name: ingresslinks.cis.f5.com
 spec:
   group: cis.f5.com

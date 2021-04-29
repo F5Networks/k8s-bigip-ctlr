@@ -140,8 +140,8 @@ Added Functionality
     -  Multi cluster support for same domain
     -  Health montior support for monitoring GSLB pools
     -  CIS deployment parameter added `--gtm-bigip-url`, `--gtm-bigip-username`, `--gtm-bigip-password` and `--gtm-credentials-directory` for External DNS.
-    -  `CRD schema definition for External DNS <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/config_examples/crd/ExternalDNS/externaldns-customresourcedefinition.yml>`_.
-    -  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd/ExternalDNS>`_.
+    -  `CRD schema definition for External DNS <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/ExternalDNS/%20externaldns-customresourcedefinition.yml>`_.
+    -  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/ExternalDNS>`_.
 
 Bug Fixes
 `````````
@@ -178,8 +178,8 @@ Added Functionality
 * CRD TEEMs Integration.
 * Support for AS3 3.23.
 * Upgraded AS3 Schema validation version from v3.11.0-3 to v3.18.0-4.
-* `CRD Schema <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml>`_.
-* `CRD Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd>`_.
+* `CRD Schema <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/Install/customresourcedefinitions.yml>`_.
+* `CRD Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd>`_.
 
 Bug Fixes
 `````````
@@ -207,7 +207,7 @@ Added Functionality
        -   OpenShift 4.5.
        -   AS3 3.21.
 * Custom Resource Definition (CRD) – Preview version available with `virtual-server` and `TLSProfile` custom resources.
-      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/config_examples/crd/CustomResource.md>`_.
+      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/CustomResource.md>`_.
 * Custom Resource Definition (CRD) – Added Support for k8s Secrets with TLSProfile Custom Resource.
 * Custom Resource Definition (CRD) – Improved the strategy of processing `virtual-server` and `TLSProfile` custom resources.
 * Custom Resource Definition (CRD) – Added support for installation using Helm and Operator.
@@ -264,8 +264,8 @@ Added Functionality
              *  Supports nodelabel in Virtual server CRD
              *  Supports TLSProfile CRD with BIG-IP reference client and server SSL profiles
              *  Supports TLSProfile CRD with K8S secrets reference for client SSL profiles.
-             *  `CRD schema definition for both Virtual server and TLSProfile <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml>`_.
-             *  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd>`_.
+             *  `CRD schema definition for both Virtual server and TLSProfile <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/customresourcedefinitions.yml>`_.
+             *  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd>`_.
 
 Bug Fixes
 `````````
@@ -294,9 +294,9 @@ Guidelines for upgrading to CIS 2.1
 * Those migrating from agent CCCL to agent AS3 :
      - User should clean up LTM resources in BIG-IP partition created by CCCL before migrating to CIS 2.1.
           Steps to clean up LTM resources in BIG-IP partition using AS3
-           *  Use below POST call along with this `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/example-empty-AS3-declaration.yaml>`_.
+           *  Use below POST call along with this `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/example-empty-AS3-declaration.yaml>`_.
                 - mgmt/shared/appsvcs/declare
-           *  Note: Please modify <bigip-ip> in above POST call and <bigip-partition> name in `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/example-empty-AS3-declaration.yaml>`_
+           *  Note: Please modify <bigip-ip> in above POST call and <bigip-partition> name in `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/example-empty-AS3-declaration.yaml>`_
 
 2.0
 -------------
@@ -304,7 +304,7 @@ Added Functionality
 `````````````````````
 * `as3` is the default agent. Use deployment argument `--agent` to configure `cccl` agent.
 * Custom Resource Definition (CRD) – Alpha available with Custom resource `virtual-server`.
-      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/config_examples/crd/CustomResource.md>`_.
+      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/CustomResource.md>`_.
 * Added new optional deployment arguments:
        -  `--custom-resource-mode` (default `false`) when set `true` processes custom resources only.
        -  `defined-as3-declaration` for processing user defined AS3 Config Map in CIS watched namespaces.

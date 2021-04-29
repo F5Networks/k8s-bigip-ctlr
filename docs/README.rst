@@ -182,7 +182,7 @@ BIG-IP system
      It is important to not project the Secret keys to specific paths, as the controller looks for the "username",
      "password", and "url" files directly within the credentials directory.
 
-     See :fonticon:`fa fa-download` :download:`example-bigip-credentials-directory.yaml </_static/config_examples/example-bigip-credentials-directory.yaml>`
+     See :fonticon:`fa fa-download` :download:`example-bigip-credentials-directory.yaml </config_examples/example-bigip-credentials-directory.yaml>`
      for a deployment example.
 
 .. _vxlan configs:
@@ -331,8 +331,8 @@ OpenShift Routes
    clientssl and serverssl profiles for the OpenShift Route HTTPS virtual server. The controller sets these profiles as
    Default for SNI.
 
-- :fonticon:`fa fa-download` :download:`example-openshift-custom-ssl-profile.yaml </_static/config_examples/example-openshift-custom-ssl-profile.yaml>`
-- :fonticon:`fa fa-download` :download:`example-openshift-default-ssl-profile.yaml </_static/config_examples/example-openshift-default-ssl-profile.yaml>`
+- :fonticon:`fa fa-download` :download:`example-openshift-custom-ssl-profile.yaml </config_examples/example-openshift-custom-ssl-profile.yaml>`
+- :fonticon:`fa fa-download` :download:`example-openshift-default-ssl-profile.yaml </config_examples/example-openshift-default-ssl-profile.yaml>`
 
 .. _f5 resource configmap properties:
 
@@ -792,30 +792,30 @@ Please see the example configuration files for more details.
 Example Configuration Files
 ---------------------------
 
-- :fonticon:`fa fa-download` :download:`sample-k8s-bigip-ctlr-secrets.yaml </_static/config_examples/sample-k8s-bigip-ctlr-secrets.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-bigip-credentials-secret.yaml </_static/config_examples/sample-bigip-credentials-secret.yaml>`
-- :fonticon:`fa fa-download` :download:`example-bigip-credentials-directory.yaml </_static/config_examples/example-bigip-credentials-directory.yaml>`
-- :fonticon:`fa fa-download` :download:`example-vs-resource.configmap.yaml </_static/config_examples/example-vs-resource.configmap.yaml>`
-- :fonticon:`fa fa-download` :download:`example-vs-resource-udp.configmap.yaml </_static/config_examples/example-vs-resource-udp.configmap.yaml>`
-- :fonticon:`fa fa-download` :download:`example-vs-resource.json </_static/config_examples/example-vs-resource.json>`
-- :fonticon:`fa fa-download` :download:`example-vs-resource-iapp.json </_static/config_examples/example-vs-resource-iapp.json>`
-- :fonticon:`fa fa-download` :download:`example-advanced-vs-resource-iapp.json </_static/config_examples/example-advanced-vs-resource-iapp.json>`
-- :fonticon:`fa fa-download` :download:`single-service-ingress.yaml </_static/config_examples/ingress/single-service-ingress.yaml>`
-- :fonticon:`fa fa-download` :download:`single-service-tls-ingress.yaml </_static/config_examples/ingress/single-service-tls-ingress.yaml>`
-- :fonticon:`fa fa-download` :download:`simple-ingress-fanout.yaml </_static/config_examples/ingress/simple-ingress-fanout.yaml>`
-- :fonticon:`fa fa-download` :download:`name-based-ingress.yaml </_static/config_examples/ingress/name-based-ingress.yaml>`
-- :fonticon:`fa fa-download` :download:`ingress-with-health-monitors.yaml </_static/config_examples/ingress/ingress-with-health-monitors.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-rbac.yaml </_static/config_examples/sample-rbac.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-app-root-annotation.yaml </_static/config_examples/ingress/sample-app-root-annotation.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-url-rewrite-annotation.yaml </_static/config_examples/ingress/sample-url-rewrite-annotation.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-k8s-bigip-ctlr-secrets.yaml </config_examples/sample-k8s-bigip-ctlr-secrets.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-bigip-credentials-secret.yaml </config_examples/sample-bigip-credentials-secret.yaml>`
+- :fonticon:`fa fa-download` :download:`example-bigip-credentials-directory.yaml </config_examples/example-bigip-credentials-directory.yaml>`
+- :fonticon:`fa fa-download` :download:`example-vs-resource.configmap.yaml </config_examples/example-vs-resource.configmap.yaml>`
+- :fonticon:`fa fa-download` :download:`example-vs-resource-udp.configmap.yaml </config_examples/example-vs-resource-udp.configmap.yaml>`
+- :fonticon:`fa fa-download` :download:`example-vs-resource.json </config_examples/example-vs-resource.json>`
+- :fonticon:`fa fa-download` :download:`example-vs-resource-iapp.json </config_examples/example-vs-resource-iapp.json>`
+- :fonticon:`fa fa-download` :download:`example-advanced-vs-resource-iapp.json </config_examples/example-advanced-vs-resource-iapp.json>`
+- :fonticon:`fa fa-download` :download:`single-service-ingress.yaml </config_examples/ingress/single-service-ingress.yaml>`
+- :fonticon:`fa fa-download` :download:`single-service-tls-ingress.yaml </config_examples/ingress/single-service-tls-ingress.yaml>`
+- :fonticon:`fa fa-download` :download:`simple-ingress-fanout.yaml </config_examples/ingress/simple-ingress-fanout.yaml>`
+- :fonticon:`fa fa-download` :download:`name-based-ingress.yaml </config_examples/ingress/name-based-ingress.yaml>`
+- :fonticon:`fa fa-download` :download:`ingress-with-health-monitors.yaml </config_examples/ingress/ingress-with-health-monitors.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-rbac.yaml </config_examples/sample-rbac.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-app-root-annotation.yaml </config_examples/ingress/sample-app-root-annotation.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-url-rewrite-annotation.yaml </config_examples/ingress/sample-url-rewrite-annotation.yaml>`
 
 OpenShift
 `````````
 
-- :fonticon:`fa fa-download` :download:`sample-unsecured-route.yaml </_static/config_examples/openshift/routes/sample-unsecured-route.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-edge-route.yaml </_static/config_examples/openshift/routes/sample-edge-route.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-passthrough-route.yaml </_static/config_examples/openshift/routes/sample-passthrough-route.yaml>`
-- :fonticon:`fa fa-download` :download:`sample-reencrypt-route.yaml </_static/config_examples/openshift/routes/sample-reencrypt-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-unsecured-route.yaml </config_examples/openshift/routes/sample-unsecured-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-edge-route.yaml </config_examples/openshift/routes/sample-edge-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-passthrough-route.yaml </config_examples/openshift/routes/sample-passthrough-route.yaml>`
+- :fonticon:`fa fa-download` :download:`sample-reencrypt-route.yaml </config_examples/openshift/routes/sample-reencrypt-route.yaml>`
 
 
 

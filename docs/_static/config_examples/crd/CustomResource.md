@@ -290,7 +290,7 @@ Known Issues:
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/config_examples/crd/ExternalDNS/%20externaldns-customresourcedefinition.yml
+        https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/config_examples/crd/ExternalDNS/externaldns-customresourcedefinition.yml
 
 
 **ExternalDNS Components**

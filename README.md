@@ -13,7 +13,9 @@ For instruction on how to use this component, see the
 for F5 Container Ingress Services for Kubernetes & OpenShift.
 
 For guides on this and other solutions for Kubernetes, see the
-[F5 Solution Guides for Kubernetes](http://clouddocs.f5.com/containers/latest/kubernetes).
+* [F5 Solution Guides for Kubernetes](http://clouddocs.f5.com/containers/latest/kubernetes)
+* [F5 User Guides for Kubernetes](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/user_guides/README.md)
+
 
 What's New?
 -----------

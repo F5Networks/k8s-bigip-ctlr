@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Node
+metadata:
+  name: bigip92
+  annotations:
+    #Replace MAC with your BIGIP Flannel VXLAN Tunnel MAC
+    flannel.alpha.coreos.com/backend-data: '{"VtepMAC":"00:50:56:bb:70:8b"}'
+    flannel.alpha.coreos.com/backend-type: "vxlan"
+    flannel.alpha.coreos.com/kube-subnet-manager: "true"
+    #Replace IP with Self-IP for your deployment
+    flannel.alpha.coreos.com/public-ip: "192.168.200.92"
+spec:
+  #Replace Subnet with your BIGIP Flannel Subnet
+  podCIDR: "10.244.20.0/24"

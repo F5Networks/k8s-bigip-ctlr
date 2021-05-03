@@ -1,0 +1,17 @@
+#PROXY Protocol Receiver iRule
+# iRule used for F5 IngressLink
+# Layer 4 irule since BIG-IP is passthrough
+
+when CLIENT_ACCEPTED {
+    set proxyheader "PROXY "
+    if {[IP::version] eq 4} {
+        append proxyheader "TCP4 "
+    } else {
+        append proxyheader "TCP6 "
+    }
+    append proxyheader "[IP::remote_addr] [IP::local_addr] [TCP::remote_port] [TCP::local_port]\r\n"
+}
+
+when SERVER_CONNECTED {
+    TCP::respond $proxyheader
+}

@@ -171,7 +171,7 @@ Known Issues:
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/basic/vs-customresourcedefinition.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/basic/vs-customresourcedefinition.yml
 
 
 **VirtualServer Components**
@@ -225,7 +225,7 @@ Known Issues:
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/tls/tls-customresourcedefinition.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/tls/tls-customresourcedefinition.yml
 
 
 **TLSProfile Components**
@@ -241,7 +241,7 @@ Known Issues:
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/basic/vs-customresourcedefinition.yml
+        https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/basic/vs-customresourcedefinition.yml
 
 
 **TransportServer Components**
@@ -290,7 +290,7 @@ Known Issues:
    * Schema Validation
      - OpenAPI Schema Validation
      
-        https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/_static/config_examples/crd/ExternalDNS/externaldns-customresourcedefinition.yml
+        https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/ExternalDNS/externaldns-customresourcedefinition.yml
 
 
 **ExternalDNS Components**
@@ -346,7 +346,7 @@ Since CIS is using the AS3 declarative API we need the AS3 extension installed o
 * Install F5 CRDs
   - Download the below file and execute the command as shown.
   
-    https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/customresourcedefinitions.yml
+    https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/customresourcedefinitions.yml
 ```sh
 kubectl create -f customresourcedefinitions.yml [-n kube-system]
 ```
@@ -362,7 +362,7 @@ kubectl create serviceaccount bigip-ctlr [-n kube-system]
 * Create Cluster Role and Cluster Role Binding
   - Download the below file and execute the command as shown.
   
-    https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/clusterrole.yml
+    https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/clusterrole.yml
 ```sh
 kubectl create -f clusterrole.yml [-n kube-system]
 ```
@@ -373,7 +373,7 @@ kubectl create -f clusterrole.yml [-n kube-system]
 * Deploy k8s-bigip-ctlr in nodeport and customresource mode.
   - Download the below file and execute the command as shown.
   
-    https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/sample-nodeport-k8s-bigip-ctlr-crd-secret.yml
+    https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/sample-nodeport-k8s-bigip-ctlr-crd-secret.yml
  ```sh
 kubectl create -f sample-nodeport-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 ``` 
@@ -384,7 +384,7 @@ kubectl create -f sample-nodeport-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 * Deploy k8s-bigip-ctlr in cluster and customresource mode.
   - Download the below file and execute the command as shown.
  
-      https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/_static/config_examples/crd/Install/sample-cluster-k8s-bigip-ctlr-crd-secret.yml
+      https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/sample-cluster-k8s-bigip-ctlr-crd-secret.yml
  ```sh
 kubectl create -f sample-cluster-k8s-bigip-ctlr-crd-secret.yml [-n kube-system]
 ```
@@ -399,7 +399,7 @@ CIS deployment parameter `--gtm-bigip-url`, `--gtm-bigip-username`, `--gtm-bigip
 
 ## Examples
 
-   https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/crd
+   https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd
 
 ## To Be Implemented
 * A/B Deployment

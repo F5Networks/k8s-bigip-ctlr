@@ -24,7 +24,7 @@ From CIS > 2.0, AS3 >= 3.18 is required.
 https://clouddocs.f5.com/products/extensions/f5-appsvcs-extension/latest/userguide/installation.html
 
 * Get the required YAML files for the repo and update the files to the setup environment.
-https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/openshift for YAML files to use moving forward.
+https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/openshift for YAML files to use moving forward.
 
 ## 3. Adding BIG-IP to OpenShift Cluster
 
@@ -34,7 +34,7 @@ Create one HostSubnet for each BIG-IP device.
 These will handle health monitor traffic. 
 Also create one HostSubnet to pass data traffic using floating IP address. 
 
-**Note** Refer YAML files at https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/openshift/HA
+**Note** Refer YAML files at https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/openshift/HA
 Clone, the repo and update appropriately as per the environment.
 
 ```

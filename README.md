@@ -1,19 +1,19 @@
-[![Build Status](https://travis-ci.org/F5Networks/k8s-bigip-ctlr.svg?branch=master)](https://travis-ci.org/F5Networks/k8s-bigip-ctlr) [![Slack](https://f5cloudsolutions.herokuapp.com/badge.svg)](https://f5cloudsolutions.herokuapp.com) [![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg?branch=HEAD)](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr?branch=HEAD)
+[![Build Status](https://travis-ci.org/F5Networks/k8s-bigip-ctlr.svg?branch=master)](https://travis-ci.org/F5Networks/k8s-bigip-ctlr) [![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg?branch=HEAD)](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr?branch=HEAD)
 
 F5 Container Ingress Services for Kubernetes & OpenShift
 ========================================================
 
-The F5 Container Ingress Services for [Kubernetes](http://kubernetes.io/) and [OpenShift](https://www.openshift.com/) makes F5 [BIG-IP](https://www.f5.com/products/big-ip-services) services available to applications running in Kubernetes and OpenShift.
+The F5 Container Ingress Services for [Kubernetes](https://kubernetes.io/) and [OpenShift](https://www.openshift.com/) makes F5 [BIG-IP](https://www.f5.com/products/big-ip-services) services available to applications running in Kubernetes and OpenShift.
 
 Documentation
 -------------
 
 For instruction on how to use this component, see the
-[docs](http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/latest/)
+[docs](https://clouddocs.f5.com/containers/latest/)
 for F5 Container Ingress Services for Kubernetes & OpenShift.
 
 For guides on this and other solutions for Kubernetes, see the
-[F5 Solution Guides for Kubernetes](http://clouddocs.f5.com/containers/latest/kubernetes).
+[F5 Solution Guides for Kubernetes](https://clouddocs.f5.com/containers/latest/userguide/kubernetes/).
 
 What's New?
 -----------
@@ -53,7 +53,7 @@ Prerequisites:
 - Docker
 
 ```shell
-git clone https://github.com/f5networks/k8s-bigip-ctlr.git
+git clone https://github.com/F5Networks/k8s-bigip-ctlr.git 
 cd  k8s-bigip-ctlr
 
 # Use docker to build the release artifacts, into a local "_docker_workspace" directory, then put into docker images
@@ -69,12 +69,11 @@ make prod BASE_OS=rhel7
 
 ### Alternate, unofficial build
 
-A normal go and godep toolchain can be used as well
+A normal go toolchain can be used as well
 
 Prerequisites:
-- go 1.7
+- go 1.15
 - $GOPATH pointing at a valid go workspace
-- godep (Only needed to modify vendor's packages)
 - python
 - virtualenv
 

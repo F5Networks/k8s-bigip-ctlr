@@ -22,8 +22,8 @@ Added Functionality
 ```````````````````
 * CIS is now compatible with:
     -  Kubernetes 1.20
-* CIS supports IP address assignment to kubernetes service type LoadBalancer using `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`_. Refer for `Examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
-* CIS supports IP address assignment to TransportServer Custom Resources using `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`_. Refer for `Examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
+* CIS supports IP address assignment to kubernetes service type LoadBalancer using `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`__. Refer for `Examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
+* CIS supports IP address assignment to TransportServer Custom Resources using `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`__. Refer for `Examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
 * Added support for defaultRouteDomain in custom resource mode.
 * CIS supports service address reference in VirtualServer and TransportServer Custom Resources.
 * Integrated the IngressLink mode with CRD mode.
@@ -62,8 +62,8 @@ Limitations
 -------------
 Added Functionality
 ```````````````````
-* CIS supports IP address assignment to Virtual Server CRD using `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`_. Refer for `Examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
-* CIS allows user to leverage Virtual IP address using either `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`_ or virtualServerAddress field in VirtualServer CRD
+* CIS supports IP address assignment to Virtual Server CRD using `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`__. Refer for `Examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
+* CIS allows user to leverage Virtual IP address using either `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`__ or virtualServerAddress field in VirtualServer CRD
 * Support Passthrough termination for TLS CRD
 * Added support for AS3 schema minor versions
 * :issues:`1631` Support `caCertificate` for OpenShift Routes
@@ -140,7 +140,7 @@ Added Functionality
     -  Multi cluster support for same domain
     -  Health montior support for monitoring GSLB pools
     -  CIS deployment parameter added `--gtm-bigip-url`, `--gtm-bigip-username`, `--gtm-bigip-password` and `--gtm-credentials-directory` for External DNS.
-    -  `CRD schema definition for External DNS <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/ExternalDNS/%20externaldns-customresourcedefinition.yml>`_.
+    -  `CRD schema definition for External DNS <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/ExternalDNS/externaldns-customresourcedefinition.yml>`_.
     -  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/ExternalDNS>`_.
 
 Bug Fixes
@@ -358,7 +358,10 @@ Added Functionality
     -  `--tls-version` to enable specific TLS version 1.2/1.3 on BIG-IP. Default 1.2
     -  `--ciphers` to configure cipher suite on BIG-IP. Option valid for TLSv1.2
     -  `--cipher-group` to configure a cipher-group on BIG-IP. Option valid for TLSv1.3
-    Note: both `--ciphers` and `--cipher-group` are mutually exclusive based on the TLS version.
+  
+  .. note::
+     both `--ciphers` and `--cipher-group` are mutually exclusive based on the TLS version.
+
 * Helm charts based `F5 BIG-IP Controller Operator <https://catalog.redhat.com/software/operators/search?p=1&q=f5>`_ published at Redhat Operator Market place.
 * Added optional command line argument `--as3-post-delay` to introduce delay in posting AS3 messages to BIG-IP.
 * Controller is now compatible with OpenShift version 4.2 and AS3 version 3.17.0.
@@ -638,7 +641,7 @@ Added Functionality
 * Added support for OpenShift Origin version 3.7.
 * Added support for Red Hat OpenShift Container Platform (OSCP) version 3.7.
 * (BETA) Added initial basic support for Prometheus metrics.
-* `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-ctlr>`_ pairs with k8s-bigip-ctlr by writing out `virtual-server.f5.com/ip` annotation for IP addresses allocated for host names in Ingresses or ConfigMaps.
+* `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-ctlr>`__ pairs with k8s-bigip-ctlr by writing out `virtual-server.f5.com/ip` annotation for IP addresses allocated for host names in Ingresses or ConfigMaps.
 * Added support for using `helm`_ to deploy the Controller using the `f5-bigip-ctlr chart`_.
 * Added support for using `helm`_ to deploy Ingress resources using the `f5-bigip-ingress chart`_.
 
@@ -692,7 +695,7 @@ Added Functionality
   - Create VxLAN forwarding database (FDB) addresses for route domains.
   - Ability to change the default route domain for a partition managed by an F5 controller after the controller has deployed.
 
-* Support for `Flannel VxLAN in Kubernetes<https://clouddocs.f5.com/containers/latest/>`_.
+* Support for `Flannel VxLAN in Kubernetes <https://clouddocs.f5.com/containers/latest/>`_.
 * Enhanced options for configuring Virtual IP addresses for Ingress resources:
 
   - Ingresses with the same IP address and port can share a virtual server.
@@ -723,8 +726,8 @@ Limitations
 
   You can find these versions in the iapp package ``iapps-1.0.0.492.0``. To upgrade, you must perform the following:
 
-  - `Download and install the latest iApps templates`_.
-  - `Set the service to use the newer iApp template`_.
+  - Download and install the latest iApps templates `iApps`_.
+  - Set the service to use the newer iApp template `iApps`_.
 
 * Check BIG-IP version compatibility on Application Services (iApps) before deploying. See Application Services Integration iApp.
 * Cannot delete ARP entries on BIG-IP v11.6.1 when running the Controller in Kubernetes with Flannel VXLAN enabled.

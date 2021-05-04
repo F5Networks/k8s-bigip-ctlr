@@ -41,6 +41,5 @@ docs/_build*
 docs/errors.txt
 f5-ci-docs
 /docs/includes/f5-csi_k/wg-output.txt
-docs/_static/ATTRIBUTIONS.md
 *.diff
 *.patch

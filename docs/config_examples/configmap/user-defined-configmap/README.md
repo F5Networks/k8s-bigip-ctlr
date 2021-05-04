@@ -25,7 +25,7 @@ From CIS > 2.0, AS3 >= 3.18 is required.
   https://clouddocs.f5.com/products/extensions/f5-appsvcs-extension/latest/userguide/installation.html
 
 * Get the required YAML files for the repo and update the files to the setup environment.
-  https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/_static/config_examples/configmap/user-defined-configmap for YAML files to use moving forward.
+  https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/configmap/user-defined-configmap for YAML files to use moving forward.
 
 CIS uses the partition defined in the CIS configuration by default to communicate with the F5 BIG-IP when adding static ARPs and forwarding entries for VXLAN. CIS managed partitions **<partition_AS3>** and **<partition>** should not be used in ConfigMap as Tenants. If CIS is deployed with **bigip-partition=cis**, then **<cis_AS3>** and **<cis>** are not supposed to be used as a tenant in AS3 declaration. Below is a proper declaration which would be correctly processed by CIS. Using **<k8s>** for the AS3 tenant in AS3. 
 

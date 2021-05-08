@@ -32,13 +32,13 @@ import (
 
 // FakeIngressLinks implements IngressLinkInterface
 type FakeIngressLinks struct {
-	Fake *FakeK8sV1
+	Fake *FakeCisV1
 	ns   string
 }
 
-var ingresslinksResource = schema.GroupVersionResource{Group: "k8s.nginx.org", Version: "v1", Resource: "ingresslinks"}
+var ingresslinksResource = schema.GroupVersionResource{Group: "cis.f5.com", Version: "v1", Resource: "ingresslinks"}
 
-var ingresslinksKind = schema.GroupVersionKind{Group: "k8s.nginx.org", Version: "v1", Kind: "IngressLink"}
+var ingresslinksKind = schema.GroupVersionKind{Group: "cis.f5.com", Version: "v1", Kind: "IngressLink"}
 
 // Get takes name of the ingressLink, and returns the corresponding ingressLink object, and an error if there is any.
 func (c *FakeIngressLinks) Get(ctx context.Context, name string, options v1.GetOptions) (result *cisv1.IngressLink, err error) {

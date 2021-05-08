@@ -56,7 +56,7 @@ type transportServers struct {
 }
 
 // newTransportServers returns a TransportServers
-func newTransportServers(c *K8sV1Client, namespace string) *transportServers {
+func newTransportServers(c *CisV1Client, namespace string) *transportServers {
 	return &transportServers{
 		client: c.RESTClient(),
 		ns:     namespace,

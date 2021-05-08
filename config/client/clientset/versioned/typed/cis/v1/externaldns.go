@@ -56,7 +56,7 @@ type externalDNSs struct {
 }
 
 // newExternalDNSs returns a ExternalDNSs
-func newExternalDNSs(c *K8sV1Client, namespace string) *externalDNSs {
+func newExternalDNSs(c *CisV1Client, namespace string) *externalDNSs {
 	return &externalDNSs{
 		client: c.RESTClient(),
 		ns:     namespace,

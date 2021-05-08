@@ -24,7 +24,7 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-type K8sV1Interface interface {
+type CisV1Interface interface {
 	RESTClient() rest.Interface
 	ExternalDNSsGetter
 	IngressLinksGetter
@@ -33,33 +33,33 @@ type K8sV1Interface interface {
 	VirtualServersGetter
 }
 
-// K8sV1Client is used to interact with features provided by the k8s.nginx.org group.
-type K8sV1Client struct {
+// CisV1Client is used to interact with features provided by the cis.f5.com group.
+type CisV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *K8sV1Client) ExternalDNSs(namespace string) ExternalDNSInterface {
+func (c *CisV1Client) ExternalDNSs(namespace string) ExternalDNSInterface {
 	return newExternalDNSs(c, namespace)
 }
 
-func (c *K8sV1Client) IngressLinks(namespace string) IngressLinkInterface {
+func (c *CisV1Client) IngressLinks(namespace string) IngressLinkInterface {
 	return newIngressLinks(c, namespace)
 }
 
-func (c *K8sV1Client) TLSProfiles(namespace string) TLSProfileInterface {
+func (c *CisV1Client) TLSProfiles(namespace string) TLSProfileInterface {
 	return newTLSProfiles(c, namespace)
 }
 
-func (c *K8sV1Client) TransportServers(namespace string) TransportServerInterface {
+func (c *CisV1Client) TransportServers(namespace string) TransportServerInterface {
 	return newTransportServers(c, namespace)
 }
 
-func (c *K8sV1Client) VirtualServers(namespace string) VirtualServerInterface {
+func (c *CisV1Client) VirtualServers(namespace string) VirtualServerInterface {
 	return newVirtualServers(c, namespace)
 }
 
-// NewForConfig creates a new K8sV1Client for the given config.
-func NewForConfig(c *rest.Config) (*K8sV1Client, error) {
+// NewForConfig creates a new CisV1Client for the given config.
+func NewForConfig(c *rest.Config) (*CisV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -68,12 +68,12 @@ func NewForConfig(c *rest.Config) (*K8sV1Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &K8sV1Client{client}, nil
+	return &CisV1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new K8sV1Client for the given config and
+// NewForConfigOrDie creates a new CisV1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *K8sV1Client {
+func NewForConfigOrDie(c *rest.Config) *CisV1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -81,9 +81,9 @@ func NewForConfigOrDie(c *rest.Config) *K8sV1Client {
 	return client
 }
 
-// New creates a new K8sV1Client for the given RESTClient.
-func New(c rest.Interface) *K8sV1Client {
-	return &K8sV1Client{c}
+// New creates a new CisV1Client for the given RESTClient.
+func New(c rest.Interface) *CisV1Client {
+	return &CisV1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -101,7 +101,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *K8sV1Client) RESTClient() rest.Interface {
+func (c *CisV1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

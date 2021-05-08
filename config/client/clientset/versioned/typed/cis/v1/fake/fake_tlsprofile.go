@@ -32,13 +32,13 @@ import (
 
 // FakeTLSProfiles implements TLSProfileInterface
 type FakeTLSProfiles struct {
-	Fake *FakeK8sV1
+	Fake *FakeCisV1
 	ns   string
 }
 
-var tlsprofilesResource = schema.GroupVersionResource{Group: "k8s.nginx.org", Version: "v1", Resource: "tlsprofiles"}
+var tlsprofilesResource = schema.GroupVersionResource{Group: "cis.f5.com", Version: "v1", Resource: "tlsprofiles"}
 
-var tlsprofilesKind = schema.GroupVersionKind{Group: "k8s.nginx.org", Version: "v1", Kind: "TLSProfile"}
+var tlsprofilesKind = schema.GroupVersionKind{Group: "cis.f5.com", Version: "v1", Kind: "TLSProfile"}
 
 // Get takes name of the tLSProfile, and returns the corresponding tLSProfile object, and an error if there is any.
 func (c *FakeTLSProfiles) Get(ctx context.Context, name string, options v1.GetOptions) (result *cisv1.TLSProfile, err error) {

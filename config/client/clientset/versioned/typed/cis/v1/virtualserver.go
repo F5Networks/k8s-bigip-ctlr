@@ -57,7 +57,7 @@ type virtualServers struct {
 }
 
 // newVirtualServers returns a VirtualServers
-func newVirtualServers(c *K8sV1Client, namespace string) *virtualServers {
+func newVirtualServers(c *CisV1Client, namespace string) *virtualServers {
 	return &virtualServers{
 		client: c.RESTClient(),
 		ns:     namespace,

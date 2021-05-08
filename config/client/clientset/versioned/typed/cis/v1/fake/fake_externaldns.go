@@ -32,13 +32,13 @@ import (
 
 // FakeExternalDNSs implements ExternalDNSInterface
 type FakeExternalDNSs struct {
-	Fake *FakeK8sV1
+	Fake *FakeCisV1
 	ns   string
 }
 
-var externaldnssResource = schema.GroupVersionResource{Group: "k8s.nginx.org", Version: "v1", Resource: "externaldnss"}
+var externaldnssResource = schema.GroupVersionResource{Group: "cis.f5.com", Version: "v1", Resource: "externaldnss"}
 
-var externaldnssKind = schema.GroupVersionKind{Group: "k8s.nginx.org", Version: "v1", Kind: "ExternalDNS"}
+var externaldnssKind = schema.GroupVersionKind{Group: "cis.f5.com", Version: "v1", Kind: "ExternalDNS"}
 
 // Get takes name of the externalDNS, and returns the corresponding externalDNS object, and an error if there is any.
 func (c *FakeExternalDNSs) Get(ctx context.Context, name string, options v1.GetOptions) (result *cisv1.ExternalDNS, err error) {

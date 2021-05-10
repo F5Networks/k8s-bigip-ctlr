@@ -7,32 +7,39 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:validation:Optional
+// +kubebuilder:subresource:status
 
 // VirtualServer defines the VirtualServer resource.
 type VirtualServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec VirtualServerSpec `json:"spec"`
+	Spec   VirtualServerSpec   `json:"spec"`
+	Status VirtualServerStatus `json:"status,omitempty"`
+}
+
+// VirtualServerStatus is the status of the VirtualServer resource.
+type VirtualServerStatus struct {
+	VSAddress string `json:"vsAddress,omitempty"`
 }
 
 // VirtualServerSpec is the spec of the VirtualServer resource.
 type VirtualServerSpec struct {
-	Host                   string           `json:"host"`
-	VirtualServerAddress   string           `json:"virtualServerAddress"`
-	IPAMLabel              string           `json:"ipamLabel"`
-	VirtualServerName      string           `json:"virtualServerName"`
-	VirtualServerHTTPPort  int32            `json:"virtualServerHTTPPort"`
-	VirtualServerHTTPSPort int32            `json:"virtualServerHTTPSPort"`
-	Pools                  []Pool           `json:"pools"`
-	TLSProfileName         string           `json:"tlsProfileName"`
+	Host                   string           `json:"host,omitempty"`
+	VirtualServerAddress   string           `json:"virtualServerAddress,omitempty"`
+	IPAMLabel              string           `json:"ipamLabel,omitempty"`
+	VirtualServerName      string           `json:"virtualServerName,omitempty"`
+	VirtualServerHTTPPort  int32            `json:"virtualServerHTTPPort,omitempty"`
+	VirtualServerHTTPSPort int32            `json:"virtualServerHTTPSPort,omitempty"`
+	Pools                  []Pool           `json:"pools,omitempty"`
+	TLSProfileName         string           `json:"tlsProfileName,omitempty"`
 	HTTPTraffic            string           `json:"httpTraffic,omitempty"`
 	SNAT                   string           `json:"snat,omitempty"`
 	WAF                    string           `json:"waf,omitempty"`
 	RewriteAppRoot         string           `json:"rewriteAppRoot,omitempty"`
 	AllowVLANs             []string         `json:"allowVlans,omitempty"`
 	IRules                 []string         `json:"iRules,omitempty"`
-	ServiceIPAddress       []ServiceAddress `json:"serviceAddress"`
+	ServiceIPAddress       []ServiceAddress `json:"serviceAddress,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).

@@ -1013,7 +1013,7 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 
 		// TODO: Instead of looping over Spec Ports, get the port from the pool itself
 		for _, portSpec := range svc.Spec.Ports {
-			ipPorts := crMgr.getEndpointsForCluster(portSpec.Name, eps, pool.ServicePort)
+			ipPorts := crMgr.getEndpointsForCluster(portSpec.Name, eps, pool.ServicePort, svc.Spec.ClusterIP)
 			log.Debugf("Found endpoints for backend %+v: %v", svcKey, ipPorts)
 			rsCfg.MetaData.Active = true
 			if len(ipPorts) > 0 {
@@ -1052,6 +1052,7 @@ func (crMgr *CRManager) getEndpointsForCluster(
 	portName string,
 	eps *v1.Endpoints,
 	servicePort int32,
+	clusterIP string,
 ) []Member {
 	nodes := crMgr.getNodesFromCache()
 	var members []Member
@@ -1064,7 +1065,8 @@ func (crMgr *CRManager) getEndpointsForCluster(
 		for _, p := range subset.Ports {
 			if portName == p.Name && servicePort == p.Port {
 				for _, addr := range subset.Addresses {
-					if containsNode(nodes, *addr.NodeName) {
+					// Checking for headless services
+					if containsNode(nodes, *addr.NodeName) || clusterIP == "None" {
 						member := Member{
 							Address: addr.IP,
 							Port:    p.Port,

@@ -36,11 +36,12 @@ func (crMgr *CRManager) createSecretClientSSLProfile(
 		Partition: rsCfg.Virtual.Partition,
 		Context:   context,
 	}
-	if _, ok := crMgr.customProfiles.Profs[skey]; !ok {
+	if _, ok := rsCfg.customProfiles.Profs[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
 		cp := NewCustomProfile(sni, "", "", "", true, "", "")
-		crMgr.customProfiles.Profs[skey] = cp
+		rsCfg.customProfiles.Profs[skey] = cp
 	}
+
 	// TODO
 	//rsCfg.Virtual.AddOrUpdateProfile(sni)
 
@@ -64,17 +65,16 @@ func (crMgr *CRManager) createSecretClientSSLProfile(
 		Name:         cp.Name,
 		ResourceName: rsCfg.GetName(),
 	}
-
-	if prof, ok := crMgr.customProfiles.Profs[skey]; ok {
+	if prof, ok := rsCfg.customProfiles.Profs[skey]; ok {
 		if !reflect.DeepEqual(prof, cp) {
-			crMgr.customProfiles.Profs[skey] = cp
+			rsCfg.customProfiles.Profs[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			return nil, true
 		} else {
 			return nil, false
 		}
 	}
-	crMgr.customProfiles.Profs[skey] = cp
+	rsCfg.customProfiles.Profs[skey] = cp
 	rsCfg.Virtual.AddOrUpdateProfile(profRef)
 	return nil, false
 }
@@ -103,10 +103,10 @@ func (crMgr *CRManager) createSecretServerSSLProfile(
 		Partition: rsCfg.Virtual.Partition,
 		Context:   context,
 	}
-	if _, ok := crMgr.customProfiles.Profs[skey]; !ok {
+	if _, ok := rsCfg.customProfiles.Profs[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
 		cp := NewCustomProfile(sni, "", "", "", true, "", "")
-		crMgr.customProfiles.Profs[skey] = cp
+		rsCfg.customProfiles.Profs[skey] = cp
 	}
 	// TODO
 	//rsCfg.Virtual.AddOrUpdateProfile(sni)
@@ -131,17 +131,16 @@ func (crMgr *CRManager) createSecretServerSSLProfile(
 		Name:         cp.Name,
 		ResourceName: rsCfg.GetName(),
 	}
-
-	if prof, ok := crMgr.customProfiles.Profs[skey]; ok {
+	if prof, ok := rsCfg.customProfiles.Profs[skey]; ok {
 		if !reflect.DeepEqual(prof, cp) {
-			crMgr.customProfiles.Profs[skey] = cp
+			rsCfg.customProfiles.Profs[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			return nil, true
 		} else {
 			return nil, false
 		}
 	}
-	crMgr.customProfiles.Profs[skey] = cp
+	rsCfg.customProfiles.Profs[skey] = cp
 	rsCfg.Virtual.AddOrUpdateProfile(profRef)
 	return nil, false
 }

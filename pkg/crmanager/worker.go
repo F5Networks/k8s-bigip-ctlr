@@ -290,10 +290,15 @@ func (crMgr *CRManager) processResource() bool {
 	if crMgr.rscQueue.Len() == 0 &&
 		(!reflect.DeepEqual(crMgr.resources.rsMap, crMgr.resources.oldRsMap) ||
 			!reflect.DeepEqual(crMgr.resources.dnsConfig, crMgr.resources.oldDNSConfig)) {
-
+		customProfileStore := NewCustomProfiles()
+		for _, rsCfg := range crMgr.resources.rsMap {
+			for skey, prof := range rsCfg.customProfiles.Profs {
+				customProfileStore.Profs[skey] = prof
+			}
+		}
 		config := ResourceConfigWrapper{
 			rsCfgs:             crMgr.resources.GetAllResources(),
-			customProfiles:     crMgr.customProfiles,
+			customProfiles:     customProfileStore,
 			shareNodes:         crMgr.shareNodes,
 			dnsConfig:          crMgr.resources.dnsConfig,
 			defaultRouteDomain: crMgr.defaultRouteDomain,
@@ -711,6 +716,7 @@ func (crMgr *CRManager) processVirtualServers(
 		)
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
+		rsCfg.customProfiles.Profs = make(map[SecretKey]CustomProfile)
 
 		for _, vrt := range virtuals {
 			log.Debugf("Processing Virtual Server %s for port %v",

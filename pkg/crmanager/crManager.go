@@ -98,7 +98,6 @@ func NewCRManager(params Params) *CRManager {
 		UseNodeInternal:    params.UseNodeInternal,
 		initState:          true,
 		SSLContext:         make(map[string]*v1.Secret),
-		customProfiles:     NewCustomProfiles(),
 		dgPath:             strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 		shareNodes:         params.ShareNodes,
 		eventNotifier:      apm.NewEventNotifier(nil),

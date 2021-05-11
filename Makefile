@@ -74,29 +74,22 @@ pre-build:
 
 prod-build: pre-build
 	@echo "Building with running tests..."
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
-	RUN_TESTS=1 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
+
+	docker build --build-arg RUN_TESTS=1 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
 
 prod-quick: prod-build-quick
 
 prod-build-quick: pre-build
-	@echo "Building with minimal instrumentation..."
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
-	RUN_TESTS=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
+	@echo "Quick build without running tests..."
+	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
 
 prod-license: pre-build
-	@echo "Building with running test and all_attributions.txt will be generated..."
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
-	LICENSE=1 RUN_TESTS=1 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
-	LICENSE=1 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
+	@echo "Running with tests and licenses generated will be in all_attributions.txt..."
+	docker build --build-arg LICENSE=1 --build-arg RUN_TESTS=1 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
 
 debug: pre-build
 	@echo "Building with debug support..."
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
-	DEBUG=0 RUN_TESTS=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
-	DEBUG=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
+	docker build --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -f build-tools/Dockerfile.debug .
 
 fmt:
 	@echo "Enforcing code formatting using 'go fmt'..."
@@ -107,7 +100,7 @@ vet:
 	$(CURDIR)/build-tools/vet.sh
 
 devel-image:
-	BASE_OS=$(BASE_OS) ./build-tools/build-devel-image.sh
+	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr-devel:latest -f build-tools/Dockerfile.(BASE_OS) .
 
 # Enable certain funtionalities only on a developer build
 dev-patch:
@@ -121,7 +114,6 @@ reset-dev-patch:
 dev: dev-patch prod-quick reset-dev-patch
 
 # Docs
-#
 doc-preview:
 	rm -rf docs/_build
 	DOCKER_RUN_ARGS="-p 127.0.0.1:8000:8000" \
@@ -134,3 +126,13 @@ docker-test:
 	rm -rf docs/_build
 	./build-tools/docker-docs.sh ./build-tools/make-docs.sh
 
+docker-tag:
+ifdef tag
+	docker tag k8s-bigip-ctlr:latest $(tag)
+	docker push $(tag)
+else
+	@echo "Define a tag to push. Eg: make docker-tag tag=username/k8s-bigip-ctlr:dev"
+endif
+
+docker-devel-tag:
+	docker push k8s-bigip-ctlr-devel:latest

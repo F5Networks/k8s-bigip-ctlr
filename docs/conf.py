@@ -127,7 +127,7 @@ exclude_patterns = [
      '.DS_Store',
      'venv',
      '.github',
-     'Dockerfile',
+     'Dockerfile.*',
      'requirements.txt',
      '*.swp',
      '*.swx',

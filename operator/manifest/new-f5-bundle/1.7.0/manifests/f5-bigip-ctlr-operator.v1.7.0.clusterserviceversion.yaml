@@ -8,7 +8,7 @@ metadata:
       [{"apiVersion":"cis.f5.com/v1","kind":"F5BigIpCtlr","metadata":{"name":"f5-server"},"spec":{"args":{"log_as3_response":true,"manage_routes":true,"agent":"as3","log_level":"<DEBUG_OR_INFO>","route_vserver_addr":"<IP_ADDRESS>","bigip_partition":"<BIGIP_PARTITION>","openshift_sdn_name":"</BIGIP_PARTITION/SDN_NAME>","bigip_url":"<BIGIP_IP_ADDRESS>","insecure":true,"pool-member-type":"<CLUSTER_OR_NODEPORT_OR_LOADBALANCER>"},"bigip_login_secret":"<BIGIP_LOGIN_K8S_SECRET>","image":{"pullPolicy":"Always","repo":"k8s-bigip-ctlr","user":"f5networks"},"namespace":"kube-system","rbac":{"create":true},"resources":{},"serviceAccount":{"create":true,"name":null},"version":"latest"}}]
     categories: Networking
     certified: 'false'
-    createdAt: '2021-04-19'
+    createdAt: '2021-05-19'
     description: >-
       Operator to install F5 Container Ingress Services (CIS) for BIG-IP.
     containerImage: 'registry.connect.redhat.com/f5networks/k8s-bigip-ctlr-operator:latest'

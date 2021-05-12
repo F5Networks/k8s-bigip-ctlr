@@ -44,6 +44,7 @@ Parameter | Required | Description | Default
 bigip_login_secret | Required |  Secret that contains BIG-IP login credentials | f5-bigip-ctlr-login
 args.bigip_url | Required | The management IP for your BIG-IP device | **Required**, no default
 args.partition | Required | BIG-IP partition the CIS Controller will manage | f5-bigip-ctlr
+args.namespaces | Optional | List of Kubernetes namespaces which CIS will monitor | empty
 rbac.create | Optional | Create ClusterRole and ClusterRoleBinding | true
 serviceAccount.name | Optional | name of the ServiceAccount for CIS controller | f5-bigip-ctlr-serviceaccount
 serviceAccount.create | Optional | Create service account for the CIS controller | true
@@ -54,9 +55,14 @@ image.pullPolicy | Optional | CIS Controller image pull policy | Always
 version | Optional | CIS Controller image tag | latest
 nodeSelector | Optional | dictionary of Node selector labels | empty
 tolerations | Optional | Array of labels | empty
-livenessProbe | Optional | dictionary of Node selector labels | empty
-readinessProbe | Optional | dictionary of Node selector labels | empty
-resources | Optional | resources to be allocated to the pod | empty
+limits_cpu | Optional | CPU limits for the pod | 100m
+limits_memory | Optional | Memory limits for the pod | 512Mi
+requests_cpu | Optional | CPU request for the pod | 100m
+requests_memory | Optional | Memory request for the pod | 512Mi
+affinity | Optional | Dictionary of affinity | empty
+securityContext | Optional | Dictionary of securityContext | empty
+
+
 
 
 

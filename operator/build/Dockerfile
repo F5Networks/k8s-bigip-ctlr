@@ -1,4 +1,4 @@
-FROM quay.io/operator-framework/helm-operator:latest
+FROM quay.io/operator-framework/helm-operator:v1.6.2
 
 ### Required OpenShift Labels
 LABEL name="F5 BIG-IP Controller Operator" \

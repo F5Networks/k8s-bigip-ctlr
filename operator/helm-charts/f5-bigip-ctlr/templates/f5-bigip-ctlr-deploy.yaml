@@ -11,6 +11,9 @@ metadata:
   name: {{ template "f5-bigip-ctlr.fullname" . }}
   namespace: {{ template "f5-bigip-ctlr.namespace" . }}
   labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/name: {{ template "f5-bigip-ctlr.name" . }}
     app: {{ template "f5-bigip-ctlr.name" . }}
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "-" }}
     release: {{ .Release.Name }}
@@ -23,9 +26,16 @@ spec:
   template:
     metadata:
       labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+        app.kubernetes.io/name: {{ template "f5-bigip-ctlr.name" . }}
         app: {{ template "f5-bigip-ctlr.name" . }}
         release: {{ .Release.Name }}
     spec:
+{{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+{{- end }}
       serviceAccountName: {{ template "f5-bigip-ctlr.serviceAccountName" . }}
 {{- if .Values.image.pullSecrets }}
       imagePullSecrets:
@@ -33,17 +43,48 @@ spec:
         - name: {{ $pullSecret }}
       {{- end }}
 {{- end }}
+      securityContext:
+        {{- $securityContext := .Values.securityContext | default dict }}
+        {{- if $securityContext.runAsUser }}
+        runAsUser: {{ $securityContext.runAsUser }}
+        {{- else }}
+          runAsUser: 1000
+        {{- end }}
+        {{- $securityContext := .Values.securityContext | default dict }}
+        {{- if $securityContext.runAsGroup }}
+        runAsGroup: {{ $securityContext.runAsGroup }}
+        {{- else }}
+          runAsGroup: 1000
+        {{- end }}
+        {{- $securityContext := .Values.securityContext | default dict }}
+        {{- if $securityContext.fsGroup }}
+        fsGroup: {{ $securityContext.fsGroup }}
+        {{- else }}
+          fsGroup: 1000
+        {{- end }}
       containers:
       - name: {{ template "f5-bigip-ctlr.name" . }}
         image: "{{ .Values.image.user }}/{{ .Values.image.repo }}:{{ .Values.version }}"
-{{- if.Values.livenessProbe }}
         livenessProbe:
-{{ toYaml .Values.livenessProbe | indent 10 }}
-{{- end}}
-{{- if.Values.readinessProbe }}
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 15
+          periodSeconds: 15
+          successThreshold: 1
+          timeoutSeconds: 15
         readinessProbe:
-{{ toYaml .Values.readinessProbe | indent 10 }}
-{{- end}}
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 15
         volumeMounts:
         - name: bigip-creds
           mountPath: "/tmp/creds"
@@ -54,9 +95,23 @@ spec:
         args:
         - --credentials-directory
         - /tmp/creds
+        {{- $ns := .Values.args.namespaces }}
         {{- range $key, $value := .Values.args }}
+        {{- if eq $key "namespaces" }}
+        {{- range $ns}}
+        - --namespace={{ . }}
+        {{- end }}
+        {{- else }}
         - --{{ $key | replace "_" "-"}}={{ $value }}
         {{- end }}
+        {{- end }}
+        resources:
+          limits:
+            cpu: {{ .Values.limits_cpu | default "100m" }}
+            memory: {{ .Values.limits_memory | default "512Mi" }}
+          requests:
+            cpu: {{ .Values.requests_cpu | default "100m" }}
+            memory: {{ .Values.requests_memory | default "512Mi" }}
 {{- if .Values.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.nodeSelector | indent 8 }}

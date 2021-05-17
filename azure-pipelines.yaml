@@ -25,7 +25,7 @@ steps:
       command: login
       containerRegistry: $(quayConnection)
   - task: CmdLine@2
-    displayName: Compile documentation
+    displayName: Check documentation
     inputs:
       script: 'make docs'
   - task: Docker@2

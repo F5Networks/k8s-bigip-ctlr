@@ -9,6 +9,7 @@ rules:
 - apiGroups:
   - ""
   - "extensions"
+  - "networking.k8s.io"
   resources:
   - nodes
   - services
@@ -24,6 +25,7 @@ rules:
 - apiGroups:
   - ""
   - "extensions"
+  - "networking.k8s.io"
   resources:
   - configmaps
   - events

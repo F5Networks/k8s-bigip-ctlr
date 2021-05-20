@@ -1,11 +1,19 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
-2.5
--------------
+
+Next Release
+------------
+
 Added Functionality
 ```````````````````
+* Added support for networking.k8s.io/v1 ingress
 * Service Type LB Enhancements:
    - Added support for Multiport service
+
+Bug Fixes
+`````````
+* :issues: `1824` Support for ingresses.networking.k8s.io/v1
+
 
 2.4.1
 -------------

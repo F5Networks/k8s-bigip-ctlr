@@ -28,6 +28,7 @@ import (
 	"k8s.io/api/extensions/v1beta1"
 )
 
+// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) assignHealthMonitorsByPath(
 	rsName string,
 	ing *v1beta1.Ingress, // used in Ingress case for logging events
@@ -104,6 +105,7 @@ func (appMgr *Manager) assignMonitorToPool(
 	return updated
 }
 
+// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) notifyUnusedHealthMonitorRules(
 	rsName string,
 	ing *v1beta1.Ingress,
@@ -121,6 +123,7 @@ func (appMgr *Manager) notifyUnusedHealthMonitorRules(
 	}
 }
 
+// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) handleSingleServiceHealthMonitors(
 	rsName,
 	poolName string,
@@ -158,6 +161,7 @@ func (appMgr *Manager) handleSingleServiceHealthMonitors(
 	appMgr.notifyUnusedHealthMonitorRules(rsName, ing, htpMap)
 }
 
+// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) handleMultiServiceHealthMonitors(
 	rsName string,
 	cfg *ResourceConfig,

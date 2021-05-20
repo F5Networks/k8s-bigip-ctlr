@@ -3,10 +3,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: bigip-ctlr-clusterrole
 rules:
-  - apiGroups: ["", "extensions"]
+  - apiGroups: ["", "extensions", "networking.k8s.io"]
     resources: ["nodes", "services", "endpoints", "namespaces", "ingresses", "pods"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["", "extensions"]
+  - apiGroups: ["", "extensions", "networking.k8s.io"]
     resources: ["configmaps", "events", "ingresses/status"]
     verbs: ["get", "list", "watch", "update", "create", "patch"]
   - apiGroups: ["", "extensions"]

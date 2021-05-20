@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	netv1 "k8s.io/api/networking/v1"
 	"net"
 	"net/url"
 	"reflect"
@@ -528,6 +529,7 @@ func NewObjectDependencies(
 			}
 			deps[dep]++
 		}
+	// TODO remove the case once v1beta1.Ingress is deprecated in k8s 1.22
 	case *v1beta1.Ingress:
 		ingress := obj.(*v1beta1.Ingress)
 		key.Kind = "Ingress"
@@ -550,6 +552,69 @@ func NewObjectDependencies(
 					Kind:      ServiceDep,
 					Namespace: ingress.ObjectMeta.Namespace,
 					Name:      path.Backend.ServiceName,
+				}
+				deps[dep]++
+				dep = ObjectDependency{
+					Kind:      RuleDep,
+					Namespace: ingress.ObjectMeta.Namespace,
+					Name:      rule.Host + path.Path,
+				}
+				deps[dep]++
+				if urlRewrite, ok := ingress.ObjectMeta.Annotations[F5VsURLRewriteAnnotation]; ok {
+					dep = ObjectDependency{
+						Kind:      URLDep,
+						Namespace: ingress.ObjectMeta.Namespace,
+						Name:      getAnnotationRuleNames(urlRewrite, false, ingress),
+					}
+					deps[dep]++
+				}
+				if appRoot, ok := ingress.ObjectMeta.Annotations[F5VsAppRootAnnotation]; ok {
+					dep = ObjectDependency{
+						Kind:      AppRootDep,
+						Namespace: ingress.ObjectMeta.Namespace,
+						Name:      getAnnotationRuleNames(appRoot, true, ingress),
+					}
+					deps[dep]++
+				}
+			}
+		}
+		if whiteList, ok := ingress.ObjectMeta.Annotations[F5VsWhitelistSourceRangeAnnotation]; ok {
+			dep := ObjectDependency{
+				Kind:      WhitelistDep,
+				Namespace: ingress.ObjectMeta.Namespace,
+				Name:      whiteList,
+			}
+			deps[dep]++
+		} else if whiteList, ok := ingress.ObjectMeta.Annotations[F5VsAllowSourceRangeAnnotation]; ok {
+			dep := ObjectDependency{
+				Kind:      WhitelistDep,
+				Namespace: ingress.ObjectMeta.Namespace,
+				Name:      whiteList,
+			}
+			deps[dep]++
+		}
+	case *netv1.Ingress:
+		ingress := obj.(*netv1.Ingress)
+		key.Kind = "Ingress"
+		key.Namespace = ingress.ObjectMeta.Namespace
+		key.Name = ingress.ObjectMeta.Name
+		if nil != ingress.Spec.DefaultBackend {
+			dep := ObjectDependency{
+				Kind:      ServiceDep,
+				Namespace: ingress.ObjectMeta.Namespace,
+				Name:      ingress.Spec.DefaultBackend.Service.Name,
+			}
+			deps[dep]++
+		}
+		for _, rule := range ingress.Spec.Rules {
+			if nil == rule.IngressRuleValue.HTTP {
+				continue
+			}
+			for _, path := range rule.IngressRuleValue.HTTP.Paths {
+				dep := ObjectDependency{
+					Kind:      ServiceDep,
+					Namespace: ingress.ObjectMeta.Namespace,
+					Name:      path.Backend.Service.Name,
 				}
 				deps[dep]++
 				dep = ObjectDependency{

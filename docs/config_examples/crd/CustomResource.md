@@ -36,6 +36,7 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
  spec:
    host: coffee.example.com
    virtualServerAddress: "172.16.3.4"
+   virtualHTTPPort: 8080              # --> Custom HTTP port for the Virtual Server.
    pools:
    - path: /coffee
      service: svc-2
@@ -84,6 +85,7 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
     host: coffee.example.com
     tlsProfileName: reencrypt-tls.  # --> This will attach reencrypt-tls TLSProfile
     virtualServerAddress: "172.16.3.4"
+    virtualHTTPSPort: 8443   # --> Custom HTTPS Port for the Virtual Server
     pools:
       - path: /coffee
         service: svc
@@ -184,6 +186,8 @@ Known Issues:
 | serviceAddress | List of service address | Optional | NA | Service address definition allows you to add a number of properties to your (virtual) server address |
 | ipamLabel | String | Optional | NA | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.|
 | virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
+| virtualHTTPPort | Integer | Optional | NA | Specify HTTP port for the Virutal Server|
+| virtualHTTPSPort | Integer | Optional | NA | Specify HTTPS port for the Virtual Server |
 | TLSProfile | String | Optional | NA | Describes the TLS configuration for BIG-IP Virtual Server |
 | rewriteAppRoot | String | Optional | NA |  Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path |
 | waf | String | Optional | NA | Reference to WAF policy on BIG-IP |

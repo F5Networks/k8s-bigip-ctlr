@@ -113,6 +113,7 @@ func (nen *NamespaceEventNotifier) RecordEvent(
 
 // This function expects either an Ingress resource or the name of a VS for
 // an Ingress.
+// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) recordIngressEvent(
 	ing *v1beta1.Ingress,
 	reason,

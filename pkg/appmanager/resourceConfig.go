@@ -31,6 +31,7 @@ import (
 )
 
 // Create a ResourceConfig based on an Ingress resource config
+// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) createRSConfigFromIngress(
 	ing *v1beta1.Ingress,
 	resources *Resources,
@@ -262,6 +263,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 }
 
 // Return value is whether or not a custom profile was updated
+// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) handleIngressTls(
 	rsCfg *ResourceConfig,
 	ing *v1beta1.Ingress,

@@ -37,7 +37,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockMgr.appMgr.AgentCIS, _ = agent.CreateAgent(agent.CCCLAgent)
 			mockMgr.appMgr.AgentCIS.Init(&cccl.Params{})
 		})
-
+		// TODO remove the test once v1beta1.Ingress is deprecated in k8s 1.22
 		It("properly configures ingress resources", func() {
 			namespace := "default"
 			mockMgr.appMgr.manageIngressClassOnly = false

@@ -94,6 +94,12 @@ type (
 	}
 )
 
+const (
+	versionPathOpenshiftv3 = "/version/openshift"
+	versionPathOpenshiftv4 = "/apis/config.openshift.io/v1/clusterversions/version"
+	versionPathk8s         = "/version"
+)
+
 var (
 	// To be set by build
 	version   string
@@ -791,6 +797,23 @@ func initCustomResourceManager(
 	return crMgr
 }
 
+// TODO Remove the function and appMgr.K8sVersion property once v1beta1.Ingress is deprecated in k8s 1.22
+// it is used to create informer for v1 ingress
+func getk8sVersion() string {
+	var versionInfo map[string]string
+	var err error
+	var vInfo []byte
+	rc := kubeClient.Discovery().RESTClient()
+	if vInfo, err = rc.Get().AbsPath(versionPathk8s).DoRaw(context.TODO()); err == nil {
+		// support k8s
+		if er := json.Unmarshal(vInfo, &versionInfo); er == nil {
+			// return fmt.Sprintf(versionInfo["gitVersion"])
+			return fmt.Sprintf(versionInfo["gitVersion"])
+		}
+	}
+	return ""
+}
+
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -959,7 +982,7 @@ func main() {
 	// Cleanup DEFAULT_PARTITION_AS3 partitions
 	//TODO: Remove this post CIS2.2
 	appMgr.AgentCIS.Remove(resource.DEFAULT_PARTITION)
-
+	appMgr.K8sVersion = getk8sVersion()
 	GetNamespaces(appMgr)
 	intervalFactor := time.Duration(*nodePollInterval)
 	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
@@ -1176,11 +1199,6 @@ func getProcessAgentLabelFunc() func(map[string]string, string, string) bool {
 
 // Get platform info for TEEM
 func getUserAgentInfo() string {
-	const (
-		versionPathOpenshiftv3 = "/version/openshift"
-		versionPathOpenshiftv4 = "/apis/config.openshift.io/v1/clusterversions/version"
-		versionPathk8s         = "/version"
-	)
 	var versionInfo map[string]string
 	var err error
 	var vInfo []byte

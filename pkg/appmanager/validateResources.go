@@ -23,7 +23,7 @@ import (
 
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-
+	netv1 "k8s.io/api/networking/v1"
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
@@ -148,7 +148,19 @@ func (appMgr *Manager) checkValidEndpoints(
 func (appMgr *Manager) checkValidIngress(
 	obj interface{},
 ) (bool, []*serviceQueueKey) {
-	ing := obj.(*v1beta1.Ingress)
+	//TODO remove the switch case and checkV1beta1Ingress function
+	switch obj.(type) {
+	case *v1beta1.Ingress:
+		return appMgr.checkV1beta1Ingress(obj.(*v1beta1.Ingress))
+	default:
+		return appMgr.checkV1Ingress(obj.(*netv1.Ingress))
+	}
+}
+
+// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
+func (appMgr *Manager) checkV1beta1Ingress(
+	ing *v1beta1.Ingress,
+) (bool, []*serviceQueueKey) {
 	namespace := ing.ObjectMeta.Namespace
 	appInf, ok := appMgr.getNamespaceInformer(namespace)
 	if !ok {

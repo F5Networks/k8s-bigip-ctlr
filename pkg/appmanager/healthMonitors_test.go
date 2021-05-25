@@ -188,7 +188,7 @@ var _ = Describe("Health Monitor Tests", func() {
 		})
 
 	})
-
+	// TODO remove the tests for "ingress health monitors" once v1beta1.Ingress is deprecated in k8s 1.22
 	Context("ingress health monitors", func() {
 		It("configures single service ingress health checks", func() {
 			svcName := "svc1"

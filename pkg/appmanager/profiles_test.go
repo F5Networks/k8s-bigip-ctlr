@@ -78,7 +78,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 		AfterEach(func() {
 			mockMgr.shutdown()
 		})
-
+		// TODO migrate this testcase to  netv1.Ingress
 		It("handles ingress ssl profiles", func() {
 			svcName := "foo"
 			var svcPort int32 = 443
@@ -231,7 +231,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			Expect(found).To(BeFalse())
 			Expect(httpsCfg).To(BeNil())
 		})
-
+		// TODO remove the tests for "creates ssl profiles from Secrets" once v1beta1.Ingress is deprecated in k8s 1.22
 		It("creates ssl profiles from Secrets", func() {
 			mockMgr.appMgr.useSecrets = true
 			// Create a secret

@@ -128,6 +128,7 @@ func formatIngressRuleName(host, path, pool string) string {
 	return rule
 }
 
+// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func processIngressRules(
 	ing *v1beta1.IngressSpec,
 	urlRewriteMap map[string]string,

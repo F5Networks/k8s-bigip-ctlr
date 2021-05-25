@@ -121,6 +121,7 @@ func newMockAppManager(params *Params) *mockAppManager {
 
 func (m *mockAppManager) startNonLabelMode(namespaces []string) error {
 	ls, err := labels.Parse(DefaultConfigMapLabel)
+	m.appMgr.K8sVersion = "v1.18.6"
 	if err != nil {
 		return fmt.Errorf("failed to parse Label Selector string: %v", err)
 	}
@@ -2496,6 +2497,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(2))
 			})
 
+			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
 			It("configures virtual servers via Ingress", func() {
 				// Add a service
 				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
@@ -2746,6 +2748,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(1))
 			})
 
+			// TODO Update the testcase only for routes once v1beta1.Ingress is deprecated in k8s 1.22
 			It("doesn't deactivate a multi-service config unnecessarily", func() {
 				mockMgr.appMgr.useNodeInternal = true
 				// Ingress first
@@ -2854,6 +2857,7 @@ var _ = Describe("AppManager Tests", func() {
 				deleteServices()
 			})
 
+			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
 			It("configure whitelist annotation on Ingress", func() {
 				var found *Condition
 
@@ -3062,7 +3066,7 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				Expect(found).To(BeNil())
 			})
-
+			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
 			It("configure whitelist annotation, extra spaces, on Ingress", func() {
 				var found *Condition
 
@@ -3144,6 +3148,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(found.Values).Should(ConsistOf("10.10.10.0/24", "192.168.0.0/16", "172.16.0.0/18"))
 			})
 
+			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
 			It("configure allow source ange annotation, extra spaces, on Ingress", func() {
 				var found *Condition
 
@@ -3224,6 +3229,8 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(found).NotTo(BeNil())
 				Expect(found.Values).Should(ConsistOf("10.10.10.0/24", "192.168.0.0/16", "172.16.0.0/18"))
 			})
+
+			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
 			It("properly uses the default Ingress IP", func() {
 				mockMgr.appMgr.defaultIngIP = "10.1.2.3"
 
@@ -3271,6 +3278,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(2))
 			})
 
+			// TODO Remove the testcase once v1beta1.Ingress is deprecated in k8s 1.22
 			It("properly configures redirect data group for ingress", func() {
 				ns1 := "ns1"
 				ns2 := "ns2"

@@ -21,6 +21,7 @@ rules:
       - apps
       - extensions
       - route.openshift.io
+      - networking.k8s.io
     resources:
       - nodes
       - services
@@ -42,6 +43,7 @@ rules:
       - apps
       - extensions
       - route.openshift.io
+      - networking.k8s.io
     resources:
       - configmaps
       - events

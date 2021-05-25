@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	netv1 "k8s.io/api/networking/v1"
 	"reflect"
 	"strings"
 
@@ -539,29 +540,58 @@ func (appMgr *Manager) deleteUnusedProfiles(
 				ingresses, _ := appInf.ingInformer.GetIndexer().ByIndex(
 					"namespace", namespace)
 				for _, obj := range ingresses {
-					ing := obj.(*v1beta1.Ingress)
-					if 0 == len(ing.Spec.TLS) {
-						// Nothing to do if no TLS section
-						continue
-					}
-					for _, tls := range ing.Spec.TLS {
-						appMgr.checkProfile(
-							prof,
-							&toRemove,
-							ing.ObjectMeta.Namespace,
-							tls.SecretName,
-							&referenced,
-						)
-					}
-					if serverProfile, ok :=
-						ing.ObjectMeta.Annotations[F5ServerSslProfileAnnotation]; ok == true {
-						appMgr.checkProfile(
-							prof,
-							&toRemove,
-							ing.ObjectMeta.Namespace,
-							serverProfile,
-							&referenced,
-						)
+					//TODO remove the switch case and checkV1beta1Ingress function
+					switch obj.(type) {
+					case *v1beta1.Ingress:
+						ing := obj.(*v1beta1.Ingress)
+						if 0 == len(ing.Spec.TLS) {
+							// Nothing to do if no TLS section
+							continue
+						}
+						for _, tls := range ing.Spec.TLS {
+							appMgr.checkProfile(
+								prof,
+								&toRemove,
+								ing.ObjectMeta.Namespace,
+								tls.SecretName,
+								&referenced,
+							)
+						}
+						if serverProfile, ok :=
+							ing.ObjectMeta.Annotations[F5ServerSslProfileAnnotation]; ok == true {
+							appMgr.checkProfile(
+								prof,
+								&toRemove,
+								ing.ObjectMeta.Namespace,
+								serverProfile,
+								&referenced,
+							)
+						}
+					default:
+						ing := obj.(*netv1.Ingress)
+						if 0 == len(ing.Spec.TLS) {
+							// Nothing to do if no TLS section
+							continue
+						}
+						for _, tls := range ing.Spec.TLS {
+							appMgr.checkProfile(
+								prof,
+								&toRemove,
+								ing.ObjectMeta.Namespace,
+								tls.SecretName,
+								&referenced,
+							)
+						}
+						if serverProfile, ok :=
+							ing.ObjectMeta.Annotations[F5ServerSslProfileAnnotation]; ok == true {
+							appMgr.checkProfile(
+								prof,
+								&toRemove,
+								ing.ObjectMeta.Namespace,
+								serverProfile,
+								&referenced,
+							)
+						}
 					}
 					if referenced {
 						break

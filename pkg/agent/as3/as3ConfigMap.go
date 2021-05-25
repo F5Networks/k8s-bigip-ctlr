@@ -21,6 +21,7 @@ const (
 	OverrideAS3Label = "overrideAS3"
 	AS3Label         = "as3"
 	StagingAS3Label  = "stagingAS3"
+	HubModeLabel     = "hubMode"
 )
 
 func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
@@ -161,7 +162,11 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 			appObj := tenantObj[string(app)].(map[string]interface{})
 			for _, pn := range pools {
 				poolObj := appObj[string(pn)].(map[string]interface{})
-				eps := rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), rscCfgMap.Namespace)
+				var hubMode bool
+				if val, ok := rscCfgMap.Label[HubModeLabel]; ok && val == "true" {
+					hubMode = true
+				}
+				eps := rscCfgMap.GetEndpoints(am.getSelector(tnt, app, pn), rscCfgMap.Namespace, hubMode)
 				// Handle an empty value
 				if len(eps) == 0 {
 					continue

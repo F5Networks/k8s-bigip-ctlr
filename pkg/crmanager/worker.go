@@ -1435,36 +1435,42 @@ func (crMgr *CRManager) processLBServices(
 		return nil
 	}
 
-	rsName := fmt.Sprintf("vs_lb_svc_%s_%s_%s", svc.Namespace, svc.Name, ip)
-
-	if isSVCDeleted {
+	if !isSVCDeleted {
+		crMgr.setLBServiceIngressStatus(svc, ip)
+	} else {
 		crMgr.releaseIP(ipamLabel, "", svcKey)
 		crMgr.unSetLBServiceIngressStatus(svc, ip)
-		delete(crMgr.resources.rsMap, rsName)
-		return nil
 	}
 
-	crMgr.setLBServiceIngressStatus(svc, ip)
+	for _, portSpec := range svc.Spec.Ports {
 
-	rsCfg := &ResourceConfig{}
-	rsCfg.Virtual.Partition = crMgr.Partition
-	rsCfg.MetaData.ResourceType = TransportServer
-	rsCfg.Virtual.Enabled = true
-	rsCfg.Virtual.Name = rsName
-	rsCfg.Virtual.SetVirtualAddress(
-		ip,
-		svc.Spec.Ports[0].Port,
-	)
+		rsName := fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port)
+		if isSVCDeleted {
+			delete(crMgr.resources.rsMap, rsName)
+			continue
+		}
 
-	_ = crMgr.prepareRSConfigFromLBService(rsCfg, svc)
+		rsCfg := &ResourceConfig{}
+		rsCfg.Virtual.Partition = crMgr.Partition
+		rsCfg.MetaData.ResourceType = TransportServer
+		rsCfg.Virtual.Enabled = true
+		rsCfg.Virtual.Name = rsName
+		rsCfg.Virtual.SetVirtualAddress(
+			ip,
+			portSpec.Port,
+		)
 
-	if crMgr.ControllerMode == NodePortMode {
-		crMgr.updatePoolMembersForNodePort(rsCfg, svc.Namespace)
-	} else {
-		crMgr.updatePoolMembersForCluster(rsCfg, svc.Namespace)
+		_ = crMgr.prepareRSConfigFromLBService(rsCfg, svc, portSpec.Port)
+
+		if crMgr.ControllerMode == NodePortMode {
+			crMgr.updatePoolMembersForNodePort(rsCfg, svc.Namespace)
+		} else {
+			crMgr.updatePoolMembersForCluster(rsCfg, svc.Namespace)
+		}
+
+		crMgr.resources.rsMap[rsName] = rsCfg
+
 	}
-
-	crMgr.resources.rsMap[rsName] = rsCfg
 
 	return nil
 }

@@ -1153,18 +1153,19 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 func (crMgr *CRManager) prepareRSConfigFromLBService(
 	rsCfg *ResourceConfig,
 	svc *v1.Service,
+	port int32,
 ) error {
 
 	poolName := formatVirtualServerPoolName(
 		svc.Namespace,
 		svc.Name,
-		svc.Spec.Ports[0].Port,
+		port,
 		"")
 	pool := Pool{
 		Name:            poolName,
 		Partition:       rsCfg.Virtual.Partition,
 		ServiceName:     svc.Name,
-		ServicePort:     svc.Spec.Ports[0].Port,
+		ServicePort:     port,
 		NodeMemberLabel: "",
 	}
 	rsCfg.Pools = Pools{pool}

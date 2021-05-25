@@ -33,6 +33,10 @@ import (
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/miekg/dns"
+	routeapi "github.com/openshift/api/route/v1"
+	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	"golang.org/x/mod/semver"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,10 +49,6 @@ import (
 	rest "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"golang.org/x/mod/semver"
-	"github.com/miekg/dns"
-	routeapi "github.com/openshift/api/route/v1"
-	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
 
 type ResourceMap map[int32][]*ResourceConfig
@@ -66,7 +66,7 @@ type Manager struct {
 	kubeClient          kubernetes.Interface
 	restClientv1        rest.Interface
 	restClientv1beta1   rest.Interface
-	netClientv1        	rest.Interface
+	netClientv1         rest.Interface
 	routeClientV1       routeclient.RouteV1Interface
 	steadyState         bool
 	queueLen            int
@@ -169,7 +169,7 @@ type Params struct {
 	DgPath             string
 	AgRspChan          chan interface{}
 	ProcessAgentLabels func(map[string]string, string, string) bool
-	UserAgent			string
+	UserAgent          string
 }
 
 // Configuration options for Routes in OpenShift
@@ -1441,7 +1441,7 @@ func (appMgr *Manager) syncIngresses(
 			if ing.ObjectMeta.Namespace != sKey.Namespace {
 				continue
 			}
-			if appMgr.useSecrets {
+			if len(ing.Spec.TLS) > 0 || len(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]) > 0 {
 				prepareV1IngressSSLContext(appMgr, ing)
 			}
 			// Resolve first Ingress Host name (if required)
@@ -2422,7 +2422,6 @@ func (appMgr *Manager) setIngressStatus(
 		appMgr.recordIngressEvent(ing, "StatusIPError", warning)
 	}
 }
-
 
 // Resolve the first host name in an Ingress and use the IP address as the VS address
 // TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22

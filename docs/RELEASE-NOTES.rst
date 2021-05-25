@@ -6,13 +6,18 @@ Next Release
 
 Added Functionality
 ```````````````````
-* Added support for networking.k8s.io/v1 ingress
+* Added support for networking.k8s.io/v1 ingress.
+* Added support for "virtual-server.f5.com/clientssl" annotation in ingress resource.
 * Service Type LB Enhancements:
-   - Added support for Multiport service
+   - Added support for Multiport service.
 
 Bug Fixes
 `````````
-* :issues: `1824` Support for ingresses.networking.k8s.io/v1
+* :issues: `1824` Support for ingresses.networking.k8s.io/v1.
+
+Limitations
+```````````
+* Due to networking.k8s.io/v1 api support in ingress customer has to use "virtual-server.f5.com/clientssl" annotation in ingress if they are using bigip profiles in tls spec of ingress resource.
 
 
 2.4.1

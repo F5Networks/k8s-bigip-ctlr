@@ -569,19 +569,39 @@ func (appMgr *Manager) deleteUnusedProfiles(
 						}
 					default:
 						ing := obj.(*netv1.Ingress)
-						if 0 == len(ing.Spec.TLS) {
+						if 0 == len(ing.Spec.TLS) && len(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]) == 0 {
 							// Nothing to do if no TLS section
 							continue
 						}
-						for _, tls := range ing.Spec.TLS {
-							appMgr.checkProfile(
-								prof,
-								&toRemove,
-								ing.ObjectMeta.Namespace,
-								tls.SecretName,
-								&referenced,
-							)
+						if len(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]) > 0 {
+							if profiles, err := appMgr.getProfilesFromAnnotations(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation], ing); err != nil {
+								msg := fmt.Sprintf(
+									"Unable to parse bigip clientssl profile JSON array '%v': %v", ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation], err)
+								log.Errorf("[CORE] %s", msg)
+							} else {
+								for _, profile := range profiles {
+									referenced = true
+									appMgr.checkProfile(
+										prof,
+										&toRemove,
+										ing.ObjectMeta.Namespace,
+										fmt.Sprintf("/%v/%v", profile.Partition, profile.Name),
+										&referenced,
+									)
+								}
+							}
+						} else {
+							for _, tls := range ing.Spec.TLS {
+								appMgr.checkProfile(
+									prof,
+									&toRemove,
+									ing.ObjectMeta.Namespace,
+									tls.SecretName,
+									&referenced,
+								)
+							}
 						}
+
 						if serverProfile, ok :=
 							ing.ObjectMeta.Annotations[F5ServerSslProfileAnnotation]; ok == true {
 							appMgr.checkProfile(

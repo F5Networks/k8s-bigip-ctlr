@@ -2,6 +2,7 @@ package appmanager
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -138,7 +139,6 @@ func (appMgr *Manager) checkV1Ingress(
 	return true, keyList
 }
 
-
 func (appMgr *Manager) v1VirtualPorts(ing *netv1.Ingress) []portStruct {
 	var httpPort int32
 	var httpsPort int32
@@ -169,7 +169,7 @@ func (appMgr *Manager) v1VirtualPorts(ing *netv1.Ingress) []portStruct {
 		port:     httpsPort,
 	}
 	var ports []portStruct
-	if len(ing.Spec.TLS) > 0 {
+	if len(ing.Spec.TLS) > 0 || len(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]) > 0 {
 		if sslRedirect || allowHttp {
 			// States 2,3; both HTTP and HTTPS
 			// 2 virtual servers needed
@@ -213,7 +213,6 @@ func (appMgr *Manager) setV1IngressStatus(
 		appMgr.recordV1IngressEvent(ing, "StatusIPError", warning)
 	}
 }
-
 
 // Resolve the first host name in an Ingress and use the IP address as the VS address
 func (appMgr *Manager) resolveV1IngressHost(ing *netv1.Ingress, namespace string) {
@@ -681,14 +680,13 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 	return &cfg
 }
 
-
 // Return value is whether or not a custom profile was updated
 func (appMgr *Manager) handleV1IngressTls(
 	rsCfg *ResourceConfig,
 	ing *netv1.Ingress,
 	svcFwdRulesMap ServiceFwdRuleMap,
 ) bool {
-	if 0 == len(ing.Spec.TLS) {
+	if 0 == len(ing.Spec.TLS) && 0 == len(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]) {
 		// Nothing to do if no TLS section
 		return false
 	}
@@ -710,18 +708,27 @@ func (appMgr *Manager) handleV1IngressTls(
 	// then we don't need a redirect policy, only profiles
 	if rsCfg.Virtual.VirtualAddress.Port == httpsPort {
 		var cpUpdated, updateState bool
-		for _, tls := range ing.Spec.TLS {
-			// Check if profile is contained in a Secret
-			if appMgr.useSecrets {
+		// If annotation is set, use that profiles.
+		if len(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]) > 0 {
+			if profiles, err := appMgr.getProfilesFromAnnotations(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation], ing); err != nil {
+				msg := fmt.Sprintf(
+					"Unable to parse bigip clientssl profile JSON array '%v': %v", ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation], err)
+				log.Errorf("[CORE] %s", msg)
+				appMgr.recordV1IngressEvent(ing, "InvalidData", msg)
+			} else {
+				for _, profile := range profiles {
+					rsCfg.Virtual.AddOrUpdateProfile(profile)
+				}
+			}
+		} else {
+			for _, tls := range ing.Spec.TLS {
 				secret := appMgr.rsrcSSLCtxt[tls.SecretName]
 				if secret == nil {
-					// No secret, so we assume the profile is a BIG-IP default
-					log.Debugf("[CORE] No Secret with name '%s' in namespace '%s', "+
-						"parsing secretName as path instead.",
+					// No secret, Hence we won't process this ingress
+					msg := fmt.Sprintf("No Secret with name '%s' in namespace '%s', ",
 						tls.SecretName, ing.ObjectMeta.Namespace)
-					profRef := ConvertStringToProfileRef(
-						tls.SecretName, CustomProfileClient, ing.ObjectMeta.Namespace)
-					rsCfg.Virtual.AddOrUpdateProfile(profRef)
+					log.Errorf("[CORE] %s", msg)
+					appMgr.recordV1IngressEvent(ing, "SecretNotFound", msg)
 					continue
 				}
 				var err error
@@ -738,13 +745,9 @@ func (appMgr *Manager) handleV1IngressTls(
 					Namespace: ing.ObjectMeta.Namespace,
 				}
 				rsCfg.Virtual.AddOrUpdateProfile(profRef)
-			} else {
-				secretName := FormatIngressSslProfileName(tls.SecretName)
-				profRef := ConvertStringToProfileRef(
-					secretName, CustomProfileClient, ing.ObjectMeta.Namespace)
-				rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			}
 		}
+
 		if serverProfile, ok :=
 			ing.ObjectMeta.Annotations[F5ServerSslProfileAnnotation]; ok == true {
 			secretName := FormatIngressSslProfileName(serverProfile)
@@ -799,7 +802,6 @@ func (appMgr *Manager) handleV1IngressTls(
 	}
 	return false
 }
-
 
 func prepareV1IngressSSLContext(appMgr *Manager, ing *netv1.Ingress) {
 	// Prepare Ingress SSL Transient Context
@@ -971,6 +973,21 @@ func (appMgr *Manager) notifyUnusedHealthMonitorRulesForV1Ingress(
 				appMgr.recordV1IngressEvent(ing, "MonitorRuleNotUsed", msg)
 			}
 		}
+	}
+}
+
+func (appMgr *Manager) getProfilesFromAnnotations(profstr string, ing *netv1.Ingress) (profRef []ProfileRef, err error) {
+	var profiles AnnotationProfiles
+	err = json.Unmarshal([]byte(profstr), &profiles)
+	if err != nil {
+		return nil, err
+	} else {
+		for _, profile := range profiles {
+			profileName := FormatIngressSslProfileName(profile.Bigipprofile)
+			profRef = append(profRef, ConvertStringToProfileRef(
+				profileName, CustomProfileClient, ing.ObjectMeta.Namespace))
+		}
+		return profRef, nil
 	}
 }
 

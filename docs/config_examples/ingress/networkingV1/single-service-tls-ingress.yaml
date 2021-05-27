@@ -1,25 +1,27 @@
-apiVersion: extensions/v1beta1
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ingressTLS
-  namespace: default
+  name: tls-example-ingress
   annotations:
     # Provide an IP address for the BIG-IP Virtual Server.
     virtual-server.f5.com/ip: "1.2.3.4"
-    # Specify the BIG-IP partition containing the virtual server.
-    virtual-server.f5.com/partition: "k8s"
+    # Specifies an already-configured SSL Profile on BIG-IP that should be
+    # used for this Ingress.
+    # Follows the format "/partition/profile_name".
+    virtual-server.f5.com/clientssl: '[ { "hosts": [ "https-example.foo.com" ], "bigIpProfile": "/Common/clientssl" } ]'
     # Allow/deny TLS connections
     ingress.kubernetes.io/ssl-redirect: "true"
     # Allow/deny HTTP connections
     ingress.kubernetes.io/allow-http: "false"
 spec:
-  tls:
-    # Specifies an already-configured SSL Profile on BIG-IP that should be
-    # used for this Ingress.
-    # Follows the format "/partition/profile_name".
-    - secretName: /Common/clientssl
-  backend:
-    # The name of a single Kubernetes Service you want to expose to external
-    # traffic using TLS
-    serviceName: myService
-    servicePort: 443
+  rules:
+    - host: https-example.foo.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: svc
+                port:
+                  number: 80

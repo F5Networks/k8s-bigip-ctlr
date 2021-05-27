@@ -1007,9 +1007,9 @@ var _ = Describe("V1 Ingress Tests", func() {
 			// Create Node so we get endpoints
 			node := test.NewNode("node1", "1", false,
 				[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.1"}}, []v1.Taint{})
-			_, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(),node, metav1.CreateOptions{})
+			_, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 			Expect(err).To(BeNil())
-			n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+			n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
 			mockMgr.processNodeUpdate(n.Items, err)
 
@@ -1490,11 +1490,6 @@ var _ = Describe("V1 Ingress Tests", func() {
 					},
 				},
 			}
-			tlsArray := []netv1.IngressTLS{
-				{
-					SecretName: "/Common/clientssl",
-				},
-			}
 			specFoo := netv1.IngressSpec{
 				Rules: []netv1.IngressRule{
 					{Host: host,
@@ -1503,7 +1498,6 @@ var _ = Describe("V1 Ingress Tests", func() {
 						},
 					},
 				},
-				TLS: tlsArray,
 			}
 			specBar := netv1.IngressSpec{
 				Rules: []netv1.IngressRule{
@@ -1513,7 +1507,6 @@ var _ = Describe("V1 Ingress Tests", func() {
 						},
 					},
 				},
-				TLS: tlsArray,
 			}
 
 			// Create the first ingress and associate a service
@@ -1522,6 +1515,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 					F5VsBindAddrAnnotation:  "1.2.3.4",
 					F5VsPartitionAnnotation: DEFAULT_PARTITION,
 					IngressSslRedirect:      "true",
+					F5ClientSslProfileAnnotation: "[ { \"hosts\": [ \"foo.com\" ], \"bigIpProfile\": \"/Common/clientssl\" } ]",
 				})
 			r := mockMgr.addV1Ingress(ing1a)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -1536,6 +1530,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 					F5VsBindAddrAnnotation:  "1.2.3.4",
 					F5VsPartitionAnnotation: DEFAULT_PARTITION,
 					IngressSslRedirect:      "true",
+					F5ClientSslProfileAnnotation: "[ { \"hosts\": [ \"foo.com\" ], \"bigIpProfile\": \"/Common/clientssl\" } ]",
 				})
 			r = mockMgr.addV1Ingress(ing2)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -1563,6 +1558,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 					F5VsBindAddrAnnotation:  "1.2.3.4",
 					F5VsPartitionAnnotation: "velcro",
 					IngressSslRedirect:      "true",
+					F5ClientSslProfileAnnotation: "[ { \"hosts\": [ \"bar.com\" ], \"bigIpProfile\": \"/Common/clientssl\" } ]",
 				})
 			r = mockMgr.addV1Ingress(ing1b)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -1605,6 +1601,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 					F5VsBindAddrAnnotation:  "1.2.3.4",
 					F5VsPartitionAnnotation: DEFAULT_PARTITION,
 					IngressSslRedirect:      "false",
+					F5ClientSslProfileAnnotation: "[ { \"hosts\": [ \"foo.com\" ], \"bigIpProfile\": \"/Common/clientssl\" } ]",
 				})
 			r = mockMgr.addV1Ingress(ing1a)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")

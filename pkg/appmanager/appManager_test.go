@@ -121,7 +121,7 @@ func newMockAppManager(params *Params) *mockAppManager {
 
 func (m *mockAppManager) startNonLabelMode(namespaces []string) error {
 	ls, err := labels.Parse(DefaultConfigMapLabel)
-	m.appMgr.K8sVersion = "v1.18.6"
+	m.appMgr.K8sVersion = "v1.19.6"
 	if err != nil {
 		return fmt.Errorf("failed to parse Label Selector string: %v", err)
 	}
@@ -1215,9 +1215,9 @@ var _ = Describe("AppManager Tests", func() {
 					defer GinkgoRecover()
 					err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Delete(context.TODO(), "node0", metav1.DeleteOptions{})
 					Expect(err).To(BeNil())
-					err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Delete(context.TODO(),"node1", metav1.DeleteOptions{})
+					err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Delete(context.TODO(), "node1", metav1.DeleteOptions{})
 					Expect(err).To(BeNil())
-					err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Delete(context.TODO(),"node2", metav1.DeleteOptions{})
+					err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Delete(context.TODO(), "node2", metav1.DeleteOptions{})
 					Expect(err).To(BeNil())
 					_, err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), extraNode, metav1.CreateOptions{})
 					Expect(err).To(BeNil())
@@ -1278,7 +1278,7 @@ var _ = Describe("AppManager Tests", func() {
 						{Type: "ExternalIP", Address: "127.0.0.1"}}, []v1.Taint{}),
 				}
 				for _, node := range nodes {
-					n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(),node, metav1.CreateOptions{})
+					n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 					Expect(err).To(BeNil(), "Should not fail creating node.")
 					Expect(n).To(Equal(node))
 				}
@@ -1437,7 +1437,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(fakeClient).ToNot(BeNil())
 				mockMgr.appMgr.kubeClient = fakeClient
 
-				n, err := fakeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err := fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
 				Expect(len(n.Items)).To(Equal(3))
 
@@ -1531,9 +1531,9 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, 80, addrs)))
 
 				// Nodes ADDED
-				_, err = fakeClient.CoreV1().Nodes().Create(context.TODO(),extraNode, metav1.CreateOptions{})
+				_, err = fakeClient.CoreV1().Nodes().Create(context.TODO(), extraNode, metav1.CreateOptions{})
 				Expect(err).To(BeNil())
-				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
 				Expect(resources.PoolCount()).To(Equal(4))
@@ -1599,13 +1599,13 @@ var _ = Describe("AppManager Tests", func() {
 					Equal(1), "Virtual servers should contain remaining ports.")
 
 				// Nodes DELETED
-				err = fakeClient.CoreV1().Nodes().Delete(context.TODO(),"node0", metav1.DeleteOptions{})
+				err = fakeClient.CoreV1().Nodes().Delete(context.TODO(), "node0", metav1.DeleteOptions{})
 				Expect(err).To(BeNil())
-				err = fakeClient.CoreV1().Nodes().Delete(context.TODO(),"node1", metav1.DeleteOptions{})
+				err = fakeClient.CoreV1().Nodes().Delete(context.TODO(), "node1", metav1.DeleteOptions{})
 				Expect(err).To(BeNil())
-				err = fakeClient.CoreV1().Nodes().Delete(context.TODO(),"node2", metav1.DeleteOptions{})
+				err = fakeClient.CoreV1().Nodes().Delete(context.TODO(), "node2", metav1.DeleteOptions{})
 				Expect(err).To(BeNil())
-				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
 				Expect(resources.PoolCount()).To(Equal(2))
@@ -1741,9 +1741,9 @@ var _ = Describe("AppManager Tests", func() {
 
 				node := test.NewNode("node3", "3", false,
 					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{})
-				_, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(),node,metav1.CreateOptions{})
+				_, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil())
-				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
 
@@ -1858,7 +1858,7 @@ var _ = Describe("AppManager Tests", func() {
 				fakeClient := fake.NewSimpleClientset(&v1.NodeList{Items: nodes})
 				Expect(fakeClient).ToNot(BeNil(), "Mock client cannot be nil.")
 
-				n, err := fakeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err := fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
 				Expect(len(n.Items)).To(Equal(4))
 
@@ -1914,9 +1914,9 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(resources.PoolCount()).To(Equal(2))
 
 				// Nodes ADDED
-				_, err = fakeClient.CoreV1().Nodes().Create(context.TODO(),extraNode,metav1.CreateOptions{})
+				_, err = fakeClient.CoreV1().Nodes().Create(context.TODO(), extraNode, metav1.CreateOptions{})
 				Expect(err).To(BeNil())
-				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
 				Expect(resources.PoolCount()).To(Equal(2))
@@ -1933,11 +1933,11 @@ var _ = Describe("AppManager Tests", func() {
 				validateConfig(mw, twoIappsThreeNodesConfig)
 
 				// Nodes DELETED
-				err = fakeClient.CoreV1().Nodes().Delete(context.TODO(),"node1", metav1.DeleteOptions{})
+				err = fakeClient.CoreV1().Nodes().Delete(context.TODO(), "node1", metav1.DeleteOptions{})
 				Expect(err).To(BeNil())
-				err = fakeClient.CoreV1().Nodes().Delete(context.TODO(),"node2", metav1.DeleteOptions{})
+				err = fakeClient.CoreV1().Nodes().Delete(context.TODO(), "node2", metav1.DeleteOptions{})
 				Expect(err).To(BeNil())
-				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
 				Expect(resources.PoolCount()).To(Equal(2))
@@ -2107,11 +2107,11 @@ var _ = Describe("AppManager Tests", func() {
 						{Type: "ExternalIP", Address: "127.0.0.3"}}, []v1.Taint{}),
 				}
 				for _, node := range nodes {
-					n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(),node,metav1.CreateOptions{})
+					n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 					Expect(err).To(BeNil(), "Should not fail creating node.")
 					Expect(n).To(Equal(node))
 				}
-				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
 				mockMgr.processNodeUpdate(n.Items, nil)
 
@@ -2200,11 +2200,11 @@ var _ = Describe("AppManager Tests", func() {
 						{Type: "ExternalIP", Address: "127.0.0.5"}}, []v1.Taint{}),
 				}
 				for _, node := range nodes {
-					n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(),node, metav1.CreateOptions{})
+					n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 					Expect(err).To(BeNil(), "Should not fail creating node.")
 					Expect(n).To(Equal(node))
 				}
-				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
 				mockMgr.processNodeUpdate(n.Items, nil)
 
@@ -2349,11 +2349,11 @@ var _ = Describe("AppManager Tests", func() {
 
 				node := test.NewNode("node0", "0", false, []v1.NodeAddress{
 					{Type: "ExternalIP", Address: "127.0.0.0"}}, []v1.Taint{})
-				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(),node,metav1.CreateOptions{})
+				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil(), "Should not fail creating node.")
 				Expect(n).To(Equal(node))
 
-				nodes, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				nodes, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
 				mockMgr.processNodeUpdate(nodes.Items, nil)
 
@@ -2779,9 +2779,9 @@ var _ = Describe("AppManager Tests", func() {
 				// Create Node so we get endpoints
 				node := test.NewNode("node1", "1", false,
 					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.1"}}, []v1.Taint{})
-				_, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(),node, metav1.CreateOptions{})
+				_, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil())
-				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
 
@@ -4298,9 +4298,9 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				node := test.NewNode("node1", "1", false,
 					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{})
-				_, err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(),node, metav1.CreateOptions{})
+				_, err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil())
-				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
 
@@ -4452,9 +4452,9 @@ var _ = Describe("AppManager Tests", func() {
 
 				node := test.NewNode("node1", "1", false,
 					[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.3"}}, []v1.Taint{})
-				_, err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(),node, metav1.CreateOptions{})
+				_, err = mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
 				Expect(err).To(BeNil())
-				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(),metav1.ListOptions{})
+				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
 				mockMgr.processNodeUpdate(n.Items, err)
 

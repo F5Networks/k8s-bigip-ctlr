@@ -23,10 +23,10 @@ import (
 
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	netv1 "k8s.io/api/networking/v1"
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
+	netv1 "k8s.io/api/networking/v1"
 )
 
 func (appMgr *Manager) checkValidConfigMap(

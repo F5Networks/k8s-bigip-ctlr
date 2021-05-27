@@ -229,7 +229,6 @@ var _ = Describe("Event Notifier Tests", func() {
 
 			}
 
-
 		}
 		// TODO remove the tests for "ingress v1beta1" once v1beta1.Ingress is deprecated in k8s 1.22
 		It("multiple namespace ingress", func() {

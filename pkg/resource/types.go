@@ -331,6 +331,14 @@ type (
 	}
 	AnnotationHealthMonitors []AnnotationHealthMonitor
 
+	// This is the format for each item in the clientssl annotation used
+	// in the Ingress objects.
+	AnnotationProfile struct {
+		hosts        []string `json:"hosts"`
+		Bigipprofile string   `json:"bigIpProfile"`
+	}
+	AnnotationProfiles []AnnotationProfile
+
 	RuleData struct {
 		SvcName   string
 		SvcPort   int32

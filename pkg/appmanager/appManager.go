@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	netv1 "k8s.io/api/networking/v1"
 	"net"
 	"reflect"
 	"sort"
@@ -28,6 +27,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	netv1 "k8s.io/api/networking/v1"
 
 	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
@@ -2171,7 +2172,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 		}
 		//check if endpoints are found
 		if rsCfg.Pools[index].Members == nil {
-			log.Errorf("[CORE]Endpoints could not be fetched for service %v with port %v", svcKey.ServiceName, svcKey.ServicePort)
+			log.Debugf("[CORE]Endpoints could not be fetched for service %v with port %v", svcKey.ServiceName, svcKey.ServicePort)
 		}
 		return true, "", ""
 	} else {
@@ -2207,7 +2208,7 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 	}
 	//check if endpoints are found
 	if rsCfg.Pools[index].Members == nil {
-		log.Errorf("[CORE]Endpoints could not be fetched for service %v with port %v", sKey.ServiceName, sKey.ServicePort)
+		log.Debugf("[CORE]Endpoints could not be fetched for service %v with port %v", sKey.ServiceName, sKey.ServicePort)
 	}
 	return true, "", ""
 }
@@ -2271,7 +2272,7 @@ func (appMgr *Manager) saveVirtualServer(
 			// not changed, don't trigger a config write
 			return false
 		}
-		log.Warningf("[CORE] Overwriting existing entry for backend %+v and resource %+v", sKey, rsName)
+		log.Debugf("[CORE] Overwriting existing entry for backend %+v and resource %+v", sKey, rsName)
 	}
 	appMgr.resources.Assign(sKey, rsName, newRsCfg)
 	return true

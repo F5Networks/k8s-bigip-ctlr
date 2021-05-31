@@ -10,6 +10,7 @@ Added Functionality
 * Added support for "virtual-server.f5.com/clientssl" annotation in ingress resource.
 * Service Type LB Enhancements:
    - Added support for Multiport service.
+   - Added support for HealthMonitor
 
 Bug Fixes
 `````````

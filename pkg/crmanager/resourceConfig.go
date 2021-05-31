@@ -18,6 +18,7 @@ package crmanager
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"reflect"
@@ -1153,20 +1154,46 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 func (crMgr *CRManager) prepareRSConfigFromLBService(
 	rsCfg *ResourceConfig,
 	svc *v1.Service,
-	port int32,
+	svcPort v1.ServicePort,
 ) error {
 
 	poolName := formatVirtualServerPoolName(
 		svc.Namespace,
 		svc.Name,
-		port,
+		svcPort.Port,
 		"")
 	pool := Pool{
 		Name:            poolName,
 		Partition:       rsCfg.Virtual.Partition,
 		ServiceName:     svc.Name,
-		ServicePort:     port,
+		ServicePort:     svcPort.Port,
 		NodeMemberLabel: "",
+	}
+
+	// Health Monitor Annotation
+	hmStr, found := svc.Annotations[HealthMonitorAnnotation]
+	var monitor Monitor
+	if found {
+		monitorType := strings.ToLower(string(svcPort.Protocol))
+		var mon ServiceTypeLBHealthMonitor
+		err := json.Unmarshal([]byte(hmStr), &mon)
+		if err != nil {
+			msg := fmt.Sprintf(
+				"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
+			log.Errorf("[CORE] %s", msg)
+		}
+		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(DEFAULT_PARTITION,
+			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.Port)))
+		monitor = Monitor{
+			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.Port),
+			Partition: rsCfg.Virtual.Partition,
+			Type:      monitorType,
+			Interval:  mon.Interval,
+			Send:      "",
+			Recv:      "",
+			Timeout:   mon.Timeout,
+		}
+		rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 	}
 	rsCfg.Pools = Pools{pool}
 	rsCfg.Virtual.PoolName = poolName

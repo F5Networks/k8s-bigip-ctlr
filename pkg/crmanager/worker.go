@@ -1460,7 +1460,7 @@ func (crMgr *CRManager) processLBServices(
 			portSpec.Port,
 		)
 
-		_ = crMgr.prepareRSConfigFromLBService(rsCfg, svc, portSpec.Port)
+		_ = crMgr.prepareRSConfigFromLBService(rsCfg, svc, portSpec)
 
 		if crMgr.ControllerMode == NodePortMode {
 			crMgr.updatePoolMembersForNodePort(rsCfg, svc.Namespace)

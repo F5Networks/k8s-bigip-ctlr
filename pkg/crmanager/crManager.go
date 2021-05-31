@@ -82,6 +82,7 @@ const (
 	TLSClientHello = "TLSClientHello"
 
 	LBServiceIPAMLabelAnnotation = "cis.f5.com/ipamLabel"
+	HealthMonitorAnnotation      = "cis.f5.com/health"
 )
 
 // NewCRManager creates a new CRManager Instance.

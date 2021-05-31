@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    cis.f5.com/health: '{"interval": 5, "timeout": 10}'
+    cis.f5.com/ipamLabel: prod
+  labels:
+    app: svc1
+  name: svc1
+  namespace: default
+spec:
+  ports:
+    - name: svc1-8080
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+  selector:
+    app: svc1
+  type: LoadBalancer

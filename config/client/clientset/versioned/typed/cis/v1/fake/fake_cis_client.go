@@ -24,33 +24,33 @@ import (
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeK8sV1 struct {
+type FakeCisV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeK8sV1) ExternalDNSs(namespace string) v1.ExternalDNSInterface {
+func (c *FakeCisV1) ExternalDNSs(namespace string) v1.ExternalDNSInterface {
 	return &FakeExternalDNSs{c, namespace}
 }
 
-func (c *FakeK8sV1) IngressLinks(namespace string) v1.IngressLinkInterface {
+func (c *FakeCisV1) IngressLinks(namespace string) v1.IngressLinkInterface {
 	return &FakeIngressLinks{c, namespace}
 }
 
-func (c *FakeK8sV1) TLSProfiles(namespace string) v1.TLSProfileInterface {
+func (c *FakeCisV1) TLSProfiles(namespace string) v1.TLSProfileInterface {
 	return &FakeTLSProfiles{c, namespace}
 }
 
-func (c *FakeK8sV1) TransportServers(namespace string) v1.TransportServerInterface {
+func (c *FakeCisV1) TransportServers(namespace string) v1.TransportServerInterface {
 	return &FakeTransportServers{c, namespace}
 }
 
-func (c *FakeK8sV1) VirtualServers(namespace string) v1.VirtualServerInterface {
+func (c *FakeCisV1) VirtualServers(namespace string) v1.VirtualServerInterface {
 	return &FakeVirtualServers{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeK8sV1) RESTClient() rest.Interface {
+func (c *FakeCisV1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

@@ -21,7 +21,7 @@ package versioned
 import (
 	"fmt"
 
-	k8sv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/typed/cis/v1"
+	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/typed/cis/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -29,19 +29,19 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	K8sV1() k8sv1.K8sV1Interface
+	CisV1() cisv1.CisV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	k8sV1 *k8sv1.K8sV1Client
+	cisV1 *cisv1.CisV1Client
 }
 
-// K8sV1 retrieves the K8sV1Client
-func (c *Clientset) K8sV1() k8sv1.K8sV1Interface {
-	return c.k8sV1
+// CisV1 retrieves the CisV1Client
+func (c *Clientset) CisV1() cisv1.CisV1Interface {
+	return c.cisV1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -65,7 +65,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.k8sV1, err = k8sv1.NewForConfig(&configShallowCopy)
+	cs.cisV1, err = cisv1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.k8sV1 = k8sv1.NewForConfigOrDie(c)
+	cs.cisV1 = cisv1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -90,7 +90,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.k8sV1 = k8sv1.New(c)
+	cs.cisV1 = cisv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

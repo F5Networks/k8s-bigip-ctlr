@@ -62,13 +62,13 @@ func NewFilteredIngressLinkInformer(client versioned.Interface, namespace string
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().IngressLinks(namespace).List(context.TODO(), options)
+				return client.CisV1().IngressLinks(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().IngressLinks(namespace).Watch(context.TODO(), options)
+				return client.CisV1().IngressLinks(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&cisv1.IngressLink{},

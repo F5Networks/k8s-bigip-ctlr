@@ -172,9 +172,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	K8s() cis.Interface
+	Cis() cis.Interface
 }
 
-func (f *sharedInformerFactory) K8s() cis.Interface {
+func (f *sharedInformerFactory) Cis() cis.Interface {
 	return cis.New(f, f.namespace, f.tweakListOptions)
 }

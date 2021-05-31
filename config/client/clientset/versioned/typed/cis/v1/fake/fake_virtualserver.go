@@ -32,13 +32,13 @@ import (
 
 // FakeVirtualServers implements VirtualServerInterface
 type FakeVirtualServers struct {
-	Fake *FakeK8sV1
+	Fake *FakeCisV1
 	ns   string
 }
 
-var virtualserversResource = schema.GroupVersionResource{Group: "k8s.nginx.org", Version: "v1", Resource: "virtualservers"}
+var virtualserversResource = schema.GroupVersionResource{Group: "cis.f5.com", Version: "v1", Resource: "virtualservers"}
 
-var virtualserversKind = schema.GroupVersionKind{Group: "k8s.nginx.org", Version: "v1", Kind: "VirtualServer"}
+var virtualserversKind = schema.GroupVersionKind{Group: "cis.f5.com", Version: "v1", Kind: "VirtualServer"}
 
 // Get takes name of the virtualServer, and returns the corresponding virtualServer object, and an error if there is any.
 func (c *FakeVirtualServers) Get(ctx context.Context, name string, options v1.GetOptions) (result *cisv1.VirtualServer, err error) {

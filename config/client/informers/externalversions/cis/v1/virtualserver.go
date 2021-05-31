@@ -62,13 +62,13 @@ func NewFilteredVirtualServerInformer(client versioned.Interface, namespace stri
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().VirtualServers(namespace).List(context.TODO(), options)
+				return client.CisV1().VirtualServers(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().VirtualServers(namespace).Watch(context.TODO(), options)
+				return client.CisV1().VirtualServers(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&cisv1.VirtualServer{},

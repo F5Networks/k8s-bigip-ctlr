@@ -56,7 +56,7 @@ type ingressLinks struct {
 }
 
 // newIngressLinks returns a IngressLinks
-func newIngressLinks(c *K8sV1Client, namespace string) *ingressLinks {
+func newIngressLinks(c *CisV1Client, namespace string) *ingressLinks {
 	return &ingressLinks{
 		client: c.RESTClient(),
 		ns:     namespace,

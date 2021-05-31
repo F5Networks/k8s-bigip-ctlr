@@ -56,7 +56,7 @@ type tLSProfiles struct {
 }
 
 // newTLSProfiles returns a TLSProfiles
-func newTLSProfiles(c *K8sV1Client, namespace string) *tLSProfiles {
+func newTLSProfiles(c *CisV1Client, namespace string) *tLSProfiles {
 	return &tLSProfiles{
 		client: c.RESTClient(),
 		ns:     namespace,

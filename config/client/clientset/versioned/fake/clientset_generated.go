@@ -20,8 +20,8 @@ package fake
 
 import (
 	clientset "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
-	k8sv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/typed/cis/v1"
-	fakek8sv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/typed/cis/v1/fake"
+	cisv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/typed/cis/v1"
+	fakecisv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/typed/cis/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -76,7 +76,7 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 
 var _ clientset.Interface = &Clientset{}
 
-// K8sV1 retrieves the K8sV1Client
-func (c *Clientset) K8sV1() k8sv1.K8sV1Interface {
-	return &fakek8sv1.FakeK8sV1{Fake: &c.Fake}
+// CisV1 retrieves the CisV1Client
+func (c *Clientset) CisV1() cisv1.CisV1Interface {
+	return &fakecisv1.FakeCisV1{Fake: &c.Fake}
 }

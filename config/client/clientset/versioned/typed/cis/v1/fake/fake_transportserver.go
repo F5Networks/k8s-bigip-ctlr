@@ -32,13 +32,13 @@ import (
 
 // FakeTransportServers implements TransportServerInterface
 type FakeTransportServers struct {
-	Fake *FakeK8sV1
+	Fake *FakeCisV1
 	ns   string
 }
 
-var transportserversResource = schema.GroupVersionResource{Group: "k8s.nginx.org", Version: "v1", Resource: "transportservers"}
+var transportserversResource = schema.GroupVersionResource{Group: "cis.f5.com", Version: "v1", Resource: "transportservers"}
 
-var transportserversKind = schema.GroupVersionKind{Group: "k8s.nginx.org", Version: "v1", Kind: "TransportServer"}
+var transportserversKind = schema.GroupVersionKind{Group: "cis.f5.com", Version: "v1", Kind: "TransportServer"}
 
 // Get takes name of the transportServer, and returns the corresponding transportServer object, and an error if there is any.
 func (c *FakeTransportServers) Get(ctx context.Context, name string, options v1.GetOptions) (result *cisv1.TransportServer, err error) {

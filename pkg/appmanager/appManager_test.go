@@ -166,6 +166,7 @@ func (m *mockAppManager) startLabelMode(nsLabel string) error {
 			"Failed to add namespace label informer with selector %v: %v",
 			nsSelector, err)
 	}
+	m.appMgr.DynamicNS = true
 	return nil
 }
 
@@ -218,7 +219,7 @@ func (m *mockAppManager) addConfigMap(cm *v1.ConfigMap) bool {
 }
 
 func (m *mockAppManager) updateConfigMap(cm *v1.ConfigMap) bool {
-	ok, keys := m.appMgr.checkValidConfigMap(cm, OprTypeModify)
+	ok, keys := m.appMgr.checkValidConfigMap(cm, OprTypeUpdate)
 	if ok {
 		appInf, _ := m.appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
 		appInf.cfgMapInformer.GetStore().Update(cm)

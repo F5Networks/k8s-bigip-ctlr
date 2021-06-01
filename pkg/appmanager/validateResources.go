@@ -55,10 +55,10 @@ func (appMgr *Manager) checkValidConfigMap(
 		}
 		if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, namespace); ok {
 			key := &serviceQueueKey{
-				Namespace: namespace,
-				Operation: oprType,
-				Name:      cm.Name,
-				Data:      cm.Data["template"],
+				Namespace:    namespace,
+				Operation:    oprType,
+				ResourceKind: Configmaps,
+				ResourceName: cm.Name,
 			}
 			keyList = append(keyList, key)
 			return true, keyList
@@ -97,8 +97,10 @@ func (appMgr *Manager) checkValidConfigMap(
 		}
 	}
 	key := &serviceQueueKey{
-		ServiceName: cfg.Pools[0].ServiceName,
-		Namespace:   namespace,
+		ServiceName:  cfg.Pools[0].ServiceName,
+		Namespace:    namespace,
+		ResourceKind: Configmaps,
+		ResourceName: cm.Name,
 	}
 
 	keyList = append(keyList, key)
@@ -117,8 +119,10 @@ func (appMgr *Manager) checkValidService(
 		return false, nil
 	}
 	key := &serviceQueueKey{
-		ServiceName: svc.ObjectMeta.Name,
-		Namespace:   namespace,
+		ServiceName:  svc.ObjectMeta.Name,
+		Namespace:    namespace,
+		ResourceKind: Services,
+		ResourceName: svc.Name,
 	}
 	var keyList []*serviceQueueKey
 	keyList = append(keyList, key)
@@ -137,8 +141,10 @@ func (appMgr *Manager) checkValidEndpoints(
 		return false, nil
 	}
 	key := &serviceQueueKey{
-		ServiceName: eps.ObjectMeta.Name,
-		Namespace:   namespace,
+		ServiceName:  eps.ObjectMeta.Name,
+		Namespace:    namespace,
+		ResourceKind: Endpoints,
+		ResourceName: eps.Name,
 	}
 	var keyList []*serviceQueueKey
 	keyList = append(keyList, key)
@@ -256,26 +262,19 @@ func (appMgr *Manager) checkV1beta1Ingress(
 				return false, nil
 			}
 		}
-
-		// Create a list of keys for all pools
-		for _, pool := range rsCfg.Pools {
-			key := &serviceQueueKey{
-				ServiceName: pool.ServiceName,
-				Namespace:   namespace,
-			}
-			exists := false
-			for _, k := range keyList {
-				if k.ServiceName == key.ServiceName &&
-					k.Namespace == key.Namespace {
-					exists = true
-					break
-				}
-			}
-			if !exists {
-				keyList = append(keyList, key)
-			}
-		}
 	}
+	//Get svc keys to queue
+	svcs := getIngressBackend(ing)
+	for _, svc := range svcs {
+		key := &serviceQueueKey{
+			ServiceName:  svc,
+			Namespace:    namespace,
+			ResourceKind: Ingresses,
+			ResourceName: ing.Name,
+		}
+		keyList = append(keyList, key)
+	}
+
 	return true, keyList
 }
 
@@ -345,8 +344,10 @@ func (appMgr *Manager) checkValidRoute(
 	svcNames := GetRouteServiceNames(route)
 	for _, svcName := range svcNames {
 		key := &serviceQueueKey{
-			ServiceName: svcName,
-			Namespace:   namespace,
+			ServiceName:  svcName,
+			Namespace:    namespace,
+			ResourceKind: Routes,
+			ResourceName: route.Name,
 		}
 		allKeys = append(allKeys, key)
 	}

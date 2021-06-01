@@ -1511,8 +1511,10 @@ func (rc *ResourceConfig) CopyConfig(cfg *ResourceConfig) {
 	rc.Virtual.Policies = make([]NameRef, len(cfg.Virtual.Policies))
 	copy(rc.Virtual.Policies, cfg.Virtual.Policies)
 	// IRules
-	rc.Virtual.IRules = make([]string, len(cfg.Virtual.IRules))
-	copy(rc.Virtual.IRules, cfg.Virtual.IRules)
+	if len(cfg.Virtual.IRules) > 0 {
+		rc.Virtual.IRules = make([]string, len(cfg.Virtual.IRules))
+		copy(rc.Virtual.IRules, cfg.Virtual.IRules)
+	}
 	// Pools
 	rc.Pools = make(Pools, len(cfg.Pools))
 	copy(rc.Pools, cfg.Pools)
@@ -1520,13 +1522,17 @@ func (rc *ResourceConfig) CopyConfig(cfg *ResourceConfig) {
 	for i, _ := range rc.Pools {
 		rc.Pools[i].Members = make([]Member, len(cfg.Pools[i].Members))
 		copy(rc.Pools[i].Members, cfg.Pools[i].Members)
-
-		rc.Pools[i].MonitorNames = make([]string, len(cfg.Pools[i].MonitorNames))
-		copy(rc.Pools[i].MonitorNames, cfg.Pools[i].MonitorNames)
+		//Dont copy if monitors is nil.
+		if len(cfg.Pools[i].MonitorNames) > 0 {
+			rc.Pools[i].MonitorNames = make([]string, len(cfg.Pools[i].MonitorNames))
+			copy(rc.Pools[i].MonitorNames, cfg.Pools[i].MonitorNames)
+		}
 	}
 	// Monitors
-	rc.Monitors = make(Monitors, len(cfg.Monitors))
-	copy(rc.Monitors, cfg.Monitors)
+	if len(cfg.Monitors) > 0 {
+		rc.Monitors = make(Monitors, len(cfg.Monitors))
+		copy(rc.Monitors, cfg.Monitors)
+	}
 	// Policies
 	rc.Policies = make([]Policy, len(cfg.Policies))
 	copy(rc.Policies, cfg.Policies)

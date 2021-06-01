@@ -515,7 +515,7 @@ const F5ServerSslSecureAnnotation = "virtual-server.f5.com/secure-serverssl"
 const DefaultSslServerCAName = "openshift_route_cluster_default-ca"
 const F5VsWAFPolicy = "virtual-server.f5.com/waf"
 const OprTypeCreate = "create"
-const OprTypeModify = "modify"
+const OprTypeUpdate = "update"
 const OprTypeDelete = "delete"
 
 //const DefaultSslServerCAName = "openshift_route_cluster_default-ca"

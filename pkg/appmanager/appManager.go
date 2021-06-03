@@ -1993,7 +1993,7 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 	eps, _ := item.(*v1.Endpoints)
 	for _, portSpec := range svc.Spec.Ports {
 		if portSpec.Port == sKey.ServicePort {
-			ipPorts := appMgr.getEndpointsForCluster(portSpec.Name, eps, svc.Spec.ClusterIP)
+			ipPorts := appMgr.getEndpointsForCluster(portSpec.Name, eps)
 			log.Debugf("[CORE] Found endpoints for backend %+v: %v", sKey, ipPorts)
 			rsCfg.MetaData.Active = true
 			rsCfg.Pools[index].Members = ipPorts
@@ -2315,7 +2315,6 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 func (appMgr *Manager) getEndpointsForCluster(
 	portName string,
 	eps *v1.Endpoints,
-	clusterIP string,
 ) []Member {
 	nodes := appMgr.getNodesFromCache()
 	var members []Member
@@ -2328,8 +2327,7 @@ func (appMgr *Manager) getEndpointsForCluster(
 		for _, p := range subset.Ports {
 			if portName == p.Name {
 				for _, addr := range subset.Addresses {
-					// Checking for headless service
-					if containsNode(nodes, *addr.NodeName) || clusterIP == "None" {
+					if containsNode(nodes, *addr.NodeName) {
 						member := Member{
 							Address: addr.IP,
 							Port:    p.Port,

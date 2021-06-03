@@ -13,7 +13,6 @@ Bug Fixes
 * :issues: `1808` K8S BIG-IP Controller upload old certificate to BIG-IP.
 * Fix Deleting Stale Specs from IPAM CR when CIS restarts
 * Fix Populate allocated ip for virtual-server in the VSAddress colomn while using IPAM.
-* Fix Processing endpoint with node names when CIS in Cluster mode
 
 Limitations
 ```````````

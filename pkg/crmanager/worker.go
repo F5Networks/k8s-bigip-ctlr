@@ -662,7 +662,6 @@ func (crMgr *CRManager) processVirtualServers(
 				return nil
 			}
 			log.Debugf("[ipam] requested IP for host %v is: %v", virtual.Spec.Host, ip)
-			crMgr.updateVirtualServerStatus(virtual, ip)
 		}
 	} else {
 		if virtual.Spec.VirtualServerAddress == "" {
@@ -1919,16 +1918,4 @@ func getNodeport(svc *v1.Service, servicePort int32) int32 {
 		}
 	}
 	return 0
-}
-
-//Update virtual server status with virtual server address
-func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string) {
-	// Set the vs status to include the virtual IP address
-	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip}
-	vs.Status = vsStatus
-	_, updateErr := crMgr.kubeCRClient.K8sV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
-	if nil != updateErr {
-		log.Debugf("Error while updating virtual server status:%v", updateErr)
-		return
-	}
 }

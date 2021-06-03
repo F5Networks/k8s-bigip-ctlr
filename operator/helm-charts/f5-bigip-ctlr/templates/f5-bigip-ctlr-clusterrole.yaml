@@ -58,7 +58,6 @@ rules:
       - transportservers
       - externaldnss
       - ingresslinks
-      - virtualservers/status
 {{- if .Values.args.ipam }}
   - verbs:
       - get

@@ -1,3 +1,3 @@
-.. include:: RELEASE-NOTES.rst
+.. _k8s-bigip-ctlr-home:
 
-.. include:: ../README.md
+.. include:: README.rst

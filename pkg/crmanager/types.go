@@ -36,46 +36,48 @@ import (
 type (
 	// CRManager defines the structure of Custom Resource Manager
 	CRManager struct {
-		resources          *Resources
-		kubeCRClient       versioned.Interface
-		kubeClient         kubernetes.Interface
-		kubeAPIClient      *extClient.Clientset
-		crInformers        map[string]*CRInformer
-		nsInformer         *NSInformer
-		eventNotifier      *apm.EventNotifier
-		resourceSelector   labels.Selector
-		namespacesMutex    sync.Mutex
-		namespaces         map[string]bool
-		rscQueue           workqueue.RateLimitingInterface
-		Partition          string
-		Agent              *Agent
-		ControllerMode     string
-		nodePoller         pollers.Poller
-		oldNodes           []Node
-		UseNodeInternal    bool
-		initState          bool
-		SSLContext         map[string]*v1.Secret
-		dgPath             string
-		shareNodes         bool
-		ipamCli            *ipammachinery.IPAMClient
-		ipamCR             string
+		resources        *Resources
+		kubeCRClient     versioned.Interface
+		kubeClient       kubernetes.Interface
+		kubeAPIClient    *extClient.Clientset
+		crInformers      map[string]*CRInformer
+		nsInformer       *NSInformer
+		eventNotifier    *apm.EventNotifier
+		resourceSelector labels.Selector
+		namespacesMutex  sync.Mutex
+		namespaces       map[string]bool
+		rscQueue         workqueue.RateLimitingInterface
+		Partition        string
+		Agent            *Agent
+		ControllerMode   string
+		nodePoller       pollers.Poller
+		oldNodes         []Node
+		UseNodeInternal  bool
+		initState        bool
+		SSLContext       map[string]*v1.Secret
+		customProfiles   *CustomProfileStore
+		dgPath           string
+		shareNodes       bool
+		ipamCli          *ipammachinery.IPAMClient
+		ipamCR           string
 		defaultRouteDomain int
 	}
 	// Params defines parameters
 	Params struct {
-		Config             *rest.Config
-		Namespaces         []string
-		NamespaceLabel     string
-		Partition          string
-		Agent              *Agent
-		ControllerMode     string
-		VXLANName          string
-		VXLANMode          string
-		UseNodeInternal    bool
-		NodePollInterval   int
-		NodeLabelSelector  string
-		ShareNodes         bool
-		IPAM               bool
+		Config            *rest.Config
+		Namespaces        []string
+		NamespaceLabel    string
+		Partition         string
+		Agent             *Agent
+		ControllerMode    string
+		VXLANName         string
+		VXLANMode         string
+		UseNodeInternal   bool
+		NodePollInterval  int
+		NodeLabelSelector string
+
+		ShareNodes bool
+		IPAM       bool
 		DefaultRouteDomain int
 	}
 	// CRInformer defines the structure of Custom Resource Informer
@@ -180,7 +182,6 @@ type (
 		ServiceAddress []ServiceAddress `json:"serviceAddress,omitempty"`
 		IRulesMap      IRulesMap
 		IntDgMap       InternalDataGroupMap
-		customProfiles CustomProfileStore
 	}
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
@@ -206,10 +207,10 @@ type (
 	}
 
 	ResourceConfigWrapper struct {
-		rsCfgs             ResourceConfigs
-		customProfiles     *CustomProfileStore
-		shareNodes         bool
-		dnsConfig          DNSConfig
+		rsCfgs         ResourceConfigs
+		customProfiles *CustomProfileStore
+		shareNodes     bool
+		dnsConfig      DNSConfig
 		defaultRouteDomain int
 	}
 

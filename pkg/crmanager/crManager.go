@@ -159,7 +159,7 @@ func NewCRManager(params Params) *CRManager {
 
 		crMgr.registerIPAMCRD()
 		time.Sleep(3 * time.Second)
-		_ = crMgr.createIPAMResource()
+		crMgr.createIPAMResource()
 	}
 
 	go crMgr.Start()
@@ -216,31 +216,16 @@ func (crMgr *CRManager) createIPAMResource() error {
 			IPStatus: make([]*ficV1.IPSpec, 0),
 		},
 	}
-	crMgr.ipamCR = IPAMNamespace + "/" + crName
 
+	// f5ipam.SetResourceVersion(obj.ResourceVersion)
 	ipamCR, err := crMgr.ipamCli.Create(f5ipam)
-	if err == nil {
-		log.Debugf("[ipam] Created IPAM Custom Resource: \n%v\n", ipamCR)
-		return nil
+	crMgr.ipamCR = IPAMNamespace + "/" + crName
+	if err != nil {
+		log.Debugf("[ipam] error while creating IPAM custom resource. %v", err)
+		return err
 	}
-
-	if strings.Contains(err.Error(), "already exists") {
-		err = crMgr.ipamCli.Delete(IPAMNamespace, crName, metaV1.DeleteOptions{})
-		if err != nil {
-			log.Debugf("[ipam] Delete failed. Error: %s", err.Error())
-		}
-
-		time.Sleep(3 * time.Second)
-
-		ipamCR, err = crMgr.ipamCli.Create(f5ipam)
-		if err == nil {
-			log.Debugf("[ipam] Created IPAM Custom Resource: \n%v\n", ipamCR)
-			return nil
-		}
-	}
-
-	log.Debugf("[ipam] error while creating IPAM custom resource. %v", err.Error())
-	return err
+	log.Debugf("[ipam] Created IPAM Custom Resource: \n%v\n", ipamCR)
+	return nil
 }
 
 // createLabelSelector returns label used to identify F5 specific

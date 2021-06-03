@@ -1,20 +1,6 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-
-Next Release
--------------
-Added Functionality
-```````````````````
-
-Bug Fixes
-`````````
-* :issues: `1737` Inconsistent ordering of policy rules when adding an Ingress path
-
-Limitations
-```````````
-
-
 2.4.0
 -------------
 Added Functionality

@@ -18,7 +18,6 @@ package appmanager
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -254,10 +253,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 	if len(urlRewriteRefs) > 0 || len(appRootRefs) > 0 {
 		cfg.MergeRules(appMgr.mergedRulesMap)
 	}
-	// Sort the rules
-	for _, policy := range cfg.Policies {
-		sort.Sort(sort.Reverse(&policy.Rules))
-	}
+
 	return &cfg
 }
 

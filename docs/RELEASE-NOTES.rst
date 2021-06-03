@@ -2,38 +2,21 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
 
-2.4.1
+Next Release
 -------------
 Added Functionality
 ```````````````````
-* CIS supports `F5 IPAM Controller 0.1.3 <https://github.com/F5Networks/f5-ipam-controller/blob/main/docs/RELEASE-NOTES.rst>`_.
-* Helm Chart Enhancements:
-    - Added support for multiple namespace configuration parameter with CIS operator.
 
 Bug Fixes
 `````````
-* :issues: `1737` Inconsistent ordering of policy rules when adding an Ingress path.
+* :issues: `1737` Inconsistent ordering of policy rules when adding an Ingress path
 * :issues: `1808` K8S BIG-IP Controller upload old certificate to BIG-IP.
-* Stale IPAM CR configuration gets deleted on CIS restart.
-* IPAM allocated IP address now populates for VirtualServer under VSAddress column.
-* CIS supports endpoints created without nodeNames in Cluster mode for Headless Service.
-* Updated helm charts to support IBM platform certification.
-
-Vulnerability Fixes
-```````````````````
-+------------------+------------------------------------------------------------------+
-| CVE              | Comments                                                         |
-+==================+==================================================================+
-| CVE-2020-36242   | Upgraded cryptography package in f5-common-python repository     |
-+------------------+------------------------------------------------------------------+
-| CVE-2020-25659   | Upgraded cryptography package in f5-cccl repository              |
-+------------------+------------------------------------------------------------------+
-| CVE-2020-14343   | Upgraded PyYAML package in f5-cccl repository                    |
-+------------------+------------------------------------------------------------------+
+* Fix Deleting Stale Specs from IPAM CR when CIS restarts
+* Fix Populate allocated ip for virtual-server in the VSAddress colomn while using IPAM.
+* Fix Processing endpoint with node names when CIS in Cluster mode
 
 Limitations
 ```````````
-Due to changes in the BIG-IP Python API, CIS EDNS no longer functions correctly. EDNS will be moving to the AS3 API in the upcoming release
 
 
 2.4.0
@@ -435,8 +418,8 @@ Bug Fixes
 `````````
 * CIS handles the combination of Edge and Re-encrypt OpenShift routes.
 * CIS does not send encrypted traffic to Edge Route backend.
-* :issues: 1041 CIS now does not log dozens of "INFO" log messages frequently.
-* :issues: 931 Issue resolved for the Prometheus metric status="parse-error".
+* :issues:`1041` CIS now does not log dozens of "INFO" log messages frequently.
+* :issues:`931` Issue resolved for the Prometheus metric status="parse-error".
 
 Limitations
 ```````````
@@ -451,8 +434,8 @@ Bug Fixes
 * Controller handles WAF Policy in the root path of a domain in OpenShift Routes.
 * Controller handles OpenShift Routes with WAF Policy in multiple namespaces.
 * Controller now does not push configuration to BigIP using AS3 for every 30 seconds with no changes.
-* :issues: 1041 Controller now does not log dozens of "INFO" log messages frequently.
-* :issues: 1040 Controller does not crashes if latest AS3 schema is not available.
+* :issues:`1041` Controller now does not log dozens of "INFO" log messages frequently.
+* :issues:`1040` Controller does not crashes if latest AS3 schema is not available.
 * Controller updates Route Status in OpenShift Management Console (OCP 4.x)
 * Controller does not crash when handling Route with WAF Policy that does not have a service.
 

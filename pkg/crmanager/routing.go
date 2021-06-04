@@ -300,7 +300,7 @@ func getRewriteActions(path, rwPath string, actionNameIndex int) ([]*action, err
 				Path:    path,
 				Replace: true,
 				Request: true,
-				Value:   rwPath,
+				Value:   fmt.Sprintf("tcl:[string map {%s %s} [HTTP::uri]]", path, rwPath),
 			})
 		} else {
 			actions = append(actions, &action{

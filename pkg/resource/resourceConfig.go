@@ -1296,7 +1296,7 @@ func ProcessURLRewrite(target, value string, rsType int) *Rule {
 				Path:    targetURL.Path,
 				Replace: true,
 				Request: true,
-				Value:   valueURL.Path,
+				Value:   fmt.Sprintf("tcl:[string map {%s %s} [HTTP::uri]]", targetURL.Path, valueURL.Path),
 			})
 		} else {
 			actions = append(actions, &Action{

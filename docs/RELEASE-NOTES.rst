@@ -17,6 +17,7 @@ Added Functionality
 Bug Fixes
 `````````
 * :issues: `1824` Support for ingresses.networking.k8s.io/v1.
+* Fixed rewrite-url annotation doesnt support to rewrite all child paths to specific target domain
 
 Limitations
 ```````````

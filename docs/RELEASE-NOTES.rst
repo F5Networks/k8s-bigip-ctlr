@@ -19,6 +19,8 @@ Bug Fixes
 * :issues: `1824` Support for ingresses.networking.k8s.io/v1.
 * Fixed rewrite-url annotation doesnt support to rewrite all child paths to specific target domain
 
+* Fixed http redirect not working when used virtual-server.f5.com/rewrite-target-url annotation with routes
+
 Limitations
 ```````````
 * Due to networking.k8s.io/v1 api support in ingress customer has to use "virtual-server.f5.com/clientssl" annotation in ingress if they are using bigip profiles in tls spec of ingress resource.

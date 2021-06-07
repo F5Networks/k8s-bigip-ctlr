@@ -1566,12 +1566,13 @@ func SetAnnotationRulesForRoute(
 	urlRewriteRule *Rule,
 	appRootRules []*Rule,
 	rc *ResourceConfig,
+	skipUrlRewriteRule bool,
 ) {
 	if len(appRootRules) == 2 {
 		rc.AddRuleToPolicy(policyName, appRootRules[0])
 		rc.AddRuleToPolicy(policyName, appRootRules[1])
 	}
-	if urlRewriteRule != nil {
+	if urlRewriteRule != nil && skipUrlRewriteRule != true {
 		rc.AddRuleToPolicy(policyName, urlRewriteRule)
 	}
 }

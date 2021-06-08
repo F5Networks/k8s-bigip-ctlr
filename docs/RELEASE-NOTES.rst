@@ -13,6 +13,8 @@ Added Functionality
    - Added support for HealthMonitor
 * CIS supports ConfigMap monitors services in same and different namespaces
    - Added new ConfigMap label: `hubMode:"true"` to enable this
+* Added support to send telemetry data to F5 TEEM Server 
+   - Disable this feature optionally using configuration parameter `disable-teems:"true"`
 
 Bug Fixes
 `````````
@@ -371,12 +373,12 @@ Bug Fixes
 `````````
 * CIS handles requests sent to unknown hosts for Routes using debug messages.
 * CIS handles posting of 'Overwriting existing entry for backend' log message frequently when different routes configured in different namespaces.
-* :issues:`1233` CIS handles ClientSSL annotation and cert/key logging issues.
-* :issues:`1145,1185,1295` CIS handles namespace isolation for AS3 configmaps.
-* :issues:`1241,1229` CIS fetches 3.18 AS3 schema locally.
-* :issues:`1191` CIS cleans AS3 managed partition when moved to CCCL as agent.
-* :issues:`1162` CIS properly handles OpenShift Route admit status.
-* :issues:`1160` CIS handles https redirection for ingress which accepts all common names.
+* :issues: 1233 CIS handles ClientSSL annotation and cert/key logging issues.
+* :issues: 1145,1185,1295 CIS handles namespace isolation for AS3 configmaps.
+* :issues: 1241,1229 CIS fetches 3.18 AS3 schema locally.
+* :issues: 1191 CIS cleans AS3 managed partition when moved to CCCL as agent.
+* :issues: 1162 CIS properly handles OpenShift Route admit status.
+* :issues: 1160 CIS handles https redirection for ingress which accepts all common names.
 
 Vulnerability Fixes
 `````````````````````
@@ -419,7 +421,7 @@ Bug Fixes
 * Controller incorporates `ASM vulnerability fix <https://support.f5.com/csp/article/K91382300>`_.
 * Schema validation failures not observed when AS3 partition deleted.
 * Edge redirect routes with WAF policy now works in combination with edge allow routes or insecure routes.
-* :issues:`1160` Controller supports HTTPS redirect in ingress when host spec not configured.
+* :issues: 1160 Controller supports HTTPS redirect in ingress when host spec not configured.
 * SR - Controller supports `--default-client-ssl` when operating in AS3 mode.
 
 1.13.0
@@ -440,8 +442,8 @@ Bug Fixes
 * CIS handles data groups correctly with routes/ingress in multiple namespaces.
 * CIS does not allow User Defined Configmap with controller managed partitions as tenants.
 * CIS handles HTTP to HTTPS redirect for child paths in routes.
-* :issues:`1077` CIS now doesn't post Warning messages 'Overwriting existing entry for backend' frequently.
-* :issues:`1014` Fixed performance problem with large number of ingress resources.
+* :issues: 1077 CIS now doesn't post Warning messages 'Overwriting existing entry for backend' frequently.
+* :issues: 1014 Fixed performance problem with large number of ingress resources.
 * SR - High CPU load in BIG-IP with CIS. CIS doesn’t post data to BIG-IP when there is no change in resources.
 * SR - K8S AS3-declaration errors when using TCP-profile. CIS allows TCP profile update using Override ConfigMap.
 

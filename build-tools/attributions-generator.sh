@@ -54,6 +54,9 @@ LICENSE-APACHE-2.0.txt:
               head -25 $vendor/$repo/$projects/$package/LICENSE.txt
               continue
             fi
+            if [ $projects == "f5devcentral" ] && [ $package == "go-bigip" ]; then
+                package=$package/f5teem
+            fi
             licensee detect $vendor/$repo/$projects/$package
             licensee license-path $vendor/$repo/$projects/$package | xargs head -25
             echo

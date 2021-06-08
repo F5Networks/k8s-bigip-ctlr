@@ -34,14 +34,6 @@ github.com/Azure/go-autorest/logger v0.2.0/go.mod h1:T9E3cAhj2VqvPOtCYAvby9aBXkZ
 github.com/Azure/go-autorest/tracing v0.6.0/go.mod h1:+vhtPC754Xsa23ID7GlGsrdKBpUA79WCAKPPZVC2DeU=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
-github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210330104030-abec2ec8b278 h1:JU+vPTxRAc2O119SB0qfh+tZa7A8xwfwcu7iQEsCbJE=
-github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210330104030-abec2ec8b278/go.mod h1:CmFEoeFEf4TfRWFpF8nhd9+HbkLm4vjhltH/XmullFg=
-github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210407093246-e9042433e301 h1:/F8F2+tC7+eaImbFyoMkVltknl67MBm1AqdT9+mBauo=
-github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210407093246-e9042433e301/go.mod h1:CmFEoeFEf4TfRWFpF8nhd9+HbkLm4vjhltH/XmullFg=
-github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210408052559-865e93e27002 h1:Epw2w2DOpPaobNh5DuSZxO+pdaeGNjHAp0YYd+GK8UE=
-github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210408052559-865e93e27002/go.mod h1:CmFEoeFEf4TfRWFpF8nhd9+HbkLm4vjhltH/XmullFg=
-github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210408104926-329c86830f37 h1:DVRSlf3/NGy4bwZFaSQjUp/4fNFH2G/2IsWMUCT1NKk=
-github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210408104926-329c86830f37/go.mod h1:CmFEoeFEf4TfRWFpF8nhd9+HbkLm4vjhltH/XmullFg=
 github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210416093847-f0eeef5171d9 h1:3w2mkTPX6r0eP3mBTY+jRM8pzpIrWNjoWih4rI7HBlU=
 github.com/F5Networks/f5-ipam-controller v0.1.2-0.20210416093847-f0eeef5171d9/go.mod h1:CmFEoeFEf4TfRWFpF8nhd9+HbkLm4vjhltH/XmullFg=
 github.com/NYTimes/gziphandler v0.0.0-20170623195520-56545f4a5d46/go.mod h1:3wb06e3pkSAbeQ52E9H9iFoQsEEwGN64994WTCIhntQ=
@@ -104,6 +96,8 @@ github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.m
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/evanphx/json-patch v4.9.0+incompatible h1:kLcOMZeuLAJvL2BPWLMIj5oaZQobrkAqrL+WFZwQses=
 github.com/evanphx/json-patch v4.9.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
+github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210526072548-2f78050d672f h1:zlibiufsMOW86k54xbMJ7CL3Hrzi7AlC2b9sbSlObQ0=
+github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210526072548-2f78050d672f/go.mod h1:r7o5I22EvO+fps2u10bz4ZUlTlNHopQSWzVcW19hK3U=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/form3tech-oss/jwt-go v3.2.2+incompatible/go.mod h1:pbq4aXjuKjdthFRnoDwaVPLA+WlJuPGy+QneDUgJi2k=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
@@ -349,6 +343,7 @@ github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6So
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/ryanuber/columnize v0.0.0-20160712163229-9b3edd62028f/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=
+github.com/satori/go.uuid v1.2.0/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
 github.com/shurcooL/sanitized_anchor_name v1.0.0/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=

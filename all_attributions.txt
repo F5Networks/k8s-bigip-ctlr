@@ -172,6 +172,40 @@ LICENSE:
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
 
+github.com/f5devcentral/go-bigip
+License:        Apache-2.0
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  bec905d850e7f5dc2e2db78a950d4a9db560a0b8
+  Confidence:    100.00%
+  Matcher:       Licensee::Matchers::Exact
+  License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
 github.com/fsnotify/fsnotify
 License:        BSD-3-Clause
 Matched files:  LICENSE
@@ -402,6 +436,45 @@ LICENSE:
   Confidence:    100.00%
   Matcher:       Licensee::Matchers::Exact
   License:       Apache-2.0
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+github.com/google/uuid
+License:        BSD-3-Clause
+Matched files:  LICENSE
+LICENSE:
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Attribution:   Copyright (c) 2009,2014 Google Inc. All rights reserved.
+  Confidence:    99.17%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
 
                                  Apache License
                            Version 2.0, January 2004
@@ -1165,6 +1238,27 @@ LICENSE-APACHE-2.0.txt:
       "You" (or "Your") shall mean an individual or Legal Entity
       exercising permissions granted by this License.
 golang.org/x/crypto
+License:        NOASSERTION
+Matched files:  LICENSE, PATENTS
+LICENSE:
+  Content hash:  888283c600fb58aef22e691d1ca63728a96bff24
+  Attribution:   Copyright (c) 2009 The Go Authors. All rights reserved.
+  Confidence:    99.17%
+  Matcher:       Licensee::Matchers::Dice
+  License:       BSD-3-Clause
+  Closest non-matching licenses:
+    BSD-3-Clause similarity:        99.17%
+    BSD-4-Clause similarity:        85.20%
+    BSD-3-Clause-Clear similarity:  84.10%
+PATENTS:
+  Content hash:  b949804a77a1e1a14fb61c747f303dd66e2201a3
+  License:       NOASSERTION
+  Closest non-matching licenses:
+    BSL-1.0 similarity:       24.89%
+    BSD-2-Clause similarity:  22.81%
+    Unlicense similarity:     22.05%
+
+golang.org/x/mod
 License:        NOASSERTION
 Matched files:  LICENSE, PATENTS
 LICENSE:

@@ -33,6 +33,7 @@ var _ = Describe("Test PostTeemsData", func() {
 	Context("If accessEnabled flag", func() {
 		It("is true", func() {
 			// this is a valid case
+			os.Unsetenv("TEEM_API_ENVIRONMENT")
 			testData.td.PlatformInfo = "Unit test case suite"
 			access := testData.td.PostTeemsData()
 			Expect(access).To(BeTrue())

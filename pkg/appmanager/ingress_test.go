@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
+var IngressClassName = "f5"
 var _ = Describe("V1 Ingress Tests", func() {
 	var mockMgr *mockAppManager
 	var mw *test.MockWriter
@@ -54,6 +55,12 @@ var _ = Describe("V1 Ingress Tests", func() {
 			ManageIngressClassOnly: false,
 			IngressClass:           "f5",
 		})
+		ingClass := &netv1.IngressClass{TypeMeta: metav1.TypeMeta{APIVersion: "networking.k8s.io/v1",
+			Kind: "IngressClass"},
+			ObjectMeta: metav1.ObjectMeta{Name: IngressClassName},
+			Spec:       netv1.IngressClassSpec{Controller: CISControllerName},
+		}
+		mockMgr.appMgr.kubeClient.NetworkingV1().IngressClasses().Create(context.TODO(), ingClass, metav1.CreateOptions{})
 		mockMgr.appMgr.AgentCIS, _ = agent.CreateAgent(agent.CCCLAgent)
 		mockMgr.appMgr.AgentCIS.Init(&cccl.Params{ConfigWriter: mw})
 		namespace = "default"
@@ -121,6 +128,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			Expect(err).To(BeNil())
 
 			spec := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				TLS: []netv1.IngressTLS{
 					{
 						SecretName: secret.ObjectMeta.Name,
@@ -159,6 +167,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			mockMgr.appMgr.manageIngressClassOnly = false
 			mockMgr.appMgr.ingressClass = "f5"
 			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				DefaultBackend: &netv1.IngressBackend{
 					Service: &netv1.IngressServiceBackend{Name: "foo", Port: netv1.ServiceBackendPort{Number: int32(80)}},
 				},
@@ -225,6 +234,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			svcName := "svc1"
 			svcPort := 8080
 			spec := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				DefaultBackend: &netv1.IngressBackend{
 					Service: &netv1.IngressServiceBackend{Name: svcName, Port: netv1.ServiceBackendPort{Number: int32(svcPort)}},
 				},
@@ -400,6 +410,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			svc3Port := 8888
 			svc3Path := "/baz"
 			spec := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				Rules: []netv1.IngressRule{
 					{
 						Host: host1Name,
@@ -554,6 +565,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			svc2Name := "nginx3"
 			svc2Port := 80
 			spec := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				Rules: []netv1.IngressRule{
 					{
 						Host: host1Name,
@@ -704,6 +716,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			svc2Name := "nginx3"
 			svc2Port := 80
 			spec := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				Rules: []netv1.IngressRule{
 					{
 						Host: host1Name,
@@ -846,6 +859,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			svc3Port := 8888
 			svc3Path := "/baz"
 			spec := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				Rules: []netv1.IngressRule{
 					{
 						IngressRuleValue: netv1.IngressRuleValue{
@@ -983,6 +997,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			mockMgr.appMgr.useNodeInternal = true
 			// Ingress first
 			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				Rules: []netv1.IngressRule{
 					{Host: "host1",
 						IngressRuleValue: netv1.IngressRuleValue{
@@ -1061,6 +1076,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			// Multi-service Ingress
 			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				Rules: []netv1.IngressRule{
 					{Host: "host1",
 						IngressRuleValue: netv1.IngressRuleValue{
@@ -1163,6 +1179,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			// Multi-service Ingress
 			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				Rules: []netv1.IngressRule{
 					{Host: "host1",
 						IngressRuleValue: netv1.IngressRuleValue{
@@ -1266,6 +1283,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			// Multi-service Ingress
 			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				Rules: []netv1.IngressRule{
 					{
 						Host: "host1",
@@ -1345,6 +1363,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			// Multi-service Ingress
 			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				Rules: []netv1.IngressRule{
 					{
 						Host: "host1",
@@ -1429,11 +1448,13 @@ var _ = Describe("V1 Ingress Tests", func() {
 			mockMgr.addService(barSvc)
 
 			ingCfg1 := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				DefaultBackend: &netv1.IngressBackend{
 					Service: &netv1.IngressServiceBackend{Name: "foo", Port: netv1.ServiceBackendPort{Number: int32(80)}},
 				},
 			}
 			ingCfg2 := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				DefaultBackend: &netv1.IngressBackend{
 					Service: &netv1.IngressServiceBackend{Name: "bar", Port: netv1.ServiceBackendPort{Number: int32(80)}},
 				},
@@ -1491,6 +1512,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				},
 			}
 			specFoo := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				Rules: []netv1.IngressRule{
 					{Host: host,
 						IngressRuleValue: netv1.IngressRuleValue{
@@ -1500,6 +1522,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				},
 			}
 			specBar := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
 				Rules: []netv1.IngressRule{
 					{Host: host,
 						IngressRuleValue: netv1.IngressRuleValue{
@@ -1512,9 +1535,9 @@ var _ = Describe("V1 Ingress Tests", func() {
 			// Create the first ingress and associate a service
 			ing1a := NewV1Ingress("ing1a", "1", ns1, specFoo,
 				map[string]string{
-					F5VsBindAddrAnnotation:  "1.2.3.4",
-					F5VsPartitionAnnotation: DEFAULT_PARTITION,
-					IngressSslRedirect:      "true",
+					F5VsBindAddrAnnotation:       "1.2.3.4",
+					F5VsPartitionAnnotation:      DEFAULT_PARTITION,
+					IngressSslRedirect:           "true",
 					F5ClientSslProfileAnnotation: "[ { \"hosts\": [ \"foo.com\" ], \"bigIpProfile\": \"/Common/clientssl\" } ]",
 				})
 			r := mockMgr.addV1Ingress(ing1a)
@@ -1527,9 +1550,9 @@ var _ = Describe("V1 Ingress Tests", func() {
 			// Create identical ingress and service in another namespace
 			ing2 := NewV1Ingress("ing2", "1", ns2, specFoo,
 				map[string]string{
-					F5VsBindAddrAnnotation:  "1.2.3.4",
-					F5VsPartitionAnnotation: DEFAULT_PARTITION,
-					IngressSslRedirect:      "true",
+					F5VsBindAddrAnnotation:       "1.2.3.4",
+					F5VsPartitionAnnotation:      DEFAULT_PARTITION,
+					IngressSslRedirect:           "true",
 					F5ClientSslProfileAnnotation: "[ { \"hosts\": [ \"foo.com\" ], \"bigIpProfile\": \"/Common/clientssl\" } ]",
 				})
 			r = mockMgr.addV1Ingress(ing2)
@@ -1555,9 +1578,9 @@ var _ = Describe("V1 Ingress Tests", func() {
 			// Add a route for the same host but different path
 			ing1b := NewV1Ingress("ing1b", "1", ns1, specBar,
 				map[string]string{
-					F5VsBindAddrAnnotation:  "1.2.3.4",
-					F5VsPartitionAnnotation: "velcro",
-					IngressSslRedirect:      "true",
+					F5VsBindAddrAnnotation:       "1.2.3.4",
+					F5VsPartitionAnnotation:      "velcro",
+					IngressSslRedirect:           "true",
 					F5ClientSslProfileAnnotation: "[ { \"hosts\": [ \"bar.com\" ], \"bigIpProfile\": \"/Common/clientssl\" } ]",
 				})
 			r = mockMgr.addV1Ingress(ing1b)
@@ -1598,9 +1621,9 @@ var _ = Describe("V1 Ingress Tests", func() {
 			// be in the dg
 			ing1a = NewV1Ingress("ing1a", "1", ns1, specFoo,
 				map[string]string{
-					F5VsBindAddrAnnotation:  "1.2.3.4",
-					F5VsPartitionAnnotation: DEFAULT_PARTITION,
-					IngressSslRedirect:      "false",
+					F5VsBindAddrAnnotation:       "1.2.3.4",
+					F5VsPartitionAnnotation:      DEFAULT_PARTITION,
+					IngressSslRedirect:           "false",
 					F5ClientSslProfileAnnotation: "[ { \"hosts\": [ \"foo.com\" ], \"bigIpProfile\": \"/Common/clientssl\" } ]",
 				})
 			r = mockMgr.addV1Ingress(ing1a)

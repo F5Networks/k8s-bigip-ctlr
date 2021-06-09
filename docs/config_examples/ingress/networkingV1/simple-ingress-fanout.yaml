@@ -11,6 +11,8 @@ metadata:
     # Load balancing algorithm
     virtual-server.f5.com/balance: "round-robin"
 spec:
+  # Provide the IngressClassName as "f5"
+  ingressClassName: f5
   rules:
   - host: mysite.example.com
     http:

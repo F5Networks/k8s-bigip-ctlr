@@ -20,6 +20,7 @@ rules:
   - networking.k8s.io
   resources:
   - ingresses
+  - ingressclasses
   verbs:
   - get
   - list

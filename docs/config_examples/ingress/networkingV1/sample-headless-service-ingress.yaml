@@ -47,6 +47,8 @@ metadata:
     # Specify the BIG-IP partition containing the virtual server.
     virtual-server.f5.com/partition: test
 spec:
+  # Provide the IngressClassName as "f5"
+  ingressClassName: f5
   rules:
     - http:
         paths:

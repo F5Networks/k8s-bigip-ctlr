@@ -440,6 +440,55 @@ func processV1IngressRules(
 	return &rls, urlRewriteRefs, appRootRefs
 }
 
+func (appMgr *Manager) verifyDefaultIngressClass() bool {
+	ingresClass, err := appMgr.kubeClient.NetworkingV1().IngressClasses().Get(context.TODO(), appMgr.ingressClass, metav1.GetOptions{})
+	if err != nil {
+		log.Errorf("[CORE] %s", err.Error())
+	} else {
+		return getBooleanAnnotation(ingresClass.ObjectMeta.Annotations, DefaultIngressClass, false)
+	}
+	return false
+}
+
+func (appMgr *Manager) verifyIngressClass(ing *netv1.Ingress) bool {
+	if *ing.Spec.IngressClassName != appMgr.ingressClass {
+		// return false to skip processing of ingress
+		return false
+	}
+	// Check that ingress class exists or not
+	ingresClass, err := appMgr.kubeClient.NetworkingV1().IngressClasses().Get(context.TODO(), appMgr.ingressClass, metav1.GetOptions{})
+	if err != nil {
+		log.Debugf("[CORE] %s", err.Error())
+	} else {
+		if ingresClass.Spec.Controller == CISControllerName {
+			// return true to process the ingress
+			return true
+		} else {
+			log.Debugf("[CORE] Unable to process ingress as incorrect controller name provided in Ingress Class resource, it should be \"%s\" instead of \"%s\"", CISControllerName, ingresClass.Spec.Controller)
+		}
+	}
+	// return false to skip processing of ingress
+	return false
+}
+
+func (appMgr *Manager) checkManageIngressClass(ing *netv1.Ingress) bool {
+	// If old ingress class annotation is defined it's given priority
+	// TODO once old annotation is deprecated we can remove this conditional check
+	if class, ok := ing.ObjectMeta.Annotations[K8sIngressClass]; ok == true {
+		if class != appMgr.ingressClass {
+			return false
+		}
+	} else if ing.Spec.IngressClassName != nil {
+		// If IngressClassName does not match IngressClass provided in CIS deployment or IngressClassName provided in CIS deployment does not exist
+		return appMgr.verifyIngressClass(ing)
+	} else {
+		// at this point we dont have k8sIngressClass defined in annotation and spec.IngressClass Name.
+		// So check whether we need to process those ingress or not.
+		return appMgr.verifyDefaultIngressClass()
+	}
+	return true
+}
+
 // Create a ResourceConfig based on an Ingress resource config
 func (appMgr *Manager) createRSConfigFromV1Ingress(
 	ing *netv1.Ingress,
@@ -450,17 +499,11 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 	defaultIP,
 	snatPoolName string,
 ) *ResourceConfig {
-	if class, ok := ing.ObjectMeta.Annotations[K8sIngressClass]; ok == true {
-		if class != appMgr.ingressClass {
-			return nil
-		}
-	} else {
-		// at this point we dont have k8sIngressClass defined in Ingress definition.
-		// So check whether we need to process those ingress or not.
-		if appMgr.manageIngressClassOnly {
-			return nil
-		}
+
+	if !appMgr.checkManageIngressClass(ing) {
+		return nil
 	}
+
 	var cfg ResourceConfig
 	var balance string
 	if bal, ok := ing.ObjectMeta.Annotations[F5VsBalanceAnnotation]; ok == true {

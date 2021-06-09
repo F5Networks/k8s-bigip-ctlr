@@ -17,6 +17,7 @@
 package appmanager
 
 import (
+	"context"
 	"fmt"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/klog/v2"
@@ -170,6 +171,13 @@ var _ = Describe("Event Notifier Tests", func() {
 				ManageIngressClassOnly: false,
 				IngressClass:           "f5",
 			})
+			ingClass := &netv1.IngressClass{TypeMeta: metav1.TypeMeta{APIVersion: "networking.k8s.io/v1",
+				Kind: "IngressClass"},
+				ObjectMeta: metav1.ObjectMeta{Name: IngressClassName, Annotations: map[string]string{
+					DefaultIngressClass: "true"}},
+				Spec: netv1.IngressClassSpec{Controller: CISControllerName},
+			}
+			mockMgr.appMgr.kubeClient.NetworkingV1().IngressClasses().Create(context.TODO(), ingClass, metav1.CreateOptions{})
 			namespaces = []string{"ns0", "ns1", "ns2", "ns3", "ns4", "ns5"}
 			mockMgr.appMgr.AgentCIS, _ = agent.CreateAgent(agent.CCCLAgent)
 			mockMgr.appMgr.AgentCIS.Init(&cccl.Params{ConfigWriter: mw})

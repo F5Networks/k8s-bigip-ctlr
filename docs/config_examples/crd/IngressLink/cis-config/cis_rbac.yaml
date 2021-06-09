@@ -4,7 +4,7 @@ metadata:
   name: bigip-ctlr-clusterrole
 rules:
   - apiGroups: ["", "extensions", "networking.k8s.io"]
-    resources: ["nodes", "services", "endpoints", "namespaces", "ingresses", "pods"]
+    resources: ["nodes", "services", "endpoints", "namespaces", "ingresses", "pods", "ingressclasses"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["", "extensions", "networking.k8s.io"]
     resources: ["configmaps", "events", "ingresses/status"]

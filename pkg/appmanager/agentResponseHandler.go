@@ -74,7 +74,7 @@ func (appMgr *Manager) updateRouteAdmitStatus() {
 	for namespace, routeNames := range appMgr.RoutesProcessed {
 		for _, routeName := range routeNames {
 			Admitted := false
-			route, err := appMgr.routeClientV1.Routes(namespace).Get(context.TODO(),routeName, getOptions)
+			route, err := appMgr.routeClientV1.Routes(namespace).Get(context.TODO(), routeName, getOptions)
 			if err != nil {
 				log.Debugf("[CORE] Unable to get route to update status. Name: %v, Namespace: %v\n", routeName, namespace)
 				continue
@@ -96,7 +96,7 @@ func (appMgr *Manager) updateRouteAdmitStatus() {
 						LastTransitionTime: &now,
 					}},
 				})
-				_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(),route, metaV1.UpdateOptions{})
+				_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
 				if err != nil {
 					log.Errorf("[CORE] Error while Updating Route Admit Status: %v\n", err)
 				} else {
@@ -112,7 +112,7 @@ func (appMgr *Manager) updateRouteAdmitStatus() {
 	}
 
 	allNamespaces := ""
-	allRoutes, err := appMgr.routeClientV1.Routes(allNamespaces).List(context.TODO(),allOptions)
+	allRoutes, err := appMgr.routeClientV1.Routes(allNamespaces).List(context.TODO(), allOptions)
 	if err != nil {
 		log.Errorf("[CORE] Error listing Routes: %v", err)
 	}

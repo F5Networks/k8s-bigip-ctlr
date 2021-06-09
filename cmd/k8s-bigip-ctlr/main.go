@@ -322,6 +322,7 @@ func _init() {
 		"Optional, enable/disable use of Secrets for Ingress or ConfigMap SSL Profiles.")
 	schemaLocal = kubeFlags.String("schema-db-base-dir", "file:///app/vendor/src/f5/schemas/",
 		"Optional, where the schema db's locally reside")
+	// TODO once ingress extentionv1/beta1 api is deprecated we can remove this deployment parameter
 	manageIngressClassOnly = kubeFlags.Bool("manage-ingress-class-only", false,
 		"Optional, default `false`. Process all ingress resources without `kubernetes.io/ingress.class`"+
 			"annotation and ingresses with annotation `kubernetes.io/ingress.class=f5`.")

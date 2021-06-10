@@ -1547,21 +1547,46 @@ func (crMgr *CRManager) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	return
 }
 
-func (crMgr *CRManager) ProcessAllExternalDNS() {
-	for ns, crInf := range crMgr.crInformers {
-		// TODO: It does not support the case of all namespaces (""). Need to Fix.
-		nsEDNSs, err := crInf.ednsInformer.GetIndexer().ByIndex("namespace", ns)
+func (crMgr *CRManager) getAllExternalDNS(namespace string) []*cisapiv1.ExternalDNS {
+	var allEDNS []*cisapiv1.ExternalDNS
+	crInf, ok := crMgr.getNamespacedInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
+	var orderedEDNSs []interface{}
+	var err error
+
+	if namespace == "" {
+		orderedEDNSs = crInf.ednsInformer.GetIndexer().List()
+	} else {
+		orderedEDNSs, err = crInf.ednsInformer.GetIndexer().ByIndex("namespace", namespace)
 		if err != nil {
 			log.Errorf("Unable to get list of ExternalDNSs for namespace '%v': %v",
-				ns, err)
-			continue
+				namespace, err)
+			return allEDNS
 		}
-		log.Debugf("Processing all ExternalDNS: %v, Namespace: %v.", len(nsEDNSs), ns)
+	}
 
-		for _, obj := range nsEDNSs {
-			edns := obj.(*cisapiv1.ExternalDNS)
-			crMgr.processExternalDNS(edns, false)
+	for _, obj := range orderedEDNSs {
+		edns := obj.(*cisapiv1.ExternalDNS)
+		allEDNS = append(allEDNS, edns)
+	}
+
+	return allEDNS
+}
+
+func (crMgr *CRManager) ProcessAllExternalDNS() {
+	var allEDNS []*cisapiv1.ExternalDNS
+	if crMgr.watchingAllNamespaces() {
+		allEDNS = crMgr.getAllExternalDNS("")
+	} else {
+		for ns := range crMgr.namespaces {
+			allEDNS = append(allEDNS, crMgr.getAllExternalDNS(ns)...)
 		}
+	}
+	for _, edns := range allEDNS {
+		crMgr.processExternalDNS(edns, false)
 	}
 }
 

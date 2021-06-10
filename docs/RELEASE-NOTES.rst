@@ -1,6 +1,19 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next Release
+-------------
+
+Added Functionality
+```````````````````
+* Improved Ingress, EDNS Performance 
+  * New VirtualServer creation triggers processing of only associated EDNS resources. 
+
+Bug Fixes
+`````````
+
+
+
 2.5.1
 -------------
 

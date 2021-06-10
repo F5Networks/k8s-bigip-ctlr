@@ -12,7 +12,7 @@ Added Functionality
    - Added support for Multiport service.
    - Added support for HealthMonitor
 * CIS supports ConfigMap monitors services in same and different namespaces
-   - Added new ConfigMap label: `hubMode:"ture"` to enable this
+   - Added new ConfigMap label: `hubMode:"true"` to enable this
 
 Bug Fixes
 `````````

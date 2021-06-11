@@ -559,7 +559,7 @@ func (appMgr *Manager) handleRouteRules(
 				rc.Virtual.AddIRule(abPathIRuleName)
 			} else {
 				rc.AddRuleToPolicy(policyName, rule)
-				SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc)
+				SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc, false)
 			}
 		} else {
 			// Handle redirect policy for edge. Reencrypt and passthrough do not
@@ -572,7 +572,7 @@ func (appMgr *Manager) handleRouteRules(
 						rc.Virtual.AddIRule(abPathIRuleName)
 					} else {
 						rc.AddRuleToPolicy(policyName, rule)
-						SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc)
+						SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc, false)
 					}
 				case routeapi.InsecureEdgeTerminationPolicyRedirect:
 					redirectIRuleName := JoinBigipPath(DEFAULT_PARTITION,
@@ -589,7 +589,7 @@ func (appMgr *Manager) handleRouteRules(
 					svcFwdRulesMap.AddEntry(route.ObjectMeta.Namespace, route.Spec.To.Name,
 						route.Spec.Host, path)
 					rc.AddRuleToPolicy(policyName, rule)
-					SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc)
+					SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc, true)
 				}
 			}
 		}
@@ -612,7 +612,7 @@ func (appMgr *Manager) handleRouteRules(
 					appMgr.addInternalDataGroup(EdgeServerSslDgName, DEFAULT_PARTITION)
 					rc.Virtual.AddIRule(passThroughIRuleName)
 					rc.AddRuleToPolicy(policyName, rule)
-					SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc)
+					SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc, false)
 				}
 			case routeapi.TLSTerminationPassthrough:
 				appMgr.addIRule(
@@ -627,7 +627,7 @@ func (appMgr *Manager) handleRouteRules(
 				rc.Virtual.AddIRule(passThroughIRuleName)
 				if !abDeployment {
 					rc.AddRuleToPolicy(policyName, rule)
-					SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc)
+					SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc, false)
 				}
 			}
 		}

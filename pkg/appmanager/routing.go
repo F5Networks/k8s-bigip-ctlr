@@ -37,7 +37,7 @@ import (
 	"k8s.io/api/extensions/v1beta1"
 )
 
-type Routes []*routeapi.Route
+type RouteList []*routeapi.Route
 
 func createPathSegmentConditions(u *url.URL) []*Condition {
 	var c []*Condition
@@ -914,24 +914,24 @@ func (appMgr *Manager) deleteIRule(rule string) {
 	}
 }
 
-func (slice Routes) Len() int {
+func (slice RouteList) Len() int {
 	return len(slice)
 }
 
-func (slice Routes) Less(i, j int) bool {
+func (slice RouteList) Less(i, j int) bool {
 	return (slice[i].Spec.Host < slice[j].Spec.Host) ||
 		(slice[i].Spec.Host == slice[j].Spec.Host &&
 			slice[i].Spec.Path < slice[j].Spec.Path)
 }
 
-func (slice Routes) Swap(i, j int) {
+func (slice RouteList) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func (appInf *appInformer) getOrderedRoutes(namespace string) (Routes, error) {
+func (appInf *appInformer) getOrderedRoutes(namespace string) (RouteList, error) {
 	routeByIndex, err := appInf.routeInformer.GetIndexer().ByIndex(
 		"namespace", namespace)
-	var routes Routes
+	var routes RouteList
 	for _, obj := range routeByIndex {
 		route := obj.(*routeapi.Route)
 		routes = append(routes, route)

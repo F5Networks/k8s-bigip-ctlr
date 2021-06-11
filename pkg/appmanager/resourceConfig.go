@@ -229,6 +229,8 @@ func (appMgr *Manager) createRSConfigFromIngress(
 					if rl.Name == newRule.Name || (!IsAnnotationRule(rl.Name) &&
 						!IsAnnotationRule(newRule.Name) && rl.FullURI == newRule.FullURI) {
 						found = true
+						// Replace old rule with new rule, but make sure Ordinal is correct.
+						newRule.Ordinal = rl.Ordinal
 						policy.Rules[i] = newRule
 						break
 					}

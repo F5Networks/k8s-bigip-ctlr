@@ -116,25 +116,16 @@ func (appMgr *Manager) checkV1Ingress(
 				return false, nil
 			}
 		}
-
-		// Create a list of keys for all pools
-		for _, pool := range rsCfg.Pools {
-			key := &serviceQueueKey{
-				ServiceName: pool.ServiceName,
-				Namespace:   namespace,
-			}
-			exists := false
-			for _, k := range keyList {
-				if k.ServiceName == key.ServiceName &&
-					k.Namespace == key.Namespace {
-					exists = true
-					break
-				}
-			}
-			if !exists {
-				keyList = append(keyList, key)
-			}
+	}
+	svcs := getIngressV1Backend(ing)
+	for _, svc := range svcs {
+		key := &serviceQueueKey{
+			ServiceName:  svc,
+			Namespace:    namespace,
+			ResourceKind: Ingresses,
+			ResourceName: ing.Name,
 		}
+		keyList = append(keyList, key)
 	}
 	return true, keyList
 }
@@ -210,7 +201,7 @@ func (appMgr *Manager) setV1IngressStatus(
 			"Error when setting Ingress status IP for virtual server %v: %v",
 			rsCfg.GetName(), updateErr)
 		log.Warning(warning)
-		appMgr.recordV1IngressEvent(ing, "StatusIPError", warning)
+		//appMgr.recordV1IngressEvent(ing, "StatusIPError", warning)
 	}
 }
 
@@ -647,6 +638,8 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 					if rl.Name == newRule.Name || (!IsAnnotationRule(rl.Name) &&
 						!IsAnnotationRule(newRule.Name) && rl.FullURI == newRule.FullURI) {
 						found = true
+						// Replace old rule with new rule, but make sure Ordinal is correct.
+						newRule.Ordinal = rl.Ordinal
 						policy.Rules[i] = newRule
 						break
 					}

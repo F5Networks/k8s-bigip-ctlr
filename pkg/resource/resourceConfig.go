@@ -1239,6 +1239,17 @@ func ProcessAppRoot(target, value, poolName string, rsType int) Rules {
 	return rules
 }
 
+func ParseRewriteAction(targetUrlPath, valueUrlPath string) string {
+	var action string
+	if valueUrlPath == "/" {
+		action = fmt.Sprintf("tcl:[ expr {[string match [HTTP::uri] %s ] ? [regsub %s [HTTP::uri] / ] : [regsub %s [HTTP::uri] \"\" ] }]", targetUrlPath,
+			targetUrlPath, targetUrlPath)
+	} else {
+		action = fmt.Sprintf("tcl:[regsub %s [HTTP::uri] %s ]", targetUrlPath, valueUrlPath)
+	}
+	return action
+}
+
 func ProcessURLRewrite(target, value string, rsType int) *Rule {
 	var actions []*Action
 	var conditions []*Condition
@@ -1296,7 +1307,7 @@ func ProcessURLRewrite(target, value string, rsType int) *Rule {
 				Path:    targetURL.Path,
 				Replace: true,
 				Request: true,
-				Value:   fmt.Sprintf("tcl:[string map {%s %s} [HTTP::uri]]", targetURL.Path, valueURL.Path),
+				Value:   ParseRewriteAction(targetURL.Path, valueURL.Path),
 			})
 		} else {
 			actions = append(actions, &Action{

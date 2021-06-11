@@ -48,6 +48,10 @@ var _ = Describe("Test PostTeemsData", func() {
 		BeforeEach(func() {
 			testData.td.PlatformInfo = "Unit test case suite"
 		})
+		AfterEach(func() {
+			os.Unsetenv("TEEM_API_ENVIRONMENT")
+			os.Unsetenv("TEEM_API_KEY")
+		})
 		It("with invalid env and key", func() {
 			testData.setKey = "random"
 			testData.setEnv = "testing"

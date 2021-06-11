@@ -19,6 +19,8 @@ package crmanager
 import (
 	"sync"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
+
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
@@ -60,6 +62,7 @@ type (
 		ipamCli            *ipammachinery.IPAMClient
 		ipamCR             string
 		defaultRouteDomain int
+		TeemData           *teem.TeemsData
 	}
 	// Params defines parameters
 	Params struct {

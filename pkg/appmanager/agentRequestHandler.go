@@ -29,6 +29,7 @@ func (appMgr *Manager) deployResource() error {
 	agentReq := MessageRequest{MsgType: cisAgent.MsgTypeSendDecl, ResourceRequest: deployCfg}
 	// Handle resources to agent and deploy to BIG-IP
 	appMgr.AgentCIS.Deploy(agentReq)
+	go appMgr.TeemData.PostTeemsData()
 	// Initialize cfgMap context if CfgMaps are removed
 	for key, cm := range appMgr.agentCfgMap {
 		if cm.Operation == OprTypeDelete {

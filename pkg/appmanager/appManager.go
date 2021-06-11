@@ -28,6 +28,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
+
 	netv1 "k8s.io/api/networking/v1"
 
 	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
@@ -133,6 +135,7 @@ type Manager struct {
 	agRspChan          chan interface{}
 	processAgentLabels func(map[string]string, string, string) bool
 	K8sVersion         string
+	TeemData           *teem.TeemsData
 }
 
 // Watched Namespaces for global availability.
@@ -1127,6 +1130,8 @@ func (appMgr *Manager) syncConfigMaps(
 		return err
 	}
 
+	appMgr.TeemData.ResourceType.Configmaps[sKey.Namespace] = len(cfgMapsByIndex)
+
 	for _, obj := range cfgMapsByIndex {
 		// We need to look at all config maps in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
@@ -1261,6 +1266,7 @@ func (appMgr *Manager) syncIngresses(
 			sKey.Namespace, err)
 		return err
 	}
+	appMgr.TeemData.ResourceType.Ingresses[sKey.Namespace] = len(ingByIndex)
 	svcFwdRulesMap := NewServiceFwdRuleMap()
 	for _, obj := range ingByIndex {
 		// We need to look at all ingresses in the store, parse the data blob,
@@ -1633,6 +1639,7 @@ func (appMgr *Manager) syncRoutes(
 			sKey.Namespace, err)
 		return err
 	}
+	appMgr.TeemData.ResourceType.Routes[sKey.Namespace] = len(routeByIndex)
 
 	// Rebuild all internal data groups for routes as we process each
 	svcFwdRulesMap := NewServiceFwdRuleMap()

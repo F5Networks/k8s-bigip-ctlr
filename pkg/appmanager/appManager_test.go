@@ -25,6 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
@@ -112,11 +114,27 @@ type mockAppManager struct {
 }
 
 func newMockAppManager(params *Params) *mockAppManager {
-	return &mockAppManager{
+	mm := &mockAppManager{
 		appMgr:  NewManager(params),
 		mutex:   sync.Mutex{},
 		vsMutex: make(map[serviceQueueKey]*sync.Mutex),
 	}
+	mm.appMgr.TeemData = &teem.TeemsData{
+		AccessEnabled: false,
+		ResourceType: teem.ResourceTypes{
+			Ingresses:       make(map[string]int),
+			Routes:          make(map[string]int),
+			Configmaps:      make(map[string]int),
+			VirtualServer:   make(map[string]int),
+			TransportServer: make(map[string]int),
+			ExternalDNS:     make(map[string]int),
+			IngressLink:     make(map[string]int),
+			IPAMVS:          make(map[string]int),
+			IPAMTS:          make(map[string]int),
+			IPAMSvcLB:       make(map[string]int),
+		},
+	}
+	return mm
 }
 
 func (m *mockAppManager) startNonLabelMode(namespaces []string) error {
@@ -583,13 +601,31 @@ func validateServiceIps(serviceName, namespace string, svcPorts []v1.ServicePort
 }
 
 var _ = Describe("AppManager Tests", func() {
-	Describe("Output Config", func() {
+	Context("Output Config", func() {
+		var appMgr *Manager
+		BeforeEach(func() {
+			appMgr = NewManager(&Params{})
+			appMgr.TeemData = &teem.TeemsData{
+				AccessEnabled: false,
+				ResourceType: teem.ResourceTypes{
+					Ingresses:       make(map[string]int),
+					Routes:          make(map[string]int),
+					Configmaps:      make(map[string]int),
+					VirtualServer:   make(map[string]int),
+					TransportServer: make(map[string]int),
+					ExternalDNS:     make(map[string]int),
+					IngressLink:     make(map[string]int),
+					IPAMVS:          make(map[string]int),
+					IPAMTS:          make(map[string]int),
+					IPAMSvcLB:       make(map[string]int),
+				},
+			}
+		})
 		It("TestVirtualServerSendFail", func() {
 			mw := &test.MockWriter{
 				FailStyle: test.ImmediateFail,
 				Sections:  make(map[string]interface{}),
 			}
-			appMgr := NewManager(&Params{})
 			appMgr.AgentCIS, _ = agent.CreateAgent(agent.CCCLAgent)
 			appMgr.AgentCIS.Init(&cccl.Params{ConfigWriter: mw})
 			Expect(func() { appMgr.deployResource() }).ToNot(Panic())
@@ -600,7 +636,6 @@ var _ = Describe("AppManager Tests", func() {
 				FailStyle: test.AsyncFail,
 				Sections:  make(map[string]interface{}),
 			}
-			appMgr := NewManager(&Params{})
 			appMgr.AgentCIS, _ = agent.CreateAgent(agent.CCCLAgent)
 			appMgr.AgentCIS.Init(&cccl.Params{ConfigWriter: mw})
 			Expect(func() { appMgr.deployResource() }).ToNot(Panic())
@@ -612,7 +647,6 @@ var _ = Describe("AppManager Tests", func() {
 				FailStyle: test.Timeout,
 				Sections:  make(map[string]interface{}),
 			}
-			appMgr := NewManager(&Params{})
 			appMgr.AgentCIS, _ = agent.CreateAgent(agent.CCCLAgent)
 			appMgr.AgentCIS.Init(&cccl.Params{ConfigWriter: mw})
 			Expect(func() { appMgr.deployResource() }).ToNot(Panic())
@@ -620,7 +654,7 @@ var _ = Describe("AppManager Tests", func() {
 		})
 	})
 
-	Describe("Using Real Manager", func() {
+	Context("Using Real Manager", func() {
 		var appMgr *Manager
 		var mw *test.MockWriter
 		BeforeEach(func() {
@@ -892,7 +926,7 @@ var _ = Describe("AppManager Tests", func() {
 		})
 	})
 
-	Describe("Using Mock Manager", func() {
+	Context("Using Mock Manager", func() {
 		var mockMgr *mockAppManager
 		var mw *test.MockWriter
 		BeforeEach(func() {

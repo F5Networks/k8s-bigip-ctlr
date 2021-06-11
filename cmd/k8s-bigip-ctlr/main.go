@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/crmanager"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
@@ -29,7 +31,6 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 	"io/ioutil"
 
@@ -125,6 +126,7 @@ var (
 	printVersion     *bool
 	httpAddress      *string
 	dgPath           string
+	disableTeems     *bool
 
 	namespaces             *[]string
 	useNodeInternal        *bool
@@ -225,7 +227,8 @@ func _init() {
 		"Optional, print version and exit.")
 	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:8080",
 		"Optional, address to serve http based informations (/metrics and /health).")
-
+	disableTeems = globalFlags.Bool("disable-teems", false,
+		"Optional, flag to disable sending telemetry data to TEEM")
 	// Custom Resource
 	customResourceMode = globalFlags.Bool("custom-resource-mode", false,
 		"Optional, When set to true, controller processes only F5 Custom Resources.")
@@ -777,19 +780,19 @@ func initCustomResourceManager(
 
 	crMgr := crmanager.NewCRManager(
 		crmanager.Params{
-			Config:            config,
-			Namespaces:        *namespaces,
-			NamespaceLabel:    *namespaceLabel,
-			Partition:         (*bigIPPartitions)[0],
-			Agent:             agent,
-			ControllerMode:    *poolMemberType,
-			VXLANName:         vxlanName,
-			VXLANMode:         vxlanMode,
-			UseNodeInternal:   *useNodeInternal,
-			NodePollInterval:  *nodePollInterval,
-			NodeLabelSelector: *nodeLabelSelector,
-			IPAM:              *ipam,
-			ShareNodes:        *shareNodes,
+			Config:             config,
+			Namespaces:         *namespaces,
+			NamespaceLabel:     *namespaceLabel,
+			Partition:          (*bigIPPartitions)[0],
+			Agent:              agent,
+			ControllerMode:     *poolMemberType,
+			VXLANName:          vxlanName,
+			VXLANMode:          vxlanMode,
+			UseNodeInternal:    *useNodeInternal,
+			NodePollInterval:   *nodePollInterval,
+			NodeLabelSelector:  *nodeLabelSelector,
+			IPAM:               *ipam,
+			ShareNodes:         *shareNodes,
 			DefaultRouteDomain: *defaultRouteDomain,
 		},
 	)
@@ -884,10 +887,53 @@ func main() {
 		log.Fatalf("[INIT] error connecting to the client: %v", err)
 		os.Exit(1)
 	}
+	td := &teem.TeemsData{
+		CisVersion:      version,
+		Agent:           *agent,
+		PoolMemberType:  *poolMemberType,
+		PlatformInfo:    getUserAgentInfo(),
+		DateOfCISDeploy: time.Now().UTC().Format(time.RFC3339Nano),
+		AccessEnabled:   true,
+		ResourceType: teem.ResourceTypes{
+			Ingresses:       make(map[string]int),
+			Routes:          make(map[string]int),
+			Configmaps:      make(map[string]int),
+			VirtualServer:   make(map[string]int),
+			TransportServer: make(map[string]int),
+			ExternalDNS:     make(map[string]int),
+			IngressLink:     make(map[string]int),
+			IPAMVS:          make(map[string]int),
+			IPAMTS:          make(map[string]int),
+			IPAMSvcLB:       make(map[string]int),
+		},
+	}
+	if !(*disableTeems) {
+		if isNodePort {
+			td.SDNType = "nodeport-mode"
+		} else {
+			if len(*openshiftSDNName) > 0 {
+				td.SDNType = "openshiftSDN"
+			} else if len(*flannelName) > 0 {
+				td.SDNType = "flannel"
+			} else {
+				td.SDNType = "calico"
+			}
+		}
+
+		// Post telemetry data request
+		if !td.PostTeemsData() {
+			td.AccessEnabled = false
+			log.Errorf("Unable to post data to TEEM server. Restart CIS once firewall rules permit")
+		}
+	} else {
+		td.AccessEnabled = false
+		log.Debug("Telemetry data reporting to TEEM server is disabled")
+	}
 
 	if *customResourceMode {
 		getGTMCredentials()
 		crMgr := initCustomResourceManager(config)
+		crMgr.TeemData = td
 		err = crMgr.Agent.GetBigipAS3Version()
 		if err != nil {
 			log.Errorf("%v", err)
@@ -983,6 +1029,7 @@ func main() {
 	//TODO: Remove this post CIS2.2
 	appMgr.AgentCIS.Remove(resource.DEFAULT_PARTITION)
 	appMgr.K8sVersion = getk8sVersion()
+	appMgr.TeemData = td
 	GetNamespaces(appMgr)
 	intervalFactor := time.Duration(*nodePollInterval)
 	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)

@@ -118,6 +118,7 @@ func (crMgr *CRManager) processResource() bool {
 				isError = true
 			}
 		}
+		crMgr.TeemData.ResourceType.IPAMVS[rKey.namespace] = len(virtuals)
 		TSVirtuals := crMgr.getTransportServersForIPAM(ipam)
 		for _, ts := range TSVirtuals {
 			err := crMgr.processTransportServers(ts, false)
@@ -126,6 +127,7 @@ func (crMgr *CRManager) processResource() bool {
 				isError = true
 			}
 		}
+		crMgr.TeemData.ResourceType.IPAMTS[rKey.namespace] = len(TSVirtuals)
 
 		services := crMgr.syncAndGetServicesForIPAM(ipam)
 		for _, svc := range services {
@@ -136,6 +138,7 @@ func (crMgr *CRManager) processResource() bool {
 				isError = true
 			}
 		}
+		crMgr.TeemData.ResourceType.IPAMSvcLB[rKey.namespace] = len(services)
 
 	case Service:
 		svc := rKey.rsc.(*v1.Service)
@@ -303,6 +306,7 @@ func (crMgr *CRManager) processResource() bool {
 			dnsConfig:          crMgr.resources.dnsConfig,
 			defaultRouteDomain: crMgr.defaultRouteDomain,
 		}
+		go crMgr.TeemData.PostTeemsData()
 		crMgr.Agent.PostConfig(config)
 		crMgr.initState = false
 		crMgr.resources.updateOldConfig()
@@ -603,7 +607,7 @@ func (crMgr *CRManager) processVirtualServers(
 	}
 
 	allVirtuals := crMgr.getAllVirtualServers(virtual.ObjectMeta.Namespace)
-
+	crMgr.TeemData.ResourceType.VirtualServer[virtual.ObjectMeta.Namespace] = len(allVirtuals)
 	var virtuals []*cisapiv1.VirtualServer
 
 	// Prepare list of associated VirtualServers to be processed
@@ -1118,6 +1122,8 @@ func (crMgr *CRManager) processTransportServers(
 	}
 	allVirtuals := crMgr.getAllTransportServers(virtual.ObjectMeta.Namespace)
 
+	crMgr.TeemData.ResourceType.TransportServer[virtual.ObjectMeta.Namespace] = len(allVirtuals)
+
 	var virtuals []*cisapiv1.TransportServer
 
 	// Prepare list of associated VirtualServers to be processed
@@ -1131,6 +1137,7 @@ func (crMgr *CRManager) processTransportServers(
 	}
 
 	if isTSDeleted {
+		crMgr.TeemData.ResourceType.TransportServer[virtual.ObjectMeta.Namespace]--
 		// crMgr.handleVSDeleteForDataGroups(tVirtual)
 	}
 
@@ -1479,8 +1486,10 @@ func (crMgr *CRManager) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 	if isDelete {
 		delete(crMgr.resources.dnsConfig, edns.Spec.DomainName)
+		crMgr.TeemData.ResourceType.ExternalDNS[edns.Namespace]--
 		return
 	}
+	crMgr.TeemData.ResourceType.ExternalDNS[edns.Namespace] = len(crMgr.getAllExternalDNS(edns.Namespace))
 	wip := WideIP{
 		DomainName: edns.Spec.DomainName,
 		RecordType: edns.Spec.DNSRecordType,
@@ -1635,9 +1644,10 @@ func (crMgr *CRManager) processIngressLink(
 		for _, rsname := range delRes {
 			delete(crMgr.resources.rsMap, rsname)
 		}
+		crMgr.TeemData.ResourceType.IngressLink[ingLink.Namespace]--
 		return nil
 	}
-
+	crMgr.TeemData.ResourceType.IngressLink[ingLink.Namespace] = len(crMgr.getAllIngressLinks(ingLink.Namespace))
 	svc, err := crMgr.getKICServiceOfIngressLink(ingLink)
 	if err != nil {
 		return err
@@ -1735,7 +1745,6 @@ func (crMgr *CRManager) getAllIngressLinks(namespace string) []*cisapiv1.Ingress
 
 		allIngLinks = append(allIngLinks, ingLink)
 	}
-
 	return allIngLinks
 }
 
@@ -1743,6 +1752,7 @@ func (crMgr *CRManager) getAllIngressLinks(namespace string) []*cisapiv1.Ingress
 // by the addition/deletion/updation of service.
 func (crMgr *CRManager) getIngressLinksForService(svc *v1.Service) []*cisapiv1.IngressLink {
 	ingLinks := crMgr.getAllIngressLinks(svc.ObjectMeta.Namespace)
+	crMgr.TeemData.ResourceType.IngressLink[svc.ObjectMeta.Namespace] = len(ingLinks)
 	if nil == ingLinks {
 		log.Infof("No IngressLink founds in namespace %s",
 			svc.ObjectMeta.Namespace)

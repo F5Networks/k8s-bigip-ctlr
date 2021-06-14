@@ -1100,7 +1100,7 @@ var _ = Describe("Resource Config Tests", func() {
 				Path:    "/oldpath/path",
 				Replace: true,
 				Request: true,
-				Value:   "tcl:[string map {/oldpath/path /newpath/path} [HTTP::uri]]",
+				Value:   "tcl:[regsub /oldpath/path [HTTP::uri] /newpath/path ]",
 			}}))
 
 			// mutli-service ingress rewrite host and path
@@ -1139,7 +1139,7 @@ var _ = Describe("Resource Config Tests", func() {
 					Path:    "/path",
 					Replace: true,
 					Request: true,
-					Value:   "tcl:[string map {/path /newpath} [HTTP::uri]]",
+					Value:   "tcl:[regsub /path [HTTP::uri] /newpath ]",
 				},
 			}))
 
@@ -1190,7 +1190,7 @@ var _ = Describe("Resource Config Tests", func() {
 				Path:    "/path",
 				Replace: true,
 				Request: true,
-				Value:   "tcl:[string map {/path /newpath} [HTTP::uri]]",
+				Value:   "tcl:[regsub /path [HTTP::uri] /newpath ]",
 			}}))
 
 			// route rewrite host and path
@@ -1229,7 +1229,7 @@ var _ = Describe("Resource Config Tests", func() {
 					Path:    "/path",
 					Replace: true,
 					Request: true,
-					Value:   "tcl:[string map {/path /newpath} [HTTP::uri]]",
+					Value:   "tcl:[regsub /path [HTTP::uri] /newpath ]",
 				},
 			}))
 		})

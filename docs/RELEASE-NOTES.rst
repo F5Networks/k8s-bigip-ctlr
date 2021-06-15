@@ -6,7 +6,7 @@ Next Release
 
 Added Functionality
 ```````````````````
-* Added support for networking.k8s.io/v1 ingress.
+* Added support for networking.k8s.io/v1 ingress and ingressClass.
 * Added support for "virtual-server.f5.com/clientssl" annotation in ingress resource.
 * Service Type LB Enhancements:
    - Added support for Multiport service.
@@ -15,6 +15,9 @@ Added Functionality
    - Added new ConfigMap label: `hubMode:"true"` to enable this
 * Added support to send telemetry data to F5 TEEM Server 
    - Disable this feature optionally using configuration parameter `disable-teems:"true"`
+* Helm Chart Enhancements:
+   - Added ingressClass resource installation with charts
+
 
 Bug Fixes
 `````````

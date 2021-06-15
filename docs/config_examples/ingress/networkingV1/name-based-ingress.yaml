@@ -13,6 +13,8 @@ metadata:
   # Specify the port you want to handle requests
   virtual-server.f5.com/http-port: "80"
 spec:
+ # Provide the IngressClassName as "f5"
+ ingressClassName: f5
  rules:
  # URL
  - host: mysite.example.com

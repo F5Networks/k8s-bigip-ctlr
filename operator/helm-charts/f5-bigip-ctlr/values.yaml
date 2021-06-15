@@ -71,3 +71,5 @@ image:
 # limits_memory: 512Mi
 # requests_cpu: 100m
 # requests_memory: 512Mi
+# isDefaultController: true
+# ingressIngressClassName: f5

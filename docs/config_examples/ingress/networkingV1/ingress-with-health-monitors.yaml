@@ -24,6 +24,8 @@ metadata:
         }
       ]
 spec:
+  # Provide the IngressClassName as "f5"
+  ingressClassName: f5
   rules:
   - host: svc1.example.com
     http:

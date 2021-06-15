@@ -6,6 +6,8 @@ metadata:
     virtual-server.f5.com/ip: "1.2.3.4"
   name: tls-example-ingress
 spec:
+  # Provide the IngressClassName as "f5"
+  ingressClassName: f5
   tls:
   - hosts:
     - mysite.foo.com

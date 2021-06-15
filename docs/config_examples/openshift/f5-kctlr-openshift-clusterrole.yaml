@@ -18,6 +18,7 @@ rules:
   - ingresses
   - routes
   - secrets
+  - ingressclasses
   verbs:
   - get
   - list

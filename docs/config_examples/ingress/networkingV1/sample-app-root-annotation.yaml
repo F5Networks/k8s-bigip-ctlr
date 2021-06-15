@@ -9,6 +9,8 @@ metadata:
   name: sample-app-root-ingress
   namespace: default
 spec:
+  # Provide the IngressClassName as "f5"
+  ingressClassName: f5
   rules:
     - host: foo.com
       http:

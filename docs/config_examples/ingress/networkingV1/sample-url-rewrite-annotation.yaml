@@ -9,6 +9,8 @@ metadata:
   name: sample-url-rewrite-ingress
   namespace: default
 spec:
+  # Provide the IngressClassName as "f5"
+  ingressClassName: f5
   rules:
     - host: foo.com
       http:

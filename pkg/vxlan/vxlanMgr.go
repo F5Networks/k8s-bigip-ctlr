@@ -214,7 +214,7 @@ func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
 
 func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Interface) {
 	arps := arpSection{}
-	kubePods, err := kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{}, )
+	kubePods, err := kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
 	if nil != err {
 		log.Errorf("[VxLAN] Vxlan Manager could not list Kubernetes Pods for ARP entries: %v", err)
 		return

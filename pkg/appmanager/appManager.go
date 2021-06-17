@@ -202,8 +202,6 @@ const (
 	Configmaps = "configmaps"
 	Ingresses  = "ingresses"
 	Routes     = "routes"
-
-	ReSyncPeriodDuration = 30 * time.Second
 )
 
 var RoutesProcessed []*routeapi.Route

@@ -15,6 +15,7 @@ Added Functionality
    - Added new ConfigMap label: `hubMode:"true"` to enable this
 * Added support to send telemetry data to F5 TEEM Server 
    - Disable this feature optionally using configuration parameter `disable-teems:"true"`
+* Added new deployment parameter `periodic-sync-interval` for configuring the periodic sync of resources
 * Helm Chart Enhancements:
    - Added ingressClass resource installation with charts
 

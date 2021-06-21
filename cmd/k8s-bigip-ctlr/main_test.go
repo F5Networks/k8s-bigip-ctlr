@@ -630,7 +630,7 @@ var _ = Describe("Main Tests", func() {
 
 			namespaces := vsm.GetWatchedNamespaces()
 			Expect(len(namespaces)).To(Equal(0))
-			setupWatchers(vsm, 0)
+			setupWatchers(vsm, 0, 30)
 			namespaces = vsm.GetWatchedNamespaces()
 			Expect(len(namespaces)).To(Equal(1))
 			Expect(namespaces[0]).To(Equal(""))
@@ -660,7 +660,7 @@ var _ = Describe("Main Tests", func() {
 
 			namespaces := vsm.GetWatchedNamespaces()
 			Expect(len(namespaces)).To(Equal(0))
-			setupWatchers(vsm, 0)
+			setupWatchers(vsm, 0, 30)
 			namespaces = vsm.GetWatchedNamespaces()
 			Expect(len(namespaces)).To(Equal(3))
 			sort.Strings(namespaces)
@@ -691,7 +691,7 @@ var _ = Describe("Main Tests", func() {
 
 			namespaces := vsm.GetWatchedNamespaces()
 			Expect(len(namespaces)).To(Equal(0))
-			setupWatchers(vsm, 0)
+			setupWatchers(vsm, 0, 30)
 			namespaces = vsm.GetWatchedNamespaces()
 			Expect(len(namespaces)).To(Equal(0))
 			nsInf := vsm.GetNamespaceLabelInformer()

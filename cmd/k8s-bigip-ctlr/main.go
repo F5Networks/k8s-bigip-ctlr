@@ -123,6 +123,7 @@ var (
 	logLevel         *string
 	verifyInterval   *int
 	nodePollInterval *int
+	syncInterval     *int
 	printVersion     *bool
 	httpAddress      *string
 	dgPath           string
@@ -223,6 +224,8 @@ func _init() {
 		"Optional, interval (in seconds) at which to verify the BIG-IP configuration.")
 	nodePollInterval = globalFlags.Int("node-poll-interval", 30,
 		"Optional, interval (in seconds) at which to poll for cluster nodes.")
+	syncInterval = globalFlags.Int("periodic-sync-interval", 30,
+		"Optional, interval (in seconds) at which to queue resources.")
 	printVersion = globalFlags.Bool("version", false,
 		"Optional, print version and exit.")
 	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:8080",
@@ -712,7 +715,7 @@ func GetNamespaces(appMgr *appmanager.Manager) {
 
 // setup the initial watch based off the flags passed in, if no flags then we
 // watch all namespaces
-func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
+func setupWatchers(appMgr *appmanager.Manager, resyncPeriod, resyncPeriodDuration time.Duration) {
 	label := resource.DefaultConfigMapLabel
 
 	if len(*namespaceLabel) == 0 {
@@ -723,7 +726,7 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 		if nil != err {
 			log.Warningf("[INIT] Failed to create label selector: %v", err)
 		}
-		err = appMgr.AddNamespaceLabelInformer(ls, appmanager.ReSyncPeriodDuration)
+		err = appMgr.AddNamespaceLabelInformer(ls, resyncPeriodDuration)
 		if nil != err {
 			log.Warningf("[INIT] Failed to add label watch for all namespaces:%v", err)
 		}
@@ -751,7 +754,7 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 		if nil != err {
 			log.Warningf("[INIT] Failed to create label selector: %v", err)
 		}
-		err = appMgr.AddNamespaceLabelInformer(ls, resyncPeriod)
+		err = appMgr.AddNamespaceLabelInformer(ls, resyncPeriodDuration)
 		if nil != err {
 			log.Warningf("[INIT] Failed to add label watch for all namespaces:%v", err)
 		}
@@ -1055,7 +1058,7 @@ func main() {
 	np.Run()
 	defer np.Stop()
 
-	setupWatchers(appMgr, 0)
+	setupWatchers(appMgr, 0, time.Duration(*syncInterval)*time.Second)
 	// Expose Prometheus metrics
 	http.Handle("/metrics", promhttp.Handler())
 	// Add health check e.g. is Python process still there?

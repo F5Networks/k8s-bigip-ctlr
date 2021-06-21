@@ -20,7 +20,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
@@ -149,6 +148,135 @@ func (appMgr *Manager) checkValidEndpoints(
 	var keyList []*serviceQueueKey
 	keyList = append(keyList, key)
 	return true, keyList
+}
+
+func (appMgr *Manager) getSecretServiceQueueKeyForConfigMap(secret *v1.Secret) []*serviceQueueKey {
+	var keyList []*serviceQueueKey
+	// We will be adding ResourceKind as Configmaps so that particular Configmaps can be re-synced
+	if !appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
+		appInf, _ := appMgr.getNamespaceInformer(secret.ObjectMeta.Namespace)
+		configmaps := appInf.cfgMapInformer.GetIndexer().List()
+		for _, obj := range configmaps {
+			cm := obj.(*v1.ConfigMap)
+			if appMgr.processAgentLabels(cm.Labels, cm.Name, cm.Namespace) {
+				cfg, err := ParseConfigMap(cm, appMgr.schemaLocal, appMgr.vsSnatPoolName)
+				if nil == err {
+					for _, profile := range cfg.Virtual.Profiles {
+						if profile.Name == secret.Name {
+							key := &serviceQueueKey{
+								ServiceName:  cfg.Pools[0].ServiceName,
+								Namespace:    cm.Namespace,
+								ResourceKind: Configmaps,
+								ResourceName: cm.Name,
+							}
+							keyList = append(keyList, key)
+						}
+					}
+				}
+			}
+		}
+	}
+	return keyList
+}
+
+func (appMgr *Manager) getSecretServiceQueueKeyForIngress(secret *v1.Secret) []*serviceQueueKey {
+	var keyList []*serviceQueueKey
+	// We will be adding ResourceKind as Ingress so that particular ingress can be re-synced
+	appInf, _ := appMgr.getNamespaceInformer(secret.ObjectMeta.Namespace)
+	ingresses := appInf.ingInformer.GetIndexer().List()
+	for _, obj := range ingresses {
+		// TODO remove the switch and v1beta1 once v1beta1.Ingress is deprecated in k8s 1.22
+		switch obj.(type) {
+		case *v1beta1.Ingress:
+			ingress := obj.(*v1beta1.Ingress)
+			var tlsSecret v1beta1.IngressTLS
+			for _, tlsSecret = range ingress.Spec.TLS {
+				if tlsSecret.SecretName == secret.Name {
+					if ingress.Spec.Backend != nil {
+						key := &serviceQueueKey{
+							ServiceName:  ingress.Spec.Backend.ServiceName,
+							Namespace:    secret.ObjectMeta.Namespace,
+							ResourceKind: Ingresses,
+							ResourceName: ingress.Name,
+						}
+						keyList = append(keyList, key)
+					} else {
+						var rule v1beta1.IngressRule
+						for _, rule = range ingress.Spec.Rules {
+							var path v1beta1.HTTPIngressPath
+							for _, path = range rule.IngressRuleValue.HTTP.Paths {
+								if len(path.Backend.ServiceName) > 0 {
+									key := &serviceQueueKey{
+										ServiceName:  path.Backend.ServiceName,
+										Namespace:    secret.ObjectMeta.Namespace,
+										ResourceKind: Ingresses,
+										ResourceName: ingress.Name,
+									}
+									keyList = append(keyList, key)
+								}
+							}
+						}
+					}
+				}
+			}
+		default:
+			ingress := obj.(*netv1.Ingress)
+			var tlsSecret netv1.IngressTLS
+			for _, tlsSecret = range ingress.Spec.TLS {
+				if tlsSecret.SecretName == secret.Name {
+					if ingress.Spec.DefaultBackend != nil {
+						key := &serviceQueueKey{
+							ServiceName:  ingress.Spec.DefaultBackend.Service.Name,
+							Namespace:    secret.ObjectMeta.Namespace,
+							ResourceKind: Ingresses,
+							ResourceName: ingress.Name,
+						}
+						keyList = append(keyList, key)
+					} else {
+						var rule netv1.IngressRule
+						for _, rule = range ingress.Spec.Rules {
+							var path netv1.HTTPIngressPath
+							for _, path = range rule.IngressRuleValue.HTTP.Paths {
+								if len(path.Backend.Service.Name) > 0 {
+									key := &serviceQueueKey{
+										ServiceName:  path.Backend.Service.Name,
+										Namespace:    secret.ObjectMeta.Namespace,
+										ResourceKind: Ingresses,
+										ResourceName: ingress.Name,
+									}
+									keyList = append(keyList, key)
+								}
+							}
+						}
+					}
+				}
+			}
+
+		}
+	}
+	return keyList
+}
+
+func (appMgr *Manager) checkValidSecrets(
+	obj interface{}) (bool, []*serviceQueueKey) {
+	secret := obj.(*v1.Secret)
+	// Check if secret contains certificates and key
+	if _, ok := secret.Data["tls.crt"]; !ok {
+		return false, nil
+	}
+	if _, ok := secret.Data["tls.key"]; !ok {
+		return false, nil
+	}
+	// Getting the ServiceQueue key for ingresses
+	keyList := appMgr.getSecretServiceQueueKeyForIngress(secret)
+	// appending the ServiceQueue key for configmaps
+	keyList = append(keyList, appMgr.getSecretServiceQueueKeyForConfigMap(secret)...)
+
+	if len(keyList) > 0 {
+		return true, keyList
+	}
+	// As no Virtual server is using this secret we will skip processing
+	return false, nil
 }
 
 func (appMgr *Manager) checkValidIngress(

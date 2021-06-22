@@ -13,6 +13,8 @@ spec:
   mode: standard
   snat: auto
   allowVlans: ["/Common/devtraffic"]
+  iRules:
+    - /Common/custom_irule
   pool:
     service: svc-1
     servicePort: 8182

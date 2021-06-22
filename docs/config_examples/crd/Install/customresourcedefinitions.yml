@@ -252,6 +252,10 @@ spec:
                     type: string
                     pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_]+\/?)*$'
                   type: array
+                iRules:
+                  type: array
+                  items:
+                    type: string
                 ipamLabel:
                   type: string
                 serviceAddress:

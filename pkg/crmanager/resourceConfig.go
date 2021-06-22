@@ -1147,6 +1147,11 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 
 	//set allowed VLAN's per TS config
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
+
+	// Attach user specified iRules
+	if len(vs.Spec.IRules) > 0 {
+		rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, vs.Spec.IRules...)
+	}
 	return nil
 }
 

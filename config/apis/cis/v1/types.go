@@ -167,6 +167,7 @@ type TransportServerSpec struct {
 	Type                 string           `json:"type,omitempty"`
 	ServiceIPAddress     []ServiceAddress `json:"serviceAddress"`
 	IPAMLabel            string           `json:"ipamLabel"`
+	IRules               []string         `json:"iRules,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

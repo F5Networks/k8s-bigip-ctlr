@@ -294,4 +294,26 @@ var _ = Describe("AS3Manager Tests", func() {
 			Expect(valid).To(BeFalse())
 		})
 	})
+
+	Describe("TLS Profile", func() {
+		It("Default Cipher Group", func() {
+			mockMgr.enableTLS = "1.3"
+			sharedApp := as3Application{
+				"virtualServer": &as3Service{},
+			}
+
+			prof := CustomProfile{
+				Name: "profile",
+				Cert: "Cert Hash",
+				Key:  "Key Hash",
+			}
+
+			ok := mockMgr.createUpdateTLSServer(prof, "virtualServer", sharedApp)
+			Expect(ok).To(BeTrue(), "Failed to create TLS Server Profile")
+
+			Expect(sharedApp["virtualServer_tls_server"]).NotTo(BeNil(), "Failed to create TLS Server Profile")
+			Expect(sharedApp["virtualServer"].(*as3Service).ServerTLS).To(Equal("virtualServer_tls_server"), "Failed to set TLS Server Profile")
+			Expect(sharedApp["virtualServer_tls_server"].(*as3TLSServer).CipherGroup.BigIP).To(Equal("/Common/f5-default"), "Failed to set Default Cipher group for TLS Server Profile")
+		})
+	})
 })

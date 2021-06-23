@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 	"net"
 	"reflect"
 	"sort"
@@ -27,8 +28,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 
 	netv1 "k8s.io/api/networking/v1"
 
@@ -1028,7 +1027,6 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		endTime := time.Now()
 		log.Debugf("[CORE] Finished syncing virtual servers %+v in namespace %+v (%v), %v/%v",
 			sKey.ServiceName, sKey.Namespace, endTime.Sub(startTime), appMgr.processedItems, appMgr.queueLen)
-		log.Debugf("ServiceKey: %+v", sKey)
 	}()
 	// Get the informers for the namespace. This will tell us if we care about
 	// this item.
@@ -1409,7 +1407,7 @@ func (appMgr *Manager) syncIngresses(
 			depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 				objKey, objDeps, svcDepKey, ingressLookupFunc)
 			portStructs := appMgr.virtualPorts(ing)
-			for _, portStruct := range portStructs {
+			for i, portStruct := range portStructs {
 				rsCfg := appMgr.createRSConfigFromIngress(
 					ing,
 					appMgr.resources,
@@ -1522,8 +1520,13 @@ func (appMgr *Manager) syncIngresses(
 						appMgr.recordIngressEvent(ing, "ResourceConfigured", msg)
 					}
 				}
+				if i < len(portStructs)-1 {
+					//ingress ip is same for rscfg even for different port structs.
+					//Process only once.
+					continue
+				}
 				// Set the Ingress Status IP address
-				go appMgr.setIngressStatus(ing, rsCfg)
+				appMgr.setIngressStatus(ing, rsCfg, appInf)
 			}
 		default:
 			ing := obj.(*netv1.Ingress)
@@ -1562,7 +1565,7 @@ func (appMgr *Manager) syncIngresses(
 			depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 				objKey, objDeps, svcDepKey, ingressLookupFunc)
 			portStructs := appMgr.v1VirtualPorts(ing)
-			for _, portStruct := range portStructs {
+			for i, portStruct := range portStructs {
 				rsCfg := appMgr.createRSConfigFromV1Ingress(
 					ing,
 					appMgr.resources,
@@ -1676,9 +1679,15 @@ func (appMgr *Manager) syncIngresses(
 						appMgr.recordV1IngressEvent(ing, "ResourceConfigured", msg)
 					}
 				}
+				if i < len(portStructs)-1 {
+					//ingress ip is same for rscfg even for different port structs.
+					//Process only once.
+					continue
+				}
 				// Set the Ingress Status IP address
-				go appMgr.setV1IngressStatus(ing, rsCfg)
+				appMgr.setV1IngressStatus(ing, rsCfg, appInf)
 			}
+
 		}
 
 	}
@@ -2656,6 +2665,7 @@ func (appMgr *Manager) setBindAddrAnnotation(
 func (appMgr *Manager) setIngressStatus(
 	ing *v1beta1.Ingress,
 	rsCfg *ResourceConfig,
+	appInf *appInformer,
 ) {
 	// Set the ingress status to include the virtual IP
 	ip, _ := Split_ip_with_route_domain(rsCfg.Virtual.VirtualAddress.BindAddr)
@@ -2667,19 +2677,26 @@ func (appMgr *Manager) setIngressStatus(
 	} else {
 		return
 	}
-	_, updateErr := appMgr.kubeClient.ExtensionsV1beta1().
-		Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ing, metav1.UpdateOptions{})
-	if nil != updateErr {
-		// Multi-service causes the controller to try to update the status multiple times
-		// at once. Ignore this error.
-		if strings.Contains(updateErr.Error(), "object has been modified") {
-			return
+	go appMgr.updateIngressStatus(ing, rsCfg, appInf)
+}
+func (appMgr *Manager) updateIngressStatus(ing *v1beta1.Ingress, rsCfg *ResourceConfig, appInf *appInformer) {
+	ingKey := ing.Namespace + "/" + ing.Name
+	_, ingFound, _ := appInf.ingInformer.GetIndexer().GetByKey(ingKey)
+	if ingFound {
+		_, updateErr := appMgr.kubeClient.ExtensionsV1beta1().
+			Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ing, metav1.UpdateOptions{})
+		if nil != updateErr {
+			// Multi-service causes the controller to try to update the status multiple times
+			// at once. Ignore this error.
+			if strings.Contains(updateErr.Error(), "object has been modified") {
+				return
+			}
+			warning := fmt.Sprintf(
+				"Error when setting Ingress status IP for virtual server %v: %v",
+				rsCfg.GetName(), updateErr)
+			log.Warning(warning)
+			appMgr.recordIngressEvent(ing, "StatusIPError", warning)
 		}
-		warning := fmt.Sprintf(
-			"Error when setting Ingress status IP for virtual server %v: %v",
-			rsCfg.GetName(), updateErr)
-		log.Warning(warning)
-		//appMgr.recordIngressEvent(ing, "StatusIPError", warning)
 	}
 }
 

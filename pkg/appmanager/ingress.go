@@ -180,6 +180,7 @@ func (appMgr *Manager) v1VirtualPorts(ing *netv1.Ingress) []portStruct {
 func (appMgr *Manager) setV1IngressStatus(
 	ing *netv1.Ingress,
 	rsCfg *ResourceConfig,
+	appInf *appInformer,
 ) {
 	// Set the ingress status to include the virtual IP
 	ip, _ := Split_ip_with_route_domain(rsCfg.Virtual.VirtualAddress.BindAddr)
@@ -188,20 +189,30 @@ func (appMgr *Manager) setV1IngressStatus(
 		ing.Status.LoadBalancer.Ingress = append(ing.Status.LoadBalancer.Ingress, lbIngress)
 	} else if ing.Status.LoadBalancer.Ingress[0].IP != ip {
 		ing.Status.LoadBalancer.Ingress[0] = lbIngress
+	} else {
+		return
 	}
-	_, updateErr := appMgr.kubeClient.NetworkingV1().
-		Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ing, metav1.UpdateOptions{})
-	if nil != updateErr {
-		// Multi-service causes the controller to try to update the status multiple times
-		// at once. Ignore this error.
-		if strings.Contains(updateErr.Error(), "object has been modified") {
-			return
+	go appMgr.updateV1IngressStatus(ing, rsCfg, appInf)
+}
+
+func (appMgr *Manager) updateV1IngressStatus(ing *netv1.Ingress, rsCfg *ResourceConfig, appInf *appInformer) {
+	ingKey := ing.Namespace + "/" + ing.Name
+	_, ingFound, _ := appInf.ingInformer.GetIndexer().GetByKey(ingKey)
+	if ingFound {
+		_, updateErr := appMgr.kubeClient.NetworkingV1().
+			Ingresses(ing.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ing, metav1.UpdateOptions{})
+		if nil != updateErr {
+			// Multi-service causes the controller to try to update the status multiple times
+			// at once. Ignore this error.
+			if strings.Contains(updateErr.Error(), "object has been modified") {
+				return
+			}
+			warning := fmt.Sprintf(
+				"Error when setting Ingress status IP for virtual server %v: %v",
+				rsCfg.GetName(), updateErr)
+			log.Warning(warning)
+			appMgr.recordV1IngressEvent(ing, "StatusIPError", warning)
 		}
-		warning := fmt.Sprintf(
-			"Error when setting Ingress status IP for virtual server %v: %v",
-			rsCfg.GetName(), updateErr)
-		log.Warning(warning)
-		//appMgr.recordV1IngressEvent(ing, "StatusIPError", warning)
 	}
 }
 

@@ -25,6 +25,7 @@ Bug Fixes
 * Fixed rewrite-url annotation doesnt support to rewrite all child paths to specific target domain
 
 * Fixed http redirect not working when used virtual-server.f5.com/rewrite-target-url annotation with routes
+* Fixed inconsistent behaviour with CIS (Transport Server) while adding/deleting a node to cluster.
 
 Limitations
 ```````````

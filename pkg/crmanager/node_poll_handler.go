@@ -2,10 +2,11 @@ package crmanager
 
 import (
 	"fmt"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	"reflect"
 	"strings"
 	"time"
+
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
@@ -108,15 +109,41 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 							crMgr.rscQueue.Add(qKey)
 						}
 					}
+					transportVirtuals := crInf.tsInformer.GetIndexer().List()
+					if len(transportVirtuals) != 0 {
+						for _, virtual := range transportVirtuals {
+							vs := virtual.(*cisapiv1.TransportServer)
+							qKey := &rqKey{
+								vs.ObjectMeta.Namespace,
+								TransportServer,
+								vs.ObjectMeta.Name,
+								vs,
+								false,
+							}
+							crMgr.rscQueue.Add(qKey)
+						}
+					}
+
 				} else {
 					crMgr.namespacesMutex.Lock()
 					defer crMgr.namespacesMutex.Unlock()
 					for ns, _ := range crMgr.namespaces {
 						virtuals := crMgr.getAllVirtualServers(ns)
+						transportVirtuals := crMgr.getAllTransportServers(ns)
 						for _, virtual := range virtuals {
 							qKey := &rqKey{
 								ns,
 								VirtualServer,
+								virtual.ObjectMeta.Name,
+								virtual,
+								false,
+							}
+							crMgr.rscQueue.Add(qKey)
+						}
+						for _, virtual := range transportVirtuals {
+							qKey := &rqKey{
+								ns,
+								TransportServer,
 								virtual.ObjectMeta.Name,
 								virtual,
 								false,

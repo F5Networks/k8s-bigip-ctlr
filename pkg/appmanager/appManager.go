@@ -201,6 +201,7 @@ const (
 	Configmaps = "configmaps"
 	Ingresses  = "ingresses"
 	Routes     = "routes"
+	Secrets    = "secrets"
 )
 
 var RoutesProcessed []*routeapi.Route
@@ -546,6 +547,7 @@ type appInformer struct {
 	ingInformer    cache.SharedIndexInformer
 	routeInformer  cache.SharedIndexInformer
 	nodeInformer   cache.SharedIndexInformer
+	secretInformer cache.SharedIndexInformer
 	stopCh         chan struct{}
 }
 
@@ -580,6 +582,17 @@ func (appMgr *Manager) newAppInformer(
 				everything,
 			),
 			&v1.Endpoints{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+		secretInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				appMgr.restClientv1,
+				Secrets,
+				namespace,
+				everything,
+			),
+			&v1.Secret{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
@@ -694,6 +707,15 @@ func (appMgr *Manager) newAppInformer(
 		},
 		resyncPeriod,
 	)
+	appInf.secretInformer.AddEventHandlerWithResyncPeriod(
+		&cache.ResourceEventHandlerFuncs{
+			// Making all operation types as update because each change in secret will update the ingress/configmap
+			AddFunc:    func(obj interface{}) { appMgr.enqueueSecrets(obj, OprTypeUpdate) },
+			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueSecrets(cur, OprTypeUpdate) },
+			DeleteFunc: func(obj interface{}) { appMgr.enqueueSecrets(obj, OprTypeUpdate) },
+		},
+		resyncPeriod,
+	)
 
 	if true == appMgr.manageIngress {
 		log.Infof("[CORE] Handling Ingress resource events.")
@@ -750,6 +772,16 @@ func (appMgr *Manager) enqueueEndpoints(obj interface{}, operation string) {
 	}
 }
 
+func (appMgr *Manager) enqueueSecrets(obj interface{}, operation string) {
+	if ok, keys := appMgr.checkValidSecrets(obj); ok {
+		for _, key := range keys {
+			key.Operation = operation
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+
+}
+
 func (appMgr *Manager) enqueueIngress(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidIngress(obj); ok {
 		for _, key := range keys {
@@ -795,6 +827,9 @@ func (appInf *appInformer) start() {
 	if nil != appInf.endptInformer {
 		go appInf.endptInformer.Run(appInf.stopCh)
 	}
+	if nil != appInf.secretInformer {
+		go appInf.secretInformer.Run(appInf.stopCh)
+	}
 	if nil != appInf.ingInformer {
 		go appInf.ingInformer.Run(appInf.stopCh)
 	}
@@ -817,6 +852,9 @@ func (appInf *appInformer) waitForCacheSync() {
 	}
 	if nil != appInf.endptInformer {
 		cacheSyncs = append(cacheSyncs, appInf.endptInformer.HasSynced)
+	}
+	if nil != appInf.secretInformer {
+		cacheSyncs = append(cacheSyncs, appInf.secretInformer.HasSynced)
 	}
 	if nil != appInf.ingInformer {
 		cacheSyncs = append(cacheSyncs, appInf.ingInformer.HasSynced)

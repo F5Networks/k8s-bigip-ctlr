@@ -16,6 +16,7 @@ Added Functionality
 * Added support to send telemetry data to F5 TEEM Server 
    - Disable this feature optionally using configuration parameter `disable-teems:"true"`
 * Added new deployment parameter `periodic-sync-interval` for configuring the periodic sync of resources
+* Added informers for kubernetes secrets to monitor the changes in secrets
 * Helm Chart Enhancements:
    - Added ingressClass resource installation with charts
 

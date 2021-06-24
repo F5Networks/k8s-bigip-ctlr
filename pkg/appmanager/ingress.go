@@ -776,6 +776,9 @@ func (appMgr *Manager) handleV1IngressTls(
 						tls.SecretName, ing.ObjectMeta.Namespace)
 					log.Errorf("[CORE] %s", msg)
 					appMgr.recordV1IngressEvent(ing, "SecretNotFound", msg)
+					profRef := ConvertStringToProfileRef(
+						tls.SecretName, CustomProfileClient, ing.ObjectMeta.Namespace)
+					rsCfg.Virtual.RemoveProfile(profRef)
 					continue
 				}
 				var err error

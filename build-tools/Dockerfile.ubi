@@ -1,0 +1,88 @@
+FROM golang:1.15 as builder
+
+ARG REPOPATH=$GOPATH/src/github.com/F5Networks/k8s-bigip-ctlr
+ARG RUN_TESTS
+ARG COVERALLS_TOKEN
+ARG BUILD_VERSION
+ARG BUILD_INFO
+ARG LICENSE
+
+WORKDIR $REPOPATH
+COPY go.mod go.sum ./
+ENV GO111MODULE on
+RUN go mod download
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -ldflags "-extldflags \"-static\" -X main.version=${BUILD_VERSION} -X main.buildInfo=${BUILD_INFO}" -o /bin/k8s-bigip-ctlr $REPOPATH/cmd/k8s-bigip-ctlr
+
+RUN GO111MODULE=off && go get github.com/wadey/gocovmerge && \
+	go get golang.org/x/tools/cmd/cover && \
+	go get github.com/mattn/goveralls && \
+	go get github.com/onsi/ginkgo/ginkgo && \
+	go get github.com/onsi/gomega
+
+RUN /bin/bash -ex $REPOPATH/build-tools/rel-build.sh
+
+
+FROM registry.redhat.io/ubi7/ubi-minimal
+
+LABEL name="f5networks/k8s-bigip-ctlr" \
+      vendor="F5 Networks" \
+      # version - should be passed in via docker build
+      url="https://clouddocs.f5.com/containers/latest/" \
+      summary="F5 BIG-IP Controller for Kubernetes" \
+      description="Manages F5 BIG-IP from Kubernetes" \
+      run='docker run --name ${NAME} ${IMAGE} /app/bin/k8s-bigip-ctlr' \
+      io.k8s.description="Manages F5 BIG-IP from Kubernetes" \
+      io.k8s.display-name="F5 BIG-IP Controller for Kubernetes" \
+      io.openshift.expose-services="" \
+      io.openshift.tags="f5,f5networks,bigip,openshift,router"
+
+COPY requirements.txt /tmp/
+
+ARG BUILD_INFO
+ARG BUILD_VERSION
+ENV APPPATH /app
+# Enable CN Certificate validation
+ENV GODEBUG x509ignoreCN=0
+
+RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json
+
+RUN microdnf update && \
+    microdnf \
+      --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms  \
+      --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms \
+      install --nodocs \
+      rh-python36 git shadow-utils && \
+    microdnf \
+    --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms \
+    --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms \
+    update nss-tools nss-softokn nss-util scl-utils && \
+    . scl_source enable rh-python36 && \
+    pip install --no-cache-dir --upgrade pip==20.0.2 && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    python -m pip uninstall -y pip && \
+    adduser ctlr && \
+    microdnf remove  \
+    fipscheck fipscheck-lib    \
+    libgnome-keyring \
+    libedit openssh openssh-clients \
+    perl-Git  perl-TermReadKey  perl-macros git-core git-core-doc git less \
+    rsync shadow-utils  && \
+    microdnf clean all \
+    && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json
+
+RUN chown -R ctlr "$APPPATH"
+USER ctlr
+COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/
+COPY LICENSE /licenses/
+
+COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr.real
+
+# entrypoint to enable scl python at runtime
+RUN echo $'#!/bin/sh\n\
+	  source scl_source enable rh-python36\n\
+	  exec $APPPATH/bin/k8s-bigip-ctlr.real "$@"' > $APPPATH/bin/k8s-bigip-ctlr && \
+    chmod +x $APPPATH/bin/k8s-bigip-ctlr
+
+CMD ["/app/bin/k8s-bigip-ctlr"]

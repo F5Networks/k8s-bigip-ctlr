@@ -1,0 +1,62 @@
+FROM golang:1.15 as builder
+
+ARG REPOPATH=$GOPATH/src/github.com/F5Networks/k8s-bigip-ctlr
+ARG RUN_TESTS
+ARG COVERALLS_TOKEN
+ARG BUILD_VERSION
+ARG BUILD_INFO
+ARG LICENSE
+
+WORKDIR $REPOPATH
+COPY go.mod go.sum ./
+ENV GO111MODULE on
+RUN go mod download
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -ldflags "-extldflags \"-static\" -X main.version=${BUILD_VERSION} -X main.buildInfo=${BUILD_INFO}" -o /bin/k8s-bigip-ctlr $REPOPATH/cmd/k8s-bigip-ctlr
+
+RUN GO111MODULE=off && go get github.com/wadey/gocovmerge && \
+	go get golang.org/x/tools/cmd/cover && \
+	go get github.com/mattn/goveralls && \
+	go get github.com/onsi/ginkgo/ginkgo && \
+	go get github.com/onsi/gomega
+
+RUN /bin/bash -ex $REPOPATH/build-tools/rel-build.sh
+
+FROM python:3.6-slim-buster
+
+ENV APPPATH /app
+
+ARG BUILD_VERSION
+ARG BUILD_INFO
+
+RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
+ && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json \
+ && chmod -R 755 "$APPPATH" \
+ && adduser --disabled-password --gecos "" ctlr
+
+WORKDIR $APPPATH
+
+COPY requirements.txt /tmp/requirements.txt
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git \
+    && apt-get upgrade -y \
+    && pip install --no-cache-dir --upgrade pip==20.0.2 \
+    && pip install --no-cache-dir -r /tmp/requirements.txt \
+    && apt-get remove -y git \
+    && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json
+
+# FIXME: Remove this fix once libidn is no longer vulnerable
+RUN apt-get remove -y libidn11
+
+COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/
+COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin
+
+# Enable CN Certificate validation 
+ENV GODEBUG x509ignoreCN=0
+
+USER ctlr
+
+# Run the run application in the projects bin directory.
+CMD [ "/app/bin/k8s-bigip-ctlr" ]

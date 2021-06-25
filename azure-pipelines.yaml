@@ -34,7 +34,7 @@ steps:
       command: build
       containerRegistry: $(quayConnection)
       repository: $(imageName)
-      Dockerfile: build-tools/Dockerfile-int
+      Dockerfile: build-tools/Dockerfile.ubi
       buildContext: .
       tags: $(Build.SourceVersion)
       arguments: "--build-arg BUILD_INFO=azure-$(Build.BuildId)-$(Build.SourceVersion) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS)"

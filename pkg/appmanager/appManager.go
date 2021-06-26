@@ -1222,7 +1222,7 @@ func (appMgr *Manager) syncConfigMaps(
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
 				//TODO: Sorting endpoints members
-				members := appMgr.getEndpoints(selector, sKey.Namespace, false)
+				members := appMgr.getEndpoints(selector, sKey.Namespace)
 
 				if _, ok := appMgr.agentCfgMapSvcCache[key]; !ok {
 					if len(members) != 0 {
@@ -1289,7 +1289,7 @@ func (appMgr *Manager) syncConfigMaps(
 				agntCfgMap.Init(cm.Name, cm.Namespace, cm.Data["template"], cm.Labels, appMgr.getEndpoints)
 				key := cm.Namespace + "/" + cm.Name
 				if cfgMap, ok := appMgr.agentCfgMap[key]; ok {
-					if cfgMap.Data != cm.Data["template"] || cm.Labels["as3"] != cfgMap.Label["as3"] || cm.Labels["overrideAS3"] != cfgMap.Label["overrideAS3"] || cm.Labels["hubMode"] != cfgMap.Label["hubMode"] {
+					if cfgMap.Data != cm.Data["template"] || cm.Labels["as3"] != cfgMap.Label["as3"] || cm.Labels["overrideAS3"] != cfgMap.Label["overrideAS3"] {
 						appMgr.agentCfgMap[key] = agntCfgMap
 						stats.vsUpdated += 1
 					}
@@ -3062,7 +3062,7 @@ func (slice byTimestamp) Swap(i, j int) {
 // When controller is in ClusterIP mode, returns a list of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
 
-func (m *Manager) getEndpoints(selector, namespace string, hubMode bool) []Member {
+func (m *Manager) getEndpoints(selector, namespace string) []Member {
 	var members []Member
 
 	svcListOptions := metav1.ListOptions{
@@ -3070,13 +3070,7 @@ func (m *Manager) getEndpoints(selector, namespace string, hubMode bool) []Membe
 	}
 
 	// Identify services that matches the given label
-	var services *v1.ServiceList
-	var err error
-	if hubMode {
-		services, err = m.kubeClient.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), svcListOptions)
-	} else {
-		services, err = m.kubeClient.CoreV1().Services(namespace).List(context.TODO(), svcListOptions)
-	}
+	services, err := m.kubeClient.CoreV1().Services(namespace).List(context.TODO(), svcListOptions)
 
 	if err != nil {
 		log.Errorf("[CORE] Error getting service list. %v", err)

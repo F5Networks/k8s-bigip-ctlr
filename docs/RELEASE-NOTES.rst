@@ -11,8 +11,6 @@ Added Functionality
 * Service Type LB Enhancements:
    - Added support for Multiport service.
    - Added support for HealthMonitor
-* CIS supports ConfigMap monitors services in same and different namespaces
-   - Added new ConfigMap label: `hubMode:"true"` to enable this
 * Added support to send telemetry data to F5 TEEM Server 
    - Disable this feature optionally using configuration parameter `disable-teems:"true"`
 * Added new deployment parameter `periodic-sync-interval` for configuring the periodic sync of resources

@@ -224,7 +224,7 @@ func _init() {
 		"Optional, interval (in seconds) at which to verify the BIG-IP configuration.")
 	nodePollInterval = globalFlags.Int("node-poll-interval", 30,
 		"Optional, interval (in seconds) at which to poll for cluster nodes.")
-	syncInterval = globalFlags.Int("periodic-sync-interval", 30,
+	syncInterval = globalFlags.Int("periodic-sync-interval", 300,
 		"Optional, interval (in seconds) at which to queue resources.")
 	printVersion = globalFlags.Bool("version", false,
 		"Optional, print version and exit.")

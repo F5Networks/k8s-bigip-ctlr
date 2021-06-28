@@ -138,6 +138,7 @@ var (
 	manageRoutes           *bool
 	manageConfigMaps       *bool
 	manageIngress          *bool
+	hubMode                *bool
 	nodeLabelSelector      *string
 	resolveIngNames        *string
 	defaultIngIP           *string
@@ -309,6 +310,8 @@ func _init() {
 		"Optional, specify whether or not to manage Ingress resources")
 	manageConfigMaps = kubeFlags.Bool("manage-configmaps", true,
 		"Optional, specify whether or not to manage ConfigMap resources")
+	hubMode = kubeFlags.Bool("hubmode", false,
+		"Optional, specify whether or not to manage ConfigMap resources in hub-mode")
 	nodeLabelSelector = kubeFlags.String("node-label-selector", "",
 		"Optional, used to watch only for nodes with this label")
 	resolveIngNames = kubeFlags.String("resolve-ingress-names", "",
@@ -506,6 +509,10 @@ func verifyArgs() error {
 		}
 		vxlanMode = "maintain"
 		vxlanName = *flannelName
+	}
+
+	if *hubMode && !(*manageConfigMaps) {
+		return fmt.Errorf("Hubmode is supported only for configmaps")
 	}
 	if *manageRoutes {
 		if len(*routeVserverAddr) == 0 {
@@ -715,18 +722,17 @@ func GetNamespaces(appMgr *appmanager.Manager) {
 
 // setup the initial watch based off the flags passed in, if no flags then we
 // watch all namespaces
-func setupWatchers(appMgr *appmanager.Manager, resyncPeriod, resyncPeriodDuration time.Duration) {
+func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 	label := resource.DefaultConfigMapLabel
 
 	if len(*namespaceLabel) == 0 {
-
 		// For periodic monitoring
 		// Non monitoring namespaces will not be processed
 		ls, err := createLabel("")
 		if nil != err {
 			log.Warningf("[INIT] Failed to create label selector: %v", err)
 		}
-		err = appMgr.AddNamespaceLabelInformer(ls, resyncPeriodDuration)
+		err = appMgr.AddNamespaceLabelInformer(ls, resyncPeriod)
 		if nil != err {
 			log.Warningf("[INIT] Failed to add label watch for all namespaces:%v", err)
 		}
@@ -745,7 +751,7 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod, resyncPeriodDuratio
 				if nil != err {
 					log.Warningf("[INIT] Failed to add informers for namespace %v: %v", namespace, err)
 				} else {
-					log.Debugf("[INIT] Added informers for namespace %v: %v", namespace, err)
+					log.Debugf("[INIT] Added informers for namespace %v", namespace)
 				}
 			}
 		}
@@ -754,7 +760,7 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod, resyncPeriodDuratio
 		if nil != err {
 			log.Warningf("[INIT] Failed to create label selector: %v", err)
 		}
-		err = appMgr.AddNamespaceLabelInformer(ls, resyncPeriodDuration)
+		err = appMgr.AddNamespaceLabelInformer(ls, resyncPeriod)
 		if nil != err {
 			log.Warningf("[INIT] Failed to add label watch for all namespaces:%v", err)
 		}
@@ -1058,7 +1064,7 @@ func main() {
 	np.Run()
 	defer np.Stop()
 
-	setupWatchers(appMgr, 0, time.Duration(*syncInterval)*time.Second)
+	setupWatchers(appMgr, time.Duration(*syncInterval)*time.Second)
 	// Expose Prometheus metrics
 	http.Handle("/metrics", promhttp.Handler())
 	// Add health check e.g. is Python process still there?
@@ -1118,6 +1124,7 @@ func getAppManagerParams() appmanager.Params {
 		ManageConfigMaps:       *manageConfigMaps,
 		ManageIngress:          *manageIngress,
 		ManageIngressClassOnly: *manageIngressClassOnly,
+		HubMode:                *hubMode,
 		IngressClass:           *ingressClass,
 		TrustedCertsCfgmap:     *trustedCertsCfgmap,
 		DgPath:                 dgPath,

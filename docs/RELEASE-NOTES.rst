@@ -15,6 +15,8 @@ Added Functionality
    - Disable this feature optionally using configuration parameter `disable-teems:"true"`
 * Added new deployment parameter `periodic-sync-interval` for configuring the periodic sync of resources
 * Added informers for kubernetes secrets to monitor the changes in secrets
+* Added support for configmaps to monitor services in same and different namespaces.
+    - Enable this support using deployment parameter `hubmode:true`
 * Helm Chart Enhancements:
    - Added ingressClass resource installation with charts
 * Added support for AS3 3.28

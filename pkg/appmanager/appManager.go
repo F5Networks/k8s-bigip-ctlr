@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 	"net"
 	"reflect"
 	"sort"
@@ -28,6 +27,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 
 	netv1 "k8s.io/api/networking/v1"
 
@@ -120,6 +121,7 @@ type Manager struct {
 	mergedRulesMap map[string]map[string]MergedRuleEntry
 	// Whether to watch ConfigMap resources or not
 	manageConfigMaps       bool
+	hubMode                bool
 	manageIngress          bool
 	manageIngressClassOnly bool
 	ingressClass           string
@@ -166,6 +168,7 @@ type Params struct {
 	ManageConfigMaps       bool
 	ManageIngress          bool
 	ManageIngressClassOnly bool
+	HubMode                bool
 	IngressClass           string
 	Agent                  string
 	SchemaLocalPath        string
@@ -203,6 +206,8 @@ const (
 	Routes         = "routes"
 	Secrets        = "secrets"
 	IngressClasses = "ingressclasses"
+
+	hubModeInterval = 30 * time.Second //Hubmode ConfigMap resync interval
 )
 
 var RoutesProcessed []*routeapi.Route
@@ -241,6 +246,7 @@ func NewManager(params *Params) *Manager {
 		eventNotifier:          NewEventNotifier(params.broadcasterFunc),
 		mergedRulesMap:         make(map[string]map[string]MergedRuleEntry),
 		manageConfigMaps:       params.ManageConfigMaps,
+		hubMode:                params.HubMode,
 		manageIngress:          params.ManageIngress,
 		manageIngressClassOnly: params.ManageIngressClassOnly,
 		ingressClass:           params.IngressClass,
@@ -299,6 +305,7 @@ func (appMgr *Manager) addNamespaceLocked(
 	cfgMapSelector labels.Selector,
 	resyncPeriod time.Duration,
 ) (*appInformer, error) {
+	// Check if watching all namespaces by checking all appInformers is created for "" namespace
 	if appMgr.watchingAllNamespacesLocked() {
 		return nil, fmt.Errorf(
 			"Cannot add additional namespaces when already watching all.")
@@ -332,6 +339,7 @@ func (appMgr *Manager) removeNamespaceLocked(namespace string) error {
 	return nil
 }
 
+// AddNamespaceLabelInformer spins an informer to watch all namespaces with matching label
 func (appMgr *Manager) AddNamespaceLabelInformer(
 	labelSelector labels.Selector,
 	resyncPeriod time.Duration,
@@ -466,6 +474,10 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 	appInf, found := appMgr.getNamespaceInformerLocked(nsName)
 	if exists && found {
 		appMgr.triggerSyncResources(nsName, appInf)
+		return nil
+	}
+	// Skip deleting informers if watching specific namespaces
+	if !appMgr.DynamicNS {
 		return nil
 	}
 	if exists {
@@ -650,6 +662,11 @@ func (appMgr *Manager) newAppInformer(
 			options.LabelSelector = cfgMapSelector.String()
 		}
 		log.Infof("[CORE] Watching ConfigMap resources.")
+		//If Hubmode is enabled, process configmaps every 30 seconds to process unwatched namespace deployments
+		syncInterval := resyncPeriod
+		if appMgr.hubMode {
+			syncInterval = hubModeInterval
+		}
 		appInf.cfgMapInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
@@ -658,7 +675,7 @@ func (appMgr *Manager) newAppInformer(
 				cfgMapOptions,
 			),
 			&v1.ConfigMap{},
-			resyncPeriod,
+			syncInterval,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 	} else {
@@ -687,17 +704,22 @@ func (appMgr *Manager) newAppInformer(
 
 	if false != appMgr.manageConfigMaps {
 		log.Infof("[CORE] Handling ConfigMap resource events.")
+		// If Hubmode is enabled, process configmaps every 30 seconds to process unwatched namespace deployments
+		syncInterval := resyncPeriod
+		if appMgr.hubMode {
+			syncInterval = hubModeInterval
+		}
 		appInf.cfgMapInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj, OprTypeCreate) },
 				UpdateFunc: func(old, cur interface{}) {
-					if !reflect.DeepEqual(old, cur) {
+					if appMgr.hubMode || !reflect.DeepEqual(old, cur) {
 						appMgr.enqueueConfigMap(cur, OprTypeUpdate)
 					}
 				},
 				DeleteFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj, OprTypeDelete) },
 			},
-			resyncPeriod,
+			syncInterval,
 		)
 	} else {
 		log.Infof("[CORE] Not handling ConfigMap resource events.")
@@ -1320,7 +1342,7 @@ func (appMgr *Manager) syncConfigMaps(
 				agntCfgMap.Init(cm.Name, cm.Namespace, cm.Data["template"], cm.Labels, appMgr.getEndpoints)
 				key := cm.Namespace + "/" + cm.Name
 				if cfgMap, ok := appMgr.agentCfgMap[key]; ok {
-					if cfgMap.Data != cm.Data["template"] || cm.Labels["as3"] != cfgMap.Label["as3"] || cm.Labels["overrideAS3"] != cfgMap.Label["overrideAS3"] {
+					if appMgr.hubMode || cfgMap.Data != cm.Data["template"] || cm.Labels["as3"] != cfgMap.Label["as3"] || cm.Labels["overrideAS3"] != cfgMap.Label["overrideAS3"] {
 						appMgr.agentCfgMap[key] = agntCfgMap
 						stats.vsUpdated += 1
 					}
@@ -3101,7 +3123,13 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 	}
 
 	// Identify services that matches the given label
-	services, err := m.kubeClient.CoreV1().Services(namespace).List(context.TODO(), svcListOptions)
+	var services *v1.ServiceList
+	var err error
+	if m.hubMode {
+		services, err = m.kubeClient.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), svcListOptions)
+	} else {
+		services, err = m.kubeClient.CoreV1().Services(namespace).List(context.TODO(), svcListOptions)
+	}
 
 	if err != nil {
 		log.Errorf("[CORE] Error getting service list. %v", err)

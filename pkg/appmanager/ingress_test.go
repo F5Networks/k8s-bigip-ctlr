@@ -36,6 +36,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 	var mockMgr *mockAppManager
 	var mw *test.MockWriter
 	var namespace string
+	var ingClass *netv1.IngressClass
 	BeforeEach(func() {
 		mw = &test.MockWriter{
 			FailStyle: test.Success,
@@ -55,7 +56,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			ManageIngressClassOnly: false,
 			IngressClass:           "f5",
 		})
-		ingClass := &netv1.IngressClass{TypeMeta: metav1.TypeMeta{APIVersion: "networking.k8s.io/v1",
+		ingClass = &netv1.IngressClass{TypeMeta: metav1.TypeMeta{APIVersion: "networking.k8s.io/v1",
 			Kind: "IngressClass"},
 			ObjectMeta: metav1.ObjectMeta{Name: IngressClassName},
 			Spec:       netv1.IngressClassSpec{Controller: CISControllerName},
@@ -65,6 +66,8 @@ var _ = Describe("V1 Ingress Tests", func() {
 		mockMgr.appMgr.AgentCIS.Init(&cccl.Params{ConfigWriter: mw})
 		namespace = "default"
 		err := mockMgr.startNonLabelMode([]string{namespace})
+		appInf, _ := mockMgr.appMgr.getNamespaceInformer(namespace)
+		appInf.ingClassInformer.GetStore().Add(ingClass)
 		Expect(err).To(BeNil())
 	})
 	AfterEach(func() {
@@ -1492,6 +1495,10 @@ var _ = Describe("V1 Ingress Tests", func() {
 			fooPath := "/foo"
 			barPath := "/bar"
 			err := mockMgr.startNonLabelMode([]string{ns1, ns2})
+			for _, ns := range []string{ns1, ns2} {
+				appInf, _ := mockMgr.appMgr.getNamespaceInformer(ns)
+				appInf.ingClassInformer.GetStore().Add(ingClass)
+			}
 			Expect(err).To(BeNil())
 			httpFoo := netv1.HTTPIngressRuleValue{
 				Paths: []netv1.HTTPIngressPath{

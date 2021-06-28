@@ -174,6 +174,10 @@ func NewAS3Manager(params *Params) *AS3Manager {
 			LogResponse:   params.LogResponse}),
 	}
 
+	if as3Manager.tls13CipherGroupReference == "" {
+		as3Manager.tls13CipherGroupReference = "/Common/f5-default"
+	}
+
 	as3Manager.fetchAS3Schema()
 
 	return &as3Manager

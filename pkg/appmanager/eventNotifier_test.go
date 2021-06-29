@@ -183,6 +183,10 @@ var _ = Describe("Event Notifier Tests", func() {
 			mockMgr.appMgr.AgentCIS.Init(&cccl.Params{ConfigWriter: mw})
 			err := mockMgr.startNonLabelMode(namespaces)
 			Expect(err).To(BeNil())
+			for _, namespace := range namespaces {
+				appInf, _ := mockMgr.appMgr.getNamespaceInformer(namespace)
+				appInf.ingClassInformer.GetStore().Add(ingClass)
+			}
 		})
 		AfterEach(func() {
 			mockMgr.shutdown()

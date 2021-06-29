@@ -451,32 +451,33 @@ func processV1IngressRules(
 	return &rls, urlRewriteRefs, appRootRefs
 }
 
-func (appMgr *Manager) verifyDefaultIngressClass() bool {
-	ingresClass, err := appMgr.kubeClient.NetworkingV1().IngressClasses().Get(context.TODO(), appMgr.ingressClass, metav1.GetOptions{})
+func (appMgr *Manager) verifyDefaultIngressClass(appInf *appInformer) bool {
+	ingresClass, _, err := appInf.ingClassInformer.GetIndexer().GetByKey(appMgr.ingressClass)
 	if err != nil {
 		log.Errorf("[CORE] %s", err.Error())
 	} else {
-		return getBooleanAnnotation(ingresClass.ObjectMeta.Annotations, DefaultIngressClass, false)
+		return getBooleanAnnotation(ingresClass.(*netv1.IngressClass).ObjectMeta.Annotations, DefaultIngressClass, false)
 	}
 	return false
 }
 
-func (appMgr *Manager) verifyIngressClass(ing *netv1.Ingress) bool {
+func (appMgr *Manager) verifyIngressClass(ing *netv1.Ingress, appInf *appInformer) bool {
 	if *ing.Spec.IngressClassName != appMgr.ingressClass {
 		// return false to skip processing of ingress
 		return false
 	}
 	// Check that ingress class exists or not
-	ingresClass, err := appMgr.kubeClient.NetworkingV1().IngressClasses().Get(context.TODO(), appMgr.ingressClass, metav1.GetOptions{})
+	ingresClass, _, err := appInf.ingClassInformer.GetIndexer().GetByKey(appMgr.ingressClass)
 	if err != nil {
 		log.Debugf("[CORE] %s", err.Error())
 	} else {
-		if ingresClass.Spec.Controller == CISControllerName {
+		if ingresClass.(*netv1.IngressClass).Spec.Controller == CISControllerName {
 			// return true to process the ingress
 			return true
 		} else {
-			log.Debugf("[CORE] Unable to process ingress as incorrect controller name provided in Ingress Class resource, it should be \"%s\" instead of \"%s\"", CISControllerName, ingresClass.Spec.Controller)
+			log.Debugf("[CORE] Unable to process ingress as incorrect controller name provided in Ingress Class resource, it should be \"%s\" instead of \"%s\"", CISControllerName, ingresClass.(*netv1.IngressClass).Spec.Controller)
 		}
+
 	}
 	// return false to skip processing of ingress
 	return false
@@ -484,6 +485,7 @@ func (appMgr *Manager) verifyIngressClass(ing *netv1.Ingress) bool {
 
 func (appMgr *Manager) checkManageIngressClass(ing *netv1.Ingress) bool {
 	// If old ingress class annotation is defined it's given priority
+	appInf, _ := appMgr.getNamespaceInformer(ing.Namespace)
 	// TODO once old annotation is deprecated we can remove this conditional check
 	if class, ok := ing.ObjectMeta.Annotations[K8sIngressClass]; ok == true {
 		if class != appMgr.ingressClass {
@@ -491,11 +493,11 @@ func (appMgr *Manager) checkManageIngressClass(ing *netv1.Ingress) bool {
 		}
 	} else if ing.Spec.IngressClassName != nil {
 		// If IngressClassName does not match IngressClass provided in CIS deployment or IngressClassName provided in CIS deployment does not exist
-		return appMgr.verifyIngressClass(ing)
+		return appMgr.verifyIngressClass(ing, appInf)
 	} else {
 		// at this point we dont have k8sIngressClass defined in annotation and spec.IngressClass Name.
 		// So check whether we need to process those ingress or not.
-		return appMgr.verifyDefaultIngressClass()
+		return appMgr.verifyDefaultIngressClass(appInf)
 	}
 	return true
 }
@@ -510,11 +512,10 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 	defaultIP,
 	snatPoolName string,
 ) *ResourceConfig {
-
+	//check ingressclass exists
 	if !appMgr.checkManageIngressClass(ing) {
 		return nil
 	}
-
 	var cfg ResourceConfig
 	var balance string
 	if bal, ok := ing.ObjectMeta.Annotations[F5VsBalanceAnnotation]; ok == true {

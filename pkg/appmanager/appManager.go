@@ -195,13 +195,14 @@ type SvcEndPointsCache struct {
 const (
 
 	// Kinds of Resources
-	Namespaces = "namespaces"
-	Services   = "services"
-	Endpoints  = "endpoints"
-	Configmaps = "configmaps"
-	Ingresses  = "ingresses"
-	Routes     = "routes"
-	Secrets    = "secrets"
+	Namespaces     = "namespaces"
+	Services       = "services"
+	Endpoints      = "endpoints"
+	Configmaps     = "configmaps"
+	Ingresses      = "ingresses"
+	Routes         = "routes"
+	Secrets        = "secrets"
+	IngressClasses = "ingressclasses"
 )
 
 var RoutesProcessed []*routeapi.Route
@@ -540,15 +541,16 @@ type serviceQueueKey struct {
 }
 
 type appInformer struct {
-	namespace      string
-	cfgMapInformer cache.SharedIndexInformer
-	svcInformer    cache.SharedIndexInformer
-	endptInformer  cache.SharedIndexInformer
-	ingInformer    cache.SharedIndexInformer
-	routeInformer  cache.SharedIndexInformer
-	nodeInformer   cache.SharedIndexInformer
-	secretInformer cache.SharedIndexInformer
-	stopCh         chan struct{}
+	namespace        string
+	cfgMapInformer   cache.SharedIndexInformer
+	svcInformer      cache.SharedIndexInformer
+	endptInformer    cache.SharedIndexInformer
+	ingInformer      cache.SharedIndexInformer
+	routeInformer    cache.SharedIndexInformer
+	nodeInformer     cache.SharedIndexInformer
+	secretInformer   cache.SharedIndexInformer
+	ingClassInformer cache.SharedIndexInformer
+	stopCh           chan struct{}
 }
 
 func (appMgr *Manager) newAppInformer(
@@ -611,6 +613,17 @@ func (appMgr *Manager) newAppInformer(
 					everything,
 				),
 				&netv1.Ingress{},
+				resyncPeriod,
+				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			)
+			appInf.ingClassInformer = cache.NewSharedIndexInformer(
+				cache.NewFilteredListWatchFromClient(
+					appMgr.netClientv1,
+					IngressClasses,
+					"",
+					everything,
+				),
+				&netv1.IngressClass{},
 				resyncPeriod,
 				cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 			)
@@ -727,6 +740,18 @@ func (appMgr *Manager) newAppInformer(
 			},
 			resyncPeriod,
 		)
+		// TODO Remove the version comparison once v1beta1.Ingress is deprecated in k8s 1.22
+		out := semver.Compare(appMgr.K8sVersion, "v1.19.0")
+		if out >= 0 {
+			appInf.ingClassInformer.AddEventHandlerWithResyncPeriod(
+				&cache.ResourceEventHandlerFuncs{
+					//AddFunc:    func(obj interface{}) { appMgr.enqueueIngress(obj, OprTypeCreate) },
+					//UpdateFunc: func(old, cur interface{}) { appMgr.enqueueIngress(cur, OprTypeUpdate) },
+					//DeleteFunc: func(obj interface{}) { appMgr.enqueueIngress(obj, OprTypeDelete) },
+				},
+				resyncPeriod,
+			)
+		}
 	} else {
 		log.Infof("[CORE] Not handling Ingress resource events.")
 	}
@@ -842,6 +867,9 @@ func (appInf *appInformer) start() {
 	if nil != appInf.nodeInformer {
 		go appInf.nodeInformer.Run(appInf.stopCh)
 	}
+	if nil != appInf.ingClassInformer {
+		go appInf.ingClassInformer.Run(appInf.stopCh)
+	}
 }
 
 func (appInf *appInformer) waitForCacheSync() {
@@ -867,6 +895,9 @@ func (appInf *appInformer) waitForCacheSync() {
 	}
 	if nil != appInf.nodeInformer {
 		cacheSyncs = append(cacheSyncs, appInf.nodeInformer.HasSynced)
+	}
+	if nil != appInf.ingClassInformer {
+		cacheSyncs = append(cacheSyncs, appInf.ingClassInformer.HasSynced)
 	}
 	cache.WaitForCacheSync(
 		appInf.stopCh,

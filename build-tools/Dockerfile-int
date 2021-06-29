@@ -42,7 +42,7 @@ ARG VERSION_INFO
 COPY $BASE_PATH/$REPO_NAME/build-tools/help.md /tmp/
 COPY $BASE_PATH/$REPO_NAME/LICENSE /licenses/
 COPY $BASE_PATH/$REPO_NAME/requirements.txt /tmp/requirements.txt
-COPY ["$BASE_PATH/$REPO_NAME/schemas/as3-schema-3.25.0-3-cis.json", \
+COPY ["$BASE_PATH/$REPO_NAME/schemas/as3-schema-3.28.0-3-cis.json", \
     "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.0.json",\
     "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.1.json",\
     "$BASE_PATH/$REPO_NAME/schemas/bigip-virtual-server_v0.1.2.json",\

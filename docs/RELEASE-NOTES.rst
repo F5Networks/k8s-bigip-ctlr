@@ -17,6 +17,7 @@ Added Functionality
 * Added informers for kubernetes secrets to monitor the changes in secrets
 * Helm Chart Enhancements:
    - Added ingressClass resource installation with charts
+* Added support for AS3 3.28
 
 
 Bug Fixes

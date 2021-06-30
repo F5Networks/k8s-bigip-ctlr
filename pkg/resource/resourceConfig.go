@@ -662,7 +662,39 @@ func NewObjectDependencies(
 	return key, deps
 }
 
+// TODO remove the case once v1beta1.Ingress is deprecated in k8s 1.22
 func generateMultiServiceAnnotationRuleNames(ing *v1beta1.Ingress, annotationMap map[string]string, prefix string) string {
+	var ruleNames string
+	appRoot := strings.HasPrefix(prefix, "app-root")
+
+	for _, rule := range ing.Spec.Rules {
+		if nil != rule.IngressRuleValue.HTTP {
+			for _, path := range rule.IngressRuleValue.HTTP.Paths {
+				var uri string
+				if appRoot {
+					uri = rule.Host
+				} else {
+					uri = rule.Host + path.Path
+				}
+				if targetVal, ok := annotationMap[uri]; ok {
+					var nameEnd string
+					if appRoot {
+						nameEnd = uri + targetVal
+					} else {
+						nameEnd = uri + "-" + targetVal
+					}
+					nameEnd = strings.Replace(nameEnd, "/", "_", -1)
+					ruleNames += prefix + nameEnd + ","
+				}
+			}
+		}
+	}
+	ruleNames = strings.TrimSuffix(ruleNames, ",")
+
+	return ruleNames
+}
+
+func generateMultiServiceAnnotationV1RuleNames(ing *netv1.Ingress, annotationMap map[string]string, prefix string) string {
 	var ruleNames string
 	appRoot := strings.HasPrefix(prefix, "app-root")
 
@@ -708,6 +740,7 @@ func getAnnotationRuleNames(oldName string, isAppRoot bool, obj interface{}) str
 		} else {
 			ruleNames = urlRewriteRulePrefix + nameEnd
 		}
+	// TODO remove the case once v1beta1.Ingress is deprecated in k8s 1.22
 	case *v1beta1.Ingress:
 		ingress := obj.(*v1beta1.Ingress)
 		if ingress.Spec.Rules != nil {
@@ -717,6 +750,24 @@ func getAnnotationRuleNames(oldName string, isAppRoot bool, obj interface{}) str
 				ruleNames += "," + generateMultiServiceAnnotationRuleNames(ingress, annotationMap, appRootForwardRulePrefix)
 			} else {
 				ruleNames = generateMultiServiceAnnotationRuleNames(ingress, annotationMap, urlRewriteRulePrefix)
+			}
+		} else {
+			if isAppRoot {
+				annotationMap := ParseAppRootURLRewriteAnnotations(oldName)
+				nameEnd := "single-service" + "-" + annotationMap["single"]
+				ruleNames = appRootRedirectRulePrefix + nameEnd
+				ruleNames += "," + appRootForwardRulePrefix + nameEnd
+			}
+		}
+	case *netv1.Ingress:
+		ingress := obj.(*netv1.Ingress)
+		if ingress.Spec.Rules != nil {
+			annotationMap := ParseAppRootURLRewriteAnnotations(oldName)
+			if isAppRoot {
+				ruleNames = generateMultiServiceAnnotationV1RuleNames(ingress, annotationMap, appRootRedirectRulePrefix)
+				ruleNames += "," + generateMultiServiceAnnotationV1RuleNames(ingress, annotationMap, appRootForwardRulePrefix)
+			} else {
+				ruleNames = generateMultiServiceAnnotationV1RuleNames(ingress, annotationMap, urlRewriteRulePrefix)
 			}
 		} else {
 			if isAppRoot {

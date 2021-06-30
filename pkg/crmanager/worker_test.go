@@ -1,22 +1,10 @@
-/*-
- * Copyright (c) 2016-2021, F5 Networks, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package crmanager
 
 import (
+	crdfake "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/fake"
+	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/informers/externalversions/cis/v1"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 	"sort"
 	"time"
 
@@ -28,60 +16,82 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var configPath = "../../test/configs/"
-
-type mockCRManager struct {
-	*CRManager
-}
-
-func newMockCRManager() *mockCRManager {
-	return &mockCRManager{
-		&CRManager{},
-	}
-}
-
-func (m *mockCRManager) shutdown() error {
-	return nil
-}
-
-func newServicePort(name string, svcPort int32) v1.ServicePort {
-	return v1.ServicePort{
-		Port: svcPort,
-		Name: name,
-	}
-}
-
-// NewService returns a service
-func NewIngressLink(id, rv, namespace string, virtualServerAddress string, iRules []string, selector *metav1.LabelSelector) *cisapiv1.IngressLink {
-	return &cisapiv1.IngressLink{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Service",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            id,
-			ResourceVersion: rv,
-			Namespace:       namespace,
-		},
-		Spec: cisapiv1.IngressLinkSpec{
-			virtualServerAddress,
-			selector,
-			iRules,
-		},
-	}
-}
-
 var _ = Describe("Worker Tests", func() {
-	var namespace string
+	var mockCRM *mockCRManager
+	var vrt1 *cisapiv1.VirtualServer
+	var svc1 *v1.Service
+	namespace := "default"
+
 	BeforeEach(func() {
-		namespace = "nginx-ingress"
-	})
-	AfterEach(func() {
+		mockCRM = newMockCRManager()
+		svc1 = test.NewService(
+			"svc1",
+			"1",
+			namespace,
+			v1.ServiceTypeClusterIP,
+			[]v1.ServicePort{
+				{
+					Port: 80,
+					Name: "port0",
+				},
+			},
+		)
+
+		vrt1 = test.NewVirtualServer(
+			"SampleVS",
+			namespace,
+			cisapiv1.VirtualServerSpec{
+				Host:                   "test.com",
+				VirtualServerAddress:   "1.2.3.4",
+				IPAMLabel:              "",
+				VirtualServerName:      "",
+				VirtualServerHTTPPort:  0,
+				VirtualServerHTTPSPort: 0,
+				Pools: []cisapiv1.Pool{
+					cisapiv1.Pool{
+						Path:    "/path",
+						Service: "svc1",
+					},
+				},
+				TLSProfileName:   "",
+				HTTPTraffic:      "",
+				SNAT:             "",
+				WAF:              "",
+				RewriteAppRoot:   "",
+				AllowVLANs:       nil,
+				IRules:           nil,
+				ServiceIPAddress: nil,
+			})
+		mockCRM.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
+		mockCRM.kubeClient = k8sfake.NewSimpleClientset(svc1)
+		mockCRM.crInformers = make(map[string]*CRInformer)
+		mockCRM.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+		_ = mockCRM.addNamespacedInformer("default")
+		mockCRM.resources = NewResources()
+		mockCRM.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
+			mockCRM.kubeCRClient,
+			namespace,
+			0,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			func(options *metav1.ListOptions) {
+				options.LabelSelector = mockCRM.resourceSelector.String()
+			},
+		)
 	})
 
 	Describe("Validating Ingress link functions", func() {
+		var namespace string
+		BeforeEach(func() {
+			namespace = "nginx-ingress"
+		})
+
 		It("Validating filterIngressLinkForService filters the correct ingresslink resource", func() {
-			fooPorts := []v1.ServicePort{newServicePort("port0", 8080)}
+			fooPorts := []v1.ServicePort{
+				{
+					Port: 8080,
+					Name: "port0",
+				},
+			}
 			foo := test.NewService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
 			label1 := make(map[string]string)
 			label2 := make(map[string]string)
@@ -94,15 +104,30 @@ var _ = Describe("Worker Tests", func() {
 				}
 			)
 			var iRules []string
-			IngressLink1 := NewIngressLink("ingresslink1", "1", namespace, "", iRules, selctor)
-			IngressLink2 := NewIngressLink("ingresslink2", "1", "dummy", "", iRules, selctor)
+			IngressLink1 := test.NewIngressLink("ingresslink1", namespace, "1",
+				cisapiv1.IngressLinkSpec{
+					VirtualServerAddress: "",
+					Selector:             selctor,
+					IRules:               iRules,
+				})
+			IngressLink2 := test.NewIngressLink("ingresslink2", "dummy", "1",
+				cisapiv1.IngressLinkSpec{
+					VirtualServerAddress: "",
+					Selector:             selctor,
+					IRules:               iRules,
+				})
 			var IngressLinks []*cisapiv1.IngressLink
 			IngressLinks = append(IngressLinks, IngressLink1, IngressLink2)
 			ingresslinksForService := filterIngressLinkForService(IngressLinks, foo)
 			Expect(ingresslinksForService[0]).To(Equal(IngressLink1), "Should return the Ingresslink1 object")
 		})
 		It("Validating service are sorted properly", func() {
-			fooPorts := []v1.ServicePort{newServicePort("port0", 8080)}
+			fooPorts := []v1.ServicePort{
+				{
+					Port: 8080,
+					Name: "port0",
+				},
+			}
 			foo := test.NewService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
 			bar := test.NewService("bar", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
 			bar.ObjectMeta.CreationTimestamp = metav1.NewTime(time.Now())

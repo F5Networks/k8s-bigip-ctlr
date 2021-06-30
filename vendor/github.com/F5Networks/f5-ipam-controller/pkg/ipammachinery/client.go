@@ -112,6 +112,15 @@ func (ipamCli *IPAMClient) Get(namespace, name string) (*v1.F5IPAM, error) {
 	return ipamCli.kubeCRClient.K8sV1().F5IPAMs(namespace).Get(context.TODO(), name, metaV1.GetOptions{})
 }
 
+func (ipamCli *IPAMClient) List(namespace string) ([]v1.F5IPAM, error) {
+	ipamList, err := ipamCli.kubeCRClient.K8sV1().F5IPAMs(namespace).List(context.TODO(), metaV1.ListOptions{})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return ipamList.Items, nil
+}
 func addKnownTypes(scheme *runtime.Scheme) error {
 	SchemeGroupVersion := schema.GroupVersion{Group: CRDGroup, Version: CRDVersion}
 	scheme.AddKnownTypes(SchemeGroupVersion,

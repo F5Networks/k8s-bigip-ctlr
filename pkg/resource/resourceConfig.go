@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	netv1 "k8s.io/api/networking/v1"
 	"net"
 	"net/url"
 	"reflect"
@@ -29,6 +28,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	netv1 "k8s.io/api/networking/v1"
 
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"

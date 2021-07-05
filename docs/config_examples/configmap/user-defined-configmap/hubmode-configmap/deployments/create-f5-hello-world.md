@@ -1,4 +1,4 @@
-Below shell script creates `f5-hello-world` related deployments in default namespace
+Below shell script creates `f5-hello-world` related deployments in namespace foo and bar
 
 ```
 #!/bin/bash

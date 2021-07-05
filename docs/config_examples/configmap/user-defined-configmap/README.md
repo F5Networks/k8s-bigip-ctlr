@@ -1,9 +1,9 @@
 # Container Ingress Services using AS3 Declarative API
-This README.md demonstrates how CIS take advantage of a declarative API to configure and update BIG-IP from a kubernetes cluster.
+This document demonstrates how CIS takes advantage of a declarative API to configure and update BIG-IP from a kubernetes cluster.
 
 ## Example Use Cases
 
-Examples demonstrates the following BIG-IP capabilities 
+Examples demonstrate the following BIG-IP capabilities 
 
 * HTTP, HTTPS 
 * Cookie persistence
@@ -120,4 +120,5 @@ When using CIS with AS3 the behaviours are different The following needs to appl
 * Service doesn't matter on the order inside the declaration 
 * Deleting a configmap doesn't remove the AS3 declaration and it associated partitions in BIG-IP.
 * When adding new services use the kubectl apply command
+* For configmaps to monitor services in different namespaces, leverage `hubmode` CIS deployment parameter. 
 

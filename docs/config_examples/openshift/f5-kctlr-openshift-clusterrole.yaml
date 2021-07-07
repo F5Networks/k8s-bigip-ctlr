@@ -1,5 +1,5 @@
 # For use in OpenShift clusters
-apiVersion: v1
+apiVersion: authorization.openshift.io/v1
 kind: ClusterRole
 metadata:
   annotations:
@@ -41,7 +41,7 @@ rules:
 
 ---
 
-apiVersion: v1
+apiVersion: authorization.openshift.io/v1
 kind: ClusterRoleBinding
 metadata:
     name: bigip-ctlr-role

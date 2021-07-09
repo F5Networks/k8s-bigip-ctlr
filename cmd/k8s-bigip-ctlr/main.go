@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 
@@ -249,7 +250,7 @@ func _init() {
 	bigIPUsername = bigIPFlags.String("bigip-username", "",
 		"Required, user name for the Big-IP user account.")
 	bigIPPassword = bigIPFlags.String("bigip-password", "",
-		"Required, password for the Big-IP user account.")
+		"Required, password for the Big-IP user account. base64 will start 'B:'")
 	bigIPPartitions = bigIPFlags.StringArray("bigip-partition", []string{},
 		"Required, partition(s) for the Big-IP kubernetes objects.")
 	credsDir = bigIPFlags.String("credentials-directory", "",
@@ -866,6 +867,18 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		flags.Usage()
 		os.Exit(1)
+	}
+
+	// check password if base64
+	if (strings.HasPrefix(*bigIPPassword, "B:")) {
+		*bigIPPassword = strings.TrimPrefix(*bigIPPassword, "B:")
+		decodeBytes, err := base64.StdEncoding.DecodeString(*bigIPPassword)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "password base64 error. %v\n", err)
+			flags.Usage()
+			os.Exit(1)
+		}
+		*bigIPPassword = string(decodeBytes)
 	}
 
 	log.Infof("[INIT] Starting: Container Ingress Services - Version: %s, BuildInfo: %s", version, buildInfo)

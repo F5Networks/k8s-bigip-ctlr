@@ -4,6 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/miekg/dns"
@@ -11,11 +17,6 @@ import (
 	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
-	"net"
-	"sort"
-	"strconv"
-	"strings"
-	"sync"
 )
 
 func (appMgr *Manager) checkV1Ingress(
@@ -456,7 +457,11 @@ func (appMgr *Manager) verifyDefaultIngressClass(appInf *appInformer) bool {
 	if err != nil {
 		log.Errorf("[CORE] %s", err.Error())
 	} else {
-		return getBooleanAnnotation(ingresClass.(*netv1.IngressClass).ObjectMeta.Annotations, DefaultIngressClass, false)
+		if ingresClass != nil {
+			return getBooleanAnnotation(ingresClass.(*netv1.IngressClass).ObjectMeta.Annotations, DefaultIngressClass, false)
+		} else {
+			log.Error("[CORE] Ingress class resource not found.")
+		}
 	}
 	return false
 }

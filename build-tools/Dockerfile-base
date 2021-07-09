@@ -30,12 +30,14 @@ ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
 RUN mkdir -p "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 
-#install gingko
+#install gingko and go-md2man
 RUN go get github.com/wadey/gocovmerge && \
 	go get golang.org/x/tools/cmd/cover && \
 	go get github.com/mattn/goveralls && \
 	go get github.com/onsi/ginkgo/ginkgo && \
-	go get github.com/onsi/gomega
+	go get github.com/onsi/gomega && \
+        export GO111MODULE=on && \
+        go get github.com/cpuguy83/go-md2man@v1.0.10        
 
 # install gosu
 # https://github.com/tianon/gosu/blob/master/INSTALL.md#from-centos

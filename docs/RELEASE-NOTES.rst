@@ -20,19 +20,29 @@ Added Functionality
 * Helm Chart Enhancements:
    - Added ingressClass resource installation with charts
 * Added support for AS3 3.28
+* Ingress performance improvements
+* Default Cipher Group for TLS V1.3
+* CIS compatible with K8S 1.21
+* Added support to process EDNS when CIS is watching all namespaces
 
 
 Bug Fixes
 `````````
+* SR - Patch K8S 1.14 with playtika CCCL fix
+* SR - Support --periodic-sync-interval configurable in CIS deployments
+* SR - Inconsistent behaviour with CIS while adding nodes as pool members(node-port)
 * :issues: `1824` Support for ingresses.networking.k8s.io/v1.
+* :issues: `1570` `1571` iRule reference for CRD for TransportServer
 * Fixed rewrite-url annotation doesnt support to rewrite all child paths to specific target domain
-
+* CIS does not log repeated error messages when an ingress configured with rewrite-app-root.
 * Fixed http redirect not working when used virtual-server.f5.com/rewrite-target-url annotation with routes
 * Fixed inconsistent behaviour with CIS (Transport Server) while adding/deleting a node to cluster.
+
 
 Limitations
 ```````````
 * Due to networking.k8s.io/v1 api support in ingress customer has to use "virtual-server.f5.com/clientssl" annotation in ingress if they are using bigip profiles in tls spec of ingress resource.
+* Recommended to increase resync periodic interval of more than 300 seconds to improve performance except for passthrough routes.
 
 
 2.4.1

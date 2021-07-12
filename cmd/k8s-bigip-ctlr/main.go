@@ -31,6 +31,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 	"io/ioutil"
 
@@ -225,7 +226,7 @@ func _init() {
 		"Optional, interval (in seconds) at which to verify the BIG-IP configuration.")
 	nodePollInterval = globalFlags.Int("node-poll-interval", 30,
 		"Optional, interval (in seconds) at which to poll for cluster nodes.")
-	syncInterval = globalFlags.Int("periodic-sync-interval", 300,
+	syncInterval = globalFlags.Int("periodic-sync-interval", 30,
 		"Optional, interval (in seconds) at which to queue resources.")
 	printVersion = globalFlags.Bool("version", false,
 		"Optional, print version and exit.")

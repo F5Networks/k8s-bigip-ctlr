@@ -4,7 +4,12 @@
 # https://aka.ms/yaml
 
 trigger:
-  - master
+  branches:
+    include:
+      - master
+  tags:
+    include:
+      - v*
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -13,6 +18,13 @@ variables:
   imageName: 'f5networks/k8s-bigip-ctlr-devel'
   quayConnection: 'quay-bot'
   redhatConnection: 'redhat-bot'
+  dockerConnection: 'docker-bot'
+  scanConnection: 'scan-bot'
+  quay_path: 'quay.io/f5networks/k8s-bigip-ctlr-devel'
+  redhat_prj_name: 'cntr-ingress-svcs'
+  redhat_tag: '$(BUILD_VERSION)-rhel7'
+  docker_repo: 'f5networks/k8s-bigip-ctlr'
+
 steps:
   - task: Docker@2
     displayName: Login to redhat registry
@@ -24,6 +36,16 @@ steps:
     inputs:
       command: login
       containerRegistry: $(quayConnection)
+  - task: Docker@2
+    displayName: Login to docker registry
+    inputs:
+      command: login
+      containerRegistry: $(dockerConnection)
+  - task: Docker@2
+    displayName: Login to scan registry
+    inputs:
+      command: login
+      containerRegistry: $(scanConnection)
   - task: CmdLine@2
     displayName: Check documentation
     inputs:
@@ -45,3 +67,25 @@ steps:
       containerRegistry: $(quayConnection)
       repository: $(imageName)
       tags: $(Build.SourceVersion)
+  - script: |
+      set -ex
+      podman pull --authfile $(DOCKER_CONFIG)/config.json $(quay_path):$(Build.SourceVersion)
+      podman tag $(quay_path):$(Build.SourceVersion) scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(redhat_tag)
+      podman push --authfile $(DOCKER_CONFIG)/config.json scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(redhat_tag)
+    condition: and(succeeded(), startsWith(variables['build.sourceBranch'], 'refs/tags/'))
+    displayName: 'Publish to Redhat'
+    continueOnError: true
+  - script: |
+      set -ex
+      docker pull $(quay_path):$(Build.SourceVersion)
+      docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):latest
+      docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(docker_version)
+      if [[ $(docker_version: -1) -eq 0 ]]
+      then 
+        docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(docker_version:0:$(#docker_version)-2)
+        docker push $(docker_repo):$(docker_version:0:$(#docker_version)-2)
+      fi
+      docker push $(docker_repo):latest
+      docker push $(docker_repo):$(docker_version)
+    displayName: 'Publish to DockerHub'
+    condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')

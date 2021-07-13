@@ -23,6 +23,7 @@ variables:
   quay_path: 'quay.io/f5networks/k8s-bigip-ctlr-devel'
   redhat_prj_name: 'cntr-ingress-svcs'
   redhat_tag: '$(BUILD_VERSION)-rhel7'
+  docker_version: '$(BUILD_VERSION)'
   docker_repo: 'f5networks/k8s-bigip-ctlr'
 
 steps:

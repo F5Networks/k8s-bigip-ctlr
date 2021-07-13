@@ -1,38 +1,52 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
-------------
+2.5.0
+-------------
 
 Added Functionality
 ```````````````````
-* Added support for networking.k8s.io/v1 ingress and ingressClass.
-* Added support for "virtual-server.f5.com/clientssl" annotation in ingress resource.
-* Service Type LB Enhancements:
-   - Added support for Multiport service.
-   - Added support for HealthMonitor
-* Added support to send telemetry data to F5 TEEM Server 
-   - Disable this feature optionally using configuration parameter `disable-teems:"true"`
-* Added new deployment parameter `periodic-sync-interval` for configuring the periodic sync of resources
-* Added informers for kubernetes secrets to monitor the changes in secrets
-* Added support for configmaps to monitor services in same and different namespaces.
-    - Enable this support using deployment parameter `hubmode:true`
-* Helm Chart Enhancements:
-   - Added ingressClass resource installation with charts
-* Added support for AS3 3.28
+* CIS now compatible with:
+    - Kubernetes 1.21
+    - OpenShift 4.7.13 with OpenShift SDN
+    - AS3 3.28
+
+* Added support for:
+    - Multiport Service and Health Monitor for Service Type LB in CRD mode. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/serviceTypeLB>`_.
+    - With networking.k8s.io/v1 ingress, Add multiple BIGIP SSL client profiles with annotation "virtual-server.f5.com/clientssl". Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1>`_.
+    - CIS now monitors changes to Kubernetes Secret resource.
+    - Improved performance while processing Ingress resources.
+    - CIS in AS3 agent mode now adds default cipher groups to SSL profiles for TLS v1.3.
+    - CIS in AS3 agent mode now supports OpenShift Routes with annotations `rewrite-app-root` Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/openshift/routes/sample-route-rewrite-app-root.yaml>`_ and `rewrite-target-url` Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/openshift/routes/sample-route-rewrite-target-url.yaml>`_.The user need to create ingressClass resource for CIS before upgrading to CIS v2.5.0 while using ingress.
+    - CIS now supports FIC with InfoBlox (Preview) `See examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
+    - :issues: `1824` Ingress and IngressClass objects in networking.k8s.io/v1. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1>`_.
+    - :issues: `1570` `1571` iRule reference in TransportServer CRD.  Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/TransportServer>`_.
 
 
-Bug Fixes
-`````````
-* :issues: `1824` Support for ingresses.networking.k8s.io/v1.
-* Fixed rewrite-url annotation doesnt support to rewrite all child paths to specific target domain
+* New CIS deployment configuration options:
+    - --periodic-sync-interval - Configure the periodic sync of resources.
+    - --hubmode - Enable Support for ConfigMaps to monitor services in same and different namespaces.
+    - --disable-teems - Configure to send anonymous analytics data to F5 TEEM infrastructure.
 
-* Fixed http redirect not working when used virtual-server.f5.com/rewrite-target-url annotation with routes
-* Fixed inconsistent behaviour with CIS (Transport Server) while adding/deleting a node to cluster.
+Bugs Fixes
+``````````
+* CIS now properly adds nodes as pool members (in NodePort mode).
 
-Limitations
-```````````
-* Due to networking.k8s.io/v1 api support in ingress customer has to use "virtual-server.f5.com/clientssl" annotation in ingress if they are using bigip profiles in tls spec of ingress resource.
+
+Known Issues
+````````````
+* For improved performance, configure CIS deployment with --periodic-sync-interval more than 300 seconds. OpenShift Routes with termination Passthrough get processed post this interval.
+
+NOTE
+````
+* CIS 2.5 supports Ingress and IngressClass objects in networking.k8s.io/v1. With Kubernetes > 1.18, update CIS ClusterRole to `See ClusterRole <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/Install/clusterrole.yml>`_ and create IngressClass `See example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml>`_ before version upgrade.
+
+F5 IPAM Controller v0.1.4
+``````````````````````````
+
+Added Functionality
+```````````````````
+* F5 IPAM Controller supports InfoBlox (Preview - Available for VirtualServer CRD only)
 
 
 2.4.1

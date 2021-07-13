@@ -19,9 +19,8 @@ Added Functionality
     - CIS in AS3 agent mode now adds default cipher groups to SSL profiles for TLS v1.3.
     - CIS in AS3 agent mode now supports OpenShift Routes with annotations `rewrite-app-root` Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/openshift/routes/sample-route-rewrite-app-root.yaml>`_ and `rewrite-target-url` Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/openshift/routes/sample-route-rewrite-target-url.yaml>`_.The user need to create ingressClass resource for CIS before upgrading to CIS v2.5.0 while using ingress.
     - CIS now supports FIC with InfoBlox (Preview) `See examples <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_.
-    - :issues: `1824` Ingress and IngressClass objects in networking.k8s.io/v1. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1>`_.
-    - :issues: `1570` `1571` iRule reference in TransportServer CRD.  Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/TransportServer>`_.
-
+    - :issues:`1824` Ingress and IngressClass objects in networking.k8s.io/v1. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1>`_.
+    - :issues:`1570` :issues:`1571` iRule reference in TransportServer CRD.  Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/TransportServer>`_.
 
 * New CIS deployment configuration options:
     - --periodic-sync-interval - Configure the periodic sync of resources.
@@ -39,14 +38,14 @@ Known Issues
 
 NOTE
 ````
-* CIS 2.5 supports Ingress and IngressClass objects in networking.k8s.io/v1. With Kubernetes > 1.18, update CIS ClusterRole to `See ClusterRole <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/Install/clusterrole.yml>`_ and create IngressClass `See example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml>`_ before version upgrade.
+* CIS 2.5 supports Ingress and IngressClass objects in networking.k8s.io/v1. With Kubernetes > 1.18, update CIS ClusterRole (see `example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/Install/clusterrole.yml>`_) and create IngressClass (see `example <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml>`_) before version upgrade.
 
 F5 IPAM Controller v0.1.4
 ``````````````````````````
 
 Added Functionality
 ```````````````````
-* F5 IPAM Controller supports InfoBlox (Preview - Available for VirtualServer CRD only)
+* F5 IPAM Controller supports InfoBlox (Preview - Available for VirtualServer CRD only). See `documentation <https://github.com/F5Networks/f5-ipam-controller/blob/main/README.md>`_ for more details.
 
 
 2.4.1
@@ -59,8 +58,8 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues: `1737` Inconsistent ordering of policy rules when adding an Ingress path.
-* :issues: `1808` K8S BIG-IP Controller upload old certificate to BIG-IP.
+* :issues:`1737` Inconsistent ordering of policy rules when adding an Ingress path.
+* :issues:`1808` K8S BIG-IP Controller upload old certificate to BIG-IP.
 * Stale IPAM CR configuration gets deleted on CIS restart.
 * IPAM allocated IP address now populates for VirtualServer under VSAddress column.
 * CIS supports endpoints created without nodeNames in Cluster mode for Headless Service.

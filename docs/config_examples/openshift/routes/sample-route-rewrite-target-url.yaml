@@ -1,0 +1,19 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    virtual-server.f5.com/health: '[{"path": "/","send": "GET / HTTP/1.0\r\n\r\n","recv": "","interval": 2,"timeout": 5}]'
+    # rewrite-target-url annotation will redirect any traffic for "http://st.com/bar" to "st.com/foo"
+    virtual-server.f5.com/rewrite-target-url: /foo
+  labels:
+    f5type: systest
+  name: st-com
+  namespace: default
+spec:
+  host: st.com
+  path: /bar
+  to:
+    kind: Service
+    name: svc
+    weight: 100
+  wildcardPolicy: None

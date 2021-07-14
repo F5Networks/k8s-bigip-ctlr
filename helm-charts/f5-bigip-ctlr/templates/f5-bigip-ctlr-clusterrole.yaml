@@ -28,10 +28,10 @@ rules:
       - endpoints
       - namespaces
       - ingresses
+      - ingressclasses
       - secrets
       - pods
       - routes
-      - ingressclasses
   - verbs:
       - get
       - list
@@ -93,4 +93,3 @@ rules:
       - customresourcedefinitions
 {{- end }}
 {{- end -}}
-

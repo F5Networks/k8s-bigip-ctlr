@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/F5Networks/k8s-bigip-ctlr.svg?branch=master)](https://travis-ci.org/F5Networks/k8s-bigip-ctlr) [![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg?branch=HEAD)](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr?branch=HEAD)
+[![Build Status](https://dev.azure.com/f5networks/CIS/_apis/build/status/F5Networks.k8s-bigip-ctlr?branchName=refs%2Fpull%2F1886%2Fmerge)](https://dev.azure.com/f5networks/CIS/_build/latest?definitionId=6&branchName=refs%2Fpull%2F1886%2Fmerge)
 
 F5 Container Ingress Services for Kubernetes & OpenShift
 ========================================================
@@ -17,7 +17,7 @@ For guides on this and other solutions for Kubernetes, see the
 
 What's New?
 -----------
-Support for Custom Resource Definitions [Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/CustomResource.md)
+Support for Custom Resource Definitions [Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/CustomResource.md)
 
 Getting Help
 ------------
@@ -53,7 +53,7 @@ Prerequisites:
 - Docker
 
 ```shell
-git clone https://github.com/F5Networks/k8s-bigip-ctlr.git 
+git clone https://github.com/F5Networks/k8s-bigip-ctlr 
 cd  k8s-bigip-ctlr
 
 # Use docker to build the release artifacts, into a local "_docker_workspace" directory, then put into docker images
@@ -80,7 +80,7 @@ Prerequisites:
 ```shell
 mkdir -p $GOPATH/src/github.com/F5Networks
 cd $GOPATH/src/github.com/F5Networks
-git clone https://github.com/f5networks/k8s-bigip-ctlr.git
+git clone https://github.com/f5networks/k8s-bigip-ctlr
 cd k8s-bigip-ctlr
 
 # Build all packages, and run unit tests

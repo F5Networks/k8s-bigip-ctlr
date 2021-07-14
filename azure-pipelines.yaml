@@ -19,7 +19,7 @@ variables:
   quayConnection: 'quay-bot'
   redhatConnection: 'redhat-bot'
   dockerConnection: 'docker-bot'
-  scanConnection: 'scan-bot'
+  scanConnection: 'cis-scan-bot'
   quay_path: 'quay.io/f5networks/k8s-bigip-ctlr-devel'
   redhat_prj_name: 'cntr-ingress-svcs'
   redhat_tag: '$(BUILD_VERSION)-rhel7'
@@ -39,11 +39,13 @@ steps:
       containerRegistry: $(quayConnection)
   - task: Docker@2
     displayName: Login to docker registry
+    condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
     inputs:
       command: login
       containerRegistry: $(dockerConnection)
   - task: Docker@2
     displayName: Login to scan registry
+    condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
     inputs:
       command: login
       containerRegistry: $(scanConnection)
@@ -62,7 +64,7 @@ steps:
       tags: $(Build.SourceVersion)
       arguments: "--build-arg BUILD_INFO=azure-$(Build.BuildId)-$(Build.SourceVersion) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS)"
   - task: Docker@2
-    displayName: Push image to quay.io
+    displayName: Push image to Quay
     inputs:
       command: push
       containerRegistry: $(quayConnection)
@@ -74,7 +76,7 @@ steps:
       podman tag $(quay_path):$(Build.SourceVersion) scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(redhat_tag)
       podman push --authfile $(DOCKER_CONFIG)/config.json scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(redhat_tag)
     condition: and(succeeded(), startsWith(variables['build.sourceBranch'], 'refs/tags/'))
-    displayName: 'Publish to Redhat'
+    displayName: 'Push image to Redhat'
     continueOnError: true
   - script: |
       set -ex
@@ -88,5 +90,5 @@ steps:
       fi
       docker push $(docker_repo):latest
       docker push $(docker_repo):$(docker_version)
-    displayName: 'Publish to DockerHub'
+    displayName: 'Push image to DockerHub'
     condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')

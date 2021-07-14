@@ -37,7 +37,7 @@ Create IngressLink Custom Resource definition as follows:
 
 ### 4. Install the Nginx Ingress Controller
 
-* Refer to [Integration with F5 Container Ingress Services](https://github.com/nginxinc/kubernetes-ingress/blob/master/docs-web/f5-ingresslink.md) to deploy NGINX Ingress Controller
+* Refer to [Integration with F5 Container Ingress Services](https://docs.nginx.com/nginx-ingress-controller/f5-ingresslink/) to deploy NGINX Ingress Controller
 
 ### 5. Create an IngressLink Resource
 

@@ -18,9 +18,9 @@ Added Functionality
     - OpenShift route annotations ``virtual-server.f5.com/rewrite-app-root`` (`examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/openshift/routes/sample-route-rewrite-app-root.yaml>`_) and ``virtual-server.f5.com/rewrite-target-url`` (`examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/openshift/routes/sample-route-rewrite-target-url.yaml>`_) with agent AS3.
     - :issues:`1570` iRule reference in TransportServer CRD.  Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/TransportServer>`_.
     - CIS deployment configuration options:
-      - ``--periodic-sync-interval`` - Configure the periodic sync of Kubernetes resources.
-      - ``--hubmode`` - Enable Support for ConfigMaps to monitor services in same and different namespaces.
-      - ``--disable-teems`` - Configure to send anonymous analytics data to F5.
+         * ``--periodic-sync-interval`` - Configure the periodic sync of Kubernetes resources.
+         * ``--hubmode`` - Enable Support for ConfigMaps to monitor services in same and different namespaces.
+         * ``--disable-teems`` - Configure to send anonymous analytics data to F5.
 * CIS now monitors changes to Kubernetes Secret resource.
 * Improved performance while processing Ingress resources.
 * CIS in AS3 agent mode now adds default cipher groups to SSL profiles for TLS v1.3.

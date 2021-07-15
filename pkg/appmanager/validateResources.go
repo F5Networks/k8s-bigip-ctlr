@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
@@ -420,7 +421,7 @@ func (appMgr *Manager) checkValidRoute(
 
 	_, sslAnnotation := route.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]
 	// Validate hostname if certificate is not provided in SSL annotations
-	if nil != route.Spec.TLS && !sslAnnotation {
+	if nil != route.Spec.TLS && !sslAnnotation && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
 		ok := checkCertificateHost(route.Spec.Host, route.Spec.TLS.Certificate, route.Spec.TLS.Key)
 		if !ok {
 			//Invalid certificate and key

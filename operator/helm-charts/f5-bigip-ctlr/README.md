@@ -43,7 +43,7 @@ Parameter | Required | Description | Default
 ----------|-------------|-------------|--------
 bigip_login_secret | Required |  Secret that contains BIG-IP login credentials | f5-bigip-ctlr-login
 args.bigip_url | Required | The management IP for your BIG-IP device | **Required**, no default
-args.partition | Required | BIG-IP partition the CIS Controller will manage | f5-bigip-ctlr
+args.bigip_partition | Required | BIG-IP partition the CIS Controller will manage | f5-bigip-ctlr
 args.namespaces | Optional | List of Kubernetes namespaces which CIS will monitor | empty
 rbac.create | Optional | Create ClusterRole and ClusterRoleBinding | true
 serviceAccount.name | Optional | name of the ServiceAccount for CIS controller | f5-bigip-ctlr-serviceaccount
@@ -52,6 +52,7 @@ namespace | Optional | name of namespace CIS will use to create deployment and o
 image.user | Optional | CIS Controller image repository username | f5networks
 image.repo | Optional | CIS Controller image repository name | k8s-bigip-ctlr
 image.pullPolicy | Optional | CIS Controller image pull policy | Always
+image.pullSecrets | Optional | List of secrets of container registry to pull image | empty
 version | Optional | CIS Controller image tag | latest
 nodeSelector | Optional | dictionary of Node selector labels | empty
 tolerations | Optional | Array of labels | empty

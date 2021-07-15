@@ -1,8 +1,0 @@
-apiVersion: networking.k8s.io/v1
-kind: IngressClass
-metadata:
-  name: {{ .Values.ingressClassName | default "f5" }}
-  annotations:
-    ingressclass.kubernetes.io/is-default-class: "{{ .Values.isDefaultIngressController | default false }}"
-spec:
-  controller: f5.com/cntr-ingress-svcs

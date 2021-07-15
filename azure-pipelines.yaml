@@ -101,10 +101,11 @@ stages:
           docker pull $(quay_path):$(Build.SourceVersion)
           docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):latest
           docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(docker_version)
-          if [[ $(docker_version: -1) -eq 0 ]]
-          then 
-            docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(docker_version:0:$(#docker_version)-2)
-            docker push $(docker_repo):$(docker_version:0:$(#docker_version)-2)
+          patch_version=`echo $(docker_version) | awk -F '.'  '{print $3}'`
+          if [ "${patch_version}" == "0" ] ; then
+            stripped_version=`echo $(docker_version) | rev | cut -c3- | rev`
+            docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):${stripped_version}
+            docker push $(docker_repo):${stripped_version}
           fi
           docker push $(docker_repo):latest
           docker push $(docker_repo):$(docker_version)

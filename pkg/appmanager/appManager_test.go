@@ -2584,6 +2584,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 				Expect(resources.PoolCount()).To(Equal(1))
 				events = mockMgr.getFakeEvents(namespace)
+				fmt.Println(events)
 				Expect(len(events)).To(Equal(2))
 				Expect(events[1].Namespace).To(Equal(namespace))
 				Expect(events[1].Name).To(Equal("ingress"))
@@ -2602,6 +2603,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 				Expect(resources.PoolCount()).To(Equal(0))
 				events = mockMgr.getFakeEvents(namespace)
+				fmt.Println(events)
 				Expect(len(events)).To(Equal(2))
 
 				// Shouldn't process Ingress with non-F5 class
@@ -2618,12 +2620,14 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(r).To(BeTrue(), "Ingress resource should be processed when flipping from notf5 to f5.")
 				Expect(resources.PoolCount()).To(Equal(1))
 				events = mockMgr.getFakeEvents(namespace)
+				fmt.Println(events)
 				Expect(len(events)).To(Equal(3))
 				ingressNotf5.Annotations[K8sIngressClass] = "notf5again"
 				r = mockMgr.updateIngress(ingressNotf5)
 				Expect(r).To(BeFalse(), "Ingress resource should be destroyed when flipping from f5 to notf5again.")
 				Expect(resources.PoolCount()).To(Equal(0))
 				events = mockMgr.getFakeEvents(namespace)
+				fmt.Println(events)
 				Expect(len(events)).To(Equal(3))
 
 				// Multi-service Ingress
@@ -2688,6 +2692,7 @@ var _ = Describe("AppManager Tests", func() {
 				r = mockMgr.addIngress(ingress3)
 				Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 				events = mockMgr.getFakeEvents(namespace)
+				fmt.Println(events)
 				Expect(len(events)).To(Equal(4))
 				// 4 rules, but only 3 backends specified. We should have 3 keys stored, one for
 				// each backend
@@ -2766,6 +2771,7 @@ var _ = Describe("AppManager Tests", func() {
 					ServiceKey{"foo", 80, "default"}, FormatIngressVSName("1.2.3.4", 80))
 				Expect(len(rs.Policies[0].Rules)).To(Equal(2))
 				events = mockMgr.getFakeEvents(namespace)
+				fmt.Println(events)
 				Expect(len(events)).To(Equal(8))
 
 				mockMgr.deleteIngress(ingress5)

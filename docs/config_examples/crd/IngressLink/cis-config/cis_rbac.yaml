@@ -11,7 +11,6 @@ rules:
     verbs: ["get", "list", "watch", "update", "create", "patch"]
   - apiGroups: ["", "extensions"]
     resources: ["secrets"]
-    resourceNames: ["bigip-login"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["cis.f5.com"]
     resources: ["ingresslinks"]

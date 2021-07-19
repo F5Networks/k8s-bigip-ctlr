@@ -39,12 +39,14 @@ Known Issues
 ````````````
 * For improved performance, configure CIS deployment with ``--periodic-sync-interval`` more than 300 seconds. OpenShift Routes with termination Passthrough get processed post this interval.
 
-Note
-````
-* CIS 2.5 supports Kubenetes networking.k8s.io/v1 Ingress and IngressClass. With Kubernetes > 1.18, update CIS ClusterRole (refer for `example <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/clusterrole.yml>`_) and create IngressClass (refer for `example <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml>`_) before version upgrade.
+Before upgrade to 2.5
+`````````````````````
+* CIS 2.5 supports Kubenetes networking.k8s.io/v1 Ingress and IngressClass. With Kubernetes > 1.18, 
+    - Reconfigure CIS `ClusterRole <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/clusterrole.yml>`_ - we removed `resourceName` to monitor all secrets. 
+    - Create `IngressClass <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml>`_ before version upgrade.
 * To upgrade CIS using operator in OpenShift, 
-  - Install `IngressClass <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml>_` manually if CIS is monitoring ingress resource. 
-  - Install `CRDs <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/customresourcedefinitions.yml>_` manually if using CIS CustomResources (VirtualServer/TransportServer/IngressLink).
+    - Install `IngressClass <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml>`_ manually. 
+    - Install `CRDs <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/customresourcedefinitions.yml>`_ manually if using CIS CustomResources (VirtualServer/TransportServer/IngressLink).
 
 
 F5 IPAM Controller v0.1.4

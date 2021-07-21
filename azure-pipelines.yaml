@@ -25,70 +25,196 @@ variables:
   redhat_tag: '$(BUILD_VERSION)-rhel7'
   docker_version: '$(BUILD_VERSION)'
   docker_repo: 'f5networks/k8s-bigip-ctlr'
+  chartPath: 'incubator'
+  chartRepoName: 'charts'
+  chartOrganization: F5Networks
+  helmVersion: 'v3.5.4'
+  chartsUpdated: False
+  operatorUpdated: False
+  operatorImageName: 'f5networks/f5-cis-operator-devel'
+  operatorBundleImageName: 'f5networks/f5-cis-operator-bundle-devel'
+  operatorIndexImage: 'f5networks/f5-cis-operator-index-devel'
 
-steps:
-  - task: Docker@2
-    displayName: Login to redhat registry
-    inputs:
-      command: login
-      containerRegistry: $(redhatConnection)
-  - task: Docker@2
-    displayName: Login to quay registry
-    inputs:
-      command: login
-      containerRegistry: $(quayConnection)
-  - task: Docker@2
-    displayName: Login to docker registry
-    condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
-    inputs:
-      command: login
-      containerRegistry: $(dockerConnection)
-  - task: Docker@2
-    displayName: Login to scan registry
-    condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
-    inputs:
-      command: login
-      containerRegistry: $(scanConnection)
-  - task: CmdLine@2
-    displayName: Check documentation
-    inputs:
-      script: 'make docs'
-  - task: Docker@2
-    displayName: Build from Red Hat Universal Base Image
-    inputs:
-      command: build
-      containerRegistry: $(quayConnection)
-      repository: $(imageName)
-      Dockerfile: build-tools/Dockerfile-int
-      buildContext: .
-      tags: $(Build.SourceVersion)
-      arguments: "--build-arg BUILD_INFO=azure-$(Build.BuildId)-$(Build.SourceVersion) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS)"
-  - task: Docker@2
-    displayName: Push image to Quay
-    inputs:
-      command: push
-      containerRegistry: $(quayConnection)
-      repository: $(imageName)
-      tags: $(Build.SourceVersion)
-  - script: |
-      set -ex
-      podman pull --authfile $(DOCKER_CONFIG)/config.json $(quay_path):$(Build.SourceVersion)
-      podman tag $(quay_path):$(Build.SourceVersion) scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(redhat_tag)
-      podman push --authfile $(DOCKER_CONFIG)/config.json scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(redhat_tag)
-    condition: and(succeeded(), startsWith(variables['build.sourceBranch'], 'refs/tags/'))
-    displayName: 'Push image to Redhat'
-    continueOnError: true
-  - script: |
-      set -ex
-      docker pull $(quay_path):$(Build.SourceVersion)
-      docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):latest
-      docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(docker_version)
-      if [[ $(docker_version: -1) -eq 0 ]]
-      then 
-        docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(docker_version:0:$(#docker_version)-2)
-        docker push $(docker_repo):$(docker_version:0:$(#docker_version)-2)
-      fi
-      docker push $(docker_repo):latest
-      docker push $(docker_repo):$(docker_version)
-    displayName: 'Push image to DockerHub'
-    condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+stages:
+- stage: Documentation
+  jobs:
+  - job: CheckDocumentation
+    steps:  
+    - task: CmdLine@2
+      displayName: Check documentation
+      inputs:
+        script: 'make docs'
+- stage: ContainerImage
+  dependsOn: Documentation
+  jobs:
+  - job: BuildContainerImage
+    steps:
+      - task: Docker@2
+        displayName: Login to redhat registry
+        inputs:
+          command: login
+          containerRegistry: $(redhatConnection)
+      - task: Docker@2
+        displayName: Login to quay registry
+        inputs:
+          command: login
+          containerRegistry: $(quayConnection)
+      - task: Docker@2
+        displayName: Login to docker registry
+        condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+        inputs:
+          command: login
+          containerRegistry: $(dockerConnection)
+      - task: Docker@2
+        displayName: Login to scan registry
+        condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+        inputs:
+          command: login
+          containerRegistry: $(scanConnection)
+      - task: Docker@2
+        displayName: Build from Red Hat Universal Base Image
+        inputs:
+          command: build
+          containerRegistry: $(quayConnection)
+          repository: $(imageName)
+          Dockerfile: build-tools/Dockerfile-int
+          buildContext: .
+          tags: $(Build.SourceVersion)
+          arguments: "--build-arg BUILD_INFO=azure-$(Build.BuildId)-$(Build.SourceVersion) --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg RUN_TESTS=$(RUN_TESTS)"
+      - task: Docker@2
+        displayName: Push image to Quay
+        inputs:
+          command: push
+          containerRegistry: $(quayConnection)
+          repository: $(imageName)
+          tags: $(Build.SourceVersion)
+      - script: |
+          set -ex
+          podman pull --authfile $(DOCKER_CONFIG)/config.json $(quay_path):$(Build.SourceVersion)
+          podman tag $(quay_path):$(Build.SourceVersion) scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(redhat_tag)
+          podman push --authfile $(DOCKER_CONFIG)/config.json scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(redhat_tag)
+        condition: and(succeeded(), startsWith(variables['build.sourceBranch'], 'refs/tags/'))
+        displayName: 'Push image to Redhat'
+        continueOnError: true
+      - script: |
+          set -ex
+          docker pull $(quay_path):$(Build.SourceVersion)
+          docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):latest
+          docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(docker_version)
+          if [[ $(docker_version: -1) -eq 0 ]]
+          then 
+            docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(docker_version:0:$(#docker_version)-2)
+            docker push $(docker_repo):$(docker_version:0:$(#docker_version)-2)
+          fi
+          docker push $(docker_repo):latest
+          docker push $(docker_repo):$(docker_version)
+        displayName: 'Push image to DockerHub'
+        condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+- stage: Charts
+  dependsOn: Documentation
+  jobs:
+  - job: BuildCharts
+    steps:
+    - script: |
+          git diff HEAD HEAD~ --name-only | grep "helm-charts/\|docs/config_examples/crd/Install/customresourcedefinitions.yml"
+          if  [ $? == 0 ] ; then echo "##vso[task.setvariable variable=chartsUpdated]True"; fi
+      displayName: Check Helm changes
+    - script: echo '##vso[task.setvariable variable=chartPath]stable'
+      displayName: "Set the helm chart release directory as stable if the Build.SourceBranch starts with 'refs/tags/' "
+      condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
+    - script: |
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh --version $helmVersion
+      displayName: Install Helm
+      failOnStderr: true
+      condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )
+    - script: |
+        mkdir -p ./helm-charts/f5-bigip-ctlr/crds
+        cp ./docs/config_examples/crd/Install/customresourcedefinitions.yml ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
+        cp ./helm-charts/f5-bigip-ctlr-ingress-class.yaml ./helm-charts/f5-bigip-ctlr/templates/f5-bigip-ctlr-ingress-class.yaml
+        sed -i '/metadata:/r ./helm-charts/labels.txt' ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
+        helm lint --strict ./helm-charts/f5-bigip-ctlr --set 'args.bigip_url=https://example.com'
+        helm package ./helm-charts/f5-bigip-ctlr --destination .deploy/
+      displayName: Package Helm Chart
+      failOnStderr: true
+      condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )
+    - script: |
+        set -ex
+        git clone --single-branch --branch gh-pages https://$(PAT)@github.com/$(chartOrganization)/$(chartRepoName).git /tmp/$(chartRepoName)
+        cp -rf .deploy/*.tgz /tmp/$(chartRepoName)/$(chartPath)/
+        pushd /tmp/$(chartRepoName)
+        git config user.email "v.lohiya@f5.com"
+        git config user.name "cisbotctlr"
+        helm repo index --url https://$(chartOrganization).github.io/$(chartRepoName)/$(chartPath) $(chartPath)
+        git add --all
+        git commit -m 'Updating charts for CIS Release v$(BUILD_VERSION) and Build Info azure-$(Build.BuildId)-$(Build.SourceVersion) in $(chartPath)'
+        git push origin gh-pages
+        popd
+      displayName: Upload charts
+      condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )
+- stage: Operator
+  dependsOn: Documentation
+  jobs:
+  - job: BuildOperator
+    steps:
+    - script: |
+          git diff HEAD HEAD~ --name-only | grep "helm-charts/\|operator/"
+          if [ $? == 0 ] ; then echo "##vso[task.setvariable variable=operatorUpdated]True"; fi
+      displayName: Check Operator changes
+    - task: Docker@2
+      displayName: Login to quay registry
+      condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
+      inputs:
+        command: login
+        containerRegistry: $(quayConnection)
+    - task: Docker@2
+      displayName: Build Operator Image for test
+      inputs:
+        command: build
+        containerRegistry: $(quayConnection)
+        repository: $(operatorImageName)
+        Dockerfile: operator/build/Dockerfile
+        buildContext: .
+        tags: $(Build.SourceVersion)
+      condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
+    - task: Docker@2
+      displayName: Push image to Quay for testing 
+      condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
+      inputs:
+        command: push
+        containerRegistry: $(quayConnection)
+        repository: $(operatorImageName)
+        tags: $(Build.SourceVersion)
+    - script: |
+        operatorVersion=$(ls -d  operator/manifest/new-f5-bundle/1.* | sort -Vr | head -1 | awk -F '/' '{print $4}')
+        sed -i 's|registry.connect.redhat.com/f5networks/k8s-bigip-ctlr-operator:latest|quay.io/$(operatorImageName):$(Build.SourceVersion)|g' ./operator/manifest/new-f5-bundle/${operatorVersion}/manifests/f5-bigip-ctlr-operator.v${operatorVersion}.clusterserviceversion.yaml
+        sed -i 's|registry.connect.redhat.com/f5networks/k8s-bigip-ctlr-operator:latest|quay.io/$(operatorImageName):$(Build.SourceVersion)|g' ./operator/manifest/new-f5-bundle/${operatorVersion}/manifests/f5-bigip-ctlr-operator.v${operatorVersion}.clusterserviceversion.yaml
+      displayName: 'Prepare the charts repo for bunding with operator'
+      condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
+    - task: Docker@2
+      displayName: Build Operator Bundle for test
+      condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
+      inputs:
+        command: build
+        containerRegistry: $(quayConnection)
+        repository: $(operatorBundleImageName)
+        Dockerfile: operator/manifest/new-f5-bundle/Dockerfile
+        buildContext: operator/manifest/new-f5-bundle
+        tags: $(Build.SourceVersion)
+    - task: Docker@2
+      displayName: Push Operator Bundle image to Quay for testing 
+      condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
+      inputs:
+        command: push
+        containerRegistry: $(quayConnection)
+        repository: $(operatorBundleImageName)
+        tags: $(Build.SourceVersion)
+    - script: |
+        wget https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-4.6/opm-linux.tar.gz
+        tar xvf opm-linux.tar.gz
+        ./opm index add --bundles quay.io/$(operatorBundleImageName):$(Build.SourceVersion) --tag quay.io/$(operatorIndexImage):$(Build.SourceVersion) 
+        podman push quay.io/$(operatorIndexImage):$(Build.SourceVersion)
+      displayName: Updating the operator index image
+      condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
+      

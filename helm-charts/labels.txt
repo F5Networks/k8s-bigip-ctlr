@@ -1,0 +1,4 @@
+  labels:
+    app.kubernetes.io/instance: f5-bigip-ctlr
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: f5-bigip-ctlr

@@ -30,7 +30,7 @@ Please follow these guidelines for filing issues.
 * Sanitize the data. For example, be mindful of IPs, ports, application names and URLs
 
 ## Pull Requests
-We use [travis-ci](https://travis-ci.org/F5Networks/k8s-bigip-ctlr) to automatically run some hooks on every pull request. These must pass before a pull request is accepted. You can see the details in [.travis.yml](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/.travis.yml). If your pull request fails in travis, your pull request will be blocked by travis with a link to the failing run. Generally, we run these hooks:
+We use [azure-pipeline](https://dev.azure.com/f5networks/CIS/_build?definitionId=6) to automatically run some hooks on every pull request. These must pass before a pull request is accepted. You can see the details in [.travis.yml](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/.travis.yml). If your pull request fails in travis, your pull request will be blocked by travis with a link to the failing run. Generally, we run these hooks:
 * Unit tests are executed
 * Code coverage data is collected
 * Formatting and linting checks are performed

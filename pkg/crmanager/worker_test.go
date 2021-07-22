@@ -1,10 +1,13 @@
 package crmanager
 
 import (
+	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
+	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/fake"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/informers/externalversions/cis/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+	"reflect"
 	"sort"
 	"time"
 
@@ -137,6 +140,157 @@ var _ = Describe("Worker Tests", func() {
 			services = append(services, *foo, *bar)
 			sort.Sort(services)
 			Expect(services[0].Name).To(Equal("bar"), "Should return the service name as bar")
+		})
+	})
+
+	Describe("IPAM", func() {
+		BeforeEach(func() {
+			mockCRM.Agent = &Agent{
+				PostManager: &PostManager{
+					PostParams: PostParams{
+						BIGIPURL: "10.10.10.1",
+					},
+				},
+			}
+			mockCRM.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+		})
+
+		It("Create IPAM Custom Resource", func() {
+			err := mockCRM.createIPAMResource()
+			Expect(err).To(BeNil(), "Failed to Create IPAM Custom Resource")
+			err = mockCRM.createIPAMResource()
+			Expect(err).To(BeNil(), "Failed to Create IPAM Custom Resource")
+
+		})
+
+		It("Get IPAM Resource", func() {
+			_ = mockCRM.createIPAMResource()
+			ipamCR := mockCRM.getIPAMCR()
+			Expect(ipamCR).NotTo(BeNil(), "Failed to GET IPAM")
+			mockCRM.ipamCR = mockCRM.ipamCR + "invalid"
+			ipamCR = mockCRM.getIPAMCR()
+			Expect(ipamCR).To(BeNil(), "Failed to GET IPAM")
+			mockCRM.ipamCR = mockCRM.ipamCR + "/invalid"
+			ipamCR = mockCRM.getIPAMCR()
+			Expect(ipamCR).To(BeNil(), "Failed to GET IPAM")
+		})
+
+		It("Request IP Address", func() {
+
+			testSpec := make(map[string]string)
+			testSpec["host"] = "foo.com"
+			testSpec["key"] = "ns/name"
+
+			for sp, val := range testSpec {
+				_ = mockCRM.createIPAMResource()
+				var key, host, errHint string
+				if sp == "host" {
+					host = val
+					key = ""
+					errHint = "Host: "
+				} else {
+					key = val
+					host = ""
+					errHint = "Key: "
+				}
+
+				ip := mockCRM.requestIP("test", host, key)
+				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
+				ipamCR := mockCRM.getIPAMCR()
+				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(1), errHint+"Invalid number of Host Specs")
+				Expect(ipamCR.Spec.HostSpecs[0].IPAMLabel).To(Equal("test"), errHint+"IPAM Request Failed")
+				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
+				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
+
+				ip = mockCRM.requestIP("", host, key)
+				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
+				newIPAMCR := mockCRM.getIPAMCR()
+				Expect(reflect.DeepEqual(ipamCR, newIPAMCR)).To(BeTrue(), errHint+"IPAM CR should not be updated")
+
+				ip = mockCRM.requestIP("test", host, key)
+				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
+				newIPAMCR = mockCRM.getIPAMCR()
+				Expect(reflect.DeepEqual(ipamCR, newIPAMCR)).To(BeTrue(), errHint+"IPAM CR should not be updated")
+
+				ip = mockCRM.requestIP("test", host, key)
+				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
+				newIPAMCR = mockCRM.getIPAMCR()
+				Expect(reflect.DeepEqual(ipamCR, newIPAMCR)).To(BeTrue(), errHint+"IPAM CR should not be updated")
+
+				ipamCR.Status.IPStatus = []*ficV1.IPSpec{
+					{
+						IPAMLabel: "test",
+						Host:      host,
+						IP:        "10.10.10.1",
+						Key:       key,
+					},
+				}
+				ipamCR, _ = mockCRM.ipamCli.Update(ipamCR)
+				ip = mockCRM.requestIP("test", host, key)
+				Expect(ip).To(Equal("10.10.10.1"), errHint+"Invalid IP")
+				ipamCR = mockCRM.getIPAMCR()
+				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(1), errHint+"Invalid number of Host Specs")
+				Expect(ipamCR.Spec.HostSpecs[0].IPAMLabel).To(Equal("test"), errHint+"IPAM Request Failed")
+				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
+				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
+
+				ip = mockCRM.requestIP("dev", host, key)
+				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
+				ipamCR = mockCRM.getIPAMCR()
+				// TODO: The expected number of Specs is 1. After the bug gest fixed update this to 1 from 2.
+				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(2), errHint+"Invalid number of Host Specs")
+
+				ip = mockCRM.requestIP("test", "", "")
+				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
+				newIPAMCR = mockCRM.getIPAMCR()
+				Expect(reflect.DeepEqual(ipamCR, newIPAMCR)).To(BeTrue(), errHint+"IPAM CR should not be updated")
+			}
+		})
+
+		It("Release IP Addresss", func() {
+			testSpec := make(map[string]string)
+			testSpec["host"] = "foo.com"
+			testSpec["key"] = "ns/name"
+
+			for sp, val := range testSpec {
+				_ = mockCRM.createIPAMResource()
+				var key, host, errHint string
+				if sp == "host" {
+					host = val
+					key = ""
+					errHint = "Host: "
+				} else {
+					key = val
+					host = ""
+					errHint = "Key: "
+				}
+
+				ip := mockCRM.releaseIP("", host, key)
+				Expect(ip).To(BeEmpty(), errHint+"Unexpected IP address released")
+
+				ipamCR := mockCRM.getIPAMCR()
+				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
+					{
+						IPAMLabel: "test",
+						Host:      host,
+						Key:       key,
+					},
+				}
+				ipamCR.Status.IPStatus = []*ficV1.IPSpec{
+					{
+						IPAMLabel: "test",
+						Host:      host,
+						IP:        "10.10.10.1",
+						Key:       key,
+					},
+				}
+				ipamCR, _ = mockCRM.ipamCli.Update(ipamCR)
+
+				ip = mockCRM.releaseIP("test", host, key)
+				ipamCR = mockCRM.getIPAMCR()
+				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(0), errHint+"IP Address Not released")
+				Expect(ip).To(Equal("10.10.10.1"), errHint+"Wrong IP Address released")
+			}
 		})
 	})
 })

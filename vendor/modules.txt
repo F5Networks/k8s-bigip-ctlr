@@ -1,9 +1,11 @@
-# github.com/F5Networks/f5-ipam-controller v0.1.4-0.20210712112858-0382461fdb1b
+# github.com/F5Networks/f5-ipam-controller v0.1.5-0.20210720135810-3c6cbe8409ee
 ## explicit
 github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1
 github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned
+github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned/fake
 github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned/scheme
 github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned/typed/fic/v1
+github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned/typed/fic/v1/fake
 github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/informers/externalversions/fic/v1
 github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/informers/externalversions/internalinterfaces
 github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/listers/fic/v1

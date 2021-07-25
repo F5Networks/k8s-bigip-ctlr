@@ -131,6 +131,33 @@ func (appMgr *Manager) checkV1Ingress(
 	return true, keyList
 }
 
+func (appMgr *Manager) checkV1SingleServivceIngress(
+	ing *netv1.Ingress,
+) bool {
+	bindAddr := ""
+	if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok {
+		bindAddr = addr
+	}
+	// Depending on the Ingress, we may loop twice here, once for http and once for https
+	for _, portStruct := range appMgr.v1VirtualPorts(ing) {
+		rsName := FormatIngressVSName(bindAddr, portStruct.port)
+		// If we have a config for this IP:Port, and either that config or the current config
+		// is for a single service ingress, then we don't allow the new Ingress to share the VS
+		// It doesn't make sense for single service Ingresses to share a VS
+		if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
+			if (oldCfg.Virtual.PoolName != "" || ing.Spec.Rules == nil) &&
+				oldCfg.MetaData.IngName != ing.ObjectMeta.Name &&
+				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
+				log.Warningf(
+					"Single-service Ingress cannot share the IP and port: '%s:%d'.",
+					oldCfg.Virtual.VirtualAddress.BindAddr, oldCfg.Virtual.VirtualAddress.Port)
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (appMgr *Manager) v1VirtualPorts(ing *netv1.Ingress) []portStruct {
 	var httpPort int32
 	var httpsPort int32

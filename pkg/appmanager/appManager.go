@@ -1469,6 +1469,9 @@ func (appMgr *Manager) syncIngresses(
 			if ing.ObjectMeta.Namespace != sKey.Namespace {
 				continue
 			}
+			if ok := appMgr.checkV1Beta1SingleServivceIngress(ing); !ok {
+				continue
+			}
 			if appMgr.useSecrets {
 				prepareIngressSSLContext(appMgr, ing)
 			}
@@ -1625,6 +1628,9 @@ func (appMgr *Manager) syncIngresses(
 			//  only, existing implementation processes all services available in k8s
 			//  and this approach degrades the performance of processing Ingress resources
 			if ing.ObjectMeta.Namespace != sKey.Namespace {
+				continue
+			}
+			if ok := appMgr.checkV1SingleServivceIngress(ing); !ok {
 				continue
 			}
 			if len(ing.Spec.TLS) > 0 || len(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]) > 0 {

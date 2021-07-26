@@ -608,55 +608,12 @@ func (crMgr *CRManager) processVirtualServers(
 
 	allVirtuals := crMgr.getAllVirtualServers(virtual.ObjectMeta.Namespace)
 	crMgr.TeemData.ResourceType.VirtualServer[virtual.ObjectMeta.Namespace] = len(allVirtuals)
-	var virtuals []*cisapiv1.VirtualServer
 
 	// Prepare list of associated VirtualServers to be processed
 	// In the event of deletion, exclude the deleted VirtualServer
 	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
 
-	uniqueHostPath := make(map[string][]string)
-	var ipamLabel string
-	for _, vrt := range allVirtuals {
-		if vrt.Spec.Host == virtual.Spec.Host &&
-			!(isVSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
-			if crMgr.ipamCli != nil && vrt.Spec.IPAMLabel != virtual.Spec.IPAMLabel {
-				log.Debugf("Same host is configured with different ipma label : , %v ", vrt.Spec.Host)
-				return nil
-			} else if vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress && vrt.Spec.Host != "" && virtual.Spec.Host != "" {
-				log.Debugf("Same host is configured with different VirtualServerAddress : %v ", vrt.Spec.VirtualServerName)
-				return nil
-			}
-			if virtual.Spec.Host == "" && vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress {
-				continue
-			}
-			isUnique := true
-		op:
-			for _, pool := range vrt.Spec.Pools {
-				uniquePaths := uniqueHostPath[virtual.Spec.Host]
-				if len(uniquePaths) > 0 {
-					for _, path := range uniquePaths {
-						//check if path already exists in host map
-						if pool.Path == path {
-							isUnique = false
-							log.Errorf("Discarding the virtual server : %v in Namespace %v : %v  due to duplicate path",
-								virtual.Spec.VirtualServerAddress, virtual.ObjectMeta.Namespace, virtual.ObjectMeta.Name)
-							break op
-						} else {
-							uniqueHostPath[virtual.Spec.Host] = append(uniqueHostPath[virtual.Spec.Host], pool.Path)
-						}
-					}
-				} else {
-					uniqueHostPath[virtual.Spec.Host] = append(uniqueHostPath[virtual.Spec.Host], pool.Path)
-				}
-			}
-			if isUnique {
-				virtuals = append(virtuals, vrt)
-				if vrt.Spec.IPAMLabel != "" {
-					ipamLabel = vrt.Spec.IPAMLabel
-				}
-			}
-		}
-	}
+	virtuals := crMgr.getAssociatedVirtualServers(virtual, allVirtuals, isVSDeleted)
 
 	var ip string
 	if crMgr.ipamCli != nil {
@@ -665,6 +622,7 @@ func (crMgr *CRManager) processVirtualServers(
 		} else if virtual.Spec.VirtualServerAddress != "" {
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
+			ipamLabel := getIPAMLabel(virtuals)
 			ip = crMgr.requestIP(ipamLabel, virtual.Spec.Host, "")
 			if ip == "" {
 				log.Debugf("[ipam] requested IP for host %v is empty.", virtual.Spec.Host)
@@ -736,7 +694,16 @@ func (crMgr *CRManager) processVirtualServers(
 
 			if isTLSVirtualServer(vrt) {
 				// Handle TLS configuration for VirtualServer Custom Resource
-				processed := crMgr.handleVirtualServerTLS(rsCfg, vrt, ip)
+
+				tlsProf := crMgr.getTLSProfileForVirtualServer(vrt, vrt.Namespace)
+				if tlsProf == nil {
+					// Processing failed
+					// Stop processing further virtuals
+					processingError = true
+					break
+				}
+
+				processed := crMgr.handleVirtualServerTLS(rsCfg, vrt, tlsProf, ip)
 				if !processed {
 					// Processing failed
 					// Stop processing further virtuals
@@ -780,6 +747,65 @@ func (crMgr *CRManager) processVirtualServers(
 	}
 
 	return nil
+}
+
+func (crMgr *CRManager) getAssociatedVirtualServers(
+	virtual *cisapiv1.VirtualServer,
+	allVirtuals []*cisapiv1.VirtualServer,
+	isVSDeleted bool,
+) []*cisapiv1.VirtualServer {
+
+	var virtuals []*cisapiv1.VirtualServer
+	uniqueHostPath := make(map[string][]string)
+
+	for _, vrt := range allVirtuals {
+		if vrt.Spec.Host == virtual.Spec.Host &&
+			!(isVSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
+			if crMgr.ipamCli != nil && vrt.Spec.IPAMLabel != virtual.Spec.IPAMLabel {
+				log.Debugf("Same host is configured with different IPAM label : , %v ", vrt.Spec.Host)
+				return nil
+			} else if vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress && vrt.Spec.Host != "" && virtual.Spec.Host != "" {
+				log.Debugf("Same host is configured with different VirtualServerAddress : %v ", vrt.Spec.VirtualServerName)
+				return nil
+			}
+			if virtual.Spec.Host == "" && vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress {
+				continue
+			}
+			isUnique := true
+		op:
+			for _, pool := range vrt.Spec.Pools {
+				uniquePaths := uniqueHostPath[virtual.Spec.Host]
+				if len(uniquePaths) > 0 {
+					for _, path := range uniquePaths {
+						//check if path already exists in host map
+						if pool.Path == path {
+							isUnique = false
+							log.Errorf("Discarding the virtual server : %v in Namespace %v : %v  due to duplicate path",
+								virtual.Spec.VirtualServerAddress, virtual.ObjectMeta.Namespace, virtual.ObjectMeta.Name)
+							break op
+						} else {
+							uniqueHostPath[virtual.Spec.Host] = append(uniqueHostPath[virtual.Spec.Host], pool.Path)
+						}
+					}
+				} else {
+					uniqueHostPath[virtual.Spec.Host] = append(uniqueHostPath[virtual.Spec.Host], pool.Path)
+				}
+			}
+			if isUnique {
+				virtuals = append(virtuals, vrt)
+			}
+		}
+	}
+	return virtuals
+}
+
+func getIPAMLabel(virtuals []*cisapiv1.VirtualServer) string {
+	for _, vrt := range virtuals {
+		if vrt.Spec.IPAMLabel != "" {
+			return vrt.Spec.IPAMLabel
+		}
+	}
+	return ""
 }
 
 func (crMgr *CRManager) getIPAMCR() *ficV1.F5IPAM {

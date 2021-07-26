@@ -11,7 +11,7 @@ import (
 	"sort"
 )
 
-var _ = Describe("Resouce Config Tests", func() {
+var _ = Describe("Resource Config Tests", func() {
 	namespace := "default"
 	Describe("Virtual Ports", func() {
 		var vs *cisapiv1.VirtualServer
@@ -278,9 +278,13 @@ var _ = Describe("Resouce Config Tests", func() {
 				v1.ServiceTypeLoadBalancer,
 				[]v1.ServicePort{svcPort},
 			)
+			svc.Annotations = make(map[string]string)
+			svc.Annotations[HealthMonitorAnnotation] = `{"interval": 5, "timeout": 10}`
+
 			err := mockCRM.prepareRSConfigFromLBService(rsCfg, svc, svcPort)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from Service")
-
+			Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to Prepare Resource Config from Service")
+			Expect(len(rsCfg.Monitors)).To(Equal(1), "Failed to Prepare Resource Config from Service")
 		})
 
 		It("Get Pool Members from Resource Configs", func() {
@@ -507,4 +511,319 @@ var _ = Describe("Resouce Config Tests", func() {
 		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
 	})
 
+	Describe("Resource Configs", func() {
+		var res Resources
+		BeforeEach(func() {
+			res.Init()
+		})
+		It("Get resource", func() {
+			res.rsMap["virtualServer"] = &ResourceConfig{
+				Virtual: Virtual{
+					Name: "VirtualServer",
+				},
+			}
+
+			rsCfg, ok := res.GetByName("virtualServer")
+			Expect(ok).To(BeTrue())
+			Expect(rsCfg.Virtual.Name).To(Equal("VirtualServer"))
+		})
+
+		It("Get all Resources", func() {
+			res.rsMap["virtualServer1"] = &ResourceConfig{
+				Virtual: Virtual{
+					Name: "VirtualServer1",
+				},
+			}
+			res.rsMap["virtualServer2"] = &ResourceConfig{
+				Virtual: Virtual{
+					Name: "VirtualServer2",
+				},
+			}
+
+			rsCfgs := res.GetAllResources()
+			Expect(len(rsCfgs)).To(Equal(2), "Wrong number of Resource Configs")
+			Expect(rsCfgs[0]).NotTo(Equal(rsCfgs[1]))
+		})
+	})
+
+	Describe("Handle Virtual Server TLS", func() {
+		var mockCRM *mockCRManager
+		var vs *cisapiv1.VirtualServer
+		var tlsProf *cisapiv1.TLSProfile
+		var rsCfg, inSecRsCfg *ResourceConfig
+		var ip string
+
+		BeforeEach(func() {
+			mockCRM = newMockCRManager()
+			mockCRM.SSLContext = make(map[string]*v1.Secret)
+
+			ip = "1.2.3.4"
+
+			vs = test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host: "test.com",
+					Pools: []cisapiv1.Pool{
+						cisapiv1.Pool{
+							Path:    "/path",
+							Service: "svc1",
+						},
+					},
+				},
+			)
+
+			rsCfg = &ResourceConfig{}
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.Virtual.SetVirtualAddress(
+				ip,
+				443,
+			)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+
+			inSecRsCfg = &ResourceConfig{}
+			inSecRsCfg.MetaData.ResourceType = VirtualServer
+			inSecRsCfg.Virtual.Enabled = true
+			inSecRsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			inSecRsCfg.Virtual.SetVirtualAddress(
+				"1.2.3.4",
+				80,
+			)
+			inSecRsCfg.IntDgMap = make(InternalDataGroupMap)
+			inSecRsCfg.IRulesMap = make(IRulesMap)
+
+			tlsProf = test.NewTLSProfile("SampleTLS", namespace, cisapiv1.TLSProfileSpec{
+				TLS: cisapiv1.TLS{},
+			})
+		})
+
+		It("Basic Validation", func() {
+			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeFalse(), "Validation Failed")
+
+			vs.Spec.TLSProfileName = "SampleTLS"
+			ok = mockCRM.handleVirtualServerTLS(rsCfg, vs, nil, ip)
+			Expect(ok).To(BeFalse(), "Validation Failed")
+		})
+
+		It("Invalide TLS Reference", func() {
+			vs.Spec.TLSProfileName = "SampleTLS"
+			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeFalse(), "Failed to Validate TLS Reference")
+		})
+
+		It("Passthrough Termination", func() {
+			vs.Spec.TLSProfileName = "SampleTLS"
+			tlsProf.Spec.TLS.Termination = TLSPassthrough
+			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Passthrough")
+		})
+
+		It("TLS Edge with BIGIP Reference", func() {
+			vs.Spec.TLSProfileName = "SampleTLS"
+			tlsProf.Spec.TLS.Termination = TLSEdge
+			tlsProf.Spec.TLS.Reference = BIGIP
+			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
+
+			profRef := ProfileRef{
+				Name:      "clientssl",
+				Partition: "Common",
+				Context:   CustomProfileClient,
+				Namespace: namespace,
+			}
+
+			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(1), "Failed to Process TLS Termination: Edge")
+			Expect(rsCfg.Virtual.Profiles[0]).To(Equal(profRef), "Failed to Process TLS Termination: Edge")
+
+		})
+
+		It("TLS Reencrypt with BIGIP Reference", func() {
+			vs.Spec.TLSProfileName = "SampleTLS"
+			tlsProf.Spec.TLS.Termination = TLSReencrypt
+			tlsProf.Spec.TLS.Reference = BIGIP
+			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
+			tlsProf.Spec.TLS.ServerSSL = "/Common/serverssl"
+
+			clProfRef := ProfileRef{
+				Name:      "clientssl",
+				Partition: "Common",
+				Context:   CustomProfileClient,
+				Namespace: namespace,
+			}
+			svProfRef := ProfileRef{
+				Name:      "serverssl",
+				Partition: "Common",
+				Context:   CustomProfileServer,
+				Namespace: namespace,
+			}
+
+			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
+
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
+			Expect(rsCfg.Virtual.Profiles[0]).To(Equal(clProfRef), "Failed to Process TLS Termination: Reencrypt")
+			Expect(rsCfg.Virtual.Profiles[1]).To(Equal(svProfRef), "Failed to Process TLS Termination: Reencrypt")
+		})
+
+		It("Validate TLS Reencrypt with AllowInsecure", func() {
+			vs.Spec.TLSProfileName = "SampleTLS"
+			vs.Spec.HTTPTraffic = TLSAllowInsecure
+			tlsProf.Spec.TLS.Termination = TLSReencrypt
+			tlsProf.Spec.TLS.Reference = BIGIP
+			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
+			tlsProf.Spec.TLS.ServerSSL = "/Common/serverssl"
+
+			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeFalse(), "Failed to Validate TLS Termination: Reencrypt with AllowInsecure")
+		})
+
+		It("Handle HTTP Server when Redirect", func() {
+			vs.Spec.TLSProfileName = "SampleTLS"
+			vs.Spec.HTTPTraffic = TLSRedirectInsecure
+			tlsProf.Spec.TLS.Termination = TLSReencrypt
+			tlsProf.Spec.TLS.Reference = BIGIP
+			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
+			tlsProf.Spec.TLS.ServerSSL = "/Common/serverssl"
+
+			ok := mockCRM.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Handle insecure virtual with Redirect config")
+			Expect(len(inSecRsCfg.IRulesMap)).To(Equal(1))
+			Expect(len(inSecRsCfg.Virtual.IRules)).To(Equal(1))
+		})
+
+		It("Handle HTTP Server when Redirect with out host", func() {
+			vs.Spec.Host = ""
+			vs.Spec.TLSProfileName = "SampleTLS"
+			vs.Spec.HTTPTraffic = TLSRedirectInsecure
+			tlsProf.Spec.TLS.Termination = TLSReencrypt
+			tlsProf.Spec.TLS.Reference = BIGIP
+			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
+			tlsProf.Spec.TLS.ServerSSL = "/Common/serverssl"
+
+			ok := mockCRM.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Handle insecure virtual with Redirect config")
+			Expect(len(inSecRsCfg.IRulesMap)).To(Equal(1))
+			Expect(len(inSecRsCfg.Virtual.IRules)).To(Equal(1))
+		})
+
+		It("Handle HTTP Server when Allow with Edge", func() {
+			vs.Spec.TLSProfileName = "SampleTLS"
+			vs.Spec.HTTPTraffic = TLSAllowInsecure
+			tlsProf.Spec.TLS.Termination = TLSEdge
+			tlsProf.Spec.TLS.Reference = BIGIP
+			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
+
+			ok := mockCRM.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(0), "Failed to Process TLS Termination: Edge")
+		})
+
+		It("Handle HTTP Server when NoInsecure with Edge", func() {
+			vs.Spec.TLSProfileName = "SampleTLS"
+			vs.Spec.HTTPTraffic = TLSNoInsecure
+			tlsProf.Spec.TLS.Termination = TLSEdge
+			tlsProf.Spec.TLS.Reference = BIGIP
+			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
+
+			ok := mockCRM.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+
+			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(0), "Failed to Process TLS Termination: Edge")
+		})
+
+		It("TLS Edge with BIGIP Reference", func() {
+
+			vs.Spec.TLSProfileName = "SampleTLS"
+			tlsProf.Spec.TLS.Termination = TLSEdge
+			tlsProf.Spec.TLS.Reference = Secret
+			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
+
+			rsCfg.customProfiles = *NewCustomProfiles()
+
+			clSecret := test.NewSecret(
+				"clientsecret",
+				namespace,
+				"### cert ###",
+				"#### key ####",
+			)
+			mockCRM.kubeClient = k8sfake.NewSimpleClientset(clSecret)
+
+			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(2), "Failed to Process TLS Termination: Edge")
+			Expect(len(mockCRM.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
+
+			ok = mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
+			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(2), "Failed to Process TLS Termination: Edge")
+			Expect(len(mockCRM.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
+		})
+
+		It("TLS Reencrypt with BIGIP Reference", func() {
+
+			vs.Spec.TLSProfileName = "SampleTLS"
+			tlsProf.Spec.TLS.Termination = TLSReencrypt
+			tlsProf.Spec.TLS.Reference = Secret
+			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
+			tlsProf.Spec.TLS.ServerSSL = "serversecret"
+
+			rsCfg.customProfiles = *NewCustomProfiles()
+
+			clSecret := test.NewSecret(
+				"clientsecret",
+				namespace,
+				"### cert ###",
+				"#### key ####",
+			)
+			svSecret := test.NewSecret(
+				"serversecret",
+				namespace,
+				"### cert ###",
+				"",
+			)
+			mockCRM.kubeClient = k8sfake.NewSimpleClientset(clSecret, svSecret)
+
+			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
+			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
+			Expect(len(mockCRM.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
+
+			ok = mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
+			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
+			Expect(len(mockCRM.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
+		})
+
+		It("Validate API failures", func() {
+			vs.Spec.TLSProfileName = "SampleTLS"
+			tlsProf.Spec.TLS.Termination = TLSReencrypt
+			tlsProf.Spec.TLS.Reference = Secret
+			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
+			tlsProf.Spec.TLS.ServerSSL = "serversecret"
+
+			rsCfg.customProfiles = *NewCustomProfiles()
+
+			mockCRM.kubeClient = k8sfake.NewSimpleClientset()
+
+			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
+
+			clSecret := test.NewSecret(
+				"clientsecret",
+				namespace,
+				"### cert ###",
+				"#### key ####",
+			)
+			mockCRM.kubeClient = k8sfake.NewSimpleClientset(clSecret)
+			ok = mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
+		})
+	})
 })

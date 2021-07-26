@@ -307,4 +307,45 @@ var _ = Describe("Backend Tests", func() {
 
 		})
 	})
+
+	Describe("Misc", func() {
+		It("Extracting virtual address", func() {
+			ipAddr := extractVirtualAddress("crd_1_2_3_4_tls_client")
+			Expect(ipAddr).To(Equal("1.2.3.4"), "Wrong or invalid virtual Address")
+		})
+
+		It("Service Address declaration", func() {
+			rsCfg := &ResourceConfig{
+				ServiceAddress: []ServiceAddress{
+					{
+						ArpEnabled: true,
+					},
+				},
+			}
+			app := as3Application{}
+			createServiceAddressDecl(rsCfg, "1.2.3.4", app)
+
+			val, ok := app["crd_service_address_1_2_3_4"]
+			Expect(ok).To(BeTrue())
+			Expect(val).NotTo(BeNil())
+		})
+	})
+
+	Describe("JSON comparision of AS3 declaration", func() {
+		It("Verify with two empty declarations", func() {
+			ok := DeepEqualJSON("", "")
+			Expect(ok).To(BeTrue(), "Failed to compare empty declarations")
+		})
+		It("Verify with empty and non empty declarations", func() {
+			cmcfg1 := `{"key": "value"}`
+			ok := DeepEqualJSON("", as3Declaration(cmcfg1))
+			Expect(ok).To(BeFalse())
+			ok = DeepEqualJSON(as3Declaration(cmcfg1), "")
+			Expect(ok).To(BeFalse())
+		})
+		It("Verify two equal JSONs", func() {
+			ok := DeepEqualJSON(`{"key": "value"}`, `{"key": "value"}`)
+			Expect(ok).To(BeTrue())
+		})
+	})
 })

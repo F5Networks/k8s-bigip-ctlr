@@ -441,10 +441,15 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 func (crMgr *CRManager) handleVirtualServerTLS(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.VirtualServer,
+	tls *cisapiv1.TLSProfile,
 	ip string,
 ) bool {
 	if 0 == len(vs.Spec.TLSProfileName) {
 		// Probably this is a non-tls Virtual Server, nothing to do w.r.t TLS
+		return false
+	}
+
+	if tls == nil {
 		return false
 	}
 
@@ -466,10 +471,6 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 
 		// TLSProfile Object
 		tlsName := vs.Spec.TLSProfileName
-		tls := crMgr.getTLSProfileForVirtualServer(vs, vsNamespace)
-		if tls == nil {
-			return false
-		}
 
 		if tls.Spec.TLS.Termination == TLSPassthrough {
 			rsCfg.Virtual.PersistenceMethods = []string{"tls-session-id"}
@@ -525,10 +526,10 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 						return false
 					}
 					crMgr.SSLContext[clientSSL] = secret
-					error, _ := crMgr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
-					if error != nil {
+					err, _ = crMgr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
+					if err != nil {
 						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
-							error, vsName, tlsName)
+							err, vsName, tlsName)
 						return false
 					}
 				}
@@ -557,10 +558,10 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 						return false
 					}
 					crMgr.SSLContext[serverSSL] = secret
-					error, _ := crMgr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
-					if error != nil {
+					err, _ = crMgr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
+					if err != nil {
 						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
-							error, vsName, tlsName)
+							err, vsName, tlsName)
 						return false
 					}
 				}

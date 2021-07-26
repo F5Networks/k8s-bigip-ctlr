@@ -376,3 +376,21 @@ func NewNamespace(name, rv string, labels map[string]string) *v1.Namespace {
 	}
 	return ns
 }
+
+// NewSecret returns a service
+func NewSecret(name, namespace, cert, key string) *v1.Secret {
+	return &v1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			"tls.crt": []byte(cert),
+			"tls.key": []byte(key),
+		},
+	}
+}

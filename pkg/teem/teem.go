@@ -3,6 +3,7 @@ package teem
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/f5devcentral/go-bigip/f5teem"
@@ -25,6 +26,7 @@ type ResourceTypes struct {
 
 // TeemsData structure contains supporting data to be posted to TEEM's server
 type TeemsData struct {
+	sync.Mutex
 	CisVersion      string
 	SDNType         string
 	Agent           string

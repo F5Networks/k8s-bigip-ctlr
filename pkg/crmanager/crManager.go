@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -178,15 +179,23 @@ func (crMgr *CRManager) registerIPAMCRD() {
 func (crMgr *CRManager) createIPAMResource() error {
 
 	frameIPAMResourceName := func(bipUrl string) string {
+		re := regexp.MustCompile(`[A-Z][^A-Z]*`)
+		subStrs := re.FindAllString(DEFAULT_PARTITION, -1)
+		var prtn string
+		for _, elem := range subStrs {
+			lower := strings.ToLower(elem)
+			prtn += lower[:1] + "-" + lower[1:]
+		}
+
 		log.Debugf("BIP URL: %v", bipUrl)
 		if net.ParseIP(bipUrl) != nil {
-			return strings.Join([]string{ipamCRName, bipUrl, DEFAULT_PARTITION}, ".")
+			return strings.Join([]string{ipamCRName, bipUrl, prtn}, ".")
 		}
 
 		u, err := url.Parse(bipUrl)
 		if err != nil {
 			log.Errorf("Unable to frame IPAM resource name in standard format")
-			return strings.Join([]string{ipamCRName, DEFAULT_PARTITION}, ".")
+			return strings.Join([]string{ipamCRName, prtn}, ".")
 		}
 		var host string
 		if strings.Contains(u.Host, ":") {
@@ -197,10 +206,10 @@ func (crMgr *CRManager) createIPAMResource() error {
 
 		if host == "" {
 			log.Errorf("Unable to frame IPAM resource name in standard format")
-			return strings.Join([]string{ipamCRName, DEFAULT_PARTITION}, ".")
+			return strings.Join([]string{ipamCRName, prtn}, ".")
 		}
 
-		return strings.Join([]string{ipamCRName, host, DEFAULT_PARTITION}, ".")
+		return strings.Join([]string{ipamCRName, host, prtn}, ".")
 	}
 
 	crName := frameIPAMResourceName(crMgr.Agent.BIGIPURL)

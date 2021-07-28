@@ -8,7 +8,7 @@ require (
 	github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051
 	github.com/google/uuid v1.1.2
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
-	github.com/miekg/dns v1.0.14
+	github.com/miekg/dns v1.1.42
 	github.com/onsi/ginkgo v1.16.2
 	github.com/onsi/gomega v1.12.0
 	github.com/openshift/api v0.0.0-20210315202829-4b79815405ec

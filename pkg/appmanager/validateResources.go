@@ -183,7 +183,10 @@ func (appMgr *Manager) getSecretServiceQueueKeyForConfigMap(secret *v1.Secret) [
 func (appMgr *Manager) getSecretServiceQueueKeyForIngress(secret *v1.Secret) []*serviceQueueKey {
 	var keyList []*serviceQueueKey
 	// We will be adding ResourceKind as Ingress so that particular ingress can be re-synced
-	appInf, _ := appMgr.getNamespaceInformer(secret.ObjectMeta.Namespace)
+	appInf, ok := appMgr.getNamespaceInformer(secret.ObjectMeta.Namespace)
+	if ! ok {
+		return keyList
+	}
 	ingresses := appInf.ingInformer.GetIndexer().List()
 	for _, obj := range ingresses {
 		// TODO remove the switch and v1beta1 once v1beta1.Ingress is deprecated in k8s 1.22

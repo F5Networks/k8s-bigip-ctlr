@@ -552,7 +552,7 @@ func getCredentials() error {
 					return fmt.Errorf(fmt.Sprintf("BIG-IP %s not specified", fieldType))
 				}
 			} else {
-				*field = string(fileBytes)
+				*field = strings.TrimSpace(string(fileBytes))
 			}
 			return nil
 		}

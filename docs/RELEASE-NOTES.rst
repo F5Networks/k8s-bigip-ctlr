@@ -4,6 +4,9 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 Next Release
 -------------
 
+Bug Fixes
+`````````
+* :issues:`1921` Plain text login and password in process status on node that is running controller.
 
 Vulnerability Fixes
 ```````````````````

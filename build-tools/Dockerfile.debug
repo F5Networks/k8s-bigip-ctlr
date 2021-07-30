@@ -35,10 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && pip install --no-cache-dir --upgrade pip==20.0.2 \
     && pip install --no-cache-dir -r /tmp/requirements.txt \
     && apt-get remove -y git \
+    && apt-get remove -y libidn11 \
     && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json
-
-# FIXME: Remove this fix once libidn is no longer vulnerable
-RUN apt-get remove -y libidn11
 
 COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/
 

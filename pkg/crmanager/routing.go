@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"

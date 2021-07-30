@@ -768,18 +768,33 @@ func (crMgr *CRManager) getAssociatedVirtualServers(
 	for _, vrt := range allVirtuals {
 		if vrt.Spec.Host == virtual.Spec.Host &&
 			!(isVSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
-			if crMgr.ipamCli != nil && vrt.Spec.IPAMLabel != virtual.Spec.IPAMLabel {
-				log.Debugf("Same host is configured with different IPAM label : , %v ", vrt.Spec.Host)
-				return nil
-			} else if vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress && vrt.Spec.Host != "" && virtual.Spec.Host != "" {
-				log.Debugf("Same host is configured with different VirtualServerAddress : %v ", vrt.Spec.VirtualServerName)
-				return nil
+			if crMgr.ipamCli != nil {
+				if vrt.Spec.IPAMLabel != virtual.Spec.IPAMLabel {
+					log.Debugf("Same host is configured with different IPAM label : , %v ", vrt.Spec.Host)
+					return nil
+				}
+				// Empty host with IPAM label is invalid
+				if virtual.Spec.IPAMLabel != "" && virtual.Spec.Host == "" {
+					log.Debugf("Hostless VS is configured with IPAM label : , %v ", vrt.Spec.Host)
+					return nil
+				}
 			}
-			if virtual.Spec.Host == "" && vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress {
+			// Same host with different VirtualServerAddress is invalid
+			if vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress {
+				if virtual.Spec.Host != "" {
+					log.Debugf("Same host is configured with different VirtualServerAddress : %v ", vrt.Spec.VirtualServerName)
+					return nil
+				}
+				continue
+			}
+			// Hosts sharing same VirtualServerAddress but different ports are supported
+			if vrt.Spec.VirtualServerHTTPPort != virtual.Spec.VirtualServerHTTPPort ||
+				vrt.Spec.VirtualServerHTTPSPort != virtual.Spec.VirtualServerHTTPSPort {
 				continue
 			}
 			isUnique := true
 		op:
+			// Check for duplicate path entries among virtuals
 			for _, pool := range vrt.Spec.Pools {
 				uniquePaths := uniqueHostPath[virtual.Spec.Host]
 				if len(uniquePaths) > 0 {

@@ -89,7 +89,7 @@ prod-license: pre-build
 
 debug: pre-build
 	@echo "Building with debug support..."
-	docker build --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -f build-tools/Dockerfile.debug .
+	docker build --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.debug .
 
 fmt:
 	@echo "Enforcing code formatting using 'go fmt'..."

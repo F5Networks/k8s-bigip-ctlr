@@ -7,6 +7,7 @@ Next Release
 Bug Fixes
 `````````
 * :issues:`1921` Plain text login and password in process status on node that is running controller.
+* :issues:`1849` Fix VS processing sharing same IP and different port
 
 Vulnerability Fixes
 ```````````````````

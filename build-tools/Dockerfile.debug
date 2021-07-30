@@ -1,8 +1,6 @@
 FROM golang as builder
 ENV CGO_ENABLE 0
 
-RUN go get github.com/go-delve/delve/cmd/dlv
-
 ARG REPOPATH=$GOPATH/src/github.com/F5Networks/k8s-bigip-ctlr
 ARG BUILD_VERSION
 ARG BUILD_INFO
@@ -14,6 +12,9 @@ RUN go mod download
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -ldflags "-extldflags \"-static\" -X main.version=${BUILD_VERSION} -X main.buildInfo=${BUILD_INFO}" -o /bin/k8s-bigip-ctlr $REPOPATH/cmd/k8s-bigip-ctlr
+
+RUN go get github.com/go-delve/delve/cmd/dlv
+RUN ls /go/bin
 
 FROM python:3.6-slim-buster
 
@@ -43,7 +44,7 @@ COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/
 
 COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin
 
-COPY --from=builder /go/bin/dlv /app/bin
+COPY --from=builder /go/bin/dlv $APPPATH/bin
 
 # Enable CN Certificate validation 
 ENV GODEBUG x509ignoreCN=0

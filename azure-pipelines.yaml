@@ -36,16 +36,21 @@ variables:
   operatorIndexImage: 'f5networks/f5-cis-operator-index-devel'
 
 stages:
-- stage: Documentation
+- stage: PreCheck
   jobs:
-  - job: CheckDocumentation
-    steps:  
+  - job: Preverification
+    steps:
+    - task: CmdLine@2
+      displayName: Check Go format and Suspicious constructs
+      inputs:
+        script: 'make verify'
+      continueOnError: true
     - task: CmdLine@2
       displayName: Check documentation
       inputs:
         script: 'make docs'
 - stage: ContainerImage
-  dependsOn: Documentation
+  dependsOn: PreCheck
   jobs:
   - job: BuildContainerImage
     steps:
@@ -112,7 +117,7 @@ stages:
         displayName: 'Push image to DockerHub'
         condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
 - stage: Charts
-  dependsOn: Documentation
+  dependsOn: PreCheck
   jobs:
   - job: BuildCharts
     steps:
@@ -155,7 +160,7 @@ stages:
       displayName: Upload charts
       condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )
 - stage: Operator
-  dependsOn: Documentation
+  dependsOn: PreCheck
   jobs:
   - job: BuildOperator
     steps:

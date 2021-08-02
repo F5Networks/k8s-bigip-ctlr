@@ -184,7 +184,7 @@ func (appMgr *Manager) getSecretServiceQueueKeyForIngress(secret *v1.Secret) []*
 	var keyList []*serviceQueueKey
 	// We will be adding ResourceKind as Ingress so that particular ingress can be re-synced
 	appInf, ok := appMgr.getNamespaceInformer(secret.ObjectMeta.Namespace)
-	if ! ok {
+	if !ok {
 		return keyList
 	}
 	ingresses := appInf.ingInformer.GetIndexer().List()

@@ -96,14 +96,16 @@ func (appMgr *Manager) checkValidConfigMap(
 				rsName)
 		}
 	}
-	key := &serviceQueueKey{
-		ServiceName:  cfg.Pools[0].ServiceName,
-		Namespace:    namespace,
-		ResourceKind: Configmaps,
-		ResourceName: cm.Name,
-	}
+	for _, pool := range cfg.Pools {
+		key := &serviceQueueKey{
+			ServiceName:  pool.ServiceName,
+			Namespace:    namespace,
+			ResourceKind: Configmaps,
+			ResourceName: cm.Name,
+		}
 
-	keyList = append(keyList, key)
+		keyList = append(keyList, key)
+	}
 	return true, keyList
 }
 

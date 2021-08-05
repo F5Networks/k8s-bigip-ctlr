@@ -8,6 +8,7 @@ Bug Fixes
 `````````
 * :issues:`1921` Plain text login and password in process status on node that is running controller.
 * :issues:`1849` Fix VS processing sharing same IP and different port
+* :issue:`1911` Fix CIS delete all exist vs when cis pod restarting.
 
 Vulnerability Fixes
 ```````````````````

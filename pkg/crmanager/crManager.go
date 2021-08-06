@@ -186,7 +186,9 @@ func (crMgr *CRManager) createIPAMResource() error {
 			lower := strings.ToLower(elem)
 			prtn += lower[:1] + "-" + lower[1:]
 		}
-
+		if len(subStrs) == 0 {
+			prtn = DEFAULT_PARTITION
+		}
 		log.Debugf("BIP URL: %v", bipUrl)
 		if net.ParseIP(bipUrl) != nil {
 			return strings.Join([]string{ipamCRName, bipUrl, prtn}, ".")

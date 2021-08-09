@@ -229,17 +229,6 @@ func (crMgr *CRManager) createIPAMResource() error {
 	}
 	crMgr.ipamCR = IPAMNamespace + "/" + crName
 
-	//Get all IPAMS
-	ipams, err := crMgr.ipamCli.List(IPAMNamespace)
-	if err == nil {
-		for _, ipam := range ipams {
-			err = crMgr.ipamCli.Delete(ipam.Namespace, ipam.Name, metaV1.DeleteOptions{})
-			if err != nil {
-				log.Debugf("[ipam] Delete failed. Error: %s", err.Error())
-			}
-		}
-	}
-
 	ipamCR, err := crMgr.ipamCli.Create(f5ipam)
 	if err == nil {
 		log.Debugf("[ipam] Created IPAM Custom Resource: \n%v\n", ipamCR)

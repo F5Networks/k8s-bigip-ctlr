@@ -416,9 +416,13 @@ func (appMgr *Manager) processNextNamespace() bool {
 
 func (appMgr *Manager) triggerSyncResources(ns string, inf *appInformer) {
 	enqueueSvcFromNamespace := func(namespace string, appInf *appInformer) {
-		svcs := appInf.svcInformer.GetIndexer().List()
-		if svcs != nil && len(svcs) > 0 {
-			svc := svcs[0].(*v1.Service)
+		objs, err := appInf.svcInformer.GetIndexer().ByIndex("namespace", namespace)
+		if err != nil {
+			log.Errorf("[CORE] Unable to fetch services from namespace: %v for periodic resync", namespace)
+			return
+		}
+		if objs != nil && len(objs) > 0 {
+			svc := objs[0].(*v1.Service)
 			svcKey := serviceQueueKey{
 				Namespace:    namespace,
 				ServiceName:  svc.Name,
@@ -1040,12 +1044,15 @@ func (appMgr *Manager) GetAllWatchedNamespaces() []string {
 	return namespaces
 }
 
-// Get the count of Services from the Namespaces being watched.
-func (appMgr *Manager) getServiceCount() int {
+// Get the length of queue
+func (appMgr *Manager) getQueueLength() int {
 	qLen := 0
 	for _, ns := range appMgr.GetAllWatchedNamespaces() {
 		services, err := appMgr.kubeClient.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{})
 		qLen += len(services.Items)
+		if len(services.Items) != 0 {
+			qLen++
+		}
 		if err != nil {
 			log.Errorf("[CORE] Failed getting Services from watched namespace : %v.", err)
 			qLen = appMgr.vsQueue.Len()
@@ -1057,7 +1064,7 @@ func (appMgr *Manager) getServiceCount() int {
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
 	if !appMgr.steadyState && appMgr.processedItems == 0 {
-		appMgr.queueLen = appMgr.getServiceCount()
+		appMgr.queueLen = appMgr.getQueueLength()
 	}
 
 	if quit {
@@ -1141,11 +1148,12 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	}
 
 	// Processing just one service from a namespace processes all the resources in that namespace
-	if sKey.ResourceKind == Services {
+	switch sKey.ResourceKind {
+	case Services:
 		rkey := Services + "_" + sKey.Namespace
 		if !appMgr.steadyState && sKey.Operation == OprTypeCreate {
 			if _, ok := appMgr.processedResources[rkey]; ok {
-				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen-1 {
+				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen {
 					appMgr.deployResource()
 					appMgr.steadyState = true
 				}
@@ -1153,9 +1161,21 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			}
 			appMgr.processedResources[rkey] = true
 		}
-	} else if sKey.ResourceKind == Endpoints && appMgr.IsNodePort() {
-		return nil
-	} else {
+	case Endpoints:
+		if appMgr.IsNodePort() {
+			return nil
+		}
+	case Configmaps:
+		resKey := prepareResourceKey(sKey.ResourceKind, sKey.Namespace, sKey.ResourceName)
+		switch sKey.Operation {
+		case OprTypeCreate:
+			if _, ok := appMgr.processedResources[resKey]; ok {
+				return nil
+			}
+		case OprTypeDelete:
+			delete(appMgr.processedResources, resKey)
+		}
+	default:
 		// Resources other than Services will be tracked if they are processed earlier
 		resKey := prepareResourceKey(sKey.ResourceKind, sKey.Namespace, sKey.ResourceName)
 		switch sKey.Operation {
@@ -1170,6 +1190,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		case OprTypeDelete:
 			delete(appMgr.processedResources, resKey)
 		}
+
 	}
 
 	// Use a map to allow ports in the service to be looked up quickly while
@@ -1325,10 +1346,6 @@ func (appMgr *Manager) syncConfigMaps(
 			continue
 		}
 
-		// Mark each resource as it is already processed
-		// So that later the create event of the same resource will not processed, unnecessarily
-		appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
-
 		if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
 			//ignore invalid as3 configmaps if found.
 			if sKey.Operation != OprTypeDelete {
@@ -1351,6 +1368,9 @@ func (appMgr *Manager) syncConfigMaps(
 					appMgr.agentCfgMap[key] = agntCfgMap
 					stats.vsUpdated += 1
 				}
+				// Mark each resource as it is already processed
+				// So that later the create event of the same resource will not processed, unnecessarily
+				appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
 			}
 			continue
 		}
@@ -1392,6 +1412,9 @@ func (appMgr *Manager) syncConfigMaps(
 				if updated {
 					stats.cpUpdated += 1
 				}
+				// Mark each resource as it is already processed
+				// So that later the create event of the same resource will not processed, unnecessarily
+				appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
 			}
 		}
 

@@ -28,8 +28,8 @@ type FakeK8sV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeK8sV1) F5IPAMs(namespace string) v1.F5IPAMInterface {
-	return &FakeF5IPAMs{c, namespace}
+func (c *FakeK8sV1) IPAMs(namespace string) v1.IPAMInterface {
+	return &FakeIPAMs{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

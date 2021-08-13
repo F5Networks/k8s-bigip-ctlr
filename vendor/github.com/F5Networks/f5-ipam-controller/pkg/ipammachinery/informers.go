@@ -95,7 +95,7 @@ func (ipamCli *IPAMClient) newNamespacedInformer(
 		stopCh:    make(chan struct{}),
 	}
 
-	ipamInf.ipamInformer = ficInfV1.NewFilteredF5IPAMInformer(
+	ipamInf.ipamInformer = ficInfV1.NewFilteredIPAMInformer(
 		ipamCli.kubeCRClient,
 		namespace,
 		resyncPeriod,

@@ -92,8 +92,8 @@ func NewExternalDNS(name, namespace string, spec cisapiv1.ExternalDNSSpec) *cisa
 	}
 }
 
-func NewIPAM(name, namespace string, spec ficV1.F5IPAMSpec, status ficV1.F5IPAMStatus) *ficV1.F5IPAM {
-	return &ficV1.F5IPAM{
+func NewIPAM(name, namespace string, spec ficV1.IPAMSpec, status ficV1.IPAMStatus) *ficV1.IPAM {
+	return &ficV1.IPAM{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "IPAM",
 			APIVersion: "v1",

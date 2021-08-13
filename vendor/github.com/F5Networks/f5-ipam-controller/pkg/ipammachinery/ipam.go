@@ -19,6 +19,7 @@ package ipammachinery
 import (
 	"context"
 	"fmt"
+
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned"
 	log "github.com/F5Networks/f5-ipam-controller/pkg/vlogger"
 	apiextensionv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -32,11 +33,11 @@ import (
 
 const (
 
-	// F5IPAM is a F5 Custom Resource Kind.
-	F5ipam     = "F5IPAM"
+	// IPAM is a F5 Custom Resource Kind.
+	F5ipam     = "IPAM"
 	F5IPAMCtlr = "F5 IPAM Controller"
 
-	CRDPlural        string = "f5ipams"
+	CRDPlural        string = "ipams"
 	CRDGroup         string = "fic.f5.com"
 	CRDVersion       string = "v1"
 	FullCRDName      string = CRDPlural + "." + CRDGroup
@@ -119,7 +120,7 @@ func (ipamCli *IPAMClient) Stop() {
 	}
 }
 
-// RegisterCRD creates schema of F5IPAM and registers it with Kubernetes/Openshift
+// RegisterCRD creates schema of IPAM and registers it with Kubernetes/Openshift
 func RegisterCRD(clientset extClient.Interface) error {
 	crd := &apiextensionv1beta1.CustomResourceDefinition{
 		ObjectMeta: meta_v1.ObjectMeta{

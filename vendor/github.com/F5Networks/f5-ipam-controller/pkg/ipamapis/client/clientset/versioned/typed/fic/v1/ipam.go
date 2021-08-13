@@ -30,46 +30,46 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-// F5IPAMsGetter has a method to return a F5IPAMInterface.
+// IPAMsGetter has a method to return a IPAMInterface.
 // A group's client should implement this interface.
-type F5IPAMsGetter interface {
-	F5IPAMs(namespace string) F5IPAMInterface
+type IPAMsGetter interface {
+	IPAMs(namespace string) IPAMInterface
 }
 
-// F5IPAMInterface has methods to work with F5IPAM resources.
-type F5IPAMInterface interface {
-	Create(ctx context.Context, f5IPAM *v1.F5IPAM, opts metav1.CreateOptions) (*v1.F5IPAM, error)
-	Update(ctx context.Context, f5IPAM *v1.F5IPAM, opts metav1.UpdateOptions) (*v1.F5IPAM, error)
-	UpdateStatus(ctx context.Context, f5IPAM *v1.F5IPAM, opts metav1.UpdateOptions) (*v1.F5IPAM, error)
+// IPAMInterface has methods to work with IPAM resources.
+type IPAMInterface interface {
+	Create(ctx context.Context, iPAM *v1.IPAM, opts metav1.CreateOptions) (*v1.IPAM, error)
+	Update(ctx context.Context, iPAM *v1.IPAM, opts metav1.UpdateOptions) (*v1.IPAM, error)
+	UpdateStatus(ctx context.Context, iPAM *v1.IPAM, opts metav1.UpdateOptions) (*v1.IPAM, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.F5IPAM, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.F5IPAMList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.IPAM, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*v1.IPAMList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.F5IPAM, err error)
-	F5IPAMExpansion
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.IPAM, err error)
+	IPAMExpansion
 }
 
-// f5IPAMs implements F5IPAMInterface
-type f5IPAMs struct {
+// iPAMs implements IPAMInterface
+type iPAMs struct {
 	client rest.Interface
 	ns     string
 }
 
-// newF5IPAMs returns a F5IPAMs
-func newF5IPAMs(c *K8sV1Client, namespace string) *f5IPAMs {
-	return &f5IPAMs{
+// newIPAMs returns a IPAMs
+func newIPAMs(c *K8sV1Client, namespace string) *iPAMs {
+	return &iPAMs{
 		client: c.RESTClient(),
 		ns:     namespace,
 	}
 }
 
-// Get takes name of the f5IPAM, and returns the corresponding f5IPAM object, and an error if there is any.
-func (c *f5IPAMs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.F5IPAM, err error) {
-	result = &v1.F5IPAM{}
+// Get takes name of the iPAM, and returns the corresponding iPAM object, and an error if there is any.
+func (c *iPAMs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.IPAM, err error) {
+	result = &v1.IPAM{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("f5ipams").
+		Resource("ipams").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do(ctx).
@@ -77,16 +77,16 @@ func (c *f5IPAMs) Get(ctx context.Context, name string, options metav1.GetOption
 	return
 }
 
-// List takes label and field selectors, and returns the list of F5IPAMs that match those selectors.
-func (c *f5IPAMs) List(ctx context.Context, opts metav1.ListOptions) (result *v1.F5IPAMList, err error) {
+// List takes label and field selectors, and returns the list of IPAMs that match those selectors.
+func (c *iPAMs) List(ctx context.Context, opts metav1.ListOptions) (result *v1.IPAMList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
 	}
-	result = &v1.F5IPAMList{}
+	result = &v1.IPAMList{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("f5ipams").
+		Resource("ipams").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Do(ctx).
@@ -94,8 +94,8 @@ func (c *f5IPAMs) List(ctx context.Context, opts metav1.ListOptions) (result *v1
 	return
 }
 
-// Watch returns a watch.Interface that watches the requested f5IPAMs.
-func (c *f5IPAMs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+// Watch returns a watch.Interface that watches the requested iPAMs.
+func (c *iPAMs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -103,34 +103,34 @@ func (c *f5IPAMs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Int
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
-		Resource("f5ipams").
+		Resource("ipams").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Watch(ctx)
 }
 
-// Create takes the representation of a f5IPAM and creates it.  Returns the server's representation of the f5IPAM, and an error, if there is any.
-func (c *f5IPAMs) Create(ctx context.Context, f5IPAM *v1.F5IPAM, opts metav1.CreateOptions) (result *v1.F5IPAM, err error) {
-	result = &v1.F5IPAM{}
+// Create takes the representation of a iPAM and creates it.  Returns the server's representation of the iPAM, and an error, if there is any.
+func (c *iPAMs) Create(ctx context.Context, iPAM *v1.IPAM, opts metav1.CreateOptions) (result *v1.IPAM, err error) {
+	result = &v1.IPAM{}
 	err = c.client.Post().
 		Namespace(c.ns).
-		Resource("f5ipams").
+		Resource("ipams").
 		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(f5IPAM).
+		Body(iPAM).
 		Do(ctx).
 		Into(result)
 	return
 }
 
-// Update takes the representation of a f5IPAM and updates it. Returns the server's representation of the f5IPAM, and an error, if there is any.
-func (c *f5IPAMs) Update(ctx context.Context, f5IPAM *v1.F5IPAM, opts metav1.UpdateOptions) (result *v1.F5IPAM, err error) {
-	result = &v1.F5IPAM{}
+// Update takes the representation of a iPAM and updates it. Returns the server's representation of the iPAM, and an error, if there is any.
+func (c *iPAMs) Update(ctx context.Context, iPAM *v1.IPAM, opts metav1.UpdateOptions) (result *v1.IPAM, err error) {
+	result = &v1.IPAM{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("f5ipams").
-		Name(f5IPAM.Name).
+		Resource("ipams").
+		Name(iPAM.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(f5IPAM).
+		Body(iPAM).
 		Do(ctx).
 		Into(result)
 	return
@@ -138,25 +138,25 @@ func (c *f5IPAMs) Update(ctx context.Context, f5IPAM *v1.F5IPAM, opts metav1.Upd
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *f5IPAMs) UpdateStatus(ctx context.Context, f5IPAM *v1.F5IPAM, opts metav1.UpdateOptions) (result *v1.F5IPAM, err error) {
-	result = &v1.F5IPAM{}
+func (c *iPAMs) UpdateStatus(ctx context.Context, iPAM *v1.IPAM, opts metav1.UpdateOptions) (result *v1.IPAM, err error) {
+	result = &v1.IPAM{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("f5ipams").
-		Name(f5IPAM.Name).
+		Resource("ipams").
+		Name(iPAM.Name).
 		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(f5IPAM).
+		Body(iPAM).
 		Do(ctx).
 		Into(result)
 	return
 }
 
-// Delete takes name of the f5IPAM and deletes it. Returns an error if one occurs.
-func (c *f5IPAMs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
+// Delete takes name of the iPAM and deletes it. Returns an error if one occurs.
+func (c *iPAMs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("f5ipams").
+		Resource("ipams").
 		Name(name).
 		Body(&opts).
 		Do(ctx).
@@ -164,14 +164,14 @@ func (c *f5IPAMs) Delete(ctx context.Context, name string, opts metav1.DeleteOpt
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *f5IPAMs) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
+func (c *iPAMs) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	var timeout time.Duration
 	if listOpts.TimeoutSeconds != nil {
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("f5ipams").
+		Resource("ipams").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Body(&opts).
@@ -179,12 +179,12 @@ func (c *f5IPAMs) DeleteCollection(ctx context.Context, opts metav1.DeleteOption
 		Error()
 }
 
-// Patch applies the patch and returns the patched f5IPAM.
-func (c *f5IPAMs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.F5IPAM, err error) {
-	result = &v1.F5IPAM{}
+// Patch applies the patch and returns the patched iPAM.
+func (c *iPAMs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.IPAM, err error) {
+	result = &v1.IPAM{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
-		Resource("f5ipams").
+		Resource("ipams").
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).

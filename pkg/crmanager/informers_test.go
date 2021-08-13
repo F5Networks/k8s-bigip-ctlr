@@ -309,10 +309,10 @@ var _ = Describe("Informers Tests", func() {
 			ipam := test.NewIPAM(
 				"SampleIPAM",
 				namespace,
-				ficV1.F5IPAMSpec{
+				ficV1.IPAMSpec{
 					HostSpecs: []*ficV1.HostSpec{hostSpec},
 				},
-				ficV1.F5IPAMStatus{},
+				ficV1.IPAMStatus{},
 			)
 			mockCRM.enqueueIPAM(ipam)
 			key, quit := mockCRM.rscQueue.Get()
@@ -327,10 +327,10 @@ var _ = Describe("Informers Tests", func() {
 			newIPAM := test.NewIPAM(
 				"SampleIPAM",
 				namespace,
-				ficV1.F5IPAMSpec{
+				ficV1.IPAMSpec{
 					HostSpecs: []*ficV1.HostSpec{hostSpec},
 				},
-				ficV1.F5IPAMStatus{
+				ficV1.IPAMStatus{
 					IPStatus: []*ficV1.IPSpec{ipSpec},
 				},
 			)

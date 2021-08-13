@@ -1,14 +1,20 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.5.1
 -------------
 
 Bug Fixes
 `````````
 * :issues:`1921` Plain text login and password in process status on node that is running controller.
-* :issues:`1849` Fix VS processing sharing same IP and different port
-* :issue:`1911` Fix CIS delete all exist vs when cis pod restarting.
+* :issues:`1849` Fix VirtualServer CRD processing which share same IP and different port.
+* CIS now supports:
+    * Partition names with captial letters in F5IPAM CR.
+    * Deletion of old F5IPAM CR which is not in use.
+    * Skipping certificate validation for passthrough routes.
+    * Update/delete of Ingress V1 annotation with shared IP.
+* OpenShift operator doesn't fail to install multiple CIS instances due to already existing CRD's.
+
 
 Vulnerability Fixes
 ```````````````````

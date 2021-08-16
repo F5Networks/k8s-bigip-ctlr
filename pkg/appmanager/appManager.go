@@ -1555,8 +1555,7 @@ func (appMgr *Manager) syncIngresses(
 					var monitors AnnotationHealthMonitors
 					err := json.Unmarshal([]byte(hmStr), &monitors)
 					if err != nil {
-						msg := fmt.Sprintf(
-							"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
+						msg := "Unable to parse health monitor JSON array " + hmStr + " : " + err.Error()
 						log.Errorf("[CORE] %s", msg)
 						appMgr.recordIngressEvent(ing, "InvalidData", msg)
 					} else {
@@ -1633,9 +1632,7 @@ func (appMgr *Manager) syncIngresses(
 					stats.vsFound += found
 					stats.vsUpdated += updated
 					if updated > 0 {
-						msg := fmt.Sprintf(
-							"Created a ResourceConfig '%v' for the Ingress.",
-							rsCfg.GetName())
+						msg := "Created a ResourceConfig " + rsCfg.GetName() + " for the Ingress."
 						appMgr.recordIngressEvent(ing, "ResourceConfigured", msg)
 					}
 				}
@@ -1716,8 +1713,7 @@ func (appMgr *Manager) syncIngresses(
 					var monitors AnnotationHealthMonitors
 					err := json.Unmarshal([]byte(hmStr), &monitors)
 					if err != nil {
-						msg := fmt.Sprintf(
-							"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
+						msg := "Unable to parse health monitor JSON array " + hmStr + ": " + err.Error()
 						log.Errorf("[CORE] %s", msg)
 						appMgr.recordV1IngressEvent(ing, "InvalidData", msg)
 					} else {
@@ -1795,9 +1791,7 @@ func (appMgr *Manager) syncIngresses(
 					stats.vsFound += found
 					stats.vsUpdated += updated
 					if updated > 0 {
-						msg := fmt.Sprintf(
-							"Created a ResourceConfig '%v' for the Ingress.",
-							rsCfg.GetName())
+						msg := "Created a ResourceConfig " + rsCfg.GetName() + " for the Ingress."
 						appMgr.recordV1IngressEvent(ing, "ResourceConfigured", msg)
 					}
 				}
@@ -2344,8 +2338,7 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 			}
 			// If this is an Ingress resource, add an event that the service wasn't found
 			if obj != nil {
-				msg := fmt.Sprintf("Service '%v' has not been found.",
-					pool.ServiceName)
+				msg := "Service " + pool.ServiceName + " has not been found."
 				switch obj.(type) {
 				case *v1beta1.Ingress:
 					appMgr.recordIngressEvent(obj.(*v1beta1.Ingress), "ServiceNotFound", msg)
@@ -2465,8 +2458,7 @@ func (appMgr *Manager) handleConfigForType(
 
 		// If this is an Ingress resource, add an event that the service wasn't found
 		if obj != nil {
-			msg := fmt.Sprintf("Service '%v' has not been found.",
-				pool.ServiceName)
+			msg := "Service " + pool.ServiceName + " has not been found."
 			switch obj.(type) {
 			case *v1beta1.Ingress:
 				appMgr.recordIngressEvent(obj.(*v1beta1.Ingress), "ServiceNotFound", msg)
@@ -2565,8 +2557,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 		}
 		return true, "", ""
 	} else {
-		msg := fmt.Sprintf("[CORE] Requested service backend '%+v' not of NodePort or LoadBalancer type",
-			svcKey.ServiceName)
+		msg := "[CORE] Requested service backend " + svcKey.ServiceName + " not of NodePort or LoadBalancer type"
 		log.Debug(msg)
 		return false, "IncorrectBackendServiceType", msg
 	}
@@ -2582,7 +2573,7 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 	svcKey := sKey.Namespace + "/" + sKey.ServiceName
 	item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
 	if !found {
-		msg := fmt.Sprintf("Endpoints for service '%v' not found!", svcKey)
+		msg := "Endpoints for service " + svcKey + " not found!"
 		log.Debug(msg)
 		return false, "EndpointsNotFound", msg
 	}
@@ -2814,9 +2805,7 @@ func (appMgr *Manager) updateIngressStatus(ing *v1beta1.Ingress, rsCfg *Resource
 			if strings.Contains(updateErr.Error(), "object has been modified") {
 				return
 			}
-			warning := fmt.Sprintf(
-				"Error when setting Ingress status IP for virtual server %v: %v",
-				rsCfg.GetName(), updateErr)
+			warning := "Error when setting Ingress status IP for virtual server " + rsCfg.GetName() + ": " + updateErr.Error()
 			log.Warning(warning)
 			appMgr.recordIngressEvent(ing, "StatusIPError", warning)
 		}
@@ -2839,13 +2828,11 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 		host = ing.Spec.Rules[0].Host
 		if host == "" {
 			// Host field is empty
-			logDNSError(fmt.Sprintf("First host is empty on Ingress '%s'; cannot resolve.",
-				ing.ObjectMeta.Name))
+			logDNSError("First host is empty on Ingress " + ing.ObjectMeta.Name + "; cannot resolve.")
 			return
 		}
 	} else {
-		logDNSError(fmt.Sprintf("No host found for DNS resolution on Ingress '%s'",
-			ing.ObjectMeta.Name))
+		logDNSError("No host found for DNS resolution on Ingress " + ing.ObjectMeta.Name)
 		return
 	}
 
@@ -2853,7 +2840,7 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 		// Use local DNS
 		netIPs, err = net.LookupIP(host)
 		if nil != err {
-			logDNSError(fmt.Sprintf("Error while resolving host '%s': %s", host, err))
+			logDNSError("Error while resolving host " + host + ": " + err.Error())
 			return
 		} else {
 			if len(netIPs) > 1 {
@@ -2877,8 +2864,7 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 			// customDNS is not an IPAddress, it is a hostname that we need to resolve first
 			netIPs, err = net.LookupIP(customDNS)
 			if nil != err {
-				logDNSError(fmt.Sprintf("Error while resolving host '%s': %s",
-					appMgr.resolveIng, err))
+				logDNSError("Error while resolving host " + appMgr.resolveIng + ": " + err.Error())
 				return
 			}
 			customDNS = netIPs[0].String()
@@ -2889,12 +2875,10 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 		var res *dns.Msg
 		res, _, err = client.Exchange(&msg, customDNS+":"+port)
 		if nil != err {
-			logDNSError(fmt.Sprintf("Error while resolving host '%s' "+
-				"using DNS server '%s': %s", host, appMgr.resolveIng, err))
+			logDNSError("Error while resolving host " + host + " using DNS server " + appMgr.resolveIng + ": " + err.Error())
 			return
 		} else if len(res.Answer) == 0 {
-			logDNSError(fmt.Sprintf("No results for host '%s' "+
-				"using DNS server '%s'", host, appMgr.resolveIng))
+			logDNSError("No results for host " + host + " using DNS server " + appMgr.resolveIng)
 			return
 		}
 		Arecord := res.Answer[0].(*dns.A)
@@ -2908,13 +2892,11 @@ func (appMgr *Manager) resolveIngressHost(ing *v1beta1.Ingress, namespace string
 	ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation] = ipAddress
 	_, err = appMgr.kubeClient.ExtensionsV1beta1().Ingresses(namespace).Update(context.TODO(), ing, metav1.UpdateOptions{})
 	if nil != err {
-		msg := fmt.Sprintf("Error while setting virtual-server IP for Ingress '%s': %s",
-			ing.ObjectMeta.Name, err)
+		msg := "Error while setting virtual-server IP for Ingress " + ing.ObjectMeta.Name + ": " + err.Error()
 		log.Warning(msg)
 		appMgr.recordIngressEvent(ing, "IPAnnotationError", msg)
 	} else {
-		msg := fmt.Sprintf("Resolved host '%s' as '%s'; "+
-			"set '%s' annotation with address.", host, ipAddress, F5VsBindAddrAnnotation)
+		msg := "Resolved host " + host + " as " + ipAddress + "; set " + F5VsBindAddrAnnotation + " annotation with address."
 		log.Info(msg)
 		appMgr.recordIngressEvent(ing, "HostResolvedSuccessfully", msg)
 	}
@@ -3232,7 +3214,7 @@ func (appMgr *Manager) exposeKubernetesService(
 	svcKey := sKey.Namespace + "/" + sKey.ServiceName
 	item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
 	if !found {
-		msg := fmt.Sprintf("Endpoints for service '%v' not found!", svcKey)
+		msg := "Endpoints for service " + svcKey + " not found!"
 		log.Debug(msg)
 		return false, "EndpointsNotFound", msg
 	}

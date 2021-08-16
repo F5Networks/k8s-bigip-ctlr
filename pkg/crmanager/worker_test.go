@@ -147,6 +147,7 @@ var _ = Describe("Worker Tests", func() {
 	})
 
 	Describe("IPAM", func() {
+		DEFAULT_PARTITION = "Test"
 		BeforeEach(func() {
 			mockCRM.Agent = &Agent{
 				PostManager: &PostManager{

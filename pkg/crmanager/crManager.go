@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
@@ -179,25 +179,32 @@ func (crMgr *CRManager) registerIPAMCRD() {
 func (crMgr *CRManager) createIPAMResource() error {
 
 	frameIPAMResourceName := func(bipUrl string) string {
-		re := regexp.MustCompile(`[A-Z][^A-Z]*`)
-		subStrs := re.FindAllString(DEFAULT_PARTITION, -1)
-		var prtn string
-		for _, elem := range subStrs {
-			lower := strings.ToLower(elem)
-			prtn += lower[:1] + "-" + lower[1:]
+		prtn := ""
+		for _, ch := range DEFAULT_PARTITION {
+			elem := string(ch)
+			if unicode.IsUpper(ch) {
+				elem = strings.ToLower(elem) + "-"
+			}
+			prtn += elem
 		}
-		if len(subStrs) == 0 {
-			prtn = DEFAULT_PARTITION
+		if string(prtn[len(prtn)-1]) == "-" {
+			prtn = prtn + ipamCRName
+		} else {
+			prtn = prtn + "." + ipamCRName
 		}
+
+		prtn = strings.Replace(prtn, "_", "-", -1)
+		prtn = strings.Replace(prtn, "--", "-", -1)
+
 		log.Debugf("BIP URL: %v", bipUrl)
 		if net.ParseIP(bipUrl) != nil {
-			return strings.Join([]string{ipamCRName, bipUrl, prtn}, ".")
+			return strings.Join([]string{bipUrl, prtn}, ".")
 		}
 
 		u, err := url.Parse(bipUrl)
 		if err != nil {
 			log.Errorf("Unable to frame IPAM resource name in standard format")
-			return strings.Join([]string{ipamCRName, prtn}, ".")
+			return prtn
 		}
 		var host string
 		if strings.Contains(u.Host, ":") {
@@ -208,10 +215,10 @@ func (crMgr *CRManager) createIPAMResource() error {
 
 		if host == "" {
 			log.Errorf("Unable to frame IPAM resource name in standard format")
-			return strings.Join([]string{ipamCRName, prtn}, ".")
+			return prtn
 		}
 
-		return strings.Join([]string{ipamCRName, host, prtn}, ".")
+		return strings.Join([]string{host, prtn}, ".")
 	}
 
 	crName := frameIPAMResourceName(crMgr.Agent.BIGIPURL)

@@ -37,6 +37,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/F5Networks/f5-ipam-controller v0.1.5-0.20210720135810-3c6cbe8409ee h1:947cypdheqtEGN6Wt4M59Laj57xZiEk0k1b3dPHfi8o=
 github.com/F5Networks/f5-ipam-controller v0.1.5-0.20210720135810-3c6cbe8409ee/go.mod h1:T6GmYytrreXO0ShD3skIJIx05pe8rdxSIlAnk0clnWQ=
+github.com/F5Networks/f5-ipam-controller v0.1.5-0.20210813064837-de4b96f0e82c h1:lt8hUudhw5TPz7Pi0DTmoF7cVx3AMb/2uRt0NfxO6eo=
+github.com/F5Networks/f5-ipam-controller v0.1.5-0.20210813064837-de4b96f0e82c/go.mod h1:JZILK1dcnuPgk+WAuCctXSUqvY5+vFRXlaYDb/ehMQw=
 github.com/NYTimes/gziphandler v0.0.0-20170623195520-56545f4a5d46/go.mod h1:3wb06e3pkSAbeQ52E9H9iFoQsEEwGN64994WTCIhntQ=
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=

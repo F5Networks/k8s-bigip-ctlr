@@ -26,7 +26,7 @@ import (
 
 type K8sV1Interface interface {
 	RESTClient() rest.Interface
-	F5IPAMsGetter
+	IPAMsGetter
 }
 
 // K8sV1Client is used to interact with features provided by the k8s.nginx.org group.
@@ -34,8 +34,8 @@ type K8sV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *K8sV1Client) F5IPAMs(namespace string) F5IPAMInterface {
-	return newF5IPAMs(c, namespace)
+func (c *K8sV1Client) IPAMs(namespace string) IPAMInterface {
+	return newIPAMs(c, namespace)
 }
 
 // NewForConfig creates a new K8sV1Client for the given config.

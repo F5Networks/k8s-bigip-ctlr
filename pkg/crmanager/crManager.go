@@ -215,15 +215,15 @@ func (crMgr *CRManager) createIPAMResource() error {
 	}
 
 	crName := frameIPAMResourceName(crMgr.Agent.BIGIPURL)
-	f5ipam := &ficV1.F5IPAM{
+	f5ipam := &ficV1.IPAM{
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      crName,
 			Namespace: IPAMNamespace,
 		},
-		Spec: ficV1.F5IPAMSpec{
+		Spec: ficV1.IPAMSpec{
 			HostSpecs: make([]*ficV1.HostSpec, 0),
 		},
-		Status: ficV1.F5IPAMStatus{
+		Status: ficV1.IPAMStatus{
 			IPStatus: make([]*ficV1.IPSpec, 0),
 		},
 	}

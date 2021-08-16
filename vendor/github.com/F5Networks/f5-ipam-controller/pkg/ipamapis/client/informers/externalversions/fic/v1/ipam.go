@@ -32,59 +32,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// F5IPAMInformer provides access to a shared informer and lister for
-// F5IPAMs.
-type F5IPAMInformer interface {
+// IPAMInformer provides access to a shared informer and lister for
+// IPAMs.
+type IPAMInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.F5IPAMLister
+	Lister() v1.IPAMLister
 }
 
-type f5IPAMInformer struct {
+type iPAMInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewF5IPAMInformer constructs a new informer for F5IPAM type.
+// NewIPAMInformer constructs a new informer for IPAM type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewF5IPAMInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredF5IPAMInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewIPAMInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredIPAMInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredF5IPAMInformer constructs a new informer for F5IPAM type.
+// NewFilteredIPAMInformer constructs a new informer for IPAM type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredF5IPAMInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredIPAMInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().F5IPAMs(namespace).List(context.TODO(), options)
+				return client.K8sV1().IPAMs(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.K8sV1().F5IPAMs(namespace).Watch(context.TODO(), options)
+				return client.K8sV1().IPAMs(namespace).Watch(context.TODO(), options)
 			},
 		},
-		&ficv1.F5IPAM{},
+		&ficv1.IPAM{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *f5IPAMInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredF5IPAMInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *iPAMInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredIPAMInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *f5IPAMInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&ficv1.F5IPAM{}, f.defaultInformer)
+func (f *iPAMInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&ficv1.IPAM{}, f.defaultInformer)
 }
 
-func (f *f5IPAMInformer) Lister() v1.F5IPAMLister {
-	return v1.NewF5IPAMLister(f.Informer().GetIndexer())
+func (f *iPAMInformer) Lister() v1.IPAMLister {
+	return v1.NewIPAMLister(f.Informer().GetIndexer())
 }

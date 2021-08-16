@@ -24,8 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// F5IPAMs returns a F5IPAMInformer.
-	F5IPAMs() F5IPAMInformer
+	// IPAMs returns a IPAMInformer.
+	IPAMs() IPAMInformer
 }
 
 type version struct {
@@ -39,7 +39,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// F5IPAMs returns a F5IPAMInformer.
-func (v *version) F5IPAMs() F5IPAMInformer {
-	return &f5IPAMInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// IPAMs returns a IPAMInformer.
+func (v *version) IPAMs() IPAMInformer {
+	return &iPAMInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

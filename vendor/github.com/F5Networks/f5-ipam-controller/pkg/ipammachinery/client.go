@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
+
 	v1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	log "github.com/F5Networks/f5-ipam-controller/pkg/vlogger"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,22 +30,21 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	typesV1 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
-	"strings"
 )
 
 const MAX_RETRIES = 10
 
-func (ipamCli *IPAMClient) Create(obj *v1.F5IPAM) (*v1.F5IPAM, error) {
-	return ipamCli.kubeCRClient.K8sV1().F5IPAMs(obj.Namespace).Create(context.TODO(), obj, metaV1.CreateOptions{})
+func (ipamCli *IPAMClient) Create(obj *v1.IPAM) (*v1.IPAM, error) {
+	return ipamCli.kubeCRClient.K8sV1().IPAMs(obj.Namespace).Create(context.TODO(), obj, metaV1.CreateOptions{})
 }
 
-func (ipamCli *IPAMClient) Update(obj *v1.F5IPAM) (res *v1.F5IPAM, err error) {
+func (ipamCli *IPAMClient) Update(obj *v1.IPAM) (res *v1.IPAM, err error) {
 	name := obj.Name
 	namespace := obj.Namespace
 	spec := obj.Spec
 
 	for i := 0; i < MAX_RETRIES; i++ {
-		res, err = ipamCli.kubeCRClient.K8sV1().F5IPAMs(namespace).Update(context.TODO(), obj, metaV1.UpdateOptions{})
+		res, err = ipamCli.kubeCRClient.K8sV1().IPAMs(namespace).Update(context.TODO(), obj, metaV1.UpdateOptions{})
 		if err == nil {
 			return
 		}
@@ -54,7 +55,7 @@ func (ipamCli *IPAMClient) Update(obj *v1.F5IPAM) (res *v1.F5IPAM, err error) {
 		}
 		obj, err = ipamCli.Get(namespace, name)
 		if err != nil {
-			log.Errorf("Unable to find F5IPAM: %v/%v to update. Error: %v",
+			log.Errorf("Unable to find IPAM: %v/%v to update. Error: %v",
 				namespace, name, err)
 			return
 		}
@@ -63,13 +64,13 @@ func (ipamCli *IPAMClient) Update(obj *v1.F5IPAM) (res *v1.F5IPAM, err error) {
 	return
 }
 
-func (ipamCli *IPAMClient) UpdateStatus(obj *v1.F5IPAM) (res *v1.F5IPAM, err error) {
+func (ipamCli *IPAMClient) UpdateStatus(obj *v1.IPAM) (res *v1.IPAM, err error) {
 	name := obj.Name
 	namespace := obj.Namespace
 	status := obj.Status
 
 	for i := 0; i < MAX_RETRIES; i++ {
-		res, err = ipamCli.kubeCRClient.K8sV1().F5IPAMs(namespace).UpdateStatus(context.TODO(), obj, metaV1.UpdateOptions{})
+		res, err = ipamCli.kubeCRClient.K8sV1().IPAMs(namespace).UpdateStatus(context.TODO(), obj, metaV1.UpdateOptions{})
 		if err == nil {
 			return
 		}
@@ -80,7 +81,7 @@ func (ipamCli *IPAMClient) UpdateStatus(obj *v1.F5IPAM) (res *v1.F5IPAM, err err
 		}
 		obj, err = ipamCli.Get(namespace, name)
 		if err != nil {
-			log.Errorf("Unable to find F5IPAM: %v/%v to update status. Error: %v",
+			log.Errorf("Unable to find IPAM: %v/%v to update status. Error: %v",
 				namespace, name, err)
 			return
 		}
@@ -89,11 +90,11 @@ func (ipamCli *IPAMClient) UpdateStatus(obj *v1.F5IPAM) (res *v1.F5IPAM, err err
 	return
 }
 
-func (ipamCli *IPAMClient) Patch(obj *v1.F5IPAM) (*v1.F5IPAM, error) {
+func (ipamCli *IPAMClient) Patch(obj *v1.IPAM) (*v1.IPAM, error) {
 	var buf bytes.Buffer
 	_ = json.NewEncoder(&buf).Encode(obj)
 
-	return ipamCli.kubeCRClient.K8sV1().F5IPAMs(obj.Namespace).Patch(
+	return ipamCli.kubeCRClient.K8sV1().IPAMs(obj.Namespace).Patch(
 		context.TODO(),
 		obj.Name,
 		typesV1.StrategicMergePatchType,
@@ -105,15 +106,15 @@ func (ipamCli *IPAMClient) Patch(obj *v1.F5IPAM) (*v1.F5IPAM, error) {
 }
 
 func (ipamCli *IPAMClient) Delete(namespace, name string, options metaV1.DeleteOptions) error {
-	return ipamCli.kubeCRClient.K8sV1().F5IPAMs(namespace).Delete(context.TODO(), name, options)
+	return ipamCli.kubeCRClient.K8sV1().IPAMs(namespace).Delete(context.TODO(), name, options)
 }
 
-func (ipamCli *IPAMClient) Get(namespace, name string) (*v1.F5IPAM, error) {
-	return ipamCli.kubeCRClient.K8sV1().F5IPAMs(namespace).Get(context.TODO(), name, metaV1.GetOptions{})
+func (ipamCli *IPAMClient) Get(namespace, name string) (*v1.IPAM, error) {
+	return ipamCli.kubeCRClient.K8sV1().IPAMs(namespace).Get(context.TODO(), name, metaV1.GetOptions{})
 }
 
-func (ipamCli *IPAMClient) List(namespace string) ([]v1.F5IPAM, error) {
-	ipamList, err := ipamCli.kubeCRClient.K8sV1().F5IPAMs(namespace).List(context.TODO(), metaV1.ListOptions{})
+func (ipamCli *IPAMClient) List(namespace string) ([]v1.IPAM, error) {
+	ipamList, err := ipamCli.kubeCRClient.K8sV1().IPAMs(namespace).List(context.TODO(), metaV1.ListOptions{})
 
 	if err != nil {
 		return nil, err
@@ -124,8 +125,8 @@ func (ipamCli *IPAMClient) List(namespace string) ([]v1.F5IPAM, error) {
 func addKnownTypes(scheme *runtime.Scheme) error {
 	SchemeGroupVersion := schema.GroupVersion{Group: CRDGroup, Version: CRDVersion}
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&v1.F5IPAM{},
-		&v1.F5IPAMList{},
+		&v1.IPAM{},
+		&v1.IPAMList{},
 	)
 	metaV1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

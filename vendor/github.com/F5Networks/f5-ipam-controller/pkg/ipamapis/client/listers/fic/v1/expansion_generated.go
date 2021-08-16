@@ -18,10 +18,10 @@ limitations under the License.
 
 package v1
 
-// F5IPAMListerExpansion allows custom methods to be added to
-// F5IPAMLister.
-type F5IPAMListerExpansion interface{}
+// IPAMListerExpansion allows custom methods to be added to
+// IPAMLister.
+type IPAMListerExpansion interface{}
 
-// F5IPAMNamespaceListerExpansion allows custom methods to be added to
-// F5IPAMNamespaceLister.
-type F5IPAMNamespaceListerExpansion interface{}
+// IPAMNamespaceListerExpansion allows custom methods to be added to
+// IPAMNamespaceLister.
+type IPAMNamespaceListerExpansion interface{}

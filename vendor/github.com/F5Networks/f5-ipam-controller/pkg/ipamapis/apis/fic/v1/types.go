@@ -25,15 +25,15 @@ import (
 // +kubebuilder:validation:Optional
 
 // ExternalDNS defines the DNS resource.
-type F5IPAM struct {
+type IPAM struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   F5IPAMSpec   `json:"spec,omitempty"`
-	Status F5IPAMStatus `json:"status,omitempty"`
+	Spec   IPAMSpec   `json:"spec,omitempty"`
+	Status IPAMStatus `json:"status,omitempty"`
 }
 
-type F5IPAMSpec struct {
+type IPAMSpec struct {
 	HostSpecs []*HostSpec `json:"hostSpecs,omitempty"`
 }
 
@@ -46,7 +46,7 @@ type HostSpec struct {
 	CIDR string `json:"cidr,omitempty"`
 }
 
-type F5IPAMStatus struct {
+type IPAMStatus struct {
 	IPStatus []*IPSpec `json:"IPStatus,omitempty"`
 }
 
@@ -62,10 +62,10 @@ type IPSpec struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// F5IPAMList is list of ExternalDNS
-type F5IPAMList struct {
+// IPAMList is list of ExternalDNS
+type IPAMList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []F5IPAM `json:"items"`
+	Items []IPAM `json:"items"`
 }

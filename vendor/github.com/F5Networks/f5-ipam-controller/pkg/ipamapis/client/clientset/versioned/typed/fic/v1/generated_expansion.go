@@ -18,4 +18,4 @@ limitations under the License.
 
 package v1
 
-type F5IPAMExpansion interface{}
+type IPAMExpansion interface{}

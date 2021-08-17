@@ -78,8 +78,8 @@ rules:
     apiGroups:
       - fic.f5.com
     resources:
-      - f5ipams
-      - f5ipams/status
+      - ipams
+      - ipams/status
   - verbs:
       - get
       - list

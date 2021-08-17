@@ -52,8 +52,8 @@ func Resource(resource string) schema.GroupResource {
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(
 		SchemeGroupVersion,
-		&F5IPAM{},
-		&F5IPAMList{},
+		&IPAM{},
+		&IPAMList{},
 	)
 
 	scheme.AddKnownTypes(

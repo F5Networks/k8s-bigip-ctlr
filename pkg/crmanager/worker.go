@@ -109,7 +109,7 @@ func (crMgr *CRManager) processResource() bool {
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
 		crMgr.processExternalDNS(edns, rKey.rscDelete)
 	case IPAM:
-		ipam := rKey.rsc.(*ficV1.F5IPAM)
+		ipam := rKey.rsc.(*ficV1.IPAM)
 		virtuals := crMgr.getVirtualServersForIPAM(ipam)
 		for _, vs := range virtuals {
 			err := crMgr.processVirtualServers(vs, false)
@@ -830,7 +830,7 @@ func getIPAMLabel(virtuals []*cisapiv1.VirtualServer) string {
 	return ""
 }
 
-func (crMgr *CRManager) getIPAMCR() *ficV1.F5IPAM {
+func (crMgr *CRManager) getIPAMCR() *ficV1.IPAM {
 	cr := strings.Split(crMgr.ipamCR, "/")
 	if len(cr) != 2 {
 		log.Errorf("[ipam] error while retrieving IPAM namespace and name.")
@@ -1404,7 +1404,7 @@ func (crMgr *CRManager) getAllServicesFromMonitoredNamespaces() []*v1.Service {
 }
 
 // Get List of VirtualServers associated with the IPAM resource
-func (crMgr *CRManager) getVirtualServersForIPAM(ipam *ficV1.F5IPAM) []*cisapiv1.VirtualServer {
+func (crMgr *CRManager) getVirtualServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.VirtualServer {
 	log.Debug("[ipam] sync ipam starting...")
 	var allVS, vss []*cisapiv1.VirtualServer
 	allVS = crMgr.getAllVSFromMonitoredNamespaces()
@@ -1420,7 +1420,7 @@ func (crMgr *CRManager) getVirtualServersForIPAM(ipam *ficV1.F5IPAM) []*cisapiv1
 }
 
 // Get List of TransportServers associated with the IPAM resource
-func (crMgr *CRManager) getTransportServersForIPAM(ipam *ficV1.F5IPAM) []*cisapiv1.TransportServer {
+func (crMgr *CRManager) getTransportServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.TransportServer {
 	var allTS, tss []*cisapiv1.TransportServer
 	allTS = crMgr.getAllTSFromMonitoredNamespaces()
 	for _, status := range ipam.Status.IPStatus {
@@ -1435,7 +1435,7 @@ func (crMgr *CRManager) getTransportServersForIPAM(ipam *ficV1.F5IPAM) []*cisapi
 	return tss
 }
 
-func (crMgr *CRManager) syncAndGetServicesForIPAM(ipam *ficV1.F5IPAM) []*v1.Service {
+func (crMgr *CRManager) syncAndGetServicesForIPAM(ipam *ficV1.IPAM) []*v1.Service {
 
 	allServices := crMgr.getAllServicesFromMonitoredNamespaces()
 	if allServices == nil {

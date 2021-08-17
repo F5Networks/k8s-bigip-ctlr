@@ -575,8 +575,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 						}
 						if len(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]) > 0 {
 							if profiles, err := appMgr.getProfilesFromAnnotations(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation], ing); err != nil {
-								msg := fmt.Sprintf(
-									"Unable to parse bigip clientssl profile JSON array '%v': %v", ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation], err)
+								msg := "Unable to parse bigip clientssl profile JSON array " + ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation] + " : " + err.Error()
 								log.Errorf("[CORE] %s", msg)
 							} else {
 								for _, profile := range profiles {

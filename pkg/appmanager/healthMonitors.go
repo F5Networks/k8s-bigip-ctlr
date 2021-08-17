@@ -50,7 +50,7 @@ func (appMgr *Manager) assignHealthMonitorsByPath(
 			pm, found = rulesMap["*"]
 		}
 		if false == found {
-			msg := fmt.Sprintf("Rule not found for Health Monitor host '%v'", host)
+			msg := "Rule not found for Health Monitor host " + host
 			log.Warningf("[CORE] %s", msg)
 			if ing != nil {
 				appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg)
@@ -59,8 +59,7 @@ func (appMgr *Manager) assignHealthMonitorsByPath(
 		}
 		ruleData, found := pm[path]
 		if false == found {
-			msg := fmt.Sprintf("Rule not found for Health Monitor path '%v'",
-				mon.Path)
+			msg := "Rule not found for Health Monitor path " + mon.Path
 			log.Warningf("[CORE] %s", msg)
 			if ing != nil {
 				appMgr.recordIngressEvent(ing, "MonitorRuleNotFound", msg)
@@ -114,9 +113,7 @@ func (appMgr *Manager) notifyUnusedHealthMonitorRules(
 	for _, paths := range htpMap {
 		for _, ruleData := range paths {
 			if false == ruleData.Assigned {
-				msg := fmt.Sprintf(
-					"Health Monitor path '%v' does not match any Ingress paths.",
-					ruleData.HealthMon.Path)
+				msg := "Health Monitor path " + ruleData.HealthMon.Path + " does not match any Ingress paths."
 				appMgr.recordIngressEvent(ing, "MonitorRuleNotUsed", msg)
 			}
 		}
@@ -209,9 +206,7 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 			if key == "*" {
 				continue
 			}
-			msg := fmt.Sprintf(
-				"Health Monitor rule for host '%v' conflicts with rule for all hosts.",
-				key)
+			msg := "Health Monitor rule for host " + key + " conflicts with rule for all hosts."
 			log.Warningf("[CORE] %s", msg)
 			appMgr.recordIngressEvent(ing, "DuplicatePath", msg)
 		}

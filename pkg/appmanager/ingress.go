@@ -235,9 +235,7 @@ func (appMgr *Manager) updateV1IngressStatus(ing *netv1.Ingress, rsCfg *Resource
 			if strings.Contains(updateErr.Error(), "object has been modified") {
 				return
 			}
-			warning := fmt.Sprintf(
-				"Error when setting Ingress status IP for virtual server %v: %v",
-				rsCfg.GetName(), updateErr)
+			warning := "Error when setting Ingress status IP for virtual server " + rsCfg.GetName() + ":" + updateErr.Error()
 			log.Warning(warning)
 			appMgr.recordV1IngressEvent(ing, "StatusIPError", warning)
 		}
@@ -259,13 +257,11 @@ func (appMgr *Manager) resolveV1IngressHost(ing *netv1.Ingress, namespace string
 		host = ing.Spec.Rules[0].Host
 		if host == "" {
 			// Host field is empty
-			logDNSError(fmt.Sprintf("First host is empty on Ingress '%s'; cannot resolve.",
-				ing.ObjectMeta.Name))
+			logDNSError("First host is empty on Ingress " + ing.ObjectMeta.Name + "; cannot resolve.")
 			return
 		}
 	} else {
-		logDNSError(fmt.Sprintf("No host found for DNS resolution on Ingress '%s'",
-			ing.ObjectMeta.Name))
+		logDNSError("No host found for DNS resolution on Ingress " + ing.ObjectMeta.Name)
 		return
 	}
 
@@ -273,7 +269,7 @@ func (appMgr *Manager) resolveV1IngressHost(ing *netv1.Ingress, namespace string
 		// Use local DNS
 		netIPs, err = net.LookupIP(host)
 		if nil != err {
-			logDNSError(fmt.Sprintf("Error while resolving host '%s': %s", host, err))
+			logDNSError("Error while resolving host " + host + ":" + err.Error())
 			return
 		} else {
 			if len(netIPs) > 1 {
@@ -297,8 +293,7 @@ func (appMgr *Manager) resolveV1IngressHost(ing *netv1.Ingress, namespace string
 			// customDNS is not an IPAddress, it is a hostname that we need to resolve first
 			netIPs, err = net.LookupIP(customDNS)
 			if nil != err {
-				logDNSError(fmt.Sprintf("Error while resolving host '%s': %s",
-					appMgr.resolveIng, err))
+				logDNSError("Error while resolving host " + appMgr.resolveIng + ":" + err.Error())
 				return
 			}
 			customDNS = netIPs[0].String()
@@ -309,12 +304,10 @@ func (appMgr *Manager) resolveV1IngressHost(ing *netv1.Ingress, namespace string
 		var res *dns.Msg
 		res, _, err = client.Exchange(&msg, customDNS+":"+port)
 		if nil != err {
-			logDNSError(fmt.Sprintf("Error while resolving host '%s' "+
-				"using DNS server '%s': %s", host, appMgr.resolveIng, err))
+			logDNSError("Error while resolving host " + host + " using DNS server " + appMgr.resolveIng + " : " + err.Error())
 			return
 		} else if len(res.Answer) == 0 {
-			logDNSError(fmt.Sprintf("No results for host '%s' "+
-				"using DNS server '%s'", host, appMgr.resolveIng))
+			logDNSError("No results for host " + host + "using DNS server " + appMgr.resolveIng)
 			return
 		}
 		Arecord := res.Answer[0].(*dns.A)
@@ -328,13 +321,12 @@ func (appMgr *Manager) resolveV1IngressHost(ing *netv1.Ingress, namespace string
 	ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation] = ipAddress
 	_, err = appMgr.kubeClient.NetworkingV1().Ingresses(namespace).Update(context.TODO(), ing, metav1.UpdateOptions{})
 	if nil != err {
-		msg := fmt.Sprintf("Error while setting virtual-server IP for Ingress '%s': %s",
-			ing.ObjectMeta.Name, err)
+		msg := "Error while setting virtual-server IP for Ingress " + ing.ObjectMeta.Name + ": " + err.Error()
 		log.Warning(msg)
 		appMgr.recordV1IngressEvent(ing, "IPAnnotationError", msg)
 	} else {
-		msg := fmt.Sprintf("Resolved host '%s' as '%s'; "+
-			"set '%s' annotation with address.", host, ipAddress, F5VsBindAddrAnnotation)
+		msg := "Resolved host " + host + " as " + ipAddress + "; " +
+			"set " + F5VsBindAddrAnnotation + " annotation with address."
 		log.Info(msg)
 		appMgr.recordV1IngressEvent(ing, "HostResolvedSuccessfully", msg)
 	}
@@ -791,8 +783,7 @@ func (appMgr *Manager) handleV1IngressTls(
 		// If annotation is set, use that profiles.
 		if len(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation]) > 0 {
 			if profiles, err := appMgr.getProfilesFromAnnotations(ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation], ing); err != nil {
-				msg := fmt.Sprintf(
-					"Unable to parse bigip clientssl profile JSON array '%v': %v", ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation], err)
+				msg := "Unable to parse bigip clientssl profile JSON array " + ing.ObjectMeta.Annotations[F5ClientSslProfileAnnotation] + ": " + err.Error()
 				log.Errorf("[CORE] %s", msg)
 				appMgr.recordV1IngressEvent(ing, "InvalidData", msg)
 			} else {
@@ -805,8 +796,7 @@ func (appMgr *Manager) handleV1IngressTls(
 				secret := appMgr.rsrcSSLCtxt[tls.SecretName]
 				if secret == nil {
 					// No secret, Hence we won't process this ingress
-					msg := fmt.Sprintf("No Secret with name '%s' in namespace '%s', ",
-						tls.SecretName, ing.ObjectMeta.Namespace)
+					msg := "No Secret with name " + tls.SecretName + " in namespace " + ing.ObjectMeta.Namespace + ", "
 					log.Errorf("[CORE] %s", msg)
 					appMgr.recordV1IngressEvent(ing, "SecretNotFound", msg)
 					profRef := ConvertStringToProfileRef(
@@ -988,9 +978,7 @@ func (appMgr *Manager) handleMultiServiceV1IngressHealthMonitors(
 			if key == "*" {
 				continue
 			}
-			msg := fmt.Sprintf(
-				"Health Monitor rule for host '%v' conflicts with rule for all hosts.",
-				key)
+			msg := "Health Monitor rule for host " + key + " conflicts with rule for all hosts."
 			log.Warningf("[CORE] %s", msg)
 			appMgr.recordV1IngressEvent(ing, "DuplicatePath", msg)
 		}
@@ -1050,9 +1038,7 @@ func (appMgr *Manager) notifyUnusedHealthMonitorRulesForV1Ingress(
 	for _, paths := range htpMap {
 		for _, ruleData := range paths {
 			if false == ruleData.Assigned {
-				msg := fmt.Sprintf(
-					"Health Monitor path '%v' does not match any Ingress paths.",
-					ruleData.HealthMon.Path)
+				msg := "Health Monitor path " + ruleData.HealthMon.Path + " does not match any Ingress paths."
 				appMgr.recordV1IngressEvent(ing, "MonitorRuleNotUsed", msg)
 			}
 		}
@@ -1095,7 +1081,7 @@ func (appMgr *Manager) assignHealthMonitorsByPathForV1Ingress(
 			pm, found = rulesMap["*"]
 		}
 		if false == found {
-			msg := fmt.Sprintf("Rule not found for Health Monitor host '%v'", host)
+			msg := "Rule not found for Health Monitor host " + host
 			log.Warningf("[CORE] %s", msg)
 			if ing != nil {
 				appMgr.recordV1IngressEvent(ing, "MonitorRuleNotFound", msg)
@@ -1104,8 +1090,7 @@ func (appMgr *Manager) assignHealthMonitorsByPathForV1Ingress(
 		}
 		ruleData, found := pm[path]
 		if false == found {
-			msg := fmt.Sprintf("Rule not found for Health Monitor path '%v'",
-				mon.Path)
+			msg := "Rule not found for Health Monitor path " + mon.Path
 			log.Warningf("[CORE] %s", msg)
 			if ing != nil {
 				appMgr.recordV1IngressEvent(ing, "MonitorRuleNotFound", msg)

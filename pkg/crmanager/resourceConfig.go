@@ -309,8 +309,7 @@ func formatVirtualServerPoolName(namespace, svc string, port int32, nodeMemberLa
 	servicePort := fmt.Sprint(port)
 	poolName := fmt.Sprintf("%s_%s_%s", namespace, svc, servicePort)
 	if nodeMemberLabel != "" {
-		replacer := strings.NewReplacer("=", "_")
-		nodeMemberLabel = replacer.Replace(nodeMemberLabel)
+		nodeMemberLabel = strings.ReplaceAll(nodeMemberLabel, "=", "_")
 		poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
 	}
 	return AS3NameFormatter(poolName)
@@ -1052,8 +1051,16 @@ func (idg *InternalDataGroup) RemoveRecord(name string) bool {
 // AS3NameFormatter formarts resources names according to AS3 convention
 // TODO: Should we use this? Or this will be done in agent?
 func AS3NameFormatter(name string) string {
-	replacer := strings.NewReplacer(".", "_", ":", "_", "/", "_", "%", ".", "-", "_", "=", "_")
-	name = replacer.Replace(name)
+	modifySpecialChars := map[string]string{
+		".": "_",
+		":": "_",
+		"/": "_",
+		"%": ".",
+		"-": "_",
+		"=": "_"}
+	for key, value := range modifySpecialChars {
+		name = strings.ReplaceAll(name, key, value)
+	}
 	return name
 }
 

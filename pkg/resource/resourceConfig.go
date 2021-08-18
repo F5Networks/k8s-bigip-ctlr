@@ -224,8 +224,14 @@ func FormatIngressVSName(ip string, port int32) string {
 	// Strip any bracket characters; replace special characters ". : /"
 	// with "-" and "%" with ".", for naming purposes
 	ip = strings.Trim(ip, "[]")
-	var replacer = strings.NewReplacer(".", "-", ":", "-", "/", "-", "%", ".")
-	ip = replacer.Replace(ip)
+	modifySpecialChars := map[string]string{
+		".": "-",
+		":": "-",
+		"/": "-",
+		"%": "."}
+	for key, value := range modifySpecialChars {
+		ip = strings.ReplaceAll(ip, key, value)
+	}
 	return fmt.Sprintf("ingress_%s_%d", ip, port)
 }
 

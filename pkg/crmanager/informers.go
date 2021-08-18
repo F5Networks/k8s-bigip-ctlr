@@ -502,7 +502,8 @@ func (crMgr *CRManager) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 	oldIngLink := oldObj.(*cisapiv1.IngressLink)
 	newIngLink := newObj.(*cisapiv1.IngressLink)
 
-	if oldIngLink.Spec.VirtualServerAddress != newIngLink.Spec.VirtualServerAddress {
+	if oldIngLink.Spec.VirtualServerAddress != newIngLink.Spec.VirtualServerAddress ||
+		oldIngLink.Spec.IPAMLabel != newIngLink.Spec.IPAMLabel {
 		key := &rqKey{
 			namespace: oldIngLink.ObjectMeta.Namespace,
 			kind:      IngressLink,

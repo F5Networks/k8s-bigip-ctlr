@@ -1,5 +1,8 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
+2.6.0
+----------
+* CIS supports IP address assignment to IngressLink Custom Resources using `F5 IPAM Controller`
 
 2.5.1
 -------------

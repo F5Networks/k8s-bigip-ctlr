@@ -102,6 +102,18 @@ func (c *FakeIngressLinks) Update(ctx context.Context, ingressLink *cisv1.Ingres
 	return obj.(*cisv1.IngressLink), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeIngressLinks) UpdateStatus(ctx context.Context, ingressLink *cisv1.IngressLink, opts v1.UpdateOptions) (*cisv1.IngressLink, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(ingresslinksResource, "status", c.ns, ingressLink), &cisv1.IngressLink{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*cisv1.IngressLink), err
+}
+
 // Delete takes name of the ingressLink and deletes it. Returns an error if one occurs.
 func (c *FakeIngressLinks) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.

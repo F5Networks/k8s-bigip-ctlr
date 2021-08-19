@@ -6,6 +6,7 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 
 Bug Fixes
 `````````
+* :issues:`1921` Plain text login and password in process status on node that is running controller.
 * :issues:`1849` Fix VirtualServer CRD processing which share same IP and different port.
 * CIS now supports:
     * Partition names with captial letters in F5IPAM CR.

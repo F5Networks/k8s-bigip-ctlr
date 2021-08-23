@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	netv1 "k8s.io/api/networking/v1"
-	"reflect"
 	"strings"
 
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
@@ -139,7 +138,7 @@ func (appMgr *Manager) setClientSslProfile(
 				ResourceName: rsCfg.GetName(),
 			}
 			if prof, ok := appMgr.customProfiles.Profs[skey]; ok {
-				if !reflect.DeepEqual(prof, cp) {
+				if prof != cp {
 					stats.cpUpdated += 1
 				}
 			}
@@ -311,7 +310,7 @@ func (appMgr *Manager) handleDestCACert(
 		)
 		caKey := SecretKey{Name: caProfRef.Name}
 		caExistingProf, ok := appMgr.customProfiles.Profs[caKey]
-		if !ok || !reflect.DeepEqual(caProf, caExistingProf) {
+		if !ok || caProf != caExistingProf {
 			appMgr.customProfiles.Profs[caKey] = caProf
 			stats.cpUpdated += 1
 		}
@@ -336,7 +335,7 @@ func (appMgr *Manager) handleDestCACert(
 		ResourceName: rsCfg.GetName(),
 	}
 	svrExistingProf, ok := appMgr.customProfiles.Profs[skey]
-	if !ok || !reflect.DeepEqual(svrProf, svrExistingProf) {
+	if !ok || svrProf != svrExistingProf {
 		appMgr.customProfiles.Profs[skey] = svrProf
 		stats.cpUpdated += 1
 	}
@@ -418,7 +417,7 @@ func (appMgr *Manager) createSecretSslProfile(
 	appMgr.customProfiles.Lock()
 	defer appMgr.customProfiles.Unlock()
 	if prof, ok := appMgr.customProfiles.Profs[skey]; ok {
-		if !reflect.DeepEqual(prof, cp) {
+		if prof != cp {
 			appMgr.customProfiles.Profs[skey] = cp
 			return nil, true
 		} else {

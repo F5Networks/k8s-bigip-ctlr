@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -795,7 +794,7 @@ func (rc *ResourceConfig) SetPolicy(policy Policy) {
 	}
 	found := false
 	for _, polName := range rc.Virtual.Policies {
-		if reflect.DeepEqual(toFind, polName) {
+		if toFind == polName {
 			found = true
 			break
 		}

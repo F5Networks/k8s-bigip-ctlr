@@ -1711,7 +1711,7 @@ func (rc *ResourceConfig) SetPolicy(policy Policy) {
 	}
 	found := false
 	for _, polName := range rc.Virtual.Policies {
-		if reflect.DeepEqual(toFind, polName) {
+		if toFind == polName {
 			found = true
 			break
 		}
@@ -1734,7 +1734,7 @@ func (rc *ResourceConfig) RemovePolicy(policy Policy) {
 		Partition: policy.Partition,
 	}
 	for i, polName := range rc.Virtual.Policies {
-		if reflect.DeepEqual(toFind, polName) {
+		if toFind == polName {
 			// Remove from array
 			copy(rc.Virtual.Policies[i:], rc.Virtual.Policies[i+1:])
 			rc.Virtual.Policies[len(rc.Virtual.Policies)-1] = NameRef{}
@@ -1785,7 +1785,7 @@ func (rc *ResourceConfig) SetMonitor(pool *Pool, monitor Monitor) bool {
 	}
 	for i, mon := range rc.Monitors {
 		if mon.Name == monitor.Name && mon.Partition == monitor.Partition {
-			if !reflect.DeepEqual(rc.Monitors[i], monitor) {
+			if rc.Monitors[i] != monitor {
 				rc.Monitors[i] = monitor
 				updated = true
 			}
@@ -2099,7 +2099,7 @@ func (rc *ResourceConfig) MergeRules(mergedRulesMap map[string]map[string]Merged
 								mergerName := rules[j].Actions[l].Name
 								rules[i].Actions[k].Name = ""
 								rules[j].Actions[l].Name = ""
-								if reflect.DeepEqual(rules[i].Actions[k], rules[j].Actions[l]) {
+								if rules[i].Actions[k] == rules[j].Actions[l] {
 									found = true
 								}
 								rules[i].Actions[k].Name = mergeeName
@@ -2129,7 +2129,7 @@ func (rc *ResourceConfig) MergeRules(mergedRulesMap map[string]map[string]Merged
 								mergerName := rules[i].Actions[l].Name
 								rules[j].Actions[k].Name = ""
 								rules[i].Actions[l].Name = ""
-								if reflect.DeepEqual(rules[j].Actions[k], rules[i].Actions[l]) {
+								if rules[j].Actions[k] == rules[i].Actions[l] {
 									found = true
 								}
 								rules[j].Actions[k].Name = mergeeName

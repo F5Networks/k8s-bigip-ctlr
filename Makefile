@@ -27,7 +27,7 @@ all: local-build
 
 test: local-go-test
 
-prod: prod-build
+prod: fmt prod-build
 
 verify: fmt vet
 
@@ -77,7 +77,7 @@ prod-build: pre-build
 
 	docker build --build-arg RUN_TESTS=1 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
 
-prod-quick: fmt prod-build-quick
+prod-quick: prod-build-quick
 
 prod-build-quick: pre-build
 	@echo "Quick build without running tests..."
@@ -93,7 +93,7 @@ dev-license: pre-build
 
 debug: pre-build
 	@echo "Building with debug support..."
-	docker build --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.debug .
+	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.debug .
 
 
 fmt:

@@ -1,24 +1,24 @@
-FROM golang as builder
-ENV CGO_ENABLE 0
+FROM golang:1.15 as builder
 
 ARG REPOPATH=$GOPATH/src/github.com/F5Networks/k8s-bigip-ctlr
+ARG RUN_TESTS
+ARG COVERALLS_TOKEN
 ARG BUILD_VERSION
 ARG BUILD_INFO
 
 WORKDIR $REPOPATH
-COPY go.mod go.sum ./
 ENV GO111MODULE on
-RUN go mod download
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -ldflags "-extldflags \"-static\" -X main.version=${BUILD_VERSION} -X main.buildInfo=${BUILD_INFO}" -o /bin/k8s-bigip-ctlr $REPOPATH/cmd/k8s-bigip-ctlr
-
-RUN go get github.com/go-delve/delve/cmd/dlv
-RUN ls /go/bin
+RUN $REPOPATH/build-tools/rel-build.sh && \
+    go get github.com/go-delve/delve/cmd/dlv
 
 FROM python:3.6-slim-buster
 
 ENV APPPATH /app
+
+ARG BUILD_VERSION
+ARG BUILD_INFO
 
 RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
  && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json \

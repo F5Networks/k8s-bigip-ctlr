@@ -748,16 +748,17 @@ func (crMgr *CRManager) processVirtualServers(
 
 	if !processingError {
 		var newVSCreated bool
+		var hostnames []string
 		// Update rsMap with ResourceConfigs created for the current virtuals
 		for rsName, rsCfg := range vsMap {
 			if _, ok := crMgr.resources.rsMap[rsName]; !ok {
 				newVSCreated = true
+				hostnames = rsCfg.MetaData.hosts
 			}
 			crMgr.resources.rsMap[rsName] = rsCfg
 		}
 		if newVSCreated {
-			// TODO: Need to improve the algorithm by taking "host" as a factor
-			crMgr.ProcessAllExternalDNS()
+			crMgr.ProcessAssociatedExternalDNS(hostnames)
 		}
 	}
 
@@ -1666,7 +1667,7 @@ func (crMgr *CRManager) getAllExternalDNS(namespace string) []*cisapiv1.External
 	return allEDNS
 }
 
-func (crMgr *CRManager) ProcessAllExternalDNS() {
+func (crMgr *CRManager) ProcessAssociatedExternalDNS(hostnames []string) {
 	var allEDNS []*cisapiv1.ExternalDNS
 	if crMgr.watchingAllNamespaces() {
 		allEDNS = crMgr.getAllExternalDNS("")
@@ -1676,7 +1677,12 @@ func (crMgr *CRManager) ProcessAllExternalDNS() {
 		}
 	}
 	for _, edns := range allEDNS {
-		crMgr.processExternalDNS(edns, false)
+		for _, hostname := range hostnames {
+			if edns.Spec.DomainName == hostname {
+				crMgr.processExternalDNS(edns, false)
+			}
+		}
+
 	}
 }
 

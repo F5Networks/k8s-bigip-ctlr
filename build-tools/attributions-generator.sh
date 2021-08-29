@@ -79,3 +79,5 @@ LICENSE-APACHE-2.0.txt:
   done
 
 }
+
+generate_attributions_licensee $1 > /opt/all_attributions.txt

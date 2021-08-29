@@ -132,6 +132,14 @@ func (crMgr *CRManager) processResource() bool {
 		crMgr.TeemData.Lock()
 		crMgr.TeemData.ResourceType.IPAMTS[rKey.namespace] = len(TSVirtuals)
 		crMgr.TeemData.Unlock()
+		IngLinks := crMgr.getIngressLinkForIPAM(ipam)
+		for _, il := range IngLinks {
+			err := crMgr.processIngressLink(il, false)
+			if err != nil {
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
+			}
+		}
 		services := crMgr.syncAndGetServicesForIPAM(ipam)
 		for _, svc := range services {
 			err := crMgr.processLBServices(svc, false)
@@ -1436,6 +1444,25 @@ func (crMgr *CRManager) getTransportServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1
 	return tss
 }
 
+//Get List of ingLink associated with the IPAM resource
+func (crMgr *CRManager) getIngressLinkForIPAM(ipam *ficV1.IPAM) []*cisapiv1.IngressLink {
+	var allIngLinks, ils []*cisapiv1.IngressLink
+	allIngLinks = crMgr.getAllIngLinkFromMonitoredNamespaces()
+	if allIngLinks == nil {
+		return nil
+	}
+	for _, status := range ipam.Status.IPStatus {
+		for _, il := range allIngLinks {
+			key := il.ObjectMeta.Namespace + "/" + il.ObjectMeta.Name + "_il"
+			if status.Key == key {
+				ils = append(ils, il)
+				break
+			}
+		}
+	}
+	return ils
+}
+
 func (crMgr *CRManager) syncAndGetServicesForIPAM(ipam *ficV1.IPAM) []*v1.Service {
 
 	allServices := crMgr.getAllServicesFromMonitoredNamespaces()
@@ -1689,12 +1716,45 @@ func (crMgr *CRManager) processIngressLink(
 		log.Debugf("Finished syncing Ingress Links %+v (%v)",
 			ingLink, endTime.Sub(startTime))
 	}()
-
+	// Skip validation for a deleted ingressLink
+	if !isILDeleted {
+		// check if the virutal server matches all the requirements.
+		vkey := ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name
+		valid := crMgr.checkValidIngressLink(ingLink)
+		if false == valid {
+			log.Errorf("ingressLink %s, is not valid",
+				vkey)
+			return nil
+		}
+	}
+	var ip string
+	var key string
+	key = ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
+	if crMgr.ipamCli != nil {
+		if isILDeleted && ingLink.Spec.VirtualServerAddress == "" {
+			ip = crMgr.releaseIP(ingLink.Spec.IPAMLabel, "", key)
+		} else if ingLink.Spec.VirtualServerAddress != "" {
+			ip = ingLink.Spec.VirtualServerAddress
+		} else {
+			ip = crMgr.requestIP(ingLink.Spec.IPAMLabel, "", key)
+			log.Debugf("[ipam] requested IP for ingLink %v is: %v", ingLink.ObjectMeta.Name, ip)
+			if ip == "" {
+				log.Debugf("[ipam] requested IP for ingLink %v is empty.", ingLink.ObjectMeta.Name)
+				return nil
+			}
+			crMgr.updateIngressLinkStatus(ingLink, ip)
+		}
+	} else {
+		if ingLink.Spec.VirtualServerAddress == "" {
+			return fmt.Errorf("No VirtualServer address in ingLink or IPAM found.")
+		}
+		ip = ingLink.Spec.VirtualServerAddress
+	}
 	if isILDeleted {
 		var delRes []string
 		for k := range crMgr.resources.rsMap {
 			rsName := "ingress_link_" + formatVirtualServerName(
-				ingLink.Spec.VirtualServerAddress,
+				ip,
 				0,
 			)
 			if strings.HasPrefix(k, rsName[:len(rsName)-1]) {
@@ -1733,7 +1793,7 @@ func (crMgr *CRManager) processIngressLink(
 			continue
 		}
 		rsName := "ingress_link_" + formatVirtualServerName(
-			ingLink.Spec.VirtualServerAddress,
+			ip,
 			port.Port,
 		)
 
@@ -1751,7 +1811,7 @@ func (crMgr *CRManager) processIngressLink(
 			rsCfg.Virtual.IRules = ingLink.Spec.IRules
 		}
 		rsCfg.Virtual.SetVirtualAddress(
-			ingLink.Spec.VirtualServerAddress,
+			ip,
 			port.Port,
 		)
 
@@ -1794,14 +1854,19 @@ func (crMgr *CRManager) getAllIngressLinks(namespace string) []*cisapiv1.Ingress
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
 	}
-	// Get list of VirtualServers and process them.
-	orderedIngLinks, err := crInf.ilInformer.GetIndexer().ByIndex("namespace", namespace)
-	if err != nil {
-		log.Errorf("Unable to get list of VirtualServers for namespace '%v': %v",
-			namespace, err)
-		return nil
+	var orderedIngLinks []interface{}
+	var err error
+	if namespace == "" {
+		orderedIngLinks = crInf.ilInformer.GetIndexer().List()
+	} else {
+		// Get list of VirtualServers and process them.
+		orderedIngLinks, err = crInf.ilInformer.GetIndexer().ByIndex("namespace", namespace)
+		if err != nil {
+			log.Errorf("Unable to get list of VirtualServers for namespace '%v': %v",
+				namespace, err)
+			return nil
+		}
 	}
-
 	for _, obj := range orderedIngLinks {
 		ingLink := obj.(*cisapiv1.IngressLink)
 		// TODO
@@ -1866,6 +1931,18 @@ func filterIngressLinkForService(allIngressLinks []*cisapiv1.IngressLink,
 	}
 
 	return result
+}
+
+// get returns list of all ingressLink
+func (crMgr *CRManager) getAllIngLinkFromMonitoredNamespaces() []*cisapiv1.IngressLink {
+	var allInglink []*cisapiv1.IngressLink
+	if crMgr.watchingAllNamespaces() {
+		return crMgr.getAllIngressLinks("")
+	}
+	for ns := range crMgr.namespaces {
+		allInglink = append(allInglink, crMgr.getAllIngressLinks(ns)...)
+	}
+	return allInglink
 }
 
 func (crMgr *CRManager) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink) (*v1.Service, error) {
@@ -2044,6 +2121,18 @@ func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip
 	_, updateErr := crMgr.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating virtual server status:%v", updateErr)
+		return
+	}
+}
+
+//Update ingresslink status with virtual server address
+func (crMgr *CRManager) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip string) {
+	// Set the vs status to include the virtual IP address
+	ilStatus := cisapiv1.IngressLinkStatus{VSAddress: ip}
+	il.Status = ilStatus
+	_, updateErr := crMgr.kubeCRClient.CisV1().IngressLinks(il.ObjectMeta.Namespace).UpdateStatus(context.TODO(), il, metav1.UpdateOptions{})
+	if nil != updateErr {
+		log.Debugf("Error while updating ingresslink status:%v", updateErr)
 		return
 	}
 }

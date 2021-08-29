@@ -123,14 +123,21 @@ type IngressLink struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec IngressLinkSpec `json:"spec"`
+	Spec   IngressLinkSpec   `json:"spec"`
+	Status IngressLinkStatus `json:"status,omitempty"`
+}
+
+// IngressLinkStatus is the status of the ingressLink resource.
+type IngressLinkStatus struct {
+	VSAddress string `json:"vsAddress,omitempty"`
 }
 
 // IngressLinkSpec is Spec for IngressLink
 type IngressLinkSpec struct {
-	VirtualServerAddress string                `json:"virtualServerAddress"`
+	VirtualServerAddress string                `json:"virtualServerAddress,omitempty"`
 	Selector             *metav1.LabelSelector `json:"selector"`
 	IRules               []string              `json:"iRules,omitempty"`
+	IPAMLabel            string                `json:"ipamLabel"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

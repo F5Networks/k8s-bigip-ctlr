@@ -435,6 +435,8 @@ spec:
                 virtualServerAddress:
                   type: string
                   pattern: '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$'
+                ipamLabel:
+                  type: string
                 iRules:
                   type: array
                   items:
@@ -446,3 +448,18 @@ spec:
                         type: string
                       type: object
                   type: object
+            status:
+              type: object
+              properties:
+                vsAddress:
+                  type: string
+      additionalPrinterColumns:
+        - name: IPAMVSAddress
+          type: string
+          description: IP address of virtualServer
+          jsonPath: .status.vsAddress
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: { }

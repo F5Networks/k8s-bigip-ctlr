@@ -94,8 +94,14 @@ func NewAgent(params AgentParams) *Agent {
 	}
 
 	var gtm gtmBigIPSection
-	if len(params.GTMParams.GTMBigIpUsername) == 0 || len(params.GTMParams.GTMBigIpPassword) == 0 || len(params.GTMParams.GTMBigIpUrl) == 0 {
-		gs.GTM = false
+	if len(params.GTMParams.GTMBigIpUrl) == 0 || len(params.GTMParams.GTMBigIpUsername) == 0 || len(params.GTMParams.GTMBigIpPassword) == 0 {
+		// gs.GTM = false
+		gtm = gtmBigIPSection{
+			GtmBigIPUsername: params.PostParams.BIGIPUsername,
+			GtmBigIPPassword: params.PostParams.BIGIPPassword,
+			GtmBigIPURL:      params.PostParams.BIGIPURL,
+		}
+		log.Warning("Creating GTM with default bigip credentials as GTM BIGIP Url or GTM BIGIP Username or GTM BIGIP Password is missing on CIS args.")
 	} else {
 		gtm = gtmBigIPSection{
 			GtmBigIPUsername: params.GTMParams.GTMBigIpUsername,

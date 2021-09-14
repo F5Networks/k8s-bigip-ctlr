@@ -3129,7 +3129,7 @@ func (slice byTimestamp) Swap(i, j int) {
 // When controller is in ClusterIP mode, returns a list of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
 
-func (m *Manager) getEndpoints(selector, namespace string) []Member {
+func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 	var members []Member
 
 	svcListOptions := metav1.ListOptions{
@@ -3139,10 +3139,10 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 	// Identify services that matches the given label
 	var services *v1.ServiceList
 	var err error
-	if m.hubMode {
-		services, err = m.kubeClient.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), svcListOptions)
+	if appMgr.hubMode {
+		services, err = appMgr.kubeClient.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), svcListOptions)
 	} else {
-		services, err = m.kubeClient.CoreV1().Services(namespace).List(context.TODO(), svcListOptions)
+		services, err = appMgr.kubeClient.CoreV1().Services(namespace).List(context.TODO(), svcListOptions)
 	}
 
 	if err != nil {
@@ -3164,8 +3164,8 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 	}
 
 	for _, service := range services.Items {
-		if m.isNodePort == false { // Controller is in ClusterIP Mode
-			endpointsList, err := m.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
+		if appMgr.isNodePort == false { // Controller is in ClusterIP Mode
+			endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
 				metav1.ListOptions{
 					FieldSelector: "metadata.name=" + service.Name,
 				},
@@ -3193,7 +3193,7 @@ func (m *Manager) getEndpoints(selector, namespace string) []Member {
 		} else { // Controller is in NodePort mode.
 			if service.Spec.Type == v1.ServiceTypeNodePort {
 				for _, port := range service.Spec.Ports {
-					members = append(members, m.getEndpointsForNodePort(port.NodePort, port.Port)...)
+					members = append(members, appMgr.getEndpointsForNodePort(port.NodePort, port.Port)...)
 				}
 			} /* else {
 				msg := fmt.Sprintf("[CORE] Requested service backend '%+v' not of NodePort type", service.Name)

@@ -13,8 +13,11 @@ rules:
     resources: ["secrets"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["cis.f5.com"]
-    resources: ["ingresslinks"]
+    resources: ["ingresslinks", "ingresslinks/status"]
     verbs: ["get", "list", "watch", "update"]
+  - apiGroups: [ "fic.f5.com" ]
+    resources: [ "ipams", "ipams/status" ]
+    verbs: [ "get", "list", "watch", "update", "create", "patch", "delete"]
 
 ---
 

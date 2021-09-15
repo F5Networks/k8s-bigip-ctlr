@@ -21,9 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"reflect"
-	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -795,7 +794,7 @@ func (rc *ResourceConfig) SetPolicy(policy Policy) {
 	}
 	found := false
 	for _, polName := range rc.Virtual.Policies {
-		if reflect.DeepEqual(toFind, polName) {
+		if toFind == polName {
 			found = true
 			break
 		}
@@ -894,15 +893,18 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 func split_ip_with_route_domain(address string) (ip string, rd string) {
 	// Split the address into the ip and routeDomain (optional) parts
 	//     address is of the form: <ipv4_or_ipv6>[%<routeDomainID>]
-	idRdRegex := regexp.MustCompile(`^([^%]*)%(\d+)$`)
-
-	match := idRdRegex.FindStringSubmatch(address)
-	if match != nil {
-		ip = match[1]
-		rd = match[2]
+	match := strings.Split(address, "%")
+	if len(match) == 2 {
+		_, err := strconv.Atoi(match[1])
+		//Matches only when RD contains number, Not allowing RD has 80f
+		if err == nil {
+			ip = match[0]
+			rd = match[1]
+		} else {
+			ip = address
+		}
 	} else {
-		ip = address
-		rd = ""
+		ip = match[0]
 	}
 	return
 }
@@ -1058,8 +1060,9 @@ func AS3NameFormatter(name string) string {
 		"%": ".",
 		"-": "_",
 		"=": "_"}
-	for key, value := range modifySpecialChars {
-		name = strings.ReplaceAll(name, key, value)
+	SpecialChars := [6]string{".", ":", "/", "%", "-", "="}
+	for _, key := range SpecialChars {
+		name = strings.ReplaceAll(name, key, modifySpecialChars[key])
 	}
 	return name
 }

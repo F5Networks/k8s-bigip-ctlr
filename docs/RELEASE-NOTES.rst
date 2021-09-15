@@ -1,5 +1,22 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
+2.6.0
+----------
+* CIS supports IP address assignment to IngressLink Custom Resources using `F5 IPAM Controller`
+
+Next Release
+-------------
+
+Added Functionality
+```````````````````
+* Improved Ingress, EDNS Performance 
+* New VirtualServer creation triggers processing of only associated EDNS resources.
+* CIS uses default BIGIP credentials if GTM credentials are not given. 
+
+Bug Fixes
+`````````
+
+
 
 2.5.1
 -------------
@@ -9,7 +26,6 @@ Bug Fixes
 * :issues:`1921` Plain text login and password in process status on node that is running controller.
 * :issues:`1849` Fix VirtualServer CRD processing which share same IP and different port.
 * CIS now supports:
-    * Partition names with captial letters in F5IPAM CR.
     * Deletion of old F5IPAM CR which is not in use.
     * Skipping certificate validation for passthrough routes.
     * Update/delete of Ingress V1 annotation with shared IP.

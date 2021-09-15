@@ -2,8 +2,6 @@ package crmanager
 
 import (
 	"fmt"
-	"reflect"
-
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -66,7 +64,7 @@ func (crMgr *CRManager) createSecretClientSSLProfile(
 		ResourceName: rsCfg.GetName(),
 	}
 	if prof, ok := rsCfg.customProfiles.Profs[skey]; ok {
-		if !reflect.DeepEqual(prof, cp) {
+		if prof != cp {
 			rsCfg.customProfiles.Profs[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			return nil, true
@@ -132,7 +130,7 @@ func (crMgr *CRManager) createSecretServerSSLProfile(
 		ResourceName: rsCfg.GetName(),
 	}
 	if prof, ok := rsCfg.customProfiles.Profs[skey]; ok {
-		if !reflect.DeepEqual(prof, cp) {
+		if prof != cp {
 			rsCfg.customProfiles.Profs[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			return nil, true

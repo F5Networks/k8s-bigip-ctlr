@@ -108,3 +108,40 @@ func (crMgr *CRManager) checkValidTransportServer(
 
 	return true
 }
+
+func (crMgr *CRManager) checkValidIngressLink(
+	il *cisapiv1.IngressLink,
+) bool {
+
+	ilNamespace := il.ObjectMeta.Namespace
+	ilName := il.ObjectMeta.Name
+	ilkey := fmt.Sprintf("%s/%s", ilNamespace, ilName)
+
+	crInf, ok := crMgr.getNamespacedInformer(ilNamespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", ilNamespace)
+		return false
+	}
+	// Check if the virtual exists and valid for us.
+	_, virtualFound, _ := crInf.ilInformer.GetIndexer().GetByKey(ilkey)
+	if !virtualFound {
+		log.Infof("IngressLink %s is invalid", ilName)
+		return false
+	}
+
+	bindAddr := il.Spec.VirtualServerAddress
+
+	if crMgr.ipamCli == nil {
+		if bindAddr == "" {
+			log.Infof("No IP was specified for ingresslink %s", ilName)
+			return false
+		}
+	} else {
+		ipamLabel := il.Spec.IPAMLabel
+		if ipamLabel == "" && bindAddr == "" {
+			log.Infof("No ipamLabel was specified for the il server %s", ilName)
+			return false
+		}
+	}
+	return true
+}

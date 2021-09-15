@@ -678,12 +678,12 @@ github.com/miekg/dns
 License:        NOASSERTION
 Matched files:  LICENSE, COPYRIGHT
 LICENSE:
-  Content hash:  e225e64821dfe0b2a62ad54da77a76aa173f1aac
+  Content hash:  cb21e6ea7bf5dcf924fdf1aa3c8faf374d9c8e16
   License:       NOASSERTION
   Closest non-matching licenses:
-    BSD-3-Clause-Clear similarity:  88.64%
-    BSD-4-Clause similarity:        87.18%
-    BSD-3-Clause similarity:        79.60%
+    BSD-3-Clause-Clear similarity:  91.25%
+    BSD-4-Clause similarity:        90.77%
+    BSD-3-Clause similarity:        85.00%
 COPYRIGHT:
   Content hash:  4f57c6222da530bb401d59e9be1f1c81761b02cc
   License:       NOASSERTION

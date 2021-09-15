@@ -27,7 +27,7 @@ all: local-build
 
 test: local-go-test
 
-prod: prod-build
+prod: fmt prod-build
 
 verify: fmt vet
 
@@ -77,19 +77,24 @@ prod-build: pre-build
 
 	docker build --build-arg RUN_TESTS=1 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
 
-prod-quick: fmt prod-build-quick
+prod-quick: prod-build-quick
 
 prod-build-quick: pre-build
 	@echo "Quick build without running tests..."
 	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
 
-prod-license: pre-build
+dev-license: pre-build
 	@echo "Running with tests and licenses generated will be in all_attributions.txt..."
-	docker build --build-arg LICENSE=1 --build-arg RUN_TESTS=1 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
+	docker build -t cis-attributions:latest -f build-tools/Dockerfile.attribution .
+	$(eval id := $(shell docker create cis-attributions:latest))
+	docker cp $(id):/opt/all_attributions.txt ./
+	docker rm -v $(id)
+	docker rmi -f cis-attributions:latest
 
 debug: pre-build
 	@echo "Building with debug support..."
-	docker build --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.debug .
+	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.debug .
+
 
 fmt:
 	@echo "Enforcing code formatting using 'go fmt'..."

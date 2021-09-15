@@ -5,23 +5,12 @@ ARG RUN_TESTS
 ARG COVERALLS_TOKEN
 ARG BUILD_VERSION
 ARG BUILD_INFO
-ARG LICENSE
 
 WORKDIR $REPOPATH
-COPY go.mod go.sum ./
 ENV GO111MODULE on
-RUN go mod download
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -ldflags "-extldflags \"-static\" -X main.version=${BUILD_VERSION} -X main.buildInfo=${BUILD_INFO}" -o /bin/k8s-bigip-ctlr $REPOPATH/cmd/k8s-bigip-ctlr
-
-RUN GO111MODULE=off && go get github.com/wadey/gocovmerge && \
-	go get golang.org/x/tools/cmd/cover && \
-	go get github.com/mattn/goveralls && \
-	go get github.com/onsi/ginkgo/ginkgo && \
-	go get github.com/onsi/gomega && \
-	/bin/bash -ex $REPOPATH/build-tools/rel-build.sh
-
+RUN $REPOPATH/build-tools/rel-build.sh
 
 FROM registry.redhat.io/ubi7/ubi-minimal
 

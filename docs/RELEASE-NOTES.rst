@@ -10,7 +10,8 @@ Next Release
 Added Functionality
 ```````````````````
 * Improved Ingress, EDNS Performance 
-  * New VirtualServer creation triggers processing of only associated EDNS resources. 
+* New VirtualServer creation triggers processing of only associated EDNS resources.
+* CIS uses default BIGIP credentials if GTM credentials are not given. 
 
 Bug Fixes
 `````````

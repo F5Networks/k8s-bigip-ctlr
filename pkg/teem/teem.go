@@ -67,9 +67,9 @@ func (td *TeemsData) PostTeemsData() bool {
 	var accessEnabled = true
 
 	assetInfo := f5teem.AssetInfo{
-		"CIS-Ecosystem",
-		fmt.Sprintf("CIS/v%v", td.CisVersion),
-		uuid.New().String(),
+		Name:    "CIS-Ecosystem",
+		Version: fmt.Sprintf("CIS/v%v", td.CisVersion),
+		Id:      uuid.New().String(),
 	}
 	teemDevice := f5teem.AnonymousClient(assetInfo, apiKey)
 	types := []map[string]int{td.ResourceType.IngressLink, td.ResourceType.Ingresses, td.ResourceType.Routes,

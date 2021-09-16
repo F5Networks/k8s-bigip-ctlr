@@ -334,7 +334,7 @@ type (
 	// This is the format for each item in the clientssl annotation used
 	// in the Ingress objects.
 	AnnotationProfile struct {
-		hosts        []string `json:"hosts"`
+		Hosts        []string `json:"hosts,omitempty"`
 		Bigipprofile string   `json:"bigIpProfile"`
 	}
 	AnnotationProfiles []AnnotationProfile

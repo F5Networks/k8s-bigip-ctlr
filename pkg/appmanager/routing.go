@@ -109,7 +109,7 @@ func createRule(uri, poolName, partition, ruleName string) (*Rule, error) {
 		Conditions: c,
 	}
 
-	log.Debugf("[CORE] Configured rule: %v", rl)
+	//log.Debugf("[CORE] Configured rule: %v", rl)
 	return &rl, nil
 }
 

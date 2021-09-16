@@ -2768,7 +2768,7 @@ func CreatePolicy(rls Rules, policyName, partition string) *Policy {
 		plcy.Requires = append(plcy.Requires, "tcp")
 	}
 
-	log.Debugf("[RESOURCE] Configured policy: %v", plcy)
+	//log.Debugf("[RESOURCE] Configured policy: %v", plcy)
 	return &plcy
 }
 

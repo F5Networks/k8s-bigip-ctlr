@@ -1120,12 +1120,12 @@ type vsSyncStats struct {
 }
 
 func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
-	startTime := time.Now()
-	defer func() {
-		endTime := time.Now()
-		log.Debugf("[CORE] Finished syncing virtual servers %+v in namespace %+v (%v), %v/%v",
-			sKey.ServiceName, sKey.Namespace, endTime.Sub(startTime), appMgr.processedItems, appMgr.queueLen)
-	}()
+	//startTime := time.Now()
+	//defer func() {
+	//	endTime := time.Now()
+		//log.Debugf("[CORE] Finished syncing virtual servers %+v in namespace %+v (%v), %v/%v",
+		//	sKey.ServiceName, sKey.Namespace, endTime.Sub(startTime), appMgr.processedItems, appMgr.queueLen)
+	//}()
 	// Get the informers for the namespace. This will tell us if we care about
 	// this item.
 	appInf, haveNamespace := appMgr.getNamespaceInformer(sKey.Namespace)
@@ -1245,8 +1245,8 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		stats.vsUpdated += appMgr.deleteUnusedResources(sKey, svcFound)
 	}
 
-	log.Debugf("[CORE] Updated %v of %v virtual server configs, deleted %v",
-		stats.vsUpdated, stats.vsFound, stats.vsDeleted)
+	//log.Debugf("[CORE] Updated %v of %v virtual server configs, deleted %v",
+	//	stats.vsUpdated, stats.vsFound, stats.vsDeleted)
 
 	// delete any custom profiles that are no longer referenced
 	appMgr.deleteUnusedProfiles(appInf, sKey.Namespace, &stats)
@@ -2581,7 +2581,7 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 	for _, portSpec := range svc.Spec.Ports {
 		if portSpec.Port == sKey.ServicePort {
 			ipPorts := appMgr.getEndpointsForCluster(portSpec.Name, eps, svc.Spec.ClusterIP)
-			log.Debugf("[CORE] Found endpoints for backend %+v: %v", sKey, ipPorts)
+			//log.Debugf("[CORE] Found endpoints for backend %+v: %v", sKey, ipPorts)
 			rsCfg.MetaData.Active = true
 			rsCfg.Pools[index].Members = ipPorts
 		}
@@ -3235,7 +3235,7 @@ func (appMgr *Manager) exposeKubernetesService(
 					}
 				}
 			}
-			log.Debugf("[CORE] Found endpoints for backend %+v: %v", sKey, members)
+			//log.Debugf("[CORE] Found endpoints for backend %+v: %v", sKey, members)
 			rsCfg.MetaData.Active = true
 			rsCfg.Pools[index].Members = members
 		}

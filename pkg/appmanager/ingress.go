@@ -849,7 +849,7 @@ func (appMgr *Manager) handleV1IngressTls(
 	// -----------------------------------------------------------------
 	if sslRedirect {
 		// State 2, set HTTP redirect iRule
-		log.Debugf("[CORE] TLS: Applying HTTP redirect iRule.")
+		//log.Debugf("[CORE] TLS: Applying HTTP redirect iRule.")
 		ruleName := fmt.Sprintf("%s_%d", HttpRedirectIRuleName, httpsPort)
 		appMgr.addIRule(ruleName, DEFAULT_PARTITION,
 			httpRedirectIRule(httpsPort))

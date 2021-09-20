@@ -163,7 +163,8 @@ golang.org/x/crypto/ssh/terminal
 # golang.org/x/mod v0.4.2
 ## explicit
 golang.org/x/mod/semver
-# golang.org/x/net v0.0.0-20210428140749-89ef3d95e781
+# golang.org/x/net v0.0.0-20210520170846-37e1c6afe023
+## explicit
 golang.org/x/net/bpf
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp

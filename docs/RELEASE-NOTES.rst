@@ -1,8 +1,5 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
-2.6.0
-----------
-* CIS supports IP address assignment to IngressLink Custom Resources using `F5 IPAM Controller`
 
 Next Release
 -------------
@@ -11,7 +8,9 @@ Added Functionality
 ```````````````````
 * Improved Ingress, EDNS Performance 
 * New VirtualServer creation triggers processing of only associated EDNS resources.
-* CIS uses default BIGIP credentials if GTM credentials are not given. 
+* CIS uses default BIGIP credentials if GTM credentials are not given.
+* CIS supports IP address assignment to IngressLink Custom Resources using `F5 IPAM Controller`
+* CIS supports IPV6 address in bigip-url & gtm-bigip-url parameter
 
 Bug Fixes
 `````````

@@ -571,24 +571,14 @@ func getCredentials() error {
 		}
 	}
 	// Verify URL is valid
+	if !strings.HasPrefix(*bigIPURL, "https://") {
+		log.Debug("[DEBUG] Adding https at the beginning of the BIG IP URL as it does not start with https.")
+		*bigIPURL = "https://" + *bigIPURL
+	}
 	u, err := url.Parse(*bigIPURL)
 	if nil != err {
 		return fmt.Errorf("Error parsing url: %s", err)
 	}
-
-	if len(u.Scheme) == 0 {
-		*bigIPURL = "https://" + *bigIPURL
-		u, err = url.Parse(*bigIPURL)
-		if nil != err {
-			return fmt.Errorf("Error parsing url: %s", err)
-		}
-	}
-
-	if u.Scheme != "https" {
-		return fmt.Errorf("Invalid BIGIP-URL protocol: '%s' - Must be 'https'",
-			u.Scheme)
-	}
-
 	if len(u.Path) > 0 && u.Path != "/" {
 		return fmt.Errorf("BIGIP-URL path must be empty or '/'; check URL formatting and/or remove %s from path",
 			u.Path)
@@ -626,25 +616,16 @@ func getGTMCredentials() {
 		setField(gtmBigIPPassword, pass, "password")
 		setField(gtmBigIPURL, gtmBigipURL, "url")
 	}
+
 	// Verify URL is valid
+	if !strings.HasPrefix(*gtmBigIPURL, "https://") {
+		log.Debug("[DEBUG] Adding https at the beginning of the GTM BIG IP URL as it does not start with https.")
+		*gtmBigIPURL = "https://" + *gtmBigIPURL
+	}
 	u, err := url.Parse(*gtmBigIPURL)
 	if nil != err {
 		log.Errorf("Error parsing url: %s", err)
 	}
-
-	if len(u.Scheme) == 0 {
-		*gtmBigIPURL = "https://" + *gtmBigIPURL
-		u, err = url.Parse(*gtmBigIPURL)
-		if nil != err {
-			log.Errorf("Error parsing url: %s", err)
-		}
-	}
-
-	if u.Scheme != "https" {
-		log.Errorf("Invalid GTM BIGIP-URL protocol: '%s' - Must be 'https'",
-			u.Scheme)
-	}
-
 	if len(u.Path) > 0 && u.Path != "/" {
 		log.Errorf("GTM BIGIP-URL path must be empty or '/'; check URL formatting and/or remove %s from path",
 			u.Path)

@@ -1,0 +1,72 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: f5-as3-declaration
+  namespace: default
+  labels:
+    f5type: virtual-server
+    as3: "true"
+    hubMode: "true"
+data:
+  template: |
+    {
+        "class": "AS3",
+        "declaration": {
+            "class": "ADC",
+            "schemaVersion": "3.13.0",
+            "id": "urn:uuid:33045210",
+            "label": "http",
+            "remark": "A1 Template",
+            "hubMode": {
+                "class": "Tenant",
+                "A1": {
+                    "class": "Application",
+                    "template": "generic",
+                    "a1_80_vs_n1": {
+                        "class": "Service_HTTP",
+                        "remark": "n1 namespace",
+                        "virtualAddresses": [
+                            "10.192.75.101"
+                        ],
+                        "pool": "web_pool_n1"
+                    },
+                    "web_pool_n1": {
+                        "class": "Pool",
+                        "monitors": [
+                            "http"
+                        ],
+                        "members": [
+                            {
+                                "servicePort": 8080,
+                                "serverAddresses": []
+                            }
+                        ]
+                    }
+                },
+                "A2": {
+                    "class": "Application",
+                    "template": "generic",
+                    "a1_80_vs_n2": {
+                        "class": "Service_HTTP",
+                        "remark": "n2 namespace",
+                        "virtualAddresses": [
+                            "10.192.75.102"
+                        ],
+                        "pool": "web_pool_n2"
+                    },
+                    "web_pool_n2": {
+                        "class": "Pool",
+                        "monitors": [
+                            "http"
+                        ],
+                        "members": [
+                            {
+                                "servicePort": 8080,
+                                "serverAddresses": []
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: f5-demo-dev
+  namespace: dev
+spec:
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+  selector:
+    app: f5-demo-dev
+  type: ClusterIP

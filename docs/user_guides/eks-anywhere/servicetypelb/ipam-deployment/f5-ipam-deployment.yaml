@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    name: f5-ipam-controller
+  name: f5-ipam-controller
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: f5-ipam-controller
+  template:
+    metadata:
+      labels:
+        app: f5-ipam-controller
+    spec:
+      containers:
+      - args:
+        - --orchestration=kubernetes
+        - --ip-range='{"Test":"192.168.15.45-192.168.15.45"}'
+        - --log-level=DEBUG
+        command:
+        - /app/bin/f5-ipam-controller
+        image:  f5networks/f5-ipam-controller:0.1.4
+        imagePullPolicy: IfNotPresent
+        name: f5-ipam-controller
+      serviceAccount: ipam-ctlr
+      serviceAccountName: ipam-ctlr

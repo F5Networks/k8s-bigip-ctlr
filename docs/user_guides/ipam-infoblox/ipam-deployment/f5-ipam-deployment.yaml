@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    name: f5-ipam-controller
+  name: f5-ipam-controller
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: f5-ipam-controller
+  template:
+    metadata:
+      labels:
+        app: f5-ipam-controller
+    spec:
+      containers:
+      - args:
+        - --orchestration=kubernetes
+        - --log-level=DEBUG
+        - --ipam-provider
+        - infoblox
+        - --infoblox-labels
+        - '{"Test":{"cidr": "10.192.75.112/30","netView": "test", "dnsview": "default.test"},"Production":{"cidr": "10.192.125.32/28","netView": "production", "dnsview": "default.production"}}'
+        - --infoblox-grid-host
+        - 10.192.75.240
+        - --infoblox-wapi-port
+        - "443"
+        - --infoblox-wapi-version
+        - 2.10.5
+        - --infoblox-username
+        - admin
+        - --infoblox-password
+        - infoblox
+        - --log-level
+        - DEBUG
+
+        command:
+        - /app/bin/f5-ipam-controller
+        image: f5networks/f5-ipam-controller:0.1.4
+        imagePullPolicy: IfNotPresent
+        name: f5-ipam-controller
+      serviceAccount: ipam-ctlr
+      serviceAccountName: ipam-ctlr

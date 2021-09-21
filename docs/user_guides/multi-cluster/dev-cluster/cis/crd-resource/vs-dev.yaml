@@ -1,0 +1,20 @@
+apiVersion: "cis.f5.com/v1"
+kind: VirtualServer
+metadata:
+  name: f5-demo-dev
+  namespace: dev
+  labels:
+    f5cr: "true"
+spec:
+  host: dev.f5demo.com
+  ipamLabel: dev
+  pools:
+  - monitor:
+      interval: 20
+      recv: ""
+      send: /
+      timeout: 31
+      type: http
+    path: /
+    service: f5-demo-dev
+    servicePort: 80

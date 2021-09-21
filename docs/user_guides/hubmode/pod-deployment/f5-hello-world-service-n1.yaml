@@ -1,0 +1,20 @@
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: f5-hello-world-n1
+  namespace: n1
+  labels:
+    app: f5-hello-world
+    cis.f5.com/as3-tenant: hubMode
+    cis.f5.com/as3-app: A1
+    cis.f5.com/as3-pool: web_pool_n1
+spec:
+  ports:
+  - name: f5-hello-world
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  type: ClusterIP
+  selector:
+    app: f5-hello-world

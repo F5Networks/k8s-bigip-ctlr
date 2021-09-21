@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: k8s-bigip-ctlr-deployment
+  namespace: kube-system
+spec: 
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector: 
+    matchLabels: 
+      app: k8s-bigip-ctlr
+  strategy: 
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template: 
+    metadata: 
+      annotations: 
+        seccomp.security.alpha.kubernetes.io/defaultProfileName: unconfined
+        seccomp.security.alpha.kubernetes.io/pod: unconfined
+      creationTimestamp: ~
+      labels: 
+        app: k8s-bigip-ctlr
+      name: k8s-bigip-ctlr
+    spec: 
+      containers: 
+        - 
+          args: 
+            - "--bigip-username=$(BIGIP_USERNAME)"
+            - "--bigip-password=$(BIGIP_PASSWORD)"
+            - "--bigip-url=192.168.14.45"
+            - "--namespace=default"
+            - "--bigip-partition=eks"
+            - "--pool-member-type=nodeport"
+            - "--log-level=DEBUG"
+            - "--insecure=true"
+            - "--custom-resource-mode=true"
+            - "--as3-validation=true"
+            - "--log-as3-response=true"
+          command: 
+            - /app/bin/k8s-bigip-ctlr
+          env: 
+            - 
+              name: BIGIP_USERNAME
+              valueFrom: 
+                secretKeyRef: 
+                  key: username
+                  name: bigip-login
+            - 
+              name: BIGIP_PASSWORD
+              valueFrom: 
+                secretKeyRef: 
+                  key: password
+                  name: bigip-login
+          image: "f5networks/k8s-bigip-ctlr:2.5.0"
+          name: f5-server
+      serviceAccountName: k8s-bigip-ctlr

@@ -1,0 +1,22 @@
+apiVersion: "cis.f5.com/v1"
+kind: VirtualServer
+metadata:
+  name: f5-hello-world
+  namespace: default
+  labels:
+    f5cr: "true"
+spec:
+  # This is an insecure virtual, Please use TLSProfile to secure the virtual
+  # check out tls examples to understand more.
+  virtualServerAddress: "10.192.75.112"
+  virtualServerHTTPPort: 80
+  pools:
+  - monitor:
+      interval: 20
+      recv: ""
+      send: /
+      timeout: 10
+      type: http
+    path: /
+    service: f5-hello-world
+    servicePort: 8080

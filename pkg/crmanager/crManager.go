@@ -18,8 +18,7 @@ package crmanager
 
 import (
 	"fmt"
-	"net"
-	"net/url"
+	"os"
 	"strings"
 	"time"
 	"unicode"
@@ -178,7 +177,7 @@ func (crMgr *CRManager) registerIPAMCRD() {
 //Create IPAM CRD
 func (crMgr *CRManager) createIPAMResource() error {
 
-	frameIPAMResourceName := func(bipUrl string) string {
+	frameIPAMResourceName := func() string {
 		prtn := ""
 		for _, ch := range DEFAULT_PARTITION {
 			elem := string(ch)
@@ -196,32 +195,17 @@ func (crMgr *CRManager) createIPAMResource() error {
 		prtn = strings.Replace(prtn, "_", "-", -1)
 		prtn = strings.Replace(prtn, "--", "-", -1)
 
-		log.Debugf("BIP URL: %v", bipUrl)
-		if net.ParseIP(bipUrl) != nil {
-			return strings.Join([]string{bipUrl, prtn}, ".")
-		}
-
-		u, err := url.Parse(bipUrl)
-		if err != nil {
-			log.Errorf("Unable to frame IPAM resource name in standard format")
-			return prtn
-		}
+		hostsplit := strings.Split(os.Getenv("HOSTNAME"), "-")
 		var host string
-		if strings.Contains(u.Host, ":") {
-			host, _, _ = net.SplitHostPort(u.Host)
+		if len(hostsplit) > 2 {
+			host = strings.Join(hostsplit[0:len(hostsplit)-2], "-")
 		} else {
-			host = u.Host
+			host = strings.Join(hostsplit, "-")
 		}
-
-		if host == "" {
-			log.Errorf("Unable to frame IPAM resource name in standard format")
-			return prtn
-		}
-
 		return strings.Join([]string{host, prtn}, ".")
 	}
 
-	crName := frameIPAMResourceName(crMgr.Agent.BIGIPURL)
+	crName := frameIPAMResourceName()
 	f5ipam := &ficV1.IPAM{
 		ObjectMeta: metaV1.ObjectMeta{
 			Name:      crName,

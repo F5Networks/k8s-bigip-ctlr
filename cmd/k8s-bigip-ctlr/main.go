@@ -122,6 +122,7 @@ var (
 
 	pythonBaseDir    *string
 	logLevel         *string
+	ccclLogLevel     *string
 	verifyInterval   *int
 	nodePollInterval *int
 	syncInterval     *int
@@ -222,6 +223,8 @@ func _init() {
 		"DEPRECATED: Optional, directory location of python utilities")
 	logLevel = globalFlags.String("log-level", "INFO",
 		"Optional, logging level")
+	ccclLogLevel = globalFlags.String("cccl-log-level", "",
+		"Optional, logging level for cccl")
 	verifyInterval = globalFlags.Int("verify-interval", 30,
 		"Optional, interval (in seconds) at which to verify the BIG-IP configuration.")
 	nodePollInterval = globalFlags.Int("node-poll-interval", 30,
@@ -962,6 +965,9 @@ func main() {
 		VerifyInterval: *verifyInterval,
 		VXLANPartition: vxlanPartition,
 		DisableLTM:     disableLTM,
+	}
+	if *ccclLogLevel != "" {
+		gs.LogLevel = *ccclLogLevel
 	}
 	bs := bigIPSection{
 		BigIPUsername:   *bigIPUsername,

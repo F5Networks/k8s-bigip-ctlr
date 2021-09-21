@@ -14,8 +14,7 @@ Added Functionality
 
 Bug Fixes
 `````````
-
-
+* :issues:`1911` v2.5.0 CIS delete all exist vs when cis pod restarting
 
 2.5.1
 -------------

@@ -54,11 +54,11 @@ func (td *TeemsData) PostTeemsData() bool {
 		if apiEnv == staging {
 			apiKey = os.Getenv("TEEM_API_KEY")
 			if len(apiKey) == 0 {
-				log.Errorf("API key missing to post to staging teem server")
+				log.Error("API key missing to post to staging teem server")
 				return false
 			}
 		} else if apiEnv != production {
-			log.Errorf("Invalid TEEM_API_ENVIRONMENT. Unset to use production server")
+			log.Error("Invalid TEEM_API_ENVIRONMENT. Unset to use production server")
 			return false
 		}
 	}

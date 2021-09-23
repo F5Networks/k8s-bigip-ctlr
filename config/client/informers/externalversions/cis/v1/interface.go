@@ -28,6 +28,8 @@ type Interface interface {
 	ExternalDNSs() ExternalDNSInformer
 	// IngressLinks returns a IngressLinkInformer.
 	IngressLinks() IngressLinkInformer
+	// Policies returns a PolicyInformer.
+	Policies() PolicyInformer
 	// TLSProfiles returns a TLSProfileInformer.
 	TLSProfiles() TLSProfileInformer
 	// TransportServers returns a TransportServerInformer.
@@ -55,6 +57,11 @@ func (v *version) ExternalDNSs() ExternalDNSInformer {
 // IngressLinks returns a IngressLinkInformer.
 func (v *version) IngressLinks() IngressLinkInformer {
 	return &ingressLinkInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// Policies returns a PolicyInformer.
+func (v *version) Policies() PolicyInformer {
+	return &policyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // TLSProfiles returns a TLSProfileInformer.

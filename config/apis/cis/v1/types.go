@@ -223,3 +223,54 @@ type ExternalDNSList struct {
 
 	Items []ExternalDNS `json:"items"`
 }
+
+type PolicySpec struct {
+	L7Policies  L7PolicySpec  `json:"l7Policies,omitempty"`
+	L3Policies  L3PolicySpec  `json:"l3Policies,omitempty"`
+	LtmPolicies LtmIRulesSpec `json:"ltmPolicies,omitempty"`
+	IRules      LtmIRulesSpec `json:"iRules,omitempty"`
+	Profiles    ProfileSpec   `json:"profiles,omitempty"`
+}
+
+type L7PolicySpec struct {
+	WAF string `json:"waf,omitempty"`
+}
+
+type L3PolicySpec struct {
+	DOS            string `json:"dos,omitempty"`
+	FirewallPolicy string `json:"firewallPolicy,omitempty"`
+}
+
+type LtmIRulesSpec struct {
+	Secure   string `json:"secure,omitempty"`
+	InSecure string `json:"insecure,omitempty"`
+	Priority string `json:"priority,omitempty"`
+}
+
+type ProfileSpec struct {
+	TCP            string `json:"tcp,omitempty"`
+	UDP            string `json:"udp,omitempty"`
+	HTTP           string `json:"http,omitempty"`
+	RewriteProfile string `json:"rewriteProfile,omitempty"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// Policy describes a Policy custom resource.
+type Policy struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec PolicySpec `json:"spec"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// PolicyList is list of Policy resources
+type PolicyList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []Policy `json:"items"`
+}

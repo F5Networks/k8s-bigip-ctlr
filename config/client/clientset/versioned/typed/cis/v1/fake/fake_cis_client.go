@@ -36,6 +36,10 @@ func (c *FakeCisV1) IngressLinks(namespace string) v1.IngressLinkInterface {
 	return &FakeIngressLinks{c, namespace}
 }
 
+func (c *FakeCisV1) Policies(namespace string) v1.PolicyInterface {
+	return &FakePolicies{c, namespace}
+}
+
 func (c *FakeCisV1) TLSProfiles(namespace string) v1.TLSProfileInterface {
 	return &FakeTLSProfiles{c, namespace}
 }

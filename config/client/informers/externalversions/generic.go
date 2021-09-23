@@ -57,6 +57,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cis().V1().ExternalDNSs().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("ingresslinks"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cis().V1().IngressLinks().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("policies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Cis().V1().Policies().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("tlsprofiles"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cis().V1().TLSProfiles().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("transportservers"):

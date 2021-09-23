@@ -98,6 +98,8 @@ github.com/evanphx/json-patch v4.9.0+incompatible h1:kLcOMZeuLAJvL2BPWLMIj5oaZQo
 github.com/evanphx/json-patch v4.9.0+incompatible/go.mod h1:50XU6AFN0ol/bzJsmQLiYLvXMP4fmwYFNcr97nuDLSk=
 github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210621162944-38d486e26398 h1:+Ys275u14WZpd7T4Qg2Gcu2DAfCtZg/zO223m2MRIGM=
 github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210621162944-38d486e26398/go.mod h1:r7o5I22EvO+fps2u10bz4ZUlTlNHopQSWzVcW19hK3U=
+github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913 h1:/VVpfRxdUZk0l6mPOVxL8EDST8OnLepd1y33uxyYZrg=
+github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913/go.mod h1:r7o5I22EvO+fps2u10bz4ZUlTlNHopQSWzVcW19hK3U=
 github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051 h1:q2HUQbEFbJ4EIECxyKpnZ5+wz/HLAndzSYmd0VS8c4M=
 github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051/go.mod h1:g2/ykgb7Fzf6ag/pYv0LfcwSH8z46TnjFOF3rWyh01I=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
@@ -186,6 +188,8 @@ github.com/google/uuid v1.0.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+
 github.com/google/uuid v1.1.1/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/google/uuid v1.1.2 h1:EVhdT+1Kseyi1/pUmXKaFxYsDNy9RQYkMWRH68J/W7Y=
 github.com/google/uuid v1.1.2/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
+github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+vpHVxEJEs9eg=
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
 github.com/googleapis/gnostic v0.4.1 h1:DLJCy1n/vrD4HPjOvYcT8aYQXpPIzoRZONaYwyycI+I=

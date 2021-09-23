@@ -4,9 +4,9 @@ go 1.16
 
 require (
 	github.com/F5Networks/f5-ipam-controller v0.1.5-0.20210813064837-de4b96f0e82c
-	github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210621162944-38d486e26398
+	github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913
 	github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.3.0
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/miekg/dns v1.1.42
 	github.com/onsi/ginkgo v1.16.2

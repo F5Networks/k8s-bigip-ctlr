@@ -24,7 +24,6 @@ import (
 	uuid "github.com/google/uuid"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -36,7 +35,7 @@ func AnonymousClient(assetInfo AssetInfo, apiKey string) *TeemObject {
 		apiKey = teemServer.(map[string]string)["api_key"]
 	}
 	serviceHost := teemServer.(map[string]string)["endpoint"]
-	log.Printf("[INFO]TeemServer:%+v\n", serviceHost)
+	//log.Printf("[INFO]TeemServer:%+v\n", serviceHost)
 	teemClient := TeemObject{
 		assetInfo,
 		apiKey,
@@ -44,7 +43,7 @@ func AnonymousClient(assetInfo AssetInfo, apiKey string) *TeemObject {
 		"",
 		serviceHost,
 	}
-	log.Printf("teemClient:%v\n", teemClient)
+	//log.Printf("teemClient:%v\n", teemClient)
 	return &teemClient
 }
 
@@ -92,26 +91,16 @@ func (b *TeemObject) Report(telemetry map[string]interface{}, telemetryType, tel
 	client := &http.Client{Transport: tr}
 	url := fmt.Sprintf("https://%s/ee/v1/telemetry", b.ServiceHost)
 
-	/*var assetData
-	log.Printf("[DEBUG] assetInfo:%+v", b.ClientInfo)
-	log.Printf("[DEBUG] Bytes:%+v", []byte(string(b.ClientInfo)))
-	jsonData := []byte(b.ClientInfo)
-	err := json.Unmarshal(jsonData, &assetData)
-	if err != nil {
-		return fmt.Errorf("Json Unmarshall failed with:%v", err)
-	}*/
-
 	uniqueID := uniqueUUID()
-
-	log.Printf("[DEBUG] digitalAssetId:%+v", uniqueID)
+	//log.Printf("[DEBUG] digitalAssetId:%+v", uniqueID)
 	telemetry["RunningInDocker"] = inDocker()
 	b.TelemetryType = telemetryType
 	b.TelemetryTypeVersion = telemetryTypeVersion
-	telemetryData, _ := json.Marshal(telemetry)
-	telemetryDatalist := []string{string(telemetryData[:])}
-	log.Printf("[DEBUG] telemetryDatalist:%+v", telemetryDatalist)
-
-	log.Printf("[DEBUG] ControllerAsDocker:#{docker}")
+	//telemetryData, _ := json.Marshal(telemetry)
+	//telemetryDatalist := []string{string(telemetryData[:])}
+	//log.Printf("[DEBUG] telemetryDatalist:%+v", telemetryDatalist)
+	//
+	//log.Printf("[DEBUG] ControllerAsDocker:#{docker}")
 
 	telemetrynew := []map[string]interface{}{}
 	telemetrynew = append(telemetrynew, telemetry)
@@ -144,7 +133,7 @@ func (b *TeemObject) Report(telemetry map[string]interface{}, telemetryType, tel
 	if err != nil {
 		return fmt.Errorf("telemetry request to teem server failed with :%v", err)
 	}
-	log.Printf("Resp Code:%+v \t Status:%+v\n", resp.StatusCode, resp.Status)
+	//log.Printf("Resp Code:%+v \t Status:%+v\n", resp.StatusCode, resp.Status)
 	defer resp.Body.Close()
 	data, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode != 204 {

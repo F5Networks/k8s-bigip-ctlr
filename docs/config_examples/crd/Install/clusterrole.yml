@@ -6,13 +6,13 @@ metadata:
   name: bigip-ctlr-clusterrole
 rules:
   - apiGroups: ["", "extensions", "networking.k8s.io"]
-    resources: ["nodes", "services", "endpoints", "namespaces", "ingresses", "pods", "ingressclasses"]
+    resources: ["nodes", "services", "endpoints", "namespaces", "ingresses", "pods", "ingressclasses", "policies"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["", "extensions", "networking.k8s.io"]
     resources: ["configmaps", "events", "ingresses/status", "services/status"]
     verbs: ["get", "list", "watch", "update", "create", "patch"]
   - apiGroups: ["cis.f5.com"]
-    resources: ["virtualservers","virtualservers/status", "tlsprofiles", "transportservers", "ingresslinks", "ingresslinks/status", "externaldnss"]
+    resources: ["virtualservers","virtualservers/status", "tlsprofiles", "transportservers", "ingresslinks", "ingresslinks/status", "externaldnss", "policies"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["fic.f5.com"]
       resources: ["ipams", "ipams/status"]

@@ -46,6 +46,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&TransportServerList{},
 		&ExternalDNS{},
 		&ExternalDNSList{},
+		&Policy{},
+		&PolicyList{},
 	)
 
 	scheme.AddKnownTypes(

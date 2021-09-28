@@ -40,6 +40,7 @@ type VirtualServerSpec struct {
 	AllowVLANs             []string         `json:"allowVlans,omitempty"`
 	IRules                 []string         `json:"iRules,omitempty"`
 	ServiceIPAddress       []ServiceAddress `json:"serviceAddress,omitempty"`
+	PolicyName             string           `json:"policyName,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -175,6 +176,7 @@ type TransportServerSpec struct {
 	ServiceIPAddress     []ServiceAddress `json:"serviceAddress"`
 	IPAMLabel            string           `json:"ipamLabel"`
 	IRules               []string         `json:"iRules,omitempty"`
+	PolicyName           string           `json:"policyName,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

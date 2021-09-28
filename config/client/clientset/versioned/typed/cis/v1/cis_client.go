@@ -28,6 +28,7 @@ type CisV1Interface interface {
 	RESTClient() rest.Interface
 	ExternalDNSsGetter
 	IngressLinksGetter
+	PoliciesGetter
 	TLSProfilesGetter
 	TransportServersGetter
 	VirtualServersGetter
@@ -44,6 +45,10 @@ func (c *CisV1Client) ExternalDNSs(namespace string) ExternalDNSInterface {
 
 func (c *CisV1Client) IngressLinks(namespace string) IngressLinkInterface {
 	return newIngressLinks(c, namespace)
+}
+
+func (c *CisV1Client) Policies(namespace string) PolicyInterface {
+	return newPolicies(c, namespace)
 }
 
 func (c *CisV1Client) TLSProfiles(namespace string) TLSProfileInterface {

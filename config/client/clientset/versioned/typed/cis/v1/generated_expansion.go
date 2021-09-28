@@ -22,6 +22,8 @@ type ExternalDNSExpansion interface{}
 
 type IngressLinkExpansion interface{}
 
+type PolicyExpansion interface{}
+
 type TLSProfileExpansion interface{}
 
 type TransportServerExpansion interface{}

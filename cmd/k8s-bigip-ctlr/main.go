@@ -575,7 +575,6 @@ func getCredentials() error {
 	}
 	// Verify URL is valid
 	if !strings.HasPrefix(*bigIPURL, "https://") {
-		log.Debug("[DEBUG] Adding https at the beginning of the BIG IP URL as it does not start with https.")
 		*bigIPURL = "https://" + *bigIPURL
 	}
 	u, err := url.Parse(*bigIPURL)

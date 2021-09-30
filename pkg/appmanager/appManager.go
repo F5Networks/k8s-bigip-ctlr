@@ -1517,6 +1517,29 @@ func (appMgr *Manager) syncIngresses(
 			if !appMgr.steadyState && sKey.Operation == OprTypeCreate {
 				//if ingress is processed previously.skip processing on create event
 				if _, ok := appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)]; ok {
+					//If svc is part of ingress dependency.Remove config from rsmap and continue so that it
+					//will not be deleted later
+					svcs := getIngressBackend(ing)
+					if serviceMatch(svcs, sKey) {
+						bindAddr := ""
+						if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok == true {
+							if addr == "controller-default" {
+								bindAddr = appMgr.defaultIngIP
+							} else {
+								bindAddr = addr
+							}
+						} else {
+							// if no annotation is provided, take the IP from controller config.
+							if appMgr.defaultIngIP != "" && appMgr.defaultIngIP != "0.0.0.0" {
+								bindAddr = appMgr.defaultIngIP
+							}
+						}
+						portStructs := appMgr.virtualPorts(ing)
+						//Remove ing resource from rsMap, so its not deleted from existing resources.
+						RemoveIngressFromrsMap(rsMap, svcPortMap, bindAddr, portStructs)
+					}
+					//Get existing dgMap content for ingress resource
+					appMgr.GetDgMap(sKey.Namespace, dgMap)
 					continue
 				}
 			}
@@ -1682,6 +1705,29 @@ func (appMgr *Manager) syncIngresses(
 			if !appMgr.steadyState && sKey.Operation == OprTypeCreate {
 				//if ingress is processed previously.skip processing on create event
 				if _, ok := appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)]; ok {
+					//If svc is part of ingress dependency.Remove config from rsmap and continue so that it
+					//will not be deleted later
+					svcs := getIngressV1Backend(ing)
+					if serviceMatch(svcs, sKey) {
+						bindAddr := ""
+						if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok == true {
+							if addr == "controller-default" {
+								bindAddr = appMgr.defaultIngIP
+							} else {
+								bindAddr = addr
+							}
+						} else {
+							// if no annotation is provided, take the IP from controller config.
+							if appMgr.defaultIngIP != "" && appMgr.defaultIngIP != "0.0.0.0" {
+								bindAddr = appMgr.defaultIngIP
+							}
+						}
+						portStructs := appMgr.v1VirtualPorts(ing)
+						//Remove ing resource from rsMap, so its not deleted from existing resources.
+						RemoveIngressFromrsMap(rsMap, svcPortMap, bindAddr, portStructs)
+					}
+					//Copy existing content from appMgr into dgMap
+					appMgr.GetDgMap(sKey.Namespace, dgMap)
 					continue
 				}
 			}
@@ -3334,4 +3380,41 @@ func (appMgr *Manager) checkProcessedResource(rkey string) bool {
 		return true
 	}
 	return false
+}
+
+func RemoveIngressFromrsMap(rsMap ResourceMap, svcPortMap map[int32]bool, bindAddr string, portStructs []portStruct) {
+	for port, _ := range svcPortMap {
+		for _, portStruct := range portStructs {
+			rsName := FormatIngressVSName(bindAddr, portStruct.port)
+			cfgList := rsMap[port]
+			if len(cfgList) == 1 && cfgList[0].GetName() == rsName {
+				delete(rsMap, port)
+			} else if len(cfgList) > 1 {
+				for index, val := range cfgList {
+					if val.GetName() == rsName {
+						cfgList = append(cfgList[:index], cfgList[index+1:]...)
+					}
+				}
+				rsMap[port] = cfgList
+
+			}
+		}
+	}
+}
+
+func (appMgr *Manager) GetDgMap(namespace string, dgMap InternalDataGroupMap) {
+	appMgr.intDgMutex.Lock()
+	defer appMgr.intDgMutex.Unlock()
+	// Add datagroup records to dgmap
+	mapKey := NameRef{
+		Name:      HttpsRedirectDgName,
+		Partition: DEFAULT_PARTITION,
+	}
+	nsDg, found := appMgr.intDgMap[mapKey]
+	if found {
+		if _, found := dgMap[mapKey]; !found {
+			dgMap[mapKey] = make(DataGroupNamespaceMap)
+		}
+		dgMap[mapKey][namespace] = nsDg[namespace]
+	}
 }

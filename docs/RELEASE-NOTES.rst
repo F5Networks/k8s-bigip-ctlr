@@ -1,20 +1,37 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
-
-Next Release
+2.6.0
 -------------
-
 Added Functionality
 ```````````````````
-* Improved Ingress, EDNS Performance 
-* New VirtualServer creation triggers processing of only associated EDNS resources.
-* CIS uses default BIGIP credentials if GTM credentials are not given.
-* CIS supports IP address assignment to IngressLink Custom Resources using `F5 IPAM Controller`
-* CIS supports IPV6 address in bigip-url & gtm-bigip-url parameter
+* CIS now compatible with OpenShift 4.8.12
+  - Validated with OpenShift SDN and OVN-Kubernetes with hybridOverlay.
+* CIS supports IP address assignment to IngressLink Custom Resources using F5 IPAM Controller(See `documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/IngressLink/ingressLink-with-ipamLabel>`_)
+* CIS validates IPV6 address in bigip-url & gtm-bigip-url parameter
 
 Bug Fixes
 `````````
+* :issues:`1679` CIS requires GTM parameter in CIS declaration even if GTM runs on the same BIG-IP
+* :issues:`1888` Unable to upgrade from 2.2.0 (or below) to 2.2.1 (or above)
+* :issues:`1941` CIS 2.5 output DEBUG log even with --log-level=INFO configured
+* Fixes issue with deletion of monitor with EDNS custom resource deletion
 
+
+Performance Improvements
+````````````````````````
+* Improved EDNS Performance
+  New VirtualServer creation triggers processing of only associated EDNS resources.
+* Improved ingress Performance
+
+Known Issues
+````````````
+* EDNS with https monitor is not properly supported.
+
+F5 IPAM Controller v0.1.5
+`````````````````````````
+Added Functionality
+```````````````````
+* F5 IPAM Controller supports InfoBlox (See `FIC release notes <https://github.com/F5Networks/f5-ipam-controller/blob/main/docs/RELEASE-NOTES.rst>`_)
 
 2.5.1
 -------------

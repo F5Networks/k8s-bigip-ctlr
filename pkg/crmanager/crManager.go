@@ -50,6 +50,8 @@ const (
 	IngressLink = "IngressLink"
 	// TransportServer is a F5 Custom Resource Kind
 	TransportServer = "TransportServer"
+	// PolicyCRD is a F5 Customr Resource Kind
+	PolicyCRD = "Policy"
 	// ExternalDNS is a F5 Customr Resource Kind
 	ExternalDNS = "ExternalDNS"
 	// IPAM is a F5 Customr Resource Kind

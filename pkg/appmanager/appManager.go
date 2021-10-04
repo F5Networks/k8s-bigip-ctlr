@@ -1931,12 +1931,6 @@ func (appMgr *Manager) syncRoutes(
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
-
-		// Mark each resource  as it is already processed during init Time
-		// So that later the create event of the same resource will not processed, unnecessarily
-		appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = true
-		appMgr.processedResources[prepareResourceKey(Services, sKey.Namespace, sKey.ServiceName)] = true
-
 		key := route.Spec.Host + route.Spec.Path
 		if host, ok := routePathMap[key]; ok {
 			if host == route.Spec.Host {
@@ -2093,6 +2087,12 @@ func (appMgr *Manager) syncRoutes(
 			_, found, updated := appMgr.handleConfigForType(
 				rsCfg, sKey, rsMap, rsName, svcPortMap,
 				svc, appInf, svcNames, nil)
+			if found > 0 {
+				// Mark each resource  as it is already processed during init Time
+				// So that later the create event of the same resource will not processed, unnecessarily
+				appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = true
+				appMgr.processedResources[prepareResourceKey(Services, sKey.Namespace, sKey.ServiceName)] = true
+			}
 			stats.vsFound += found
 			stats.vsUpdated += updated
 		}

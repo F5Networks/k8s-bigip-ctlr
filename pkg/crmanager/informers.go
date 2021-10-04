@@ -70,9 +70,9 @@ func (crInfr *CRInformer) start() {
 		go crInfr.epsInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.epsInformer.HasSynced)
 	}
-	if crInfr.policyInformer != nil {
-		go crInfr.policyInformer.Run(crInfr.stopCh)
-		cacheSyncs = append(cacheSyncs, crInfr.policyInformer.HasSynced)
+	if crInfr.plcInformer != nil {
+		go crInfr.plcInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.plcInformer.HasSynced)
 	}
 
 	cache.WaitForNamedCacheSync(
@@ -194,7 +194,7 @@ func (crMgr *CRManager) newNamespacedInformer(
 		crOptions,
 	)
 
-	crInf.policyInformer = cisinfv1.NewFilteredPolicyInformer(
+	crInf.plcInformer = cisinfv1.NewFilteredPolicyInformer(
 		crMgr.kubeCRClient,
 		namespace,
 		resyncPeriod,
@@ -275,8 +275,8 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 		)
 	}
 
-	if crInf.policyInformer != nil {
-		crInf.policyInformer.AddEventHandler(
+	if crInf.plcInformer != nil {
+		crInf.plcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { crMgr.enqueuePolicy(obj) },
 				UpdateFunc: func(obj, cur interface{}) { crMgr.enqueuePolicy(cur) },
@@ -498,7 +498,7 @@ func (crMgr *CRManager) enqueuePolicy(obj interface{}) {
 	log.Infof("Enqueueing Policy: %v", pol)
 	key := &rqKey{
 		namespace: pol.ObjectMeta.Namespace,
-		kind:      PolicyCRD,
+		kind:      CustomPolicy,
 		rscName:   pol.ObjectMeta.Name,
 		rsc:       obj,
 	}
@@ -511,7 +511,7 @@ func (crMgr *CRManager) enqueueDeletedPolicy(obj interface{}) {
 	log.Infof("Enqueueing Policy: %v", pol)
 	key := &rqKey{
 		namespace: pol.ObjectMeta.Namespace,
-		kind:      PolicyCRD,
+		kind:      CustomPolicy,
 		rscName:   pol.ObjectMeta.Name,
 		rsc:       obj,
 		rscDelete: true,

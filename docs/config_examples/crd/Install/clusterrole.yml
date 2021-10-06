@@ -44,4 +44,3 @@ kind: ServiceAccount
 metadata:
   name: bigip-ctlr
   namespace: kube-system
- 

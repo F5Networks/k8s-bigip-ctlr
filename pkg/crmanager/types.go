@@ -83,16 +83,16 @@ type (
 	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
-		namespace      string
-		stopCh         chan struct{}
-		svcInformer    cache.SharedIndexInformer
-		epsInformer    cache.SharedIndexInformer
-		vsInformer     cache.SharedIndexInformer
-		tlsInformer    cache.SharedIndexInformer
-		tsInformer     cache.SharedIndexInformer
-		ilInformer     cache.SharedIndexInformer
-		ednsInformer   cache.SharedIndexInformer
-		policyInformer cache.SharedIndexInformer
+		namespace    string
+		stopCh       chan struct{}
+		svcInformer  cache.SharedIndexInformer
+		epsInformer  cache.SharedIndexInformer
+		vsInformer   cache.SharedIndexInformer
+		tlsInformer  cache.SharedIndexInformer
+		tsInformer   cache.SharedIndexInformer
+		ilInformer   cache.SharedIndexInformer
+		ednsInformer cache.SharedIndexInformer
+		plcInformer  cache.SharedIndexInformer
 	}
 
 	NSInformer struct {

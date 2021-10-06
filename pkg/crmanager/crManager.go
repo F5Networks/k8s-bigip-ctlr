@@ -50,11 +50,11 @@ const (
 	IngressLink = "IngressLink"
 	// TransportServer is a F5 Custom Resource Kind
 	TransportServer = "TransportServer"
-	// PolicyCRD is a F5 Customr Resource Kind
-	PolicyCRD = "Policy"
-	// ExternalDNS is a F5 Customr Resource Kind
+	// ExternalDNS is a F5 Custom Resource Kind
 	ExternalDNS = "ExternalDNS"
-	// IPAM is a F5 Customr Resource Kind
+	// Policy is collection of BIG-IP profiles, LTM policies and iRules
+	CustomPolicy = "CustomPolicy"
+	// IPAM is a F5 Custom Resource Kind
 	IPAM = "IPAM"
 	// Service is a k8s native Service Resource.
 	Service = "Service"

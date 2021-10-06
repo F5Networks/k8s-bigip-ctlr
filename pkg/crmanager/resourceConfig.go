@@ -1219,6 +1219,15 @@ func (crMgr *CRManager) prepareRSConfigFromLBService(
 	return nil
 }
 
+func (crMgr *CRManager) handleResourceConfigForPolicy(
+	rsCfg *ResourceConfig,
+	plc *cisapiv1.Policy,
+) error {
+	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
+
+	return nil
+}
+
 func getRSCfgResName(rsVSName, resName string) string {
 	return fmt.Sprintf("%s_%s", rsVSName, resName)
 }

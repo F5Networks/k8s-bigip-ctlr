@@ -473,13 +473,13 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: policy.cis.f5.com
+  name: policies.cis.f5.com
 spec:
   group: cis.f5.com
   names:
     kind: Policy
     shortNames:
-      - pol
+      - plc
     singular: policy
     plural: policies
   scope: Namespaced
@@ -509,7 +509,6 @@ spec:
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
                     firewall:
                       type: string
-                      /name/something
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
                 ltmPolicies:
                   type: object

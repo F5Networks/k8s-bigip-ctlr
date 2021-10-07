@@ -1050,6 +1050,9 @@ func (appMgr *Manager) getQueueLength() int {
 	for _, ns := range appMgr.GetAllWatchedNamespaces() {
 		services, err := appMgr.kubeClient.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{})
 		qLen += len(services.Items)
+		if len(services.Items) != 0 {
+			qLen++
+		}
 		if err != nil {
 			log.Errorf("[CORE] Failed getting Services from watched namespace : %v.", err)
 			qLen = appMgr.vsQueue.Len()
@@ -1070,26 +1073,17 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 
 	defer appMgr.vsQueue.Done(key)
 	skey := key.(serviceQueueKey)
-	if !appMgr.steadyState {
-		//If not in steady state update,delete events are added back to queue
-		//processed once in steady state
+	if !appMgr.steadyState && (skey.ResourceKind != Services && skey.ResourceKind != Configmaps && skey.ResourceKind != Routes) {
 		if skey.Operation != OprTypeCreate {
 			appMgr.vsQueue.AddRateLimited(key)
-			return true
 		}
-		//if it is Ingress its processed with associated service, skip this key
-		if skey.ResourceKind != Services && skey.ResourceKind != Configmaps && skey.ResourceKind != Routes {
-			appMgr.vsQueue.Forget(key)
-			return true
-		}
+		appMgr.vsQueue.Forget(key)
+		return true
 	}
 	err := appMgr.syncVirtualServer(skey)
 	if err == nil {
 		if !appMgr.steadyState {
 			appMgr.processedItems++
-			//add service to processedresource map
-			//so same service with create event will be ignored
-			appMgr.processedResources[prepareResourceKey(Services, skey.Namespace, skey.ServiceName)] = true
 		}
 		appMgr.vsQueue.Forget(key)
 		return true
@@ -1154,14 +1148,13 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	// Processing just one service from a namespace processes all the resources in that namespace
 	switch sKey.ResourceKind {
 	case Services:
-		rkey := prepareResourceKey(sKey.ResourceKind, sKey.Namespace, sKey.ResourceName)
+		rkey := Services + "_" + sKey.Namespace
 		if !appMgr.steadyState && sKey.Operation == OprTypeCreate {
-			if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen {
-				appMgr.deployResource()
-				appMgr.steadyState = true
-			}
-			//if service key exist in processedResource map, remove this item from processedItems count.
-			if appMgr.checkProcessedResource(rkey) {
+			if _, ok := appMgr.processedResources[rkey]; ok {
+				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen {
+					appMgr.deployResource()
+					appMgr.steadyState = true
+				}
 				return nil
 			}
 			appMgr.processedResources[rkey] = true
@@ -1170,21 +1163,11 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		if appMgr.IsNodePort() {
 			return nil
 		}
-		resKey := prepareResourceKey(sKey.ResourceKind, sKey.Namespace, sKey.ResourceName)
-		switch sKey.Operation {
-		case OprTypeCreate:
-			if appMgr.checkProcessedResource(resKey) {
-				return nil
-			}
-		case OprTypeDelete:
-			delete(appMgr.processedResources, resKey)
-
-		}
 	case Configmaps:
 		resKey := prepareResourceKey(sKey.ResourceKind, sKey.Namespace, sKey.ResourceName)
 		switch sKey.Operation {
 		case OprTypeCreate:
-			if appMgr.checkProcessedResource(resKey) {
+			if _, ok := appMgr.processedResources[resKey]; ok {
 				return nil
 			}
 		case OprTypeDelete:
@@ -1198,11 +1181,9 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		// then it was handled earlier when associated service processed
 		// otherwise just mark it as processed and continue
 		case OprTypeCreate:
-			if appMgr.checkProcessedResource(resKey) {
+			if _, ok := appMgr.processedResources[resKey]; ok {
 				return nil
 			}
-			// For any resource ,the corresponding service could be considered as processed
-			appMgr.processedResources[prepareResourceKey(Services, sKey.Namespace, sKey.ServiceName)] = true
 			appMgr.processedResources[resKey] = true
 		case OprTypeDelete:
 			delete(appMgr.processedResources, resKey)
@@ -1386,9 +1367,7 @@ func (appMgr *Manager) syncConfigMaps(
 					stats.vsUpdated += 1
 				}
 				// Mark each resource as it is already processed
-				// Mark each resource and its service as it is already processed
 				// So that later the create event of the same resource will not processed, unnecessarily
-				appMgr.processedResources[prepareResourceKey(Services, sKey.Namespace, sKey.ServiceName)] = true
 				appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
 			}
 			continue
@@ -1433,7 +1412,6 @@ func (appMgr *Manager) syncConfigMaps(
 				}
 				// Mark each resource as it is already processed
 				// So that later the create event of the same resource will not processed, unnecessarily
-				appMgr.processedResources[prepareResourceKey(Services, sKey.Namespace, sKey.ServiceName)] = true
 				appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
 			}
 		}
@@ -1514,35 +1492,6 @@ func (appMgr *Manager) syncIngresses(
 			if ing.ObjectMeta.Namespace != sKey.Namespace {
 				continue
 			}
-			if !appMgr.steadyState && sKey.Operation == OprTypeCreate {
-				//if ingress is processed previously.skip processing on create event
-				if _, ok := appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)]; ok {
-					//If svc is part of ingress dependency.Remove config from rsmap and continue so that it
-					//will not be deleted later
-					svcs := getIngressBackend(ing)
-					if serviceMatch(svcs, sKey) {
-						bindAddr := ""
-						if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok == true {
-							if addr == "controller-default" {
-								bindAddr = appMgr.defaultIngIP
-							} else {
-								bindAddr = addr
-							}
-						} else {
-							// if no annotation is provided, take the IP from controller config.
-							if appMgr.defaultIngIP != "" && appMgr.defaultIngIP != "0.0.0.0" {
-								bindAddr = appMgr.defaultIngIP
-							}
-						}
-						portStructs := appMgr.virtualPorts(ing)
-						//Remove ing resource from rsMap, so its not deleted from existing resources.
-						RemoveIngressFromrsMap(rsMap, svcPortMap, bindAddr, portStructs)
-					}
-					//Get existing dgMap content for ingress resource
-					appMgr.GetDgMap(sKey.Namespace, dgMap)
-					continue
-				}
-			}
 			if ok := appMgr.checkV1Beta1SingleServivceIngress(ing); !ok {
 				continue
 			}
@@ -1569,9 +1518,7 @@ func (appMgr *Manager) syncIngresses(
 				_, ingFound, _ := appInf.ingInformer.GetIndexer().GetByKey(ingKey)
 				return !ingFound
 			}
-			// Mark each resource and its service as it is already processed
 			// So that later the create event of the same resource will not processed, unnecessarily
-			appMgr.processedResources[prepareResourceKey(Services, sKey.Namespace, sKey.ServiceName)] = true
 			appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)] = true
 			depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 				objKey, objDeps, svcDepKey, ingressLookupFunc)
@@ -1702,35 +1649,6 @@ func (appMgr *Manager) syncIngresses(
 			if ing.ObjectMeta.Namespace != sKey.Namespace {
 				continue
 			}
-			if !appMgr.steadyState && sKey.Operation == OprTypeCreate {
-				//if ingress is processed previously.skip processing on create event
-				if _, ok := appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)]; ok {
-					//If svc is part of ingress dependency.Remove config from rsmap and continue so that it
-					//will not be deleted later
-					svcs := getIngressV1Backend(ing)
-					if serviceMatch(svcs, sKey) {
-						bindAddr := ""
-						if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok == true {
-							if addr == "controller-default" {
-								bindAddr = appMgr.defaultIngIP
-							} else {
-								bindAddr = addr
-							}
-						} else {
-							// if no annotation is provided, take the IP from controller config.
-							if appMgr.defaultIngIP != "" && appMgr.defaultIngIP != "0.0.0.0" {
-								bindAddr = appMgr.defaultIngIP
-							}
-						}
-						portStructs := appMgr.v1VirtualPorts(ing)
-						//Remove ing resource from rsMap, so its not deleted from existing resources.
-						RemoveIngressFromrsMap(rsMap, svcPortMap, bindAddr, portStructs)
-					}
-					//Copy existing content from appMgr into dgMap
-					appMgr.GetDgMap(sKey.Namespace, dgMap)
-					continue
-				}
-			}
 			if ok := appMgr.checkV1SingleServivceIngress(ing); !ok {
 				continue
 			}
@@ -1757,9 +1675,8 @@ func (appMgr *Manager) syncIngresses(
 				_, ingFound, _ := appInf.ingInformer.GetIndexer().GetByKey(ingKey)
 				return !ingFound
 			}
-			// Mark each resource and its associated service as it is already processed
+			// Mark each resource as it is already processed
 			// So that later the create event of the same resource will not processed, unnecessarily
-			appMgr.processedResources[prepareResourceKey(Services, sKey.Namespace, sKey.ServiceName)] = true
 			appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)] = true
 			depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 				objKey, objDeps, svcDepKey, ingressLookupFunc)
@@ -1935,7 +1852,6 @@ func (appMgr *Manager) syncRoutes(
 		// Mark each resource  as it is already processed during init Time
 		// So that later the create event of the same resource will not processed, unnecessarily
 		appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = true
-		appMgr.processedResources[prepareResourceKey(Services, sKey.Namespace, sKey.ServiceName)] = true
 
 		key := route.Spec.Host + route.Spec.Path
 		if host, ok := routePathMap[key]; ok {
@@ -3369,52 +3285,4 @@ func getIngressV1Backend(ing *netv1.Ingress) []string {
 		svcs = append(svcs, key)
 	}
 	return svcs
-}
-
-func (appMgr *Manager) checkProcessedResource(rkey string) bool {
-	if _, ok := appMgr.processedResources[rkey]; ok {
-		//if service key exist in processedResource, remove this item from processedItems count.
-		if !appMgr.steadyState {
-			appMgr.processedItems--
-		}
-		return true
-	}
-	return false
-}
-
-func RemoveIngressFromrsMap(rsMap ResourceMap, svcPortMap map[int32]bool, bindAddr string, portStructs []portStruct) {
-	for port, _ := range svcPortMap {
-		for _, portStruct := range portStructs {
-			rsName := FormatIngressVSName(bindAddr, portStruct.port)
-			cfgList := rsMap[port]
-			if len(cfgList) == 1 && cfgList[0].GetName() == rsName {
-				delete(rsMap, port)
-			} else if len(cfgList) > 1 {
-				for index, val := range cfgList {
-					if val.GetName() == rsName {
-						cfgList = append(cfgList[:index], cfgList[index+1:]...)
-					}
-				}
-				rsMap[port] = cfgList
-
-			}
-		}
-	}
-}
-
-func (appMgr *Manager) GetDgMap(namespace string, dgMap InternalDataGroupMap) {
-	appMgr.intDgMutex.Lock()
-	defer appMgr.intDgMutex.Unlock()
-	// Add datagroup records to dgmap
-	mapKey := NameRef{
-		Name:      HttpsRedirectDgName,
-		Partition: DEFAULT_PARTITION,
-	}
-	nsDg, found := appMgr.intDgMap[mapKey]
-	if found {
-		if _, found := dgMap[mapKey]; !found {
-			dgMap[mapKey] = make(DataGroupNamespaceMap)
-		}
-		dgMap[mapKey][namespace] = nsDg[namespace]
-	}
 }

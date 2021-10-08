@@ -60,10 +60,13 @@ func (crMgr *CRManager) prepareVirtualServerRules(
 		uri := vs.Spec.Host + pl.Path
 
 		path := pl.Path
-		tls := crMgr.getTLSProfileForVirtualServer(vs, vs.Namespace)
+		var tls *cisapiv1.TLSProfile
+		if vs.Spec.TLSProfileName != "" {
+			tls = crMgr.getTLSProfileForVirtualServer(vs, vs.Namespace)
 
-		if tls != nil && tls.Spec.TLS.Termination == TLSPassthrough {
-			path = "/"
+			if tls != nil && tls.Spec.TLS.Termination == TLSPassthrough {
+				path = "/"
+			}
 		}
 
 		if pl.Path == "/" {

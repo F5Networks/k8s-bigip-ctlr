@@ -36,6 +36,14 @@ import (
 
 const nginxMonitorPort int32 = 8081
 
+const (
+	NotEnabled = iota
+	InvalidInput
+	NotRequested
+	Requested
+	Allocated
+)
+
 // customResourceWorker starts the Custom Resource Worker.
 func (crMgr *CRManager) customResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
@@ -706,6 +714,7 @@ func (crMgr *CRManager) processVirtualServers(
 	virtuals := crMgr.getAssociatedVirtualServers(virtual, allVirtuals, isVSDeleted)
 
 	var ip string
+	var status int
 	if crMgr.ipamCli != nil {
 		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
 			ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, "")
@@ -713,12 +722,22 @@ func (crMgr *CRManager) processVirtualServers(
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
 			ipamLabel := getIPAMLabel(virtuals)
-			ip = crMgr.requestIP(ipamLabel, virtual.Spec.Host, "")
-			if ip == "" {
-				log.Debugf("[ipam] requested IP for host %v is empty.", virtual.Spec.Host)
+			ip, status = crMgr.requestIP(ipamLabel, virtual.Spec.Host, "")
+
+			switch status {
+			case NotEnabled:
+				log.Debug("IPAM Custom Resource Not Available")
+				return nil
+			case InvalidInput:
+				log.Debugf("IPAM Invalid IPAM Label: %v for Virtual Server: %s/%s", ipamLabel, virtual.Namespace, virtual.Name)
+				return nil
+			case NotRequested:
+				return fmt.Errorf("unable make do IPAM Request, will be re-requested soon")
+			case Requested:
+				log.Debugf("IP address requested for service: %s/%s", virtual.Namespace, virtual.Name)
 				return nil
 			}
-			log.Debugf("[ipam] requested IP for host %v is: %v", virtual.Spec.Host, ip)
+
 			crMgr.updateVirtualServerStatus(virtual, ip)
 		}
 	} else {
@@ -1031,31 +1050,51 @@ func (crMgr *CRManager) getIPAMCR() *ficV1.IPAM {
 }
 
 //Request IPAM for virtual IP address
-func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) string {
+func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) (string, int) {
 	ipamCR := crMgr.getIPAMCR()
-	if ipamCR == nil || ipamLabel == "" {
-		return ""
+	var ip string
+	var ipReleased bool
+	if ipamCR == nil {
+		return "", NotEnabled
+	}
+
+	if ipamLabel == "" {
+		return "", InvalidInput
 	}
 
 	if host != "" {
 		//For VS server
 		for _, ipst := range ipamCR.Status.IPStatus {
 			if ipst.IPAMLabel == ipamLabel && ipst.Host == host {
-				return ipst.IP
+				// IP will be returned later when availability of corresponding spec is confirmed
+				ip = ipst.IP
 			}
 		}
 
 		for _, hst := range ipamCR.Spec.HostSpecs {
 			if hst.Host == host {
 				if hst.IPAMLabel == ipamLabel {
-					//Check if HostSpec is already updated with IPAMLabel and Host
-					return ""
+					if ip != "" {
+						// IP extracted from the corresponding status of the spec
+						return ip, Allocated
+					}
+
+					// HostSpec is already updated with IPAMLabel and Host but IP not got allocated yet
+					return "", Requested
 				} else {
-					//Check this for key and host both
+					// Different Label for same host, this indicates Label is updated
+					// Release the old IP, so that new IP can be requested
 					crMgr.releaseIP(hst.IPAMLabel, hst.Host, "")
+					ipReleased = true
 					break
 				}
 			}
+		}
+
+		if ip != "" && !ipReleased {
+			// Status is available for non-existing Spec
+			// Let the resource get cleaned up and re request later
+			return "", NotRequested
 		}
 
 		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
@@ -1067,21 +1106,35 @@ func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) str
 		//For Transport Server
 		for _, ipst := range ipamCR.Status.IPStatus {
 			if ipst.IPAMLabel == ipamLabel && ipst.Key == key {
-				return ipst.IP
+				// IP will be returned later when availability of corresponding spec is confirmed
+				ip = ipst.IP
 			}
 		}
 
 		for _, hst := range ipamCR.Spec.HostSpecs {
 			if hst.Key == key {
 				if hst.IPAMLabel == ipamLabel {
-					//Check if HostSpec is already updated with IPAMLabel and Key
-					return ""
+					if ip != "" {
+						// IP extracted from the corresponding status of the spec
+						return ip, Allocated
+					}
+
+					// HostSpec is already updated with IPAMLabel and Host but IP not got allocated yet
+					return "", Requested
 				} else {
-					//Check this for key and host both
+					// Different Label for same key, this indicates Label is updated
+					// Release the old IP, so that new IP can be requested
 					crMgr.releaseIP(hst.IPAMLabel, "", hst.Key)
+					ipReleased = true
 					break
 				}
 			}
+		}
+
+		if ip != "" && !ipReleased {
+			// Status is available for non-existing Spec
+			// Let the resource get cleaned up and re request later
+			return "", NotRequested
 		}
 
 		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
@@ -1089,19 +1142,19 @@ func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) str
 			Key:       key,
 			IPAMLabel: ipamLabel,
 		})
-
 	} else {
 		log.Debugf("[IPAM] Invalid host and key.")
-		return ""
+		return "", InvalidInput
 	}
 
 	_, err := crMgr.ipamCli.Update(ipamCR)
 	if err != nil {
 		log.Errorf("[ipam] Error updating IPAM CR : %v", err)
-	} else {
-		log.Debugf("[ipam] Updated IPAM CR.")
+		return "", NotRequested
 	}
-	return ""
+
+	log.Debugf("[ipam] Updated IPAM CR.")
+	return "", Requested
 
 }
 
@@ -1379,6 +1432,7 @@ func (crMgr *CRManager) processTransportServers(
 
 	var ip string
 	var key string
+	var status int
 	key = virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name + "_ts"
 	if crMgr.ipamCli != nil {
 		if isTSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
@@ -1386,10 +1440,20 @@ func (crMgr *CRManager) processTransportServers(
 		} else if virtual.Spec.VirtualServerAddress != "" {
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
-			ip = crMgr.requestIP(virtual.Spec.IPAMLabel, "", key)
-			log.Debugf("[ipam] requested IP for TS %v is: %v", virtual.ObjectMeta.Name, ip)
-			if ip == "" {
-				log.Debugf("[ipam] requested IP for TS %v is empty.", virtual.ObjectMeta.Name)
+			ip, status = crMgr.requestIP(virtual.Spec.IPAMLabel, "", key)
+
+			switch status {
+			case NotEnabled:
+				log.Debug("IPAM Custom Resource Not Available")
+				return nil
+			case InvalidInput:
+				log.Debugf("IPAM Invalid IPAM Label: %v for Transport Server: %s/%s",
+					virtual.Spec.IPAMLabel, virtual.Namespace, virtual.Name)
+				return nil
+			case NotRequested:
+				return fmt.Errorf("unable to make IPAM Request, will be re-requested soon")
+			case Requested:
+				log.Debugf("IP address requested for Transport Server: %s/%s", virtual.Namespace, virtual.Name)
 				return nil
 			}
 		}
@@ -1700,10 +1764,19 @@ func (crMgr *CRManager) processLBServices(
 
 	svcKey := svc.Namespace + "/" + svc.Name + "_svc"
 
-	ip := crMgr.requestIP(ipamLabel, "", svcKey)
+	ip, status := crMgr.requestIP(ipamLabel, "", svcKey)
 
-	if ip == "" {
-		log.Debugf("IP address not available, yet, for service service: %s/%s", svc.Namespace, svc.Name)
+	switch status {
+	case NotEnabled:
+		log.Debug("IPAM Custom Resource Not Available")
+		return nil
+	case InvalidInput:
+		log.Debugf("IPAM Invalid IPAM Label: %v for service: %s/%s", ipamLabel, svc.Namespace, svc.Name)
+		return nil
+	case NotRequested:
+		return fmt.Errorf("unable to make IPAM Request, will be re-requested soon")
+	case Requested:
+		log.Debugf("IP address requested for service: %s/%s", svc.Namespace, svc.Name)
 		return nil
 	}
 
@@ -1916,6 +1989,7 @@ func (crMgr *CRManager) processIngressLink(
 	}
 	var ip string
 	var key string
+	var status int
 	key = ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
 	if crMgr.ipamCli != nil {
 		if isILDeleted && ingLink.Spec.VirtualServerAddress == "" {
@@ -1923,7 +1997,22 @@ func (crMgr *CRManager) processIngressLink(
 		} else if ingLink.Spec.VirtualServerAddress != "" {
 			ip = ingLink.Spec.VirtualServerAddress
 		} else {
-			ip = crMgr.requestIP(ingLink.Spec.IPAMLabel, "", key)
+			ip, status = crMgr.requestIP(ingLink.Spec.IPAMLabel, "", key)
+
+			switch status {
+			case NotEnabled:
+				log.Debug("IPAM Custom Resource Not Available")
+				return nil
+			case InvalidInput:
+				log.Debugf("IPAM Invalid IPAM Label: %v for IngressLink: %s/%s",
+					ingLink.Spec.IPAMLabel, ingLink.Namespace, ingLink.Name)
+				return nil
+			case NotRequested:
+				return fmt.Errorf("unable to make IPAM Request, will be re-requested soon")
+			case Requested:
+				log.Debugf("IP address requested for IngressLink: %s/%s", ingLink.Namespace, ingLink.Name)
+				return nil
+			}
 			log.Debugf("[ipam] requested IP for ingLink %v is: %v", ingLink.ObjectMeta.Name, ip)
 			if ip == "" {
 				log.Debugf("[ipam] requested IP for ingLink %v is empty.", ingLink.ObjectMeta.Name)

@@ -359,7 +359,7 @@ func (appMgr *Manager) handleIngressTls(
 		log.Debugf("[CORE] TLS: Applying HTTP redirect iRule.")
 		ruleName := fmt.Sprintf("%s_%d", HttpRedirectIRuleName, httpsPort)
 		appMgr.addIRule(ruleName, DEFAULT_PARTITION,
-			httpRedirectIRule(httpsPort))
+			httpRedirectIRule(httpsPort, DEFAULT_PARTITION, appMgr.TeemData.Agent))
 		appMgr.addInternalDataGroup(HttpsRedirectDgName, DEFAULT_PARTITION)
 		ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
 		rsCfg.Virtual.AddIRule(ruleName)
@@ -580,7 +580,7 @@ func (appMgr *Manager) handleRouteRules(
 					redirectIRuleName := JoinBigipPath(DEFAULT_PARTITION,
 						HttpRedirectIRuleName)
 					appMgr.addIRule(HttpRedirectIRuleName, DEFAULT_PARTITION,
-						httpRedirectIRule(DEFAULT_HTTPS_PORT))
+						httpRedirectIRule(DEFAULT_HTTPS_PORT, DEFAULT_PARTITION, appMgr.TeemData.Agent))
 					appMgr.addInternalDataGroup(HttpsRedirectDgName, DEFAULT_PARTITION)
 					rc.Virtual.AddIRule(redirectIRuleName)
 					// TLS config indicates to forward http to https.

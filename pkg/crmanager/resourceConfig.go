@@ -650,7 +650,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 				rsCfg.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRuleNoHost(httpsPort))
 			} else {
 				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectIRuleName), httpsPort)
-				rsCfg.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(httpsPort, rsCfg.Virtual.Name))
+				rsCfg.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(httpsPort, rsCfg.Virtual.Name, DEFAULT_PARTITION))
 			}
 			ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
 			rsCfg.Virtual.AddIRule(ruleName)

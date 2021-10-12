@@ -9,8 +9,7 @@ spec:
   dnsRecordType: A
   loadBalanceMethod: round-robin
   pools:
-  - name: example.site1.com
-    dnsRecordType: A
+  - dnsRecordType: A
     loadBalanceMethod: round-robin
     dataServerName: /Common/GSLBServer
     monitor:

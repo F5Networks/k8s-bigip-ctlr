@@ -1847,9 +1847,10 @@ func (crMgr *CRManager) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	log.Debugf("Processing WideIP: %v", edns.Spec.DomainName)
 
 	for _, pl := range edns.Spec.Pools {
-		log.Debugf("Processing WideIP Pool: %v", pl.Name)
+		UniquePoolName := edns.Spec.DomainName + "_" + strings.ReplaceAll(edns.GetCreationTimestamp().Format(time.RFC3339Nano), ":", "-")
+		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
-			Name:       pl.Name,
+			Name:       UniquePoolName,
 			RecordType: pl.DNSRecordType,
 			LBMethod:   pl.LoadBalanceMethod,
 		}
@@ -1882,7 +1883,7 @@ func (crMgr *CRManager) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
 			// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
 			pool.Monitor = &Monitor{
-				Name:      pl.Name + "_monitor",
+				Name:      UniquePoolName + "_monitor",
 				Partition: "Common",
 				Type:      pl.Monitor.Type,
 				Interval:  pl.Monitor.Interval,

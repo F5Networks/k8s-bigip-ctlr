@@ -766,7 +766,6 @@ var _ = Describe("Worker Tests", func() {
 					DomainName: "test.com",
 					Pools: []cisapiv1.DNSPool{
 						{
-							Name:           "DNSPool",
 							DataServerName: "DataServer",
 							Monitor: cisapiv1.Monitor{
 								Type:     "http",

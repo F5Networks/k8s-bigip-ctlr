@@ -1,10 +1,12 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
+
 Next Release
 -------------
+
 Bug Fixes
 `````````
-
+* Added the complete path for datagroups in http redirect irule
 
 2.6.0
 -------------

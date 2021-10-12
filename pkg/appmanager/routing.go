@@ -253,15 +253,20 @@ func processIngressRules(
 	return &rls, urlRewriteRefs, appRootRefs
 }
 
-func httpRedirectIRule(port int32) string {
+func httpRedirectIRule(port int32, partition string, agent string) string {
 	// The key in the data group is the host name or * to match all.
 	// The data is a list of paths for the host delimited by '|' or '/' for all.
+	dgName := "/" + partition
+	if agent == "as3" {
+		dgName += "/Shared"
+	}
+	dgName += "/https_redirect_dg"
 	iRuleCode := fmt.Sprintf(`
 		when HTTP_REQUEST {
 			
 			# check if there is an entry in data-groups to accept requests from all domains.
 			# */ represents [* -> Any host / -> default path]
-			set allHosts [class match -value "*/" equals https_redirect_dg]
+			set allHosts [class match -value "*/" equals %[1]s]
 			if {$allHosts != ""} {
 				HTTP::redirect https://[getfield [HTTP::host] ":" 1]:443[HTTP::uri]
 				return
@@ -277,14 +282,14 @@ func httpRedirectIRule(port int32) string {
 					   incr rc
 				   }
 			}
-			# Compares the hostpath with the entries in https_redirect_dg
+			# Compares the hostpath with the entries in %[1]s
 			for {set i $rc} {$i >= 0} {incr i -1} {
-				set paths [class match -value $host equals https_redirect_dg] 
-				# Check if host with combination of "/" matches https_redirect_dg
+				set paths [class match -value $host equals %[1]s] 
+				# Check if host with combination of "/" matches %[1]s
 				if {$paths == ""} {
 					set hosts ""
 					append hosts $host "/"
-					set paths [class match -value $hosts equals https_redirect_dg] 
+					set paths [class match -value $hosts equals %[1]s] 
 				}
 				# Trim the uri to last slash
 				if {$paths == ""} {
@@ -310,10 +315,10 @@ func httpRedirectIRule(port int32) string {
 					}
 				}
 				if {$redir == 1} {
-					HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%d[HTTP::uri]
+					HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%[2]d[HTTP::uri]
 				}
 			}
-		}`, port)
+		}`, dgName, port)
 
 	return iRuleCode
 }

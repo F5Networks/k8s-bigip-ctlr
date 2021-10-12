@@ -463,15 +463,16 @@ func httpRedirectIRuleNoHost(port int32) string {
 
 // httpRedirectIRule redirects traffic to BIG-IP https vs
 // except for the hostLess CRDs.
-func httpRedirectIRule(port int32, rsVSName string) string {
+func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	// The key in the data group is the host name or * to match all.
 	// The data is a list of paths for the host delimited by '|' or '/' for all.
+	dgName := "/" + partition + "/Shared/" + rsVSName + "_https_redirect_dg"
 	iRuleCode := fmt.Sprintf(`
 		when HTTP_REQUEST {
 			
 			# check if there is an entry in data-groups to accept requests from all domains.
 			# */ represents [* -> Any host / -> default path]
-			set allHosts [class match -value "*/" equals %[2]s_https_redirect_dg]
+			set allHosts [class match -value "*/" equals %[1]s]
 			if {$allHosts != ""} {
 				HTTP::redirect https://[getfield [HTTP::host] ":" 1]:443[HTTP::uri]
 				return
@@ -489,12 +490,12 @@ func httpRedirectIRule(port int32, rsVSName string) string {
 			}
 			# Compares the hostpath with the entries in https_redirect_dg
 			for {set i $rc} {$i >= 0} {incr i -1} {
-				set paths [class match -value $host equals %[2]s_https_redirect_dg]
+				set paths [class match -value $host equals %[1]s]
 				# Check if host with combination of "/" matches https_redirect_dg
 				if {$paths == ""} {
 					set hosts ""
 					append hosts $host "/"
-					set paths [class match -value $hosts equals %[2]s_https_redirect_dg]
+					set paths [class match -value $hosts equals %[1]s]
 				}
 				# Trim the uri to last slash
 				if {$paths == ""} {
@@ -520,10 +521,10 @@ func httpRedirectIRule(port int32, rsVSName string) string {
 					}
 				}
 				if {$redir == 1} {
-					HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%[1]d[HTTP::uri]
+					HTTP::redirect https://[getfield [HTTP::host] ":" 1]:%[2]d[HTTP::uri]
 				}
 			}
-		}`, port, rsVSName)
+		}`, dgName, port)
 
 	return iRuleCode
 }

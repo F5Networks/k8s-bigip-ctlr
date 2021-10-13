@@ -63,7 +63,7 @@ rules:
       - virtualservers
       - tlsprofiles
       - transportservers
-      - externaldnss
+      - externaldns
       - ingresslinks
       - virtualservers/status
       - ingresslinks/status

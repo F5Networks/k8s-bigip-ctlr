@@ -68,7 +68,7 @@ func (c *externalDNSs) Get(ctx context.Context, name string, options metav1.GetO
 	result = &v1.ExternalDNS{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldns").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do(ctx).
@@ -85,7 +85,7 @@ func (c *externalDNSs) List(ctx context.Context, opts metav1.ListOptions) (resul
 	result = &v1.ExternalDNSList{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldns").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Do(ctx).
@@ -102,7 +102,7 @@ func (c *externalDNSs) Watch(ctx context.Context, opts metav1.ListOptions) (watc
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldns").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Watch(ctx)
@@ -113,7 +113,7 @@ func (c *externalDNSs) Create(ctx context.Context, externalDNS *v1.ExternalDNS, 
 	result = &v1.ExternalDNS{}
 	err = c.client.Post().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldns").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(externalDNS).
 		Do(ctx).
@@ -126,7 +126,7 @@ func (c *externalDNSs) Update(ctx context.Context, externalDNS *v1.ExternalDNS, 
 	result = &v1.ExternalDNS{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldns").
 		Name(externalDNS.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(externalDNS).
@@ -139,7 +139,7 @@ func (c *externalDNSs) Update(ctx context.Context, externalDNS *v1.ExternalDNS, 
 func (c *externalDNSs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldns").
 		Name(name).
 		Body(&opts).
 		Do(ctx).
@@ -154,7 +154,7 @@ func (c *externalDNSs) DeleteCollection(ctx context.Context, opts metav1.DeleteO
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldns").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Body(&opts).
@@ -167,7 +167,7 @@ func (c *externalDNSs) Patch(ctx context.Context, name string, pt types.PatchTyp
 	result = &v1.ExternalDNS{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldns").
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).

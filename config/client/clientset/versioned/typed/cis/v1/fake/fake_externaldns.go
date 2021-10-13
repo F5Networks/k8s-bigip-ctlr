@@ -36,7 +36,7 @@ type FakeExternalDNSs struct {
 	ns   string
 }
 
-var externaldnssResource = schema.GroupVersionResource{Group: "cis.f5.com", Version: "v1", Resource: "externaldnss"}
+var externaldnssResource = schema.GroupVersionResource{Group: "cis.f5.com", Version: "v1", Resource: "externaldns"}
 
 var externaldnssKind = schema.GroupVersionKind{Group: "cis.f5.com", Version: "v1", Kind: "ExternalDNS"}
 

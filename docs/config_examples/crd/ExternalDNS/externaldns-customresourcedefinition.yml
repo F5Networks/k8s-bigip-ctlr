@@ -6,7 +6,7 @@ spec:
   group: cis.f5.com
   names:
     kind: ExternalDNS
-    plural: externaldnss
+    plural: externaldns
     shortNames:
       - edns
     singular: externaldns
@@ -65,3 +65,14 @@ spec:
                       - dataServerName
               required:
                 - domainName
+      additionalPrinterColumns:
+        - name: domainName
+          type: string
+          description: Domain name of virtual server resource
+          jsonPath: .spec.domainName
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+        - name: CREATED ON
+          type: string
+          jsonPath: .metadata.creationTimestamp

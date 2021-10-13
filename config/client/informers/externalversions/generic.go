@@ -53,7 +53,7 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=cis.f5.com, Version=v1
-	case v1.SchemeGroupVersion.WithResource("externaldnss"):
+	case v1.SchemeGroupVersion.WithResource("externaldns"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cis().V1().ExternalDNSs().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("ingresslinks"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Cis().V1().IngressLinks().Informer()}, nil

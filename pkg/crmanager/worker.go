@@ -719,6 +719,7 @@ func (crMgr *CRManager) processVirtualServers(
 		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
 			ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, "")
 		} else if virtual.Spec.VirtualServerAddress != "" {
+			// Prioritise VirtualServerAddress specified over IPAMLabel
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
 			ipamLabel := getIPAMLabel(virtuals)
@@ -883,19 +884,19 @@ func (crMgr *CRManager) getAssociatedVirtualServers(
 			!(isVSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
 			if crMgr.ipamCli != nil {
 				if vrt.Spec.IPAMLabel != virtual.Spec.IPAMLabel {
-					log.Debugf("Same host is configured with different IPAM label : , %v ", vrt.Spec.Host)
+					log.Errorf("Same host %v is configured with different IPAM labels: %v, %v. Deleting associated path for VS %v", vrt.Spec.Host, vrt.Spec.IPAMLabel, virtual.Spec.IPAMLabel, virtual.Name)
 					return nil
 				}
 				// Empty host with IPAM label is invalid
 				if virtual.Spec.IPAMLabel != "" && virtual.Spec.Host == "" {
-					log.Debugf("Hostless VS is configured with IPAM label : , %v ", vrt.Spec.Host)
+					log.Errorf("Hostless VS %v is configured with IPAM label: %v", vrt.ObjectMeta.Name, vrt.Spec.IPAMLabel)
 					return nil
 				}
 			}
 			// Same host with different VirtualServerAddress is invalid
 			if vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress {
 				if virtual.Spec.Host != "" {
-					log.Debugf("Same host is configured with different VirtualServerAddress : %v ", vrt.Spec.VirtualServerName)
+					log.Errorf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
 					return nil
 				}
 				continue
@@ -1665,7 +1666,7 @@ func (crMgr *CRManager) getAllServicesFromMonitoredNamespaces() []*v1.Service {
 
 // Get List of VirtualServers associated with the IPAM resource
 func (crMgr *CRManager) getVirtualServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.VirtualServer {
-	log.Debug("[ipam] sync ipam starting...")
+	log.Debug("[ipam] Syncing IPAM dependent virtual servers")
 	var allVS, vss []*cisapiv1.VirtualServer
 	allVS = crMgr.getAllVSFromMonitoredNamespaces()
 	for _, status := range ipam.Status.IPStatus {
@@ -1681,6 +1682,7 @@ func (crMgr *CRManager) getVirtualServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.V
 
 // Get List of TransportServers associated with the IPAM resource
 func (crMgr *CRManager) getTransportServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.TransportServer {
+	log.Debug("[ipam] Syncing IPAM dependent transport servers")
 	var allTS, tss []*cisapiv1.TransportServer
 	allTS = crMgr.getAllTSFromMonitoredNamespaces()
 	for _, status := range ipam.Status.IPStatus {

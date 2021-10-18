@@ -330,7 +330,7 @@ spec:
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: externaldns.cis.f5.com
+  name: externaldnss.cis.f5.com
 spec:
   group: cis.f5.com
   names:
@@ -401,6 +401,9 @@ spec:
           jsonPath: .spec.domainName
         - name: Age
           type: date
+          jsonPath: .metadata.creationTimestamp
+        - name: CREATED ON
+          type: string
           jsonPath: .metadata.creationTimestamp
 ---
 apiVersion: apiextensions.k8s.io/v1

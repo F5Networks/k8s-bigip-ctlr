@@ -1,6 +1,8 @@
 package crmanager
 
 import (
+	"sort"
+
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/fake"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
@@ -8,7 +10,6 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	"sort"
 )
 
 var _ = Describe("Resource Config Tests", func() {
@@ -93,11 +94,11 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 		It("Pool Name", func() {
 			name := formatVirtualServerPoolName(namespace, "svc1", 80, "app=test")
-			Expect(name).To(Equal("default_svc1_80_app_test"), "Invalid Pool Name")
+			Expect(name).To(Equal("svc1_80_default_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {
 			name := formatMonitorName(namespace, "svc1", "http", 80)
-			Expect(name).To(Equal("default_svc1_http_80"), "Invalid Monitor Name")
+			Expect(name).To(Equal("svc1_default_http_80"), "Invalid Monitor Name")
 		})
 		It("Rule Name", func() {
 			name := formatVirtualServerRuleName("test.com", "", "sample_pool")

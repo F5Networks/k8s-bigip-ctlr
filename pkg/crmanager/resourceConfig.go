@@ -306,7 +306,7 @@ func formatCustomVirtualServerName(name string, port int32) string {
 // format the pool name for an VirtualServer
 func formatVirtualServerPoolName(namespace, svc string, port int32, nodeMemberLabel string) string {
 	servicePort := fmt.Sprint(port)
-	poolName := fmt.Sprintf("%s_%s_%s", namespace, svc, servicePort)
+	poolName := fmt.Sprintf("%s_%s_%s", svc, servicePort, namespace)
 	if nodeMemberLabel != "" {
 		nodeMemberLabel = strings.ReplaceAll(nodeMemberLabel, "=", "_")
 		poolName = fmt.Sprintf("%s_%s", poolName, nodeMemberLabel)
@@ -317,7 +317,7 @@ func formatVirtualServerPoolName(namespace, svc string, port int32, nodeMemberLa
 // format the monitor name for an VirtualServer pool
 func formatMonitorName(namespace, svc string, monitorType string, port int32) string {
 	servicePort := fmt.Sprint(port)
-	monitorName := fmt.Sprintf("%s_%s_%s_%s", namespace, svc, monitorType, servicePort)
+	monitorName := fmt.Sprintf("%s_%s_%s_%s", svc, namespace, monitorType, servicePort)
 	return AS3NameFormatter(monitorName)
 }
 

@@ -36,7 +36,8 @@ func (am *AS3Manager) prepareAS3ResourceConfig() as3ADC {
 func (am *AS3Manager) generateAS3ResourceDeclaration() as3ADC {
 	// Create Shared as3Application object for Routes
 	adc := as3ADC{}
-	adc.initDefault(DEFAULT_PARTITION)
+	adc.initDefault(DEFAULT_PARTITION, am.defaultRouteDomain)
+
 	sharedApp := adc.getAS3SharedApp(DEFAULT_PARTITION)
 
 	// Process CIS Resources to create AS3 Resources

@@ -1118,6 +1118,7 @@ func getAppManagerParams() appmanager.Params {
 		AgRspChan:              agRspChan,
 		SchemaLocal:            *schemaLocal,
 		ProcessAgentLabels:     getProcessAgentLabelFunc(),
+		DefaultRouteDomain:     *defaultRouteDomain,
 	}
 }
 
@@ -1154,6 +1155,7 @@ func getAS3Params() *as3.Params {
 		UserAgent:                 getUserAgentInfo(),
 		ConfigWriter:              getConfigWriter(),
 		EventChan:                 eventChan,
+		DefaultRouteDomain:        *defaultRouteDomain,
 	}
 }
 

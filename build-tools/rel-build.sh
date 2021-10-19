@@ -24,8 +24,7 @@ if [ $RUN_TESTS -eq 1 ]; then
     ginkgo_test_with_coverage
     # push coverage data to coveralls if F5 repo or if configured for fork.
     if [ "$COVERALLS_TOKEN" ]; then
-      goveralls \
-        -coverprofile=./coverage/coverage.out \
-        -service=azure
+      echo "Pushing coverage data to coveralls"
+      goveralls -coverprofile=./coverage.out -service=azure
     fi
 fi

@@ -1,4 +1,10 @@
-[![Build Status](https://dev.azure.com/f5networks/CIS/_apis/build/status/F5Networks.k8s-bigip-ctlr?branchName=refs%2Fpull%2F1886%2Fmerge)](https://dev.azure.com/f5networks/CIS/_build/latest?definitionId=6&branchName=refs%2Fpull%2F1886%2Fmerge)
+
+<!--- uncomment after go fmt is fixed
+[![Build Status](https://dev.azure.com/f5networks/CIS/_apis/build/status/F5Networks.k8s-bigip-ctlr?branchName=master) ](https://dev.azure.com/f5networks/CIS/_build/latest?definitionId=6&branchName=master)
+-->
+[![Coverage Status](https://coveralls.io/repos/github/F5Networks/k8s-bigip-ctlr/badge.svg) ](https://coveralls.io/github/F5Networks/k8s-bigip-ctlr)
+
+
 
 F5 Container Ingress Services for Kubernetes & OpenShift
 ========================================================

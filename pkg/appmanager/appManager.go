@@ -139,6 +139,7 @@ type Manager struct {
 	processAgentLabels func(map[string]string, string, string) bool
 	K8sVersion         string
 	TeemData           *teem.TeemsData
+	defaultRouteDomain int
 }
 
 // Watched Namespaces for global availability.
@@ -178,6 +179,7 @@ type Params struct {
 	AgRspChan          chan interface{}
 	ProcessAgentLabels func(map[string]string, string, string) bool
 	UserAgent          string
+	DefaultRouteDomain int
 }
 
 // Configuration options for Routes in OpenShift
@@ -259,6 +261,7 @@ func NewManager(params *Params) *Manager {
 		processAgentLabels:     params.ProcessAgentLabels,
 		agentCfgMap:            make(map[string]*AgentCfgMap),
 		agentCfgMapSvcCache:    make(map[string]*SvcEndPointsCache),
+		defaultRouteDomain:     params.DefaultRouteDomain,
 	}
 	manager.processedResources = make(map[string]bool)
 

@@ -314,9 +314,9 @@ func (c as3Control) initDefault(userAgent string) {
 	c["userAgent"] = userAgent
 }
 
-func (adc as3ADC) initDefault(partition string) {
+func (adc as3ADC) initDefault(partition string, defaultRouteDomain int) {
 	tnt := as3Tenant{}
-	tnt.initDefault()
+	tnt.initDefault(defaultRouteDomain)
 	adc[partition] = tnt
 }
 
@@ -336,11 +336,12 @@ func (adc as3ADC) getAS3SharedApp(partition string) as3Application {
 	return nil
 }
 
-func (t as3Tenant) initDefault() {
+func (t as3Tenant) initDefault(defaultRouteDomain int) {
 	app := as3Application{}
 	app.initDefault()
 	t[as3class] = as3tenant
 	t[as3SharedApplication] = app
+	t[as3defaultRouteDomain] = defaultRouteDomain
 }
 
 func (t as3Tenant) getAS3SharedApp() as3Application {

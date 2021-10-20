@@ -157,6 +157,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 
 	for tnt, apps := range obj {
 		tenantObj := dec[string(tnt)].(map[string]interface{})
+		tenantObj[as3defaultRouteDomain] = am.defaultRouteDomain
 		for app, pools := range apps {
 			appObj := tenantObj[string(app)].(map[string]interface{})
 			for _, pn := range pools {

@@ -9,10 +9,12 @@
         "label": "AS3",
         "remark": "HTTPS with predictive-node pool",
         "Tenant1": {
-            "class": "Tenant"
+            "class": "Tenant",
+            "defaultRouteDomain": 0
         },
         "Tenant2": {
-            "class": "Tenant"
+            "class": "Tenant",
+            "defaultRouteDomain": 0
         }
     }
 }

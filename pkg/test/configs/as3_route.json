@@ -1,6 +1,7 @@
 {
   "openshift": {
     "class": "Tenant",
+    "defaultRouteDomain": 0,
     "Shared": {
       "class": "Application",
       "template": "shared",

@@ -10,6 +10,7 @@
         "remark": "Simple HTTP application with RR pool",
         "example_simple_http_application": {
             "class": "Tenant",
+            "defaultRouteDomain": 0,
             "example_simple_http_application_01": {
                 "class": "Application",
                 "template": "http",

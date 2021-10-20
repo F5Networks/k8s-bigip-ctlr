@@ -10,6 +10,7 @@
         "remark": "HTTPS with predictive-node pool",
         "Tenant1": {
             "class": "Tenant",
+            "defaultRouteDomain": 0,
             "App1": {
                 "class": "Application"
             },
@@ -20,6 +21,7 @@
         },
         "Tenant2": {
             "class": "Tenant",
+            "defaultRouteDomain": 0,
             "App1": {
                 "class": "Application"
             },

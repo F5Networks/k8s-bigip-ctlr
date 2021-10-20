@@ -1,6 +1,7 @@
 {
       "AS3": {
          "class": "Tenant",
+         "defaultRouteDomain": 0,
          "A2": {
         "class": "Applicati{on",
         "template": "https",

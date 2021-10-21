@@ -1053,15 +1053,46 @@ func (appMgr *Manager) getQueueLength() int {
 	for _, ns := range appMgr.GetAllWatchedNamespaces() {
 		services, err := appMgr.kubeClient.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{})
 		qLen += len(services.Items)
-		if len(services.Items) != 0 {
-			qLen++
-		}
 		if err != nil {
 			log.Errorf("[CORE] Failed getting Services from watched namespace : %v.", err)
-			qLen = appMgr.vsQueue.Len()
+			return appMgr.vsQueue.Len()
+		}
+
+		cms, err := appMgr.kubeClient.CoreV1().ConfigMaps(ns).List(context.TODO(), metav1.ListOptions{})
+		qLen += len(cms.Items)
+		if err != nil {
+			log.Errorf("[CORE] Failed getting Configmaps from watched namespace : %v.", err)
+			return appMgr.vsQueue.Len()
+		}
+
+		if nil != appMgr.routeClientV1 {
+			rts, err := appMgr.routeClientV1.Routes(ns).List(context.TODO(), metav1.ListOptions{})
+			qLen += len(rts.Items)
+			if err != nil {
+				log.Errorf("[CORE] Failed getting Routes from watched namespace : %v.", err)
+				return appMgr.vsQueue.Len()
+			}
 		}
 	}
 	return qLen
+}
+
+// isNonPerfResource returns true if the resource gets processed according to old low performing algorithm
+func isNonPerfResource(resKind string) bool {
+
+	switch resKind {
+	case Services, Configmaps, Routes:
+		// Configmaps and Routes get processed according to low performing algorithm
+		// But, Service must be processed everytime
+		return true
+	case Ingresses, Endpoints:
+		// Ingresses get processed according to new high performance algorithm
+		// Endpoints are out of equation, during initial state never gets processed
+		return false
+	}
+
+	// Unknown resources are to be considered as non-performing
+	return true
 }
 
 func (appMgr *Manager) processNextVirtualServer() bool {
@@ -1076,13 +1107,20 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 
 	defer appMgr.vsQueue.Done(key)
 	skey := key.(serviceQueueKey)
-	if !appMgr.steadyState && (skey.ResourceKind != Services && skey.ResourceKind != Configmaps && skey.ResourceKind != Routes) {
+	if !appMgr.steadyState && !isNonPerfResource(skey.ResourceKind) {
 		if skey.Operation != OprTypeCreate {
 			appMgr.vsQueue.AddRateLimited(key)
 		}
 		appMgr.vsQueue.Forget(key)
 		return true
 	}
+
+	if !appMgr.steadyState && skey.Operation != OprTypeCreate {
+		appMgr.vsQueue.AddRateLimited(key)
+		appMgr.vsQueue.Forget(key)
+		return true
+	}
+
 	err := appMgr.syncVirtualServer(skey)
 	if err == nil {
 		if !appMgr.steadyState {
@@ -1154,7 +1192,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		rkey := Services + "_" + sKey.Namespace
 		if !appMgr.steadyState && sKey.Operation == OprTypeCreate {
 			if _, ok := appMgr.processedResources[rkey]; ok {
-				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen {
+				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen-1 {
 					appMgr.deployResource()
 					appMgr.steadyState = true
 				}
@@ -1171,6 +1209,10 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		switch sKey.Operation {
 		case OprTypeCreate:
 			if _, ok := appMgr.processedResources[resKey]; ok {
+				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen-1 {
+					appMgr.deployResource()
+					appMgr.steadyState = true
+				}
 				return nil
 			}
 		case OprTypeDelete:
@@ -1185,6 +1227,10 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		// otherwise just mark it as processed and continue
 		case OprTypeCreate:
 			if _, ok := appMgr.processedResources[resKey]; ok {
+				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen-1 {
+					appMgr.deployResource()
+					appMgr.steadyState = true
+				}
 				return nil
 			}
 			appMgr.processedResources[resKey] = true
@@ -1413,9 +1459,6 @@ func (appMgr *Manager) syncConfigMaps(
 				if updated {
 					stats.cpUpdated += 1
 				}
-				// Mark each resource as it is already processed
-				// So that later the create event of the same resource will not processed, unnecessarily
-				appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
 			}
 		}
 
@@ -1427,6 +1470,9 @@ func (appMgr *Manager) syncConfigMaps(
 			stats.vsUpdated += updated
 			continue
 		} else {
+			// Mark each resource as it is already processed
+			// So that later the create event of the same resource will not be processed, unnecessarily
+			appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
 			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(0)
 			stats.vsFound += found
 			stats.vsUpdated += updated

@@ -7,6 +7,7 @@ Next Release
 Bug Fixes
 `````````
 * Added the complete path for datagroups in http redirect irule
+* :issues:`1911` Fix CIS pushes premature config to BIG-IP during init process
 
 2.6.0
 -------------

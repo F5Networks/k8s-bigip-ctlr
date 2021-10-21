@@ -8,6 +8,7 @@ Bug Fixes
 `````````
 * Added the complete path for datagroups in http redirect irule
 * :issues:`1911` Fix CIS pushes premature config to BIG-IP during init process
+* :issues:`1931` Cannot disable IngressClass in HelmChart
 
 2.6.0
 -------------
@@ -18,7 +19,7 @@ Added Functionality
 * CIS supports IP address assignment to IngressLink Custom Resources using F5 IPAM Controller(See `documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/IngressLink/ingressLink-with-ipamLabel>`_)
 * CIS validates IPV6 address in bigip-url & gtm-bigip-url parameter
 
-Bug Fixes
+Bug Fixed
 `````````
 * :issues:`1679` CIS requires GTM parameter in CIS declaration even if GTM runs on the same BIG-IP
 * :issues:`1888` Unable to upgrade from 2.2.0 (or below) to 2.2.1 (or above)

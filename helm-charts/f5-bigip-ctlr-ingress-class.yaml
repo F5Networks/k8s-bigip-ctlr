@@ -1,3 +1,5 @@
+{{- if .Values.ingressClass.create -}}
+
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
@@ -6,3 +8,5 @@ metadata:
     ingressclass.kubernetes.io/is-default-class: "{{ .Values.isDefaultIngressController | default false }}"
 spec:
   controller: f5.com/cntr-ingress-svcs
+
+{{- end -}}

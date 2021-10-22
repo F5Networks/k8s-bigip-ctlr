@@ -62,8 +62,9 @@ requests_cpu | Optional | CPU request for the pod | 100m
 requests_memory | Optional | Memory request for the pod | 512Mi
 affinity | Optional | Dictionary of affinity | empty
 securityContext | Optional | Dictionary of securityContext | empty
-ingressClassName | Optional | Name of ingress class | f5
-isDefaultIngressController | Optional | CIS will monitor all the ingresses resource if set true | false
+ingressClass.ingressClassName | Optional | Name of ingress class | f5
+ingressClass.defaultIngressController | Optional | CIS will monitor all the ingresses resource if set true | false
+ingressClass.create | Optional | Create ingress class | true
 
 
 

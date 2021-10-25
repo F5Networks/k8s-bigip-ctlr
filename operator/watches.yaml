@@ -1,5 +1,0 @@
----
-- version: v1
-  group: cis.f5.com
-  kind: F5BigIpCtlr
-  chart: /opt/helm/helm-charts/f5-bigip-ctlr

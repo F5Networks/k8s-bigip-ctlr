@@ -1,0 +1,6 @@
+# Use the 'create api' subcommand to add watches to this file.
+- group: cis.f5.com
+  version: v1
+  kind: F5BigIpCtlr
+  chart: helm-charts/f5-bigip-ctlr
+#+kubebuilder:scaffold:watch

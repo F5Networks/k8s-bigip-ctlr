@@ -6,6 +6,7 @@ Next Release
 
 Bug Fixes
 `````````
+* Added tcp type monitor support for EDNS.
 
 2.6.1
 -------------

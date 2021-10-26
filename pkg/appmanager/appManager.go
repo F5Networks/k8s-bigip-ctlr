@@ -121,6 +121,7 @@ type Manager struct {
 	mergedRulesMap map[string]map[string]MergedRuleEntry
 	// Whether to watch ConfigMap resources or not
 	manageConfigMaps       bool
+	configMapLabel         string
 	hubMode                bool
 	manageIngress          bool
 	manageIngressClassOnly bool
@@ -665,8 +666,9 @@ func (appMgr *Manager) newAppInformer(
 	}
 
 	if false != appMgr.manageConfigMaps {
+		appMgr.configMapLabel = cfgMapSelector.String()
 		cfgMapOptions := func(options *metav1.ListOptions) {
-			options.LabelSelector = cfgMapSelector.String()
+			options.LabelSelector = appMgr.configMapLabel
 		}
 		log.Infof("[CORE] Watching ConfigMap resources.")
 		//If Hubmode is enabled, process configmaps every 30 seconds to process unwatched namespace deployments
@@ -1050,6 +1052,15 @@ func (appMgr *Manager) GetAllWatchedNamespaces() []string {
 // Get the length of queue
 func (appMgr *Manager) getQueueLength() int {
 	qLen := 0
+
+	cmOptions := metav1.ListOptions{
+		LabelSelector: appMgr.configMapLabel,
+	}
+
+	rtOptions := metav1.ListOptions{
+		LabelSelector: appMgr.routeConfig.RouteLabel,
+	}
+
 	for _, ns := range appMgr.GetAllWatchedNamespaces() {
 		services, err := appMgr.kubeClient.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{})
 		qLen += len(services.Items)
@@ -1058,15 +1069,17 @@ func (appMgr *Manager) getQueueLength() int {
 			return appMgr.vsQueue.Len()
 		}
 
-		cms, err := appMgr.kubeClient.CoreV1().ConfigMaps(ns).List(context.TODO(), metav1.ListOptions{})
-		qLen += len(cms.Items)
-		if err != nil {
-			log.Errorf("[CORE] Failed getting Configmaps from watched namespace : %v.", err)
-			return appMgr.vsQueue.Len()
+		if false != appMgr.manageConfigMaps {
+			cms, err := appMgr.kubeClient.CoreV1().ConfigMaps(ns).List(context.TODO(), cmOptions)
+			qLen += len(cms.Items)
+			if err != nil {
+				log.Errorf("[CORE] Failed getting Configmaps from watched namespace : %v.", err)
+				return appMgr.vsQueue.Len()
+			}
 		}
 
 		if nil != appMgr.routeClientV1 {
-			rts, err := appMgr.routeClientV1.Routes(ns).List(context.TODO(), metav1.ListOptions{})
+			rts, err := appMgr.routeClientV1.Routes(ns).List(context.TODO(), rtOptions)
 			qLen += len(rts.Items)
 			if err != nil {
 				log.Errorf("[CORE] Failed getting Routes from watched namespace : %v.", err)

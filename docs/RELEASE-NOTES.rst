@@ -9,6 +9,7 @@ Bug Fixes
 * Added the complete path for datagroups in http redirect irule
 * :issues:`1911` Fix CIS pushes premature config to BIG-IP during init process
 * :issues:`1931` Cannot disable IngressClass in HelmChart
+* :issues:`2032` EDNS will not work if both Virtual Server CRD and EDNS CRD are applied at the same time
 
 2.6.0
 -------------

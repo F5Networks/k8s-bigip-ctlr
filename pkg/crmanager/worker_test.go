@@ -63,6 +63,7 @@ var _ = Describe("Worker Tests", func() {
 				HTTPTraffic:      "",
 				SNAT:             "",
 				WAF:              "",
+				Firewall:         "",
 				RewriteAppRoot:   "",
 				AllowVLANs:       nil,
 				IRules:           nil,

@@ -1063,7 +1063,11 @@ func (appMgr *Manager) getQueueLength() int {
 
 	for _, ns := range appMgr.GetAllWatchedNamespaces() {
 		services, err := appMgr.kubeClient.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{})
-		qLen += len(services.Items)
+		for _, svc := range services.Items {
+			if ok, _ := appMgr.checkValidService(&svc); ok {
+				qLen++
+			}
+		}
 		if err != nil {
 			log.Errorf("[CORE] Failed getting Services from watched namespace : %v.", err)
 			return appMgr.vsQueue.Len()
@@ -1071,7 +1075,11 @@ func (appMgr *Manager) getQueueLength() int {
 
 		if false != appMgr.manageConfigMaps {
 			cms, err := appMgr.kubeClient.CoreV1().ConfigMaps(ns).List(context.TODO(), cmOptions)
-			qLen += len(cms.Items)
+			for _, cm := range cms.Items {
+				if ok, _ := appMgr.checkValidConfigMap(&cm, OprTypeCreate); ok {
+					qLen++
+				}
+			}
 			if err != nil {
 				log.Errorf("[CORE] Failed getting Configmaps from watched namespace : %v.", err)
 				return appMgr.vsQueue.Len()
@@ -1080,7 +1088,11 @@ func (appMgr *Manager) getQueueLength() int {
 
 		if nil != appMgr.routeClientV1 {
 			rts, err := appMgr.routeClientV1.Routes(ns).List(context.TODO(), rtOptions)
-			qLen += len(rts.Items)
+			for _, rt := range rts.Items {
+				if ok, _ := appMgr.checkValidRoute(&rt); ok {
+					qLen++
+				}
+			}
 			if err != nil {
 				log.Errorf("[CORE] Failed getting Routes from watched namespace : %v.", err)
 				return appMgr.vsQueue.Len()
@@ -1175,8 +1187,10 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
+		// processedItems with +1 because that is the actual number of items processed
+		// and it gets incremented just after this function returns
 		log.Debugf("[CORE] Finished syncing virtual servers %+v in namespace %+v (%v), %v/%v",
-			sKey.ServiceName, sKey.Namespace, endTime.Sub(startTime), appMgr.processedItems, appMgr.queueLen)
+			sKey.ServiceName, sKey.Namespace, endTime.Sub(startTime), appMgr.processedItems+1, appMgr.queueLen)
 	}()
 	// Get the informers for the namespace. This will tell us if we care about
 	// this item.

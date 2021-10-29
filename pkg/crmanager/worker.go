@@ -677,12 +677,6 @@ func (crMgr *CRManager) processVirtualServers(
 
 	virtuals := crMgr.getAssociatedVirtualServers(virtual, allVirtuals, isVSDeleted)
 
-	plc := crMgr.getPolicyFromVirtuals(virtuals)
-	if plc == nil {
-		log.Errorf("Unable to process Virtuals because of invalid Policy")
-		return nil
-	}
-
 	var ip string
 	var status int
 	if crMgr.ipamCli != nil {
@@ -761,11 +755,13 @@ func (crMgr *CRManager) processVirtualServers(
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles.Profs = make(map[SecretKey]CustomProfile)
 
-		err := crMgr.handleResourceConfigForPolicy(rsCfg, plc)
-
-		if err != nil {
-			processingError = true
-			break
+		plc := crMgr.getPolicyFromVirtuals(virtuals)
+		if plc != nil {
+			err := crMgr.handleResourceConfigForPolicy(rsCfg, plc)
+			if err != nil {
+				processingError = true
+				break
+			}
 		}
 
 		for _, vrt := range virtuals {
@@ -903,13 +899,12 @@ func (crMgr *CRManager) getAssociatedVirtualServers(
 }
 
 func (crMgr *CRManager) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer) *cisapiv1.Policy {
-	var plcName string
 
 	if len(virtuals) == 0 {
 		log.Errorf("No virtuals to extract policy from")
 		return nil
 	}
-
+	plcName := ""
 	ns := virtuals[0].Namespace
 
 	for _, vrt := range virtuals {
@@ -921,7 +916,9 @@ func (crMgr *CRManager) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer
 			plcName = vrt.Spec.PolicyName
 		}
 	}
-
+	if plcName == "" {
+		return nil
+	}
 	crInf, ok := crMgr.getNamespacedInformer(ns)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", ns)

@@ -752,6 +752,7 @@ func (crMgr *CRManager) processVirtualServers(
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
+		rsCfg.MetaData.Protocol = portStruct.protocol
 		rsCfg.Virtual.SetVirtualAddress(
 			ip,
 			portStruct.port,

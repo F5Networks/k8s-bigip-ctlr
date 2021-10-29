@@ -1233,7 +1233,20 @@ func (crMgr *CRManager) handleResourceConfigForPolicy(
 	plc *cisapiv1.Policy,
 ) error {
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
-
+	var iRule string
+	if rsCfg.MetaData.Protocol == "https" {
+		iRule = plc.Spec.IRules.Secure
+	} else {
+		iRule = plc.Spec.IRules.InSecure
+	}
+	switch plc.Spec.IRules.Priority {
+	case "override":
+		rsCfg.Virtual.IRules = []string{iRule}
+	case "high":
+		rsCfg.Virtual.IRules = append([]string{iRule}, rsCfg.Virtual.IRules...)
+	default:
+		rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
+	}
 	return nil
 }
 

@@ -112,6 +112,7 @@ type (
 		ResourceType string
 		rscName      string
 		hosts        []string
+		Protocol     string
 	}
 
 	// Virtual Server Key - unique server is Name + Port

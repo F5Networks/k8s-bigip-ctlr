@@ -501,6 +501,14 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			BigIP: fmt.Sprintf("%v", cfg.Virtual.WAF),
 		}
 	}
+
+	//Attaching Firewall policy
+	if cfg.Virtual.Firewall != "" {
+		svc.Firewall = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.Firewall),
+		}
+	}
+
 	//Attach allowVlans if exist.
 	var vlans []as3ResourcePointer
 	for _, va := range cfg.Virtual.AllowVLANs {

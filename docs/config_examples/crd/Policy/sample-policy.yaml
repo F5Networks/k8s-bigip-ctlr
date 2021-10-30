@@ -8,3 +8,5 @@ metadata:
 spec:
   l7Policies:
     waf: /Common/WAF_Policy
+  l3Policies:
+    firewallPolicy: /Common/AFM_Policy

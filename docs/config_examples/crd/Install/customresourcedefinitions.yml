@@ -46,6 +46,9 @@ spec:
                 waf:
                   type: string
                   pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                firewallPolicy:
+                  type: string
+                  pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
                 allowVlans:
                   items:
                     type: string
@@ -508,7 +511,7 @@ spec:
                     dos:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
-                    firewall:
+                    firewallPolicy:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
                 ltmPolicies:

@@ -408,6 +408,10 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	if vs.Spec.WAF != "" {
 		rsCfg.Virtual.WAF = vs.Spec.WAF
 	}
+	// set the Firewall policy
+	if vs.Spec.Firewall != "" {
+		rsCfg.Virtual.Firewall = vs.Spec.Firewall
+	}
 	//Attach allowVlans.
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
 
@@ -1233,6 +1237,7 @@ func (crMgr *CRManager) handleResourceConfigForPolicy(
 	plc *cisapiv1.Policy,
 ) error {
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
+	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
 	var iRule string
 	if rsCfg.MetaData.Protocol == "https" {
 		iRule = plc.Spec.IRules.Secure

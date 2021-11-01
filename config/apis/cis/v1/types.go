@@ -94,7 +94,7 @@ type TLSProfile struct {
 // TLSProfileSpec is spec for TLSServer
 type TLSProfileSpec struct {
 	Hosts []string `json:"hosts"`
-	TLS   TLS      `json:"tls"`
+	TLS   TLS      `json:"VirtualServerWithTLSProfile"`
 }
 
 // TLS contains required fields for TLS termination

@@ -1,0 +1,14 @@
+apiVersion: cis.f5.com/v1
+kind: VirtualServerWithTLSProfile
+metadata:
+  name: reencrypt-VirtualServerWithTLSProfile-secret
+  labels:
+    f5cr: "true"
+spec:
+  tls:
+    termination: reencrypt
+    clientSSL: tea-secret
+    serverSSL: tea-back-secret
+    reference: secret
+  hosts:
+    - tea.example.com

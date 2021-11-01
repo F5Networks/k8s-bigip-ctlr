@@ -43,7 +43,7 @@ func (crInfr *CRInformer) start() {
 		cacheSyncs = append(cacheSyncs, crInfr.vsInformer.HasSynced)
 	}
 	if crInfr.tlsInformer != nil {
-		log.Infof("Starting TLSProfile Informer")
+		log.Infof("Starting VirtualServerWithTLSProfile Informer")
 		go crInfr.tlsInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.tlsInformer.HasSynced)
 	}
@@ -403,7 +403,7 @@ func (crMgr *CRManager) enqueueDeletedVirtualServer(obj interface{}) {
 
 func (crMgr *CRManager) enqueueTLSServer(obj interface{}) {
 	tls := obj.(*cisapiv1.TLSProfile)
-	log.Infof("Enqueueing TLSProfile: %v", tls)
+	log.Infof("Enqueueing VirtualServerWithTLSProfile: %v", tls)
 	key := &rqKey{
 		namespace: tls.ObjectMeta.Namespace,
 		kind:      TLSProfile,

@@ -41,8 +41,8 @@ var _ = Describe("Profile", func() {
 			StringData: nil,
 			Type:       "",
 		}
-		secret.Data["tls.key"] = []byte("fawiueh9wuan;kasjf;")
-		secret.Data["tls.crt"] = []byte("ahfa;osejfn;kahse;ha")
+		secret.Data["VirtualServerWithTLSProfile.key"] = []byte("fawiueh9wuan;kasjf;")
+		secret.Data["VirtualServerWithTLSProfile.crt"] = []byte("ahfa;osejfn;kahse;ha")
 
 		err, updated := mockCRM.createSecretClientSSLProfile(rsCfg, secret, "clientside")
 		Expect(err).To(BeNil(), "Failed to Create Client SSL")
@@ -52,18 +52,18 @@ var _ = Describe("Profile", func() {
 		Expect(err).To(BeNil(), "Failed to Create Client SSL")
 		Expect(updated).To(BeFalse(), "Failed to Create Client SSL")
 
-		secret.Data["tls.crt"] = []byte("dfaf")
+		secret.Data["VirtualServerWithTLSProfile.crt"] = []byte("dfaf")
 		err, updated = mockCRM.createSecretClientSSLProfile(rsCfg, secret, "clientside")
 		Expect(err).To(BeNil(), "Failed to Update Client SSL")
 		Expect(updated).To(BeTrue(), "Failed to Update Client SSL")
 
 		// Negative Cases
-		delete(secret.Data, "tls.crt")
+		delete(secret.Data, "VirtualServerWithTLSProfile.crt")
 		err, updated = mockCRM.createSecretClientSSLProfile(rsCfg, secret, "clientside")
 		Expect(err).ToNot(BeNil(), "Failed to Validate Client SSL")
 		Expect(updated).To(BeFalse(), "Failed to Validate Client SSL")
 
-		delete(secret.Data, "tls.key")
+		delete(secret.Data, "VirtualServerWithTLSProfile.key")
 		err, updated = mockCRM.createSecretClientSSLProfile(rsCfg, secret, "clientside")
 		Expect(err).ToNot(BeNil(), "Failed to Validate Client SSL")
 		Expect(updated).To(BeFalse(), "Failed to Validate Client SSL")
@@ -98,7 +98,7 @@ var _ = Describe("Profile", func() {
 			StringData: nil,
 			Type:       "",
 		}
-		secret.Data["tls.crt"] = []byte("ahfa;osejfn;kahse;ha")
+		secret.Data["VirtualServerWithTLSProfile.crt"] = []byte("ahfa;osejfn;kahse;ha")
 
 		err, updated := mockCRM.createSecretServerSSLProfile(rsCfg, secret, "clientside")
 		Expect(err).To(BeNil(), "Failed to Create Server SSL")
@@ -108,13 +108,13 @@ var _ = Describe("Profile", func() {
 		Expect(err).To(BeNil(), "Failed to Create Server SSL")
 		Expect(updated).To(BeFalse(), "Failed to Create Server SSL")
 
-		secret.Data["tls.crt"] = []byte("dfaf")
+		secret.Data["VirtualServerWithTLSProfile.crt"] = []byte("dfaf")
 		err, updated = mockCRM.createSecretServerSSLProfile(rsCfg, secret, "clientside")
 		Expect(err).To(BeNil(), "Failed to Update Server SSL")
 		Expect(updated).To(BeTrue(), "Failed to Update Server SSL")
 
 		// Negative Cases
-		delete(secret.Data, "tls.crt")
+		delete(secret.Data, "VirtualServerWithTLSProfile.crt")
 		err, updated = mockCRM.createSecretServerSSLProfile(rsCfg, secret, "clientside")
 		Expect(err).ToNot(BeNil(), "Failed to Validate Server SSL")
 		Expect(updated).To(BeFalse(), "Failed to Validate Server SSL")

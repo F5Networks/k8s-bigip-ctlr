@@ -16,22 +16,22 @@ type CISAgentInterface interface {
 	IsImplInAgent(string) bool
 }
 
-// Initializer is the interface which wraps basic Init method.
+// Initializer is the interface which wraps VirtualServer Init method.
 type Initializer interface {
 	Init(interface{}) error
 }
 
-// Deployer is the interface which wraps basic Deploy method
+// Deployer is the interface which wraps VirtualServer Deploy method
 type Deployer interface {
 	Deploy(req interface{}) error
 }
 
-// De-Initializer is the interface which wraps basic De-Init method.
+// De-Initializer is the interface which wraps VirtualServer De-Init method.
 type DeInitializer interface {
 	DeInit() error
 }
 
-// Remover is the interface which wraps basic Remove method
+// Remover is the interface which wraps VirtualServer Remove method
 type Remover interface {
 	Remove(partition string) error
 }

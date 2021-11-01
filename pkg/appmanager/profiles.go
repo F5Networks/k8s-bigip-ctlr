@@ -66,7 +66,7 @@ func (appMgr *Manager) setClientSslProfile(
 				Partition: rsCfg.Virtual.Partition,
 				Context:   CustomProfileClient,
 			}
-			// This is just a basic profile, so we don't need all the fields
+			// This is just a VirtualServer profile, so we don't need all the fields
 			cp := NewCustomProfile(profile, "", "", "", true, "", "", "")
 			appMgr.customProfiles.Profs[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profile)
@@ -233,7 +233,7 @@ func (appMgr *Manager) handleServerSNIDefaultProfile(
 				Partition: rsCfg.Virtual.Partition,
 				Context:   CustomProfileServer,
 			}
-			// This is just a basic profile, so we don't need all the fields
+			// This is just a VirtualServer profile, so we don't need all the fields
 			cp := NewCustomProfile(profile, "", "", "", true, peerCert,
 				MakeCertificateFileName(rsCfg.Virtual.Partition, DefaultSslServerCAName), "")
 			appMgr.customProfiles.Profs[skey] = cp
@@ -365,13 +365,13 @@ func (appMgr *Manager) createSecretSslProfile(
 	rsCfg *ResourceConfig,
 	secret *v1.Secret,
 ) (error, bool) {
-	if _, ok := secret.Data["tls.crt"]; !ok {
-		err := fmt.Errorf("Invalid Secret '%v': 'tls.crt' field not specified.",
+	if _, ok := secret.Data["VirtualServerWithTLSProfile.crt"]; !ok {
+		err := fmt.Errorf("Invalid Secret '%v': 'VirtualServerWithTLSProfile.crt' field not specified.",
 			secret.ObjectMeta.Name)
 		return err, false
 	}
-	if _, ok := secret.Data["tls.key"]; !ok {
-		err := fmt.Errorf("Invalid Secret '%v': 'tls.key' field not specified.",
+	if _, ok := secret.Data["VirtualServerWithTLSProfile.key"]; !ok {
+		err := fmt.Errorf("Invalid Secret '%v': 'VirtualServerWithTLSProfile.key' field not specified.",
 			secret.ObjectMeta.Name)
 		return err, false
 	}
@@ -387,7 +387,7 @@ func (appMgr *Manager) createSecretSslProfile(
 		Context:   CustomProfileClient,
 	}
 	if _, ok := appMgr.customProfiles.Profs[skey]; !ok {
-		// This is just a basic profile, so we don't need all the fields
+		// This is just a VirtualServer profile, so we don't need all the fields
 		cp := NewCustomProfile(sni, "", "", "", true, "", "", "")
 		appMgr.customProfiles.Profs[skey] = cp
 	}
@@ -402,8 +402,8 @@ func (appMgr *Manager) createSecretSslProfile(
 	}
 	cp := NewCustomProfile(
 		profRef,
-		string(secret.Data["tls.crt"]),
-		string(secret.Data["tls.key"]),
+		string(secret.Data["VirtualServerWithTLSProfile.crt"]),
+		string(secret.Data["VirtualServerWithTLSProfile.key"]),
 		"",    // serverName
 		false, // sni
 		"",    // peerCertMode

@@ -271,7 +271,7 @@ func _init() {
 		"Optional, when set to true, add the body of AS3 API response in Controller logs.")
 	shareNodes = bigIPFlags.Bool("share-nodes", false,
 		"Optional, when set to true, node will be shared among partition.")
-	enableTLS = bigIPFlags.String("tls-version", "1.2",
+	enableTLS = bigIPFlags.String("VirtualServerWithTLSProfile-version", "1.2",
 		"Optional, Configure TLS version to be enabled on BIG-IP. TLS1.3 is only supported in tmos version 14.0+.")
 	tls13CipherGroupReference = bigIPFlags.String("cipher-group", "/Common/f5-default",
 		"Optional, Configures a Cipher Group in BIG-IP and reference it here. cipher-group and ciphers are mutually exclusive, only use one.")

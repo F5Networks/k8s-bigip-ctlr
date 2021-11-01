@@ -65,7 +65,7 @@ type TLSProfileNamespaceLister interface {
 	// List lists all TLSProfiles in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.TLSProfile, err error)
-	// Get retrieves the TLSProfile from the indexer for a given namespace and name.
+	// Get retrieves the VirtualServerWithTLSProfile from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
 	Get(name string) (*v1.TLSProfile, error)
 	TLSProfileNamespaceListerExpansion
@@ -86,7 +86,7 @@ func (s tLSProfileNamespaceLister) List(selector labels.Selector) (ret []*v1.TLS
 	return ret, err
 }
 
-// Get retrieves the TLSProfile from the indexer for a given namespace and name.
+// Get retrieves the VirtualServerWithTLSProfile from the indexer for a given namespace and name.
 func (s tLSProfileNamespaceLister) Get(name string) (*v1.TLSProfile, error) {
 	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
 	if err != nil {

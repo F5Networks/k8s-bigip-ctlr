@@ -389,8 +389,8 @@ func NewSecret(name, namespace, cert, key string) *v1.Secret {
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			"VirtualServerWithTLSProfile.crt": []byte(cert),
-			"VirtualServerWithTLSProfile.key": []byte(key),
+			"tls.crt": []byte(cert),
+			"tls.key": []byte(key),
 		},
 	}
 }

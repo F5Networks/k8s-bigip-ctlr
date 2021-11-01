@@ -2,9 +2,9 @@
   kind: Route
   metadata:
     labels:
-      name: f5-route-VirtualServer
+      name: f5-route-basic
       f5type: systest
-    name: f5-demo-app-route-VirtualServer
+    name: f5-demo-app-route-basic
     annotations:
       # annotations
       # health monitoring
@@ -24,4 +24,4 @@
       targetPort: 8080
     to:
       kind: Service
-      name: f5-demo-app-route-VirtualServer
+      name: f5-demo-app-route-basic

@@ -12,14 +12,14 @@ func (crMgr *CRManager) createSecretClientSSLProfile(
 	context string,
 ) (error, bool) {
 
-	if _, ok := secret.Data["VirtualServerWithTLSProfile.key"]; !ok {
-		err := fmt.Errorf("Invalid Secret '%v': 'VirtualServerWithTLSProfile.key' field not specified.",
+	if _, ok := secret.Data["tls.key"]; !ok {
+		err := fmt.Errorf("Invalid Secret '%v': 'tls.key' field not specified.",
 			secret.ObjectMeta.Name)
 		return err, false
 	}
 
-	if _, ok := secret.Data["VirtualServerWithTLSProfile.crt"]; !ok {
-		err := fmt.Errorf("Invalid Secret '%v': 'VirtualServerWithTLSProfile.crt' field not specified.",
+	if _, ok := secret.Data["tls.crt"]; !ok {
+		err := fmt.Errorf("Invalid Secret '%v': 'tls.crt' field not specified.",
 			secret.ObjectMeta.Name)
 		return err, false
 	}
@@ -35,7 +35,7 @@ func (crMgr *CRManager) createSecretClientSSLProfile(
 		Context:   context,
 	}
 	if _, ok := rsCfg.customProfiles.Profs[skey]; !ok {
-		// This is just a VirtualServer profile, so we don't need all the fields
+		// This is just a basic profile, so we don't need all the fields
 		cp := NewCustomProfile(sni, "", "", "", true, "", "")
 		rsCfg.customProfiles.Profs[skey] = cp
 	}
@@ -52,8 +52,8 @@ func (crMgr *CRManager) createSecretClientSSLProfile(
 	}
 	cp := NewCustomProfile(
 		profRef,
-		string(secret.Data["VirtualServerWithTLSProfile.crt"]),
-		string(secret.Data["VirtualServerWithTLSProfile.key"]),
+		string(secret.Data["tls.crt"]),
+		string(secret.Data["tls.key"]),
 		"",    // serverName
 		false, // sni
 		"",    // peerCertMode
@@ -84,9 +84,9 @@ func (crMgr *CRManager) createSecretServerSSLProfile(
 	context string,
 ) (error, bool) {
 
-	// VirtualServerWithTLSProfile.key is not mandatory for ServerSSL Profile
-	if _, ok := secret.Data["VirtualServerWithTLSProfile.crt"]; !ok {
-		err := fmt.Errorf("Invalid Secret '%v': 'VirtualServerWithTLSProfile.crt' field not specified.",
+	// tls.key is not mandatory for ServerSSL Profile
+	if _, ok := secret.Data["tls.crt"]; !ok {
+		err := fmt.Errorf("Invalid Secret '%v': 'tls.crt' field not specified.",
 			secret.ObjectMeta.Name)
 		return err, false
 	}
@@ -102,7 +102,7 @@ func (crMgr *CRManager) createSecretServerSSLProfile(
 		Context:   context,
 	}
 	if _, ok := rsCfg.customProfiles.Profs[skey]; !ok {
-		// This is just a VirtualServer profile, so we don't need all the fields
+		// This is just a basic profile, so we don't need all the fields
 		cp := NewCustomProfile(sni, "", "", "", true, "", "")
 		rsCfg.customProfiles.Profs[skey] = cp
 	}
@@ -118,7 +118,7 @@ func (crMgr *CRManager) createSecretServerSSLProfile(
 	}
 	cp := NewCustomProfile(
 		profRef,
-		string(secret.Data["VirtualServerWithTLSProfile.crt"]),
+		string(secret.Data["tls.crt"]),
 		"",
 		"",    // serverName
 		false, // sni

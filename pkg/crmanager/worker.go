@@ -83,7 +83,7 @@ func (crMgr *CRManager) processResource() bool {
 		}
 		tlsProfile := rKey.rsc.(*cisapiv1.TLSProfile)
 		virtuals := crMgr.getVirtualsForTLSProfile(tlsProfile)
-		// No Virtuals are effected with the change in VirtualServerWithTLSProfile.
+		// No Virtuals are effected with the change in TLSProfile.
 		if nil == virtuals {
 			break
 		}
@@ -161,6 +161,22 @@ func (crMgr *CRManager) processResource() bool {
 		crMgr.TeemData.ResourceType.IPAMSvcLB[rKey.namespace] = len(services)
 		crMgr.TeemData.Unlock()
 
+	case CustomPolicy:
+		cp := rKey.rsc.(*cisapiv1.Policy)
+
+		virtuals := crMgr.getVirtualsForCustomPolicy(cp)
+		// No Virtuals are effected with the change in TLSProfile.
+		if nil == virtuals {
+			break
+		}
+		for _, virtual := range virtuals {
+			err := crMgr.processVirtualServers(virtual, false)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
+			}
+		}
 	case Service:
 		svc := rKey.rsc.(*v1.Service)
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
@@ -403,10 +419,10 @@ func (crMgr *CRManager) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*ci
 		return nil
 	}
 
-	// find VirtualServers that reference the VirtualServerWithTLSProfile
+	// find VirtualServers that reference the TLSProfile
 	virtualsForTLSProfile := getVirtualServersForTLSProfile(allVirtuals, tls)
 	if nil == virtualsForTLSProfile {
-		log.Infof("Change in VirtualServerWithTLSProfile %s does not effect any VirtualServer",
+		log.Infof("Change in TLSProfile %s does not effect any VirtualServer",
 			tls.ObjectMeta.Name)
 		return nil
 	}
@@ -415,7 +431,7 @@ func (crMgr *CRManager) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*ci
 	for _, vs := range allVirtuals {
 		targetVirtualNames = append(targetVirtualNames, vs.ObjectMeta.Name)
 	}
-	log.Debugf("VirtualServers %v are affected with VirtualServerWithTLSProfile %s change",
+	log.Debugf("VirtualServers %v are affected with TLSProfile %s change",
 		targetVirtualNames, tls.ObjectMeta.Name)
 
 	// TODO
@@ -423,6 +439,29 @@ func (crMgr *CRManager) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*ci
 	// or Add only Unique entries into the targetVirutalServers.
 
 	return virtualsForTLSProfile
+}
+
+func (crMgr *CRManager) getVirtualsForCustomPolicy(plc *cisapiv1.Policy) []*cisapiv1.VirtualServer {
+	nsVirtuals := crMgr.getAllVirtualServers(plc.Namespace)
+	if nil == nsVirtuals {
+		log.Infof("No VirtualServers found in namespace %s",
+			plc.Namespace)
+		return nil
+	}
+
+	var plcVSs []*cisapiv1.VirtualServer
+	var plcVSNames []string
+	for _, vs := range nsVirtuals {
+		if vs.Spec.PolicyName == plc.Name {
+			plcVSs = append(plcVSs, vs)
+			plcVSNames = append(plcVSNames, vs.Name)
+		}
+	}
+
+	log.Debugf("VirtualServers %v are affected with Custom Policy %s: ",
+		plcVSNames, plc.Name)
+
+	return plcVSs
 }
 
 // getAllVirtualServers returns list of all valid VirtualServers in rkey namespace.
@@ -522,7 +561,7 @@ func getVirtualServersForTLSProfile(allVirtuals []*cisapiv1.VirtualServer,
 				}
 			}
 			if !found {
-				log.Errorf("VirtualServerWithTLSProfile hostname is not same as virtual host %s for profile %s", vs.Spec.Host, vs.Spec.TLSProfileName)
+				log.Errorf("TLSProfile hostname is not same as virtual host %s for profile %s", vs.Spec.Host, vs.Spec.TLSProfileName)
 			}
 		}
 	}
@@ -536,22 +575,22 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(
 	tlsName := vs.Spec.TLSProfileName
 	tlsKey := fmt.Sprintf("%s/%s", namespace, tlsName)
 
-	// Initialize customResource Informer for required namespace
+	// Initialize CustomResource Informer for required namespace
 	crInf, ok := crMgr.getNamespacedInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
 	}
 
-	// TODO: Create Internal Structure to hold TLSProfiles. Make API call only for a new VirtualServerWithTLSProfile
-	// Check if the VirtualServerWithTLSProfile exists and valid for us.
+	// TODO: Create Internal Structure to hold TLSProfiles. Make API call only for a new TLSProfile
+	// Check if the TLSProfile exists and valid for us.
 	obj, tlsFound, _ := crInf.tlsInformer.GetIndexer().GetByKey(tlsKey)
 	if !tlsFound {
-		log.Errorf("VirtualServerWithTLSProfile %s does not exist", tlsName)
+		log.Errorf("TLSProfile %s does not exist", tlsName)
 		return nil
 	}
 
-	// validate VirtualServerWithTLSProfile
+	// validate TLSProfile
 	validation := validateTLSProfile(obj.(*cisapiv1.TLSProfile))
 	if validation == false {
 		return nil
@@ -571,17 +610,17 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(
 		// VirtualServer without host may be used for group of services
 		// which are common amongst multiple hosts. Example: Error Page
 		// application may be common for multiple hosts.
-		// However, each host use a unique VirtualServerWithTLSProfile w.r.t SNI
+		// However, each host use a unique TLSProfile w.r.t SNI
 		return tlsProfile
 	}
 
 	for _, host := range tlsProfile.Spec.Hosts {
 		if host == vs.Spec.Host {
-			// VirtualServerWithTLSProfile Object
+			// TLSProfile Object
 			return tlsProfile
 		}
 	}
-	log.Errorf("VirtualServerWithTLSProfile %s with host %s does not match with virtual server %s host.", tlsName, vs.Spec.Host, vs.ObjectMeta.Name)
+	log.Errorf("TLSProfile %s with host %s does not match with virtual server %s host.", tlsName, vs.Spec.Host, vs.ObjectMeta.Name)
 	return nil
 
 }
@@ -707,6 +746,7 @@ func (crMgr *CRManager) processVirtualServers(
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
+		rsCfg.MetaData.Protocol = portStruct.protocol
 		rsCfg.Virtual.SetVirtualAddress(
 			ip,
 			portStruct.port,
@@ -714,6 +754,15 @@ func (crMgr *CRManager) processVirtualServers(
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles.Profs = make(map[SecretKey]CustomProfile)
+
+		plc := crMgr.getPolicyFromVirtuals(virtuals)
+		if plc != nil {
+			err := crMgr.handleResourceConfigForPolicy(rsCfg, plc)
+			if err != nil {
+				processingError = true
+				break
+			}
+		}
 
 		for _, vrt := range virtuals {
 			log.Debugf("Processing Virtual Server %s for port %v",
@@ -746,7 +795,7 @@ func (crMgr *CRManager) processVirtualServers(
 					break
 				}
 
-				log.Debugf("Updated Virtual %s with VirtualServerWithTLSProfile %s",
+				log.Debugf("Updated Virtual %s with TLSProfile %s",
 					vrt.ObjectMeta.Name, vrt.Spec.TLSProfileName)
 			}
 		}
@@ -848,6 +897,50 @@ func (crMgr *CRManager) getAssociatedVirtualServers(
 		}
 	}
 	return virtuals
+}
+
+func (crMgr *CRManager) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer) *cisapiv1.Policy {
+
+	if len(virtuals) == 0 {
+		log.Errorf("No virtuals to extract policy from")
+		return nil
+	}
+	plcName := ""
+	ns := virtuals[0].Namespace
+
+	for _, vrt := range virtuals {
+		if plcName != "" && plcName != vrt.Spec.PolicyName {
+			log.Errorf("Multiple Policies specified with for host: %v", vrt.Spec.Host)
+			return nil
+		}
+		if vrt.Spec.PolicyName != "" {
+			plcName = vrt.Spec.PolicyName
+		}
+	}
+	if plcName == "" {
+		return nil
+	}
+	crInf, ok := crMgr.getNamespacedInformer(ns)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", ns)
+		return nil
+	}
+
+	key := ns + "/" + plcName
+
+	obj, exist, err := crInf.plcInformer.GetIndexer().GetByKey(key)
+	if err != nil {
+		log.Errorf("Error while fetching Policy: %v: %v",
+			key, err)
+		return nil
+	}
+
+	if !exist {
+		log.Errorf("Policy Not Found: %v", key)
+		return nil
+	}
+
+	return obj.(*cisapiv1.Policy)
 }
 
 func getIPAMLabel(virtuals []*cisapiv1.VirtualServer) string {
@@ -1764,7 +1857,7 @@ func (crMgr *CRManager) ProcessAssociatedExternalDNS(hostnames []string) {
 
 //Validate certificate hostname
 func checkCertificateHost(res *v1.Secret, host string) bool {
-	cert, certErr := tls.X509KeyPair(res.Data["VirtualServerWithTLSProfile.crt"], res.Data["VirtualServerWithTLSProfile.key"])
+	cert, certErr := tls.X509KeyPair(res.Data["tls.crt"], res.Data["tls.key"])
 	if certErr != nil {
 		log.Errorf("Failed to validate TLS cert and key: %v", certErr)
 		return false

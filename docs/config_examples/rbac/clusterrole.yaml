@@ -6,13 +6,13 @@ metadata:
   name: bigip-ctlr-clusterrole
 rules:
   - apiGroups: ["", "extensions", "networking.k8s.io"]
-    resources: ["nodes", "services", "endpoints", "namespaces", "ingresses", "pods", "ingressclasses"]
+    resources: ["nodes", "services", "endpoints", "namespaces", "ingresses", "pods", "ingressclasses", "policies"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["", "extensions", "networking.k8s.io"]
     resources: ["configmaps", "events", "ingresses/status", "services/status"]
     verbs: ["get", "list", "watch", "update", "create", "patch"]
   - apiGroups: ["cis.f5.com"]
-    resources: ["virtualservers","virtualservers/status", "tlsprofiles", "transportservers", "ingresslinks", "ingresslinks/status", "externaldnss"]
+    resources: ["virtualservers","virtualservers/status", "tlsprofiles", "transportservers", "ingresslinks", "ingresslinks/status", "externaldnss", "policies"]
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["fic.f5.com"]
     resources: ["ipams", "ipams/status"]
@@ -37,6 +37,7 @@ subjects:
   - apiGroup: ""
     kind: ServiceAccount
     name: bigip-ctlr
+<<<<<<< HEAD:docs/config_examples/rbac/clusterrole.yaml
     namespace: kube-system
 ---
 apiVersion: v1
@@ -45,3 +46,6 @@ metadata:
   name: bigip-ctlr
   namespace: kube-system
  
+=======
+    namespace: <controller_namespace>
+>>>>>>> 15f9f42f34e8169635bf399efe079e885b63e620:docs/config_examples/crd/Install/clusterrole.yml

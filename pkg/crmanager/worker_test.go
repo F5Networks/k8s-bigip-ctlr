@@ -63,6 +63,7 @@ var _ = Describe("Worker Tests", func() {
 				HTTPTraffic:      "",
 				SNAT:             "",
 				WAF:              "",
+				Firewall:         "",
 				RewriteAppRoot:   "",
 				AllowVLANs:       nil,
 				IRules:           nil,
@@ -423,7 +424,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(res[0]).To(Equal(ts2), "Wrong list of Transport Servers")
 		})
 
-		It("Filter VS for VirtualServerWithTLSProfile", func() {
+		It("Filter VS for TLSProfile", func() {
 			tlsProf := test.NewTLSProfile("sampleTLS", namespace, cisapiv1.TLSProfileSpec{
 				Hosts: []string{"test2.com"},
 			})

@@ -10,7 +10,7 @@ const (
 	// VirtualServer is a F5 Custom Resource Kind.
 	VirtualServer = "VirtualServer"
 	// TLSProfile is a F5 Custom Resource Kind
-	TLSProfile = "VirtualServerWithTLSProfile"
+	TLSProfile = "TLSProfile"
 	// IngressLink is a Custom Resource used by both F5 and Nginx
 	IngressLink = "IngressLink"
 	// TransportServer is a F5 Custom Resource Kind

@@ -5,8 +5,8 @@ metadata:
   labels:
     f5cr: "true"
 spec:
-  # This is an insecure virtual, Please use VirtualServerWithTLSProfile to secure the virtual
-  # check out VirtualServerWithTLSProfile examples to understand more.
+  # This is an insecure virtual, Please use TLSProfile to secure the virtual
+  # check out tls examples to understand more.
   virtualServerAddress: "172.16.3.4"
   host: coffee.example.com
   pools:
@@ -25,8 +25,8 @@ metadata:
   labels:
     f5cr: "true"
 spec:
-  # This is an insecure virtual, Please use VirtualServerWithTLSProfile to secure the virtual
-  # check out VirtualServerWithTLSProfile examples to understand more.
+  # This is an insecure virtual, Please use TLSProfile to secure the virtual
+  # check out tls examples to understand more.
   virtualServerAddress: "172.16.3.5"
   host: tea.example.com
   pools:

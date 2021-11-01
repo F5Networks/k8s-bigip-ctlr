@@ -398,6 +398,10 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	if vs.Spec.WAF != "" {
 		rsCfg.Virtual.WAF = vs.Spec.WAF
 	}
+	// set the Firewall policy
+	if vs.Spec.Firewall != "" {
+		rsCfg.Virtual.Firewall = vs.Spec.Firewall
+	}
 	//Attach allowVlans.
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
 
@@ -443,7 +447,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 	ip string,
 ) bool {
 	if 0 == len(vs.Spec.TLSProfileName) {
-		// Probably this is a non-VirtualServerWithTLSProfile Virtual Server, nothing to do w.r.t TLS
+		// Probably this is a non-tls Virtual Server, nothing to do w.r.t TLS
 		return false
 	}
 
@@ -463,15 +467,15 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 	// then we don't need a redirect policy, only profiles
 	if rsCfg.Virtual.VirtualAddress.Port == httpsPort {
 		// Virtual Server related properties
-		// Virtual Server and VirtualServerWithTLSProfile are assumed to be in same namespace
+		// Virtual Server and TLSProfile are assumed to be in same namespace
 		vsNamespace := vs.ObjectMeta.Namespace
 		vsName := vs.ObjectMeta.Name
 
-		// VirtualServerWithTLSProfile Object
+		// TLSProfile Object
 		tlsName := vs.Spec.TLSProfileName
 
 		if tls.Spec.TLS.Termination == TLSPassthrough {
-			rsCfg.Virtual.PersistenceMethods = []string{"VirtualServerWithTLSProfile-session-id"}
+			rsCfg.Virtual.PersistenceMethods = []string{"tls-session-id"}
 			return true
 		}
 
@@ -481,7 +485,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			clientSSL := tls.Spec.TLS.ClientSSL
 			serverSSL := tls.Spec.TLS.ServerSSL
 			// Profile is a BIG-IP default
-			log.Debugf("Processing BIGIP referenced profiles for Virtual '%s' using VirtualServerWithTLSProfile '%s'",
+			log.Debugf("Processing BIGIP referenced profiles for Virtual '%s' using TLSProfile '%s'",
 				vsName, tlsName)
 			// Process referenced BIG-IP clientSSL
 			if clientSSL != "" {
@@ -495,7 +499,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					serverSSL, CustomProfileServer, vsNamespace)
 				rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
 			}
-			log.Debugf("Updated BIGIP referenced profiles for Virtual '%s' using VirtualServerWithTLSProfile '%s'",
+			log.Debugf("Updated BIGIP referenced profiles for Virtual '%s' using TLSProfile '%s'",
 				vsName, tlsName)
 		case Secret:
 			// Prepare SSL Transient Context
@@ -504,29 +508,29 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			clientSSL := tls.Spec.TLS.ClientSSL
 			if clientSSL != "" {
 				if secret, ok := crMgr.SSLContext[clientSSL]; ok {
-					log.Debugf("clientSSL secret %s for VirtualServerWithTLSProfile '%s' is already available with CIS in "+
+					log.Debugf("clientSSL secret %s for TLSProfile '%s' is already available with CIS in "+
 						"SSLContext as clientSSL", secret.ObjectMeta.Name, tlsName)
 					err, _ := crMgr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
 					if err != nil {
-						log.Debugf("error %v encountered for '%s' using VirtualServerWithTLSProfile '%s'",
+						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
 							err, vsName, tlsName)
 						return false
 					}
 				} else {
 					// Check if profile is contained in a Secret
 					// Update the SSL Context if secret found, This is used to avoid api calls
-					log.Debugf("saving clientSSL secret for VirtualServerWithTLSProfile '%s' into SSLContext", tlsName)
+					log.Debugf("saving clientSSL secret for TLSProfile '%s' into SSLContext", tlsName)
 					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
 						Get(context.TODO(), clientSSL, metav1.GetOptions{})
 					if err != nil {
-						log.Errorf("secret %s not found for Virtual '%s' using VirtualServerWithTLSProfile '%s'",
+						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
 							clientSSL, vsName, tlsName)
 						return false
 					}
 					crMgr.SSLContext[clientSSL] = secret
 					err, _ = crMgr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
 					if err != nil {
-						log.Errorf("error %v encountered for '%s' using VirtualServerWithTLSProfile '%s'",
+						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
 							err, vsName, tlsName)
 						return false
 					}
@@ -536,36 +540,36 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			serverSSL := tls.Spec.TLS.ServerSSL
 			if serverSSL != "" {
 				if secret, ok := crMgr.SSLContext[serverSSL]; ok {
-					log.Debugf("serverSSL secret %s for VirtualServerWithTLSProfile '%s' is already available with CIS in"+
+					log.Debugf("serverSSL secret %s for TLSProfile '%s' is already available with CIS in"+
 						"SSLContext", secret.ObjectMeta.Name, tlsName)
 					err, _ := crMgr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
 					if err != nil {
-						log.Debugf("error %v encountered for '%s' using VirtualServerWithTLSProfile '%s'",
+						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
 							err, vsName, tlsName)
 						return false
 					}
 				} else {
 					// Check if profile is contained in a Secret
 					// Update the SSL Context if secret found, This is used to avoid api calls
-					log.Debugf("saving serverSSL secret for VirtualServerWithTLSProfile '%s' into SSLContext", tlsName)
+					log.Debugf("saving serverSSL secret for TLSProfile '%s' into SSLContext", tlsName)
 					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
 						Get(context.TODO(), serverSSL, metav1.GetOptions{})
 					if err != nil {
-						log.Errorf("secret %s not found for Virtual '%s' using VirtualServerWithTLSProfile '%s'",
+						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
 							serverSSL, vsName, tlsName)
 						return false
 					}
 					crMgr.SSLContext[serverSSL] = secret
 					err, _ = crMgr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
 					if err != nil {
-						log.Errorf("error %v encountered for '%s' using VirtualServerWithTLSProfile '%s'",
+						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
 							err, vsName, tlsName)
 						return false
 					}
 				}
 			}
 		default:
-			log.Errorf("referenced profile does not exist for Virtual '%s' using VirtualServerWithTLSProfile '%s'",
+			log.Errorf("referenced profile does not exist for Virtual '%s' using TLSProfile '%s'",
 				vsName, tlsName)
 			return false
 		}
@@ -600,7 +604,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			switch tls.Spec.TLS.Termination {
 			case TLSReencrypt:
 				if vs.Spec.HTTPTraffic == TLSAllowInsecure {
-					log.Errorf("Error in processing Virtual '%s' using VirtualServerWithTLSProfile '%s' as httpTraffic is configured as ALLOW for reencrypt Termination",
+					log.Errorf("Error in processing Virtual '%s' using TLSProfile '%s' as httpTraffic is configured as ALLOW for reencrypt Termination",
 						vsName, tlsName)
 					return false
 				}
@@ -681,26 +685,26 @@ func validateTLSProfile(tls *cisapiv1.TLSProfile) bool {
 	if tls.Spec.TLS.Termination == "reencrypt" {
 		// Should contain both client and server SSL profiles
 		if (tls.Spec.TLS.ClientSSL == "") || (tls.Spec.TLS.ServerSSL == "") {
-			log.Errorf("VirtualServerWithTLSProfile %s of type re-encrypt termination should contain both "+
+			log.Errorf("TLSProfile %s of type re-encrypt termination should contain both "+
 				"ClientSSL and ServerSSL", tls.ObjectMeta.Name)
 			return false
 		}
 	} else if tls.Spec.TLS.Termination == "edge" {
 		// Should contain only client SSL
 		if tls.Spec.TLS.ClientSSL == "" {
-			log.Errorf("VirtualServerWithTLSProfile %s of type edge termination should contain Client SSL",
+			log.Errorf("TLSProfile %s of type edge termination should contain Client SSL",
 				tls.ObjectMeta.Name)
 			return false
 		}
 		if tls.Spec.TLS.ServerSSL != "" {
-			log.Errorf("VirtualServerWithTLSProfile %s of type edge termination should NOT contain ServerSSL",
+			log.Errorf("TLSProfile %s of type edge termination should NOT contain ServerSSL",
 				tls.ObjectMeta.Name)
 			return false
 		}
 	} else {
 		// Pass-through
 		if (tls.Spec.TLS.ClientSSL != "") || (tls.Spec.TLS.ServerSSL != "") {
-			log.Errorf("VirtualServerWithTLSProfile %s of type Pass-through termination should NOT contain either "+
+			log.Errorf("TLSProfile %s of type Pass-through termination should NOT contain either "+
 				"ClientSSL or ServerSSL", tls.ObjectMeta.Name)
 			return false
 		}
@@ -1216,6 +1220,29 @@ func (crMgr *CRManager) prepareRSConfigFromLBService(
 	rsCfg.Virtual.SNAT = DEFAULT_SNAT
 	rsCfg.Virtual.Mode = "standard"
 
+	return nil
+}
+
+func (crMgr *CRManager) handleResourceConfigForPolicy(
+	rsCfg *ResourceConfig,
+	plc *cisapiv1.Policy,
+) error {
+	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
+	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
+	var iRule string
+	if rsCfg.MetaData.Protocol == "https" {
+		iRule = plc.Spec.IRules.Secure
+	} else {
+		iRule = plc.Spec.IRules.InSecure
+	}
+	switch plc.Spec.IRules.Priority {
+	case "override":
+		rsCfg.Virtual.IRules = []string{iRule}
+	case "high":
+		rsCfg.Virtual.IRules = append([]string{iRule}, rsCfg.Virtual.IRules...)
+	default:
+		rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
+	}
 	return nil
 }
 

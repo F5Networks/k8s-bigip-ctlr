@@ -5,8 +5,8 @@ metadata:
   labels:
     f5cr: "true"
 spec:
-  # This is an insecure virtual, Please use VirtualServerWithTLSProfile to secure the virtual
-  # check out VirtualServerWithTLSProfile examples to understand more.
+  # This is an insecure virtual, Please use TLSProfile to secure the virtual
+  # check out tls examples to understand more.
   host: cafe.example.com
   ipamLabel: "Dev"
   virtualServerName: "cafe-virtual-server"

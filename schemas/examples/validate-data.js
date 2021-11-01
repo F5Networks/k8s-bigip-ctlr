@@ -47,7 +47,7 @@ if (!baseUri.endsWith('/')) {
   baseUri = baseUri + '/';
 }
 
-const initSchemaUri = baseUri + "schemas/enforce-VirtualServer-types_v0.1.0.json";
+const initSchemaUri = baseUri + "schemas/enforce-basic-types_v0.1.0.json";
 
 const data = {
   "positive-integer-field": 1,

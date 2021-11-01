@@ -241,8 +241,8 @@ var _ = Describe("AppManager Profile Tests", func() {
 					Namespace: namespace,
 				},
 				Data: map[string][]byte{
-					"VirtualServerWithTLSProfile.crt": []byte("testcert"),
-					"VirtualServerWithTLSProfile.key": []byte("testkey"),
+					"tls.crt": []byte("testcert"),
+					"tls.key": []byte("testkey"),
 				},
 			}
 			_, err := mockMgr.appMgr.kubeClient.CoreV1().Secrets(namespace).Create(context.TODO(), secret, metav1.CreateOptions{})

@@ -12,5 +12,5 @@ spec:
     - path: /neam
       service: svc-edge
       servicePort: 80
-  tlsProfileName: edge-VirtualServerWithTLSProfile
+  tlsProfileName: edge-tls
   virtualServerAddress: 172.16.3.4

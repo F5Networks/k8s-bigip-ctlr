@@ -501,6 +501,14 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			BigIP: fmt.Sprintf("%v", cfg.Virtual.WAF),
 		}
 	}
+
+	//Attaching Firewall policy
+	if cfg.Virtual.Firewall != "" {
+		svc.Firewall = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.Firewall),
+		}
+	}
+
 	//Attach allowVlans if exist.
 	var vlans []as3ResourcePointer
 	for _, va := range cfg.Virtual.AllowVLANs {
@@ -530,7 +538,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.VirtualPort = port
 		}
 	}
-	//process irules for customResource
+	//process irules for crd
 	processIrulesForCRD(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }
@@ -953,7 +961,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.Layer4 = "tcp"
 		}
 	}
-	svc.ProfileL4 = "VirtualServer"
+	svc.ProfileL4 = "basic"
 	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
 		svc.SNAT = cfg.Virtual.SNAT
 	} else {
@@ -994,7 +1002,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.AllowVLANs = append(svc.AllowVLANs, vlans)
 		}
 	}
-	//process irules for customResource
+	//process irules for crd
 	processIrulesForCRD(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

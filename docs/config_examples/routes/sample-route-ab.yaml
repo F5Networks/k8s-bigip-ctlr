@@ -27,5 +27,5 @@ spec:
     weight: 20
   alternateBackends:
   - kind: Service
-    name: f5-demo-app-route-VirtualServer
+    name: f5-demo-app-route-basic
     weight: 10

@@ -36,10 +36,12 @@ type VirtualServerSpec struct {
 	HTTPTraffic            string           `json:"httpTraffic,omitempty"`
 	SNAT                   string           `json:"snat,omitempty"`
 	WAF                    string           `json:"waf,omitempty"`
+	Firewall               string           `json:"firewallPolicy,omitempty"`
 	RewriteAppRoot         string           `json:"rewriteAppRoot,omitempty"`
 	AllowVLANs             []string         `json:"allowVlans,omitempty"`
 	IRules                 []string         `json:"iRules,omitempty"`
 	ServiceIPAddress       []ServiceAddress `json:"serviceAddress,omitempty"`
+	PolicyName             string           `json:"policyName,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -94,7 +96,7 @@ type TLSProfile struct {
 // TLSProfileSpec is spec for TLSServer
 type TLSProfileSpec struct {
 	Hosts []string `json:"hosts"`
-	TLS   TLS      `json:"VirtualServerWithTLSProfile"`
+	TLS   TLS      `json:"tls"`
 }
 
 // TLS contains required fields for TLS termination
@@ -175,6 +177,7 @@ type TransportServerSpec struct {
 	ServiceIPAddress     []ServiceAddress `json:"serviceAddress"`
 	IPAMLabel            string           `json:"ipamLabel"`
 	IRules               []string         `json:"iRules,omitempty"`
+	PolicyName           string           `json:"policyName,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -221,4 +224,55 @@ type ExternalDNSList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []ExternalDNS `json:"items"`
+}
+
+type PolicySpec struct {
+	L7Policies  L7PolicySpec  `json:"l7Policies,omitempty"`
+	L3Policies  L3PolicySpec  `json:"l3Policies,omitempty"`
+	LtmPolicies LtmIRulesSpec `json:"ltmPolicies,omitempty"`
+	IRules      LtmIRulesSpec `json:"iRules,omitempty"`
+	Profiles    ProfileSpec   `json:"profiles,omitempty"`
+}
+
+type L7PolicySpec struct {
+	WAF string `json:"waf,omitempty"`
+}
+
+type L3PolicySpec struct {
+	DOS            string `json:"dos,omitempty"`
+	FirewallPolicy string `json:"firewallPolicy,omitempty"`
+}
+
+type LtmIRulesSpec struct {
+	Secure   string `json:"secure,omitempty"`
+	InSecure string `json:"insecure,omitempty"`
+	Priority string `json:"priority,omitempty"`
+}
+
+type ProfileSpec struct {
+	TCP            string `json:"tcp,omitempty"`
+	UDP            string `json:"udp,omitempty"`
+	HTTP           string `json:"http,omitempty"`
+	RewriteProfile string `json:"rewriteProfile,omitempty"`
+}
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// Policy describes a Policy custom resource.
+type Policy struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec PolicySpec `json:"spec"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// PolicyList is list of Policy resources
+type PolicyList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []Policy `json:"items"`
 }

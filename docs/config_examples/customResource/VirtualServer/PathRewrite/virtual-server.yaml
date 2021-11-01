@@ -6,8 +6,8 @@ metadata:
   labels:
     f5cr: "true"
 spec:
-  # This is an insecure virtual, Please use VirtualServerWithTLSProfile to secure the virtual
-  # check out VirtualServerWithTLSProfile examples to understand more.
+  # This is an insecure virtual, Please use TLSProfile to secure the virtual
+  # check out tls examples to understand more.
   virtualServerAddress: "172.16.3.6"
   host: collage.example.com
   pools:
@@ -28,8 +28,8 @@ metadata:
   labels:
     f5cr: "true"
 spec:
-  # This is an insecure virtual, Please use VirtualServerWithTLSProfile to secure the virtual
-  # check out VirtualServerWithTLSProfile examples to understand more.
+  # This is an insecure virtual, Please use TLSProfile to secure the virtual
+  # check out tls examples to understand more.
   virtualServerAddress: "172.16.3.6"
   rewriteAppRoot: /home
   host: collage.example.com
@@ -50,8 +50,8 @@ metadata:
   labels:
     f5cr: "true"
 spec:
-  # This is an insecure virtual, Please use VirtualServerWithTLSProfile to secure the virtual
-  # check out VirtualServerWithTLSProfile examples to understand more.
+  # This is an insecure virtual, Please use TLSProfile to secure the virtual
+  # check out tls examples to understand more.
   virtualServerAddress: "172.16.3.6"
   rewriteAppRoot: /home
   host: collage.example.com

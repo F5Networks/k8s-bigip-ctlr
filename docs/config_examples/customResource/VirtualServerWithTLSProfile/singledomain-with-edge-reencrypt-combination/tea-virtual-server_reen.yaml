@@ -15,5 +15,5 @@ spec:
     - path: /black
       service: svc-2
       servicePort: 80
-  tlsProfileName: reencrypt-VirtualServerWithTLSProfile-secret
+  tlsProfileName: reencrypt-tls-secret
   virtualServerAddress: 172.16.3.4

@@ -239,6 +239,7 @@ var _ = Describe("Resource Config Tests", func() {
 					},
 					RewriteAppRoot: "/home",
 					WAF:            "/Common/WAF",
+					Firewall:       "/Common/AFM",
 					IRules:         []string{"SampleIRule"},
 				},
 			)
@@ -391,7 +392,7 @@ var _ = Describe("Resource Config Tests", func() {
 			ctx := "clientside"
 
 			prof1 := ProfileRef{
-				"VirtualServer",
+				"basic",
 				"Common",
 				ctx,
 				namespace,

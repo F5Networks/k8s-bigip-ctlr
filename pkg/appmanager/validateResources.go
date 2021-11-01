@@ -267,10 +267,10 @@ func (appMgr *Manager) checkValidSecrets(
 	obj interface{}) (bool, []*serviceQueueKey) {
 	secret := obj.(*v1.Secret)
 	// Check if secret contains certificates and key
-	if _, ok := secret.Data["VirtualServerWithTLSProfile.crt"]; !ok {
+	if _, ok := secret.Data["tls.crt"]; !ok {
 		return false, nil
 	}
-	if _, ok := secret.Data["VirtualServerWithTLSProfile.key"]; !ok {
+	if _, ok := secret.Data["tls.key"]; !ok {
 		return false, nil
 	}
 	// Getting the ServiceQueue key for ingresses

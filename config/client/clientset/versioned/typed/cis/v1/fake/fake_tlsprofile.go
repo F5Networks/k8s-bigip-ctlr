@@ -38,7 +38,7 @@ type FakeTLSProfiles struct {
 
 var tlsprofilesResource = schema.GroupVersionResource{Group: "cis.f5.com", Version: "v1", Resource: "tlsprofiles"}
 
-var tlsprofilesKind = schema.GroupVersionKind{Group: "cis.f5.com", Version: "v1", Kind: "VirtualServerWithTLSProfile"}
+var tlsprofilesKind = schema.GroupVersionKind{Group: "cis.f5.com", Version: "v1", Kind: "TLSProfile"}
 
 // Get takes name of the tLSProfile, and returns the corresponding tLSProfile object, and an error if there is any.
 func (c *FakeTLSProfiles) Get(ctx context.Context, name string, options v1.GetOptions) (result *cisv1.TLSProfile, err error) {

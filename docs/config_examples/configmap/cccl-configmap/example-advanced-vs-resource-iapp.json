@@ -10,31 +10,31 @@
       "iappPoolMemberTable": {
         "name": "pool__Members",
         "columns": [
-            {"name": "Index", "value": "0"},
-            {"name": "IPAddress", "kind": "IPAddress"},
-            {"name": "Port", "kind": "Port"},
-            {"name": "ConnectionLimit", "value": "1000"},
-            {"name": "Ratio", "value": "1"},
-            {"name": "PriorityGroup", "value": "0"},
-            {"name": "State", "value": "enabled"}
+          {"name": "Index", "value": "0"},
+          {"name": "IPAddress", "kind": "IPAddress"},
+          {"name": "Port", "kind": "Port"},
+          {"name": "ConnectionLimit", "value": "1000"},
+          {"name": "Ratio", "value": "1"},
+          {"name": "PriorityGroup", "value": "0"},
+          {"name": "State", "value": "enabled"}
         ]
       },
       "iappTables": {
         "l7policy__rulesMatch": {
           "columns": ["Group", "Operand", "Negate", "Condition", "Value",
-                      "CaseSensitive", "Missing"],
+            "CaseSensitive", "Missing"],
           "rows": [["0", "http-uri/request/path", "no", "starts-with",
-                    "/env", "no", "no"],
-                   ["default", "", "no", "", "", "no", "no"]]
+            "/env", "no", "no"],
+            ["default", "", "no", "", "", "no", "no"]]
         },
         "l7policy__rulesAction": {
           "columns": ["Group", "Target", "Parameter"],
           "rows": [["0", "forward/request/reset", "none"],
-                   ["default", "forward/request/select/pool", "pool:0"]]
+            ["default", "forward/request/select/pool", "pool:0"]]
         },
         "pool__Pools": {
           "columns": ["Index", "Name", "Description", "LbMethod",
-                      "Monitor", "AdvOptions"],
+            "Monitor", "AdvOptions"],
           "rows": [["0", "", "", "round-robin", "0", "none"]]
         },
         "monitor__Monitors": {

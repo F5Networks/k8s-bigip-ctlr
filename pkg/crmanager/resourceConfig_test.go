@@ -391,7 +391,7 @@ var _ = Describe("Resource Config Tests", func() {
 			ctx := "clientside"
 
 			prof1 := ProfileRef{
-				"basic",
+				"VirtualServer",
 				"Common",
 				ctx,
 				namespace,

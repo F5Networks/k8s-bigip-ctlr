@@ -36,7 +36,7 @@ type TLSProfilesGetter interface {
 	TLSProfiles(namespace string) TLSProfileInterface
 }
 
-// TLSProfileInterface has methods to work with TLSProfile resources.
+// TLSProfileInterface has methods to work with VirtualServerWithTLSProfile resources.
 type TLSProfileInterface interface {
 	Create(ctx context.Context, tLSProfile *v1.TLSProfile, opts metav1.CreateOptions) (*v1.TLSProfile, error)
 	Update(ctx context.Context, tLSProfile *v1.TLSProfile, opts metav1.UpdateOptions) (*v1.TLSProfile, error)

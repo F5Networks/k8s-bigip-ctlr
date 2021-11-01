@@ -1,0 +1,16 @@
+apiVersion: cis.f5.com/v1
+kind: VirtualServer
+metadata:
+  labels:
+    f5cr: "true"
+  name: tea-virtual-server-edge
+  namespace: default
+spec:
+  host: tea.example.com
+  httpTraffic: redirect
+  pools:
+    - path: /neam
+      service: svc-edge
+      servicePort: 80
+  tlsProfileName: edge-VirtualServerWithTLSProfile
+  virtualServerAddress: 172.16.3.4

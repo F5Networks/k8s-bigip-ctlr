@@ -13,7 +13,7 @@
 // limitations under the License.
 
 /*
-Package vlogger implements an interface around basic logging features
+Package vlogger implements an interface around VirtualServer logging features
 so that end-user and library writers can code to the interface without
 worrying about the specific type of logging package that is being used.
 

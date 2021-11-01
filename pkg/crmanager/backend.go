@@ -538,7 +538,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.VirtualPort = port
 		}
 	}
-	//process irules for crd
+	//process irules for customResource
 	processIrulesForCRD(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }
@@ -961,7 +961,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.Layer4 = "tcp"
 		}
 	}
-	svc.ProfileL4 = "basic"
+	svc.ProfileL4 = "VirtualServer"
 	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
 		svc.SNAT = cfg.Virtual.SNAT
 	} else {
@@ -1002,7 +1002,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.AllowVLANs = append(svc.AllowVLANs, vlans)
 		}
 	}
-	//process irules for crd
+	//process irules for customResource
 	processIrulesForCRD(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

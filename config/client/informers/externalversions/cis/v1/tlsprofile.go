@@ -45,14 +45,14 @@ type tLSProfileInformer struct {
 	namespace        string
 }
 
-// NewTLSProfileInformer constructs a new informer for TLSProfile type.
+// NewTLSProfileInformer constructs a new informer for VirtualServerWithTLSProfile type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
 func NewTLSProfileInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewFilteredTLSProfileInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredTLSProfileInformer constructs a new informer for TLSProfile type.
+// NewFilteredTLSProfileInformer constructs a new informer for VirtualServerWithTLSProfile type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredTLSProfileInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {

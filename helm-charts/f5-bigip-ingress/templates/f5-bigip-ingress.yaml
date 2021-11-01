@@ -13,9 +13,9 @@ metadata:
       {{ $key }}: {{ $value | quote }}
     {{- end }}
 spec:
-{{- if .Values.ingress.spec.tls }}
+{{- if .Values.ingress.spec.VirtualServerWithTLSProfile }}
   tls:
-    - secretName: {{ .Values.ingress.spec.tls.secretName | quote }}
+    - secretName: {{ .Values.ingress.spec.VirtualServerWithTLSProfile.secretName | quote }}
 {{- end }}
 {{- $hostIndent := 0 -}}
 {{- if .Values.ingress.spec.rules }}

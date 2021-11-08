@@ -45,7 +45,8 @@ const (
 	as3shared            = "shared"
 	as3template          = "template"
 	//as3SchemaLatestURL   = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
-	as3SchemaFileName = "as3-schema-3.28.0-3-cis.json"
+	as3SchemaFileName     = "as3-schema-3.28.0-3-cis.json"
+	as3defaultRouteDomain = "defaultRouteDomain"
 )
 
 var baseAS3Config = `{
@@ -111,6 +112,7 @@ type AS3Manager struct {
 	as3Release                string
 	unprocessableEntityStatus bool
 	shareNodes                bool
+	defaultRouteDomain        int
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -143,6 +145,7 @@ type Params struct {
 	As3Release                string
 	As3SchemaVersion          string
 	unprocessableEntityStatus bool
+	DefaultRouteDomain        int
 }
 
 // Create and return a new app manager that meets the Manager interface
@@ -162,6 +165,7 @@ func NewAS3Manager(params *Params) *AS3Manager {
 		as3SchemaVersion:          params.As3SchemaVersion,
 		OverriderCfgMapName:       params.OverriderCfgMapName,
 		shareNodes:                params.ShareNodes,
+		defaultRouteDomain:        params.DefaultRouteDomain,
 		l2l3Agent: L2L3Agent{eventChan: params.EventChan,
 			configWriter: params.ConfigWriter},
 		PostManager: NewPostManager(PostParams{

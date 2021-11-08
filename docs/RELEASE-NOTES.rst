@@ -1,5 +1,18 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
+
+2.6.1
+-------------
+Bug Fixes
+`````````
+* Added the complete path for datagroups in http redirect irule
+* Added RouteDomain support for AS3 resources
+* :issues:`2032` EDNS will not work if both Virtual Server CRD and EDNS CRD applied at the same time
+* :issues:`2012` Invalid Pool Name passed to AS3
+* :issues:`1931` Cannot disable IngressClass in HelmChart
+* :issues:`1911` CIS delete all exist vs when cis pod restarting
+* :issues:`1792` EDNS fails to link WIP to Pool, error says "last-resort-pool" needs value in bipctrl log
+
 2.6.0
 -------------
 Added Functionality
@@ -9,7 +22,7 @@ Added Functionality
 * CIS supports IP address assignment to IngressLink Custom Resources using F5 IPAM Controller(See `documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/IngressLink/ingressLink-with-ipamLabel>`_)
 * CIS validates IPV6 address in bigip-url & gtm-bigip-url parameter
 
-Bug Fixes
+Bug Fixed
 `````````
 * :issues:`1679` CIS requires GTM parameter in CIS declaration even if GTM runs on the same BIG-IP
 * :issues:`1888` Unable to upgrade from 2.2.0 (or below) to 2.2.1 (or above)
@@ -27,11 +40,13 @@ Known Issues
 ````````````
 * EDNS with https monitor is not properly supported.
 
+
 F5 IPAM Controller v0.1.5
 `````````````````````````
 Added Functionality
 ```````````````````
 * F5 IPAM Controller supports InfoBlox (See `FIC release notes <https://github.com/F5Networks/f5-ipam-controller/blob/main/docs/RELEASE-NOTES.rst>`_)
+
 
 2.5.1
 -------------

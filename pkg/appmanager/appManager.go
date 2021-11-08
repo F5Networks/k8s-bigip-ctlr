@@ -121,6 +121,7 @@ type Manager struct {
 	mergedRulesMap map[string]map[string]MergedRuleEntry
 	// Whether to watch ConfigMap resources or not
 	manageConfigMaps       bool
+	configMapLabel         string
 	hubMode                bool
 	manageIngress          bool
 	manageIngressClassOnly bool
@@ -139,6 +140,7 @@ type Manager struct {
 	processAgentLabels func(map[string]string, string, string) bool
 	K8sVersion         string
 	TeemData           *teem.TeemsData
+	defaultRouteDomain int
 }
 
 // Watched Namespaces for global availability.
@@ -178,6 +180,7 @@ type Params struct {
 	AgRspChan          chan interface{}
 	ProcessAgentLabels func(map[string]string, string, string) bool
 	UserAgent          string
+	DefaultRouteDomain int
 }
 
 // Configuration options for Routes in OpenShift
@@ -259,6 +262,7 @@ func NewManager(params *Params) *Manager {
 		processAgentLabels:     params.ProcessAgentLabels,
 		agentCfgMap:            make(map[string]*AgentCfgMap),
 		agentCfgMapSvcCache:    make(map[string]*SvcEndPointsCache),
+		defaultRouteDomain:     params.DefaultRouteDomain,
 	}
 	manager.processedResources = make(map[string]bool)
 
@@ -662,8 +666,9 @@ func (appMgr *Manager) newAppInformer(
 	}
 
 	if false != appMgr.manageConfigMaps {
+		appMgr.configMapLabel = cfgMapSelector.String()
 		cfgMapOptions := func(options *metav1.ListOptions) {
-			options.LabelSelector = cfgMapSelector.String()
+			options.LabelSelector = appMgr.configMapLabel
 		}
 		log.Infof("[CORE] Watching ConfigMap resources.")
 		//If Hubmode is enabled, process configmaps every 30 seconds to process unwatched namespace deployments
@@ -1047,18 +1052,72 @@ func (appMgr *Manager) GetAllWatchedNamespaces() []string {
 // Get the length of queue
 func (appMgr *Manager) getQueueLength() int {
 	qLen := 0
+
+	cmOptions := metav1.ListOptions{
+		LabelSelector: appMgr.configMapLabel,
+	}
+
+	rtOptions := metav1.ListOptions{
+		LabelSelector: appMgr.routeConfig.RouteLabel,
+	}
+
 	for _, ns := range appMgr.GetAllWatchedNamespaces() {
 		services, err := appMgr.kubeClient.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{})
-		qLen += len(services.Items)
-		if len(services.Items) != 0 {
-			qLen++
+		for _, svc := range services.Items {
+			if ok, _ := appMgr.checkValidService(&svc); ok {
+				qLen++
+			}
 		}
 		if err != nil {
 			log.Errorf("[CORE] Failed getting Services from watched namespace : %v.", err)
-			qLen = appMgr.vsQueue.Len()
+			return appMgr.vsQueue.Len()
+		}
+
+		if false != appMgr.manageConfigMaps {
+			cms, err := appMgr.kubeClient.CoreV1().ConfigMaps(ns).List(context.TODO(), cmOptions)
+			for _, cm := range cms.Items {
+				if ok, _ := appMgr.checkValidConfigMap(&cm, OprTypeCreate); ok {
+					qLen++
+				}
+			}
+			if err != nil {
+				log.Errorf("[CORE] Failed getting Configmaps from watched namespace : %v.", err)
+				return appMgr.vsQueue.Len()
+			}
+		}
+
+		if nil != appMgr.routeClientV1 {
+			rts, err := appMgr.routeClientV1.Routes(ns).List(context.TODO(), rtOptions)
+			for _, rt := range rts.Items {
+				if ok, _ := appMgr.checkValidRoute(&rt); ok {
+					qLen++
+				}
+			}
+			if err != nil {
+				log.Errorf("[CORE] Failed getting Routes from watched namespace : %v.", err)
+				return appMgr.vsQueue.Len()
+			}
 		}
 	}
 	return qLen
+}
+
+// isNonPerfResource returns true if the resource gets processed according to old low performing algorithm
+func isNonPerfResource(resKind string) bool {
+
+	switch resKind {
+	case Services, Configmaps, Routes:
+		// Configmaps and Routes get processed according to low performing algorithm
+		// But, Service must be processed everytime
+		return true
+	case Ingresses, Endpoints:
+		// Ingresses get processed according to new high performance algorithm
+		// Endpoints are out of equation, during initial state never gets processed
+		return false
+	}
+
+	// Unknown resources are to be considered as non-performing
+	return true
 }
 
 func (appMgr *Manager) processNextVirtualServer() bool {
@@ -1073,13 +1132,20 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 
 	defer appMgr.vsQueue.Done(key)
 	skey := key.(serviceQueueKey)
-	if !appMgr.steadyState && (skey.ResourceKind != Services && skey.ResourceKind != Configmaps && skey.ResourceKind != Routes) {
+	if !appMgr.steadyState && !isNonPerfResource(skey.ResourceKind) {
 		if skey.Operation != OprTypeCreate {
 			appMgr.vsQueue.AddRateLimited(key)
 		}
 		appMgr.vsQueue.Forget(key)
 		return true
 	}
+
+	if !appMgr.steadyState && skey.Operation != OprTypeCreate {
+		appMgr.vsQueue.AddRateLimited(key)
+		appMgr.vsQueue.Forget(key)
+		return true
+	}
+
 	err := appMgr.syncVirtualServer(skey)
 	if err == nil {
 		if !appMgr.steadyState {
@@ -1121,8 +1187,10 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
+		// processedItems with +1 because that is the actual number of items processed
+		// and it gets incremented just after this function returns
 		log.Debugf("[CORE] Finished syncing virtual servers %+v in namespace %+v (%v), %v/%v",
-			sKey.ServiceName, sKey.Namespace, endTime.Sub(startTime), appMgr.processedItems, appMgr.queueLen)
+			sKey.ServiceName, sKey.Namespace, endTime.Sub(startTime), appMgr.processedItems+1, appMgr.queueLen)
 	}()
 	// Get the informers for the namespace. This will tell us if we care about
 	// this item.
@@ -1151,7 +1219,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		rkey := Services + "_" + sKey.Namespace
 		if !appMgr.steadyState && sKey.Operation == OprTypeCreate {
 			if _, ok := appMgr.processedResources[rkey]; ok {
-				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen {
+				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen-1 {
 					appMgr.deployResource()
 					appMgr.steadyState = true
 				}
@@ -1168,6 +1236,10 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		switch sKey.Operation {
 		case OprTypeCreate:
 			if _, ok := appMgr.processedResources[resKey]; ok {
+				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen-1 {
+					appMgr.deployResource()
+					appMgr.steadyState = true
+				}
 				return nil
 			}
 		case OprTypeDelete:
@@ -1182,6 +1254,10 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		// otherwise just mark it as processed and continue
 		case OprTypeCreate:
 			if _, ok := appMgr.processedResources[resKey]; ok {
+				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen-1 {
+					appMgr.deployResource()
+					appMgr.steadyState = true
+				}
 				return nil
 			}
 			appMgr.processedResources[resKey] = true
@@ -1410,9 +1486,6 @@ func (appMgr *Manager) syncConfigMaps(
 				if updated {
 					stats.cpUpdated += 1
 				}
-				// Mark each resource as it is already processed
-				// So that later the create event of the same resource will not processed, unnecessarily
-				appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
 			}
 		}
 
@@ -1424,6 +1497,9 @@ func (appMgr *Manager) syncConfigMaps(
 			stats.vsUpdated += updated
 			continue
 		} else {
+			// Mark each resource as it is already processed
+			// So that later the create event of the same resource will not be processed, unnecessarily
+			appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
 			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(0)
 			stats.vsFound += found
 			stats.vsUpdated += updated

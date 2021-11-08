@@ -36,9 +36,6 @@ spec:
                   items:
                     type: object
                     properties:
-                      name:
-                        type: string
-                        pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
                       dataServerName:
                         type: string
                       dnsRecordType:
@@ -65,7 +62,17 @@ spec:
                           - send
                           - interval
                     required:
-                      - name
                       - dataServerName
               required:
                 - domainName
+      additionalPrinterColumns:
+        - name: domainName
+          type: string
+          description: Domain name of virtual server resource
+          jsonPath: .spec.domainName
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+        - name: CREATED ON
+          type: string
+          jsonPath: .metadata.creationTimestamp

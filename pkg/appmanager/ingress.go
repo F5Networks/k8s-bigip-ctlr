@@ -852,7 +852,7 @@ func (appMgr *Manager) handleV1IngressTls(
 		log.Debugf("[CORE] TLS: Applying HTTP redirect iRule.")
 		ruleName := fmt.Sprintf("%s_%d", HttpRedirectIRuleName, httpsPort)
 		appMgr.addIRule(ruleName, DEFAULT_PARTITION,
-			httpRedirectIRule(httpsPort))
+			httpRedirectIRule(httpsPort, DEFAULT_PARTITION, appMgr.TeemData.Agent))
 		appMgr.addInternalDataGroup(HttpsRedirectDgName, DEFAULT_PARTITION)
 		ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
 		rsCfg.Virtual.AddIRule(ruleName)

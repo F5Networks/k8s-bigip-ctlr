@@ -207,7 +207,6 @@ type ExternalDNSSpec struct {
 }
 
 type DNSPool struct {
-	Name              string  `json:"name"`
 	DataServerName    string  `json:"dataServerName"`
 	DNSRecordType     string  `json:"dnsRecordType"`
 	LoadBalanceMethod string  `json:"loadBalanceMethod"`

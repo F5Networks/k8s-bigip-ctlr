@@ -1,2 +1,5 @@
 2.7.0
+<<<<<<< HEAD
 
+=======
+>>>>>>> de65ea72 ("Updating for the next release" (#2073))

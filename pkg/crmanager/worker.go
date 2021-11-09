@@ -1882,16 +1882,26 @@ func (crMgr *CRManager) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 				)
 			}
 		}
-		if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
+		if pl.Monitor.Type != "" {
 			// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
-			pool.Monitor = &Monitor{
-				Name:      UniquePoolName + "_monitor",
-				Partition: "Common",
-				Type:      pl.Monitor.Type,
-				Interval:  pl.Monitor.Interval,
-				Send:      pl.Monitor.Send,
-				Recv:      pl.Monitor.Recv,
-				Timeout:   pl.Monitor.Timeout,
+			if pl.Monitor.Type == "http" || pl.Monitor.Type == "https" {
+				pool.Monitor = &Monitor{
+					Name:      UniquePoolName + "_monitor",
+					Partition: "Common",
+					Type:      pl.Monitor.Type,
+					Interval:  pl.Monitor.Interval,
+					Send:      pl.Monitor.Send,
+					Recv:      pl.Monitor.Recv,
+					Timeout:   pl.Monitor.Timeout,
+				}
+			} else {
+				pool.Monitor = &Monitor{
+					Name:      UniquePoolName + "_monitor",
+					Partition: "Common",
+					Type:      pl.Monitor.Type,
+					Interval:  pl.Monitor.Interval,
+					Timeout:   pl.Monitor.Timeout,
+				}
 			}
 		}
 		wip.Pools = append(wip.Pools, pool)

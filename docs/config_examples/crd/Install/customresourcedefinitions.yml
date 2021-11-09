@@ -386,7 +386,7 @@ spec:
                         properties:
                           type:
                             type: string
-                            enum: [http, https]
+                            enum: [http, https, tcp]
                           send:
                             type: string
                           recv:
@@ -397,7 +397,6 @@ spec:
                             type: integer
                         required:
                           - type
-                          - send
                           - interval
                     required:
                       - dataServerName

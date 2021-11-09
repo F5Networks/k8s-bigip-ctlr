@@ -36,7 +36,6 @@ type VirtualServerSpec struct {
 	HTTPTraffic            string           `json:"httpTraffic,omitempty"`
 	SNAT                   string           `json:"snat,omitempty"`
 	WAF                    string           `json:"waf,omitempty"`
-	Firewall               string           `json:"firewallPolicy,omitempty"`
 	RewriteAppRoot         string           `json:"rewriteAppRoot,omitempty"`
 	AllowVLANs             []string         `json:"allowVlans,omitempty"`
 	IRules                 []string         `json:"iRules,omitempty"`
@@ -251,11 +250,12 @@ type LtmIRulesSpec struct {
 }
 
 type ProfileSpec struct {
-	TCP            string `json:"tcp,omitempty"`
-	UDP            string `json:"udp,omitempty"`
-	HTTP           string `json:"http,omitempty"`
-	HTTP2          string `json:"http2,omitempty"`
-	RewriteProfile string `json:"rewriteProfile,omitempty"`
+	TCP            string   `json:"tcp,omitempty"`
+	UDP            string   `json:"udp,omitempty"`
+	HTTP           string   `json:"http,omitempty"`
+	HTTP2          string   `json:"http2,omitempty"`
+	RewriteProfile string   `json:"rewriteProfile,omitempty"`
+	LogProfiles    []string `json:"logProfiles,omitempty"`
 }
 
 // +genclient

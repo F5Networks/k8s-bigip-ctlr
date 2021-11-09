@@ -398,10 +398,7 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	if vs.Spec.WAF != "" {
 		rsCfg.Virtual.WAF = vs.Spec.WAF
 	}
-	// set the Firewall policy
-	if vs.Spec.Firewall != "" {
-		rsCfg.Virtual.Firewall = vs.Spec.Firewall
-	}
+
 	//Attach allowVlans.
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
 
@@ -1222,13 +1219,14 @@ func (crMgr *CRManager) prepareRSConfigFromLBService(
 
 	return nil
 }
+
 // Returns Partition and resourceName
 func getPartitionAndName(objectName string) (string, string) {
-	 allParts := strings.Split(objectName,"/")
-	 if len(allParts) == 3 {
-		 return allParts[1], allParts[2]
-	 }
-	 return "", objectName
+	allParts := strings.Split(objectName, "/")
+	if len(allParts) == 3 {
+		return allParts[1], allParts[2]
+	}
+	return "", objectName
 }
 
 func (crMgr *CRManager) handleVSResourceConfigForPolicy(
@@ -1237,28 +1235,32 @@ func (crMgr *CRManager) handleVSResourceConfigForPolicy(
 ) error {
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
+
+	if len(plc.Spec.Profiles.LogProfiles) > 0 {
+		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
+	}
 	var iRule string
 	// Profiles common for both HTTP and HTTPS
 	// service_HTTP supports profileTCP and profileHTTP
 	// service_HTTPS supports profileTCP, profileHTTP and profileHTTP2
 	if len(plc.Spec.Profiles.HTTP) > 0 {
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name: plc.Spec.Profiles.HTTP,
+			Name:    plc.Spec.Profiles.HTTP,
 			Context: "http",
 		})
 	}
 	if len(plc.Spec.Profiles.TCP) > 0 {
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name: plc.Spec.Profiles.TCP,
+			Name:    plc.Spec.Profiles.TCP,
 			Context: "tcp",
 		})
 	}
-	switch rsCfg.MetaData.Protocol  {
+	switch rsCfg.MetaData.Protocol {
 	case "https":
 		iRule = plc.Spec.IRules.Secure
 		if len(plc.Spec.Profiles.HTTP2) > 0 {
 			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-				Name: plc.Spec.Profiles.HTTP2,
+				Name:    plc.Spec.Profiles.HTTP2,
 				Context: "http2",
 			})
 		}
@@ -1284,15 +1286,19 @@ func (crMgr *CRManager) handleTSResourceConfigForPolicy(
 ) error {
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
+
+	if len(plc.Spec.Profiles.LogProfiles) > 0 {
+		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
+	}
 	if len(plc.Spec.Profiles.UDP) > 0 {
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name: plc.Spec.Profiles.UDP,
+			Name:    plc.Spec.Profiles.UDP,
 			Context: "udp",
 		})
 	}
 	if len(plc.Spec.Profiles.TCP) > 0 {
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name: plc.Spec.Profiles.TCP,
+			Name:    plc.Spec.Profiles.TCP,
 			Context: "tcp",
 		})
 	}

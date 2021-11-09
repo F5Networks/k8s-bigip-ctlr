@@ -139,6 +139,7 @@ type (
 		SNAT                   string                `json:"snat,omitempty"`
 		WAF                    string                `json:"waf,omitempty"`
 		Firewall               string                `json:"firewallPolicy,omitempty"`
+		LogProfiles            []string              `json:"logProfiles,omitempty"`
 		Mode                   string                `json:"mode,omitempty"`
 		TranslateServerAddress bool                  `json:"translateServerAddress"`
 		TranslateServerPort    bool                  `json:"translateServerPort"`
@@ -552,6 +553,7 @@ type (
 		Pool                   string               `json:"pool,omitempty"`
 		WAF                    as3MultiTypeParam    `json:"policyWAF,omitempty"`
 		Firewall               as3MultiTypeParam    `json:"policyFirewallEnforced,omitempty"`
+		LogProfiles            []as3ResourcePointer `json:"securityLogProfiles,omitempty"`
 		ProfileL4              string               `json:"profileL4,omitempty"`
 		AllowVLANs             []as3ResourcePointer `json:"allowVlans,omitempty"`
 		PersistenceMethods     []string             `json:"persistenceMethods,omitempty"`

@@ -15,3 +15,6 @@ spec:
     udp: /Common/udp
     http: /Common/http
     http2: /Common/http2
+    logProfiles:
+      - /Common/Log all requests
+      - /Common/local-dos

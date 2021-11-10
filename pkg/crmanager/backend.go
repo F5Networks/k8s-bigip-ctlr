@@ -487,6 +487,37 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		svc.Class = "Service_TCP"
 	}
 
+	// Attaching Profiles from Policy CRD
+	for _,profile := range cfg.Virtual.Profiles {
+		partition, name := getPartitionAndName(profile.Name)
+		switch profile.Context {
+		case "http2":
+			if partition == "" {
+				svc.ProfileHTTP2 = name
+			} else {
+				svc.ProfileHTTP2 = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
+		case "http":
+			if partition == "" {
+				svc.ProfileHTTP = name
+			} else {
+				svc.ProfileHTTP = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
+		case "tcp":
+			if partition == "" {
+				svc.ProfileTCP = name
+			} else {
+				svc.ProfileTCP = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
+		}
+	}
+
 	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
 		svc.SNAT = cfg.Virtual.SNAT
 	} else {
@@ -946,7 +977,6 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 // Create AS3 transport Service for CRD
 func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	svc := &as3Service{}
-
 	if cfg.Virtual.Mode == "standard" {
 		if cfg.Virtual.IpProtocol == "udp" {
 			svc.Class = "Service_UDP"
@@ -962,6 +992,29 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		}
 	}
 	svc.ProfileL4 = "basic"
+
+	// Attaching Profiles from Policy CRD
+	for _,profile := range cfg.Virtual.Profiles {
+		partition, name := getPartitionAndName(profile.Name)
+		switch profile.Context {
+		case "tcp":
+			if partition == "" {
+				svc.ProfileTCP = name
+			} else {
+				svc.ProfileTCP = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
+		case "udp":
+			if partition == "" {
+				svc.ProfileUDP = name
+			} else {
+				svc.ProfileUDP = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
+		}
+	}
 	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
 		svc.SNAT = cfg.Virtual.SNAT
 	} else {

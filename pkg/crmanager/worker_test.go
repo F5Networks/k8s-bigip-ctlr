@@ -584,6 +584,94 @@ var _ = Describe("Worker Tests", func() {
 					false)
 				Expect(virts).To(BeNil(), "Wrong Number of Virtual Servers")
 			})
+
+			It("HostGroup", func() {
+				vrt2.Spec.HostGroup = "test"
+				vrt3.Spec.HostGroup = "test"
+				vrt3.Spec.Host = "test3.com"
+
+				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
+					false)
+				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
+				Expect(virts[0].Spec.Host).To(Equal("test2.com"), "Wrong Virtual Server Host")
+				Expect(virts[1].Spec.Host).To(Equal("test3.com"), "Wrong Virtual Server Host")
+			})
+
+			It("HostGroup with wrong custom port", func() {
+				vrt2.Spec.HostGroup = "test"
+				vrt2.Spec.VirtualServerHTTPPort = 8080
+
+				vrt3.Spec.HostGroup = "test"
+				vrt3.Spec.Host = "test3.com"
+				vrt3.Spec.VirtualServerHTTPPort = 8081
+
+				vrt4.Spec.HostGroup = "test"
+				vrt4.Spec.Host = "test4.com"
+				vrt4.Spec.VirtualServerHTTPPort = 8080
+
+				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
+					false)
+				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
+				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
+				Expect(virts[1].Name).To(Equal("SampleVS4"), "Wrong Virtual Server")
+			})
+
+			It("Unique Paths: same path but with different host names", func() {
+				vrt2.Spec.HostGroup = "test"
+				vrt2.Spec.Pools[0].Path = "/path"
+
+				vrt3.Spec.HostGroup = "test"
+				vrt3.Spec.Host = "test3.com"
+				vrt3.Spec.Pools[0].Path = "/path"
+
+				vrt4.Spec.HostGroup = "test"
+				vrt4.Spec.Host = "test4.com"
+				vrt4.Spec.Pools[0].Path = "/path"
+
+				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
+					false)
+				Expect(len(virts)).To(Equal(3), "Wrong number of Virtual Servers")
+				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
+				Expect(virts[1].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
+				Expect(virts[2].Name).To(Equal("SampleVS4"), "Wrong Virtual Server")
+			})
+
+			It("IPAM Label", func() {
+				mockCRM.ipamCli = &ipammachinery.IPAMClient{}
+				vrt2.Spec.IPAMLabel = "test"
+				vrt3.Spec.IPAMLabel = "test"
+				vrt4.Spec.IPAMLabel = "test"
+				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
+					false)
+				Expect(len(virts)).To(Equal(3), "Wrong number of Virtual Servers")
+				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
+				Expect(virts[1].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
+				Expect(virts[2].Name).To(Equal("SampleVS4"), "Wrong Virtual Server")
+			})
+
+			It("IPAM Label: Absence in a virtualServer", func() {
+				mockCRM.ipamCli = &ipammachinery.IPAMClient{}
+				vrt2.Spec.IPAMLabel = "test"
+				vrt3.Spec.IPAMLabel = "test"
+				vrt4.Spec.IPAMLabel = ""
+				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
+					false)
+				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
+			})
+			It("IPAM Label in a virtualServer with empty host", func() {
+				mockCRM.ipamCli = &ipammachinery.IPAMClient{}
+				vrt4.Spec.IPAMLabel = "test"
+				vrt4.Spec.Host = ""
+				virts := mockCRM.getAssociatedVirtualServers(vrt4,
+					[]*cisapiv1.VirtualServer{vrt4},
+					false)
+				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
+			})
 		})
 	})
 	Describe("Endpoints", func() {

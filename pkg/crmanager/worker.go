@@ -870,65 +870,95 @@ func (crMgr *CRManager) processVirtualServers(
 }
 
 func (crMgr *CRManager) getAssociatedVirtualServers(
-	virtual *cisapiv1.VirtualServer,
+	currentVS *cisapiv1.VirtualServer,
 	allVirtuals []*cisapiv1.VirtualServer,
 	isVSDeleted bool,
 ) []*cisapiv1.VirtualServer {
+	// Associated VirutalServers are grouped based on "hostGroup" parameter
+	// if hostGroup parameter is not available, they will be grouped on "host" parameter
+	// if "host" parameter is not available, they will be grouped on "VirtualServerAddress"
+
+	// The VirtualServers that are being grouped by "hostGroup" or "host" should obey below rules,
+	// otherwise the grouping would be treated as invalid and the associatedVirtualServers will be nil.
+	//		* all of them should have same "ipamLabel"
+	//      * if no "ipamLabel" present, should have same "VirtualServerAddress"
+	//
+	// However, there are some parameters that are not as stringent as above.
+	// which include
+	// 		* "VirtualServerHTTPPort" to be same across the group of VirtualServers
+	//      * "VirtualServerHTTPSPort" to be same across the group of VirtualServers
+	//      * unique paths for a given host name
+	// If one (or multiple) of the above parameters are specified in wrong manner in any VirtualServer,
+	// that particular VirtualServer will be skipped.
 
 	var virtuals []*cisapiv1.VirtualServer
-	uniqueHostPath := make(map[string][]string)
+	// {hostname: {path: <empty_struct>}}
+	uniqueHostPathMap := make(map[string]map[string]struct{})
 
 	for _, vrt := range allVirtuals {
-		if vrt.Spec.Host == virtual.Spec.Host &&
-			!(isVSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
-			if crMgr.ipamCli != nil {
-				if vrt.Spec.IPAMLabel != virtual.Spec.IPAMLabel {
-					log.Errorf("Same host %v is configured with different IPAM labels: %v, %v. Deleting associated path for VS %v", vrt.Spec.Host, vrt.Spec.IPAMLabel, virtual.Spec.IPAMLabel, virtual.Name)
-					return nil
-				}
-				// Empty host with IPAM label is invalid
-				if virtual.Spec.IPAMLabel != "" && virtual.Spec.Host == "" {
-					log.Errorf("Hostless VS %v is configured with IPAM label: %v", vrt.ObjectMeta.Name, vrt.Spec.IPAMLabel)
-					return nil
-				}
+		// skip the deleted virtual in the event of deletion
+		if isVSDeleted && vrt.Name == currentVS.Name {
+			continue
+		}
+
+		// skip the virtuals in other HostGroups
+		if vrt.Spec.HostGroup != currentVS.Spec.HostGroup {
+			continue
+		}
+
+		// in the absence of HostGroup, skip the virtuals with other host name
+		if currentVS.Spec.HostGroup == "" && vrt.Spec.Host != currentVS.Spec.Host {
+			continue
+		}
+
+		if crMgr.ipamCli != nil {
+			if vrt.Spec.IPAMLabel != currentVS.Spec.IPAMLabel {
+				log.Errorf("Same host %v is configured with different IPAM labels: %v, %v. Unable to process %v", vrt.Spec.Host, vrt.Spec.IPAMLabel, currentVS.Spec.IPAMLabel, currentVS.Name)
+				return nil
 			}
-			// Same host with different VirtualServerAddress is invalid
-			if vrt.Spec.VirtualServerAddress != virtual.Spec.VirtualServerAddress {
-				if virtual.Spec.Host != "" {
-					log.Errorf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
-					return nil
-				}
-				continue
+			// Empty host with IPAM label is invalid
+			if vrt.Spec.IPAMLabel != "" && vrt.Spec.Host == "" {
+				log.Errorf("Hostless VS %v is configured with IPAM label: %v", vrt.ObjectMeta.Name, vrt.Spec.IPAMLabel)
+				return nil
 			}
-			// Hosts sharing same VirtualServerAddress but different ports are supported
-			if vrt.Spec.VirtualServerHTTPPort != virtual.Spec.VirtualServerHTTPPort ||
-				vrt.Spec.VirtualServerHTTPSPort != virtual.Spec.VirtualServerHTTPSPort {
-				continue
+		}
+		// Same host with different VirtualServerAddress is invalid
+		if vrt.Spec.VirtualServerAddress != currentVS.Spec.VirtualServerAddress {
+			if vrt.Spec.Host != "" {
+				log.Errorf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
+				return nil
 			}
-			isUnique := true
-		op:
-			// Check for duplicate path entries among virtuals
-			for _, pool := range vrt.Spec.Pools {
-				uniquePaths := uniqueHostPath[virtual.Spec.Host]
-				if len(uniquePaths) > 0 {
-					for _, path := range uniquePaths {
-						//check if path already exists in host map
-						if pool.Path == path {
-							isUnique = false
-							log.Errorf("Discarding the virtual server : %v in Namespace %v : %v  due to duplicate path",
-								virtual.Spec.VirtualServerAddress, virtual.ObjectMeta.Namespace, virtual.ObjectMeta.Name)
-							break op
-						} else {
-							uniqueHostPath[virtual.Spec.Host] = append(uniqueHostPath[virtual.Spec.Host], pool.Path)
-						}
-					}
-				} else {
-					uniqueHostPath[virtual.Spec.Host] = append(uniqueHostPath[virtual.Spec.Host], pool.Path)
-				}
+			// In case of empty host name, skip the virtual with other VirtualServerAddress
+			continue
+		}
+
+		// skip the virtuals with different custom HTTP/HTTPS ports
+		if vrt.Spec.VirtualServerHTTPPort != currentVS.Spec.VirtualServerHTTPPort ||
+			vrt.Spec.VirtualServerHTTPSPort != currentVS.Spec.VirtualServerHTTPSPort {
+			log.Debugf("Discarding the VirtualServer %v/%v due to unmatched custom HTTP/HTTPS port",
+				currentVS.Namespace, currentVS.Name)
+			continue
+		}
+
+		// Check for duplicate path entries among virtuals
+		uniquePaths, ok := uniqueHostPathMap[vrt.Spec.Host]
+		if !ok {
+			uniqueHostPathMap[vrt.Spec.Host] = make(map[string]struct{})
+			uniquePaths = uniqueHostPathMap[vrt.Spec.Host]
+		}
+		isUnique := true
+		for _, pool := range vrt.Spec.Pools {
+			if _, ok := uniquePaths[pool.Path]; ok {
+				// path already exists for the same host
+				log.Debugf("Discarding the VirtualServer %v/%v due to duplicate path",
+					vrt.ObjectMeta.Namespace, vrt.ObjectMeta.Name)
+				isUnique = false
+				break
 			}
-			if isUnique {
-				virtuals = append(virtuals, vrt)
-			}
+			uniquePaths[pool.Path] = struct{}{}
+		}
+		if isUnique {
+			virtuals = append(virtuals, vrt)
 		}
 	}
 	return virtuals

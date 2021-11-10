@@ -549,6 +549,12 @@ spec:
                     http:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                    https:
+                      type: string
+                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                    http2:
+                      type: string
+                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
                     rewriteProfile:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'

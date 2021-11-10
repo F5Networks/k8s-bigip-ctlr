@@ -961,17 +961,13 @@ func (crMgr *CRManager) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer
 
 func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.TransportServer) *cisapiv1.Policy {
 
-	log.Warningf("[nanda] getPolicyFromTransportServers: virtuals %v", virtuals )
 	if len(virtuals) == 0 {
 		log.Errorf("No virtuals to extract policy from")
 		return nil
 	}
 	plcName := ""
 	ns := virtuals[0].Namespace
-	log.Warningf("[nanda]getPolicyFromTransportServers: ns %v", ns )
 	for _, vrt := range virtuals {
-		log.Warningf("[nanda]getPolicyFromTransportServers: vrt %v", vrt )
-		log.Warningf("[nanda]getPolicyFromTransportServers: plcName %v", plcName )
 		if plcName != "" && plcName != vrt.Spec.PolicyName {
 			log.Errorf("Multiple Policies specified with for VirtualServerName: %v", vrt.Spec.VirtualServerName)
 			return nil
@@ -980,7 +976,6 @@ func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.Trans
 			plcName = vrt.Spec.PolicyName
 		}
 	}
-	log.Warningf("[nanda]getPolicyFromTransportServers: plcName %v", plcName )
 	if plcName == "" {
 		return nil
 	}
@@ -990,7 +985,6 @@ func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.Trans
 		return nil
 	}
 	key := ns + "/" + plcName
-	log.Warningf("[nanda]getPolicyFromTransportServers: key %v", key )
 
 	obj, exist, err := crInf.plcInformer.GetIndexer().GetByKey(key)
 	if err != nil {
@@ -1003,7 +997,6 @@ func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.Trans
 		log.Errorf("Policy Not Found: %v", key)
 		return nil
 	}
-	log.Warningf("[nanda]getPolicyFromTransportServers: obj %v", obj.(*cisapiv1.Policy))
 	return obj.(*cisapiv1.Policy)
 }
 
@@ -1430,10 +1423,7 @@ func (crMgr *CRManager) processTransportServers(
 		ip,
 		virtual.Spec.VirtualServerPort,
 	)
-
-    log.Warningf("[nanda] main plicy hit virtuals %v", virtuals)
 	plc := crMgr.getPolicyFromTransportServers(virtuals)
-	log.Warningf("[nanda] main plicy hit  plc:%v", plc)
 	if plc != nil {
 		err := crMgr.handleTSResourceConfigForPolicy(rsCfg, plc)
 		if err != nil {

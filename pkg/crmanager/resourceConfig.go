@@ -1222,18 +1222,13 @@ func (crMgr *CRManager) prepareRSConfigFromLBService(
 
 	return nil
 }
-
-func getNameAndPartition(objectName string) (partition string, name string) {
+// Returns Partition and resourceName
+func getPartitionAndName(objectName string) (string, string) {
 	 allParts := strings.Split(objectName,"/")
 	 if len(allParts) == 3 {
-		 partition = allParts[1]
-		 name = allParts[2]
-		 log.Warningf("allparts partition %v name %v", partition, name )
-	 } else {
-	 	name = objectName
-	 	partition = ""
+		 return allParts[1], allParts[2]
 	 }
-	 return partition, name
+	 return "", objectName
 }
 
 func (crMgr *CRManager) handleVSResourceConfigForPolicy(
@@ -1243,34 +1238,32 @@ func (crMgr *CRManager) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
 	var iRule string
+	// Profiles common for both HTTP and HTTPS
+	// service_HTTP supports profileTCP and profileHTTP
+	// service_HTTPS supports profileTCP, profileHTTP and profileHTTP2
+	if len(plc.Spec.Profiles.HTTP) > 0 {
+		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+			Name: plc.Spec.Profiles.HTTP,
+			Context: "http",
+		})
+	}
+	if len(plc.Spec.Profiles.TCP) > 0 {
+		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+			Name: plc.Spec.Profiles.TCP,
+			Context: "tcp",
+		})
+	}
 	switch rsCfg.MetaData.Protocol  {
 	case "https":
 		iRule = plc.Spec.IRules.Secure
-		if len(plc.Spec.Profiles.HTTPS) > 0 {
-            partition, name := getNameAndPartition(plc.Spec.Profiles.HTTPS)
+		if len(plc.Spec.Profiles.HTTP2) > 0 {
 			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-				Name: name,
-				Partition: partition,
+				Name: plc.Spec.Profiles.HTTP2,
+				Context: "http2",
 			})
 		}
 	case "http":
 		iRule = plc.Spec.IRules.InSecure
-		if len(plc.Spec.Profiles.HTTP) > 0 {
-			partition, name := getNameAndPartition(plc.Spec.Profiles.HTTP)
-			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-				Name: name,
-				Partition: partition,
-			})
-		}
-	case "http2":
-		iRule = plc.Spec.IRules.InSecure
-		if len(plc.Spec.Profiles.HTTP2) > 0 {
-			partition, name := getNameAndPartition(plc.Spec.Profiles.HTTP2)
-			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-				Name: name,
-				Partition: partition,
-			})
-		}
 	}
 	switch plc.Spec.IRules.Priority {
 	case "override":
@@ -1289,34 +1282,18 @@ func (crMgr *CRManager) handleTSResourceConfigForPolicy(
 ) error {
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
-
-	log.Warningf("[nanda] handleTSResourceConfigForPolicy: rsCfg %v", rsCfg )
-	log.Warningf("[nanda] handleTSResourceConfigForPolicy rsCfg.Virtual.IpProtocol %v", rsCfg.Virtual.IpProtocol )
-	log.Warningf("[nanda] handleTSResourceConfigForPolicy Before rsCfg.Virtual.Profiles %v", rsCfg.Virtual.Profiles )
 	if len(plc.Spec.Profiles.UDP) > 0 {
-		//partition, name := getNameAndPartition(plc.Spec.Profiles.UDP)
-		log.Warningf("[nanda] handleTSResourceConfigForPolicy plc.Spec.Profiles.UDP %v", plc.Spec.Profiles.UDP )
-		//log.Warningf("[nanda] handleTSResourceConfigForPolicy plc.Spec.Profiles.name %v", name )
-		//log.Warningf("[nanda] handleTSResourceConfigForPolicy plc.Spec.Profiles.partition %v", partition )
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
 			Name: plc.Spec.Profiles.UDP,
 			Context: "udp",
 		})
 	}
 	if len(plc.Spec.Profiles.TCP) > 0 {
-		//partition, name := getNameAndPartition(plc.Spec.Profiles.TCP)
-		log.Warningf("[nanda] handleTSResourceConfigForPolicy plc.Spec.Profiles.TCP %v", plc.Spec.Profiles.TCP )
-		//log.Warningf("[nanda] handleTSResourceConfigForPolicy plc.Spec.Profiles.name %v", name )
-		//log.Warningf("[nanda] handleTSResourceConfigForPolicy plc.Spec.Profiles.partition %v", partition )
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
 			Name: plc.Spec.Profiles.TCP,
 			Context: "tcp",
 		})
 	}
-	log.Warningf("[nanda] handleTSResourceConfigForPolicy after rsCfg.Virtual.Profiles %v", rsCfg.Virtual.Profiles )
-	log.Warningf("[nanda] handleTSResourceConfigForPolicy rsCfg.Virtual.IpProtocol %v", rsCfg.Virtual.IpProtocol )
-	log.Warningf("[nanda] handleTSResourceConfigForPolicy Before processing : rsCfg.Virtual.IRules %v", rsCfg.Virtual.IRules )
-	log.Warningf("[nanda] handleTSResourceConfigForPolicy after processing : rsCfg.Virtual.IRules %v", rsCfg.Virtual.IRules )
 	return nil
 }
 

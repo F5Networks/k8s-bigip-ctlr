@@ -12,3 +12,6 @@ spec:
     firewallPolicy: /Common/AFM_Policy
   profiles:
     tcp: /Common/f5-tcp-wan
+    udp: /Common/udp
+    http: /Common/http
+    http2: /Common/http2

@@ -487,6 +487,37 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		svc.Class = "Service_TCP"
 	}
 
+	// Attaching Profiles from Policy CRD
+	for _,profile := range cfg.Virtual.Profiles {
+		partition, name := getPartitionAndName(profile.Name)
+		switch profile.Context {
+		case "http2":
+			if partition == "" {
+				svc.ProfileHTTP2 = name
+			} else {
+				svc.ProfileHTTP2 = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
+		case "http":
+			if partition == "" {
+				svc.ProfileHTTP = name
+			} else {
+				svc.ProfileHTTP = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
+		case "tcp":
+			if partition == "" {
+				svc.ProfileTCP = name
+			} else {
+				svc.ProfileTCP = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
+		}
+	}
+
 	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
 		svc.SNAT = cfg.Virtual.SNAT
 	} else {
@@ -946,7 +977,6 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 // Create AS3 transport Service for CRD
 func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	svc := &as3Service{}
-    log.Warningf("[nanda] createTransportServiceDecl %v",)
 	if cfg.Virtual.Mode == "standard" {
 		if cfg.Virtual.IpProtocol == "udp" {
 			svc.Class = "Service_UDP"
@@ -961,15 +991,13 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.Layer4 = "tcp"
 		}
 	}
-	log.Warningf("[nanda] createTransportServiceDecl cfg.Virtual.IpProtocol %v",cfg.Virtual.IpProtocol)
-	log.Warningf("[nanda] createTransportServiceDecl svc.Class %v",svc.Class)
 	svc.ProfileL4 = "basic"
 
 	// Attaching Profiles from Policy CRD
 	for _,profile := range cfg.Virtual.Profiles {
+		partition, name := getPartitionAndName(profile.Name)
 		switch profile.Context {
 		case "tcp":
-			partition, name := getNameAndPartition(profile.Name)
 			if partition == "" {
 				svc.ProfileTCP = name
 			} else {
@@ -978,10 +1006,15 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				}
 			}
 		case "udp":
-			svc.ProfileUDP = profile.Name
+			if partition == "" {
+				svc.ProfileUDP = name
+			} else {
+				svc.ProfileUDP = &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", profile.Name),
+				}
+			}
 		}
 	}
-	log.Warningf("[nanda] After processing our profiles createTransportServiceDecl svc: %v", svc)
 	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
 		svc.SNAT = cfg.Virtual.SNAT
 	} else {
@@ -1024,6 +1057,5 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	}
 	//process irules for crd
 	processIrulesForCRD(cfg, svc)
-	log.Warningf("[nanda] After processing createTransportServiceDecl svc: %v", svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

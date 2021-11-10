@@ -1,0 +1,17 @@
+domain: f5.com
+layout:
+- helm.sdk.operatorframework.io/v1
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+  sdk.x-openshift.io/v1: {}
+projectName: f5-bigip-ctlr-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: f5.com
+  group: cis
+  kind: F5BigIpCtlr
+  version: v1
+version: "3"

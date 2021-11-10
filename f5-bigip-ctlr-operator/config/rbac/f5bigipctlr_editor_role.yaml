@@ -1,0 +1,24 @@
+# permissions for end users to edit f5bigipctlrs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: f5bigipctlr-editor-role
+rules:
+- apiGroups:
+  - cis.f5.com
+  resources:
+  - f5bigipctlrs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cis.f5.com
+  resources:
+  - f5bigipctlrs/status
+  verbs:
+  - get

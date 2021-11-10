@@ -26,6 +26,7 @@ type VirtualServerStatus struct {
 // VirtualServerSpec is the spec of the VirtualServer resource.
 type VirtualServerSpec struct {
 	Host                   string           `json:"host,omitempty"`
+	HostGroup              string           `json:"hostGroup,omitempty"`
 	VirtualServerAddress   string           `json:"virtualServerAddress,omitempty"`
 	IPAMLabel              string           `json:"ipamLabel,omitempty"`
 	VirtualServerName      string           `json:"virtualServerName,omitempty"`

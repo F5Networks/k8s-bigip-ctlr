@@ -138,7 +138,6 @@ stages:
     - script: |
         mkdir -p ./helm-charts/f5-bigip-ctlr/crds
         cp ./docs/config_examples/crd/Install/customresourcedefinitions.yml ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
-        cp ./helm-charts/f5-bigip-ctlr-ingress-class.yaml ./helm-charts/f5-bigip-ctlr/templates/f5-bigip-ctlr-ingress-class.yaml
         sed -i '/metadata:/r ./helm-charts/labels.txt' ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
         helm lint --strict ./helm-charts/f5-bigip-ctlr --set 'args.bigip_url=https://example.com'
         helm package ./helm-charts/f5-bigip-ctlr --destination .deploy/
@@ -175,12 +174,18 @@ stages:
         command: login
         containerRegistry: $(quayConnection)
     - task: Docker@2
+      displayName: Login to redhat registry
+      condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
+      inputs:
+        command: login
+        containerRegistry: $(redhatConnection)
+    - task: Docker@2
       displayName: Build Operator Image for test
       inputs:
         command: build
         containerRegistry: $(quayConnection)
         repository: $(operatorImageName)
-        Dockerfile: operator/build/Dockerfile
+        Dockerfile: f5-bigip-ctlr-operator/Dockerfile
         buildContext: .
         tags: $(Build.SourceVersion)
       condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
@@ -193,9 +198,7 @@ stages:
         repository: $(operatorImageName)
         tags: $(Build.SourceVersion)
     - script: |
-        operatorVersion=$(ls -d  operator/manifest/new-f5-bundle/1.* | sort -Vr | head -1 | awk -F '/' '{print $4}')
-        sed -i 's|registry.connect.redhat.com/f5networks/k8s-bigip-ctlr-operator:latest|quay.io/$(operatorImageName):$(Build.SourceVersion)|g' ./operator/manifest/new-f5-bundle/${operatorVersion}/manifests/f5-bigip-ctlr-operator.v${operatorVersion}.clusterserviceversion.yaml
-        sed -i 's|registry.connect.redhat.com/f5networks/k8s-bigip-ctlr-operator:latest|quay.io/$(operatorImageName):$(Build.SourceVersion)|g' ./operator/manifest/new-f5-bundle/${operatorVersion}/manifests/f5-bigip-ctlr-operator.v${operatorVersion}.clusterserviceversion.yaml
+        sed -i 's|registry.connect.redhat.com/f5networks/k8s-bigip-ctlr-operator:latest|quay.io/$(operatorImageName):$(Build.SourceVersion)|g' ./f5-bigip-ctlr-operator/bundle/manifests/f5-bigip-ctlr-operator.clusterserviceversion.yaml
       displayName: 'Prepare the charts repo for bunding with operator'
       condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
     - task: Docker@2
@@ -205,8 +208,8 @@ stages:
         command: build
         containerRegistry: $(quayConnection)
         repository: $(operatorBundleImageName)
-        Dockerfile: operator/manifest/new-f5-bundle/Dockerfile
-        buildContext: operator/manifest/new-f5-bundle
+        Dockerfile: f5-bigip-ctlr-operator/bundle.Dockerfile
+        buildContext: f5-bigip-ctlr-operator
         tags: $(Build.SourceVersion)
     - task: Docker@2
       displayName: Push Operator Bundle image to Quay for testing 
@@ -217,7 +220,7 @@ stages:
         repository: $(operatorBundleImageName)
         tags: $(Build.SourceVersion)
     - script: |
-        wget https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-4.6/opm-linux.tar.gz
+        wget http://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-4.9/opm-linux.tar.gz
         tar xvf opm-linux.tar.gz
         ./opm index add --bundles quay.io/$(operatorBundleImageName):$(Build.SourceVersion) --tag quay.io/$(operatorIndexImage):$(Build.SourceVersion) 
         podman push quay.io/$(operatorIndexImage):$(Build.SourceVersion)

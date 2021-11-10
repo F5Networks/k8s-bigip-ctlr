@@ -26,6 +26,9 @@ spec:
                 host:
                   type: string
                   pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
+                hostGroup:
+                  type: string
+                  pattern: '^([A-z0-9-_+])*([A-z0-9])$'
                 httpTraffic:
                   type: string
                 ipamLabel:

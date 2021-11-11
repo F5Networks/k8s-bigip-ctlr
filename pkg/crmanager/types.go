@@ -555,6 +555,10 @@ type (
 		ProfileL4              string               `json:"profileL4,omitempty"`
 		AllowVLANs             []as3ResourcePointer `json:"allowVlans,omitempty"`
 		PersistenceMethods     []string             `json:"persistenceMethods,omitempty"`
+		ProfileTCP             as3MultiTypeParam    `json:"profileTCP,omitempty"`
+		ProfileUDP             as3MultiTypeParam    `json:"profileUDP,omitempty"`
+		ProfileHTTP            as3MultiTypeParam    `json:"profileHTTP,omitempty"`
+		ProfileHTTP2           as3MultiTypeParam    `json:"profileHTTP2,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

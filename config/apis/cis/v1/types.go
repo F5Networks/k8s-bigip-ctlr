@@ -254,6 +254,7 @@ type ProfileSpec struct {
 	TCP            string `json:"tcp,omitempty"`
 	UDP            string `json:"udp,omitempty"`
 	HTTP           string `json:"http,omitempty"`
+	HTTP2          string `json:"http2,omitempty"`
 	RewriteProfile string `json:"rewriteProfile,omitempty"`
 }
 

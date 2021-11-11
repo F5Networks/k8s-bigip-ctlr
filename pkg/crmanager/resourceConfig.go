@@ -1232,25 +1232,91 @@ func (crMgr *CRManager) prepareRSConfigFromLBService(
 	return nil
 }
 
-func (crMgr *CRManager) handleResourceConfigForPolicy(
+// Returns Partition and resourceName
+func getPartitionAndName(objectName string) (string, string) {
+	allParts := strings.Split(objectName, "/")
+	if len(allParts) == 3 {
+		return allParts[1], allParts[2]
+	}
+	return "", objectName
+}
+
+func (crMgr *CRManager) handleVSResourceConfigForPolicy(
 	rsCfg *ResourceConfig,
 	plc *cisapiv1.Policy,
 ) error {
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
 	var iRule string
-	if rsCfg.MetaData.Protocol == "https" {
+	// Profiles common for both HTTP and HTTPS
+	// service_HTTP supports profileTCP and profileHTTP
+	// service_HTTPS supports profileTCP, profileHTTP and profileHTTP2
+	if len(plc.Spec.Profiles.HTTP) > 0 {
+		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+			Name:    plc.Spec.Profiles.HTTP,
+			Context: "http",
+		})
+	}
+	if len(plc.Spec.Profiles.TCP) > 0 {
+		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+			Name:    plc.Spec.Profiles.TCP,
+			Context: "tcp",
+		})
+	}
+	switch rsCfg.MetaData.Protocol {
+	case "https":
 		iRule = plc.Spec.IRules.Secure
-	} else {
+		if len(plc.Spec.Profiles.HTTP2) > 0 {
+			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+				Name:    plc.Spec.Profiles.HTTP2,
+				Context: "http2",
+			})
+		}
+	case "http":
 		iRule = plc.Spec.IRules.InSecure
 	}
-	switch plc.Spec.IRules.Priority {
-	case "override":
-		rsCfg.Virtual.IRules = []string{iRule}
-	case "high":
-		rsCfg.Virtual.IRules = append([]string{iRule}, rsCfg.Virtual.IRules...)
-	default:
-		rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
+	if len(iRule) > 0 {
+		switch plc.Spec.IRules.Priority {
+		case "override":
+			rsCfg.Virtual.IRules = []string{iRule}
+		case "high":
+			rsCfg.Virtual.IRules = append([]string{iRule}, rsCfg.Virtual.IRules...)
+		default:
+			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
+		}
+	}
+	return nil
+}
+
+func (crMgr *CRManager) handleTSResourceConfigForPolicy(
+	rsCfg *ResourceConfig,
+	plc *cisapiv1.Policy,
+) error {
+	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
+	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
+	if len(plc.Spec.Profiles.UDP) > 0 {
+		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+			Name:    plc.Spec.Profiles.UDP,
+			Context: "udp",
+		})
+	}
+	if len(plc.Spec.Profiles.TCP) > 0 {
+		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+			Name:    plc.Spec.Profiles.TCP,
+			Context: "tcp",
+		})
+	}
+	var iRule string
+	iRule = plc.Spec.IRules.InSecure
+	if len(iRule) > 0 {
+		switch plc.Spec.IRules.Priority {
+		case "override":
+			rsCfg.Virtual.IRules = []string{iRule}
+		case "high":
+			rsCfg.Virtual.IRules = append([]string{iRule}, rsCfg.Virtual.IRules...)
+		default:
+			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
+		}
 	}
 	return nil
 }

@@ -543,13 +543,16 @@ spec:
                   properties:
                     tcp:
                       type: string
-                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                     udp:
                       type: string
-                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                     http:
                       type: string
-                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
+                    http2:
+                      type: string
+                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                     rewriteProfile:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'

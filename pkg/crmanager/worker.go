@@ -714,7 +714,10 @@ func (crMgr *CRManager) processVirtualServers(
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles.Profs = make(map[SecretKey]CustomProfile)
-
+		rsCfg.Virtual.HTTPTraffic = virtual.Spec.HTTPTraffic
+		if portStruct.protocol == "https" {
+			rsCfg.Virtual.isSecure = true
+		}
 		for _, vrt := range virtuals {
 			log.Debugf("Processing Virtual Server %s for port %v",
 				vrt.ObjectMeta.Name, portStruct.port)
@@ -729,7 +732,6 @@ func (crMgr *CRManager) processVirtualServers(
 
 			if isTLSVirtualServer(vrt) {
 				// Handle TLS configuration for VirtualServer Custom Resource
-
 				tlsProf := crMgr.getTLSProfileForVirtualServer(vrt, vrt.Namespace)
 				if tlsProf == nil {
 					// Processing failed
@@ -1676,7 +1678,6 @@ func (crMgr *CRManager) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		if pl.LoadBalanceMethod == "" {
 			pool.LBMethod = "round-robin"
 		}
-
 		for vsName, vs := range crMgr.resources.rsMap {
 			var found bool
 			for _, host := range vs.MetaData.hosts {
@@ -1686,6 +1687,10 @@ func (crMgr *CRManager) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 				}
 			}
 			if found {
+				//No need to add insecure VS into wideIP pool if VS configured with httpTraffic as redirect
+				if !vs.Virtual.isSecure && vs.Virtual.HTTPTraffic == TLSRedirectInsecure {
+					continue
+				}
 				log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("%v:/%v/Shared/%v",
 					pl.DataServerName, DEFAULT_PARTITION, vsName))
 				pool.Members = append(

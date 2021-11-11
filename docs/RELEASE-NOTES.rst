@@ -7,6 +7,7 @@ Next Release
 Bug Fixes
 `````````
 * Added tcp type monitor support for EDNS.
+* :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool.
 
 2.6.1
 -------------

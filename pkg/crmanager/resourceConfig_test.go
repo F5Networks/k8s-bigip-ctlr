@@ -101,9 +101,11 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("svc1_default_http_80"), "Invalid Monitor Name")
 		})
 		It("Rule Name", func() {
-			name := formatVirtualServerRuleName("test.com", "", "sample_pool")
+			name := formatVirtualServerRuleName("test.com", "", "", "sample_pool")
 			Expect(name).To(Equal("vs_test_com_sample_pool"))
-			name = formatVirtualServerRuleName("test.com", "/foo", "sample_pool")
+			name = formatVirtualServerRuleName("test.com", "exams.com", "", "sample_pool")
+			Expect(name).To(Equal("vs_exams_com_sample_pool"))
+			name = formatVirtualServerRuleName("test.com", "", "/foo", "sample_pool")
 			Expect(name).To(Equal("vs_test_com_foo_sample_pool"))
 
 		})

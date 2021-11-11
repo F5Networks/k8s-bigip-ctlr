@@ -321,6 +321,16 @@ func formatMonitorName(namespace, svc string, monitorType string, port int32) st
 	return AS3NameFormatter(monitorName)
 }
 
+// format the policy name for VirtualServer
+func formatPolicyName(hostname, hostGroup, name string) string {
+	host := hostname
+	if hostGroup != "" {
+		host = hostGroup
+	}
+	policyName := fmt.Sprintf("%s_%s_%s", name, host, "policy")
+	return AS3NameFormatter(policyName)
+}
+
 // Prepares resource config based on VirtualServer resource config
 func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	rsCfg *ResourceConfig,
@@ -420,8 +430,7 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 		rsCfg.SetPolicy(*policy)
 		return nil
 	}
-
-	policyName := rsCfg.Virtual.Name + "_" + vs.Spec.Host + "_policy"
+	policyName := formatPolicyName(vs.Spec.Host, vs.Spec.HostGroup, rsCfg.Virtual.Name)
 	plcy = createPolicy(*rules, policyName, vs.ObjectMeta.Namespace)
 	if plcy != nil {
 		rsCfg.SetPolicy(*plcy)

@@ -41,7 +41,7 @@ func (crMgr *CRManager) prepareVirtualServerRules(
 	appRoot := "/"
 
 	if vs.Spec.RewriteAppRoot != "" {
-		ruleName := formatVirtualServerRuleName(vs.Spec.Host, "redirectto", vs.Spec.RewriteAppRoot)
+		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, "redirectto", vs.Spec.RewriteAppRoot)
 		rl, err := createRedirectRule(vs.Spec.Host+appRoot, vs.Spec.RewriteAppRoot, ruleName)
 		if nil != err {
 			log.Errorf("Error configuring redirect rule: %v", err)
@@ -80,7 +80,7 @@ func (crMgr *CRManager) prepareVirtualServerRules(
 			pl.ServicePort,
 			pl.NodeMemberLabel,
 		)
-		ruleName := formatVirtualServerRuleName(vs.Spec.Host, path, poolName)
+		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
 		var err error
 		var event string
 		if tls != nil && tls.Spec.TLS.Termination == TLSPassthrough {
@@ -122,7 +122,7 @@ func (crMgr *CRManager) prepareVirtualServerRules(
 
 	if rlMap[vs.Spec.Host] == nil && len(redirects) == 2 {
 		rl := &Rule{
-			Name:    formatVirtualServerRuleName(vs.Spec.Host, "", redirects[1].Actions[0].Pool),
+			Name:    formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, "", redirects[1].Actions[0].Pool),
 			FullURI: vs.Spec.Host,
 			Actions: redirects[1].Actions,
 			Conditions: []*condition{
@@ -163,8 +163,12 @@ func (crMgr *CRManager) prepareVirtualServerRules(
 }
 
 // format the rule name for VirtualServer
-func formatVirtualServerRuleName(host, path, pool string) string {
+func formatVirtualServerRuleName(hostname, hostGroup, path, pool string) string {
 	var rule string
+	host := hostname
+	if hostGroup != "" {
+		host = hostGroup
+	}
 	if path == "" {
 		rule = fmt.Sprintf("vs_%s_%s", host, pool)
 	} else {

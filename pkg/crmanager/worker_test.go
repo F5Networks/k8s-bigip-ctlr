@@ -2,6 +2,10 @@ package crmanager
 
 import (
 	"context"
+	"reflect"
+	"sort"
+	"time"
+
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/fake"
@@ -10,9 +14,6 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
-	"reflect"
-	"sort"
-	"time"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
@@ -63,7 +64,6 @@ var _ = Describe("Worker Tests", func() {
 				HTTPTraffic:      "",
 				SNAT:             "",
 				WAF:              "",
-				Firewall:         "",
 				RewriteAppRoot:   "",
 				AllowVLANs:       nil,
 				IRules:           nil,

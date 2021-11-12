@@ -540,6 +540,18 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		}
 	}
 
+	//Attaching logging profile
+	var logProfiles []as3ResourcePointer
+	for _, lp := range cfg.Virtual.LogProfiles {
+		logProfiles = append(
+			logProfiles,
+			as3ResourcePointer{
+				BigIP: lp,
+			},
+		)
+	}
+	svc.LogProfiles = logProfiles
+
 	//Attach allowVlans if exist.
 	var vlans []as3ResourcePointer
 	for _, va := range cfg.Virtual.AllowVLANs {

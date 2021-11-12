@@ -1297,7 +1297,6 @@ func (crMgr *CRManager) handleTSResourceConfigForPolicy(
 		})
 	}
 	var iRule string
-
 	// Insecure iRule has high precedence than Secure iRule
 	// will pick Insecure iRule first, if empty, then will pick Secure iRule
 	// if Both present in policyCRD, will pick InSecure iRule only
@@ -1309,7 +1308,6 @@ func (crMgr *CRManager) handleTSResourceConfigForPolicy(
 	if len(plc.Spec.IRules.Secure) == 0 {
 		iRule = plc.Spec.IRules.InSecure
 	}
-
 	if len(iRule) > 0 {
 		switch plc.Spec.IRules.Priority {
 		case "override":

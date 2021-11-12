@@ -3,6 +3,9 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 
 Next Release
 -------------
+Added Functionality
+```````````````````
+* Added support for AS3 3.30
 
 Bug Fixes
 `````````

@@ -22,7 +22,7 @@
   ],
   "definitions": {
     "ADC": {
-      "title": "ADC Declaration",
+      "title": "ADC",
       "description": "A declarative configuration for an ADC such as F5 BIG-IP",
       "type": "object",
       "properties": {
@@ -53,6 +53,8 @@
           "type": "string",
           "$comment": "IMPORTANT: In enum array, please put current schema version first, oldest-supported version last.  Keep enum array sorted most-recent-first.",
           "enum": [
+            "3.30.0",
+            "3.29.0",
             "3.28.0",
             "3.27.0",
             "3.26.0",
@@ -216,6 +218,13 @@
             },
             "controls": {
               "$ref": "#/definitions/Controls"
+            },
+            "optimisticLockKey": {
+              "title": "Optimistic lock key",
+              "description": "When you deploy a declaration with a non-empty 'key' value here, that activates an optimistic lock on changes to this Tenant.  If the key in your declaration does not match the key AS3 computes for the most-recent previous declaration, then AS3 will NOT update this Tenant and will return an error code.  To use optimistic locking, first retrieve a declaration using option 'showHash=true' to get the current per-Tenant keys.  Make any changes you desire, then deploy your updated declaration.  Deployment of each Tenant with a key will succeed only if that Tenant has not been modified since the time you retrieved the declaration.  (To overwrite all previous changes to a Tenant simply do NOT include any opportunistic-lock key for that Tenant when you deploy a declaration.  That is the default.)  Note that only keys computed by AS3 may be used here-- you cannot generate your own. If 'showHash=true' is used on a POST then the optimisticLockKey will be shown as a part of the output (This helps to avoid the need to do a GET request).",
+              "type": "string",
+              "maxLength": 128,
+              "default": ""
             }
           },
           "additionalProperties": false
@@ -280,6 +289,12 @@
               "type": "string",
               "format": "date-time",
               "readOnly": true
+            },
+            "dryRun": {
+              "title": "Dry-Run Option",
+              "description": "Boolean that indicates if this declaration will be run as a dry-run. If true, the declaration will NOT make any changes to the system, but will respond with whether or not it would.",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false
@@ -309,8 +324,7 @@
       },
       "required": [
         "class",
-        "schemaVersion",
-        "id"
+        "schemaVersion"
       ]
     },
     "ADC_Array": {
@@ -667,7 +681,7 @@
               ]
             }
           ],
-          "cloudLibsEncrypt": true
+          "f5LongSecret": true
         }
       },
       "required": [
@@ -708,8 +722,7 @@
                 {
                   "$ref": "#/definitions/Bearer_Token"
                 }
-              ],
-              "f5serviceDiscovery": true
+              ]
             }
           },
           "required": [
@@ -940,6 +953,7 @@
               "Analytics_Profile",
               "Analytics_TCP_Profile",
               "FTP_Profile",
+              "HTML_Rule",
               "HTTP_Profile",
               "HTTP_Compress",
               "HTTP2_Profile",
@@ -959,6 +973,7 @@
               "Adapt_Profile",
               "Cipher_Rule",
               "Cipher_Group",
+              "iFile",
               "Firewall_Address_List",
               "Firewall_Port_List",
               "Firewall_Rule_List",
@@ -1321,6 +1336,18 @@
             "if": {
               "properties": {
                 "class": {
+                  "const": "HTML_Rule"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/HTML_Rule"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
                   "const": "HTTP_Profile"
                 }
               }
@@ -1543,6 +1570,18 @@
             },
             "then": {
               "$ref": "#/definitions/Cipher_Group"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "iFile"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/iFile"
             }
           },
           {
@@ -2260,7 +2299,7 @@
       }
     },
     "Service_HTTP": {
-      "title": "HTTP virtual server",
+      "title": "Service_HTTP",
       "description": "HTTP virtual server",
       "type": "object",
       "properties": {
@@ -2318,7 +2357,7 @@
       ]
     },
     "Service_HTTPS": {
-      "title": "HTTPS virtual server",
+      "title": "Service_HTTPS",
       "description": "HTTPS (HTTP+TLS) virtual server",
       "type": "object",
       "properties": {
@@ -2647,6 +2686,17 @@
               "$ref": "#/definitions/Pointer_API_Protection_Profile"
             }
           ]
+        },
+        "profileDOS": {
+          "$ref": "#/definitions/Pointer_DOS_Profile"
+        },
+        "profileBotDefense": {
+          "description": "Attaches a Bot Defense profile to the service. These are only available on BIG-IP 14.1+.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Bot_Defense_Profile"
+            }
+          ]
         }
       },
       "allOf": [
@@ -2680,7 +2730,7 @@
       ]
     },
     "Service_TCP": {
-      "title": "TCP virtual server",
+      "title": "Service_TCP",
       "description": "Declares a TCP virtual server (w/optional TLS)",
       "type": "object",
       "properties": {
@@ -3049,7 +3099,7 @@
       }
     },
     "Service_UDP": {
-      "title": "UDP virtual server",
+      "title": "Service_UDP",
       "description": "Declares a UDP virtual server (w/optional (D)TLS)",
       "type": "object",
       "properties": {
@@ -3264,7 +3314,7 @@
       }
     },
     "Service_SCTP": {
-      "title": "SCTP virtual server",
+      "title": "Service_SCTP",
       "description": "Declares a SCTP virtual server",
       "type": "object",
       "properties": {
@@ -3301,7 +3351,7 @@
       ]
     },
     "Service_L4": {
-      "title": "L4 virtual server",
+      "title": "Service_L4",
       "description": "Declares a L4 (FastL4) virtual server",
       "type": "object",
       "properties": {
@@ -3337,6 +3387,7 @@
       }
     },
     "Service_Generic": {
+      "title": "Service_Generic",
       "description": "Declares a generic virtual server",
       "type": "object",
       "properties": {
@@ -3563,7 +3614,7 @@
       }
     },
     "Service_Forwarding": {
-      "title": "Forwarding virtual server",
+      "title": "Service_Forwarding",
       "description": "Attributes of a forwarding virtual server. ARP and ICMP Echo will be disabled on virtualAddresses by default.",
       "type": "object",
       "properties": {
@@ -4224,9 +4275,6 @@
         "profileDNS": {
           "$ref": "#/definitions/Pointer_DNS_Profile"
         },
-        "profileDOS": {
-          "$ref": "#/definitions/Pointer_DOS_Profile"
-        },
         "profileTrafficLog": {
           "$ref": "#/definitions/Pointer_Traffic_Log_Profile"
         },
@@ -4241,14 +4289,6 @@
           "allOf": [
             {
               "$ref": "#/definitions/Pointer_Protocol_Inspection_Profile"
-            }
-          ]
-        },
-        "profileBotDefense": {
-          "description": "Attaches a Bot Defense profile to the service. These are only available on BIG-IP 14.1+.",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Pointer_Bot_Defense_Profile"
             }
           ]
         },
@@ -4581,7 +4621,7 @@
       ]
     },
     "Service_Address": {
-      "title": "Service address",
+      "title": "Service_Address",
       "description": "Service IP address definition (BIG-IP virtual-address).  NOTE: When AS3 creates a Service_Address, it is placed in /tenant/serviceAddress (and not /tenant/app/serviceAddress) on the BIG-IP system.",
       "type": "object",
       "properties": {
@@ -4671,7 +4711,7 @@
       "additionalProperties": false
     },
     "SNAT_Pool": {
-      "title": "SNAT pool",
+      "title": "SNAT_Pool",
       "description": "Declares a list of SNAT addresses",
       "type": "object",
       "properties": {
@@ -4750,7 +4790,7 @@
       }
     },
     "WAF_Policy": {
-      "title": "WAF Policy",
+      "title": "WAF_Policy",
       "description": "A Web Application Firewall Policy",
       "type": "object",
       "f5modules": [
@@ -4903,7 +4943,7 @@
       }
     },
     "Persist": {
-      "title": "Persistence method",
+      "title": "Persist",
       "description": "Declares a persistence method",
       "type": "object",
       "properties": {
@@ -5470,7 +5510,7 @@
       ]
     },
     "Pool": {
-      "title": "pool",
+      "title": "Pool",
       "description": "Declares a service pool",
       "type": "object",
       "properties": {
@@ -5484,6 +5524,18 @@
         },
         "remark": {
           "$ref": "#/definitions/Remark"
+        },
+        "allowNATEnabled": {
+          "title": "Enable Allow NAT",
+          "description": "If true (default), NATs are automatically enabled for any connections using this pool.",
+          "type": "boolean",
+          "default": true
+        },
+        "allowSNATEnabled": {
+          "title": "Enable Allow SNAT",
+          "description": "If true (default), SNATs are automatically enabled for any connections using this pool.",
+          "type": "boolean",
+          "default": true
         },
         "loadBalancingMode": {
           "title": "LB mode",
@@ -5828,6 +5880,7 @@
       ]
     },
     "Address_Discovery": {
+      "title": "Address_Discovery",
       "description": "Sharable Pool Member information",
       "type": "object",
       "properties": {
@@ -6604,38 +6657,44 @@
           "default": 16
         }
       },
-      "if": {
-        "properties": {
-          "monitorType": {
-            "const": "icmp"
-          }
-        }
-      },
-      "then": {
-        "$ref": "#/definitions/Monitor_ICMP"
-      },
-      "else": {
-        "properties": {
-          "targetPort": {
-            "title": "Port",
-            "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 65535,
-            "default": 0
-          }
-        },
-        "if": {
-          "properties": {
-            "monitorType": {
-              "const": "http"
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "icmp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_ICMP"
+          },
+          "else": {
+            "properties": {
+              "targetPort": {
+                "title": "Port",
+                "description": "L4 port (if any) monitor should probe; if 0 (default) then pool member port",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 65535,
+                "default": 0
+              }
             }
           }
         },
-        "then": {
-          "$ref": "#/definitions/Monitor_HTTP"
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "http"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_HTTP"
+          }
         },
-        "else": {
+        {
           "if": {
             "properties": {
               "monitorType": {
@@ -6645,182 +6704,179 @@
           },
           "then": {
             "$ref": "#/definitions/Monitor_HTTPS"
-          },
-          "else": {
-            "if": {
-              "properties": {
-                "monitorType": {
-                  "const": "http2"
-                }
-              }
-            },
-            "then": {
-              "$ref": "#/definitions/Monitor_HTTP2"
-            },
-            "else": {
-              "if": {
-                "properties": {
-                  "monitorType": {
-                    "const": "external"
-                  }
-                }
-              },
-              "then": {
-                "$ref": "#/definitions/Monitor_External"
-              },
-              "else": {
-                "if": {
-                  "properties": {
-                    "monitorType": {
-                      "const": "tcp"
-                    }
-                  }
-                },
-                "then": {
-                  "properties": {
-                    "dscp": {
-                      "title": "IP DSCP",
-                      "description": "Value for IP DSCP (ex-TOS) field (default 0)",
-                      "type": "integer",
-                      "minimum": 0,
-                      "maximum": 63,
-                      "default": 0
-                    }
-                  },
-                  "if": true,
-                  "then": {
-                    "$ref": "#/definitions/Monitor_Send_Recv"
-                  }
-                },
-                "else": {
-                  "if": {
-                    "properties": {
-                      "monitorType": {
-                        "const": "udp"
-                      }
-                    }
-                  },
-                  "then": {
-                    "$ref": "#/definitions/Monitor_Send_Recv"
-                  },
-                  "else": {
-                    "if": {
-                      "properties": {
-                        "monitorType": {
-                          "const": "smtp"
-                        }
-                      }
-                    },
-                    "then": {
-                      "$ref": "#/definitions/Monitor_SMTP"
-                    },
-                    "else": {
-                      "if": {
-                        "properties": {
-                          "monitorType": {
-                            "const": "mysql"
-                          }
-                        }
-                      },
-                      "then": {
-                        "$ref": "#/definitions/Monitor_MySQL"
-                      },
-                      "else": {
-                        "if": {
-                          "properties": {
-                            "monitorType": {
-                              "const": "postgresql"
-                            }
-                          }
-                        },
-                        "then": {
-                          "$ref": "#/definitions/Monitor_PostgreSQL"
-                        },
-                        "else": {
-                          "if": {
-                            "properties": {
-                              "monitorType": {
-                                "const": "sip"
-                              }
-                            }
-                          },
-                          "then": {
-                            "$ref": "#/definitions/Monitor_SIP"
-                          },
-                          "else": {
-                            "if": {
-                              "properties": {
-                                "monitorType": {
-                                  "const": "tcp-half-open"
-                                }
-                              }
-                            },
-                            "then": {
-                              "$ref": "#/definitions/Monitor_TCP_Half_Open"
-                            },
-                            "else": {
-                              "if": {
-                                "properties": {
-                                  "monitorType": {
-                                    "const": "ldap"
-                                  }
-                                }
-                              },
-                              "then": {
-                                "$ref": "#/definitions/Monitor_LDAP"
-                              },
-                              "else": {
-                                "if": {
-                                  "properties": {
-                                    "monitorType": {
-                                      "const": "dns"
-                                    }
-                                  }
-                                },
-                                "then": {
-                                  "$ref": "#/definitions/Monitor_DNS"
-                                },
-                                "else": {
-                                  "if": {
-                                    "properties": {
-                                      "monitorType": {
-                                        "const": "radius"
-                                      }
-                                    }
-                                  },
-                                  "then": {
-                                    "$ref": "#/definitions/Monitor_RADIUS"
-                                  },
-                                  "else": {
-                                    "if": {
-                                      "properties": {
-                                        "monitorType": {
-                                          "const": "ftp"
-                                        }
-                                      }
-                                    },
-                                    "then": {
-                                      "$ref": "#/definitions/Monitor_FTP"
-                                    },
-                                    "else": {
-                                      "$comment": "Unrecognized monitorType.",
-                                      "not": {}
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "http2"
               }
             }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_HTTP2"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "external"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_External"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "tcp"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "dscp": {
+                "title": "IP DSCP",
+                "description": "Value for IP DSCP (ex-TOS) field (default 0)",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 63,
+                "default": 0
+              }
+            },
+            "allOf": [
+              {
+                "$ref": "#/definitions/Monitor_TCP"
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "udp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_UDP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "smtp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_SMTP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "mysql"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_MySQL"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "postgresql"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_PostgreSQL"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "sip"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_SIP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "tcp-half-open"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_TCP_Half_Open"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "ldap"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_LDAP"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "dns"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_DNS"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "radius"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_RADIUS"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "ftp"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Monitor_FTP"
           }
         }
-      },
+      ],
       "required": [
         "class",
         "monitorType"
@@ -6900,10 +6956,11 @@
         "script": {
           "title": "External monitor script",
           "description": "Bash(1) script which implements external monitor",
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/F5string"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/F5string"
+            }
+          ],
           "f5fetch": "string",
           "f5expand": {
             "when": "1/expand"
@@ -6968,10 +7025,11 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
           "f5secret": true
         },
@@ -7029,10 +7087,11 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
           "f5secret": true
         },
@@ -7051,10 +7110,11 @@
           "default": 0
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Monitor_May_Adapt"
-      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Monitor_May_Adapt"
+        }
+      ],
       "dependencies": {
         "reverse": {
           "if": {
@@ -7110,10 +7170,11 @@
           ]
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Monitor_HTTP"
-      }
+      "allOf": [
+        {
+          "$ref": "#/definitions/Monitor_HTTP"
+        }
+      ]
     },
     "Monitor_HTTP2": {
       "description": "Additional Monitor class properties available when monitorType = http2. Requires TMOS version 15.1 or newer.",
@@ -7143,10 +7204,11 @@
           "f5expand": true
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Monitor_HTTP"
-      }
+      "allOf": [
+        {
+          "$ref": "#/definitions/Monitor_HTTP"
+        }
+      ]
     },
     "Monitor_ICMP": {
       "description": "Additional Monitor class properties available when monitorType = icmp",
@@ -7159,10 +7221,11 @@
           "default": false
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Monitor_May_Adapt"
-      }
+      "allOf": [
+        {
+          "$ref": "#/definitions/Monitor_May_Adapt"
+        }
+      ]
     },
     "Monitor_MySQL": {
       "description": "Additional Monitor class properties available when monitorType = mysql",
@@ -7196,10 +7259,11 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
           "f5secret": true
         },
@@ -7278,10 +7342,11 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
           "f5secret": true
         },
@@ -7429,21 +7494,23 @@
         }
       }
     },
-    "Monitor_Send_Recv": {
-      "description": "Additional Monitor class properties available when monitorType = tcp or udp",
+    "Monitor_TCP": {
+      "description": "Additional Monitor class properties available when monitorType = tcp",
       "type": "object",
       "properties": {
         "send": {
           "title": "Send",
           "description": "Send this (backquote-expanded) string to node",
           "type": "string",
-          "f5expand": true
+          "f5expand": true,
+          "default": "none"
         },
         "receive": {
           "title": "Receive = up",
           "description": "Mark node up upon receipt of this (backquote-expanded) string",
           "type": "string",
-          "f5expand": true
+          "f5expand": true,
+          "default": "none"
         },
         "receiveDown": {
           "title": "Receive = down",
@@ -7465,10 +7532,11 @@
           "default": false
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Monitor_May_Adapt"
-      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Monitor_May_Adapt"
+        }
+      ],
       "dependencies": {
         "reverse": {
           "if": {
@@ -7486,11 +7554,69 @@
             }
           }
         }
+      }
+    },
+    "Monitor_UDP": {
+      "description": "Additional Monitor class properties available when monitorType = udp",
+      "type": "object",
+      "properties": {
+        "send": {
+          "title": "Send",
+          "description": "Send this (backquote-expanded) string to node",
+          "type": "string",
+          "f5expand": true,
+          "default": "default send string"
+        },
+        "receive": {
+          "title": "Receive = up",
+          "description": "Mark node up upon receipt of this (backquote-expanded) string",
+          "type": "string",
+          "f5expand": true,
+          "default": "none"
+        },
+        "receiveDown": {
+          "title": "Receive = down",
+          "description": "Mark node down upon receipt of this (backquote-expanded) string (optional; must be empty when 'reverse' is true)",
+          "type": "string",
+          "default": "",
+          "f5expand": true
+        },
+        "reverse": {
+          "title": "Reverse",
+          "description": "If true, mark node down upon receipt of 'receive' string",
+          "type": "boolean",
+          "default": false
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "If true, treat pool member address as gateway to server (node) (default false)",
+          "type": "boolean",
+          "default": false
+        }
       },
-      "required": [
-        "send",
-        "receive"
-      ]
+      "allOf": [
+        {
+          "$ref": "#/definitions/Monitor_May_Adapt"
+        }
+      ],
+      "dependencies": {
+        "reverse": {
+          "if": {
+            "properties": {
+              "reverse": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "receiveDown": {
+                "const": ""
+              }
+            }
+          }
+        }
+      }
     },
     "Monitor_TCP_Half_Open": {
       "description": "Additional Monitor class properties available when monitorType = tcp-half-open",
@@ -7524,10 +7650,11 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
           "f5secret": true
         },
@@ -7627,10 +7754,7 @@
       },
       "allOf": [
         {
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Monitor_May_Adapt"
-          }
+          "$ref": "#/definitions/Monitor_May_Adapt"
         },
         {
           "if": {
@@ -7737,10 +7861,11 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
           "f5secret": true
         },
@@ -7755,10 +7880,11 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
           "f5secret": true
         },
@@ -7771,7 +7897,7 @@
       }
     },
     "TLS_Server": {
-      "title": "TLS Server",
+      "title": "TLS_Server",
       "description": "TLS server parameters (connections arriving to ADC)",
       "type": "object",
       "properties": {
@@ -8214,7 +8340,7 @@
       ]
     },
     "TLS_Client": {
-      "title": "TLS Client",
+      "title": "TLS_Client",
       "description": "TLS client parameters (connections leaving ADC)",
       "type": "object",
       "properties": {
@@ -8653,10 +8779,18 @@
         "chainCA": {
           "title": "CA chain",
           "description": "Bundle of one or more CA certificates in trust-chain from root CA to certificate (optional)",
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/F5string"
-          },
+          "type": [
+            "object",
+            "string"
+          ],
+          "anyOf": [
+            {
+              "$ref": "#/definitions/F5string"
+            },
+            {
+              "$ref": "#/definitions/Pointer_CA_Bundle"
+            }
+          ],
           "f5fetch": "pki-bundle",
           "f5bigComponent": "query sys file ssl-cert"
         },
@@ -8717,7 +8851,7 @@
       ]
     },
     "CA_Bundle": {
-      "title": "CA Bundle",
+      "title": "CA_Bundle",
       "description": "Bundle of one or more PKI Certificate-Authority certificates",
       "type": "object",
       "properties": {
@@ -8749,7 +8883,7 @@
       ]
     },
     "Certificate_Validator_OCSP": {
-      "title": "OCSP Certificate Validator",
+      "title": "Certificate_Validator_OCSP",
       "description": "OCSP validator for certificates",
       "type": "object",
       "properties": {
@@ -8885,7 +9019,7 @@
       ]
     },
     "FIX_Profile": {
-      "title": "FIX Profile",
+      "title": "FIX_Profile",
       "type": "object",
       "description": "Configures a Financial Information eXchange Protocol (FIX) profile",
       "properties": {
@@ -8979,7 +9113,7 @@
       ]
     },
     "SIP_Profile": {
-      "title": "SIP Profile",
+      "title": "SIP_Profile",
       "type": "object",
       "description": "Configures a profile you can use to manage Session Initiation Protocol (SIP) traffic.",
       "properties": {
@@ -9001,7 +9135,7 @@
       ]
     },
     "Analytics_Profile": {
-      "title": "Analytics Profile",
+      "title": "Analytics_Profile",
       "type": "object",
       "description": "HTTP analytics profile with configurable options",
       "f5modules": [
@@ -9266,7 +9400,7 @@
       ]
     },
     "Analytics_TCP_Profile": {
-      "title": "TCP Analytics Profile",
+      "title": "Analytics_TCP_Profile",
       "type": "object",
       "description": "TCP Analytics profile with configurable options",
       "f5modules": [
@@ -9366,6 +9500,7 @@
       ]
     },
     "FTP_Profile": {
+      "title": "FTP_Profile",
       "type": "object",
       "description": "File Transfer Protocol (FTP) profile",
       "properties": {
@@ -9428,8 +9563,98 @@
         "class"
       ]
     },
+    "HTML_Rule": {
+      "title": "HTML_Rule",
+      "type": "object",
+      "description": "HTML Rule with configurable options",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "HTML_Rule"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "ruleType": {
+          "title": "Rule type",
+          "description": "Type of rule",
+          "type": "string",
+          "const": "tag-append-html"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "ruleType": {
+                "const": "tag-append-html"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/HTML_Rule_TagAppendHTML"
+          }
+        }
+      ],
+      "required": [
+        "class",
+        "ruleType"
+      ]
+    },
+    "HTML_Rule_TagAppendHTML": {
+      "title": "Append HTML HTML_Rule",
+      "description": "Matches on the specified tag name, attribute name, and attribute value, and then appends the specific HTML content to the tag delimiter",
+      "type": "object",
+      "properties": {
+        "content": {
+          "title": "Content",
+          "description": "HTML content to append to tag delimiter",
+          "type": "string"
+        },
+        "match": {
+          "title": "Match",
+          "description": "Match configuration",
+          "type": "object",
+          "properties": {
+            "attributeName": {
+              "title": "Attribute Name",
+              "description": "Name of attribute",
+              "type": "string"
+            },
+            "attributeValue": {
+              "title": "Attribute Value",
+              "description": "Value of attribute",
+              "type": "string"
+            },
+            "tagName": {
+              "title": "Tag Name",
+              "description": "Name of tag",
+              "type": "string"
+            }
+          },
+          "dependencies": {
+            "attributeValue": {
+              "required": [
+                "attributeName"
+              ]
+            }
+          },
+          "required": [
+            "tagName"
+          ]
+        }
+      },
+      "required": [
+        "content",
+        "match"
+      ]
+    },
     "HTTP_Profile": {
-      "title": "HTTP Profile",
+      "title": "HTTP_Profile",
       "type": "object",
       "description": "HTTP profile with configurable options",
       "properties": {
@@ -10173,7 +10398,7 @@
       }
     },
     "HTTP_Compress": {
-      "title": "HTTP Compression profile",
+      "title": "HTTP_Compress",
       "type": "object",
       "description": "HTTP Compression profile with configurable options",
       "properties": {
@@ -10339,7 +10564,7 @@
       ]
     },
     "HTTP2_Profile": {
-      "title": "HTTP2 Profile",
+      "title": "HTTP2_Profile",
       "type": "object",
       "description": "HTTP2 profile with configurable options",
       "properties": {
@@ -10442,7 +10667,7 @@
       ]
     },
     "Multiplex_Profile": {
-      "title": "Multiplex (OneConnect) profile",
+      "title": "Multiplex_Profile",
       "type": "object",
       "description": "Multiplex (OneConnect) profile with configurable options",
       "properties": {
@@ -10515,7 +10740,7 @@
       ]
     },
     "TCP_Profile": {
-      "title": "TCP Profile",
+      "title": "TCP_Profile",
       "description": "Configures a Transmission Control Protocol (TCP) profile",
       "type": "object",
       "$comment": "Configures TCP settings. When deployed on BIG-IP, defaults match f5-tcp-progressive.",
@@ -11196,7 +11421,7 @@
       }
     },
     "UDP_Profile": {
-      "title": "UDP Profile",
+      "title": "UDP_Profile",
       "description": "Configures a User Datagram Protocol (UDP) profile",
       "type": "object",
       "properties": {
@@ -11342,7 +11567,7 @@
       ]
     },
     "L4_Profile": {
-      "title": "L4 (FastL4) Profile",
+      "title": "L4_Profile",
       "description": "Configures a Fast Layer 4 profile",
       "type": "object",
       "properties": {
@@ -11444,6 +11669,7 @@
       ]
     },
     "Classification_Profile": {
+      "title": "Classification_Profile",
       "description": "Configures a classification profile",
       "type": "object",
       "properties": {
@@ -11517,6 +11743,7 @@
       ]
     },
     "Radius_Profile": {
+      "title": "Radius_Profile",
       "description": "Configures a RADIUS profile for network traffic load balancing",
       "type": "object",
       "properties": {
@@ -11648,6 +11875,7 @@
       "additionalProperties": false
     },
     "IP_Other_Profile": {
+      "title": "IP_Other_Profile",
       "description": "Configures a generic IP profile for non-TCP and non-UDP traffic",
       "type": "object",
       "properties": {
@@ -11994,6 +12222,7 @@
       }
     },
     "Rewrite_Profile": {
+      "title": "Rewrite_Profile",
       "type": "object",
       "description": "Configures a rewrite profile",
       "properties": {
@@ -12346,6 +12575,7 @@
       "additionalProperties": false
     },
     "HTTP_Acceleration_Profile": {
+      "title": "HTTP_Acceleration_Profile",
       "type": "object",
       "description": "Configures a web-acceleration profile",
       "properties": {
@@ -12470,6 +12700,7 @@
       "additionalProperties": false
     },
     "Stream_Profile": {
+      "title": "Stream_Profile",
       "description": "Configures a Stream profile",
       "type": "object",
       "properties": {
@@ -12521,6 +12752,7 @@
       "additionalProperties": false
     },
     "Access_Profile": {
+      "title": "Access_Profile",
       "description": "Configures an Access Profile",
       "type": "object",
       "properties": {
@@ -12563,6 +12795,7 @@
       "additionalProperties": false
     },
     "Per_Request_Access_Policy": {
+      "title": "Per_Request_Access_Policy",
       "description": "Configures a Per Flow Request Access Policy",
       "type": "object",
       "properties": {
@@ -12599,6 +12832,7 @@
       "additionalProperties": false
     },
     "ICAP_Profile": {
+      "title": "ICAP_Profile",
       "description": "Configures an ICAP profile",
       "type": "object",
       "properties": {
@@ -12643,6 +12877,7 @@
       "additionalProperties": false
     },
     "Adapt_Profile": {
+      "title": "Adapt_Profile",
       "description": "Configures a request or response Adapt profile or both",
       "type": "object",
       "properties": {
@@ -12711,6 +12946,7 @@
       ]
     },
     "Cipher_Rule": {
+      "title": "Cipher_Rule",
       "description": "Configures a cipher rule. This is available in TMOS versions 13.0 and later",
       "type": "object",
       "properties": {
@@ -12793,6 +13029,7 @@
       "additionalProperties": false
     },
     "Cipher_Group": {
+      "title": "Cipher_Group",
       "description": "Configures a Cipher Group. Note: This is available in TMOS versions 13.0 and later.",
       "type": "object",
       "properties": {
@@ -12850,8 +13087,39 @@
       ],
       "additionalProperties": false
     },
+    "iFile": {
+      "title": "iFile",
+      "description": "An iFile",
+      "type": "object",
+      "properties": {
+        "class": {
+          "type": "string",
+          "const": "iFile"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "iFile": {
+          "description": "Reference to an iFile",
+          "f5fetch": "string",
+          "allOf": [
+            {
+              "$ref": "#/definitions/F5string"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "iFile"
+      ]
+    },
     "Firewall_Address_List": {
-      "title": "Firewall Address List",
+      "title": "Firewall_Address_List",
       "description": "Declares an address-list for use by firewall rules. An address list is a list of IP-address prefixes to compare against the source-IP address and/or destination-IP address in an IP packet",
       "type": "object",
       "f5modules": [
@@ -13014,7 +13282,7 @@
       ]
     },
     "Firewall_Port_List": {
-      "title": "Firewall Port List",
+      "title": "Firewall_Port_List",
       "description": "Declares a port-list for use by firewall rules. A firewall rule can match a packet's source port or destination port against one of the ports in a port list, and can take some action (such as ACCEPT or DROP) for a matching packet.",
       "type": "object",
       "f5modules": [
@@ -13098,7 +13366,7 @@
       ]
     },
     "Firewall_Rule_List": {
-      "title": "Firewall Rule List",
+      "title": "Firewall_Rule_List",
       "description": "Declares a list of network firewall rules. You can reuse a rule list in multiple firewalls, such as the firewalls for self IPs, routing domains, and the global firewall.",
       "type": "object",
       "f5modules": [
@@ -13338,7 +13606,7 @@
       "additionalProperties": false
     },
     "Firewall_Policy": {
-      "title": "Firewall Policy",
+      "title": "Firewall_Policy",
       "description": "Configures firewall policy",
       "type": "object",
       "f5modules": [
@@ -13390,6 +13658,7 @@
       ]
     },
     "NAT_Policy": {
+      "title": "NAT_Policy",
       "description": "Configures network address translation policy",
       "type": "object",
       "f5modules": [
@@ -13571,6 +13840,7 @@
       "additionalProperties": false
     },
     "NAT_Source_Translation": {
+      "title": "NAT_Source_Translation",
       "description": "Configures a Security network address translation source translation object",
       "type": "object",
       "f5modules": [
@@ -13833,6 +14103,7 @@
       "additionalProperties": false
     },
     "Protocol_Inspection_Profile": {
+      "title": "Protocol_Inspection_Profile",
       "description": "Protocol Inspection Profile used for configurable BIG-IP AFM intrusion prevention. Note: Protocol Inspection Profiles are only supported in tmos version 13.1+",
       "type": "object",
       "properties": {
@@ -14513,6 +14784,7 @@
       }
     },
     "SSH_Proxy_Profile": {
+      "title": "SSH_Proxy_Profile",
       "description": "SSH Profile used for SSH security",
       "type": "object",
       "properties": {
@@ -14934,7 +15206,7 @@
       "additionalProperties": false
     },
     "Data_Group": {
-      "title": "Data Group",
+      "title": "Data_Group",
       "description": "Configures a data group object which contains list of data",
       "type": "object",
       "properties": {
@@ -15179,7 +15451,7 @@
       ]
     },
     "DNS_Cache": {
-      "title": "DNS Cache",
+      "title": "DNS_Cache",
       "description": "Configures a DNS cache",
       "type": "object",
       "properties": {
@@ -15263,6 +15535,7 @@
       }
     },
     "DNS_Profile": {
+      "title": "DNS_Profile",
       "description": "Configures a Domain Name System (DNS) profile",
       "type": "object",
       "properties": {
@@ -15423,6 +15696,7 @@
       "additionalProperties": false
     },
     "DNS_TSIG_Key": {
+      "title": "DNS_TSIG_Key",
       "description": "Configures a TSIG key",
       "type": "object",
       "properties": {
@@ -15472,6 +15746,7 @@
       "additionalProperties": false
     },
     "DNS_Zone": {
+      "title": "DNS_Zone",
       "description": "Configures a DNS zone",
       "type": "object",
       "properties": {
@@ -15583,6 +15858,7 @@
       }
     },
     "DNS_Nameserver": {
+      "title": "DNS_Nameserver",
       "description": "Configures a DNS nameserver",
       "type": "object",
       "properties": {
@@ -15627,6 +15903,7 @@
       "additionalProperties": false
     },
     "DOS_Profile": {
+      "title": "DOS_Profile",
       "description": "Configures a Denial of Service (DOS) profile",
       "type": "object",
       "f5modules": [
@@ -17941,7 +18218,7 @@
       ]
     },
     "GSLB_Domain": {
-      "title": "GSLB Domain",
+      "title": "GSLB_Domain",
       "description": "Configures GSLB (Global Server Load Balancing) settings for a domain.",
       "type": "object",
       "properties": {
@@ -18090,7 +18367,7 @@
       ]
     },
     "GSLB_Monitor": {
-      "title": "GSLB Monitor",
+      "title": "GSLB_Monitor",
       "description": "Declares a monitor that verifies the availability and/or performance status of a particular protocol, service or application",
       "f5modules": [
         "gtm"
@@ -18117,7 +18394,8 @@
             "https",
             "gateway-icmp",
             "tcp",
-            "udp"
+            "udp",
+            "external"
           ]
         },
         "target": {
@@ -18152,12 +18430,6 @@
         "ignoreDownResponseEnabled": {
           "title": "Ignore Down Response",
           "description": "Specifies whether the monitor immediately marks an object down when it receives a down response. If enabled, the monitor ignores the down response for the duration of timeout. The default is false (disabled)",
-          "type": "boolean",
-          "default": false
-        },
-        "transparent": {
-          "title": "Transparent",
-          "description": "Enables monitoring of pool members through firewalls. The default value is false (disabled)",
           "type": "boolean",
           "default": false
         }
@@ -18222,11 +18494,82 @@
           "then": {
             "$ref": "#/definitions/GSLB_Monitor_TCP"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "monitorType": {
+                "const": "external"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/GSLB_Monitor_External"
+          }
         }
       ],
       "required": [
         "class",
         "monitorType"
+      ]
+    },
+    "GSLB_Monitor_External": {
+      "description": "Additional Monitor class properties available when monitorType = external",
+      "type": "object",
+      "properties": {
+        "pathname": {
+          "title": "pathname",
+          "description": "Tmsh object path name of an imported existing external monitor (e.g. /Common/arg_example)",
+          "type": "string",
+          "minLength": 2,
+          "f5expand": true
+        },
+        "expand": {
+          "title": "Expand",
+          "description": "If true (default), expand backquoted variables in script",
+          "type": "boolean",
+          "default": true
+        },
+        "script": {
+          "title": "External monitor script",
+          "description": "Bash(1) script which implements external monitor",
+          "allOf": [
+            {
+              "$ref": "#/definitions/F5string"
+            }
+          ],
+          "f5fetch": "string",
+          "f5expand": {
+            "when": "1/expand"
+          }
+        },
+        "arguments": {
+          "title": "Arguments",
+          "description": "Arguments to specified external monitor (will be backquote-expanded)",
+          "type": "string",
+          "default": "",
+          "f5expand": true
+        },
+        "environmentVariables": {
+          "description": "Specifies user defined command line parameters that the external program requires.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "pathname"
+          ]
+        },
+        {
+          "required": [
+            "script"
+          ]
+        }
       ]
     },
     "GSLB_Monitor_HTTP": {
@@ -18252,6 +18595,12 @@
           "type": "string",
           "default": "HTTP/1.",
           "f5expand": true
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "Enables monitoring of pool members through firewalls. The default value is false (disabled)",
+          "type": "boolean",
+          "default": false
         }
       }
     },
@@ -18307,6 +18656,12 @@
           "type": "integer",
           "minimum": 0,
           "default": 3
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "Enables monitoring of pool members through firewalls. The default value is false (disabled)",
+          "type": "boolean",
+          "default": false
         }
       }
     },
@@ -18331,6 +18686,12 @@
           "description": "Specifies the text string that the monitor looks for in the returned resource. If you do not specify a value for both the send and receive options, the monitor performs a simple service check and connect only",
           "type": "string",
           "default": ""
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "Enables monitoring of pool members through firewalls. The default value is false (disabled)",
+          "type": "boolean",
+          "default": false
         }
       }
     },
@@ -18375,11 +18736,17 @@
           "description": "Specifies the text string that the monitor looks for in the returned resource. If you do not specify a value for both the send and receive options, the monitor performs a simple service check and connect only",
           "type": "string",
           "default": ""
+        },
+        "transparent": {
+          "title": "Transparent",
+          "description": "Enables monitoring of pool members through firewalls. The default value is false (disabled)",
+          "type": "boolean",
+          "default": false
         }
       }
     },
     "GSLB_Pool": {
-      "title": "GSLB Pool",
+      "title": "GSLB_Pool",
       "description": "Declares a pool to use for load balancing",
       "type": "object",
       "properties": {
@@ -19024,7 +19391,7 @@
       ]
     },
     "GSLB_Server": {
-      "title": "GSLB Server",
+      "title": "GSLB_Server",
       "description": "Declares a GSLB server object which contains configuration for a load balancer or a host server",
       "type": "object",
       "properties": {
@@ -19377,7 +19744,7 @@
       ]
     },
     "GSLB_Data_Center": {
-      "title": "GSLB Data Center",
+      "title": "GSLB_Data_Center",
       "description": "Declares a GSLB Data Center configuration",
       "type": "object",
       "properties": {
@@ -19526,7 +19893,7 @@
       "additionalProperties": false
     },
     "GSLB_Prober_Pool": {
-      "title": "GSLB Prober Pool",
+      "title": "GSLB_Prober_Pool",
       "description": "Declares a pool of BIG-IP devices that will monitor server resources for health and performance. Note: Prober pools are not used by the bigip monitor",
       "f5modules": [
         "gtm"
@@ -19588,7 +19955,7 @@
       }
     },
     "GSLB_Topology_Records": {
-      "title": "GSLB Topology Records",
+      "title": "GSLB_Topology_Records",
       "description": "Defines GSLB Topology records",
       "type": "object",
       "properties": {
@@ -19685,7 +20052,7 @@
       ]
     },
     "GSLB_Topology_Region": {
-      "title": "GSLB Topology Region",
+      "title": "GSLB_Topology_Region",
       "description": "Defines a GSLB Topology region",
       "type": "object",
       "properties": {
@@ -19843,20 +20210,7 @@
           "then": {
             "properties": {
               "matchValue": {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/Pointer_GSLB_Pool_A"
-                  },
-                  {
-                    "$ref": "#/definitions/Pointer_GSLB_Pool_AAAA"
-                  },
-                  {
-                    "$ref": "#/definitions/Pointer_GSLB_Pool_CNAME"
-                  },
-                  {
-                    "$ref": "#/definitions/Pointer_GSLB_Pool_MX"
-                  }
-                ]
+                "$ref": "#/definitions/Pointer_GSLB_Pool"
               }
             }
           }
@@ -19952,7 +20306,7 @@
     },
     "Security_Log_Profile": {
       "type": "object",
-      "title": "Security Log Profile",
+      "title": "Security_Log_Profile",
       "description": "Configures a Security log profile",
       "f5modules": [
         "afm",
@@ -21658,7 +22012,7 @@
       "additionalProperties": false
     },
     "Log_Publisher": {
-      "title": "Log Publisher",
+      "title": "Log_Publisher",
       "description": "Configures lists of destinations for the common logging interface",
       "type": "object",
       "properties": {
@@ -21687,7 +22041,7 @@
       ]
     },
     "Log_Destination": {
-      "title": "Log Destination",
+      "title": "Log_Destination",
       "description": "Configures a log destination",
       "type": "object",
       "properties": {
@@ -21931,6 +22285,7 @@
       ]
     },
     "Traffic_Log_Profile": {
+      "title": "Traffic_Log_Profile",
       "description": "A traffic log profile",
       "type": "object",
       "properties": {
@@ -22160,7 +22515,7 @@
       ]
     },
     "Endpoint_Policy": {
-      "title": "Endpoint policy",
+      "title": "Endpoint_Policy",
       "description": "Policy to manage connections based on metadata and content",
       "type": "object",
       "properties": {
@@ -22253,7 +22608,7 @@
       ]
     },
     "Endpoint_Strategy": {
-      "title": "Endpoint strategy",
+      "title": "Endpoint_Strategy",
       "description": "Strategy for evaluation of an Endpoint policy",
       "type": "object",
       "properties": {
@@ -23807,11 +24162,23 @@
           "type": "object",
           "properties": {
             "event": {
-              "description": "When to evaluate this condition in the request-response cycle",
+              "description": "When to evaluate this condition in the request-response cycle. 'client-accepted', 'server-connected', 'proxy-connect', 'proxy-request', 'proxy-response', and 'ssl-client-serverhello-send' require TMOS v13.1+.",
               "type": "string",
               "enum": [
                 "request",
-                "response"
+                "response",
+                "classification-detected",
+                "client-accepted",
+                "proxy-connect",
+                "proxy-request",
+                "proxy-response",
+                "server-connected",
+                "ssl-client-hello",
+                "ssl-client-serverhello-send",
+                "ssl-server-handshake",
+                "ssl-server-hello",
+                "ws-request",
+                "ws-response"
               ],
               "default": "request"
             }
@@ -23909,7 +24276,7 @@
       "type": "object",
       "properties": {
         "operand": {
-          "description": "Specifies the comparison that the system should perform with values",
+          "description": "Specifies the comparison that the system should perform with values. exists/does-not-exist does not accept values is only supported on BIG-IP 15.0+",
           "type": "string",
           "enum": [
             "equals",
@@ -23919,7 +24286,9 @@
             "ends-with",
             "does-not-end-with",
             "contains",
-            "does-not-contain"
+            "does-not-contain",
+            "exists",
+            "does-not-exist"
           ],
           "default": "equals"
         },
@@ -23937,9 +24306,37 @@
           "default": false
         }
       },
-      "required": [
-        "values"
-      ],
+      "dependencies": {
+        "operand": {
+          "if": {
+            "allOf": [
+              {
+                "properties": {
+                  "operand": {
+                    "not": {
+                      "const": "exists"
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "operand": {
+                    "not": {
+                      "const": "does-not-exist"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "values"
+            ]
+          }
+        }
+      },
       "additionalProperties": false
     },
     "Policy_Compare_Number": {
@@ -24001,6 +24398,7 @@
       "additionalProperties": false
     },
     "Bandwidth_Control_Policy": {
+      "title": "Bandwidth_Control_Policy",
       "description": "Create a listener to specify how to handle traffic for policy enforcement",
       "type": "object",
       "properties": {
@@ -24147,6 +24545,7 @@
       "additionalProperties": false
     },
     "Idle_Timeout_Policy": {
+      "title": "Idle_Timeout_Policy",
       "description": "Destination port based idle timeout policy",
       "type": "object",
       "properties": {
@@ -24299,6 +24698,7 @@
       "additionalProperties": false
     },
     "Enforcement_Policy": {
+      "title": "Enforcement_Policy",
       "description": "Configures policies for the Policy Enforcement Manager (PEM)",
       "f5modules": [
         "pem"
@@ -25451,6 +25851,7 @@
       "additionalProperties": false
     },
     "Enforcement_Diameter_Endpoint_Profile": {
+      "title": "Enforcement_Diameter_Endpoint_Profile",
       "description": "Create a listener to specify how to handle traffic for policy enforcement",
       "f5modules": [
         "pem"
@@ -25545,8 +25946,8 @@
       "additionalProperties": false
     },
     "Enforcement_iRule": {
+      "title": "Enforcement_iRule",
       "description": "Specifies or configures an iRule for use in Enforcement Policies",
-      "title": "Enforcement iRule",
       "type": "object",
       "properties": {
         "class": {
@@ -25577,6 +25978,7 @@
       ]
     },
     "Enforcement_Radius_AAA_Profile": {
+      "title": "Enforcement_Radius_AAA_Profile",
       "description": "Configures a radius AAA profile",
       "f5modules": [
         "pem"
@@ -25660,6 +26062,7 @@
       "additionalProperties": false
     },
     "Enforcement_Profile": {
+      "title": "Enforcement_Profile",
       "description": "Configures a subscriber policy manager profile",
       "f5modules": [
         "pem"
@@ -25724,6 +26127,7 @@
       "additionalProperties": false
     },
     "Enforcement_Subscriber_Management_Profile": {
+      "title": "Enforcement_Subscriber_Management_Profile",
       "description": "Configures a subscriber management profile",
       "f5modules": [
         "pem"
@@ -25788,6 +26192,7 @@
       "additionalProperties": false
     },
     "Enforcement_Listener": {
+      "title": "Enforcement_Listener",
       "description": "Configures an enforcement data plane listener",
       "f5modules": [
         "pem"
@@ -25828,6 +26233,7 @@
       "additionalProperties": false
     },
     "Enforcement_Interception_Endpoint": {
+      "title": "Enforcement_Interception_Endpoint",
       "description": "Configures an interception endpoint to clone all traffic",
       "f5modules": [
         "pem"
@@ -25863,6 +26269,7 @@
       "additionalProperties": false
     },
     "Enforcement_Format_Script": {
+      "title": "Enforcement_Format_Script",
       "description": "Specifies a script using TCL syntax that defines a custom format for HSL reporting applied in an enforcement policy rule. The format and fields available differ depending on whether you are using session-based or flow-based reporting in the rule.",
       "f5modules": [
         "pem"
@@ -25891,6 +26298,7 @@
       "additionalProperties": false
     },
     "Enforcement_Forwarding_Endpoint": {
+      "title": "Enforcement_Forwarding_Endpoint",
       "description": "Configures an forwarding endpoint to specify PEM policy forwarding actions",
       "f5modules": [
         "pem"
@@ -25997,6 +26405,7 @@
       "additionalProperties": false
     },
     "Enforcement_Service_Chain_Endpoint": {
+      "title": "Enforcement_Service_Chain_Endpoint",
       "description": "Configures service chain endpoint definitions for the Policy Enforcement Manager (PEM)",
       "type": "object",
       "properties": {
@@ -27907,257 +28316,18 @@
       "maxProperties": 1,
       "allOf": [
         {
-          "f5bigComponent": "query gtm pool"
-        }
-      ]
-    },
-    "Pointer_GSLB_Pool_A": {
-      "description": "Reference to a GSLB pool A",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to GSLB pool A declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5pointsTo": {
-            "properties": {
-              "class": {
-                "enum": [
-                  "GSLB_Pool_A"
-                ]
-              }
-            },
-            "required": [
-              "class"
-            ]
-          }
-        },
-        "bigip": {
-          "description": "Pathname of existing BIG-IP GSLB pool A",
-          "type": "string",
-          "format": "f5bigip"
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1,
-      "allOf": [
-        {
           "f5bigComponent": "query gtm pool a"
-        }
-      ]
-    },
-    "Pointer_GSLB_Pool_AAAA": {
-      "description": "Reference to a GSLB pool AAAA",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to GSLB pool AAAA declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5pointsTo": {
-            "properties": {
-              "class": {
-                "enum": [
-                  "GSLB_Pool_AAAA"
-                ]
-              }
-            },
-            "required": [
-              "class"
-            ]
-          }
         },
-        "bigip": {
-          "description": "Pathname of existing BIG-IP GSLB pool AAAA",
-          "type": "string",
-          "format": "f5bigip"
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1,
-      "allOf": [
         {
           "f5bigComponent": "query gtm pool aaaa"
-        }
-      ]
-    },
-    "Pointer_GSLB_Pool_CNAME": {
-      "description": "Reference to a GSLB pool CNAME",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to GSLB pool CNAME declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5pointsTo": {
-            "properties": {
-              "class": {
-                "enum": [
-                  "GSLB_Pool_CNAME"
-                ]
-              }
-            },
-            "required": [
-              "class"
-            ]
-          }
         },
-        "bigip": {
-          "description": "Pathname of existing BIG-IP GSLB pool CNAME",
-          "type": "string",
-          "format": "f5bigip"
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1,
-      "allOf": [
         {
           "f5bigComponent": "query gtm pool cname"
-        }
-      ]
-    },
-    "Pointer_GSLB_Pool_MX": {
-      "description": "Reference to a GSLB pool MX",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to GSLB pool MX declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5pointsTo": {
-            "properties": {
-              "class": {
-                "enum": [
-                  "GSLB_Pool_MX"
-                ]
-              }
-            },
-            "required": [
-              "class"
-            ]
-          }
         },
-        "bigip": {
-          "description": "Pathname of existing BIG-IP GSLB pool MX",
-          "type": "string",
-          "format": "f5bigip"
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1,
-      "allOf": [
         {
           "f5bigComponent": "query gtm pool mx"
         }
       ]
-    },
-    "Pointer_GSLB_Pool_Member_A": {
-      "description": "Reference to a GSLB pool member",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to GSLB pool member declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5pointsTo": {
-            "properties": {
-              "class": {
-                "enum": [
-                  "GSLB_Pool_Member_A"
-                ]
-              }
-            },
-            "required": [
-              "class"
-            ]
-          }
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1
-    },
-    "Pointer_GSLB_Pool_Member_AAAA": {
-      "description": "Reference to a GSLB pool member",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to GSLB pool member declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5pointsTo": {
-            "properties": {
-              "class": {
-                "enum": [
-                  "GSLB_Pool_Member_AAAA"
-                ]
-              }
-            },
-            "required": [
-              "class"
-            ]
-          }
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1
-    },
-    "Pointer_GSLB_Pool_Member_CNAME": {
-      "description": "Reference to a GSLB pool member",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to GSLB pool member declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5pointsTo": {
-            "properties": {
-              "class": {
-                "enum": [
-                  "GSLB_Pool_Member_CNAME"
-                ]
-              }
-            },
-            "required": [
-              "class"
-            ]
-          }
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1
-    },
-    "Pointer_GSLB_Pool_Member_MX": {
-      "description": "Reference to a GSLB pool member",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to GSLB pool member declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5pointsTo": {
-            "properties": {
-              "class": {
-                "enum": [
-                  "GSLB_Pool_Member_MX"
-                ]
-              }
-            },
-            "required": [
-              "class"
-            ]
-          }
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1
     },
     "Pointer_GSLB_Prober_Pool": {
       "description": "Reference to a GSLB pool",
@@ -28192,42 +28362,6 @@
       "allOf": [
         {
           "f5bigComponent": "query gtm prober-pool"
-        }
-      ]
-    },
-    "Pointer_GSLB_Prober_Pool_Member": {
-      "description": "Reference to a GSLB pool",
-      "type": "object",
-      "properties": {
-        "use": {
-          "description": "AS3 pointer to GSLB pool declaration",
-          "type": "string",
-          "minLength": 1,
-          "f5pointsTo": {
-            "properties": {
-              "class": {
-                "enum": [
-                  "GSLB_Prober_Pool_Member"
-                ]
-              }
-            },
-            "required": [
-              "class"
-            ]
-          }
-        },
-        "bigip": {
-          "description": "Pathname of existing BIG-IP GSLB pool",
-          "type": "string",
-          "format": "f5bigip"
-        }
-      },
-      "additionalProperties": false,
-      "minProperties": 1,
-      "maxProperties": 1,
-      "allOf": [
-        {
-          "f5bigComponent": "query gtm prober-pool members"
         }
       ]
     },
@@ -28364,6 +28498,42 @@
       "additionalProperties": false,
       "minProperties": 1,
       "maxProperties": 1
+    },
+    "Pointer_HTML_Rule": {
+      "description": "Reference to a HTML_Rule",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to HTML_Rule declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "HTML_Rule"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP HTML_Rule",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm html-rule tag-append-html"
+        }
+      ]
     },
     "Pointer_HTTP2_Profile": {
       "description": "Reference to a HTTP/2 Profile",

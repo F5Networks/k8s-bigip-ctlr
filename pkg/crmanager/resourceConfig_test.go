@@ -241,6 +241,7 @@ var _ = Describe("Resource Config Tests", func() {
 					},
 					RewriteAppRoot: "/home",
 					WAF:            "/Common/WAF",
+					Firewall:       "/Common/AFM",
 					IRules:         []string{"SampleIRule"},
 				},
 			)

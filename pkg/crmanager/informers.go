@@ -70,6 +70,10 @@ func (crInfr *CRInformer) start() {
 		go crInfr.epsInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.epsInformer.HasSynced)
 	}
+	if crInfr.plcInformer != nil {
+		go crInfr.plcInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.plcInformer.HasSynced)
+	}
 
 	cache.WaitForNamedCacheSync(
 		"F5 CIS CRD Controller",
@@ -190,6 +194,14 @@ func (crMgr *CRManager) newNamespacedInformer(
 		crOptions,
 	)
 
+	crInf.plcInformer = cisinfv1.NewFilteredPolicyInformer(
+		crMgr.kubeCRClient,
+		namespace,
+		resyncPeriod,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		crOptions,
+	)
+
 	return crInf
 }
 
@@ -259,6 +271,16 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 				AddFunc:    func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
 				UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueEndpoints(cur) },
 				DeleteFunc: func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
+			},
+		)
+	}
+
+	if crInf.plcInformer != nil {
+		crInf.plcInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { crMgr.enqueuePolicy(obj) },
+				UpdateFunc: func(obj, cur interface{}) { crMgr.enqueuePolicy(cur) },
+				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedPolicy(obj) },
 			},
 		)
 	}
@@ -464,6 +486,33 @@ func (crMgr *CRManager) enqueueDeletedTransportServer(obj interface{}) {
 		namespace: vs.ObjectMeta.Namespace,
 		kind:      TransportServer,
 		rscName:   vs.ObjectMeta.Name,
+		rsc:       obj,
+		rscDelete: true,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueuePolicy(obj interface{}) {
+	pol := obj.(*cisapiv1.Policy)
+	log.Infof("Enqueueing Policy: %v", pol)
+	key := &rqKey{
+		namespace: pol.ObjectMeta.Namespace,
+		kind:      CustomPolicy,
+		rscName:   pol.ObjectMeta.Name,
+		rsc:       obj,
+	}
+
+	crMgr.rscQueue.Add(key)
+}
+
+func (crMgr *CRManager) enqueueDeletedPolicy(obj interface{}) {
+	pol := obj.(*cisapiv1.Policy)
+	log.Infof("Enqueueing Policy: %v", pol)
+	key := &rqKey{
+		namespace: pol.ObjectMeta.Namespace,
+		kind:      CustomPolicy,
+		rscName:   pol.ObjectMeta.Name,
 		rsc:       obj,
 		rscDelete: true,
 	}

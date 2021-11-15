@@ -19,6 +19,8 @@ package crmanager
 import (
 	"bufio"
 	"fmt"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"os"
 	"os/exec"
@@ -173,7 +175,7 @@ func (agent *Agent) startPythonDriver(
 
 	subPid := <-subPidCh
 	agent.PythonDriverPID = subPid
-
+	//Enable "/health" and "/metrics" endpoint with crmanager
 	go agent.healthCheckPythonDriver()
 
 	return
@@ -194,12 +196,13 @@ func (agent *Agent) stopPythonDriver() {
 }
 
 func (agent *Agent) healthCheckPythonDriver() {
+	// Expose Prometheus metrics
+	http.Handle("/metrics", promhttp.Handler())
 	// Add health check to track whether Python process still alive
 	hc := &health.HealthChecker{
 		SubPID: agent.PythonDriverPID,
 	}
 	http.Handle("/health", hc.HealthCheckHandler())
-
-	httpAddress := "0.0.0.0:8080"
-	log.Fatal(http.ListenAndServe(httpAddress, nil).Error())
+	bigIPPrometheus.RegisterMetrics()
+	log.Fatal(http.ListenAndServe(agent.HttpAddress, nil).Error())
 }

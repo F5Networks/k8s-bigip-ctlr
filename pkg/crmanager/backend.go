@@ -63,6 +63,7 @@ func NewAgent(params AgentParams) *Agent {
 		EventChan:    make(chan interface{}),
 		activeDecl:   "",
 		userAgent:    params.UserAgent,
+		HttpAddress:  params.HttpAddress,
 	}
 	// If running in VXLAN mode, extract the partition name from the tunnel
 	// to be used in configuring a net instance of CCCL for that partition

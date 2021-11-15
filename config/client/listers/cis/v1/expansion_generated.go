@@ -34,6 +34,14 @@ type IngressLinkListerExpansion interface{}
 // IngressLinkNamespaceLister.
 type IngressLinkNamespaceListerExpansion interface{}
 
+// PolicyListerExpansion allows custom methods to be added to
+// PolicyLister.
+type PolicyListerExpansion interface{}
+
+// PolicyNamespaceListerExpansion allows custom methods to be added to
+// PolicyNamespaceLister.
+type PolicyNamespaceListerExpansion interface{}
+
 // TLSProfileListerExpansion allows custom methods to be added to
 // TLSProfileLister.
 type TLSProfileListerExpansion interface{}

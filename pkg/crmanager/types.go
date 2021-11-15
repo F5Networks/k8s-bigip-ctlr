@@ -92,6 +92,7 @@ type (
 		tsInformer   cache.SharedIndexInformer
 		ilInformer   cache.SharedIndexInformer
 		ednsInformer cache.SharedIndexInformer
+		plcInformer  cache.SharedIndexInformer
 	}
 
 	NSInformer struct {
@@ -111,6 +112,7 @@ type (
 		ResourceType string
 		rscName      string
 		hosts        []string
+		Protocol     string
 	}
 
 	// Virtual Server Key - unique server is Name + Port
@@ -136,6 +138,7 @@ type (
 		VirtualAddress         *virtualAddress       `json:"-"`
 		SNAT                   string                `json:"snat,omitempty"`
 		WAF                    string                `json:"waf,omitempty"`
+		Firewall               string                `json:"firewallPolicy,omitempty"`
 		Mode                   string                `json:"mode,omitempty"`
 		TranslateServerAddress bool                  `json:"translateServerAddress"`
 		TranslateServerPort    bool                  `json:"translateServerPort"`
@@ -552,9 +555,14 @@ type (
 		Redirect80             *bool                `json:"redirect80,omitempty"`
 		Pool                   string               `json:"pool,omitempty"`
 		WAF                    as3MultiTypeParam    `json:"policyWAF,omitempty"`
+		Firewall               as3MultiTypeParam    `json:"policyFirewallEnforced,omitempty"`
 		ProfileL4              string               `json:"profileL4,omitempty"`
 		AllowVLANs             []as3ResourcePointer `json:"allowVlans,omitempty"`
 		PersistenceMethods     []string             `json:"persistenceMethods,omitempty"`
+		ProfileTCP             as3MultiTypeParam    `json:"profileTCP,omitempty"`
+		ProfileUDP             as3MultiTypeParam    `json:"profileUDP,omitempty"`
+		ProfileHTTP            as3MultiTypeParam    `json:"profileHTTP,omitempty"`
+		ProfileHTTP2           as3MultiTypeParam    `json:"profileHTTP2,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

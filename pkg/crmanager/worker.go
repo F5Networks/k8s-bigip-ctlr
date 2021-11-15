@@ -161,6 +161,35 @@ func (crMgr *CRManager) processResource() bool {
 		crMgr.TeemData.ResourceType.IPAMSvcLB[rKey.namespace] = len(services)
 		crMgr.TeemData.Unlock()
 
+	case CustomPolicy:
+		cp := rKey.rsc.(*cisapiv1.Policy)
+
+		virtuals := crMgr.getVirtualsForCustomPolicy(cp)
+		//Sync Custompolicy for Virtual Servers
+		// No Virtuals are effected with the change in TLSProfile.
+		if nil == virtuals {
+			break
+		}
+		for _, virtual := range virtuals {
+			err := crMgr.processVirtualServers(virtual, false)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
+			}
+		}
+		//Sync Custompolicy for Transport Servers
+		tsVirtuals := crMgr.getTransportServersForCustomPolicy(cp)
+		if nil != tsVirtuals {
+			for _, virtual := range tsVirtuals {
+				err := crMgr.processTransportServers(virtual, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
+			}
+		}
 	case Service:
 		svc := rKey.rsc.(*v1.Service)
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
@@ -423,6 +452,52 @@ func (crMgr *CRManager) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*ci
 	// or Add only Unique entries into the targetVirutalServers.
 
 	return virtualsForTLSProfile
+}
+
+func (crMgr *CRManager) getVirtualsForCustomPolicy(plc *cisapiv1.Policy) []*cisapiv1.VirtualServer {
+	nsVirtuals := crMgr.getAllVirtualServers(plc.Namespace)
+	if nil == nsVirtuals {
+		log.Infof("No VirtualServers found in namespace %s",
+			plc.Namespace)
+		return nil
+	}
+
+	var plcVSs []*cisapiv1.VirtualServer
+	var plcVSNames []string
+	for _, vs := range nsVirtuals {
+		if vs.Spec.PolicyName == plc.Name {
+			plcVSs = append(plcVSs, vs)
+			plcVSNames = append(plcVSNames, vs.Name)
+		}
+	}
+
+	log.Debugf("VirtualServers %v are affected with Custom Policy %s: ",
+		plcVSNames, plc.Name)
+
+	return plcVSs
+}
+
+func (crMgr *CRManager) getTransportServersForCustomPolicy(plc *cisapiv1.Policy) []*cisapiv1.TransportServer {
+	nsVirtuals := crMgr.getAllTransportServers(plc.Namespace)
+	if nil == nsVirtuals {
+		log.Infof("No VirtualServers found in namespace %s",
+			plc.Namespace)
+		return nil
+	}
+
+	var plcVSs []*cisapiv1.TransportServer
+	var plcVSNames []string
+	for _, vs := range nsVirtuals {
+		if vs.Spec.PolicyName == plc.Name {
+			plcVSs = append(plcVSs, vs)
+			plcVSNames = append(plcVSNames, vs.Name)
+		}
+	}
+
+	log.Debugf("VirtualServers %v are affected with Custom Policy %s: ",
+		plcVSNames, plc.Name)
+
+	return plcVSs
 }
 
 // getAllVirtualServers returns list of all valid VirtualServers in rkey namespace.
@@ -707,6 +782,7 @@ func (crMgr *CRManager) processVirtualServers(
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
+		rsCfg.MetaData.Protocol = portStruct.protocol
 		rsCfg.Virtual.SetVirtualAddress(
 			ip,
 			portStruct.port,
@@ -714,10 +790,16 @@ func (crMgr *CRManager) processVirtualServers(
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles.Profs = make(map[SecretKey]CustomProfile)
-		rsCfg.Virtual.HTTPTraffic = virtual.Spec.HTTPTraffic
-		if portStruct.protocol == "https" {
-			rsCfg.Virtual.isSecure = true
+
+		plc := crMgr.getPolicyFromVirtuals(virtuals)
+		if plc != nil {
+			err := crMgr.handleVSResourceConfigForPolicy(rsCfg, plc)
+			if err != nil {
+				processingError = true
+				break
+			}
 		}
+
 		for _, vrt := range virtuals {
 			log.Debugf("Processing Virtual Server %s for port %v",
 				vrt.ObjectMeta.Name, portStruct.port)
@@ -850,6 +932,91 @@ func (crMgr *CRManager) getAssociatedVirtualServers(
 		}
 	}
 	return virtuals
+}
+
+func (crMgr *CRManager) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer) *cisapiv1.Policy {
+
+	if len(virtuals) == 0 {
+		log.Errorf("No virtuals to extract policy from")
+		return nil
+	}
+	plcName := ""
+	ns := virtuals[0].Namespace
+
+	for _, vrt := range virtuals {
+		if plcName != "" && plcName != vrt.Spec.PolicyName {
+			log.Errorf("Multiple Policies specified with for host: %v", vrt.Spec.Host)
+			return nil
+		}
+		if vrt.Spec.PolicyName != "" {
+			plcName = vrt.Spec.PolicyName
+		}
+	}
+	if plcName == "" {
+		return nil
+	}
+	crInf, ok := crMgr.getNamespacedInformer(ns)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", ns)
+		return nil
+	}
+
+	key := ns + "/" + plcName
+
+	obj, exist, err := crInf.plcInformer.GetIndexer().GetByKey(key)
+	if err != nil {
+		log.Errorf("Error while fetching Policy: %v: %v",
+			key, err)
+		return nil
+	}
+
+	if !exist {
+		log.Errorf("Policy Not Found: %v", key)
+		return nil
+	}
+
+	return obj.(*cisapiv1.Policy)
+}
+
+func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.TransportServer) *cisapiv1.Policy {
+
+	if len(virtuals) == 0 {
+		log.Errorf("No virtuals to extract policy from")
+		return nil
+	}
+	plcName := ""
+	ns := virtuals[0].Namespace
+	for _, vrt := range virtuals {
+		if plcName != "" && plcName != vrt.Spec.PolicyName {
+			log.Errorf("Multiple Policies specified with for VirtualServerName: %v", vrt.Spec.VirtualServerName)
+			return nil
+		}
+		if vrt.Spec.PolicyName != "" {
+			plcName = vrt.Spec.PolicyName
+		}
+	}
+	if plcName == "" {
+		return nil
+	}
+	crInf, ok := crMgr.getNamespacedInformer(ns)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", ns)
+		return nil
+	}
+	key := ns + "/" + plcName
+
+	obj, exist, err := crInf.plcInformer.GetIndexer().GetByKey(key)
+	if err != nil {
+		log.Errorf("Error while fetching Policy: %v: %v",
+			key, err)
+		return nil
+	}
+
+	if !exist {
+		log.Errorf("Policy Not Found: %v", key)
+		return nil
+	}
+	return obj.(*cisapiv1.Policy)
 }
 
 func getIPAMLabel(virtuals []*cisapiv1.VirtualServer) string {
@@ -1320,6 +1487,13 @@ func (crMgr *CRManager) processTransportServers(
 		ip,
 		virtual.Spec.VirtualServerPort,
 	)
+	plc := crMgr.getPolicyFromTransportServers(virtuals)
+	if plc != nil {
+		err := crMgr.handleTSResourceConfigForPolicy(rsCfg, plc)
+		if err != nil {
+			processingError = true
+		}
+	}
 
 	for _, vrt := range virtuals {
 		log.Debugf("Processing Transport Server %s for port %v",

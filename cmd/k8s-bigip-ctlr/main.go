@@ -781,6 +781,7 @@ func initCustomResourceManager(
 		VXLANName:      vxlanName,
 		PythonBaseDir:  *pythonBaseDir,
 		UserAgent:      getUserAgentInfo(),
+		HttpAddress:    *httpAddress,
 	}
 	agent := crmanager.NewAgent(agentParams)
 

@@ -8,6 +8,7 @@ Bug Fixes
 `````````
 * Added tcp type monitor support for EDNS.
 * :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool.
+* :issues:`1873` Enable /metrics endpoint with crd mode.
 
 2.6.1
 -------------

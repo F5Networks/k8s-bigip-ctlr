@@ -397,6 +397,7 @@ type (
 		PythonDriverPID int
 		activeDecl      as3Declaration
 		userAgent       string
+		HttpAddress     string
 	}
 
 	AgentParams struct {
@@ -409,6 +410,7 @@ type (
 		VXLANName      string
 		PythonBaseDir  string
 		UserAgent      string
+		HttpAddress    string
 	}
 
 	globalSection struct {

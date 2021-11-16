@@ -74,10 +74,7 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 	return c.tracker
 }
 
-var (
-	_ clientset.Interface = &Clientset{}
-	_ testing.FakeClient  = &Clientset{}
-)
+var _ clientset.Interface = &Clientset{}
 
 // CisV1 retrieves the CisV1Client
 func (c *Clientset) CisV1() cisv1.CisV1Interface {

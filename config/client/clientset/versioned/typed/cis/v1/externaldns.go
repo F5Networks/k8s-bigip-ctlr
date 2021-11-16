@@ -30,10 +30,10 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-// ExternalDNSsGetter has a method to return a ExternalDNSInterface.
+// ExternalDNSesGetter has a method to return a ExternalDNSInterface.
 // A group's client should implement this interface.
-type ExternalDNSsGetter interface {
-	ExternalDNSs(namespace string) ExternalDNSInterface
+type ExternalDNSesGetter interface {
+	ExternalDNSes(namespace string) ExternalDNSInterface
 }
 
 // ExternalDNSInterface has methods to work with ExternalDNS resources.
@@ -49,26 +49,26 @@ type ExternalDNSInterface interface {
 	ExternalDNSExpansion
 }
 
-// externalDNSs implements ExternalDNSInterface
-type externalDNSs struct {
+// externalDNSes implements ExternalDNSInterface
+type externalDNSes struct {
 	client rest.Interface
 	ns     string
 }
 
-// newExternalDNSs returns a ExternalDNSs
-func newExternalDNSs(c *CisV1Client, namespace string) *externalDNSs {
-	return &externalDNSs{
+// newExternalDNSes returns a ExternalDNSes
+func newExternalDNSes(c *CisV1Client, namespace string) *externalDNSes {
+	return &externalDNSes{
 		client: c.RESTClient(),
 		ns:     namespace,
 	}
 }
 
 // Get takes name of the externalDNS, and returns the corresponding externalDNS object, and an error if there is any.
-func (c *externalDNSs) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.ExternalDNS, err error) {
+func (c *externalDNSes) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.ExternalDNS, err error) {
 	result = &v1.ExternalDNS{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldnses").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do(ctx).
@@ -76,8 +76,8 @@ func (c *externalDNSs) Get(ctx context.Context, name string, options metav1.GetO
 	return
 }
 
-// List takes label and field selectors, and returns the list of ExternalDNSs that match those selectors.
-func (c *externalDNSs) List(ctx context.Context, opts metav1.ListOptions) (result *v1.ExternalDNSList, err error) {
+// List takes label and field selectors, and returns the list of ExternalDNSes that match those selectors.
+func (c *externalDNSes) List(ctx context.Context, opts metav1.ListOptions) (result *v1.ExternalDNSList, err error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -85,7 +85,7 @@ func (c *externalDNSs) List(ctx context.Context, opts metav1.ListOptions) (resul
 	result = &v1.ExternalDNSList{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldnses").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Do(ctx).
@@ -93,8 +93,8 @@ func (c *externalDNSs) List(ctx context.Context, opts metav1.ListOptions) (resul
 	return
 }
 
-// Watch returns a watch.Interface that watches the requested externalDNSs.
-func (c *externalDNSs) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+// Watch returns a watch.Interface that watches the requested externalDNSes.
+func (c *externalDNSes) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	var timeout time.Duration
 	if opts.TimeoutSeconds != nil {
 		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
@@ -102,18 +102,18 @@ func (c *externalDNSs) Watch(ctx context.Context, opts metav1.ListOptions) (watc
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldnses").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Watch(ctx)
 }
 
 // Create takes the representation of a externalDNS and creates it.  Returns the server's representation of the externalDNS, and an error, if there is any.
-func (c *externalDNSs) Create(ctx context.Context, externalDNS *v1.ExternalDNS, opts metav1.CreateOptions) (result *v1.ExternalDNS, err error) {
+func (c *externalDNSes) Create(ctx context.Context, externalDNS *v1.ExternalDNS, opts metav1.CreateOptions) (result *v1.ExternalDNS, err error) {
 	result = &v1.ExternalDNS{}
 	err = c.client.Post().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldnses").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(externalDNS).
 		Do(ctx).
@@ -122,11 +122,11 @@ func (c *externalDNSs) Create(ctx context.Context, externalDNS *v1.ExternalDNS, 
 }
 
 // Update takes the representation of a externalDNS and updates it. Returns the server's representation of the externalDNS, and an error, if there is any.
-func (c *externalDNSs) Update(ctx context.Context, externalDNS *v1.ExternalDNS, opts metav1.UpdateOptions) (result *v1.ExternalDNS, err error) {
+func (c *externalDNSes) Update(ctx context.Context, externalDNS *v1.ExternalDNS, opts metav1.UpdateOptions) (result *v1.ExternalDNS, err error) {
 	result = &v1.ExternalDNS{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldnses").
 		Name(externalDNS.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(externalDNS).
@@ -136,10 +136,10 @@ func (c *externalDNSs) Update(ctx context.Context, externalDNS *v1.ExternalDNS, 
 }
 
 // Delete takes name of the externalDNS and deletes it. Returns an error if one occurs.
-func (c *externalDNSs) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
+func (c *externalDNSes) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldnses").
 		Name(name).
 		Body(&opts).
 		Do(ctx).
@@ -147,14 +147,14 @@ func (c *externalDNSs) Delete(ctx context.Context, name string, opts metav1.Dele
 }
 
 // DeleteCollection deletes a collection of objects.
-func (c *externalDNSs) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
+func (c *externalDNSes) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
 	var timeout time.Duration
 	if listOpts.TimeoutSeconds != nil {
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldnses").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Body(&opts).
@@ -163,11 +163,11 @@ func (c *externalDNSs) DeleteCollection(ctx context.Context, opts metav1.DeleteO
 }
 
 // Patch applies the patch and returns the patched externalDNS.
-func (c *externalDNSs) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.ExternalDNS, err error) {
+func (c *externalDNSes) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.ExternalDNS, err error) {
 	result = &v1.ExternalDNS{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
-		Resource("externaldnss").
+		Resource("externaldnses").
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).

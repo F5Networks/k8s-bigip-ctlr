@@ -27,7 +27,7 @@ Added Functionality
 ```````````````````
 * CIS now compatible with OpenShift 4.8.12
   - Validated with OpenShift SDN and OVN-Kubernetes with hybridOverlay.
-* CIS supports IP address assignment to IngressLink Custom Resources using F5 IPAM Controller(See `documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/IngressLink/ingressLink-with-ipamLabel>`_)
+* CIS supports IP address assignment to IngressLink Custom Resources using F5 IPAM Controller(See `documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/IngressLink/ingressLink-with-ipamLabel>`_)
 * CIS validates IPV6 address in bigip-url & gtm-bigip-url parameter
 
 Bug Fixed
@@ -89,11 +89,11 @@ Added Functionality
     - AS3 3.28
 
 * Added support for:
-    - Multiport Service and Health Monitor for Service type LoadBalancer in CRD mode. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/serviceTypeLB>`_.
+    - Multiport Service and Health Monitor for Service type LoadBalancer in CRD mode. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/serviceTypeLB>`_.
     - :issues:`1824` Support for Kubernetes networking.k8s.io/v1 Ingress and IngressClass. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1>`_.
     - For networking.k8s.io/v1 Ingress, add multiple BIGIP SSL client profiles with annotation ``virtual-server.f5.com/clientssl``. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1>`_.
-    - OpenShift route annotations ``virtual-server.f5.com/rewrite-app-root`` (`examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/openshift/routes/sample-route-rewrite-app-root.yaml>`_) and ``virtual-server.f5.com/rewrite-target-url`` (`examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/openshift/routes/sample-route-rewrite-target-url.yaml>`_) with agent AS3.
-    - :issues:`1570` iRule reference in TransportServer CRD.  Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/TransportServer>`_.
+    - OpenShift route annotations ``virtual-server.f5.com/rewrite-app-root`` (`examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/routes/sample-route-rewrite-app-root.yaml>`_) and ``virtual-server.f5.com/rewrite-target-url`` (`examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/routes/sample-route-rewrite-target-url.yaml>`_) with agent AS3.
+    - :issues:`1570` iRule reference in TransportServer CRD.  Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer>`_.
     - CIS deployment configuration options:
          * ``--periodic-sync-interval`` - Configure the periodic sync of Kubernetes resources.
          * ``--hubmode`` - Enable Support for ConfigMaps to monitor services in same and different namespaces.
@@ -119,11 +119,11 @@ Known Issues
 Before upgrade to 2.5
 `````````````````````
 * CIS 2.5 supports Kubenetes networking.k8s.io/v1 Ingress and IngressClass. With Kubernetes > 1.18, 
-    - Reconfigure CIS `ClusterRole <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/clusterrole.yml>`_ - we removed `resourceName` to monitor all secrets. 
+    - Reconfigure CIS `ClusterRole <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml>`_ - we removed `resourceName` to monitor all secrets.
     - Create `IngressClass <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml>`_ before version upgrade.
 * To upgrade CIS using operator in OpenShift, 
     - Install `IngressClass <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml>`_ manually. 
-    - Install `CRDs <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/customresourcedefinitions.yml>`_ manually if using CIS CustomResources (VirtualServer/TransportServer/IngressLink).
+    - Install `CRDs <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinations/customresourcedefinitions.yml>`_ manually if using CIS CustomResources (VirtualServer/TransportServer/IngressLink).
 
 
 F5 IPAM Controller v0.1.4
@@ -292,8 +292,8 @@ Added Functionality
     -  Multi cluster support for same domain
     -  Health montior support for monitoring GSLB pools
     -  CIS deployment parameter added `--gtm-bigip-url`, `--gtm-bigip-username`, `--gtm-bigip-password` and `--gtm-credentials-directory` for External DNS.
-    -  `CRD schema definition for External DNS <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/ExternalDNS/externaldns-customresourcedefinition.yml>`_.
-    -  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd/ExternalDNS>`_.
+    -  `CRD schema definition for External DNS <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinations/customresourcedefinitions.yml>`_.
+    -  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS>`_.
 
 Bug Fixes
 `````````
@@ -330,8 +330,8 @@ Added Functionality
 * CRD TEEMs Integration.
 * Support for AS3 3.23.
 * Upgraded AS3 Schema validation version from v3.11.0-3 to v3.18.0-4.
-* `CRD Schema <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/Install/customresourcedefinitions.yml>`_.
-* `CRD Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd>`_.
+* `CRD Schema <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinations/customresourcedefinitions.yml>`_.
+* `CRD Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource>`_.
 
 Bug Fixes
 `````````
@@ -359,7 +359,7 @@ Added Functionality
        -   OpenShift 4.5.
        -   AS3 3.21.
 * Custom Resource Definition (CRD) – Preview version available with `virtual-server` and `TLSProfile` custom resources.
-      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/CustomResource.md>`_.
+      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/CustomResource.md>`_.
 * Custom Resource Definition (CRD) – Added Support for k8s Secrets with TLSProfile Custom Resource.
 * Custom Resource Definition (CRD) – Improved the strategy of processing `virtual-server` and `TLSProfile` custom resources.
 * Custom Resource Definition (CRD) – Added support for installation using Helm and Operator.
@@ -416,8 +416,8 @@ Added Functionality
              *  Supports nodelabel in Virtual server CRD
              *  Supports TLSProfile CRD with BIG-IP reference client and server SSL profiles
              *  Supports TLSProfile CRD with K8S secrets reference for client SSL profiles.
-             *  `CRD schema definition for both Virtual server and TLSProfile <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/customresourcedefinitions.yml>`_.
-             *  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/crd>`_.
+             *  `CRD schema definition for both Virtual server and TLSProfile <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinations/customresourcedefinitions.yml>`_.
+             *  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource>`_.
 
 Bug Fixes
 `````````
@@ -456,7 +456,7 @@ Added Functionality
 `````````````````````
 * `as3` is the default agent. Use deployment argument `--agent` to configure `cccl` agent.
 * Custom Resource Definition (CRD) – Alpha available with Custom resource `virtual-server`.
-      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/crd/CustomResource.md>`_.
+      - `CRD Doc and Examples <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResource/CustomResource.md>`_.
 * Added new optional deployment arguments:
        -  `--custom-resource-mode` (default `false`) when set `true` processes custom resources only.
        -  `defined-as3-declaration` for processing user defined AS3 Config Map in CIS watched namespaces.

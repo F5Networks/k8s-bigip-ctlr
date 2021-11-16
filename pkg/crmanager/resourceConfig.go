@@ -408,10 +408,7 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 	if vs.Spec.WAF != "" {
 		rsCfg.Virtual.WAF = vs.Spec.WAF
 	}
-	// set the Firewall policy
-	if vs.Spec.Firewall != "" {
-		rsCfg.Virtual.Firewall = vs.Spec.Firewall
-	}
+
 	//Attach allowVlans.
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
 
@@ -1247,6 +1244,10 @@ func (crMgr *CRManager) handleVSResourceConfigForPolicy(
 ) error {
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
+
+	if len(plc.Spec.Profiles.LogProfiles) > 0 {
+		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
+	}
 	var iRule string
 	// Profiles common for both HTTP and HTTPS
 	// service_HTTP supports profileTCP and profileHTTP
@@ -1294,6 +1295,10 @@ func (crMgr *CRManager) handleTSResourceConfigForPolicy(
 ) error {
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
+
+	if len(plc.Spec.Profiles.LogProfiles) > 0 {
+		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
+	}
 	if len(plc.Spec.Profiles.UDP) > 0 {
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
 			Name:    plc.Spec.Profiles.UDP,

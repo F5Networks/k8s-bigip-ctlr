@@ -7,7 +7,7 @@ Option which can be use to WAF:
 ```
 waf:
 ```
-* First create WAF policy on BIG-IP to reference it here. 
+* First create WAF policy on BIG-IP to reference it here.
 
 ```
 #Example

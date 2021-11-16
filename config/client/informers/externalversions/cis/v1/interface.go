@@ -24,8 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// ExternalDNSs returns a ExternalDNSInformer.
-	ExternalDNSs() ExternalDNSInformer
+	// ExternalDNSes returns a ExternalDNSInformer.
+	ExternalDNSes() ExternalDNSInformer
 	// IngressLinks returns a IngressLinkInformer.
 	IngressLinks() IngressLinkInformer
 	// Policies returns a PolicyInformer.
@@ -49,8 +49,8 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// ExternalDNSs returns a ExternalDNSInformer.
-func (v *version) ExternalDNSs() ExternalDNSInformer {
+// ExternalDNSes returns a ExternalDNSInformer.
+func (v *version) ExternalDNSes() ExternalDNSInformer {
 	return &externalDNSInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 

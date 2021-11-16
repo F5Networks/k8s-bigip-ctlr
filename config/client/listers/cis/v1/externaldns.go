@@ -25,14 +25,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// ExternalDNSLister helps list ExternalDNSs.
+// ExternalDNSLister helps list ExternalDNSes.
 // All objects returned here must be treated as read-only.
 type ExternalDNSLister interface {
-	// List lists all ExternalDNSs in the indexer.
+	// List lists all ExternalDNSes in the indexer.
 	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.ExternalDNS, err error)
-	// ExternalDNSs returns an object that can list and get ExternalDNSs.
-	ExternalDNSs(namespace string) ExternalDNSNamespaceLister
+	// ExternalDNSes returns an object that can list and get ExternalDNSes.
+	ExternalDNSes(namespace string) ExternalDNSNamespaceLister
 	ExternalDNSListerExpansion
 }
 
@@ -46,7 +46,7 @@ func NewExternalDNSLister(indexer cache.Indexer) ExternalDNSLister {
 	return &externalDNSLister{indexer: indexer}
 }
 
-// List lists all ExternalDNSs in the indexer.
+// List lists all ExternalDNSes in the indexer.
 func (s *externalDNSLister) List(selector labels.Selector) (ret []*v1.ExternalDNS, err error) {
 	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
 		ret = append(ret, m.(*v1.ExternalDNS))
@@ -54,15 +54,15 @@ func (s *externalDNSLister) List(selector labels.Selector) (ret []*v1.ExternalDN
 	return ret, err
 }
 
-// ExternalDNSs returns an object that can list and get ExternalDNSs.
-func (s *externalDNSLister) ExternalDNSs(namespace string) ExternalDNSNamespaceLister {
+// ExternalDNSes returns an object that can list and get ExternalDNSes.
+func (s *externalDNSLister) ExternalDNSes(namespace string) ExternalDNSNamespaceLister {
 	return externalDNSNamespaceLister{indexer: s.indexer, namespace: namespace}
 }
 
-// ExternalDNSNamespaceLister helps list and get ExternalDNSs.
+// ExternalDNSNamespaceLister helps list and get ExternalDNSes.
 // All objects returned here must be treated as read-only.
 type ExternalDNSNamespaceLister interface {
-	// List lists all ExternalDNSs in the indexer for a given namespace.
+	// List lists all ExternalDNSes in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1.ExternalDNS, err error)
 	// Get retrieves the ExternalDNS from the indexer for a given namespace and name.
@@ -78,7 +78,7 @@ type externalDNSNamespaceLister struct {
 	namespace string
 }
 
-// List lists all ExternalDNSs in the indexer for a given namespace.
+// List lists all ExternalDNSes in the indexer for a given namespace.
 func (s externalDNSNamespaceLister) List(selector labels.Selector) (ret []*v1.ExternalDNS, err error) {
 	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
 		ret = append(ret, m.(*v1.ExternalDNS))

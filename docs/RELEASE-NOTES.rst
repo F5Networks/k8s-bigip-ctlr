@@ -446,9 +446,9 @@ Guidelines for upgrading to CIS 2.1
 * Those migrating from agent CCCL to agent AS3 :
      - User should clean up LTM resources in BIG-IP partition created by CCCL before migrating to CIS 2.1.
           Steps to clean up LTM resources in BIG-IP partition using AS3
-           *  Use below POST call along with this `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/example-empty-AS3-declaration.yaml>`_.
+           *  Use below POST call along with this `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/v2.6.1/docs/config_examples/example-empty-AS3-declaration.yaml>`_.
                 - mgmt/shared/appsvcs/declare
-           *  Note: Please modify <bigip-ip> in above POST call and <bigip-partition> name in `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/example-empty-AS3-declaration.yaml>`_
+           *  Note: Please modify <bigip-ip> in above POST call and <bigip-partition> name in `AS3 declaration <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/v2.6.1/docs/config_examples/example-empty-AS3-declaration.yaml>`_
 
 2.0
 -------------

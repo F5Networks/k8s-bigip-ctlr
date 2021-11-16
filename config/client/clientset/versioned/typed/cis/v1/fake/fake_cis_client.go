@@ -28,8 +28,8 @@ type FakeCisV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeCisV1) ExternalDNSs(namespace string) v1.ExternalDNSInterface {
-	return &FakeExternalDNSs{c, namespace}
+func (c *FakeCisV1) ExternalDNSes(namespace string) v1.ExternalDNSInterface {
+	return &FakeExternalDNSes{c, namespace}
 }
 
 func (c *FakeCisV1) IngressLinks(namespace string) v1.IngressLinkInterface {

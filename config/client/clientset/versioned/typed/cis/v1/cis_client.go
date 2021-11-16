@@ -26,7 +26,7 @@ import (
 
 type CisV1Interface interface {
 	RESTClient() rest.Interface
-	ExternalDNSsGetter
+	ExternalDNSesGetter
 	IngressLinksGetter
 	PoliciesGetter
 	TLSProfilesGetter
@@ -39,8 +39,8 @@ type CisV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *CisV1Client) ExternalDNSs(namespace string) ExternalDNSInterface {
-	return newExternalDNSs(c, namespace)
+func (c *CisV1Client) ExternalDNSes(namespace string) ExternalDNSInterface {
+	return newExternalDNSes(c, namespace)
 }
 
 func (c *CisV1Client) IngressLinks(namespace string) IngressLinkInterface {

@@ -33,7 +33,7 @@ import (
 )
 
 // ExternalDNSInformer provides access to a shared informer and lister for
-// ExternalDNSs.
+// ExternalDNSes.
 type ExternalDNSInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() v1.ExternalDNSLister
@@ -62,13 +62,13 @@ func NewFilteredExternalDNSInformer(client versioned.Interface, namespace string
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CisV1().ExternalDNSs(namespace).List(context.TODO(), options)
+				return client.CisV1().ExternalDNSes(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.CisV1().ExternalDNSs(namespace).Watch(context.TODO(), options)
+				return client.CisV1().ExternalDNSes(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&cisv1.ExternalDNS{},

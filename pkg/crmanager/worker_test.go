@@ -715,7 +715,7 @@ var _ = Describe("Worker Tests", func() {
 
 		It("NodePort", func() {
 			var nodePort int32 = 30000
-			members := []Member{
+			members := []PoolMember{
 				{
 					Address: "10.10.10.1",
 					Port:    nodePort,
@@ -741,53 +741,6 @@ var _ = Describe("Worker Tests", func() {
 			Expect(len(mems)).To(Equal(0), "Wrong set of Endpoints for NodePort")
 		})
 
-		It("Cluster", func() {
-			ports := []v1.EndpointPort{
-				{
-					Name: "http",
-					Port: 80,
-				},
-				{
-					Name: "https",
-					Port: 443,
-				},
-			}
-
-			members := []Member{
-				{
-					Address: "11.11.11.1",
-					Port:    80,
-					Session: "user-enabled",
-				},
-				{
-					Address: "11.11.11.2",
-					Port:    80,
-					Session: "user-enabled",
-				},
-				{
-					Address: "11.11.12.1",
-					Port:    80,
-					Session: "user-enabled",
-				},
-				{
-					Address: "11.11.12.2",
-					Port:    80,
-					Session: "user-enabled",
-				},
-			}
-
-			eps := test.NewEndpoints("svc1", "1", "worker1", namespace,
-				[]string{"11.11.11.1", "11.11.11.2"}, nil, ports)
-			epsTemp := test.NewEndpoints("svc1", "1", "worker2", namespace,
-				[]string{"11.11.12.1", "11.11.12.2"}, nil, ports)
-			eps.Subsets = append(eps.Subsets, epsTemp.Subsets...)
-
-			mems := mockCRM.getEndpointsForCluster("http", eps, 80, "13.13.13.1")
-			Expect(mems).To(Equal(members), "Wrong set of Endpoints for Cluster")
-
-			mems = mockCRM.getEndpointsForCluster("http", nil, 80, "13.13.13.1")
-			Expect(len(mems)).To(Equal(0), "Wrong set of Endpoints for Cluster")
-		})
 	})
 
 	Describe("Processing Resources", func() {

@@ -61,21 +61,21 @@ var _ = Describe("Backend Tests", func() {
 	})
 
 	Describe("Prepare AS3 Declaration", func() {
-		var mem1, mem2, mem3, mem4 Member
+		var mem1, mem2, mem3, mem4 PoolMember
 		BeforeEach(func() {
-			mem1 = Member{
+			mem1 = PoolMember{
 				Address: "1.2.3.5",
 				Port:    8080,
 			}
-			mem2 = Member{
+			mem2 = PoolMember{
 				Address: "1.2.3.6",
 				Port:    8081,
 			}
-			mem3 = Member{
+			mem3 = PoolMember{
 				Address: "1.2.3.7",
 				Port:    8082,
 			}
-			mem4 = Member{
+			mem4 = PoolMember{
 				Address: "1.2.3.8",
 				Port:    8083,
 			}
@@ -101,7 +101,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Pools = Pools{
 				Pool{
 					Name:    "pool1",
-					Members: []Member{mem1, mem2},
+					Members: []PoolMember{mem1, mem2},
 					MonitorNames: []string{
 						"/test/http_monitor",
 					},
@@ -235,7 +235,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg2.Pools = Pools{
 				Pool{
 					Name:    "pool1",
-					Members: []Member{mem3, mem4},
+					Members: []PoolMember{mem3, mem4},
 				},
 			}
 
@@ -289,7 +289,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Pools = Pools{
 				Pool{
 					Name:    "pool1",
-					Members: []Member{mem1, mem2},
+					Members: []PoolMember{mem1, mem2},
 				},
 			}
 

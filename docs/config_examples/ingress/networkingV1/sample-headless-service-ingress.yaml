@@ -39,7 +39,7 @@ metadata:
   name: svc-1-ingress
   annotations:
     # Ingress class annotation
-    kubernetes.io/ingress.class: f5
+    #kubernetes.io/ingress.class: f5 #supported only with version below k8s version < 1.22
     # Load balancing algorithm
     virtual-server.f5.com/balance: least-connections-node
     # Provide an IP address for the BIG-IP Virtual Server.

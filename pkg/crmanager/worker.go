@@ -357,6 +357,7 @@ func (crMgr *CRManager) processResource() bool {
 			defaultRouteDomain: crMgr.defaultRouteDomain,
 		}
 		go crMgr.TeemData.PostTeemsData()
+		crMgr.enqueueReq(config)
 		crMgr.Agent.PostConfig(config)
 		crMgr.initState = false
 		crMgr.resources.updateOldConfig()
@@ -738,8 +739,7 @@ func (crMgr *CRManager) processVirtualServers(
 				log.Debugf("IP address requested for service: %s/%s", virtual.Namespace, virtual.Name)
 				return nil
 			}
-
-			crMgr.updateVirtualServerStatus(virtual, ip)
+			virtual.Status.VSAddress = ip
 		}
 	} else {
 		if virtual.Spec.VirtualServerAddress == "" {
@@ -783,6 +783,8 @@ func (crMgr *CRManager) processVirtualServers(
 		rsCfg.Virtual.Name = rsName
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 		rsCfg.MetaData.Protocol = portStruct.protocol
+		rsCfg.MetaData.namespace = virtual.ObjectMeta.Namespace
+		rsCfg.MetaData.rscName = virtual.ObjectMeta.Name
 		rsCfg.Virtual.SetVirtualAddress(
 			ip,
 			portStruct.port,
@@ -2425,16 +2427,20 @@ func getNodeport(svc *v1.Service, servicePort int32) int32 {
 }
 
 //Update virtual server status with virtual server address
-func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string) {
+func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string, statusOk bool) {
 	// Set the vs status to include the virtual IP address
-	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip}
+	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip,StatusOk: statusOk}
+	log.Debugf("Updating VirtualServerStatus with %v", vsStatus )
 	vs.Status = vsStatus
+	vs.Status.VSAddress = ip
+	vs.Status.StatusOk = statusOk
 	_, updateErr := crMgr.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating virtual server status:%v", updateErr)
 		return
 	}
 }
+
 
 //Update ingresslink status with virtual server address
 func (crMgr *CRManager) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip string) {

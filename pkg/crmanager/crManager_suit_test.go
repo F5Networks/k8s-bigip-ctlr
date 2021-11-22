@@ -46,7 +46,7 @@ func newMockPostManger() *mockPostManager {
 		RespIndex:   0,
 	}
 
-	mockPM.postChan = make(chan config, 1)
+	mockPM.postChan = make(chan agentConfig, 1)
 
 	return mockPM
 }

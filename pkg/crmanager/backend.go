@@ -126,17 +126,23 @@ func (agent *Agent) Stop() {
 	agent.stopPythonDriver()
 }
 
-func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
-	agent.PostGTMConfig(config)
-	decl := createAS3Declaration(config, agent.userAgent)
+func (agent *Agent) PostConfig(rsConfig ResourceConfigWrapper) {
+	agent.PostGTMConfig(rsConfig)
+	decl := createAS3Declaration(rsConfig, agent.userAgent)
 	if DeepEqualJSON(agent.activeDecl, decl) {
 		log.Debug("[AS3] No Change in the Configuration")
 		return
 	}
-	agent.Write(string(decl), nil)
+	cfg := agentConfig{
+		data:      string(decl),
+		as3APIURL: agent.getAS3APIURL(nil),
+		id:        rsConfig.reqId,
+	}
+
+	agent.Write(cfg)
 	agent.activeDecl = decl
 
-	allPoolMembers := config.rsCfgs.GetAllPoolMembers()
+	allPoolMembers := rsConfig.rsCfgs.GetAllPoolMembers()
 
 	// Convert allPoolMembers to rsc.Members so that vxlan Manger accepts
 	var allPoolMems []rsc.Member
@@ -154,6 +160,10 @@ func (agent *Agent) PostConfig(config ResourceConfigWrapper) {
 		case <-time.After(3 * time.Second):
 		}
 	}
+}
+
+func (agent Agent) SetResponseChannel(respChan chan int) {
+	agent.PostManager.respChan = respChan
 }
 
 func (agent Agent) PostGTMConfig(config ResourceConfigWrapper) {

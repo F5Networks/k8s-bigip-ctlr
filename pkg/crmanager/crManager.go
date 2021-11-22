@@ -164,6 +164,9 @@ func NewCRManager(params Params) *CRManager {
 		_ = crMgr.createIPAMResource()
 	}
 
+	respChan := make(chan int)
+	crMgr.Agent.SetResponseChannel(respChan)
+	go crMgr.responseHandler(respChan)
 	go crMgr.Start()
 	return crMgr
 }

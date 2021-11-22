@@ -8,7 +8,6 @@ import (
 
 var _ = Describe("PostManager Tests", func() {
 	var mockPM *mockPostManager
-
 	BeforeEach(func() {
 		mockPM = newMockPostManger()
 		mockPM.LogResponse = true
@@ -17,11 +16,17 @@ var _ = Describe("PostManager Tests", func() {
 	It("Setup Client", func() {
 		mockPM.setupBIGIPRESTClient()
 	})
-
-	It("Wirte Config", func() {
+	It("Write Config", func() {
 		mockPM.BIGIPURL = "bigip.com"
-		mockPM.Write("", []string{"test"})
-		mockPM.Write("{}", []string{"test"})
+		agentCfg := agentConfig{
+			data: "",
+			as3APIURL: mockPM.getAS3APIURL([]string{"test"}),
+			id:        0,
+		}
+		agentCfg.data = ""
+		mockPM.Write(agentCfg)
+		agentCfg.data = "{}"
+		mockPM.Write(agentCfg)
 	})
 
 	Describe("Post Config and Handle Response", func() {
@@ -29,30 +34,34 @@ var _ = Describe("PostManager Tests", func() {
 			mockPM.BIGIPURL = "bigip.com"
 			mockPM.BIGIPUsername = "user"
 			mockPM.BIGIPPassword = "pswd"
-			mockPM.Write("{}", []string{"test"})
-
+			agentCfg := agentConfig{
+				data: "{}",
+				as3APIURL: mockPM.getAS3APIURL([]string{"test"}),
+				id:        0,
+			}
+			mockPM.Write(agentCfg)
 		})
 		It("Handle HTTP StatusOK", func() {
 			mockPM.setResponses([]int{http.StatusOK}, "", http.MethodPost)
-			ok := mockPM.postOnEventOrTimeout(0, config{})
+			_, ok := mockPM.postOnEventOrTimeout(0, &agentConfig{})
 			Expect(ok).To(BeTrue(), "Posting Failed")
 		})
 
 		It("Handle HTTP StatusServiceUnavailable", func() {
 			mockPM.setResponses([]int{http.StatusServiceUnavailable, http.StatusOK}, "", http.MethodPost)
-			ok := mockPM.postOnEventOrTimeout(0, config{})
+			_, ok := mockPM.postOnEventOrTimeout(0, &agentConfig{})
 			Expect(ok).To(BeTrue(), "Posting Failed")
 		})
 
 		It("Handle HTTP StatusNotFound", func() {
 			mockPM.setResponses([]int{http.StatusNotFound}, "", http.MethodPost)
-			ok := mockPM.postOnEventOrTimeout(0, config{})
+			_, ok := mockPM.postOnEventOrTimeout(0, &agentConfig{})
 			Expect(ok).To(BeTrue(), "Posting Failed")
 		})
 
 		It("Handle HTTP StatusTimeout", func() {
 			mockPM.setResponses([]int{http.StatusRequestTimeout, http.StatusOK}, "", http.MethodPost)
-			ok := mockPM.postOnEventOrTimeout(0, config{})
+			_, ok := mockPM.postOnEventOrTimeout(0, &agentConfig{})
 			Expect(ok).To(BeTrue(), "Posting Failed")
 		})
 	})

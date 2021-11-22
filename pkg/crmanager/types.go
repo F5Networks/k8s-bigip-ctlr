@@ -63,6 +63,7 @@ type (
 		ipamCR             string
 		defaultRouteDomain int
 		TeemData           *teem.TeemsData
+		requestQueue       *requestQueueData
 	}
 	// Params defines parameters
 	Params struct {
@@ -111,6 +112,7 @@ type (
 		Active       bool
 		ResourceType string
 		rscName      string
+		namespace    string
 		hosts        []string
 		Protocol     string
 	}
@@ -220,6 +222,7 @@ type (
 		shareNodes         bool
 		dnsConfig          DNSConfig
 		defaultRouteDomain int
+		reqId              int
 	}
 
 	// Pool config

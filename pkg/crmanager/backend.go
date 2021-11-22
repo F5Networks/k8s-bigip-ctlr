@@ -519,51 +519,12 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		}
 	}
 
-	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
-		svc.SNAT = cfg.Virtual.SNAT
-	} else {
-		svc.SNAT = &as3ResourcePointer{
-			BigIP: fmt.Sprintf("%v", cfg.Virtual.SNAT),
-		}
-	}
-
 	//Attaching WAF policy
 	if cfg.Virtual.WAF != "" {
 		svc.WAF = &as3ResourcePointer{
 			BigIP: fmt.Sprintf("%v", cfg.Virtual.WAF),
 		}
 	}
-
-	//Attaching Firewall policy
-	if cfg.Virtual.Firewall != "" {
-		svc.Firewall = &as3ResourcePointer{
-			BigIP: fmt.Sprintf("%v", cfg.Virtual.Firewall),
-		}
-	}
-
-	//Attaching logging profile
-	var logProfiles []as3ResourcePointer
-	for _, lp := range cfg.Virtual.LogProfiles {
-		logProfiles = append(
-			logProfiles,
-			as3ResourcePointer{
-				BigIP: lp,
-			},
-		)
-	}
-	svc.LogProfiles = logProfiles
-
-	//Attach allowVlans if exist.
-	var vlans []as3ResourcePointer
-	for _, va := range cfg.Virtual.AllowVLANs {
-		vlans = append(
-			vlans,
-			as3ResourcePointer{
-				BigIP: fmt.Sprintf("%v", va),
-			},
-		)
-	}
-	svc.AllowVLANs = vlans
 
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	// verify that ip address and port exists.
@@ -582,8 +543,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.VirtualPort = port
 		}
 	}
-	//process irules for crd
-	processIrulesForCRD(cfg, svc)
+	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }
 
@@ -1028,13 +988,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			}
 		}
 	}
-	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
-		svc.SNAT = cfg.Virtual.SNAT
-	} else {
-		svc.SNAT = &as3ResourcePointer{
-			BigIP: fmt.Sprintf("%v", cfg.Virtual.SNAT),
-		}
-	}
+
 	if cfg.Virtual.TranslateServerAddress == true {
 		svc.TranslateServerAddress = cfg.Virtual.TranslateServerAddress
 	}
@@ -1062,13 +1016,44 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		}
 	}
 	svc.Pool = cfg.Virtual.PoolName
+	processCommonDecl(cfg, svc)
+	sharedApp[cfg.Virtual.Name] = svc
+}
+
+//Process common declaration for VS and TS
+func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
+
+	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {
+		svc.SNAT = cfg.Virtual.SNAT
+	} else {
+		svc.SNAT = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.SNAT),
+		}
+	}
+
+	//Attach AllowVLANs
 	if cfg.Virtual.AllowVLANs != nil {
 		for _, vlan := range cfg.Virtual.AllowVLANs {
 			vlans := as3ResourcePointer{BigIP: vlan}
 			svc.AllowVLANs = append(svc.AllowVLANs, vlans)
 		}
 	}
-	//process irules for crd
+
+	//Attach Firewall policy
+	if cfg.Virtual.Firewall != "" {
+		svc.Firewall = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.Firewall),
+		}
+	}
+
+	//Attach logging profile
+	if cfg.Virtual.LogProfiles != nil {
+		for _, lp := range cfg.Virtual.LogProfiles {
+			logProfile := as3ResourcePointer{BigIP: lp}
+			svc.LogProfiles = append(svc.LogProfiles, logProfile)
+		}
+	}
+
+	//Process iRules for crd
 	processIrulesForCRD(cfg, svc)
-	sharedApp[cfg.Virtual.Name] = svc
 }

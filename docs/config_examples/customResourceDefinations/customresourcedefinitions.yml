@@ -132,6 +132,8 @@ spec:
               properties:
                 vsAddress:
                   type: string
+                statusOk:
+                  type: boolean
       additionalPrinterColumns:
         - name: host
           type: string
@@ -157,6 +159,10 @@ spec:
           type: string
           description: IP address of virtualServer
           jsonPath: .status.vsAddress
+        - name: StatusOK
+          type: boolean
+          description: Whether Successfully pushed to BIGIP or not
+          jsonPath: .status.statusOk
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp

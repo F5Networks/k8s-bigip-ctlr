@@ -172,6 +172,9 @@ func (postMgr *PostManager) postOnEventOrTimeout(timeout time.Duration, cfg conf
 }
 
 func (postMgr *PostManager) postConfig(cfg config) bool {
+	log.Debugf("Nanda Posting this AS3 config data %v", cfg.data)
+	log.Debugf("Nanda Posting this AS3 config routesMap %v", cfg.routesMap)
+	log.Debugf("Nanda Posting this AS3 config  as3APIURL %v", cfg.as3APIURL)
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
 
 	req, err := http.NewRequest("POST", cfg.as3APIURL, httpReqBody)

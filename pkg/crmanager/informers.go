@@ -386,7 +386,8 @@ func (crMgr *CRManager) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 		oldVS.Spec.VirtualServerHTTPSPort != newVS.Spec.VirtualServerHTTPSPort ||
 		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerName ||
 		oldVS.Spec.Host != newVS.Spec.Host ||
-		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel {
+		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel ||
+		oldVS.Spec.HostGroup != newVS.Spec.HostGroup {
 		log.Debugf("Enqueueing Old VirtualServer: %v", oldVS)
 		key := &rqKey{
 			namespace: oldVS.ObjectMeta.Namespace,

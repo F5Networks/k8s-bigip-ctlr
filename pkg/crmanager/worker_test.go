@@ -199,7 +199,7 @@ var _ = Describe("Worker Tests", func() {
 					errHint = "Key: "
 				}
 
-				ip, status := mockCRM.requestIP("test", host, key)
+				ip, status := mockCRM.requestIP("test", host, key, "")
 				Expect(status).To(Equal(Requested), errHint+"Failed to Request IP")
 				Expect(ip).To(BeEmpty(), errHint+"IP available even before requesting")
 				ipamCR := mockCRM.getIPAMCR()
@@ -208,13 +208,13 @@ var _ = Describe("Worker Tests", func() {
 				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
 
-				ip, status = mockCRM.requestIP("", host, key)
+				ip, status = mockCRM.requestIP("", host, key, "")
 				Expect(status).To(Equal(InvalidInput), errHint+"Failed to validate invalid input")
 				Expect(ip).To(BeEmpty(), errHint+"Failed to validate invalid input")
 				newIPAMCR := mockCRM.getIPAMCR()
 				Expect(reflect.DeepEqual(ipamCR, newIPAMCR)).To(BeTrue(), errHint+"IPAM CR should not be updated")
 
-				ip, status = mockCRM.requestIP("test", host, key)
+				ip, status = mockCRM.requestIP("test", host, key, "")
 				Expect(status).To(Equal(Requested), errHint+"Wrong status")
 				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
 				newIPAMCR = mockCRM.getIPAMCR()
@@ -229,7 +229,7 @@ var _ = Describe("Worker Tests", func() {
 					},
 				}
 				ipamCR, _ = mockCRM.ipamCli.Update(ipamCR)
-				ip, status = mockCRM.requestIP("test", host, key)
+				ip, status = mockCRM.requestIP("test", host, key, "")
 				Expect(ip).To(Equal("10.10.10.1"), errHint+"Invalid IP")
 				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
 				ipamCR = mockCRM.getIPAMCR()
@@ -238,7 +238,7 @@ var _ = Describe("Worker Tests", func() {
 				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
 
-				ip, status = mockCRM.requestIP("dev", host, key)
+				ip, status = mockCRM.requestIP("dev", host, key, "")
 				Expect(status).To(Equal(Requested), "Failed to Request IP")
 				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
 				ipamCR = mockCRM.getIPAMCR()
@@ -247,7 +247,7 @@ var _ = Describe("Worker Tests", func() {
 				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
 
-				ip, status = mockCRM.requestIP("test", "", "")
+				ip, status = mockCRM.requestIP("test", "", "", "")
 				Expect(status).To(Equal(InvalidInput), errHint+"Failed to validate invalid input")
 				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
 				newIPAMCR = mockCRM.getIPAMCR()
@@ -264,9 +264,51 @@ var _ = Describe("Worker Tests", func() {
 				}
 				ipamCR, _ = mockCRM.ipamCli.Update(ipamCR)
 
-				ip, status = mockCRM.requestIP("old", host, key)
+				ip, status = mockCRM.requestIP("old", host, key, "")
 				Expect(ip).To(Equal(""), errHint+"Invalid IP")
 				Expect(status).To(Equal(NotRequested), "Failed to identify Stale status")
+			}
+		})
+
+		It("Request IP Addresss with hostGroup", func() {
+			testSpec := make(map[string]string)
+			testSpec["hostGroup"] = "f5"
+			testSpec["key"] = "ns/name"
+
+			for sp, val := range testSpec {
+				_ = mockCRM.createIPAMResource()
+				var key, host, errHint string
+				if sp == "hostGroup" {
+					host = val
+					key = ""
+					errHint = "Host: "
+				} else {
+					key = val
+					host = ""
+					errHint = "Key: "
+				}
+
+				ip, status := mockCRM.requestIP("test", host, key, host)
+				Expect(status).To(Equal(Requested), errHint+"Failed to Request IP")
+				Expect(ip).To(BeEmpty(), errHint+"IP available even before requesting")
+				ipamCR := mockCRM.getIPAMCR()
+				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(1), errHint+"Invalid number of Host Specs")
+				Expect(ipamCR.Spec.HostSpecs[0].IPAMLabel).To(Equal("test"), errHint+"IPAM Request Failed")
+				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
+				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
+
+				ipamCR.Status.IPStatus = []*ficV1.IPSpec{
+					{
+						IPAMLabel: "test",
+						Host:      host,
+						IP:        "10.10.10.1",
+						Key:       key,
+					},
+				}
+				ipamCR, _ = mockCRM.ipamCli.Update(ipamCR)
+				ip, status = mockCRM.requestIP("test", host, key, "")
+				Expect(ip).To(Equal("10.10.10.1"), errHint+"Invalid IP")
+				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
 			}
 		})
 

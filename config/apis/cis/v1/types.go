@@ -21,6 +21,7 @@ type VirtualServer struct {
 // VirtualServerStatus is the status of the VirtualServer resource.
 type VirtualServerStatus struct {
 	VSAddress string `json:"vsAddress,omitempty"`
+	StatusOk  bool   `json:"statusOk,omitempty"`
 }
 
 // VirtualServerSpec is the spec of the VirtualServer resource.

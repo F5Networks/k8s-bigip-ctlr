@@ -228,7 +228,7 @@ func (am *AS3Manager) postAS3Config(tempAS3Config AS3Config) (bool, string) {
 		tenants = getTenants(unifiedDecl, true)
 	}
 
-	return am.PostManager.postConfig(string(unifiedDecl), tenants)
+	return am.PostManager.postConfig(string(unifiedDecl), tenants, false)
 }
 
 func (cfg *AS3Config) updateConfig(newAS3Cfg AS3Config) {
@@ -333,7 +333,7 @@ func (am *AS3Manager) getDeletedTenants(curTenantMap map[string]interface{}) []s
 // Method to delete any AS3 partition
 func (am *AS3Manager) DeleteAS3Partition(partition string) (bool, string) {
 	emptyAS3Declaration := am.getEmptyAs3Declaration(partition)
-	return am.PostManager.postConfig(string(emptyAS3Declaration), nil)
+	return am.PostManager.postConfig(string(emptyAS3Declaration), nil, false)
 }
 
 // fetchAS3Schema ...
@@ -361,22 +361,19 @@ func (am *AS3Manager) ConfigDeployer() {
 		case msgReq = <-am.ReqChan:
 		case <-time.After(1 * time.Microsecond):
 		}
-
 		posted, event := am.postAS3Declaration(msgReq.ResourceRequest)
+		am.updateNetworkingConfig()
 		// To handle general errors
 		for !posted {
 			am.unprocessableEntityStatus = true
 			timeout := getTimeDurationForErrorResponse(event)
 			log.Debugf("[AS3] Error handling for event %v", event)
 			posted, event = am.postOnEventOrTimeout(timeout)
+			am.updateNetworkingConfig()
 		}
 		firstPost = false
 		if event == responseStatusOk {
 			am.unprocessableEntityStatus = false
-			log.Debugf("[AS3] Preparing response message to response handler")
-			am.SendARPEntries()
-			am.SendAgentResponse()
-			log.Debugf("[AS3] Sent response message to response handler")
 		}
 	}
 }
@@ -392,7 +389,7 @@ func (am *AS3Manager) postOnEventOrTimeout(timeout time.Duration) (bool, string)
 			tenants = getTenants(am.as3ActiveConfig.unifiedDeclaration, true)
 		}
 		unifiedDeclaration := string(am.as3ActiveConfig.unifiedDeclaration)
-		return am.PostManager.postConfig(unifiedDeclaration, tenants)
+		return am.PostManager.postConfig(unifiedDeclaration, tenants, true)
 	}
 }
 
@@ -448,4 +445,11 @@ func (am *AS3Manager) IsBigIPAppServicesAvailable() error {
 	return fmt.Errorf("CIS versions >= 2.0 are compatible with AS3 versions >= %v. "+
 		"Upgrade AS3 version in BIGIP from %v to %v or above.", as3SupportedVersion,
 		bigIPAS3Version, as3SupportedVersion)
+}
+
+func (am *AS3Manager) updateNetworkingConfig() {
+	log.Debugf("[AS3] Preparing response message to response handler for arp and fdb config")
+	am.SendARPEntries()
+	am.SendAgentResponse()
+	log.Debugf("[AS3] Sent response message to response handler for arp and fdb config")
 }

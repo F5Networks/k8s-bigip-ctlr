@@ -39,7 +39,7 @@ func (am *AS3Manager) SendARPEntries() {
 
 	// Filter the configs to only those that have active services
 	for _, cfg := range am.Resources.RsCfgs {
-		if cfg.MetaData.Active == true {
+		if cfg.MetaData.Active == true && am.PostManager.Tenants[cfg.Virtual.Partition] == true {
 			for _, pool := range cfg.Pools {
 				allPoolMembers = append(allPoolMembers, pool.Members...)
 			}

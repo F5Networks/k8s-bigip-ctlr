@@ -718,13 +718,23 @@ func (crMgr *CRManager) processVirtualServers(
 	var status int
 	if crMgr.ipamCli != nil {
 		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
-			ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, "")
+			if virtual.Spec.HostGroup != "" {
+				key := virtual.ObjectMeta.Namespace + "/" + virtual.Spec.HostGroup
+				ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, "", key)
+			} else {
+				ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, "")
+			}
 		} else if virtual.Spec.VirtualServerAddress != "" {
 			// Prioritise VirtualServerAddress specified over IPAMLabel
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
 			ipamLabel := getIPAMLabel(virtuals)
-			ip, status = crMgr.requestIP(ipamLabel, virtual.Spec.Host, "")
+			if virtual.Spec.HostGroup != "" {
+				key := virtual.ObjectMeta.Namespace + "/" + virtual.Spec.HostGroup
+				ip, status = crMgr.requestIP(ipamLabel, "", key)
+			} else {
+				ip, status = crMgr.requestIP(ipamLabel, virtual.Spec.Host, "")
+			}
 
 			switch status {
 			case NotEnabled:
@@ -1692,7 +1702,8 @@ func (crMgr *CRManager) getVirtualServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.V
 	allVS = crMgr.getAllVSFromMonitoredNamespaces()
 	for _, status := range ipam.Status.IPStatus {
 		for _, vs := range allVS {
-			if status.Host == vs.Spec.Host {
+			key := vs.ObjectMeta.Namespace + "/" + vs.Spec.HostGroup
+			if status.Host == vs.Spec.Host || status.Key == key {
 				vss = append(vss, vs)
 				break
 			}
@@ -2429,8 +2440,8 @@ func getNodeport(svc *v1.Service, servicePort int32) int32 {
 //Update virtual server status with virtual server address
 func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string, statusOk bool) {
 	// Set the vs status to include the virtual IP address
-	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip,StatusOk: statusOk}
-	log.Debugf("Updating VirtualServerStatus with %v", vsStatus )
+	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip, StatusOk: statusOk}
+	log.Debugf("Updating VirtualServerStatus with %v", vsStatus)
 	vs.Status = vsStatus
 	vs.Status.VSAddress = ip
 	vs.Status.StatusOk = statusOk
@@ -2440,7 +2451,6 @@ func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip
 		return
 	}
 }
-
 
 //Update ingresslink status with virtual server address
 func (crMgr *CRManager) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip string) {

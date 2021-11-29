@@ -719,7 +719,8 @@ func (crMgr *CRManager) processVirtualServers(
 	if crMgr.ipamCli != nil {
 		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
 			if virtual.Spec.HostGroup != "" {
-				ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.HostGroup, "")
+				key := virtual.ObjectMeta.Namespace + "/" + virtual.Spec.HostGroup
+				ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, "", key)
 			} else {
 				ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, "")
 			}
@@ -728,7 +729,12 @@ func (crMgr *CRManager) processVirtualServers(
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
 			ipamLabel := getIPAMLabel(virtuals)
-			ip, status = crMgr.requestIP(ipamLabel, virtual.Spec.Host, "", virtual.Spec.HostGroup)
+			if virtual.Spec.HostGroup != "" {
+				key := virtual.ObjectMeta.Namespace + "/" + virtual.Spec.HostGroup
+				ip, status = crMgr.requestIP(ipamLabel, "", key)
+			} else {
+				ip, status = crMgr.requestIP(ipamLabel, virtual.Spec.Host, "")
+			}
 
 			switch status {
 			case NotEnabled:
@@ -1079,7 +1085,7 @@ func (crMgr *CRManager) getIPAMCR() *ficV1.IPAM {
 }
 
 //Request IPAM for virtual IP address
-func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string, hostGroup string) (string, int) {
+func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string) (string, int) {
 	ipamCR := crMgr.getIPAMCR()
 	var ip string
 	var ipReleased bool
@@ -1093,9 +1099,6 @@ func (crMgr *CRManager) requestIP(ipamLabel string, host string, key string, hos
 
 	if host != "" {
 		//For VS server
-		if hostGroup != "" {
-			host = hostGroup
-		}
 		for _, ipst := range ipamCR.Status.IPStatus {
 			if ipst.IPAMLabel == ipamLabel && ipst.Host == host {
 				// IP will be returned later when availability of corresponding spec is confirmed
@@ -1472,7 +1475,7 @@ func (crMgr *CRManager) processTransportServers(
 		} else if virtual.Spec.VirtualServerAddress != "" {
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
-			ip, status = crMgr.requestIP(virtual.Spec.IPAMLabel, "", key, "")
+			ip, status = crMgr.requestIP(virtual.Spec.IPAMLabel, "", key)
 
 			switch status {
 			case NotEnabled:
@@ -1702,7 +1705,8 @@ func (crMgr *CRManager) getVirtualServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.V
 	allVS = crMgr.getAllVSFromMonitoredNamespaces()
 	for _, status := range ipam.Status.IPStatus {
 		for _, vs := range allVS {
-			if status.Host == vs.Spec.Host || status.Host == vs.Spec.HostGroup {
+			key := vs.ObjectMeta.Namespace + "/" + vs.Spec.HostGroup
+			if status.Host == vs.Spec.Host || status.Key == key {
 				vss = append(vss, vs)
 				break
 			}
@@ -1797,7 +1801,7 @@ func (crMgr *CRManager) processLBServices(
 
 	svcKey := svc.Namespace + "/" + svc.Name + "_svc"
 
-	ip, status := crMgr.requestIP(ipamLabel, "", svcKey, "")
+	ip, status := crMgr.requestIP(ipamLabel, "", svcKey)
 
 	switch status {
 	case NotEnabled:
@@ -2044,7 +2048,7 @@ func (crMgr *CRManager) processIngressLink(
 		} else if ingLink.Spec.VirtualServerAddress != "" {
 			ip = ingLink.Spec.VirtualServerAddress
 		} else {
-			ip, status = crMgr.requestIP(ingLink.Spec.IPAMLabel, "", key, "")
+			ip, status = crMgr.requestIP(ingLink.Spec.IPAMLabel, "", key)
 
 			switch status {
 			case NotEnabled:
@@ -2439,8 +2443,8 @@ func getNodeport(svc *v1.Service, servicePort int32) int32 {
 //Update virtual server status with virtual server address
 func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string, statusOk bool) {
 	// Set the vs status to include the virtual IP address
-	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip,StatusOk: statusOk}
-	log.Debugf("Updating VirtualServerStatus with %v", vsStatus )
+	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip, StatusOk: statusOk}
+	log.Debugf("Updating VirtualServerStatus with %v", vsStatus)
 	vs.Status = vsStatus
 	vs.Status.VSAddress = ip
 	vs.Status.StatusOk = statusOk

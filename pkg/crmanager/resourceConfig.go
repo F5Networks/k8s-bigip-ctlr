@@ -327,6 +327,9 @@ func formatPolicyName(hostname, hostGroup, name string) string {
 	if hostGroup != "" {
 		host = hostGroup
 	}
+	if strings.HasPrefix(host, "*") {
+		host = strings.Replace(host, "*", "wildcard", 1)
+	}
 	policyName := fmt.Sprintf("%s_%s_%s", name, host, "policy")
 	return AS3NameFormatter(policyName)
 }

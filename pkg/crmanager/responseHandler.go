@@ -42,7 +42,7 @@ func (crMgr *CRManager) enqueueReq(config ResourceConfigWrapper) {
 }
 
 func (crMgr *CRManager) responseHandler(respChan chan int) {
-	crMgr.requestQueue = &requestQueueData{sync.Mutex{},list.New()}
+	crMgr.requestQueue = &requestQueueData{sync.Mutex{}, list.New()}
 
 	for id := range respChan {
 		var rm requestMeta
@@ -99,4 +99,3 @@ func (crMgr *CRManager) responseHandler(respChan chan int) {
 		}
 	}
 }
-

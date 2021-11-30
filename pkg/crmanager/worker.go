@@ -656,6 +656,14 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(
 			// TLSProfile Object
 			return tlsProfile
 		}
+		// check for wildcard match
+		if strings.HasPrefix(host, "*") {
+			host = strings.TrimPrefix(host, "*")
+			if strings.HasSuffix(vs.Spec.Host, host) {
+				// TLSProfile Object
+				return tlsProfile
+			}
+		}
 	}
 	log.Errorf("TLSProfile %s with host %s does not match with virtual server %s host.", tlsName, vs.Spec.Host, vs.ObjectMeta.Name)
 	return nil
@@ -2458,8 +2466,8 @@ func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip
 //Update Transport server status with virtual server address
 func (crMgr *CRManager) updateTransportServerStatus(ts *cisapiv1.TransportServer, ip string, statusOk string) {
 	// Set the vs status to include the virtual IP address
-	tsStatus := cisapiv1.TransportServerStatus{VSAddress: ip,StatusOk: statusOk}
-	log.Debugf("Updating TransportServerStatus with %v", tsStatus )
+	tsStatus := cisapiv1.TransportServerStatus{VSAddress: ip, StatusOk: statusOk}
+	log.Debugf("Updating TransportServerStatus with %v", tsStatus)
 	ts.Status = tsStatus
 	ts.Status.VSAddress = ip
 	ts.Status.StatusOk = statusOk

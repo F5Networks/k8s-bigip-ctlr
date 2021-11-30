@@ -15,6 +15,7 @@ Bug Fixes
 * :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool.
 * :issues:`1873` Enable /metrics endpoint with crd mode.
 * :issues:`1659` Report "status" of TransportServer CRD
+* :issues:`2006` Add support for Wildcard domain name with TLSProfile and VirtualServer
 
 2.6.1
 -------------

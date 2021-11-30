@@ -175,7 +175,7 @@ func NewCRManager(params Params) *CRManager {
 func (crMgr *CRManager) registerIPAMCRD() {
 	err := ipammachinery.RegisterCRD(crMgr.kubeAPIClient)
 	if err != nil {
-		log.Debugf("[IPAM] error while registering CRD %v", err)
+		log.Errorf("[IPAM] error while registering CRD %v", err)
 	}
 }
 

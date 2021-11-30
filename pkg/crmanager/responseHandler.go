@@ -73,7 +73,7 @@ func (crMgr *CRManager) responseHandler(respChan chan int) {
 				}
 				virtual := obj.(*cisapiv1.VirtualServer)
 				if virtual.Name == item.rscName && virtual.Namespace == item.namespace {
-					crMgr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, true)
+					crMgr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 			case TransportServer:
 				// update status
@@ -92,7 +92,7 @@ func (crMgr *CRManager) responseHandler(respChan chan int) {
 				}
 				virtual := obj.(*cisapiv1.TransportServer)
 				if virtual.Name == item.rscName && virtual.Namespace == item.namespace {
-					crMgr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, true)
+					crMgr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 
 			}

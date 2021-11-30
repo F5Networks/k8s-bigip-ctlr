@@ -132,8 +132,10 @@ spec:
               properties:
                 vsAddress:
                   type: string
-                statusOk:
-                  type: boolean
+                  default: None
+                status:
+                  type: string
+                  default: Pending
       additionalPrinterColumns:
         - name: host
           type: string
@@ -159,10 +161,10 @@ spec:
           type: string
           description: IP address of virtualServer
           jsonPath: .status.vsAddress
-        - name: StatusOK
-          type: boolean
-          description: Whether Successfully pushed to BIGIP or not
-          jsonPath: .status.statusOk
+        - name: STATUS
+          type: string
+          description: status of VirtualServer
+          jsonPath: .status.status
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp
@@ -326,8 +328,10 @@ spec:
               properties:
                 vsAddress:
                   type: string
-                statusOk:
-                  type: boolean
+                  default: None
+                status:
+                  type: string
+                  default: Pending
       additionalPrinterColumns:
       - name: virtualServerAddress
         type: string
@@ -349,10 +353,10 @@ spec:
         type: string
         description: IP address of virtualServer
         jsonPath: .status.vsAddress
-      - name: StatusOK
-        type: boolean
-        description: Whether Successfully pushed to BIGIP or not
-        jsonPath: .status.statusOk
+      - name: STATUS
+        type: string
+        description: status of TransportServer
+        jsonPath: .status.status
       - name: Age
         type: date
         jsonPath: .metadata.creationTimestamp

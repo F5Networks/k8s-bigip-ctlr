@@ -2441,7 +2441,7 @@ func getNodeport(svc *v1.Service, servicePort int32) int32 {
 }
 
 //Update virtual server status with virtual server address
-func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string, statusOk bool) {
+func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string, statusOk string) {
 	// Set the vs status to include the virtual IP address
 	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip, StatusOk: statusOk}
 	log.Debugf("Updating VirtualServerStatus with %v", vsStatus)
@@ -2456,7 +2456,7 @@ func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip
 }
 
 //Update Transport server status with virtual server address
-func (crMgr *CRManager) updateTransportServerStatus(ts *cisapiv1.TransportServer, ip string, statusOk bool) {
+func (crMgr *CRManager) updateTransportServerStatus(ts *cisapiv1.TransportServer, ip string, statusOk string) {
 	// Set the vs status to include the virtual IP address
 	tsStatus := cisapiv1.TransportServerStatus{VSAddress: ip,StatusOk: statusOk}
 	log.Debugf("Updating TransportServerStatus with %v", tsStatus )

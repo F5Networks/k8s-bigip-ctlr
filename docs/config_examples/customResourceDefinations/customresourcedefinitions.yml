@@ -321,6 +321,13 @@ spec:
               required:
                 - virtualServerPort
                 - pool
+            status:
+              type: object
+              properties:
+                vsAddress:
+                  type: string
+                statusOk:
+                  type: boolean
       additionalPrinterColumns:
       - name: virtualServerAddress
         type: string
@@ -338,9 +345,19 @@ spec:
         type: string
         description: Port of service
         jsonPath: .spec.pool.servicePort
+      - name: IPAMVSAddress
+        description: IP address of virtualServer
+        type: string
+        jsonPath: .status.vsAddress
+      - name: StatusOK
+        type: boolean
+        description: Whether Successfully pushed to BIGIP or not
+        jsonPath: .status.statusOk
       - name: Age
         type: date
         jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: { }
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition

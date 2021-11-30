@@ -1488,6 +1488,7 @@ func (crMgr *CRManager) processTransportServers(
 				log.Debugf("IP address requested for Transport Server: %s/%s", virtual.Namespace, virtual.Name)
 				return nil
 			}
+			virtual.Status.VSAddress = ip
 		}
 	} else {
 		if virtual.Spec.VirtualServerAddress == "" {
@@ -1522,6 +1523,8 @@ func (crMgr *CRManager) processTransportServers(
 	rsCfg.Virtual.Enabled = true
 	rsCfg.Virtual.Name = rsName
 	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
+	rsCfg.MetaData.namespace = virtual.ObjectMeta.Namespace
+	rsCfg.MetaData.rscName = virtual.ObjectMeta.Name
 	rsCfg.Virtual.SetVirtualAddress(
 		ip,
 		virtual.Spec.VirtualServerPort,
@@ -2448,6 +2451,20 @@ func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip
 	}
 }
 
+//Update Transport server status with virtual server address
+func (crMgr *CRManager) updateTransportServerStatus(ts *cisapiv1.TransportServer, ip string, statusOk bool) {
+	// Set the vs status to include the virtual IP address
+	tsStatus := cisapiv1.TransportServerStatus{VSAddress: ip,StatusOk: statusOk}
+	log.Debugf("Updating TransportServerStatus with %v", tsStatus )
+	ts.Status = tsStatus
+	ts.Status.VSAddress = ip
+	ts.Status.StatusOk = statusOk
+	_, updateErr := crMgr.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
+	if nil != updateErr {
+		log.Debugf("Error while updating Transport server status:%v", updateErr)
+		return
+	}
+}
 
 //Update ingresslink status with virtual server address
 func (crMgr *CRManager) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip string) {

@@ -3,12 +3,17 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 
 Next Release
 -------------
+Added Functionality
+```````````````````
+* CIS supports reporting Status of VirtualServer CRD
+* CIS supports reporting Status of TransportServer CRD
 
 Bug Fixes
 `````````
 * Added tcp type monitor support for EDNS.
 * :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool.
 * :issues:`1873` Enable /metrics endpoint with crd mode.
+* :issues:`1659` Report "status" of TransportServer CRD
 
 2.6.1
 -------------

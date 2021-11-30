@@ -156,6 +156,7 @@ type IngressLinkList struct {
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:validation:Optional
+// +kubebuilder:subresource:status
 
 // TransportServer defines the VirtualServer resource.
 type TransportServer struct {
@@ -163,6 +164,13 @@ type TransportServer struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec TransportServerSpec `json:"spec"`
+	Status TransportServerStatus `json:"status,omitempty"`
+}
+
+// TransportServerStatus is the status of the VirtualServer resource.
+type TransportServerStatus struct {
+	VSAddress string `json:"vsAddress,omitempty"`
+	StatusOk  bool   `json:"statusOk,omitempty"`
 }
 
 // TransportServerSpec is the spec of the VirtualServer resource.

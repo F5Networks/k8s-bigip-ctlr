@@ -50,6 +50,7 @@ type PostManager struct {
 	httpClient *http.Client
 	activeCfg  config
 	PostParams
+	Tenants map[string]bool
 }
 
 type PostParams struct {
@@ -73,6 +74,7 @@ func NewPostManager(params PostParams) *PostManager {
 	pm := &PostManager{
 		postChan:   make(chan config, 1),
 		PostParams: params,
+		Tenants:    make(map[string]bool),
 	}
 	pm.setupBIGIPRESTClient()
 
@@ -127,10 +129,54 @@ func getTimeDurationForErrorResponse(errRsp string) time.Duration {
 	return duration
 }
 
-func (postMgr *PostManager) postConfig(data string, tenants []string) (bool, string) {
+func (postMgr *PostManager) postConfig(data string, tenants []string, unprocessableTenantsStatus bool) (bool, string) {
+	if len(tenants) == 0 {
+		return postMgr.postConfigRequests(data, postMgr.getAS3APIURL(tenants))
+	}
+	var unprocessableTenants []string
+	var statusCommonResponse, statusServiceUnavailable, statusNotFound bool
+	if unprocessableTenantsStatus {
+		for k, v := range postMgr.Tenants {
+			if !v {
+				unprocessableTenants = append(unprocessableTenants, k)
+			}
+		}
+		tenants = unprocessableTenants
+	}
+	for _, tenant := range tenants {
+		tenantSlice := []string{tenant}
+		_, responseCode := postMgr.postConfigRequests(data, postMgr.getAS3APIURL(tenantSlice))
+		switch responseCode {
+		case responseStatusOk:
+			postMgr.Tenants[tenant] = true
+		case responseStatusNotFound:
+			statusNotFound = true
+			postMgr.Tenants[tenant] = false
+		case responseStatusServiceUnavailable:
+			statusServiceUnavailable = true
+			postMgr.Tenants[tenant] = false
+		default:
+			postMgr.Tenants[tenant] = false
+			statusCommonResponse = true
+		}
+
+	}
+	if statusNotFound != true && statusCommonResponse != true && statusServiceUnavailable != true {
+		return true, responseStatusOk
+	}
+	if statusNotFound {
+		return true, responseStatusNotFound
+	}
+	if statusServiceUnavailable {
+		return false, responseStatusServiceUnavailable
+	}
+	return false, responseStatusCommon
+}
+
+func (postMgr *PostManager) postConfigRequests(data string, url string) (bool, string) {
 	cfg := config{
 		data:      data,
-		as3APIURL: postMgr.getAS3APIURL(tenants),
+		as3APIURL: url,
 	}
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
 
@@ -149,13 +195,13 @@ func (postMgr *PostManager) postConfig(data string, tenants []string) (bool, str
 
 	switch httpResp.StatusCode {
 	case http.StatusOK, http.StatusCreated, http.StatusAccepted:
-		return postMgr.handleResponseStatusOK(responseMap, cfg)
+		return postMgr.handleResponseStatusOK(responseMap)
 	case http.StatusServiceUnavailable:
-		return postMgr.handleResponseStatusServiceUnavailable(responseMap, cfg)
+		return postMgr.handleResponseStatusServiceUnavailable(responseMap)
 	case http.StatusNotFound:
 		return postMgr.handleResponseStatusNotFound(responseMap)
 	default:
-		return postMgr.handleResponseOthers(responseMap, cfg)
+		return postMgr.handleResponseOthers(responseMap)
 	}
 }
 
@@ -220,7 +266,7 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 	return httpResp, response
 }
 
-func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}, cfg config) (bool, string) {
+func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}) (bool, string) {
 	//traverse all response results
 	results := (responseMap["results"]).([]interface{})
 	for _, value := range results {
@@ -231,7 +277,7 @@ func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interf
 	return true, responseStatusOk
 }
 
-func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}, cfg config) (bool, string) {
+func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}) (bool, string) {
 	log.Errorf("[AS3] Big-IP Responded with error code: %v", responseMap["code"])
 	log.Debugf("[AS3] Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", timeoutSmall)
 	//return postMgr.postOnEventOrTimeout(timeoutSmall, cfg)
@@ -251,7 +297,7 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 	return true, responseStatusNotFound
 }
 
-func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg config) (bool, string) {
+func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}) (bool, string) {
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
 			v := value.(map[string]interface{})

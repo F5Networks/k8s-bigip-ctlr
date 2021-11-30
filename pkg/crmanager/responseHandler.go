@@ -75,6 +75,25 @@ func (crMgr *CRManager) responseHandler(respChan chan int) {
 				if virtual.Name == item.rscName && virtual.Namespace == item.namespace {
 					crMgr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, true)
 				}
+			case TransportServer:
+				// update status
+				vsKey := item.namespace + "/" + item.rscName
+				crInf, ok := crMgr.getNamespacedInformer(item.namespace)
+				if !ok {
+					log.Errorf("Informer not found for namespace: %v", item.namespace)
+				}
+				obj, exist, err := crInf.tsInformer.GetIndexer().GetByKey(vsKey)
+				if err != nil {
+					log.Errorf("Error while fetching TransportServer: %v: %v",
+						vsKey, err)
+				}
+				if !exist {
+					log.Errorf("TransportServer Not Found: %v", vsKey)
+				}
+				virtual := obj.(*cisapiv1.TransportServer)
+				if virtual.Name == item.rscName && virtual.Namespace == item.namespace {
+					crMgr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, true)
+				}
 
 			}
 		}

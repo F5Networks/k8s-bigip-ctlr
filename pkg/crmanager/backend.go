@@ -631,6 +631,9 @@ func createRuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 			if c.Equals {
 				condition.All.Operand = "equals"
 			}
+			if c.EndsWith {
+				condition.All.Operand = "ends-with"
+			}
 		} else if c.PathSegment {
 			condition.PathSegment = &as3PolicyCompareString{
 				Values: c.Values,

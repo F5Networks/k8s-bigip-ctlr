@@ -156,7 +156,7 @@ func (postMgr *PostManager) configWorker() {
 
 		select {
 		case postMgr.respChan <- respCfg.id:
-		case <- postMgr.respChan:
+		case <-postMgr.respChan:
 			postMgr.respChan <- respCfg.id
 		}
 
@@ -175,7 +175,6 @@ func (postMgr *PostManager) postOnEventOrTimeout(timeout time.Duration, cfg *age
 
 func (postMgr *PostManager) postConfig(cfg *agentConfig) (*agentConfig, bool) {
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
-
 	req, err := http.NewRequest("POST", cfg.as3APIURL, httpReqBody)
 	if err != nil {
 		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)

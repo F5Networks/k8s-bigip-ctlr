@@ -19,7 +19,7 @@ var _ = Describe("PostManager Tests", func() {
 	It("Write Config", func() {
 		mockPM.BIGIPURL = "bigip.com"
 		agentCfg := agentConfig{
-			data: "",
+			data:      "",
 			as3APIURL: mockPM.getAS3APIURL([]string{"test"}),
 			id:        0,
 		}
@@ -35,7 +35,7 @@ var _ = Describe("PostManager Tests", func() {
 			mockPM.BIGIPUsername = "user"
 			mockPM.BIGIPPassword = "pswd"
 			agentCfg := agentConfig{
-				data: "{}",
+				data:      "{}",
 				as3APIURL: mockPM.getAS3APIURL([]string{"test"}),
 				id:        0,
 			}

@@ -42,8 +42,6 @@ type HostSpec struct {
 
 	Key       string `json:"key,omitempty"`
 	IPAMLabel string `json:"ipamLabel,omitempty"`
-
-	CIDR string `json:"cidr,omitempty"`
 }
 
 type IPAMStatus struct {
@@ -56,8 +54,6 @@ type IPSpec struct {
 
 	Key       string `json:"key,omitempty"`
 	IPAMLabel string `json:"ipamLabel,omitempty"`
-
-	CIDR string `json:"cidr,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

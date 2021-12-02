@@ -349,9 +349,13 @@ spec:
         type: string
         description: Port of service
         jsonPath: .spec.pool.servicePort
+      - name: ipamLabel
+        type: string
+        description: ipamLabel for transport server
+        jsonPath: .spec.ipamLabel
       - name: IPAMVSAddress
         type: string
-        description: IP address of virtualServer
+        description: IP address of transport server
         jsonPath: .status.vsAddress
       - name: STATUS
         type: string

@@ -1189,13 +1189,13 @@ func (crMgr *CRManager) prepareRSConfigFromLBService(
 	poolName := formatVirtualServerPoolName(
 		svc.Namespace,
 		svc.Name,
-		svcPort.Port,
+		svcPort.TargetPort.IntVal,
 		"")
 	pool := Pool{
 		Name:            poolName,
 		Partition:       rsCfg.Virtual.Partition,
 		ServiceName:     svc.Name,
-		ServicePort:     svcPort.Port,
+		ServicePort:     svcPort.TargetPort.IntVal,
 		NodeMemberLabel: "",
 	}
 
@@ -1212,9 +1212,9 @@ func (crMgr *CRManager) prepareRSConfigFromLBService(
 			log.Errorf("[CORE] %s", msg)
 		}
 		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(DEFAULT_PARTITION,
-			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.Port)))
+			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal)))
 		monitor = Monitor{
-			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.Port),
+			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal),
 			Partition: rsCfg.Virtual.Partition,
 			Type:      monitorType,
 			Interval:  mon.Interval,

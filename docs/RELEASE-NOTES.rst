@@ -19,7 +19,9 @@ Bug Fixes
 * :issues:`1873` Enable /metrics endpoint with crd mode.
 * :issues:`1659` Report "status" of TransportServer CRD
 * :issues:`2006` Add support for Wildcard domain name with TLSProfile and VirtualServer
-* :issues:`2102,2016` Fixed crash while validating secrets
+* :issues:`2102,2016` Fix for crash while validating secrets
+* :issues:`2014` Allow type LoadBalancer with different TargetPort and Port values
+
 
 2.6.1
 -------------

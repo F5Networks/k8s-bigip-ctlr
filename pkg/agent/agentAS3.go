@@ -27,6 +27,14 @@ func (ag *agentAS3) Init(params interface{}) error {
 	return nil
 }
 
+func (ag *agentAS3) GetBigipRegKey() string {
+	key, err := ag.PostManager.GetBigipRegKey()
+	if err != nil {
+		return ""
+	}
+	return key
+}
+
 func (ag *agentAS3) Deploy(req interface{}) error {
 	msgReq := req.(resource.MessageRequest)
 	select {

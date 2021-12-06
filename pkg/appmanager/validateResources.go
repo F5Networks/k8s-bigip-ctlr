@@ -157,7 +157,10 @@ func (appMgr *Manager) getSecretServiceQueueKeyForConfigMap(secret *v1.Secret) [
 	var keyList []*serviceQueueKey
 	// We will be adding ResourceKind as Configmaps so that particular Configmaps can be re-synced
 	if !appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
-		appInf, _ := appMgr.getNamespaceInformer(secret.ObjectMeta.Namespace)
+		appInf, ok := appMgr.getNamespaceInformer(secret.ObjectMeta.Namespace)
+		if !ok || appInf.cfgMapInformer == nil {
+			return keyList
+		}
 		configmaps := appInf.cfgMapInformer.GetIndexer().List()
 		for _, obj := range configmaps {
 			cm := obj.(*v1.ConfigMap)
@@ -186,7 +189,7 @@ func (appMgr *Manager) getSecretServiceQueueKeyForIngress(secret *v1.Secret) []*
 	var keyList []*serviceQueueKey
 	// We will be adding ResourceKind as Ingress so that particular ingress can be re-synced
 	appInf, ok := appMgr.getNamespaceInformer(secret.ObjectMeta.Namespace)
-	if !ok {
+	if !ok || appInf.ingInformer == nil {
 		return keyList
 	}
 	ingresses := appInf.ingInformer.GetIndexer().List()
@@ -273,13 +276,15 @@ func (appMgr *Manager) checkValidSecrets(
 	if _, ok := secret.Data["tls.key"]; !ok {
 		return false, nil
 	}
-	// Getting the ServiceQueue key for ingresses
-	keyList := appMgr.getSecretServiceQueueKeyForIngress(secret)
-	// appending the ServiceQueue key for configmaps
-	keyList = append(keyList, appMgr.getSecretServiceQueueKeyForConfigMap(secret)...)
+	if appMgr.useSecrets {
+		// Getting the ServiceQueue key for ingresses
+		keyList := appMgr.getSecretServiceQueueKeyForIngress(secret)
+		// appending the ServiceQueue key for configmaps
+		keyList = append(keyList, appMgr.getSecretServiceQueueKeyForConfigMap(secret)...)
 
-	if len(keyList) > 0 {
-		return true, keyList
+		if len(keyList) > 0 {
+			return true, keyList
+		}
 	}
 	// As no Virtual server is using this secret we will skip processing
 	return false, nil

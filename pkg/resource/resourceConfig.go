@@ -2562,15 +2562,15 @@ func NewCustomProfile(
 	return cp
 }
 
-// If name is provided, return port number for that port name,
-// else return the first port found from a Route's service.
+// GetServicePort returns the port number, for a given port name,
+// else, returns the first port found for a Route's service.
 func GetServicePort(
-	route *routeapi.Route,
+	ns string,
 	svcName string,
 	svcIndexer cache.Indexer,
-	name string,
+	portName string,
+	rscType string,
 ) (int32, error) {
-	ns := route.ObjectMeta.Namespace
 	key := ns + "/" + svcName
 
 	obj, found, err := svcIndexer.GetByKey(key)
@@ -2579,15 +2579,15 @@ func GetServicePort(
 	}
 	if found {
 		svc := obj.(*v1.Service)
-		if name != "" {
+		if portName != "" {
 			for _, port := range svc.Spec.Ports {
-				if port.Name == name {
+				if port.Name == portName {
 					return port.Port, nil
 				}
 			}
 			return 0,
-				fmt.Errorf("Could not find service port '%s' on service '%s'", name, key)
-		} else {
+				fmt.Errorf("Could not find service port '%s' on service '%s'", portName, key)
+		} else if rscType == ResourceTypeRoute {
 			return svc.Spec.Ports[0].Port, nil
 		}
 	}

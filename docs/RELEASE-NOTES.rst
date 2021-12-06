@@ -13,6 +13,7 @@ Added Functionality
     * Reporting Status of VirtualServer and TransportServer CRD
     * Tenant based AS3 declarations with `--filter-tenants` parameter
     * Configuring IPv6 addresses for VirtualServer and TransportServer CRD
+    * Named service port reference for ingresses
 
 Bug Fixes
 `````````
@@ -23,7 +24,7 @@ Bug Fixes
 * :issues:`2006` Add support for Wildcard domain name with TLSProfile and VirtualServer
 * :issues:`2102,2016` Fix for crash while validating secrets
 * :issues:`2014` Allow type LoadBalancer with different TargetPort and Port values
-
+* :issues:`2031` Add support for named service port reference for ingresses
 
 2.6.1
 -------------

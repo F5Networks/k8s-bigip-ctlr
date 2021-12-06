@@ -121,6 +121,15 @@ func (appMgr *Manager) createRSConfigFromIngress(
 				for _, path := range rule.IngressRuleValue.HTTP.Paths {
 					exists := false
 					for _, pl := range pools {
+						if path.Backend.ServicePort.StrVal != "" {
+							backendPort, err := GetServicePort(ns, path.Backend.ServiceName, svcIndexer, path.Backend.ServicePort.StrVal, ResourceTypeIngress)
+							if err != nil {
+								log.Warningf("[CORE] Error fetching service port: %v", err)
+								continue
+							}
+							//Assigning backendPort to find existing pool entries
+							path.Backend.ServicePort.IntVal = backendPort
+						}
 						if pl.ServiceName == path.Backend.ServiceName &&
 							pl.ServicePort == path.Backend.ServicePort.IntVal {
 							exists = true
@@ -129,11 +138,24 @@ func (appMgr *Manager) createRSConfigFromIngress(
 					if exists {
 						continue
 					}
-					// If service doesn't exist, don't create a pool for it
-					sKey := ns + "/" + path.Backend.ServiceName
-					_, svcFound, _ := svcIndexer.GetByKey(sKey)
-					if !svcFound {
-						continue
+					var backendPort int32
+					var err error
+					if path.Backend.ServicePort.IntVal != 0 {
+						// If service doesn't exist, don't create a pool for it
+						sKey := ns + "/" + path.Backend.ServiceName
+						_, svcFound, _ := svcIndexer.GetByKey(sKey)
+						if !svcFound {
+							continue
+						}
+						backendPort = path.Backend.ServicePort.IntVal
+					} else if path.Backend.ServicePort.StrVal != "" {
+						backendPort, err = GetServicePort(ns, path.Backend.ServiceName, svcIndexer, path.Backend.ServicePort.StrVal, ResourceTypeIngress)
+						if err != nil {
+							log.Warningf("[CORE] Error fetching service port: %v", err)
+							continue
+						}
+						//Assigning backendPort to find existing pool entries
+						path.Backend.ServicePort.IntVal = backendPort
 					}
 					pool := Pool{
 						Name: FormatIngressPoolName(
@@ -143,7 +165,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 						Partition:   cfg.Virtual.Partition,
 						Balance:     balance,
 						ServiceName: path.Backend.ServiceName,
-						ServicePort: path.Backend.ServicePort.IntVal,
+						ServicePort: backendPort,
 					}
 					pools = append(pools, pool)
 				}
@@ -160,6 +182,16 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		)
 		plcy = CreatePolicy(*rules, cfg.Virtual.Name, cfg.Virtual.Partition)
 	} else { // single-service
+		var backendPort int32
+		var err error
+		if ing.Spec.Backend.ServicePort.StrVal != "" {
+			backendPort, err = GetServicePort(ns, ing.Spec.Backend.ServiceName, svcIndexer, ing.Spec.Backend.ServicePort.StrVal, ResourceTypeIngress)
+			if err != nil {
+				log.Warningf("[CORE] Error fetching service port: %v", err)
+			}
+		} else {
+			backendPort = ing.Spec.Backend.ServicePort.IntVal
+		}
 		pool := Pool{
 			Name: FormatIngressPoolName(
 				ing.ObjectMeta.Namespace,
@@ -168,7 +200,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 			Partition:   cfg.Virtual.Partition,
 			Balance:     balance,
 			ServiceName: ing.Spec.Backend.ServiceName,
-			ServicePort: ing.Spec.Backend.ServicePort.IntVal,
+			ServicePort: backendPort,
 		}
 		ssPoolName = pool.Name
 		pools = append(pools, pool)
@@ -412,13 +444,13 @@ func (appMgr *Manager) createRSConfigFromRoute(
 		if strVal == "" {
 			backendPort = route.Spec.Port.TargetPort.IntVal
 		} else {
-			backendPort, err = GetServicePort(route, svcName, svcIndexer, strVal)
+			backendPort, err = GetServicePort(route.Namespace, svcName, svcIndexer, strVal, ResourceTypeRoute)
 			if nil != err {
 				return &rsCfg, err, Pool{}
 			}
 		}
 	} else {
-		backendPort, err = GetServicePort(route, svcName, svcIndexer, "")
+		backendPort, err = GetServicePort(route.Namespace, svcName, svcIndexer, "", ResourceTypeRoute)
 		if nil != err {
 			return &rsCfg, err, Pool{}
 		}

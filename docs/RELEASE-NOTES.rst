@@ -5,13 +5,20 @@ Next Release
 -------------
 Added Functionality
 ```````````````````
+
 * Added support for AS3 3.30
+* CIS supports reporting Status of VirtualServer CRD
+* CIS supports reporting Status of TransportServer CRD
+* CIS supports tenant based AS3 declarations with --filter-tenants parameter
+
 
 Bug Fixes
 `````````
 * Added tcp type monitor support for EDNS.
 * :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool.
 * :issues:`1873` Enable /metrics endpoint with crd mode.
+* :issues:`1659` Report "status" of TransportServer CRD
+* :issues:`2006` Add support for Wildcard domain name with TLSProfile and VirtualServer
 
 2.6.1
 -------------

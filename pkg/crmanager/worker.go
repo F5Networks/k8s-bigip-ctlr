@@ -357,6 +357,7 @@ func (crMgr *CRManager) processResource() bool {
 			defaultRouteDomain: crMgr.defaultRouteDomain,
 		}
 		go crMgr.TeemData.PostTeemsData()
+		crMgr.enqueueReq(config)
 		crMgr.Agent.PostConfig(config)
 		crMgr.initState = false
 		crMgr.resources.updateOldConfig()
@@ -655,6 +656,14 @@ func (crMgr *CRManager) getTLSProfileForVirtualServer(
 			// TLSProfile Object
 			return tlsProfile
 		}
+		// check for wildcard match
+		if strings.HasPrefix(host, "*") {
+			host = strings.TrimPrefix(host, "*")
+			if strings.HasSuffix(vs.Spec.Host, host) {
+				// TLSProfile Object
+				return tlsProfile
+			}
+		}
 	}
 	log.Errorf("TLSProfile %s with host %s does not match with virtual server %s host.", tlsName, vs.Spec.Host, vs.ObjectMeta.Name)
 	return nil
@@ -717,13 +726,23 @@ func (crMgr *CRManager) processVirtualServers(
 	var status int
 	if crMgr.ipamCli != nil {
 		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
-			ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, "")
+			if virtual.Spec.HostGroup != "" {
+				key := virtual.ObjectMeta.Namespace + "/" + virtual.Spec.HostGroup
+				ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, "", key)
+			} else {
+				ip = crMgr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, "")
+			}
 		} else if virtual.Spec.VirtualServerAddress != "" {
 			// Prioritise VirtualServerAddress specified over IPAMLabel
 			ip = virtual.Spec.VirtualServerAddress
 		} else {
 			ipamLabel := getIPAMLabel(virtuals)
-			ip, status = crMgr.requestIP(ipamLabel, virtual.Spec.Host, "")
+			if virtual.Spec.HostGroup != "" {
+				key := virtual.ObjectMeta.Namespace + "/" + virtual.Spec.HostGroup
+				ip, status = crMgr.requestIP(ipamLabel, "", key)
+			} else {
+				ip, status = crMgr.requestIP(ipamLabel, virtual.Spec.Host, "")
+			}
 
 			switch status {
 			case NotEnabled:
@@ -738,8 +757,7 @@ func (crMgr *CRManager) processVirtualServers(
 				log.Debugf("IP address requested for service: %s/%s", virtual.Namespace, virtual.Name)
 				return nil
 			}
-
-			crMgr.updateVirtualServerStatus(virtual, ip)
+			virtual.Status.VSAddress = ip
 		}
 	} else {
 		if virtual.Spec.VirtualServerAddress == "" {
@@ -783,6 +801,8 @@ func (crMgr *CRManager) processVirtualServers(
 		rsCfg.Virtual.Name = rsName
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 		rsCfg.MetaData.Protocol = portStruct.protocol
+		rsCfg.MetaData.namespace = virtual.ObjectMeta.Namespace
+		rsCfg.MetaData.rscName = virtual.ObjectMeta.Name
 		rsCfg.Virtual.SetVirtualAddress(
 			ip,
 			portStruct.port,
@@ -1479,6 +1499,7 @@ func (crMgr *CRManager) processTransportServers(
 				log.Debugf("IP address requested for Transport Server: %s/%s", virtual.Namespace, virtual.Name)
 				return nil
 			}
+			virtual.Status.VSAddress = ip
 		}
 	} else {
 		if virtual.Spec.VirtualServerAddress == "" {
@@ -1513,6 +1534,8 @@ func (crMgr *CRManager) processTransportServers(
 	rsCfg.Virtual.Enabled = true
 	rsCfg.Virtual.Name = rsName
 	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
+	rsCfg.MetaData.namespace = virtual.ObjectMeta.Namespace
+	rsCfg.MetaData.rscName = virtual.ObjectMeta.Name
 	rsCfg.Virtual.SetVirtualAddress(
 		ip,
 		virtual.Spec.VirtualServerPort,
@@ -1690,7 +1713,8 @@ func (crMgr *CRManager) getVirtualServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.V
 	allVS = crMgr.getAllVSFromMonitoredNamespaces()
 	for _, status := range ipam.Status.IPStatus {
 		for _, vs := range allVS {
-			if status.Host == vs.Spec.Host {
+			key := vs.ObjectMeta.Namespace + "/" + vs.Spec.HostGroup
+			if status.Host == vs.Spec.Host || status.Key == key {
 				vss = append(vss, vs)
 				break
 			}
@@ -2425,13 +2449,31 @@ func getNodeport(svc *v1.Service, servicePort int32) int32 {
 }
 
 //Update virtual server status with virtual server address
-func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string) {
+func (crMgr *CRManager) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string, statusOk string) {
 	// Set the vs status to include the virtual IP address
-	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip}
+	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip, StatusOk: statusOk}
+	log.Debugf("Updating VirtualServer Status with %v for resource name:%v , namespace: %v", vsStatus, vs.Name, vs.Namespace)
 	vs.Status = vsStatus
+	vs.Status.VSAddress = ip
+	vs.Status.StatusOk = statusOk
 	_, updateErr := crMgr.kubeCRClient.CisV1().VirtualServers(vs.ObjectMeta.Namespace).UpdateStatus(context.TODO(), vs, metav1.UpdateOptions{})
 	if nil != updateErr {
 		log.Debugf("Error while updating virtual server status:%v", updateErr)
+		return
+	}
+}
+
+//Update Transport server status with virtual server address
+func (crMgr *CRManager) updateTransportServerStatus(ts *cisapiv1.TransportServer, ip string, statusOk string) {
+	// Set the vs status to include the virtual IP address
+	tsStatus := cisapiv1.TransportServerStatus{VSAddress: ip, StatusOk: statusOk}
+	log.Debugf("Updating VirtualServer Status with %v for resource name:%v , namespace: %v", tsStatus, ts.Name, ts.Namespace)
+	ts.Status = tsStatus
+	ts.Status.VSAddress = ip
+	ts.Status.StatusOk = statusOk
+	_, updateErr := crMgr.kubeCRClient.CisV1().TransportServers(ts.ObjectMeta.Namespace).UpdateStatus(context.TODO(), ts, metav1.UpdateOptions{})
+	if nil != updateErr {
+		log.Debugf("Error while updating Transport server status:%v", updateErr)
 		return
 	}
 }

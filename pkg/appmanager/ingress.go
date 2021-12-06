@@ -491,10 +491,14 @@ func (appMgr *Manager) verifyIngressClass(ing *netv1.Ingress, appInf *appInforme
 		return false
 	}
 	// Check that ingress class exists or not
-	ingresClass, _, err := appInf.ingClassInformer.GetIndexer().GetByKey(appMgr.ingressClass)
+	ingresClass, ingClassFound, err := appInf.ingClassInformer.GetIndexer().GetByKey(appMgr.ingressClass)
 	if err != nil {
 		log.Debugf("[CORE] %s", err.Error())
 	} else {
+		if !ingClassFound {
+			log.Errorf("[CORE] No IngressClass resource with name %s found", appMgr.ingressClass)
+			return false
+		}
 		if ingresClass.(*netv1.IngressClass).Spec.Controller == CISControllerName {
 			// return true to process the ingress
 			return true

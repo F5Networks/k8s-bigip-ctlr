@@ -164,6 +164,9 @@ func NewCRManager(params Params) *CRManager {
 		_ = crMgr.createIPAMResource()
 	}
 
+	respChan := make(chan int)
+	crMgr.Agent.SetResponseChannel(respChan)
+	go crMgr.responseHandler(respChan)
 	go crMgr.Start()
 	return crMgr
 }
@@ -172,7 +175,7 @@ func NewCRManager(params Params) *CRManager {
 func (crMgr *CRManager) registerIPAMCRD() {
 	err := ipammachinery.RegisterCRD(crMgr.kubeAPIClient)
 	if err != nil {
-		log.Debugf("[IPAM] error while registering CRD %v", err)
+		log.Errorf("[IPAM] error while registering CRD %v", err)
 	}
 }
 

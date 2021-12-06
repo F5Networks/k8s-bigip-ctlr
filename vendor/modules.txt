@@ -1,4 +1,4 @@
-# github.com/F5Networks/f5-ipam-controller v0.1.5-0.20210813064837-de4b96f0e82c
+# github.com/F5Networks/f5-ipam-controller v0.1.6-0.20211130120610-2c17f16226f4
 ## explicit
 github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1
 github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned
@@ -78,7 +78,7 @@ github.com/nxadm/tail/ratelimiter
 github.com/nxadm/tail/util
 github.com/nxadm/tail/watch
 github.com/nxadm/tail/winfile
-# github.com/onsi/ginkgo v1.16.2
+# github.com/onsi/ginkgo v1.16.4
 ## explicit
 github.com/onsi/ginkgo
 github.com/onsi/ginkgo/config
@@ -100,7 +100,7 @@ github.com/onsi/ginkgo/reporters/stenographer
 github.com/onsi/ginkgo/reporters/stenographer/support/go-colorable
 github.com/onsi/ginkgo/reporters/stenographer/support/go-isatty
 github.com/onsi/ginkgo/types
-# github.com/onsi/gomega v1.12.0
+# github.com/onsi/gomega v1.16.0
 ## explicit
 github.com/onsi/gomega
 github.com/onsi/gomega/format
@@ -108,10 +108,7 @@ github.com/onsi/gomega/gbytes
 github.com/onsi/gomega/gexec
 github.com/onsi/gomega/gstruct
 github.com/onsi/gomega/gstruct/errors
-github.com/onsi/gomega/internal/assertion
-github.com/onsi/gomega/internal/asyncassertion
-github.com/onsi/gomega/internal/oraclematcher
-github.com/onsi/gomega/internal/testingtsupport
+github.com/onsi/gomega/internal
 github.com/onsi/gomega/matchers
 github.com/onsi/gomega/matchers/support/goraph/bipartitegraph
 github.com/onsi/gomega/matchers/support/goraph/edge
@@ -164,7 +161,6 @@ golang.org/x/crypto/ssh/terminal
 ## explicit
 golang.org/x/mod/semver
 # golang.org/x/net v0.0.0-20210520170846-37e1c6afe023
-## explicit
 golang.org/x/net/bpf
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp

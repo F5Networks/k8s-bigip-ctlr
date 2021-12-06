@@ -25,7 +25,7 @@ spec:
               properties:
                 host:
                   type: string
-                  pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
+                  pattern: '^(([a-zA-Z0-9\*]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
                 hostGroup:
                   type: string
                   pattern: '^([A-z0-9-_+])*([A-z0-9])$'
@@ -132,6 +132,10 @@ spec:
               properties:
                 vsAddress:
                   type: string
+                  default: None
+                status:
+                  type: string
+                  default: Pending
       additionalPrinterColumns:
         - name: host
           type: string
@@ -157,6 +161,10 @@ spec:
           type: string
           description: IP address of virtualServer
           jsonPath: .status.vsAddress
+        - name: STATUS
+          type: string
+          description: status of VirtualServer
+          jsonPath: .status.status
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp
@@ -193,7 +201,7 @@ spec:
                   type: array
                   items:
                     type: string
-                    pattern: '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
+                    pattern: '^(([a-zA-Z0-9\*]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
                 tls:
                   type: object
                   properties:
@@ -315,6 +323,15 @@ spec:
               required:
                 - virtualServerPort
                 - pool
+            status:
+              type: object
+              properties:
+                vsAddress:
+                  type: string
+                  default: None
+                status:
+                  type: string
+                  default: Pending
       additionalPrinterColumns:
       - name: virtualServerAddress
         type: string
@@ -332,9 +349,23 @@ spec:
         type: string
         description: Port of service
         jsonPath: .spec.pool.servicePort
+      - name: ipamLabel
+        type: string
+        description: ipamLabel for transport server
+        jsonPath: .spec.ipamLabel
+      - name: IPAMVSAddress
+        type: string
+        description: IP address of transport server
+        jsonPath: .status.vsAddress
+      - name: STATUS
+        type: string
+        description: status of TransportServer
+        jsonPath: .status.status
       - name: Age
         type: date
         jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: { }
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition

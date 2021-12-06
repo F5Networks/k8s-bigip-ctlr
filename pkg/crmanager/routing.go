@@ -166,6 +166,10 @@ func (crMgr *CRManager) prepareVirtualServerRules(
 func formatVirtualServerRuleName(hostname, hostGroup, path, pool string) string {
 	var rule string
 	host := hostname
+	//if wildcard vs
+	if strings.HasPrefix(host, "*") {
+		host = strings.Replace(host, "*", "wildcard", 1)
+	}
 	if hostGroup != "" {
 		host = hostGroup
 	}
@@ -495,11 +499,24 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 			# Compares the hostpath with the entries in https_redirect_dg
 			for {set i $rc} {$i >= 0} {incr i -1} {
 				set paths [class match -value $host equals %[1]s]
+                # Check if host has wildcard match to https_redirect_dg
+                if {$paths == ""} {
+                    if { [class match $host ends_with %[1]s] } {
+                        set paths [class match -value $host ends_with %[1]s]
+                    }
+                }
 				# Check if host with combination of "/" matches https_redirect_dg
 				if {$paths == ""} {
 					set hosts ""
 					append hosts $host "/"
 					set paths [class match -value $hosts equals %[1]s]
+                    if {$paths == ""} {
+                        # Check if host with combination of "/" has wildcard
+                        # match with https_redirect_dg
+                        if { [class match $hosts ends_with %[1]s] } {
+                            set paths [class match -value $hosts ends_with %[1]s]
+                        }
+                    }
 				}
 				# Trim the uri to last slash
 				if {$paths == ""} {
@@ -697,6 +714,12 @@ func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
 					for {set i $rc} {$i >= 0} {incr i -1} {
 						if { [class exists $reencrypt_class] } {
 							set reen_pool [class match -value $routepath equals $reencrypt_class]
+                            # Check for wildcard domain
+                            if { $reen_pool equals "" } {
+							    if { [class match $routepath ends_with $reencrypt_class] } {
+							        set reen_pool [class match -value $routepath ends_with $reencrypt_class]
+                                }
+                            }
 							if { not ($reen_pool equals "") } {
 								set dflt_pool $reen_pool
 								SSL::enable serverside
@@ -704,6 +727,12 @@ func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
 						}
 						if { [class exists $edge_class] } {
 							set edge_pool [class match -value $routepath equals $edge_class]
+                            # Check for wildcard domain
+                            if { $edge_pool equals "" } {
+							    if { [class match $routepath ends_with $edge_class] } {
+							        set edge_pool [class match -value $routepath ends_with $edge_class]
+							    }
+                            }
 							if { not ($edge_pool equals "") } {
 							    set dflt_pool $edge_pool
 							}
@@ -751,12 +780,24 @@ func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
 				for {set i $rc} {$i >= 0} {incr i -1} {
 					if { [class exists $reencryptssl_class] } {
 						set reen [class match -value $sslpath equals $reencryptssl_class]
+                        # check for wildcard domain match
+                        if { $reen equals "" } {
+						    if { [class match $sslpath ends_with $reencryptssl_class] } {
+						        set reen [class match -value $sslpath ends_with $reencryptssl_class]
+						    }
+                        }
 						if { not ($reen equals "") } {
 							    set sslprofile $reen
 						}
 					}
 					if { [class exists $edgessl_class] } {
 						set edge [class match -value $sslpath equals $edgessl_class]
+                        # check for wildcard domain match
+                        if { $edge equals "" } {
+						    if { [class match $sslpath ends_with $edgessl_class] } {
+						        set edge [class match -value $sslpath ends_with $edgessl_class]
+						    }
+                        }
 						if { not ($edge equals "") } {
 							    set sslprofile $edge
 						}
@@ -870,6 +911,10 @@ func updateDataGroup(
 	key string,
 	value string,
 ) {
+	//for wildcard host
+	if strings.HasPrefix(key, "*") {
+		key = strings.TrimPrefix(key, "*")
+	}
 	mapKey := NameRef{
 		Name:      name,
 		Partition: partition,

@@ -22,7 +22,7 @@ import (
 
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/client/clientset/versioned"
 	log "github.com/F5Networks/f5-ipam-controller/pkg/vlogger"
-	apiextensionv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,8 +45,6 @@ const (
 	IPADdressPattern string = "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"
 )
 
-var CRDVersions = []apiextensionv1beta1.CustomResourceDefinitionVersion{{Name: CRDVersion, Served: true, Storage: true}}
-
 // NewIPAM creates a new IPAMClient Instance.
 func NewIPAMClient(params Params) *IPAMClient {
 
@@ -64,7 +62,7 @@ func NewIPAMClient(params Params) *IPAMClient {
 	}
 
 	if err := ipamCli.setupInformersWithEventHandlers(params.EventHandlers); err != nil {
-		log.Error("Failed to Setup Informers")
+		log.Errorf("Failed to Setup Informers %v", err)
 	}
 
 	log.Debugf("Created New IPAM Client")
@@ -122,66 +120,75 @@ func (ipamCli *IPAMClient) Stop() {
 
 // RegisterCRD creates schema of IPAM and registers it with Kubernetes/Openshift
 func RegisterCRD(clientset extClient.Interface) error {
-	crd := &apiextensionv1beta1.CustomResourceDefinition{
+	var CRDVersions = []apiextensionv1.CustomResourceDefinitionVersion{
+		{Name: CRDVersion, Served: true, Storage: true, Schema: ipamCRSchemaValidation(), Subresources: ipamCRSubresources()},
+	}
+	crd := &apiextensionv1.CustomResourceDefinition{
 		ObjectMeta: meta_v1.ObjectMeta{
 			Name:          FullCRDName,
 			ManagedFields: []meta_v1.ManagedFieldsEntry{{Manager: F5IPAMCtlr}},
 		},
 
-		Spec: apiextensionv1beta1.CustomResourceDefinitionSpec{
+		Spec: apiextensionv1.CustomResourceDefinitionSpec{
 			Group:    CRDGroup,
 			Versions: CRDVersions,
-			Scope:    apiextensionv1beta1.NamespaceScoped,
-			Names: apiextensionv1beta1.CustomResourceDefinitionNames{
+			Scope:    apiextensionv1.NamespaceScoped,
+			Names: apiextensionv1.CustomResourceDefinitionNames{
 				Plural: CRDPlural,
 				Kind:   F5ipam,
 			},
-			Subresources: &apiextensionv1beta1.CustomResourceSubresources{
-				Status: &apiextensionv1beta1.CustomResourceSubresourceStatus{},
-				Scale:  nil,
-			},
-			Validation: &apiextensionv1beta1.CustomResourceValidation{OpenAPIV3Schema: &apiextensionv1beta1.JSONSchemaProps{
+		},
+	}
+	_, err := clientset.ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), crd, meta_v1.CreateOptions{})
+	if err != nil && apierrors.IsAlreadyExists(err) {
+		return nil
+	}
+	return err
+}
+
+func ipamCRSchemaValidation() *apiextensionv1.CustomResourceValidation {
+	return &apiextensionv1.CustomResourceValidation{OpenAPIV3Schema: &apiextensionv1.JSONSchemaProps{
+		Type: "object",
+		Properties: map[string]apiextensionv1.JSONSchemaProps{
+			"spec": {
 				Type: "object",
-				Properties: map[string]apiextensionv1beta1.JSONSchemaProps{
-					"spec": {
-						Type: "object",
-						Properties: map[string]apiextensionv1beta1.JSONSchemaProps{
-							"hostSpecs": {
-								Type: "array",
-								Items: &apiextensionv1beta1.JSONSchemaPropsOrArray{
-									Schema: &apiextensionv1beta1.JSONSchemaProps{Type: "object", Properties: map[string]apiextensionv1beta1.JSONSchemaProps{
-										"host":      {Type: "string", Format: "string", Pattern: HostnamePattern},
-										"key":       {Type: "string", Format: "string"},
-										"ipamLabel": {Type: "string", Format: "string"}},
-									},
-								},
-							},
-						},
-					},
-					"status": {
-						Type: "object",
-						Properties: map[string]apiextensionv1beta1.JSONSchemaProps{
-							"IPStatus": {
-								Type: "array",
-								Items: &apiextensionv1beta1.JSONSchemaPropsOrArray{
-									Schema: &apiextensionv1beta1.JSONSchemaProps{Type: "object", Properties: map[string]apiextensionv1beta1.JSONSchemaProps{
-										"host":      {Type: "string", Format: "string", Pattern: HostnamePattern},
-										"key":       {Type: "string", Format: "string"},
-										"ip":        {Type: "string", Format: "string", Pattern: IPADdressPattern},
-										"ipamLabel": {Type: "string", Format: "string"}},
-									},
-								},
+				Properties: map[string]apiextensionv1.JSONSchemaProps{
+					"hostSpecs": {
+						Type: "array",
+						Items: &apiextensionv1.JSONSchemaPropsOrArray{
+							Schema: &apiextensionv1.JSONSchemaProps{Type: "object", Properties: map[string]apiextensionv1.JSONSchemaProps{
+								"host":      {Type: "string", Format: "string", Pattern: HostnamePattern},
+								"key":       {Type: "string", Format: "string"},
+								"ipamLabel": {Type: "string", Format: "string"}},
 							},
 						},
 					},
 				},
 			},
+			"status": {
+				Type: "object",
+				Properties: map[string]apiextensionv1.JSONSchemaProps{
+					"IPStatus": {
+						Type: "array",
+						Items: &apiextensionv1.JSONSchemaPropsOrArray{
+							Schema: &apiextensionv1.JSONSchemaProps{Type: "object", Properties: map[string]apiextensionv1.JSONSchemaProps{
+								"host":      {Type: "string", Format: "string", Pattern: HostnamePattern},
+								"key":       {Type: "string", Format: "string"},
+								"ip":        {Type: "string", Format: "string", Pattern: IPADdressPattern},
+								"ipamLabel": {Type: "string", Format: "string"}},
+							},
+						},
+					},
+				},
 			},
 		},
+	},
 	}
-	_, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(context.TODO(), crd, meta_v1.CreateOptions{})
-	if err != nil && apierrors.IsAlreadyExists(err) {
-		return nil
+}
+
+func ipamCRSubresources() *apiextensionv1.CustomResourceSubresources {
+	return &apiextensionv1.CustomResourceSubresources{
+		Status: &apiextensionv1.CustomResourceSubresourceStatus{},
+		Scale:  nil,
 	}
-	return err
 }

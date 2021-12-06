@@ -5,9 +5,12 @@ Next Release
 -------------
 Added Functionality
 ```````````````````
+
+* Added support for AS3 3.30
 * CIS supports reporting Status of VirtualServer CRD
 * CIS supports reporting Status of TransportServer CRD
 * CIS supports tenant based AS3 declarations with --filter-tenants parameter
+
 
 Bug Fixes
 `````````

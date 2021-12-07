@@ -19,6 +19,7 @@ Bug Fixes
 * :issues:`1873` Enable /metrics endpoint with crd mode.
 * :issues:`1659` Report "status" of TransportServer CRD
 * :issues:`2006` Add support for Wildcard domain name with TLSProfile and VirtualServer
+* :issues:`2102,2016` Fixed crash while validating secrets
 
 2.6.1
 -------------
@@ -432,11 +433,11 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`1420` Enhanced performance for lower BIG-IP CPU Utilization with optimized CCCL calls.
-* :issues:`1362` CIS supports HTTP Header with iv-groups
-* :issues:`1388,1311` CIS properly manages AS3 ConfigMaps when configured with namespace-labels.
-* :issues:`1337` CIS supports multiple AS3 ConfigMaps
-* :issues:`1171` CIS will not create `_AS3` partition anymore
+* :issues: 1420 Enhanced performance for lower BIG-IP CPU Utilization with optimized CCCL calls.
+* :issues: 1362 CIS supports HTTP Header with iv-groups
+* :issues: 1388,1311 CIS properly manages AS3 ConfigMaps when configured with namespace-labels.
+* :issues: 1337 CIS supports multiple AS3 ConfigMaps
+* :issues: 1171 CIS will not create `_AS3` partition anymore
 
 Vulnerability Fixes
 ```````````````````

@@ -811,13 +811,18 @@ func (crMgr *CRManager) processVirtualServers(
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles.Profs = make(map[SecretKey]CustomProfile)
 
-		plc := crMgr.getPolicyFromVirtuals(virtuals)
+		plc, err := crMgr.getPolicyFromVirtuals(virtuals)
 		if plc != nil {
 			err := crMgr.handleVSResourceConfigForPolicy(rsCfg, plc)
 			if err != nil {
 				processingError = true
 				break
 			}
+		}
+		if err != nil {
+			processingError = true
+			log.Errorf("%v", err)
+			break
 		}
 
 		for _, vrt := range virtuals {
@@ -984,48 +989,43 @@ func (crMgr *CRManager) getAssociatedVirtualServers(
 	return virtuals
 }
 
-func (crMgr *CRManager) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer) *cisapiv1.Policy {
+func (crMgr *CRManager) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer) (*cisapiv1.Policy, error) {
 
 	if len(virtuals) == 0 {
 		log.Errorf("No virtuals to extract policy from")
-		return nil
+		return nil, nil
 	}
 	plcName := ""
 	ns := virtuals[0].Namespace
 
 	for _, vrt := range virtuals {
-		if plcName != "" && plcName != vrt.Spec.PolicyName {
-			log.Errorf("Multiple Policies specified with for host: %v", vrt.Spec.Host)
-			return nil
+		if plcName != "" && vrt.Spec.PolicyName != "" && plcName != vrt.Spec.PolicyName {
+			return nil, fmt.Errorf("Multiple Policies specified for host: %v", vrt.Spec.Host)
 		}
 		if vrt.Spec.PolicyName != "" {
 			plcName = vrt.Spec.PolicyName
 		}
 	}
 	if plcName == "" {
-		return nil
+		return nil, nil
 	}
 	crInf, ok := crMgr.getNamespacedInformer(ns)
 	if !ok {
-		log.Errorf("Informer not found for namespace: %v", ns)
-		return nil
+		return nil, fmt.Errorf("Informer not found for namespace: %v", ns)
 	}
 
 	key := ns + "/" + plcName
 
 	obj, exist, err := crInf.plcInformer.GetIndexer().GetByKey(key)
 	if err != nil {
-		log.Errorf("Error while fetching Policy: %v: %v",
-			key, err)
-		return nil
+		return nil, fmt.Errorf("Error while fetching Policy: %v: %v", key, err)
 	}
 
 	if !exist {
-		log.Errorf("Policy Not Found: %v", key)
-		return nil
+		return nil, fmt.Errorf("Policy Not Found: %v", key)
 	}
 
-	return obj.(*cisapiv1.Policy)
+	return obj.(*cisapiv1.Policy), nil
 }
 
 func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.TransportServer) *cisapiv1.Policy {

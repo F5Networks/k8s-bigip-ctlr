@@ -166,10 +166,6 @@ func (crMgr *CRManager) processResource() bool {
 
 		virtuals := crMgr.getVirtualsForCustomPolicy(cp)
 		//Sync Custompolicy for Virtual Servers
-		// No Virtuals are effected with the change in TLSProfile.
-		if nil == virtuals {
-			break
-		}
 		for _, virtual := range virtuals {
 			err := crMgr.processVirtualServers(virtual, false)
 			if err != nil {
@@ -180,14 +176,12 @@ func (crMgr *CRManager) processResource() bool {
 		}
 		//Sync Custompolicy for Transport Servers
 		tsVirtuals := crMgr.getTransportServersForCustomPolicy(cp)
-		if nil != tsVirtuals {
-			for _, virtual := range tsVirtuals {
-				err := crMgr.processTransportServers(virtual, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isError = true
-				}
+		for _, virtual := range tsVirtuals {
+			err := crMgr.processTransportServers(virtual, false)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
 			}
 		}
 	case Service:

@@ -342,8 +342,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		va := append(svc.VirtualAddresses, virtualAddress)
 		svc.VirtualAddresses = va
 		svc.VirtualPort = port
-	} else {
-		log.Error("Invalid Virtual Server Destination IP address/Port.")
 	}
 
 	svc.SNAT = "auto"

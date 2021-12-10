@@ -6,11 +6,13 @@ Next Release
 Added Functionality
 ```````````````````
 
-* Added support for AS3 3.30
-* CIS supports reporting Status of VirtualServer CRD
-* CIS supports reporting Status of TransportServer CRD
-* CIS supports tenant based AS3 declarations with --filter-tenants parameter
-* CIS now compatible with Kubernetes 1.22 and AS3 3.30
+* CIS now compatible with
+    - Kubernetes 1.22
+    - AS3 3.30
+* Added support for:
+    * Reporting Status of VirtualServer and TransportServer CRD
+    * Tenant based AS3 declarations with `--filter-tenants` parameter
+    * Configuring IPv6 addresses for VirtualServer and TransportServer CRD
 
 Bug Fixes
 `````````

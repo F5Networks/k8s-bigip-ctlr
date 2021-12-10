@@ -28,6 +28,10 @@ func (ag *agentCCCL) Deploy(req interface{}) error {
 	return nil
 }
 
+func (ag *agentCCCL) GetBigipRegKey() string {
+	return ""
+}
+
 //TODO: Remove this post CIS2.2
 func (ag *agentCCCL) Remove(partition string) error {
 	log.Infof("[CCCL] Removing Partition %v_AS3 \n", partition)

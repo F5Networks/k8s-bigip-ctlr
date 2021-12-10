@@ -35,6 +35,7 @@ type TeemsData struct {
 	PlatformInfo    string
 	ResourceType    ResourceTypes
 	AccessEnabled   bool // Will be set to false if network rules don't permit
+	RegistrationKey string
 }
 
 const (
@@ -85,21 +86,22 @@ func (td *TeemsData) PostTeemsData() bool {
 		rscType[TOTAL] = sum
 	}
 	data := map[string]interface{}{
-		"PlatformInfo":             td.PlatformInfo,
-		"Agent":                    td.Agent,
-		"DateOfCISDeploy":          td.DateOfCISDeploy,
-		"Mode":                     td.PoolMemberType,
-		"SDNType":                  td.SDNType,
-		"IngressCount":             td.ResourceType.Ingresses[TOTAL],
-		"RoutesCount":              td.ResourceType.Routes[TOTAL],
-		"ConfigmapsCount":          td.ResourceType.Configmaps[TOTAL],
-		"VirtualServerCount":       td.ResourceType.VirtualServer[TOTAL],
-		"TransportServerCount":     td.ResourceType.TransportServer[TOTAL],
-		"ExternalDNSCount":         td.ResourceType.ExternalDNS[TOTAL],
-		"IngressLinkCount":         td.ResourceType.IngressLink[TOTAL],
-		"IPAMVirtualServerCount":   td.ResourceType.IPAMVS[TOTAL],
-		"IPAMTransportServerCount": td.ResourceType.IPAMTS[TOTAL],
-		"IPAMSvcLBCount":           td.ResourceType.IPAMSvcLB[TOTAL],
+		"platformInfo":             td.PlatformInfo,
+		"agent":                    td.Agent,
+		"dateOfCISDeploy":          td.DateOfCISDeploy,
+		"mode":                     td.PoolMemberType,
+		"sdnType":                  td.SDNType,
+		"registrationKey":          td.RegistrationKey,
+		"ingressCount":             td.ResourceType.Ingresses[TOTAL],
+		"routesCount":              td.ResourceType.Routes[TOTAL],
+		"configmapsCount":          td.ResourceType.Configmaps[TOTAL],
+		"virtualServerCount":       td.ResourceType.VirtualServer[TOTAL],
+		"transportServerCount":     td.ResourceType.TransportServer[TOTAL],
+		"externalDNSCount":         td.ResourceType.ExternalDNS[TOTAL],
+		"ingressLinkCount":         td.ResourceType.IngressLink[TOTAL],
+		"ipamVirtualServerCount":   td.ResourceType.IPAMVS[TOTAL],
+		"ipamTransportServerCount": td.ResourceType.IPAMTS[TOTAL],
+		"ipamSvcLBCount":           td.ResourceType.IPAMSvcLB[TOTAL],
 	}
 	for retryCount >= 0 {
 		err := teemDevice.Report(data, "CIS Telemetry Data", "1")

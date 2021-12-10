@@ -309,6 +309,38 @@ func (postMgr *PostManager) GetBigipAS3Version() error {
 	return fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
 }
 
+// GetBigipRegKey ...
+func (postMgr *PostManager) GetBigipRegKey() (string, error) {
+	url := postMgr.getBigipRegKeyURL()
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Errorf("Creating new HTTP request error: %v ", err)
+		return "", err
+	}
+
+	log.Debugf("Posting GET BIGIP Reg Key request on %v", url)
+	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+
+	httpResp, responseMap := postMgr.httpReq(req)
+	if httpResp == nil || responseMap == nil {
+		return "", fmt.Errorf("Internal Error")
+	}
+
+	switch httpResp.StatusCode {
+	case http.StatusOK:
+		if responseMap["registrationKey"] != nil {
+			registrationKey := responseMap["registrationKey"].(string)
+			return registrationKey, nil
+		}
+	case http.StatusNotFound:
+		if int(responseMap["code"].(float64)) == http.StatusNotFound {
+			return "", fmt.Errorf("AS3 RPM is not installed on BIGIP,"+
+				" Error response from BIGIP with status code %v", httpResp.StatusCode)
+		}
+	}
+	return "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+}
+
 func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[string]interface{}) {
 	httpResp, err := postMgr.httpClient.Do(request)
 	if err != nil {
@@ -336,6 +368,12 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 
 func (postMgr *PostManager) getAS3VersionURL() string {
 	apiURL := postMgr.BIGIPURL + "/mgmt/shared/appsvcs/info"
+	return apiURL
+
+}
+
+func (postMgr *PostManager) getBigipRegKeyURL() string {
+	apiURL := postMgr.BIGIPURL + "/mgmt/tm/shared/licensing/registration"
 	return apiURL
 
 }

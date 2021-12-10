@@ -940,13 +940,18 @@ func main() {
 	if *customResourceMode {
 		getGTMCredentials()
 		crMgr := initCustomResourceManager(config)
-		crMgr.TeemData = td
 		err = crMgr.Agent.GetBigipAS3Version()
 		if err != nil {
 			log.Errorf("%v", err)
 			crMgr.Stop()
 			os.Exit(1)
 		}
+		key, err := crMgr.Agent.GetBigipRegKey()
+		if err != nil {
+			log.Errorf("%v", err)
+		}
+		td.RegistrationKey = key
+		crMgr.TeemData = td
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigs
@@ -1039,6 +1044,10 @@ func main() {
 	//TODO: Remove this post CIS2.2
 	appMgr.AgentCIS.Remove(resource.DEFAULT_PARTITION)
 	appMgr.K8sVersion = getk8sVersion()
+	if *agent == cisAgent.AS3Agent {
+		key := appMgr.AgentCIS.GetBigipRegKey()
+		td.RegistrationKey = key
+	}
 	appMgr.TeemData = td
 	GetNamespaces(appMgr)
 	intervalFactor := time.Duration(*nodePollInterval)

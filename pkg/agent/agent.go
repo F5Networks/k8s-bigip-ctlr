@@ -19,6 +19,7 @@ type CISAgentInterface interface {
 // Initializer is the interface which wraps basic Init method.
 type Initializer interface {
 	Init(interface{}) error
+	GetBigipRegKey() string
 }
 
 // Deployer is the interface which wraps basic Deploy method

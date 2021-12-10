@@ -721,7 +721,11 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 //Extract virtual address and port from host URL
 func extractVirtualAddressAndPort(str string) (string, int) {
 	destination := strings.Split(str, "/")
+	// split separator is in accordance with SetVirtualAddress function - ipv4/6 format
 	ipPort := strings.Split(destination[len(destination)-1], ":")
+	if len(ipPort) != 2 {
+		ipPort = strings.Split(destination[len(destination)-1], ".")
+	}
 	// verify that ip address and port exists else log error.
 	if len(ipPort) == 2 {
 		port, _ := strconv.Atoi(ipPort[1])

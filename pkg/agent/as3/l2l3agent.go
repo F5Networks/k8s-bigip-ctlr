@@ -39,9 +39,18 @@ func (am *AS3Manager) SendARPEntries() {
 
 	// Filter the configs to only those that have active services
 	for _, cfg := range am.Resources.RsCfgs {
-		if cfg.MetaData.Active == true && am.PostManager.Tenants[cfg.Virtual.Partition] == true {
-			for _, pool := range cfg.Pools {
-				allPoolMembers = append(allPoolMembers, pool.Members...)
+		if am.FilterTenants {
+			// we are posting the tenant based arp entries based on successful as3 declaration post with tenant filtering
+			if cfg.MetaData.Active == true && am.PostManager.Tenants[cfg.Virtual.Partition] == true {
+				for _, pool := range cfg.Pools {
+					allPoolMembers = append(allPoolMembers, pool.Members...)
+				}
+			}
+		} else {
+			if cfg.MetaData.Active == true {
+				for _, pool := range cfg.Pools {
+					allPoolMembers = append(allPoolMembers, pool.Members...)
+				}
 			}
 		}
 	}

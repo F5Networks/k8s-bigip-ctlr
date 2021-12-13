@@ -3,7 +3,7 @@ module github.com/F5Networks/k8s-bigip-ctlr
 go 1.16
 
 require (
-	github.com/F5Networks/f5-ipam-controller v0.1.6-0.20211130120610-2c17f16226f4
+	github.com/F5Networks/f5-ipam-controller v0.1.6-0.20211213121023-410e5df250de
 	github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913
 	github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051
 	github.com/google/uuid v1.3.0

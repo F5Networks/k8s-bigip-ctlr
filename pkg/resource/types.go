@@ -260,7 +260,6 @@ type (
 		Cert         string `json:"cert"`
 		Key          string `json:"key"`
 		ServerName   string `json:"serverName,omitempty"`
-		MatchToSNI   string `json:"matchToSNI,omitempty"`
 		SNIDefault   bool   `json:"sniDefault,omitempty"`
 		PeerCertMode string `json:"peerCertMode,omitempty"`
 		CAFile       string `json:"caFile,omitempty"`

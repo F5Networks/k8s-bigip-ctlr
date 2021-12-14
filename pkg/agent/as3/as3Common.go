@@ -577,7 +577,6 @@ func (am *AS3Manager) createUpdateTLSServer(prof CustomProfile, svcName string, 
 			tlsServer.Certificates = append(
 				tlsServer.Certificates,
 				as3TLSServerCertificates{
-					MatchToSNI:  prof.MatchToSNI,
 					Certificate: certName,
 				},
 			)

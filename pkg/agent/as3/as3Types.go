@@ -203,7 +203,6 @@ type (
 
 	// as3TLSServerCertificates maps to TLS_Server_certificates in AS3 Resources
 	as3TLSServerCertificates struct {
-		MatchToSNI  string `json:"matchToSNI,omitempty"`
 		Certificate string `json:"certificate,omitempty"`
 	}
 

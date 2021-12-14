@@ -754,10 +754,16 @@ func (crMgr *CRManager) processVirtualServers(
 			virtual.Status.VSAddress = ip
 		}
 	} else {
-		if virtual.Spec.VirtualServerAddress == "" {
-			return fmt.Errorf("No VirtualServer address or IPAM found.")
+		if virtual.Spec.HostGroup == "" {
+			if virtual.Spec.VirtualServerAddress == "" {
+				return fmt.Errorf("No VirtualServer address or IPAM found.")
+			}
+			ip = virtual.Spec.VirtualServerAddress
+		} else {
+			var err error
+			ip, err = getVirtualServerAddress(virtuals)
+			return err
 		}
-		ip = virtual.Spec.VirtualServerAddress
 	}
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.
 	portStructs := crMgr.virtualPorts(virtual)
@@ -925,30 +931,33 @@ func (crMgr *CRManager) getAssociatedVirtualServers(
 			continue
 		}
 
-		// in the absence of HostGroup, skip the virtuals with other host name
-		if currentVS.Spec.HostGroup == "" && vrt.Spec.Host != currentVS.Spec.Host {
-			continue
+		if currentVS.Spec.HostGroup == "" {
+			// in the absence of HostGroup, skip the virtuals with other host name
+			if vrt.Spec.Host != currentVS.Spec.Host {
+				continue
+			}
+
+			// Same host with different VirtualServerAddress is invalid
+			if vrt.Spec.VirtualServerAddress != currentVS.Spec.VirtualServerAddress {
+				if vrt.Spec.Host != "" {
+					log.Errorf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
+					return nil
+				}
+				// In case of empty host name, skip the virtual with other VirtualServerAddress
+				continue
+			}
 		}
 
 		if crMgr.ipamCli != nil {
-			if vrt.Spec.IPAMLabel != currentVS.Spec.IPAMLabel {
+			if currentVS.Spec.HostGroup == "" && vrt.Spec.IPAMLabel != currentVS.Spec.IPAMLabel {
 				log.Errorf("Same host %v is configured with different IPAM labels: %v, %v. Unable to process %v", vrt.Spec.Host, vrt.Spec.IPAMLabel, currentVS.Spec.IPAMLabel, currentVS.Name)
 				return nil
 			}
-			// Empty host with IPAM label is invalid
+			// Empty host with IPAM label is invalid for a Virtual Server
 			if vrt.Spec.IPAMLabel != "" && vrt.Spec.Host == "" {
 				log.Errorf("Hostless VS %v is configured with IPAM label: %v", vrt.ObjectMeta.Name, vrt.Spec.IPAMLabel)
 				return nil
 			}
-		}
-		// Same host with different VirtualServerAddress is invalid
-		if vrt.Spec.VirtualServerAddress != currentVS.Spec.VirtualServerAddress {
-			if vrt.Spec.Host != "" {
-				log.Errorf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
-				return nil
-			}
-			// In case of empty host name, skip the virtual with other VirtualServerAddress
-			continue
 		}
 
 		// skip the virtuals with different custom HTTP/HTTPS ports
@@ -1070,6 +1079,23 @@ func getIPAMLabel(virtuals []*cisapiv1.VirtualServer) string {
 		}
 	}
 	return ""
+}
+
+func getVirtualServerAddress(virtuals []*cisapiv1.VirtualServer) (string, error) {
+	vsa := ""
+	for _, vrt := range virtuals {
+		if vrt.Spec.VirtualServerAddress != "" {
+			if vsa == "" || (vsa == vrt.Spec.VirtualServerAddress) {
+				vsa = vrt.Spec.VirtualServerAddress
+			} else {
+				return "", fmt.Errorf("more than one Virtual Server Address Found")
+			}
+		}
+	}
+	if vsa == "" {
+		return "", fmt.Errorf("no Virtual Server Address Found")
+	}
+	return vsa, nil
 }
 
 func (crMgr *CRManager) getIPAMCR() *ficV1.IPAM {

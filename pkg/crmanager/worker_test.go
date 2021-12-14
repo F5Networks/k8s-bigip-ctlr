@@ -598,6 +598,21 @@ var _ = Describe("Worker Tests", func() {
 				Expect(virts[1].Spec.Host).To(Equal("test3.com"), "Wrong Virtual Server Host")
 			})
 
+			It("Host Group with IP Address Only specified once", func() {
+				vrt2.Spec.HostGroup = "test"
+				vrt3.Spec.HostGroup = "test"
+				vrt3.Spec.Host = "test3.com"
+				vrt3.Spec.VirtualServerAddress = ""
+
+				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
+					false)
+
+				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
+				Expect(virts[0].Spec.Host).To(Equal("test2.com"), "Wrong Virtual Server Host")
+				Expect(virts[1].Spec.Host).To(Equal("test3.com"), "Wrong Virtual Server Host")
+			})
+
 			It("HostGroup with wrong custom port", func() {
 				vrt2.Spec.HostGroup = "test"
 				vrt2.Spec.VirtualServerHTTPPort = 8080

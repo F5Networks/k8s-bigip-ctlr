@@ -25,6 +25,7 @@ Bug Fixes
 * :issues:`2102,2016` Fix for crash while validating secrets
 * :issues:`2014` Allow type LoadBalancer with different TargetPort and Port values
 * :issues:`2031` Add support for named service port reference for ingresses
+* :issues:`2025` Support 'sni-server-name' for GTM HTTPS Monitor
 
 2.6.1
 -------------

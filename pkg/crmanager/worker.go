@@ -1861,7 +1861,7 @@ func (crMgr *CRManager) processLBServices(
 
 	for _, portSpec := range svc.Spec.Ports {
 
-		rsName := fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port)
+		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		if isSVCDeleted {
 			delete(crMgr.resources.rsMap, rsName)
 			continue

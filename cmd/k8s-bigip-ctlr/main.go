@@ -130,6 +130,7 @@ var (
 	httpAddress      *string
 	dgPath           string
 	disableTeems     *bool
+	enableIPV6       *bool
 
 	namespaces             *[]string
 	useNodeInternal        *bool
@@ -238,6 +239,8 @@ func _init() {
 	disableTeems = globalFlags.Bool("disable-teems", false,
 		"Optional, flag to disable sending telemetry data to TEEM")
 	// Custom Resource
+	enableIPV6 = globalFlags.Bool("enable-ipv6", false,
+		"Optional, flag to enbale ipv6 network support.")
 	customResourceMode = globalFlags.Bool("custom-resource-mode", false,
 		"Optional, When set to true, controller processes only F5 Custom Resources.")
 	defaultRouteDomain = globalFlags.Int("default-route-domain", 0,
@@ -782,6 +785,7 @@ func initCustomResourceManager(
 		PythonBaseDir:  *pythonBaseDir,
 		UserAgent:      getUserAgentInfo(),
 		HttpAddress:    *httpAddress,
+		EnableIPV6:     *enableIPV6,
 	}
 	agent := crmanager.NewAgent(agentParams)
 

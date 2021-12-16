@@ -401,6 +401,7 @@ type (
 		activeDecl      as3Declaration
 		userAgent       string
 		HttpAddress     string
+		EnableIPV6      bool
 	}
 
 	AgentParams struct {
@@ -414,6 +415,7 @@ type (
 		PythonBaseDir  string
 		UserAgent      string
 		HttpAddress    string
+		EnableIPV6     bool
 	}
 
 	globalSection struct {

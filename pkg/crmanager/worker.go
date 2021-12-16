@@ -762,7 +762,10 @@ func (crMgr *CRManager) processVirtualServers(
 		} else {
 			var err error
 			ip, err = getVirtualServerAddress(virtuals)
-			return err
+			if err != nil {
+				log.Errorf("Error in virtualserver address: %s", err.Error())
+				return err
+			}
 		}
 	}
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.

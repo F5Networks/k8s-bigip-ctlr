@@ -1319,7 +1319,7 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 			svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			// TODO: Instead of looping over Spec Ports, get the port from the pool itself
 			for _, portSpec := range svc.Spec.Ports {
-				if portSpec.Port == pool.ServicePort {
+				if portSpec.TargetPort.IntVal == pool.ServicePort {
 					rsCfg.MetaData.Active = true
 					rsCfg.Pools[index].Members =
 						crMgr.getEndpointsForNodePort(portSpec.NodePort, pool.NodeMemberLabel)

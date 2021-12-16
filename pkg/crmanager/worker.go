@@ -1034,30 +1034,30 @@ func (crMgr *CRManager) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer
 	return obj.(*cisapiv1.Policy), nil
 }
 
-func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.TransportServer) *cisapiv1.Policy {
+func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.TransportServer) (*cisapiv1.Policy, error) {
 
 	if len(virtuals) == 0 {
 		log.Errorf("No virtuals to extract policy from")
-		return nil
+		return nil, nil
 	}
 	plcName := ""
 	ns := virtuals[0].Namespace
 	for _, vrt := range virtuals {
 		if plcName != "" && plcName != vrt.Spec.PolicyName {
-			log.Errorf("Multiple Policies specified with for VirtualServerName: %v", vrt.Spec.VirtualServerName)
-			return nil
+			log.Errorf("Multiple Policies specified for VirtualServerName: %v", vrt.Spec.VirtualServerName)
+			return nil, fmt.Errorf("Multiple Policies specified for VirtualServerName: %v", vrt.Spec.VirtualServerName)
 		}
 		if vrt.Spec.PolicyName != "" {
 			plcName = vrt.Spec.PolicyName
 		}
 	}
 	if plcName == "" {
-		return nil
+		return nil, nil
 	}
 	crInf, ok := crMgr.getNamespacedInformer(ns)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", ns)
-		return nil
+		return nil, fmt.Errorf("Informer not found for namespace: %v", ns)
 	}
 	key := ns + "/" + plcName
 
@@ -1065,14 +1065,14 @@ func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.Trans
 	if err != nil {
 		log.Errorf("Error while fetching Policy: %v: %v",
 			key, err)
-		return nil
+		return nil, fmt.Errorf("Error while fetching Policy: %v: %v", key, err)
 	}
 
 	if !exist {
 		log.Errorf("Policy Not Found: %v", key)
-		return nil
+		return nil, fmt.Errorf("Policy Not Found: %v", key)
 	}
-	return obj.(*cisapiv1.Policy)
+	return obj.(*cisapiv1.Policy), nil
 }
 
 func getIPAMLabel(virtuals []*cisapiv1.VirtualServer) string {
@@ -1563,12 +1563,16 @@ func (crMgr *CRManager) processTransportServers(
 		ip,
 		virtual.Spec.VirtualServerPort,
 	)
-	plc := crMgr.getPolicyFromTransportServers(virtuals)
+	plc, err := crMgr.getPolicyFromTransportServers(virtuals)
 	if plc != nil {
 		err := crMgr.handleTSResourceConfigForPolicy(rsCfg, plc)
 		if err != nil {
 			processingError = true
 		}
+	}
+	if err != nil {
+		processingError = true
+		log.Errorf("%v", err)
 	}
 
 	for _, vrt := range virtuals {

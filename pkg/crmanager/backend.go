@@ -110,24 +110,29 @@ func NewAgent(params AgentParams) *Agent {
 			GtmBigIPURL:      params.GTMParams.GTMBigIpUrl,
 		}
 	}
-
-	agent.startPythonDriver(
-		gs,
-		bs,
-		gtm,
-		params.PythonBaseDir,
-	)
-
+	//For IPV6 net config is not required. f5-sdk doesnt support ipv6
+	if !(params.EnableIPV6) {
+		agent.startPythonDriver(
+			gs,
+			bs,
+			gtm,
+			params.PythonBaseDir,
+		)
+	}
 	return agent
 }
 
 func (agent *Agent) Stop() {
 	agent.ConfigWriter.Stop()
-	agent.stopPythonDriver()
+	if !(agent.EnableIPV6) {
+		agent.stopPythonDriver()
+	}
 }
 
 func (agent *Agent) PostConfig(rsConfig ResourceConfigWrapper) {
-	agent.PostGTMConfig(rsConfig)
+	if !(agent.EnableIPV6) {
+		agent.PostGTMConfig(rsConfig)
+	}
 	decl := createAS3Declaration(rsConfig, agent.userAgent)
 	if DeepEqualJSON(agent.activeDecl, decl) {
 		log.Debug("[AS3] No Change in the Configuration")

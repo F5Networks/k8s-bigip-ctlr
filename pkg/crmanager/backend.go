@@ -314,7 +314,7 @@ func processDataGroupForAS3(config ResourceConfigWrapper, sharedApp as3Applicati
 func extractVirtualAddress(str string) string {
 	var address string
 	if strings.HasPrefix(str, "crd_") && strings.HasSuffix(str, "_tls_client") {
-		address = strings.ReplaceAll(strings.TrimRight(strings.TrimLeft(str, "crd_"), "_tls_client"), "_", ".")
+		address = strings.TrimRight(strings.TrimLeft(str, "crd_"), "_tls_client")
 	}
 	return address
 }
@@ -323,7 +323,7 @@ func getDGRecordValueForAS3(dgName string, sharedApp as3Application, virtualAddr
 	if strings.HasSuffix(dgName, ReencryptServerSslDgName) {
 		for _, v := range sharedApp {
 			if svc, ok := v.(*as3Service); ok && svc.Class == "Service_HTTPS" &&
-				svc.VirtualAddresses[0] == virtualAddress {
+				AS3NameFormatter((svc.VirtualAddresses[0]).(string)) == virtualAddress {
 				if val, ok := svc.ClientTLS.(*as3ResourcePointer); ok {
 					return val.BigIP, true
 				}

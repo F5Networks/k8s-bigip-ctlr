@@ -311,7 +311,7 @@ var _ = Describe("Backend Tests", func() {
 	Describe("Misc", func() {
 		It("Extracting virtual address", func() {
 			ipAddr := extractVirtualAddress("crd_1_2_3_4_tls_client")
-			Expect(ipAddr).To(Equal("1.2.3.4"), "Wrong or invalid virtual Address")
+			Expect(ipAddr).To(Equal(AS3NameFormatter("1.2.3.4")), "Wrong or invalid virtual Address")
 		})
 
 		It("Service Address declaration", func() {

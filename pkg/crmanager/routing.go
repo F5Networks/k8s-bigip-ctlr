@@ -690,12 +690,18 @@ func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
                 }
             set sslpath [lindex [split [SSL::payload]] 1]
             set routepath ""
+            set wc_routepath ""
             
             if { [info exists tls_servername] } {
 				set servername_lower [string tolower $tls_servername]
+            	set domain_length [llength [split $servername_lower "."]]
+				set domain_wc [domain $servername_lower [expr {$domain_length - 1}] ]
+				set wc_host ".$domain_wc"
 				# Set routepath as combination of servername and url path
 				append routepath $servername_lower $sslpath
+     			append wc_routepath $wc_host $sslpath
 				set routepath [string tolower $routepath]
+				set wc_routepath [string tolower $wc_routepath]
 				set sslpath $routepath
 				# Find the number of "/" in the routepath
 				set rc 0
@@ -716,8 +722,8 @@ func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
 							set reen_pool [class match -value $routepath equals $reencrypt_class]
                             # Check for wildcard domain
                             if { $reen_pool equals "" } {
-							    if { [class match $routepath ends_with $reencrypt_class] } {
-							        set reen_pool [class match -value $routepath ends_with $reencrypt_class]
+							    if { [class match $wc_routepath equals $reencrypt_class] } {
+							        set reen_pool [class match -value $wc_routepath equals $reencrypt_class]
                                 }
                             }
 							if { not ($reen_pool equals "") } {
@@ -729,8 +735,8 @@ func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
 							set edge_pool [class match -value $routepath equals $edge_class]
                             # Check for wildcard domain
                             if { $edge_pool equals "" } {
-							    if { [class match $routepath ends_with $edge_class] } {
-							        set edge_pool [class match -value $routepath ends_with $edge_class]
+							    if { [class match $wc_routepath equals $edge_class] } {
+							        set edge_pool [class match -value $wc_routepath equals $edge_class]
 							    }
                             }
 							if { not ($edge_pool equals "") } {
@@ -741,6 +747,11 @@ func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
                             set routepath [
                                 string range $routepath 0 [
                                     expr {[string last "/" $routepath]-1}
+                                ]
+                            ]
+							set wc_routepath [
+                                string range $wc_routepath 0 [
+                                    expr {[string last "/" $wc_routepath]-1}
                                 ]
                             ]
                         }
@@ -782,8 +793,8 @@ func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
 						set reen [class match -value $sslpath equals $reencryptssl_class]
                         # check for wildcard domain match
                         if { $reen equals "" } {
-						    if { [class match $sslpath ends_with $reencryptssl_class] } {
-						        set reen [class match -value $sslpath ends_with $reencryptssl_class]
+						    if { [class match $wc_routepath equals $reencryptssl_class] } {
+						        set reen [class match -value $wc_routepath equals $reencryptssl_class]
 						    }
                         }
 						if { not ($reen equals "") } {
@@ -794,8 +805,8 @@ func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
 						set edge [class match -value $sslpath equals $edgessl_class]
                         # check for wildcard domain match
                         if { $edge equals "" } {
-						    if { [class match $sslpath ends_with $edgessl_class] } {
-						        set edge [class match -value $sslpath ends_with $edgessl_class]
+						    if { [class match $wc_routepath equals $edgessl_class] } {
+						        set edge [class match -value $wc_routepath equals $edgessl_class]
 						    }
                         }
 						if { not ($edge equals "") } {
@@ -807,6 +818,11 @@ func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
 						set sslpath [
 							string range $sslpath 0 [
 								expr {[string last "/" $sslpath]-1}
+							]
+						]
+                        set wc_routepaath [
+							string range $wc_routepath 0 [
+								expr {[string last "/" $wc_routepath]-1}
 							]
 						]
 					}

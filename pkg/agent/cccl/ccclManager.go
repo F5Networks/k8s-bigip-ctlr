@@ -89,19 +89,6 @@ func (cm *CCCLManager) ConfigWriter() writer.Writer {
 	return cm.configWriter
 }
 
-//TODO: Remove this post CIS2.2
-// Method to delete any AS3 partition
-func (cm *CCCLManager) DeleteAS3Partition(partition string) {
-	var as3Config map[string]interface{}
-	_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
-	decl := as3Config["declaration"].(map[string]interface{})
-	decl[DEFAULT_PARTITION+"_AS3"] = map[string]string{"class": "Tenant"}
-	data, _ := json.Marshal(as3Config)
-	cm.postConfig(string(data))
-}
-
-//TODO: Remove this post CIS2.2
-//Post empty AS3 declaration to remove _AS3 partition.
 func (cm *CCCLManager) postConfig(data string) {
 	httpReqBody := bytes.NewBuffer([]byte(data))
 	req, err := http.NewRequest("POST", cm.BIGIPURL+"/mgmt/shared/appsvcs/declare", httpReqBody)

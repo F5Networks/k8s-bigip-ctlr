@@ -500,12 +500,6 @@ func (am *AS3Manager) getDeletedTenantsFromTenantMap(curTenantMap map[string]int
 	return deletedTenants
 }
 
-// Method to delete any AS3 partition
-func (am *AS3Manager) DeleteAS3Partition(partition string) (bool, string) {
-	emptyAS3Declaration := am.getEmptyAs3Declaration(partition)
-	return am.PostManager.postConfigRequests(string(emptyAS3Declaration), am.PostManager.getAS3APIURL(nil))
-}
-
 // Method to delete AS3 partition using partition endpoint
 func (am *AS3Manager) DeleteAS3Tenant(partition string) (bool, string) {
 	emptyAS3Declaration := am.getEmptyAs3Declaration(partition)

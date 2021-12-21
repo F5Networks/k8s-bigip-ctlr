@@ -385,9 +385,9 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`1467` AS3 ERROR declaration.schemaVersion must be one of the following with Controller version 2.1.0.
-* :issues:`1433` Template is not valid. When using CIS 2.1 with AS3 version: 3.21.0.
-* :issues:`1440` Optional health check parameters don't appear to be optional.
+* :issues: 1467 AS3 ERROR declaration.schemaVersion must be one of the following with Controller version 2.1.0.
+* :issues: 1433 Template is not valid. When using CIS 2.1 with AS3 version: 3.21.0.
+* :issues: 1440 Optional health check parameters don't appear to be optional.
 * Fixed issues with processing multiple services with same annotations in AS3 ConfigMap mode.
         - When there are multiple services with same annotations, CIS updates the oldest service endpoints in BIG-IP.
 * Fixed issues with continuous AS3 declarations in CRD mode.

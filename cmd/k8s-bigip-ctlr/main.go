@@ -1,4 +1,4 @@
-/*-
+/*
  * Copyright (c) 2017-2021 F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -934,7 +934,7 @@ func main() {
 		// Post telemetry data request
 		if !td.PostTeemsData() {
 			td.AccessEnabled = false
-			log.Errorf("Unable to post data to TEEM server. Restart CIS once firewall rules permit")
+			log.Error("Unable to post data to TEEM server. Restart CIS once firewall rules permit")
 		}
 	} else {
 		td.AccessEnabled = false
@@ -944,18 +944,20 @@ func main() {
 	if *customResourceMode {
 		getGTMCredentials()
 		crMgr := initCustomResourceManager(config)
+		crMgr.TeemData = td
+		key, err := crMgr.Agent.GetBigipRegKey()
+		if err != nil {
+			log.Errorf("%v", err)
+		}
+		crMgr.TeemData.Lock()
+		crMgr.TeemData.RegistrationKey = key
+		crMgr.TeemData.Unlock()
 		err = crMgr.Agent.GetBigipAS3Version()
 		if err != nil {
 			log.Errorf("%v", err)
 			crMgr.Stop()
 			os.Exit(1)
 		}
-		key, err := crMgr.Agent.GetBigipRegKey()
-		if err != nil {
-			log.Errorf("%v", err)
-		}
-		td.RegistrationKey = key
-		crMgr.TeemData = td
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigs

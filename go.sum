@@ -39,6 +39,8 @@ github.com/F5Networks/f5-ipam-controller v0.1.6-0.20211130120610-2c17f16226f4 h1
 github.com/F5Networks/f5-ipam-controller v0.1.6-0.20211130120610-2c17f16226f4/go.mod h1:XBOjYUVRKG8q8atIpNmil/XF6RAGVekqfbeNQludcV4=
 github.com/F5Networks/f5-ipam-controller v0.1.6-0.20211213121023-410e5df250de h1:uj7KI3iGhh7AP7ettwskXp7L2XGOvvX5imuCwvGXxr8=
 github.com/F5Networks/f5-ipam-controller v0.1.6-0.20211213121023-410e5df250de/go.mod h1:XBOjYUVRKG8q8atIpNmil/XF6RAGVekqfbeNQludcV4=
+github.com/F5Networks/f5-ipam-controller v0.1.6-0.20211217134627-c2be8b459270 h1:C43pAoSDy/58jslylXsE8O67EKk64RNWlLw+8iStMCc=
+github.com/F5Networks/f5-ipam-controller v0.1.6-0.20211217134627-c2be8b459270/go.mod h1:XBOjYUVRKG8q8atIpNmil/XF6RAGVekqfbeNQludcV4=
 github.com/NYTimes/gziphandler v0.0.0-20170623195520-56545f4a5d46/go.mod h1:3wb06e3pkSAbeQ52E9H9iFoQsEEwGN64994WTCIhntQ=
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=

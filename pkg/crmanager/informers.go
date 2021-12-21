@@ -17,6 +17,7 @@
 package crmanager
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"time"
@@ -31,7 +32,26 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-var K8SCoreServices = [...]string{"kube-dns", "kube-scheduler", "kube-controller-manager", "docker-registry", "kubernetes", "registry-console", "router", "kubelet", "console", "alertmanager-main", "alertmanager-operated", "cluster-monitoring-operator", "grafana", "kube-state-metrics", "node-exporter", "prometheus-k8s", "prometheus-operated", "prometheus-operatorwebconsole"}
+var K8SCoreServices = map[string]bool{
+	"kube-dns":                      true,
+	"kube-scheduler":                true,
+	"kube-controller-manager":       true,
+	"docker-registry":               true,
+	"kubernetes":                    true,
+	"registry-console":              true,
+	"router":                        true,
+	"kubelet":                       true,
+	"console":                       true,
+	"alertmanager-main":             true,
+	"alertmanager-operated":         true,
+	"cluster-monitoring-operator":   true,
+	"grafana":                       true,
+	"kube-state-metrics":            true,
+	"node-exporter":                 true,
+	"prometheus-k8s":                true,
+	"prometheus-operated":           true,
+	"prometheus-operatorwebconsole": true,
+}
 
 // start the VirtualServer informer
 func (crInfr *CRInformer) start() {
@@ -93,6 +113,35 @@ func (crMgr *CRManager) watchingAllNamespaces() bool {
 	}
 	_, watchingAll := crMgr.crInformers[""]
 	return watchingAll
+}
+
+func (crMgr *CRManager) getNamespacedInformer(
+	namespace string,
+) (*CRInformer, bool) {
+	if crMgr.watchingAllNamespaces() {
+		namespace = ""
+	}
+	crInf, found := crMgr.crInformers[namespace]
+	return crInf, found
+}
+
+func (crMgr *CRManager) getWatchingNamespaces() []string {
+	var namespaces []string
+	if crMgr.watchingAllNamespaces() {
+		nss, err := crMgr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			log.Errorf("Unable to Fetch Namespaces: %v", err)
+			return nil
+		}
+		for _, ns := range nss.Items {
+			namespaces = append(namespaces, ns.Name)
+		}
+		return namespaces
+	}
+	for ns, _ := range crMgr.namespaces {
+		namespaces = append(namespaces, ns)
+	}
+	return namespaces
 }
 
 func (crMgr *CRManager) addNamespacedInformer(
@@ -352,16 +401,6 @@ func (crMgr *CRManager) enqueueDeletedIPAM(obj interface{}) {
 	}
 
 	crMgr.rscQueue.Add(key)
-}
-
-func (crMgr *CRManager) getNamespacedInformer(
-	namespace string,
-) (*CRInformer, bool) {
-	if crMgr.watchingAllNamespaces() {
-		namespace = ""
-	}
-	crInf, found := crMgr.crInformers[namespace]
-	return crInf, found
 }
 
 func (crMgr *CRManager) enqueueVirtualServer(obj interface{}) {
@@ -633,10 +672,8 @@ func (crMgr *CRManager) enqueueDeletedExternalDNS(obj interface{}) {
 func (crMgr *CRManager) enqueueService(obj interface{}) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
-	for _, svcName := range K8SCoreServices {
-		if svc.ObjectMeta.Name == svcName {
-			return
-		}
+	if _, ok := K8SCoreServices[svc.Name]; ok {
+		return
 	}
 	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
@@ -652,10 +689,8 @@ func (crMgr *CRManager) enqueueUpdatedService(obj, cur interface{}) {
 	svc := obj.(*corev1.Service)
 	curSvc := cur.(*corev1.Service)
 	// Ignore K8S Core Services
-	for _, svcName := range K8SCoreServices {
-		if svc.ObjectMeta.Name == svcName {
-			return
-		}
+	if _, ok := K8SCoreServices[svc.Name]; ok {
+		return
 	}
 
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
@@ -685,10 +720,8 @@ func (crMgr *CRManager) enqueueUpdatedService(obj, cur interface{}) {
 func (crMgr *CRManager) enqueueDeletedService(obj interface{}) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
-	for _, svcName := range K8SCoreServices {
-		if svc.ObjectMeta.Name == svcName {
-			return
-		}
+	if _, ok := K8SCoreServices[svc.Name]; ok {
+		return
 	}
 	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
@@ -704,10 +737,8 @@ func (crMgr *CRManager) enqueueDeletedService(obj interface{}) {
 func (crMgr *CRManager) enqueueEndpoints(obj interface{}) {
 	eps := obj.(*corev1.Endpoints)
 	// Ignore K8S Core Services
-	for _, epname := range K8SCoreServices {
-		if eps.ObjectMeta.Name == epname {
-			return
-		}
+	if _, ok := K8SCoreServices[eps.Name]; ok {
+		return
 	}
 	log.Debugf("Enqueueing Endpoints: %v", eps)
 	key := &rqKey{

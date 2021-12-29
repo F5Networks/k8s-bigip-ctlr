@@ -141,7 +141,7 @@ Before upgrade to 2.5
     - Create `IngressClass <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml>`_ before version upgrade.
 * To upgrade CIS using operator in OpenShift, 
     - Install `IngressClass <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/ingress/networkingV1/example-default-ingress-class.yaml>`_ manually. 
-    - Install `CRDs <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinations/customresourcedefinitions.yml>`_ manually if using CIS CustomResources (VirtualServer/TransportServer/IngressLink).
+    - Install `CRDs <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_ manually if using CIS CustomResources (VirtualServer/TransportServer/IngressLink).
 
 
 F5 IPAM Controller v0.1.4
@@ -310,7 +310,7 @@ Added Functionality
     -  Multi cluster support for same domain
     -  Health montior support for monitoring GSLB pools
     -  CIS deployment parameter added `--gtm-bigip-url`, `--gtm-bigip-username`, `--gtm-bigip-password` and `--gtm-credentials-directory` for External DNS.
-    -  `CRD schema definition for External DNS <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinations/customresourcedefinitions.yml>`_.
+    -  `CRD schema definition for External DNS <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_.
     -  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS>`_.
 
 Bug Fixes
@@ -348,7 +348,7 @@ Added Functionality
 * CRD TEEMs Integration.
 * Support for AS3 3.23.
 * Upgraded AS3 Schema validation version from v3.11.0-3 to v3.18.0-4.
-* `CRD Schema <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinations/customresourcedefinitions.yml>`_.
+* `CRD Schema <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_.
 * `CRD Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource>`_.
 
 Bug Fixes
@@ -434,7 +434,7 @@ Added Functionality
              *  Supports nodelabel in Virtual server CRD
              *  Supports TLSProfile CRD with BIG-IP reference client and server SSL profiles
              *  Supports TLSProfile CRD with K8S secrets reference for client SSL profiles.
-             *  `CRD schema definition for both Virtual server and TLSProfile <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinations/customresourcedefinitions.yml>`_.
+             *  `CRD schema definition for both Virtual server and TLSProfile <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_.
              *  `CRD examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource>`_.
 
 Bug Fixes

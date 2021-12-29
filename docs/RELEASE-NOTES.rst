@@ -1,31 +1,65 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.7.0
 -------------
 Added Functionality
 ```````````````````
 
-* CIS now compatible with
-    - Kubernetes 1.22
-    - AS3 3.30
-* Added support for:
-    * Reporting Status of VirtualServer and TransportServer CRD
-    * Tenant based AS3 declarations with `--filter-tenants` parameter
-    * Configuring IPv6 addresses for VirtualServer and TransportServer CRD
-    * Named service port reference for ingresses
+**What’s new:**
+    * CRD:
+        * Policy CR support for VirtualServer and TransportServer CR. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy>`_
+        * Support for L3 WAF, L7 Firewall policy and various profiles.
+        * IPv6 address support for VirtualServer, TransportServer CR and ServiceTypeLB service. `Examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/VirtualServer/virtual-server-name-address/custom-ipv6-virtual-server-address.yaml>`_
+        * Wildcard domain name support with TLSProfile and VirtualServer. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-wildcard-domain>`_
+        * Multi-host support in VirtualServer CR using hostgroup parameter. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
+        * New Status column for VirtualServer and TransportServer CR. `GitHub issue <https://github.com/F5Networks/k8s-bigip-ctlr/issues/1659>`_
+        * EDNS:
+            * TCP type monitor support for EDNS
+            * Renamed EDNS resource name from externaldnss to externaldns. `CRD definition <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml#L370>`_
+    * ConfigMap:
+        * Tenant based AS3 declarations support for configmaps using ``--filter-tenants`` deployment option.
+    * Ingress:
+        * Named service port reference for ingresses. `GitHub issue <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2031>`_
+    * Helm Charts:
+        * Support for latest CRD schema
 
-Bug Fixes
-`````````
-* Added tcp type monitor support for EDNS.
-* :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool.
-* :issues:`1873` Enable /metrics endpoint with crd mode.
-* :issues:`1659` Report "status" of TransportServer CRD
-* :issues:`2006` Add support for Wildcard domain name with TLSProfile and VirtualServer
-* :issues:`2102,2016` Fix for crash while validating secrets
+**CIS is now compatible with:**
+    * Kubernetes 1.22
+    * OCP 4.9 with OVN
+    * AS3 3.30
+
+Enhancements
+````````````
+* :issues:`1684` [EDNS] CIS tries to remove non-existing monitor from GTM pool
+* :issues:`1873` Enable /metrics endpoint with crd mode
+* :issues:`1916` Display IPAM provided IPaddress for TransportServer
 * :issues:`2014` Allow type LoadBalancer with different TargetPort and Port values
-* :issues:`2031` Add support for named service port reference for ingresses
+* :issues:`2016,2102` Fix for crash while validating secrets
 * :issues:`2025` Support 'sni-server-name' for GTM HTTPS Monitor
+* :issues:`2087` Enable nodeMemberLabel regex to support common node labels
+* :issues:`2053` Remove ECDSA cert SNI support for OpenShift Routes - Revert :issue:`1723`
+* Restructured docs examples directory
+* Improved performance while processing VS, services and endpoint resources
+
+Note
+````
+* Renamed EDNS resource name from externaldnss to externaldns. Refer to latest EDNS CRD definition `here <https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml#L370>`_. This latest EDNS schema is compatible only with CIS version >=2.7.0
+* Validated IPv6 with calico CNI on k8s 1.22 setup
+* Log4j vulnerability does not impact CIS and FIC code base ☺️
+
+Known issues
+````````````
+* Policy CRD integration with TS CRD has few issues.
+* Wildcard hostname in VS CRD doesn’t match the parent domain
+* When root domain and wildcard domain refer to same VSAddress, CIS is not working as expected
+
+FIC 0.1.6 Release notes :
+-------------------------
+Added Functionality
+```````````````````
+* IPv6 address range configuration support with default f5-ip-provider. `Example <https://raw.githubusercontent.com/F5Networks/f5-ipam-controller/main/docs/config_examples/f5-ip-provider/ipv6-addr-range-default-provider-deployment.yaml>`_
+
 
 2.6.1
 -------------

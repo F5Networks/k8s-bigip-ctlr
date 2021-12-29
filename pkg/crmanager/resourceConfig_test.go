@@ -291,27 +291,27 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 
 		It("Get Pool Members from Resource Configs", func() {
-			mem1 := Member{
+			mem1 := PoolMember{
 				Address: "1.2.3.5",
 				Port:    8080,
 			}
-			mem2 := Member{
+			mem2 := PoolMember{
 				Address: "1.2.3.6",
 				Port:    8081,
 			}
-			mem3 := Member{
+			mem3 := PoolMember{
 				Address: "1.2.3.7",
 				Port:    8082,
 			}
-			mem4 := Member{
+			mem4 := PoolMember{
 				Address: "1.2.3.8",
 				Port:    8083,
 			}
-			mem5 := Member{
+			mem5 := PoolMember{
 				Address: "1.2.3.9",
 				Port:    8084,
 			}
-			mem6 := Member{
+			mem6 := PoolMember{
 				Address: "1.2.3.10",
 				Port:    8085,
 			}
@@ -320,7 +320,7 @@ var _ = Describe("Resource Config Tests", func() {
 			rsCfg.Pools = Pools{
 				Pool{
 					Name:    "pool1",
-					Members: []Member{mem1, mem2},
+					Members: []PoolMember{mem1, mem2},
 				},
 			}
 
@@ -329,7 +329,7 @@ var _ = Describe("Resource Config Tests", func() {
 			rsCfg2.Pools = Pools{
 				Pool{
 					Name:    "pool1",
-					Members: []Member{mem3, mem4},
+					Members: []PoolMember{mem3, mem4},
 				},
 			}
 
@@ -338,13 +338,13 @@ var _ = Describe("Resource Config Tests", func() {
 			rsCfg3.Pools = Pools{
 				Pool{
 					Name:    "pool1",
-					Members: []Member{mem5, mem6},
+					Members: []PoolMember{mem5, mem6},
 				},
 			}
 
 			rsCfgs := ResourceConfigs{rsCfg, rsCfg2, rsCfg3}
 			mems := rsCfgs.GetAllPoolMembers()
-			Expect(mems).To(Equal([]Member{mem1, mem2, mem5, mem6}), "Invalid Pool Members")
+			Expect(mems).To(Equal([]PoolMember{mem1, mem2, mem5, mem6}), "Invalid Pool Members")
 		})
 	})
 

@@ -44,19 +44,19 @@ func NewResources() *Resources {
 type Resources struct {
 	sync.Mutex
 	rsMap        ResourceConfigMap
-	objDeps      ObjectDependencyMap
 	oldRsMap     ResourceConfigMap
 	dnsConfig    DNSConfig
 	oldDNSConfig DNSConfig
+	poolMemCache PoolMemberCache
 }
 
 // Init is Receiver to initialize the object.
 func (rs *Resources) Init() {
 	rs.rsMap = make(ResourceConfigMap)
-	rs.objDeps = make(ObjectDependencyMap)
 	rs.oldRsMap = make(ResourceConfigMap)
 	rs.dnsConfig = make(DNSConfig)
 	rs.oldDNSConfig = make(DNSConfig)
+	rs.poolMemCache = make(PoolMemberCache)
 }
 
 // Key is resource name, value is unused (since go doesn't have set objects).
@@ -67,6 +67,9 @@ type resourceKeyMap map[serviceKey]resourceList
 
 // ResourceConfigMap key is resource name, value is pointer to config. May be shared.
 type ResourceConfigMap map[string]*ResourceConfig
+
+// PoolMemberCache key is namespace/service
+type PoolMemberCache map[string]poolMembersInfo
 
 // ObjectDependency TODO => dep can be replaced with  internal DS rqkey
 // ObjectDependency identifies a K8s Object
@@ -865,7 +868,7 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 	copy(rc.Pools, cfg.Pools)
 	// Pool Members and Monitor Names
 	for i := range rc.Pools {
-		rc.Pools[i].Members = make([]Member, len(cfg.Pools[i].Members))
+		rc.Pools[i].Members = make([]PoolMember, len(cfg.Pools[i].Members))
 		copy(rc.Pools[i].Members, cfg.Pools[i].Members)
 	}
 	// Policies
@@ -958,9 +961,9 @@ func (cfg *ResourceConfig) GetName() string {
 	return cfg.Virtual.Name
 }
 
-func (rcs ResourceConfigs) GetAllPoolMembers() []Member {
+func (rcs ResourceConfigs) GetAllPoolMembers() []PoolMember {
 	// Get all pool members and write them to VxlanMgr to configure ARP entries
-	var allPoolMembers []Member
+	var allPoolMembers []PoolMember
 
 	for _, cfg := range rcs {
 		// Filter the configs to only those that have active services

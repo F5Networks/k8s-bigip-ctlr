@@ -47,8 +47,29 @@ const (
 // customResourceWorker starts the Custom Resource Worker.
 func (crMgr *CRManager) customResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
+	crMgr.setInitialServiceCount()
 	for crMgr.processResource() {
 	}
+}
+
+func (crMgr *CRManager) setInitialServiceCount() {
+	var svcCount int
+	for _, ns := range crMgr.getWatchingNamespaces() {
+		services, err := crMgr.kubeClient.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			continue
+		}
+
+		for _, svc := range services.Items {
+			if _, ok := K8SCoreServices[svc.Name]; ok {
+				continue
+			}
+			if svc.Spec.Type != v1.ServiceTypeExternalName {
+				svcCount++
+			}
+		}
+	}
+	crMgr.initialSvcCount = svcCount
 }
 
 // processResource gets resources from the rscQueue and processes the resource
@@ -67,6 +88,18 @@ func (crMgr *CRManager) processResource() bool {
 	rKey := key.(*rqKey)
 	log.Debugf("Processing Key: %v", rKey)
 
+	// During Init time, just accumulate all the poolMembers by processing only services
+	if crMgr.initState && rKey.kind != Namespace {
+		if rKey.kind != Service {
+			crMgr.rscQueue.AddRateLimited(key)
+			return true
+		}
+		crMgr.initialSvcCount--
+		if crMgr.initialSvcCount <= 0 {
+			crMgr.initState = false
+		}
+	}
+
 	// Check the type of resource and process accordingly.
 	switch rKey.kind {
 	case VirtualServer:
@@ -78,9 +111,6 @@ func (crMgr *CRManager) processResource() bool {
 			isError = true
 		}
 	case TLSProfile:
-		if crMgr.initState {
-			break
-		}
 		tlsProfile := rKey.rsc.(*cisapiv1.TLSProfile)
 		virtuals := crMgr.getVirtualsForTLSProfile(tlsProfile)
 		// No Virtuals are effected with the change in TLSProfile.
@@ -186,6 +216,9 @@ func (crMgr *CRManager) processResource() bool {
 		}
 	case Service:
 		svc := rKey.rsc.(*v1.Service)
+
+		_ = crMgr.processService(svc, nil, rKey.rscDelete)
+
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			err := crMgr.processLBServices(svc, rKey.rscDelete)
 			if err != nil {
@@ -237,15 +270,15 @@ func (crMgr *CRManager) processResource() bool {
 		}
 
 	case Endpoints:
-		if crMgr.initState {
-			break
-		}
 		ep := rKey.rsc.(*v1.Endpoints)
 		svc := crMgr.getServiceForEndpoints(ep)
 		// No Services are effected with the change in service.
 		if nil == svc {
 			break
 		}
+
+		_ = crMgr.processService(svc, ep, rKey.rscDelete)
+
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 			err := crMgr.processLBServices(svc, rKey.rscDelete)
 			if err != nil {
@@ -255,6 +288,7 @@ func (crMgr *CRManager) processResource() bool {
 			}
 			break
 		}
+
 		virtuals := crMgr.getVirtualServersForService(svc)
 		for _, virtual := range virtuals {
 			err := crMgr.processVirtualServers(virtual, false)
@@ -762,7 +796,10 @@ func (crMgr *CRManager) processVirtualServers(
 		} else {
 			var err error
 			ip, err = getVirtualServerAddress(virtuals)
-			return err
+			if err != nil {
+				log.Errorf("Error in virtualserver address: %s", err.Error())
+				return err
+			}
 		}
 	}
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.
@@ -1031,30 +1068,30 @@ func (crMgr *CRManager) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer
 	return obj.(*cisapiv1.Policy), nil
 }
 
-func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.TransportServer) *cisapiv1.Policy {
+func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.TransportServer) (*cisapiv1.Policy, error) {
 
 	if len(virtuals) == 0 {
 		log.Errorf("No virtuals to extract policy from")
-		return nil
+		return nil, nil
 	}
 	plcName := ""
 	ns := virtuals[0].Namespace
 	for _, vrt := range virtuals {
 		if plcName != "" && plcName != vrt.Spec.PolicyName {
-			log.Errorf("Multiple Policies specified with for VirtualServerName: %v", vrt.Spec.VirtualServerName)
-			return nil
+			log.Errorf("Multiple Policies specified for VirtualServerName: %v", vrt.Spec.VirtualServerName)
+			return nil, fmt.Errorf("Multiple Policies specified for VirtualServerName: %v", vrt.Spec.VirtualServerName)
 		}
 		if vrt.Spec.PolicyName != "" {
 			plcName = vrt.Spec.PolicyName
 		}
 	}
 	if plcName == "" {
-		return nil
+		return nil, nil
 	}
 	crInf, ok := crMgr.getNamespacedInformer(ns)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", ns)
-		return nil
+		return nil, fmt.Errorf("Informer not found for namespace: %v", ns)
 	}
 	key := ns + "/" + plcName
 
@@ -1062,14 +1099,14 @@ func (crMgr *CRManager) getPolicyFromTransportServers(virtuals []*cisapiv1.Trans
 	if err != nil {
 		log.Errorf("Error while fetching Policy: %v: %v",
 			key, err)
-		return nil
+		return nil, fmt.Errorf("Error while fetching Policy: %v: %v", key, err)
 	}
 
 	if !exist {
 		log.Errorf("Policy Not Found: %v", key)
-		return nil
+		return nil, fmt.Errorf("Policy Not Found: %v", key)
 	}
-	return obj.(*cisapiv1.Policy)
+	return obj.(*cisapiv1.Policy), nil
 }
 
 func getIPAMLabel(virtuals []*cisapiv1.VirtualServer) string {
@@ -1290,8 +1327,7 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 	rsCfg *ResourceConfig,
 	namespace string,
 ) {
-	// TODO: Can we get rid of counter? and use something better.
-	crInf, ok := crMgr.getNamespacedInformer(namespace)
+	_, ok := crMgr.getNamespacedInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return
@@ -1301,30 +1337,21 @@ func (crMgr *CRManager) updatePoolMembersForNodePort(
 		svcName := pool.ServiceName
 		svcKey := namespace + "/" + svcName
 
-		// TODO: Too Many API calls?
-		service, exist, _ := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
-		if !exist {
-			log.Debugf("Service not found %s", svcKey)
-			// Update the pool with empty members
-			var member []Member
-			rsCfg.Pools[index].Members = member
-			continue
-		}
-		svc := service.(*v1.Service)
-		// Traverse for all the pools in the Resource Config
-		if svc.Spec.Type == v1.ServiceTypeNodePort ||
-			svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			// TODO: Instead of looping over Spec Ports, get the port from the pool itself
-			for _, portSpec := range svc.Spec.Ports {
-				if portSpec.Port == pool.ServicePort {
-					rsCfg.MetaData.Active = true
-					rsCfg.Pools[index].Members =
-						crMgr.getEndpointsForNodePort(portSpec.NodePort, pool.NodeMemberLabel)
-				}
-			}
-		} else {
+		poolMemInfo := crMgr.resources.poolMemCache[svcKey]
+
+		if !(poolMemInfo.svcType == v1.ServiceTypeNodePort ||
+			poolMemInfo.svcType == v1.ServiceTypeLoadBalancer) {
 			log.Debugf("Requested service backend %s not of NodePort or LoadBalancer type",
-				svcName)
+				svcKey)
+		}
+
+		for _, svcPort := range poolMemInfo.portSpec {
+			if svcPort.TargetPort.IntVal == pool.ServicePort {
+				nodePort := svcPort.NodePort
+				rsCfg.MetaData.Active = true
+				rsCfg.Pools[index].Members =
+					crMgr.getEndpointsForNodePort(nodePort, pool.NodeMemberLabel)
+			}
 		}
 	}
 }
@@ -1335,44 +1362,17 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 	rsCfg *ResourceConfig,
 	namespace string,
 ) {
-
-	crInf, ok := crMgr.getNamespacedInformer(namespace)
-	if !ok {
-		log.Errorf("Informer not found for namespace: %v", namespace)
-		return
-	}
-
 	for index, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
 		svcKey := namespace + "/" + svcName
+		poolMemInfo := crMgr.resources.poolMemCache[svcKey]
 
-		// TODO: Too Many API calls?
-		item, found, _ := crInf.epsInformer.GetIndexer().GetByKey(svcKey)
-		if !found {
-			log.Debugf("Endpoints for service '%v' not found!", svcKey)
-			continue
-		}
-		eps, _ := item.(*v1.Endpoints)
-		// TODO: Too Many API calls?
-		// Get Service
-		service, exist, _ := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
-		if !exist {
-			log.Debugf("Service not found %s", svcKey)
-			// Update the pool with empty members
-			var member []Member
-			rsCfg.Pools[index].Members = member
-			continue
-		}
-		svc := service.(*v1.Service)
-
-		// TODO: Instead of looping over Spec Ports, get the port from the pool itself
-		for _, portSpec := range svc.Spec.Ports {
-			ipPorts := crMgr.getEndpointsForCluster(portSpec.Name, eps, pool.ServicePort, svc.Spec.ClusterIP)
-			log.Debugf("Found endpoints for backend %+v: %v", svcKey, ipPorts)
-			rsCfg.MetaData.Active = true
-			if len(ipPorts) > 0 {
-				rsCfg.Pools[index].Members = ipPorts
+		for ref, mems := range poolMemInfo.memberMap {
+			if ref.port != pool.ServicePort || len(mems) <= 0 {
+				continue
 			}
+			rsCfg.MetaData.Active = true
+			rsCfg.Pools[index].Members = mems
 		}
 	}
 }
@@ -1381,16 +1381,16 @@ func (crMgr *CRManager) updatePoolMembersForCluster(
 func (crMgr *CRManager) getEndpointsForNodePort(
 	nodePort int32,
 	nodeMemberLabel string,
-) []Member {
+) []PoolMember {
 	var nodes []Node
 	if nodeMemberLabel == "" {
 		nodes = crMgr.getNodesFromCache()
 	} else {
 		nodes = crMgr.getNodesWithLabel(nodeMemberLabel)
 	}
-	var members []Member
+	var members []PoolMember
 	for _, v := range nodes {
-		member := Member{
+		member := PoolMember{
 			Address: v.Addr,
 			Port:    nodePort,
 			Session: "user-enabled",
@@ -1398,40 +1398,6 @@ func (crMgr *CRManager) getEndpointsForNodePort(
 		members = append(members, member)
 	}
 
-	return members
-}
-
-// getEndpointsForCluster returns members.
-func (crMgr *CRManager) getEndpointsForCluster(
-	portName string,
-	eps *v1.Endpoints,
-	servicePort int32,
-	clusterIP string,
-) []Member {
-	nodes := crMgr.getNodesFromCache()
-	var members []Member
-
-	if eps == nil {
-		return members
-	}
-
-	for _, subset := range eps.Subsets {
-		for _, p := range subset.Ports {
-			if portName == p.Name && servicePort == p.Port {
-				for _, addr := range subset.Addresses {
-					// Checking for headless services
-					if containsNode(nodes, *addr.NodeName) || clusterIP == "None" {
-						member := Member{
-							Address: addr.IP,
-							Port:    p.Port,
-							Session: "user-enabled",
-						}
-						members = append(members, member)
-					}
-				}
-			}
-		}
-	}
 	return members
 }
 
@@ -1560,12 +1526,16 @@ func (crMgr *CRManager) processTransportServers(
 		ip,
 		virtual.Spec.VirtualServerPort,
 	)
-	plc := crMgr.getPolicyFromTransportServers(virtuals)
+	plc, err := crMgr.getPolicyFromTransportServers(virtuals)
 	if plc != nil {
 		err := crMgr.handleTSResourceConfigForPolicy(rsCfg, plc)
 		if err != nil {
 			processingError = true
 		}
+	}
+	if err != nil {
+		processingError = true
+		log.Errorf("%v", err)
 	}
 
 	for _, vrt := range virtuals {
@@ -1854,7 +1824,7 @@ func (crMgr *CRManager) processLBServices(
 
 	for _, portSpec := range svc.Spec.Ports {
 
-		rsName := fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port)
+		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		if isSVCDeleted {
 			delete(crMgr.resources.rsMap, rsName)
 			continue
@@ -1881,6 +1851,65 @@ func (crMgr *CRManager) processLBServices(
 		crMgr.resources.rsMap[rsName] = rsCfg
 
 	}
+
+	return nil
+}
+
+func (crMgr *CRManager) processService(
+	svc *v1.Service,
+	eps *v1.Endpoints,
+	isSVCDeleted bool,
+) error {
+	namespace := svc.Namespace
+	svcKey := svc.Namespace + "/" + svc.Name
+
+	if isSVCDeleted {
+		delete(crMgr.resources.poolMemCache, svcKey)
+		return nil
+	}
+
+	if eps == nil {
+		crInf, ok := crMgr.getNamespacedInformer(namespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", namespace)
+			return fmt.Errorf("unable to process Service: %v", svcKey)
+		}
+
+		item, found, _ := crInf.epsInformer.GetIndexer().GetByKey(svcKey)
+		if !found {
+			return fmt.Errorf("Endpoints for service '%v' not found!", svcKey)
+		}
+		eps, _ = item.(*v1.Endpoints)
+	}
+
+	pmi := poolMembersInfo{
+		svcType:   svc.Spec.Type,
+		portSpec:  svc.Spec.Ports,
+		memberMap: make(map[portRef][]PoolMember),
+	}
+
+	nodes := crMgr.getNodesFromCache()
+
+	for _, subset := range eps.Subsets {
+		for _, p := range subset.Ports {
+			var members []PoolMember
+			for _, addr := range subset.Addresses {
+				// Checking for headless services
+				if containsNode(nodes, *addr.NodeName) || svc.Spec.ClusterIP == "None" {
+					member := PoolMember{
+						Address: addr.IP,
+						Port:    p.Port,
+						Session: "user-enabled",
+					}
+					members = append(members, member)
+				}
+			}
+			portKey := portRef{name: p.Name, port: p.Port}
+			pmi.memberMap[portKey] = members
+		}
+	}
+
+	crMgr.resources.poolMemCache[svcKey] = pmi
 
 	return nil
 }

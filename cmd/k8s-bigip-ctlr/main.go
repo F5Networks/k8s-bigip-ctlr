@@ -1,4 +1,4 @@
-/*-
+/*
  * Copyright (c) 2017-2021 F5 Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -130,6 +130,7 @@ var (
 	httpAddress      *string
 	dgPath           string
 	disableTeems     *bool
+	enableIPV6       *bool
 
 	namespaces             *[]string
 	useNodeInternal        *bool
@@ -238,6 +239,8 @@ func _init() {
 	disableTeems = globalFlags.Bool("disable-teems", false,
 		"Optional, flag to disable sending telemetry data to TEEM")
 	// Custom Resource
+	enableIPV6 = globalFlags.Bool("enable-ipv6", false,
+		"Optional, flag to enbale ipv6 network support.")
 	customResourceMode = globalFlags.Bool("custom-resource-mode", false,
 		"Optional, When set to true, controller processes only F5 Custom Resources.")
 	defaultRouteDomain = globalFlags.Int("default-route-domain", 0,
@@ -782,6 +785,7 @@ func initCustomResourceManager(
 		PythonBaseDir:  *pythonBaseDir,
 		UserAgent:      getUserAgentInfo(),
 		HttpAddress:    *httpAddress,
+		EnableIPV6:     *enableIPV6,
 	}
 	agent := crmanager.NewAgent(agentParams)
 
@@ -930,7 +934,7 @@ func main() {
 		// Post telemetry data request
 		if !td.PostTeemsData() {
 			td.AccessEnabled = false
-			log.Errorf("Unable to post data to TEEM server. Restart CIS once firewall rules permit")
+			log.Error("Unable to post data to TEEM server. Restart CIS once firewall rules permit")
 		}
 	} else {
 		td.AccessEnabled = false
@@ -940,18 +944,20 @@ func main() {
 	if *customResourceMode {
 		getGTMCredentials()
 		crMgr := initCustomResourceManager(config)
+		crMgr.TeemData = td
+		key, err := crMgr.Agent.GetBigipRegKey()
+		if err != nil {
+			log.Errorf("%v", err)
+		}
+		crMgr.TeemData.Lock()
+		crMgr.TeemData.RegistrationKey = key
+		crMgr.TeemData.Unlock()
 		err = crMgr.Agent.GetBigipAS3Version()
 		if err != nil {
 			log.Errorf("%v", err)
 			crMgr.Stop()
 			os.Exit(1)
 		}
-		key, err := crMgr.Agent.GetBigipRegKey()
-		if err != nil {
-			log.Errorf("%v", err)
-		}
-		td.RegistrationKey = key
-		crMgr.TeemData = td
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigs

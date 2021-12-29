@@ -2,9 +2,10 @@ package crmanager
 
 import (
 	"container/list"
+	"sync"
+
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	"sync"
 )
 
 type requestQueueData struct {
@@ -61,15 +62,18 @@ func (crMgr *CRManager) responseHandler(respChan chan int) {
 				vsKey := item.namespace + "/" + item.rscName
 				crInf, ok := crMgr.getNamespacedInformer(item.namespace)
 				if !ok {
-					log.Errorf("Informer not found for namespace: %v", item.namespace)
+					log.Errorf("Informer not found for namespace: %v, failed to update VS status", item.namespace)
+					break
 				}
 				obj, exist, err := crInf.vsInformer.GetIndexer().GetByKey(vsKey)
 				if err != nil {
-					log.Errorf("Error while fetching VirtualServer: %v: %v",
+					log.Errorf("Error while fetching VirtualServer: %v: %v, failed to update VS status",
 						vsKey, err)
+					break
 				}
 				if !exist {
-					log.Errorf("VirtualServer Not Found: %v", vsKey)
+					log.Errorf("VirtualServer Not Found: %v, failed to update VS status", vsKey)
+					break
 				}
 				virtual := obj.(*cisapiv1.VirtualServer)
 				if virtual.Name == item.rscName && virtual.Namespace == item.namespace {
@@ -80,15 +84,18 @@ func (crMgr *CRManager) responseHandler(respChan chan int) {
 				vsKey := item.namespace + "/" + item.rscName
 				crInf, ok := crMgr.getNamespacedInformer(item.namespace)
 				if !ok {
-					log.Errorf("Informer not found for namespace: %v", item.namespace)
+					log.Errorf("Informer not found for namespace: %v, failed to update TS status", item.namespace)
+					break
 				}
 				obj, exist, err := crInf.tsInformer.GetIndexer().GetByKey(vsKey)
 				if err != nil {
-					log.Errorf("Error while fetching TransportServer: %v: %v",
+					log.Errorf("Error while fetching TransportServer: %v: %v, failed to update TS status",
 						vsKey, err)
+					break
 				}
 				if !exist {
-					log.Errorf("TransportServer Not Found: %v", vsKey)
+					log.Errorf("TransportServer Not Found: %v, failed to update TS status", vsKey)
+					break
 				}
 				virtual := obj.(*cisapiv1.TransportServer)
 				if virtual.Name == item.rscName && virtual.Namespace == item.namespace {

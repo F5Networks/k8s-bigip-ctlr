@@ -48,6 +48,7 @@ type (
 		resourceSelector   labels.Selector
 		namespacesMutex    sync.Mutex
 		namespaces         map[string]bool
+		initialSvcCount    int
 		rscQueue           workqueue.RateLimitingInterface
 		Partition          string
 		Agent              *Agent
@@ -227,16 +228,26 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name            string   `json:"name"`
-		Partition       string   `json:"-"`
-		ServiceName     string   `json:"-"`
-		ServicePort     int32    `json:"-"`
-		Members         []Member `json:"members"`
-		NodeMemberLabel string   `json:"-"`
-		MonitorNames    []string `json:"monitors,omitempty"`
+		Name            string       `json:"name"`
+		Partition       string       `json:"-"`
+		ServiceName     string       `json:"-"`
+		ServicePort     int32        `json:"-"`
+		Members         []PoolMember `json:"members"`
+		NodeMemberLabel string       `json:"-"`
+		MonitorNames    []string     `json:"monitors,omitempty"`
 	}
 	// Pools is slice of pool
 	Pools []Pool
+
+	portRef struct {
+		name string
+		port int32
+	}
+	poolMembersInfo struct {
+		svcType   v1.ServiceType
+		portSpec  []v1.ServicePort
+		memberMap map[portRef][]PoolMember
+	}
 
 	// Monitor is Pool health monitor
 	Monitor struct {
@@ -401,6 +412,7 @@ type (
 		activeDecl      as3Declaration
 		userAgent       string
 		HttpAddress     string
+		EnableIPV6      bool
 	}
 
 	AgentParams struct {
@@ -414,6 +426,7 @@ type (
 		PythonBaseDir  string
 		UserAgent      string
 		HttpAddress    string
+		EnableIPV6     bool
 	}
 
 	globalSection struct {
@@ -655,7 +668,7 @@ type (
 		IRule string `json:"iRule,omitempty"`
 	}
 
-	Member struct {
+	PoolMember struct {
 		Address string `json:"address"`
 		Port    int32  `json:"port"`
 		SvcPort int32  `json:"svcPort,omitempty"`

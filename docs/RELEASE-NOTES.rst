@@ -1,5 +1,11 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
+2.7.1
+-------------
+Enhancements
+````````````
+* Optimized processing of ConfigMaps with FilterTenants enabled
+
 
 2.7.0
 -------------

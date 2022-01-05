@@ -52,6 +52,12 @@ func (ag *agentAS3) Remove(partition string) error {
 	return nil
 }
 
+func (ag *agentAS3) Clean(partition string) error {
+	log.Debugf("[AS3] Cleaning Partition %v \n", partition)
+	ag.CleanAS3Tenant(partition)
+	return nil
+}
+
 func (ag *agentAS3) DeInit() error {
 	close(ag.RspChan)
 	close(ag.ReqChan)

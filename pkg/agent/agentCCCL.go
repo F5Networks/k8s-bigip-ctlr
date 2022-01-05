@@ -39,6 +39,10 @@ func (ag *agentCCCL) Remove(partition string) error {
 	return nil
 }
 
+func (ag *agentCCCL) Clean(partition string) error {
+	return nil
+}
+
 func (ag *agentCCCL) DeInit() error {
 	log.Infof("[CCCL] DeInitializing CCCL Agent\n")
 	ag.ConfigWriter().Stop()

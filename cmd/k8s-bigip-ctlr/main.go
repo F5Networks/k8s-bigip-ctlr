@@ -932,10 +932,10 @@ func main() {
 		}
 
 		// Post telemetry data request
-		if !td.PostTeemsData() {
-			td.AccessEnabled = false
-			log.Error("Unable to post data to TEEM server. Restart CIS once firewall rules permit")
-		}
+		//if !td.PostTeemsData() {
+		//	td.AccessEnabled = false
+		//	log.Error("Unable to post data to TEEM server. Restart CIS once firewall rules permit")
+		//}
 	} else {
 		td.AccessEnabled = false
 		log.Debug("Telemetry data reporting to TEEM server is disabled")
@@ -945,13 +945,15 @@ func main() {
 		getGTMCredentials()
 		crMgr := initCustomResourceManager(config)
 		crMgr.TeemData = td
-		key, err := crMgr.Agent.GetBigipRegKey()
-		if err != nil {
-			log.Errorf("%v", err)
+		if !(*disableTeems) {
+			key, err := crMgr.Agent.GetBigipRegKey()
+			if err != nil {
+				log.Errorf("%v", err)
+			}
+			crMgr.TeemData.Lock()
+			crMgr.TeemData.RegistrationKey = key
+			crMgr.TeemData.Unlock()
 		}
-		crMgr.TeemData.Lock()
-		crMgr.TeemData.RegistrationKey = key
-		crMgr.TeemData.Unlock()
 		err = crMgr.Agent.GetBigipAS3Version()
 		if err != nil {
 			log.Errorf("%v", err)
@@ -1049,8 +1051,11 @@ func main() {
 	// Cleanup DEFAULT_PARTITION_AS3 partitions
 	//TODO: Remove this post CIS2.2
 	appMgr.AgentCIS.Remove(resource.DEFAULT_PARTITION)
+	if *filterTenants {
+		appMgr.AgentCIS.Clean(resource.DEFAULT_PARTITION)
+	}
 	appMgr.K8sVersion = getk8sVersion()
-	if *agent == cisAgent.AS3Agent {
+	if *agent == cisAgent.AS3Agent && !(*disableTeems) {
 		key := appMgr.AgentCIS.GetBigipRegKey()
 		td.RegistrationKey = key
 	}

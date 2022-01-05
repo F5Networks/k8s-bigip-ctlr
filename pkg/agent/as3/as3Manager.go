@@ -19,6 +19,7 @@ package as3
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +72,7 @@ type AS3Config struct {
 	resourceConfig        as3ADC
 	configmaps            []*AS3ConfigMap
 	overrideConfigmapData string
+	tenantMap             map[string]interface{}
 	unifiedDeclaration    as3Declaration
 }
 
@@ -100,6 +102,7 @@ type AS3Manager struct {
 	PostManager *PostManager
 	// To put list of tenants in BIG-IP REST call URL that are in AS3 declaration
 	FilterTenants    bool
+	failedContext    failureContext
 	DefaultPartition string
 	ReqChan          chan MessageRequest
 	RspChan          chan interface{}
@@ -148,6 +151,10 @@ type Params struct {
 	DefaultRouteDomain        int
 }
 
+type failureContext struct {
+	failedTenants map[string]as3Declaration
+}
+
 // Create and return a new app manager that meets the Manager interface
 func NewAS3Manager(params *Params) *AS3Manager {
 	as3Manager := AS3Manager{
@@ -158,6 +165,7 @@ func NewAS3Manager(params *Params) *AS3Manager {
 		ciphers:                   params.Ciphers,
 		SchemaLocalPath:           params.SchemaLocal,
 		FilterTenants:             params.FilterTenants,
+		failedContext:             failureContext{failedTenants: make(map[string]as3Declaration)},
 		RspChan:                   params.RspChan,
 		userAgent:                 params.UserAgent,
 		as3Version:                params.As3Version,
@@ -166,6 +174,7 @@ func NewAS3Manager(params *Params) *AS3Manager {
 		OverriderCfgMapName:       params.OverriderCfgMapName,
 		shareNodes:                params.ShareNodes,
 		defaultRouteDomain:        params.DefaultRouteDomain,
+		as3ActiveConfig:           AS3Config{tenantMap: make(map[string]interface{})},
 		l2l3Agent: L2L3Agent{eventChan: params.EventChan,
 			configWriter: params.ConfigWriter},
 		PostManager: NewPostManager(PostParams{
@@ -187,12 +196,24 @@ func NewAS3Manager(params *Params) *AS3Manager {
 	return &as3Manager
 }
 
+func updateTenantMap(tempAS3Config AS3Config) AS3Config {
+	// Parse as3Config.configmaps , extract all tenants and store in tenantMap.
+	for _, cm := range tempAS3Config.configmaps {
+		for tenantName, tenant := range cm.config {
+			tempAS3Config.tenantMap[tenantName] = tenant
+		}
+	}
+	return tempAS3Config
+}
+
 func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string) {
 
 	am.ResourceRequest = rsReq
 
 	//as3Config := am.as3ActiveConfig
-	as3Config := &AS3Config{}
+	as3Config := &AS3Config{
+		tenantMap: make(map[string]interface{}),
+	}
 
 	// Process Route or Ingress
 	as3Config.resourceConfig = am.prepareAS3ResourceConfig()
@@ -200,10 +221,136 @@ func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string) {
 	// Process all Configmaps (including overrideAS3)
 	as3Config.configmaps, as3Config.overrideConfigmapData = am.prepareResourceAS3ConfigMaps()
 
+	if am.FilterTenants {
+		updateTenantMap(*as3Config)
+	}
+
 	return am.postAS3Config(*as3Config)
+}
+func (am *AS3Manager) getADC() map[string]interface{} {
+	var as3Obj map[string]interface{}
+
+	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, am.as3Version, am.as3Release, am.as3SchemaVersion)
+	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Obj)
+
+	return as3Obj
+}
+
+func (am *AS3Manager) prepareTenantDeclaration(cfg *AS3Config, tenantName string) as3Declaration {
+
+	as3Obj := am.getADC()
+	adc, _ := as3Obj["declaration"].(map[string]interface{})
+
+	adc[tenantName] = cfg.tenantMap[tenantName]
+
+	unifiedDecl, err := json.Marshal(as3Obj)
+	if err != nil {
+		log.Debugf("[AS3] Unified declaration: %v\n", err)
+	}
+
+	return as3Declaration(unifiedDecl)
+}
+
+func (am *AS3Manager) processResponseCode(responseCode string, partition string, decl as3Declaration) {
+	if responseCode != responseStatusOk {
+		am.failedContext.failedTenants[partition] = decl
+	} else {
+		am.excludePartitionFromFailureTenantList(partition)
+	}
+}
+
+func (am *AS3Manager) excludePartitionFromFailureTenantList(partition string) {
+	for tenant, _ := range am.failedContext.failedTenants {
+		if tenant == partition {
+			delete(am.failedContext.failedTenants, partition)
+		}
+	}
+}
+
+func (am *AS3Manager) processTenantDeletion(tempAS3Config AS3Config) (bool, string) {
+	// Delete Tenants from as3ActiveConfig.tenantMap
+	deletedTenants := am.getDeletedTenantsFromTenantMap(tempAS3Config.tenantMap)
+
+	responseStatusList := getResponseStatusList()
+
+	if len(deletedTenants) > 0 {
+		for _, partition := range deletedTenants {
+
+			//Update as3ActiveConfig
+			delete(am.as3ActiveConfig.tenantMap, partition)
+
+			_, responseCode := am.DeleteAS3Tenant(partition)
+			responseStatusList[responseCode] = responseStatusList[responseCode] + 1
+
+			am.processResponseCode(responseCode, partition, am.getEmptyAs3Declaration(partition))
+		}
+		return processResponseCodeList(responseStatusList)
+	}
+	return true, responseStatusDummy
+}
+
+func getResponseStatusList() map[string]int {
+	responseStatusList := map[string]int{responseStatusNotFound: 0, responseStatusServiceUnavailable: 0, responseStatusOk: 0, responseStatusCommon: 0, responseStatusDummy: 0}
+	return responseStatusList
+}
+
+func (am *AS3Manager) processFilterTenants(tempAS3Config AS3Config) (bool, string) {
+
+	// Delete Tenants from as3ActiveConfig.tenantMap
+	_, deleteResponseCode := am.processTenantDeletion(tempAS3Config)
+
+	responseStatusList := getResponseStatusList()
+	for partition, tenant := range tempAS3Config.tenantMap {
+		if !reflect.DeepEqual(am.as3ActiveConfig.tenantMap[partition], tenant) {
+
+			tenantDecl := am.prepareTenantDeclaration(&tempAS3Config, partition)
+
+			if am.as3Validation == true {
+				if ok := am.validateAS3Template(string(tenantDecl)); !ok {
+					return true, ""
+				}
+			}
+
+			log.Debugf("[AS3] Posting AS3 Declaration")
+
+			//Update as3ActiveConfig
+			am.as3ActiveConfig.tenantMap[partition] = tempAS3Config.tenantMap[partition]
+			am.as3ActiveConfig.updateConfig(tempAS3Config)
+
+			_, responseCode := am.PostManager.postConfigRequests(string(tenantDecl), am.PostManager.getAS3APIURL([]string{partition}))
+			responseStatusList[responseCode] = responseStatusList[responseCode] + 1
+
+			am.processResponseCode(responseCode, partition, tenantDecl)
+		}
+	}
+	responseStatusList[deleteResponseCode] = responseStatusList[deleteResponseCode] + 1
+	return processResponseCodeList(responseStatusList)
+}
+
+func processResponseCodeList(responseList map[string]int) (bool, string) {
+	if responseList[responseStatusServiceUnavailable] > 0 {
+		return false, responseStatusServiceUnavailable
+	}
+	if responseList[responseStatusNotFound] > 0 {
+		return true, responseStatusNotFound
+	}
+	if responseList[responseStatusCommon] > 0 {
+		return false, responseStatusCommon
+	}
+	if responseList[responseStatusDummy] > 0 {
+		return true, responseStatusDummy
+	}
+	if responseList[responseStatusOk] > 0 {
+		return true, responseStatusOk
+	}
+	return false, responseStatusCommon
 }
 
 func (am *AS3Manager) postAS3Config(tempAS3Config AS3Config) (bool, string) {
+	if am.FilterTenants {
+		return am.processFilterTenants(tempAS3Config)
+	}
+
 	unifiedDecl := am.getUnifiedDeclaration(&tempAS3Config)
 	if unifiedDecl == "" {
 		return true, ""
@@ -222,13 +369,7 @@ func (am *AS3Manager) postAS3Config(tempAS3Config AS3Config) (bool, string) {
 
 	am.as3ActiveConfig.updateConfig(tempAS3Config)
 
-	var tenants []string = nil
-
-	if am.FilterTenants {
-		tenants = getTenants(unifiedDecl, true)
-	}
-
-	return am.PostManager.postConfig(string(unifiedDecl), tenants, false)
+	return am.PostManager.postConfigRequests(string(unifiedDecl), am.PostManager.getAS3APIURL(nil))
 }
 
 func (cfg *AS3Config) updateConfig(newAS3Cfg AS3Config) {
@@ -304,6 +445,25 @@ func (am *AS3Manager) getEmptyAs3Declaration(partition string) as3Declaration {
 	return as3Declaration(data)
 }
 
+// Function to prepare empty AS3 declaration for BIGIP Partition managed by CIS
+func (am *AS3Manager) getEmptyAs3DeclarationForCISManagedPartition(partition string) as3Declaration {
+	var as3Config map[string]interface{}
+	baseAS3ConfigEmpty := fmt.Sprintf(baseAS3Config, am.as3Version, am.as3Release, am.as3SchemaVersion)
+	_ = json.Unmarshal([]byte(baseAS3ConfigEmpty), &as3Config)
+	decl := as3Config["declaration"].(map[string]interface{})
+
+	controlObj := make(as3Control)
+	controlObj.initDefault(am.userAgent)
+	decl["controls"] = controlObj
+	if partition != "" {
+		tenantObj := make(as3Tenant)
+		tenantObj.initDefault(am.defaultRouteDomain)
+		decl[partition] = tenantObj
+	}
+	data, _ := json.Marshal(as3Config)
+	return as3Declaration(data)
+}
+
 // Function to prepare tenantobjects
 func (am *AS3Manager) getTenantObjects(partitions []string) string {
 	var as3Config map[string]interface{}
@@ -330,10 +490,31 @@ func (am *AS3Manager) getDeletedTenants(curTenantMap map[string]interface{}) []s
 	return deletedTenants
 }
 
+func (am *AS3Manager) getDeletedTenantsFromTenantMap(curTenantMap map[string]interface{}) []string {
+	var deletedTenants []string
+	for activeTenant, _ := range am.as3ActiveConfig.tenantMap {
+		if _, found := curTenantMap[activeTenant]; !found {
+			deletedTenants = append(deletedTenants, activeTenant)
+		}
+	}
+	return deletedTenants
+}
+
 // Method to delete any AS3 partition
 func (am *AS3Manager) DeleteAS3Partition(partition string) (bool, string) {
 	emptyAS3Declaration := am.getEmptyAs3Declaration(partition)
-	return am.PostManager.postConfig(string(emptyAS3Declaration), nil, false)
+	return am.PostManager.postConfigRequests(string(emptyAS3Declaration), am.PostManager.getAS3APIURL(nil))
+}
+
+// Method to delete AS3 partition using partition endpoint
+func (am *AS3Manager) DeleteAS3Tenant(partition string) (bool, string) {
+	emptyAS3Declaration := am.getEmptyAs3Declaration(partition)
+	return am.PostManager.postConfigRequests(string(emptyAS3Declaration), am.PostManager.getAS3APIURL([]string{partition}))
+}
+
+func (am *AS3Manager) CleanAS3Tenant(partition string) (bool, string) {
+	emptyAS3Declaration := am.getEmptyAs3DeclarationForCISManagedPartition(partition)
+	return am.PostManager.postConfigRequests(string(emptyAS3Declaration), am.PostManager.getAS3APIURL([]string{partition}))
 }
 
 // fetchAS3Schema ...
@@ -378,18 +559,29 @@ func (am *AS3Manager) ConfigDeployer() {
 	}
 }
 
+
+func (am *AS3Manager) failureHandler() (bool, string) {
+	if am.FilterTenants {
+		responseStatusList := getResponseStatusList()
+		for tenantName, unifiedDeclPerTenant := range am.failedContext.failedTenants {
+			_, responseCode := am.PostManager.postConfigRequests(string(unifiedDeclPerTenant), am.PostManager.getAS3APIURL([]string{tenantName}))
+			responseStatusList[responseCode] = responseStatusList[responseCode] + 1
+			if responseCode == responseStatusOk {
+				delete(am.failedContext.failedTenants, tenantName)
+			}
+		}
+		return processResponseCodeList(responseStatusList)
+	}
+	return am.PostManager.postConfigRequests(string(am.as3ActiveConfig.unifiedDeclaration), am.PostManager.getAS3APIURL(nil))
+}
+
 // Helper method used by configDeployer to handle error responses received from BIG-IP
 func (am *AS3Manager) postOnEventOrTimeout(timeout time.Duration) (bool, string) {
 	select {
 	case msgReq := <-am.ReqChan:
 		return am.postAS3Declaration(msgReq.ResourceRequest)
 	case <-time.After(timeout):
-		var tenants []string = nil
-		if am.FilterTenants {
-			tenants = getTenants(am.as3ActiveConfig.unifiedDeclaration, true)
-		}
-		unifiedDeclaration := string(am.as3ActiveConfig.unifiedDeclaration)
-		return am.PostManager.postConfig(unifiedDeclaration, tenants, true)
+		return am.failureHandler()
 	}
 }
 

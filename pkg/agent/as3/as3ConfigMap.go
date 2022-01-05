@@ -65,7 +65,6 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			}
 			cfgmap.config = tenantMap
 			cfgmap.endPoints = endPoints
-
 			as3Cfgmaps = append(as3Cfgmaps, cfgmap)
 
 		case OverrideAS3Label:

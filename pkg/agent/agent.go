@@ -35,6 +35,7 @@ type DeInitializer interface {
 // Remover is the interface which wraps basic Remove method
 type Remover interface {
 	Remove(partition string) error
+	Clean(partition string) error
 }
 
 const (

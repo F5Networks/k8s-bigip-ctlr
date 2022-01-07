@@ -1051,6 +1051,9 @@ func main() {
 	// Cleanup DEFAULT_PARTITION_AS3 partitions
 	//TODO: Remove this post CIS2.2
 	appMgr.AgentCIS.Remove(resource.DEFAULT_PARTITION)
+	if *filterTenants {
+		appMgr.AgentCIS.Clean(resource.DEFAULT_PARTITION)
+	}
 	appMgr.K8sVersion = getk8sVersion()
 	if *agent == cisAgent.AS3Agent && !(*disableTeems) {
 		key := appMgr.AgentCIS.GetBigipRegKey()

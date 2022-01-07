@@ -32,13 +32,6 @@ func (ag *agentCCCL) GetBigipRegKey() string {
 	return ""
 }
 
-//TODO: Remove this post CIS2.2
-func (ag *agentCCCL) Remove(partition string) error {
-	log.Infof("[CCCL] Removing Partition %v_AS3 \n", partition)
-	ag.DeleteAS3Partition(partition + "_AS3")
-	return nil
-}
-
 func (ag *agentCCCL) Clean(partition string) error {
 	return nil
 }

@@ -1048,9 +1048,6 @@ func main() {
 	}
 	defer appMgr.AgentCIS.DeInit()
 
-	// Cleanup DEFAULT_PARTITION_AS3 partitions
-	//TODO: Remove this post CIS2.2
-	appMgr.AgentCIS.Remove(resource.DEFAULT_PARTITION)
 	if *filterTenants {
 		appMgr.AgentCIS.Clean(resource.DEFAULT_PARTITION)
 	}

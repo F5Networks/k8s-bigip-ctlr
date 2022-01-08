@@ -19,7 +19,6 @@ package writer
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -62,9 +61,14 @@ type doneCall func(chan<- struct{})
 type errCall func(chan<- error, error)
 
 func NewConfigWriter() (Writer, error) {
-	dir, err := ioutil.TempDir("", "k8s-bigip-ctlr.config")
+	dir := filepath.Join(os.TempDir(), "k8s-bigip-ctlr.config")
+	_, err := os.Stat(dir)
 	if nil != err {
-		return nil, fmt.Errorf("could not create unique config directory: %v", err)
+		if os.IsNotExist(err) {
+			os.Mkdir(dir, os.ModePerm)
+		} else {
+			return nil, fmt.Errorf("could not create unique config directory: %v", err)
+		}
 	}
 
 	tmpfn := filepath.Join(dir, "config.json")
@@ -73,8 +77,19 @@ func NewConfigWriter() (Writer, error) {
 		configFile: tmpfn,
 		stopCh:     make(chan struct{}),
 		dataCh:     make(chan configSection),
-		sectionMap: make(map[string]interface{}),
+		sectionMap: nil,
 	}
+
+	conf := make(map[string]interface{})
+	b, err := cw.lockAndRead()
+	if nil != err {
+		log.Warningf("[CCCL] Failed to read from %s: %v", cw.configFile, err)
+	}
+
+	if err = json.Unmarshal(b, &conf); nil != err {
+		log.Warningf("[CCCL] Invalid content from %s", cw.configFile)
+	}
+	cw.sectionMap = conf
 
 	go cw.waitData()
 
@@ -193,6 +208,49 @@ func (cw *configWriter) lockAndWrite(output []byte) (wroteSome bool, err error) 
 	wroteSome, err = cw._lockAndWrite(f, output)
 
 	return wroteSome, err
+}
+
+func (cw *configWriter) lockAndRead() ([]byte, error) {
+	stat, err := os.Stat(cw.configFile)
+	if nil != err {
+		return nil, err
+	}
+
+	out := make([]byte, stat.Size())
+
+	f, err := os.OpenFile(cw.configFile, os.O_RDONLY, 0644)
+	if nil != err {
+		return nil, err
+	}
+	defer f.Close()
+
+	flock := syscall.Flock_t{
+		Type:   syscall.F_RDLCK,
+		Start:  0,
+		Len:    0,
+		Whence: int16(os.SEEK_SET),
+	}
+	err = syscall.FcntlFlock(uintptr(f.Fd()), syscall.F_SETLKW, &flock)
+	if nil != err {
+		return nil, err
+	}
+
+	defer func() {
+		flock = syscall.Flock_t{
+			Type:   syscall.F_UNLCK,
+			Start:  0,
+			Len:    0,
+			Whence: int16(os.SEEK_SET),
+		}
+		syscall.FcntlFlock(uintptr(f.Fd()), syscall.F_SETLKW, &flock)
+	}()
+
+	_, err = f.Read(out)
+	if nil == err {
+		return out, nil
+	} else {
+		return nil, err
+	}
 }
 
 func (cw *configWriter) waitData() {

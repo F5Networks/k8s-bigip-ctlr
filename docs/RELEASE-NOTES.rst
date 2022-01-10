@@ -5,6 +5,7 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 Enhancements
 ````````````
 * Optimized processing of ConfigMaps with FilterTenants enabled
+* Added support for multihost VS policy rules for same path and service backend combination
 
 
 2.7.0
@@ -286,12 +287,12 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`1457` Each Client request get logged on BIG-IP when http2-profile associated to VS
-* :issues:`1458` CISv2.1.0 does not delete LTM-Policy reset-rule when removed the whitelist-source-range OpenShift annotation
-* :issues:`1498` openshift_passthrough_irule could not set the variable "$dflt_pool" correctly when http/2-profile linked to VS
-* :issues:`1565` Logs should distinguish configmap and Ingress errors
-* :issues:`1641` Debug log sKey.ServiceName in syncVirtualServer
-* :issues:`1671` TransportServer assigns wrong pool/service
+* :issues: 1457 Each Client request get logged on BIG-IP when http2-profile associated to VS
+* :issues: 1458 CISv2.1.0 does not delete LTM-Policy reset-rule when removed the whitelist-source-range OpenShift annotation
+* :issues: 1498 openshift_passthrough_irule could not set the variable "$dflt_pool" correctly when http/2-profile linked to VS
+* :issues: 1565 Logs should distinguish configmap and Ingress errors
+* :issues: 1641 Debug log sKey.ServiceName in syncVirtualServer
+* :issues: 1671 TransportServer assigns wrong pool/service
 * SR: CIS fail to update pod arp on BigIP,"Attempted to mutate read-only attribute(s)"
 * CIS allowing to access all non-belonging pool members from a single reachable VIP in CRD mode.
 
@@ -306,7 +307,7 @@ Limitations
 -------------
 Bug Fix
 `````````
-* :issues:`1646` Virtual Server demoted from CMP when updating to CISv2.2.2
+* :issues: 1646 Virtual Server demoted from CMP when updating to CISv2.2.2
 
 
 2.2.2
@@ -323,9 +324,9 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`1557` iRule openshift_passthrough_irule logs various TCL errors.
-* :issues:`1584` iRule openshift_passthrough_irule logs TCL errors - can't read "tls_extensions_len”.
-* :issues:`1602` ConfigMap not working for 2.2.1 but works for 2.2.0.
+* :issues: 1557 iRule openshift_passthrough_irule logs various TCL errors.
+* :issues: 1584 iRule openshift_passthrough_irule logs TCL errors - can't read "tls_extensions_len”.
+* :issues: 1602 ConfigMap not working for 2.2.1 but works for 2.2.0.
 * SR - CIS now properly handles incorrect configMap with syntax errors.
 * CIS now log messages when processing multiple EDNS.
 * CIS now handles the duplicate and invalid routes properly.
@@ -355,9 +356,9 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`1464` CIS AS3 does not support k8s services has multiple port.
-* :issues:`1391` Expose Kubernetes api services via F5 ingress crashes CIS.
-* :issues:`1527` Service Discovery logs not being output.
+* :issues: 1464 CIS AS3 does not support k8s services has multiple port.
+* :issues: 1391 Expose Kubernetes api services via F5 ingress crashes CIS.
+* :issues: 1527 Service Discovery logs not being output.
 * SR - Fix for concurrent map read and write with configmap processing.
 * SR - Improved performance by skipping the processing of endpoints for unassociated services
 

@@ -925,7 +925,37 @@ func split_ip_with_route_domain(address string) (ip string, rd string) {
 	return
 }
 
+func (pol *Policy) mergeRules(rls *Rules) Rules {
+	existingRlMap := make(ruleMap)
+	// populate existing rules into a map
+	for _, rule := range pol.Rules {
+		existingRlMap[rule.Name] = rule
+	}
+	var newRules Rules
+	for _, newRule := range *rls {
+		if existingRule, found := existingRlMap[newRule.Name]; found {
+			for _, existingCond := range existingRule.Conditions {
+				if existingCond.HTTPHost == true {
+					for _, newCond := range newRule.Conditions {
+						if newCond.HTTPHost == true {
+							// Merge host names
+							existingCond.Values = append(existingCond.Values, newCond.Values[0])
+							break
+						}
+					}
+					break
+				}
+			}
+		} else {
+			newRules = append(newRules, newRule)
+		}
+	}
+	return newRules
+}
+
 func (pol *Policy) AddRules(rls *Rules) {
+	// check for existing policy rule with same name and merge hosts if found
+	newRules := pol.mergeRules(rls)
 	tcpReqExist := false
 	for _, req := range pol.Requires {
 		if "tcp" == req {
@@ -938,7 +968,7 @@ func (pol *Policy) AddRules(rls *Rules) {
 		// This would indicate that a whitelist rule is in the policy
 		// and that we need to add the "tcp" requirement to the policy.
 		requiresTcp := false
-		for _, x := range *rls {
+		for _, x := range newRules {
 			for _, c := range x.Conditions {
 				if c.Tcp == true {
 					requiresTcp = true
@@ -953,7 +983,7 @@ func (pol *Policy) AddRules(rls *Rules) {
 		}
 	}
 
-	pol.Rules = append(pol.Rules, *rls...)
+	pol.Rules = append(pol.Rules, newRules...)
 	sort.Sort(pol.Rules)
 }
 

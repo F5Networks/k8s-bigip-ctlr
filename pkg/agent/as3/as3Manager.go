@@ -524,11 +524,12 @@ func (am *AS3Manager) ConfigDeployer() {
 	// For the very first post after starting controller, need not wait to post
 	firstPost := true
 	am.unprocessableEntityStatus = false
+	postDelayTimeout := time.Duration(am.PostManager.AS3PostDelay) * time.Second
 	for msgReq := range am.ReqChan {
 		if !firstPost && am.PostManager.AS3PostDelay != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
 			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds", am.PostManager.AS3PostDelay)
-			_ = <-time.After(time.Duration(am.PostManager.AS3PostDelay) * time.Second)
+			_ = <-time.After(postDelayTimeout)
 		}
 
 		// After postDelay expires pick up latest declaration, if available
@@ -542,6 +543,9 @@ func (am *AS3Manager) ConfigDeployer() {
 		for !posted {
 			am.unprocessableEntityStatus = true
 			timeout := getTimeDurationForErrorResponse(event)
+			if timeout < postDelayTimeout {
+				timeout = postDelayTimeout
+			}
 			log.Debugf("[AS3] Error handling for event %v", event)
 			posted, event = am.postOnEventOrTimeout(timeout)
 			am.updateNetworkingConfig()
@@ -552,7 +556,6 @@ func (am *AS3Manager) ConfigDeployer() {
 		}
 	}
 }
-
 
 func (am *AS3Manager) failureHandler() (bool, string) {
 	if am.FilterTenants {

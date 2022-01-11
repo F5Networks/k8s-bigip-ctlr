@@ -116,6 +116,7 @@ type (
 		namespace    string
 		hosts        []string
 		Protocol     string
+		httpTraffic  string
 	}
 
 	// Virtual Server Key - unique server is Name + Port
@@ -149,8 +150,6 @@ type (
 		Source                 string                `json:"source,omitempty"`
 		AllowVLANs             []string              `json:"allowVlans,omitempty"`
 		PersistenceMethods     []string              `json:"-"`
-		HTTPTraffic            string                `json:"-"`
-		isSecure               bool                  `json:"-"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual

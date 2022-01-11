@@ -43,12 +43,12 @@ RUN microdnf update && \
       --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms  \
       --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms \
       install --nodocs \
-      rh-python36 git shadow-utils && \
+      rh-python38 git shadow-utils && \
     microdnf \
     --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms \
     --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms \
     update nss-tools nss-softokn nss-util scl-utils && \
-    . scl_source enable rh-python36 && \
+    . scl_source enable rh-python38 && \
     pip install --no-cache-dir --upgrade pip==20.0.2 && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     python -m pip uninstall -y pip && \
@@ -74,7 +74,7 @@ ENV GODEBUG x509ignoreCN=0
 
 # entrypoint to enable scl python at runtime
 RUN echo $'#!/bin/sh\n\
-	  source scl_source enable rh-python36\n\
+	  source scl_source enable rh-python38\n\
 	  exec $APPPATH/bin/k8s-bigip-ctlr.real "$@"' > $APPPATH/bin/k8s-bigip-ctlr && \
     chmod +x $APPPATH/bin/k8s-bigip-ctlr
 

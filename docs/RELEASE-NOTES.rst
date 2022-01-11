@@ -1,11 +1,13 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
-2.7.1
+
+Next Release
 -------------
 Enhancements
 ````````````
 * Optimized processing of ConfigMaps with FilterTenants enabled
 * Added support for multihost VS policy rules for same path and service backend combination
+* :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool
 
 
 2.7.0

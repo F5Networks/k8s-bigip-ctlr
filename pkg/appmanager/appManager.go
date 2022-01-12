@@ -3048,7 +3048,7 @@ func handleConfigMapParseFailure(
 			serviceName = cfg.Pools[0].ServiceName
 			servicePort = cfg.Pools[0].ServicePort
 		}
-		sKey := ServiceKey{serviceName, servicePort, cm.ObjectMeta.Namespace}
+		sKey := ServiceKey{ServiceName: serviceName, ServicePort: servicePort, Namespace: cm.ObjectMeta.Namespace}
 		rsName := FormatConfigMapVSName(cm)
 		appMgr.resources.Lock()
 		defer appMgr.resources.Unlock()

@@ -337,7 +337,7 @@ func (appMgr *Manager) checkV1beta1Ingress(
 				rsType = SingleServiceIngressType
 				serviceName := ing.Spec.Backend.ServiceName
 				servicePort := ing.Spec.Backend.ServicePort.IntVal
-				sKey := ServiceKey{serviceName, servicePort, namespace}
+				sKey := ServiceKey{ServiceName: serviceName, ServicePort: servicePort, Namespace: namespace}
 				if _, ok := appMgr.resources.Get(sKey, rsName); ok {
 					appMgr.resources.Delete(sKey, rsName)
 					appMgr.deployResource()

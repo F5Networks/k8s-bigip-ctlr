@@ -7,9 +7,10 @@ Enhancements
 ````````````
 * Optimized processing of ConfigMaps with FilterTenants enabled
 * Added support for multihost VS policy rules for same path and service backend combination
-* :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool
-* :issues:`2051` Fix AS3 Postdelay issue when error occurs
 * :issues:`2077` Fix recreating ARPs when CIS restarts
+* :issues:`2051` Fix AS3 Postdelay issue when error occurs
+* :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool
+* :issues:`1872` Support protocol UDP in Services of type LoadBalancer
 
 
 2.7.0

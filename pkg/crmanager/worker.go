@@ -827,7 +827,10 @@ func (crMgr *CRManager) processVirtualServers(
 		// Delete rsCfg if it is HTTP rsCfg and the CR VirtualServer does not handle HTTPTraffic
 		if (len(virtuals) == 0) ||
 			(portStruct.protocol == "http" && !doesVSHandleHTTP(virtual)) {
-			hostnames := crMgr.resources.rsMap[rsName].MetaData.hosts
+			var hostnames []string
+			if crMgr.resources.rsMap[rsName] != nil {
+				hostnames = crMgr.resources.rsMap[rsName].MetaData.hosts
+			}
 			crMgr.deleteVirtualServer(rsName)
 			if len(hostnames) > 0 {
 				crMgr.ProcessAssociatedExternalDNS(hostnames)

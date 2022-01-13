@@ -1835,6 +1835,7 @@ func (crMgr *CRManager) processLBServices(
 
 		rsCfg := &ResourceConfig{}
 		rsCfg.Virtual.Partition = crMgr.Partition
+		rsCfg.Virtual.IpProtocol = strings.ToLower(string(portSpec.Protocol))
 		rsCfg.MetaData.ResourceType = TransportServer
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName

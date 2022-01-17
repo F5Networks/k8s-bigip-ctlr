@@ -11,6 +11,7 @@ Enhancements
 * :issues:`2051` Fix AS3 Postdelay issue when error occurs
 * :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool
 * :issues:`1872` Support protocol UDP in Services of type LoadBalancer
+* :issues:`2172` Fix Endpoint NodeName validation issue
 
 
 2.7.0

@@ -1902,7 +1902,7 @@ func (crMgr *CRManager) processService(
 			var members []PoolMember
 			for _, addr := range subset.Addresses {
 				// Checking for headless services
-				if containsNode(nodes, *addr.NodeName) || svc.Spec.ClusterIP == "None" {
+				if svc.Spec.ClusterIP == "None" || (addr.NodeName != nil && containsNode(nodes, *addr.NodeName)) {
 					member := PoolMember{
 						Address: addr.IP,
 						Port:    p.Port,

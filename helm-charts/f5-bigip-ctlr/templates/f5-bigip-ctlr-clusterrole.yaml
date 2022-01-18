@@ -63,10 +63,12 @@ rules:
       - virtualservers
       - tlsprofiles
       - transportservers
-      - externaldnss
+      - externaldnses
       - ingresslinks
+      - transportservers/status
       - virtualservers/status
       - ingresslinks/status
+      - policies
 {{- if .Values.args.ipam }}
   - verbs:
       - get

@@ -975,15 +975,19 @@ func (crMgr *CRManager) getAssociatedVirtualServers(
 		}
 
 		if currentVS.Spec.HostGroup == "" {
-			// in the absence of HostGroup, skip the virtuals with other host name
 			if vrt.Spec.Host != currentVS.Spec.Host {
+				if vrt.Spec.VirtualServerAddress == currentVS.Spec.VirtualServerAddress {
+					log.Errorf("Same VirtualServerAddress %v is configured with different hosts : %v %v without hostGroup", vrt.Spec.VirtualServerAddress, currentVS.Spec.Host, vrt.Spec.Host)
+					return nil
+				}
+				// in the absence of HostGroup, skip the virtuals with other host name
 				continue
 			}
 
 			// Same host with different VirtualServerAddress is invalid
 			if vrt.Spec.VirtualServerAddress != currentVS.Spec.VirtualServerAddress {
 				if vrt.Spec.Host != "" {
-					log.Errorf("Same host %v is configured with different VirtualServerAddress : %v ", vrt.Spec.Host, vrt.Spec.VirtualServerName)
+					log.Errorf("Same host %v is configured with different VirtualServerAddress : %v", vrt.Spec.Host, vrt.Spec.VirtualServerName)
 					return nil
 				}
 				// In case of empty host name, skip the virtual with other VirtualServerAddress
@@ -1902,7 +1906,7 @@ func (crMgr *CRManager) processService(
 			var members []PoolMember
 			for _, addr := range subset.Addresses {
 				// Checking for headless services
-				if containsNode(nodes, *addr.NodeName) || svc.Spec.ClusterIP == "None" {
+				if svc.Spec.ClusterIP == "None" || (addr.NodeName != nil && containsNode(nodes, *addr.NodeName)) {
 					member := PoolMember{
 						Address: addr.IP,
 						Port:    p.Port,

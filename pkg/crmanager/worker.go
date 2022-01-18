@@ -976,7 +976,8 @@ func (crMgr *CRManager) getAssociatedVirtualServers(
 
 		if currentVS.Spec.HostGroup == "" {
 			if vrt.Spec.Host != currentVS.Spec.Host {
-				if vrt.Spec.VirtualServerAddress == currentVS.Spec.VirtualServerAddress {
+				if vrt.Spec.VirtualServerAddress == currentVS.Spec.VirtualServerAddress && crMgr.ipamCli == nil {
+					//If it is configured with ipamLabel Spec.VirtualServerAddress will be none for both vs
 					log.Errorf("Same VirtualServerAddress %v is configured with different hosts : %v %v without hostGroup", vrt.Spec.VirtualServerAddress, currentVS.Spec.Host, vrt.Spec.Host)
 					return nil
 				}

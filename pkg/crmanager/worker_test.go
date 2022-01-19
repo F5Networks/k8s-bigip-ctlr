@@ -541,7 +541,6 @@ var _ = Describe("Worker Tests", func() {
 
 			It("Absence of HostName of Unassociated VS", func() {
 				vrt3.Spec.Host = ""
-				vrt3.Spec.VirtualServerAddress = "1.2.3.6"
 				//vrt3.Spec.Pools[0].Path = "/path3"
 				virts := mockCRM.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3},
@@ -554,7 +553,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt3.Spec.Host = ""
 				//vrt3.Spec.Pools[0].Path = "/path3"
 				vrt4.Spec.Host = ""
-				vrt2.Spec.VirtualServerAddress = "1.2.3.4"
+
 				virts := mockCRM.getAssociatedVirtualServers(vrt3,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false)
@@ -565,7 +564,6 @@ var _ = Describe("Worker Tests", func() {
 
 			It("UnAssociated VS 2", func() {
 				vrt3.Spec.Host = ""
-				vrt3.Spec.VirtualServerAddress = "1.2.3.4"
 				//vrt3.Spec.Pools[0].Path = "/path3"
 				vrt4.Spec.Host = ""
 				vrt4.Spec.VirtualServerAddress = "1.2.3.6"
@@ -580,15 +578,6 @@ var _ = Describe("Worker Tests", func() {
 			It("Virtuals with same Host, but different Virtual Address", func() {
 				vrt4.Spec.Host = "test2.com"
 				vrt4.Spec.VirtualServerAddress = "1.2.3.6"
-
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
-					[]*cisapiv1.VirtualServer{vrt2, vrt4},
-					false)
-				Expect(virts).To(BeNil(), "Wrong Number of Virtual Servers")
-			})
-
-			It("Virtuals with same Virtual Address, but different Host", func() {
-				vrt4.Spec.Host = "test4.com"
 
 				virts := mockCRM.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt4},

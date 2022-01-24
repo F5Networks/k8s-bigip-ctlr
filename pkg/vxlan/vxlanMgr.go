@@ -28,6 +28,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	"encoding/json"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -213,6 +214,8 @@ func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
 }
 
 func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Interface) {
+	defer log.Timeit("debug")("")
+
 	arps := arpSection{}
 	kubePods, err := kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
 	if nil != err {

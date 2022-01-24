@@ -52,6 +52,8 @@ func (am *AS3Manager) validateAS3Template(template string) bool {
 }
 
 func (am *AS3Manager) processResourcesForAS3(sharedApp as3Application) {
+	defer log.Timeit("info")("")
+
 	for _, cfg := range am.Resources.RsCfgs {
 		//Create policies
 		createPoliciesDecl(cfg, sharedApp)

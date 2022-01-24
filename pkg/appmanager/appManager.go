@@ -452,7 +452,7 @@ func (appMgr *Manager) triggerSyncResources(ns string, inf *appInformer) {
 				ResourceName: svc.Name,
 				Operation:    OprTypeUpdate,
 			}
-			log.Debugf("[CORE] Periodic enqueue of Service from Namespace: %v", namespace)
+			log.Debugf("[CORE] Periodic enqueue of Service from Namespace: %v, svc: %s", namespace, svc.Name)
 			appMgr.vsQueue.Add(svcKey)
 		}
 	}
@@ -482,13 +482,8 @@ func (appMgr *Manager) triggerSyncResources(ns string, inf *appInformer) {
 }
 
 func (appMgr *Manager) syncNamespace(nsName string) error {
-	startTime := time.Now()
+	defer log.Timeit("debug")("[CORE] Finished syncing namespace %+v.", nsName)
 	var err error
-	defer func() {
-		endTime := time.Now()
-		log.Debugf("[CORE] Finished syncing namespace %+v (%v)",
-			nsName, endTime.Sub(startTime))
-	}()
 	_, exists, err := appMgr.nsInformer.GetIndexer().GetByKey(nsName)
 	if nil != err {
 		log.Warningf("[CORE] Error looking up namespace '%v': %v\n", nsName, err)
@@ -1077,8 +1072,12 @@ func (appMgr *Manager) stopAppInformers() {
 }
 
 func (appMgr *Manager) virtualServerWorker() {
+	tmFunc := log.Timeit("debug")
+	times := 0
 	for appMgr.processNextVirtualServer() {
+		times++
 	}
+	defer tmFunc("handled %d virtual server resources.", times)
 }
 
 // Get all Namespaces being watched based on Namespaces provided, Namespace Label or all
@@ -1176,6 +1175,7 @@ func isNonPerfResource(resKind string) bool {
 }
 
 func (appMgr *Manager) processNextVirtualServer() bool {
+	tmFunc := log.Timeit("debug")
 	key, quit := appMgr.vsQueue.Get()
 	if !appMgr.steadyState && appMgr.processedItems == 0 {
 		appMgr.queueLen = appMgr.getQueueLength()
@@ -1187,6 +1187,7 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 
 	defer appMgr.vsQueue.Done(key)
 	skey := key.(serviceQueueKey)
+	defer tmFunc("handling %v", skey)
 	if !appMgr.steadyState && !isNonPerfResource(skey.ResourceKind) {
 		if skey.Operation != OprTypeCreate {
 			appMgr.vsQueue.AddRateLimited(key)

@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"log/syslog" // For LOG level definitions
 	"os"
+	"runtime"
 	"strings"
+	"time"
 )
 
 // LogLevel is used for global (package-level) filtering of log messages based on their priority
@@ -247,6 +249,36 @@ func Panicf(format string, params ...interface{}) {
 	msg := fmt.Sprintf(format, params...)
 	vlog[LL_CRITICAL].Critical(msg)
 	panic(msg)
+}
+
+// Timeit send a debug or info message to the logger object.
+// It will help to calculate function level execution timecosts.
+// Usage:
+// 1) Add `defer log.Timeit("[debug|info]")(msg)` to the beginning of the function.
+// 2) Calculate the timecost of partial logic of a function by:
+//    Get tmFunc at the start of the code piece:
+//      `tmFunc := log.Timeit("debug")`
+//    Run tmFunc at the end of the code piece:
+//      `tmFunc("Some valuable info as fmt.Printf, %s", x)`
+func Timeit(logLevel string) func(format string, a ...interface{}) {
+	pc := make([]uintptr, 1)
+	runtime.Callers(2, pc)
+	f := runtime.FuncForPC(pc[0])
+
+	level := NewLogLevel(logLevel)
+
+	start := time.Now()
+
+	return func(format string, a ...interface{}) {
+		tc := time.Since(start)
+		exstr := fmt.Sprintf(format, a...)
+		if *level == LL_DEBUG {
+			fn, ln := f.FileLine(pc[0])
+			Debugf("%s %d %s (%d ms): %s", fn, ln, f.Name(), tc.Milliseconds(), exstr)
+		} else {
+			Infof("%s (%d ms): %s", f.Name(), tc.Milliseconds(), exstr)
+		}
+	}
 }
 
 // SetLogLevel sets the current package-level filtering

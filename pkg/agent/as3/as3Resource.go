@@ -25,6 +25,7 @@ import (
 )
 
 func (am *AS3Manager) prepareAS3ResourceConfig() as3ADC {
+	defer log.Timeit("debug")("")
 	adc := am.generateAS3ResourceDeclaration()
 	// Support `Controls` class for TEEMs in user-defined AS3 configMap.
 	controlObj := make(as3Control)
@@ -34,6 +35,8 @@ func (am *AS3Manager) prepareAS3ResourceConfig() as3ADC {
 }
 
 func (am *AS3Manager) generateAS3ResourceDeclaration() as3ADC {
+	defer log.Timeit("debug")("")
+
 	// Create Shared as3Application object for Routes
 	adc := as3ADC{}
 	adc.initDefault(DEFAULT_PARTITION, am.defaultRouteDomain)

@@ -3,10 +3,13 @@ package appmanager
 import (
 	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
 // Method to deploy resources on configured agent
 func (appMgr *Manager) deployResource() error {
+	defer log.Timeit("debug")("")
 	// Generate Agent Request
 
 	// Prepare Custom Profiles Copy

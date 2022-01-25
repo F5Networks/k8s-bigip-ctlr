@@ -827,7 +827,14 @@ func (crMgr *CRManager) processVirtualServers(
 		// Delete rsCfg if it is HTTP rsCfg and the CR VirtualServer does not handle HTTPTraffic
 		if (len(virtuals) == 0) ||
 			(portStruct.protocol == "http" && !doesVSHandleHTTP(virtual)) {
+			var hostnames []string
+			if crMgr.resources.rsMap[rsName] != nil {
+				hostnames = crMgr.resources.rsMap[rsName].MetaData.hosts
+			}
 			crMgr.deleteVirtualServer(rsName)
+			if len(hostnames) > 0 {
+				crMgr.ProcessAssociatedExternalDNS(hostnames)
+			}
 			continue
 		}
 
@@ -838,6 +845,7 @@ func (crMgr *CRManager) processVirtualServers(
 		rsCfg.Virtual.Name = rsName
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 		rsCfg.MetaData.Protocol = portStruct.protocol
+		rsCfg.MetaData.httpTraffic = virtual.Spec.HTTPTraffic
 		rsCfg.MetaData.namespace = virtual.ObjectMeta.Namespace
 		rsCfg.MetaData.rscName = virtual.ObjectMeta.Name
 		rsCfg.Virtual.SetVirtualAddress(
@@ -913,17 +921,15 @@ func (crMgr *CRManager) processVirtualServers(
 	}
 
 	if !processingError {
-		var newVSCreated bool
 		var hostnames []string
 		// Update rsMap with ResourceConfigs created for the current virtuals
 		for rsName, rsCfg := range vsMap {
 			if _, ok := crMgr.resources.rsMap[rsName]; !ok {
-				newVSCreated = true
 				hostnames = rsCfg.MetaData.hosts
 			}
 			crMgr.resources.rsMap[rsName] = rsCfg
 		}
-		if newVSCreated {
+		if len(hostnames) > 0 {
 			crMgr.ProcessAssociatedExternalDNS(hostnames)
 		}
 	}
@@ -1832,6 +1838,7 @@ func (crMgr *CRManager) processLBServices(
 
 		rsCfg := &ResourceConfig{}
 		rsCfg.Virtual.Partition = crMgr.Partition
+		rsCfg.Virtual.IpProtocol = strings.ToLower(string(portSpec.Protocol))
 		rsCfg.MetaData.ResourceType = TransportServer
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
@@ -1895,7 +1902,7 @@ func (crMgr *CRManager) processService(
 			var members []PoolMember
 			for _, addr := range subset.Addresses {
 				// Checking for headless services
-				if containsNode(nodes, *addr.NodeName) || svc.Spec.ClusterIP == "None" {
+				if svc.Spec.ClusterIP == "None" || (addr.NodeName != nil && containsNode(nodes, *addr.NodeName)) {
 					member := PoolMember{
 						Address: addr.IP,
 						Port:    p.Port,
@@ -1965,7 +1972,7 @@ func (crMgr *CRManager) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 			}
 			if found {
 				//No need to add insecure VS into wideIP pool if VS configured with httpTraffic as redirect
-				if !vs.Virtual.isSecure && vs.Virtual.HTTPTraffic == TLSRedirectInsecure {
+				if vs.MetaData.Protocol == "http" && vs.MetaData.httpTraffic == TLSRedirectInsecure {
 					continue
 				}
 				log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("%v:/%v/Shared/%v",

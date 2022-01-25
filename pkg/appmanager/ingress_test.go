@@ -1054,21 +1054,21 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			deleteServices := func() {
 				rs, ok := resources.Get(
-					ServiceKey{"foo", 80, "default"}, FormatIngressVSName("1.2.3.4", 80))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 
 				// Delete one service, config should still be active
 				mockMgr.deleteService(fooSvc)
 				rs, ok = resources.Get(
-					ServiceKey{"bar", 80, "default"}, FormatIngressVSName("1.2.3.4", 80))
+					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 
 				// Delete final service, config should go inactive
 				mockMgr.deleteService(barSvc)
 				rs, ok = resources.Get(
-					ServiceKey{"bar", 80, "default"}, FormatIngressVSName("1.2.3.4", 80))
+					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
 				Expect(ok).To(BeFalse())
 			}
 			deleteServices()
@@ -1133,7 +1133,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			resources := mockMgr.resources()
 
 			rs, ok := resources.Get(
-				ServiceKey{"bar", 80, "default"},
+				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
 				FormatIngressVSName("1.2.3.4", 80))
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(rs).ToNot(BeNil(), "Ingress should be object.")
@@ -1164,7 +1164,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			resources = mockMgr.resources()
 			rs, ok = resources.Get(
-				ServiceKey{"bar", 80, "default"},
+				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
 				FormatIngressVSName("2.2.2.2", 80))
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(2))
@@ -1236,7 +1236,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			resources := mockMgr.resources()
 
 			rs, ok := resources.Get(
-				ServiceKey{"bar", 80, "default"},
+				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
 				FormatIngressVSName("1.2.3.4", 80))
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(rs).ToNot(BeNil(), "Ingress should be object.")
@@ -1267,7 +1267,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			resources = mockMgr.resources()
 			rs, ok = resources.Get(
-				ServiceKey{"bar", 80, "default"},
+				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
 				FormatIngressVSName("2.2.2.2", 80))
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(2))
@@ -1334,7 +1334,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			resources := mockMgr.resources()
 
 			rs, ok := resources.Get(
-				ServiceKey{"bar", 80, "default"},
+				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
 				FormatIngressVSName("1.2.3.4", 80))
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(rs).ToNot(BeNil(), "Ingress should be object.")
@@ -1414,7 +1414,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			resources := mockMgr.resources()
 
 			rs, ok := resources.Get(
-				ServiceKey{"bar", 80, "default"},
+				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
 				FormatIngressVSName("1.2.3.4", 80))
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(rs).ToNot(BeNil(), "Ingress should be object.")
@@ -1478,7 +1478,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			Expect(resources.VirtualCount()).To(Equal(1))
 			Expect(resources.PoolCount()).To(Equal(2))
 			_, ok := resources.Get(
-				ServiceKey{"foo", 80, "default"}, FormatIngressVSName("10.1.2.3", 80))
+				ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("10.1.2.3", 80))
 			Expect(ok).To(BeTrue())
 
 			ingress2.Annotations[F5VsBindAddrAnnotation] = "1.2.3.4"

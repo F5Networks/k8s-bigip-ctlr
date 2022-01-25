@@ -1,6 +1,39 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+2.7.1
+-------------
+Enhancements
+````````````
+* Optimized processing of ConfigMaps with FilterTenants enabled
+* Added support for multihost VS policy rules for same path and service backend combination
+* Improved error handling with EDNS Custom resource
+* :issues:`1872` Support protocol UDP in Services of type LoadBalancer
+* :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool
+* :issues:`2051` Fix AS3 Postdelay issue when error occurs
+* :issues:`2077` Fix recreating ARPs when CIS restarts
+* :issues:`2172` Fix Endpoint NodeName validation issue
+* Helm Chart Enhancements:
+    - issues:`2184` Helm Chart ClusterRole does not have correct permissions
+
+FIC Enhancements
+````````````````
+* Added support for FIC installation using Helm Charts, Refer `Documentation <https://github.com/F5Networks/f5-ipam-controller/blob/main/helm-charts/f5-ipam-controller/README.md>`_
+* Added support for FIC installation using OpenShift Operator
+
+Known issues
+````````````
+* CIS does not delete the arp entries immediately from BigIP, When we remove all the endpoints for a service in cccl mode,
+* Unable to pass multiple infoblox labels to FIC helm charts & OpenShit Operator
+* Deletion of EDNS resource not removing Wide IP config from BigIP intermittently
+* CIS sends the failed tenant declaration every 30 secs with filter-tenant parameter when a 422 error occurs in as3 response
+
+Upgrade notes
+``````````````
+* Moving from CIS > 2.6 with IPAM, see troubleshooting guide for IPAM issue ``ipams.fic.f5.com not found``. Refer `Troubleshooting Section <https://github.com/F5Networks/f5-ipam-controller/blob/main/docs/faq/README.md>`_
+* Moving to CIS > 2.4.1 requires update to RBAC and CR schema definition before upgrade. See `RBAC <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml>`_ and `CR schema <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_
+
+
 2.7.0
 -------------
 Added Functionality
@@ -280,12 +313,12 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`1457` Each Client request get logged on BIG-IP when http2-profile associated to VS
-* :issues:`1458` CISv2.1.0 does not delete LTM-Policy reset-rule when removed the whitelist-source-range OpenShift annotation
-* :issues:`1498` openshift_passthrough_irule could not set the variable "$dflt_pool" correctly when http/2-profile linked to VS
-* :issues:`1565` Logs should distinguish configmap and Ingress errors
-* :issues:`1641` Debug log sKey.ServiceName in syncVirtualServer
-* :issues:`1671` TransportServer assigns wrong pool/service
+* :issues: 1457 Each Client request get logged on BIG-IP when http2-profile associated to VS
+* :issues: 1458 CISv2.1.0 does not delete LTM-Policy reset-rule when removed the whitelist-source-range OpenShift annotation
+* :issues: 1498 openshift_passthrough_irule could not set the variable "$dflt_pool" correctly when http/2-profile linked to VS
+* :issues: 1565 Logs should distinguish configmap and Ingress errors
+* :issues: 1641 Debug log sKey.ServiceName in syncVirtualServer
+* :issues: 1671 TransportServer assigns wrong pool/service
 * SR: CIS fail to update pod arp on BigIP,"Attempted to mutate read-only attribute(s)"
 * CIS allowing to access all non-belonging pool members from a single reachable VIP in CRD mode.
 
@@ -300,7 +333,7 @@ Limitations
 -------------
 Bug Fix
 `````````
-* :issues:`1646` Virtual Server demoted from CMP when updating to CISv2.2.2
+* :issues: 1646 Virtual Server demoted from CMP when updating to CISv2.2.2
 
 
 2.2.2
@@ -317,9 +350,9 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`1557` iRule openshift_passthrough_irule logs various TCL errors.
-* :issues:`1584` iRule openshift_passthrough_irule logs TCL errors - can't read "tls_extensions_len”.
-* :issues:`1602` ConfigMap not working for 2.2.1 but works for 2.2.0.
+* :issues: 1557 iRule openshift_passthrough_irule logs various TCL errors.
+* :issues: 1584 iRule openshift_passthrough_irule logs TCL errors - can't read "tls_extensions_len”.
+* :issues: 1602 ConfigMap not working for 2.2.1 but works for 2.2.0.
 * SR - CIS now properly handles incorrect configMap with syntax errors.
 * CIS now log messages when processing multiple EDNS.
 * CIS now handles the duplicate and invalid routes properly.
@@ -349,9 +382,9 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`1464` CIS AS3 does not support k8s services has multiple port.
-* :issues:`1391` Expose Kubernetes api services via F5 ingress crashes CIS.
-* :issues:`1527` Service Discovery logs not being output.
+* :issues: 1464 CIS AS3 does not support k8s services has multiple port.
+* :issues: 1391 Expose Kubernetes api services via F5 ingress crashes CIS.
+* :issues: 1527 Service Discovery logs not being output.
 * SR - Fix for concurrent map read and write with configmap processing.
 * SR - Improved performance by skipping the processing of endpoints for unassociated services
 

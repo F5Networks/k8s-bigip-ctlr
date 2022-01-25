@@ -43,6 +43,7 @@ const (
 	responseStatusCommon             = "statusCommonResponse"
 	responseStatusNotFound           = "statusNotFound"
 	responseStatusServiceUnavailable = "statusServiceUnavailable"
+	responseStatusDummy              = "dummy"
 )
 
 type PostManager struct {
@@ -127,50 +128,6 @@ func getTimeDurationForErrorResponse(errRsp string) time.Duration {
 		duration = timeoutSmall
 	}
 	return duration
-}
-
-func (postMgr *PostManager) postConfig(data string, tenants []string, unprocessableTenantsStatus bool) (bool, string) {
-	if len(tenants) == 0 {
-		return postMgr.postConfigRequests(data, postMgr.getAS3APIURL(tenants))
-	}
-	var unprocessableTenants []string
-	var statusCommonResponse, statusServiceUnavailable, statusNotFound bool
-	if unprocessableTenantsStatus {
-		for k, v := range postMgr.Tenants {
-			if !v {
-				unprocessableTenants = append(unprocessableTenants, k)
-			}
-		}
-		tenants = unprocessableTenants
-	}
-	for _, tenant := range tenants {
-		tenantSlice := []string{tenant}
-		_, responseCode := postMgr.postConfigRequests(data, postMgr.getAS3APIURL(tenantSlice))
-		switch responseCode {
-		case responseStatusOk:
-			postMgr.Tenants[tenant] = true
-		case responseStatusNotFound:
-			statusNotFound = true
-			postMgr.Tenants[tenant] = false
-		case responseStatusServiceUnavailable:
-			statusServiceUnavailable = true
-			postMgr.Tenants[tenant] = false
-		default:
-			postMgr.Tenants[tenant] = false
-			statusCommonResponse = true
-		}
-
-	}
-	if statusNotFound != true && statusCommonResponse != true && statusServiceUnavailable != true {
-		return true, responseStatusOk
-	}
-	if statusNotFound {
-		return true, responseStatusNotFound
-	}
-	if statusServiceUnavailable {
-		return false, responseStatusServiceUnavailable
-	}
-	return false, responseStatusCommon
 }
 
 func (postMgr *PostManager) postConfigRequests(data string, url string) (bool, string) {

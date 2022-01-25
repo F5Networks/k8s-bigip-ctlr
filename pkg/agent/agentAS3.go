@@ -45,10 +45,9 @@ func (ag *agentAS3) Deploy(req interface{}) error {
 	return nil
 }
 
-//TODO: Remove this post CIS2.2
-func (ag *agentAS3) Remove(partition string) error {
-	log.Debugf("[AS3] Removing Partition %v_AS3 \n", partition)
-	ag.DeleteAS3Partition(partition + "_AS3")
+func (ag *agentAS3) Clean(partition string) error {
+	log.Debugf("[AS3] Cleaning Partition %v \n", partition)
+	ag.CleanAS3Tenant(partition)
 	return nil
 }
 

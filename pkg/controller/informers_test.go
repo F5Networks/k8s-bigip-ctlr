@@ -1,4 +1,4 @@
-package crmanager
+package controller
 
 import (
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
@@ -14,27 +14,27 @@ import (
 )
 
 var _ = Describe("Informers Tests", func() {
-	var mockCRM *mockCRManager
+	var mockCtlr *mockController
 	namespace := "default"
 
 	BeforeEach(func() {
-		mockCRM = newMockCRManager()
+		mockCtlr = newMockController()
 	})
 
 	Describe("Informers", func() {
 		BeforeEach(func() {
-			mockCRM.namespaces = make(map[string]bool)
-			mockCRM.namespaces["default"] = true
-			mockCRM.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCRM.kubeClient = k8sfake.NewSimpleClientset()
-			mockCRM.crInformers = make(map[string]*CRInformer)
-			mockCRM.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.namespaces = make(map[string]bool)
+			mockCtlr.namespaces["default"] = true
+			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.crInformers = make(map[string]*CRInformer)
+			mockCtlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		})
 		It("Resource Informers", func() {
-			err := mockCRM.addNamespacedInformer(namespace)
+			err := mockCtlr.addNamespacedInformer(namespace)
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 
-			crInf, found := mockCRM.getNamespacedInformer(namespace)
+			crInf, found := mockCtlr.getNamespacedInformer(namespace)
 			Expect(crInf).ToNot(BeNil(), "Finding Informer Failed")
 			Expect(found).To(BeTrue(), "Finding Informer Failed")
 		})
@@ -44,19 +44,19 @@ var _ = Describe("Informers Tests", func() {
 			Expect(namespaceSelector).ToNot(BeNil(), "Failed to Create Label Selector")
 			Expect(err).To(BeNil(), "Failed to Create Label Selector")
 
-			err = mockCRM.createNamespaceLabeledInformer(namespaceSelector)
+			err = mockCtlr.createNamespaceLabeledInformer(namespaceSelector)
 			Expect(err).To(BeNil(), "Failed to Create Namespace Informer")
 		})
 	})
 
 	Describe("Queueing", func() {
 		BeforeEach(func() {
-			mockCRM.rscQueue = workqueue.NewNamedRateLimitingQueue(
+			mockCtlr.rscQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 
 		})
 		AfterEach(func() {
-			mockCRM.rscQueue.ShutDown()
+			mockCtlr.rscQueue.ShutDown()
 		})
 		It("VirtualServer", func() {
 			vs := test.NewVirtualServer(
@@ -66,8 +66,8 @@ var _ = Describe("Informers Tests", func() {
 					Host:                 "test.com",
 					VirtualServerAddress: "1.2.3.4",
 				})
-			mockCRM.enqueueVirtualServer(vs)
-			key, quit := mockCRM.rscQueue.Get()
+			mockCtlr.enqueueVirtualServer(vs)
+			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New VS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New VS  Failed")
 
@@ -78,16 +78,16 @@ var _ = Describe("Informers Tests", func() {
 					Host:                 "test.com",
 					VirtualServerAddress: "1.2.3.5",
 				})
-			mockCRM.enqueueUpdatedVirtualServer(vs, newVS)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueUpdatedVirtualServer(vs, newVS)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
-			key, quit = mockCRM.rscQueue.Get()
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
 
-			mockCRM.enqueueDeletedVirtualServer(newVS)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueDeletedVirtualServer(newVS)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted VS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted VS  Failed")
 		})
@@ -103,8 +103,8 @@ var _ = Describe("Informers Tests", func() {
 						ClientSSL:   "2359qhfniqlur89phuf;rhfi",
 					},
 				})
-			mockCRM.enqueueTLSServer(tlsp)
-			key, quit := mockCRM.rscQueue.Get()
+			mockCtlr.enqueueTLSServer(tlsp)
+			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue TLS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue TLS  Failed")
 		})
@@ -117,8 +117,8 @@ var _ = Describe("Informers Tests", func() {
 					SNAT:                 "auto",
 					VirtualServerAddress: "1.2.3.4",
 				})
-			mockCRM.enqueueTransportServer(ts)
-			key, quit := mockCRM.rscQueue.Get()
+			mockCtlr.enqueueTransportServer(ts)
+			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New TS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New TS  Failed")
 
@@ -129,16 +129,16 @@ var _ = Describe("Informers Tests", func() {
 					SNAT:                 "auto",
 					VirtualServerAddress: "1.2.3.5",
 				})
-			mockCRM.enqueueUpdatedTransportServer(ts, newTS)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueUpdatedTransportServer(ts, newTS)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated TS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated TS  Failed")
-			key, quit = mockCRM.rscQueue.Get()
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated TS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated TS  Failed")
 
-			mockCRM.enqueueDeletedTransportServer(newTS)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueDeletedTransportServer(newTS)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted TS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted TS  Failed")
 		})
@@ -162,8 +162,8 @@ var _ = Describe("Informers Tests", func() {
 					IRules:               iRules,
 				},
 			)
-			mockCRM.enqueueIngressLink(il)
-			key, quit := mockCRM.rscQueue.Get()
+			mockCtlr.enqueueIngressLink(il)
+			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New IL Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New IL  Failed")
 
@@ -177,16 +177,16 @@ var _ = Describe("Informers Tests", func() {
 					IRules:               iRules,
 				},
 			)
-			mockCRM.enqueueUpdatedIngressLink(il, newIL)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueUpdatedIngressLink(il, newIL)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated IL Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated IL  Failed")
-			key, quit = mockCRM.rscQueue.Get()
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated IL Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated IL  Failed")
 
-			mockCRM.enqueueDeletedIngressLink(newIL)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueDeletedIngressLink(newIL)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted IL Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted IL  Failed")
 		})
@@ -199,8 +199,8 @@ var _ = Describe("Informers Tests", func() {
 					DomainName:        "test.com",
 					LoadBalanceMethod: "round-robin",
 				})
-			mockCRM.enqueueExternalDNS(edns)
-			key, quit := mockCRM.rscQueue.Get()
+			mockCtlr.enqueueExternalDNS(edns)
+			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New EDNS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New EDNS  Failed")
 
@@ -211,16 +211,16 @@ var _ = Describe("Informers Tests", func() {
 					DomainName:        "prod.com",
 					LoadBalanceMethod: "round-robin",
 				})
-			mockCRM.enqueueUpdatedExternalDNS(edns, newEDNS)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueUpdatedExternalDNS(edns, newEDNS)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated EDNS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated EDNS  Failed")
-			key, quit = mockCRM.rscQueue.Get()
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated EDNS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated EDNS  Failed")
 
-			mockCRM.enqueueDeletedExternalDNS(newEDNS)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueDeletedExternalDNS(newEDNS)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted EDNS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted EDNS  Failed")
 		})
@@ -233,8 +233,8 @@ var _ = Describe("Informers Tests", func() {
 				v1.ServiceTypeLoadBalancer,
 				nil,
 			)
-			mockCRM.enqueueService(svc)
-			key, quit := mockCRM.rscQueue.Get()
+			mockCtlr.enqueueService(svc)
+			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Service Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Service  Failed")
 
@@ -245,16 +245,16 @@ var _ = Describe("Informers Tests", func() {
 				v1.ServiceTypeNodePort,
 				nil,
 			)
-			mockCRM.enqueueUpdatedService(svc, newSVC)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueUpdatedService(svc, newSVC)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated Service Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated Service  Failed")
-			key, quit = mockCRM.rscQueue.Get()
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated Service Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated Service  Failed")
 
-			mockCRM.enqueueDeletedService(newSVC)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueDeletedService(newSVC)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted Service Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted Service  Failed")
 		})
@@ -274,8 +274,8 @@ var _ = Describe("Informers Tests", func() {
 					},
 				},
 			)
-			mockCRM.enqueueEndpoints(eps)
-			key, quit := mockCRM.rscQueue.Get()
+			mockCtlr.enqueueEndpoints(eps)
+			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Endpoints Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Endpoints  Failed")
 		})
@@ -288,19 +288,19 @@ var _ = Describe("Informers Tests", func() {
 				"1",
 				labels,
 			)
-			mockCRM.enqueueNamespace(ns)
-			key, quit := mockCRM.rscQueue.Get()
+			mockCtlr.enqueueNamespace(ns)
+			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Namespace Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Namespace  Failed")
 
-			mockCRM.enqueueDeletedNamespace(ns)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueDeletedNamespace(ns)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted Namespace Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted Namespace  Failed")
 		})
 
 		It("IPAM", func() {
-			mockCRM.ipamCR = "default/SampleIPAM"
+			mockCtlr.ipamCR = "default/SampleIPAM"
 
 			hostSpec := &ficV1.HostSpec{
 				Host:      "test.com",
@@ -314,8 +314,8 @@ var _ = Describe("Informers Tests", func() {
 				},
 				ficV1.IPAMStatus{},
 			)
-			mockCRM.enqueueIPAM(ipam)
-			key, quit := mockCRM.rscQueue.Get()
+			mockCtlr.enqueueIPAM(ipam)
+			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New IPAM Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New IPAM  Failed")
 
@@ -334,13 +334,13 @@ var _ = Describe("Informers Tests", func() {
 					IPStatus: []*ficV1.IPSpec{ipSpec},
 				},
 			)
-			mockCRM.enqueueUpdatedIPAM(ipam, newIPAM)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueUpdatedIPAM(ipam, newIPAM)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated IPAM Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated IPAM  Failed")
 
-			mockCRM.enqueueDeletedIPAM(newIPAM)
-			key, quit = mockCRM.rscQueue.Get()
+			mockCtlr.enqueueDeletedIPAM(newIPAM)
+			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted IPAM Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted IPAM  Failed")
 		})

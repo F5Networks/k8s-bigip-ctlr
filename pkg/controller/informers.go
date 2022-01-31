@@ -14,7 +14,7 @@
 * limitations under the License.
  */
 
-package crmanager
+package controller
 
 import (
 	"context"
@@ -106,29 +106,29 @@ func (crInfr *CRInformer) stop() {
 	close(crInfr.stopCh)
 }
 
-func (crMgr *CRManager) watchingAllNamespaces() bool {
-	if 0 == len(crMgr.crInformers) {
+func (ctlr *Controller) watchingAllNamespaces() bool {
+	if 0 == len(ctlr.crInformers) {
 		// Not watching any namespaces.
 		return false
 	}
-	_, watchingAll := crMgr.crInformers[""]
+	_, watchingAll := ctlr.crInformers[""]
 	return watchingAll
 }
 
-func (crMgr *CRManager) getNamespacedInformer(
+func (ctlr *Controller) getNamespacedInformer(
 	namespace string,
 ) (*CRInformer, bool) {
-	if crMgr.watchingAllNamespaces() {
+	if ctlr.watchingAllNamespaces() {
 		namespace = ""
 	}
-	crInf, found := crMgr.crInformers[namespace]
+	crInf, found := ctlr.crInformers[namespace]
 	return crInf, found
 }
 
-func (crMgr *CRManager) getWatchingNamespaces() []string {
+func (ctlr *Controller) getWatchingNamespaces() []string {
 	var namespaces []string
-	if crMgr.watchingAllNamespaces() {
-		nss, err := crMgr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+	if ctlr.watchingAllNamespaces() {
+		nss, err := ctlr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			log.Errorf("Unable to Fetch Namespaces: %v", err)
 			return nil
@@ -138,46 +138,46 @@ func (crMgr *CRManager) getWatchingNamespaces() []string {
 		}
 		return namespaces
 	}
-	for ns, _ := range crMgr.namespaces {
+	for ns, _ := range ctlr.namespaces {
 		namespaces = append(namespaces, ns)
 	}
 	return namespaces
 }
 
-func (crMgr *CRManager) addNamespacedInformer(
+func (ctlr *Controller) addNamespacedInformer(
 	namespace string,
 ) error {
-	if crMgr.watchingAllNamespaces() {
+	if ctlr.watchingAllNamespaces() {
 		return fmt.Errorf(
 			"Cannot add additional namespaces when already watching all.")
 	}
-	if len(crMgr.crInformers) > 0 && "" == namespace {
+	if len(ctlr.crInformers) > 0 && "" == namespace {
 		return fmt.Errorf(
 			"Cannot watch all namespaces when already watching specific ones.")
 	}
 	var crInf *CRInformer
 	var found bool
-	if crInf, found = crMgr.crInformers[namespace]; found {
+	if crInf, found = ctlr.crInformers[namespace]; found {
 		return nil
 	}
-	crInf = crMgr.newNamespacedInformer(namespace)
-	crMgr.addEventHandlers(crInf)
-	crMgr.crInformers[namespace] = crInf
+	crInf = ctlr.newNamespacedInformer(namespace)
+	ctlr.addEventHandlers(crInf)
+	ctlr.crInformers[namespace] = crInf
 	return nil
 }
 
-func (crMgr *CRManager) newNamespacedInformer(
+func (ctlr *Controller) newNamespacedInformer(
 	namespace string,
 ) *CRInformer {
 	log.Debugf("Creating Informers for Namespace %v", namespace)
 	crOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = crMgr.resourceSelector.String()
+		options.LabelSelector = ctlr.resourceSelector.String()
 	}
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
 	}
 	resyncPeriod := 0 * time.Second
-	restClientv1 := crMgr.kubeClient.CoreV1().RESTClient()
+	restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
 
 	crInf := &CRInformer{
 		namespace: namespace,
@@ -207,7 +207,7 @@ func (crMgr *CRManager) newNamespacedInformer(
 	}
 
 	crInf.ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
-		crMgr.kubeCRClient,
+		ctlr.kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -215,28 +215,28 @@ func (crMgr *CRManager) newNamespacedInformer(
 	)
 
 	crInf.vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
-		crMgr.kubeCRClient,
+		ctlr.kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		crOptions,
 	)
 	crInf.tlsInformer = cisinfv1.NewFilteredTLSProfileInformer(
-		crMgr.kubeCRClient,
+		ctlr.kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		crOptions,
 	)
 	crInf.tsInformer = cisinfv1.NewFilteredTransportServerInformer(
-		crMgr.kubeCRClient,
+		ctlr.kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		crOptions,
 	)
 	crInf.ednsInformer = cisinfv1.NewFilteredExternalDNSInformer(
-		crMgr.kubeCRClient,
+		ctlr.kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -244,7 +244,7 @@ func (crMgr *CRManager) newNamespacedInformer(
 	)
 
 	crInf.plcInformer = cisinfv1.NewFilteredPolicyInformer(
-		crMgr.kubeCRClient,
+		ctlr.kubeCRClient,
 		namespace,
 		resyncPeriod,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
@@ -254,13 +254,13 @@ func (crMgr *CRManager) newNamespacedInformer(
 	return crInf
 }
 
-func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
+func (ctlr *Controller) addEventHandlers(crInf *CRInformer) {
 	if crInf.vsInformer != nil {
 		crInf.vsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { crMgr.enqueueVirtualServer(obj) },
-				UpdateFunc: func(old, cur interface{}) { crMgr.enqueueUpdatedVirtualServer(old, cur) },
-				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedVirtualServer(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueVirtualServer(obj) },
+				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueUpdatedVirtualServer(old, cur) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedVirtualServer(obj) },
 			},
 		)
 	}
@@ -268,9 +268,9 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	if crInf.tlsInformer != nil {
 		crInf.tlsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
-				UpdateFunc: func(old, cur interface{}) { crMgr.enqueueTLSServer(cur) },
-				// DeleteFunc: func(obj interface{}) { crMgr.enqueueTLSServer(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueTLSServer(obj) },
+				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueTLSServer(cur) },
+				// DeleteFunc: func(obj interface{}) { ctlr.enqueueTLSServer(obj) },
 			},
 		)
 	}
@@ -278,9 +278,9 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	if crInf.tsInformer != nil {
 		crInf.tsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { crMgr.enqueueTransportServer(obj) },
-				UpdateFunc: func(old, cur interface{}) { crMgr.enqueueUpdatedTransportServer(old, cur) },
-				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedTransportServer(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueTransportServer(obj) },
+				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueUpdatedTransportServer(old, cur) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedTransportServer(obj) },
 			},
 		)
 	}
@@ -288,9 +288,9 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	if crInf.ilInformer != nil {
 		crInf.ilInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { crMgr.enqueueIngressLink(obj) },
-				UpdateFunc: func(oldObj, newObj interface{}) { crMgr.enqueueUpdatedIngressLink(oldObj, newObj) },
-				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedIngressLink(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueIngressLink(obj) },
+				UpdateFunc: func(oldObj, newObj interface{}) { ctlr.enqueueUpdatedIngressLink(oldObj, newObj) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedIngressLink(obj) },
 			},
 		)
 	}
@@ -298,18 +298,18 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	if crInf.ednsInformer != nil {
 		crInf.ednsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { crMgr.enqueueExternalDNS(obj) },
-				UpdateFunc: func(oldObj, newObj interface{}) { crMgr.enqueueUpdatedExternalDNS(oldObj, newObj) },
-				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedExternalDNS(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueExternalDNS(obj) },
+				UpdateFunc: func(oldObj, newObj interface{}) { ctlr.enqueueUpdatedExternalDNS(oldObj, newObj) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedExternalDNS(obj) },
 			})
 	}
 
 	if crInf.svcInformer != nil {
 		crInf.svcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { crMgr.enqueueService(obj) },
-				UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueUpdatedService(obj, cur) },
-				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedService(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj) },
 			},
 		)
 	}
@@ -317,9 +317,9 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	if crInf.epsInformer != nil {
 		crInf.epsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
-				UpdateFunc: func(obj, cur interface{}) { crMgr.enqueueEndpoints(cur) },
-				DeleteFunc: func(obj interface{}) { crMgr.enqueueEndpoints(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj) },
 			},
 		)
 	}
@@ -327,26 +327,26 @@ func (crMgr *CRManager) addEventHandlers(crInf *CRInformer) {
 	if crInf.plcInformer != nil {
 		crInf.plcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { crMgr.enqueuePolicy(obj) },
-				UpdateFunc: func(obj, cur interface{}) { crMgr.enqueuePolicy(cur) },
-				DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedPolicy(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj) },
 			},
 		)
 	}
 }
 
-func (crMgr *CRManager) getEventHandlerForIPAM() *cache.ResourceEventHandlerFuncs {
+func (ctlr *Controller) getEventHandlerForIPAM() *cache.ResourceEventHandlerFuncs {
 	return &cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj interface{}) { crMgr.enqueueIPAM(obj) },
-		UpdateFunc: func(oldObj, newObj interface{}) { crMgr.enqueueUpdatedIPAM(oldObj, newObj) },
-		DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedIPAM(obj) },
+		AddFunc:    func(obj interface{}) { ctlr.enqueueIPAM(obj) },
+		UpdateFunc: func(oldObj, newObj interface{}) { ctlr.enqueueUpdatedIPAM(oldObj, newObj) },
+		DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedIPAM(obj) },
 	}
 }
 
-func (crMgr *CRManager) enqueueIPAM(obj interface{}) {
+func (ctlr *Controller) enqueueIPAM(obj interface{}) {
 	ipamObj := obj.(*ficV1.IPAM)
 
-	if ipamObj.Namespace+"/"+ipamObj.Name != crMgr.ipamCR {
+	if ipamObj.Namespace+"/"+ipamObj.Name != ctlr.ipamCR {
 		return
 	}
 
@@ -358,14 +358,14 @@ func (crMgr *CRManager) enqueueIPAM(obj interface{}) {
 		rsc:       obj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
+func (ctlr *Controller) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
 	oldIpam := oldObj.(*ficV1.IPAM)
 	curIpam := newObj.(*ficV1.IPAM)
 
-	if curIpam.Namespace+"/"+curIpam.Name != crMgr.ipamCR {
+	if curIpam.Namespace+"/"+curIpam.Name != ctlr.ipamCR {
 		return
 	}
 
@@ -381,13 +381,13 @@ func (crMgr *CRManager) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
 		rsc:       newObj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueDeletedIPAM(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedIPAM(obj interface{}) {
 	ipamObj := obj.(*ficV1.IPAM)
 
-	if ipamObj.Namespace+"/"+ipamObj.Name != crMgr.ipamCR {
+	if ipamObj.Namespace+"/"+ipamObj.Name != ctlr.ipamCR {
 		return
 	}
 
@@ -400,10 +400,10 @@ func (crMgr *CRManager) enqueueDeletedIPAM(obj interface{}) {
 		rscDelete: true,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueVirtualServer(obj interface{}) {
+func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {
 	vs := obj.(*cisapiv1.VirtualServer)
 	log.Debugf("Enqueueing VirtualServer: %v", vs)
 	key := &rqKey{
@@ -413,10 +413,10 @@ func (crMgr *CRManager) enqueueVirtualServer(obj interface{}) {
 		rsc:       obj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) {
+func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.VirtualServer)
 	newVS := newObj.(*cisapiv1.VirtualServer)
 
@@ -435,7 +435,7 @@ func (crMgr *CRManager) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 			rsc:       oldObj,
 			rscDelete: true,
 		}
-		crMgr.rscQueue.Add(key)
+		ctlr.rscQueue.Add(key)
 	}
 
 	log.Debugf("Enqueueing VirtualServer: %v", newVS)
@@ -446,10 +446,10 @@ func (crMgr *CRManager) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 		rsc:       newObj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueDeletedVirtualServer(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedVirtualServer(obj interface{}) {
 	vs := obj.(*cisapiv1.VirtualServer)
 	log.Debugf("Enqueueing VirtualServer: %v", vs)
 	key := &rqKey{
@@ -460,10 +460,10 @@ func (crMgr *CRManager) enqueueDeletedVirtualServer(obj interface{}) {
 		rscDelete: true,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueTLSServer(obj interface{}) {
+func (ctlr *Controller) enqueueTLSServer(obj interface{}) {
 	tls := obj.(*cisapiv1.TLSProfile)
 	log.Infof("Enqueueing TLSProfile: %v", tls)
 	key := &rqKey{
@@ -473,10 +473,10 @@ func (crMgr *CRManager) enqueueTLSServer(obj interface{}) {
 		rsc:       obj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueTransportServer(obj interface{}) {
+func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
 	ts := obj.(*cisapiv1.TransportServer)
 	log.Infof("Enqueueing TransportServer: %v", ts)
 	key := &rqKey{
@@ -486,10 +486,10 @@ func (crMgr *CRManager) enqueueTransportServer(obj interface{}) {
 		rsc:       obj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueUpdatedTransportServer(oldObj, newObj interface{}) {
+func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.TransportServer)
 	newVS := newObj.(*cisapiv1.TransportServer)
 
@@ -505,7 +505,7 @@ func (crMgr *CRManager) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 			rsc:       oldObj,
 			rscDelete: true,
 		}
-		crMgr.rscQueue.Add(key)
+		ctlr.rscQueue.Add(key)
 	}
 
 	log.Debugf("Enqueueing TransportServer: %v", newVS)
@@ -516,10 +516,10 @@ func (crMgr *CRManager) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 		rsc:       newObj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueDeletedTransportServer(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 	vs := obj.(*cisapiv1.TransportServer)
 	log.Debugf("Enqueueing TransportServer: %v", vs)
 	key := &rqKey{
@@ -530,10 +530,10 @@ func (crMgr *CRManager) enqueueDeletedTransportServer(obj interface{}) {
 		rscDelete: true,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueuePolicy(obj interface{}) {
+func (ctlr *Controller) enqueuePolicy(obj interface{}) {
 	pol := obj.(*cisapiv1.Policy)
 	log.Infof("Enqueueing Policy: %v", pol)
 	key := &rqKey{
@@ -543,10 +543,10 @@ func (crMgr *CRManager) enqueuePolicy(obj interface{}) {
 		rsc:       obj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueDeletedPolicy(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}) {
 	pol := obj.(*cisapiv1.Policy)
 	log.Infof("Enqueueing Policy: %v", pol)
 	key := &rqKey{
@@ -557,10 +557,10 @@ func (crMgr *CRManager) enqueueDeletedPolicy(obj interface{}) {
 		rscDelete: true,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueIngressLink(obj interface{}) {
+func (ctlr *Controller) enqueueIngressLink(obj interface{}) {
 	ingLink := obj.(*cisapiv1.IngressLink)
 	log.Infof("Enqueueing IngressLink: %v", ingLink)
 	key := &rqKey{
@@ -570,10 +570,10 @@ func (crMgr *CRManager) enqueueIngressLink(obj interface{}) {
 		rsc:       obj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueDeletedIngressLink(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 	ingLink := obj.(*cisapiv1.IngressLink)
 	log.Infof("Enqueueing IngressLink: %v on Delete", ingLink)
 	key := &rqKey{
@@ -584,10 +584,10 @@ func (crMgr *CRManager) enqueueDeletedIngressLink(obj interface{}) {
 		rscDelete: true,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
+func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 	oldIngLink := oldObj.(*cisapiv1.IngressLink)
 	newIngLink := newObj.(*cisapiv1.IngressLink)
 
@@ -601,7 +601,7 @@ func (crMgr *CRManager) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 			rscDelete: true,
 		}
 
-		crMgr.rscQueue.Add(key)
+		ctlr.rscQueue.Add(key)
 	}
 
 	log.Infof("Enqueueing IngressLink: %v on Update", newIngLink)
@@ -612,10 +612,10 @@ func (crMgr *CRManager) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 		rsc:       newIngLink,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueExternalDNS(obj interface{}) {
+func (ctlr *Controller) enqueueExternalDNS(obj interface{}) {
 	edns := obj.(*cisapiv1.ExternalDNS)
 	log.Infof("Enqueueing ExternalDNS: %v", edns)
 	key := &rqKey{
@@ -625,10 +625,10 @@ func (crMgr *CRManager) enqueueExternalDNS(obj interface{}) {
 		rsc:       obj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
+func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 	oldEDNS := oldObj.(*cisapiv1.ExternalDNS)
 	edns := newObj.(*cisapiv1.ExternalDNS)
 
@@ -641,7 +641,7 @@ func (crMgr *CRManager) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 			rscDelete: true,
 		}
 
-		crMgr.rscQueue.Add(key)
+		ctlr.rscQueue.Add(key)
 	}
 
 	log.Infof("Enqueueing Updated ExternalDNS: %v", edns)
@@ -652,10 +652,10 @@ func (crMgr *CRManager) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 		rsc:       edns,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueDeletedExternalDNS(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}) {
 	edns := obj.(*cisapiv1.ExternalDNS)
 	log.Infof("Enqueueing ExternalDNS: %v", edns)
 	key := &rqKey{
@@ -666,10 +666,10 @@ func (crMgr *CRManager) enqueueDeletedExternalDNS(obj interface{}) {
 		rscDelete: true,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueService(obj interface{}) {
+func (ctlr *Controller) enqueueService(obj interface{}) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
@@ -682,10 +682,10 @@ func (crMgr *CRManager) enqueueService(obj interface{}) {
 		rscName:   svc.ObjectMeta.Name,
 		rsc:       obj,
 	}
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueUpdatedService(obj, cur interface{}) {
+func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 	svc := obj.(*corev1.Service)
 	curSvc := cur.(*corev1.Service)
 	// Ignore K8S Core Services
@@ -704,7 +704,7 @@ func (crMgr *CRManager) enqueueUpdatedService(obj, cur interface{}) {
 			rsc:       obj,
 			rscDelete: true,
 		}
-		crMgr.rscQueue.Add(key)
+		ctlr.rscQueue.Add(key)
 	}
 
 	log.Debugf("Enqueueing Updated Service: %v", curSvc)
@@ -714,10 +714,10 @@ func (crMgr *CRManager) enqueueUpdatedService(obj, cur interface{}) {
 		rscName:   curSvc.ObjectMeta.Name,
 		rsc:       cur,
 	}
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueDeletedService(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
@@ -731,10 +731,10 @@ func (crMgr *CRManager) enqueueDeletedService(obj interface{}) {
 		rsc:       obj,
 		rscDelete: true,
 	}
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueEndpoints(obj interface{}) {
+func (ctlr *Controller) enqueueEndpoints(obj interface{}) {
 	eps := obj.(*corev1.Endpoints)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[eps.Name]; ok {
@@ -748,7 +748,7 @@ func (crMgr *CRManager) enqueueEndpoints(obj interface{}) {
 		rsc:       obj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
 func (nsInfr *NSInformer) start() {
@@ -762,23 +762,23 @@ func (nsInfr *NSInformer) stop() {
 	close(nsInfr.stopCh)
 }
 
-func (crMgr *CRManager) createNamespaceLabeledInformer(selector labels.Selector) error {
+func (ctlr *Controller) createNamespaceLabeledInformer(selector labels.Selector) error {
 	namespaceOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = selector.String()
 	}
 
-	if nil != crMgr.nsInformer && nil != crMgr.nsInformer.nsInformer {
+	if nil != ctlr.nsInformer && nil != ctlr.nsInformer.nsInformer {
 		return fmt.Errorf("Already have a namespace label informer added.")
 	}
-	if 0 != len(crMgr.crInformers) {
+	if 0 != len(ctlr.crInformers) {
 		return fmt.Errorf("Cannot set a namespace label informer when informers " +
 			"have been setup for one or more namespaces.")
 	}
 
 	resyncPeriod := 0 * time.Second
-	restClientv1 := crMgr.kubeClient.CoreV1().RESTClient()
+	restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
 
-	crMgr.nsInformer = &NSInformer{
+	ctlr.nsInformer = &NSInformer{
 		stopCh: make(chan struct{}),
 		nsInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
@@ -793,10 +793,10 @@ func (crMgr *CRManager) createNamespaceLabeledInformer(selector labels.Selector)
 		),
 	}
 
-	crMgr.nsInformer.nsInformer.AddEventHandlerWithResyncPeriod(
+	ctlr.nsInformer.nsInformer.AddEventHandlerWithResyncPeriod(
 		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { crMgr.enqueueNamespace(obj) },
-			DeleteFunc: func(obj interface{}) { crMgr.enqueueDeletedNamespace(obj) },
+			AddFunc:    func(obj interface{}) { ctlr.enqueueNamespace(obj) },
+			DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedNamespace(obj) },
 		},
 		resyncPeriod,
 	)
@@ -804,7 +804,7 @@ func (crMgr *CRManager) createNamespaceLabeledInformer(selector labels.Selector)
 	return nil
 }
 
-func (crMgr *CRManager) enqueueNamespace(obj interface{}) {
+func (ctlr *Controller) enqueueNamespace(obj interface{}) {
 	ns := obj.(*corev1.Namespace)
 	log.Infof("Enqueueing Namespace: %v", ns)
 	key := &rqKey{
@@ -814,10 +814,10 @@ func (crMgr *CRManager) enqueueNamespace(obj interface{}) {
 		rsc:       obj,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }
 
-func (crMgr *CRManager) enqueueDeletedNamespace(obj interface{}) {
+func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}) {
 	ns := obj.(*corev1.Namespace)
 	log.Infof("Enqueueing Namespace: %v on Delete", ns)
 	key := &rqKey{
@@ -828,5 +828,5 @@ func (crMgr *CRManager) enqueueDeletedNamespace(obj interface{}) {
 		rscDelete: true,
 	}
 
-	crMgr.rscQueue.Add(key)
+	ctlr.rscQueue.Add(key)
 }

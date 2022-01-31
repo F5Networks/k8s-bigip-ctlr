@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package crmanager
+package controller
 
 import (
 	"fmt"
@@ -87,15 +87,15 @@ const (
 	HealthMonitorAnnotation      = "cis.f5.com/health"
 )
 
-// NewCRManager creates a new CRManager Instance.
-func NewCRManager(params Params) *CRManager {
+// NewController creates a new Controller Instance.
+func NewController(params Params) *Controller {
 
-	crMgr := &CRManager{
+	ctlr := &Controller{
 		namespaces:  make(map[string]bool),
 		crInformers: make(map[string]*CRInformer),
 		rscQueue: workqueue.NewNamedRateLimitingQueue(
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller"),
-		resources:          NewResources(),
+		resources:          NewResourceStore(),
 		Agent:              params.Agent,
 		ControllerMode:     params.ControllerMode,
 		UseNodeInternal:    params.UseNodeInternal,
@@ -109,9 +109,9 @@ func NewCRManager(params Params) *CRManager {
 
 	log.Debug("Custom Resource Manager Created")
 
-	crMgr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+	ctlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 
-	if err := crMgr.setupClients(params.Config); err != nil {
+	if err := ctlr.setupClients(params.Config); err != nil {
 		log.Errorf("Failed to Setup Clients: %v", err)
 	}
 
@@ -119,28 +119,28 @@ func NewCRManager(params Params) *CRManager {
 
 	if params.NamespaceLabel == "" || err != nil {
 		if len(params.Namespaces) == 0 {
-			crMgr.namespaces[""] = true
+			ctlr.namespaces[""] = true
 			log.Debug("No namespaces provided. Watching all namespaces")
 		} else {
 			for _, ns := range params.Namespaces {
-				crMgr.namespaces[ns] = true
+				ctlr.namespaces[ns] = true
 			}
 		}
 	} else {
-		err2 := crMgr.createNamespaceLabeledInformer(namespaceSelector)
+		err2 := ctlr.createNamespaceLabeledInformer(namespaceSelector)
 		if err2 != nil {
-			for _, v := range crMgr.nsInformer.nsInformer.GetIndexer().List() {
+			for _, v := range ctlr.nsInformer.nsInformer.GetIndexer().List() {
 				ns := v.(*v1.Namespace)
-				crMgr.namespaces[ns.ObjectMeta.Name] = true
+				ctlr.namespaces[ns.ObjectMeta.Name] = true
 			}
 		}
 	}
 
-	if err3 := crMgr.setupInformers(); err3 != nil {
+	if err3 := ctlr.setupInformers(); err3 != nil {
 		log.Error("Failed to Setup Informers")
 	}
 
-	err = crMgr.SetupNodePolling(
+	err = ctlr.SetupNodePolling(
 		params.NodePollInterval,
 		params.NodeLabelSelector,
 		params.VXLANMode,
@@ -152,35 +152,35 @@ func NewCRManager(params Params) *CRManager {
 	if params.IPAM {
 		ipamParams := ipammachinery.Params{
 			Config:        params.Config,
-			EventHandlers: crMgr.getEventHandlerForIPAM(),
+			EventHandlers: ctlr.getEventHandlerForIPAM(),
 			Namespaces:    []string{IPAMNamespace},
 		}
 
 		ipamClient := ipammachinery.NewIPAMClient(ipamParams)
-		crMgr.ipamCli = ipamClient
+		ctlr.ipamCli = ipamClient
 
-		crMgr.registerIPAMCRD()
+		ctlr.registerIPAMCRD()
 		time.Sleep(3 * time.Second)
-		_ = crMgr.createIPAMResource()
+		_ = ctlr.createIPAMResource()
 	}
 
 	respChan := make(chan int)
-	crMgr.Agent.SetResponseChannel(respChan)
-	go crMgr.responseHandler(respChan)
-	go crMgr.Start()
-	return crMgr
+	ctlr.Agent.SetResponseChannel(respChan)
+	go ctlr.responseHandler(respChan)
+	go ctlr.Start()
+	return ctlr
 }
 
 //Register IPAM CRD
-func (crMgr *CRManager) registerIPAMCRD() {
-	err := ipammachinery.RegisterCRD(crMgr.kubeAPIClient)
+func (ctlr *Controller) registerIPAMCRD() {
+	err := ipammachinery.RegisterCRD(ctlr.kubeAPIClient)
 	if err != nil {
 		log.Errorf("[IPAM] error while registering CRD %v", err)
 	}
 }
 
 //Create IPAM CRD
-func (crMgr *CRManager) createIPAMResource() error {
+func (ctlr *Controller) createIPAMResource() error {
 
 	frameIPAMResourceName := func() string {
 		prtn := ""
@@ -223,23 +223,23 @@ func (crMgr *CRManager) createIPAMResource() error {
 			IPStatus: make([]*ficV1.IPSpec, 0),
 		},
 	}
-	crMgr.ipamCR = IPAMNamespace + "/" + crName
+	ctlr.ipamCR = IPAMNamespace + "/" + crName
 
-	ipamCR, err := crMgr.ipamCli.Create(f5ipam)
+	ipamCR, err := ctlr.ipamCli.Create(f5ipam)
 	if err == nil {
 		log.Debugf("[ipam] Created IPAM Custom Resource: \n%v\n", ipamCR)
 		return nil
 	}
 
 	if strings.Contains(err.Error(), "already exists") {
-		err = crMgr.ipamCli.Delete(IPAMNamespace, crName, metaV1.DeleteOptions{})
+		err = ctlr.ipamCli.Delete(IPAMNamespace, crName, metaV1.DeleteOptions{})
 		if err != nil {
 			log.Debugf("[ipam] Delete failed. Error: %s", err.Error())
 		}
 
 		time.Sleep(3 * time.Second)
 
-		ipamCR, err = crMgr.ipamCli.Create(f5ipam)
+		ipamCR, err = ctlr.ipamCli.Create(f5ipam)
 		if err == nil {
 			log.Debugf("[ipam] Created IPAM Custom Resource: \n%v\n", ipamCR)
 			return nil
@@ -268,7 +268,7 @@ func createLabelSelector(label string) (labels.Selector, error) {
 }
 
 // setupClients sets Kubernetes Clients.
-func (crMgr *CRManager) setupClients(config *rest.Config) error {
+func (ctlr *Controller) setupClients(config *rest.Config) error {
 	kubeCRClient, err := versioned.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("Failed to create Custum Resource kubeClient: %v", err)
@@ -289,15 +289,15 @@ func (crMgr *CRManager) setupClients(config *rest.Config) error {
 	}
 
 	log.Debug("Client Created")
-	crMgr.kubeAPIClient = kubeIPAMClient
-	crMgr.kubeCRClient = kubeCRClient
-	crMgr.kubeClient = kubeClient
+	ctlr.kubeAPIClient = kubeIPAMClient
+	ctlr.kubeCRClient = kubeCRClient
+	ctlr.kubeClient = kubeClient
 	return nil
 }
 
-func (crMgr *CRManager) setupInformers() error {
-	for n := range crMgr.namespaces {
-		if err := crMgr.addNamespacedInformer(n); err != nil {
+func (ctlr *Controller) setupInformers() error {
+	for n := range ctlr.namespaces {
+		if err := ctlr.addNamespacedInformer(n); err != nil {
 			log.Errorf("Unable to setup informer for namespace: %v, Error:%v", n, err)
 			return err
 		}
@@ -305,44 +305,44 @@ func (crMgr *CRManager) setupInformers() error {
 	return nil
 }
 
-// Start the Custom Resource Manager
-func (crMgr *CRManager) Start() {
-	log.Infof("Starting Custom Resource Manager")
+// Start the Controller
+func (ctlr *Controller) Start() {
+	log.Infof("Starting Controller")
 	defer utilruntime.HandleCrash()
-	defer crMgr.rscQueue.ShutDown()
-	for _, inf := range crMgr.crInformers {
+	defer ctlr.rscQueue.ShutDown()
+	for _, inf := range ctlr.crInformers {
 		inf.start()
 	}
 
-	if crMgr.nsInformer != nil {
-		crMgr.nsInformer.start()
+	if ctlr.nsInformer != nil {
+		ctlr.nsInformer.start()
 	}
 
-	if crMgr.ipamCli != nil {
-		go crMgr.ipamCli.Start()
+	if ctlr.ipamCli != nil {
+		go ctlr.ipamCli.Start()
 	}
 
-	crMgr.nodePoller.Run()
+	ctlr.nodePoller.Run()
 
 	stopChan := make(chan struct{})
-	go wait.Until(crMgr.customResourceWorker, time.Second, stopChan)
+	go wait.Until(ctlr.customResourceWorker, time.Second, stopChan)
 
 	<-stopChan
-	crMgr.Stop()
+	ctlr.Stop()
 }
 
-// Stop the Custom Resource Manager.
-func (crMgr *CRManager) Stop() {
-	for _, inf := range crMgr.crInformers {
+// Stop the Controller
+func (ctlr *Controller) Stop() {
+	for _, inf := range ctlr.crInformers {
 		inf.stop()
 	}
-	if crMgr.nsInformer != nil {
-		crMgr.nsInformer.stop()
+	if ctlr.nsInformer != nil {
+		ctlr.nsInformer.stop()
 	}
 
-	crMgr.nodePoller.Stop()
-	crMgr.Agent.Stop()
-	if crMgr.ipamCli != nil {
-		crMgr.ipamCli.Stop()
+	ctlr.nodePoller.Stop()
+	ctlr.Agent.Stop()
+	if ctlr.ipamCli != nil {
+		ctlr.ipamCli.Stop()
 	}
 }

@@ -1,4 +1,4 @@
-package crmanager
+package controller
 
 import (
 	"context"
@@ -24,13 +24,13 @@ import (
 )
 
 var _ = Describe("Worker Tests", func() {
-	var mockCRM *mockCRManager
+	var mockCtlr *mockController
 	var vrt1 *cisapiv1.VirtualServer
 	var svc1 *v1.Service
 	namespace := "default"
 
 	BeforeEach(func() {
-		mockCRM = newMockCRManager()
+		mockCtlr = newMockController()
 		svc1 = test.NewService(
 			"svc1",
 			"1",
@@ -69,19 +69,19 @@ var _ = Describe("Worker Tests", func() {
 				IRules:           nil,
 				ServiceIPAddress: nil,
 			})
-		mockCRM.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
-		mockCRM.kubeClient = k8sfake.NewSimpleClientset(svc1)
-		mockCRM.crInformers = make(map[string]*CRInformer)
-		mockCRM.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
-		_ = mockCRM.addNamespacedInformer("default")
-		mockCRM.resources = NewResources()
-		mockCRM.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
-			mockCRM.kubeCRClient,
+		mockCtlr.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
+		mockCtlr.kubeClient = k8sfake.NewSimpleClientset(svc1)
+		mockCtlr.crInformers = make(map[string]*CRInformer)
+		mockCtlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+		_ = mockCtlr.addNamespacedInformer("default")
+		mockCtlr.resources = NewResourceStore()
+		mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
+			mockCtlr.kubeCRClient,
 			namespace,
 			0,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 			func(options *metav1.ListOptions) {
-				options.LabelSelector = mockCRM.resourceSelector.String()
+				options.LabelSelector = mockCtlr.resourceSelector.String()
 			},
 		)
 	})
@@ -150,33 +150,33 @@ var _ = Describe("Worker Tests", func() {
 	Describe("IPAM", func() {
 		DEFAULT_PARTITION = "Test"
 		BeforeEach(func() {
-			mockCRM.Agent = &Agent{
+			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
 					PostParams: PostParams{
 						BIGIPURL: "10.10.10.1",
 					},
 				},
 			}
-			mockCRM.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 		})
 
 		It("Create IPAM Custom Resource", func() {
-			err := mockCRM.createIPAMResource()
+			err := mockCtlr.createIPAMResource()
 			Expect(err).To(BeNil(), "Failed to Create IPAM Custom Resource")
-			err = mockCRM.createIPAMResource()
+			err = mockCtlr.createIPAMResource()
 			Expect(err).To(BeNil(), "Failed to Create IPAM Custom Resource")
 
 		})
 
 		It("Get IPAM Resource", func() {
-			_ = mockCRM.createIPAMResource()
-			ipamCR := mockCRM.getIPAMCR()
+			_ = mockCtlr.createIPAMResource()
+			ipamCR := mockCtlr.getIPAMCR()
 			Expect(ipamCR).NotTo(BeNil(), "Failed to GET IPAM")
-			mockCRM.ipamCR = mockCRM.ipamCR + "invalid"
-			ipamCR = mockCRM.getIPAMCR()
+			mockCtlr.ipamCR = mockCtlr.ipamCR + "invalid"
+			ipamCR = mockCtlr.getIPAMCR()
 			Expect(ipamCR).To(BeNil(), "Failed to GET IPAM")
-			mockCRM.ipamCR = mockCRM.ipamCR + "/invalid"
-			ipamCR = mockCRM.getIPAMCR()
+			mockCtlr.ipamCR = mockCtlr.ipamCR + "/invalid"
+			ipamCR = mockCtlr.getIPAMCR()
 			Expect(ipamCR).To(BeNil(), "Failed to GET IPAM")
 		})
 
@@ -187,7 +187,7 @@ var _ = Describe("Worker Tests", func() {
 			testSpec["key"] = "ns/name"
 
 			for sp, val := range testSpec {
-				_ = mockCRM.createIPAMResource()
+				_ = mockCtlr.createIPAMResource()
 				var key, host, errHint string
 				if sp == "host" {
 					host = val
@@ -199,25 +199,25 @@ var _ = Describe("Worker Tests", func() {
 					errHint = "Key: "
 				}
 
-				ip, status := mockCRM.requestIP("test", host, key)
+				ip, status := mockCtlr.requestIP("test", host, key)
 				Expect(status).To(Equal(Requested), errHint+"Failed to Request IP")
 				Expect(ip).To(BeEmpty(), errHint+"IP available even before requesting")
-				ipamCR := mockCRM.getIPAMCR()
+				ipamCR := mockCtlr.getIPAMCR()
 				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(1), errHint+"Invalid number of Host Specs")
 				Expect(ipamCR.Spec.HostSpecs[0].IPAMLabel).To(Equal("test"), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
 
-				ip, status = mockCRM.requestIP("", host, key)
+				ip, status = mockCtlr.requestIP("", host, key)
 				Expect(status).To(Equal(InvalidInput), errHint+"Failed to validate invalid input")
 				Expect(ip).To(BeEmpty(), errHint+"Failed to validate invalid input")
-				newIPAMCR := mockCRM.getIPAMCR()
+				newIPAMCR := mockCtlr.getIPAMCR()
 				Expect(reflect.DeepEqual(ipamCR, newIPAMCR)).To(BeTrue(), errHint+"IPAM CR should not be updated")
 
-				ip, status = mockCRM.requestIP("test", host, key)
+				ip, status = mockCtlr.requestIP("test", host, key)
 				Expect(status).To(Equal(Requested), errHint+"Wrong status")
 				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
-				newIPAMCR = mockCRM.getIPAMCR()
+				newIPAMCR = mockCtlr.getIPAMCR()
 				Expect(reflect.DeepEqual(ipamCR, newIPAMCR)).To(BeTrue(), errHint+"IPAM CR should not be updated")
 
 				ipamCR.Status.IPStatus = []*ficV1.IPSpec{
@@ -228,29 +228,29 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				ipamCR, _ = mockCRM.ipamCli.Update(ipamCR)
-				ip, status = mockCRM.requestIP("test", host, key)
+				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				ip, status = mockCtlr.requestIP("test", host, key)
 				Expect(ip).To(Equal("10.10.10.1"), errHint+"Invalid IP")
 				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
-				ipamCR = mockCRM.getIPAMCR()
+				ipamCR = mockCtlr.getIPAMCR()
 				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(1), errHint+"Invalid number of Host Specs")
 				Expect(ipamCR.Spec.HostSpecs[0].IPAMLabel).To(Equal("test"), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
 
-				ip, status = mockCRM.requestIP("dev", host, key)
+				ip, status = mockCtlr.requestIP("dev", host, key)
 				Expect(status).To(Equal(Requested), "Failed to Request IP")
 				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
-				ipamCR = mockCRM.getIPAMCR()
+				ipamCR = mockCtlr.getIPAMCR()
 				// TODO: The expected number of Specs is 1. After the bug gets fixed update this to 1 from 2.
 				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(2), errHint+"Invalid number of Host Specs")
 				Expect(ipamCR.Spec.HostSpecs[0].Host).To(Equal(host), errHint+"IPAM Request Failed")
 				Expect(ipamCR.Spec.HostSpecs[0].Key).To(Equal(key), errHint+"IPAM Request Failed")
 
-				ip, status = mockCRM.requestIP("test", "", "")
+				ip, status = mockCtlr.requestIP("test", "", "")
 				Expect(status).To(Equal(InvalidInput), errHint+"Failed to validate invalid input")
 				Expect(ip).To(BeEmpty(), errHint+"Invalid IP")
-				newIPAMCR = mockCRM.getIPAMCR()
+				newIPAMCR = mockCtlr.getIPAMCR()
 				Expect(reflect.DeepEqual(ipamCR, newIPAMCR)).To(BeTrue(), errHint+"IPAM CR should not be updated")
 
 				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{}
@@ -262,9 +262,9 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				ipamCR, _ = mockCRM.ipamCli.Update(ipamCR)
+				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
 
-				ip, status = mockCRM.requestIP("old", host, key)
+				ip, status = mockCtlr.requestIP("old", host, key)
 				Expect(ip).To(Equal(""), errHint+"Invalid IP")
 				Expect(status).To(Equal(NotRequested), "Failed to identify Stale status")
 			}
@@ -276,7 +276,7 @@ var _ = Describe("Worker Tests", func() {
 			testSpec["key"] = "ns/name"
 
 			for sp, val := range testSpec {
-				_ = mockCRM.createIPAMResource()
+				_ = mockCtlr.createIPAMResource()
 				var key, host, errHint string
 				if sp == "host" {
 					host = val
@@ -288,10 +288,10 @@ var _ = Describe("Worker Tests", func() {
 					errHint = "Key: "
 				}
 
-				ip := mockCRM.releaseIP("", host, key)
+				ip := mockCtlr.releaseIP("", host, key)
 				Expect(ip).To(BeEmpty(), errHint+"Unexpected IP address released")
 
-				ipamCR := mockCRM.getIPAMCR()
+				ipamCR := mockCtlr.getIPAMCR()
 				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
 					{
 						IPAMLabel: "test",
@@ -307,10 +307,10 @@ var _ = Describe("Worker Tests", func() {
 						Key:       key,
 					},
 				}
-				ipamCR, _ = mockCRM.ipamCli.Update(ipamCR)
+				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
 
-				ip = mockCRM.releaseIP("test", host, key)
-				ipamCR = mockCRM.getIPAMCR()
+				ip = mockCtlr.releaseIP("test", host, key)
+				ipamCR = mockCtlr.getIPAMCR()
 				Expect(len(ipamCR.Spec.HostSpecs)).To(Equal(0), errHint+"IP Address Not released")
 				Expect(ip).To(Equal("10.10.10.1"), errHint+"Wrong IP Address released")
 			}
@@ -503,7 +503,7 @@ var _ = Describe("Worker Tests", func() {
 			})
 			It("Duplicate Paths", func() {
 				vrt3.Spec.Pools[0].Path = "/path"
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3},
 					false)
 				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
@@ -513,7 +513,7 @@ var _ = Describe("Worker Tests", func() {
 			It("Unassociated VS", func() {
 				vrt4.Spec.Host = "new.com"
 				vrt4.Spec.VirtualServerAddress = "1.2.3.6"
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt4},
 					false)
 				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
@@ -522,7 +522,7 @@ var _ = Describe("Worker Tests", func() {
 
 			It("Unique Paths", func() {
 				//vrt3.Spec.Pools[0].Path = "/path3"
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3},
 					false)
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
@@ -532,7 +532,7 @@ var _ = Describe("Worker Tests", func() {
 
 			It("Deletion", func() {
 				//vrt3.Spec.Pools[0].Path = "/path3"
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3},
 					true)
 				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
@@ -542,7 +542,7 @@ var _ = Describe("Worker Tests", func() {
 			It("Absence of HostName of Unassociated VS", func() {
 				vrt3.Spec.Host = ""
 				//vrt3.Spec.Pools[0].Path = "/path3"
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3},
 					false)
 				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
@@ -554,7 +554,7 @@ var _ = Describe("Worker Tests", func() {
 				//vrt3.Spec.Pools[0].Path = "/path3"
 				vrt4.Spec.Host = ""
 
-				virts := mockCRM.getAssociatedVirtualServers(vrt3,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt3,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false)
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
@@ -568,7 +568,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt4.Spec.Host = ""
 				vrt4.Spec.VirtualServerAddress = "1.2.3.6"
 
-				virts := mockCRM.getAssociatedVirtualServers(vrt3,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt3,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false)
 				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
@@ -579,7 +579,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt4.Spec.Host = "test2.com"
 				vrt4.Spec.VirtualServerAddress = "1.2.3.6"
 
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt4},
 					false)
 				Expect(virts).To(BeNil(), "Wrong Number of Virtual Servers")
@@ -590,7 +590,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt3.Spec.HostGroup = "test"
 				vrt3.Spec.Host = "test3.com"
 
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false)
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
@@ -604,7 +604,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt3.Spec.Host = "test3.com"
 				vrt3.Spec.VirtualServerAddress = ""
 
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false)
 
@@ -625,7 +625,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt4.Spec.Host = "test4.com"
 				vrt4.Spec.VirtualServerHTTPPort = 8080
 
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false)
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
@@ -645,7 +645,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt4.Spec.Host = "test4.com"
 				vrt4.Spec.Pools[0].Path = "/path"
 
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false)
 				Expect(len(virts)).To(Equal(3), "Wrong number of Virtual Servers")
@@ -655,11 +655,11 @@ var _ = Describe("Worker Tests", func() {
 			})
 
 			It("IPAM Label", func() {
-				mockCRM.ipamCli = &ipammachinery.IPAMClient{}
+				mockCtlr.ipamCli = &ipammachinery.IPAMClient{}
 				vrt2.Spec.IPAMLabel = "test"
 				vrt3.Spec.IPAMLabel = "test"
 				vrt4.Spec.IPAMLabel = "test"
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false)
 				Expect(len(virts)).To(Equal(3), "Wrong number of Virtual Servers")
@@ -669,20 +669,20 @@ var _ = Describe("Worker Tests", func() {
 			})
 
 			It("IPAM Label: Absence in a virtualServer", func() {
-				mockCRM.ipamCli = &ipammachinery.IPAMClient{}
+				mockCtlr.ipamCli = &ipammachinery.IPAMClient{}
 				vrt2.Spec.IPAMLabel = "test"
 				vrt3.Spec.IPAMLabel = "test"
 				vrt4.Spec.IPAMLabel = ""
-				virts := mockCRM.getAssociatedVirtualServers(vrt2,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false)
 				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
 			})
 			It("IPAM Label in a virtualServer with empty host", func() {
-				mockCRM.ipamCli = &ipammachinery.IPAMClient{}
+				mockCtlr.ipamCli = &ipammachinery.IPAMClient{}
 				vrt4.Spec.IPAMLabel = "test"
 				vrt4.Spec.Host = ""
-				virts := mockCRM.getAssociatedVirtualServers(vrt4,
+				virts := mockCtlr.getAssociatedVirtualServers(vrt4,
 					[]*cisapiv1.VirtualServer{vrt4},
 					false)
 				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
@@ -691,7 +691,7 @@ var _ = Describe("Worker Tests", func() {
 	})
 	Describe("Endpoints", func() {
 		BeforeEach(func() {
-			mockCRM.oldNodes = []Node{
+			mockCtlr.oldNodes = []Node{
 				{
 					Name: "worker1",
 					Addr: "10.10.10.1",
@@ -733,11 +733,11 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 
-			mems := mockCRM.getEndpointsForNodePort(nodePort, "")
+			mems := mockCtlr.getEndpointsForNodePort(nodePort, "")
 			Expect(mems).To(Equal(members), "Wrong set of Endpoints for NodePort")
-			mems = mockCRM.getEndpointsForNodePort(nodePort, "worker=true")
+			mems = mockCtlr.getEndpointsForNodePort(nodePort, "worker=true")
 			Expect(mems).To(Equal(members[:2]), "Wrong set of Endpoints for NodePort")
-			mems = mockCRM.getEndpointsForNodePort(nodePort, "invalid label")
+			mems = mockCtlr.getEndpointsForNodePort(nodePort, "invalid label")
 			Expect(len(mems)).To(Equal(0), "Wrong set of Endpoints for NodePort")
 		})
 
@@ -746,37 +746,37 @@ var _ = Describe("Worker Tests", func() {
 	Describe("Processing Resources", func() {
 		It("Processing ServiceTypeLoadBalancer", func() {
 			// Service when IPAM is not available
-			_ = mockCRM.processLBServices(svc1, false)
-			Expect(len(mockCRM.resources.rsMap)).To(Equal(0), "Resource Config should be empty")
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.rsMap)).To(Equal(0), "Resource Config should be empty")
 
-			mockCRM.Agent = &Agent{
+			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
 					PostParams: PostParams{
 						BIGIPURL: "10.10.10.1",
 					},
 				},
 			}
-			mockCRM.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-			mockCRM.eventNotifier = apm.NewEventNotifier(nil)
+			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
 
 			svc1.Spec.Type = v1.ServiceTypeLoadBalancer
 
-			mockCRM.resources.Init()
+			mockCtlr.resources.Init()
 
 			// Service Without annotation
-			_ = mockCRM.processLBServices(svc1, false)
-			Expect(len(mockCRM.resources.rsMap)).To(Equal(0), "Resource Config should be empty")
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.rsMap)).To(Equal(0), "Resource Config should be empty")
 
 			svc1.Annotations = make(map[string]string)
 			svc1.Annotations[LBServiceIPAMLabelAnnotation] = "test"
 
-			svc1, _ = mockCRM.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc1, metav1.UpdateOptions{})
+			svc1, _ = mockCtlr.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc1, metav1.UpdateOptions{})
 
-			_ = mockCRM.processLBServices(svc1, false)
-			Expect(len(mockCRM.resources.rsMap)).To(Equal(0), "Resource Config should be empty")
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.rsMap)).To(Equal(0), "Resource Config should be empty")
 
-			_ = mockCRM.createIPAMResource()
-			ipamCR := mockCRM.getIPAMCR()
+			_ = mockCtlr.createIPAMResource()
+			ipamCR := mockCtlr.getIPAMCR()
 
 			ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
 				{
@@ -794,22 +794,22 @@ var _ = Describe("Worker Tests", func() {
 					Key:       svc1.Namespace + "/" + svc1.Name + "_svc",
 				},
 			}
-			ipamCR, _ = mockCRM.ipamCli.Update(ipamCR)
+			ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
 
-			_ = mockCRM.processLBServices(svc1, false)
-			Expect(len(mockCRM.resources.rsMap)).To(Equal(1), "Invalid Resource Configs")
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.rsMap)).To(Equal(1), "Invalid Resource Configs")
 
-			_ = mockCRM.processLBServices(svc1, true)
-			Expect(len(mockCRM.resources.rsMap)).To(Equal(0), "Invalid Resource Configs")
+			_ = mockCtlr.processLBServices(svc1, true)
+			Expect(len(mockCtlr.resources.rsMap)).To(Equal(0), "Invalid Resource Configs")
 
 			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
-			mockCRM.eraseLBServiceIngressStatus(svc1)
+			mockCtlr.eraseLBServiceIngressStatus(svc1)
 			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(0))
 		})
 
 		It("Processing External DNS", func() {
-			mockCRM.resources.Init()
-			mockCRM.TeemData = &teem.TeemsData{
+			mockCtlr.resources.Init()
+			mockCtlr.TeemData = &teem.TeemsData{
 				ResourceType: teem.ResourceTypes{
 					ExternalDNS: make(map[string]int),
 				},
@@ -833,23 +833,23 @@ var _ = Describe("Worker Tests", func() {
 					},
 				})
 
-			mockCRM.processExternalDNS(newEDNS, false)
-			Expect(len(mockCRM.resources.dnsConfig)).To(Equal(1))
-			Expect(len(mockCRM.resources.dnsConfig["test.com"].Pools)).To(Equal(1))
-			Expect(len(mockCRM.resources.dnsConfig["test.com"].Pools[0].Members)).To(Equal(0))
+			mockCtlr.processExternalDNS(newEDNS, false)
+			Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(1))
+			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools)).To(Equal(1))
+			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools[0].Members)).To(Equal(0))
 
-			mockCRM.resources.rsMap["SampleVS"] = &ResourceConfig{
+			mockCtlr.resources.rsMap["SampleVS"] = &ResourceConfig{
 				MetaData: metaData{
 					hosts: []string{"test.com"},
 				},
 			}
-			mockCRM.processExternalDNS(newEDNS, false)
-			Expect(len(mockCRM.resources.dnsConfig)).To(Equal(1))
-			Expect(len(mockCRM.resources.dnsConfig["test.com"].Pools)).To(Equal(1))
-			Expect(len(mockCRM.resources.dnsConfig["test.com"].Pools[0].Members)).To(Equal(1))
+			mockCtlr.processExternalDNS(newEDNS, false)
+			Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(1))
+			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools)).To(Equal(1))
+			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools[0].Members)).To(Equal(1))
 
-			mockCRM.processExternalDNS(newEDNS, true)
-			Expect(len(mockCRM.resources.dnsConfig)).To(Equal(0))
+			mockCtlr.processExternalDNS(newEDNS, true)
+			Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(0))
 		})
 	})
 

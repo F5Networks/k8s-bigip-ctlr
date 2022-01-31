@@ -1,4 +1,4 @@
-package crmanager
+package controller
 
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
@@ -8,19 +8,19 @@ import (
 )
 
 var _ = Describe("Node Poller Handler", func() {
-	var mockCRM *mockCRManager
+	var mockCtlr *mockController
 
 	BeforeEach(func() {
-		mockCRM = newMockCRManager()
-		mockCRM.Agent = newMockAgent(&test.MockWriter{FailStyle: test.Success})
+		mockCtlr = newMockController()
+		mockCtlr.Agent = newMockAgent(&test.MockWriter{FailStyle: test.Success})
 	})
 
 	AfterEach(func() {
-		mockCRM.shutdown()
+		mockCtlr.shutdown()
 	})
 
 	It("Setup", func() {
-		err := mockCRM.SetupNodePolling(
+		err := mockCtlr.SetupNodePolling(
 			30,
 			"",
 			"maintain",
@@ -44,32 +44,32 @@ var _ = Describe("Node Poller Handler", func() {
 				[]v1.NodeAddress{nodeAddr2}, nil),
 		}
 
-		nodes, err := mockCRM.getNodes(nodeObjs)
+		nodes, err := mockCtlr.getNodes(nodeObjs)
 		Expect(nodes).ToNot(BeNil(), "Failed to get nodes")
 		Expect(err).To(BeNil(), "Failed to get nodes")
 
-		mockCRM.UseNodeInternal = true
+		mockCtlr.UseNodeInternal = true
 		nodeObjs[0].Labels = make(map[string]string)
 		nodeObjs[0].Labels["app"] = "test"
 
-		nodes, err = mockCRM.getNodes(nodeObjs)
+		nodes, err = mockCtlr.getNodes(nodeObjs)
 		Expect(nodes).ToNot(BeNil(), "Failed to get nodes")
 		Expect(err).To(BeNil(), "Failed to get nodes")
 
-		mockCRM.oldNodes = nodes
+		mockCtlr.oldNodes = nodes
 
 		// Negative case
-		nodes, err = mockCRM.getNodes([]interface{}{nodeAddr1, nodeAddr2})
+		nodes, err = mockCtlr.getNodes([]interface{}{nodeAddr1, nodeAddr2})
 		Expect(nodes).To(BeNil(), "Failed to Validate nodes")
 		Expect(err).ToNot(BeNil(), "Failed to Validate nodes")
 
-		nodes = mockCRM.getNodesFromCache()
+		nodes = mockCtlr.getNodesFromCache()
 		Expect(nodes).ToNot(BeNil(), "Failed to get nodes from Cache")
 
-		nodes = mockCRM.getNodesWithLabel("app=test")
+		nodes = mockCtlr.getNodesWithLabel("app=test")
 		Expect(nodes).ToNot(BeNil(), "Failed to get Nodes with Label")
 
-		nodes = mockCRM.getNodesWithLabel("app")
+		nodes = mockCtlr.getNodesWithLabel("app")
 		Expect(nodes).To(BeNil(), "Failed to Validate Nodes with Label")
 	})
 })

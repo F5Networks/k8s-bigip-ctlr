@@ -1,4 +1,4 @@
-package crmanager
+package controller
 
 import (
 	"fmt"
@@ -15,17 +15,17 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-func (crMgr *CRManager) SetupNodePolling(
+func (ctlr *Controller) SetupNodePolling(
 	nodePollInterval int,
 	nodeLabelSelector string,
 	vxlanMode string,
 	vxlanName string,
 ) error {
 	intervalFactor := time.Duration(nodePollInterval)
-	crMgr.nodePoller = pollers.NewNodePoller(crMgr.kubeClient, intervalFactor*time.Second, nodeLabelSelector)
+	ctlr.nodePoller = pollers.NewNodePoller(ctlr.kubeClient, intervalFactor*time.Second, nodeLabelSelector)
 
 	// Register appMgr to watch for node updates to keep track of watched nodes
-	err := crMgr.nodePoller.RegisterListener(crMgr.ProcessNodeUpdate)
+	err := ctlr.nodePoller.RegisterListener(ctlr.ProcessNodeUpdate)
 	if nil != err {
 		return fmt.Errorf("error registering node update listener: %v",
 			err)
@@ -42,37 +42,31 @@ func (crMgr *CRManager) SetupNodePolling(
 		vxMgr, err := vxlan.NewVxlanMgr(
 			vxlanMode,
 			tunnelName,
-			crMgr.UseNodeInternal,
-			crMgr.Agent.ConfigWriter,
-			crMgr.Agent.EventChan,
+			ctlr.UseNodeInternal,
+			ctlr.Agent.ConfigWriter,
+			ctlr.Agent.EventChan,
 		)
 		if nil != err {
 			return fmt.Errorf("error creating vxlan manager: %v", err)
 		}
 
 		// Register vxMgr to watch for node updates to process fdb records
-		err = crMgr.nodePoller.RegisterListener(vxMgr.ProcessNodeUpdate)
+		err = ctlr.nodePoller.RegisterListener(vxMgr.ProcessNodeUpdate)
 		if nil != err {
 			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
 				err)
 		}
-		if crMgr.Agent.EventChan != nil {
+		if ctlr.Agent.EventChan != nil {
 			// It handles arp entries related to PoolMembers
-			vxMgr.ProcessAppmanagerEvents(crMgr.kubeClient)
+			vxMgr.ProcessAppmanagerEvents(ctlr.kubeClient)
 		}
 	}
 
 	return nil
 }
 
-type Node struct {
-	Name   string
-	Addr   string
-	Labels map[string]string
-}
-
 // Check for a change in Node state
-func (crMgr *CRManager) ProcessNodeUpdate(
+func (ctlr *Controller) ProcessNodeUpdate(
 	obj interface{}, err error,
 ) {
 	if nil != err {
@@ -80,21 +74,21 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 		return
 	}
 
-	newNodes, err := crMgr.getNodes(obj)
+	newNodes, err := ctlr.getNodes(obj)
 	if nil != err {
 		log.Warningf("Unable to get list of nodes, err=%+v", err)
 		return
 	}
 
 	// Only check for updates once we are out of initial state
-	if !crMgr.initState {
+	if !ctlr.initState {
 		// Compare last set of nodes with new one
-		if !reflect.DeepEqual(newNodes, crMgr.oldNodes) {
+		if !reflect.DeepEqual(newNodes, ctlr.oldNodes) {
 			log.Debugf("Processing Node Updates")
 			// Handle NodeLabelUpdates
-			if crMgr.ControllerMode == NodePortMode {
-				if crMgr.watchingAllNamespaces() {
-					crInf, _ := crMgr.getNamespacedInformer("")
+			if ctlr.ControllerMode == NodePortMode {
+				if ctlr.watchingAllNamespaces() {
+					crInf, _ := ctlr.getNamespacedInformer("")
 					virtuals := crInf.vsInformer.GetIndexer().List()
 					if len(virtuals) != 0 {
 						for _, virtual := range virtuals {
@@ -106,7 +100,7 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 								vs,
 								false,
 							}
-							crMgr.rscQueue.Add(qKey)
+							ctlr.rscQueue.Add(qKey)
 						}
 					}
 					transportVirtuals := crInf.tsInformer.GetIndexer().List()
@@ -120,16 +114,16 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 								vs,
 								false,
 							}
-							crMgr.rscQueue.Add(qKey)
+							ctlr.rscQueue.Add(qKey)
 						}
 					}
 
 				} else {
-					crMgr.namespacesMutex.Lock()
-					defer crMgr.namespacesMutex.Unlock()
-					for ns, _ := range crMgr.namespaces {
-						virtuals := crMgr.getAllVirtualServers(ns)
-						transportVirtuals := crMgr.getAllTransportServers(ns)
+					ctlr.namespacesMutex.Lock()
+					defer ctlr.namespacesMutex.Unlock()
+					for ns, _ := range ctlr.namespaces {
+						virtuals := ctlr.getAllVirtualServers(ns)
+						transportVirtuals := ctlr.getAllTransportServers(ns)
 						for _, virtual := range virtuals {
 							qKey := &rqKey{
 								ns,
@@ -138,7 +132,7 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 								virtual,
 								false,
 							}
-							crMgr.rscQueue.Add(qKey)
+							ctlr.rscQueue.Add(qKey)
 						}
 						for _, virtual := range transportVirtuals {
 							qKey := &rqKey{
@@ -148,30 +142,30 @@ func (crMgr *CRManager) ProcessNodeUpdate(
 								virtual,
 								false,
 							}
-							crMgr.rscQueue.Add(qKey)
+							ctlr.rscQueue.Add(qKey)
 						}
 					}
 				}
 			}
 			// Update node cache
-			crMgr.oldNodes = newNodes
+			ctlr.oldNodes = newNodes
 		}
 	} else {
-		// Initialize crMgr nodes on our first pass through
-		crMgr.oldNodes = newNodes
+		// Initialize controller nodes on our first pass through
+		ctlr.oldNodes = newNodes
 	}
 }
 
 // Return a copy of the node cache
-func (crMgr *CRManager) getNodesFromCache() []Node {
-	nodes := make([]Node, len(crMgr.oldNodes))
-	copy(nodes, crMgr.oldNodes)
+func (ctlr *Controller) getNodesFromCache() []Node {
+	nodes := make([]Node, len(ctlr.oldNodes))
+	copy(nodes, ctlr.oldNodes)
 
 	return nodes
 }
 
 // Get a list of Node addresses
-func (crMgr *CRManager) getNodes(
+func (ctlr *Controller) getNodes(
 	obj interface{},
 ) ([]Node, error) {
 
@@ -184,7 +178,7 @@ func (crMgr *CRManager) getNodes(
 	watchedNodes := []Node{}
 
 	var addrType v1.NodeAddressType
-	if crMgr.UseNodeInternal {
+	if ctlr.UseNodeInternal {
 		addrType = v1.NodeInternalIP
 	} else {
 		addrType = v1.NodeExternalIP
@@ -211,10 +205,10 @@ func (crMgr *CRManager) getNodes(
 	return watchedNodes, nil
 }
 
-func (crMgr *CRManager) getNodesWithLabel(
+func (ctlr *Controller) getNodesWithLabel(
 	nodeMemberLabel string,
 ) []Node {
-	allNodes := crMgr.getNodesFromCache()
+	allNodes := ctlr.getNodesFromCache()
 
 	label := strings.Split(nodeMemberLabel, "=")
 	if len(label) != 2 {

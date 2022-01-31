@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-package crmanager
+package controller
 
 import (
+	"container/list"
+	"net/http"
 	"sync"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
@@ -36,9 +38,9 @@ import (
 )
 
 type (
-	// CRManager defines the structure of Custom Resource Manager
-	CRManager struct {
-		resources          *Resources
+	// Controller defines the structure of K-Native and Custom Resource Controller
+	Controller struct {
+		resources          *ResourceStore
 		kubeCRClient       versioned.Interface
 		kubeClient         kubernetes.Interface
 		kubeAPIClient      *extClient.Clientset
@@ -64,8 +66,9 @@ type (
 		ipamCR             string
 		defaultRouteDomain int
 		TeemData           *teem.TeemsData
-		requestQueue       *requestQueueData
+		requestQueue       *requestQueue
 	}
+
 	// Params defines parameters
 	Params struct {
 		Config             *rest.Config
@@ -83,6 +86,7 @@ type (
 		IPAM               bool
 		DefaultRouteDomain int
 	}
+
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
 		namespace    string
@@ -181,7 +185,7 @@ type (
 		Partition string `json:"partition"`
 	}
 
-	// ResourceConfig is a Config for a single VirtualServer.
+	// ResourceConfig containes a set of LTM resources to create a Virtual Server
 	ResourceConfig struct {
 		MetaData       metaData         `json:"-"`
 		Virtual        Virtual          `json:"virtual,omitempty"`
@@ -196,6 +200,26 @@ type (
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
 
+	// ResourceStore contain processed LTM and GTM resource data
+	ResourceStore struct {
+		sync.Mutex
+		rsMap        ResourceConfigMap
+		oldRsMap     ResourceConfigMap
+		dnsConfig    DNSConfig
+		oldDNSConfig DNSConfig
+		poolMemCache PoolMemberCache
+	}
+
+	// ResourceConfigMap key is resource name, value is pointer to config. May be shared.
+	ResourceConfigMap map[string]*ResourceConfig
+
+	// PoolMemberCache key is namespace/service
+	PoolMemberCache map[string]poolMembersInfo
+	// Store of CustomProfiles
+	CustomProfileStore struct {
+		sync.Mutex
+		Profs map[SecretKey]CustomProfile
+	}
 	DNSConfig map[string]WideIP
 
 	WideIPs struct {
@@ -208,6 +232,7 @@ type (
 		LBMethod   string     `json:"LoadBalancingMode"`
 		Pools      []GSLBPool `json:"pools"`
 	}
+
 	GSLBPool struct {
 		Name       string   `json:"name"`
 		RecordType string   `json:"recordType"`
@@ -216,7 +241,7 @@ type (
 		Monitor    *Monitor `json:"monitor,omitempty"`
 	}
 
-	ResourceConfigWrapper struct {
+	ResourceConfigRequest struct {
 		rsCfgs             ResourceConfigs
 		customProfiles     *CustomProfileStore
 		shareNodes         bool
@@ -399,6 +424,31 @@ type (
 		PeerCertMode string `json:"peerCertMode,omitempty"`
 		CAFile       string `json:"caFile,omitempty"`
 	}
+
+	portStruct struct {
+		protocol string
+		port     int32
+	}
+
+	requestQueue struct {
+		sync.Mutex
+		*list.List
+	}
+
+	requestMeta struct {
+		meta []metaData
+		id   int
+	}
+
+	Node struct {
+		Name   string
+		Addr   string
+		Labels map[string]string
+	}
+)
+
+type (
+	Services []v1.Service
 )
 
 type (
@@ -426,6 +476,36 @@ type (
 		UserAgent      string
 		HttpAddress    string
 		EnableIPV6     bool
+	}
+
+	PostManager struct {
+		postChan   chan agentConfig
+		respChan   chan int
+		httpClient *http.Client
+		PostParams
+	}
+
+	PostParams struct {
+		BIGIPUsername string
+		BIGIPPassword string
+		BIGIPURL      string
+		TrustedCerts  string
+		SSLInsecure   bool
+		AS3PostDelay  int
+		//Log the AS3 response body in Controller logs
+		LogResponse bool
+	}
+
+	GTMParams struct {
+		GTMBigIpUsername string
+		GTMBigIpPassword string
+		GTMBigIpUrl      string
+	}
+
+	agentConfig struct {
+		data      string
+		as3APIURL string
+		id        int
 	}
 
 	globalSection struct {

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package crmanager
+package controller
 
 import (
 	"bytes"
@@ -35,36 +35,6 @@ const (
 	timeoutMedium = 30 * time.Second
 	timeoutLarge  = 60 * time.Second
 )
-
-type PostManager struct {
-	postChan   chan agentConfig
-	respChan   chan int
-	httpClient *http.Client
-	PostParams
-}
-
-type PostParams struct {
-	BIGIPUsername string
-	BIGIPPassword string
-	BIGIPURL      string
-	TrustedCerts  string
-	SSLInsecure   bool
-	AS3PostDelay  int
-	//Log the AS3 response body in Controller logs
-	LogResponse bool
-}
-
-type GTMParams struct {
-	GTMBigIpUsername string
-	GTMBigIpPassword string
-	GTMBigIpUrl      string
-}
-
-type agentConfig struct {
-	data      string
-	as3APIURL string
-	id        int
-}
 
 func NewPostManager(params PostParams) *PostManager {
 	pm := &PostManager{

@@ -14,7 +14,7 @@
 * limitations under the License.
  */
 
-package crmanager
+package controller
 
 import (
 	"fmt"
@@ -23,7 +23,7 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
-func (crMgr *CRManager) checkValidVirtualServer(
+func (ctlr *Controller) checkValidVirtualServer(
 	vsResource *cisapiv1.VirtualServer,
 ) bool {
 
@@ -31,7 +31,7 @@ func (crMgr *CRManager) checkValidVirtualServer(
 	vsName := vsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 
-	crInf, ok := crMgr.getNamespacedInformer(vsNamespace)
+	crInf, ok := ctlr.getNamespacedInformer(vsNamespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", vsNamespace)
 		return false
@@ -43,7 +43,7 @@ func (crMgr *CRManager) checkValidVirtualServer(
 		return false
 	}
 	bindAddr := vsResource.Spec.VirtualServerAddress
-	if crMgr.ipamCli == nil {
+	if ctlr.ipamCli == nil {
 
 		// This ensures that pool-only mode only logs the message below the first
 		// time we see a config.
@@ -62,7 +62,7 @@ func (crMgr *CRManager) checkValidVirtualServer(
 	return true
 }
 
-func (crMgr *CRManager) checkValidTransportServer(
+func (ctlr *Controller) checkValidTransportServer(
 	tsResource *cisapiv1.TransportServer,
 ) bool {
 
@@ -70,7 +70,7 @@ func (crMgr *CRManager) checkValidTransportServer(
 	vsName := tsResource.ObjectMeta.Name
 	vkey := fmt.Sprintf("%s/%s", vsNamespace, vsName)
 
-	crInf, ok := crMgr.getNamespacedInformer(vsNamespace)
+	crInf, ok := ctlr.getNamespacedInformer(vsNamespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", vsNamespace)
 		return false
@@ -84,7 +84,7 @@ func (crMgr *CRManager) checkValidTransportServer(
 
 	bindAddr := tsResource.Spec.VirtualServerAddress
 
-	if crMgr.ipamCli == nil {
+	if ctlr.ipamCli == nil {
 		// This ensures that pool-only mode only logs the message below the first
 		// time we see a config.
 		if bindAddr == "" {
@@ -109,7 +109,7 @@ func (crMgr *CRManager) checkValidTransportServer(
 	return true
 }
 
-func (crMgr *CRManager) checkValidIngressLink(
+func (ctlr *Controller) checkValidIngressLink(
 	il *cisapiv1.IngressLink,
 ) bool {
 
@@ -117,7 +117,7 @@ func (crMgr *CRManager) checkValidIngressLink(
 	ilName := il.ObjectMeta.Name
 	ilkey := fmt.Sprintf("%s/%s", ilNamespace, ilName)
 
-	crInf, ok := crMgr.getNamespacedInformer(ilNamespace)
+	crInf, ok := ctlr.getNamespacedInformer(ilNamespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", ilNamespace)
 		return false
@@ -131,7 +131,7 @@ func (crMgr *CRManager) checkValidIngressLink(
 
 	bindAddr := il.Spec.VirtualServerAddress
 
-	if crMgr.ipamCli == nil {
+	if ctlr.ipamCli == nil {
 		if bindAddr == "" {
 			log.Infof("No IP was specified for ingresslink %s", ilName)
 			return false

@@ -1,4 +1,4 @@
-package crmanager
+package controller
 
 import (
 	"bytes"
@@ -12,30 +12,32 @@ import (
 	"testing"
 )
 
-func TestCustomResource(t *testing.T) {
+func TestController(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "CR Manager Suite")
 }
 
 var configPath = "../../test/configs/"
 
-type mockCRManager struct {
-	*CRManager
-}
+type (
+	mockController struct {
+		*Controller
+	}
 
-type mockPostManager struct {
-	*PostManager
-	Responses []int
-	RespIndex int
-}
+	mockPostManager struct {
+		*PostManager
+		Responses []int
+		RespIndex int
+	}
+)
 
-func newMockCRManager() *mockCRManager {
-	return &mockCRManager{
-		&CRManager{},
+func newMockController() *mockController {
+	return &mockController{
+		&Controller{},
 	}
 }
 
-func (mockCRM *mockCRManager) shutdown() error {
+func (mockCtlr *mockController) shutdown() error {
 	return nil
 }
 

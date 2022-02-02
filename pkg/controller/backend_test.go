@@ -1,4 +1,4 @@
-package crmanager
+package controller
 
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
@@ -32,7 +32,7 @@ var _ = Describe("Backend Tests", func() {
 			},
 		}
 
-		config := ResourceConfigWrapper{
+		config := ResourceConfigRequest{
 			rsCfgs:             ResourceConfigs{},
 			customProfiles:     NewCustomProfiles(),
 			shareNodes:         true,
@@ -264,7 +264,7 @@ var _ = Describe("Backend Tests", func() {
 				SNIDefault: false,
 			}
 
-			config := ResourceConfigWrapper{
+			config := ResourceConfigRequest{
 				rsCfgs:             ResourceConfigs{rsCfg, rsCfg2},
 				customProfiles:     customProfiles,
 				shareNodes:         true,
@@ -293,7 +293,7 @@ var _ = Describe("Backend Tests", func() {
 				},
 			}
 
-			config := ResourceConfigWrapper{
+			config := ResourceConfigRequest{
 				rsCfgs:             ResourceConfigs{rsCfg},
 				customProfiles:     NewCustomProfiles(),
 				shareNodes:         true,

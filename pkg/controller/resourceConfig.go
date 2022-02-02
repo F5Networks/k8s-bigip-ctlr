@@ -14,78 +14,38 @@
 * limitations under the License.
  */
 
-package crmanager
+package controller
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net"
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 )
 
-// NewResources is Constructor for Resources
-func NewResources() *Resources {
-	var rs Resources
+// NewResourceStore is Constructor for ResourceStore
+func NewResourceStore() *ResourceStore {
+	var rs ResourceStore
 	rs.Init()
 	return &rs
 }
 
-// Resources is Map of Resource configs
-type Resources struct {
-	sync.Mutex
-	rsMap        ResourceConfigMap
-	oldRsMap     ResourceConfigMap
-	dnsConfig    DNSConfig
-	oldDNSConfig DNSConfig
-	poolMemCache PoolMemberCache
-}
-
 // Init is Receiver to initialize the object.
-func (rs *Resources) Init() {
+func (rs *ResourceStore) Init() {
 	rs.rsMap = make(ResourceConfigMap)
 	rs.oldRsMap = make(ResourceConfigMap)
 	rs.dnsConfig = make(DNSConfig)
 	rs.oldDNSConfig = make(DNSConfig)
 	rs.poolMemCache = make(PoolMemberCache)
 }
-
-// Key is resource name, value is unused (since go doesn't have set objects).
-type resourceList map[string]bool
-
-// Key is namespace/servicename/serviceport, value is map of resources.
-type resourceKeyMap map[serviceKey]resourceList
-
-// ResourceConfigMap key is resource name, value is pointer to config. May be shared.
-type ResourceConfigMap map[string]*ResourceConfig
-
-// PoolMemberCache key is namespace/service
-type PoolMemberCache map[string]poolMembersInfo
-
-// ObjectDependency TODO => dep can be replaced with  internal DS rqkey
-// ObjectDependency identifies a K8s Object
-type ObjectDependency struct {
-	Kind      string
-	Namespace string
-	Name      string
-	Service   string
-}
-
-// ObjectDependencyMap key is a VirtualServer and the value is a
-// map of other objects it depends on - typically services.
-type ObjectDependencyMap map[ObjectDependency]ObjectDependencies
-
-// RuleDep defines the rule for choosing a service from multiple services in VirtualServer, mainly by path.
-const RuleDep = "Rule"
 
 const (
 	DEFAULT_MODE       string = "tcp"
@@ -127,15 +87,6 @@ const (
 	// reference for profiles stores as secrets in k8s cluster
 	Secret = "secret"
 )
-
-// ObjectDependencies contains each dependency and its use count (usually 1)
-type ObjectDependencies map[ObjectDependency]int
-
-// Store of CustomProfiles
-type CustomProfileStore struct {
-	sync.Mutex
-	Profs map[SecretKey]CustomProfile
-}
 
 func NewCustomProfile(
 	profile ProfileRef,
@@ -229,11 +180,6 @@ func (v *Virtual) AddIRule(ruleName string) bool {
 	return true
 }
 
-type portStruct struct {
-	protocol string
-	port     int32
-}
-
 func (slice ProfileRefs) Less(i, j int) bool {
 	return ((slice[i].Partition < slice[j].Partition) ||
 		(slice[i].Partition == slice[j].Partition &&
@@ -249,7 +195,7 @@ func (slice ProfileRefs) Swap(i, j int) {
 }
 
 // Return the required ports for VS (depending on sslRedirect/allowHttp vals)
-func (crMgr *CRManager) virtualPorts(vs *cisapiv1.VirtualServer) []portStruct {
+func (ctlr *Controller) virtualPorts(vs *cisapiv1.VirtualServer) []portStruct {
 
 	var httpPort int32
 	var httpsPort int32
@@ -338,7 +284,7 @@ func formatPolicyName(hostname, hostGroup, name string) string {
 }
 
 // Prepares resource config based on VirtualServer resource config
-func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
+func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.VirtualServer,
 ) error {
@@ -425,7 +371,7 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 		return nil
 	}
 
-	rules = crMgr.prepareVirtualServerRules(vs)
+	rules = ctlr.prepareVirtualServerRules(vs)
 	if rules == nil {
 		return fmt.Errorf("failed to create LTM Rules")
 	}
@@ -452,7 +398,7 @@ func (crMgr *CRManager) prepareRSConfigFromVirtualServer(
 
 // handleVirtualServerTLS handles TLS configuration for the Virtual Server resource
 // Return value is whether or not a custom profile was updated
-func (crMgr *CRManager) handleVirtualServerTLS(
+func (ctlr *Controller) handleVirtualServerTLS(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.VirtualServer,
 	tls *cisapiv1.TLSProfile,
@@ -519,10 +465,10 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			// Process ClientSSL stored as kubernetes secret
 			clientSSL := tls.Spec.TLS.ClientSSL
 			if clientSSL != "" {
-				if secret, ok := crMgr.SSLContext[clientSSL]; ok {
+				if secret, ok := ctlr.SSLContext[clientSSL]; ok {
 					log.Debugf("clientSSL secret %s for TLSProfile '%s' is already available with CIS in "+
 						"SSLContext as clientSSL", secret.ObjectMeta.Name, tlsName)
-					err, _ := crMgr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
+					err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
 					if err != nil {
 						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
 							err, vsName, tlsName)
@@ -532,15 +478,15 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					// Check if profile is contained in a Secret
 					// Update the SSL Context if secret found, This is used to avoid api calls
 					log.Debugf("saving clientSSL secret for TLSProfile '%s' into SSLContext", tlsName)
-					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
+					secret, err := ctlr.kubeClient.CoreV1().Secrets(vsNamespace).
 						Get(context.TODO(), clientSSL, metav1.GetOptions{})
 					if err != nil {
 						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
 							clientSSL, vsName, tlsName)
 						return false
 					}
-					crMgr.SSLContext[clientSSL] = secret
-					err, _ = crMgr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
+					ctlr.SSLContext[clientSSL] = secret
+					err, _ = ctlr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
 					if err != nil {
 						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
 							err, vsName, tlsName)
@@ -551,10 +497,10 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			// Process ServerSSL stored as kubernetes secret
 			serverSSL := tls.Spec.TLS.ServerSSL
 			if serverSSL != "" {
-				if secret, ok := crMgr.SSLContext[serverSSL]; ok {
+				if secret, ok := ctlr.SSLContext[serverSSL]; ok {
 					log.Debugf("serverSSL secret %s for TLSProfile '%s' is already available with CIS in"+
 						"SSLContext", secret.ObjectMeta.Name, tlsName)
-					err, _ := crMgr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
+					err, _ := ctlr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
 					if err != nil {
 						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
 							err, vsName, tlsName)
@@ -564,15 +510,15 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 					// Check if profile is contained in a Secret
 					// Update the SSL Context if secret found, This is used to avoid api calls
 					log.Debugf("saving serverSSL secret for TLSProfile '%s' into SSLContext", tlsName)
-					secret, err := crMgr.kubeClient.CoreV1().Secrets(vsNamespace).
+					secret, err := ctlr.kubeClient.CoreV1().Secrets(vsNamespace).
 						Get(context.TODO(), serverSSL, metav1.GetOptions{})
 					if err != nil {
 						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
 							serverSSL, vsName, tlsName)
 						return false
 					}
-					crMgr.SSLContext[serverSSL] = secret
-					err, _ = crMgr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
+					ctlr.SSLContext[serverSSL] = secret
+					err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
 					if err != nil {
 						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
 							err, vsName, tlsName)
@@ -636,7 +582,7 @@ func (crMgr *CRManager) handleVirtualServerTLS(
 			}
 		}
 
-		crMgr.handleDataGroupIRules(
+		ctlr.handleDataGroupIRules(
 			rsCfg,
 			vs.ObjectMeta.Name,
 			vs.Spec.Host,
@@ -840,13 +786,13 @@ func (rc *ResourceConfig) FindPolicy(controlType string) *Policy {
 }
 
 // GetByName gets a specific Resource cfg
-func (rs *Resources) GetByName(name string) (*ResourceConfig, bool) {
+func (rs *ResourceStore) GetByName(name string) (*ResourceConfig, bool) {
 	resource, ok := rs.rsMap[name]
 	return resource, ok
 }
 
 // GetAllResources is list of all resource configs
-func (rs *Resources) GetAllResources() ResourceConfigs {
+func (rs *ResourceStore) GetAllResources() ResourceConfigs {
 	var cfgs ResourceConfigs
 	for _, cfg := range rs.rsMap {
 		cfgs = append(cfgs, cfg)
@@ -1006,7 +952,7 @@ func (rcs ResourceConfigs) GetAllPoolMembers() []PoolMember {
 	return allPoolMembers
 }
 
-func (rs *Resources) updateOldConfig() {
+func (rs *ResourceStore) updateOldConfig() {
 	rs.oldRsMap = make(ResourceConfigMap)
 	for k, v := range rs.rsMap {
 		rs.oldRsMap[k] = &ResourceConfig{}
@@ -1020,7 +966,7 @@ func (rs *Resources) updateOldConfig() {
 
 // Deletes respective VirtualServer resource configuration from
 // resource configs.
-func (rs *Resources) deleteVirtualServer(rsName string) {
+func (rs *ResourceStore) deleteVirtualServer(rsName string) {
 	delete(rs.rsMap, rsName)
 }
 
@@ -1113,7 +1059,7 @@ func AS3NameFormatter(name string) string {
 	return name
 }
 
-func (crMgr *CRManager) handleDataGroupIRules(
+func (ctlr *Controller) handleDataGroupIRules(
 	rsCfg *ResourceConfig,
 	virtualName string,
 	vsHost string,
@@ -1127,12 +1073,12 @@ func (crMgr *CRManager) handleDataGroupIRules(
 		switch termination {
 		case TLSEdge:
 			rsCfg.addIRule(
-				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, crMgr.getTLSIRule(rsCfg.Virtual.Name))
+				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, ctlr.getTLSIRule(rsCfg.Virtual.Name))
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), DEFAULT_PARTITION)
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName), DEFAULT_PARTITION)
 		case TLSReencrypt:
 			rsCfg.addIRule(
-				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, crMgr.getTLSIRule(rsCfg.Virtual.Name))
+				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, ctlr.getTLSIRule(rsCfg.Virtual.Name))
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptHostsDgName), DEFAULT_PARTITION)
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName), DEFAULT_PARTITION)
 		}
@@ -1142,12 +1088,12 @@ func (crMgr *CRManager) handleDataGroupIRules(
 	}
 }
 
-func (crMgr *CRManager) deleteVirtualServer(rsName string) {
-	crMgr.resources.deleteVirtualServer(rsName)
+func (ctlr *Controller) deleteVirtualServer(rsName string) {
+	ctlr.resources.deleteVirtualServer(rsName)
 }
 
 // Prepares resource config based on VirtualServer resource config
-func (crMgr *CRManager) prepareRSConfigFromTransportServer(
+func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.TransportServer,
 ) error {
@@ -1213,7 +1159,7 @@ func (crMgr *CRManager) prepareRSConfigFromTransportServer(
 }
 
 // Prepares resource config based on VirtualServer resource config
-func (crMgr *CRManager) prepareRSConfigFromLBService(
+func (ctlr *Controller) prepareRSConfigFromLBService(
 	rsCfg *ResourceConfig,
 	svc *v1.Service,
 	svcPort v1.ServicePort,
@@ -1274,7 +1220,7 @@ func getPartitionAndName(objectName string) (string, string) {
 	return "", objectName
 }
 
-func (crMgr *CRManager) handleVSResourceConfigForPolicy(
+func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg *ResourceConfig,
 	plc *cisapiv1.Policy,
 ) error {
@@ -1325,7 +1271,7 @@ func (crMgr *CRManager) handleVSResourceConfigForPolicy(
 	return nil
 }
 
-func (crMgr *CRManager) handleTSResourceConfigForPolicy(
+func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	rsCfg *ResourceConfig,
 	plc *cisapiv1.Policy,
 ) error {

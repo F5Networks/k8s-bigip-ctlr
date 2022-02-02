@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package crmanager
+package controller
 
 import (
 	"encoding/json"
@@ -129,7 +129,7 @@ func (agent *Agent) Stop() {
 	}
 }
 
-func (agent *Agent) PostConfig(rsConfig ResourceConfigWrapper) {
+func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 	if !(agent.EnableIPV6) {
 		agent.PostGTMConfig(rsConfig)
 	}
@@ -161,7 +161,7 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigWrapper) {
 	if agent.EventChan != nil {
 		select {
 		case agent.EventChan <- allPoolMems:
-			log.Debugf("Custom Resource Manager wrote endpoints to VxlanMgr")
+			log.Debugf("Controller wrote endpoints to VxlanMgr")
 		case <-time.After(3 * time.Second):
 		}
 	}
@@ -171,7 +171,7 @@ func (agent Agent) SetResponseChannel(respChan chan int) {
 	agent.PostManager.respChan = respChan
 }
 
-func (agent Agent) PostGTMConfig(config ResourceConfigWrapper) {
+func (agent Agent) PostGTMConfig(config ResourceConfigRequest) {
 
 	dnsConfig := make(map[string]interface{})
 	wideIPs := WideIPs{}
@@ -199,7 +199,7 @@ func (agent Agent) PostGTMConfig(config ResourceConfigWrapper) {
 }
 
 //Create AS3 declaration
-func createAS3Declaration(config ResourceConfigWrapper, userAgentInfo string) as3Declaration {
+func createAS3Declaration(config ResourceConfigRequest, userAgentInfo string) as3Declaration {
 	var as3Config map[string]interface{}
 	_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
 
@@ -220,7 +220,7 @@ func createAS3Declaration(config ResourceConfigWrapper, userAgentInfo string) as
 	return as3Declaration(decl)
 }
 
-func createAS3ADC(config ResourceConfigWrapper) as3ADC {
+func createAS3ADC(config ResourceConfigRequest) as3ADC {
 	// Create Shared as3Application object
 	sharedApp := as3Application{}
 	sharedApp["class"] = "Application"
@@ -250,7 +250,7 @@ func createAS3ADC(config ResourceConfigWrapper) as3ADC {
 	return as3JSONDecl
 }
 
-func processIRulesForAS3(config ResourceConfigWrapper, sharedApp as3Application) {
+func processIRulesForAS3(config ResourceConfigRequest, sharedApp as3Application) {
 	for _, rsCfg := range config.rsCfgs {
 		// Create irule declaration
 		for _, v := range rsCfg.IRulesMap {
@@ -262,7 +262,7 @@ func processIRulesForAS3(config ResourceConfigWrapper, sharedApp as3Application)
 	}
 }
 
-func processDataGroupForAS3(config ResourceConfigWrapper, sharedApp as3Application) {
+func processDataGroupForAS3(config ResourceConfigRequest, sharedApp as3Application) {
 	for _, rsCfg := range config.rsCfgs {
 		for idk, idg := range rsCfg.IntDgMap {
 			for _, dg := range idg {

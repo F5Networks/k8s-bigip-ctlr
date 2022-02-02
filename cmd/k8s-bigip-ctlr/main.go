@@ -24,7 +24,7 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/crmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/controller"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
@@ -755,11 +755,11 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 	}
 }
 
-func initCustomResourceManager(
+func initController(
 	config *rest.Config,
-) *crmanager.CRManager {
+) *controller.Controller {
 
-	postMgrParams := crmanager.PostParams{
+	postMgrParams := controller.PostParams{
 		BIGIPUsername: *bigIPUsername,
 		BIGIPPassword: *bigIPPassword,
 		BIGIPURL:      *bigIPURL,
@@ -769,13 +769,13 @@ func initCustomResourceManager(
 		LogResponse:   *logAS3Response,
 	}
 
-	GtmParams := crmanager.GTMParams{
+	GtmParams := controller.GTMParams{
 		GTMBigIpUsername: *gtmBigIPUsername,
 		GTMBigIpPassword: *gtmBigIPPassword,
 		GTMBigIpUrl:      *gtmBigIPURL,
 	}
 
-	agentParams := crmanager.AgentParams{
+	agentParams := controller.AgentParams{
 		PostParams:     postMgrParams,
 		GTMParams:      GtmParams,
 		Partition:      (*bigIPPartitions)[0],
@@ -787,10 +787,10 @@ func initCustomResourceManager(
 		HttpAddress:    *httpAddress,
 		EnableIPV6:     *enableIPV6,
 	}
-	agent := crmanager.NewAgent(agentParams)
+	agent := controller.NewAgent(agentParams)
 
-	crMgr := crmanager.NewCRManager(
-		crmanager.Params{
+	ctlr := controller.NewController(
+		controller.Params{
 			Config:             config,
 			Namespaces:         *namespaces,
 			NamespaceLabel:     *namespaceLabel,
@@ -808,7 +808,7 @@ func initCustomResourceManager(
 		},
 	)
 
-	return crMgr
+	return ctlr
 }
 
 // TODO Remove the function and appMgr.K8sVersion property once v1beta1.Ingress is deprecated in k8s 1.22
@@ -943,7 +943,7 @@ func main() {
 
 	if *customResourceMode {
 		getGTMCredentials()
-		crMgr := initCustomResourceManager(config)
+		crMgr := initController(config)
 		crMgr.TeemData = td
 		if !(*disableTeems) {
 			key, err := crMgr.Agent.GetBigipRegKey()

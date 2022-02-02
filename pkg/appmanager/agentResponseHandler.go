@@ -71,7 +71,7 @@ func (appMgr *Manager) updateRouteAdmitStatus() {
 	var processedRoutes []*routeapi.Route
 	getOptions := metaV1.GetOptions{}
 
-	for namespace, routeNames := range appMgr.RoutesProcessed {
+	for namespace, routeNames := range getProcessedResources(appMgr.processedResources, Routes) {
 		for _, routeName := range routeNames {
 			Admitted := false
 			route, err := appMgr.routeClientV1.Routes(namespace).Get(context.TODO(), routeName, getOptions)

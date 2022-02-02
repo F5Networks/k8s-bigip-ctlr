@@ -923,7 +923,15 @@ func (slice RouteList) Len() int {
 }
 
 func (slice RouteList) Less(i, j int) bool {
+	if slice[i].Spec.Host == slice[j].Spec.Host {
+		if (len(slice[i].Spec.Path) == 0 || len(slice[j].Spec.Path) == 0) && (slice[i].Spec.Path == "/" || slice[j].Spec.Path == "/") {
+			return slice[i].CreationTimestamp.Before(&slice[j].CreationTimestamp)
+		}
+	}
 	return (slice[i].Spec.Host < slice[j].Spec.Host) ||
+		(slice[i].Spec.Host == slice[j].Spec.Host &&
+			slice[i].Spec.Path == slice[j].Spec.Path &&
+			slice[i].CreationTimestamp.Before(&slice[j].CreationTimestamp)) ||
 		(slice[i].Spec.Host == slice[j].Spec.Host &&
 			slice[i].Spec.Path < slice[j].Spec.Path)
 }

@@ -913,7 +913,7 @@ func (ctlr *Controller) processVirtualServers(
 		// Save ResourceConfig in temporary Map
 		vsMap[rsName] = rsCfg
 
-		if ctlr.ControllerMode == NodePortMode {
+		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
 		} else {
 			ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
@@ -1564,7 +1564,7 @@ func (ctlr *Controller) processTransportServers(
 		// Save ResourceConfig in temporary Map
 		vsMap[rsName] = rsCfg
 
-		if ctlr.ControllerMode == NodePortMode {
+		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
 		} else {
 			ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
@@ -1849,7 +1849,7 @@ func (ctlr *Controller) processLBServices(
 
 		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec)
 
-		if ctlr.ControllerMode == NodePortMode {
+		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, svc.Namespace)
 		} else {
 			ctlr.updatePoolMembersForCluster(rsCfg, svc.Namespace)
@@ -2172,7 +2172,7 @@ func (ctlr *Controller) processIngressLink(
 		return nil
 	}
 	targetPort := nginxMonitorPort
-	if ctlr.ControllerMode == NodePortMode {
+	if ctlr.PoolMemberType == NodePort {
 		targetPort = getNodeport(svc, nginxMonitorPort)
 		if targetPort == 0 {
 			log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
@@ -2227,7 +2227,7 @@ func (ctlr *Controller) processIngressLink(
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 		ctlr.resources.rsMap[rsName] = rsCfg
 
-		if ctlr.ControllerMode == NodePortMode {
+		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, ingLink.ObjectMeta.Namespace)
 		} else {
 			ctlr.updatePoolMembersForCluster(rsCfg, ingLink.ObjectMeta.Namespace)

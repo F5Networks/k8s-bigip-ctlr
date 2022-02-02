@@ -796,7 +796,7 @@ func initController(
 			NamespaceLabel:     *namespaceLabel,
 			Partition:          (*bigIPPartitions)[0],
 			Agent:              agent,
-			ControllerMode:     *poolMemberType,
+			PoolMemberType:     *poolMemberType,
 			VXLANName:          vxlanName,
 			VXLANMode:          vxlanMode,
 			UseNodeInternal:    *useNodeInternal,

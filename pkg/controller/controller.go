@@ -63,7 +63,7 @@ const (
 	// Namespace is k8s namespace
 	Namespace = "Namespace"
 
-	NodePortMode = "nodeport"
+	NodePort = "nodeport"
 
 	PolicyControlForward = "forwarding"
 	// Namespace for IPAM CRD
@@ -97,7 +97,7 @@ func NewController(params Params) *Controller {
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller"),
 		resources:          NewResourceStore(),
 		Agent:              params.Agent,
-		ControllerMode:     params.ControllerMode,
+		PoolMemberType:     params.PoolMemberType,
 		UseNodeInternal:    params.UseNodeInternal,
 		initState:          true,
 		SSLContext:         make(map[string]*v1.Secret),

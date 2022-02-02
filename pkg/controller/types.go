@@ -54,7 +54,7 @@ type (
 		rscQueue           workqueue.RateLimitingInterface
 		Partition          string
 		Agent              *Agent
-		ControllerMode     string
+		PoolMemberType     string
 		nodePoller         pollers.Poller
 		oldNodes           []Node
 		UseNodeInternal    bool
@@ -76,7 +76,7 @@ type (
 		NamespaceLabel     string
 		Partition          string
 		Agent              *Agent
-		ControllerMode     string
+		PoolMemberType     string
 		VXLANName          string
 		VXLANMode          string
 		UseNodeInternal    bool

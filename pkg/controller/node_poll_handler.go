@@ -86,7 +86,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 		if !reflect.DeepEqual(newNodes, ctlr.oldNodes) {
 			log.Debugf("Processing Node Updates")
 			// Handle NodeLabelUpdates
-			if ctlr.ControllerMode == NodePortMode {
+			if ctlr.PoolMemberType == NodePort {
 				if ctlr.watchingAllNamespaces() {
 					crInf, _ := ctlr.getNamespacedInformer("")
 					virtuals := crInf.vsInformer.GetIndexer().List()

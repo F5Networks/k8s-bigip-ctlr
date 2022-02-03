@@ -18,6 +18,7 @@ package controller
 
 import (
 	"container/list"
+	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	"net/http"
 	"sync"
 
@@ -44,6 +45,7 @@ type (
 		kubeCRClient       versioned.Interface
 		kubeClient         kubernetes.Interface
 		kubeAPIClient      *extClient.Clientset
+		routeClient        routeclient.RouteV1Interface
 		crInformers        map[string]*CRInformer
 		nsInformer         *NSInformer
 		eventNotifier      *apm.EventNotifier

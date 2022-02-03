@@ -62,7 +62,7 @@ type RoutesMap map[string][]string
 type Manager struct {
 	resources           *Resources
 	customProfiles      *CustomProfileStore
-	irulesMap           IRulesMap
+	IRulesStore         IRulesStore
 	intDgMap            InternalDataGroupMap
 	agentCfgMap         map[string]*AgentCfgMap
 	agentCfgMapSvcCache map[string]*SvcEndPointsCache
@@ -75,6 +75,8 @@ type Manager struct {
 	queueLen            int
 	processedItems      int
 	processedResources  map[string]bool
+	// Mutex to control access to processedResources map
+	processedResourcesMutex sync.Mutex
 	// Use internal node IPs
 	useNodeInternal bool
 	// Running in nodeport (or cluster) mode
@@ -87,8 +89,6 @@ type Manager struct {
 	oldNodes []Node
 	// Mutex for all informers (for informer CRUD)
 	informersMutex sync.Mutex
-	// Mutex for irulesMap
-	irulesMutex sync.Mutex
 	// Mutex for intDgMap
 	intDgMutex sync.Mutex
 	// App informer support
@@ -221,7 +221,7 @@ func NewManager(params *Params) *Manager {
 	manager := Manager{
 		resources:              NewResources(),
 		customProfiles:         NewCustomProfiles(),
-		irulesMap:              make(IRulesMap),
+		IRulesStore:            IRulesStore{},
 		intDgMap:               make(InternalDataGroupMap),
 		kubeClient:             params.KubeClient,
 		restClientv1:           params.restClient,
@@ -261,7 +261,7 @@ func NewManager(params *Params) *Manager {
 		defaultRouteDomain:     params.DefaultRouteDomain,
 	}
 	manager.processedResources = make(map[string]bool)
-
+	manager.IRulesStore.IRulesMap = make(map[NameRef]*IRule)
 	// Initialize agent response worker
 	go manager.agentResponseWorker()
 
@@ -1221,7 +1221,9 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 				}
 				return nil
 			}
+			appMgr.processedResourcesMutex.Lock()
 			appMgr.processedResources[rkey] = true
+			appMgr.processedResourcesMutex.Unlock()
 		}
 	case Endpoints:
 		if appMgr.IsNodePort() {
@@ -1239,7 +1241,9 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 				return nil
 			}
 		case OprTypeDelete:
+			appMgr.processedResourcesMutex.Lock()
 			delete(appMgr.processedResources, resKey)
+			appMgr.processedResourcesMutex.Unlock()
 		}
 	default:
 		// Resources other than Services will be tracked if they are processed earlier
@@ -1256,9 +1260,13 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 				}
 				return nil
 			}
+			appMgr.processedResourcesMutex.Lock()
 			appMgr.processedResources[resKey] = true
+			appMgr.processedResourcesMutex.Unlock()
 		case OprTypeDelete:
+			appMgr.processedResourcesMutex.Lock()
 			delete(appMgr.processedResources, resKey)
+			appMgr.processedResourcesMutex.Unlock()
 		}
 
 	}
@@ -1440,7 +1448,9 @@ func (appMgr *Manager) syncConfigMaps(
 				}
 				// Mark each resource as it is already processed
 				// So that later the create event of the same resource will not processed, unnecessarily
+				appMgr.processedResourcesMutex.Lock()
 				appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
+				appMgr.processedResourcesMutex.Unlock()
 			}
 			continue
 		}
@@ -1495,7 +1505,9 @@ func (appMgr *Manager) syncConfigMaps(
 		} else {
 			// Mark each resource as it is already processed
 			// So that later the create event of the same resource will not be processed, unnecessarily
+			appMgr.processedResourcesMutex.Lock()
 			appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
+			appMgr.processedResourcesMutex.Unlock()
 			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(0)
 			stats.vsFound += found
 			stats.vsUpdated += updated
@@ -1591,7 +1603,9 @@ func (appMgr *Manager) syncIngresses(
 				return !ingFound
 			}
 			// So that later the create event of the same resource will not processed, unnecessarily
+			appMgr.processedResourcesMutex.Lock()
 			appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)] = true
+			appMgr.processedResourcesMutex.Unlock()
 			depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 				objKey, objDeps, svcDepKey, ingressLookupFunc)
 			portStructs := appMgr.virtualPorts(ing)
@@ -1749,7 +1763,9 @@ func (appMgr *Manager) syncIngresses(
 			}
 			// Mark each resource as it is already processed
 			// So that later the create event of the same resource will not processed, unnecessarily
+			appMgr.processedResourcesMutex.Lock()
 			appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)] = true
+			appMgr.processedResourcesMutex.Unlock()
 			depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 				objKey, objDeps, svcDepKey, ingressLookupFunc)
 			portStructs := appMgr.v1VirtualPorts(ing)
@@ -1931,7 +1947,10 @@ func (appMgr *Manager) syncRoutes(
 				log.Warningf("[CORE]  Route exist with same host: %v and path: %v", route.Spec.Host, route.Spec.Path)
 				// Adding the entry for resource so logs does not print repeatedly
 				// Putting the value as false so that route status does not get updated
+				appMgr.processedResourcesMutex.Lock()
 				appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = false
+				appMgr.processedResourcesMutex.Unlock()
+
 			}
 			continue
 		} else {
@@ -1939,7 +1958,9 @@ func (appMgr *Manager) syncRoutes(
 		}
 		// Mark each resource  as it is already processed during init Time
 		// So that later the create event of the same resource will not processed, unnecessarily
+		appMgr.processedResourcesMutex.Lock()
 		appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = true
+		appMgr.processedResourcesMutex.Unlock()
 
 		//FIXME(kenr): why do we process services that aren't associated
 		//             with a route?
@@ -2984,7 +3005,9 @@ func (appMgr *Manager) getEndpointsForCluster(
 
 	// Mark each resource as it is already processed
 	// So that later the create event of the same resource will not processed, unnecessarily
+	appMgr.processedResourcesMutex.Lock()
 	appMgr.processedResources[prepareResourceKey(Endpoints, eps.Namespace, eps.Name)] = true
+	appMgr.processedResourcesMutex.Unlock()
 	for _, subset := range eps.Subsets {
 		for _, p := range subset.Ports {
 			if portName == p.Name {

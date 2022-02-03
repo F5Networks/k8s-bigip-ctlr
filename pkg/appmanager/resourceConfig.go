@@ -731,15 +731,15 @@ func (appMgr *Manager) handleRouteRules(
 
 // Creates an IRule if it doesn't already exist
 func (appMgr *Manager) addIRule(name, partition, rule string) {
-	appMgr.irulesMutex.Lock()
-	defer appMgr.irulesMutex.Unlock()
+	appMgr.IRulesStore.IrulesMutex.Lock()
+	defer appMgr.IRulesStore.IrulesMutex.Unlock()
 
 	key := NameRef{
 		Name:      name,
 		Partition: partition,
 	}
-	if _, found := appMgr.irulesMap[key]; !found {
-		appMgr.irulesMap[key] = NewIRule(name, partition, rule)
+	if _, found := appMgr.IRulesStore.IRulesMap[key]; !found {
+		appMgr.IRulesStore.IRulesMap[key] = NewIRule(name, partition, rule)
 	}
 }
 

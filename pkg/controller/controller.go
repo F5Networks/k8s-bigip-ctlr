@@ -28,6 +28,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
 	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -294,10 +295,17 @@ func (ctlr *Controller) setupClients(config *rest.Config) error {
 		log.Errorf("Failed to create client: %v", err)
 	}
 
+	var rclient *routeclient.RouteV1Client
+	rclient, err = routeclient.NewForConfig(config)
+	if nil != err {
+		return fmt.Errorf("Failed to create Route Client: %v", err)
+	}
+
 	log.Debug("Client Created")
 	ctlr.kubeAPIClient = kubeIPAMClient
 	ctlr.kubeCRClient = kubeCRClient
 	ctlr.kubeClient = kubeClient
+	ctlr.routeClient = rclient
 	return nil
 }
 

@@ -23,9 +23,7 @@ var _ = Describe("Profile", func() {
 				Partition: "test",
 				Profiles:  ProfileRefs{},
 			},
-			customProfiles: CustomProfileStore{
-				Profs: make(map[SecretKey]CustomProfile),
-			},
+			customProfiles: make(map[SecretKey]CustomProfile),
 		}
 
 		secret := &v1.Secret{
@@ -80,9 +78,7 @@ var _ = Describe("Profile", func() {
 				Partition: "test",
 				Profiles:  ProfileRefs{},
 			},
-			customProfiles: CustomProfileStore{
-				Profs: make(map[SecretKey]CustomProfile),
-			},
+			customProfiles: make(map[SecretKey]CustomProfile),
 		}
 
 		secret := &v1.Secret{

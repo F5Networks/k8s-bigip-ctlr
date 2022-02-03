@@ -748,7 +748,7 @@ var _ = Describe("Resource Config Tests", func() {
 			tlsProf.Spec.TLS.Reference = Secret
 			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
 
-			rsCfg.customProfiles = *NewCustomProfiles()
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 
 			clSecret := test.NewSecret(
 				"clientsecret",
@@ -760,12 +760,12 @@ var _ = Describe("Resource Config Tests", func() {
 
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
-			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(2), "Failed to Process TLS Termination: Edge")
+			Expect(len(rsCfg.customProfiles)).To(Equal(2), "Failed to Process TLS Termination: Edge")
 			Expect(len(mockCtlr.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
 
 			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
-			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(2), "Failed to Process TLS Termination: Edge")
+			Expect(len(rsCfg.customProfiles)).To(Equal(2), "Failed to Process TLS Termination: Edge")
 			Expect(len(mockCtlr.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
 		})
 
@@ -777,7 +777,7 @@ var _ = Describe("Resource Config Tests", func() {
 			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
 			tlsProf.Spec.TLS.ServerSSL = "serversecret"
 
-			rsCfg.customProfiles = *NewCustomProfiles()
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 
 			clSecret := test.NewSecret(
 				"clientsecret",
@@ -795,12 +795,12 @@ var _ = Describe("Resource Config Tests", func() {
 
 			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
+			Expect(len(rsCfg.customProfiles)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
 			Expect(len(mockCtlr.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
 
 			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
+			Expect(len(rsCfg.customProfiles)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
 			Expect(len(mockCtlr.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
 		})
 
@@ -811,7 +811,7 @@ var _ = Describe("Resource Config Tests", func() {
 			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
 			tlsProf.Spec.TLS.ServerSSL = "serversecret"
 
-			rsCfg.customProfiles = *NewCustomProfiles()
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 

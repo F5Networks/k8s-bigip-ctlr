@@ -371,15 +371,8 @@ func (ctlr *Controller) processResource() bool {
 	if ctlr.rscQueue.Len() == 0 &&
 		(!reflect.DeepEqual(ctlr.resources.rsMap, ctlr.resources.oldRsMap) ||
 			!reflect.DeepEqual(ctlr.resources.dnsConfig, ctlr.resources.oldDNSConfig)) {
-		customProfileStore := NewCustomProfiles()
-		for _, rsCfg := range ctlr.resources.rsMap {
-			for skey, prof := range rsCfg.customProfiles.Profs {
-				customProfileStore.Profs[skey] = prof
-			}
-		}
 		config := ResourceConfigRequest{
 			rsCfgs:             ctlr.resources.GetAllResources(),
-			customProfiles:     customProfileStore,
 			shareNodes:         ctlr.shareNodes,
 			dnsConfig:          ctlr.resources.dnsConfig,
 			defaultRouteDomain: ctlr.defaultRouteDomain,
@@ -854,7 +847,7 @@ func (ctlr *Controller) processVirtualServers(
 		)
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
-		rsCfg.customProfiles.Profs = make(map[SecretKey]CustomProfile)
+		rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 
 		plc, err := ctlr.getPolicyFromVirtuals(virtuals)
 		if plc != nil {

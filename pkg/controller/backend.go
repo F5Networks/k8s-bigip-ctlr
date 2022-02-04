@@ -230,9 +230,6 @@ func createAS3ADC(config ResourceConfigRequest) as3ADC {
 	// Process rscfg to create AS3 Resources
 	processResourcesForAS3(config.rsCfgs, sharedApp, config.shareNodes)
 
-	// Process CustomProfiles
-	processCustomProfilesForAS3(config.customProfiles, sharedApp)
-
 	// Process Profiles
 	processProfilesForAS3(config.rsCfgs, sharedApp)
 
@@ -358,8 +355,9 @@ func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application, sh
 			//Create AS3 Service for transport virtual server
 			createTransportServiceDecl(cfg, sharedApp)
 		}
-
 	}
+	// Process CustomProfiles
+	processCustomProfilesForAS3(rsCfgs, sharedApp)
 }
 
 //Create policy declaration
@@ -814,30 +812,32 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 	}
 }
 
-func processCustomProfilesForAS3(customProfiles *CustomProfileStore, sharedApp as3Application) {
+func processCustomProfilesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application) {
 	caBundleName := "serverssl_ca_bundle"
 	var tlsClient *as3TLSClient
 	// TLS Certificates are available in CustomProfiles
-	for key, prof := range customProfiles.Profs {
-		// Create TLSServer and Certificate for each profile
-		svcName := key.ResourceName
-		if svcName == "" {
-			continue
-		}
-		if ok := createUpdateTLSServer(prof, svcName, sharedApp); ok {
-			// Create Certificate only if the corresponding TLSServer is created
-			createCertificateDecl(prof, sharedApp)
-		} else {
-			createUpdateCABundle(prof, caBundleName, sharedApp)
-			tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
-
-			skey := SecretKey{
-				Name: prof.Name + "-ca",
+	for _, rsCfg := range rsCfgs {
+		for key, prof := range rsCfg.customProfiles {
+			// Create TLSServer and Certificate for each profile
+			svcName := key.ResourceName
+			if svcName == "" {
+				continue
 			}
-			if _, ok := customProfiles.Profs[skey]; ok && tlsClient != nil {
-				// If a profile exist in customProfiles with key as created above
-				// then it indicates that secure-serverssl needs to be added
-				tlsClient.ValidateCertificate = true
+			if ok := createUpdateTLSServer(prof, svcName, sharedApp); ok {
+				// Create Certificate only if the corresponding TLSServer is created
+				createCertificateDecl(prof, sharedApp)
+			} else {
+				createUpdateCABundle(prof, caBundleName, sharedApp)
+				tlsClient = createTLSClient(prof, svcName, caBundleName, sharedApp)
+
+				skey := SecretKey{
+					Name: prof.Name + "-ca",
+				}
+				if _, ok := rsCfg.customProfiles[skey]; ok && tlsClient != nil {
+					// If a profile exist in customProfiles with key as created above
+					// then it indicates that secure-serverssl needs to be added
+					tlsClient.ValidateCertificate = true
+				}
 			}
 		}
 	}

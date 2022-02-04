@@ -18,9 +18,10 @@ package controller
 
 import (
 	"container/list"
-	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	"net/http"
 	"sync"
+
+	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 
@@ -200,7 +201,7 @@ type (
 		ServiceAddress []ServiceAddress `json:"serviceAddress,omitempty"`
 		IRulesMap      IRulesMap
 		IntDgMap       InternalDataGroupMap
-		customProfiles CustomProfileStore
+		customProfiles map[SecretKey]CustomProfile
 	}
 	// ResourceConfigs is group of ResourceConfig
 	ResourceConfigs []*ResourceConfig
@@ -254,7 +255,6 @@ type (
 
 	ResourceConfigRequest struct {
 		rsCfgs             ResourceConfigs
-		customProfiles     *CustomProfileStore
 		shareNodes         bool
 		dnsConfig          DNSConfig
 		defaultRouteDomain int

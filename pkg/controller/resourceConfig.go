@@ -20,11 +20,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net"
 	"sort"
 	"strconv"
 	"strings"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -112,13 +113,6 @@ func NewCustomProfile(
 		cp.CAFile = caFile
 	}
 	return cp
-}
-
-// NewCustomProfiles is a Constructor for CustomProfiles
-func NewCustomProfiles() *CustomProfileStore {
-	var cps CustomProfileStore
-	cps.Profs = make(map[SecretKey]CustomProfile)
-	return &cps
 }
 
 func NewIRule(name, partition, code string) *IRule {

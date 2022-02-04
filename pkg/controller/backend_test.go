@@ -36,7 +36,6 @@ var _ = Describe("Backend Tests", func() {
 
 		config := ResourceConfigRequest{
 			rsCfgs:             ResourceConfigs{},
-			customProfiles:     NewCustomProfiles(),
 			shareNodes:         true,
 			dnsConfig:          dnsConfig,
 			defaultRouteDomain: 1,
@@ -241,8 +240,8 @@ var _ = Describe("Backend Tests", func() {
 				},
 			}
 
-			customProfiles := NewCustomProfiles()
-			customProfiles.Profs[SecretKey{
+			rsCfg2.customProfiles = make(map[SecretKey]CustomProfile)
+			rsCfg2.customProfiles[SecretKey{
 				Name:         "default_svc_test_com_cssl",
 				ResourceName: "crd_vs_172.13.14.15",
 			}] = CustomProfile{
@@ -254,7 +253,7 @@ var _ = Describe("Backend Tests", func() {
 				ServerName: "test.com",
 				SNIDefault: false,
 			}
-			customProfiles.Profs[SecretKey{
+			rsCfg2.customProfiles[SecretKey{
 				Name:         "default_svc_test_com_sssl",
 				ResourceName: "crd_vs_172.13.14.15",
 			}] = CustomProfile{
@@ -268,7 +267,6 @@ var _ = Describe("Backend Tests", func() {
 
 			config := ResourceConfigRequest{
 				rsCfgs:             ResourceConfigs{rsCfg, rsCfg2},
-				customProfiles:     customProfiles,
 				shareNodes:         true,
 				dnsConfig:          DNSConfig{},
 				defaultRouteDomain: 1,
@@ -288,6 +286,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.TranslateServerPort = true
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
 			rsCfg.Virtual.Destination = "172.13.14.6:1600"
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 			rsCfg.Pools = Pools{
 				Pool{
 					Name:    "pool1",
@@ -297,7 +296,6 @@ var _ = Describe("Backend Tests", func() {
 
 			config := ResourceConfigRequest{
 				rsCfgs:             ResourceConfigs{rsCfg},
-				customProfiles:     NewCustomProfiles(),
 				shareNodes:         true,
 				dnsConfig:          DNSConfig{},
 				defaultRouteDomain: 1,

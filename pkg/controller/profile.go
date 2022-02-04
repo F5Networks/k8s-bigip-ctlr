@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -34,10 +35,10 @@ func (ctlr *Controller) createSecretClientSSLProfile(
 		Partition: rsCfg.Virtual.Partition,
 		Context:   context,
 	}
-	if _, ok := rsCfg.customProfiles.Profs[skey]; !ok {
+	if _, ok := rsCfg.customProfiles[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
 		cp := NewCustomProfile(sni, "", "", "", true, "", "")
-		rsCfg.customProfiles.Profs[skey] = cp
+		rsCfg.customProfiles[skey] = cp
 	}
 
 	// TODO
@@ -63,16 +64,16 @@ func (ctlr *Controller) createSecretClientSSLProfile(
 		Name:         cp.Name,
 		ResourceName: rsCfg.GetName(),
 	}
-	if prof, ok := rsCfg.customProfiles.Profs[skey]; ok {
+	if prof, ok := rsCfg.customProfiles[skey]; ok {
 		if prof != cp {
-			rsCfg.customProfiles.Profs[skey] = cp
+			rsCfg.customProfiles[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			return nil, true
 		} else {
 			return nil, false
 		}
 	}
-	rsCfg.customProfiles.Profs[skey] = cp
+	rsCfg.customProfiles[skey] = cp
 	rsCfg.Virtual.AddOrUpdateProfile(profRef)
 	return nil, false
 }
@@ -101,10 +102,10 @@ func (ctlr *Controller) createSecretServerSSLProfile(
 		Partition: rsCfg.Virtual.Partition,
 		Context:   context,
 	}
-	if _, ok := rsCfg.customProfiles.Profs[skey]; !ok {
+	if _, ok := rsCfg.customProfiles[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
 		cp := NewCustomProfile(sni, "", "", "", true, "", "")
-		rsCfg.customProfiles.Profs[skey] = cp
+		rsCfg.customProfiles[skey] = cp
 	}
 	// TODO
 	//rsCfg.Virtual.AddOrUpdateProfile(sni)
@@ -129,16 +130,16 @@ func (ctlr *Controller) createSecretServerSSLProfile(
 		Name:         cp.Name,
 		ResourceName: rsCfg.GetName(),
 	}
-	if prof, ok := rsCfg.customProfiles.Profs[skey]; ok {
+	if prof, ok := rsCfg.customProfiles[skey]; ok {
 		if prof != cp {
-			rsCfg.customProfiles.Profs[skey] = cp
+			rsCfg.customProfiles[skey] = cp
 			rsCfg.Virtual.AddOrUpdateProfile(profRef)
 			return nil, true
 		} else {
 			return nil, false
 		}
 	}
-	rsCfg.customProfiles.Profs[skey] = cp
+	rsCfg.customProfiles[skey] = cp
 	rsCfg.Virtual.AddOrUpdateProfile(profRef)
 	return nil, false
 }

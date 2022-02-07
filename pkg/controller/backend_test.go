@@ -35,11 +35,12 @@ var _ = Describe("Backend Tests", func() {
 		}
 
 		config := ResourceConfigRequest{
-			rsCfgs:             ResourceConfigs{},
+			ltmConfig:          make(LTMConfig),
 			shareNodes:         true,
 			dnsConfig:          dnsConfig,
 			defaultRouteDomain: 1,
 		}
+		config.ltmConfig["default"] = make(ResourceMap)
 
 		writer := &test.MockWriter{
 			FailStyle: test.Success,
@@ -233,6 +234,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg2 := &ResourceConfig{}
 			rsCfg2.MetaData.Active = false
 			rsCfg2.MetaData.ResourceType = VirtualServer
+			rsCfg2.Virtual.Name = "crd_vs_172.13.14.16"
 			rsCfg2.Pools = Pools{
 				Pool{
 					Name:    "pool1",
@@ -266,11 +268,15 @@ var _ = Describe("Backend Tests", func() {
 			}
 
 			config := ResourceConfigRequest{
-				rsCfgs:             ResourceConfigs{rsCfg, rsCfg2},
+				ltmConfig:          make(LTMConfig),
 				shareNodes:         true,
 				dnsConfig:          DNSConfig{},
 				defaultRouteDomain: 1,
 			}
+
+			config.ltmConfig["default"] = make(ResourceMap)
+			config.ltmConfig["default"]["crd_vs_172.13.14.15"] = rsCfg
+			config.ltmConfig["default"]["crd_vs_172.13.14.16"] = rsCfg2
 
 			decl := createAS3Declaration(config, "as3")
 
@@ -280,6 +286,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg := &ResourceConfig{}
 			rsCfg.MetaData.Active = true
 			rsCfg.MetaData.ResourceType = TransportServer
+			rsCfg.Virtual.Name = "crd_vs_172.13.14.16"
 			rsCfg.Virtual.Mode = "standard"
 			rsCfg.Virtual.IpProtocol = "tcp"
 			rsCfg.Virtual.TranslateServerAddress = true
@@ -295,11 +302,14 @@ var _ = Describe("Backend Tests", func() {
 			}
 
 			config := ResourceConfigRequest{
-				rsCfgs:             ResourceConfigs{rsCfg},
+				ltmConfig:          make(LTMConfig),
 				shareNodes:         true,
 				dnsConfig:          DNSConfig{},
 				defaultRouteDomain: 1,
 			}
+
+			config.ltmConfig["default"] = make(ResourceMap)
+			config.ltmConfig["default"]["crd_vs_172.13.14.15"] = rsCfg
 
 			decl := createAS3Declaration(config, "as3")
 

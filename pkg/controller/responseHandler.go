@@ -10,7 +10,7 @@ import (
 
 func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 	rm := requestMeta{
-		meta: make(map[string]metaData, len(config.rsCfgs)),
+		meta: make(map[string]metaData, len(config.ltmConfig)),
 	}
 	if ctlr.requestQueue.Len() == 0 {
 		rm.id = 1
@@ -18,9 +18,11 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 		rm.id = ctlr.requestQueue.Back().Value.(requestMeta).id + 1
 	}
 
-	for _, cfg := range config.rsCfgs {
-		for key, _ := range cfg.MetaData.baseResources {
-			rm.meta[key] = cfg.MetaData
+	for _, rsMap := range config.ltmConfig {
+		for _, cfg := range rsMap {
+			for key, _ := range cfg.MetaData.baseResources {
+				rm.meta[key] = cfg.MetaData
+			}
 		}
 	}
 	if len(rm.meta) > 0 {

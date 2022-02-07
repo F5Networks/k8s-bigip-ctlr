@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,10 +42,10 @@ func NewResourceStore() *ResourceStore {
 
 // Init is Receiver to initialize the object.
 func (rs *ResourceStore) Init() {
-	rs.rsMap = make(ResourceConfigMap)
-	rs.oldRsMap = make(ResourceConfigMap)
+	rs.ltmConfig = make(LTMConfig)
+	rs.ltmConfigCache = make(LTMConfig)
 	rs.dnsConfig = make(DNSConfig)
-	rs.oldDNSConfig = make(DNSConfig)
+	rs.dnsConfigCache = make(DNSConfig)
 	rs.poolMemCache = make(PoolMemberCache)
 	rs.nplStore = make(NPLStore)
 }
@@ -785,19 +786,81 @@ func (rc *ResourceConfig) FindPolicy(controlType string) *Policy {
 	return nil
 }
 
-// GetByName gets a specific Resource cfg
-func (rs *ResourceStore) GetByName(name string) (*ResourceConfig, bool) {
-	resource, ok := rs.rsMap[name]
-	return resource, ok
+func (rs *ResourceStore) getPartitionResourceConfigMap(partition string) ResourceMap {
+	_, ok := rs.ltmConfig[partition]
+	if !ok {
+		rs.ltmConfig[partition] = make(ResourceMap)
+	}
+
+	return rs.ltmConfig[partition]
 }
 
-// GetAllResources is list of all resource configs
-func (rs *ResourceStore) GetAllResources() ResourceConfigs {
-	var cfgs ResourceConfigs
-	for _, cfg := range rs.rsMap {
-		cfgs = append(cfgs, cfg)
+// getResource gets a specific Resource cfg
+func (rs *ResourceStore) getResource(partition, name string) (*ResourceConfig, error) {
+
+	rsMap, ok := rs.ltmConfig[partition]
+	if !ok {
+		return nil, fmt.Errorf("partition not available")
 	}
-	return cfgs
+	if res, ok := rsMap[name]; ok {
+		return res, nil
+	}
+	return nil, nil
+}
+
+// GetLTMConfigCopy is a Resource reference copy of LTMConfig
+func (rs *ResourceStore) GetLTMConfigCopy() LTMConfig {
+	ltmConfig := make(LTMConfig)
+	for prtn, rsMap := range rs.ltmConfig {
+		ltmConfig[prtn] = make(ResourceMap)
+		for rsName, res := range rsMap {
+			ltmConfig[prtn][rsName] = res
+		}
+	}
+	return ltmConfig
+}
+
+// GetGTMConfigCopy is a WideIP reference copy of GTMConfig
+func (rs *ResourceStore) GetGTMConfigCopy() DNSConfig {
+	dnsConfig := make(DNSConfig)
+	for dominName, wip := range rs.dnsConfig {
+		rs.dnsConfigCache[dominName] = wip
+	}
+	return dnsConfig
+}
+
+func (rs *ResourceStore) updateCaches() {
+	rs.ltmConfigCache = rs.GetLTMConfigCopy()
+	rs.dnsConfigCache = rs.GetGTMConfigCopy()
+}
+
+func (rs *ResourceStore) isConfigUpdated() bool {
+	return !reflect.DeepEqual(rs.ltmConfig, rs.ltmConfigCache) ||
+		!reflect.DeepEqual(rs.dnsConfig, rs.dnsConfigCache)
+}
+
+func (lc LTMConfig) GetAllPoolMembers() []PoolMember {
+	// Get all pool members and write them to VxlanMgr to configure ARP entries
+	var allPoolMembers []PoolMember
+
+	for _, rsMap := range lc {
+		for _, cfg := range rsMap {
+			// Filter the configs to only those that have active services
+			if cfg.MetaData.Active {
+				for _, pool := range cfg.Pools {
+					allPoolMembers = append(allPoolMembers, pool.Members...)
+				}
+			}
+		}
+	}
+
+	return allPoolMembers
+}
+
+// Deletes respective VirtualServer resource configuration from
+// resource configs.
+func (rs *ResourceStore) deleteVirtualServer(partition, rsName string) {
+	delete(rs.getPartitionResourceConfigMap(partition), rsName)
 }
 
 // Copies from an existing config into our new config
@@ -937,39 +1000,6 @@ func (cfg *ResourceConfig) GetName() string {
 	return cfg.Virtual.Name
 }
 
-func (rcs ResourceConfigs) GetAllPoolMembers() []PoolMember {
-	// Get all pool members and write them to VxlanMgr to configure ARP entries
-	var allPoolMembers []PoolMember
-
-	for _, cfg := range rcs {
-		// Filter the configs to only those that have active services
-		if cfg.MetaData.Active {
-			for _, pool := range cfg.Pools {
-				allPoolMembers = append(allPoolMembers, pool.Members...)
-			}
-		}
-	}
-	return allPoolMembers
-}
-
-func (rs *ResourceStore) updateOldConfig() {
-	rs.oldRsMap = make(ResourceConfigMap)
-	for k, v := range rs.rsMap {
-		rs.oldRsMap[k] = &ResourceConfig{}
-		rs.oldRsMap[k].copyConfig(v)
-	}
-	rs.oldDNSConfig = make(DNSConfig)
-	for k, v := range rs.dnsConfig {
-		rs.oldDNSConfig[k] = v
-	}
-}
-
-// Deletes respective VirtualServer resource configuration from
-// resource configs.
-func (rs *ResourceStore) deleteVirtualServer(rsName string) {
-	delete(rs.rsMap, rsName)
-}
-
 // Internal data group for reencrypt termination.
 const ReencryptHostsDgName = "ssl_reencrypt_servername_dg"
 
@@ -1089,7 +1119,7 @@ func (ctlr *Controller) handleDataGroupIRules(
 }
 
 func (ctlr *Controller) deleteVirtualServer(rsName string) {
-	ctlr.resources.deleteVirtualServer(rsName)
+	ctlr.resources.deleteVirtualServer(ctlr.Partition, rsName)
 }
 
 // Prepares resource config based on VirtualServer resource config

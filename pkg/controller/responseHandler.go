@@ -10,7 +10,7 @@ import (
 
 func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) {
 	rm := requestMeta{
-		meta: make([]metaData, len(config.rsCfgs)),
+		meta: make([]metaData, len(config.ltmConfig)),
 	}
 	if ctlr.requestQueue.Len() == 0 {
 		rm.id = 1
@@ -19,10 +19,12 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) {
 	}
 
 	isEmptyMetadata := true
-	for _, cfg := range config.rsCfgs {
-		if cfg.MetaData.rscName != "" && cfg.MetaData.namespace != "" {
-			rm.meta = append(rm.meta, cfg.MetaData)
-			isEmptyMetadata = false
+	for _, rsMap := range config.ltmConfig {
+		for _, cfg := range rsMap {
+			if cfg.MetaData.rscName != "" && cfg.MetaData.namespace != "" {
+				rm.meta = append(rm.meta, cfg.MetaData)
+				isEmptyMetadata = false
+			}
 		}
 	}
 	if !isEmptyMetadata {

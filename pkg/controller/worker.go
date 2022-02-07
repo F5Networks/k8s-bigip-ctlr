@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -368,20 +367,18 @@ func (ctlr *Controller) processResource() bool {
 		ctlr.rscQueue.Forget(key)
 	}
 
-	if ctlr.rscQueue.Len() == 0 &&
-		(!reflect.DeepEqual(ctlr.resources.rsMap, ctlr.resources.oldRsMap) ||
-			!reflect.DeepEqual(ctlr.resources.dnsConfig, ctlr.resources.oldDNSConfig)) {
+	if ctlr.rscQueue.Len() == 0 && ctlr.resources.isConfigUpdated() {
 		config := ResourceConfigRequest{
-			rsCfgs:             ctlr.resources.GetAllResources(),
+			ltmConfig:          ctlr.resources.GetLTMConfigCopy(),
 			shareNodes:         ctlr.shareNodes,
-			dnsConfig:          ctlr.resources.dnsConfig,
+			dnsConfig:          ctlr.resources.GetGTMConfigCopy(),
 			defaultRouteDomain: ctlr.defaultRouteDomain,
 		}
 		go ctlr.TeemData.PostTeemsData()
 		ctlr.enqueueReq(config)
 		ctlr.Agent.PostConfig(config)
 		ctlr.initState = false
-		ctlr.resources.updateOldConfig()
+		ctlr.resources.updateCaches()
 	}
 	return true
 }
@@ -799,7 +796,7 @@ func (ctlr *Controller) processVirtualServers(
 	portStructs := ctlr.virtualPorts(virtual)
 
 	// vsMap holds Resource Configs of current virtuals temporarily
-	vsMap := make(ResourceConfigMap)
+	vsMap := make(ResourceMap)
 	processingError := false
 	for _, portStruct := range portStructs {
 		// TODO: Add Route Domain
@@ -821,8 +818,10 @@ func (ctlr *Controller) processVirtualServers(
 		if (len(virtuals) == 0) ||
 			(portStruct.protocol == "http" && !doesVSHandleHTTP(virtual)) {
 			var hostnames []string
-			if ctlr.resources.rsMap[rsName] != nil {
-				hostnames = ctlr.resources.rsMap[rsName].MetaData.hosts
+			rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
+
+			if _, ok := rsMap[rsName]; ok {
+				hostnames = rsMap[rsName].MetaData.hosts
 			}
 			ctlr.deleteVirtualServer(rsName)
 			if len(hostnames) > 0 {
@@ -915,13 +914,16 @@ func (ctlr *Controller) processVirtualServers(
 
 	if !processingError {
 		var hostnames []string
-		// Update rsMap with ResourceConfigs created for the current virtuals
+		rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
+
+		// Update ltmConfig with ResourceConfigs created for the current virtuals
 		for rsName, rsCfg := range vsMap {
-			if _, ok := ctlr.resources.rsMap[rsName]; !ok {
+			if _, ok := rsMap[rsName]; !ok {
 				hostnames = rsCfg.MetaData.hosts
 			}
-			ctlr.resources.rsMap[rsName] = rsCfg
+			rsMap[rsName] = rsCfg
 		}
+
 		if len(hostnames) > 0 {
 			ctlr.ProcessAssociatedExternalDNS(hostnames)
 		}
@@ -1067,26 +1069,18 @@ func (ctlr *Controller) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer
 	return obj.(*cisapiv1.Policy), nil
 }
 
-func (ctlr *Controller) getPolicyFromTransportServers(virtuals []*cisapiv1.TransportServer) (*cisapiv1.Policy, error) {
+func (ctlr *Controller) getPolicyFromTransportServer(virtual *cisapiv1.TransportServer) (*cisapiv1.Policy, error) {
 
-	if len(virtuals) == 0 {
+	if virtual == nil {
 		log.Errorf("No virtuals to extract policy from")
 		return nil, nil
 	}
-	plcName := ""
-	ns := virtuals[0].Namespace
-	for _, vrt := range virtuals {
-		if plcName != "" && plcName != vrt.Spec.PolicyName {
-			log.Errorf("Multiple Policies specified for VirtualServerName: %v", vrt.Spec.VirtualServerName)
-			return nil, fmt.Errorf("Multiple Policies specified for VirtualServerName: %v", vrt.Spec.VirtualServerName)
-		}
-		if vrt.Spec.PolicyName != "" {
-			plcName = vrt.Spec.PolicyName
-		}
-	}
+
+	plcName := virtual.Spec.PolicyName
 	if plcName == "" {
 		return nil, nil
 	}
+	ns := virtual.Namespace
 	crInf, ok := ctlr.getNamespacedInformer(ns)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", ns)
@@ -1435,27 +1429,14 @@ func (ctlr *Controller) processTransportServers(
 			return nil
 		}
 	}
-	allVirtuals := ctlr.getAllTransportServers(virtual.ObjectMeta.Namespace)
 	ctlr.TeemData.Lock()
-	ctlr.TeemData.ResourceType.TransportServer[virtual.ObjectMeta.Namespace] = len(allVirtuals)
+	ctlr.TeemData.ResourceType.TransportServer[virtual.ObjectMeta.Namespace] = len(ctlr.getAllTransportServers(virtual.Namespace))
 	ctlr.TeemData.Unlock()
-	var virtuals []*cisapiv1.TransportServer
-
-	// Prepare list of associated VirtualServers to be processed
-	// In the event of deletion, exclude the deleted VirtualServer
-	log.Debugf("Process all the Transport Servers which share same VirtualServerAddress")
-	for _, vrt := range allVirtuals {
-		if vrt.Spec.VirtualServerAddress == virtual.Spec.VirtualServerAddress && vrt.Spec.VirtualServerPort == virtual.Spec.VirtualServerPort &&
-			(!isTSDeleted && vrt.ObjectMeta.Name == virtual.ObjectMeta.Name) {
-			virtuals = append(virtuals, vrt)
-		}
-	}
 
 	if isTSDeleted {
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.TransportServer[virtual.ObjectMeta.Namespace]--
 		ctlr.TeemData.Unlock()
-		// ctlr.handleVSDeleteForDataGroups(tVirtual)
 	}
 
 	var ip string
@@ -1463,7 +1444,7 @@ func (ctlr *Controller) processTransportServers(
 	var status int
 	key = virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name + "_ts"
 	if ctlr.ipamCli != nil {
-		if isTSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
+		if isTSDeleted && virtual.Spec.VirtualServerAddress == "" {
 			ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, "", key)
 		} else if virtual.Spec.VirtualServerAddress != "" {
 			ip = virtual.Spec.VirtualServerAddress
@@ -1493,9 +1474,6 @@ func (ctlr *Controller) processTransportServers(
 		ip = virtual.Spec.VirtualServerAddress
 	}
 
-	// vsMap holds Resource Configs of current virtuals temporarily
-	vsMap := make(ResourceConfigMap)
-	processingError := false
 	var rsName string
 	if virtual.Spec.VirtualServerName != "" {
 		rsName = formatCustomVirtualServerName(
@@ -1508,8 +1486,8 @@ func (ctlr *Controller) processTransportServers(
 			virtual.Spec.VirtualServerPort,
 		)
 	}
-	if len(virtuals) == 0 {
-		ctlr.resources.deleteVirtualServer(rsName)
+	if isTSDeleted {
+		ctlr.deleteVirtualServer(rsName)
 		return nil
 	}
 
@@ -1525,55 +1503,43 @@ func (ctlr *Controller) processTransportServers(
 		ip,
 		virtual.Spec.VirtualServerPort,
 	)
-	plc, err := ctlr.getPolicyFromTransportServers(virtuals)
+	plc, err := ctlr.getPolicyFromTransportServer(virtual)
 	if plc != nil {
 		err := ctlr.handleTSResourceConfigForPolicy(rsCfg, plc)
 		if err != nil {
-			processingError = true
+			log.Errorf("%v", err)
+			return nil
 		}
 	}
 	if err != nil {
-		processingError = true
 		log.Errorf("%v", err)
+		return nil
 	}
 
-	for _, vrt := range virtuals {
-		log.Debugf("Processing Transport Server %s for port %v",
-			vrt.ObjectMeta.Name, vrt.Spec.VirtualServerPort)
-		err := ctlr.prepareRSConfigFromTransportServer(
-			rsCfg,
-			vrt,
-		)
-		if err != nil {
-			processingError = true
-			break
-		}
-
-		if processingError {
-			log.Errorf("Cannot Publish TransportServer %s", virtual.ObjectMeta.Name)
-			break
-		}
-
-		// Save ResourceConfig in temporary Map
-		vsMap[rsName] = rsCfg
-
-		if ctlr.PoolMemberType == NodePort {
-			ctlr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
-		} else {
-			ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
-		}
+	log.Debugf("Processing Transport Server %s for port %v",
+		virtual.ObjectMeta.Name, virtual.Spec.VirtualServerPort)
+	err = ctlr.prepareRSConfigFromTransportServer(
+		rsCfg,
+		virtual,
+	)
+	if err != nil {
+		log.Errorf("Cannot Publish TransportServer %s", virtual.ObjectMeta.Name)
+		return nil
 	}
-	if !processingError {
-		// Update rsMap with ResourceConfigs created for the current transport virtuals
-		for rsName, rsCfg := range vsMap {
-			ctlr.resources.rsMap[rsName] = rsCfg
-		}
+
+	if ctlr.PoolMemberType == NodePort {
+		ctlr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
+	} else {
+		ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
 	}
+
+	rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
+	rsMap[rsName] = rsCfg
+
 	return nil
-
 }
 
-// getAllTransportServers returns list of all valid TransportServers in rkey namespace.
+// getAllTSFromMonitoredNamespaces returns list of all valid TransportServers in monitored namespaces.
 func (ctlr *Controller) getAllTSFromMonitoredNamespaces() []*cisapiv1.TransportServer {
 	var allVirtuals []*cisapiv1.TransportServer
 	if ctlr.watchingAllNamespaces() {
@@ -1825,7 +1791,7 @@ func (ctlr *Controller) processLBServices(
 
 		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		if isSVCDeleted {
-			delete(ctlr.resources.rsMap, rsName)
+			delete(ctlr.resources.ltmConfig, rsName)
 			continue
 		}
 
@@ -1848,8 +1814,9 @@ func (ctlr *Controller) processLBServices(
 			ctlr.updatePoolMembersForCluster(rsCfg, svc.Namespace)
 		}
 
-		ctlr.resources.rsMap[rsName] = rsCfg
+		rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
 
+		rsMap[rsName] = rsCfg
 	}
 
 	return nil
@@ -1955,7 +1922,9 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		if pl.LoadBalanceMethod == "" {
 			pool.LBMethod = "round-robin"
 		}
-		for vsName, vs := range ctlr.resources.rsMap {
+		rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
+
+		for vsName, vs := range rsMap {
 			var found bool
 			for _, host := range vs.MetaData.hosts {
 				if host == edns.Spec.DomainName {
@@ -1977,6 +1946,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 				)
 			}
 		}
+
 		if pl.Monitor.Type != "" {
 			// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
 			if pl.Monitor.Type == "http" || pl.Monitor.Type == "https" {
@@ -2136,7 +2106,7 @@ func (ctlr *Controller) processIngressLink(
 	}
 	if isILDeleted {
 		var delRes []string
-		for k := range ctlr.resources.rsMap {
+		for k := range ctlr.resources.ltmConfig {
 			rsName := "ingress_link_" + formatVirtualServerName(
 				ip,
 				0,
@@ -2146,7 +2116,7 @@ func (ctlr *Controller) processIngressLink(
 			}
 		}
 		for _, rsname := range delRes {
-			delete(ctlr.resources.rsMap, rsname)
+			delete(ctlr.resources.ltmConfig, rsname)
 		}
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.IngressLink[ingLink.Namespace]--
@@ -2171,6 +2141,8 @@ func (ctlr *Controller) processIngressLink(
 			log.Errorf("Nodeport not found for nginx monitor port: %v", nginxMonitorPort)
 		}
 	}
+
+	rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
 	for _, port := range svc.Spec.Ports {
 		//for nginx health monitor port skip vs creation
 		if port.Port == nginxMonitorPort {
@@ -2218,7 +2190,7 @@ func (ctlr *Controller) processIngressLink(
 		pool.MonitorNames = append(pool.MonitorNames, monitorName)
 		rsCfg.Virtual.PoolName = pool.Name
 		rsCfg.Pools = append(rsCfg.Pools, pool)
-		ctlr.resources.rsMap[rsName] = rsCfg
+		rsMap[rsName] = rsCfg
 
 		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, ingLink.ObjectMeta.Namespace)

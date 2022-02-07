@@ -188,7 +188,7 @@ type (
 		Partition string `json:"partition"`
 	}
 
-	// ResourceConfig containes a set of LTM resources to create a Virtual Server
+	// ResourceConfig contains a set of LTM resources to create a Virtual Server
 	ResourceConfig struct {
 		MetaData       metaData         `json:"-"`
 		Virtual        Virtual          `json:"virtual,omitempty"`
@@ -205,20 +205,23 @@ type (
 
 	// ResourceStore contain processed LTM and GTM resource data
 	ResourceStore struct {
-		sync.Mutex
-		rsMap        ResourceConfigMap
-		oldRsMap     ResourceConfigMap
-		dnsConfig    DNSConfig
-		oldDNSConfig DNSConfig
-		poolMemCache PoolMemberCache
+		ltmConfig      LTMConfig
+		ltmConfigCache LTMConfig
+		dnsConfig      DNSConfig
+		dnsConfigCache DNSConfig
+		poolMemCache   PoolMemberCache
 	}
 
-	// ResourceConfigMap key is resource name, value is pointer to config. May be shared.
-	ResourceConfigMap map[string]*ResourceConfig
+	// LTMConfig contain partition based ResourceMap
+	LTMConfig map[string]ResourceMap
+
+	// ResourceMap key is resource name, value is pointer to config. May be shared.
+	ResourceMap map[string]*ResourceConfig
 
 	// PoolMemberCache key is namespace/service
 	PoolMemberCache map[string]poolMembersInfo
 
+	// DNSConfig key is domainName and value is WideIP
 	DNSConfig map[string]WideIP
 
 	WideIPs struct {
@@ -241,7 +244,7 @@ type (
 	}
 
 	ResourceConfigRequest struct {
-		rsCfgs             ResourceConfigs
+		ltmConfig          LTMConfig
 		shareNodes         bool
 		dnsConfig          DNSConfig
 		defaultRouteDomain int

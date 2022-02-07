@@ -62,7 +62,15 @@ var _ = Describe("Backend Tests", func() {
 
 	Describe("Prepare AS3 Declaration", func() {
 		var mem1, mem2, mem3, mem4 PoolMember
+		var agent *Agent
 		BeforeEach(func() {
+			writer := &test.MockWriter{
+				FailStyle: test.Success,
+				Sections:  make(map[string]interface{}),
+			}
+			agent = newMockAgent(writer)
+			agent.userAgent = "as3"
+
 			mem1 = PoolMember{
 				Address: "1.2.3.5",
 				Port:    8080,
@@ -276,7 +284,7 @@ var _ = Describe("Backend Tests", func() {
 			config.ltmConfig["default"]["crd_vs_172.13.14.15"] = rsCfg
 			config.ltmConfig["default"]["crd_vs_172.13.14.16"] = rsCfg2
 
-			decl := createAS3Declaration(config, "as3")
+			decl := agent.createAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 		})
@@ -309,10 +317,27 @@ var _ = Describe("Backend Tests", func() {
 			config.ltmConfig["default"] = make(ResourceMap)
 			config.ltmConfig["default"]["crd_vs_172.13.14.15"] = rsCfg
 
-			decl := createAS3Declaration(config, "as3")
+			decl := agent.createAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 
+		})
+		It("Delete partition", func() {
+			config := ResourceConfigRequest{
+				ltmConfig:          make(LTMConfig),
+				shareNodes:         true,
+				dnsConfig:          DNSConfig{},
+				defaultRouteDomain: 1,
+			}
+
+			config.ltmConfig["default"] = make(ResourceMap)
+			adc := make(map[string]interface{})
+			agent.createTenantAS3Declaration(config, adc)
+			deletedTenantDecl := as3Tenant{
+				"class": "Tenant",
+			}
+			Expect(adc["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
+			Expect(agent.newDecl["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
 		})
 	})
 

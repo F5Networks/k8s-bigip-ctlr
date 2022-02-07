@@ -459,10 +459,12 @@ type (
 		ConfigWriter    writer.Writer
 		EventChan       chan interface{}
 		PythonDriverPID int
-		activeDecl      as3Declaration
-		userAgent       string
-		HttpAddress     string
-		EnableIPV6      bool
+		// activeDecl,newDecl hold tenant names and corresponding AS3 config
+		activeDecl  map[string]interface{}
+		newDecl     map[string]interface{}
+		userAgent   string
+		HttpAddress string
+		EnableIPV6  bool
 	}
 
 	AgentParams struct {

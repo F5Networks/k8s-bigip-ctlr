@@ -77,8 +77,10 @@ func (am *AS3Manager) processResourcesForAS3(sharedApp as3Application) {
 //}
 
 func (am *AS3Manager) processIRulesForAS3(sharedApp as3Application) {
+	am.ResourceRequest.IRulesStore.IrulesMutex.Lock()
+	defer am.ResourceRequest.IRulesStore.IrulesMutex.Unlock()
 	// Create irule declaration
-	for _, v := range am.IrulesMap {
+	for _, v := range am.IRulesStore.IRulesMap {
 		iRule := &as3IRules{}
 		iRule.Class = "iRule"
 		iRule.IRule = v.Code

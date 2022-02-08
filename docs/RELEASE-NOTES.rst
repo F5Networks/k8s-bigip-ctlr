@@ -8,6 +8,7 @@ Added Functionality
 Enhancements
 ````````````
 * Added fix for processing oldest route when same host and path in routes
+* Added fix for cis crash with routes
 
 2.7.1
 -------------

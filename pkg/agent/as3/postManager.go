@@ -39,11 +39,12 @@ const (
 )
 
 const (
-	responseStatusOk                 = "statusOK"
-	responseStatusCommon             = "statusCommonResponse"
-	responseStatusNotFound           = "statusNotFound"
-	responseStatusServiceUnavailable = "statusServiceUnavailable"
-	responseStatusDummy              = "dummy"
+	responseStatusOk                  = "statusOK"
+	responseStatusCommon              = "statusCommonResponse"
+	responseStatusNotFound            = "statusNotFound"
+	responseStatusServiceUnavailable  = "statusServiceUnavailable"
+	responseStatusUnprocessableEntity = "statusUnprocessableEntity"
+	responseStatusDummy               = "dummy"
 )
 
 type PostManager struct {
@@ -157,6 +158,8 @@ func (postMgr *PostManager) postConfigRequests(data string, url string) (bool, s
 		return postMgr.handleResponseStatusServiceUnavailable(responseMap)
 	case http.StatusNotFound:
 		return postMgr.handleResponseStatusNotFound(responseMap)
+	case http.StatusUnprocessableEntity:
+		return postMgr.handleStatusUnprocessableEntity(responseMap)
 	default:
 		return postMgr.handleResponseOthers(responseMap)
 	}
@@ -284,6 +287,19 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
 	return true, responseStatusNotFound
+}
+
+func (postMgr *PostManager) handleStatusUnprocessableEntity(responseMap map[string]interface{}) (bool, string) {
+	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
+		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])
+	} else {
+		log.Errorf("[AS3] Big-IP Responded with error code: %v", http.StatusUnprocessableEntity)
+	}
+
+	if postMgr.LogResponse {
+		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
+	}
+	return true, responseStatusUnprocessableEntity
 }
 
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}) (bool, string) {

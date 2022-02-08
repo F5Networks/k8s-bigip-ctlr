@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"context"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 	"reflect"
 	"sort"
 	"time"
@@ -9,6 +11,7 @@ import (
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/fake"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/informers/externalversions/cis/v1"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
@@ -740,115 +743,118 @@ var _ = Describe("Worker Tests", func() {
 
 	})
 
-	//Describe("Processing Resources", func() {
-	//	It("Processing ServiceTypeLoadBalancer", func() {
-	//		// Service when IPAM is not available
-	//		_ = mockCtlr.processLBServices(svc1, false)
-	//		Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
-	//
-	//		mockCtlr.Agent = &Agent{
-	//			PostManager: &PostManager{
-	//				PostParams: PostParams{
-	//					BIGIPURL: "10.10.10.1",
-	//				},
-	//			},
-	//		}
-	//		mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
-	//		mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
-	//
-	//		svc1.Spec.Type = v1.ServiceTypeLoadBalancer
-	//
-	//		mockCtlr.resources.Init()
-	//
-	//		// Service Without annotation
-	//		_ = mockCtlr.processLBServices(svc1, false)
-	//		Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
-	//
-	//		svc1.Annotations = make(map[string]string)
-	//		svc1.Annotations[LBServiceIPAMLabelAnnotation] = "test"
-	//
-	//		svc1, _ = mockCtlr.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc1, metav1.UpdateOptions{})
-	//
-	//		_ = mockCtlr.processLBServices(svc1, false)
-	//		Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
-	//
-	//		_ = mockCtlr.createIPAMResource()
-	//		ipamCR := mockCtlr.getIPAMCR()
-	//
-	//		ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
-	//			{
-	//				IPAMLabel: "test",
-	//				Host:      "",
-	//				Key:       svc1.Namespace + "/" + svc1.Name + "_svc",
-	//			},
-	//		}
-	//
-	//		ipamCR.Status.IPStatus = []*ficV1.IPSpec{
-	//			{
-	//				IPAMLabel: "test",
-	//				Host:      "",
-	//				IP:        "10.10.10.1",
-	//				Key:       svc1.Namespace + "/" + svc1.Name + "_svc",
-	//			},
-	//		}
-	//		ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
-	//
-	//		_ = mockCtlr.processLBServices(svc1, false)
-	//		Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
-	//
-	//		_ = mockCtlr.processLBServices(svc1, true)
-	//		Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Resource Configs")
-	//
-	//		Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
-	//		mockCtlr.eraseLBServiceIngressStatus(svc1)
-	//		Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(0))
-	//	})
-	//
-	//	It("Processing External DNS", func() {
-	//		mockCtlr.resources.Init()
-	//		mockCtlr.TeemData = &teem.TeemsData{
-	//			ResourceType: teem.ResourceTypes{
-	//				ExternalDNS: make(map[string]int),
-	//			},
-	//		}
-	//
-	//		newEDNS := test.NewExternalDNS(
-	//			"SampleEDNS",
-	//			namespace,
-	//			cisapiv1.ExternalDNSSpec{
-	//				DomainName: "test.com",
-	//				Pools: []cisapiv1.DNSPool{
-	//					{
-	//						DataServerName: "DataServer",
-	//						Monitor: cisapiv1.Monitor{
-	//							Type:     "http",
-	//							Send:     "GET /health",
-	//							Interval: 10,
-	//							Timeout:  10,
-	//						},
-	//					},
-	//				},
-	//			})
-	//
-	//		mockCtlr.processExternalDNS(newEDNS, false)
-	//		Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(1))
-	//		Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools)).To(Equal(1))
-	//		Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools[0].Members)).To(Equal(0))
-	//
-	//		mockCtlr.resources.ltmConfig["SampleVS"] = &ResourceConfig{
-	//			MetaData: metaData{
-	//				hosts: []string{"test.com"},
-	//			},
-	//		}
-	//		mockCtlr.processExternalDNS(newEDNS, false)
-	//		Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(1))
-	//		Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools)).To(Equal(1))
-	//		Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools[0].Members)).To(Equal(1))
-	//
-	//		mockCtlr.processExternalDNS(newEDNS, true)
-	//		Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(0))
-	//	})
-	//})
+	Describe("Processing Resources", func() {
+		It("Processing ServiceTypeLoadBalancer", func() {
+			// Service when IPAM is not available
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
+
+			mockCtlr.Agent = &Agent{
+				PostManager: &PostManager{
+					PostParams: PostParams{
+						BIGIPURL: "10.10.10.1",
+					},
+				},
+			}
+			mockCtlr.Partition = "default"
+			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
+
+			svc1.Spec.Type = v1.ServiceTypeLoadBalancer
+
+			mockCtlr.resources.Init()
+
+			// Service Without annotation
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
+
+			svc1.Annotations = make(map[string]string)
+			svc1.Annotations[LBServiceIPAMLabelAnnotation] = "test"
+
+			svc1, _ = mockCtlr.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(context.TODO(), svc1, metav1.UpdateOptions{})
+
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Resource Config should be empty")
+
+			_ = mockCtlr.createIPAMResource()
+			ipamCR := mockCtlr.getIPAMCR()
+
+			ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
+				{
+					IPAMLabel: "test",
+					Host:      "",
+					Key:       svc1.Namespace + "/" + svc1.Name + "_svc",
+				},
+			}
+
+			ipamCR.Status.IPStatus = []*ficV1.IPSpec{
+				{
+					IPAMLabel: "test",
+					Host:      "",
+					IP:        "10.10.10.1",
+					Key:       svc1.Namespace + "/" + svc1.Name + "_svc",
+				},
+			}
+			ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+
+			_ = mockCtlr.processLBServices(svc1, false)
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
+
+			_ = mockCtlr.processLBServices(svc1, true)
+			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition])).To(Equal(0), "Invalid Resource Configs")
+
+			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
+			mockCtlr.eraseLBServiceIngressStatus(svc1)
+			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(0))
+		})
+
+		It("Processing External DNS", func() {
+			mockCtlr.resources.Init()
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					ExternalDNS: make(map[string]int),
+				},
+			}
+			mockCtlr.Partition = "default"
+
+			newEDNS := test.NewExternalDNS(
+				"SampleEDNS",
+				namespace,
+				cisapiv1.ExternalDNSSpec{
+					DomainName: "test.com",
+					Pools: []cisapiv1.DNSPool{
+						{
+							DataServerName: "DataServer",
+							Monitor: cisapiv1.Monitor{
+								Type:     "http",
+								Send:     "GET /health",
+								Interval: 10,
+								Timeout:  10,
+							},
+						},
+					},
+				})
+
+			mockCtlr.processExternalDNS(newEDNS, false)
+			Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(1))
+			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools)).To(Equal(1))
+			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools[0].Members)).To(Equal(0))
+
+			mockCtlr.resources.ltmConfig["default"] = make(ResourceMap)
+			mockCtlr.resources.ltmConfig["default"]["SampleVS"] = &ResourceConfig{
+				MetaData: metaData{
+					hosts: []string{"test.com"},
+				},
+			}
+			mockCtlr.processExternalDNS(newEDNS, false)
+			Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(1))
+			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools)).To(Equal(1))
+			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools[0].Members)).To(Equal(1))
+
+			mockCtlr.processExternalDNS(newEDNS, true)
+			Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(0))
+		})
+	})
 
 	It("get node port", func() {
 		svc1.Spec.Ports[0].NodePort = 30000

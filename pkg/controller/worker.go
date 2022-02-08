@@ -369,9 +369,9 @@ func (ctlr *Controller) processResource() bool {
 
 	if ctlr.rscQueue.Len() == 0 && ctlr.resources.isConfigUpdated() {
 		config := ResourceConfigRequest{
-			ltmConfig:          ctlr.resources.GetLTMConfigCopy(),
+			ltmConfig:          ctlr.resources.getLTMConfigCopy(),
 			shareNodes:         ctlr.shareNodes,
-			dnsConfig:          ctlr.resources.GetGTMConfigCopy(),
+			dnsConfig:          ctlr.resources.getGTMConfigCopy(),
 			defaultRouteDomain: ctlr.defaultRouteDomain,
 		}
 		go ctlr.TeemData.PostTeemsData()
@@ -818,7 +818,7 @@ func (ctlr *Controller) processVirtualServers(
 		if (len(virtuals) == 0) ||
 			(portStruct.protocol == "http" && !doesVSHandleHTTP(virtual)) {
 			var hostnames []string
-			rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
+			rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
 
 			if _, ok := rsMap[rsName]; ok {
 				hostnames = rsMap[rsName].MetaData.hosts
@@ -914,7 +914,7 @@ func (ctlr *Controller) processVirtualServers(
 
 	if !processingError {
 		var hostnames []string
-		rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
+		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
 
 		// Update ltmConfig with ResourceConfigs created for the current virtuals
 		for rsName, rsCfg := range vsMap {
@@ -1533,7 +1533,7 @@ func (ctlr *Controller) processTransportServers(
 		ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
 	}
 
-	rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
+	rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
 	rsMap[rsName] = rsCfg
 
 	return nil
@@ -1791,7 +1791,7 @@ func (ctlr *Controller) processLBServices(
 
 		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		if isSVCDeleted {
-			delete(ctlr.resources.ltmConfig, rsName)
+			ctlr.deleteVirtualServer(rsName)
 			continue
 		}
 
@@ -1814,7 +1814,7 @@ func (ctlr *Controller) processLBServices(
 			ctlr.updatePoolMembersForCluster(rsCfg, svc.Namespace)
 		}
 
-		rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
+		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
 
 		rsMap[rsName] = rsCfg
 	}
@@ -1922,7 +1922,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		if pl.LoadBalanceMethod == "" {
 			pool.LBMethod = "round-robin"
 		}
-		rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
+		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
 
 		for vsName, vs := range rsMap {
 			var found bool
@@ -2142,7 +2142,7 @@ func (ctlr *Controller) processIngressLink(
 		}
 	}
 
-	rsMap := ctlr.resources.getPartitionResourceConfigMap(ctlr.Partition)
+	rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
 	for _, port := range svc.Spec.Ports {
 		//for nginx health monitor port skip vs creation
 		if port.Port == nginxMonitorPort {

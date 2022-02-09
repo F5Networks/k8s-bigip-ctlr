@@ -786,7 +786,7 @@ func (rc *ResourceConfig) FindPolicy(controlType string) *Policy {
 	return nil
 }
 
-func (rs *ResourceStore) getPartitionResourceConfigMap(partition string) ResourceMap {
+func (rs *ResourceStore) getPartitionResourceMap(partition string) ResourceMap {
 	_, ok := rs.ltmConfig[partition]
 	if !ok {
 		rs.ltmConfig[partition] = make(ResourceMap)
@@ -805,11 +805,11 @@ func (rs *ResourceStore) getResource(partition, name string) (*ResourceConfig, e
 	if res, ok := rsMap[name]; ok {
 		return res, nil
 	}
-	return nil, nil
+	return nil, fmt.Errorf("resource not available")
 }
 
-// GetLTMConfigCopy is a Resource reference copy of LTMConfig
-func (rs *ResourceStore) GetLTMConfigCopy() LTMConfig {
+// getLTMConfigCopy is a Resource reference copy of LTMConfig
+func (rs *ResourceStore) getLTMConfigCopy() LTMConfig {
 	ltmConfig := make(LTMConfig)
 	for prtn, rsMap := range rs.ltmConfig {
 		ltmConfig[prtn] = make(ResourceMap)
@@ -820,8 +820,8 @@ func (rs *ResourceStore) GetLTMConfigCopy() LTMConfig {
 	return ltmConfig
 }
 
-// GetGTMConfigCopy is a WideIP reference copy of GTMConfig
-func (rs *ResourceStore) GetGTMConfigCopy() DNSConfig {
+// getGTMConfigCopy is a WideIP reference copy of GTMConfig
+func (rs *ResourceStore) getGTMConfigCopy() DNSConfig {
 	dnsConfig := make(DNSConfig)
 	for dominName, wip := range rs.dnsConfig {
 		rs.dnsConfigCache[dominName] = wip
@@ -830,13 +830,18 @@ func (rs *ResourceStore) GetGTMConfigCopy() DNSConfig {
 }
 
 func (rs *ResourceStore) updateCaches() {
-	rs.ltmConfigCache = rs.GetLTMConfigCopy()
-	rs.dnsConfigCache = rs.GetGTMConfigCopy()
+	rs.ltmConfigCache = rs.getLTMConfigCopy()
+	rs.dnsConfigCache = rs.getGTMConfigCopy()
 }
 
 func (rs *ResourceStore) isConfigUpdated() bool {
 	return !reflect.DeepEqual(rs.ltmConfig, rs.ltmConfigCache) ||
 		!reflect.DeepEqual(rs.dnsConfig, rs.dnsConfigCache)
+}
+
+// Deletes respective VirtualServer resource configuration from  ResourceStore
+func (rs *ResourceStore) deleteVirtualServer(partition, rsName string) {
+	delete(rs.getPartitionResourceMap(partition), rsName)
 }
 
 func (lc LTMConfig) GetAllPoolMembers() []PoolMember {
@@ -855,12 +860,6 @@ func (lc LTMConfig) GetAllPoolMembers() []PoolMember {
 	}
 
 	return allPoolMembers
-}
-
-// Deletes respective VirtualServer resource configuration from
-// resource configs.
-func (rs *ResourceStore) deleteVirtualServer(partition, rsName string) {
-	delete(rs.getPartitionResourceConfigMap(partition), rsName)
 }
 
 // Copies from an existing config into our new config

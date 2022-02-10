@@ -1972,7 +1972,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 			}
 			if found {
 				//No need to add insecure VS into wideIP pool if VS configured with httpTraffic as redirect
-				if vs.MetaData.Protocol == "http" && vs.MetaData.httpTraffic == TLSRedirectInsecure {
+				if vs.MetaData.Protocol == "http" && (vs.MetaData.httpTraffic == TLSRedirectInsecure || vs.MetaData.httpTraffic == TLSAllowInsecure) {
 					continue
 				}
 				log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("%v:/%v/Shared/%v",

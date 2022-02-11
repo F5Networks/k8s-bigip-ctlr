@@ -248,6 +248,7 @@ type (
 		dnsConfig          DNSConfig
 		defaultRouteDomain int
 		reqId              int
+		isVSDeleted        bool
 	}
 
 	// Pool config
@@ -503,9 +504,10 @@ type (
 	}
 
 	agentConfig struct {
-		data      string
-		as3APIURL string
-		id        int
+		data            string
+		as3APIURL       string
+		id              int
+		isDeleteRequest bool
 	}
 
 	globalSection struct {

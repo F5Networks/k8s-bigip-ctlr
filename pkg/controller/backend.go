@@ -139,9 +139,10 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 		return
 	}
 	cfg := agentConfig{
-		data:      string(decl),
-		as3APIURL: agent.getAS3APIURL(nil),
-		id:        rsConfig.reqId,
+		data:            string(decl),
+		as3APIURL:       agent.getAS3APIURL(nil),
+		id:              rsConfig.reqId,
+		isDeleteRequest: rsConfig.isVSDeleted,
 	}
 
 	agent.Write(cfg)

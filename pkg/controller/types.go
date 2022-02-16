@@ -424,6 +424,7 @@ type (
 		SNIDefault   bool   `json:"sniDefault,omitempty"`
 		PeerCertMode string `json:"peerCertMode,omitempty"`
 		CAFile       string `json:"caFile,omitempty"`
+		ChainCA      string `json:"chainCA,onitempty"`
 	}
 
 	portStruct struct {
@@ -755,5 +756,33 @@ type (
 		Port    int32  `json:"port"`
 		SvcPort int32  `json:"svcPort,omitempty"`
 		Session string `json:"session,omitempty"`
+	}
+
+	BigIPSSLProfiles struct {
+		clientSSL                string
+		serverSSL                string
+		key                      string
+		certificate              string
+		caCertificate            string
+		destinationCACertificate string
+	}
+
+	poolPathRef struct {
+		path     string
+		poolName string
+	}
+
+	TLSContext struct {
+		name             string
+		namespace        string
+		resourceType     string
+		referenceType    string
+		hostname         string
+		httpsPort        int32
+		ipAddress        string
+		termination      string
+		httpTraffic      string
+		poolPathRefs     []poolPathRef
+		bigIPSSLProfiles BigIPSSLProfiles
 	}
 )

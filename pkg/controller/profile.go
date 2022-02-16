@@ -25,6 +25,19 @@ func (ctlr *Controller) createSecretClientSSLProfile(
 		return err, false
 	}
 
+	return ctlr.createClientSSLProfile(rsCfg, string(secret.Data["tls.key"]), string(secret.Data["tls.crt"]), secret.ObjectMeta.Name, secret.ObjectMeta.Namespace, context)
+}
+
+// Creates a new ClientSSL profile from a Secret
+func (ctlr *Controller) createClientSSLProfile(
+	rsCfg *ResourceConfig,
+	key string,
+	cert string,
+	name string,
+	namespace string,
+	context string,
+) (error, bool) {
+
 	// Create Default for SNI profile
 	skey := SecretKey{
 		Name:         fmt.Sprintf("default-%s-%s", context, rsCfg.GetName()),
@@ -37,7 +50,7 @@ func (ctlr *Controller) createSecretClientSSLProfile(
 	}
 	if _, ok := rsCfg.customProfiles[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
-		cp := NewCustomProfile(sni, "", "", "", true, "", "")
+		cp := NewCustomProfile(sni, "", "", "", true, "", "", "")
 		rsCfg.customProfiles[skey] = cp
 	}
 
@@ -46,19 +59,20 @@ func (ctlr *Controller) createSecretClientSSLProfile(
 
 	// Now add the resource profile
 	profRef := ProfileRef{
-		Name:      secret.ObjectMeta.Name,
+		Name:      name,
 		Partition: rsCfg.Virtual.Partition,
 		Context:   context,
-		Namespace: secret.ObjectMeta.Namespace,
+		Namespace: namespace,
 	}
 	cp := NewCustomProfile(
 		profRef,
-		string(secret.Data["tls.crt"]),
-		string(secret.Data["tls.key"]),
+		cert,
+		key,
 		"",    // serverName
 		false, // sni
 		"",    // peerCertMode
 		"",    // caFile
+		"",    // chainCA
 	)
 	skey = SecretKey{
 		Name:         cp.Name,
@@ -91,6 +105,18 @@ func (ctlr *Controller) createSecretServerSSLProfile(
 			secret.ObjectMeta.Name)
 		return err, false
 	}
+	return ctlr.createServerSSLProfile(rsCfg, string(secret.Data["tls.crt"]), "", secret.ObjectMeta.Name, secret.ObjectMeta.Namespace, context)
+}
+
+// Creates a new ServerSSL profile from a Secret
+func (ctlr *Controller) createServerSSLProfile(
+	rsCfg *ResourceConfig,
+	cert string,
+	certchain string,
+	name string,
+	namespace string,
+	context string,
+) (error, bool) {
 
 	// Create Default for SNI profile
 	skey := SecretKey{
@@ -104,7 +130,7 @@ func (ctlr *Controller) createSecretServerSSLProfile(
 	}
 	if _, ok := rsCfg.customProfiles[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
-		cp := NewCustomProfile(sni, "", "", "", true, "", "")
+		cp := NewCustomProfile(sni, "", "", "", true, "", "", "")
 		rsCfg.customProfiles[skey] = cp
 	}
 	// TODO
@@ -112,19 +138,20 @@ func (ctlr *Controller) createSecretServerSSLProfile(
 
 	// Now add the resource profile
 	profRef := ProfileRef{
-		Name:      secret.ObjectMeta.Name,
+		Name:      name,
 		Partition: rsCfg.Virtual.Partition,
 		Context:   context,
-		Namespace: secret.ObjectMeta.Namespace,
+		Namespace: namespace,
 	}
 	cp := NewCustomProfile(
 		profRef,
-		string(secret.Data["tls.crt"]),
+		cert,
 		"",
-		"",    // serverName
-		false, // sni
-		"",    // peerCertMode
-		"",    // caFile
+		"",        // serverName
+		false,     // sni
+		"",        // peerCertMode
+		"",        // caFile
+		certchain, // certchain
 	)
 	skey = SecretKey{
 		Name:         cp.Name,

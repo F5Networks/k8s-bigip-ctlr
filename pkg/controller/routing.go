@@ -884,30 +884,27 @@ func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string) string {
 
 func updateDataGroupOfDgName(
 	intDgMap InternalDataGroupMap,
-	virtual *cisapiv1.VirtualServer,
+	poolPathRefs []poolPathRef,
 	rsVSName string,
 	dgName string,
+	hostName string,
+	namespace string,
 ) {
-	hostName := virtual.Spec.Host
-	namespace := virtual.ObjectMeta.Namespace
-
 	rsDGName := getRSCfgResName(rsVSName, dgName)
 	switch dgName {
 	case EdgeHostsDgName, ReencryptHostsDgName:
 		// Combination of hostName and path are used as key in edge Datagroup.
 		// Servername and path from the ssl::payload of clientssl_data Irule event is
 		// used as value in edge and reencrypt Datagroup.
-		for _, pl := range virtual.Spec.Pools {
-			path := pl.Path
-			routePath := hostName + path
+		for _, pl := range poolPathRefs {
+			routePath := hostName + pl.path
 			routePath = strings.TrimSuffix(routePath, "/")
-			poolName := formatVirtualServerPoolName(namespace, pl.Service, pl.ServicePort, pl.NodeMemberLabel)
 			updateDataGroup(intDgMap, rsDGName,
-				DEFAULT_PARTITION, namespace, routePath, poolName)
+				DEFAULT_PARTITION, namespace, routePath, pl.poolName)
 		}
 	case HttpsRedirectDgName:
-		for _, pl := range virtual.Spec.Pools {
-			path := pl.Path
+		for _, pl := range poolPathRefs {
+			path := pl.path
 			if path == "" {
 				path = "/"
 			}

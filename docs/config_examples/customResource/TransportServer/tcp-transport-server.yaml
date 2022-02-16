@@ -12,6 +12,7 @@ spec:
   mode: standard
   snat: auto
   allowVlans: ["/Common/devtraffic"]
+  persistenceProfile: "destination-address"
   pool:
     service: svc-1
     servicePort: 8181

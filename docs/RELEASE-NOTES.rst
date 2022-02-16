@@ -1,10 +1,15 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.8.0
 -------------
 Added Functionality
 ```````````````````
+
+**What’s new:**
+    * CRD:
+        * Persistence Profile CR support for VirtualServer, TransportServer and Policy CRs. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+
 Enhancements
 ````````````
 * Added fix for processing oldest route when same host and path in routes

@@ -349,7 +349,6 @@ func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application, sh
 
 		//Create pools
 		createPoolDecl(cfg, sharedApp, shareNodes)
-
 		switch cfg.MetaData.ResourceType {
 		case VirtualServer:
 			//Create AS3 Service for virtual server
@@ -492,17 +491,22 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				ps[len(ps)-1])
 		}
 	}
-
-	if len(cfg.Virtual.PersistenceMethods) == 0 {
+	if cfg.Virtual.TLSTermination != TLSPassthrough{
 		svc.Layer4 = cfg.Virtual.IpProtocol
 		svc.Source = "0.0.0.0/0"
 		svc.TranslateServerAddress = true
 		svc.TranslateServerPort = true
 		svc.Class = "Service_HTTP"
+		if len(cfg.Virtual.PersistenceProfile) == 0 {
+			cfg.Virtual.PersistenceProfile = "cookie"
+		}
 	} else {
-		svc.PersistenceMethods = cfg.Virtual.PersistenceMethods
+		if len(cfg.Virtual.PersistenceProfile) == 0 {
+			cfg.Virtual.PersistenceProfile = "tls-session-id"
+		}
 		svc.Class = "Service_TCP"
 	}
+	svc.PersistenceMethods = []string{cfg.Virtual.PersistenceProfile}
 
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
@@ -532,6 +536,8 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 					BigIP: fmt.Sprintf("%v", profile.Name),
 				}
 			}
+		case "persistenceProfile":
+			svc.PersistenceMethods = []string{profile.Name}
 		}
 	}
 
@@ -989,6 +995,10 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	}
 	svc.ProfileL4 = "basic"
 
+	if len(cfg.Virtual.PersistenceProfile) == 0 {
+		cfg.Virtual.PersistenceProfile = "source-address"
+	}
+	svc.PersistenceMethods = []string{cfg.Virtual.PersistenceProfile}
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		partition, name := getPartitionAndName(profile.Name)
@@ -1009,6 +1019,8 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 					BigIP: fmt.Sprintf("%v", profile.Name),
 				}
 			}
+		case "persistenceProfile":
+			svc.PersistenceMethods = []string{profile.Name}
 		}
 	}
 

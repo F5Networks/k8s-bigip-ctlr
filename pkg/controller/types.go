@@ -249,7 +249,6 @@ type (
 		dnsConfig          DNSConfig
 		defaultRouteDomain int
 		reqId              int
-		isVSDeleted        bool
 	}
 
 	// Pool config
@@ -440,7 +439,6 @@ type (
 	requestMeta struct {
 		meta []metaData
 		id   int
-
 	}
 
 	Node struct {
@@ -509,7 +507,6 @@ type (
 		data            string
 		as3APIURL       string
 		id              int
-		isDeleteRequest bool
 	}
 
 	globalSection struct {

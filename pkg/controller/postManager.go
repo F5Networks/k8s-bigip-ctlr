@@ -124,12 +124,10 @@ func (postMgr *PostManager) configWorker() {
 			respCfg, posted = postMgr.postOnEventOrTimeout(timeoutMedium, &cfg)
 		}
 
-		if !respCfg.isDeleteRequest {
-			select {
-			case postMgr.respChan <- respCfg.id:
-			case <-postMgr.respChan:
-				postMgr.respChan <- respCfg.id
-			}
+		select {
+		case postMgr.respChan <- respCfg.id:
+		case <-postMgr.respChan:
+			postMgr.respChan <- respCfg.id
 		}
 		firstPost = false
 	}

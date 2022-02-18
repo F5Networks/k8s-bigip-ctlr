@@ -45,6 +45,7 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 				break
 			}
 		}
+
 		for _, item := range rm.meta {
 			switch item.ResourceType {
 			case VirtualServer:

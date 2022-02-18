@@ -31,7 +31,7 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		})
 		It("Resource Informers", func() {
-			err := mockCtlr.addNamespacedInformer(namespace)
+			err := mockCtlr.addNamespacedInformers(namespace)
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 
 			crInf, found := mockCtlr.getNamespacedInformer(namespace)
@@ -103,7 +103,7 @@ var _ = Describe("Informers Tests", func() {
 						ClientSSL:   "2359qhfniqlur89phuf;rhfi",
 					},
 				})
-			mockCtlr.enqueueTLSServer(tlsp)
+			mockCtlr.enqueueTLSProfile(tlsp)
 			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue TLS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue TLS  Failed")

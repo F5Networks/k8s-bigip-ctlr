@@ -47,7 +47,7 @@ const (
 func (ctlr *Controller) customResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
 	ctlr.setInitialServiceCount()
-	for ctlr.processResource() {
+	for ctlr.processCustomResource() {
 	}
 }
 
@@ -71,9 +71,9 @@ func (ctlr *Controller) setInitialServiceCount() {
 	ctlr.initialSvcCount = svcCount
 }
 
-// processResource gets resources from the rscQueue and processes the resource
+// processCustomResource gets resources from the rscQueue and processes the resource
 // depending  on its kind.
-func (ctlr *Controller) processResource() bool {
+func (ctlr *Controller) processCustomResource() bool {
 
 	key, quit := ctlr.rscQueue.Get()
 	if quit {
@@ -353,7 +353,7 @@ func (ctlr *Controller) processResource() bool {
 			ctlr.namespacesMutex.Lock()
 			ctlr.namespaces[nsName] = true
 			ctlr.namespacesMutex.Unlock()
-			_ = ctlr.addNamespacedInformer(nsName)
+			_ = ctlr.addNamespacedInformers(nsName)
 			ctlr.crInformers[nsName].start()
 			log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
 		}

@@ -119,6 +119,7 @@ var (
 
 	// Custom Resource
 	customResourceMode *bool
+	controllerMode     *string
 	defaultRouteDomain *int
 
 	pythonBaseDir    *string
@@ -244,6 +245,8 @@ func _init() {
 		"Optional, flag to enbale ipv6 network support.")
 	customResourceMode = globalFlags.Bool("custom-resource-mode", false,
 		"Optional, When set to true, controller processes only F5 Custom Resources.")
+	controllerMode = globalFlags.String("controller-mode", "",
+		"Optional, to put the controller to process desired resources.")
 	defaultRouteDomain = globalFlags.Int("default-route-domain", 0,
 		"Optional, CIS uses this value as default Route Domain in BIG-IP ")
 
@@ -534,6 +537,16 @@ func verifyArgs() error {
 				"Usage: --override-as3-declaration=<namespace>/<configmap-name>")
 		}
 	}
+
+	switch *controllerMode {
+	case "",
+		string(controller.CustomResourceMode),
+		string(controller.OpenShiftMode),
+		string(controller.KubernetesMode):
+		break
+	default:
+		return fmt.Errorf("invalid controller-mode is provided")
+	}
 	return nil
 }
 
@@ -813,6 +826,7 @@ func initController(
 			IPAM:               *ipam,
 			ShareNodes:         *shareNodes,
 			DefaultRouteDomain: *defaultRouteDomain,
+			Mode:               controller.ControllerMode(*controllerMode),
 		},
 	)
 
@@ -949,29 +963,29 @@ func main() {
 		log.Debug("Telemetry data reporting to TEEM server is disabled")
 	}
 
-	if *customResourceMode {
+	if *customResourceMode || *controllerMode != "" {
 		getGTMCredentials()
-		crMgr := initController(config)
-		crMgr.TeemData = td
+		ctlr := initController(config)
+		ctlr.TeemData = td
 		if !(*disableTeems) {
-			key, err := crMgr.Agent.GetBigipRegKey()
+			key, err := ctlr.Agent.GetBigipRegKey()
 			if err != nil {
 				log.Errorf("%v", err)
 			}
-			crMgr.TeemData.Lock()
-			crMgr.TeemData.RegistrationKey = key
-			crMgr.TeemData.Unlock()
+			ctlr.TeemData.Lock()
+			ctlr.TeemData.RegistrationKey = key
+			ctlr.TeemData.Unlock()
 		}
-		err = crMgr.Agent.GetBigipAS3Version()
+		err = ctlr.Agent.GetBigipAS3Version()
 		if err != nil {
 			log.Errorf("%v", err)
-			crMgr.Stop()
+			ctlr.Stop()
 			os.Exit(1)
 		}
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigs
-		crMgr.Stop()
+		ctlr.Stop()
 		log.Infof("Exiting - signal %v\n", sig)
 		return
 	}

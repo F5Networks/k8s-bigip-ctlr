@@ -194,7 +194,7 @@ var _ = Describe("Resource Config Tests", func() {
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
-			_ = mockCtlr.addNamespacedInformer(namespace)
+			_ = mockCtlr.addNamespacedInformers(namespace)
 
 			rsCfg = &ResourceConfig{}
 			rsCfg.Virtual.SetVirtualAddress(

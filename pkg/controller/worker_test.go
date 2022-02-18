@@ -74,7 +74,7 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.kubeClient = k8sfake.NewSimpleClientset(svc1)
 		mockCtlr.crInformers = make(map[string]*CRInformer)
 		mockCtlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
-		_ = mockCtlr.addNamespacedInformer("default")
+		_ = mockCtlr.addNamespacedInformers("default")
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
 			mockCtlr.kubeCRClient,

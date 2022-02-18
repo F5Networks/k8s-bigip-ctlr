@@ -42,11 +42,11 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
+		mode               ControllerMode
 		resources          *ResourceStore
 		kubeCRClient       versioned.Interface
 		kubeClient         kubernetes.Interface
 		kubeAPIClient      *extClient.Clientset
-		routeClient        routeclient.RouteV1Interface
 		crInformers        map[string]*CRInformer
 		nsInformer         *NSInformer
 		eventNotifier      *apm.EventNotifier
@@ -70,6 +70,13 @@ type (
 		defaultRouteDomain int
 		TeemData           *teem.TeemsData
 		requestQueue       *requestQueue
+		nativeResourceContext
+	}
+	nativeResourceContext struct {
+		nativeResourceQueue workqueue.RateLimitingInterface
+		routeClientV1       routeclient.RouteV1Interface
+		esInformers         map[string]*EssentialInformer
+		nrInformers         map[string]*NRInformer
 	}
 
 	// Params defines parameters
@@ -88,6 +95,7 @@ type (
 		ShareNodes         bool
 		IPAM               bool
 		DefaultRouteDomain int
+		Mode               ControllerMode
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -103,6 +111,20 @@ type (
 		ednsInformer cache.SharedIndexInformer
 		plcInformer  cache.SharedIndexInformer
 		podInformer  cache.SharedIndexInformer
+	}
+
+	EssentialInformer struct {
+		namespace   string
+		stopCh      chan struct{}
+		svcInformer cache.SharedIndexInformer
+		epsInformer cache.SharedIndexInformer
+	}
+
+	// NRInformer is informer context for Native Resources of Kubernetes/Openshift
+	NRInformer struct {
+		namespace     string
+		stopCh        chan struct{}
+		routeInformer cache.SharedIndexInformer
 	}
 
 	NSInformer struct {

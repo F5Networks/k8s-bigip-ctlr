@@ -88,6 +88,15 @@ const (
 	BIGIP = "bigip"
 	// reference for profiles stores as secrets in k8s cluster
 	Secret = "secret"
+	// reference for routes
+	Certificate = "certificate"
+)
+
+// constants for Resource references
+const (
+	ROUTE           = "route"
+	INGRESS         = "ingress"
+	VirtualServerCR = "virtual server"
 )
 
 func NewCustomProfile(
@@ -98,6 +107,7 @@ func NewCustomProfile(
 	sni bool,
 	peerCertMode,
 	caFile string,
+	chainCA string,
 ) CustomProfile {
 	cp := CustomProfile{
 		Name:         profile.Name,
@@ -108,6 +118,7 @@ func NewCustomProfile(
 		ServerName:   serverName,
 		SNIDefault:   sni,
 		PeerCertMode: peerCertMode,
+		ChainCA:      chainCA,
 	}
 	if peerCertMode == PeerCertRequired {
 		cp.CAFile = caFile
@@ -391,6 +402,232 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	return nil
 }
 
+// function updates the rscfg as per the passed parameter for routes as well as for virtual server
+func (ctlr *Controller) handleTLS(
+	rsCfg *ResourceConfig,
+	tlsContext TLSContext,
+) bool {
+	if rsCfg.Virtual.VirtualAddress.Port == tlsContext.httpsPort {
+
+		if tlsContext.termination == TLSPassthrough {
+			rsCfg.Virtual.PersistenceMethods = []string{"tls-session-id"}
+			return true
+		}
+		clientSSL := tlsContext.bigIPSSLProfiles.clientSSL
+		serverSSL := tlsContext.bigIPSSLProfiles.serverSSL
+		// Process Profile
+		switch tlsContext.referenceType {
+		case BIGIP:
+			log.Debugf("Processing  BIGIP referenced profiles for '%s' '%s'/'%s'",
+				tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+			// Process referenced BIG-IP clientSSL
+			if clientSSL != "" {
+				clientProfRef := ConvertStringToProfileRef(
+					clientSSL, CustomProfileClient, tlsContext.namespace)
+				rsCfg.Virtual.AddOrUpdateProfile(clientProfRef)
+			}
+			// Process referenced BIG-IP serverSSL
+			if serverSSL != "" {
+				serverProfRef := ConvertStringToProfileRef(
+					serverSSL, CustomProfileServer, tlsContext.namespace)
+				rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
+			}
+			log.Debugf("Updated BIGIP referenced profiles for '%s' '%s'/'%s'",
+				tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+		case Secret:
+			// Prepare SSL Transient Context
+			// Check if TLS Secret already exists
+			// Process ClientSSL stored as kubernetes secret
+			if clientSSL != "" {
+				if secret, ok := ctlr.SSLContext[clientSSL]; ok {
+					log.Debugf("clientSSL secret %s for '%s'/'%s' is already available with CIS in "+
+						"SSLContext as clientSSL", secret.ObjectMeta.Name, tlsContext.namespace, tlsContext.name)
+					err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
+					if err != nil {
+						log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s' using secret '%s'",
+							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name, secret.ObjectMeta.Name)
+						return false
+					}
+				} else {
+					// Check if profile is contained in a Secret
+					// Update the SSL Context if secret found, This is used to avoid api calls
+					log.Debugf("saving clientSSL secret for '%s' '%s'/'%s' into SSLContext", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+					secret, err := ctlr.kubeClient.CoreV1().Secrets(tlsContext.namespace).
+						Get(context.TODO(), clientSSL, metav1.GetOptions{})
+					if err != nil {
+						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+							clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
+					}
+					ctlr.SSLContext[clientSSL] = secret
+					err, _ = ctlr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
+					if err != nil {
+						log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
+							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
+					}
+				}
+			}
+			// Process ServerSSL stored as kubernetes secret
+			if serverSSL != "" {
+				if secret, ok := ctlr.SSLContext[serverSSL]; ok {
+					log.Debugf("serverSSL secret %s for '%s'/'%s' is already available with CIS in "+
+						"SSLContext as serverSSL", secret.ObjectMeta.Name, tlsContext.namespace, tlsContext.name)
+					err, _ := ctlr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
+					if err != nil {
+						log.Debugf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s' using secret '%s'",
+							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name, secret.ObjectMeta.Name)
+						return false
+					}
+				} else {
+					// Check if profile is contained in a Secret
+					// Update the SSL Context if secret found, This is used to avoid api calls
+					log.Debugf("saving serverSSL secret for '%s' '%s'/'%s' into SSLContext", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+					secret, err := ctlr.kubeClient.CoreV1().Secrets(tlsContext.namespace).
+						Get(context.TODO(), serverSSL, metav1.GetOptions{})
+					if err != nil {
+						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+							serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
+					}
+					ctlr.SSLContext[serverSSL] = secret
+					err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
+					if err != nil {
+						log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
+							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
+					}
+				}
+			}
+
+		case Certificate:
+			// Prepare SSL Transient Context
+			if clientSSL != "" {
+				err, _ := ctlr.createClientSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.key, tlsContext.bigIPSSLProfiles.certificate, tlsContext.name, tlsContext.namespace, CustomProfileClient)
+				if err != nil {
+					log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s'",
+						err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+					return false
+				}
+			}
+			// Create Server SSL profile for bigip
+			if serverSSL != "" {
+				var err error
+				if tlsContext.bigIPSSLProfiles.caCertificate != "" {
+					err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate, tlsContext.bigIPSSLProfiles.caCertificate, tlsContext.name, tlsContext.namespace, CustomProfileServer)
+				} else {
+					err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate, "", tlsContext.name, tlsContext.namespace, CustomProfileServer)
+				}
+				if err != nil {
+					log.Debugf("error %v encountered while creating serverssl profile  for '%s' '%s'/'%s'",
+						err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+					return false
+				}
+			}
+		default:
+			log.Errorf("Invalid reference type provided for  '%s' '%s'/'%s'",
+				tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+			return false
+		}
+		// TLS Cert/Key
+		for _, poolPathRef := range tlsContext.poolPathRefs {
+			switch tlsContext.termination {
+			case TLSEdge:
+				serverSsl := "false"
+				sslPath := tlsContext.hostname + poolPathRef.path
+				sslPath = strings.TrimSuffix(sslPath, "/")
+				updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName),
+					DEFAULT_PARTITION, tlsContext.namespace, sslPath, serverSsl)
+
+			case TLSReencrypt:
+				sslPath := tlsContext.hostname + poolPathRef.path
+				sslPath = strings.TrimSuffix(sslPath, "/")
+				serverSsl := AS3NameFormatter("crd_" + tlsContext.ipAddress + "_tls_client")
+				if "" != serverSSL {
+					updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
+						DEFAULT_PARTITION, tlsContext.namespace, sslPath, serverSsl)
+				}
+			}
+		}
+		//Create datagroups
+		switch tlsContext.termination {
+		case TLSReencrypt:
+			if tlsContext.httpTraffic == TLSAllowInsecure {
+				log.Errorf("Error in processing '%s' '%s/%s' as httpTraffic is configured as ALLOW for reencrypt Termination",
+					tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+				return false
+			}
+			updateDataGroupOfDgName(
+				rsCfg.IntDgMap,
+				tlsContext.poolPathRefs,
+				rsCfg.Virtual.Name,
+				ReencryptHostsDgName,
+				tlsContext.hostname,
+				tlsContext.namespace,
+			)
+		case TLSEdge:
+			updateDataGroupOfDgName(
+				rsCfg.IntDgMap,
+				tlsContext.poolPathRefs,
+				rsCfg.Virtual.Name,
+				EdgeHostsDgName,
+				tlsContext.hostname,
+				tlsContext.namespace,
+			)
+		}
+
+		ctlr.handleDataGroupIRules(
+			rsCfg,
+			tlsContext.hostname,
+			tlsContext.termination,
+		)
+
+		return true
+	}
+	// httpTraffic defines the behaviour of http Virtual Server on BIG-IP
+	// Possible values are allow, none and redirect
+	if tlsContext.httpTraffic != "" {
+		// -----------------------------------------------------------------
+		// httpTraffic = allow -> Allows HTTP
+		// httpTraffic = none  -> Only HTTPS
+		// httpTraffic = redirect -> redirects HTTP to HTTPS
+		// -----------------------------------------------------------------
+		switch tlsContext.httpTraffic {
+		case TLSRedirectInsecure:
+			// set HTTP redirect iRule
+			log.Debugf("Applying HTTP redirect iRule.")
+			log.Debugf("Redirect HTTP(insecure) requests for VirtualServer %s", tlsContext.name)
+			var ruleName string
+			if tlsContext.hostname == "" {
+				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectNoHostIRuleName), tlsContext.httpsPort)
+				rsCfg.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRuleNoHost(tlsContext.httpsPort))
+			} else {
+				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectIRuleName), tlsContext.httpsPort)
+				rsCfg.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(tlsContext.httpsPort, rsCfg.Virtual.Name, DEFAULT_PARTITION))
+			}
+			ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
+			rsCfg.Virtual.AddIRule(ruleName)
+			updateDataGroupOfDgName(
+				rsCfg.IntDgMap,
+				tlsContext.poolPathRefs,
+				rsCfg.Virtual.Name,
+				HttpsRedirectDgName,
+				tlsContext.hostname,
+				tlsContext.namespace,
+			)
+		case TLSAllowInsecure:
+			// State 3, do not apply any policy
+			log.Debugf("Allow HTTP(insecure) requests for '%s' '%s/%s'", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+		case TLSNoInsecure:
+			//if policy := rsCfg.FindPolicy(PolicyControlForward); policy != nil {
+			//	rsCfg.RemovePolicy(*policy)
+			//}
+			log.Debugf("Disable HTTP(insecure) requests for '%s' '%s/%s'", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+		}
+	}
+	return true
+}
+
 // handleVirtualServerTLS handles TLS configuration for the Virtual Server resource
 // Return value is whether or not a custom profile was updated
 func (ctlr *Controller) handleVirtualServerTLS(
@@ -415,220 +652,29 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	} else {
 		httpsPort = vs.Spec.VirtualServerHTTPSPort
 	}
-
-	// If we are processing the HTTPS server,
-	// then we don't need a redirect policy, only profiles
-	if rsCfg.Virtual.VirtualAddress.Port == httpsPort {
-		// Virtual Server related properties
-		// Virtual Server and TLSProfile are assumed to be in same namespace
-		vsNamespace := vs.ObjectMeta.Namespace
-		vsName := vs.ObjectMeta.Name
-
-		// TLSProfile Object
-		tlsName := vs.Spec.TLSProfileName
-
-		if tls.Spec.TLS.Termination == TLSPassthrough {
-			rsCfg.Virtual.PersistenceMethods = []string{"tls-session-id"}
-			return true
-		}
-
-		// Process Profile
-		switch tls.Spec.TLS.Reference {
-		case BIGIP:
-			clientSSL := tls.Spec.TLS.ClientSSL
-			serverSSL := tls.Spec.TLS.ServerSSL
-			// Profile is a BIG-IP default
-			log.Debugf("Processing BIGIP referenced profiles for Virtual '%s' using TLSProfile '%s'",
-				vsName, tlsName)
-			// Process referenced BIG-IP clientSSL
-			if clientSSL != "" {
-				clientProfRef := ConvertStringToProfileRef(
-					clientSSL, CustomProfileClient, vsNamespace)
-				rsCfg.Virtual.AddOrUpdateProfile(clientProfRef)
-			}
-			// Process referenced BIG-IP serverSSL
-			if serverSSL != "" {
-				serverProfRef := ConvertStringToProfileRef(
-					serverSSL, CustomProfileServer, vsNamespace)
-				rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
-			}
-			log.Debugf("Updated BIGIP referenced profiles for Virtual '%s' using TLSProfile '%s'",
-				vsName, tlsName)
-		case Secret:
-			// Prepare SSL Transient Context
-			// Check if TLS Secret already exists
-			// Process ClientSSL stored as kubernetes secret
-			clientSSL := tls.Spec.TLS.ClientSSL
-			if clientSSL != "" {
-				if secret, ok := ctlr.SSLContext[clientSSL]; ok {
-					log.Debugf("clientSSL secret %s for TLSProfile '%s' is already available with CIS in "+
-						"SSLContext as clientSSL", secret.ObjectMeta.Name, tlsName)
-					err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
-					if err != nil {
-						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
-							err, vsName, tlsName)
-						return false
-					}
-				} else {
-					// Check if profile is contained in a Secret
-					// Update the SSL Context if secret found, This is used to avoid api calls
-					log.Debugf("saving clientSSL secret for TLSProfile '%s' into SSLContext", tlsName)
-					secret, err := ctlr.kubeClient.CoreV1().Secrets(vsNamespace).
-						Get(context.TODO(), clientSSL, metav1.GetOptions{})
-					if err != nil {
-						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
-							clientSSL, vsName, tlsName)
-						return false
-					}
-					ctlr.SSLContext[clientSSL] = secret
-					err, _ = ctlr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
-					if err != nil {
-						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
-							err, vsName, tlsName)
-						return false
-					}
-				}
-			}
-			// Process ServerSSL stored as kubernetes secret
-			serverSSL := tls.Spec.TLS.ServerSSL
-			if serverSSL != "" {
-				if secret, ok := ctlr.SSLContext[serverSSL]; ok {
-					log.Debugf("serverSSL secret %s for TLSProfile '%s' is already available with CIS in"+
-						"SSLContext", secret.ObjectMeta.Name, tlsName)
-					err, _ := ctlr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
-					if err != nil {
-						log.Debugf("error %v encountered for '%s' using TLSProfile '%s'",
-							err, vsName, tlsName)
-						return false
-					}
-				} else {
-					// Check if profile is contained in a Secret
-					// Update the SSL Context if secret found, This is used to avoid api calls
-					log.Debugf("saving serverSSL secret for TLSProfile '%s' into SSLContext", tlsName)
-					secret, err := ctlr.kubeClient.CoreV1().Secrets(vsNamespace).
-						Get(context.TODO(), serverSSL, metav1.GetOptions{})
-					if err != nil {
-						log.Errorf("secret %s not found for Virtual '%s' using TLSProfile '%s'",
-							serverSSL, vsName, tlsName)
-						return false
-					}
-					ctlr.SSLContext[serverSSL] = secret
-					err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
-					if err != nil {
-						log.Errorf("error %v encountered for '%s' using TLSProfile '%s'",
-							err, vsName, tlsName)
-						return false
-					}
-				}
-			}
-		default:
-			log.Errorf("referenced profile does not exist for Virtual '%s' using TLSProfile '%s'",
-				vsName, tlsName)
-			return false
-		}
-		// TLS Cert/Key
-		for _, pl := range vs.Spec.Pools {
-			if "" != vs.Spec.TLSProfileName {
-				switch tls.Spec.TLS.Termination {
-				case TLSEdge:
-					serverSsl := "false"
-					hostName := vs.Spec.Host
-					path := pl.Path
-					sslPath := hostName + path
-					sslPath = strings.TrimSuffix(sslPath, "/")
-					updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName),
-						DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)
-
-				case TLSReencrypt:
-					hostName := vs.Spec.Host
-					path := pl.Path
-					sslPath := hostName + path
-					sslPath = strings.TrimSuffix(sslPath, "/")
-					serverSsl := AS3NameFormatter("crd_" + ip + "_tls_client")
-					if "" != tls.Spec.TLS.ServerSSL {
-						updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
-							DEFAULT_PARTITION, vs.ObjectMeta.Namespace, sslPath, serverSsl)
-					}
-				}
-			}
-		}
-		//Create datagroups
-		if "" != vs.Spec.TLSProfileName {
-			switch tls.Spec.TLS.Termination {
-			case TLSReencrypt:
-				if vs.Spec.HTTPTraffic == TLSAllowInsecure {
-					log.Errorf("Error in processing Virtual '%s' using TLSProfile '%s' as httpTraffic is configured as ALLOW for reencrypt Termination",
-						vsName, tlsName)
-					return false
-				}
-				updateDataGroupOfDgName(
-					rsCfg.IntDgMap,
-					vs,
-					rsCfg.Virtual.Name,
-					ReencryptHostsDgName,
-				)
-			case TLSEdge:
-				updateDataGroupOfDgName(
-					rsCfg.IntDgMap,
-					vs,
-					rsCfg.Virtual.Name,
-					EdgeHostsDgName,
-				)
-			}
-		}
-
-		ctlr.handleDataGroupIRules(
-			rsCfg,
-			vs.ObjectMeta.Name,
-			vs.Spec.Host,
-			tls,
-		)
-
-		return true
+	bigIPSSLProfiles := BigIPSSLProfiles{}
+	if tls.Spec.TLS.ClientSSL != "" {
+		bigIPSSLProfiles.clientSSL = tls.Spec.TLS.ClientSSL
 	}
-
-	// httpTraffic defines the behaviour of http Virtual Server on BIG-IP
-	// Possible values are allow, none and redirect
-	httpTraffic := vs.Spec.HTTPTraffic
-	if httpTraffic != "" {
-		// -----------------------------------------------------------------
-		// httpTraffic = allow -> Allows HTTP
-		// httpTraffic = none  -> Only HTTPS
-		// httpTraffic = redirect -> redirects HTTP to HTTPS
-		// -----------------------------------------------------------------
-		switch httpTraffic {
-		case TLSRedirectInsecure:
-			// set HTTP redirect iRule
-			log.Debugf("Applying HTTP redirect iRule.")
-			log.Debugf("Redirect HTTP(insecure) requests for VirtualServer %s", vs.ObjectMeta.Name)
-			var ruleName string
-			if vs.Spec.Host == "" {
-				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectNoHostIRuleName), httpsPort)
-				rsCfg.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRuleNoHost(httpsPort))
-			} else {
-				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectIRuleName), httpsPort)
-				rsCfg.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(httpsPort, rsCfg.Virtual.Name, DEFAULT_PARTITION))
-			}
-			ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
-			rsCfg.Virtual.AddIRule(ruleName)
-			updateDataGroupOfDgName(
-				rsCfg.IntDgMap,
-				vs,
-				rsCfg.Virtual.Name,
-				HttpsRedirectDgName,
-			)
-		case TLSAllowInsecure:
-			// State 3, do not apply any policy
-			log.Debugf("Allow HTTP(insecure) requests for VirtualServer %s", vs.ObjectMeta.Name)
-		case TLSNoInsecure:
-			//if policy := rsCfg.FindPolicy(PolicyControlForward); policy != nil {
-			//	rsCfg.RemovePolicy(*policy)
-			//}
-			log.Debugf("Disable HTTP(insecure) requests for VirtualServer %s", vs.ObjectMeta.Name)
-		}
+	if tls.Spec.TLS.ServerSSL != "" {
+		bigIPSSLProfiles.serverSSL = tls.Spec.TLS.ServerSSL
 	}
-
-	return true
+	var poolPathRefs []poolPathRef
+	for _, pl := range vs.Spec.Pools {
+		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, formatVirtualServerPoolName(vs.ObjectMeta.Namespace, pl.Service, pl.ServicePort, pl.NodeMemberLabel)})
+	}
+	return ctlr.handleTLS(rsCfg, TLSContext{vs.ObjectMeta.Name,
+		vs.ObjectMeta.Namespace,
+		VirtualServerCR,
+		tls.Spec.TLS.Reference,
+		vs.Spec.Host,
+		httpsPort,
+		ip,
+		tls.Spec.TLS.Termination,
+		vs.Spec.HTTPTraffic,
+		poolPathRefs,
+		bigIPSSLProfiles,
+	})
 }
 
 // validate TLSProfile
@@ -1084,16 +1130,14 @@ func AS3NameFormatter(name string) string {
 
 func (ctlr *Controller) handleDataGroupIRules(
 	rsCfg *ResourceConfig,
-	virtualName string,
 	vsHost string,
-	tls *cisapiv1.TLSProfile,
+	tlsTerminationType string,
 ) {
 	// For https
-	if nil != tls {
-		termination := tls.Spec.TLS.Termination
+	if "" != tlsTerminationType {
 		tlsIRuleName := JoinBigipPath(DEFAULT_PARTITION,
 			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName))
-		switch termination {
+		switch tlsTerminationType {
 		case TLSEdge:
 			rsCfg.addIRule(
 				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, ctlr.getTLSIRule(rsCfg.Virtual.Name))

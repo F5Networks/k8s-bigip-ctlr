@@ -63,6 +63,8 @@ const (
 	Endpoints = "Endpoints"
 	// Namespace is k8s namespace
 	Namespace = "Namespace"
+	// Route is OpenShift Route
+	Route = "Route"
 
 	NodePort = "nodeport"
 
@@ -106,11 +108,18 @@ func NewController(params Params) *Controller {
 		shareNodes:         params.ShareNodes,
 		eventNotifier:      apm.NewEventNotifier(nil),
 		defaultRouteDomain: params.DefaultRouteDomain,
+		mode:               params.Mode,
 	}
 
-	log.Debug("Custom Resource Manager Created")
+	log.Debug("Controller Created")
 
-	ctlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+	switch ctlr.mode {
+	case OpenShiftMode, KubernetesMode:
+		ctlr.resourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+	default:
+		ctlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+		ctlr.mode = CustomResourceMode
+	}
 
 	if err := ctlr.setupClients(params.Config); err != nil {
 		log.Errorf("Failed to Setup Clients: %v", err)
@@ -270,9 +279,13 @@ func createLabelSelector(label string) (labels.Selector, error) {
 
 // setupClients sets Kubernetes Clients.
 func (ctlr *Controller) setupClients(config *rest.Config) error {
-	kubeCRClient, err := versioned.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("Failed to create Custum Resource kubeClient: %v", err)
+	var kubeCRClient *versioned.Clientset
+	var err error
+	if ctlr.mode == CustomResourceMode {
+		kubeCRClient, err = versioned.NewForConfig(config)
+		if err != nil {
+			return fmt.Errorf("Failed to create Custum Resource kubeClient: %v", err)
+		}
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(config)
@@ -290,22 +303,24 @@ func (ctlr *Controller) setupClients(config *rest.Config) error {
 	}
 
 	var rclient *routeclient.RouteV1Client
-	rclient, err = routeclient.NewForConfig(config)
-	if nil != err {
-		return fmt.Errorf("Failed to create Route Client: %v", err)
+	if ctlr.mode == OpenShiftMode {
+		rclient, err = routeclient.NewForConfig(config)
+		if nil != err {
+			return fmt.Errorf("Failed to create Route Client: %v", err)
+		}
 	}
 
 	log.Debug("Client Created")
 	ctlr.kubeAPIClient = kubeIPAMClient
 	ctlr.kubeCRClient = kubeCRClient
 	ctlr.kubeClient = kubeClient
-	ctlr.routeClient = rclient
+	ctlr.routeClientV1 = rclient
 	return nil
 }
 
 func (ctlr *Controller) setupInformers() error {
 	for n := range ctlr.namespaces {
-		if err := ctlr.addNamespacedInformer(n); err != nil {
+		if err := ctlr.addNamespacedInformers(n); err != nil {
 			log.Errorf("Unable to setup informer for namespace: %v, Error:%v", n, err)
 			return err
 		}
@@ -317,9 +332,20 @@ func (ctlr *Controller) setupInformers() error {
 func (ctlr *Controller) Start() {
 	log.Infof("Starting Controller")
 	defer utilruntime.HandleCrash()
-	defer ctlr.rscQueue.ShutDown()
-	for _, inf := range ctlr.crInformers {
-		inf.start()
+	switch ctlr.mode {
+	case CustomResourceMode:
+		defer ctlr.rscQueue.ShutDown()
+		for _, inf := range ctlr.crInformers {
+			inf.start()
+		}
+	case OpenShiftMode:
+		defer ctlr.nativeResourceQueue.ShutDown()
+		for _, inf := range ctlr.esInformers {
+			inf.start()
+		}
+		for _, inf := range ctlr.nrInformers {
+			inf.start()
+		}
 	}
 
 	if ctlr.nsInformer != nil {
@@ -333,7 +359,12 @@ func (ctlr *Controller) Start() {
 	ctlr.nodePoller.Run()
 
 	stopChan := make(chan struct{})
-	go wait.Until(ctlr.customResourceWorker, time.Second, stopChan)
+	switch ctlr.mode {
+	case CustomResourceMode:
+		go wait.Until(ctlr.customResourceWorker, time.Second, stopChan)
+	case OpenShiftMode:
+		go wait.Until(ctlr.customResourceWorker, time.Second, stopChan)
+	}
 
 	<-stopChan
 	ctlr.Stop()
@@ -341,9 +372,20 @@ func (ctlr *Controller) Start() {
 
 // Stop the Controller
 func (ctlr *Controller) Stop() {
-	for _, inf := range ctlr.crInformers {
-		inf.stop()
+	switch ctlr.mode {
+	case CustomResourceMode:
+		for _, inf := range ctlr.crInformers {
+			inf.stop()
+		}
+	case OpenShiftMode:
+		for _, inf := range ctlr.esInformers {
+			inf.stop()
+		}
+		for _, inf := range ctlr.nrInformers {
+			inf.stop()
+		}
 	}
+
 	if ctlr.nsInformer != nil {
 		ctlr.nsInformer.stop()
 	}

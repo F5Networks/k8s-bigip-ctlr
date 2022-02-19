@@ -659,7 +659,7 @@ type (
 		LogProfiles            []as3ResourcePointer `json:"securityLogProfiles,omitempty"`
 		ProfileL4              string               `json:"profileL4,omitempty"`
 		AllowVLANs             []as3ResourcePointer `json:"allowVlans,omitempty"`
-		PersistenceMethods     []string             `json:"persistenceMethods,omitempty"`
+		PersistenceMethods     *[]string            `json:"persistenceMethods,omitempty"`
 		ProfileTCP             as3MultiTypeParam    `json:"profileTCP,omitempty"`
 		ProfileUDP             as3MultiTypeParam    `json:"profileUDP,omitempty"`
 		ProfileHTTP            as3MultiTypeParam    `json:"profileHTTP,omitempty"`

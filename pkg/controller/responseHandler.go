@@ -54,20 +54,20 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 				crInf, ok := ctlr.getNamespacedInformer(item.namespace)
 				if !ok {
 					log.Errorf("Informer not found for namespace: %v, failed to update VS status", item.namespace)
-					break
+					continue
 				}
 				obj, exist, err := crInf.vsInformer.GetIndexer().GetByKey(vsKey)
 				if err != nil {
 					log.Errorf("Error while fetching VirtualServer: %v: %v, failed to update VS status",
 						vsKey, err)
-					break
+					continue
 				}
 				if !exist {
 					log.Errorf("VirtualServer Not Found: %v, failed to update VS status", vsKey)
-					break
+					continue
 				}
 				virtual := obj.(*cisapiv1.VirtualServer)
-				if virtual.Name == item.rscName && virtual.Namespace == item.namespace {
+				if virtual.Name == item.rscName && virtual.Namespace == item.namespace && virtual.Status.StatusOk != "Ok" {
 					ctlr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 			case TransportServer:
@@ -76,23 +76,22 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 				crInf, ok := ctlr.getNamespacedInformer(item.namespace)
 				if !ok {
 					log.Errorf("Informer not found for namespace: %v, failed to update TS status", item.namespace)
-					break
+					continue
 				}
 				obj, exist, err := crInf.tsInformer.GetIndexer().GetByKey(vsKey)
 				if err != nil {
 					log.Errorf("Error while fetching TransportServer: %v: %v, failed to update TS status",
 						vsKey, err)
-					break
+					continue
 				}
 				if !exist {
 					log.Errorf("TransportServer Not Found: %v, failed to update TS status", vsKey)
-					break
+					continue
 				}
 				virtual := obj.(*cisapiv1.TransportServer)
-				if virtual.Name == item.rscName && virtual.Namespace == item.namespace {
+				if virtual.Name == item.rscName && virtual.Namespace == item.namespace && virtual.Status.StatusOk != "Ok" {
 					ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
-
 			}
 		}
 	}

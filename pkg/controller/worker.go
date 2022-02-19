@@ -383,10 +383,9 @@ func (ctlr *Controller) processResource() bool {
 			shareNodes:         ctlr.shareNodes,
 			dnsConfig:          ctlr.resources.dnsConfig,
 			defaultRouteDomain: ctlr.defaultRouteDomain,
-			isVSDeleted:        rKey.rscDelete,
 		}
 		go ctlr.TeemData.PostTeemsData()
-		if !config.isVSDeleted {
+		if !rKey.rscDelete {
 			ctlr.enqueueReq(config)
 		}
 		ctlr.Agent.PostConfig(config)

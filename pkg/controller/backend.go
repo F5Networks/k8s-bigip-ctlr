@@ -491,22 +491,27 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				ps[len(ps)-1])
 		}
 	}
+	log.Debugf("Nanda before svc.PersistenceMethods:%v",svc.PersistenceMethods)
 	if cfg.Virtual.TLSTermination != TLSPassthrough{
 		svc.Layer4 = cfg.Virtual.IpProtocol
 		svc.Source = "0.0.0.0/0"
 		svc.TranslateServerAddress = true
 		svc.TranslateServerPort = true
 		svc.Class = "Service_HTTP"
-		if len(cfg.Virtual.PersistenceProfile) == 0 {
-			cfg.Virtual.PersistenceProfile = "cookie"
+		if len(cfg.Virtual.PersistenceProfile) > 0 {
+			svc.PersistenceMethods = []string{cfg.Virtual.PersistenceProfile}
+		} else {
+			log.Debugf("Nanda hit none VS")
+			svc.PersistenceMethods = []string{}
 		}
 	} else {
 		if len(cfg.Virtual.PersistenceProfile) == 0 {
 			cfg.Virtual.PersistenceProfile = "tls-session-id"
 		}
+		svc.PersistenceMethods = []string{cfg.Virtual.PersistenceProfile}
 		svc.Class = "Service_TCP"
 	}
-	svc.PersistenceMethods = []string{cfg.Virtual.PersistenceProfile}
+	log.Debugf("Nanda after svc.PersistenceMethods:%v",svc.PersistenceMethods)
 
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
@@ -995,10 +1000,14 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	}
 	svc.ProfileL4 = "basic"
 
-	if len(cfg.Virtual.PersistenceProfile) == 0 {
-		cfg.Virtual.PersistenceProfile = "source-address"
+	log.Debugf("Nanda before svc.PersistenceMethods:%v",svc.PersistenceMethods)
+	if len(cfg.Virtual.PersistenceProfile) > 0 {
+		svc.PersistenceMethods = []string{cfg.Virtual.PersistenceProfile}
+	} else {
+		log.Debugf("Nanda hit none")
+		svc.PersistenceMethods = []string{}
 	}
-	svc.PersistenceMethods = []string{cfg.Virtual.PersistenceProfile}
+	log.Debugf("Nanda after svc.PersistenceMethods:%v",svc.PersistenceMethods)
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		partition, name := getPartitionAndName(profile.Name)

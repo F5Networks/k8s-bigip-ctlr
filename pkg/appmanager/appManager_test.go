@@ -4613,20 +4613,6 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
 				Expect(rs.MetaData.Active).To(BeTrue())
 			})
-			It("Test processedResources function", func() {
-				processedResources := make(map[string]bool)
-				processedResources["routes_default/route-1"] = true
-				processedResources["routes_default/route-2"] = false
-				processedResources["routes_test/test-route-1"] = true
-				processedResources["routes_test/test-route-2"] = true
-				resources := getProcessedResources(processedResources, Routes)
-				defaultNamespace, ok := resources["default"]
-				Expect(ok).To(BeTrue())
-				testNamespace, ok := resources["test"]
-				Expect(ok).To(BeTrue())
-				Expect(len(defaultNamespace)).To(Equal(1))
-				Expect(len(testNamespace)).To(Equal(2))
-			})
 			//FixMe: Fix this unit test as we updated checkValidRoute function - included certificate and key validation.
 
 			// It("handles routes and services in multiple namespaces", func() {

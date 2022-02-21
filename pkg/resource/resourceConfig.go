@@ -279,6 +279,20 @@ func GetRouteServices(route *routeapi.Route) []RouteService {
 }
 
 // return the service names associated with a route
+func GetRouteAssociatedRuleNames(route *routeapi.Route) []string {
+	var ruleNames []string
+	ruleName := FormatRouteRuleName(route)
+	ruleNames = append(ruleNames, ruleName)
+	// Add whitelist or allow source rules
+	if _, ok := route.ObjectMeta.Annotations[F5VsWhitelistSourceRangeAnnotation]; ok {
+		ruleNames = append(ruleNames, ruleName+"-reset")
+	} else if _, ok := route.ObjectMeta.Annotations[F5VsAllowSourceRangeAnnotation]; ok {
+		ruleNames = append(ruleNames, ruleName+"-reset")
+	}
+	return ruleNames
+}
+
+// return the service names associated with a route
 func GetRouteServiceNames(route *routeapi.Route) []string {
 	svcs := GetRouteServices(route)
 	svcNames := make([]string, len(svcs))
@@ -789,6 +803,44 @@ func getAnnotationRuleNames(oldName string, isAppRoot bool, obj interface{}) str
 		log.Errorf("[RESOURCE] Unknown object type: %v", t)
 	}
 	return ruleNames
+}
+
+// RemoveDependency will remove the object dependencies from the rs.objDeps map for given route
+func (rs *Resources) RemoveDependency(
+	key ObjectDependency,
+) {
+	rs.Lock()
+	defer rs.Unlock()
+	if _, ok := rs.objDeps[key]; ok {
+		delete(rs.objDeps, key)
+	}
+
+}
+
+// UpdatePolicy will keep the rs.RsMap map updated and remove the unwanted rules from policy,
+func (rs *Resources) UpdatePolicy(
+	rsName string,
+	policyName string,
+	ruleName string,
+) {
+	rs.Lock()
+	defer rs.Unlock()
+	var ruleOffsets []int
+	if rsCfg, ok := rs.RsMap[rsName]; ok {
+		for policyIndex, policy := range rsCfg.Policies {
+			if policy.Name == policyName {
+				for i, rule := range policy.Rules {
+					if rule.Name == ruleName {
+						ruleOffsets = append(ruleOffsets, i)
+					}
+				}
+			}
+			// remove the rules from policy
+			policy.RemoveRules(ruleOffsets)
+			// Update the policy in rsMap
+			rs.RsMap[rsName].Policies[policyIndex] = policy
+		}
+	}
 }
 
 // UpdateDependencies will keep the rs.objDeps map updated, and return two

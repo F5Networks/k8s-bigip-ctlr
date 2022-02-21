@@ -1944,13 +1944,20 @@ func (appMgr *Manager) syncRoutes(
 		}
 		if _, ok := routePathMap[key]; ok {
 			if _, ok := appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)]; !ok {
-				log.Warningf("[CORE]  Route exist with same host: %v and path: %v", route.Spec.Host, route.Spec.Path)
 				// Adding the entry for resource so logs does not print repeatedly
-				// Putting the value as false so that route status does not get updated
-				appMgr.processedResourcesMutex.Lock()
-				appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = false
-				appMgr.processedResourcesMutex.Unlock()
+				log.Warningf("[CORE]  Route exist with same host: %v and path: %v", route.Spec.Host, route.Spec.Path)
+			}
+			// Putting the value as false so that route status gets updated
+			appMgr.processedResourcesMutex.Lock()
+			appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = false
+			appMgr.processedResourcesMutex.Unlock()
+			// Removing the route related object from appMgr.resources
 
+			appMgr.resources.RemoveDependency(ObjectDependency{Kind: "Route", Namespace: route.Namespace, Name: route.Name})
+			rules := GetRouteAssociatedRuleNames(route)
+			for _, ruleName := range rules {
+				appMgr.resources.UpdatePolicy(appMgr.routeConfig.HttpsVs, SecurePolicyName, ruleName)
+				appMgr.resources.UpdatePolicy(appMgr.routeConfig.HttpVs, InsecurePolicyName, ruleName)
 			}
 			continue
 		} else {
@@ -3335,24 +3342,6 @@ func (appMgr *Manager) exposeKubernetesService(
 
 func prepareResourceKey(kind, namespace, name string) string {
 	return kind + "_" + namespace + "/" + name
-}
-
-func getProcessedResources(processedResources map[string]bool, kind string) map[string][]string {
-	resourceMap := make(map[string][]string)
-	for k, v := range processedResources {
-		firstSplit := strings.Split(k, "_")
-		// considered only those resources which has value as true
-		if firstSplit[0] == kind && v {
-			secondSplit := strings.Split(firstSplit[1], "/")
-			if _, ok := resourceMap[secondSplit[0]]; ok {
-				resourceMap[secondSplit[0]] = append(resourceMap[secondSplit[0]], secondSplit[1])
-			} else {
-				resourceMap[secondSplit[0]] = []string{secondSplit[1]}
-			}
-
-		}
-	}
-	return resourceMap
 }
 
 func getIngressBackend(ing *v1beta1.Ingress) []string {

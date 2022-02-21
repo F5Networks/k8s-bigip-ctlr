@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package crmanager
+package controller
 
 import (
 	"bufio"
@@ -175,7 +175,7 @@ func (agent *Agent) startPythonDriver(
 
 	subPid := <-subPidCh
 	agent.PythonDriverPID = subPid
-	//Enable "/health" and "/metrics" endpoint with crmanager
+	//Enable "/health" and "/metrics" endpoint with controller
 	go agent.healthCheckPythonDriver()
 
 	return

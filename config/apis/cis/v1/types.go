@@ -43,6 +43,7 @@ type VirtualServerSpec struct {
 	IRules                 []string         `json:"iRules,omitempty"`
 	ServiceIPAddress       []ServiceAddress `json:"serviceAddress,omitempty"`
 	PolicyName             string           `json:"policyName,omitempty"`
+	PersistenceProfile     string           `json:"persistenceProfile,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -187,6 +188,7 @@ type TransportServerSpec struct {
 	IPAMLabel            string           `json:"ipamLabel"`
 	IRules               []string         `json:"iRules,omitempty"`
 	PolicyName           string           `json:"policyName,omitempty"`
+	PersistenceProfile   string           `json:"persistenceProfile,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -259,12 +261,13 @@ type LtmIRulesSpec struct {
 }
 
 type ProfileSpec struct {
-	TCP            string   `json:"tcp,omitempty"`
-	UDP            string   `json:"udp,omitempty"`
-	HTTP           string   `json:"http,omitempty"`
-	HTTP2          string   `json:"http2,omitempty"`
-	RewriteProfile string   `json:"rewriteProfile,omitempty"`
-	LogProfiles    []string `json:"logProfiles,omitempty"`
+	TCP                 string     `json:"tcp,omitempty"`
+	UDP                 string     `json:"udp,omitempty"`
+	HTTP                string     `json:"http,omitempty"`
+	HTTP2               string     `json:"http2,omitempty"`
+	RewriteProfile      string     `json:"rewriteProfile,omitempty"`
+	PersistenceProfile  string     `json:"persistenceProfile,omitempty"`
+	LogProfiles         []string   `json:"logProfiles,omitempty"`
 }
 
 // +genclient

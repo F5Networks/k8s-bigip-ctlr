@@ -1,4 +1,4 @@
-package crmanager
+package controller
 
 import (
 	"sort"
@@ -28,7 +28,7 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 
 		It("Virtual Ports with Default Ports", func() {
-			mockCMR := newMockCRManager()
+			mockCMR := newMockController()
 			portStructs := mockCMR.virtualPorts(vs)
 			Expect(len(portStructs)).To(Equal(1), "Unexpected number of ports")
 			Expect(portStructs[0]).To(Equal(portStruct{
@@ -52,7 +52,7 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 
 		It("Virtual Ports with Default Ports", func() {
-			mockCMR := newMockCRManager()
+			mockCMR := newMockController()
 			vs.Spec.VirtualServerHTTPPort = 8080
 			portStructs := mockCMR.virtualPorts(vs)
 			Expect(len(portStructs)).To(Equal(1), "Unexpected number of ports")
@@ -151,7 +151,7 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 
 		It("Handle DataGroupIRules", func() {
-			mockCRM := newMockCRManager()
+			mockCtlr := newMockController()
 			tls := test.NewTLSProfile(
 				"SampleTLS",
 				namespace,
@@ -162,7 +162,7 @@ var _ = Describe("Resource Config Tests", func() {
 					},
 				},
 			)
-			mockCRM.handleDataGroupIRules(rsCfg, "vs", "test.com", tls)
+			mockCtlr.handleDataGroupIRules(rsCfg, "vs", "test.com", tls)
 			Expect(len(rsCfg.IRulesMap)).To(Equal(1), "Failed to Add iRuels")
 			Expect(len(rsCfg.IntDgMap)).To(Equal(2), "Failed to Add DataGroup")
 			tls1 := test.NewTLSProfile(
@@ -177,7 +177,7 @@ var _ = Describe("Resource Config Tests", func() {
 					},
 				},
 			)
-			mockCRM.handleDataGroupIRules(rsCfg, "vs", "test.com", tls1)
+			mockCtlr.handleDataGroupIRules(rsCfg, "vs", "test.com", tls1)
 			Expect(len(rsCfg.IRulesMap)).To(Equal(1), "Failed to Add iRuels")
 			Expect(len(rsCfg.IntDgMap)).To(Equal(4), "Failed to Add DataGroup")
 
@@ -186,16 +186,16 @@ var _ = Describe("Resource Config Tests", func() {
 
 	Describe("Prepare Resource Configs", func() {
 		var rsCfg *ResourceConfig
-		var mockCRM *mockCRManager
+		var mockCtlr *mockController
 
 		//partition := "test"
 		BeforeEach(func() {
-			mockCRM = newMockCRManager()
-			mockCRM.kubeCRClient = crdfake.NewSimpleClientset()
-			mockCRM.kubeClient = k8sfake.NewSimpleClientset()
-			mockCRM.crInformers = make(map[string]*CRInformer)
-			mockCRM.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
-			_ = mockCRM.addNamespacedInformer(namespace)
+			mockCtlr = newMockController()
+			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.crInformers = make(map[string]*CRInformer)
+			mockCtlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			_ = mockCtlr.addNamespacedInformer(namespace)
 
 			rsCfg = &ResourceConfig{}
 			rsCfg.Virtual.SetVirtualAddress(
@@ -244,7 +244,7 @@ var _ = Describe("Resource Config Tests", func() {
 					IRules:         []string{"SampleIRule"},
 				},
 			)
-			err := mockCRM.prepareRSConfigFromVirtualServer(rsCfg, vs)
+			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 		})
 
@@ -264,7 +264,7 @@ var _ = Describe("Resource Config Tests", func() {
 					},
 				},
 			)
-			err := mockCRM.prepareRSConfigFromTransportServer(rsCfg, ts)
+			err := mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from TransportServer")
 		})
 
@@ -284,7 +284,7 @@ var _ = Describe("Resource Config Tests", func() {
 			svc.Annotations = make(map[string]string)
 			svc.Annotations[HealthMonitorAnnotation] = `{"interval": 5, "timeout": 10}`
 
-			err := mockCRM.prepareRSConfigFromLBService(rsCfg, svc, svcPort)
+			err := mockCtlr.prepareRSConfigFromLBService(rsCfg, svc, svcPort)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from Service")
 			Expect(len(rsCfg.Pools)).To(Equal(1), "Failed to Prepare Resource Config from Service")
 			Expect(len(rsCfg.Monitors)).To(Equal(1), "Failed to Prepare Resource Config from Service")
@@ -515,7 +515,7 @@ var _ = Describe("Resource Config Tests", func() {
 	})
 
 	Describe("Resource Configs", func() {
-		var res Resources
+		var res ResourceStore
 		BeforeEach(func() {
 			res.Init()
 		})
@@ -550,15 +550,15 @@ var _ = Describe("Resource Config Tests", func() {
 	})
 
 	Describe("Handle Virtual Server TLS", func() {
-		var mockCRM *mockCRManager
+		var mockCtlr *mockController
 		var vs *cisapiv1.VirtualServer
 		var tlsProf *cisapiv1.TLSProfile
 		var rsCfg, inSecRsCfg *ResourceConfig
 		var ip string
 
 		BeforeEach(func() {
-			mockCRM = newMockCRManager()
-			mockCRM.SSLContext = make(map[string]*v1.Secret)
+			mockCtlr = newMockController()
+			mockCtlr.SSLContext = make(map[string]*v1.Secret)
 
 			ip = "1.2.3.4"
 
@@ -604,24 +604,24 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 
 		It("Basic Validation", func() {
-			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeFalse(), "Validation Failed")
 
 			vs.Spec.TLSProfileName = "SampleTLS"
-			ok = mockCRM.handleVirtualServerTLS(rsCfg, vs, nil, ip)
+			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, nil, ip)
 			Expect(ok).To(BeFalse(), "Validation Failed")
 		})
 
 		It("Invalide TLS Reference", func() {
 			vs.Spec.TLSProfileName = "SampleTLS"
-			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeFalse(), "Failed to Validate TLS Reference")
 		})
 
 		It("Passthrough Termination", func() {
 			vs.Spec.TLSProfileName = "SampleTLS"
 			tlsProf.Spec.TLS.Termination = TLSPassthrough
-			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Passthrough")
 		})
 
@@ -638,7 +638,7 @@ var _ = Describe("Resource Config Tests", func() {
 				Namespace: namespace,
 			}
 
-			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
 
 			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(1), "Failed to Process TLS Termination: Edge")
@@ -666,7 +666,7 @@ var _ = Describe("Resource Config Tests", func() {
 				Namespace: namespace,
 			}
 
-			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
 
 			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
@@ -682,7 +682,7 @@ var _ = Describe("Resource Config Tests", func() {
 			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
 			tlsProf.Spec.TLS.ServerSSL = "/Common/serverssl"
 
-			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeFalse(), "Failed to Validate TLS Termination: Reencrypt with AllowInsecure")
 		})
 
@@ -694,7 +694,7 @@ var _ = Describe("Resource Config Tests", func() {
 			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
 			tlsProf.Spec.TLS.ServerSSL = "/Common/serverssl"
 
-			ok := mockCRM.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Handle insecure virtual with Redirect config")
 			Expect(len(inSecRsCfg.IRulesMap)).To(Equal(1))
 			Expect(len(inSecRsCfg.Virtual.IRules)).To(Equal(1))
@@ -709,7 +709,7 @@ var _ = Describe("Resource Config Tests", func() {
 			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
 			tlsProf.Spec.TLS.ServerSSL = "/Common/serverssl"
 
-			ok := mockCRM.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Handle insecure virtual with Redirect config")
 			Expect(len(inSecRsCfg.IRulesMap)).To(Equal(1))
 			Expect(len(inSecRsCfg.Virtual.IRules)).To(Equal(1))
@@ -722,7 +722,7 @@ var _ = Describe("Resource Config Tests", func() {
 			tlsProf.Spec.TLS.Reference = BIGIP
 			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
 
-			ok := mockCRM.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
 
 			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(0), "Failed to Process TLS Termination: Edge")
@@ -735,7 +735,7 @@ var _ = Describe("Resource Config Tests", func() {
 			tlsProf.Spec.TLS.Reference = BIGIP
 			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
 
-			ok := mockCRM.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
 
 			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(0), "Failed to Process TLS Termination: Edge")
@@ -756,17 +756,17 @@ var _ = Describe("Resource Config Tests", func() {
 				"### cert ###",
 				"#### key ####",
 			)
-			mockCRM.kubeClient = k8sfake.NewSimpleClientset(clSecret)
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret)
 
-			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
 			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(2), "Failed to Process TLS Termination: Edge")
-			Expect(len(mockCRM.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
+			Expect(len(mockCtlr.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
 
-			ok = mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
 			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(2), "Failed to Process TLS Termination: Edge")
-			Expect(len(mockCRM.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
+			Expect(len(mockCtlr.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
 		})
 
 		It("TLS Reencrypt with BIGIP Reference", func() {
@@ -791,17 +791,17 @@ var _ = Describe("Resource Config Tests", func() {
 				"### cert ###",
 				"",
 			)
-			mockCRM.kubeClient = k8sfake.NewSimpleClientset(clSecret, svSecret)
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret, svSecret)
 
-			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
 			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(mockCRM.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
+			Expect(len(mockCtlr.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
 
-			ok = mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
 			Expect(len(rsCfg.customProfiles.Profs)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(mockCRM.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
+			Expect(len(mockCtlr.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
 		})
 
 		It("Validate API failures", func() {
@@ -813,9 +813,9 @@ var _ = Describe("Resource Config Tests", func() {
 
 			rsCfg.customProfiles = *NewCustomProfiles()
 
-			mockCRM.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 
-			ok := mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
 
 			clSecret := test.NewSecret(
@@ -824,8 +824,8 @@ var _ = Describe("Resource Config Tests", func() {
 				"### cert ###",
 				"#### key ####",
 			)
-			mockCRM.kubeClient = k8sfake.NewSimpleClientset(clSecret)
-			ok = mockCRM.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret)
+			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
 		})
 	})

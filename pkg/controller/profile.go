@@ -1,4 +1,4 @@
-package crmanager
+package controller
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 )
 
 // Creates a new ClientSSL profile from a Secret
-func (crMgr *CRManager) createSecretClientSSLProfile(
+func (ctlr *Controller) createSecretClientSSLProfile(
 	rsCfg *ResourceConfig,
 	secret *v1.Secret,
 	context string,
@@ -78,7 +78,7 @@ func (crMgr *CRManager) createSecretClientSSLProfile(
 }
 
 // Creates a new ServerSSL profile from a Secret
-func (crMgr *CRManager) createSecretServerSSLProfile(
+func (ctlr *Controller) createSecretServerSSLProfile(
 	rsCfg *ResourceConfig,
 	secret *v1.Secret,
 	context string,

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package crmanager
+package controller
 
 import (
 	"encoding/json"
@@ -129,7 +129,7 @@ func (agent *Agent) Stop() {
 	}
 }
 
-func (agent *Agent) PostConfig(rsConfig ResourceConfigWrapper) {
+func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 	if !(agent.EnableIPV6) {
 		agent.PostGTMConfig(rsConfig)
 	}
@@ -139,9 +139,10 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigWrapper) {
 		return
 	}
 	cfg := agentConfig{
-		data:      string(decl),
-		as3APIURL: agent.getAS3APIURL(nil),
-		id:        rsConfig.reqId,
+		data:            string(decl),
+		as3APIURL:       agent.getAS3APIURL(nil),
+		id:              rsConfig.reqId,
+		isDeleteRequest: rsConfig.isVSDeleted,
 	}
 
 	agent.Write(cfg)
@@ -161,7 +162,7 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigWrapper) {
 	if agent.EventChan != nil {
 		select {
 		case agent.EventChan <- allPoolMems:
-			log.Debugf("Custom Resource Manager wrote endpoints to VxlanMgr")
+			log.Debugf("Controller wrote endpoints to VxlanMgr")
 		case <-time.After(3 * time.Second):
 		}
 	}
@@ -171,7 +172,7 @@ func (agent Agent) SetResponseChannel(respChan chan int) {
 	agent.PostManager.respChan = respChan
 }
 
-func (agent Agent) PostGTMConfig(config ResourceConfigWrapper) {
+func (agent Agent) PostGTMConfig(config ResourceConfigRequest) {
 
 	dnsConfig := make(map[string]interface{})
 	wideIPs := WideIPs{}
@@ -199,7 +200,7 @@ func (agent Agent) PostGTMConfig(config ResourceConfigWrapper) {
 }
 
 //Create AS3 declaration
-func createAS3Declaration(config ResourceConfigWrapper, userAgentInfo string) as3Declaration {
+func createAS3Declaration(config ResourceConfigRequest, userAgentInfo string) as3Declaration {
 	var as3Config map[string]interface{}
 	_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
 
@@ -220,7 +221,7 @@ func createAS3Declaration(config ResourceConfigWrapper, userAgentInfo string) as
 	return as3Declaration(decl)
 }
 
-func createAS3ADC(config ResourceConfigWrapper) as3ADC {
+func createAS3ADC(config ResourceConfigRequest) as3ADC {
 	// Create Shared as3Application object
 	sharedApp := as3Application{}
 	sharedApp["class"] = "Application"
@@ -250,7 +251,7 @@ func createAS3ADC(config ResourceConfigWrapper) as3ADC {
 	return as3JSONDecl
 }
 
-func processIRulesForAS3(config ResourceConfigWrapper, sharedApp as3Application) {
+func processIRulesForAS3(config ResourceConfigRequest, sharedApp as3Application) {
 	for _, rsCfg := range config.rsCfgs {
 		// Create irule declaration
 		for _, v := range rsCfg.IRulesMap {
@@ -262,7 +263,7 @@ func processIRulesForAS3(config ResourceConfigWrapper, sharedApp as3Application)
 	}
 }
 
-func processDataGroupForAS3(config ResourceConfigWrapper, sharedApp as3Application) {
+func processDataGroupForAS3(config ResourceConfigRequest, sharedApp as3Application) {
 	for _, rsCfg := range config.rsCfgs {
 		for idk, idg := range rsCfg.IntDgMap {
 			for _, dg := range idg {
@@ -348,7 +349,6 @@ func processResourcesForAS3(rsCfgs ResourceConfigs, sharedApp as3Application, sh
 
 		//Create pools
 		createPoolDecl(cfg, sharedApp, shareNodes)
-
 		switch cfg.MetaData.ResourceType {
 		case VirtualServer:
 			//Create AS3 Service for virtual server
@@ -491,17 +491,22 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				ps[len(ps)-1])
 		}
 	}
-
-	if len(cfg.Virtual.PersistenceMethods) == 0 {
+	if cfg.Virtual.TLSTermination != TLSPassthrough{
 		svc.Layer4 = cfg.Virtual.IpProtocol
 		svc.Source = "0.0.0.0/0"
 		svc.TranslateServerAddress = true
 		svc.TranslateServerPort = true
 		svc.Class = "Service_HTTP"
+		if len(cfg.Virtual.PersistenceProfile) == 0 {
+			cfg.Virtual.PersistenceProfile = "cookie"
+		}
 	} else {
-		svc.PersistenceMethods = cfg.Virtual.PersistenceMethods
+		if len(cfg.Virtual.PersistenceProfile) == 0 {
+			cfg.Virtual.PersistenceProfile = "tls-session-id"
+		}
 		svc.Class = "Service_TCP"
 	}
+	svc.PersistenceMethods = []string{cfg.Virtual.PersistenceProfile}
 
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
@@ -531,6 +536,8 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 					BigIP: fmt.Sprintf("%v", profile.Name),
 				}
 			}
+		case "persistenceProfile":
+			svc.PersistenceMethods = []string{profile.Name}
 		}
 	}
 
@@ -988,6 +995,10 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	}
 	svc.ProfileL4 = "basic"
 
+	if len(cfg.Virtual.PersistenceProfile) == 0 {
+		cfg.Virtual.PersistenceProfile = "source-address"
+	}
+	svc.PersistenceMethods = []string{cfg.Virtual.PersistenceProfile}
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		partition, name := getPartitionAndName(profile.Name)
@@ -1008,6 +1019,8 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 					BigIP: fmt.Sprintf("%v", profile.Name),
 				}
 			}
+		case "persistenceProfile":
+			svc.PersistenceMethods = []string{profile.Name}
 		}
 	}
 

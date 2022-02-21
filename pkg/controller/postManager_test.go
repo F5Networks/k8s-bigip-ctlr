@@ -1,4 +1,4 @@
-package crmanager
+package controller
 
 import (
 	. "github.com/onsi/ginkgo"

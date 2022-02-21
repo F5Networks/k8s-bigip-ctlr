@@ -12,6 +12,7 @@ spec:
   mode: standard
   snat: auto
   allowVlans: ["/Common/devtraffic"]
+  persistenceProfile: "cookie"
   serviceAddress:
   - icmpEcho: "enable"
     arpEnabled: true

@@ -14,7 +14,7 @@
 * limitations under the License.
  */
 
-package crmanager
+package controller
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ import (
 )
 
 // prepareVirtualServerRules prepares LTM Policy rules for VirtualServer
-func (crMgr *CRManager) prepareVirtualServerRules(
+func (ctlr *Controller) prepareVirtualServerRules(
 	vs *cisapiv1.VirtualServer,
 ) *Rules {
 	rlMap := make(ruleMap)
@@ -62,7 +62,7 @@ func (crMgr *CRManager) prepareVirtualServerRules(
 		path := pl.Path
 		var tls *cisapiv1.TLSProfile
 		if vs.Spec.TLSProfileName != "" {
-			tls = crMgr.getTLSProfileForVirtualServer(vs, vs.Namespace)
+			tls = ctlr.getTLSProfileForVirtualServer(vs, vs.Namespace)
 
 			if tls != nil && tls.Spec.TLS.Termination == TLSPassthrough {
 				path = "/"
@@ -550,8 +550,8 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	return iRuleCode
 }
 
-func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
-	dgPath := crMgr.dgPath
+func (ctlr *Controller) getTLSIRule(rsVSName string) string {
+	dgPath := ctlr.dgPath
 
 	iRule := fmt.Sprintf(`
 		when CLIENT_ACCEPTED {
@@ -837,13 +837,13 @@ func (crMgr *CRManager) getTLSIRule(rsVSName string) string {
 			}
         }`, dgPath, rsVSName)
 
-	iRuleCode := fmt.Sprintf("%s\n\n%s", crMgr.selectPoolIRuleFunc(rsVSName), iRule)
+	iRuleCode := fmt.Sprintf("%s\n\n%s", ctlr.selectPoolIRuleFunc(rsVSName), iRule)
 
 	return iRuleCode
 }
 
-func (crMgr *CRManager) selectPoolIRuleFunc(rsVSName string) string {
-	dgPath := crMgr.dgPath
+func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string) string {
+	dgPath := ctlr.dgPath
 
 	iRuleFunc := fmt.Sprintf(`
 		proc select_ab_pool {path default_pool } {

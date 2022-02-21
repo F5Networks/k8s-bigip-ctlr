@@ -62,7 +62,7 @@ type RoutesMap map[string][]string
 type Manager struct {
 	resources           *Resources
 	customProfiles      *CustomProfileStore
-	irulesMap           IRulesMap
+	IRulesStore         IRulesStore
 	intDgMap            InternalDataGroupMap
 	agentCfgMap         map[string]*AgentCfgMap
 	agentCfgMapSvcCache map[string]*SvcEndPointsCache
@@ -75,6 +75,8 @@ type Manager struct {
 	queueLen            int
 	processedItems      int
 	processedResources  map[string]bool
+	// Mutex to control access to processedResources map
+	processedResourcesMutex sync.Mutex
 	// Use internal node IPs
 	useNodeInternal bool
 	// Running in nodeport (or cluster) mode
@@ -87,8 +89,6 @@ type Manager struct {
 	oldNodes []Node
 	// Mutex for all informers (for informer CRUD)
 	informersMutex sync.Mutex
-	// Mutex for irulesMap
-	irulesMutex sync.Mutex
 	// Mutex for intDgMap
 	intDgMutex sync.Mutex
 	// App informer support
@@ -127,9 +127,8 @@ type Manager struct {
 	manageIngressClassOnly bool
 	ingressClass           string
 	// Ingress SSL security Context
-	rsrcSSLCtxt     map[string]*v1.Secret
-	WatchedNS       WatchedNamespaces
-	RoutesProcessed RoutesMap
+	rsrcSSLCtxt map[string]*v1.Secret
+	WatchedNS   WatchedNamespaces
 	// AS3 Specific features that can be applied to a Route/Ingress
 	trustedCertsCfgmap string
 	intF5Res           InternalF5ResourcesGroup
@@ -213,8 +212,6 @@ const (
 	hubModeInterval = 30 * time.Second //Hubmode ConfigMap resync interval
 )
 
-var RoutesProcessed []*routeapi.Route
-
 // Create and return a new app manager that meets the Manager interface
 func NewManager(params *Params) *Manager {
 	vsQueue := workqueue.NewNamedRateLimitingQueue(
@@ -224,7 +221,7 @@ func NewManager(params *Params) *Manager {
 	manager := Manager{
 		resources:              NewResources(),
 		customProfiles:         NewCustomProfiles(),
-		irulesMap:              make(IRulesMap),
+		IRulesStore:            IRulesStore{},
 		intDgMap:               make(InternalDataGroupMap),
 		kubeClient:             params.KubeClient,
 		restClientv1:           params.restClient,
@@ -256,7 +253,6 @@ func NewManager(params *Params) *Manager {
 		rsrcSSLCtxt:            make(map[string]*v1.Secret),
 		trustedCertsCfgmap:     params.TrustedCertsCfgmap,
 		intF5Res:               make(map[string]InternalF5Resources),
-		RoutesProcessed:        make(RoutesMap),
 		dgPath:                 params.DgPath,
 		agRspChan:              params.AgRspChan,
 		processAgentLabels:     params.ProcessAgentLabels,
@@ -265,7 +261,7 @@ func NewManager(params *Params) *Manager {
 		defaultRouteDomain:     params.DefaultRouteDomain,
 	}
 	manager.processedResources = make(map[string]bool)
-
+	manager.IRulesStore.IRulesMap = make(map[NameRef]*IRule)
 	// Initialize agent response worker
 	go manager.agentResponseWorker()
 
@@ -1261,7 +1257,9 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 				}
 				return nil
 			}
+			appMgr.processedResourcesMutex.Lock()
 			appMgr.processedResources[rkey] = true
+			appMgr.processedResourcesMutex.Unlock()
 		}
 	case Endpoints:
 		if appMgr.IsNodePort() {
@@ -1279,7 +1277,9 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 				return nil
 			}
 		case OprTypeDelete:
+			appMgr.processedResourcesMutex.Lock()
 			delete(appMgr.processedResources, resKey)
+			appMgr.processedResourcesMutex.Unlock()
 		}
 	default:
 		// Resources other than Services will be tracked if they are processed earlier
@@ -1296,9 +1296,13 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 				}
 				return nil
 			}
+			appMgr.processedResourcesMutex.Lock()
 			appMgr.processedResources[resKey] = true
+			appMgr.processedResourcesMutex.Unlock()
 		case OprTypeDelete:
+			appMgr.processedResourcesMutex.Lock()
 			delete(appMgr.processedResources, resKey)
+			appMgr.processedResourcesMutex.Unlock()
 		}
 
 	}
@@ -1480,7 +1484,9 @@ func (appMgr *Manager) syncConfigMaps(
 				}
 				// Mark each resource as it is already processed
 				// So that later the create event of the same resource will not processed, unnecessarily
+				appMgr.processedResourcesMutex.Lock()
 				appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
+				appMgr.processedResourcesMutex.Unlock()
 			}
 			continue
 		}
@@ -1535,7 +1541,9 @@ func (appMgr *Manager) syncConfigMaps(
 		} else {
 			// Mark each resource as it is already processed
 			// So that later the create event of the same resource will not be processed, unnecessarily
+			appMgr.processedResourcesMutex.Lock()
 			appMgr.processedResources[prepareResourceKey(Configmaps, sKey.Namespace, cm.Name)] = true
+			appMgr.processedResourcesMutex.Unlock()
 			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, sKey.ServiceName, "parse-error").Set(0)
 			stats.vsFound += found
 			stats.vsUpdated += updated
@@ -1631,7 +1639,9 @@ func (appMgr *Manager) syncIngresses(
 				return !ingFound
 			}
 			// So that later the create event of the same resource will not processed, unnecessarily
+			appMgr.processedResourcesMutex.Lock()
 			appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)] = true
+			appMgr.processedResourcesMutex.Unlock()
 			depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 				objKey, objDeps, svcDepKey, ingressLookupFunc)
 			portStructs := appMgr.virtualPorts(ing)
@@ -1789,7 +1799,9 @@ func (appMgr *Manager) syncIngresses(
 			}
 			// Mark each resource as it is already processed
 			// So that later the create event of the same resource will not processed, unnecessarily
+			appMgr.processedResourcesMutex.Lock()
 			appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)] = true
+			appMgr.processedResourcesMutex.Unlock()
 			depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 				objKey, objDeps, svcDepKey, ingressLookupFunc)
 			portStructs := appMgr.v1VirtualPorts(ing)
@@ -1954,27 +1966,37 @@ func (appMgr *Manager) syncRoutes(
 	// buffer to hold F5Resources till all routes are processed
 	bufferF5Res := InternalF5Resources{}
 
-	var routesProcessed []string
 	routePathMap := make(map[string]string)
 	for _, route := range routeByIndex {
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
 
-		// Mark each resource  as it is already processed during init Time
-		// So that later the create event of the same resource will not processed, unnecessarily
-		appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = true
+		var key string
+		if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
+			key = route.Spec.Host
+		} else {
+			key = route.Spec.Host + route.Spec.Path
+		}
+		if _, ok := routePathMap[key]; ok {
+			if _, ok := appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)]; !ok {
+				log.Warningf("[CORE]  Route exist with same host: %v and path: %v", route.Spec.Host, route.Spec.Path)
+				// Adding the entry for resource so logs does not print repeatedly
+				// Putting the value as false so that route status does not get updated
+				appMgr.processedResourcesMutex.Lock()
+				appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = false
+				appMgr.processedResourcesMutex.Unlock()
 
-		key := route.Spec.Host + route.Spec.Path
-		if host, ok := routePathMap[key]; ok {
-			if host == route.Spec.Host {
-				log.Debugf("[CORE] Route exist with same host: %v and path: %v", route.Spec.Host, route.Spec.Path)
-				continue
 			}
+			continue
 		} else {
 			routePathMap[key] = route.Spec.Host
 		}
-		routesProcessed = append(routesProcessed, route.ObjectMeta.Name)
+		// Mark each resource  as it is already processed during init Time
+		// So that later the create event of the same resource will not processed, unnecessarily
+		appMgr.processedResourcesMutex.Lock()
+		appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = true
+		appMgr.processedResourcesMutex.Unlock()
 
 		//FIXME(kenr): why do we process services that aren't associated
 		//             with a route?
@@ -2143,12 +2165,6 @@ func (appMgr *Manager) syncRoutes(
 		updateDataGroupForABRoute(route, svcName, DEFAULT_PARTITION, sKey.Namespace, dgMap)
 
 		appMgr.processAS3SpecificFeatures(route, bufferF5Res)
-	}
-
-	if len(routesProcessed) != 0 {
-		appMgr.RoutesProcessed[sKey.Namespace] = routesProcessed
-	} else {
-		delete(appMgr.RoutesProcessed, sKey.Namespace)
 	}
 
 	// if buffer is updated then update the appMgr and stats
@@ -3025,7 +3041,9 @@ func (appMgr *Manager) getEndpointsForCluster(
 
 	// Mark each resource as it is already processed
 	// So that later the create event of the same resource will not processed, unnecessarily
+	appMgr.processedResourcesMutex.Lock()
 	appMgr.processedResources[prepareResourceKey(Endpoints, eps.Namespace, eps.Name)] = true
+	appMgr.processedResourcesMutex.Unlock()
 	for _, subset := range eps.Subsets {
 		for _, p := range subset.Ports {
 			if portName == p.Name {
@@ -3353,6 +3371,24 @@ func (appMgr *Manager) exposeKubernetesService(
 
 func prepareResourceKey(kind, namespace, name string) string {
 	return kind + "_" + namespace + "/" + name
+}
+
+func getProcessedResources(processedResources map[string]bool, kind string) map[string][]string {
+	resourceMap := make(map[string][]string)
+	for k, v := range processedResources {
+		firstSplit := strings.Split(k, "_")
+		// considered only those resources which has value as true
+		if firstSplit[0] == kind && v {
+			secondSplit := strings.Split(firstSplit[1], "/")
+			if _, ok := resourceMap[secondSplit[0]]; ok {
+				resourceMap[secondSplit[0]] = append(resourceMap[secondSplit[0]], secondSplit[1])
+			} else {
+				resourceMap[secondSplit[0]] = []string{secondSplit[1]}
+			}
+
+		}
+	}
+	return resourceMap
 }
 
 func getIngressBackend(ing *v1beta1.Ingress) []string {

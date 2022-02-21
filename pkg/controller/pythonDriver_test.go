@@ -1,4 +1,4 @@
-package crmanager
+package controller
 
 import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"

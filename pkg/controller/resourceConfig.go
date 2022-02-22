@@ -363,8 +363,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 
 	//Attach allowVlans.
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
-	rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 
+	if vs.Spec.PersistenceProfile != "" {
+		rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
+	}
 	// Do not Create Virtual Server L7 Forwarding policies if HTTPTraffic is set to None or Redirect
 	if len(vs.Spec.TLSProfileName) > 0 &&
 		rsCfg.Virtual.VirtualAddress.Port == httpPort &&
@@ -1152,7 +1154,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 
 	//set allowed VLAN's per TS config
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
-	rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
+
+	if vs.Spec.PersistenceProfile != "" {
+		rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
+	}
 
 	// Attach user specified iRules
 	if len(vs.Spec.IRules) > 0 {
@@ -1229,6 +1234,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 ) error {
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
+	rsCfg.Virtual.PersistenceProfile = plc.Spec.Profiles.PersistenceProfile
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
@@ -1250,12 +1256,6 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 		})
 	}
 
-	if len(plc.Spec.Profiles.PersistenceProfile) > 0 {
-		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name:    plc.Spec.Profiles.PersistenceProfile,
-			Context: "persistenceProfile",
-		})
-	}
 	switch rsCfg.MetaData.Protocol {
 	case "https":
 		iRule = plc.Spec.IRules.Secure
@@ -1287,6 +1287,7 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 ) error {
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
+	rsCfg.Virtual.PersistenceProfile = plc.Spec.Profiles.PersistenceProfile
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
@@ -1301,12 +1302,6 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
 			Name:    plc.Spec.Profiles.TCP,
 			Context: "tcp",
-		})
-	}
-	if len(plc.Spec.Profiles.PersistenceProfile) > 0 {
-		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name:    plc.Spec.Profiles.PersistenceProfile,
-			Context: "persistenceProfile",
 		})
 	}
 	var iRule string

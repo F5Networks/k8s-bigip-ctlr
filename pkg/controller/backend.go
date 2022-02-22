@@ -497,18 +497,19 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		svc.TranslateServerAddress = true
 		svc.TranslateServerPort = true
 		svc.Class = "Service_HTTP"
-		if len(cfg.Virtual.PersistenceProfile) == 0 {
-			cfg.Virtual.PersistenceProfile = "cookie"
-		}
 	} else {
 		if len(cfg.Virtual.PersistenceProfile) == 0 {
 			cfg.Virtual.PersistenceProfile = "tls-session-id"
 		}
 		svc.Class = "Service_TCP"
 	}
-	svc.PersistenceMethods = []string{cfg.Virtual.PersistenceProfile}
-
-	// Attaching Profiles from Policy CRD
+	if len(cfg.Virtual.PersistenceProfile) > 0 {
+		svc.PersistenceMethods = &[]string{cfg.Virtual.PersistenceProfile}
+		if cfg.Virtual.PersistenceProfile == "none" {
+			svc.PersistenceMethods = &[]string{}
+		}
+	}
+   	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		partition, name := getPartitionAndName(profile.Name)
 		switch profile.Context {
@@ -536,8 +537,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 					BigIP: fmt.Sprintf("%v", profile.Name),
 				}
 			}
-		case "persistenceProfile":
-			svc.PersistenceMethods = []string{profile.Name}
 		}
 	}
 
@@ -995,10 +994,12 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	}
 	svc.ProfileL4 = "basic"
 
-	if len(cfg.Virtual.PersistenceProfile) == 0 {
-		cfg.Virtual.PersistenceProfile = "source-address"
+	if len(cfg.Virtual.PersistenceProfile) > 0 {
+		svc.PersistenceMethods = &[]string{cfg.Virtual.PersistenceProfile}
+		if cfg.Virtual.PersistenceProfile == "none" {
+			svc.PersistenceMethods = &[]string{}
+		}
 	}
-	svc.PersistenceMethods = []string{cfg.Virtual.PersistenceProfile}
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		partition, name := getPartitionAndName(profile.Name)
@@ -1019,8 +1020,6 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 					BigIP: fmt.Sprintf("%v", profile.Name),
 				}
 			}
-		case "persistenceProfile":
-			svc.PersistenceMethods = []string{profile.Name}
 		}
 	}
 

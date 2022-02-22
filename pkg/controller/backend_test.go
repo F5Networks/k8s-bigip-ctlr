@@ -9,6 +9,14 @@ import (
 var _ = Describe("Backend Tests", func() {
 
 	It("DNS Config", func() {
+		var monitors []Monitor
+		monitors = append(monitors, Monitor{
+			Name:     "pool1_monitor",
+			Interval: 10,
+			Timeout:  10,
+			Type:     "http",
+			Send:     "GET /health",
+		})
 		dnsConfig := DNSConfig{
 			"test.com": WideIP{
 				DomainName: "test.com",
@@ -20,13 +28,7 @@ var _ = Describe("Backend Tests", func() {
 						RecordType: "A",
 						LBMethod:   "round-robin",
 						Members:    []string{"vs1", "vs2"},
-						Monitor: &Monitor{
-							Name:     "pool1_monitor",
-							Interval: 10,
-							Timeout:  10,
-							Type:     "http",
-							Send:     "GET /health",
-						},
+						Monitors:   monitors,
 					},
 				},
 			},

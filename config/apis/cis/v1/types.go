@@ -164,7 +164,7 @@ type TransportServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec TransportServerSpec `json:"spec"`
+	Spec   TransportServerSpec   `json:"spec"`
 	Status TransportServerStatus `json:"status,omitempty"`
 }
 
@@ -221,10 +221,11 @@ type ExternalDNSSpec struct {
 }
 
 type DNSPool struct {
-	DataServerName    string  `json:"dataServerName"`
-	DNSRecordType     string  `json:"dnsRecordType"`
-	LoadBalanceMethod string  `json:"loadBalanceMethod"`
-	Monitor           Monitor `json:"monitor"`
+	DataServerName    string    `json:"dataServerName"`
+	DNSRecordType     string    `json:"dnsRecordType"`
+	LoadBalanceMethod string    `json:"loadBalanceMethod"`
+	Monitor           Monitor   `json:"monitor"`
+	Monitors          []Monitor `json:"monitors"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

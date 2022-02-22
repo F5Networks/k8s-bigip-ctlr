@@ -752,7 +752,6 @@ func (ctlr *Controller) processVirtualServers(
 	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
 
 	virtuals := ctlr.getAssociatedVirtualServers(virtual, allVirtuals, isVSDeleted)
-
 	var ip string
 	var status int
 	if ctlr.ipamCli != nil {
@@ -799,6 +798,9 @@ func (ctlr *Controller) processVirtualServers(
 		} else {
 			var err error
 			ip, err = getVirtualServerAddress(virtuals)
+			if ip == "" && err == nil{
+				ip = virtual.Spec.VirtualServerAddress
+			}
 			if err != nil {
 				log.Errorf("Error in virtualserver address: %s", err.Error())
 				return err
@@ -1138,7 +1140,7 @@ func getVirtualServerAddress(virtuals []*cisapiv1.VirtualServer) (string, error)
 			}
 		}
 	}
-	if vsa == "" {
+	if len(virtuals) != 0 && vsa == "" {
 		return "", fmt.Errorf("no Virtual Server Address Found")
 	}
 	return vsa, nil

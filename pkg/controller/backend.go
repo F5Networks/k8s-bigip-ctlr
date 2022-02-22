@@ -497,21 +497,19 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		svc.TranslateServerAddress = true
 		svc.TranslateServerPort = true
 		svc.Class = "Service_HTTP"
-		if len(cfg.Virtual.PersistenceProfile) > 0 {
-			svc.PersistenceMethods = &[]string{cfg.Virtual.PersistenceProfile}
-		}
-		if cfg.Virtual.PersistenceProfile == "none" {
-			svc.PersistenceMethods = &[]string{}
-		}
 	} else {
 		if len(cfg.Virtual.PersistenceProfile) == 0 {
 			cfg.Virtual.PersistenceProfile = "tls-session-id"
 		}
-		svc.PersistenceMethods = &[]string{cfg.Virtual.PersistenceProfile}
 		svc.Class = "Service_TCP"
 	}
-
-	// Attaching Profiles from Policy CRD
+	if len(cfg.Virtual.PersistenceProfile) > 0 {
+		svc.PersistenceMethods = &[]string{cfg.Virtual.PersistenceProfile}
+		if cfg.Virtual.PersistenceProfile == "none" {
+			svc.PersistenceMethods = &[]string{}
+		}
+	}
+   	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		partition, name := getPartitionAndName(profile.Name)
 		switch profile.Context {
@@ -538,13 +536,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				svc.ProfileTCP = &as3ResourcePointer{
 					BigIP: fmt.Sprintf("%v", profile.Name),
 				}
-			}
-		case "persistenceProfile":
-			if len(profile.Name) > 0 {
-				svc.PersistenceMethods = &[]string{profile.Name}
-			}
-			if profile.Name == "none" {
-				svc.PersistenceMethods = &[]string{}
 			}
 		}
 	}
@@ -1005,9 +996,9 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	if len(cfg.Virtual.PersistenceProfile) > 0 {
 		svc.PersistenceMethods = &[]string{cfg.Virtual.PersistenceProfile}
-	}
-	if cfg.Virtual.PersistenceProfile == "none" {
-		svc.PersistenceMethods = &[]string{}
+		if cfg.Virtual.PersistenceProfile == "none" {
+			svc.PersistenceMethods = &[]string{}
+		}
 	}
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
@@ -1029,14 +1020,6 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 					BigIP: fmt.Sprintf("%v", profile.Name),
 				}
 			}
-		case "persistenceProfile":
-			if len(profile.Name) > 0 {
-				svc.PersistenceMethods = &[]string{profile.Name}
-			}
-			if profile.Name == "none" {
-				svc.PersistenceMethods = &[]string{}
-			}
-
 		}
 	}
 

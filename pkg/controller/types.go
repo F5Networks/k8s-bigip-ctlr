@@ -153,7 +153,8 @@ type (
 		TranslateServerPort    bool                  `json:"translateServerPort"`
 		Source                 string                `json:"source,omitempty"`
 		AllowVLANs             []string              `json:"allowVlans,omitempty"`
-		PersistenceMethods     []string              `json:"-"`
+		PersistenceProfile     string                `json:"persistenceProfile,omitempty"`
+		TLSTermination         string                `json:"-"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -439,6 +440,7 @@ type (
 	requestMeta struct {
 		meta []metaData
 		id   int
+
 	}
 
 	Node struct {

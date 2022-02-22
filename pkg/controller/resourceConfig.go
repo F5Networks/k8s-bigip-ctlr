@@ -363,6 +363,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 
 	//Attach allowVlans.
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
+	rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 
 	// Do not Create Virtual Server L7 Forwarding policies if HTTPTraffic is set to None or Redirect
 	if len(vs.Spec.TLSProfileName) > 0 &&
@@ -433,7 +434,8 @@ func (ctlr *Controller) handleVirtualServerTLS(
 		tlsName := vs.Spec.TLSProfileName
 
 		if tls.Spec.TLS.Termination == TLSPassthrough {
-			rsCfg.Virtual.PersistenceMethods = []string{"tls-session-id"}
+			rsCfg.Virtual.TLSTermination = TLSPassthrough
+			//rsCfg.Virtual.PersistenceProfile = []string{"tls-session-id"}
 			return true
 		}
 
@@ -1150,6 +1152,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 
 	//set allowed VLAN's per TS config
 	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
+	rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 
 	// Attach user specified iRules
 	if len(vs.Spec.IRules) > 0 {
@@ -1246,6 +1249,13 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 			Context: "tcp",
 		})
 	}
+
+	if len(plc.Spec.Profiles.PersistenceProfile) > 0 {
+		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+			Name:    plc.Spec.Profiles.PersistenceProfile,
+			Context: "persistenceProfile",
+		})
+	}
 	switch rsCfg.MetaData.Protocol {
 	case "https":
 		iRule = plc.Spec.IRules.Secure
@@ -1291,6 +1301,12 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
 			Name:    plc.Spec.Profiles.TCP,
 			Context: "tcp",
+		})
+	}
+	if len(plc.Spec.Profiles.PersistenceProfile) > 0 {
+		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
+			Name:    plc.Spec.Profiles.PersistenceProfile,
+			Context: "persistenceProfile",
 		})
 	}
 	var iRule string

@@ -37,6 +37,8 @@ spec:
                   type: string
                 tlsProfileName:
                   type: string
+                persistenceProfile:
+                  type: string
                 policyName:
                   type: string
                   pattern: '^([A-z0-9-_+])*([A-z0-9])$'
@@ -263,6 +265,8 @@ spec:
                   type: string
                   enum: [tcp, udp]
                 snat:
+                  type: string
+                persistenceProfile:
                   type: string
                 allowVlans:
                   items:
@@ -581,6 +585,8 @@ spec:
                     http2:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
+                    persistenceProfile:
+                      type: string
                     rewriteProfile:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'

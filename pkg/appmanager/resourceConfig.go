@@ -430,10 +430,10 @@ func (appMgr *Manager) createRSConfigFromRoute(
 	var policyName, rsName string
 
 	if pStruct.protocol == "http" {
-		policyName = "openshift_insecure_routes"
+		policyName = InsecurePolicyName
 		rsName = routeConfig.HttpVs
 	} else {
-		policyName = "openshift_secure_routes"
+		policyName = SecurePolicyName
 		rsName = routeConfig.HttpsVs
 	}
 

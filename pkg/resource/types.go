@@ -470,6 +470,9 @@ const (
 	DEFAULT_HTTP_PORT  int32  = 80
 	DEFAULT_HTTPS_PORT int32  = 443
 
+	InsecurePolicyName = "openshift_insecure_routes"
+	SecurePolicyName   = "openshift_secure_routes"
+
 	urlRewriteRulePrefix      = "url-rewrite-rule-"
 	appRootForwardRulePrefix  = "app-root-forward-rule-"
 	appRootRedirectRulePrefix = "app-root-redirect-rule-"

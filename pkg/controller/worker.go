@@ -803,6 +803,12 @@ func (ctlr *Controller) processVirtualServers(
 				log.Errorf("Error in virtualserver address: %s", err.Error())
 				return err
 			}
+			if ip == ""{
+				ip = virtual.Spec.VirtualServerAddress
+				if ip == ""{
+					return fmt.Errorf("No VirtualServer address found for: %s", virtual.Name)
+				}
+			}
 		}
 	}
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.
@@ -1138,7 +1144,7 @@ func getVirtualServerAddress(virtuals []*cisapiv1.VirtualServer) (string, error)
 			}
 		}
 	}
-	if vsa == "" {
+	if len(virtuals) != 0 && vsa == "" {
 		return "", fmt.Errorf("no Virtual Server Address Found")
 	}
 	return vsa, nil

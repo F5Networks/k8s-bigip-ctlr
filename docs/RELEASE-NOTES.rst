@@ -15,6 +15,7 @@ Enhancements
 * Added fix for processing oldest route when same host and path in routes
 * Added fix for cis crash with routes
 * :issues:`2212` Fix ExternalDNS adds both VSs to a Wide IP pool with using "httpTraffic: allow" with VS CR
+* :issues:`2222` Fix deleting VirtualServer using hostGroup
 
 2.7.1
 -------------

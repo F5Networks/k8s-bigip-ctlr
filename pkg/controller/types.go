@@ -503,14 +503,20 @@ type (
 		*PostManager
 		Partition       string
 		ConfigWriter    writer.Writer
+		postChan        chan ResourceConfigRequest
 		EventChan       chan interface{}
+		retryChan       chan struct{}
+		respChan        chan int
 		PythonDriverPID int
-		// activeDecl,newDecl hold tenant names and corresponding AS3 config
-		activeDecl  map[string]interface{}
-		newDecl     map[string]interface{}
-		userAgent   string
-		HttpAddress string
-		EnableIPV6  bool
+		userAgent       string
+		HttpAddress     string
+		EnableIPV6      bool
+		declUpdate      sync.Mutex
+		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
+		cachedTenantDeclMap   map[string]as3Tenant
+		incomingTenantDeclMap map[string]as3Tenant
+		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
+		retryTenantDeclMap map[string]*tenantParams
 	}
 
 	AgentParams struct {
@@ -529,9 +535,8 @@ type (
 	}
 
 	PostManager struct {
-		postChan   chan agentConfig
-		respChan   chan int
-		httpClient *http.Client
+		httpClient        *http.Client
+		tenantResponseMap map[string]tenantResponse
 		PostParams
 	}
 
@@ -550,6 +555,16 @@ type (
 		GTMBigIpUsername string
 		GTMBigIpPassword string
 		GTMBigIpUrl      string
+	}
+
+	tenantResponse struct {
+		agentResponseCode int
+		taskId            string
+	}
+
+	tenantParams struct {
+		as3Decl interface{} // to update cachedTenantDeclMap on success
+		tenantResponse
 	}
 
 	agentConfig struct {

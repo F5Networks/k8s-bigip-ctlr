@@ -19,14 +19,15 @@ package controller
 import (
 	"bufio"
 	"fmt"
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
+
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"

@@ -57,15 +57,27 @@ func NewAgent(params AgentParams) *Agent {
 		log.Fatalf("Failed creating ConfigWriter tool: %v", err)
 	}
 	agent := &Agent{
-		PostManager:  postMgr,
-		Partition:    params.Partition,
-		ConfigWriter: configWriter,
-		EventChan:    make(chan interface{}),
-		activeDecl:   make(map[string]interface{}),
-		newDecl:      make(map[string]interface{}),
-		userAgent:    params.UserAgent,
-		HttpAddress:  params.HttpAddress,
+		PostManager:           postMgr,
+		Partition:             params.Partition,
+		ConfigWriter:          configWriter,
+		EventChan:             make(chan interface{}),
+		postChan:              make(chan ResourceConfigRequest, 1),
+		retryChan:             make(chan struct{}, 1),
+		respChan:              make(chan int),
+		cachedTenantDeclMap:   make(map[string]as3Tenant),
+		incomingTenantDeclMap: make(map[string]as3Tenant),
+		retryTenantDeclMap:    make(map[string]*tenantParams),
+		userAgent:             params.UserAgent,
+		HttpAddress:           params.HttpAddress,
 	}
+	// agentWorker runs as a separate go routine
+	// blocks on postChan to get new/updated configuration to be posted to BIG-IP
+	go agent.agentWorker()
+
+	// retryWorker runs as a separate go routine
+	// blocks on retryChan ; retries failed declarations and polls for accepted tenant statuses
+	go agent.retryWorker()
+
 	// If running in VXLAN mode, extract the partition name from the tunnel
 	// to be used in configuring a net instance of CCCL for that partition
 	var vxlanPartition string
@@ -133,24 +145,123 @@ func (agent *Agent) Stop() {
 }
 
 func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
-	if !(agent.EnableIPV6) {
-		agent.PostGTMConfig(rsConfig)
+	// Always push latest activeConfig to channel
+	// Case1: Put latest config into the channel
+	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
+	// Either Case1 or Case2 executes, which ensures the above
+	select {
+	case agent.postChan <- rsConfig:
+	case <-agent.postChan:
+		agent.postChan <- rsConfig
+
 	}
-	decl := agent.createAS3Declaration(rsConfig)
+}
 
-	cfg := agentConfig{
-		data:      string(decl),
-		as3APIURL: agent.getAS3APIURL(nil),
-		id:        rsConfig.reqId,
+// agentWorker blocks on postChan
+// whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
+func (agent *Agent) agentWorker() {
+	for rsConfig := range agent.postChan {
+		// If there are no retries going on in parallel, acquiring lock will be straight forward.
+		// Otherwise, we will wait for retryWorker to complete its current iteration
+		agent.declUpdate.Lock()
+
+		if !(agent.EnableIPV6) {
+			agent.PostGTMConfig(rsConfig)
+		}
+		decl := agent.createTenantAS3Declaration(rsConfig)
+
+		if len(agent.incomingTenantDeclMap) == 0 {
+			agent.declUpdate.Unlock()
+			continue
+		}
+
+		var updatedTenants []string
+
+		/*
+			For every incoming post request, create a new tenantResponseMap.
+			tenantResponseMap will be updated with responses during postConfig.
+			It holds the updatedTenants in the current iteration's as keys.
+			This is needed to update response code in cases (202/404) when httpResponse body does not contain the tenant details.
+		*/
+		agent.tenantResponseMap = make(map[string]tenantResponse)
+
+		for tenant := range agent.incomingTenantDeclMap {
+			updatedTenants = append(updatedTenants, tenant)
+			agent.tenantResponseMap[tenant] = tenantResponse{}
+		}
+
+		cfg := agentConfig{
+			data:      string(decl),
+			as3APIURL: agent.getAS3APIURL(updatedTenants),
+			id:        rsConfig.reqId,
+		}
+
+		// For the very first post after starting controller, need not wait to post
+		firstPost := false
+
+		if len(agent.cachedTenantDeclMap) == 0 {
+			firstPost = true
+		}
+
+		agent.publishConfig(cfg, firstPost)
+
+		go agent.updatePoolMembers(rsConfig)
+
+		// notify response handler on successful tenant update
+		agent.notifyOnSuccess(cfg.id)
+
+		/*
+			For same tenant if responses happen to be 201 and 503 consecutively,
+			we ignore 201 and only wait until 503 succeeds. In this case,
+			cachedTenantDeclMap will eventually hold the latest posted config on BIGIP.
+		*/
+		agent.updateTenantResponse(true)
+
+		if len(agent.retryTenantDeclMap) > 0 {
+			// Activate retry
+			select {
+			case agent.retryChan <- struct{}{}:
+			case <-agent.retryChan:
+				agent.retryChan <- struct{}{}
+			}
+		}
+
+		agent.declUpdate.Unlock()
 	}
+}
 
-	agent.Write(cfg)
+func (agent *Agent) notifyOnSuccess(id int) {
+	// TODO: improve to handle tenant updates after retry and multi partition cases
 
-	// TODO : assuming all tenant configs are applied successfully
-	for tenant, decl := range agent.newDecl {
-		agent.activeDecl[tenant] = decl
+	for _, resp := range agent.tenantResponseMap {
+		// publish id for successful tenants
+		if resp.agentResponseCode == 200 {
+			// Always push latest id to channel
+			// Case1: Put latest id into the channel
+			// Case2: If channel is blocked because of earlier id, pop out earlier id and push latest id
+			// Either Case1 or Case2 executes, which ensures the above
+			select {
+			case agent.respChan <- id:
+			case <-agent.respChan:
+				agent.respChan <- id
+			}
+		}
 	}
+}
 
+func (agent *Agent) updateRetryMap(tenant string, resp tenantResponse, tenDecl interface{}) {
+	if resp.agentResponseCode == 200 {
+		// delete the tenant entry from retry if any
+		delete(agent.retryTenantDeclMap, tenant)
+	} else {
+		agent.retryTenantDeclMap[tenant] = &tenantParams{
+			tenDecl,
+			tenantResponse{resp.agentResponseCode, resp.taskId},
+		}
+	}
+}
+
+func (agent *Agent) updatePoolMembers(rsConfig ResourceConfigRequest) {
 	allPoolMembers := rsConfig.ltmConfig.GetAllPoolMembers()
 
 	// Convert allPoolMembers to rsc.Members so that vxlan Manger accepts
@@ -171,8 +282,105 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 	}
 }
 
-func (agent Agent) SetResponseChannel(respChan chan int) {
-	agent.PostManager.respChan = respChan
+func (agent *Agent) updateTenantResponse(agentWorkerUpdate bool) {
+	/*
+		Non 200 ok tenants will be added to retryTenantDeclMap map
+		Locks to update the map will be acquired in the calling method
+	*/
+	for tenant, resp := range agent.tenantResponseMap {
+		if resp.agentResponseCode == 200 {
+			// update cachedTenantDeclMap with successfully posted declaration
+			if agentWorkerUpdate {
+				agent.cachedTenantDeclMap[tenant] = agent.incomingTenantDeclMap[tenant]
+			} else {
+				agent.cachedTenantDeclMap[tenant] = agent.retryTenantDeclMap[tenant].as3Decl.(as3Tenant)
+			}
+		}
+		if agentWorkerUpdate {
+			agent.updateRetryMap(tenant, resp, agent.incomingTenantDeclMap[tenant])
+		} else {
+			agent.updateRetryMap(tenant, resp, agent.retryTenantDeclMap[tenant].as3Decl)
+		}
+	}
+}
+
+// retryWorker blocks on retryChan
+// whenever it gets unblocked, retries failed declarations and polls for accepted tenant statuses
+func (agent *Agent) retryWorker() {
+
+	/*
+		retryWorker runs as a goroutine. It is idle until an arrives at retryChan.
+		retryTenantDeclMal holds all information about tenant adc configuration and response codes.
+
+		Once retryChan is signalled, retryWorker posts tenant declarations and/or polls for accepted tenants' statuses continuously until it succeeds
+		Locks are used to block retries if an incoming request arrives at agentWorker.
+
+		For each iteration, retryWorker tries to acquire agent.declUpdate lock.
+		During an ongoing agentWorker's activity, retryWorker tries to wait until agent.declUpdate lock is acquired
+		Similarly, during an ongoing retry, agentWorker waits for graceful termination of ongoing iteration - i.e., until agent.declUpdate is unlocked
+
+	*/
+
+	for range agent.retryChan {
+
+		for len(agent.retryTenantDeclMap) != 0 {
+
+			agent.declUpdate.Lock()
+
+			// If we had a delay in acquiring lock, re-check if we have any tenants to be retried
+			if len(agent.retryTenantDeclMap) == 0 {
+				agent.declUpdate.Unlock()
+				break
+			}
+
+			log.Debugf("[AS3] Posting failed tenants configuration in %v seconds", timeoutMedium)
+
+			var retryTenants []string
+			// Create a set to hold unique polling ids
+			acceptedTenantIds := map[string]struct{}{}
+
+			// this map is to collect all non-201 tenant configs
+			retryDecl := make(map[string]as3Tenant)
+
+			agent.tenantResponseMap = make(map[string]tenantResponse)
+
+			for tenant, cfg := range agent.retryTenantDeclMap {
+				// We prioritise calling only acceptedTenants first
+				// So, when we call updateTenantResponse, we have to retain failed agentResponseCodes and taskId's correctly
+				agent.tenantResponseMap[tenant] = tenantResponse{agentResponseCode: cfg.agentResponseCode, taskId: cfg.taskId}
+				if cfg.taskId == "" {
+					retryTenants = append(retryTenants, tenant)
+					retryDecl[tenant] = cfg.as3Decl.(as3Tenant)
+				} else {
+					if _, found := acceptedTenantIds[cfg.taskId]; !found {
+						acceptedTenantIds[cfg.taskId] = struct{}{}
+					}
+				}
+			}
+
+			if len(acceptedTenantIds) > 0 {
+				for taskId := range acceptedTenantIds {
+					<-time.After(timeoutMedium)
+					agent.getTenantConfigStatus(taskId)
+				}
+			} else if len(retryTenants) > 0 {
+				// Until all accepted tenants are not processed, we do not want to re-post failed tenants since we will anyways get a 503
+				cfg := agentConfig{
+					data:      string(agent.createAS3Declaration(retryDecl)),
+					as3APIURL: agent.getAS3APIURL(retryTenants),
+					id:        0,
+				}
+				// Ignoring timeouts for custom errors
+				<-time.After(timeoutMedium)
+
+				agent.postConfig(&cfg)
+			}
+
+			agent.updateTenantResponse(false)
+
+			agent.declUpdate.Unlock()
+		}
+	}
 }
 
 func (agent Agent) PostGTMConfig(config ResourceConfigRequest) {
@@ -203,37 +411,41 @@ func (agent Agent) PostGTMConfig(config ResourceConfigRequest) {
 }
 
 // Creates AS3 adc only for tenants with updated configuration
-func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest, adc map[string]interface{}) {
+func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3Declaration {
+	// Re-initialise incomingTenantDeclMap map for each new config request
+	agent.incomingTenantDeclMap = make(map[string]as3Tenant)
+
 	for tenant, cfg := range createAS3ADC(config) {
-		if !reflect.DeepEqual(cfg, agent.activeDecl[tenant]) {
-			adc[tenant] = cfg
-			agent.newDecl[tenant] = cfg
+		if !reflect.DeepEqual(cfg, agent.cachedTenantDeclMap[tenant]) {
+			agent.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
 		} else {
 			log.Debugf("[AS3] No change in %v tenant configuration", tenant)
 		}
 	}
+
+	return agent.createAS3Declaration(agent.incomingTenantDeclMap)
 }
 
-//Create AS3 declaration
-func (agent *Agent) createAS3Declaration(config ResourceConfigRequest) as3Declaration {
-	// Re-initialise newDecl map for each new config request
-	agent.newDecl = make(map[string]interface{})
-
+func (agent *Agent) createAS3Declaration(tenantDeclMap map[string]as3Tenant) as3Declaration {
 	var as3Config map[string]interface{}
+
 	_ = json.Unmarshal([]byte(baseAS3Config), &as3Config)
 
 	adc := as3Config["declaration"].(map[string]interface{})
-	agent.createTenantAS3Declaration(config, adc)
 
 	controlObj := make(map[string]interface{})
 	controlObj["class"] = "Controls"
 	controlObj["userAgent"] = agent.userAgent
 	adc["controls"] = controlObj
 
+	for tenant, decl := range tenantDeclMap {
+		adc[tenant] = decl
+	}
 	decl, err := json.Marshal(as3Config)
 	if err != nil {
 		log.Debugf("[AS3] Unified declaration: %v\n", err)
 	}
+
 	return as3Declaration(decl)
 }
 

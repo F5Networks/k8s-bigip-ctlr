@@ -49,12 +49,10 @@ func newMockPostManger() *mockPostManager {
 		RespIndex:   0,
 	}
 
-	mockPM.postChan = make(chan agentConfig, 1)
-
 	return mockPM
 }
 
-func (mockPM *mockPostManager) setResponses(respCodes []int, responseBody, method string) {
+func (mockPM *mockPostManager) setResponses(respCodes []float64, responseBody, method string) {
 	var body string
 
 	responseMap := make(mockhc.ResponseConfigMap)
@@ -62,10 +60,10 @@ func (mockPM *mockPostManager) setResponses(respCodes []int, responseBody, metho
 	for _, statusCode := range respCodes {
 		if responseBody == "" {
 			if statusCode == http.StatusOK {
-				body = fmt.Sprintf(`{"results":[{"code":%d,"message":"none", "tenant": "none"}]}`,
+				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "test"}]}`,
 					statusCode)
 			} else {
-				body = fmt.Sprintf(`{"results":[{"code":%d,"message":"none", "tenant": "none"}],"error":{"code":%d}}`,
+				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "test"}],"error":{"code":%f}}`,
 					statusCode, statusCode)
 			}
 		} else {
@@ -73,7 +71,7 @@ func (mockPM *mockPostManager) setResponses(respCodes []int, responseBody, metho
 		}
 
 		responseMap[method].Responses = append(responseMap[method].Responses, &http.Response{
-			StatusCode: statusCode,
+			StatusCode: int(statusCode),
 			Header:     http.Header{},
 			Body:       ioutil.NopCloser(bytes.NewReader([]byte(body))),
 		})
@@ -84,13 +82,14 @@ func (mockPM *mockPostManager) setResponses(respCodes []int, responseBody, metho
 
 func newMockAgent(writer writer.Writer) *Agent {
 	return &Agent{
-		PostManager:     nil,
-		Partition:       "test",
-		ConfigWriter:    writer,
-		EventChan:       make(chan interface{}),
-		PythonDriverPID: 0,
-		activeDecl:      make(map[string]interface{}),
-		newDecl:         make(map[string]interface{}),
-		userAgent:       "",
+		PostManager:           nil,
+		Partition:             "test",
+		ConfigWriter:          writer,
+		EventChan:             make(chan interface{}),
+		postChan:              make(chan ResourceConfigRequest, 1),
+		PythonDriverPID:       0,
+		cachedTenantDeclMap:   make(map[string]interface{}),
+		incomingTenantDeclMap: make(map[string]interface{}),
+		userAgent:             "",
 	}
 }

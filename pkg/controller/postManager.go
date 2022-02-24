@@ -38,14 +38,10 @@ const (
 
 func NewPostManager(params PostParams) *PostManager {
 	pm := &PostManager{
-		postChan:   make(chan agentConfig, 1),
 		PostParams: params,
 	}
 	pm.setupBIGIPRESTClient()
 
-	// configWorker runs as a separate go routine
-	// blocks on postChan to get new/updated configuration to be posted to BIG-IP
-	go pm.configWorker()
 	return pm
 }
 
@@ -81,93 +77,57 @@ func (postMgr *PostManager) getAS3APIURL(tenants []string) string {
 	return apiURL
 }
 
-// Write sets activeConfig with the latest config received, so that configWorker can use latest configuration
-// Write enqueues postChan to unblock configWorker, which gets blocked on postChan
-func (postMgr *PostManager) Write(
-	activeConfig agentConfig,
-) {
-	// Always push latest activeConfig to channel
-	// Case1: Put latest config into the channel
-	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
-	// Either Case1 or Case2 executes, which ensures the above
-	select {
-	case postMgr.postChan <- activeConfig:
-	case <-postMgr.postChan:
-		postMgr.postChan <- activeConfig
+func (postMgr *PostManager) getAS3TaskIdURL(taskId string) string {
+	apiURL := postMgr.BIGIPURL + "/mgmt/shared/appsvcs/task/" + taskId
+	return apiURL
+}
+
+// publishConfig posts incoming configuration to BIG-IP
+func (postMgr *PostManager) publishConfig(cfg agentConfig, firstPost bool) {
+
+	if !firstPost && postMgr.AS3PostDelay != 0 {
+		// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
+		log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds", postMgr.AS3PostDelay)
+		_ = <-time.After(time.Duration(postMgr.AS3PostDelay) * time.Second)
 	}
+
 	log.Debug("[AS3] PostManager Accepted the configuration")
 
-	return
+	// postConfig updates the tenantResponseMap with response codes
+	postMgr.postConfig(&cfg)
+
 }
 
-// configWorker blocks on postChan
-// whenever gets unblocked posts active configuration to BIG-IP
-func (postMgr *PostManager) configWorker() {
-	// For the very first post after starting controller, need not wait to post
-	firstPost := true
-	for cfg := range postMgr.postChan {
-		if !firstPost && postMgr.AS3PostDelay != 0 {
-			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
-			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds", postMgr.AS3PostDelay)
-			_ = <-time.After(time.Duration(postMgr.AS3PostDelay) * time.Second)
-		}
-
-		// After postDelay expires pick up latest declaration, if available
-		select {
-		case cfg = <-postMgr.postChan:
-		case <-time.After(1 * time.Microsecond):
-		}
-
-		respCfg, posted := postMgr.postConfig(&cfg)
-		// To handle general errors
-		for !posted {
-			respCfg, posted = postMgr.postOnEventOrTimeout(timeoutMedium, &cfg)
-		}
-
-		select {
-		case postMgr.respChan <- respCfg.id:
-		case <-postMgr.respChan:
-			postMgr.respChan <- respCfg.id
-		}
-
-		firstPost = false
-	}
-}
-
-func (postMgr *PostManager) postOnEventOrTimeout(timeout time.Duration, cfg *agentConfig) (*agentConfig, bool) {
-	select {
-	case newCfg := <-postMgr.postChan:
-		return postMgr.postConfig(&newCfg)
-	case <-time.After(timeout):
-		return postMgr.postConfig(cfg)
-	}
-}
-
-func (postMgr *PostManager) postConfig(cfg *agentConfig) (*agentConfig, bool) {
+func (postMgr *PostManager) postConfig(cfg *agentConfig) {
 	httpReqBody := bytes.NewBuffer([]byte(cfg.data))
 	req, err := http.NewRequest("POST", cfg.as3APIURL, httpReqBody)
 	if err != nil {
 		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
-		return cfg, false
+		return
 	}
 	log.Debugf("[AS3] posting request to %v", cfg.as3APIURL)
 	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
 
 	httpResp, responseMap := postMgr.httpPOST(req)
 	if httpResp == nil || responseMap == nil {
-		return cfg, false
+		return
 	}
 
 	switch httpResp.StatusCode {
-	case http.StatusOK, http.StatusCreated, http.StatusAccepted:
-		return postMgr.handleResponseStatusOK(responseMap, cfg)
+	case http.StatusOK:
+		postMgr.handleResponseStatusOK(responseMap)
+	case http.StatusCreated, http.StatusAccepted:
+		postMgr.handleResponseAccepted(responseMap)
+	case http.StatusMultiStatus:
+		postMgr.handleMultiStatus(responseMap)
 	case http.StatusServiceUnavailable:
-		return postMgr.handleResponseStatusServiceUnavailable(responseMap, cfg)
+		postMgr.handleResponseStatusServiceUnavailable(responseMap)
 	case http.StatusNotFound:
-		return postMgr.handleResponseStatusNotFound(responseMap, cfg)
+		postMgr.handleResponseStatusNotFound(responseMap)
 	default:
-		return postMgr.handleResponseOthers(responseMap, cfg)
+		postMgr.handleResponseOthers(responseMap, cfg)
 	}
+
 }
 
 func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map[string]interface{}) {
@@ -195,54 +155,122 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	return httpResp, response
 }
 
-func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}, cfg *agentConfig) (*agentConfig, bool) {
+func (postMgr *PostManager) updateTenantResponse(code int, id string, tenant string) {
+	// Update status for a specific tenant if mentioned, else update the response for all tenants
+	if tenant != "" {
+		postMgr.tenantResponseMap[tenant] = tenantResponse{code, id}
+	} else {
+		for tenant := range postMgr.tenantResponseMap {
+			postMgr.tenantResponseMap[tenant] = tenantResponse{code, id}
+		}
+	}
+}
+
+func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}) {
 	//traverse all response results
 	results := (responseMap["results"]).([]interface{})
 	for _, value := range results {
 		v := value.(map[string]interface{})
-		//log result with code, tenant and message
 		log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
+		postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string))
+	}
+}
+
+func (postMgr *PostManager) getTenantConfigStatus(id string) {
+
+	req, err := http.NewRequest("GET", postMgr.getAS3TaskIdURL(id), nil)
+	if err != nil {
+		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
+		return
+	}
+	log.Debugf("[AS3] posting request with taskId to %v", postMgr.getAS3TaskIdURL(id))
+	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+
+	httpResp, responseMap := postMgr.httpPOST(req)
+	if httpResp == nil || responseMap == nil {
+		return
 	}
 
-	return cfg, true
+	if httpResp.StatusCode == http.StatusOK {
+		results := (responseMap["results"]).([]interface{})
+		for _, value := range results {
+			v := value.(map[string]interface{})
+			if v["message"].(string) == "in progress" {
+				return
+			} else {
+				// reset task id, so that any failed tenants will go to post call in the next retry
+				postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string))
+				if v["response"].(string) != "" {
+					log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v %v", v["code"], v["tenant"], v["message"], v["response"])
+				} else {
+					log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
+				}
+			}
+		}
+	} else {
+		// reset task id, so that any failed tenants will go to post call in the next retry
+		postMgr.updateTenantResponse(httpResp.StatusCode, "", "")
+	}
 }
 
-func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}, cfg *agentConfig) (*agentConfig, bool) {
+func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}) {
+
+	if results, ok := (responseMap["results"]).([]interface{}); ok {
+		for _, value := range results {
+			v := value.(map[string]interface{})
+			postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string))
+
+			if v["code"].(float64) != 200 {
+				log.Errorf("[AS3] Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
+			} else {
+				log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
+			}
+		}
+	}
+}
+
+func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interface{}) {
+	//traverse all response results
+	if respId, ok := (responseMap["id"]).(string); ok {
+		postMgr.updateTenantResponse(http.StatusAccepted, respId, "")
+	}
+}
+
+func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}) {
 	log.Errorf("[AS3] Big-IP Responded with error code: %v", responseMap["code"])
-	log.Debugf("[AS3] Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", timeoutSmall)
-	return postMgr.postOnEventOrTimeout(timeoutSmall, cfg)
+	log.Debugf("[AS3] Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", timeoutMedium)
+	postMgr.updateTenantResponse(int(responseMap["code"].(float64)), "", "")
 }
 
-func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}, cfg *agentConfig) (*agentConfig, bool) {
+func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}) {
 	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])
 	} else {
 		log.Errorf("[AS3] Big-IP Responded with error code: %v", http.StatusNotFound)
 	}
-
 	if postMgr.LogResponse {
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
-	return cfg, true
+	postMgr.updateTenantResponse(http.StatusNotFound, "", "")
 }
 
-func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg *agentConfig) (*agentConfig, bool) {
+func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg *agentConfig) {
+	if postMgr.LogResponse {
+		log.Errorf("[AS3] Raw response from Big-IP: %v %v", responseMap, cfg.data)
+	}
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
 			v := value.(map[string]interface{})
-			//log result with code, tenant and message
 			log.Errorf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
+			postMgr.updateTenantResponse(int(responseMap["code"].(float64)), "", v["tenant"].(string))
 		}
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])
+		postMgr.updateTenantResponse(int(err["code"].(float64)), "", "")
 	} else {
 		log.Errorf("[AS3] Big-IP Responded with code: %v", responseMap["code"])
+		postMgr.updateTenantResponse(int(responseMap["code"].(float64)), "", "")
 	}
-
-	if postMgr.LogResponse {
-		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
-	}
-	return postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
 }
 
 // GetBigipAS3Version ...

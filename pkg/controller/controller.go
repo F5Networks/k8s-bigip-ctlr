@@ -108,6 +108,7 @@ func NewController(params Params) *Controller {
 		Agent:              params.Agent,
 		PoolMemberType:     params.PoolMemberType,
 		UseNodeInternal:    params.UseNodeInternal,
+		Partition:          params.Partition,
 		initState:          true,
 		SSLContext:         make(map[string]*v1.Secret),
 		dgPath:             strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
@@ -180,9 +181,7 @@ func NewController(params Params) *Controller {
 		_ = ctlr.createIPAMResource()
 	}
 
-	respChan := make(chan int)
-	ctlr.Agent.SetResponseChannel(respChan)
-	go ctlr.responseHandler(respChan)
+	go ctlr.responseHandler(ctlr.Agent.respChan)
 	go ctlr.Start()
 	return ctlr
 }

@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"encoding/json"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -286,7 +288,7 @@ var _ = Describe("Backend Tests", func() {
 			config.ltmConfig["default"]["crd_vs_172.13.14.15"] = rsCfg
 			config.ltmConfig["default"]["crd_vs_172.13.14.16"] = rsCfg2
 
-			decl := agent.createAS3Declaration(config)
+			decl := agent.createTenantAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 		})
@@ -319,7 +321,7 @@ var _ = Describe("Backend Tests", func() {
 			config.ltmConfig["default"] = make(ResourceMap)
 			config.ltmConfig["default"]["crd_vs_172.13.14.15"] = rsCfg
 
-			decl := agent.createAS3Declaration(config)
+			decl := agent.createTenantAS3Declaration(config)
 
 			Expect(string(decl)).ToNot(Equal(""), "Failed to Create AS3 Declaration")
 
@@ -333,13 +335,15 @@ var _ = Describe("Backend Tests", func() {
 			}
 
 			config.ltmConfig["default"] = make(ResourceMap)
-			adc := make(map[string]interface{})
-			agent.createTenantAS3Declaration(config, adc)
+
+			as3decl := agent.createTenantAS3Declaration(config)
+			var as3Config map[string]interface{}
+			_ = json.Unmarshal([]byte(as3decl), &as3Config)
 			deletedTenantDecl := as3Tenant{
 				"class": "Tenant",
 			}
-			Expect(adc["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
-			Expect(agent.newDecl["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
+			Expect(agent.incomingTenantDeclMap["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
+			Expect(as3Config["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
 		})
 	})
 

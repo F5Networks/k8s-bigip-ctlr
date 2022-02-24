@@ -1,18 +1,19 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-2.8.0
+Next Release
 -------------
 Added Functionality
 ```````````````````
 
 **What’s new:**
     * CRD:
-        * Persistence Profile CR support for VirtualServer, TransportServer and Policy CRs. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Persistence Profile support for VirtualServer, TransportServer and Policy CRs. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Added support for host in TransportServer and IngressLink CR. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Added support for multiple health monitors in EDNS resource
 
 Enhancements
 ````````````
-* Added support for multiple health monitors in EDNS resource
 * Added fix for processing oldest route when same host and path in routes
 * Added fix for cis crash with routes
 * :issues:`2212` Fix ExternalDNS adds both VSs to a Wide IP pool with using "httpTraffic: allow" with VS CR

@@ -185,6 +185,8 @@ var (
 	clientSSL        *string
 	serverSSL        *string
 
+	routeSpecConfigmap *string
+
 	gtmBigIPURL      *string
 	gtmBigIPUsername *string
 	gtmBigIPPassword *string
@@ -391,6 +393,10 @@ func _init() {
 		"Optional, specify a user-created server ssl profile to be used as"+
 			" default for SNI for Route virtual servers")
 
+	routeSpecConfigmap = osRouteFlags.String("route-spec-configmap", "",
+		"Required, specify a configmap that holds additional spec for routes"+
+			" if controller-mode is 'openshift'")
+
 	osRouteFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Openshift Routes:\n%s\n", osRouteFlags.FlagUsagesWrapped(width))
 	}
@@ -541,9 +547,13 @@ func verifyArgs() error {
 	switch *controllerMode {
 	case "",
 		string(controller.CustomResourceMode),
-		string(controller.OpenShiftMode),
 		string(controller.KubernetesMode):
 		break
+	case string(controller.OpenShiftMode):
+		if len(strings.Split(*routeSpecConfigmap, "/")) != 2 {
+			return fmt.Errorf("invalid value provided for --route-spec-configmap" +
+				"Usage: --route-spec-configmap=<namespace>/<configmap-name>")
+		}
 	default:
 		return fmt.Errorf("invalid controller-mode is provided")
 	}
@@ -827,6 +837,7 @@ func initController(
 			ShareNodes:         *shareNodes,
 			DefaultRouteDomain: *defaultRouteDomain,
 			Mode:               controller.ControllerMode(*controllerMode),
+			RouteSpecConfigmap: *routeSpecConfigmap,
 		},
 	)
 

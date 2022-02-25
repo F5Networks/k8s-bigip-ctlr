@@ -65,6 +65,8 @@ const (
 	Endpoints = "Endpoints"
 	// Namespace is k8s namespace
 	Namespace = "Namespace"
+	// Configmap is k8s native Configmap resource
+	Configmap = "Configmap"
 	// Route is OpenShift Route
 	Route = "Route"
 
@@ -121,7 +123,10 @@ func NewController(params Params) *Controller {
 	log.Debug("Controller Created")
 
 	switch ctlr.mode {
-	case OpenShiftMode, KubernetesMode:
+	case OpenShiftMode:
+		ctlr.routeSpecCMKey = params.RouteSpecConfigmap
+		fallthrough
+	case KubernetesMode:
 		ctlr.resourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 	default:
 		ctlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)

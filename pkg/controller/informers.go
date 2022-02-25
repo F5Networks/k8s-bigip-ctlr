@@ -116,7 +116,9 @@ func (nrInfr *NRInformer) start() {
 	var cacheSyncs []cache.InformerSynced
 	if nrInfr.routeInformer != nil {
 		go nrInfr.routeInformer.Run(nrInfr.stopCh)
+		go nrInfr.cmInformer.Run(nrInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, nrInfr.routeInformer.HasSynced)
+		cacheSyncs = append(cacheSyncs, nrInfr.cmInformer.HasSynced)
 	}
 	cache.WaitForNamedCacheSync(
 		"F5 CIS Ingress Controller",
@@ -212,12 +214,12 @@ func (ctlr *Controller) addNamespacedInformers(
 	case OpenShiftMode:
 		if _, found := ctlr.esInformers[namespace]; !found {
 			esInf := ctlr.newNamespacedEssentialResourceInformer(namespace)
-
+			ctlr.addEssentialResourceEventHandlers(esInf)
 			ctlr.esInformers[namespace] = esInf
 		}
 		if _, found := ctlr.nrInformers[namespace]; !found {
 			nrInf := ctlr.newNamespacedNativeResourceInformer(namespace)
-
+			ctlr.addNativeResourceEventHandlers(nrInf)
 			ctlr.nrInformers[namespace] = nrInf
 		}
 	}
@@ -340,6 +342,15 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 		// Ensure the default server cert is loaded
 		//appMgr.loadDefaultCert() why?
 
+		//nrOptions := func(options *metav1.ListOptions) {
+		//	options.LabelSelector = ctlr.resourceSelector.String()
+		//}
+		everything := func(options *metav1.ListOptions) {
+			options.LabelSelector = ""
+		}
+
+		restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
+
 		nrInformer.routeInformer = cache.NewSharedIndexInformer(
 			&cache.ListWatch{
 				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
@@ -352,6 +363,18 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 				},
 			},
 			&routeapi.Route{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
+
+		nrInformer.cmInformer = cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"configmaps",
+				namespace,
+				everything,
+			),
+			&corev1.ConfigMap{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
@@ -520,6 +543,15 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 				// TODO: need to add update function
 				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueRoute(cur) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedRoute(obj) },
+			},
+		)
+	}
+
+	if nrInf.cmInformer != nil {
+		nrInf.cmInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigmap(obj) },
+				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigmap(obj) },
 			},
 		)
 	}
@@ -950,6 +982,26 @@ func (ctlr *Controller) enqueueRoute(obj interface{}) {
 		namespace: rt.ObjectMeta.Namespace,
 		kind:      Route,
 		rscName:   rt.ObjectMeta.Name,
+		rsc:       obj,
+	}
+	ctlr.nativeResourceQueue.Add(key)
+}
+
+func (ctlr *Controller) enqueueConfigmap(obj interface{}) {
+	cm := obj.(*corev1.ConfigMap)
+
+	// Filter out configmaps that are neither f5nr configmaps nor routeSpecConfigmap
+	if !ctlr.resourceSelector.Matches(labels.Set(cm.GetLabels())) &&
+		ctlr.routeSpecCMKey != cm.Namespace+"/"+cm.Name {
+
+		return
+	}
+
+	log.Debugf("Enqueueing Configmap: %v", cm)
+	key := &rqKey{
+		namespace: cm.ObjectMeta.Namespace,
+		kind:      Configmap,
+		rscName:   cm.ObjectMeta.Name,
 		rsc:       obj,
 	}
 	ctlr.nativeResourceQueue.Add(key)

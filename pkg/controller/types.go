@@ -77,6 +77,7 @@ type (
 		routeClientV1       routeclient.RouteV1Interface
 		esInformers         map[string]*EssentialInformer
 		nrInformers         map[string]*NRInformer
+		routeSpecCMKey      string
 	}
 
 	// Params defines parameters
@@ -96,6 +97,7 @@ type (
 		IPAM               bool
 		DefaultRouteDomain int
 		Mode               ControllerMode
+		RouteSpecConfigmap string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -125,6 +127,7 @@ type (
 		namespace     string
 		stopCh        chan struct{}
 		routeInformer cache.SharedIndexInformer
+		cmInformer    cache.SharedIndexInformer
 	}
 
 	NSInformer struct {

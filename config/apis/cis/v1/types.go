@@ -139,6 +139,7 @@ type IngressLinkStatus struct {
 // IngressLinkSpec is Spec for IngressLink
 type IngressLinkSpec struct {
 	VirtualServerAddress string                `json:"virtualServerAddress,omitempty"`
+	Host                 string                `json:"host,omitempty"`
 	Selector             *metav1.LabelSelector `json:"selector"`
 	IRules               []string              `json:"iRules,omitempty"`
 	IPAMLabel            string                `json:"ipamLabel"`
@@ -179,6 +180,7 @@ type TransportServerSpec struct {
 	VirtualServerAddress string           `json:"virtualServerAddress"`
 	VirtualServerPort    int32            `json:"virtualServerPort"`
 	VirtualServerName    string           `json:"virtualServerName"`
+	Host                 string           `json:"host,omitempty"`
 	Mode                 string           `json:"mode"`
 	SNAT                 string           `json:"snat"`
 	Pool                 Pool             `json:"pool"`
@@ -262,13 +264,13 @@ type LtmIRulesSpec struct {
 }
 
 type ProfileSpec struct {
-	TCP                 string     `json:"tcp,omitempty"`
-	UDP                 string     `json:"udp,omitempty"`
-	HTTP                string     `json:"http,omitempty"`
-	HTTP2               string     `json:"http2,omitempty"`
-	RewriteProfile      string     `json:"rewriteProfile,omitempty"`
-	PersistenceProfile  string     `json:"persistenceProfile,omitempty"`
-	LogProfiles         []string   `json:"logProfiles,omitempty"`
+	TCP                string   `json:"tcp,omitempty"`
+	UDP                string   `json:"udp,omitempty"`
+	HTTP               string   `json:"http,omitempty"`
+	HTTP2              string   `json:"http2,omitempty"`
+	RewriteProfile     string   `json:"rewriteProfile,omitempty"`
+	PersistenceProfile string   `json:"persistenceProfile,omitempty"`
+	LogProfiles        []string `json:"logProfiles,omitempty"`
 }
 
 // +genclient

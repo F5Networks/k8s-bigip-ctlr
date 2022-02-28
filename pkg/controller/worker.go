@@ -800,9 +800,9 @@ func (ctlr *Controller) processVirtualServers(
 				log.Errorf("Error in virtualserver address: %s", err.Error())
 				return err
 			}
-			if ip == ""{
+			if ip == "" {
 				ip = virtual.Spec.VirtualServerAddress
-				if ip == ""{
+				if ip == "" {
 					return fmt.Errorf("No VirtualServer address found for: %s", virtual.Name)
 				}
 			}
@@ -1522,7 +1522,14 @@ func (ctlr *Controller) processTransportServers(
 		)
 	}
 	if len(virtuals) == 0 {
-		ctlr.resources.deleteVirtualServer(rsName)
+		var hostnames []string
+		if ctlr.resources.rsMap[rsName] != nil {
+			hostnames = ctlr.resources.rsMap[rsName].MetaData.hosts
+		}
+		ctlr.deleteVirtualServer(rsName)
+		if len(hostnames) > 0 {
+			ctlr.ProcessAssociatedExternalDNS(hostnames)
+		}
 		return nil
 	}
 
@@ -1531,6 +1538,7 @@ func (ctlr *Controller) processTransportServers(
 	rsCfg.MetaData.ResourceType = TransportServer
 	rsCfg.Virtual.Enabled = true
 	rsCfg.Virtual.Name = rsName
+	rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
 	rsCfg.MetaData.namespace = virtual.ObjectMeta.Namespace
 	rsCfg.MetaData.rscName = virtual.ObjectMeta.Name
@@ -1578,8 +1586,13 @@ func (ctlr *Controller) processTransportServers(
 	}
 	if !processingError {
 		// Update rsMap with ResourceConfigs created for the current transport virtuals
+		var hostnames []string
 		for rsName, rsCfg := range vsMap {
 			ctlr.resources.rsMap[rsName] = rsCfg
+			hostnames = rsCfg.MetaData.hosts
+		}
+		if len(hostnames) > 0 {
+			ctlr.ProcessAssociatedExternalDNS(hostnames)
 		}
 	}
 	return nil
@@ -2178,8 +2191,15 @@ func (ctlr *Controller) processIngressLink(
 				delRes = append(delRes, k)
 			}
 		}
-		for _, rsname := range delRes {
-			delete(ctlr.resources.rsMap, rsname)
+		for _, rsName := range delRes {
+			var hostnames []string
+			if ctlr.resources.rsMap[rsName] != nil {
+				hostnames = ctlr.resources.rsMap[rsName].MetaData.hosts
+			}
+			ctlr.deleteVirtualServer(rsName)
+			if len(hostnames) > 0 {
+				ctlr.ProcessAssociatedExternalDNS(hostnames)
+			}
 		}
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.IngressLink[ingLink.Namespace]--
@@ -2217,6 +2237,7 @@ func (ctlr *Controller) processIngressLink(
 		rsCfg := &ResourceConfig{}
 		rsCfg.Virtual.Partition = ctlr.Partition
 		rsCfg.MetaData.ResourceType = "TransportServer"
+		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, ingLink.Spec.Host)
 		rsCfg.Virtual.Mode = "standard"
 		rsCfg.Virtual.TranslateServerAddress = true
 		rsCfg.Virtual.TranslateServerPort = true
@@ -2251,7 +2272,13 @@ func (ctlr *Controller) processIngressLink(
 		pool.MonitorNames = append(pool.MonitorNames, monitorName)
 		rsCfg.Virtual.PoolName = pool.Name
 		rsCfg.Pools = append(rsCfg.Pools, pool)
+		// Update rsMap with ResourceConfigs created for the current ingresslink virtuals
 		ctlr.resources.rsMap[rsName] = rsCfg
+		var hostnames []string
+		hostnames = rsCfg.MetaData.hosts
+		if len(hostnames) > 0 {
+			ctlr.ProcessAssociatedExternalDNS(hostnames)
+		}
 
 		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, ingLink.ObjectMeta.Namespace)

@@ -1990,27 +1990,47 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 				)
 			}
 		}
-		if pl.Monitor.Type != "" {
-			// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
-			if pl.Monitor.Type == "http" || pl.Monitor.Type == "https" {
-				pool.Monitor = &Monitor{
-					Name:      UniquePoolName + "_monitor",
-					Partition: "Common",
-					Type:      pl.Monitor.Type,
-					Interval:  pl.Monitor.Interval,
-					Send:      pl.Monitor.Send,
-					Recv:      pl.Monitor.Recv,
-					Timeout:   pl.Monitor.Timeout,
-				}
-			} else {
-				pool.Monitor = &Monitor{
-					Name:      UniquePoolName + "_monitor",
-					Partition: "Common",
-					Type:      pl.Monitor.Type,
-					Interval:  pl.Monitor.Interval,
-					Timeout:   pl.Monitor.Timeout,
-				}
+		if len(pl.Monitors) > 0 {
+			var monitors []Monitor
+			for i, monitor := range pl.Monitors {
+				monitors = append(monitors,
+					Monitor{
+						Name:      fmt.Sprintf("%s_monitor%d", UniquePoolName, i),
+						Partition: "Common",
+						Type:      monitor.Type,
+						Interval:  monitor.Interval,
+						Send:      monitor.Send,
+						Recv:      monitor.Recv,
+						Timeout:   monitor.Timeout})
 			}
+			pool.Monitors = monitors
+
+		} else if pl.Monitor.Type != "" {
+			// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
+			var monitors []Monitor
+
+			if pl.Monitor.Type == "http" || pl.Monitor.Type == "https" {
+				monitors = append(monitors,
+					Monitor{
+						Name:      UniquePoolName + "_monitor",
+						Partition: "Common",
+						Type:      pl.Monitor.Type,
+						Interval:  pl.Monitor.Interval,
+						Send:      pl.Monitor.Send,
+						Recv:      pl.Monitor.Recv,
+						Timeout:   pl.Monitor.Timeout,
+					})
+			} else {
+				monitors = append(monitors,
+					Monitor{
+						Name:      UniquePoolName + "_monitor",
+						Partition: "Common",
+						Type:      pl.Monitor.Type,
+						Interval:  pl.Monitor.Interval,
+						Timeout:   pl.Monitor.Timeout,
+					})
+			}
+			pool.Monitors = monitors
 		}
 		wip.Pools = append(wip.Pools, pool)
 	}

@@ -433,6 +433,25 @@ spec:
                         required:
                           - type
                           - interval
+                      monitors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                              enum: [http, https, tcp]
+                            send:
+                              type: string
+                            recv:
+                              type: string
+                            interval:
+                              type: integer
+                            timeout:
+                              type: integer
+                          required:
+                            - type
+                            - interval
                     required:
                       - dataServerName
               required:

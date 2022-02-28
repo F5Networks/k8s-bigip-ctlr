@@ -235,11 +235,11 @@ type (
 	}
 
 	GSLBPool struct {
-		Name       string   `json:"name"`
-		RecordType string   `json:"recordType"`
-		LBMethod   string   `json:"LoadBalancingMode"`
-		Members    []string `json:"members"`
-		Monitor    *Monitor `json:"monitor,omitempty"`
+		Name       string    `json:"name"`
+		RecordType string    `json:"recordType"`
+		LBMethod   string    `json:"LoadBalancingMode"`
+		Members    []string  `json:"members"`
+		Monitors   []Monitor `json:"monitors,omitempty"`
 	}
 
 	ResourceConfigRequest struct {

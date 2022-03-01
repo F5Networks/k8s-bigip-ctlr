@@ -77,6 +77,7 @@ type (
 		routeClientV1       routeclient.RouteV1Interface
 		esInformers         map[string]*EssentialInformer
 		nrInformers         map[string]*NRInformer
+		routeSpecCMKey      string
 	}
 
 	// Params defines parameters
@@ -96,6 +97,7 @@ type (
 		IPAM               bool
 		DefaultRouteDomain int
 		Mode               ControllerMode
+		RouteSpecConfigmap string
 	}
 
 	// CRInformer defines the structure of Custom Resource Informer
@@ -124,6 +126,7 @@ type (
 		namespace     string
 		stopCh        chan struct{}
 		routeInformer cache.SharedIndexInformer
+		cmInformer    cache.SharedIndexInformer
 	}
 
 	NSInformer struct {
@@ -231,7 +234,7 @@ type (
 		ltmConfigCache LTMConfig
 		dnsConfig      DNSConfig
 		dnsConfigCache DNSConfig
-		poolMemCache   PoolMemberCache
+		supplementContextCache
 	}
 
 	// LTMConfig contain partition based ResourceMap
@@ -309,6 +312,27 @@ type (
 	}
 	// Monitors  is slice of monitor
 	Monitors []Monitor
+
+	supplementContextCache struct {
+		poolMemCache PoolMemberCache
+		sslContext   map[string]*v1.Secret
+		extdSpecMap  extdSpecMap
+	}
+
+	// key is group identifier
+	extdSpecMap map[string]extdSpec
+
+	// Extended Spec for each group of Routes/Ingress
+	extdSpec struct {
+		override bool
+		local    *extendedSpecContext
+		global   *extendedSpecContext
+	}
+
+	extendedSpecContext struct {
+		vsName string
+		vsAddr string
+	}
 
 	// This is the format for each item in the health monitor annotation used
 	// in the ServiceType LB objects.

@@ -177,6 +177,14 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 						port = v.Port
 					}
 				}
+ 
+                                if(port == null || ips == null) {
+                                    members = append(members, eps...)
+                                    for _, v := range eps {
+                                        ips = append(ips, v.Address)
+                                    } 
+                                    port := eps[0].Port
+                                }
 
 				// Replace pool member IP addresses
 				poolMem["serverAddresses"] = ips

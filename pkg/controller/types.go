@@ -234,7 +234,7 @@ type (
 		ltmConfigCache LTMConfig
 		dnsConfig      DNSConfig
 		dnsConfigCache DNSConfig
-		poolMemCache   PoolMemberCache
+		supplementContextCache
 	}
 
 	// LTMConfig contain partition based ResourceMap
@@ -312,6 +312,27 @@ type (
 	}
 	// Monitors  is slice of monitor
 	Monitors []Monitor
+
+	supplementContextCache struct {
+		poolMemCache PoolMemberCache
+		sslContext   map[string]*v1.Secret
+		extdSpecMap  extdSpecMap
+	}
+
+	// key is group identifier
+	extdSpecMap map[string]extdSpec
+
+	// Extended Spec for each group of Routes/Ingress
+	extdSpec struct {
+		override bool
+		local    *extendedSpecContext
+		global   *extendedSpecContext
+	}
+
+	extendedSpecContext struct {
+		vsName string
+		vsAddr string
+	}
 
 	// This is the format for each item in the health monitor annotation used
 	// in the ServiceType LB objects.

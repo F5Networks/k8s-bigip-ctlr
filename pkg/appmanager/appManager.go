@@ -454,6 +454,9 @@ func (appMgr *Manager) triggerSyncResources(ns string, inf *appInformer) {
 			}
 			log.Debugf("[CORE] Periodic enqueue of Service from Namespace: %v", namespace)
 			appMgr.vsQueue.Add(svcKey)
+			bigIPPrometheus.RecStartTime(
+				svcKey.Operation, svcKey.ResourceKind, svcKey.Namespace, svcKey.ResourceName,
+			)
 		}
 	}
 
@@ -845,6 +848,9 @@ func (appMgr *Manager) enqueueConfigMap(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidConfigMap(obj, operation); ok {
 		for _, key := range keys {
 			key.Operation = operation
+			bigIPPrometheus.RecStartTime(
+				key.Operation, key.ResourceKind, key.Namespace, key.ResourceName,
+			)
 			appMgr.vsQueue.Add(*key)
 		}
 	}
@@ -854,6 +860,9 @@ func (appMgr *Manager) enqueueService(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidService(obj); ok {
 		for _, key := range keys {
 			key.Operation = operation
+			bigIPPrometheus.RecStartTime(
+				key.Operation, key.ResourceKind, key.Namespace, key.ResourceName,
+			)
 			appMgr.vsQueue.Add(*key)
 		}
 	}
@@ -863,6 +872,9 @@ func (appMgr *Manager) enqueueEndpoints(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidEndpoints(obj); ok {
 		for _, key := range keys {
 			key.Operation = operation
+			bigIPPrometheus.RecStartTime(
+				key.Operation, key.ResourceKind, key.Namespace, key.ResourceName,
+			)
 			appMgr.vsQueue.Add(*key)
 		}
 	}
@@ -881,6 +893,9 @@ func (appMgr *Manager) enqueueSecrets(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidSecrets(obj); ok {
 		for _, key := range keys {
 			key.Operation = operation
+			bigIPPrometheus.RecStartTime(
+				key.Operation, key.ResourceKind, key.Namespace, key.ResourceName,
+			)
 			appMgr.vsQueue.Add(*key)
 		}
 	}
@@ -891,6 +906,9 @@ func (appMgr *Manager) enqueueIngress(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidIngress(obj); ok {
 		for _, key := range keys {
 			key.Operation = operation
+			bigIPPrometheus.RecStartTime(
+				key.Operation, key.ResourceKind, key.Namespace, key.ResourceName,
+			)
 			appMgr.vsQueue.Add(*key)
 		}
 	}
@@ -900,6 +918,9 @@ func (appMgr *Manager) enqueueRoute(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidRoute(obj); ok {
 		for _, key := range keys {
 			key.Operation = operation
+			bigIPPrometheus.RecStartTime(
+				key.Operation, key.ResourceKind, key.Namespace, key.ResourceName,
+			)
 			appMgr.vsQueue.Add(*key)
 		}
 	}
@@ -1022,6 +1043,8 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 
 	// Using only one virtual server worker currently.
 	go wait.Until(appMgr.virtualServerWorker, time.Second, stopCh)
+
+	go wait.Until(appMgr.monitorWorkflow, 3*time.Second, stopCh)
 
 	<-stopCh
 	appMgr.stopAppInformers()
@@ -1187,9 +1210,15 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 
 	defer appMgr.vsQueue.Done(key)
 	skey := key.(serviceQueueKey)
+	bigIPPrometheus.CalcWaitTime(
+		skey.Operation, skey.ResourceKind, skey.Namespace, skey.ResourceName,
+	)
 	if !appMgr.steadyState && !isNonPerfResource(skey.ResourceKind) {
 		if skey.Operation != OprTypeCreate {
 			appMgr.vsQueue.AddRateLimited(key)
+			bigIPPrometheus.RecStartTime(
+				skey.Operation, skey.ResourceKind, skey.Namespace, skey.ResourceName,
+			)
 		}
 		appMgr.vsQueue.Forget(key)
 		return true
@@ -1197,6 +1226,9 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 
 	if !appMgr.steadyState && skey.Operation != OprTypeCreate {
 		appMgr.vsQueue.AddRateLimited(key)
+		bigIPPrometheus.RecStartTime(
+			skey.Operation, skey.ResourceKind, skey.Namespace, skey.ResourceName,
+		)
 		appMgr.vsQueue.Forget(key)
 		return true
 	}
@@ -1212,6 +1244,9 @@ func (appMgr *Manager) processNextVirtualServer() bool {
 
 	utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 	appMgr.vsQueue.AddRateLimited(key)
+	bigIPPrometheus.RecStartTime(
+		skey.Operation, skey.ResourceKind, skey.Namespace, skey.ResourceName,
+	)
 
 	return true
 }
@@ -1246,6 +1281,10 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		// and it gets incremented just after this function returns
 		log.Debugf("[CORE] Finished syncing virtual servers %+v in namespace %+v (%v), %v/%v",
 			sKey.ServiceName, sKey.Namespace, endTime.Sub(startTime), appMgr.processedItems+1, appMgr.queueLen)
+
+		bigIPPrometheus.MonitoredResourcesTimeCost.WithLabelValues(
+			sKey.ResourceKind, sKey.Namespace, sKey.Namespace+"_"+sKey.ResourceName, sKey.Operation, "pack").Set(
+			float64(time.Now().UnixMilli() - startTime.UnixMilli()))
 	}()
 	// Get the informers for the namespace. This will tell us if we care about
 	// this item.
@@ -3231,6 +3270,9 @@ func (appMgr *Manager) ProcessNodeUpdate(
 				items[queueKey]++
 			})
 			for queueKey := range items {
+				bigIPPrometheus.RecStartTime(
+					queueKey.Operation, queueKey.ResourceKind, queueKey.Namespace, queueKey.ResourceName,
+				)
 				appMgr.vsQueue.Add(queueKey)
 			}
 
@@ -3438,6 +3480,11 @@ func (appMgr *Manager) exposeKubernetesService(
 		}
 	}
 	return true, "", ""
+}
+
+func (appMgr *Manager) monitorWorkflow() {
+	bigIPPrometheus.MonitoredWorkingListengths.WithLabelValues("vsQueue").Set(float64(appMgr.vsQueue.Len()))
+	bigIPPrometheus.MonitoredWorkingListengths.WithLabelValues("nsQueue").Set(float64(appMgr.nsQueue.Len()))
 }
 
 func prepareResourceKey(kind, namespace, name string) string {

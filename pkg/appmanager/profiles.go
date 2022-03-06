@@ -20,8 +20,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	netv1 "k8s.io/api/networking/v1"
 	"strings"
+
+	netv1 "k8s.io/api/networking/v1"
 
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"

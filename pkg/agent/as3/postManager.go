@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
@@ -132,6 +133,10 @@ func getTimeDurationForErrorResponse(errRsp string) time.Duration {
 }
 
 func (postMgr *PostManager) postConfigRequests(data string, url string) (bool, string) {
+	tn := time.Now().UnixMilli()
+	defer func() {
+		bigIPPrometheus.AddRESTAS3Cost(time.Now().UnixMilli() - tn)
+	}()
 	cfg := config{
 		data:      data,
 		as3APIURL: url,

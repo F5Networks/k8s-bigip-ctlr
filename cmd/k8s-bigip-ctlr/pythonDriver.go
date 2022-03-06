@@ -18,14 +18,17 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
 
@@ -101,6 +104,7 @@ func runBigIPDriver(pid chan<- int, cmd *exec.Cmd) {
 					log.Critical(scanOut.Text())
 				} else {
 					log.Info(scanOut.Text())
+					handlePrometheusMsg(scanOut.Text())
 				}
 			}
 			if scanOut.Err() == bufio.ErrTooLong {
@@ -169,4 +173,64 @@ func startPythonDriver(
 	go runBigIPDriver(subPidCh, cmd)
 
 	return subPidCh, nil
+}
+
+type LtmCCCLRec struct {
+	Timecost int
+	Name     string
+}
+
+var regexPDltm = regexp.MustCompile("prometheus.data.ltm=(.*)$")
+var regexPDnet = regexp.MustCompile("prometheus.data.net=(.*)$")
+
+var LtmTimecostRecorder = map[string]LtmCCCLRec{}
+
+func handlePrometheusMsg(msg string) {
+	var matched string
+
+	matched = regexPDltm.FindString(msg)
+	if matched != "" {
+		jd := strings.Split(matched, "=")[1]
+		var promdata map[string]struct {
+			Timecost int
+			Members  []string
+		}
+		err := json.Unmarshal([]byte(jd), &promdata)
+		if err != nil {
+			log.Errorf("failed to handle prometheus ltm data: %s, error: %s",
+				matched, err.Error())
+			return
+		}
+		for k, v := range promdata {
+			for _, m := range v.Members {
+				LtmTimecostRecorder[m] = LtmCCCLRec{
+					Timecost: v.Timecost,
+					Name:     k,
+				}
+			}
+		}
+	}
+
+	matched = regexPDnet.FindString(msg)
+	if matched != "" {
+		jd := strings.Split(matched, "=")[1]
+		var promdata map[string]int
+		err := json.Unmarshal([]byte(jd), &promdata)
+		if err != nil {
+			log.Errorf("failed to handle prometheus net data: %s, error: %s",
+				matched, err.Error())
+			return
+		}
+
+		for i, x := range promdata {
+			if v, ok := LtmTimecostRecorder[i]; ok {
+				bigIPPrometheus.MonitoredResourcesTimeCost.WithLabelValues(
+					"configmaps", "", v.Name, "", "deploy.ltm").Set(
+					float64(v.Timecost))
+				bigIPPrometheus.MonitoredResourcesTimeCost.WithLabelValues(
+					"configmaps", "", v.Name, "", "deploy.net").Set(
+					float64(x))
+			}
+		}
+	}
 }

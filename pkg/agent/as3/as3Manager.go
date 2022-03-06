@@ -26,6 +26,7 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 )
@@ -529,6 +530,7 @@ func (am *AS3Manager) ConfigDeployer() {
 	am.unprocessableEntityStatus = false
 	postDelayTimeout := time.Duration(am.PostManager.AS3PostDelay) * time.Second
 	for msgReq := range am.ReqChan {
+		tn := time.Now().UnixMilli()
 		if !firstPost && am.PostManager.AS3PostDelay != 0 {
 			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
 			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds", am.PostManager.AS3PostDelay)
@@ -556,6 +558,12 @@ func (am *AS3Manager) ConfigDeployer() {
 		firstPost = false
 		if event == responseStatusOk {
 			am.unprocessableEntityStatus = false
+		}
+
+		for _, n := range msgReq.ResourceRequest.AgentCfgmaps {
+			bigIPPrometheus.MonitoredResourcesTimeCost.WithLabelValues(
+				"configmaps", n.Namespace, n.Namespace+"_"+n.Name, "", "deploy.ltm").Set(
+				float64(time.Now().UnixMilli() - tn))
 		}
 	}
 }

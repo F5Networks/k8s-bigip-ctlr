@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 
+	routeapi "github.com/openshift/api/route/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
@@ -202,41 +204,44 @@ func (slice ProfileRefs) Swap(i, j int) {
 }
 
 // Return the required ports for VS (depending on sslRedirect/allowHttp vals)
-func (ctlr *Controller) virtualPorts(vs *cisapiv1.VirtualServer) []portStruct {
-
-	var httpPort int32
-	var httpsPort int32
-
-	if vs.Spec.VirtualServerHTTPPort == 0 {
-		httpPort = 80
-	} else {
-		httpPort = vs.Spec.VirtualServerHTTPPort
-	}
-
-	if vs.Spec.VirtualServerHTTPSPort == 0 {
-		httpsPort = 443
-	} else {
-		httpsPort = vs.Spec.VirtualServerHTTPSPort
-	}
+func (ctlr *Controller) virtualPorts(input interface{}) []portStruct {
 
 	http := portStruct{
 		protocol: "http",
-		port:     httpPort,
+		port:     DEFAULT_HTTP_PORT,
 	}
 
 	https := portStruct{
 		protocol: "https",
-		port:     httpsPort,
+		port:     DEFAULT_HTTPS_PORT,
 	}
+
 	var ports []portStruct
 
-	if 0 != len(vs.Spec.TLSProfileName) {
-		// 2 virtual servers needed, both HTTP and HTTPS
-		ports = append(ports, https)
+	switch input.(type) {
+	case *cisapiv1.VirtualServer:
+		vs := input.(*cisapiv1.VirtualServer)
+		if vs.Spec.VirtualServerHTTPPort != 0 {
+			http.port = vs.Spec.VirtualServerHTTPPort
+		}
+
+		if vs.Spec.VirtualServerHTTPSPort != 0 {
+			https.port = vs.Spec.VirtualServerHTTPSPort
+		}
+
 		ports = append(ports, http)
-	} else {
-		// HTTP only
+
+		if len(vs.Spec.TLSProfileName) != 0 {
+			ports = append(ports, https)
+		}
+	case *routeapi.Route:
+		rt := input.(*routeapi.Route)
+
 		ports = append(ports, http)
+
+		if isSecureRoute(rt) {
+			ports = append(ports, https)
+		}
 	}
 
 	return ports
@@ -260,7 +265,7 @@ func formatCustomVirtualServerName(name string, port int32) string {
 }
 
 // format the pool name for an VirtualServer
-func formatVirtualServerPoolName(namespace, svc string, port int32, nodeMemberLabel string) string {
+func formatPoolName(namespace, svc string, port int32, nodeMemberLabel string) string {
 	servicePort := fmt.Sprint(port)
 	poolName := fmt.Sprintf("%s_%s_%s", svc, servicePort, namespace)
 	if nodeMemberLabel != "" {
@@ -272,8 +277,12 @@ func formatVirtualServerPoolName(namespace, svc string, port int32, nodeMemberLa
 
 // format the monitor name for an VirtualServer pool
 func formatMonitorName(namespace, svc string, monitorType string, port int32) string {
-	servicePort := fmt.Sprint(port)
-	monitorName := fmt.Sprintf("%s_%s_%s_%s", svc, namespace, monitorType, servicePort)
+	monitorName := fmt.Sprintf("%s_%s", svc, namespace)
+
+	if monitorType != "" && port != 0 {
+		servicePort := fmt.Sprint(port)
+		monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
+	}
 	return AS3NameFormatter(monitorName)
 }
 
@@ -302,12 +311,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	snat = DEFAULT_SNAT
 	var pools Pools
 	var rules *Rules
-	var plcy *Policy
 	var poolExist bool
 	var monitors []Monitor
 	for _, pl := range vs.Spec.Pools {
 		pool := Pool{
-			Name: formatVirtualServerPoolName(
+			Name: formatPoolName(
 				vs.ObjectMeta.Namespace,
 				pl.Service,
 				pl.ServicePort,
@@ -387,24 +395,29 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		return fmt.Errorf("failed to create LTM Rules")
 	}
 
-	// Update the existing policy with rules
-	// Otherwise create new policy and set
-	if policy := rsCfg.FindPolicy(PolicyControlForward); policy != nil {
-		policy.AddRules(rules)
-		rsCfg.SetPolicy(*policy)
-		return nil
-	}
 	policyName := formatPolicyName(vs.Spec.Host, vs.Spec.HostGroup, rsCfg.Virtual.Name)
-	plcy = createPolicy(*rules, policyName, vs.ObjectMeta.Namespace)
-	if plcy != nil {
-		rsCfg.SetPolicy(*plcy)
-	}
+
+	rsCfg.AddRuleToPolicy(policyName, vs.Namespace, rules)
 
 	// Attach user specified iRules
 	if len(vs.Spec.IRules) > 0 {
 		rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, vs.Spec.IRules...)
 	}
 	return nil
+}
+
+func (rsCfg *ResourceConfig) AddRuleToPolicy(policyName, partition string, rules *Rules) {
+	// Update the existing policy with rules
+	// Otherwise create new policy and set
+	if policy := rsCfg.FindPolicy(PolicyControlForward); policy != nil {
+		policy.AddRules(rules)
+		rsCfg.SetPolicy(*policy)
+		return
+	}
+	plcy := createPolicy(*rules, policyName, partition)
+	if plcy != nil {
+		rsCfg.SetPolicy(*plcy)
+	}
 }
 
 // function updates the rscfg as per the passed parameter for routes as well as for virtual server
@@ -665,7 +678,7 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	}
 	var poolPathRefs []poolPathRef
 	for _, pl := range vs.Spec.Pools {
-		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, formatVirtualServerPoolName(vs.ObjectMeta.Namespace, pl.Service, pl.ServicePort, pl.NodeMemberLabel)})
+		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, formatPoolName(vs.ObjectMeta.Namespace, pl.Service, pl.ServicePort, pl.NodeMemberLabel)})
 	}
 	return ctlr.handleTLS(rsCfg, TLSContext{vs.ObjectMeta.Name,
 		vs.ObjectMeta.Namespace,
@@ -1159,8 +1172,23 @@ func (ctlr *Controller) handleDataGroupIRules(
 	}
 }
 
-func (ctlr *Controller) deleteVirtualServer(rsName string) {
-	ctlr.resources.deleteVirtualServer(ctlr.Partition, rsName)
+func (ctlr *Controller) deleteVirtualServer(partition, rsName, resourceType string) {
+	switch resourceType {
+	case Route:
+		//// LTMConfig contain partition based ResourceMap
+		//LTMConfig map[string]ResourceMap
+		//
+		//// ResourceMap key is resource name, value is pointer to config. May be shared.
+		//ResourceMap map[string]*ResourceConfig
+
+		rsMap := ctlr.resources.getPartitionResourceMap(partition)
+		for rsName := range rsMap {
+			ctlr.resources.deleteVirtualServer(partition, rsName)
+		}
+
+	default:
+		ctlr.resources.deleteVirtualServer(partition, rsName)
+	}
 }
 
 // Prepares resource config based on VirtualServer resource config
@@ -1174,7 +1202,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	var snat string
 	snat = DEFAULT_SNAT
 	pool := Pool{
-		Name: formatVirtualServerPoolName(
+		Name: formatPoolName(
 			vs.ObjectMeta.Namespace,
 			vs.Spec.Pool.Service,
 			vs.Spec.Pool.ServicePort,
@@ -1244,7 +1272,7 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 	svcPort v1.ServicePort,
 ) error {
 
-	poolName := formatVirtualServerPoolName(
+	poolName := formatPoolName(
 		svc.Namespace,
 		svc.Name,
 		svcPort.TargetPort.IntVal,

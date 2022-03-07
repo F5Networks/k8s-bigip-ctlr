@@ -820,6 +820,15 @@ func initController(
 
 	agent := controller.NewAgent(agentParams)
 
+	routeConfigParams := controller.RouteConfig{
+		RouteVSAddr: *routeVserverAddr,
+		RouteLabel:  *routeLabel,
+		HttpVs:      *routeHttpVs,
+		HttpsVs:     *routeHttpsVs,
+		ClientSSL:   *clientSSL,
+		ServerSSL:   *serverSSL,
+	}
+
 	ctlr := controller.NewController(
 		controller.Params{
 			Config:             config,
@@ -838,10 +847,13 @@ func initController(
 			DefaultRouteDomain: *defaultRouteDomain,
 			Mode:               controller.ControllerMode(*controllerMode),
 			RouteSpecConfigmap: *routeSpecConfigmap,
+			RouteConfig:        routeConfigParams,
+			VsSnatPoolName:     *vsSnatPoolName,
 		},
 	)
 
 	return ctlr
+
 }
 
 // TODO Remove the function and appMgr.K8sVersion property once v1beta1.Ingress is deprecated in k8s 1.22

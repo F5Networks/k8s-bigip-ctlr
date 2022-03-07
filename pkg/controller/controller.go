@@ -118,6 +118,8 @@ func NewController(params Params) *Controller {
 		eventNotifier:      apm.NewEventNotifier(nil),
 		defaultRouteDomain: params.DefaultRouteDomain,
 		mode:               params.Mode,
+		RouteConfig:        params.RouteConfig,
+		VsSnatPoolName:     params.VsSnatPoolName,
 	}
 
 	log.Debug("Controller Created")

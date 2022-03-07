@@ -2,6 +2,9 @@ package controller
 
 import (
 	"fmt"
+
+	routeapi "github.com/openshift/api/route/v1"
+
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -44,6 +47,16 @@ func (ctlr *Controller) processNativeResource() bool {
 
 	// Check the type of resource and process accordingly.
 	switch rKey.kind {
+
+	case Route:
+		route := rKey.rsc.(*routeapi.Route)
+		err := ctlr.processRoutes(route, rKey.rscDelete)
+		if err != nil {
+			// TODO
+			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			isError = true
+		}
+		break
 	case Service:
 		svc := rKey.rsc.(*v1.Service)
 

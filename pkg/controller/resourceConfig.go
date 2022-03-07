@@ -49,6 +49,7 @@ func (rs *ResourceStore) Init() {
 	rs.dnsConfig = make(DNSConfig)
 	rs.dnsConfigCache = make(DNSConfig)
 	rs.poolMemCache = make(PoolMemberCache)
+	rs.extdSpecMap = make(extendedSpecMap)
 }
 
 const (
@@ -92,13 +93,6 @@ const (
 	Secret = "secret"
 	// reference for routes
 	Certificate = "certificate"
-)
-
-// constants for Resource references
-const (
-	ROUTE           = "route"
-	INGRESS         = "ingress"
-	VirtualServerCR = "virtual server"
 )
 
 func NewCustomProfile(
@@ -678,7 +672,7 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	}
 	return ctlr.handleTLS(rsCfg, TLSContext{vs.ObjectMeta.Name,
 		vs.ObjectMeta.Namespace,
-		VirtualServerCR,
+		VirtualServer,
 		tls.Spec.TLS.Reference,
 		vs.Spec.Host,
 		httpsPort,
@@ -1168,23 +1162,8 @@ func (ctlr *Controller) handleDataGroupIRules(
 	}
 }
 
-func (ctlr *Controller) deleteVirtualServer(partition, rsName, resourceType string) {
-	switch resourceType {
-	case Route:
-		//// LTMConfig contain partition based ResourceMap
-		//LTMConfig map[string]ResourceMap
-		//
-		//// ResourceMap key is resource name, value is pointer to config. May be shared.
-		//ResourceMap map[string]*ResourceConfig
-
-		rsMap := ctlr.resources.getPartitionResourceMap(partition)
-		for rsName := range rsMap {
-			ctlr.resources.deleteVirtualServer(partition, rsName)
-		}
-
-	default:
-		ctlr.resources.deleteVirtualServer(partition, rsName)
-	}
+func (ctlr *Controller) deleteVirtualServer(partition, rsName string) {
+	ctlr.resources.deleteVirtualServer(partition, rsName)
 }
 
 // Prepares resource config based on VirtualServer resource config
@@ -1405,4 +1384,17 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 
 func getRSCfgResName(rsVSName, resName string) string {
 	return fmt.Sprintf("%s_%s", rsVSName, resName)
+}
+
+func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) *ExtendedRouteGroupSpec {
+	extdSpec, ok := rs.extdSpecMap[routeGroup]
+
+	if !ok {
+		return nil
+	}
+
+	if *extdSpec.override && extdSpec.local != nil {
+		return extdSpec.local
+	}
+	return extdSpec.global
 }

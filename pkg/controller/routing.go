@@ -74,7 +74,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 			path = vs.Spec.RewriteAppRoot
 		}
 
-		poolName := formatVirtualServerPoolName(
+		poolName := formatPoolName(
 			vs.ObjectMeta.Namespace,
 			pl.Service,
 			pl.ServicePort,

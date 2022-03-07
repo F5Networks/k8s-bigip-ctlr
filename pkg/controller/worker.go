@@ -883,7 +883,7 @@ func (ctlr *Controller) processVirtualServers(
 			if _, ok := rsMap[rsName]; ok {
 				hostnames = rsMap[rsName].MetaData.hosts
 			}
-			ctlr.deleteVirtualServer(rsName)
+			ctlr.deleteVirtualServer(ctlr.Partition, rsName, VirtualServer)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}
@@ -1613,7 +1613,7 @@ func (ctlr *Controller) processTransportServers(
 	}
 
 	if isTSDeleted {
-		ctlr.deleteVirtualServer(rsName)
+		ctlr.deleteVirtualServer(ctlr.Partition, rsName, TransportServer)
 		return nil
 	}
 
@@ -1918,7 +1918,7 @@ func (ctlr *Controller) processLBServices(
 
 		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		if isSVCDeleted {
-			ctlr.deleteVirtualServer(rsName)
+			ctlr.deleteVirtualServer(ctlr.Partition, rsName, TransportServer)
 			continue
 		}
 
@@ -2341,7 +2341,7 @@ func (ctlr *Controller) processIngressLink(
 		)
 
 		pool := Pool{
-			Name: formatVirtualServerPoolName(
+			Name: formatPoolName(
 				svc.ObjectMeta.Namespace,
 				svc.ObjectMeta.Name,
 				port.Port,

@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"sort"
+
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/fake"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
@@ -8,7 +10,6 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	"sort"
 )
 
 var _ = Describe("Resource Config Tests", func() {
@@ -92,7 +93,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("My_VS_80"), "Invalid VirtualServer Name")
 		})
 		It("Pool Name", func() {
-			name := formatVirtualServerPoolName(namespace, "svc1", 80, "app=test")
+			name := formatPoolName(namespace, "svc1", 80, "app=test")
 			Expect(name).To(Equal("svc1_80_default_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {

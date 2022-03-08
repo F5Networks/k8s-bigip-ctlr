@@ -70,6 +70,8 @@ type (
 		defaultRouteDomain int
 		TeemData           *teem.TeemsData
 		requestQueue       *requestQueue
+		RouteConfig        RouteConfig
+		VsSnatPoolName     string
 		nativeResourceContext
 	}
 	nativeResourceContext struct {
@@ -98,8 +100,18 @@ type (
 		DefaultRouteDomain int
 		Mode               ControllerMode
 		RouteSpecConfigmap string
+		RouteConfig        RouteConfig
+		VsSnatPoolName     string
 	}
-
+	// Configuration options for Routes in OpenShift
+	RouteConfig struct {
+		RouteVSAddr string
+		RouteLabel  string
+		HttpVs      string
+		HttpsVs     string
+		ClientSSL   string
+		ServerSSL   string
+	}
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
 		namespace    string
@@ -285,6 +297,7 @@ type (
 		Members         []PoolMember `json:"members"`
 		NodeMemberLabel string       `json:"-"`
 		MonitorNames    []string     `json:"monitors,omitempty"`
+		Balance         string       `json:"loadBalancingMode"`
 	}
 	// Pools is slice of pool
 	Pools []Pool
@@ -309,6 +322,7 @@ type (
 		Recv       string `json:"recv"`
 		Timeout    int    `json:"timeout,omitempty"`
 		TargetPort int32  `json:"targetPort,omitempty"`
+		Path       string `json:"path,omitempty"`
 	}
 	// Monitors  is slice of monitor
 	Monitors []Monitor
@@ -492,6 +506,13 @@ type (
 		Name   string
 		Addr   string
 		Labels map[string]string
+	}
+)
+
+type (
+	RouteService struct {
+		Weight int
+		Name   string
 	}
 )
 

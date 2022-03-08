@@ -195,19 +195,19 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 		results := (responseMap["results"]).([]interface{})
 		for _, value := range results {
 			v := value.(map[string]interface{})
-			if v["message"].(string) == "in progress" {
+			if msg, ok := v["message"]; ok && msg.(string) == "in progress" {
 				return
 			} else {
 				// reset task id, so that any failed tenants will go to post call in the next retry
 				postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string))
-				if v["response"].(string) != "" {
+				if _, ok := v["response"]; ok {
 					log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v %v", v["code"], v["tenant"], v["message"], v["response"])
 				} else {
 					log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 				}
 			}
 		}
-	} else {
+	} else if httpResp.StatusCode != http.StatusServiceUnavailable {
 		// reset task id, so that any failed tenants will go to post call in the next retry
 		postMgr.updateTenantResponse(httpResp.StatusCode, "", "")
 	}

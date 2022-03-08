@@ -82,14 +82,14 @@ func (mockPM *mockPostManager) setResponses(respCodes []float64, responseBody, m
 
 func newMockAgent(writer writer.Writer) *Agent {
 	return &Agent{
-		PostManager:           nil,
-		Partition:             "test",
-		ConfigWriter:          writer,
-		EventChan:             make(chan interface{}),
-		postChan:              make(chan ResourceConfigRequest, 1),
-		PythonDriverPID:       0,
-		cachedTenantDeclMap:   make(map[string]interface{}),
-		incomingTenantDeclMap: make(map[string]interface{}),
-		userAgent:             "",
+		PostManager:     nil,
+		Partition:       "test",
+		ConfigWriter:    writer,
+		EventChan:       make(chan interface{}),
+		postChan:        make(chan ResourceConfigRequest, 1),
+		PythonDriverPID: 0,
+		//cachedTenantDeclMap:   make(map[string]interface{}),
+		//incomingTenantDeclMap: make(map[string]interface{}),
+		userAgent: "",
 	}
 }

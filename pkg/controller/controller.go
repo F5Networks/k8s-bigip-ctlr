@@ -65,8 +65,8 @@ const (
 	Endpoints = "Endpoints"
 	// Namespace is k8s namespace
 	Namespace = "Namespace"
-	// Configmap is k8s native Configmap resource
-	Configmap = "Configmap"
+	// ConfigMap is k8s native ConfigMap resource
+	ConfigMap = "ConfigMap"
 	// Route is OpenShift Route
 	Route = "Route"
 
@@ -102,10 +102,8 @@ const (
 func NewController(params Params) *Controller {
 
 	ctlr := &Controller{
-		namespaces:  make(map[string]bool),
-		crInformers: make(map[string]*CRInformer),
-		rscQueue: workqueue.NewNamedRateLimitingQueue(
-			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller"),
+		namespaces:         make(map[string]bool),
+		crInformers:        make(map[string]*CRInformer),
 		resources:          NewResourceStore(),
 		Agent:              params.Agent,
 		PoolMemberType:     params.PoolMemberType,
@@ -118,8 +116,6 @@ func NewController(params Params) *Controller {
 		eventNotifier:      apm.NewEventNotifier(nil),
 		defaultRouteDomain: params.DefaultRouteDomain,
 		mode:               params.Mode,
-		RouteConfig:        params.RouteConfig,
-		VsSnatPoolName:     params.VsSnatPoolName,
 	}
 
 	log.Debug("Controller Created")
@@ -127,12 +123,20 @@ func NewController(params Params) *Controller {
 	switch ctlr.mode {
 	case OpenShiftMode:
 		ctlr.routeSpecCMKey = params.RouteSpecConfigmap
+		ctlr.routeLabel = params.RouteLabel
 		fallthrough
 	case KubernetesMode:
 		ctlr.resourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		ctlr.nativeResourceQueue = workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(), "native-resource-controller")
+		ctlr.esInformers = make(map[string]*EssentialInformer)
+		ctlr.nrInformers = make(map[string]*NRInformer)
 	default:
+		ctlr.crInformers = make(map[string]*CRInformer)
 		ctlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		ctlr.mode = CustomResourceMode
+		ctlr.rscQueue = workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 	}
 
 	if err := ctlr.setupClients(params.Config); err != nil {
@@ -173,6 +177,7 @@ func NewController(params Params) *Controller {
 	if err != nil {
 		log.Errorf("Failed to Setup Node Polling: %v", err)
 	}
+
 	if params.IPAM {
 		ipamParams := ipammachinery.Params{
 			Config:        params.Config,
@@ -189,7 +194,9 @@ func NewController(params Params) *Controller {
 	}
 
 	go ctlr.responseHandler(ctlr.Agent.respChan)
+
 	go ctlr.Start()
+
 	return ctlr
 }
 
@@ -375,7 +382,7 @@ func (ctlr *Controller) Start() {
 	case CustomResourceMode:
 		go wait.Until(ctlr.customResourceWorker, time.Second, stopChan)
 	case OpenShiftMode:
-		go wait.Until(ctlr.customResourceWorker, time.Second, stopChan)
+		go wait.Until(ctlr.nativeResourceWorker, time.Second, stopChan)
 	}
 
 	<-stopChan

@@ -554,6 +554,9 @@ func verifyArgs() error {
 			return fmt.Errorf("invalid value provided for --route-spec-configmap" +
 				"Usage: --route-spec-configmap=<namespace>/<configmap-name>")
 		}
+		if len(*routeLabel) > 0 {
+			*routeLabel = fmt.Sprintf("f5type in (%s)", *routeLabel)
+		}
 	default:
 		return fmt.Errorf("invalid controller-mode is provided")
 	}
@@ -820,15 +823,6 @@ func initController(
 
 	agent := controller.NewAgent(agentParams)
 
-	routeConfigParams := controller.RouteConfig{
-		RouteVSAddr: *routeVserverAddr,
-		RouteLabel:  *routeLabel,
-		HttpVs:      *routeHttpVs,
-		HttpsVs:     *routeHttpsVs,
-		ClientSSL:   *clientSSL,
-		ServerSSL:   *serverSSL,
-	}
-
 	ctlr := controller.NewController(
 		controller.Params{
 			Config:             config,
@@ -847,8 +841,7 @@ func initController(
 			DefaultRouteDomain: *defaultRouteDomain,
 			Mode:               controller.ControllerMode(*controllerMode),
 			RouteSpecConfigmap: *routeSpecConfigmap,
-			RouteConfig:        routeConfigParams,
-			VsSnatPoolName:     *vsSnatPoolName,
+			RouteLabel:         *routeLabel,
 		},
 	)
 

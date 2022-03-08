@@ -70,8 +70,6 @@ type (
 		defaultRouteDomain int
 		TeemData           *teem.TeemsData
 		requestQueue       *requestQueue
-		RouteConfig        RouteConfig
-		VsSnatPoolName     string
 		nativeResourceContext
 	}
 	nativeResourceContext struct {
@@ -80,6 +78,7 @@ type (
 		esInformers         map[string]*EssentialInformer
 		nrInformers         map[string]*NRInformer
 		routeSpecCMKey      string
+		routeLabel          string
 	}
 
 	// Params defines parameters
@@ -100,18 +99,9 @@ type (
 		DefaultRouteDomain int
 		Mode               ControllerMode
 		RouteSpecConfigmap string
-		RouteConfig        RouteConfig
-		VsSnatPoolName     string
+		RouteLabel         string
 	}
-	// Configuration options for Routes in OpenShift
-	RouteConfig struct {
-		RouteVSAddr string
-		RouteLabel  string
-		HttpVs      string
-		HttpsVs     string
-		ClientSSL   string
-		ServerSSL   string
-	}
+
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
 		namespace    string
@@ -344,22 +334,17 @@ type (
 	supplementContextCache struct {
 		poolMemCache PoolMemberCache
 		sslContext   map[string]*v1.Secret
-		extdSpecMap  extdSpecMap
+		extdSpecMap  extendedSpecMap
 	}
 
 	// key is group identifier
-	extdSpecMap map[string]extdSpec
+	extendedSpecMap map[string]*extendedParsedSpec
 
 	// Extended Spec for each group of Routes/Ingress
-	extdSpec struct {
-		override bool
-		local    *extendedSpecContext
-		global   *extendedSpecContext
-	}
-
-	extendedSpecContext struct {
-		vsName string
-		vsAddr string
+	extendedParsedSpec struct {
+		override *bool
+		local    *ExtendedRouteGroupSpec
+		global   *ExtendedRouteGroupSpec
 	}
 
 	// This is the format for each item in the health monitor annotation used
@@ -530,13 +515,6 @@ type (
 
 	//List of NPL annotations
 	NPLAnnoations []NPLAnnotation
-)
-
-type (
-	RouteService struct {
-		Weight int
-		Name   string
-	}
 )
 
 type (
@@ -891,5 +869,23 @@ type (
 		httpTraffic      string
 		poolPathRefs     []poolPathRef
 		bigIPSSLProfiles BigIPSSLProfiles
+	}
+)
+
+type (
+	extendedSpec struct {
+		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
+	}
+
+	ExtendedRouteGroupConfig struct {
+		Namespace              string `yaml:"namespace"` // Group Identifier
+		ExtendedRouteGroupSpec `yaml:",inline"`
+	}
+
+	ExtendedRouteGroupSpec struct {
+		VServerName   string `yaml:"vserverName"`
+		VServerAddr   string `yaml:"vserverAddr"`
+		AllowOverride bool   `yaml:"allowOverride"`
+		SNAT          string `yaml:"snat"`
 	}
 )

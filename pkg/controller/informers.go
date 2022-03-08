@@ -22,7 +22,6 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/util/workqueue"
 	"reflect"
 	"time"
 
@@ -153,12 +152,22 @@ func (esInfr *EssentialInformer) stop() {
 }
 
 func (ctlr *Controller) watchingAllNamespaces() bool {
-	if 0 == len(ctlr.crInformers) {
-		// Not watching any namespaces.
-		return false
+	switch ctlr.mode {
+	case OpenShiftMode, KubernetesMode:
+		if len(ctlr.esInformers) == 0 || len(ctlr.nrInformers) == 0 {
+			return false
+		}
+		_, watchingAll := ctlr.esInformers[""]
+		return watchingAll
+	case CustomResourceMode:
+		if len(ctlr.crInformers) == 0 {
+			// Not watching any namespaces.
+			return false
+		}
+		_, watchingAll := ctlr.crInformers[""]
+		return watchingAll
 	}
-	_, watchingAll := ctlr.crInformers[""]
-	return watchingAll
+	return false
 }
 
 func (ctlr *Controller) getNamespacedInformer(
@@ -169,6 +178,16 @@ func (ctlr *Controller) getNamespacedInformer(
 	}
 	crInf, found := ctlr.crInformers[namespace]
 	return crInf, found
+}
+
+func (ctlr *Controller) getNamespacedEssentialInformer(
+	namespace string,
+) (*EssentialInformer, bool) {
+	if ctlr.watchingAllNamespaces() {
+		namespace = ""
+	}
+	esInf, found := ctlr.esInformers[namespace]
+	return esInf, found
 }
 
 func (ctlr *Controller) getWatchingNamespaces() []string {
@@ -201,7 +220,6 @@ func (ctlr *Controller) addNamespacedInformers(
 		return fmt.Errorf(
 			"Cannot watch all namespaces when already watching specific ones.")
 	}
-
 	switch ctlr.mode {
 	case CustomResourceMode:
 		if _, found := ctlr.crInformers[namespace]; found {
@@ -217,6 +235,7 @@ func (ctlr *Controller) addNamespacedInformers(
 			ctlr.addEssentialResourceEventHandlers(esInf)
 			ctlr.esInformers[namespace] = esInf
 		}
+
 		if _, found := ctlr.nrInformers[namespace]; !found {
 			nrInf := ctlr.newNamespacedNativeResourceInformer(namespace)
 			ctlr.addNativeResourceEventHandlers(nrInf)
@@ -230,7 +249,7 @@ func (ctlr *Controller) addNamespacedInformers(
 func (ctlr *Controller) newNamespacedCustomResourceInformer(
 	namespace string,
 ) *CRInformer {
-	log.Debugf("Creating Informers for Namespace %v", namespace)
+	log.Debugf("Creating Custom Resource Informers for Namespace: %v", namespace)
 	crOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = ctlr.resourceSelector.String()
 	}
@@ -331,7 +350,7 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 func (ctlr *Controller) newNamespacedNativeResourceInformer(
 	namespace string,
 ) *NRInformer {
-
+	log.Debugf("Creating Native Resource Informers for Namespace: %v", namespace)
 	resyncPeriod := 0 * time.Second
 	nrInformer := &NRInformer{
 		namespace: namespace,
@@ -354,11 +373,11 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 		nrInformer.routeInformer = cache.NewSharedIndexInformer(
 			&cache.ListWatch{
 				ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-					options.LabelSelector = ctlr.resourceSelector.String()
+					options.LabelSelector = ctlr.routeLabel
 					return ctlr.routeClientV1.Routes(namespace).List(context.TODO(), options)
 				},
 				WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-					options.LabelSelector = ctlr.resourceSelector.String()
+					options.LabelSelector = ctlr.routeLabel
 					return ctlr.routeClientV1.Routes(namespace).Watch(context.TODO(), options)
 				},
 			},
@@ -386,6 +405,7 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 func (ctlr *Controller) newNamespacedEssentialResourceInformer(
 	namespace string,
 ) *EssentialInformer {
+	log.Debugf("Creating Essential Resource Informers for Namespace: %v", namespace)
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
 	}
@@ -474,9 +494,9 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 	if crInf.svcInformer != nil {
 		crInf.svcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj, ctlr.rscQueue) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur, ctlr.rscQueue) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj, ctlr.rscQueue) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj) },
 			},
 		)
 	}
@@ -484,9 +504,9 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 	if crInf.epsInformer != nil {
 		crInf.epsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, ctlr.rscQueue) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, ctlr.rscQueue) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, ctlr.rscQueue) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj) },
 			},
 		)
 	}
@@ -516,9 +536,9 @@ func (ctlr *Controller) addEssentialResourceEventHandlers(esInf *EssentialInform
 	if esInf.svcInformer != nil {
 		esInf.svcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj, ctlr.nativeResourceQueue) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur, ctlr.nativeResourceQueue) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj, ctlr.nativeResourceQueue) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj) },
 			},
 		)
 	}
@@ -526,9 +546,9 @@ func (ctlr *Controller) addEssentialResourceEventHandlers(esInf *EssentialInform
 	if esInf.epsInformer != nil {
 		esInf.epsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, ctlr.nativeResourceQueue) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, ctlr.nativeResourceQueue) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, ctlr.nativeResourceQueue) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj) },
 			},
 		)
 	}
@@ -536,6 +556,16 @@ func (ctlr *Controller) addEssentialResourceEventHandlers(esInf *EssentialInform
 }
 
 func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
+
+	if nrInf.cmInformer != nil {
+		nrInf.cmInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigmap(obj) },
+				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigmap(obj) },
+			},
+		)
+	}
+
 	if nrInf.routeInformer != nil {
 		nrInf.routeInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
@@ -543,15 +573,6 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 				// TODO: need to add update function
 				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueRoute(cur) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedRoute(obj) },
-			},
-		)
-	}
-
-	if nrInf.cmInformer != nil {
-		nrInf.cmInformer.AddEventHandler(
-			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigmap(obj) },
-				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigmap(obj) },
 			},
 		)
 	}
@@ -891,7 +912,7 @@ func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}) {
 	ctlr.rscQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueService(obj interface{}, queue workqueue.RateLimitingInterface) {
+func (ctlr *Controller) enqueueService(obj interface{}) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
@@ -905,10 +926,15 @@ func (ctlr *Controller) enqueueService(obj interface{}, queue workqueue.RateLimi
 		rscName:   svc.ObjectMeta.Name,
 		rsc:       obj,
 	}
-	queue.Add(key)
+	switch ctlr.mode {
+	case KubernetesMode, OpenShiftMode:
+		ctlr.nativeResourceQueue.Add(key)
+	case CustomResourceMode:
+		ctlr.rscQueue.Add(key)
+	}
 }
 
-func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, queue workqueue.RateLimitingInterface) {
+func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 	svc := obj.(*corev1.Service)
 	curSvc := cur.(*corev1.Service)
 	// Ignore K8S Core Services
@@ -927,7 +953,12 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, queue workqu
 			rsc:       obj,
 			rscDelete: true,
 		}
-		queue.Add(key)
+		switch ctlr.mode {
+		case KubernetesMode, OpenShiftMode:
+			ctlr.nativeResourceQueue.Add(key)
+		case CustomResourceMode:
+			ctlr.rscQueue.Add(key)
+		}
 	}
 
 	log.Debugf("Enqueueing Updated Service: %v", curSvc)
@@ -937,10 +968,15 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}, queue workqu
 		rscName:   curSvc.ObjectMeta.Name,
 		rsc:       cur,
 	}
-	queue.Add(key)
+	switch ctlr.mode {
+	case KubernetesMode, OpenShiftMode:
+		ctlr.nativeResourceQueue.Add(key)
+	case CustomResourceMode:
+		ctlr.rscQueue.Add(key)
+	}
 }
 
-func (ctlr *Controller) enqueueDeletedService(obj interface{}, queue workqueue.RateLimitingInterface) {
+func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
 	svc := obj.(*corev1.Service)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[svc.Name]; ok {
@@ -954,10 +990,15 @@ func (ctlr *Controller) enqueueDeletedService(obj interface{}, queue workqueue.R
 		rsc:       obj,
 		rscDelete: true,
 	}
-	queue.Add(key)
+	switch ctlr.mode {
+	case KubernetesMode, OpenShiftMode:
+		ctlr.nativeResourceQueue.Add(key)
+	case CustomResourceMode:
+		ctlr.rscQueue.Add(key)
+	}
 }
 
-func (ctlr *Controller) enqueueEndpoints(obj interface{}, queue workqueue.RateLimitingInterface) {
+func (ctlr *Controller) enqueueEndpoints(obj interface{}) {
 	eps := obj.(*corev1.Endpoints)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[eps.Name]; ok {
@@ -971,7 +1012,12 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, queue workqueue.RateLi
 		rsc:       obj,
 	}
 
-	queue.Add(key)
+	switch ctlr.mode {
+	case KubernetesMode, OpenShiftMode:
+		ctlr.nativeResourceQueue.Add(key)
+	case CustomResourceMode:
+		ctlr.rscQueue.Add(key)
+	}
 }
 
 func (ctlr *Controller) enqueueRoute(obj interface{}) {
@@ -997,10 +1043,10 @@ func (ctlr *Controller) enqueueConfigmap(obj interface{}) {
 		return
 	}
 
-	log.Debugf("Enqueueing Configmap: %v", cm)
+	log.Debugf("Enqueueing ConfigMap: %v", cm)
 	key := &rqKey{
 		namespace: cm.ObjectMeta.Namespace,
-		kind:      Configmap,
+		kind:      ConfigMap,
 		rscName:   cm.ObjectMeta.Name,
 		rsc:       obj,
 	}

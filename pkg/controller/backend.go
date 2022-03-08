@@ -336,6 +336,7 @@ func (agent *Agent) retryWorker() {
 			log.Debugf("[AS3] Posting failed tenants configuration in %v seconds", timeoutMedium)
 
 			var retryTenants []string
+			var acceptedTenants []string
 			// Create a set to hold unique polling ids
 			acceptedTenantIds := map[string]struct{}{}
 
@@ -348,22 +349,33 @@ func (agent *Agent) retryWorker() {
 				// We prioritise calling only acceptedTenants first
 				// So, when we call updateTenantResponse, we have to retain failed agentResponseCodes and taskId's correctly
 				agent.tenantResponseMap[tenant] = tenantResponse{agentResponseCode: cfg.agentResponseCode, taskId: cfg.taskId}
-				if cfg.taskId == "" {
-					retryTenants = append(retryTenants, tenant)
-					retryDecl[tenant] = cfg.as3Decl.(as3Tenant)
-				} else {
+				if cfg.taskId != "" {
 					if _, found := acceptedTenantIds[cfg.taskId]; !found {
 						acceptedTenantIds[cfg.taskId] = struct{}{}
+						acceptedTenants = append(acceptedTenants, tenant)
 					}
+				} else {
+					retryTenants = append(retryTenants, tenant)
+					retryDecl[tenant] = cfg.as3Decl.(as3Tenant)
 				}
 			}
 
-			if len(acceptedTenantIds) > 0 {
+			for len(acceptedTenantIds) > 0 {
+				// Keep retrying until accepted tenant statuses are updated
+				// This prevents agent from unlocking and thus any incoming post requests (config changes) also need to hold on
 				for taskId := range acceptedTenantIds {
 					<-time.After(timeoutMedium)
 					agent.getTenantConfigStatus(taskId)
 				}
-			} else if len(retryTenants) > 0 {
+				for _, tenant := range acceptedTenants {
+					// Even if there is one pending tenant which is not updated, keep retrying for that ID
+					if agent.tenantResponseMap[tenant].taskId == "" {
+						delete(acceptedTenantIds, agent.tenantResponseMap[tenant].taskId)
+					}
+				}
+			}
+
+			if len(retryTenants) > 0 {
 				// Until all accepted tenants are not processed, we do not want to re-post failed tenants since we will anyways get a 503
 				cfg := agentConfig{
 					data:      string(agent.createAS3Declaration(retryDecl)),
@@ -450,10 +462,6 @@ func (agent *Agent) createAS3Declaration(tenantDeclMap map[string]as3Tenant) as3
 }
 
 func createAS3ADC(config ResourceConfigRequest) as3ADC {
-	// Create Shared as3Application object
-	sharedApp := as3Application{}
-	sharedApp["class"] = "Application"
-	sharedApp["template"] = "shared"
 	as3JSONDecl := as3ADC{}
 	for tenantName, rsMap := range config.ltmConfig {
 		if len(rsMap) == 0 {
@@ -463,6 +471,11 @@ func createAS3ADC(config ResourceConfigRequest) as3ADC {
 			}
 			continue
 		}
+		// Create Shared as3Application object
+		sharedApp := as3Application{}
+		sharedApp["class"] = "Application"
+		sharedApp["template"] = "shared"
+
 		// Process rscfg to create AS3 Resources
 		processResourcesForAS3(rsMap, sharedApp, config.shareNodes, tenantName)
 

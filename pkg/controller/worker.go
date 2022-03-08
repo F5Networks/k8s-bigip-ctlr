@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/tools/cache"
 	"sort"
 	"strings"
 	"time"
@@ -444,12 +445,25 @@ func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints) *v1.Service {
 	epNamespace := ep.ObjectMeta.Namespace
 	svcKey := fmt.Sprintf("%s/%s", epNamespace, epName)
 
-	crInf, ok := ctlr.getNamespacedInformer(epNamespace)
-	if !ok {
-		log.Errorf("Informer not found for namespace: %v", epNamespace)
-		return nil
+	var svcInf cache.SharedIndexInformer
+	switch ctlr.mode {
+	case OpenShiftMode, KubernetesMode:
+		esInf, ok := ctlr.getNamespacedEssentialInformer(ep.Namespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", ep.Namespace)
+			return nil
+		}
+		svcInf = esInf.svcInformer
+	case CustomResourceMode:
+		crInf, ok := ctlr.getNamespacedInformer(epNamespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", epNamespace)
+			return nil
+		}
+		svcInf = crInf.svcInformer
 	}
-	svc, exists, err := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
+
+	svc, exists, err := svcInf.GetIndexer().GetByKey(svcKey)
 	if err != nil {
 		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
 		return nil
@@ -883,7 +897,7 @@ func (ctlr *Controller) processVirtualServers(
 			if _, ok := rsMap[rsName]; ok {
 				hostnames = rsMap[rsName].MetaData.hosts
 			}
-			ctlr.deleteVirtualServer(ctlr.Partition, rsName, VirtualServer)
+			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}
@@ -1613,7 +1627,7 @@ func (ctlr *Controller) processTransportServers(
 	}
 
 	if isTSDeleted {
-		ctlr.deleteVirtualServer(ctlr.Partition, rsName, TransportServer)
+		ctlr.deleteVirtualServer(ctlr.Partition, rsName)
 		return nil
 	}
 
@@ -1918,7 +1932,7 @@ func (ctlr *Controller) processLBServices(
 
 		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		if isSVCDeleted {
-			ctlr.deleteVirtualServer(ctlr.Partition, rsName, TransportServer)
+			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
 			continue
 		}
 
@@ -1965,13 +1979,25 @@ func (ctlr *Controller) processService(
 	}
 
 	if eps == nil {
-		crInf, ok := ctlr.getNamespacedInformer(namespace)
-		if !ok {
-			log.Errorf("Informer not found for namespace: %v", namespace)
-			return fmt.Errorf("unable to process Service: %v", svcKey)
+		var epInf cache.SharedIndexInformer
+		switch ctlr.mode {
+		case OpenShiftMode, KubernetesMode:
+			esInf, ok := ctlr.getNamespacedEssentialInformer(namespace)
+			if !ok {
+				log.Errorf("Informer not found for namespace: %v", namespace)
+				return fmt.Errorf("unable to process Service: %v", svcKey)
+			}
+			epInf = esInf.epsInformer
+		case CustomResourceMode:
+			crInf, ok := ctlr.getNamespacedInformer(namespace)
+			if !ok {
+				log.Errorf("Informer not found for namespace: %v", namespace)
+				return fmt.Errorf("unable to process Service: %v", svcKey)
+			}
+			epInf = crInf.epsInformer
 		}
 
-		item, found, _ := crInf.epsInformer.GetIndexer().GetByKey(svcKey)
+		item, found, _ := epInf.GetIndexer().GetByKey(svcKey)
 		if !found {
 			return fmt.Errorf("Endpoints for service '%v' not found!", svcKey)
 		}
@@ -2281,7 +2307,7 @@ func (ctlr *Controller) processIngressLink(
 					hostnames = rsCfg.MetaData.hosts
 				}
 			}
-			ctlr.deleteVirtualServer(rsName)
+			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}

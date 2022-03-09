@@ -178,7 +178,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 					}
 				}
  
-                                if(port == null || ips == null) {
+                                if(port == 0) {
                                     members = append(members, eps...)
                                     for _, v := range eps {
                                         ips = append(ips, v.Address)

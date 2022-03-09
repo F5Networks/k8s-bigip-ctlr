@@ -858,10 +858,11 @@ type (
 	}
 
 	ExtendedRouteGroupSpec struct {
-		VServerName   string `yaml:"vserverName"`
-		VServerAddr   string `yaml:"vserverAddr"`
-		AllowOverride bool   `yaml:"allowOverride"`
-		SNAT          string `yaml:"snat"`
-		WAF           string `yaml:"waf"`
+		VServerName   string   `yaml:"vserverName"`
+		VServerAddr   string   `yaml:"vserverAddr"`
+		AllowOverride bool     `yaml:"allowOverride"`
+		SNAT          string   `yaml:"snat"`
+		WAF           string   `yaml:"waf"`
+		IRules        []string `yaml:"iRules,omitempty"`
 	}
 )

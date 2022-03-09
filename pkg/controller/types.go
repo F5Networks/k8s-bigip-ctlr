@@ -863,5 +863,6 @@ type (
 		AllowOverride bool     `yaml:"allowOverride"`
 		SNAT          string   `yaml:"snat"`
 		IRules        []string `yaml:"iRules,omitempty"`
+		WAF           string   `yaml:"waf"`
 	}
 )

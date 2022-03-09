@@ -309,6 +309,7 @@ func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, extd
 		rsCfg.Virtual.SNAT = extdSpec.SNAT
 	}
 	rsCfg.Virtual.IRules =  extdSpec.IRules
+	rsCfg.Virtual.WAF = extdSpec.WAF
 	return nil
 }
 

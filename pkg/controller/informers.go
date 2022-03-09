@@ -94,7 +94,10 @@ func (crInfr *CRInformer) start() {
 		go crInfr.plcInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.plcInformer.HasSynced)
 	}
-
+	if crInfr.podInformer != nil {
+		go crInfr.podInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.podInformer.HasSynced)
+	}
 	cache.WaitForNamedCacheSync(
 		"F5 CIS CRD Controller",
 		crInfr.stopCh,
@@ -250,7 +253,20 @@ func (ctlr *Controller) newNamespacedInformer(
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		crOptions,
 	)
-
+	//enable pod informer for nodeport local mode
+	if ctlr.PoolMemberType == NodePortLocal {
+		crInf.podInformer = cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"pods",
+				namespace,
+				everything,
+			),
+			&corev1.Pod{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
+	}
 	return crInf
 }
 
@@ -330,6 +346,16 @@ func (ctlr *Controller) addEventHandlers(crInf *CRInformer) {
 				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj) },
 				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj) },
+			},
+		)
+	}
+
+	if crInf.podInformer != nil {
+		crInf.podInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj) },
 			},
 		)
 	}
@@ -748,6 +774,32 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}) {
 		rsc:       obj,
 	}
 
+	ctlr.rscQueue.Add(key)
+}
+
+func (ctlr *Controller) enqueuePod(obj interface{}) {
+	pod := obj.(*corev1.Pod)
+	log.Debugf("Enqueueing pod: %v", pod)
+	key := &rqKey{
+		namespace: pod.ObjectMeta.Namespace,
+		kind:      Pod,
+		rscName:   pod.ObjectMeta.Name,
+		rsc:       obj,
+	}
+
+	ctlr.rscQueue.Add(key)
+}
+
+func (ctlr *Controller) enqueueDeletedPod(obj interface{}) {
+	pod := obj.(*corev1.Pod)
+	log.Debugf("Enqueueing pod: %v", pod)
+	key := &rqKey{
+		namespace: pod.ObjectMeta.Namespace,
+		kind:      Pod,
+		rscName:   pod.ObjectMeta.Name,
+		rsc:       obj,
+		rscDelete: true,
+	}
 	ctlr.rscQueue.Add(key)
 }
 

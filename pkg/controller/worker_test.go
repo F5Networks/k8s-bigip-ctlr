@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"sort"
 	"time"
@@ -857,5 +858,52 @@ var _ = Describe("Worker Tests", func() {
 		svc1.Spec.Ports[0].NodePort = 30000
 		np := getNodeport(svc1, 80)
 		Expect(int(np)).To(Equal(30000))
+	})
+
+	Describe("Test NodeportLocal", func() {
+		var nplsvc *v1.Service
+		var selectors map[string]string
+		BeforeEach(func() {
+			mockCtlr.PoolMemberType = NodePortLocal
+			selectors = make(map[string]string)
+			selectors["app"] = "npl"
+			nplsvc = test.NewServicewithselectors(
+				"svcnpl",
+				"1",
+				namespace,
+				selectors,
+				v1.ServiceTypeClusterIP,
+				[]v1.ServicePort{
+					{
+						Port: 8080,
+						Name: "port0",
+					},
+				},
+			)
+			ann := make(map[string]string)
+			ann[NPLSvcAnnotation] = "true"
+			nplsvc.Annotations = ann
+		})
+		It("NodePortLocal", func() {
+			pod1 := test.NewPod("pod1", namespace, 8080, selectors)
+			ann := make(map[string]string)
+			ann[NPLPodAnnotation] = "[{\"podPort\":8080,\"nodeIP\":\"10.10.10.1\",\"nodePort\":40000}]"
+			pod1.Annotations = ann
+			pod2 := test.NewPod("pod2", namespace, 8080, selectors)
+			ann2 := make(map[string]string)
+			ann2[NPLPodAnnotation] = "[{\"podPort\":8080,\"nodeIP\":\"10.10.10.1\",\"nodePort\":40001}]"
+			pod2.Annotations = ann2
+			mockCtlr.resources.Init()
+			mockCtlr.processPod(pod1, false)
+			mockCtlr.processPod(pod2, false)
+			var val1 NPLAnnoations
+			var val2 NPLAnnoations
+			json.Unmarshal([]byte(pod1.Annotations[NPLPodAnnotation]), &val1)
+			json.Unmarshal([]byte(pod2.Annotations[NPLPodAnnotation]), &val2)
+			//verify npl store populated
+			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod1.Name]).To(Equal(val1))
+			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod2.Name]).To(Equal(val2))
+		})
+
 	})
 })

@@ -280,6 +280,21 @@ var _ = Describe("Informers Tests", func() {
 			Expect(quit).To(BeFalse(), "Enqueue New Endpoints  Failed")
 		})
 
+		It("Pod", func() {
+			label1 := make(map[string]string)
+			label1["app"] = "sampleSVC"
+			pod := test.NewPod(
+				"SampleSVC",
+				namespace,
+				80,
+				label1,
+			)
+			mockCtlr.enqueuePod(pod)
+			key, quit := mockCtlr.rscQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue New Pod Failed")
+			Expect(quit).To(BeFalse(), "Enqueue New Pod Failed")
+		})
+
 		It("Namespace", func() {
 			labels := make(map[string]string)
 			labels["app"] = "test"

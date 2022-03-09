@@ -20,7 +20,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/labels"
 	"reflect"
 	"sort"
 	"strings"
@@ -322,6 +324,58 @@ func (ctlr *Controller) processResource() bool {
 				}
 			}
 		}
+	case Pod:
+		pod := rKey.rsc.(*v1.Pod)
+		_ = ctlr.processPod(pod, rKey.rscDelete)
+		svc := ctlr.GetServicesForPod(pod)
+		if nil == svc {
+			break
+		}
+		_ = ctlr.processService(svc, nil, false)
+		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+			err := ctlr.processLBServices(svc, rKey.rscDelete)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
+			}
+			break
+		}
+
+		virtuals := ctlr.getVirtualServersForService(svc)
+		for _, virtual := range virtuals {
+			err := ctlr.processVirtualServers(virtual, false)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
+			}
+		}
+		//Sync service for Transport Server virtuals
+		tsVirtuals := ctlr.getTransportServersForService(svc)
+		if nil != tsVirtuals {
+			for _, virtual := range tsVirtuals {
+				err := ctlr.processTransportServers(virtual, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
+			}
+		}
+		//Sync service for Ingress Links
+		ingLinks := ctlr.getIngressLinksForService(svc)
+		if nil != ingLinks {
+			for _, ingLink := range ingLinks {
+				err := ctlr.processIngressLink(ingLink, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
+			}
+		}
+
 	case Namespace:
 		ns := rKey.rsc.(*v1.Namespace)
 		nsName := ns.ObjectMeta.Name
@@ -921,6 +975,9 @@ func (ctlr *Controller) processVirtualServers(
 
 		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
+		} else if ctlr.PoolMemberType == NodePortLocal {
+			//supported with antrea cni.
+			ctlr.updatePoolMembersForNPL(rsCfg, virtual.ObjectMeta.Namespace)
 		} else {
 			ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
 		}
@@ -1389,6 +1446,42 @@ func (ctlr *Controller) updatePoolMembersForCluster(
 	}
 }
 
+// updatePoolMembersForNodePortLocal updates the pool with pool members for a
+// service created in clusterIP and annotated with nodeportlocal.antrea.io/enabled
+func (ctlr *Controller) updatePoolMembersForNPL(
+	rsCfg *ResourceConfig,
+	namespace string,
+) {
+	_, ok := ctlr.getNamespacedInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return
+	}
+
+	for index, pool := range rsCfg.Pools {
+		svcName := pool.ServiceName
+		svcKey := namespace + "/" + svcName
+		poolMemInfo := ctlr.resources.poolMemCache[svcKey]
+		if poolMemInfo.svcType == v1.ServiceTypeNodePort {
+			log.Debugf("Requested service backend %s is of type NodePort is not valid for nodeportlocal mode.",
+				svcKey)
+			return
+		}
+		pods := ctlr.GetPodsForService(namespace, svcName)
+		if pods != nil {
+			for _, svcPort := range poolMemInfo.portSpec {
+				if svcPort.TargetPort.IntVal == pool.ServicePort {
+					podPort := svcPort.TargetPort.IntVal
+					rsCfg.MetaData.Active = true
+					rsCfg.Pools[index].Members =
+						ctlr.getEndpointsForNPL(podPort, pods)
+
+				}
+			}
+		}
+	}
+}
+
 // getEndpointsForNodePort returns members.
 func (ctlr *Controller) getEndpointsForNodePort(
 	nodePort int32,
@@ -1410,6 +1503,31 @@ func (ctlr *Controller) getEndpointsForNodePort(
 		members = append(members, member)
 	}
 
+	return members
+}
+
+// getEndpointsForNPL returns members.
+func (ctlr *Controller) getEndpointsForNPL(
+	podPort int32,
+	pods *v1.PodList,
+) []PoolMember {
+	var members []PoolMember
+	for _, pod := range pods.Items {
+		anns, found := ctlr.resources.nplStore[pod.Namespace+"/"+pod.Name]
+		if !found {
+			continue
+		}
+		for _, annotation := range anns {
+			if annotation.PodPort == podPort {
+				member := PoolMember{
+					Address: annotation.NodeIP,
+					Port:    annotation.NodePort,
+					Session: "user-enabled",
+				}
+				members = append(members, member)
+			}
+		}
+	}
 	return members
 }
 
@@ -1580,6 +1698,9 @@ func (ctlr *Controller) processTransportServers(
 
 		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
+		} else if ctlr.PoolMemberType == NodePortLocal {
+			//supported with antrea cni.
+			ctlr.updatePoolMembersForNPL(rsCfg, virtual.ObjectMeta.Namespace)
 		} else {
 			ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
 		}
@@ -1870,6 +1991,9 @@ func (ctlr *Controller) processLBServices(
 
 		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, svc.Namespace)
+		} else if ctlr.PoolMemberType == NodePortLocal {
+			//supported with antrea cni.
+			ctlr.updatePoolMembersForNPL(rsCfg, svc.Namespace)
 		} else {
 			ctlr.updatePoolMembersForCluster(rsCfg, svc.Namespace)
 		}
@@ -1888,7 +2012,6 @@ func (ctlr *Controller) processService(
 ) error {
 	namespace := svc.Namespace
 	svcKey := svc.Namespace + "/" + svc.Name
-
 	if isSVCDeleted {
 		delete(ctlr.resources.poolMemCache, svcKey)
 		return nil
@@ -1915,7 +2038,6 @@ func (ctlr *Controller) processService(
 	}
 
 	nodes := ctlr.getNodesFromCache()
-
 	for _, subset := range eps.Subsets {
 		for _, p := range subset.Ports {
 			var members []PoolMember
@@ -1936,7 +2058,6 @@ func (ctlr *Controller) processService(
 	}
 
 	ctlr.resources.poolMemCache[svcKey] = pmi
-
 	return nil
 }
 
@@ -2282,6 +2403,9 @@ func (ctlr *Controller) processIngressLink(
 
 		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, ingLink.ObjectMeta.Namespace)
+		} else if ctlr.PoolMemberType == NodePortLocal {
+			//supported with antrea cni.
+			ctlr.updatePoolMembersForNPL(rsCfg, ingLink.ObjectMeta.Namespace)
 		} else {
 			ctlr.updatePoolMembersForCluster(rsCfg, ingLink.ObjectMeta.Namespace)
 		}
@@ -2595,4 +2719,96 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 		log.Debugf("Error while updating ingresslink status:%v", updateErr)
 		return
 	}
+}
+
+//returns podlist with labels set to svc selector
+func (ctlr *Controller) GetPodsForService(namespace, serviceName string) *v1.PodList {
+	svcKey := namespace + "/" + serviceName
+	crInf, ok := ctlr.getNamespacedInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
+	svc, _, err := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
+	if err != nil {
+		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
+		return nil
+	}
+	annotations := svc.(*v1.Service).Annotations
+	if _, ok := annotations[NPLSvcAnnotation]; !ok {
+		log.Errorf("NPL annotation %v not set on service %v", NPLSvcAnnotation, serviceName)
+		return nil
+	}
+
+	selector := svc.(*v1.Service).Spec.Selector
+	if len(selector) == 0 {
+		log.Infof("label selector is not set on svc")
+		return nil
+	}
+	labelSelector, err := metav1.ParseToLabelSelector(labels.Set(selector).AsSelectorPreValidated().String())
+	labelmap, err := metav1.LabelSelectorAsMap(labelSelector)
+	if err != nil {
+		return nil
+	}
+	podListOptions := metav1.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labelmap).String(),
+	}
+	podList, err := ctlr.kubeClient.CoreV1().Pods(namespace).List(context.TODO(), podListOptions)
+	if err != nil {
+		log.Debugf("Got error while listing Pods with selector %v: %v", selector, err)
+		return nil
+	}
+	return podList
+}
+
+func (ctlr *Controller) GetServicesForPod(pod *v1.Pod) *v1.Service {
+	crInf, ok := ctlr.getNamespacedInformer(pod.Namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", pod.Namespace)
+		return nil
+	}
+	services := crInf.svcInformer.GetIndexer().List()
+	for _, obj := range services {
+		svc := obj.(*v1.Service)
+		if svc.Spec.Type != v1.ServiceTypeNodePort {
+			if ctlr.matchSvcSelectorPodLabels(svc.Spec.Selector, pod.GetLabels()) {
+				return svc
+			}
+		}
+	}
+	return nil
+}
+
+func (ctlr *Controller) matchSvcSelectorPodLabels(svcSelector, podLabel map[string]string) bool {
+	if len(svcSelector) == 0 {
+		return false
+	}
+
+	for selectorKey, selectorVal := range svcSelector {
+		if labelVal, ok := podLabel[selectorKey]; !ok || selectorVal != labelVal {
+			return false
+		}
+	}
+	return true
+}
+
+//processPod populates NPL annotations for a pod in store.
+func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
+	podKey := pod.Namespace + "/" + pod.Name
+	if ispodDeleted {
+		delete(ctlr.resources.nplStore, podKey)
+		return nil
+	}
+	ann := pod.GetAnnotations()
+	var annotations []NPLAnnotation
+	if val, ok := ann[NPLPodAnnotation]; ok {
+		if err := json.Unmarshal([]byte(val), &annotations); err != nil {
+			log.Errorf("key: %s, got error while unmarshaling NPL annotations: %v", err)
+		}
+		ctlr.resources.nplStore[podKey] = annotations
+	} else {
+		log.Info("key: %s, NPL annotation not found for Pod")
+		delete(ctlr.resources.nplStore, podKey)
+	}
+	return nil
 }

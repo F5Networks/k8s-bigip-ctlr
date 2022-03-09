@@ -45,6 +45,7 @@ func (rs *ResourceStore) Init() {
 	rs.dnsConfig = make(DNSConfig)
 	rs.oldDNSConfig = make(DNSConfig)
 	rs.poolMemCache = make(PoolMemberCache)
+	rs.nplStore = make(NPLStore)
 }
 
 const (

@@ -394,3 +394,50 @@ func NewSecret(name, namespace, cert, key string) *v1.Secret {
 		},
 	}
 }
+
+//NewPod return a pod
+func NewPod(name, namespace string, podport int, labels map[string]string) *v1.Pod {
+	return &v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Ports: []v1.ContainerPort{
+						{
+							ContainerPort: int32(podport),
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// NewService returns a service
+func NewServicewithselectors(id, rv, namespace string, selector map[string]string, serviceType v1.ServiceType,
+	portSpecList []v1.ServicePort) *v1.Service {
+	return &v1.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            id,
+			ResourceVersion: rv,
+			Namespace:       namespace,
+		},
+		Spec: v1.ServiceSpec{
+			Type:     serviceType,
+			Ports:    portSpecList,
+			Selector: selector,
+		},
+	}
+}

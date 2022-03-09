@@ -140,6 +140,11 @@ type Manager struct {
 	K8sVersion         string
 	TeemData           *teem.TeemsData
 	defaultRouteDomain int
+	poolMemberType     string
+	// key is namespace/pod. stores list of npl annotation on pod
+	nplStore map[string]NPLAnnoations
+	// Mutex to control access to nplStore map
+	nplStoreMutex sync.Mutex
 }
 
 // Watched Namespaces for global availability.
@@ -147,6 +152,16 @@ type WatchedNamespaces struct {
 	Namespaces     []string
 	NamespaceLabel string
 }
+
+//NPL information from pod annotation
+type NPLAnnotation struct {
+	PodPort  int32  `json:"podPort"`
+	NodeIP   string `json:"nodeIP"`
+	NodePort int32  `json:"nodePort"`
+}
+
+//List of NPL annotations
+type NPLAnnoations []NPLAnnotation
 
 // Struct to allow NewManager to receive all or only specific parameters.
 type Params struct {
@@ -180,6 +195,7 @@ type Params struct {
 	ProcessAgentLabels func(map[string]string, string, string) bool
 	UserAgent          string
 	DefaultRouteDomain int
+	PoolMemberType     string
 }
 
 // Configuration options for Routes in OpenShift
@@ -203,13 +219,17 @@ const (
 	Namespaces     = "namespaces"
 	Services       = "services"
 	Endpoints      = "endpoints"
+	Pod            = "pod"
 	Configmaps     = "configmaps"
 	Ingresses      = "ingresses"
 	Routes         = "routes"
 	Secrets        = "secrets"
 	IngressClasses = "ingressclasses"
 
-	hubModeInterval = 30 * time.Second //Hubmode ConfigMap resync interval
+	hubModeInterval  = 30 * time.Second //Hubmode ConfigMap resync interval
+	NodePortLocal    = "nodeportlocal"
+	NPLPodAnnotation = "nodeportlocal.antrea.io"
+	NPLSvcAnnotation = "nodeportlocal.antrea.io/enabled"
 )
 
 // Create and return a new app manager that meets the Manager interface
@@ -259,8 +279,10 @@ func NewManager(params *Params) *Manager {
 		agentCfgMap:            make(map[string]*AgentCfgMap),
 		agentCfgMapSvcCache:    make(map[string]*SvcEndPointsCache),
 		defaultRouteDomain:     params.DefaultRouteDomain,
+		poolMemberType:         params.PoolMemberType,
 	}
 	manager.processedResources = make(map[string]bool)
+	manager.nplStore = make(map[string]NPLAnnoations)
 	manager.IRulesStore.IRulesMap = make(map[NameRef]*IRule)
 	// Initialize agent response worker
 	go manager.agentResponseWorker()
@@ -566,6 +588,7 @@ type appInformer struct {
 	nodeInformer     cache.SharedIndexInformer
 	secretInformer   cache.SharedIndexInformer
 	ingClassInformer cache.SharedIndexInformer
+	podInformer      cache.SharedIndexInformer
 	stopCh           chan struct{}
 }
 
@@ -615,7 +638,20 @@ func (appMgr *Manager) newAppInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
 	}
-
+	//enable podinformer for nodeport local
+	if appMgr.poolMemberType == NodePortLocal {
+		appInf.podInformer = cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				appMgr.restClientv1,
+				"pods",
+				namespace,
+				everything,
+			),
+			&v1.Pod{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
+	}
 	if true == appMgr.manageIngress {
 		log.Infof("[CORE] Watching Ingress resources.")
 		// TODO Remove the version comparison once v1beta1.Ingress is deprecated in k8s 1.22
@@ -756,7 +792,15 @@ func (appMgr *Manager) newAppInformer(
 		},
 		resyncPeriod,
 	)
-
+	if appInf.podInformer != nil {
+		appInf.podInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { appMgr.enqueuePod(obj, OprTypeCreate) },
+				UpdateFunc: func(obj, cur interface{}) { appMgr.enqueuePod(cur, OprTypeUpdate) },
+				DeleteFunc: func(obj interface{}) { appMgr.enqueuePod(obj, OprTypeDelete) },
+			},
+		)
+	}
 	if true == appMgr.manageIngress {
 		log.Infof("[CORE] Handling Ingress resource events.")
 		appInf.ingInformer.AddEventHandlerWithResyncPeriod(
@@ -817,6 +861,15 @@ func (appMgr *Manager) enqueueService(obj interface{}, operation string) {
 
 func (appMgr *Manager) enqueueEndpoints(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidEndpoints(obj); ok {
+		for _, key := range keys {
+			key.Operation = operation
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) enqueuePod(obj interface{}, operation string) {
+	if ok, keys := appMgr.checkValidPod(obj, operation); ok {
 		for _, key := range keys {
 			key.Operation = operation
 			appMgr.vsQueue.Add(*key)
@@ -897,6 +950,9 @@ func (appInf *appInformer) start() {
 	if nil != appInf.ingClassInformer {
 		go appInf.ingClassInformer.Run(appInf.stopCh)
 	}
+	if nil != appInf.podInformer {
+		go appInf.podInformer.Run(appInf.stopCh)
+	}
 }
 
 func (appInf *appInformer) waitForCacheSync() {
@@ -925,6 +981,9 @@ func (appInf *appInformer) waitForCacheSync() {
 	}
 	if nil != appInf.ingClassInformer {
 		cacheSyncs = append(cacheSyncs, appInf.ingClassInformer.HasSynced)
+	}
+	if nil != appInf.podInformer {
+		cacheSyncs = append(cacheSyncs, appInf.podInformer.HasSynced)
 	}
 	cache.WaitForCacheSync(
 		appInf.stopCh,
@@ -2395,6 +2454,9 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 				if appMgr.IsNodePort() {
 					correctBackend, reason, msg =
 						appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
+				} else if appMgr.poolMemberType == NodePortLocal {
+					correctBackend, reason, msg =
+						appMgr.updatePoolMembersForNPL(svc, svcKey, rsCfg, plIdx)
 				} else {
 					correctBackend, reason, msg =
 						appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf, plIdx)
@@ -2654,6 +2716,38 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 		return true, "", ""
 	} else {
 		msg := "[CORE] Requested service backend " + svcKey.ServiceName + " not of NodePort or LoadBalancer type"
+		log.Debug(msg)
+		return false, "IncorrectBackendServiceType", msg
+	}
+}
+
+func (appMgr *Manager) updatePoolMembersForNPL(
+	svc *v1.Service,
+	svcKey ServiceKey,
+	rsCfg *ResourceConfig,
+	index int,
+) (bool, string, string) {
+	//get pods for service
+	if svc.Spec.Type == v1.ServiceTypeClusterIP || svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+		pods := appMgr.GetPodsForService(svcKey.Namespace, svcKey.ServiceName)
+		if pods != nil {
+			for _, portSpec := range svc.Spec.Ports {
+				if portSpec.Port == svcKey.ServicePort {
+					podPort := portSpec.TargetPort.IntVal
+					ipPorts := appMgr.getEndpointsForNPL(podPort, pods)
+					log.Debugf("[CORE] Found endpoints for backend %+v: %v", svcKey, ipPorts)
+					rsCfg.MetaData.Active = true
+					rsCfg.Pools[index].Members = ipPorts
+				}
+			}
+		}
+		//check if endpoints are found
+		if rsCfg.Pools[index].Members == nil {
+			log.Debugf("[CORE]Endpoints could not be fetched for service %v with port %v", svcKey.ServiceName, svcKey.ServicePort)
+		}
+		return true, "", ""
+	} else {
+		msg := "[CORE] Requested service backend " + svcKey.ServiceName + " not of ClusterIP or LoadBalancer type supported for NPL"
 		log.Debug(msg)
 		return false, "IncorrectBackendServiceType", msg
 	}
@@ -3386,4 +3480,100 @@ func getIngressV1Backend(ing *netv1.Ingress) []string {
 		svcs = append(svcs, key)
 	}
 	return svcs
+}
+
+func (appMgr *Manager) matchSvcSelectorPodLabels(svcSelector, podLabel map[string]string) bool {
+	if len(svcSelector) == 0 {
+		return false
+	}
+
+	for selectorKey, selectorVal := range svcSelector {
+		if labelVal, ok := podLabel[selectorKey]; !ok || selectorVal != labelVal {
+			return false
+		}
+	}
+	return true
+}
+
+func (appMgr *Manager) GetServicesForPod(pod *v1.Pod) []*v1.Service {
+	var svcList []*v1.Service
+	appInf, ok := appMgr.getNamespaceInformer(pod.Namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", pod.Namespace)
+		return svcList
+	}
+	services := appInf.svcInformer.GetIndexer().List()
+	for _, obj := range services {
+		svc := obj.(*v1.Service)
+		if svc.Spec.Type != v1.ServiceTypeNodePort {
+			if appMgr.matchSvcSelectorPodLabels(svc.Spec.Selector, pod.GetLabels()) {
+				svcList = append(svcList, svc)
+			}
+		}
+	}
+	return svcList
+}
+
+func (appMgr *Manager) GetPodsForService(namespace, serviceName string) *v1.PodList {
+	svcKey := namespace + "/" + serviceName
+	crInf, ok := appMgr.getNamespaceInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
+	svc, _, err := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
+	if err != nil {
+		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
+		return nil
+	}
+	annotations := svc.(*v1.Service).Annotations
+	if _, ok := annotations[NPLSvcAnnotation]; !ok {
+		log.Errorf("NPL annotation %v not set on service %v", NPLSvcAnnotation, serviceName)
+		return nil
+	}
+
+	selector := svc.(*v1.Service).Spec.Selector
+	if len(selector) == 0 {
+		log.Errorf("selector not set on service %v", serviceName)
+		return nil
+	}
+	labelSelector, err := metav1.ParseToLabelSelector(labels.Set(selector).AsSelectorPreValidated().String())
+	labelmap, err := metav1.LabelSelectorAsMap(labelSelector)
+	if err != nil {
+		return nil
+	}
+	podListOptions := metav1.ListOptions{
+		LabelSelector: labels.SelectorFromSet(labelmap).String(),
+	}
+	podList, err := appMgr.kubeClient.CoreV1().Pods(namespace).List(context.TODO(), podListOptions)
+	if err != nil {
+		log.Debugf("Got error while listing Pods with selector %v: %v", selector, err)
+		return nil
+	}
+	return podList
+}
+
+// getEndpointsForNPL returns members.
+func (appMgr *Manager) getEndpointsForNPL(
+	podPort int32,
+	pods *v1.PodList,
+) []Member {
+	var members []Member
+	for _, pod := range pods.Items {
+		anns, found := appMgr.nplStore[pod.Namespace+"/"+pod.Name]
+		if !found {
+			continue
+		}
+		for _, annotation := range anns {
+			if annotation.PodPort == podPort {
+				member := Member{
+					Address: annotation.NodeIP,
+					Port:    annotation.NodePort,
+					Session: "user-enabled",
+				}
+				members = append(members, member)
+			}
+		}
+	}
+	return members
 }

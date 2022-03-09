@@ -887,5 +887,6 @@ type (
 		VServerAddr   string `yaml:"vserverAddr"`
 		AllowOverride bool   `yaml:"allowOverride"`
 		SNAT          string `yaml:"snat"`
+		WAF           string `yaml:"waf"`
 	}
 )

@@ -303,7 +303,8 @@ func _init() {
 		"Optional, type of BIG-IP pool members to create. "+
 			"'nodeport' will use k8s service NodePort. "+
 			"'cluster' will use service endpoints. "+
-			"The BIG-IP must be able access the cluster network")
+			"The BIG-IP must be able access the cluster network"+
+			"'nodeportlocal' only supported with antrea cni")
 	inCluster = kubeFlags.Bool("running-in-cluster", true,
 		"Optional, if this controller is running in a kubernetes cluster,"+
 			"use the pod secrets for creating a Kubernetes client.")
@@ -486,7 +487,7 @@ func verifyArgs() error {
 
 	if *poolMemberType == "nodeport" {
 		isNodePort = true
-	} else if *poolMemberType == "cluster" {
+	} else if *poolMemberType == "cluster" || *poolMemberType == "nodeportlocal" {
 		isNodePort = false
 	} else {
 		return fmt.Errorf("'%v' is not a valid Pool Member Type", *poolMemberType)
@@ -1137,6 +1138,7 @@ func getAppManagerParams() appmanager.Params {
 		SchemaLocal:            *schemaLocal,
 		ProcessAgentLabels:     getProcessAgentLabelFunc(),
 		DefaultRouteDomain:     *defaultRouteDomain,
+		PoolMemberType:         *poolMemberType,
 	}
 }
 

@@ -58,6 +58,8 @@ const (
 	IPAM = "IPAM"
 	// Service is a k8s native Service Resource.
 	Service = "Service"
+	//Pod  is a k8s native object
+	Pod = "Pod"
 	// Endpoints is a k8s native Endpoint Resource.
 	Endpoints = "Endpoints"
 	// Namespace is k8s namespace
@@ -85,6 +87,10 @@ const (
 
 	LBServiceIPAMLabelAnnotation = "cis.f5.com/ipamLabel"
 	HealthMonitorAnnotation      = "cis.f5.com/health"
+	//Antrea NodePortLocal support
+	NPLPodAnnotation = "nodeportlocal.antrea.io"
+	NPLSvcAnnotation = "nodeportlocal.antrea.io/enabled"
+	NodePortLocal    = "nodeportlocal"
 )
 
 // NewController creates a new Controller Instance.

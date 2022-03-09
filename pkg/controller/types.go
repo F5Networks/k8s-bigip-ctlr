@@ -99,6 +99,7 @@ type (
 		ilInformer   cache.SharedIndexInformer
 		ednsInformer cache.SharedIndexInformer
 		plcInformer  cache.SharedIndexInformer
+		podInformer  cache.SharedIndexInformer
 	}
 
 	NSInformer struct {
@@ -209,6 +210,7 @@ type (
 		dnsConfig    DNSConfig
 		oldDNSConfig DNSConfig
 		poolMemCache PoolMemberCache
+		nplStore     NPLStore
 	}
 
 	// ResourceConfigMap key is resource name, value is pointer to config. May be shared.
@@ -221,6 +223,10 @@ type (
 		sync.Mutex
 		Profs map[SecretKey]CustomProfile
 	}
+
+	// key is namespace/pod. stores list of npl annotation on pod
+	NPLStore map[string]NPLAnnoations
+
 	DNSConfig map[string]WideIP
 
 	WideIPs struct {
@@ -447,6 +453,15 @@ type (
 		Addr   string
 		Labels map[string]string
 	}
+	//NPL information from pod annotation
+	NPLAnnotation struct {
+		PodPort  int32  `json:"podPort"`
+		NodeIP   string `json:"nodeIP"`
+		NodePort int32  `json:"nodePort"`
+	}
+
+	//List of NPL annotations
+	NPLAnnoations []NPLAnnotation
 )
 
 type (

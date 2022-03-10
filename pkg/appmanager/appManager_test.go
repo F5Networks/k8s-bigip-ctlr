@@ -601,6 +601,32 @@ func validateServiceIps(serviceName, namespace string, svcPorts []v1.ServicePort
 	}
 }
 
+func (m *mockAppManager) checkValidPod(obj interface{}, operation string) {
+	pod := obj.(*v1.Pod)
+	namespace := pod.ObjectMeta.Namespace
+	podkey := namespace + "/" + pod.Name
+	//delete annotations from nplstore
+	if operation == OprTypeDelete {
+		m.appMgr.nplStoreMutex.Lock()
+		delete(m.appMgr.nplStore, podkey)
+		m.appMgr.nplStoreMutex.Unlock()
+	} else {
+		ann := pod.GetAnnotations()
+		var annotations []NPLAnnotation
+		if val, ok := ann[NPLPodAnnotation]; ok {
+			json.Unmarshal([]byte(val), &annotations)
+			m.appMgr.nplStoreMutex.Lock()
+			m.appMgr.nplStore[podkey] = annotations
+			m.appMgr.nplStoreMutex.Unlock()
+		} else {
+			m.appMgr.nplStoreMutex.Lock()
+			delete(m.appMgr.nplStore, podkey)
+			m.appMgr.nplStoreMutex.Unlock()
+		}
+	}
+
+}
+
 var _ = Describe("AppManager Tests", func() {
 	Context("Output Config", func() {
 		var appMgr *Manager
@@ -4719,6 +4745,73 @@ var _ = Describe("AppManager Tests", func() {
 			// 	addr = []string{"127.0.0.0"}
 			// 	Expect(rs.Pools[0].Members).To(Equal(generateExpectedAddrs(37001, addr)))
 			// })
+		})
+		Describe("Test NodeportLocal", func() {
+			var nplsvc *v1.Service
+			var selectors map[string]string
+			namespace := "default"
+			BeforeEach(func() {
+				mockMgr.appMgr.poolMemberType = NodePortLocal
+				selectors = make(map[string]string)
+				selectors["app"] = "npl"
+				nplsvc = test.NewServicewithselectors(
+					"svcnpl",
+					"1",
+					namespace,
+					selectors,
+					v1.ServiceTypeClusterIP,
+					[]v1.ServicePort{
+						{
+							Port: 8080,
+							Name: "port0",
+						},
+					},
+				)
+				ann := make(map[string]string)
+				ann[NPLSvcAnnotation] = "true"
+				nplsvc.Annotations = ann
+			})
+			It("NodePortLocal", func() {
+				pod1 := test.NewPod("pod1", namespace, 8080, selectors)
+				ann := make(map[string]string)
+				ann[NPLPodAnnotation] = "[{\"podPort\":8080,\"nodeIP\":\"10.10.10.1\",\"nodePort\":40000}]"
+				pod1.Annotations = ann
+				pod2 := test.NewPod("pod2", namespace, 8080, selectors)
+				ann2 := make(map[string]string)
+				ann2[NPLPodAnnotation] = "[{\"podPort\":8080,\"nodeIP\":\"10.10.10.1\",\"nodePort\":40001}]"
+				pod2.Annotations = ann2
+				mockMgr.appMgr.nplStore = make(map[string]NPLAnnoations)
+				mockMgr.checkValidPod(pod1, OprTypeCreate)
+				mockMgr.checkValidPod(pod2, OprTypeCreate)
+				var val1 NPLAnnoations
+				var val2 NPLAnnoations
+				json.Unmarshal([]byte(pod1.Annotations[NPLPodAnnotation]), &val1)
+				json.Unmarshal([]byte(pod2.Annotations[NPLPodAnnotation]), &val2)
+				//verify npl store populated
+				Expect(mockMgr.appMgr.nplStore[namespace+"/"+pod1.Name]).To(Equal(val1))
+				Expect(mockMgr.appMgr.nplStore[namespace+"/"+pod2.Name]).To(Equal(val2))
+				//verify selector match on pod
+				Expect(mockMgr.appMgr.matchSvcSelectorPodLabels(selectors, pod1.Labels)).To(Equal(true))
+				var items []v1.Pod
+				items = append(items, *pod1, *pod2)
+				pods := v1.PodList{Items: items}
+				//Verify endpoints
+				members := []Member{
+					{
+						Address: "10.10.10.1",
+						Port:    40000,
+						Session: "user-enabled",
+					},
+					{
+						Address: "10.10.10.1",
+						Port:    40001,
+						Session: "user-enabled",
+					},
+				}
+				mems := mockMgr.appMgr.getEndpointsForNPL(8080, &pods)
+				Expect(mems).To(Equal(members))
+			})
+
 		})
 	})
 })

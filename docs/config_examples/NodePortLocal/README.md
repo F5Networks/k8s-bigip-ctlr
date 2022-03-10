@@ -1,9 +1,9 @@
 
 ## NodePortLocal (NPL) feature  in Antrea agent.
-NodePortLocal (NPL) is a feature that runs as part of the Antrea Agent. Each port of a Service backend Pod can be reached from the external network using a port of the Node on which the Pod is running.
+NodePortLocal (NPL) is a feature that runs as part of the Antrea Agent. Using this, each port of a Service backend Pod can be reached from the external network using a port of the Node on which the Pod is running.
 
 ## Prerequisites
-Prior to versionv1.4, a feature gate, NodePortLocal, must be enabled on the antrea-agent for the feature to work.From v1.4, at which time it was enabled by default
+Prior to versionv1.4, a feature gate, NodePortLocal, must be enabled on the antrea-agent for the feature to work.From v1.4, it was enabled by default
 ```
 kind: ConfigMap
 apiVersion: v1
@@ -49,7 +49,7 @@ spec:
   type: ClusterIP
   
 ```
-* All the pods will be annoated with nodeportlocal.antrea.io which has nodpeort and ip information.
+* All the pods will be annoated with nodeportlocal.antrea.io which has nodeport and ip information.
 
 ```
 kubectl describe po f5-hello-world-6d859874b7-prf8l -n cis
@@ -63,11 +63,11 @@ Annotations:  kubernetes.io/psp: cis-psp
               nodeportlocal.antrea.io: [{"podPort":8080,"nodeIP":"10.244.0.3","nodePort":40001}]
 
 ```
-* CIS reads info from nodeportlocal.antrea.io to add endpoint info for virtualserver.
+* CIS reads info from nodeportlocal.antrea.io to add endpoint info for virtualserver on BIGIP.
   
 **Note:** 
 
   * NodePortLocal can only be used with Services of type ClusterIP or LoadBalancer.
   * The nodeportlocal.antrea.io annotation has no effect for Services of type NodePort or ExternalName.
   * It also has no effect for Services with an empty or missing Selector
-  * NPL feature is currently supported with Ingress and virtualserver resources. Validated on k8s Tanzu infrastructue. 
+  * CIS currently supports NPL feature with Ingress and virtualserver resource. Feature validated on k8s Tanzu infrastructue. 

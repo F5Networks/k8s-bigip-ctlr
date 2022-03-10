@@ -2640,6 +2640,9 @@ func (appMgr *Manager) handleConfigForType(
 		if appMgr.IsNodePort() {
 			correctBackend, reason, msg =
 				appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
+		} else if appMgr.poolMemberType == NodePortLocal {
+			correctBackend, reason, msg =
+				appMgr.updatePoolMembersForNPL(svc, svcKey, rsCfg, plIdx)
 		} else {
 			correctBackend, reason, msg =
 				appMgr.updatePoolMembersForCluster(svc, svcKey, rsCfg, appInf, plIdx)

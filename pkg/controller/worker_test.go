@@ -903,6 +903,26 @@ var _ = Describe("Worker Tests", func() {
 			//verify npl store populated
 			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod1.Name]).To(Equal(val1))
 			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod2.Name]).To(Equal(val2))
+			//verify selector match on pod
+			Expect(mockCtlr.matchSvcSelectorPodLabels(selectors, pod1.Labels)).To(Equal(true))
+			var items []v1.Pod
+			items = append(items, *pod1, *pod2)
+			pods := v1.PodList{Items: items}
+			//Verify endpoints
+			members := []PoolMember{
+				{
+					Address: "10.10.10.1",
+					Port:    40000,
+					Session: "user-enabled",
+				},
+				{
+					Address: "10.10.10.1",
+					Port:    40001,
+					Session: "user-enabled",
+				},
+			}
+			mems := mockCtlr.getEndpointsForNPL(8080, &pods)
+			Expect(mems).To(Equal(members))
 		})
 
 	})

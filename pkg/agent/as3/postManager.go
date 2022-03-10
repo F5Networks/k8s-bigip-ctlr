@@ -123,7 +123,7 @@ func (postMgr *PostManager) getAS3VersionURL() string {
 func getTimeDurationForErrorResponse(errRsp string) time.Duration {
 	duration := timeoutNill
 	switch errRsp {
-	case responseStatusCommon:
+	case responseStatusCommon, responseStatusUnprocessableEntity:
 		duration = timeoutMedium
 	case responseStatusServiceUnavailable:
 		duration = timeoutSmall
@@ -299,7 +299,7 @@ func (postMgr *PostManager) handleStatusUnprocessableEntity(responseMap map[stri
 	if postMgr.LogResponse {
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
-	return true, responseStatusUnprocessableEntity
+	return false, responseStatusUnprocessableEntity
 }
 
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}) (bool, string) {

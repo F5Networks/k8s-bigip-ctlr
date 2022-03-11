@@ -12,6 +12,8 @@ Added Functionality
         * Added support for host in TransportServer and IngressLink CR. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * Added support for multiple health monitors in EDNS resource
     * NodePortLocal(NPL) antrea cni feature support added to Ingress and CRD Resources.
+    * Helm Chart Enhancements:
+        * Support for latest CRD schema
 
 Enhancements
 ````````````

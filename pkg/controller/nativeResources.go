@@ -439,7 +439,13 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	var modifiedExtendedSpecs []string
 
 	if ctlr.isGlobalExtendedRouteSpec(cm) {
-		for _, ergc := range es.ExtendedRouteGroupConfigs {
+		for rg := range es.ExtendedRouteGroupConfigs {
+			// ergc needs to be created at every iteration, as we are using address inside this container
+
+			// if this were used as an iteration variable, on every loop we just use the same container instead of creating one
+			// using the same container overrides the previous iteration contents, which is not desired
+
+			ergc := es.ExtendedRouteGroupConfigs[rg]
 			if spec, ok := ctlr.resources.extdSpecMap[ergc.Namespace]; ok {
 				if *spec.override && spec.local != nil {
 					continue

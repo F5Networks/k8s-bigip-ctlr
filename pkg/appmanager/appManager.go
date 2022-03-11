@@ -391,8 +391,14 @@ func (appMgr *Manager) AddNamespaceLabelInformer(
 	)
 	appMgr.nsInformer.AddEventHandlerWithResyncPeriod(
 		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { appMgr.enqueueNamespace(obj) },
-			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueNamespace(cur) },
+			AddFunc: func(obj interface{}) { appMgr.enqueueNamespace(obj) },
+			UpdateFunc: func(old, cur interface{}) {
+				oldObj := old.(*v1.Namespace)
+				curObj := cur.(*v1.Namespace)
+				if oldObj.GetUID() != curObj.GetUID() || oldObj.GetResourceVersion() != curObj.GetResourceVersion() {
+					appMgr.enqueueNamespace(cur)
+				}
+			},
 			DeleteFunc: func(obj interface{}) { appMgr.enqueueNamespace(obj) },
 		},
 		resyncPeriod,
@@ -754,7 +760,9 @@ func (appMgr *Manager) newAppInformer(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) { appMgr.enqueueConfigMap(obj, OprTypeCreate) },
 				UpdateFunc: func(old, cur interface{}) {
-					if appMgr.hubMode || !reflect.DeepEqual(old, cur) {
+					oldObj := old.(*v1.ConfigMap)
+					curObj := cur.(*v1.ConfigMap)
+					if appMgr.hubMode || oldObj.GetUID() != curObj.GetUID() || oldObj.GetResourceVersion() != curObj.GetResourceVersion() {
 						appMgr.enqueueConfigMap(cur, OprTypeUpdate)
 					}
 				},
@@ -768,8 +776,14 @@ func (appMgr *Manager) newAppInformer(
 
 	appInf.svcInformer.AddEventHandlerWithResyncPeriod(
 		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { appMgr.enqueueService(obj, OprTypeCreate) },
-			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueService(cur, OprTypeUpdate) },
+			AddFunc: func(obj interface{}) { appMgr.enqueueService(obj, OprTypeCreate) },
+			UpdateFunc: func(old, cur interface{}) {
+				oldObj := old.(*v1.Service)
+				curObj := cur.(*v1.Service)
+				if oldObj.GetUID() != curObj.GetUID() || oldObj.GetResourceVersion() != curObj.GetResourceVersion() {
+					appMgr.enqueueService(cur, OprTypeUpdate)
+				}
+			},
 			DeleteFunc: func(obj interface{}) { appMgr.enqueueService(obj, OprTypeDelete) },
 		},
 		resyncPeriod,
@@ -777,8 +791,14 @@ func (appMgr *Manager) newAppInformer(
 
 	appInf.endptInformer.AddEventHandlerWithResyncPeriod(
 		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { appMgr.enqueueEndpoints(obj, OprTypeCreate) },
-			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueEndpoints(cur, OprTypeUpdate) },
+			AddFunc: func(obj interface{}) { appMgr.enqueueEndpoints(obj, OprTypeCreate) },
+			UpdateFunc: func(old, cur interface{}) {
+				oldObj := old.(*v1.Endpoints)
+				curObj := cur.(*v1.Endpoints)
+				if oldObj.GetUID() != curObj.GetUID() || oldObj.GetResourceVersion() != curObj.GetResourceVersion() {
+					appMgr.enqueueEndpoints(cur, OprTypeUpdate)
+				}
+			},
 			DeleteFunc: func(obj interface{}) { appMgr.enqueueEndpoints(obj, OprTypeDelete) },
 		},
 		resyncPeriod,
@@ -786,8 +806,14 @@ func (appMgr *Manager) newAppInformer(
 	appInf.secretInformer.AddEventHandlerWithResyncPeriod(
 		&cache.ResourceEventHandlerFuncs{
 			// Making all operation types as update because each change in secret will update the ingress/configmap
-			AddFunc:    func(obj interface{}) { appMgr.enqueueSecrets(obj, OprTypeUpdate) },
-			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueSecrets(cur, OprTypeUpdate) },
+			AddFunc: func(obj interface{}) { appMgr.enqueueSecrets(obj, OprTypeUpdate) },
+			UpdateFunc: func(old, cur interface{}) {
+				oldObj := old.(*v1.Secret)
+				curObj := cur.(*v1.Secret)
+				if oldObj.GetUID() != curObj.GetUID() || oldObj.GetResourceVersion() != curObj.GetResourceVersion() {
+					appMgr.enqueueSecrets(cur, OprTypeUpdate)
+				}
+			},
 			DeleteFunc: func(obj interface{}) { appMgr.enqueueSecrets(obj, OprTypeUpdate) },
 		},
 		resyncPeriod,
@@ -795,8 +821,14 @@ func (appMgr *Manager) newAppInformer(
 	if appInf.podInformer != nil {
 		appInf.podInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { appMgr.enqueuePod(obj, OprTypeCreate) },
-				UpdateFunc: func(obj, cur interface{}) { appMgr.enqueuePod(cur, OprTypeUpdate) },
+				AddFunc: func(obj interface{}) { appMgr.enqueuePod(obj, OprTypeCreate) },
+				UpdateFunc: func(old, cur interface{}) {
+					oldObj := old.(*v1.Pod)
+					curObj := cur.(*v1.Pod)
+					if oldObj.GetUID() != curObj.GetUID() || oldObj.GetResourceVersion() != curObj.GetResourceVersion() {
+						appMgr.enqueuePod(cur, OprTypeUpdate)
+					}
+				},
 				DeleteFunc: func(obj interface{}) { appMgr.enqueuePod(obj, OprTypeDelete) },
 			},
 		)
@@ -805,8 +837,24 @@ func (appMgr *Manager) newAppInformer(
 		log.Infof("[CORE] Handling Ingress resource events.")
 		appInf.ingInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { appMgr.enqueueIngress(obj, OprTypeCreate) },
-				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueIngress(cur, OprTypeUpdate) },
+				AddFunc: func(obj interface{}) { appMgr.enqueueIngress(obj, OprTypeCreate) },
+				UpdateFunc: func(old, cur interface{}) {
+					var res bool
+					switch old.(type) {
+					case *v1beta1.Ingress:
+						oldObj := old.(*v1beta1.Ingress)
+						curObj := cur.(*v1beta1.Ingress)
+						res = oldObj.GetUID() != curObj.GetUID() || oldObj.GetResourceVersion() != curObj.GetResourceVersion()
+					default:
+						oldObj := old.(*netv1.Ingress)
+						curObj := cur.(*netv1.Ingress)
+						res = oldObj.GetUID() != curObj.GetUID() || oldObj.GetResourceVersion() != curObj.GetResourceVersion()
+					}
+
+					if res {
+						appMgr.enqueueIngress(cur, OprTypeUpdate)
+					}
+				},
 				DeleteFunc: func(obj interface{}) { appMgr.enqueueIngress(obj, OprTypeDelete) },
 			},
 			resyncPeriod,
@@ -830,8 +878,14 @@ func (appMgr *Manager) newAppInformer(
 	if nil != appMgr.routeClientV1 {
 		appInf.routeInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { appMgr.enqueueRoute(obj, OprTypeCreate) },
-				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueRoute(cur, OprTypeUpdate) },
+				AddFunc: func(obj interface{}) { appMgr.enqueueRoute(obj, OprTypeCreate) },
+				UpdateFunc: func(old, cur interface{}) {
+					oldObj := old.(*routeapi.Route)
+					curObj := cur.(*routeapi.Route)
+					if oldObj.GetUID() != curObj.GetUID() || oldObj.GetResourceVersion() != curObj.GetResourceVersion() {
+						appMgr.enqueueRoute(cur, OprTypeUpdate)
+					}
+				},
 				DeleteFunc: func(obj interface{}) { appMgr.enqueueRoute(obj, OprTypeDelete) },
 			},
 			resyncPeriod,

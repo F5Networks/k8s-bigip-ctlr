@@ -1415,9 +1415,12 @@ func (appMgr *Manager) syncConfigMaps(
 	if appMgr.AgentCIS.IsImplInAgent(ResourceTypeCfgMap) {
 		key := sKey.Namespace + "/" + sKey.ResourceName
 		if sKey.Operation == OprTypeDelete && sKey.ResourceKind == Configmaps {
-			appMgr.agentCfgMap[key].Operation = OprTypeDelete
-			stats.vsDeleted += 1
+			if _, ok := appMgr.agentCfgMap[key]; ok {
+				appMgr.agentCfgMap[key].Operation = OprTypeDelete
+				stats.vsDeleted += 1
+			}
 			return nil
+
 		}
 		if nil != svc {
 			tntLabel, tntOk := svc.ObjectMeta.Labels["cis.f5.com/as3-tenant"]

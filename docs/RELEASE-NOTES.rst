@@ -23,7 +23,7 @@ Enhancements
 * :issues:`2222` Fix deleting VirtualServer using hostGroup
 * :issues:`2233` TS and VS CRD don't detect the pool members for grafana service
 * :issues:`2234` Fix for CIS crash with subsequent creation and deletion of wrong ConfigMap
-
+* :issues:`2077` CIS deletes all existing ARP on restart and recreates it, which affects traffic
 
 2.7.1
 -------------

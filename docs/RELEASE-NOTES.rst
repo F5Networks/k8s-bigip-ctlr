@@ -21,6 +21,7 @@ Enhancements
 * Added fix for cis crash with routes
 * :issues:`2212` Fix ExternalDNS adds both VSs to a Wide IP pool with using "httpTraffic: allow" with VS CR
 * :issues:`2222` Fix deleting VirtualServer using hostGroup
+* :issues:`2233` TS and VS CRD don't detect the pool members
 
 2.7.1
 -------------

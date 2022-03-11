@@ -45,7 +45,6 @@ var K8SCoreServices = map[string]bool{
 	"alertmanager-main":             true,
 	"alertmanager-operated":         true,
 	"cluster-monitoring-operator":   true,
-	"grafana":                       true,
 	"kube-state-metrics":            true,
 	"node-exporter":                 true,
 	"prometheus-k8s":                true,
@@ -701,6 +700,7 @@ func (ctlr *Controller) enqueueService(obj interface{}) {
 	if _, ok := K8SCoreServices[svc.Name]; ok {
 		return
 	}
+
 	log.Debugf("Enqueueing Service: %v", svc)
 	key := &rqKey{
 		namespace: svc.ObjectMeta.Namespace,

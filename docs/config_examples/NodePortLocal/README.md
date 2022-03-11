@@ -70,4 +70,4 @@ Annotations:  kubernetes.io/psp: cis-psp
   * NodePortLocal can only be used with Services of type ClusterIP or LoadBalancer.
   * The nodeportlocal.antrea.io annotation has no effect for Services of type NodePort or ExternalName.
   * It also has no effect for Services with an empty or missing Selector
-  * CIS currently supports NPL feature with Ingress and virtualserver resource. Feature validated on k8s Tanzu infrastructue. 
+  * CIS currently supports NPL feature with Ingress and virtualserver resource. Feature validated on k8s Tanzu infrastructure. 

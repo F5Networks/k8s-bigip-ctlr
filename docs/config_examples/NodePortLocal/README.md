@@ -1,9 +1,9 @@
 
-## NodePortLocal (NPL) feature  in Antrea agent.
+## NodePortLocal (NPL) feature in Antrea agent.
 NodePortLocal (NPL) is a feature that runs as part of the Antrea Agent. Using this, each port of a Service backend Pod can be reached from the external network using a port of the Node on which the Pod is running.
 
 ## Prerequisites
-Prior to versionv1.4, a feature gate, NodePortLocal, must be enabled on the antrea-agent for the feature to work.From v1.4, it was enabled by default
+Prior to version v1.4, a feature gate ``NodePortLocal``, must be enabled on the antrea-agent for the feature to work. From v1.4, it was enabled by default.
 ```
 kind: ConfigMap
 apiVersion: v1
@@ -22,13 +22,13 @@ data:
 ```
 
 ## Configuration
-* To enable npl feature set  --pool-member-type to nodeportlocal in CIS arguments. It is only applicable for antrea cni enabled clusters.
+* To enable the NPL feature, set ``--pool-member-type`` to ``nodeportlocal`` in CIS arguments. It is only applicable for antrea CNI enabled clusters.
 ```
    args:
      --pool-member-type=nodeportlocal
 ```
 
-* All Services used should be annoatated with nodeportlocal.antrea.io/enabled: "true" for slecting pods for NodePortLocal
+* All Services used should be annotated with nodeportlocal.antrea.io/enabled: "true" for slecting pods for NodePortLocal.
 ```
 apiVersion: v1
 kind: Service
@@ -49,7 +49,7 @@ spec:
   type: ClusterIP
   
 ```
-* All the pods will be annoated with nodeportlocal.antrea.io which has nodeport and ip information.
+* All the pods will be annotated with nodeportlocal.antrea.io which has nodeport and IP information.
 
 ```
 kubectl describe po f5-hello-world-6d859874b7-prf8l -n cis
@@ -69,5 +69,5 @@ Annotations:  kubernetes.io/psp: cis-psp
 
   * NodePortLocal can only be used with Services of type ClusterIP or LoadBalancer.
   * The nodeportlocal.antrea.io annotation has no effect for Services of type NodePort or ExternalName.
-  * It also has no effect for Services with an empty or missing Selector
-  * CIS currently supports NPL feature with Ingress and virtualserver resource. Feature validated on k8s Tanzu infrastructure. 
+  * It also has no effect for Services with an empty or missing Selector.
+  * CIS currently supports NPL feature with Ingress and virtualserver resource. The feature is validated on k8s Tanzu infrastructure. 

@@ -482,7 +482,6 @@ func (appMgr *Manager) triggerSyncResources(ns string, inf *appInformer) {
 }
 
 func (appMgr *Manager) syncNamespace(nsName string) error {
-	defer log.Timeit("debug")("[CORE] Finished syncing namespace %+v.", nsName)
 	var err error
 	_, exists, err := appMgr.nsInformer.GetIndexer().GetByKey(nsName)
 	if nil != err {
@@ -1240,6 +1239,7 @@ type vsSyncStats struct {
 }
 
 func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
+	defer log.Timeit("debug")("")
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
@@ -3330,51 +3330,71 @@ func (slice byTimestamp) Swap(i, j int) {
 func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 	var members []Member
 
-	svcListOptions := metav1.ListOptions{
-		LabelSelector: selector,
+	appInfs, found := appMgr.getNamespaceInformer(namespace)
+	if !found {
+		log.Errorf("informers for namespace %s are not found.", namespace)
+		return members
 	}
 
-	// Identify services that matches the given label
-	var services *v1.ServiceList
-	var err error
+	svcInf := appInfs.svcInformer
+	epInf := appInfs.endptInformer
+
+	selectorMap := func(selector string) map[string]string {
+		sm := map[string]string{}
+		sa := strings.Split(selector, ",")
+		for _, v := range sa {
+			kv := strings.Split(v, "=")
+			sm[kv[0]] = kv[1]
+		}
+		return sm
+	}(selector)
+
+	var svcs []v1.Service
 	if appMgr.hubMode {
-		services, err = appMgr.kubeClient.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), svcListOptions)
+		svcListOptions := metav1.ListOptions{
+			LabelSelector: selector,
+		}
+		// TODO: consider the performance tunning for hubMode.
+		services, err := appMgr.kubeClient.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), svcListOptions)
+		if err != nil {
+			log.Errorf("[CORE] Error getting service list. %v", err)
+			return nil
+		}
+		svcs = services.Items
 	} else {
-		services, err = appMgr.kubeClient.CoreV1().Services(namespace).List(context.TODO(), svcListOptions)
+		svcobjs := svcInf.GetIndexer().List()
+		for _, obj := range svcobjs {
+			svc := obj.(*v1.Service)
+			if reflect.DeepEqual(svc.Labels, selectorMap) {
+				svcs = append(svcs, *svc)
+			}
+		}
 	}
 
-	if err != nil {
-		log.Errorf("[CORE] Error getting service list. %v", err)
-		return nil
-	}
-
-	if len(services.Items) > 1 {
+	if len(svcs) > 1 {
 		svcName := ""
-		sort.Sort(byTimestamp(services.Items))
+		sort.Sort(byTimestamp(svcs))
 		//picking up the oldest service
-		services.Items = services.Items[:1]
+		svcs = svcs[:1]
 
-		for _, service := range services.Items {
+		for _, service := range svcs {
 			svcName += fmt.Sprintf("Service: %v, Namespace: %v,Timestamp: %v\n", service.Name, service.Namespace, service.GetCreationTimestamp())
 		}
 
 		log.Warningf("[CORE] Multiple Services are tagged for this pool. Using oldest service endpoints.\n%v", svcName)
 	}
 
-	for _, service := range services.Items {
+	for _, service := range svcs {
 		if appMgr.isNodePort == false { // Controller is in ClusterIP Mode
-			endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
-				metav1.ListOptions{
-					FieldSelector: "metadata.name=" + service.Name,
-				},
-			)
-			if err != nil {
-				log.Debugf("[CORE] Error getting endpoints for service %v", service.Name)
-				continue
-			}
+			epobjs := epInf.GetIndexer().List()
 
-			for _, endpoints := range endpointsList.Items {
-				for _, subset := range endpoints.Subsets {
+			for _, obj := range epobjs {
+				ep := obj.(*v1.Endpoints)
+				if ep.ObjectMeta.Name != service.Name {
+					continue
+				}
+
+				for _, subset := range ep.Subsets {
 					for _, address := range subset.Addresses {
 						for _, port := range subset.Ports {
 							member := Member{

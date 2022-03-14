@@ -207,7 +207,7 @@ func updateTenantMap(tempAS3Config AS3Config) AS3Config {
 }
 
 func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string) {
-	defer log.Timeit("info")("")
+	defer log.Timeit("debug")("")
 
 	am.ResourceRequest = rsReq
 
@@ -296,7 +296,7 @@ func getResponseStatusList() map[string]int {
 }
 
 func (am *AS3Manager) processFilterTenants(tempAS3Config AS3Config) (bool, string) {
-
+	defer log.Timeit("debug")("")
 	// Delete Tenants from as3ActiveConfig.tenantMap
 	_, deleteResponseCode := am.processTenantDeletion(tempAS3Config)
 

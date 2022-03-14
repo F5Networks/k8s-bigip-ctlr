@@ -132,6 +132,7 @@ func getTimeDurationForErrorResponse(errRsp string) time.Duration {
 }
 
 func (postMgr *PostManager) postConfigRequests(data string, url string) (bool, string) {
+	defer log.Timeit("debug")("")
 	cfg := config{
 		data:      data,
 		as3APIURL: url,

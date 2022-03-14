@@ -3,7 +3,7 @@
 NodePortLocal (NPL) is a feature that runs as part of the Antrea Agent. Using this, each port of a Service backend Pod can be reached from the external network using a port of the Node on which the Pod is running.
 
 ## Prerequisites
-Prior to version v1.4, a feature gate ``NodePortLocal``, must be enabled on the antrea-agent for the feature to work. From v1.4, it was enabled by default.
+Prior to version v1.4, a feature gate ``NodePortLocal`` must be enabled on the antrea-agent for the feature to work. From v1.4, it was enabled by default.
 ```
 kind: ConfigMap
 apiVersion: v1
@@ -28,7 +28,7 @@ data:
      --pool-member-type=nodeportlocal
 ```
 
-* All Services used should be annotated with nodeportlocal.antrea.io/enabled: "true" for slecting pods for NodePortLocal.
+* All Services used should be annotated with ``nodeportlocal.antrea.io/enabled: "true"`` for selecting pods for NodePortLocal.
 ```
 apiVersion: v1
 kind: Service

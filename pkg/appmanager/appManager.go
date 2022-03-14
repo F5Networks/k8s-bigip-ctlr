@@ -3388,33 +3388,34 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 		log.Warningf("[CORE] Multiple Services are tagged for this pool. Using oldest service endpoints.\n%v", svcName)
 	}
 
+	log.Infof("getting appInf for the ns: %v", namespace)
+	appInf, _ := appMgr.getNamespaceInformer(namespace)
+	log.Infof("got this appInf for the ns: %v", namespace)
+
 	for _, service := range services.Items {
 		if appMgr.isNodePort == false && appMgr.poolMemberType != NodePortLocal { // Controller is in ClusterIP Mode
-			endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
-				metav1.ListOptions{
-					FieldSelector: "metadata.name=" + service.Name,
-				},
-			)
-			if err != nil {
-				log.Debugf("[CORE] Error getting endpoints for service %v", service.Name)
+			myKey := namespace + "/" + service.Name
+			log.Info("now to obtain using GetByKey")
+			myItem, myFound, _ := appInf.endptInformer.GetStore().GetByKey(myKey)
+			log.Infof("now obtained using GetByKey, myFound is: %v", myFound)
+
+			if !myFound {
+				msg := "Endpoints for service " + myKey + " not found!"
+				log.Debug(msg)
 				continue
 			}
 
-			for _, endpoints := range endpointsList.Items {
-				for _, subset := range endpoints.Subsets {
-					for _, address := range subset.Addresses {
-						for _, port := range subset.Ports {
-							member := Member{
-								Address: address.IP,
-								Port:    port.Port,
-								SvcPort: port.Port,
-							}
-							if _, ok := uniqueMembersMap[member]; !ok {
-								uniqueMembersMap[member] = struct{}{}
-								members = append(members, member)
-							}
+			myEps, _ := myItem.(*v1.Endpoints)
+			for _, mySubset := range myEps.Subsets {
+				for _, myPort := range mySubset.Ports {
+					for _, myAddr := range mySubset.Addresses {
+						log.Infof("got 1 new member: %v-%v", myAddr.IP, myPort.Port)
+						mymember := Member{
+							Address: myAddr.IP,
+							Port:    myPort.Port,
+							SvcPort: myPort.Port,
 						}
-
+						members = append(members, mymember)
 					}
 				}
 			}

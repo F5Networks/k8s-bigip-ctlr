@@ -74,6 +74,7 @@ type globalSection struct {
 	VerifyInterval int    `json:"verify-interval,omitempty"`
 	VXLANPartition string `json:"vxlan-partition,omitempty"`
 	DisableLTM     bool   `json:"disable-ltm,omitempty"`
+	DisableARP     bool   `json:"disable-arp,omitempty"`
 }
 
 type bigIPSection struct {
@@ -974,11 +975,18 @@ func main() {
 	if *agent == cisAgent.AS3Agent {
 		disableLTM = true
 	}
+	// When CIS configured in OCP cluster mode disable ARP in globalSection
+	disableARP := false
+	if *openshiftSDNName != "" {
+		disableARP = true
+	}
+
 	gs := globalSection{
 		LogLevel:       *logLevel,
 		VerifyInterval: *verifyInterval,
 		VXLANPartition: vxlanPartition,
 		DisableLTM:     disableLTM,
+		DisableARP:     disableARP,
 	}
 	if *ccclLogLevel != "" {
 		gs.LogLevel = *ccclLogLevel

@@ -609,9 +609,7 @@ var _ = Describe("Worker Tests", func() {
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
 					false)
 
-				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
-				Expect(virts[0].Spec.Host).To(Equal("test2.com"), "Wrong Virtual Server Host")
-				Expect(virts[1].Spec.Host).To(Equal("test3.com"), "Wrong Virtual Server Host")
+				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
 			})
 
 			It("HostGroup with wrong custom port", func() {

@@ -445,7 +445,6 @@ type (
 	requestMeta struct {
 		meta []metaData
 		id   int
-
 	}
 
 	Node struct {
@@ -520,9 +519,9 @@ type (
 	}
 
 	agentConfig struct {
-		data            string
-		as3APIURL       string
-		id              int
+		data      string
+		as3APIURL string
+		id        int
 	}
 
 	globalSection struct {

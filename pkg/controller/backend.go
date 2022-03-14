@@ -139,9 +139,9 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 		return
 	}
 	cfg := agentConfig{
-		data:            string(decl),
-		as3APIURL:       agent.getAS3APIURL(nil),
-		id:              rsConfig.reqId,
+		data:      string(decl),
+		as3APIURL: agent.getAS3APIURL(nil),
+		id:        rsConfig.reqId,
 	}
 
 	agent.Write(cfg)
@@ -490,7 +490,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				ps[len(ps)-1])
 		}
 	}
-	if cfg.Virtual.TLSTermination != TLSPassthrough{
+	if cfg.Virtual.TLSTermination != TLSPassthrough {
 		svc.Layer4 = cfg.Virtual.IpProtocol
 		svc.Source = "0.0.0.0/0"
 		svc.TranslateServerAddress = true
@@ -508,7 +508,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.PersistenceMethods = &[]string{}
 		}
 	}
-   	// Attaching Profiles from Policy CRD
+	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		partition, name := getPartitionAndName(profile.Name)
 		switch profile.Context {

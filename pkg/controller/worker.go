@@ -1334,8 +1334,9 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 	rsCfg *ResourceConfig,
 	namespace string,
 ) {
-	_, ok := ctlr.getNamespacedInformer(namespace)
-	if !ok {
+	_, ok1 := ctlr.getNamespacedInformer(namespace)
+	_, ok2 := ctlr.getNamespacedEssentialInformer(namespace)
+	if !ok1 && !ok2 {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return
 	}

@@ -753,10 +753,10 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
-		partition, name := getPartitionAndName(profile.Name)
+		_, name := getPartitionAndName(profile.Name)
 		switch profile.Context {
 		case "http2":
-			if partition == "" {
+			if !profile.BigIPProfile {
 				svc.ProfileHTTP2 = name
 			} else {
 				svc.ProfileHTTP2 = &as3ResourcePointer{
@@ -764,7 +764,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 				}
 			}
 		case "http":
-			if partition == "" {
+			if !profile.BigIPProfile {
 				svc.ProfileHTTP = name
 			} else {
 				svc.ProfileHTTP = &as3ResourcePointer{
@@ -772,7 +772,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 				}
 			}
 		case "tcp":
-			if partition == "" {
+			if !profile.BigIPProfile {
 				svc.ProfileTCP = name
 			} else {
 				svc.ProfileTCP = &as3ResourcePointer{
@@ -1025,7 +1025,7 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 		switch profile.Context {
 		case CustomProfileClient:
 			// Profile is stored in a k8s secret
-			if profile.Partition == "" {
+			if !profile.BigIPProfile {
 				// Incoming traffic (clientssl) from a web client will be handled by ServerTLS in AS3
 				svc.ServerTLS = fmt.Sprintf("/%v/%v/%v%v", virtual.Partition,
 					as3SharedApplication, profileName, as3ServerSuffix)
@@ -1040,7 +1040,7 @@ func processTLSProfilesForAS3(virtual *Virtual, svc *as3Service, profileName str
 			updateVirtualToHTTPS(svc)
 		case CustomProfileServer:
 			// Profile is stored in a k8s secret
-			if profile.Partition == "" {
+			if !profile.BigIPProfile {
 				// Outgoing traffic (serverssl) to BackEnd Servers from BigIP will be handled by ClientTLS in AS3
 				svc.ClientTLS = fmt.Sprintf("/%v/%v/%v%v", virtual.Partition,
 					as3SharedApplication, profileName, as3ClientSuffix)
@@ -1240,10 +1240,10 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
-		partition, name := getPartitionAndName(profile.Name)
+		_, name := getPartitionAndName(profile.Name)
 		switch profile.Context {
 		case "tcp":
-			if partition == "" {
+			if !profile.BigIPProfile {
 				svc.ProfileTCP = name
 			} else {
 				svc.ProfileTCP = &as3ResourcePointer{
@@ -1251,7 +1251,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 				}
 			}
 		case "udp":
-			if partition == "" {
+			if !profile.BigIPProfile {
 				svc.ProfileUDP = name
 			} else {
 				svc.ProfileUDP = &as3ResourcePointer{

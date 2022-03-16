@@ -492,6 +492,7 @@ type (
 		UserAgent      string
 		HttpAddress    string
 		EnableIPV6     bool
+		DisableARP     bool
 	}
 
 	PostManager struct {
@@ -530,6 +531,7 @@ type (
 		VXLANPartition string `json:"vxlan-partition,omitempty"`
 		DisableLTM     bool   `json:"disable-ltm,omitempty"`
 		GTM            bool   `json:"gtm,omitempty"`
+		DisableARP     bool   `json:"disable-arp,omitempty"`
 	}
 
 	bigIPSection struct {

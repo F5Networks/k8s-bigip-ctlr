@@ -789,6 +789,12 @@ func initController(
 		HttpAddress:    *httpAddress,
 		EnableIPV6:     *enableIPV6,
 	}
+
+	// When CIS is configured in OCP cluster mode disable ARP in globalSection
+	if *openshiftSDNName != "" {
+		agentParams.DisableARP = true
+	}
+
 	agent := controller.NewAgent(agentParams)
 
 	ctlr := controller.NewController(

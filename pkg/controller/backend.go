@@ -86,7 +86,9 @@ func NewAgent(params AgentParams) *Agent {
 		VXLANPartition: vxlanPartition,
 		DisableLTM:     true,
 		GTM:            true,
+		DisableARP:     params.DisableARP,
 	}
+
 	bs := bigIPSection{
 		BigIPUsername:   params.PostParams.BIGIPUsername,
 		BigIPPassword:   params.PostParams.BIGIPPassword,

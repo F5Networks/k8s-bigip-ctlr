@@ -1066,19 +1066,6 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 			}
 		}
 
-		//skip the virtuals if VirtualServerAddress not mentioned with hostGroup
-		//skip the virtuals if different virtualServerAddresses are found
-		if vrt.Spec.HostGroup != "" {
-			if vrt.Spec.VirtualServerAddress == "" {
-				log.Infof("No IP was specified for the virtual server %s", currentVS.Name)
-				continue
-			}
-			if vrt.Spec.VirtualServerAddress != currentVS.Spec.VirtualServerAddress {
-				log.Errorf("Same hostGroup %v is configured with different virtualServerAddress: %v - %v ", vrt.Spec.HostGroup, currentVS.Spec.VirtualServerAddress, currentVS.Name)
-				return nil
-			}
-		}
-
 		// skip the virtuals with different custom HTTP/HTTPS ports
 		if vrt.Spec.VirtualServerHTTPPort != currentVS.Spec.VirtualServerHTTPPort ||
 			vrt.Spec.VirtualServerHTTPSPort != currentVS.Spec.VirtualServerHTTPSPort {

@@ -1020,11 +1020,51 @@ func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
 
 	appMgr.startAndSyncAppInformers()
 
-	// Using only one virtual server worker currently.
-	go wait.Until(appMgr.virtualServerWorker, time.Second, stopCh)
+	go appMgr.startVSWorkers(stopCh)
 
 	<-stopCh
 	appMgr.stopAppInformers()
+}
+
+func (appMgr *Manager) startVSWorkers(stopCh <-chan struct{}) {
+	maxsize := 8
+	concurs := make(chan struct{}, maxsize)
+
+	go func() {
+		so := maxsize
+		for {
+			select {
+			case <-stopCh:
+				return
+			case <-time.After(1 * time.Second):
+				l := appMgr.vsQueue.Len()
+				sn := int(l/20 + 1)
+				if sn > so {
+					for i := 0; i < sn-so; i++ {
+						<-concurs
+					}
+				} else {
+					for i := 0; i < so-sn; i++ {
+						concurs <- struct{}{}
+					}
+				}
+				so = sn
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-stopCh:
+			return
+		default:
+			concurs <- struct{}{}
+			go func() {
+				appMgr.processNextVirtualServer()
+				<-concurs
+			}()
+		}
+	}
 }
 
 func (appMgr *Manager) startAndSyncNamespaceInformer(stopCh <-chan struct{}) {
@@ -1073,11 +1113,6 @@ func (appMgr *Manager) stopAppInformers() {
 	}
 	if nil != appMgr.as3Informer {
 		appMgr.as3Informer.stopInformers()
-	}
-}
-
-func (appMgr *Manager) virtualServerWorker() {
-	for appMgr.processNextVirtualServer() {
 	}
 }
 

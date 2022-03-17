@@ -2742,9 +2742,13 @@ func (ctlr *Controller) GetPodsForService(namespace, serviceName string) *v1.Pod
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
 	}
-	svc, _, err := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
+	svc, found , err := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
 	if err != nil {
 		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
+		return nil
+	}
+	if !found {
+		log.Errorf("Error: Service %v not found", svcKey)
 		return nil
 	}
 	annotations := svc.(*v1.Service).Annotations

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sort"
 	"strings"
@@ -237,6 +238,9 @@ func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, 
 			extdSpec.VServerAddr,
 			portStruct.port,
 		)
+		rsCfg.IntDgMap = make(InternalDataGroupMap)
+		rsCfg.IRulesMap = make(IRulesMap)
+		rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
 
 		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, extdSpec)
 
@@ -247,14 +251,30 @@ func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, 
 		}
 
 		for _, rt := range routes {
-			err = ctlr.prepareResourceConfigFromRoute(rsCfg, rt, routeGroup, portStruct.port)
+			err, servicePort := ctlr.getServicePort(rt)
 			if err != nil {
 				processingError = true
 				log.Errorf("%v", err)
 				break
 			}
+			err = ctlr.prepareResourceConfigFromRoute(rsCfg, rt, routeGroup, servicePort)
+			if err != nil {
+				processingError = true
+				log.Errorf("%v", err)
+				break
+			}
+
 			if isSecureRoute(rt) {
 				//TLS Logic
+				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec, servicePort)
+				if !processed {
+					// Processing failed
+					// Stop processing further routes
+					processingError = true
+					break
+				}
+
+				log.Debugf("Updated Route %s with TLSProfile", rt.ObjectMeta.Name)
 			}
 		}
 
@@ -313,29 +333,62 @@ func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, extd
 	return nil
 }
 
+// gets the target port for the route
+// if targetPort is set to IntVal, it's used directly
+// otherwise the port is fetched from the associated service
+func (ctlr *Controller) getServicePort(
+	route *routeapi.Route,
+) (error, int32) {
+	log.Debugf("Finding port for route %v", route.Name)
+	var err error
+	var port int32
+	nrInf, ok := ctlr.getNamespacedEssentialInformer(route.Namespace)
+	if !ok {
+		return fmt.Errorf("Informer not found for namespace: %v", route.Namespace), port
+	}
+	svcIndexer := nrInf.svcInformer.GetIndexer()
+	svcName := route.Spec.To.Name
+	if route.Spec.Port != nil {
+		strVal := route.Spec.Port.TargetPort.StrVal
+		if strVal == "" {
+			port = route.Spec.Port.TargetPort.IntVal
+		} else {
+			port, err = resource.GetServicePort(route.Namespace, svcName, svcIndexer, strVal, resource.ResourceTypeRoute)
+			if nil != err {
+				return fmt.Errorf("Error while processing port for route %s: %v", route.Name, err), port
+			}
+		}
+	} else {
+		port, err = resource.GetServicePort(route.Namespace, svcName, svcIndexer, "", resource.ResourceTypeRoute)
+		if nil != err {
+			return fmt.Errorf("Error while processing port for route %s: %v", route.Name, err), port
+
+		}
+	}
+	log.Debugf("Port %v found for route %s", port, route.Name)
+	return nil, port
+
+}
+
 func (ctlr *Controller) prepareResourceConfigFromRoute(
 	rsCfg *ResourceConfig,
 	route *routeapi.Route,
 	routeGroup string,
-	port int32,
+	servicePort int32,
 ) error {
 
 	rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, route.Spec.Host)
-
-	if route.Spec.Port != nil {
-		port = route.Spec.Port.TargetPort.IntVal
-	}
 
 	pool := Pool{
 		Name: formatPoolName(
 			route.Namespace,
 			route.Spec.To.Name,
-			port,
+			servicePort,
 			"",
 		),
 		Partition:       rsCfg.Virtual.Partition,
 		ServiceName:     route.Spec.To.Name,
-		ServicePort:     port,
+		ServicePort:     servicePort,
 		NodeMemberLabel: "",
 	}
 
@@ -541,8 +594,8 @@ func doesRouteHandleHTTP(route *routeapi.Route) bool {
 		return true
 	}
 	// If Allow or Redirect happens then HTTP Traffic is being handled.
-	return route.Spec.TLS.InsecureEdgeTerminationPolicy == TLSAllowInsecure ||
-		route.Spec.TLS.InsecureEdgeTerminationPolicy == TLSRedirectInsecure
+	return route.Spec.TLS.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyAllow ||
+		route.Spec.TLS.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyRedirect
 }
 
 func isSecureRoute(route *routeapi.Route) bool {

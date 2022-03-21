@@ -463,6 +463,7 @@ type (
 		// Used as reference to which Namespace/Ingress this profile came from
 		// (for deletion purposes)
 		Namespace string `json:"-"`
+		BigIPProfile bool `json:"-"`
 	}
 	// ProfileRefs is a list of ProfileRef
 	ProfileRefs []ProfileRef

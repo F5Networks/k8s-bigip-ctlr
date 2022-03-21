@@ -924,6 +924,7 @@ func updateDataGroup(
 	key string,
 	value string,
 ) {
+
 	//for wildcard host
 	if strings.HasPrefix(key, "*") {
 		key = strings.TrimPrefix(key, "*")
@@ -937,6 +938,7 @@ func updateDataGroup(
 		nsDg = make(DataGroupNamespaceMap)
 		intDgMap[mapKey] = nsDg
 	}
+
 	dg, found := nsDg[namespace]
 	if found {
 		dg.AddOrUpdateRecord(key, value)

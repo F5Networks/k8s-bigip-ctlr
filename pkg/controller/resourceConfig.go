@@ -230,11 +230,14 @@ func (ctlr *Controller) virtualPorts(input interface{}) []portStruct {
 		}
 	case *routeapi.Route:
 		rt := input.(*routeapi.Route)
-
-		ports = append(ports, http)
-
 		if isSecureRoute(rt) {
 			ports = append(ports, https)
+			switch rt.Spec.TLS.InsecureEdgeTerminationPolicy {
+			case routeapi.InsecureEdgeTerminationPolicyAllow, routeapi.InsecureEdgeTerminationPolicyRedirect:
+				ports = append(ports, http)
+			}
+		} else {
+			ports = append(ports, http)
 		}
 	}
 
@@ -419,6 +422,7 @@ func (ctlr *Controller) handleTLS(
 	rsCfg *ResourceConfig,
 	tlsContext TLSContext,
 ) bool {
+
 	if rsCfg.Virtual.VirtualAddress.Port == tlsContext.httpsPort {
 		if tlsContext.termination == TLSPassthrough {
 			//rsCfg.Virtual.PersistenceProfile = []string{"tls-session-id"}
@@ -513,7 +517,7 @@ func (ctlr *Controller) handleTLS(
 
 		case Certificate:
 			// Prepare SSL Transient Context
-			if clientSSL != "" {
+			if tlsContext.bigIPSSLProfiles.key != "" && tlsContext.bigIPSSLProfiles.certificate != "" {
 				err, _ := ctlr.createClientSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.key, tlsContext.bigIPSSLProfiles.certificate, tlsContext.name, tlsContext.namespace, CustomProfileClient)
 				if err != nil {
 					log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s'",
@@ -522,7 +526,7 @@ func (ctlr *Controller) handleTLS(
 				}
 			}
 			// Create Server SSL profile for bigip
-			if serverSSL != "" {
+			if tlsContext.bigIPSSLProfiles.destinationCACertificate != "" {
 				var err error
 				if tlsContext.bigIPSSLProfiles.caCertificate != "" {
 					err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate, tlsContext.bigIPSSLProfiles.caCertificate, tlsContext.name, tlsContext.namespace, CustomProfileServer)
@@ -659,7 +663,7 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	var httpsPort int32
 
 	if vs.Spec.VirtualServerHTTPSPort == 0 {
-		httpsPort = 443
+		httpsPort = DEFAULT_HTTPS_PORT
 	} else {
 		httpsPort = vs.Spec.VirtualServerHTTPSPort
 	}
@@ -726,7 +730,7 @@ func validateTLSProfile(tls *cisapiv1.TLSProfile) bool {
 func ConvertStringToProfileRef(profileName, context, ns string) ProfileRef {
 	profName := strings.TrimSpace(strings.TrimPrefix(profileName, "/"))
 	parts := strings.Split(profName, "/")
-	profRef := ProfileRef{Context: context, Namespace: ns}
+	profRef := ProfileRef{Context: context, Namespace: ns, BigIPProfile: true}
 	switch len(parts) {
 	case 2:
 		profRef.Partition = parts[0]
@@ -1323,14 +1327,16 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	// service_HTTPS supports profileTCP, profileHTTP and profileHTTP2
 	if len(plc.Spec.Profiles.HTTP) > 0 {
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name:    plc.Spec.Profiles.HTTP,
-			Context: "http",
+			Name:         plc.Spec.Profiles.HTTP,
+			Context:      "http",
+			BigIPProfile: true,
 		})
 	}
 	if len(plc.Spec.Profiles.TCP) > 0 {
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name:    plc.Spec.Profiles.TCP,
-			Context: "tcp",
+			Name:         plc.Spec.Profiles.TCP,
+			Context:      "tcp",
+			BigIPProfile: true,
 		})
 	}
 
@@ -1339,8 +1345,9 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 		iRule = plc.Spec.IRules.Secure
 		if len(plc.Spec.Profiles.HTTP2) > 0 {
 			rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-				Name:    plc.Spec.Profiles.HTTP2,
-				Context: "http2",
+				Name:         plc.Spec.Profiles.HTTP2,
+				Context:      "http2",
+				BigIPProfile: true,
 			})
 		}
 	case "http":
@@ -1373,14 +1380,16 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	}
 	if len(plc.Spec.Profiles.UDP) > 0 {
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name:    plc.Spec.Profiles.UDP,
-			Context: "udp",
+			Name:         plc.Spec.Profiles.UDP,
+			Context:      "udp",
+			BigIPProfile: true,
 		})
 	}
 	if len(plc.Spec.Profiles.TCP) > 0 {
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name:    plc.Spec.Profiles.TCP,
-			Context: "tcp",
+			Name:         plc.Spec.Profiles.TCP,
+			Context:      "tcp",
+			BigIPProfile: true,
 		})
 	}
 	var iRule string
@@ -1413,4 +1422,67 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) *ExtendedRouteG
 		return extdSpec.local
 	}
 	return extdSpec.global
+}
+
+// handleRouteTLS handles TLS configuration for the Route resource
+// Return value is whether or not a custom profile was updated
+func (ctlr *Controller) handleRouteTLS(
+	rsCfg *ResourceConfig,
+	route *routeapi.Route,
+	extdSpec *ExtendedRouteGroupSpec,
+	servicePort int32) bool {
+
+	if route.Spec.TLS == nil {
+		// Probably this is a non-tls route, nothing to do w.r.t TLS
+		return false
+	}
+
+	bigIPSSLProfiles := BigIPSSLProfiles{}
+
+	if route.Spec.TLS.Key != "" {
+		bigIPSSLProfiles.key = route.Spec.TLS.Key
+	}
+	if route.Spec.TLS.Certificate != "" {
+		bigIPSSLProfiles.certificate = route.Spec.TLS.Certificate
+	}
+	if route.Spec.TLS.CACertificate != "" {
+		bigIPSSLProfiles.caCertificate = route.Spec.TLS.CACertificate
+	}
+	if route.Spec.TLS.DestinationCACertificate != "" {
+		bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
+	}
+	var poolPathRefs []poolPathRef
+
+	for _, pl := range rsCfg.Pools {
+		if pl.Name == formatPoolName(
+			route.Namespace,
+			route.Spec.To.Name,
+			servicePort,
+			"",
+		) {
+			poolPathRefs = append(
+				poolPathRefs,
+				poolPathRef{
+					route.Spec.Path,
+					formatPoolName(
+						route.ObjectMeta.Namespace,
+						route.Spec.To.Name,
+						pl.ServicePort,
+						""),
+				})
+		}
+	}
+
+	return ctlr.handleTLS(rsCfg, TLSContext{route.ObjectMeta.Name,
+		route.ObjectMeta.Namespace,
+		Route,
+		Certificate,
+		route.Spec.Host,
+		DEFAULT_HTTPS_PORT,
+		extdSpec.VServerAddr,
+		string(route.Spec.TLS.Termination),
+		strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)),
+		poolPathRefs,
+		bigIPSSLProfiles,
+	})
 }

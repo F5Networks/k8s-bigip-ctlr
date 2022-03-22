@@ -1,17 +1,17 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.8.0
 -------------
 Added Functionality
 ```````````````````
 
 **What’s new:**
     * CRD:
-        * Persistence Profile support for VirtualServer, TransportServer and Policy CRs. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
-        * Added support for host in TransportServer and IngressLink CR. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
-        * Added support for multiple health monitors in EDNS resource
-    * NodePortLocal(NPL) antrea cni feature support added to Ingress and CRD Resources.
+        * Persistence Profile support for VirtualServer, TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Added support for host in TransportServer and IngressLink CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Added support for multiple health monitors in EDNS resource, Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS>`_
+    * NodePortLocal(NPL) Antrea CNI feature support added to Ingress and Virtual Server Custom Resource, Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/NodePortLocal>`_
     * Helm Chart Enhancements:
         * Support for latest CRD schema
 
@@ -20,6 +20,7 @@ Enhancements
 * Added fix for processing oldest route when same host and path in routes
 * Added fix for cis crash with routes
 * :issues:`2212` Fix ExternalDNS adds both VSs to a Wide IP pool with using "httpTraffic: allow" with VS CR
+* :issues:`2221` Fixed Error in CIS logs while deleting multiple VS CRD
 * :issues:`2222` Fix deleting VirtualServer using hostGroup
 * :issues:`2233` TS and VS CRD don't detect the pool members for grafana service
 * :issues:`2234` Fix for CIS crash with subsequent creation and deletion of wrong ConfigMap

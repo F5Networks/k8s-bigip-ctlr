@@ -367,9 +367,10 @@ func (agent *Agent) retryWorker() {
 					agent.getTenantConfigStatus(taskId)
 				}
 				for _, tenant := range acceptedTenants {
-					// Even if there is one pending tenant which is not updated, keep retrying for that ID
-					if agent.tenantResponseMap[tenant].taskId == "" {
-						delete(acceptedTenantIds, agent.tenantResponseMap[tenant].taskId)
+					acceptedTenantIds = map[string]struct{}{}
+					// Even if there is any pending tenant which is not updated, keep retrying for that ID
+					if agent.tenantResponseMap[tenant].taskId != "" {
+						acceptedTenantIds[agent.tenantResponseMap[tenant].taskId] = struct{}{}
 					}
 				}
 			}

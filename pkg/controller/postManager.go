@@ -232,6 +232,7 @@ func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interf
 	//traverse all response results
 	if respId, ok := (responseMap["id"]).(string); ok {
 		postMgr.updateTenantResponse(http.StatusAccepted, respId, "")
+		log.Debugf("[AS3] Response from BIG-IP: code 201 id %v, waiting %v seconds to poll response", respId, timeoutMedium)
 	}
 }
 

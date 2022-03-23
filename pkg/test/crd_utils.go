@@ -63,6 +63,20 @@ func NewTransportServer(name, namespace string, spec cisapiv1.TransportServerSpe
 	}
 }
 
+func NewPolicy(name, namespace string, spec cisapiv1.PolicySpec) *cisapiv1.Policy {
+	return &cisapiv1.Policy{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       TransportServer,
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: spec,
+	}
+}
+
 func NewIngressLink(name, namespace, rv string, spec cisapiv1.IngressLinkSpec) *cisapiv1.IngressLink {
 	return &cisapiv1.IngressLink{
 		TypeMeta: metav1.TypeMeta{

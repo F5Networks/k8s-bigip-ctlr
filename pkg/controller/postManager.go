@@ -238,9 +238,11 @@ func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interf
 }
 
 func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap map[string]interface{}) {
-	log.Errorf("[AS3] Big-IP Responded with error code: %v", responseMap["code"])
+	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
+		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])
+	}
 	log.Debugf("[AS3] Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", timeoutMedium)
-	postMgr.updateTenantResponse(int(responseMap["code"].(float64)), "", "")
+	postMgr.updateTenantResponse(http.StatusServiceUnavailable, "", "")
 }
 
 func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}) {
@@ -263,7 +265,7 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 		for _, value := range results {
 			v := value.(map[string]interface{})
 			log.Errorf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
-			postMgr.updateTenantResponse(int(responseMap["code"].(float64)), "", v["tenant"].(string))
+			postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string))
 		}
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])

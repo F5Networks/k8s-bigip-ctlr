@@ -305,11 +305,11 @@ func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, 
 
 func (ctlr *Controller) getGroupedRoutes(routeGroup string) []*routeapi.Route {
 	// Get the route group
-	allRoutes := ctlr.getAllResources(Route, routeGroup)
+	allObjs := ctlr.getAllResources(Route, routeGroup)
 	var assocRoutes []*routeapi.Route
 	uniqueHostPathMap := map[string]struct{}{}
-	for _, route := range allRoutes {
-
+	for _, obj := range allObjs {
+		route := obj.(*routeapi.Route)
 		// TODO: add combinations for a/b - svc weight ; valid svcs or not
 		if _, found := uniqueHostPathMap[route.Spec.Host+route.Spec.Path]; found {
 			log.Errorf(" Discarding route %v due to duplicate host %v, path %v combination", route.Name, route.Spec.Host, route.Spec.To)
@@ -525,7 +525,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			if !*spec.override {
 				return nil, true
 			}
-			if reflect.DeepEqual(*(spec.local), ergc.ExtendedRouteGroupSpec) {
+			if spec.local != nil && reflect.DeepEqual(*(spec.local), ergc.ExtendedRouteGroupSpec) {
 				return nil, true
 			}
 			spec.local = &ergc.ExtendedRouteGroupSpec
@@ -553,11 +553,11 @@ func (ctlr *Controller) isGlobalExtendedRouteSpec(cm *v1.ConfigMap) bool {
 	return false
 }
 
-func (ctlr *Controller) getAllResources(resourceType string, namespace string) []*routeapi.Route {
+func (ctlr *Controller) getAllResources(resourceType string, namespace string) []interface{} {
 
 	var orderedResources []interface{}
 	var err error
-	var allRoutes []*routeapi.Route
+	var allRoutes []interface{}
 
 	switch resourceType {
 	case Route:

@@ -342,8 +342,10 @@ var _ = Describe("Backend Tests", func() {
 			deletedTenantDecl := as3Tenant{
 				"class": "Tenant",
 			}
+			adc := as3Config["declaration"].(map[string]interface{})
+
 			Expect(agent.incomingTenantDeclMap["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
-			Expect(as3Config["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
+			Expect(adc["default"]).To(Equal(map[string]interface{}(deletedTenantDecl)), "Failed to Create AS3 Declaration for deleted tenant")
 		})
 	})
 

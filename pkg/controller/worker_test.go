@@ -72,6 +72,7 @@ var _ = Describe("Worker Tests", func() {
 			})
 		mockCtlr.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
 		mockCtlr.kubeClient = k8sfake.NewSimpleClientset(svc1)
+		mockCtlr.mode = CustomResourceMode
 		mockCtlr.crInformers = make(map[string]*CRInformer)
 		mockCtlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		_ = mockCtlr.addNamespacedInformers("default")

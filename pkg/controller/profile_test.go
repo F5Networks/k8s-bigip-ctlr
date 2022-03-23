@@ -11,6 +11,7 @@ var _ = Describe("Profile", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.mode = CustomResourceMode
 	})
 
 	It("Client SSL", func() {

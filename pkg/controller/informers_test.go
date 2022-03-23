@@ -7,6 +7,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -21,8 +22,9 @@ var _ = Describe("Informers Tests", func() {
 		mockCtlr = newMockController()
 	})
 
-	Describe("Informers", func() {
+	Describe("Custom Resource Informers", func() {
 		BeforeEach(func() {
+			mockCtlr.mode = CustomResourceMode
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
@@ -49,8 +51,9 @@ var _ = Describe("Informers Tests", func() {
 		})
 	})
 
-	Describe("Queueing", func() {
+	Describe("Custom Resource Queueing", func() {
 		BeforeEach(func() {
+			mockCtlr.mode = CustomResourceMode
 			mockCtlr.rscQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 
@@ -225,6 +228,26 @@ var _ = Describe("Informers Tests", func() {
 			Expect(quit).To(BeFalse(), "Enqueue Deleted EDNS  Failed")
 		})
 
+		It("Policy", func() {
+			plc := test.NewPolicy(
+				"SamplePolicy",
+				namespace,
+				cisapiv1.PolicySpec{})
+			mockCtlr.enqueuePolicy(plc)
+			key, quit := mockCtlr.rscQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue New Policy Failed")
+			Expect(quit).To(BeFalse(), "Enqueue New Policy  Failed")
+
+			newPlc := test.NewPolicy(
+				"SamplePolicy2",
+				namespace,
+				cisapiv1.PolicySpec{})
+			mockCtlr.enqueueDeletedPolicy(newPlc)
+			key, quit = mockCtlr.rscQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Updated Policy Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Updated Policy  Failed")
+		})
+
 		It("Service", func() {
 			svc := test.NewService(
 				"SampleSVC",
@@ -359,5 +382,109 @@ var _ = Describe("Informers Tests", func() {
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted IPAM Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted IPAM  Failed")
 		})
+	})
+
+	Describe("Native Essential Resource Informers", func() {
+		BeforeEach(func() {
+			mockCtlr.mode = OpenShiftMode
+			mockCtlr.namespaces = make(map[string]bool)
+			mockCtlr.namespaces["default"] = true
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.nrInformers = make(map[string]*NRInformer)
+			mockCtlr.esInformers = make(map[string]*EssentialInformer)
+			mockCtlr.resourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		})
+		It("Resource Informers", func() {
+			err := mockCtlr.addNamespacedInformers(namespace)
+			Expect(err).To(BeNil(), "Informers Creation Failed")
+
+			esInf, found := mockCtlr.getNamespacedEssentialInformer(namespace)
+			Expect(esInf).ToNot(BeNil(), "Finding Informer Failed")
+			Expect(found).To(BeTrue(), "Finding Informer Failed")
+		})
+	})
+
+	Describe("Native Resource Queueing", func() {
+		BeforeEach(func() {
+			mockCtlr.mode = OpenShiftMode
+			mockCtlr.nativeResourceQueue = workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(), "native-resource-controller")
+			mockCtlr.resourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+
+		})
+		AfterEach(func() {
+			mockCtlr.nativeResourceQueue.ShutDown()
+		})
+
+		It("Route", func() {
+			rt := test.NewRoute(
+				"sampleroute",
+				"v1",
+				namespace,
+				routeapi.RouteSpec{
+					Host: "foo.com",
+					Path: "bar",
+				},
+				nil)
+			mockCtlr.enqueueRoute(rt)
+			key, quit := mockCtlr.nativeResourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Route Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Route  Failed")
+
+			mockCtlr.enqueueDeletedRoute(rt)
+			key, quit = mockCtlr.nativeResourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Route Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Route  Failed")
+		})
+
+		It("Invalid ConfigMap", func() {
+			cm := test.NewConfigMap(
+				"samplecfgmap",
+				"v1",
+				namespace,
+				map[string]string{
+					"extendedSpec": "extendedRouteSpec",
+				},
+			)
+			mockCtlr.enqueueConfigmap(cm)
+			len := mockCtlr.nativeResourceQueue.Len()
+			Expect(len).To(BeZero(), "Invalid ConfigMap enqueued")
+		})
+
+		It("Global ConfigMap", func() {
+			cmName := "samplecfgmap"
+			mockCtlr.routeSpecCMKey = namespace + "/" + cmName
+			cm := test.NewConfigMap(
+				cmName,
+				"v1",
+				namespace,
+				map[string]string{
+					"extendedSpec": "extendedRouteSpec",
+				},
+			)
+			mockCtlr.enqueueConfigmap(cm)
+			key, quit := mockCtlr.nativeResourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Global ConfigMap Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Global ConfigMap  Failed")
+		})
+
+		It("Local ConfigMap", func() {
+			cm := test.NewConfigMap(
+				"samplecfgmap",
+				"v1",
+				namespace,
+				map[string]string{
+					"extendedSpec": "extendedRouteSpec",
+				},
+			)
+			cm.SetLabels(map[string]string{
+				"f5nr": "true",
+			})
+			mockCtlr.enqueueConfigmap(cm)
+			key, quit := mockCtlr.nativeResourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Local ConfigMap Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Local ConfigMap  Failed")
+		})
+
 	})
 })

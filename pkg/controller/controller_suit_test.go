@@ -23,6 +23,7 @@ var configPath = "../../test/configs/"
 type (
 	mockController struct {
 		*Controller
+		mockResources map[string][]interface{}
 	}
 
 	mockPostManager struct {
@@ -30,11 +31,18 @@ type (
 		Responses []int
 		RespIndex int
 	}
+
+	responceCtx struct {
+		tenant string
+		status float64
+		body   string
+	}
 )
 
 func newMockController() *mockController {
 	return &mockController{
-		&Controller{},
+		Controller:    &Controller{},
+		mockResources: make(map[string][]interface{}),
 	}
 }
 
@@ -48,34 +56,37 @@ func newMockPostManger() *mockPostManager {
 		Responses:   []int{},
 		RespIndex:   0,
 	}
+	mockPM.tenantResponseMap = make(map[string]tenantResponse)
 
 	return mockPM
 }
 
-func (mockPM *mockPostManager) setResponses(respCodes []float64, responseBody, method string) {
+func (mockPM *mockPostManager) setResponses(responces []responceCtx, method string) {
 	var body string
 
 	responseMap := make(mockhc.ResponseConfigMap)
 	responseMap[method] = &mockhc.ResponseConfig{}
-	for _, statusCode := range respCodes {
-		if responseBody == "" {
-			if statusCode == http.StatusOK {
-				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "test"}]}`,
-					statusCode)
+
+	for _, resp := range responces {
+		if resp.body == "" {
+			if resp.status == http.StatusOK {
+				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "%s"}]}`,
+					resp.status, resp.tenant)
 			} else {
-				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "test"}],"error":{"code":%f}}`,
-					statusCode, statusCode)
+				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "%s"}],"error":{"code":%f}}`,
+					resp.status, resp.tenant, resp.status)
 			}
 		} else {
-			body = responseBody
+			body = resp.body
 		}
 
 		responseMap[method].Responses = append(responseMap[method].Responses, &http.Response{
-			StatusCode: int(statusCode),
+			StatusCode: int(resp.status),
 			Header:     http.Header{},
 			Body:       ioutil.NopCloser(bytes.NewReader([]byte(body))),
 		})
 	}
+
 	client, _ := mockhc.NewMockHTTPClient(responseMap)
 	mockPM.httpClient = client
 }
@@ -93,3 +104,14 @@ func newMockAgent(writer writer.Writer) *Agent {
 		userAgent: "",
 	}
 }
+
+//func (mockCtlr *mockController) getAllResources(resourceType, namespace string) []interface{} {
+//	return mockCtlr.mockResources[namespace+"/"+resourceType]
+//}
+//
+//func (mockCtlr *mockController) getServicePort(rt *routeapi.Route) (error, int32) {
+//	if isSecureRoute(rt) {
+//		return nil, 443
+//	}
+//	return nil, 80
+//}

@@ -514,7 +514,7 @@ func (ctlr *Controller) handleTLS(
 		case Certificate:
 			// Prepare SSL Transient Context
 			if tlsContext.bigIPSSLProfiles.key != "" && tlsContext.bigIPSSLProfiles.certificate != "" {
-				err, _ := ctlr.createClientSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.key, tlsContext.bigIPSSLProfiles.certificate, tlsContext.name, tlsContext.namespace, CustomProfileClient)
+				err, _ := ctlr.createClientSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.key, tlsContext.bigIPSSLProfiles.certificate, fmt.Sprintf("%s-clientssl", tlsContext.name), tlsContext.namespace, CustomProfileClient)
 				if err != nil {
 					log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s'",
 						err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -527,7 +527,7 @@ func (ctlr *Controller) handleTLS(
 				if tlsContext.bigIPSSLProfiles.caCertificate != "" {
 					err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate, tlsContext.bigIPSSLProfiles.caCertificate, tlsContext.name, tlsContext.namespace, CustomProfileServer)
 				} else {
-					err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate, "", tlsContext.name, tlsContext.namespace, CustomProfileServer)
+					err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate, "", fmt.Sprintf("%s-serverssl", tlsContext.name), tlsContext.namespace, CustomProfileServer)
 				}
 				if err != nil {
 					log.Debugf("error %v encountered while creating serverssl profile  for '%s' '%s'/'%s'",

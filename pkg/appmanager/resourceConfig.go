@@ -237,6 +237,9 @@ func (appMgr *Manager) createRSConfigFromIngress(
 					if pl.Balance != newPool.Balance {
 						cfg.Pools[i].Balance = newPool.Balance
 					}
+					if pl.ServicePort != newPool.ServicePort {
+						cfg.Pools[i].ServicePort = newPool.ServicePort
+					}
 					break
 				}
 			}

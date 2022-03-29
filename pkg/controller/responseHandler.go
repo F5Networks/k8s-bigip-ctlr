@@ -26,7 +26,7 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 		ctlr.requestQueue.PushBack(rm)
 		ctlr.requestQueue.Unlock()
 	}
-    return rm.id
+	return rm.id
 }
 
 func (ctlr *Controller) responseHandler(respChan chan int) {
@@ -34,7 +34,7 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 
 	for id := range respChan {
 		var rm requestMeta
-		for ctlr.requestQueue.Len() > 0 && ctlr.requestQueue.Front().Value.(requestMeta).id <= id{
+		for ctlr.requestQueue.Len() > 0 && ctlr.requestQueue.Front().Value.(requestMeta).id <= id {
 			ctlr.requestQueue.Lock()
 			rm = ctlr.requestQueue.Remove(ctlr.requestQueue.Front()).(requestMeta)
 			ctlr.requestQueue.Unlock()
@@ -52,7 +52,7 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 				}
 				obj, exist, err := crInf.vsInformer.GetIndexer().GetByKey(vsKey)
 				if err != nil {
-					log.Debugf("Could not fetch VirtualServer: %v: %v",vsKey, err)
+					log.Debugf("Could not fetch VirtualServer: %v: %v", vsKey, err)
 					continue
 				}
 				if !exist {
@@ -73,7 +73,7 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 				}
 				obj, exist, err := crInf.tsInformer.GetIndexer().GetByKey(vsKey)
 				if err != nil {
-					log.Debugf("Could not fetch TransportServer: %v: %v",vsKey, err)
+					log.Debugf("Could not fetch TransportServer: %v: %v", vsKey, err)
 					continue
 				}
 				if !exist {

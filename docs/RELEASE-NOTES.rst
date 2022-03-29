@@ -5,6 +5,7 @@ Next Release
 -------------
 Enhancements
 ````````````
+* :issues:`2030` Fix for changes on Ingress Resource Service Port not reflected on BIGIP
 
 
 2.8.0

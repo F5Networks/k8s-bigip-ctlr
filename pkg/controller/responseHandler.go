@@ -10,7 +10,7 @@ import (
 
 func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 	rm := requestMeta{
-		meta: make([]metaData, 0, len(config.rsCfgs)),
+		meta: make(map[string]metaData, len(config.rsCfgs)),
 	}
 	if ctlr.requestQueue.Len() == 0 {
 		rm.id = 1
@@ -19,7 +19,9 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 	}
 
 	for _, cfg := range config.rsCfgs {
-		rm.meta = append(rm.meta, cfg.MetaData)
+		for key,_ := range cfg.MetaData.baseResources {
+			rm.meta[key] = cfg.MetaData
+		}
 	}
 	if len(rm.meta) > 0 {
 		ctlr.requestQueue.Lock()
@@ -40,48 +42,46 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 			ctlr.requestQueue.Unlock()
 		}
 
-		for _, item := range rm.meta {
+		for rscKey, item := range rm.meta {
 			switch item.ResourceType {
 			case VirtualServer:
 				// update status
-				vsKey := item.namespace + "/" + item.rscName
 				crInf, ok := ctlr.getNamespacedInformer(item.namespace)
 				if !ok {
 					log.Debugf("VirtualServer Informer not found for namespace: %v", item.namespace)
 					continue
 				}
-				obj, exist, err := crInf.vsInformer.GetIndexer().GetByKey(vsKey)
+				obj, exist, err := crInf.vsInformer.GetIndexer().GetByKey(rscKey)
 				if err != nil {
-					log.Debugf("Could not fetch VirtualServer: %v: %v", vsKey, err)
+					log.Debugf("Could not fetch VirtualServer: %v: %v",rscKey, err)
 					continue
 				}
 				if !exist {
-					log.Debugf("VirtualServer Not Found: %v", vsKey)
+					log.Debugf("VirtualServer Not Found: %v", rscKey)
 					continue
 				}
 				virtual := obj.(*cisapiv1.VirtualServer)
-				if virtual.Name == item.rscName && virtual.Namespace == item.namespace {
+				if virtual.Namespace + "/" + virtual.Name == rscKey {
 					ctlr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 			case TransportServer:
 				// update status
-				vsKey := item.namespace + "/" + item.rscName
 				crInf, ok := ctlr.getNamespacedInformer(item.namespace)
 				if !ok {
 					log.Debugf("TransportServer Informer not found for namespace: %v", item.namespace)
 					continue
 				}
-				obj, exist, err := crInf.tsInformer.GetIndexer().GetByKey(vsKey)
+				obj, exist, err := crInf.tsInformer.GetIndexer().GetByKey(rscKey)
 				if err != nil {
-					log.Debugf("Could not fetch TransportServer: %v: %v", vsKey, err)
+					log.Debugf("Could not fetch TransportServer: %v: %v",rscKey, err)
 					continue
 				}
 				if !exist {
-					log.Debugf("TransportServer Not Found: %v", vsKey)
+					log.Debugf("TransportServer Not Found: %v", rscKey)
 					continue
 				}
 				virtual := obj.(*cisapiv1.TransportServer)
-				if virtual.Name == item.rscName && virtual.Namespace == item.namespace {
+				if virtual.Namespace + "/" + virtual.Name == rscKey {
 					ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 

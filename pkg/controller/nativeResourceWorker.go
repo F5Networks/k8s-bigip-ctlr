@@ -220,8 +220,8 @@ func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, 
 		}
 
 		// Delete rsCfg if no corresponding virtuals exist
-		// Delete rsCfg if it is HTTP rsCfg and the CR VirtualServer does not handle HTTPTraffic
-		if (len(routes) == 0) || isDelete ||
+		// Delete rsCfg if it is HTTP rsCfg and the Route does not handle HTTPTraffic
+		if (len(routes) == 0) ||
 			(portStruct.protocol == "http" && !doesRouteHandleHTTP(route)) {
 
 			ctlr.deleteVirtualServer(routeGroup, rsName)

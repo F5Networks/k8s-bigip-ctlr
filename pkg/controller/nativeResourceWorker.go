@@ -561,7 +561,7 @@ func (ctlr *Controller) getAllResources(resourceType string, namespace string) [
 
 	switch resourceType {
 	case Route:
-		nrInf, ok := ctlr.nrInformers[namespace]
+		nrInf, ok := ctlr.getNamespacedNativeInformer(namespace)
 		if !ok {
 			log.Errorf("Informer not found for namespace: %v", namespace)
 			return nil

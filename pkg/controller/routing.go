@@ -474,7 +474,7 @@ func httpRedirectIRuleNoHost(port int32) string {
 func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	// The key in the data group is the host name or * to match all.
 	// The data is a list of paths for the host delimited by '|' or '/' for all.
-	dgName := "/" + partition + "/Shared/" + rsVSName + "_https_redirect_dg"
+	dgName := "/" + partition + "/" + Shared + "/" + rsVSName + "_https_redirect_dg"
 	iRuleCode := fmt.Sprintf(`
 		when HTTP_REQUEST {
 			
@@ -550,8 +550,8 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	return iRuleCode
 }
 
-func (ctlr *Controller) getTLSIRule(rsVSName string) string {
-	dgPath := ctlr.dgPath
+func (ctlr *Controller) getTLSIRule(rsVSName string, partition string) string {
+	dgPath := strings.Join([]string{partition, Shared}, "/")
 
 	iRule := fmt.Sprintf(`
 		when CLIENT_ACCEPTED {
@@ -837,13 +837,12 @@ func (ctlr *Controller) getTLSIRule(rsVSName string) string {
 			}
         }`, dgPath, rsVSName)
 
-	iRuleCode := fmt.Sprintf("%s\n\n%s", ctlr.selectPoolIRuleFunc(rsVSName), iRule)
+	iRuleCode := fmt.Sprintf("%s\n\n%s", ctlr.selectPoolIRuleFunc(rsVSName, dgPath), iRule)
 
 	return iRuleCode
 }
 
-func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string) string {
-	dgPath := ctlr.dgPath
+func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string, dgPath string) string {
 
 	iRuleFunc := fmt.Sprintf(`
 		proc select_ab_pool {path default_pool } {

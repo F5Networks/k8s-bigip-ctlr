@@ -190,6 +190,16 @@ func (ctlr *Controller) getNamespacedEssentialInformer(
 	return esInf, found
 }
 
+func (ctlr *Controller) getNamespacedNativeInformer(
+	namespace string,
+) (*NRInformer, bool) {
+	if ctlr.watchingAllNamespaces() {
+		namespace = ""
+	}
+	nrInf, found := ctlr.nrInformers[namespace]
+	return nrInf, found
+}
+
 func (ctlr *Controller) getWatchingNamespaces() []string {
 	var namespaces []string
 	if ctlr.watchingAllNamespaces() {

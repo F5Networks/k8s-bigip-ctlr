@@ -11,4 +11,6 @@ const (
 
 	// DefaultNativeResourceLabel is a label used for kubernetes/openshift Resources.
 	DefaultNativeResourceLabel = "f5nr in (true)"
+
+	Shared = "Shared"
 )

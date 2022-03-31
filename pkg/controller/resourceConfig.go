@@ -595,6 +595,7 @@ func (ctlr *Controller) handleTLS(
 			rsCfg,
 			tlsContext.hostname,
 			tlsContext.termination,
+			rsCfg.Virtual.Partition,
 		)
 
 		return true
@@ -1147,6 +1148,7 @@ func (ctlr *Controller) handleDataGroupIRules(
 	rsCfg *ResourceConfig,
 	vsHost string,
 	tlsTerminationType string,
+	partition string,
 ) {
 	// For https
 	if "" != tlsTerminationType {
@@ -1155,12 +1157,12 @@ func (ctlr *Controller) handleDataGroupIRules(
 		switch tlsTerminationType {
 		case TLSEdge:
 			rsCfg.addIRule(
-				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, ctlr.getTLSIRule(rsCfg.Virtual.Name))
+				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, ctlr.getTLSIRule(rsCfg.Virtual.Name, partition))
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), DEFAULT_PARTITION)
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName), DEFAULT_PARTITION)
 		case TLSReencrypt:
 			rsCfg.addIRule(
-				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, ctlr.getTLSIRule(rsCfg.Virtual.Name))
+				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, ctlr.getTLSIRule(rsCfg.Virtual.Name, partition))
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptHostsDgName), DEFAULT_PARTITION)
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName), DEFAULT_PARTITION)
 		}

@@ -160,10 +160,17 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 // agentWorker blocks on postChan
 // whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
 func (agent *Agent) agentWorker() {
+	firstPost := true
 	for rsConfig := range agent.postChan {
 		// If there are no retries going on in parallel, acquiring lock will be straight forward.
 		// Otherwise, we will wait for retryWorker to complete its current iteration
 		agent.declUpdate.Lock()
+
+		// Fetch the latest config from channel
+		select {
+		case rsConfig = <-agent.postChan:
+		case <-time.After(1 * time.Microsecond):
+		}
 
 		if !(agent.EnableIPV6) {
 			agent.PostGTMConfig(rsConfig)
@@ -198,24 +205,15 @@ func (agent *Agent) agentWorker() {
 		}
 
 		// For the very first post after starting controller, need not wait to post
-		firstPost := false
-
-		if len(agent.cachedTenantDeclMap) == 0 {
-			firstPost = true
-		}
-
 		agent.publishConfig(cfg, firstPost)
+
+		firstPost = false
 
 		go agent.updatePoolMembers(rsConfig)
 
 		// notify response handler on successful tenant update
 		agent.notifyOnSuccess(cfg.id)
 
-		/*
-			For same tenant if responses happen to be 201 and 503 consecutively,
-			we ignore 201 and only wait until 503 succeeds. In this case,
-			cachedTenantDeclMap will eventually hold the latest posted config on BIGIP.
-		*/
 		agent.updateTenantResponse(true)
 
 		if len(agent.retryTenantDeclMap) > 0 {
@@ -226,6 +224,12 @@ func (agent *Agent) agentWorker() {
 				agent.retryChan <- struct{}{}
 			}
 		}
+
+		/*
+			If there are any tenants with 201 response code,
+			poll for its status continuously and block incoming requests
+		*/
+		agent.pollTenantStatus()
 
 		agent.declUpdate.Unlock()
 	}
@@ -336,64 +340,88 @@ func (agent *Agent) retryWorker() {
 
 			log.Debugf("[AS3] Posting failed tenants configuration in %v seconds", timeoutMedium)
 
-			var retryTenants []string
-			var acceptedTenants []string
-			// Create a set to hold unique polling ids
-			acceptedTenantIds := map[string]struct{}{}
+			//If there are any 201 tenants, poll for its status
+			agent.pollTenantStatus()
 
-			// this map is to collect all non-201 tenant configs
-			retryDecl := make(map[string]as3Tenant)
-
-			agent.tenantResponseMap = make(map[string]tenantResponse)
-
-			for tenant, cfg := range agent.retryTenantDeclMap {
-				// We prioritise calling only acceptedTenants first
-				// So, when we call updateTenantResponse, we have to retain failed agentResponseCodes and taskId's correctly
-				agent.tenantResponseMap[tenant] = tenantResponse{agentResponseCode: cfg.agentResponseCode, taskId: cfg.taskId}
-				if cfg.taskId != "" {
-					if _, found := acceptedTenantIds[cfg.taskId]; !found {
-						acceptedTenantIds[cfg.taskId] = struct{}{}
-						acceptedTenants = append(acceptedTenants, tenant)
-					}
-				} else {
-					retryTenants = append(retryTenants, tenant)
-					retryDecl[tenant] = cfg.as3Decl.(as3Tenant)
-				}
-			}
-
-			for len(acceptedTenantIds) > 0 {
-				// Keep retrying until accepted tenant statuses are updated
-				// This prevents agent from unlocking and thus any incoming post requests (config changes) also need to hold on
-				for taskId := range acceptedTenantIds {
-					<-time.After(timeoutMedium)
-					agent.getTenantConfigStatus(taskId)
-				}
-				for _, tenant := range acceptedTenants {
-					acceptedTenantIds = map[string]struct{}{}
-					// Even if there is any pending tenant which is not updated, keep retrying for that ID
-					if agent.tenantResponseMap[tenant].taskId != "" {
-						acceptedTenantIds[agent.tenantResponseMap[tenant].taskId] = struct{}{}
-					}
-				}
-			}
-
-			if len(retryTenants) > 0 {
-				// Until all accepted tenants are not processed, we do not want to re-post failed tenants since we will anyways get a 503
-				cfg := agentConfig{
-					data:      string(agent.createAS3Declaration(retryDecl)),
-					as3APIURL: agent.getAS3APIURL(retryTenants),
-					id:        0,
-				}
-				// Ignoring timeouts for custom errors
-				<-time.After(timeoutMedium)
-
-				agent.postConfig(&cfg)
-			}
-
-			agent.updateTenantResponse(false)
+			//If there are any failed tenants, retry posting them
+			agent.retryFailedTenant()
 
 			agent.declUpdate.Unlock()
 		}
+	}
+}
+
+func (agent *Agent) retryFailedTenant() {
+	var retryTenants []string
+
+	// this map is to collect all non-201 tenant configs
+	retryDecl := make(map[string]as3Tenant)
+
+	agent.tenantResponseMap = make(map[string]tenantResponse)
+
+	for tenant, cfg := range agent.retryTenantDeclMap {
+		// So, when we call updateTenantResponse, we have to retain failed agentResponseCodes and taskId's correctly
+		agent.tenantResponseMap[tenant] = tenantResponse{agentResponseCode: cfg.agentResponseCode, taskId: cfg.taskId}
+		if cfg.taskId == "" {
+			retryTenants = append(retryTenants, tenant)
+			retryDecl[tenant] = cfg.as3Decl.(as3Tenant)
+		}
+	}
+
+	if len(retryTenants) > 0 {
+		// Until all accepted tenants are not processed, we do not want to re-post failed tenants since we will anyways get a 503
+		cfg := agentConfig{
+			data:      string(agent.createAS3Declaration(retryDecl)),
+			as3APIURL: agent.getAS3APIURL(retryTenants),
+			id:        0,
+		}
+		// Ignoring timeouts for custom errors
+		<-time.After(timeoutMedium)
+
+		agent.postConfig(&cfg)
+
+		agent.updateTenantResponse(false)
+	}
+
+}
+
+func (agent *Agent) pollTenantStatus() {
+
+	var acceptedTenants []string
+	// Create a set to hold unique polling ids
+	acceptedTenantIds := map[string]struct{}{}
+
+	agent.tenantResponseMap = make(map[string]tenantResponse)
+
+	for tenant, cfg := range agent.retryTenantDeclMap {
+		// So, when we call updateTenantResponse, we have to retain failed agentResponseCodes and taskId's correctly
+		agent.tenantResponseMap[tenant] = tenantResponse{agentResponseCode: cfg.agentResponseCode, taskId: cfg.taskId}
+		if cfg.taskId != "" {
+			if _, found := acceptedTenantIds[cfg.taskId]; !found {
+				acceptedTenantIds[cfg.taskId] = struct{}{}
+				acceptedTenants = append(acceptedTenants, tenant)
+			}
+		}
+	}
+
+	for len(acceptedTenantIds) > 0 {
+		// Keep retrying until accepted tenant statuses are updated
+		// This prevents agent from unlocking and thus any incoming post requests (config changes) also need to hold on
+		for taskId := range acceptedTenantIds {
+			<-time.After(timeoutMedium)
+			agent.getTenantConfigStatus(taskId)
+		}
+		for _, tenant := range acceptedTenants {
+			acceptedTenantIds = map[string]struct{}{}
+			// Even if there is any pending tenant which is not updated, keep retrying for that ID
+			if agent.tenantResponseMap[tenant].taskId != "" {
+				acceptedTenantIds[agent.tenantResponseMap[tenant].taskId] = struct{}{}
+			}
+		}
+	}
+
+	if len(acceptedTenants) > 0 {
+		agent.updateTenantResponse(false)
 	}
 }
 
@@ -433,6 +461,11 @@ func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3
 		if !reflect.DeepEqual(cfg, agent.cachedTenantDeclMap[tenant]) {
 			agent.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
 		} else {
+			// cachedTenantDeclMap always holds the current configuration on BigIP(lets say A)
+			// When an invalid configuration(B) is reverted (to initial A) (i.e., config state A -> B -> A),
+			// delete entry from retryTenantDeclMap if any
+			delete(agent.retryTenantDeclMap, tenant)
+
 			log.Debugf("[AS3] No change in %v tenant configuration", tenant)
 		}
 	}

@@ -53,8 +53,8 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			if am.as3Validation == true {
 				if ok := am.validateAS3Template(rscCfgMap.Data); !ok {
 					log.Errorf("[AS3][Configmap] Error validating AS3 template")
-					log.Errorf("[AS3][Configmap] Error in processing the ConfigMap: %v/%v",
-						rscCfgMap.Namespace, rscCfgMap.Name)
+					log.Errorf("[AS3][Configmap] Error in processing the resource ConfigMap: %v in Namespace: %v",
+						rscCfgMap.Name, rscCfgMap.Namespace)
 					continue
 				}
 			}

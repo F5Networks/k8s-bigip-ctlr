@@ -7,7 +7,8 @@ GOBIN    = $(GOPATH)/bin/$(GOOS)-$(GOARCH)
 
 NEXT_VERSION := $(shell ./build-tools/version-tool version)
 export BUILD_VERSION := $(if $(BUILD_VERSION),$(BUILD_VERSION),$(NEXT_VERSION))
-export BUILD_INFO := $(shell ./build-tools/version-tool build-info)
+NEXT_INFO := $(shell ./build-tools/version-tool build-info)
+export BUILD_INFO := $(if $(BUILD_INFO),$(BUILD_INFO),$(NEXT_INFO))
 
 GO_BUILD_FLAGS=-v -ldflags "-extldflags \"-static\" -X main.version=$(BUILD_VERSION) -X main.buildInfo=$(BUILD_INFO)"
 

@@ -144,13 +144,13 @@ type (
 	}
 
 	metaData struct {
-		Active       bool
-		ResourceType string
-		rscName      string
-		namespace    string
-		hosts        []string
-		Protocol     string
-		httpTraffic  string
+		Active        bool
+		ResourceType  string
+		baseResources map[string]bool
+		namespace     string
+		hosts         []string
+		Protocol      string
+		httpTraffic   string
 	}
 
 	// Virtual Server Key - unique server is Name + Port
@@ -448,8 +448,8 @@ type (
 		Context   string `json:"context"` // 'clientside', 'serverside', or 'all'
 		// Used as reference to which Namespace/Ingress this profile came from
 		// (for deletion purposes)
-		Namespace string `json:"-"`
-		BigIPProfile bool `json:"-"`
+		Namespace    string `json:"-"`
+		BigIPProfile bool   `json:"-"`
 	}
 	// ProfileRefs is a list of ProfileRef
 	ProfileRefs []ProfileRef
@@ -484,7 +484,7 @@ type (
 	}
 
 	requestMeta struct {
-		meta []metaData
+		meta map[string]metaData
 		id   int
 	}
 

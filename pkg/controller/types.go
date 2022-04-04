@@ -462,8 +462,8 @@ type (
 		Context   string `json:"context"` // 'clientside', 'serverside', or 'all'
 		// Used as reference to which Namespace/Ingress this profile came from
 		// (for deletion purposes)
-		Namespace string `json:"-"`
-		BigIPProfile bool `json:"-"`
+		Namespace    string `json:"-"`
+		BigIPProfile bool   `json:"-"`
 	}
 	// ProfileRefs is a list of ProfileRef
 	ProfileRefs []ProfileRef

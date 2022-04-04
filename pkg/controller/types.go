@@ -145,9 +145,10 @@ type (
 	}
 
 	metaData struct {
-		Active        bool
-		ResourceType  string
-		baseResources map[string]bool
+		Active       bool
+		ResourceType string
+		// resource name as key, resource kind as value
+		baseResources map[string]string
 		namespace     string
 		hosts         []string
 		Protocol      string
@@ -498,7 +499,7 @@ type (
 	}
 
 	requestMeta struct {
-		meta map[string]metaData
+		meta map[string]string
 		id   int
 	}
 

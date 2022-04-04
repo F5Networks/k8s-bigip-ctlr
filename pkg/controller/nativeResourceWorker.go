@@ -171,7 +171,7 @@ func (ctlr *Controller) processNativeResource() bool {
 			defaultRouteDomain: ctlr.defaultRouteDomain,
 		}
 		go ctlr.TeemData.PostTeemsData()
-		ctlr.enqueueReq(config)
+		config.reqId = ctlr.enqueueReq(config)
 		ctlr.Agent.PostConfig(config)
 		ctlr.initState = false
 		ctlr.resources.updateCaches()
@@ -238,6 +238,7 @@ func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, 
 			extdSpec.VServerAddr,
 			portStruct.port,
 		)
+		rsCfg.MetaData.baseResources = make(map[string]string)
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
@@ -251,6 +252,7 @@ func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, 
 		}
 
 		for _, rt := range routes {
+			rsCfg.MetaData.baseResources[rt.Namespace+"/"+rt.Name] = Route
 			err, servicePort := ctlr.getServicePort(rt)
 			if err != nil {
 				processingError = true

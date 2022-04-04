@@ -13,4 +13,6 @@ const (
 	DefaultNativeResourceLabel = "f5nr in (true)"
 
 	Shared = "Shared"
+
+	F5RouterName = "F5 BIG-IP"
 )

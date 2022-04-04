@@ -853,7 +853,7 @@ func (ctlr *Controller) processVirtualServers(
 		rsCfg.MetaData.Protocol = portStruct.protocol
 		rsCfg.MetaData.httpTraffic = virtual.Spec.HTTPTraffic
 		rsCfg.MetaData.namespace = virtual.ObjectMeta.Namespace
-		rsCfg.MetaData.baseResources = make(map[string]bool)
+		rsCfg.MetaData.baseResources = make(map[string]string)
 		rsCfg.Virtual.SetVirtualAddress(
 			ip,
 			portStruct.port,
@@ -879,7 +879,7 @@ func (ctlr *Controller) processVirtualServers(
 		for _, vrt := range virtuals {
 			log.Debugf("Processing Virtual Server %s for port %v",
 				vrt.ObjectMeta.Name, portStruct.port)
-			rsCfg.MetaData.baseResources[vrt.Namespace+"/"+vrt.Name] = true
+			rsCfg.MetaData.baseResources[vrt.Namespace+"/"+vrt.Name] = VirtualServer
 			err := ctlr.prepareRSConfigFromVirtualServer(
 				rsCfg,
 				vrt,
@@ -1514,7 +1514,7 @@ func (ctlr *Controller) processTransportServers(
 	rsCfg.Virtual.Name = rsName
 	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
 	rsCfg.MetaData.namespace = virtual.ObjectMeta.Namespace
-	rsCfg.MetaData.baseResources = make(map[string]bool)
+	rsCfg.MetaData.baseResources = make(map[string]string)
 	rsCfg.Virtual.SetVirtualAddress(
 		ip,
 		virtual.Spec.VirtualServerPort,
@@ -1534,7 +1534,7 @@ func (ctlr *Controller) processTransportServers(
 
 	log.Debugf("Processing Transport Server %s for port %v",
 		virtual.ObjectMeta.Name, virtual.Spec.VirtualServerPort)
-	rsCfg.MetaData.baseResources[virtual.ObjectMeta.Namespace+"/"+virtual.ObjectMeta.Name] = true
+	rsCfg.MetaData.baseResources[virtual.ObjectMeta.Namespace+"/"+virtual.ObjectMeta.Name] = TransportServer
 	err = ctlr.prepareRSConfigFromTransportServer(
 		rsCfg,
 		virtual,

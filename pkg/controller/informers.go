@@ -554,10 +554,9 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 	if nrInf.routeInformer != nil {
 		nrInf.routeInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc: func(obj interface{}) { ctlr.enqueueRoute(obj) },
-				// TODO: need to add update function
+				AddFunc:    func(obj interface{}) { ctlr.enqueueRoute(obj) },
 				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueRoute(cur) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedRoute(obj) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueRoute(obj) },
 			},
 		)
 	}
@@ -1033,20 +1032,6 @@ func (ctlr *Controller) enqueueConfigmap(obj interface{}) {
 		kind:      ConfigMap,
 		rscName:   cm.ObjectMeta.Name,
 		rsc:       obj,
-	}
-	ctlr.nativeResourceQueue.Add(key)
-}
-
-func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
-	rt := obj.(*routeapi.Route)
-
-	log.Debugf("Enqueueing Deleted Route: %v", rt)
-	key := &rqKey{
-		namespace: rt.ObjectMeta.Namespace,
-		kind:      Route,
-		rscName:   rt.ObjectMeta.Name,
-		rsc:       obj,
-		rscDelete: true,
 	}
 	ctlr.nativeResourceQueue.Add(key)
 }

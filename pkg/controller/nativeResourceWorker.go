@@ -60,7 +60,9 @@ func (ctlr *Controller) processNativeResource() bool {
 
 	case Route:
 		route := rKey.rsc.(*routeapi.Route)
-		err := ctlr.processRoutes(route, route.Namespace, rKey.rscDelete)
+		// processRoutes knows when to delete a VS (in the event of global config update and route delete)
+		// so should not trigger delete from here
+		err := ctlr.processRoutes(route, route.Namespace, false)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -96,7 +98,7 @@ func (ctlr *Controller) processNativeResource() bool {
 			break
 		}
 		for _, rg := range getAffectedRouteGroups(svc) {
-			err := ctlr.processRoutes(nil, rg, rKey.rscDelete)
+			err := ctlr.processRoutes(nil, rg, false)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -123,7 +125,7 @@ func (ctlr *Controller) processNativeResource() bool {
 			break
 		}
 		for _, rg := range getAffectedRouteGroups(svc) {
-			err := ctlr.processRoutes(nil, rg, rKey.rscDelete)
+			err := ctlr.processRoutes(nil, rg, false)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -179,7 +181,7 @@ func (ctlr *Controller) processNativeResource() bool {
 	return true
 }
 
-func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, isDelete bool) error {
+func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, triggerDelete bool) error {
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
@@ -221,7 +223,7 @@ func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, 
 
 		// Delete rsCfg if no corresponding virtuals exist
 		// Delete rsCfg if it is HTTP rsCfg and the Route does not handle HTTPTraffic
-		if (len(routes) == 0) ||
+		if (len(routes) == 0) || triggerDelete ||
 			(portStruct.protocol == "http" && !doesRouteHandleHTTP(route)) {
 
 			ctlr.deleteVirtualServer(routeGroup, rsName)
@@ -536,6 +538,11 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		}
 
 		modifiedExtendedSpecs = append(modifiedExtendedSpecs, ergc.Namespace)
+	}
+
+	// during initState just populate global config
+	if ctlr.initState {
+		return nil, true
 	}
 
 	for _, mes := range modifiedExtendedSpecs {

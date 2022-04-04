@@ -1660,6 +1660,7 @@ func (ctlr *Controller) processTransportServers(
 
 	log.Debugf("Processing Transport Server %s for port %v",
 		virtual.ObjectMeta.Name, virtual.Spec.VirtualServerPort)
+	rsCfg.MetaData.baseResources[virtual.ObjectMeta.Namespace+"/"+virtual.ObjectMeta.Name] = true
 	err = ctlr.prepareRSConfigFromTransportServer(
 		rsCfg,
 		virtual,

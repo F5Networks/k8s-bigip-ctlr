@@ -6,6 +6,7 @@ Next Release
 Enhancements
 ````````````
 * :issues:`2030` Fix for changes on Ingress Resource Service Port not reflected on BIGIP
+* :issues:`2205` Fix for deleting multiple EDNS resources
 * SR - Fix iapp continuous updates with no backend pods
 
 

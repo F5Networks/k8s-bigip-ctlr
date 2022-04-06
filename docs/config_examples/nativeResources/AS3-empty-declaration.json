@@ -1,0 +1,31 @@
+{
+
+	"class": "AS3",
+
+	"action": "deploy",
+
+	"persist": true,
+
+	"declaration": {
+
+		"class": "ADC",
+
+		"schemaVersion": "3.28.0",
+
+		"<bigip-partition>": {
+
+			"class": "Tenant",
+
+			"Shared": {
+
+				"class": "Application",
+
+				"template": "shared"
+
+			}
+
+		}
+
+	}
+
+}

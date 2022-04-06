@@ -19,8 +19,6 @@ package controller
 import (
 	"bufio"
 	"fmt"
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"os"
 	"os/exec"
@@ -28,10 +26,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/health"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 func initializeDriverConfig(

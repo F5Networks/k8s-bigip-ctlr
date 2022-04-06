@@ -1,9 +1,9 @@
 package agent
 
 import (
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/as3"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/as3"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 type agentAS3 struct {

@@ -555,7 +555,7 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 		nrInf.routeInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { ctlr.enqueueRoute(obj) },
-				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueRoute(cur) },
+				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueUpdatedRoute(old, cur) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueRoute(obj) },
 			},
 		)
@@ -1012,6 +1012,23 @@ func (ctlr *Controller) enqueueRoute(obj interface{}) {
 		kind:      Route,
 		rscName:   rt.ObjectMeta.Name,
 		rsc:       obj,
+	}
+	ctlr.nativeResourceQueue.Add(key)
+}
+
+func (ctlr *Controller) enqueueUpdatedRoute(old, cur interface{}) {
+	oldrt := old.(*routeapi.Route)
+	newrt := cur.(*routeapi.Route)
+
+	if reflect.DeepEqual(oldrt.Spec, newrt.Spec) {
+		return
+	}
+	log.Debugf("Enqueueing Route: %v", newrt)
+	key := &rqKey{
+		namespace: newrt.ObjectMeta.Namespace,
+		kind:      Route,
+		rscName:   newrt.ObjectMeta.Name,
+		rsc:       cur,
 	}
 	ctlr.nativeResourceQueue.Add(key)
 }

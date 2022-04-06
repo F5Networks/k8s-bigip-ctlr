@@ -157,7 +157,7 @@ func (ctlr *Controller) processNativeResource() bool {
 
 	if ctlr.nativeResourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated() {
 		config := ResourceConfigRequest{
-			ltmConfig:          ctlr.resources.getLTMConfigCopy(),
+			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
 			shareNodes:         ctlr.shareNodes,
 			dnsConfig:          ctlr.resources.getGTMConfigCopy(),
 			defaultRouteDomain: ctlr.defaultRouteDomain,
@@ -191,9 +191,10 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		// Delete all possible virtuals for this route group
 		for _, portStruct := range getBasicVirtualPorts() {
 			rsName := frameRouteVSName(routeGroup, extdSpec, portStruct)
-			if ctlr.getVirtualServer(routeGroup, rsName) != nil {
-				log.Debugf("Removing virtual %v belongs to RouteGroup: %v", rsName, routeGroup)
-				ctlr.deleteVirtualServer(routeGroup, rsName)
+			if ctlr.getVirtualServer(namespace, rsName) != nil {
+				log.Debugf("Removing virtual %v belongs to RouteGroup: %v from Namespace: %v",
+					rsName, routeGroup, namespace)
+				ctlr.deleteVirtualServer(namespace, rsName)
 			}
 		}
 		return nil
@@ -457,15 +458,18 @@ func (ctlr *Controller) updatePoolMembersForRoutes(routeGroup string) {
 	namespace := routeGroup
 	for _, portStruct := range getBasicVirtualPorts() {
 		rsName := frameRouteVSName(routeGroup, extdSpec, portStruct)
-		rsCfg := ctlr.getVirtualServer(routeGroup, rsName)
+		rsCfg := ctlr.getVirtualServer(namespace, rsName)
 		if rsCfg == nil {
 			continue
 		}
+		freshRsCfg := &ResourceConfig{}
+		freshRsCfg.copyConfig(rsCfg)
 		if ctlr.PoolMemberType == NodePort {
-			ctlr.updatePoolMembersForNodePort(rsCfg, namespace)
+			ctlr.updatePoolMembersForNodePort(freshRsCfg, namespace)
 		} else {
-			ctlr.updatePoolMembersForCluster(rsCfg, namespace)
+			ctlr.updatePoolMembersForCluster(freshRsCfg, namespace)
 		}
+		_ = ctlr.resources.setResourceConfig(namespace, rsName, freshRsCfg)
 	}
 }
 

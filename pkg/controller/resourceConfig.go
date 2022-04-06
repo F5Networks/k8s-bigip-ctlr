@@ -228,17 +228,6 @@ func (ctlr *Controller) virtualPorts(input interface{}) []portStruct {
 		if len(vs.Spec.TLSProfileName) != 0 {
 			ports = append(ports, https)
 		}
-	case *routeapi.Route:
-		rt := input.(*routeapi.Route)
-		if isSecureRoute(rt) {
-			ports = append(ports, https)
-			switch rt.Spec.TLS.InsecureEdgeTerminationPolicy {
-			case routeapi.InsecureEdgeTerminationPolicyAllow, routeapi.InsecureEdgeTerminationPolicyRedirect:
-				ports = append(ports, http)
-			}
-		} else {
-			ports = append(ports, http)
-		}
 	}
 
 	return ports
@@ -851,8 +840,8 @@ func (rs *ResourceStore) getPartitionResourceMap(partition string) ResourceMap {
 	return rs.ltmConfig[partition]
 }
 
-// getResource gets a specific Resource cfg
-func (rs *ResourceStore) getResource(partition, name string) (*ResourceConfig, error) {
+// getResourceConfig gets a specific Resource cfg
+func (rs *ResourceStore) getResourceConfig(partition, name string) (*ResourceConfig, error) {
 
 	rsMap, ok := rs.ltmConfig[partition]
 	if !ok {
@@ -1174,6 +1163,11 @@ func (ctlr *Controller) handleDataGroupIRules(
 
 func (ctlr *Controller) deleteVirtualServer(partition, rsName string) {
 	ctlr.resources.deleteVirtualServer(partition, rsName)
+}
+
+func (ctlr *Controller) getVirtualServer(partition, rsName string) *ResourceConfig {
+	res, _ := ctlr.resources.getResourceConfig(partition, rsName)
+	return res
 }
 
 // Prepares resource config based on VirtualServer resource config

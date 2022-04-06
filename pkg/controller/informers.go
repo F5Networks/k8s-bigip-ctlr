@@ -579,10 +579,9 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 	if nrInf.routeInformer != nil {
 		nrInf.routeInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc: func(obj interface{}) { ctlr.enqueueRoute(obj) },
-				// TODO: need to add update function
+				AddFunc:    func(obj interface{}) { ctlr.enqueueRoute(obj) },
 				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueRoute(cur) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedRoute(obj) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueRoute(obj) },
 			},
 		)
 	}

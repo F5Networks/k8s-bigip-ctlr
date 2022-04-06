@@ -50,7 +50,7 @@ var _ = Describe("Routes", func() {
 					IRules:        []string{"/Common/iRule1"},
 				},
 			}
-			err := mockCtlr.processRoutes(rt, ns, false)
+			err := mockCtlr.processRoutes(ns, false)
 			Expect(err).To(BeNil(), "Failed to process routes")
 		})
 	})

@@ -105,7 +105,7 @@ func newMockAgent(writer writer.Writer) *Agent {
 	}
 }
 
-//func (mockCtlr *mockController) getAllResources(resourceType, namespace string) []interface{} {
+//func (mockCtlr *mockController) getOrderedRoutes(resourceType, namespace string) []interface{} {
 //	return mockCtlr.mockResources[namespace+"/"+resourceType]
 //}
 //

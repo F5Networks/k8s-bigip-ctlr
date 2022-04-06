@@ -55,10 +55,11 @@ func (appMgr *Manager) checkValidConfigMap(
 		}
 		if ok := appMgr.processAgentLabels(cm.Labels, cm.Name, namespace); ok {
 			key := &serviceQueueKey{
-				Namespace:    namespace,
-				Operation:    oprType,
-				ResourceKind: Configmaps,
-				ResourceName: cm.Name,
+				Namespace:     namespace,
+				Operation:     oprType,
+				ResourceKind:  Configmaps,
+				ResourceName:  cm.Name,
+				LastTimeStamp: cm.ObjectMeta.GetCreationTimestamp().Time,
 			}
 			keyList = append(keyList, key)
 			return true, keyList
@@ -98,10 +99,11 @@ func (appMgr *Manager) checkValidConfigMap(
 	}
 	for _, pool := range cfg.Pools {
 		key := &serviceQueueKey{
-			ServiceName:  pool.ServiceName,
-			Namespace:    namespace,
-			ResourceKind: Configmaps,
-			ResourceName: cm.Name,
+			ServiceName:   pool.ServiceName,
+			Namespace:     namespace,
+			ResourceKind:  Configmaps,
+			ResourceName:  cm.Name,
+			LastTimeStamp: cm.ObjectMeta.GetCreationTimestamp().Time,
 		}
 
 		keyList = append(keyList, key)
@@ -121,10 +123,11 @@ func (appMgr *Manager) checkValidService(
 		return false, nil
 	}
 	key := &serviceQueueKey{
-		ServiceName:  svc.ObjectMeta.Name,
-		Namespace:    namespace,
-		ResourceKind: Services,
-		ResourceName: svc.Name,
+		ServiceName:   svc.ObjectMeta.Name,
+		Namespace:     namespace,
+		ResourceKind:  Services,
+		ResourceName:  svc.Name,
+		LastTimeStamp: svc.ObjectMeta.GetCreationTimestamp().Time,
 	}
 	var keyList []*serviceQueueKey
 	keyList = append(keyList, key)
@@ -143,10 +146,11 @@ func (appMgr *Manager) checkValidEndpoints(
 		return false, nil
 	}
 	key := &serviceQueueKey{
-		ServiceName:  eps.ObjectMeta.Name,
-		Namespace:    namespace,
-		ResourceKind: Endpoints,
-		ResourceName: eps.Name,
+		ServiceName:   eps.ObjectMeta.Name,
+		Namespace:     namespace,
+		ResourceKind:  Endpoints,
+		ResourceName:  eps.Name,
+		LastTimeStamp: eps.ObjectMeta.GetCreationTimestamp().Time,
 	}
 	var keyList []*serviceQueueKey
 	keyList = append(keyList, key)
@@ -192,10 +196,11 @@ func (appMgr *Manager) checkValidPod(
 	var keyList []*serviceQueueKey
 	for _, svc := range svcs {
 		key := &serviceQueueKey{
-			ServiceName:  svc.ObjectMeta.Name,
-			Namespace:    namespace,
-			ResourceKind: Pod,
-			ResourceName: pod.Name,
+			ServiceName:   svc.ObjectMeta.Name,
+			Namespace:     namespace,
+			ResourceKind:  Pod,
+			ResourceName:  pod.Name,
+			LastTimeStamp: pod.ObjectMeta.GetCreationTimestamp().Time,
 		}
 		keyList = append(keyList, key)
 	}
@@ -219,10 +224,11 @@ func (appMgr *Manager) getSecretServiceQueueKeyForConfigMap(secret *v1.Secret) [
 					for _, profile := range cfg.Virtual.Profiles {
 						if profile.Name == secret.Name {
 							key := &serviceQueueKey{
-								ServiceName:  cfg.Pools[0].ServiceName,
-								Namespace:    cm.Namespace,
-								ResourceKind: Configmaps,
-								ResourceName: cm.Name,
+								ServiceName:   cfg.Pools[0].ServiceName,
+								Namespace:     cm.Namespace,
+								ResourceKind:  Configmaps,
+								ResourceName:  cm.Name,
+								LastTimeStamp: cm.ObjectMeta.GetCreationTimestamp().Time,
 							}
 							keyList = append(keyList, key)
 						}
@@ -252,10 +258,11 @@ func (appMgr *Manager) getSecretServiceQueueKeyForIngress(secret *v1.Secret) []*
 				if tlsSecret.SecretName == secret.Name {
 					if ingress.Spec.Backend != nil {
 						key := &serviceQueueKey{
-							ServiceName:  ingress.Spec.Backend.ServiceName,
-							Namespace:    secret.ObjectMeta.Namespace,
-							ResourceKind: Ingresses,
-							ResourceName: ingress.Name,
+							ServiceName:   ingress.Spec.Backend.ServiceName,
+							Namespace:     secret.ObjectMeta.Namespace,
+							ResourceKind:  Ingresses,
+							ResourceName:  ingress.Name,
+							LastTimeStamp: ingress.ObjectMeta.GetCreationTimestamp().Time,
 						}
 						keyList = append(keyList, key)
 					} else {
@@ -265,10 +272,11 @@ func (appMgr *Manager) getSecretServiceQueueKeyForIngress(secret *v1.Secret) []*
 							for _, path = range rule.IngressRuleValue.HTTP.Paths {
 								if len(path.Backend.ServiceName) > 0 {
 									key := &serviceQueueKey{
-										ServiceName:  path.Backend.ServiceName,
-										Namespace:    secret.ObjectMeta.Namespace,
-										ResourceKind: Ingresses,
-										ResourceName: ingress.Name,
+										ServiceName:   path.Backend.ServiceName,
+										Namespace:     secret.ObjectMeta.Namespace,
+										ResourceKind:  Ingresses,
+										ResourceName:  ingress.Name,
+										LastTimeStamp: ingress.ObjectMeta.GetCreationTimestamp().Time,
 									}
 									keyList = append(keyList, key)
 								}
@@ -284,10 +292,11 @@ func (appMgr *Manager) getSecretServiceQueueKeyForIngress(secret *v1.Secret) []*
 				if tlsSecret.SecretName == secret.Name {
 					if ingress.Spec.DefaultBackend != nil {
 						key := &serviceQueueKey{
-							ServiceName:  ingress.Spec.DefaultBackend.Service.Name,
-							Namespace:    secret.ObjectMeta.Namespace,
-							ResourceKind: Ingresses,
-							ResourceName: ingress.Name,
+							ServiceName:   ingress.Spec.DefaultBackend.Service.Name,
+							Namespace:     secret.ObjectMeta.Namespace,
+							ResourceKind:  Ingresses,
+							ResourceName:  ingress.Name,
+							LastTimeStamp: ingress.ObjectMeta.GetCreationTimestamp().Time,
 						}
 						keyList = append(keyList, key)
 					} else {
@@ -297,10 +306,11 @@ func (appMgr *Manager) getSecretServiceQueueKeyForIngress(secret *v1.Secret) []*
 							for _, path = range rule.IngressRuleValue.HTTP.Paths {
 								if len(path.Backend.Service.Name) > 0 {
 									key := &serviceQueueKey{
-										ServiceName:  path.Backend.Service.Name,
-										Namespace:    secret.ObjectMeta.Namespace,
-										ResourceKind: Ingresses,
-										ResourceName: ingress.Name,
+										ServiceName:   path.Backend.Service.Name,
+										Namespace:     secret.ObjectMeta.Namespace,
+										ResourceKind:  Ingresses,
+										ResourceName:  ingress.Name,
+										LastTimeStamp: ingress.ObjectMeta.GetCreationTimestamp().Time,
 									}
 									keyList = append(keyList, key)
 								}
@@ -455,10 +465,11 @@ func (appMgr *Manager) checkV1beta1Ingress(
 	svcs := getIngressBackend(ing)
 	for _, svc := range svcs {
 		key := &serviceQueueKey{
-			ServiceName:  svc,
-			Namespace:    namespace,
-			ResourceKind: Ingresses,
-			ResourceName: ing.Name,
+			ServiceName:   svc,
+			Namespace:     namespace,
+			ResourceKind:  Ingresses,
+			ResourceName:  ing.Name,
+			LastTimeStamp: ing.ObjectMeta.GetCreationTimestamp().Time,
 		}
 		keyList = append(keyList, key)
 	}
@@ -559,10 +570,11 @@ func (appMgr *Manager) checkValidRoute(
 	svcNames := GetRouteServiceNames(route)
 	for _, svcName := range svcNames {
 		key := &serviceQueueKey{
-			ServiceName:  svcName,
-			Namespace:    namespace,
-			ResourceKind: Routes,
-			ResourceName: route.Name,
+			ServiceName:   svcName,
+			Namespace:     namespace,
+			ResourceKind:  Routes,
+			ResourceName:  route.Name,
+			LastTimeStamp: route.ObjectMeta.GetCreationTimestamp().Time,
 		}
 		allKeys = append(allKeys, key)
 	}

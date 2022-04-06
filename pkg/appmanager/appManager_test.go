@@ -199,7 +199,12 @@ func (m *mockAppManager) processNodeUpdate(obj interface{}, err error) {
 	// Consume all of the work queue entries added by ProcessNodeUpdate
 	queueLen := m.appMgr.vsQueue.Len()
 	for i := 0; i < queueLen; i++ {
-		m.appMgr.processNextVirtualServer()
+		skey, quit := m.appMgr.getNextResource()
+		if !quit {
+			if skey != nil {
+				m.appMgr.processNextResource(skey)
+			}
+		}
 	}
 }
 

@@ -443,14 +443,15 @@ func (appMgr *Manager) triggerSyncResources(ns string, inf *appInformer) {
 			log.Errorf("[CORE] Unable to fetch services from namespace: %v for periodic resync", namespace)
 			return
 		}
-		if objs != nil && len(objs) > 0 {
+		if len(objs) > 0 {
 			svc := objs[0].(*v1.Service)
 			svcKey := serviceQueueKey{
-				Namespace:    namespace,
-				ServiceName:  svc.Name,
-				ResourceKind: Services,
-				ResourceName: svc.Name,
-				Operation:    OprTypeUpdate,
+				Namespace:     namespace,
+				ServiceName:   svc.Name,
+				ResourceKind:  Services,
+				ResourceName:  svc.Name,
+				Operation:     OprTypeUpdate,
+				LastTimeStamp: svc.ObjectMeta.GetCreationTimestamp().Time,
 			}
 			log.Debugf("[CORE] Periodic enqueue of Service from Namespace: %v", namespace)
 			appMgr.vsQueue.Add(svcKey)
@@ -571,11 +572,12 @@ func (appMgr *Manager) GetNamespaceLabelInformer() cache.SharedIndexInformer {
 }
 
 type serviceQueueKey struct {
-	Namespace    string
-	ServiceName  string
-	ResourceKind string
-	ResourceName string
-	Operation    string
+	Namespace     string
+	ServiceName   string
+	ResourceKind  string
+	ResourceName  string
+	Operation     string
+	LastTimeStamp time.Time
 }
 
 type appInformer struct {
@@ -1077,7 +1079,17 @@ func (appMgr *Manager) stopAppInformers() {
 }
 
 func (appMgr *Manager) virtualServerWorker() {
-	for appMgr.processNextVirtualServer() {
+	for {
+		skey, quit := appMgr.getNextResource()
+		if !quit {
+			if skey != nil {
+				appMgr.processNextResource(skey)
+			} else {
+				<-time.After(1 * time.Second)
+			}
+		} else {
+			break
+		}
 	}
 }
 
@@ -1175,45 +1187,56 @@ func isNonPerfResource(resKind string) bool {
 	return true
 }
 
-func (appMgr *Manager) processNextVirtualServer() bool {
-	key, quit := appMgr.vsQueue.Get()
-	if !appMgr.steadyState && appMgr.processedItems == 0 {
-		appMgr.queueLen = appMgr.getQueueLength()
-	}
-	if quit {
-		// The controller is shutting down.
-		return false
-	}
-
-	defer appMgr.vsQueue.Done(key)
-	skey := key.(serviceQueueKey)
-	if !appMgr.steadyState && !isNonPerfResource(skey.ResourceKind) {
-		if skey.Operation != OprTypeCreate {
-			appMgr.vsQueue.AddRateLimited(key)
+func (appMgr *Manager) getNextResource() (*serviceQueueKey, bool) {
+	l := appMgr.vsQueue.Len()
+	var rlt *serviceQueueKey
+	for i := l; i > 0; i-- {
+		key, quit := appMgr.vsQueue.Get()
+		if quit {
+			return nil, true
 		}
-		appMgr.vsQueue.Forget(key)
-		return true
+		appMgr.vsQueue.Done(key)
+		skey := key.(serviceQueueKey)
+
+		if !appMgr.steadyState && !isNonPerfResource(skey.ResourceKind) {
+			if skey.Operation != OprTypeCreate {
+				appMgr.vsQueue.AddRateLimited(skey)
+			}
+			appMgr.vsQueue.Forget(skey)
+			continue
+		}
+
+		if !appMgr.steadyState && skey.Operation != OprTypeCreate {
+			appMgr.vsQueue.AddRateLimited(skey)
+			appMgr.vsQueue.Forget(skey)
+			continue
+		}
+
+		if rlt == nil {
+			rlt = &skey
+		} else {
+			if rlt.LastTimeStamp.Before(skey.LastTimeStamp) {
+				appMgr.vsQueue.Add(*rlt)
+				rlt = &skey
+			} else {
+				appMgr.vsQueue.Add(skey)
+			}
+		}
 	}
 
-	if !appMgr.steadyState && skey.Operation != OprTypeCreate {
-		appMgr.vsQueue.AddRateLimited(key)
-		appMgr.vsQueue.Forget(key)
-		return true
-	}
+	return rlt, false
+}
 
-	err := appMgr.syncVirtualServer(skey)
+func (appMgr *Manager) processNextResource(skey *serviceQueueKey) {
+	err := appMgr.syncVirtualServer(*skey)
 	if err == nil {
 		if !appMgr.steadyState {
 			appMgr.processedItems++
 		}
-		appMgr.vsQueue.Forget(key)
-		return true
+	} else {
+		utilruntime.HandleError(fmt.Errorf("sync %v failed with %v", skey, err))
+		appMgr.vsQueue.AddRateLimited(skey)
 	}
-
-	utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-	appMgr.vsQueue.AddRateLimited(key)
-
-	return true
 }
 
 func (s *vsSyncStats) isStatsAvailable() bool {

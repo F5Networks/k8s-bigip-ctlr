@@ -121,10 +121,11 @@ func (appMgr *Manager) checkV1Ingress(
 	svcs := getIngressV1Backend(ing)
 	for _, svc := range svcs {
 		key := &serviceQueueKey{
-			ServiceName:  svc,
-			Namespace:    namespace,
-			ResourceKind: Ingresses,
-			ResourceName: ing.Name,
+			ServiceName:   svc,
+			Namespace:     namespace,
+			ResourceKind:  Ingresses,
+			ResourceName:  ing.Name,
+			LastTimeStamp: ing.ObjectMeta.GetCreationTimestamp().Time,
 		}
 		keyList = append(keyList, key)
 	}

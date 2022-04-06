@@ -62,7 +62,7 @@ func (ctlr *Controller) processNativeResource() bool {
 		route := rKey.rsc.(*routeapi.Route)
 		// processRoutes knows when to delete a VS (in the event of global config update and route delete)
 		// so should not trigger delete from here
-		err := ctlr.processRoutes(route, route.Namespace, false)
+		err := ctlr.processRoutes(route.Namespace, false)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -98,12 +98,7 @@ func (ctlr *Controller) processNativeResource() bool {
 			break
 		}
 		for _, rg := range getAffectedRouteGroups(svc) {
-			err := ctlr.processRoutes(nil, rg, false)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
-			}
+			ctlr.updatePoolMembersForRoutes(rg)
 		}
 	case Endpoints:
 		ep := rKey.rsc.(*v1.Endpoints)
@@ -125,12 +120,7 @@ func (ctlr *Controller) processNativeResource() bool {
 			break
 		}
 		for _, rg := range getAffectedRouteGroups(svc) {
-			err := ctlr.processRoutes(nil, rg, false)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
-			}
+			ctlr.updatePoolMembersForRoutes(rg)
 		}
 
 	case Namespace:
@@ -181,51 +171,43 @@ func (ctlr *Controller) processNativeResource() bool {
 	return true
 }
 
-func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, triggerDelete bool) error {
+func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) error {
 	startTime := time.Now()
+	namespace := routeGroup
 	defer func() {
 		endTime := time.Now()
 		log.Debugf("Finished syncing RouteGroup/Namespace %v (%v)",
 			routeGroup, endTime.Sub(startTime))
 	}()
 
-	routes := ctlr.getGroupedRoutes(routeGroup)
-	if len(routes) == 0 && route == nil {
-		log.Debugf("No routes in the RouteGroup/namespace: %v to process", routeGroup)
-		return nil
-	}
-	if route == nil {
-		route = routes[0]
-	}
-
 	extdSpec := ctlr.resources.getExtendedRouteSpec(routeGroup)
 	if extdSpec == nil {
 		return fmt.Errorf("extended Route Spec not available for RouteGroup/Namespace: %v", routeGroup)
 	}
 
-	portStructs := ctlr.virtualPorts(route)
+	routes := ctlr.getGroupedRoutes(routeGroup)
+
+	if triggerDelete || len(routes) == 0 {
+		// Delete all possible virtuals for this route group
+		for _, portStruct := range getBasicVirtualPorts() {
+			rsName := frameRouteVSName(routeGroup, extdSpec, portStruct)
+			if ctlr.getVirtualServer(routeGroup, rsName) != nil {
+				log.Debugf("Removing virtual %v belongs to RouteGroup: %v", rsName, routeGroup)
+				ctlr.deleteVirtualServer(routeGroup, rsName)
+			}
+		}
+		return nil
+	}
+
+	portStructs := getVirtualPortsForRoutes(routes)
 	vsMap := make(ResourceMap)
 	processingError := false
 
 	for _, portStruct := range portStructs {
-		var rsName string
-		if extdSpec.VServerName != "" {
-			rsName = formatCustomVirtualServerName(
-				extdSpec.VServerName,
-				portStruct.port,
-			)
-		} else {
-			rsName = formatCustomVirtualServerName(
-				"routes_"+routeGroup,
-				portStruct.port,
-			)
-		}
+		rsName := frameRouteVSName(routeGroup, extdSpec, portStruct)
 
-		// Delete rsCfg if no corresponding virtuals exist
-		// Delete rsCfg if it is HTTP rsCfg and the Route does not handle HTTPTraffic
-		if (len(routes) == 0) || triggerDelete ||
-			(portStruct.protocol == "http" && !doesRouteHandleHTTP(route)) {
-
+		// Delete rsCfg if it is HTTP port and the Route does not handle HTTPTraffic
+		if portStruct.protocol == "http" && !doRoutesHandleHTTP(routes) {
 			ctlr.deleteVirtualServer(routeGroup, rsName)
 			continue
 		}
@@ -291,9 +273,9 @@ func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, 
 		vsMap[rsName] = rsCfg
 
 		if ctlr.PoolMemberType == NodePort {
-			ctlr.updatePoolMembersForNodePort(rsCfg, route.Namespace)
+			ctlr.updatePoolMembersForNodePort(rsCfg, namespace)
 		} else {
-			ctlr.updatePoolMembersForCluster(rsCfg, route.Namespace)
+			ctlr.updatePoolMembersForCluster(rsCfg, namespace)
 		}
 	}
 
@@ -309,11 +291,10 @@ func (ctlr *Controller) processRoutes(route *routeapi.Route, routeGroup string, 
 
 func (ctlr *Controller) getGroupedRoutes(routeGroup string) []*routeapi.Route {
 	// Get the route group
-	allObjs := ctlr.getAllResources(Route, routeGroup)
+	orderedRoutes := ctlr.getOrderedRoutes(routeGroup)
 	var assocRoutes []*routeapi.Route
 	uniqueHostPathMap := map[string]struct{}{}
-	for _, obj := range allObjs {
-		route := obj.(*routeapi.Route)
+	for _, route := range orderedRoutes {
 		// TODO: add combinations for a/b - svc weight ; valid svcs or not
 		if _, found := uniqueHostPathMap[route.Spec.Host+route.Spec.Path]; found {
 			log.Errorf(" Discarding route %v due to duplicate host %v, path %v combination", route.Name, route.Spec.Host, route.Spec.To)
@@ -467,6 +448,27 @@ func (ctlr *Controller) prepareRouteLTMRules(
 	return &rls
 }
 
+func (ctlr *Controller) updatePoolMembersForRoutes(routeGroup string) {
+	extdSpec := ctlr.resources.getExtendedRouteSpec(routeGroup)
+	if extdSpec == nil {
+		//log.Debugf("extended Route Spec not available for RouteGroup/Namespace: %v", routeGroup)
+		return
+	}
+	namespace := routeGroup
+	for _, portStruct := range getBasicVirtualPorts() {
+		rsName := frameRouteVSName(routeGroup, extdSpec, portStruct)
+		rsCfg := ctlr.getVirtualServer(routeGroup, rsName)
+		if rsCfg == nil {
+			continue
+		}
+		if ctlr.PoolMemberType == NodePort {
+			ctlr.updatePoolMembersForNodePort(rsCfg, namespace)
+		} else {
+			ctlr.updatePoolMembersForCluster(rsCfg, namespace)
+		}
+	}
+}
+
 func (ctlr *Controller) initialiseExtendedRouteConfig() {
 	splits := strings.Split(ctlr.routeSpecCMKey, "/")
 	ns, cmName := splits[0], splits[1]
@@ -511,7 +513,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 					continue
 				}
 				if spec.global.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
-					_ = ctlr.processRoutes(nil, ergc.Namespace, true)
+					_ = ctlr.processRoutes(ergc.Namespace, true)
 				}
 				spec.global = &ergc.ExtendedRouteGroupSpec
 			} else {
@@ -546,7 +548,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	}
 
 	for _, mes := range modifiedExtendedSpecs {
-		_ = ctlr.processRoutes(nil, mes, false)
+		_ = ctlr.processRoutes(mes, false)
 	}
 
 	return nil, true
@@ -562,49 +564,65 @@ func (ctlr *Controller) isGlobalExtendedRouteSpec(cm *v1.ConfigMap) bool {
 	return false
 }
 
-func (ctlr *Controller) getAllResources(resourceType string, namespace string) []interface{} {
-
-	var orderedResources []interface{}
+func (ctlr *Controller) getOrderedRoutes(namespace string) []*routeapi.Route {
+	var resources []interface{}
 	var err error
-	var allRoutes []interface{}
+	var allRoutes []*routeapi.Route
 
-	switch resourceType {
-	case Route:
-		nrInf, ok := ctlr.getNamespacedNativeInformer(namespace)
-		if !ok {
-			log.Errorf("Informer not found for namespace: %v", namespace)
+	nrInf, ok := ctlr.getNamespacedNativeInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
+
+	if namespace == "" {
+		resources = nrInf.routeInformer.GetIndexer().List()
+	} else {
+		// Get list of Routes and process them.
+		resources, err = nrInf.routeInformer.GetIndexer().ByIndex("namespace", namespace)
+		if err != nil {
+			log.Errorf("Unable to get list of Routes for namespace '%v': %v",
+				namespace, err)
 			return nil
 		}
+	}
 
-		if namespace == "" {
-			orderedResources = nrInf.routeInformer.GetIndexer().List()
-		} else {
-			// Get list of Routes and process them.
-			orderedResources, err = nrInf.routeInformer.GetIndexer().ByIndex("namespace", namespace)
-			if err != nil {
-				log.Errorf("Unable to get list of Routes for namespace '%v': %v",
-					namespace, err)
-				return nil
+	for _, obj := range resources {
+		rt := obj.(*routeapi.Route)
+		allRoutes = append(allRoutes, rt)
+	}
+	sort.Slice(allRoutes, func(i, j int) bool {
+		if allRoutes[i].Spec.Host == allRoutes[j].Spec.Host {
+			if (len(allRoutes[i].Spec.Path) == 0 || len(allRoutes[j].Spec.Path) == 0) && (allRoutes[i].Spec.Path == "/" || allRoutes[j].Spec.Path == "/") {
+				return allRoutes[i].CreationTimestamp.Before(&allRoutes[j].CreationTimestamp)
 			}
 		}
+		return (allRoutes[i].Spec.Host < allRoutes[j].Spec.Host) ||
+			(allRoutes[i].Spec.Host == allRoutes[j].Spec.Host &&
+				allRoutes[i].Spec.Path == allRoutes[j].Spec.Path &&
+				allRoutes[i].CreationTimestamp.Before(&allRoutes[j].CreationTimestamp)) ||
+			(allRoutes[i].Spec.Host == allRoutes[j].Spec.Host &&
+				allRoutes[i].Spec.Path < allRoutes[j].Spec.Path)
+	})
 
-		for _, obj := range orderedResources {
-			rt := obj.(*routeapi.Route)
-			allRoutes = append(allRoutes, rt)
-		}
-	}
 	return allRoutes
-
 }
 
-func doesRouteHandleHTTP(route *routeapi.Route) bool {
-	if !isSecureRoute(route) {
-		// If it is not TLS VirtualServer(HTTPS), then it is HTTP server
-		return true
+func doRoutesHandleHTTP(routes []*routeapi.Route) bool {
+	for _, route := range routes {
+		if !isSecureRoute(route) {
+			// If it is not TLS VirtualServer(HTTPS), then it is HTTP server
+			return true
+		}
+
+		// If Allow or Redirect happens then HTTP Traffic is being handled.
+		if route.Spec.TLS.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyAllow ||
+			route.Spec.TLS.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyRedirect {
+			return true
+		}
 	}
-	// If Allow or Redirect happens then HTTP Traffic is being handled.
-	return route.Spec.TLS.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyAllow ||
-		route.Spec.TLS.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyRedirect
+
+	return false
 }
 
 func isSecureRoute(route *routeapi.Route) bool {
@@ -613,4 +631,52 @@ func isSecureRoute(route *routeapi.Route) bool {
 
 func getAffectedRouteGroups(svc *v1.Service) []string {
 	return []string{svc.Namespace}
+}
+
+func getBasicVirtualPorts() []portStruct {
+	return []portStruct{
+		{
+			protocol: "http",
+			port:     DEFAULT_HTTP_PORT,
+		},
+		{
+			protocol: "https",
+			port:     DEFAULT_HTTPS_PORT,
+		},
+	}
+}
+
+func getVirtualPortsForRoutes(routes []*routeapi.Route) []portStruct {
+	ports := []portStruct{
+		{
+			protocol: "http",
+			port:     DEFAULT_HTTP_PORT,
+		},
+	}
+
+	for _, rt := range routes {
+		if isSecureRoute(rt) {
+			return getBasicVirtualPorts()
+		}
+	}
+	return ports
+}
+
+func frameRouteVSName(routeGroup string,
+	extdSpec *ExtendedRouteGroupSpec,
+	portStruct portStruct,
+) string {
+	var rsName string
+	if extdSpec.VServerName != "" {
+		rsName = formatCustomVirtualServerName(
+			extdSpec.VServerName,
+			portStruct.port,
+		)
+	} else {
+		rsName = formatCustomVirtualServerName(
+			"routes_"+routeGroup,
+			portStruct.port,
+		)
+	}
+	return rsName
 }

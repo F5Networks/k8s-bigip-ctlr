@@ -551,11 +551,11 @@ var _ = Describe("Resource Config Tests", func() {
 
 		It("Get Resource", func() {
 
-			rsCfg, err := rs.getResource("default", "sampleVS")
+			rsCfg, err := rs.getResourceConfig("default", "sampleVS")
 			Expect(err).ToNot(BeNil())
 			_ = rs.getPartitionResourceMap("default")
 
-			rsCfg, err = rs.getResource("default", "sampleVS")
+			rsCfg, err = rs.getResourceConfig("default", "sampleVS")
 			Expect(err).ToNot(BeNil())
 			Expect(rsCfg).To(BeNil())
 
@@ -567,7 +567,7 @@ var _ = Describe("Resource Config Tests", func() {
 				},
 			}
 
-			rsCfg, err = rs.getResource("default", "virtualServer")
+			rsCfg, err = rs.getResourceConfig("default", "virtualServer")
 			Expect(err).To(BeNil())
 			Expect(rsCfg).NotTo(BeNil())
 			Expect(rsCfg.Virtual.Name).To(Equal("VirtualServer"))

@@ -1483,9 +1483,38 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) *ExtendedRouteG
 		return nil
 	}
 
-	if *extdSpec.override && extdSpec.local != nil {
-		return extdSpec.local
+	if extdSpec.override && extdSpec.local != nil {
+		ergc := &ExtendedRouteGroupSpec{
+			VServerName:   extdSpec.global.VServerName,
+			VServerAddr:   extdSpec.global.VServerAddr,
+			AllowOverride: extdSpec.global.AllowOverride,
+			SNAT:          extdSpec.global.SNAT,
+			WAF:           extdSpec.global.WAF,
+		}
+
+		if extdSpec.local.VServerName != "" {
+			ergc.VServerName = extdSpec.local.VServerName
+		}
+		if extdSpec.local.VServerAddr != "" {
+			ergc.VServerAddr = extdSpec.local.VServerAddr
+		}
+		if extdSpec.local.SNAT != "" {
+			ergc.SNAT = extdSpec.local.SNAT
+		}
+		if extdSpec.local.WAF != "" {
+			ergc.WAF = extdSpec.local.WAF
+		}
+
+		if extdSpec.local.IRules != nil {
+			ergc.IRules = make([]string, len(extdSpec.local.IRules))
+			copy(ergc.IRules, extdSpec.local.IRules)
+		} else if extdSpec.global.IRules != nil {
+			ergc.IRules = make([]string, len(extdSpec.global.IRules))
+			copy(ergc.IRules, extdSpec.global.IRules)
+		}
+		return ergc
 	}
+
 	return extdSpec.global
 }
 

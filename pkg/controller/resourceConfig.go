@@ -325,7 +325,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		}
 
 		if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
-			pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(DEFAULT_PARTITION,
+			pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition,
 				formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort)))
 			monitor := Monitor{
 				Name:      formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort),
@@ -541,7 +541,7 @@ func (ctlr *Controller) handleTLS(
 				sslPath := tlsContext.hostname + poolPathRef.path
 				sslPath = strings.TrimSuffix(sslPath, "/")
 				updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName),
-					DEFAULT_PARTITION, tlsContext.namespace, sslPath, serverSsl)
+					rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl)
 
 			case TLSReencrypt:
 				sslPath := tlsContext.hostname + poolPathRef.path
@@ -549,7 +549,7 @@ func (ctlr *Controller) handleTLS(
 				serverSsl := AS3NameFormatter("crd_" + tlsContext.ipAddress + "_tls_client")
 				if "" != serverSSL {
 					updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
-						DEFAULT_PARTITION, tlsContext.namespace, sslPath, serverSsl)
+						rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl)
 				}
 			}
 		}
@@ -584,7 +584,6 @@ func (ctlr *Controller) handleTLS(
 			rsCfg,
 			tlsContext.hostname,
 			tlsContext.termination,
-			rsCfg.Virtual.Partition,
 		)
 
 		return true
@@ -605,12 +604,12 @@ func (ctlr *Controller) handleTLS(
 			var ruleName string
 			if tlsContext.hostname == "" {
 				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectNoHostIRuleName), tlsContext.httpsPort)
-				rsCfg.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRuleNoHost(tlsContext.httpsPort))
+				rsCfg.addIRule(ruleName, rsCfg.Virtual.Partition, httpRedirectIRuleNoHost(tlsContext.httpsPort))
 			} else {
 				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectIRuleName), tlsContext.httpsPort)
-				rsCfg.addIRule(ruleName, DEFAULT_PARTITION, httpRedirectIRule(tlsContext.httpsPort, rsCfg.Virtual.Name, DEFAULT_PARTITION))
+				rsCfg.addIRule(ruleName, rsCfg.Virtual.Partition, httpRedirectIRule(tlsContext.httpsPort, rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
 			}
-			ruleName = JoinBigipPath(DEFAULT_PARTITION, ruleName)
+			ruleName = JoinBigipPath(rsCfg.Virtual.Partition, ruleName)
 			rsCfg.Virtual.AddIRule(ruleName)
 			updateDataGroupOfDgName(
 				rsCfg.IntDgMap,
@@ -1137,23 +1136,22 @@ func (ctlr *Controller) handleDataGroupIRules(
 	rsCfg *ResourceConfig,
 	vsHost string,
 	tlsTerminationType string,
-	partition string,
 ) {
 	// For https
 	if "" != tlsTerminationType {
-		tlsIRuleName := JoinBigipPath(DEFAULT_PARTITION,
+		tlsIRuleName := JoinBigipPath(rsCfg.Virtual.Partition,
 			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName))
 		switch tlsTerminationType {
 		case TLSEdge:
 			rsCfg.addIRule(
-				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, ctlr.getTLSIRule(rsCfg.Virtual.Name, partition))
-			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), DEFAULT_PARTITION)
-			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName), DEFAULT_PARTITION)
+				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition, ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), rsCfg.Virtual.Partition)
+			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName), rsCfg.Virtual.Partition)
 		case TLSReencrypt:
 			rsCfg.addIRule(
-				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), DEFAULT_PARTITION, ctlr.getTLSIRule(rsCfg.Virtual.Name, partition))
-			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptHostsDgName), DEFAULT_PARTITION)
-			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName), DEFAULT_PARTITION)
+				getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition, ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptHostsDgName), rsCfg.Virtual.Partition)
+			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName), rsCfg.Virtual.Partition)
 		}
 		if vsHost != "" {
 			rsCfg.Virtual.AddIRule(tlsIRuleName)
@@ -1195,7 +1193,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	}
 
 	if vs.Spec.Pool.Monitor.Type != "" {
-		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(DEFAULT_PARTITION,
+		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition,
 			formatMonitorName(vs.ObjectMeta.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.Monitor.Type, vs.Spec.Pool.ServicePort)))
 		monitor := Monitor{
 			Name:      formatMonitorName(vs.ObjectMeta.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.Monitor.Type, vs.Spec.Pool.ServicePort),
@@ -1276,7 +1274,7 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 				"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
 			log.Errorf("[CORE] %s", msg)
 		}
-		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(DEFAULT_PARTITION,
+		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition,
 			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal)))
 		monitor = Monitor{
 			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal),

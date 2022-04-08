@@ -238,6 +238,7 @@ type (
 		RecordType string     `json:"recordType"`
 		LBMethod   string     `json:"LoadBalancingMode"`
 		Pools      []GSLBPool `json:"pools"`
+		UID        string
 	}
 
 	GSLBPool struct {

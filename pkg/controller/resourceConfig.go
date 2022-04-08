@@ -196,41 +196,46 @@ func (slice ProfileRefs) Swap(i, j int) {
 }
 
 // Return the required ports for VS (depending on sslRedirect/allowHttp vals)
-func (ctlr *Controller) virtualPorts(vs *cisapiv1.VirtualServer) []portStruct {
-
+func (ctlr *Controller) getVirtualPorts(vrts []*cisapiv1.VirtualServer) map[int32]portStruct {
 	var httpPort int32
 	var httpsPort int32
+	ports := make(map[int32]portStruct)
 
-	if vs.Spec.VirtualServerHTTPPort == 0 {
-		httpPort = 80
-	} else {
-		httpPort = vs.Spec.VirtualServerHTTPPort
-	}
+	for _, vs := range vrts {
+		if vs.Spec.VirtualServerHTTPPort == 0 {
+			httpPort = 80
+		} else {
+			httpPort = vs.Spec.VirtualServerHTTPPort
+		}
 
-	if vs.Spec.VirtualServerHTTPSPort == 0 {
-		httpsPort = 443
-	} else {
-		httpsPort = vs.Spec.VirtualServerHTTPSPort
-	}
+		if vs.Spec.VirtualServerHTTPSPort == 0 {
+			httpsPort = 443
+		} else {
+			httpsPort = vs.Spec.VirtualServerHTTPSPort
+		}
 
-	http := portStruct{
-		protocol: "http",
-		port:     httpPort,
-	}
+		http := portStruct{
+			protocol: HTTP,
+			port:     httpPort,
+		}
 
-	https := portStruct{
-		protocol: "https",
-		port:     httpsPort,
-	}
-	var ports []portStruct
+		https := portStruct{
+			protocol: HTTPS,
+			port:     httpsPort,
+		}
 
-	if 0 != len(vs.Spec.TLSProfileName) {
-		// 2 virtual servers needed, both HTTP and HTTPS
-		ports = append(ports, https)
-		ports = append(ports, http)
-	} else {
-		// HTTP only
-		ports = append(ports, http)
+		if 0 != len(vs.Spec.TLSProfileName) {
+			// add portStruct for the HTTPS port if it hasn't been added
+			if _, ok := ports[httpsPort]; !ok {
+				ports[httpsPort] = https
+			}
+			// add portStruct for HTTP port if vitual handles HTTP traffic, and it hasn't been added
+			if _, ok := ports[httpPort]; doesVSHandleHTTP(vs) && !ok {
+				ports[httpPort] = http
+			}
+		} else if _, ok := ports[httpPort]; !ok {
+			ports[httpPort] = http
+		}
 	}
 
 	return ports

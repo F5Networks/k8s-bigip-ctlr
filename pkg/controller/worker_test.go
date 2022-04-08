@@ -457,6 +457,71 @@ var _ = Describe("Worker Tests", func() {
 			Expect(doesVSHandleHTTP(vrt1)).To(BeFalse(), "HTTPS VS in invalid")
 			vrt1.Spec.HTTPTraffic = TLSAllowInsecure
 			Expect(doesVSHandleHTTP(vrt1)).To(BeTrue(), "HTTPS VS in invalid")
+			vrt1.Spec.HTTPTraffic = TLSNoInsecure
+			Expect(doesVSHandleHTTP(vrt1)).To(BeFalse(), "HTTPS VS in invalid")
+		})
+
+		It("Getting the correct portStructs to delete Virtual server", func() {
+			// No common portStructs
+			delPortStructs := map[int32]portStruct{
+				8443: {HTTPS, 443},
+				80:   {HTTP, 80},
+			}
+			portStructs := map[int32]portStruct{
+				443: {HTTPS, 443},
+			}
+			expected := map[int32]portStruct{
+				8443: {HTTPS, 443},
+				80:   {HTTP, 80},
+			}
+			Expect(getPortStructsToBeDeleted(delPortStructs, portStructs)).To(BeEquivalentTo(expected))
+
+			// Port 80 is present in both portStructs
+			portStructs[80] = portStruct{HTTP, 80}
+			delete(expected, 80)
+			Expect(getPortStructsToBeDeleted(delPortStructs, portStructs)).To(BeEquivalentTo(expected))
+
+			// All the ports of delPortStructs are present in portStructs
+			portStructs[8443] = portStruct{HTTPS, 8443}
+			Expect(getPortStructsToBeDeleted(delPortStructs, portStructs)).To(BeEmpty())
+
+		})
+
+		It("Skip Virtual Server Processing", func() {
+			virtualCR := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host:                   "test.com",
+					VirtualServerAddress:   "1.2.3.4",
+					VirtualServerName:      "",
+					VirtualServerHTTPPort:  0,
+					VirtualServerHTTPSPort: 0,
+					Pools: []cisapiv1.Pool{
+						cisapiv1.Pool{
+							Path:    "/path",
+							Service: "svc1",
+						},
+					},
+					TLSProfileName: "",
+					HTTPTraffic:    "",
+				})
+			// When port 80 and Virtual handles http
+			Expect(skipVirtual(virtualCR, 80)).To(BeFalse())
+
+			// When port 80 but Virtual doesn't handle http
+			virtualCR.Spec.TLSProfileName = "tls_prof1"
+			Expect(skipVirtual(virtualCR, 80)).To(BeTrue())
+
+			// With secured port but custom Virtual server secured port is different
+			virtualCR.Spec.TLSProfileName = "tls_prof1"
+			virtualCR.Spec.VirtualServerHTTPSPort = 8443
+			Expect(skipVirtual(virtualCR, 443)).To(BeTrue())
+
+			// With secured port and custom Virtual server secured port is same
+			virtualCR.Spec.TLSProfileName = "tls_prof1"
+			virtualCR.Spec.VirtualServerHTTPSPort = 8443
+			Expect(skipVirtual(virtualCR, 8443)).To(BeFalse())
 		})
 
 		Describe("Filter Associated VirtualServers", func() {

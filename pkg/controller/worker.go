@@ -863,40 +863,34 @@ func (ctlr *Controller) processVirtualServers(
 		}
 	}
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.
-	portStructs := ctlr.virtualPorts(virtual)
+	portStructs := ctlr.getVirtualPorts(virtuals)
+
+	// Delete the resource config corresponding to the deleted virtual server if none of the associated
+	// virtual servers are using the same virtuals on the BigIP as used by the deleted virtual server
+	if isVSDeleted {
+		delPortStructs := ctlr.getVirtualPorts([]*cisapiv1.VirtualServer{virtual})
+		portStructsOfDelVirtuals := getPortStructsToBeDeleted(delPortStructs, portStructs)
+		for _, portStruct := range portStructsOfDelVirtuals {
+			var hostnames []string
+			rsName := getRSName(virtual, portStruct.port, ip)
+			if ctlr.resources.rsMap[rsName] != nil {
+				hostnames = ctlr.resources.rsMap[rsName].MetaData.hosts
+			}
+			ctlr.deleteVirtualServer(rsName)
+			log.Debugf("Deleted Virtual Server: %s", rsName)
+			if len(hostnames) > 0 {
+				ctlr.ProcessAssociatedExternalDNS(hostnames)
+			}
+		}
+	}
 
 	// vsMap holds Resource Configs of current virtuals temporarily
 	vsMap := make(ResourceConfigMap)
 	processingError := false
 	for _, portStruct := range portStructs {
 		// TODO: Add Route Domain
-		var rsName string
-		if virtual.Spec.VirtualServerName != "" {
-			rsName = formatCustomVirtualServerName(
-				virtual.Spec.VirtualServerName,
-				portStruct.port,
-			)
-		} else {
-			rsName = formatVirtualServerName(
-				ip,
-				portStruct.port,
-			)
-		}
 
-		// Delete rsCfg if no corresponding virtuals exist
-		// Delete rsCfg if it is HTTP rsCfg and the CR VirtualServer does not handle HTTPTraffic
-		if (len(virtuals) == 0) ||
-			(portStruct.protocol == "http" && !doesVSHandleHTTP(virtual)) {
-			var hostnames []string
-			if ctlr.resources.rsMap[rsName] != nil {
-				hostnames = ctlr.resources.rsMap[rsName].MetaData.hosts
-			}
-			ctlr.deleteVirtualServer(rsName)
-			if len(hostnames) > 0 {
-				ctlr.ProcessAssociatedExternalDNS(hostnames)
-			}
-			continue
-		}
+		rsName := getRSName(virtual, portStruct.port, ip)
 
 		rsCfg := &ResourceConfig{}
 		rsCfg.Virtual.Partition = ctlr.Partition
@@ -931,9 +925,14 @@ func (ctlr *Controller) processVirtualServers(
 		}
 
 		for _, vrt := range virtuals {
+			if skipVirtual(vrt, portStruct.port) {
+				log.Debugf("Skipped Processing Virtual Server %s for port %v",
+					vrt.ObjectMeta.Name, portStruct.port)
+				continue
+			}
 			log.Debugf("Processing Virtual Server %s for port %v",
 				vrt.ObjectMeta.Name, portStruct.port)
-			rsCfg.MetaData.baseResources[vrt.Namespace + "/" + vrt.Name] = true
+			rsCfg.MetaData.baseResources[vrt.Namespace+"/"+vrt.Name] = true
 			err := ctlr.prepareRSConfigFromVirtualServer(
 				rsCfg,
 				vrt,
@@ -1053,6 +1052,9 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 				// In case of empty host name, skip the virtual with other VirtualServerAddress
 				continue
 			}
+		} else if (currentVS.Spec.VirtualServerHTTPSPort != vrt.Spec.VirtualServerHTTPSPort) ||
+			(currentVS.Spec.VirtualServerHTTPPort != vrt.Spec.VirtualServerHTTPPort) {
+			continue
 		}
 
 		if ctlr.ipamCli != nil {
@@ -1065,14 +1067,6 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 				log.Errorf("Hostless VS %v is configured with IPAM label: %v", vrt.ObjectMeta.Name, vrt.Spec.IPAMLabel)
 				return nil
 			}
-		}
-
-		// skip the virtuals with different custom HTTP/HTTPS ports
-		if vrt.Spec.VirtualServerHTTPPort != currentVS.Spec.VirtualServerHTTPPort ||
-			vrt.Spec.VirtualServerHTTPSPort != currentVS.Spec.VirtualServerHTTPSPort {
-			log.Debugf("Discarding the VirtualServer %v/%v due to unmatched custom HTTP/HTTPS port",
-				currentVS.Namespace, currentVS.Name)
-			continue
 		}
 
 		// Check for duplicate path entries among virtuals
@@ -1680,7 +1674,7 @@ func (ctlr *Controller) processTransportServers(
 	for _, vrt := range virtuals {
 		log.Debugf("Processing Transport Server %s for port %v",
 			vrt.ObjectMeta.Name, vrt.Spec.VirtualServerPort)
-		rsCfg.MetaData.baseResources[vrt.Namespace + "/" + vrt.Name] = true
+		rsCfg.MetaData.baseResources[vrt.Namespace+"/"+vrt.Name] = true
 		err := ctlr.prepareRSConfigFromTransportServer(
 			rsCfg,
 			vrt,
@@ -2065,8 +2059,8 @@ func (ctlr *Controller) processService(
 
 func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
-	if processedWIP,ok := ctlr.resources.dnsConfig[edns.Spec.DomainName]; ok{
-		if processedWIP.UID != string(edns.UID){
+	if processedWIP, ok := ctlr.resources.dnsConfig[edns.Spec.DomainName]; ok {
+		if processedWIP.UID != string(edns.UID) {
 			log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
 			return
 		}
@@ -2088,7 +2082,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		DomainName: edns.Spec.DomainName,
 		RecordType: edns.Spec.DNSRecordType,
 		LBMethod:   edns.Spec.LoadBalanceMethod,
-		UID :       string(edns.UID),
+		UID:        string(edns.UID),
 	}
 
 	if edns.Spec.DNSRecordType == "" {
@@ -2828,4 +2822,46 @@ func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
 		delete(ctlr.resources.nplStore, podKey)
 	}
 	return nil
+}
+
+// skipVirtual takes the decision whether to process the virtual further or not
+func skipVirtual(vrt *cisapiv1.VirtualServer, port int32) bool {
+	if port == 80 {
+		// If it doesn't handle HTTP traffic then skip it, return true
+		if !doesVSHandleHTTP(vrt) {
+			return true
+		}
+	} else if vrt.Spec.VirtualServerHTTPSPort != 0 && port != vrt.Spec.VirtualServerHTTPSPort {
+		return true
+	}
+	return false
+}
+
+// getPortStructsToBeDeleted gets a map of portStructs corresponding to the virtuals those have to deleted
+func getPortStructsToBeDeleted(delPortStructs map[int32]portStruct, portStructs map[int32]portStruct) map[int32]portStruct {
+	// Check if any of the existing virtuals is using the same port as used by the deleted virtual
+	finalDelPortStructs := make(map[int32]portStruct)
+	for portKey, delPortStruct := range delPortStructs {
+		if _, ok := portStructs[portKey]; !ok {
+			finalDelPortStructs[portKey] = delPortStruct
+		}
+	}
+	return finalDelPortStructs
+}
+
+// getRSName returns the resourceConfig name
+func getRSName(virtual *cisapiv1.VirtualServer, port int32, ip string) string {
+	var rsName string
+	if virtual.Spec.VirtualServerName != "" {
+		rsName = formatCustomVirtualServerName(
+			virtual.Spec.VirtualServerName,
+			port,
+		)
+	} else {
+		rsName = formatVirtualServerName(
+			ip,
+			port,
+		)
+	}
+	return rsName
 }

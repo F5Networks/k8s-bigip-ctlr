@@ -29,51 +29,37 @@ var _ = Describe("Resource Config Tests", func() {
 
 		It("Virtual Ports with Default Ports", func() {
 			mockCMR := newMockController()
-			portStructs := mockCMR.virtualPorts(vs)
+			portStructs := mockCMR.getVirtualPorts([]*cisapiv1.VirtualServer{vs})
 			Expect(len(portStructs)).To(Equal(1), "Unexpected number of ports")
-			Expect(portStructs[0]).To(Equal(portStruct{
+			Expect(portStructs[80]).To(Equal(portStruct{
 				protocol: "http",
 				port:     80,
 			}), "Invalid Port")
 
 			vs.Spec.TLSProfileName = "SampleTLS"
-			portStructs = mockCMR.virtualPorts(vs)
-			Expect(len(portStructs)).To(Equal(2), "Unexpected number of ports")
-			Expect(portStructs).To(Equal([]portStruct{
-				{
-					protocol: "https",
-					port:     443,
-				},
-				{
-					protocol: "http",
-					port:     80,
-				},
+			portStructs = mockCMR.getVirtualPorts([]*cisapiv1.VirtualServer{vs})
+			Expect(len(portStructs)).To(Equal(1), "Unexpected number of ports")
+			Expect(portStructs).To(Equal(map[int32]portStruct{
+				443: portStruct{protocol: "https", port: 443},
 			}), "Invalid Ports")
 		})
 
 		It("Virtual Ports with Default Ports", func() {
 			mockCMR := newMockController()
 			vs.Spec.VirtualServerHTTPPort = 8080
-			portStructs := mockCMR.virtualPorts(vs)
+			portStructs := mockCMR.getVirtualPorts([]*cisapiv1.VirtualServer{vs})
 			Expect(len(portStructs)).To(Equal(1), "Unexpected number of ports")
-			Expect(portStructs[0]).To(Equal(portStruct{
+			Expect(portStructs[8080]).To(Equal(portStruct{
 				protocol: "http",
 				port:     8080,
 			}), "Invalid Port")
 
 			vs.Spec.TLSProfileName = "SampleTLS"
 			vs.Spec.VirtualServerHTTPSPort = 8443
-			portStructs = mockCMR.virtualPorts(vs)
-			Expect(len(portStructs)).To(Equal(2), "Unexpected number of ports")
-			Expect(portStructs).To(Equal([]portStruct{
-				{
-					protocol: "https",
-					port:     8443,
-				},
-				{
-					protocol: "http",
-					port:     8080,
-				},
+			portStructs = mockCMR.getVirtualPorts([]*cisapiv1.VirtualServer{vs})
+			Expect(len(portStructs)).To(Equal(1), "Unexpected number of ports")
+			Expect(portStructs).To(Equal(map[int32]portStruct{
+				8443: {protocol: "https", port: 8443},
 			}), "Invalid Ports")
 		})
 	})

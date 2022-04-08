@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"os"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 type HealthChecker struct {

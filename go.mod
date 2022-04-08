@@ -1,4 +1,4 @@
-module github.com/F5Networks/k8s-bigip-ctlr
+module github.com/F5Networks/k8s-bigip-ctlr/v2
 
 go 1.16
 
@@ -6,13 +6,14 @@ require (
 	github.com/F5Networks/f5-ipam-controller v0.1.6-0.20211217134627-c2be8b459270
 	github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913
 	github.com/f5devcentral/mockhttpclient v0.0.0-20210630101009-cc12e8b81051
+	github.com/google/go-github/v21 v21.0.1 // indirect
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/miekg/dns v1.1.42
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.16.0
 	github.com/openshift/api v0.0.0-20210315202829-4b79815405ec
-	github.com/openshift/client-go v0.0.0-20210112165513-ebc401615f47
+	github.com/openshift/client-go v3.9.0+incompatible
 	github.com/prometheus/client_golang v1.7.1
 	github.com/spf13/pflag v1.0.5
 	github.com/xeipuuv/gojsonpointer v0.0.0-20151027082146-e0fe6f683076 // indirect

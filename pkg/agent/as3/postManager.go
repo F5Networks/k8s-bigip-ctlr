@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 )
 

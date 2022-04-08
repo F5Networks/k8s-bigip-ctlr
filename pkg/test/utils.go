@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
 
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"

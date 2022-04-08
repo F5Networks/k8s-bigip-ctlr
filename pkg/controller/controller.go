@@ -25,9 +25,9 @@ import (
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
-	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"

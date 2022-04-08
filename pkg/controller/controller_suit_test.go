@@ -3,13 +3,14 @@ package controller
 import (
 	"bytes"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
-	mockhc "github.com/f5devcentral/mockhttpclient"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"io/ioutil"
 	"net/http"
 	"testing"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+	mockhc "github.com/f5devcentral/mockhttpclient"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 func TestController(t *testing.T) {

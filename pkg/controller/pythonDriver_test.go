@@ -1,10 +1,11 @@
 package controller
 
 import (
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	"sync"
+
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"sync"
 )
 
 var _ = Describe("Python Driver Tests", func() {

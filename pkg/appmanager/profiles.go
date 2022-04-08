@@ -20,11 +20,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	netv1 "k8s.io/api/networking/v1"
 	"strings"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	netv1 "k8s.io/api/networking/v1"
+
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"

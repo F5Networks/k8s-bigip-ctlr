@@ -20,14 +20,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net"
 	"sort"
 	"strconv"
 	"strings"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 )
 

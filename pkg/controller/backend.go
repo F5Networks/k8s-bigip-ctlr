@@ -25,9 +25,9 @@ import (
 	"strings"
 	"time"
 
-	rsc "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+	rsc "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 )
 
 const (

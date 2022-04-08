@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"github.com/miekg/dns"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"

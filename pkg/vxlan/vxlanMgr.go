@@ -23,12 +23,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	"encoding/json"
-
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"

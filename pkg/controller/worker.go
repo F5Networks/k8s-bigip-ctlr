@@ -2065,6 +2065,13 @@ func (ctlr *Controller) processService(
 
 func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
+	if processedWIP,ok := ctlr.resources.dnsConfig[edns.Spec.DomainName]; ok{
+		if processedWIP.UID != string(edns.UID){
+			log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
+			return
+		}
+	}
+
 	if isDelete {
 		delete(ctlr.resources.dnsConfig, edns.Spec.DomainName)
 		ctlr.TeemData.Lock()
@@ -2072,14 +2079,18 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		ctlr.TeemData.Unlock()
 		return
 	}
+
 	ctlr.TeemData.Lock()
 	ctlr.TeemData.ResourceType.ExternalDNS[edns.Namespace] = len(ctlr.getAllExternalDNS(edns.Namespace))
 	ctlr.TeemData.Unlock()
+
 	wip := WideIP{
 		DomainName: edns.Spec.DomainName,
 		RecordType: edns.Spec.DNSRecordType,
 		LBMethod:   edns.Spec.LoadBalanceMethod,
+		UID :       string(edns.UID),
 	}
+
 	if edns.Spec.DNSRecordType == "" {
 		wip.RecordType = "A"
 	}

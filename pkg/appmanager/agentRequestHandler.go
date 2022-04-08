@@ -1,8 +1,8 @@
 package appmanager
 
 import (
-	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
-	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 )
 
 // Method to deploy resources on configured agent

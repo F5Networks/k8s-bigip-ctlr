@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 )
 

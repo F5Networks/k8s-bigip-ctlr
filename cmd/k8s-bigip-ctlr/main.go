@@ -22,17 +22,17 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/controller"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/health"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/controller"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	//"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
+	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 	"io/ioutil"
 
 	v1 "k8s.io/api/core/v1"
@@ -45,14 +45,14 @@ import (
 	"syscall"
 	"time"
 
-	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/as3"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/as3"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
-	clog "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger/console"
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	clog "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger/console"
 
 	//"github.com/prometheus/client_golang/prometheus/promhttp"
 

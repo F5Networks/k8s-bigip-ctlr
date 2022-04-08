@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 

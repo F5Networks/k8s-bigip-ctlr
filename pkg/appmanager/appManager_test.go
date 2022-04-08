@@ -25,15 +25,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
-	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
+	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
 	routeapi "github.com/openshift/api/route/v1"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
@@ -2631,7 +2631,7 @@ var _ = Describe("AppManager Tests", func() {
 				// Expect(len(events)).To(Equal(2))
 
 				// Shouldn't process Ingress with non-F5 class
-				// https://github.com/F5Networks/k8s-bigip-ctlr/v2/issues/311
+				// https://github.com/F5Networks/k8s-bigip-ctlr/issues/311
 				ingressNotf5 := test.NewIngress("ingress-bad", "1", namespace, ingressConfig,
 					map[string]string{
 						K8sIngressClass: "notf5",

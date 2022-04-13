@@ -646,9 +646,19 @@ func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNo
 //Create policy declaration
 func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	_, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
+
+	// Sort Policies according to name
+	sort.Slice(cfg.Policies, func(i, j int) bool {
+		return cfg.Policies[i].Name < cfg.Policies[j].Name
+	})
 	for _, pl := range cfg.Policies {
 		//Create EndpointPolicy
 		ep := &as3EndpointPolicy{}
+
+		// Sort Rules according to names
+		sort.Slice(pl.Rules, func(i, j int) bool {
+			return pl.Rules[i].Name < pl.Rules[j].Name
+		})
 		for _, rl := range pl.Rules {
 
 			ep.Class = "Endpoint_Policy"
@@ -1081,9 +1091,13 @@ func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
 	var tlsClient *as3TLSClient
 	// TLS Certificates are available in CustomProfiles
 	for _, rsCfg := range rsMap {
-		for key, prof := range rsCfg.customProfiles {
+		// Sort customProfiles so that they are processed orderly
+		secretKeys := getSortedCustomProfileKeys(rsCfg.customProfiles)
+
+		for _, secretKey := range secretKeys {
+			prof := rsCfg.customProfiles[secretKey]
 			// Create TLSServer and Certificate for each profile
-			svcName := key.ResourceName
+			svcName := secretKey.ResourceName
 			if svcName == "" {
 				continue
 			}
@@ -1348,4 +1362,18 @@ func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 
 	//Process iRules for crd
 	processIrulesForCRD(cfg, svc)
+}
+
+// getSortedCustomProfileKeys sorts customProfiles by names and returns secretKeys in that order
+func getSortedCustomProfileKeys(customProfiles map[SecretKey]CustomProfile) []SecretKey {
+	secretKeys := make([]SecretKey, len(customProfiles))
+	i := 0
+	for key := range customProfiles {
+		secretKeys[i] = key
+		i++
+	}
+	sort.Slice(secretKeys, func(i, j int) bool {
+		return customProfiles[secretKeys[i]].Name < customProfiles[secretKeys[j]].Name
+	})
+	return secretKeys
 }

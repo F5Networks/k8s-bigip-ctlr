@@ -424,7 +424,7 @@ func (ctlr *Controller) processCustomResource() bool {
 
 	if ctlr.rscQueue.Len() == 0 && ctlr.resources.isConfigUpdated() {
 		config := ResourceConfigRequest{
-			ltmConfig:          ctlr.resources.getLTMConfigCopy(),
+			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
 			shareNodes:         ctlr.shareNodes,
 			dnsConfig:          ctlr.resources.getGTMConfigCopy(),
 			defaultRouteDomain: ctlr.defaultRouteDomain,
@@ -1410,9 +1410,9 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 		svcKey := namespace + "/" + svcName
 
 		poolMemInfo, ok := ctlr.resources.poolMemCache[svcKey]
-		if !ok {
-			rsCfg.Pools[index].Members = nil
-			return
+		if !ok || len(poolMemInfo.memberMap) == 0 {
+			rsCfg.Pools[index].Members = []PoolMember{}
+			continue
 		}
 
 		if !(poolMemInfo.svcType == v1.ServiceTypeNodePort ||
@@ -1443,13 +1443,14 @@ func (ctlr *Controller) updatePoolMembersForCluster(
 		svcKey := namespace + "/" + svcName
 
 		poolMemInfo, ok := ctlr.resources.poolMemCache[svcKey]
-		if !ok {
-			rsCfg.Pools[index].Members = nil
-			return
+
+		if !ok || len(poolMemInfo.memberMap) == 0 {
+			rsCfg.Pools[index].Members = []PoolMember{}
+			continue
 		}
 
 		for ref, mems := range poolMemInfo.memberMap {
-			if ref.port != pool.ServicePort || len(mems) <= 0 {
+			if ref.port != pool.ServicePort {
 				continue
 			}
 			rsCfg.MetaData.Active = true

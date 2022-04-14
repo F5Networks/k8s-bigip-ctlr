@@ -371,12 +371,12 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 		// Ensure the default server cert is loaded
 		//appMgr.loadDefaultCert() why?
 
-		//nrOptions := func(options *metav1.ListOptions) {
-		//	options.LabelSelector = ctlr.resourceSelector.String()
-		//}
-		everything := func(options *metav1.ListOptions) {
-			options.LabelSelector = ""
+		nrOptions := func(options *metav1.ListOptions) {
+			options.LabelSelector = ctlr.resourceSelector.String()
 		}
+		//everything := func(options *metav1.ListOptions) {
+		//	options.LabelSelector = ""
+		//}
 
 		restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
 
@@ -401,7 +401,7 @@ func (ctlr *Controller) newNamespacedNativeResourceInformer(
 				restClientv1,
 				"configmaps",
 				namespace,
-				everything,
+				nrOptions,
 			),
 			&corev1.ConfigMap{},
 			resyncPeriod,
@@ -572,6 +572,7 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigmap(obj) },
 				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigmap(obj) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedConfigmap(obj) },
 			},
 		)
 	}
@@ -580,7 +581,7 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 		nrInf.routeInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { ctlr.enqueueRoute(obj) },
-				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueRoute(cur) },
+				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueUpdatedRoute(old, cur) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueRoute(obj) },
 			},
 		)
@@ -1042,15 +1043,32 @@ func (ctlr *Controller) enqueueRoute(obj interface{}) {
 	ctlr.nativeResourceQueue.Add(key)
 }
 
+func (ctlr *Controller) enqueueUpdatedRoute(old, cur interface{}) {
+	oldrt := old.(*routeapi.Route)
+	newrt := cur.(*routeapi.Route)
+
+	if reflect.DeepEqual(oldrt.Spec, newrt.Spec) {
+		return
+	}
+	log.Debugf("Enqueueing Route: %v", newrt)
+	key := &rqKey{
+		namespace: newrt.ObjectMeta.Namespace,
+		kind:      Route,
+		rscName:   newrt.ObjectMeta.Name,
+		rsc:       cur,
+	}
+	ctlr.nativeResourceQueue.Add(key)
+}
+
 func (ctlr *Controller) enqueueConfigmap(obj interface{}) {
 	cm := obj.(*corev1.ConfigMap)
 
 	// Filter out configmaps that are neither f5nr configmaps nor routeSpecConfigmap
-	if !ctlr.resourceSelector.Matches(labels.Set(cm.GetLabels())) &&
-		ctlr.routeSpecCMKey != cm.Namespace+"/"+cm.Name {
-
-		return
-	}
+	//if !ctlr.resourceSelector.Matches(labels.Set(cm.GetLabels())) &&
+	//	ctlr.routeSpecCMKey != cm.Namespace+"/"+cm.Name {
+	//
+	//	return
+	//}
 
 	log.Debugf("Enqueueing ConfigMap: %v", cm)
 	key := &rqKey{
@@ -1058,6 +1076,20 @@ func (ctlr *Controller) enqueueConfigmap(obj interface{}) {
 		kind:      ConfigMap,
 		rscName:   cm.ObjectMeta.Name,
 		rsc:       obj,
+	}
+	ctlr.nativeResourceQueue.Add(key)
+}
+
+func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}) {
+	cm := obj.(*corev1.ConfigMap)
+
+	log.Debugf("Enqueueing ConfigMap: %v", cm)
+	key := &rqKey{
+		namespace: cm.ObjectMeta.Namespace,
+		kind:      ConfigMap,
+		rscName:   cm.ObjectMeta.Name,
+		rsc:       obj,
+		rscDelete: true,
 	}
 	ctlr.nativeResourceQueue.Add(key)
 }

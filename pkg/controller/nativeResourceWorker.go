@@ -157,7 +157,7 @@ func (ctlr *Controller) processNativeResource() bool {
 
 	if ctlr.nativeResourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated() {
 		config := ResourceConfigRequest{
-			ltmConfig:          ctlr.resources.getLTMConfigCopy(),
+			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
 			shareNodes:         ctlr.shareNodes,
 			dnsConfig:          ctlr.resources.getGTMConfigCopy(),
 			defaultRouteDomain: ctlr.defaultRouteDomain,
@@ -191,9 +191,10 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		// Delete all possible virtuals for this route group
 		for _, portStruct := range getBasicVirtualPorts() {
 			rsName := frameRouteVSName(routeGroup, extdSpec, portStruct)
-			if ctlr.getVirtualServer(routeGroup, rsName) != nil {
-				log.Debugf("Removing virtual %v belongs to RouteGroup: %v", rsName, routeGroup)
-				ctlr.deleteVirtualServer(routeGroup, rsName)
+			if ctlr.getVirtualServer(namespace, rsName) != nil {
+				log.Debugf("Removing virtual %v belongs to RouteGroup: %v from Namespace: %v",
+					rsName, routeGroup, namespace)
+				ctlr.deleteVirtualServer(namespace, rsName)
 			}
 		}
 		return nil
@@ -457,15 +458,18 @@ func (ctlr *Controller) updatePoolMembersForRoutes(routeGroup string) {
 	namespace := routeGroup
 	for _, portStruct := range getBasicVirtualPorts() {
 		rsName := frameRouteVSName(routeGroup, extdSpec, portStruct)
-		rsCfg := ctlr.getVirtualServer(routeGroup, rsName)
+		rsCfg := ctlr.getVirtualServer(namespace, rsName)
 		if rsCfg == nil {
 			continue
 		}
+		freshRsCfg := &ResourceConfig{}
+		freshRsCfg.copyConfig(rsCfg)
 		if ctlr.PoolMemberType == NodePort {
-			ctlr.updatePoolMembersForNodePort(rsCfg, namespace)
+			ctlr.updatePoolMembersForNodePort(freshRsCfg, namespace)
 		} else {
-			ctlr.updatePoolMembersForCluster(rsCfg, namespace)
+			ctlr.updatePoolMembersForCluster(freshRsCfg, namespace)
 		}
+		_ = ctlr.resources.setResourceConfig(namespace, rsName, freshRsCfg)
 	}
 }
 
@@ -483,19 +487,24 @@ func (ctlr *Controller) initialiseExtendedRouteConfig() {
 }
 
 func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error, bool) {
-	ersData := cm.Data
+	startTime := time.Now()
+	defer func() {
+		endTime := time.Now()
+		log.Debugf("Finished syncing local extended spec configmap: %v/%v (%v)",
+			cm.Namespace, cm.Name, endTime.Sub(startTime))
+	}()
 
+	ersData := cm.Data
 	es := extendedSpec{}
 
 	//log.Debugf("GCM: %v", cm.Data)
 
 	err := yaml.UnmarshalStrict([]byte(ersData["extendedSpec"]), &es)
-
 	if err != nil {
 		return fmt.Errorf("invalid extended route spec in configmap: %v/%v", cm.Namespace, cm.Name), false
 	}
 
-	var modifiedExtendedSpecs []string
+	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
 
 	if ctlr.isGlobalExtendedRouteSpec(cm) {
 		for rg := range es.ExtendedRouteGroupConfigs {
@@ -503,52 +512,158 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 
 			// if this were used as an iteration variable, on every loop we just use the same container instead of creating one
 			// using the same container overrides the previous iteration contents, which is not desired
-
 			ergc := es.ExtendedRouteGroupConfigs[rg]
-			if spec, ok := ctlr.resources.extdSpecMap[ergc.Namespace]; ok {
-				if *spec.override && spec.local != nil {
+			newExtdSpecMap[ergc.Namespace] = &extendedParsedSpec{
+				override: ergc.AllowOverride,
+				local:    nil,
+				global:   &ergc.ExtendedRouteGroupSpec,
+			}
+		}
+
+		// Global configmap once gets processed even before processing other native resources
+		if ctlr.initState {
+			ctlr.resources.extdSpecMap = newExtdSpecMap
+			return nil, true
+		}
+
+		// deletedSpecs: the spec blocks are deleted from the configmap
+		// modifiedSpecs: specific params of spec entry are changed because of which virutals need to be deleted and framed again
+		// updatedSpecs: parameters are updated, so just reprocess the resources
+		// createSpecs: new spec blocks are added to the configmap
+		var deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs []string
+
+		if isDelete {
+			for ns := range newExtdSpecMap {
+				deletedSpecs = append(deletedSpecs, ns)
+			}
+		} else {
+			for ns, spec := range ctlr.resources.extdSpecMap {
+				newSpec, ok := newExtdSpecMap[ns]
+				if !ok {
+					deletedSpecs = append(deletedSpecs, ns)
 					continue
 				}
-				if reflect.DeepEqual(*(spec.global), ergc.ExtendedRouteGroupSpec) {
-					continue
-				}
-				if spec.global.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
-					_ = ctlr.processRoutes(ergc.Namespace, true)
-				}
-				spec.global = &ergc.ExtendedRouteGroupSpec
-			} else {
-				ctlr.resources.extdSpecMap[ergc.Namespace] = &extendedParsedSpec{
-					override: &ergc.AllowOverride,
-					local:    nil,
-					global:   &ergc.ExtendedRouteGroupSpec,
+				if !reflect.DeepEqual(spec, newExtdSpecMap[ns]) {
+					if spec.global.VServerName != newSpec.global.VServerName || spec.override != newSpec.override {
+						// Update to VServerName or override should trigger delete and recreation of object
+						modifiedSpecs = append(deletedSpecs, ns)
+					} else {
+						updatedSpecs = append(modifiedSpecs, ns)
+					}
 				}
 			}
-			modifiedExtendedSpecs = append(modifiedExtendedSpecs, ergc.Namespace)
+			for ns, _ := range newExtdSpecMap {
+				_, ok := ctlr.resources.extdSpecMap[ns]
+				if !ok {
+					createdSpecs = append(createdSpecs, ns)
+				}
+			}
 		}
+
+		for _, ns := range deletedSpecs {
+			_ = ctlr.processRoutes(ns, true)
+			if ctlr.resources.extdSpecMap[ns].local == nil {
+				delete(ctlr.resources.extdSpecMap, ns)
+			} else {
+				ctlr.resources.extdSpecMap[ns].global = nil
+				ctlr.resources.extdSpecMap[ns].override = false
+			}
+		}
+
+		for _, ns := range modifiedSpecs {
+			_ = ctlr.processRoutes(ns, true)
+			ctlr.resources.extdSpecMap[ns].override = newExtdSpecMap[ns].override
+			ctlr.resources.extdSpecMap[ns].global = newExtdSpecMap[ns].global
+			err := ctlr.processRoutes(ns, false)
+			if err != nil {
+				log.Errorf("Failed to process RouteGroup: %v with modified extended spec", ns)
+			}
+		}
+
+		for _, ns := range updatedSpecs {
+			ctlr.resources.extdSpecMap[ns].override = newExtdSpecMap[ns].override
+			ctlr.resources.extdSpecMap[ns].global = newExtdSpecMap[ns].global
+			err := ctlr.processRoutes(ns, false)
+			if err != nil {
+				log.Errorf("Failed to process RouteGroup: %v with updated extended spec", ns)
+			}
+		}
+
+		for _, ns := range createdSpecs {
+			ctlr.resources.extdSpecMap[ns] = &extendedParsedSpec{}
+			ctlr.resources.extdSpecMap[ns].override = newExtdSpecMap[ns].override
+			ctlr.resources.extdSpecMap[ns].global = newExtdSpecMap[ns].global
+			err := ctlr.processRoutes(ns, false)
+			if err != nil {
+				log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ns)
+			}
+		}
+
 	} else if len(es.ExtendedRouteGroupConfigs) > 0 {
 		ergc := es.ExtendedRouteGroupConfigs[0]
+		if ergc.Namespace != cm.Namespace {
+			return fmt.Errorf("Invalid Extended Route Spec Block in configmap: %v/%v", cm.Namespace, cm.Name), true
+		}
 		if spec, ok := ctlr.resources.extdSpecMap[ergc.Namespace]; ok {
-			if !*spec.override {
+			if isDelete {
+				if !spec.override {
+					spec.local = nil
+					return nil, true
+				}
+				_ = ctlr.processRoutes(ergc.Namespace, true)
+				spec.local = nil
+				// process routes again, this time routes get processed along with global config
+				err := ctlr.processRoutes(ergc.Namespace, false)
+				if err != nil {
+					log.Errorf("Failed to process RouteGroup: %v on with global extended spec after deletion of local extended spec", ergc.Namespace)
+				}
 				return nil, true
 			}
-			if spec.local != nil && reflect.DeepEqual(*(spec.local), ergc.ExtendedRouteGroupSpec) {
+
+			if !spec.override || spec.global == nil {
+				spec.local = &ergc.ExtendedRouteGroupSpec
 				return nil, true
 			}
-			spec.local = &ergc.ExtendedRouteGroupSpec
+			// creation event
+			if spec.local == nil {
+				if !reflect.DeepEqual(*(spec.global), ergc.ExtendedRouteGroupSpec) {
+					if spec.global.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
+						// Delete existing virtual that was framed with globla config
+						// later build new virtual with local config
+						_ = ctlr.processRoutes(ergc.Namespace, true)
+					}
+					spec.local = &ergc.ExtendedRouteGroupSpec
+					err := ctlr.processRoutes(ergc.Namespace, false)
+					if err != nil {
+						log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
+					}
+				}
+				return nil, true
+			}
+
+			// update event
+			if !reflect.DeepEqual(*(spec.local), ergc.ExtendedRouteGroupSpec) {
+				// if update event, update to VServerName should trigger delete and recreation of object
+				if spec.local.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
+					_ = ctlr.processRoutes(ergc.Namespace, true)
+				}
+				spec.local = &ergc.ExtendedRouteGroupSpec
+				err := ctlr.processRoutes(ergc.Namespace, false)
+				if err != nil {
+					log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
+				}
+				return nil, true
+			}
+
 		} else {
+			// Need not process routes as there is no confirmation of override yet
+			ctlr.resources.extdSpecMap[ergc.Namespace] = &extendedParsedSpec{
+				override: false,
+				local:    &ergc.ExtendedRouteGroupSpec,
+				global:   nil,
+			}
 			return nil, false
 		}
-
-		modifiedExtendedSpecs = append(modifiedExtendedSpecs, ergc.Namespace)
-	}
-
-	// during initState just populate global config
-	if ctlr.initState {
-		return nil, true
-	}
-
-	for _, mes := range modifiedExtendedSpecs {
-		_ = ctlr.processRoutes(mes, false)
 	}
 
 	return nil, true

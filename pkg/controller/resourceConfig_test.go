@@ -586,7 +586,7 @@ var _ = Describe("Resource Config Tests", func() {
 				},
 			}
 
-			ltmCfg := rs.getLTMConfigCopy()
+			ltmCfg := rs.getLTMConfigDeepCopy()
 			Expect(len(ltmCfg)).To(Equal(1), "Wrong number of Partitions")
 			Expect(len(ltmCfg["default"])).To(Equal(2), "Wrong number of ResourceConfigs")
 		})

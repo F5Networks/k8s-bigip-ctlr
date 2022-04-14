@@ -852,6 +852,15 @@ func (rs *ResourceStore) getResourceConfig(partition, name string) (*ResourceCon
 	return nil, fmt.Errorf("resource not available")
 }
 
+func (rs *ResourceStore) setResourceConfig(partition, name string, rsCfg *ResourceConfig) error {
+	rsMap, ok := rs.ltmConfig[partition]
+	if !ok {
+		return fmt.Errorf("partition not available")
+	}
+	rsMap[name] = rsCfg
+	return nil
+}
+
 // getLTMConfigCopy is a Resource reference copy of LTMConfig
 func (rs *ResourceStore) getLTMConfigCopy() LTMConfig {
 	ltmConfig := make(LTMConfig)
@@ -864,16 +873,33 @@ func (rs *ResourceStore) getLTMConfigCopy() LTMConfig {
 	return ltmConfig
 }
 
+// getLTMConfigDeepCopy is a Resource reference copy of LTMConfig
+func (rs *ResourceStore) getLTMConfigDeepCopy() LTMConfig {
+	ltmConfig := make(LTMConfig)
+	for prtn, rsMap := range rs.ltmConfig {
+		ltmConfig[prtn] = make(ResourceMap)
+		for rsName, res := range rsMap {
+			copyRes := &ResourceConfig{}
+			copyRes.copyConfig(res)
+			ltmConfig[prtn][rsName] = copyRes
+		}
+	}
+	return ltmConfig
+}
+
 // getGTMConfigCopy is a WideIP reference copy of GTMConfig
 func (rs *ResourceStore) getGTMConfigCopy() DNSConfig {
 	dnsConfig := make(DNSConfig)
 	for dominName, wip := range rs.dnsConfig {
+		// Everytime new wip object gets created from the scratch
+		// so no need to deep copy wip
 		rs.dnsConfigCache[dominName] = wip
 	}
 	return dnsConfig
 }
 
 func (rs *ResourceStore) updateCaches() {
+	// No need to deep copy as each RsCfg will be framed in a fresh memory block while creating live ltmConfig
 	rs.ltmConfigCache = rs.getLTMConfigCopy()
 	rs.dnsConfigCache = rs.getGTMConfigCopy()
 }
@@ -910,11 +936,30 @@ func (lc LTMConfig) GetAllPoolMembers() []PoolMember {
 func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 	// MetaData
 	rc.MetaData = cfg.MetaData
+	rc.MetaData.baseResources = make(map[string]string)
+	for k, v := range cfg.MetaData.baseResources {
+		rc.MetaData.baseResources[k] = v
+	}
+	copy(rc.MetaData.hosts, rc.MetaData.hosts)
+
 	// Virtual
 	rc.Virtual = cfg.Virtual
 	// Policies ref
 	rc.Virtual.Policies = make([]nameRef, len(cfg.Virtual.Policies))
 	copy(rc.Virtual.Policies, cfg.Virtual.Policies)
+	//IRules
+	rc.Virtual.IRules = make([]string, len(cfg.Virtual.IRules))
+	copy(rc.Virtual.IRules, cfg.Virtual.IRules)
+	//LogProfiles
+	rc.Virtual.LogProfiles = make([]string, len(cfg.Virtual.LogProfiles))
+	copy(rc.Virtual.LogProfiles, cfg.Virtual.LogProfiles)
+	//AllowVLANS
+	rc.Virtual.AllowVLANs = make([]string, len(cfg.Virtual.AllowVLANs))
+	copy(rc.Virtual.AllowVLANs, cfg.Virtual.AllowVLANs)
+	//PersistenceMethods
+	rc.Virtual.PersistenceMethods = make([]string, len(cfg.Virtual.PersistenceMethods))
+	copy(rc.Virtual.PersistenceMethods, cfg.Virtual.PersistenceMethods)
+
 	// Pools
 	rc.Pools = make(Pools, len(cfg.Pools))
 	copy(rc.Pools, cfg.Pools)
@@ -922,7 +967,10 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 	for i := range rc.Pools {
 		rc.Pools[i].Members = make([]PoolMember, len(cfg.Pools[i].Members))
 		copy(rc.Pools[i].Members, cfg.Pools[i].Members)
+		rc.Pools[i].MonitorNames = make([]string, len(cfg.Pools[i].MonitorNames))
+		copy(rc.Pools[i].MonitorNames, cfg.Pools[i].MonitorNames)
 	}
+
 	// Policies
 	rc.Policies = make([]Policy, len(cfg.Policies))
 	copy(rc.Policies, cfg.Policies)
@@ -955,6 +1003,45 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 			}
 		}
 	}
+
+	// Monitors
+	rc.Monitors = make([]Monitor, len(cfg.Monitors))
+	copy(rc.Monitors, cfg.Monitors)
+
+	// ServiceAddress
+	rc.ServiceAddress = make([]ServiceAddress, len(cfg.ServiceAddress))
+	copy(rc.ServiceAddress, cfg.ServiceAddress)
+
+	//IRulesMap
+	rc.IRulesMap = make(IRulesMap, len(cfg.IRulesMap))
+	for ref, irl := range cfg.IRulesMap {
+		rc.IRulesMap[ref] = &IRule{
+			Name:      irl.Name,
+			Partition: irl.Partition,
+			Code:      irl.Code,
+		}
+	}
+
+	//IntDgMap
+	rc.IntDgMap = make(InternalDataGroupMap, len(cfg.IntDgMap))
+	for nameRef, dgnm := range cfg.IntDgMap {
+		rc.IntDgMap[nameRef] = make(DataGroupNamespaceMap, len(dgnm))
+		for ns, idg := range dgnm {
+			rc.IntDgMap[nameRef][ns] = &InternalDataGroup{
+				Name:      idg.Name,
+				Partition: idg.Partition,
+				Records:   make(InternalDataGroupRecords, len(idg.Records)),
+			}
+			copy(rc.IntDgMap[nameRef][ns].Records, idg.Records)
+		}
+	}
+
+	// customProfiles
+	rc.customProfiles = make(map[SecretKey]CustomProfile, len(cfg.customProfiles))
+	for secKey, cusProf := range cfg.customProfiles {
+		rc.customProfiles[secKey] = cusProf
+	}
+
 }
 
 // split_ip_with_route_domain splits ip into ip and route domain
@@ -1412,9 +1499,38 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) *ExtendedRouteG
 		return nil
 	}
 
-	if *extdSpec.override && extdSpec.local != nil {
-		return extdSpec.local
+	if extdSpec.override && extdSpec.local != nil {
+		ergc := &ExtendedRouteGroupSpec{
+			VServerName:   extdSpec.global.VServerName,
+			VServerAddr:   extdSpec.global.VServerAddr,
+			AllowOverride: extdSpec.global.AllowOverride,
+			SNAT:          extdSpec.global.SNAT,
+			WAF:           extdSpec.global.WAF,
+		}
+
+		if extdSpec.local.VServerName != "" {
+			ergc.VServerName = extdSpec.local.VServerName
+		}
+		if extdSpec.local.VServerAddr != "" {
+			ergc.VServerAddr = extdSpec.local.VServerAddr
+		}
+		if extdSpec.local.SNAT != "" {
+			ergc.SNAT = extdSpec.local.SNAT
+		}
+		if extdSpec.local.WAF != "" {
+			ergc.WAF = extdSpec.local.WAF
+		}
+
+		if extdSpec.local.IRules != nil {
+			ergc.IRules = make([]string, len(extdSpec.local.IRules))
+			copy(ergc.IRules, extdSpec.local.IRules)
+		} else if extdSpec.global.IRules != nil {
+			ergc.IRules = make([]string, len(extdSpec.global.IRules))
+			copy(ergc.IRules, extdSpec.global.IRules)
+		}
+		return ergc
 	}
+
 	return extdSpec.global
 }
 

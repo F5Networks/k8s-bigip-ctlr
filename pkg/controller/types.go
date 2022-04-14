@@ -329,7 +329,7 @@ type (
 
 	// Extended Spec for each group of Routes/Ingress
 	extendedParsedSpec struct {
-		override *bool
+		override bool
 		local    *ExtendedRouteGroupSpec
 		global   *ExtendedRouteGroupSpec
 	}

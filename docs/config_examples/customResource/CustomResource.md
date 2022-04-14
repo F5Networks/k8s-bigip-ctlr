@@ -1,6 +1,6 @@
 # Custom Resource Definitions 
 
-This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release). This is an ALPHA release which supports limited features. Check for the Supported Features and TO BE Implemented sections to understand in detail about the features.  
+This page is created to document the behaviour of CIS in CRD Mode.  
 
 ## What are CRDs? 
 
@@ -22,6 +22,9 @@ This page is created to document the behaviour of CIS in CRD Mode(ALPHA Release)
   - TLSProfile
   - TransportServer
   - ExternalDNS
+  - IngressLink
+  - Policy
+
    
 ## VirtualServer
 
@@ -289,7 +292,6 @@ Known Issues:
 | interval | Int | Required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
 
-
 # ExternalDNS
    * Schema Validation
      - OpenAPI Schema Validation
@@ -348,27 +350,18 @@ Since CIS is using the AS3 declarative API we need the AS3 extension installed o
 **Create CIS Controller, BIG-IP Credentials and RBAC Authentication**
 
 * Install F5 CRDs
-  - Download the below file and execute the command as shown.
-  
-    https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/customresourcedefinitions.yml
+  - Install f5 CRDs using below command:
 ```sh
-kubectl create -f customresourcedefinitions.yml [-n kube-system]
+kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
 ```
 
 * Create BIG-IP Credentials
 ```sh
 kubectl create secret generic bigip-login -n kube-system --from-literal=username=admin --from-literal=password=dummy
 ```
-* Create Service Account
+* Create Service Account, Cluster Role and Cluster Role Binding
 ```sh
-kubectl create serviceaccount bigip-ctlr [-n kube-system]
-```
-* Create Cluster Role and Cluster Role Binding
-  - Download the below file and execute the command as shown.
-  
-    https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/clusterrole.yml
-```sh
-kubectl create -f clusterrole.yml [-n kube-system]
+kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml [-n kube-system]
 ```
 
 **Supported Controller Modes: NodePort and Cluster**
@@ -413,3 +406,12 @@ CIS deployment parameter `--gtm-bigip-url`, `--gtm-bigip-username`, `--gtm-bigip
 * “--custom-resource-mode=true” deploys CIS in Custom Resource Mode.
 * CIS does not watch for ingress/routes/configmaps when deployed in CRD Mode.
 * CIS does not support combination of CRDs with any of Ingress/Routes and Configmaps.
+
+
+# IngressLink
+
+Refer https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/IngressLink/README.md
+
+# Policy CRD 
+
+Refer https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy

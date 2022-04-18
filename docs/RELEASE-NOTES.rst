@@ -5,18 +5,18 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 -------------
 Enhancements
 ````````````
-* :issues:`2030` Fix for changes on Ingress Resource Service Port not reflected on BIGIP
-* :issues:`2205` Fix for deleting multiple EDNS resources
-* :issues:`2255` Fix for ConfigMap backward compatibility
-* :issues:`2164` Fix error handling for CCCL logs buffer
-* :issues:`2191` Improved logging for iapps copy over
-* :issues:`2220` Fix for VirtualServer Status not reported correctly when using hostGroup
-* :issues:`2209` Improved readability for configMap error logs
-* SR - Fix iapp continuous updates with no backend pods
+* :issues:`2030` Changes to Ingress resource ServicePort are now reflected on BIG-IP.
+* :issues:`2205` Bulk deletion of EDNS is handled properly.
+* :issues:`2255` ServicePort is now optional and multi-port service is handled properly in ConfigMaps.
+* :issues:`2164` CIS properly updates configureation in BIGIP when configured with agent CCCL and log-level DEBUG.
+* :issues:`2191` CIS properly logs iApps when configured with agent CCCL.
+* :issues:`2220` CRD VirtualServer status is reported correctly when using hostGroup.
+* :issues:`2209` ConfigMap errors logs now  contain ConfigMap name and namespace.
+* SR - CIS configured in CCCL agent mode properly updates BIG-IP when there are no backend pods to iApps ConfigMaps
 
 FIC Enhancements
 ````````````````
-*:issues:`98` Handled crash in case of failure in store initialisation
+* :issues:`98` IPAM Storage initialisation is handled properly.
 
 2.8.0
 -------------

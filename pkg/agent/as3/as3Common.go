@@ -17,6 +17,7 @@
 package as3
 
 import (
+	"crypto/md5"
 	"fmt"
 	"sort"
 	"strconv"
@@ -29,26 +30,33 @@ import (
 
 // Validates the AS3 Template
 func (am *AS3Manager) validateAS3Template(template string) bool {
-	var schemaLoader gojsonschema.JSONLoader
+	t := fmt.Sprintf("%x", md5.Sum([]byte(template)))
+	if v, ok := am.as3Validated[t]; ok {
+		return v
+	}
+
+	var validated bool
+	defer func() { am.as3Validated[t] = validated }()
+
 	// Load AS3 Schema
-	schemaLoader = gojsonschema.NewReferenceLoader(am.As3SchemaLatest)
+	schemaLoader := gojsonschema.NewReferenceLoader(am.As3SchemaLatest)
 	// Load AS3 Template
 	documentLoader := gojsonschema.NewStringLoader(template)
 	result, err := gojsonschema.Validate(schemaLoader, documentLoader)
 	if err != nil {
 		log.Errorf("%s", err)
-		return false
-	}
-
-	if !result.Valid() {
+		validated = false
+	} else if !result.Valid() {
 		log.Errorf("[AS3] Template is not valid. see errors")
 		for _, desc := range result.Errors() {
 			log.Errorf("- %s\n", desc)
 		}
-		return false
+		validated = false
+	} else {
+		validated = true
 	}
 
-	return true
+	return validated
 }
 
 func (am *AS3Manager) processResourcesForAS3(sharedApp as3Application) {

@@ -452,7 +452,7 @@ func (appMgr *Manager) triggerSyncResources(ns string, inf *appInformer) {
 				ResourceName: svc.Name,
 				Operation:    OprTypeUpdate,
 			}
-			log.Debugf("[CORE] Periodic enqueue of Service from Namespace: %v", namespace)
+			log.Debugf("[CORE] Periodic enqueue of Service from Namespace: %v, svc: %s", namespace, svc.Name)
 			appMgr.vsQueue.Add(svcKey)
 		}
 	}

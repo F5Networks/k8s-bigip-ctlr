@@ -3,20 +3,20 @@ Release Notes for Container Ingress Services for Kubernetes & OpenShift
 
 2.8.1
 -------------
-Enhancements
+Bug Fixes
 ````````````
-* :issues:`2030` Fix for changes on Ingress Resource Service Port not reflected on BIGIP
-* :issues:`2205` Fix for deleting multiple EDNS resources
-* :issues:`2255` Fix for ConfigMap backward compatibility
-* :issues:`2164` Fix error handling for CCCL logs buffer
-* :issues:`2191` Improved logging for iapps copy over
-* :issues:`2220` Fix for VirtualServer Status not reported correctly when using hostGroup
-* :issues:`2209` Improved readability for configMap error logs
-* SR - Fix iapp continuous updates with no backend pods
+* :issues:`2030` Changes to Ingress resource ServicePort are now reflected on BIG-IP.
+* :issues:`2205` Bulk deletion of EDNS handled properly.
+* :issues:`2255` ServicePort is now optional and multi-port service handled properly in ConfigMaps.
+* :issues:`2164` CIS properly updates configureation in BIGIP when configured with agent CCCL and log-level DEBUG.
+* :issues:`2191` CIS properly logs iApps when configured with agent CCCL.
+* :issues:`2220` CRD VirtualServer status reported correctly when using hostGroup.
+* :issues:`2209` ConfigMap errors logs now contain ConfigMap name and namespace.
+* SR - CIS configured in CCCL agent mode properly updates BIG-IP when there are no backend pods to iApps ConfigMaps
 
-FIC Enhancements
+FIC Bug Fixes
 ````````````````
-*:issues:`98` Handled crash in case of failure in store initialisation
+* :issues:`98` IPAM Storage initialisation handled properly.
 
 2.8.0
 -------------
@@ -32,7 +32,7 @@ Added Functionality
     * Helm Chart Enhancements:
         * Support for latest CRD schema
 
-Enhancements
+Bug Fixes
 ````````````
 * Added fix for processing oldest route when same host and path in routes
 * Added fix for cis crash with routes
@@ -45,7 +45,7 @@ Enhancements
 
 2.7.1
 -------------
-Enhancements
+Bug Fixes
 ````````````
 * Optimized processing of ConfigMaps with FilterTenants enabled
 * Added support for multihost VS policy rules for same path and service backend combination
@@ -104,7 +104,7 @@ Added Functionality
     * OCP 4.9 with OVN
     * AS3 3.30
 
-Enhancements
+Bug Fixes
 ````````````
 * :issues:`1684` [EDNS] CIS tries to remove non-existing monitor from GTM pool
 * :issues:`1873` Enable /metrics endpoint with crd mode
@@ -157,7 +157,7 @@ Added Functionality
 * CIS supports IP address assignment to IngressLink Custom Resources using F5 IPAM Controller(See `documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/IngressLink/ingressLink-with-ipamLabel>`_)
 * CIS validates IPV6 address in bigip-url & gtm-bigip-url parameter
 
-Bug Fixed
+Bug Fixes
 `````````
 * :issues:`1679` CIS requires GTM parameter in CIS declaration even if GTM runs on the same BIG-IP
 * :issues:`1888` Unable to upgrade from 2.2.0 (or below) to 2.2.1 (or above)

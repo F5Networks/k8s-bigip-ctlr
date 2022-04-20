@@ -28,6 +28,7 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 
 	"encoding/json"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"

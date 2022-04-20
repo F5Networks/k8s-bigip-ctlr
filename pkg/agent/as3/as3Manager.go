@@ -87,6 +87,7 @@ type AS3ConfigMap struct {
 // AS3Manager holds all the AS3 orchestration specific config
 type AS3Manager struct {
 	as3Validation             bool
+	as3Validated              map[string]bool
 	sslInsecure               bool
 	enableTLS                 string
 	tls13CipherGroupReference string
@@ -159,6 +160,7 @@ type failureContext struct {
 func NewAS3Manager(params *Params) *AS3Manager {
 	as3Manager := AS3Manager{
 		as3Validation:             params.AS3Validation,
+		as3Validated:              map[string]bool{},
 		sslInsecure:               params.SSLInsecure,
 		enableTLS:                 params.EnableTLS,
 		tls13CipherGroupReference: params.TLS13CipherGroupReference,

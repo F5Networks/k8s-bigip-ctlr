@@ -16,7 +16,7 @@ Bug Fixes
 * :issues:`2030` Changes to Ingress resource ServicePort are now reflected on BIG-IP.
 * :issues:`2205` Bulk deletion of EDNS handled properly.
 * :issues:`2255` ServicePort is now optional and multi-port service handled properly in ConfigMaps.
-* :issues:`2164` CIS properly updates configureation in BIGIP when configured with agent CCCL and log-level DEBUG.
+* :issues:`2164` CIS properly updates configuration in BIGIP when configured with agent CCCL and log-level DEBUG.
 * :issues:`2191` CIS properly logs iApps when configured with agent CCCL.
 * :issues:`2220` CRD VirtualServer status reported correctly when using hostGroup.
 * :issues:`2209` ConfigMap errors logs now contain ConfigMap name and namespace.

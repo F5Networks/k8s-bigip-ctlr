@@ -29,6 +29,11 @@ import (
 func (in *DNSPool) DeepCopyInto(out *DNSPool) {
 	*out = *in
 	out.Monitor = in.Monitor
+	if in.Monitors != nil {
+		in, out := &in.Monitors, &out.Monitors
+		*out = make([]Monitor, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
@@ -108,7 +113,9 @@ func (in *ExternalDNSSpec) DeepCopyInto(out *ExternalDNSSpec) {
 	if in.Pools != nil {
 		in, out := &in.Pools, &out.Pools
 		*out = make([]DNSPool, len(*in))
-		copy(*out, *in)
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	return
 }

@@ -19,6 +19,7 @@ spec:
   pool:
     service: svc-1
     servicePort: 8182
+    loadBalancingMethod: fastest-node
     monitor:
       type: udp
       interval: 10

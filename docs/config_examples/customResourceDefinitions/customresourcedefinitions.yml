@@ -87,6 +87,8 @@ spec:
                       service:
                         type: string
                         pattern: '^([A-z0-9-_+])*([A-z0-9])$'
+                      loadBalancingMethod:
+                        type: string
                       nodeMemberLabel:
                         type: string
                         pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
@@ -311,6 +313,8 @@ spec:
                       type: integer
                       minimum: 1
                       maximum: 65535
+                    loadBalancingMethod:
+                      type: string
                     monitor:
                       type: object
                       properties:

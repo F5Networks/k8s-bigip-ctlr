@@ -311,6 +311,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			ServiceName:     pl.Service,
 			ServicePort:     pl.ServicePort,
 			NodeMemberLabel: pl.NodeMemberLabel,
+			Balance:         pl.Balance,
 		}
 		for _, p := range pools {
 			if pool.Name == p.Name {
@@ -1118,6 +1119,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		ServiceName:     vs.Spec.Pool.Service,
 		ServicePort:     vs.Spec.Pool.ServicePort,
 		NodeMemberLabel: vs.Spec.Pool.NodeMemberLabel,
+		Balance:         vs.Spec.Pool.Balance,
 	}
 
 	if vs.Spec.Pool.Monitor.Type != "" {

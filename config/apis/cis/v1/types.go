@@ -63,6 +63,7 @@ type Pool struct {
 	NodeMemberLabel string  `json:"nodeMemberLabel,omitempty"`
 	Monitor         Monitor `json:"monitor"`
 	Rewrite         string  `json:"rewrite,omitempty"`
+	Balance         string  `json:"loadBalancingMethod,omitempty"`
 }
 
 // Monitor defines a monitor object in BIG-IP.

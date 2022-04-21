@@ -46,9 +46,9 @@ var _ = Describe("AS3Manager Tests", func() {
 	var mockMgr *mockAS3Manager
 	BeforeEach(func() {
 		mockMgr = newMockAS3Manager(&Params{
-			As3Version:       "3.30.0",
-			As3Release:       "3.30.0-5",
-			As3SchemaVersion: "3.30.0",
+			As3Version:       "3.36.0",
+			As3Release:       "3.36.0-6",
+			As3SchemaVersion: "3.36.0",
 		})
 	})
 	AfterEach(func() {

@@ -53,6 +53,12 @@
           "type": "string",
           "$comment": "IMPORTANT: In enum array, please put current schema version first, oldest-supported version last.  Keep enum array sorted most-recent-first.",
           "enum": [
+            "3.36.0",
+            "3.35.0",
+            "3.34.0",
+            "3.33.0",
+            "3.32.0",
+            "3.31.0",
             "3.30.0",
             "3.29.0",
             "3.28.0",
@@ -171,10 +177,11 @@
                 }
               },
               "additionalProperties": false,
-              "if": true,
-              "then": {
-                "$ref": "#/definitions/JWE"
-              }
+              "allOf": [
+                {
+                  "$ref": "#/definitions/JWE"
+                }
+              ]
             }
           },
           "propertyNames": {
@@ -637,7 +644,9 @@
             }
           ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         }
       },
       "required": [
@@ -681,7 +690,9 @@
               ]
             }
           ],
-          "f5LongSecret": true
+          "f5PostProcess": {
+            "tag": "longSecret"
+          }
         }
       },
       "required": [
@@ -723,6 +734,11 @@
                   "$ref": "#/definitions/Bearer_Token"
                 }
               ]
+            },
+            "ignoreChanges": {
+              "description": "If false (default), the URL will be fetched in each AS3 declaration deployment. If true, the resource will be created on the first deployment, but not on additional deployments.",
+              "type": "boolean",
+              "default": false
             }
           },
           "required": [
@@ -814,7 +830,8 @@
         },
         "defaultRouteDomain": {
           "title": "Default route domain",
-          "description": "Selects the default route domain for IP traffic to and from this Tenant's application resources (note: affects declared IP addresses which do not include a %RD route-domain specifier).  You must choose an existing route domain--this option cannot create one.  Route domain 0 (default) is always available",
+          "description": "Using the route-domain ID, this property selects the default route domain for IP traffic to and from this Tenant's application resources (note: affects declared IP addresses which do not include a %RD route-domain specifier).  You must choose an existing route domain--this option cannot create one.  Route domain 0 (default) is always available",
+          "$comment": "TMSH forces this value to be an integer",
           "type": "integer",
           "minimum": 0,
           "maximum": 65535,
@@ -873,10 +890,11 @@
           "default": true
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Application"
-      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Application"
+        }
+      ],
       "required": [
         "class",
         "template"
@@ -954,6 +972,7 @@
               "Analytics_TCP_Profile",
               "FTP_Profile",
               "HTML_Rule",
+              "HTML_Profile",
               "HTTP_Profile",
               "HTTP_Compress",
               "HTTP2_Profile",
@@ -1342,6 +1361,18 @@
             },
             "then": {
               "$ref": "#/definitions/HTML_Rule"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "HTML_Profile"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/HTML_Profile"
             }
           },
           {
@@ -2315,10 +2346,11 @@
           "default": 80
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Service_HTTP_Core"
-      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Service_HTTP_Core"
+        }
+      ],
       "dependencies": {
         "serverTLS": {
           "not": {}
@@ -2400,7 +2432,7 @@
               "properties": {
                 "ingress": {
                   "type": "object",
-                  "description": "Ingress (client-side context) HTTP2 profile. This option is only available on BIG-IP 14.1+.",
+                  "description": "Ingress (client-side context) HTTP2 profile. This property is available on BIGIP 14.1 and above.",
                   "allOf": [
                     {
                       "$ref": "#/definitions/Pointer_HTTP2_Profile"
@@ -2409,7 +2441,7 @@
                 },
                 "egress": {
                   "type": "object",
-                  "description": "Egress (server-side context) HTTP2 profile. This option is only available on BIG-IP 14.1+.",
+                  "description": "Egress (server-side context) HTTP2 profile. This property is available on BIGIP 14.1 and above.",
                   "allOf": [
                     {
                       "$ref": "#/definitions/Pointer_HTTP2_Profile"
@@ -2424,10 +2456,11 @@
           ]
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Service_HTTP_Core"
-      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Service_HTTP_Core"
+        }
+      ],
       "dependencies": {
         "serverTLS": {
           "properties": {
@@ -2576,6 +2609,9 @@
             "$ref": "#/definitions/Pointer_HTTP_Acceleration_Profile"
           }
         },
+        "profileHTML": {
+          "$ref": "#/definitions/Pointer_HTML_Profile"
+        },
         "profileMultiplex": {
           "title": "Multiplex profile",
           "description": "Multiplex (OneConnect) profile; name of built-in or else AS3 pointer",
@@ -2676,7 +2712,7 @@
         },
         "profileApiProtection": {
           "title": "API Protection Profile",
-          "description": "API protection profile to attach to service. This option is only available on BIG-IP 14.1+.",
+          "description": "API protection profile to attach to service. This property is available on BIGIP 14.1 and above.",
           "f5modules": [
             "apm",
             "asm"
@@ -2691,7 +2727,7 @@
           "$ref": "#/definitions/Pointer_DOS_Profile"
         },
         "profileBotDefense": {
-          "description": "Attaches a Bot Defense profile to the service. These are only available on BIG-IP 14.1+.",
+          "description": "Attaches a Bot Defense profile to the service. This property is available on BIGIP 14.1 and above.",
           "allOf": [
             {
               "$ref": "#/definitions/Pointer_Bot_Defense_Profile"
@@ -2719,12 +2755,11 @@
               ]
             }
           }
+        },
+        {
+          "$ref": "#/definitions/Service_TCP_Core"
         }
       ],
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Service_TCP_Core"
-      },
       "required": [
         "class"
       ]
@@ -2836,7 +2871,6 @@
           "$ref": "#/definitions/Pointer_FIX_Profile"
         },
         "profileTCP": {
-          "f5tcpProfile": true,
           "title": "TCP profile",
           "description": "TCP profile; name of built-in or else AS3 pointer",
           "if": {
@@ -3030,12 +3064,12 @@
               "type": "object"
             },
             "then": {
-              "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
+              "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
             },
             "else": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
+                "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
               }
             }
           }
@@ -3064,12 +3098,12 @@
               "type": "object"
             },
             "then": {
-              "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
+              "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
             },
             "else": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
+                "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
               }
             }
           }
@@ -3093,10 +3127,11 @@
           "$ref": "#/definitions/Pointer_Stream_Profile"
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Service_Core"
-      }
+      "allOf": [
+        {
+          "$ref": "#/definitions/Service_Core"
+        }
+      ]
     },
     "Service_UDP": {
       "title": "Service_UDP",
@@ -3242,12 +3277,12 @@
               "type": "object"
             },
             "then": {
-              "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
+              "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
             },
             "else": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
+                "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
               }
             }
           }
@@ -3276,12 +3311,12 @@
               "type": "object"
             },
             "then": {
-              "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
+              "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
             },
             "else": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/Pointer_Existing_TLS_Server_Profile"
+                "$ref": "#/definitions/Pointer_Existing_TLS_Client_Profile"
               }
             }
           }
@@ -3308,10 +3343,11 @@
           "$ref": "#/definitions/Pointer_TFTP_Profile"
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Service_Core"
-      }
+      "allOf": [
+        {
+          "$ref": "#/definitions/Service_Core"
+        }
+      ]
     },
     "Service_SCTP": {
       "title": "Service_SCTP",
@@ -3341,10 +3377,11 @@
           "default": "sctp"
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Service_Core"
-      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Service_Core"
+        }
+      ],
       "required": [
         "class",
         "virtualPort"
@@ -3372,10 +3409,11 @@
           ]
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Service_L4_Core"
-      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Service_L4_Core"
+        }
+      ],
       "required": [
         "class",
         "virtualPort"
@@ -3388,7 +3426,7 @@
     },
     "Service_Generic": {
       "title": "Service_Generic",
-      "description": "Declares a generic virtual server",
+      "description": "Declares an 'Any IP' (IPOther) virtual server",
       "type": "object",
       "properties": {
         "class": {
@@ -3608,10 +3646,11 @@
           "$ref": "#/definitions/Pointer_Analytics_TCP_Profile"
         }
       },
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/Service_Core"
-      }
+      "allOf": [
+        {
+          "$ref": "#/definitions/Service_Core"
+        }
+      ]
     },
     "Service_Forwarding": {
       "title": "Service_Forwarding",
@@ -3699,11 +3738,6 @@
           {
             "required": [
               "persistenceMethods"
-            ]
-          },
-          {
-            "required": [
-              "policyNAT"
             ]
           },
           {
@@ -4175,7 +4209,7 @@
         },
         "httpMrfRoutingEnabled": {
           "title": "HTTP MRF Router",
-          "description": "Specifies whether to use the HTTP message routing framework (MRF) functionality. Note: This is available in TMOS versions 14.1 and later.",
+          "description": "Specifies whether to use the HTTP message routing framework (MRF) functionality. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
@@ -4282,7 +4316,7 @@
           "$ref": "#/definitions/Pointer_Rewrite_Profile"
         },
         "profileProtocolInspection": {
-          "description": "AS3 pointer to Protocol Inspection Profile declaration. Protocol Inspection Profiles are only supported in tmos version 13.1+",
+          "description": "AS3 pointer to Protocol Inspection Profile declaration",
           "f5modules": [
             "afm"
           ],
@@ -4294,6 +4328,12 @@
         },
         "metadata": {
           "$ref": "#/definitions/Metadata"
+        },
+        "rateLimit": {
+          "description": "Specifies the maximum number of connections per second allowed for a virtual server",
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
         },
         "clonePools": {
           "$ref": "#/definitions/Clone_Pools"
@@ -4312,6 +4352,25 @@
             {
               "type": "string",
               "const": "infinite"
+            }
+          ]
+        },
+        "ipIntelligencePolicy": {
+          "f5modules": [
+            "afm",
+            "asm"
+          ],
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_IP_Intelligence_Policy"
+            }
+          ]
+        },
+        "profileIntegratedBotDefense": {
+          "description": "AS3 pointer to an Integrated Bot Defense Profile. These are only supported in tmos version 17.0+.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Pointer_Integrated_Bot_Defense_Profile"
             }
           ]
         }
@@ -4780,10 +4839,11 @@
     "iRule_Core": {
       "title": "iRule Core definition",
       "description": "Reference to an iRule or text of an iRule",
-      "if": true,
-      "then": {
-        "$ref": "#/definitions/F5string"
-      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/F5string"
+        }
+      ],
       "f5fetch": "string",
       "f5expand": {
         "when": "1/expand"
@@ -4826,10 +4886,11 @@
         },
         "policy": {
           "description": "Reference to a WAF Policy",
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/F5string"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/F5string"
+            }
+          ],
           "f5fetch": "string",
           "f5expand": {
             "when": "1/expand"
@@ -4852,7 +4913,7 @@
         },
         "serverTechnologies": {
           "title": "Server Technologies",
-          "description": "Define server technologies for the WAF Policy, such as Java Servlets or Apache Struts. Note: This is available in TMOS versions 13.0 and later.",
+          "description": "Define server technologies for the WAF Policy, such as Java Servlets or Apache Struts",
           "type": "array",
           "items": {
             "title": "Server Technology",
@@ -4911,35 +4972,7 @@
         ]
       },
       "else": {
-        "type": "object",
-        "properties": {
-          "use": {
-            "title": "Use",
-            "description": "AS3 pointer to persistence method declaration",
-            "type": "string",
-            "minLength": 1,
-            "f5pointsTo": {
-              "properties": {
-                "class": {
-                  "const": "Persist"
-                }
-              },
-              "required": [
-                "class"
-              ]
-            }
-          },
-          "bigip": {
-            "title": "BIG-IP persistence profile",
-            "description": "Pathname of existing BIG-IP persistence profile",
-            "type": "string",
-            "format": "f5bigip"
-          }
-        },
-        "additionalProperties": false,
-        "minProperties": 1,
-        "maxProperties": 1,
-        "f5bigComponent": "probe ltm persistence dest-addr"
+        "$ref": "#/definitions/Pointer_Persist_Profile"
       }
     },
     "Persist": {
@@ -5223,12 +5256,15 @@
                 "default": false
               }
             },
-            "if": true,
-            "then": {
-              "$ref": "#/definitions/Secret"
-            },
+            "allOf": [
+              {
+                "$ref": "#/definitions/Secret"
+              }
+            ],
             "f5fetch": "object",
-            "f5secret": true
+            "f5PostProcess": {
+              "tag": "secret"
+            }
           }
         },
         "if": {
@@ -5709,14 +5745,43 @@
                 "properties": {
                   "serverAddresses": {
                     "title": "Server addresses",
-                    "description": "Static IP addresses of servers (nodes)",
+                    "description": "Static IP addresses of servers (nodes). Shorthand for 'servers' where you only want to specify the address property.",
                     "type": "array",
                     "items": {
                       "title": "Server address",
+                      "description": "Static IP address for this server (node)",
                       "type": "string",
                       "format": "f5ip"
                     },
                     "uniqueItems": true
+                  },
+                  "servers": {
+                    "title": "Servers",
+                    "description": "Same as serverAddresses, but allowing for further specification of each node.",
+                    "type": "array",
+                    "items": {
+                      "title": "Servers",
+                      "description": "Static IP address and other details for this server (node)",
+                      "type": "object",
+                      "properties": {
+                        "address": {
+                          "title": "Server address",
+                          "description": "Static IP address for this server (node)",
+                          "type": "string",
+                          "format": "f5ip"
+                        },
+                        "name": {
+                          "title": "Name",
+                          "type": "string",
+                          "pattern": "^[A-Za-z][0-9A-Za-z_.-]*$",
+                          "maxLength": 64
+                        }
+                      },
+                      "required": [
+                        "address"
+                      ],
+                      "additionalProperties": false
+                    }
                   }
                 },
                 "if": {
@@ -5731,8 +5796,17 @@
                     }
                   }
                 },
-                "required": [
-                  "serverAddresses"
+                "anyOf": [
+                  {
+                    "required": [
+                      "serverAddresses"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "servers"
+                    ]
+                  }
                 ]
               }
             ]
@@ -6047,6 +6121,13 @@
           "description": "If enabled, nodes are created in /Common instead of the tenant's partition",
           "type": "boolean",
           "default": false
+        },
+        "routeDomain": {
+          "description": "The Route Domain to use for the pool member",
+          "$comment": "Due to the fact the Route Domain id is required for address modification, AS3 does NOT support this route domain reference as anything but the id.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65534
         }
       },
       "f5bigComponent": "query ltm node",
@@ -6180,7 +6261,9 @@
               ]
             }
           ],
-          "cloudLibsEncrypt": true
+          "f5PostProcess": {
+            "tag": "longSecret"
+          }
         }
       },
       "dependencies": {
@@ -6279,7 +6362,9 @@
               ]
             }
           ],
-          "cloudLibsEncrypt": true
+          "f5PostProcess": {
+            "tag": "longSecret"
+          }
         },
         "resourceType": {
           "description": "Type of resource identified by resourceId. This can be used in place of tagKey/tagValue.",
@@ -6423,7 +6508,9 @@
               ]
             }
           ],
-          "cloudLibsEncrypt": true
+          "f5PostProcess": {
+            "tag": "longSecret"
+          }
         },
         "projectId": {
           "title": "Project Id",
@@ -6485,7 +6572,9 @@
               ]
             }
           ],
-          "cloudLibsEncrypt": true
+          "f5PostProcess": {
+            "tag": "longSecret"
+          }
         },
         "trustCA": {
           "title": "Trusted CA bundle",
@@ -7031,7 +7120,9 @@
             }
           ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "filename": {
           "title": "Filename",
@@ -7093,7 +7184,9 @@
             }
           ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "transparent": {
           "title": "Transparent",
@@ -7265,7 +7358,9 @@
             }
           ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "count": {
           "title": "Count",
@@ -7348,7 +7443,9 @@
             }
           ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "count": {
           "title": "Count",
@@ -7656,7 +7753,9 @@
             }
           ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "base": {
           "title": "Base",
@@ -7867,7 +7966,9 @@
             }
           ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "secret": {
           "title": "Secret",
@@ -7886,7 +7987,9 @@
             }
           ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "nasIpAddress": {
           "title": "IP Address",
@@ -8244,6 +8347,18 @@
             "certificate"
           ],
           "default": "numbered"
+        },
+        "sslEnabled": {
+          "title": "SSL",
+          "description": "Allow SSL protocol",
+          "type": "boolean",
+          "default": true
+        },
+        "ssl3Enabled": {
+          "title": "SSL v3",
+          "description": "Allow SSL v3 protocol",
+          "type": "boolean",
+          "default": true
         }
       },
       "additionalProperties": false,
@@ -8634,6 +8749,18 @@
           "description": "When enabled, server certificate is retained in SSL session.",
           "type": "boolean",
           "default": true
+        },
+        "sslEnabled": {
+          "title": "SSL",
+          "description": "Allow SSL protocol",
+          "type": "boolean",
+          "default": true
+        },
+        "ssl3Enabled": {
+          "title": "SSL v3",
+          "description": "Allow SSL v3 protocol",
+          "type": "boolean",
+          "default": true
         }
       },
       "allOf": [
@@ -8693,10 +8820,11 @@
         "pkcs12": {
           "title": "PKCS#12 certificate+key",
           "description": "The pkcs12 value which may be a url to fetch the binary file from or base64 encoded string",
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/F5string"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/F5string"
+            }
+          ],
           "f5fetch": "pkcs12",
           "f5certExtract": true
         },
@@ -8741,20 +8869,22 @@
         "certificate": {
           "title": "Certificate",
           "description": "X.509 public-key certificate",
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/F5string"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/F5string"
+            }
+          ],
           "f5fetch": "pki-cert",
           "f5bigComponent": "query sys file ssl-cert"
         },
         "privateKey": {
           "title": "Private key",
           "description": "Private key matching certificate's public key (optional)",
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/F5string"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/F5string"
+            }
+          ],
           "f5fetch": "pki-key",
           "f5bigComponent": "query sys file ssl-key"
         },
@@ -8769,12 +8899,15 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "chainCA": {
           "title": "CA chain",
@@ -8868,10 +9001,11 @@
         },
         "bundle": {
           "description": "Reference to a CA bundle or string of PEM encoded certificates",
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/F5string"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/F5string"
+            }
+          ],
           "f5fetch": "pki-cert",
           "f5bigComponent": "query sys file ssl-cert"
         }
@@ -9583,7 +9717,15 @@
           "title": "Rule type",
           "description": "Type of rule",
           "type": "string",
-          "const": "tag-append-html"
+          "enum": [
+            "comment-raise-event",
+            "comment-remove",
+            "tag-append-html",
+            "tag-prepend-html",
+            "tag-raise-event",
+            "tag-remove",
+            "tag-remove-attribute"
+          ]
         }
       },
       "allOf": [
@@ -9598,6 +9740,54 @@
           "then": {
             "$ref": "#/definitions/HTML_Rule_TagAppendHTML"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "ruleType": {
+                "const": "tag-prepend-html"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/HTML_Rule_TagPrependHTML"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "ruleType": {
+                "const": "tag-raise-event"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/HTML_Rule_TagRaiseEvent"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "ruleType": {
+                "const": "tag-remove"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/HTML_Rule_TagRemove"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "ruleType": {
+                "const": "tag-remove-attribute"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/HTML_Rule_TagRemoveAttribute"
+          }
         }
       ],
       "required": [
@@ -9605,19 +9795,14 @@
         "ruleType"
       ]
     },
-    "HTML_Rule_TagAppendHTML": {
-      "title": "Append HTML HTML_Rule",
-      "description": "Matches on the specified tag name, attribute name, and attribute value, and then appends the specific HTML content to the tag delimiter",
+    "HTML_Rule_Match_Attribute_Optional": {
+      "title": "HTML_Rule_Match_Attribute_Optional",
+      "description": "Matches on the specified tag name, attribute name, and attribute value. Attribute name and value are optional.",
       "type": "object",
       "properties": {
-        "content": {
-          "title": "Content",
-          "description": "HTML content to append to tag delimiter",
-          "type": "string"
-        },
         "match": {
           "title": "Match",
-          "description": "Match configuration",
+          "description": "Properties the rule is to match",
           "type": "object",
           "properties": {
             "attributeName": {
@@ -9649,9 +9834,175 @@
         }
       },
       "required": [
-        "content",
         "match"
       ]
+    },
+    "HTML_Rule_Match_Attribute_Required": {
+      "title": "HTML_Rule_Match_Attribute_Required",
+      "description": "Matches on the specified tag name, attribute name, and attribute value. Attribute name and value are required.",
+      "type": "object",
+      "properties": {
+        "match": {
+          "title": "Match",
+          "description": "Properties the rule is to match",
+          "type": "object",
+          "properties": {
+            "attributeName": {
+              "title": "Attribute Name",
+              "description": "Name of attribute",
+              "type": "string"
+            },
+            "attributeValue": {
+              "title": "Attribute Value",
+              "description": "Value of attribute",
+              "type": "string"
+            },
+            "tagName": {
+              "title": "Tag Name",
+              "description": "Name of tag",
+              "type": "string"
+            }
+          },
+          "required": [
+            "tagName",
+            "attributeName",
+            "attributeValue"
+          ]
+        }
+      },
+      "required": [
+        "match"
+      ]
+    },
+    "HTML_Rule_TagAppendHTML": {
+      "title": "Append HTML HTML_Rule",
+      "description": "Matches on the specified tag name and optional attribute name and attribute value, and then appends the specified HTML content to the tag delimiter.",
+      "type": "object",
+      "properties": {
+        "content": {
+          "title": "Content",
+          "description": "HTML content to append to tag delimiter",
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/HTML_Rule_Match_Attribute_Optional"
+        }
+      ],
+      "required": [
+        "content"
+      ]
+    },
+    "HTML_Rule_TagPrependHTML": {
+      "title": "HTML_Rule_TagPrependHTML",
+      "description": "Matches on the specified tag name and optional attribute name and attribute value, and then prepends the specified HTML content to the tag delimiter.",
+      "type": "object",
+      "properties": {
+        "content": {
+          "title": "Content",
+          "description": "HTML content to prepend to tag delimiter",
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/HTML_Rule_Match_Attribute_Optional"
+        }
+      ],
+      "required": [
+        "content"
+      ]
+    },
+    "HTML_Rule_TagRaiseEvent": {
+      "title": "HTML_Rule_TagRaiseEvent",
+      "description": "Matches on the specified tag name and optional attribute name and attribute value, and then raises an event.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/definitions/HTML_Rule_Match_Attribute_Optional"
+        }
+      ]
+    },
+    "HTML_Rule_TagRemove": {
+      "title": "HTML_Rule_TagRemove",
+      "description": "Matches on the specified tag name and optional attribute name and attribute value, and then removes the tag.",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/definitions/HTML_Rule_Match_Attribute_Optional"
+        }
+      ]
+    },
+    "HTML_Rule_TagRemoveAttribute": {
+      "title": "Append HTML HTML_Rule",
+      "description": "Matches on the specified tag name, attribute name, and attribute value, and then removes a specified attribute. Tag name, attribute name, and value are required.",
+      "type": "object",
+      "properties": {
+        "attributeName": {
+          "title": "Attriute Name",
+          "description": "Name of the attribute to be removed",
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/HTML_Rule_Match_Attribute_Required"
+        }
+      ],
+      "required": [
+        "attributeName"
+      ]
+    },
+    "HTML_Profile": {
+      "title": "HTML_Profile",
+      "type": "object",
+      "description": "HTML profile with configurable options",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "HTML_Profile"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "contentDetectionEnabled": {
+          "title": "Content Detection Enabled",
+          "description": "Scans initial HTTP payload to look for HTML signatures and enables HTML profile if HTML-like patterns are detected",
+          "type": "boolean",
+          "default": false
+        },
+        "contentSelection": {
+          "title": "Content Selection",
+          "description": "Matches content-type from response header against a list of the content-types and enables HTML profile if a match is found",
+          "type": "array",
+          "items": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "default": [
+            "text/html",
+            "text/xhtml"
+          ],
+          "uniqueItems": true
+        },
+        "rules": {
+          "title": "HTML Rules",
+          "description": "HTML Rules followed by the profile",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Pointer_HTML_Rule"
+          }
+        }
+      },
+      "required": [
+        "class"
+      ],
+      "additionalProperties": false
     },
     "HTTP_Profile": {
       "title": "HTTP_Profile",
@@ -9702,12 +10053,15 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "fallbackRedirect": {
           "title": "Fallback Redirect",
@@ -9985,6 +10339,12 @@
             "unmask"
           ],
           "default": "unmask"
+        },
+        "proxyConnectEnabled": {
+          "title": "Proxy connection enabled",
+          "description": "Determines if a proxy connection profile will be created",
+          "type": "boolean",
+          "default": false
         }
       },
       "if": {
@@ -10355,9 +10715,16 @@
         "routeDomain": {
           "title": "Exit route domain",
           "description": "Proxy requests will leave the ADC from a Self IP in this route domain (default 0)",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 65535,
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            {
+              "type": "string"
+            }
+          ],
           "default": 0,
           "f5bigComponent": "query net route-domain"
         },
@@ -10796,7 +11163,7 @@
         },
         "congestionControl": {
           "title": "Congestion-control algorithm",
-          "description": "Selects TCP congestion-control algorithm (default 'woodside'). Note: bbr is only supported in tmos version 14.1+.",
+          "description": "Selects TCP congestion-control algorithm (default 'woodside'). The bbr option is available on BIGIP 14.1 and above.",
           "type": "string",
           "enum": [
             "bbr",
@@ -11034,12 +11401,15 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "minimumRto": {
           "title": "Minimum retransmission timeout",
@@ -11646,6 +12016,18 @@
           "type": "boolean",
           "default": true
         },
+        "synCookieAllowlist": {
+          "title": "Syn Cookie Allowlist",
+          "description": "Specifies whether or not to use a SYN Cookie Allowlist when doing software SYN Cookies. This means not doing a SYN Cookie for the same src IP address if it has been done already in the previous tm.flowstate.timeout (30) seconds. The default value is disabled.",
+          "type": "boolean",
+          "default": false
+        },
+        "synCookieEnable": {
+          "title": "SYN cookie enable",
+          "description": "Enables syn-cookies capability on this virtual server. If true (default), the system may use SYN cookies to avert connection-table overflow (for example, from DoS attacks)",
+          "type": "boolean",
+          "default": true
+        },
         "tcpCloseTimeout": {
           "title": "TCP Close timeout",
           "description": "Specifies an TCP close timeout in seconds.  Value -1 means indefinite (not recommended)",
@@ -11963,10 +12345,11 @@
               "default": true
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/JWE"
-          }
+          "allOf": [
+            {
+              "$ref": "#/definitions/JWE"
+            }
+          ]
         }
       },
       "propertyNames": {
@@ -12276,12 +12659,15 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "certificate": {
           "description": "AS3 pointer to client Certificate declaration (optional)",
@@ -12755,6 +13141,9 @@
       "title": "Access_Profile",
       "description": "Configures an Access Profile",
       "type": "object",
+      "f5modules": [
+        "apm"
+      ],
       "properties": {
         "class": {
           "type": "string",
@@ -12774,6 +13163,12 @@
               "$ref": "#/definitions/Resource_URL"
             }
           ]
+        },
+        "ssloCreated": {
+          "title": "SSL Orchestrator Created",
+          "description": "Set to true if the profile was created by SSL Orchestrator. If true the non-configurable Kerberos Request-Based Authentication (/Common/rba) and WebSSO (/Common/websso) profiles will not be attached to Services when this profile is attached",
+          "type": "boolean",
+          "default": false
         },
         "ignoreChanges": {
           "title": "Ignore changes",
@@ -12798,6 +13193,9 @@
       "title": "Per_Request_Access_Policy",
       "description": "Configures a Per Flow Request Access Policy",
       "type": "object",
+      "f5modules": [
+        "apm"
+      ],
       "properties": {
         "class": {
           "type": "string",
@@ -12947,7 +13345,7 @@
     },
     "Cipher_Rule": {
       "title": "Cipher_Rule",
-      "description": "Configures a cipher rule. This is available in TMOS versions 13.0 and later",
+      "description": "Configures a cipher rule",
       "type": "object",
       "properties": {
         "class": {
@@ -13030,7 +13428,7 @@
     },
     "Cipher_Group": {
       "title": "Cipher_Group",
-      "description": "Configures a Cipher Group. Note: This is available in TMOS versions 13.0 and later.",
+      "description": "Configures a Cipher Group",
       "type": "object",
       "properties": {
         "class": {
@@ -13426,9 +13824,148 @@
           "type": "string",
           "description": "Specifies the protocol to which the firewall rule applies",
           "enum": [
+            "3pc",
+            "a/n",
+            "ah",
             "any",
+            "argus",
+            "aris",
+            "ax.25",
+            "bbn-rcc",
+            "bna",
+            "br-sat-mon",
+            "cbt",
+            "cftp",
+            "chaos",
+            "compaq-peer",
+            "cphb",
+            "cpnx",
+            "crdup",
+            "crtp",
+            "dccp",
+            "dcn",
+            "ddp",
+            "ddx",
+            "dgp",
+            "dsr",
+            "egp",
+            "eigrp",
+            "emcon",
+            "encap",
+            "esp",
+            "etherip",
+            "fc",
+            "fire",
+            "ggp",
+            "gmtp",
+            "gre",
+            "hip",
+            "hmp",
+            "hopopt",
+            "i-nlsp",
+            "iatp",
+            "icmp",
+            "idpr",
+            "idpr-cmtp",
+            "idrp",
+            "ifmp",
+            "igmp",
+            "igp",
+            "il",
+            "ip",
+            "ipcomp",
+            "ipcv",
+            "ipip",
+            "iplt",
+            "ippc",
+            "ipv4",
+            "ipv6",
+            "ipv6-auth",
+            "ipv6-crypt",
+            "ipv6-frag",
+            "ipv6-icmp",
+            "ipv6-nonxt",
+            "ipv6-opts",
+            "ipv6-route",
+            "ipx-in-ip",
+            "irtp",
+            "isis",
+            "iso-ip",
+            "iso-tp4",
+            "kryptolan",
+            "l2tp",
+            "larp",
+            "leaf-1",
+            "leaf-2",
+            "manet",
+            "merit-inp",
+            "mfe-nsp",
+            "micp",
+            "mobile",
+            "mobility-header",
+            "mpls-in-ip",
+            "mtp",
+            "mux",
+            "narp",
+            "netblt",
+            "nsfnet-igp",
+            "nvp",
+            "ospf",
+            "pgm",
+            "pim",
+            "pipe",
+            "pnni",
+            "prm",
+            "ptp",
+            "pup",
+            "pvp",
+            "qnx",
+            "rdp",
+            "rohc",
+            "rsvp",
+            "rsvp-e2e-ignore",
+            "rvd",
+            "sat-expak",
+            "sat-mon",
+            "scc-sp",
+            "scps",
+            "sctp",
+            "sdrp",
+            "secure-vmtp",
+            "shim6",
+            "skip",
+            "sm",
+            "smp",
+            "snp",
+            "sprite-rpc",
+            "sps",
+            "srp",
+            "sscopmce",
+            "st",
+            "stp",
+            "sun-nd",
+            "swipe",
+            "tcf",
             "tcp",
-            "udp"
+            "tlsp",
+            "tp++",
+            "trunk-1",
+            "trunk-2",
+            "ttp",
+            "udp",
+            "udplite",
+            "uti",
+            "vines",
+            "visa",
+            "vmtp",
+            "vrrp",
+            "wb-expak",
+            "wb-mon",
+            "wesp",
+            "wsn",
+            "xnet",
+            "xns-idp",
+            "xtp"
           ],
           "default": "any"
         },
@@ -13940,7 +14477,7 @@
           ]
         },
         "excludeAddresses": {
-          "description": "Specifies the set of addresses excluded from translation IP addresses available in the pool",
+          "description": "Specifies the set of addresses excluded from translation IP addresses available in the pool. This property is available on BIGIP 14.1 and above.",
           "type": "array",
           "items": {
             "oneOf": [
@@ -14104,7 +14641,7 @@
     },
     "Protocol_Inspection_Profile": {
       "title": "Protocol_Inspection_Profile",
-      "description": "Protocol Inspection Profile used for configurable BIG-IP AFM intrusion prevention. Note: Protocol Inspection Profiles are only supported in tmos version 13.1+",
+      "description": "Protocol Inspection Profile used for configurable BIG-IP AFM intrusion prevention",
       "type": "object",
       "properties": {
         "class": {
@@ -14867,12 +15404,15 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "publicKey": {
           "description": "The public key of the authentication algorithm (rsa, dss, etc...)",
@@ -15299,8 +15839,12 @@
           "externalFilePath": {
             "title": "External File Path",
             "description": "Specifies the location (URI) from where the records will be copied",
-            "type": "string",
-            "f5expand": true
+            "allOf": [
+              {
+                "$ref": "#/definitions/Resource_URL"
+              }
+            ],
+            "f5checkResource": true
           },
           "separator": {
             "title": "Record Key Value Separator",
@@ -15731,12 +16275,15 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         }
       },
       "required": [
@@ -15967,7 +16514,7 @@
           ]
         },
         "allowlist": {
-          "description": "Specifies the default allowlist address list for the system to use to determine which IP addresses are legitimate. The system does not examine traffic from the IP addresses in the list when performing DoS prevention.",
+          "description": "Specifies the default allowlist address list for the system to use to determine which IP addresses are legitimate. The system does not examine traffic from the IP addresses in the list when performing DoS prevention. This property is available on BIGIP 14.1 and above.",
           "allOf": [
             {
               "$ref": "#/definitions/Pointer_Firewall_Address_List"
@@ -15975,7 +16522,7 @@
           ]
         },
         "whitelist": {
-          "description": "Deprecated. Replaced with functionally equivalent allowlist. Specifies the default allowlist address list for the system to use to determine which IP addresses are legitimate. The system does not examine traffic from the IP addresses in the list when performing DoS prevention.",
+          "description": "Deprecated. Replaced with functionally equivalent allowlist. Specifies the default allowlist address list for the system to use to determine which IP addresses are legitimate. The system does not examine traffic from the IP addresses in the list when performing DoS prevention. This property is available on BIGIP 14.1 and above.",
           "allOf": [
             {
               "$ref": "#/definitions/Pointer_Firewall_Address_List"
@@ -16063,14 +16610,14 @@
           "default": false
         },
         "sourceDetectionThreshold": {
-          "description": "Specifies the number of packets per second to identify an IP address as a bad actor. BIG-IP versions below 13.1.0 clamp this value to a maximum of 2147483647",
+          "description": "Specifies the number of packets per second to identify an IP address as a bad actor",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
           "default": 4294967295
         },
         "sourceMitigationThreshold": {
-          "description": "Specifies the rate limit applied to a source IP that is identified as a bad actor. BIG-IP versions below 13.1.0 clamp this value to a maximum of 2147483647",
+          "description": "Specifies the rate limit applied to a source IP that is identified as a bad actor",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
@@ -16173,14 +16720,14 @@
           "default": true
         },
         "gracePeriod": {
-          "description": "The length of time (in seconds) before the system blocks suspected bots. The grace period allows web application pages with both HTML and non-HTML (like images, JS, and CSS) to load completely without being blocked. The grace period starts after client validation, a configuration change, or when proactive bot defense is activated as a result of a detected attack or high latency.",
+          "description": "The length of time (in seconds) before the system blocks suspected bots. The grace period allows web application pages with both HTML and non-HTML (like images, JS, and CSS) to load completely without being blocked. The grace period starts after client validation, a configuration change, or when proactive bot defense is activated as a result of a detected attack or high latency. This property is available on BIGIP 14.1 and above.",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
           "default": 300
         },
         "crossDomainRequests": {
-          "description": "Specifies how the system responds when receiving a request for non-HTML resources (images, CSS, XML, JavaScript, and Flash) without a valid cookie, and has a Referer header with a different domain than the host domain.",
+          "description": "Specifies how the system responds when receiving a request for non-HTML resources (images, CSS, XML, JavaScript, and Flash) without a valid cookie, and has a Referer header with a different domain than the host domain. This property is available on BIGIP 14.1 and above.",
           "type": "string",
           "enum": [
             "allow-all",
@@ -16190,14 +16737,14 @@
           "default": "allow-all"
         },
         "siteDomains": {
-          "description": "Specifies how the system responds when receiving a request for non-HTML resources (images, CSS, XML, JavaScript, and Flash) without a valid cookie, and has a Referer header with a different domain than the host domain",
+          "description": "Specifies how the system responds when receiving a request for non-HTML resources (images, CSS, XML, JavaScript, and Flash) without a valid cookie, and has a Referer header with a different domain than the host domain. This property is available on BIGIP 14.1 and above.",
           "type": "array",
           "items": {
             "type": "string"
           }
         },
         "externalDomains": {
-          "description": "Specifies the external referring domains (that are not part of your website) that are allowed to link to resources in your website. These domains are not protected with proactive bot defense, but the system allows them if they pass the system’s redirect-cookie challenge.",
+          "description": "Specifies the external referring domains (that are not part of your website) that are allowed to link to resources in your website. These domains are not protected with proactive bot defense, but the system allows them if they pass the system’s redirect-cookie challenge. This property is available on BIGIP 14.1 and above.",
           "type": "array",
           "items": {
             "type": "string"
@@ -16770,7 +17317,7 @@
           "default": false
         },
         "tlsSignaturesEnabled": {
-          "description": "Enables tls signature detection before the connection establishment",
+          "description": "Enables tls signature detection before the connection establishment. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         }
@@ -16961,7 +17508,7 @@
           "default": false
         },
         "singlePageApplicationEnabled": {
-          "description": "Specifies that your website is a Single Page Application, meaning a web application that loads new content without triggering a full page-reload",
+          "description": "Specifies that your website is a Single Page Application, meaning a web application that loads new content without triggering a full page-reload. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
@@ -17205,7 +17752,7 @@
           "default": {}
         },
         "autoAttackFloor": {
-          "description": "Specifies packets per second to identify an attack. These settings provide an absolute minimum of packets to allow before the attack is identified. As the automatic detection thresholds adjust to traffic and CPU usage on the system over time, this attack floor becomes less relevant. BIG-IP versions below 13.1.0 clamp this value to a maximum of 2147483647",
+          "description": "Specifies packets per second to identify an attack. These settings provide an absolute minimum of packets to allow before the attack is identified. As the automatic detection thresholds adjust to traffic and CPU usage on the system over time, this attack floor becomes less relevant.",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
@@ -17219,7 +17766,7 @@
           "default": 4294967295
         },
         "rateThreshold": {
-          "description": "Specify how many packets per second the system must discover in traffic in order to detect this attack. BIG-IP versions below 13.1.0 clamp this value to a maximum of 2147483647",
+          "description": "Specify how many packets per second the system must discover in traffic in order to detect this attack",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
@@ -17233,7 +17780,7 @@
           "default": 500
         },
         "rateLimit": {
-          "description": "Specify the maximum number of this type of packet per second the system allows for a vector. The system drops packets once the traffic level exceeds the rate limit. BIG-IP versions below 13.1.0 clamp this value to a maximum of 2147483647",
+          "description": "Specify the maximum number of this type of packet per second the system allows for a vector. The system drops packets once the traffic level exceeds the rate limit.",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
@@ -17336,7 +17883,7 @@
           "default": {}
         },
         "autoAttackFloor": {
-          "description": "Specifies packets per second to identify an attack. These settings provide an absolute minimum of packets to allow before the attack is identified. As the automatic detection thresholds adjust to traffic and CPU usage on the system over time, this attack floor becomes less relevant. BIG-IP versions below 13.1.0 clamp this value to a maximum of 2147483647",
+          "description": "Specifies packets per second to identify an attack. These settings provide an absolute minimum of packets to allow before the attack is identified. As the automatic detection thresholds adjust to traffic and CPU usage on the system over time, this attack floor becomes less relevant.",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
@@ -17350,21 +17897,21 @@
           "default": 4294967295
         },
         "rateThreshold": {
-          "description": "Specify how many packets per second the system must discover in traffic in order to detect this attack. BIG-IP versions below 13.1.0 clamp this value to a maximum of 2147483647",
+          "description": "Specify how many packets per second the system must discover in traffic in order to detect this attack",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
           "default": 4294967295
         },
         "rateIncreaseThreshold": {
-          "description": "Specify percent of rate increase the system must discover in traffic in order to detect this attack. BIG-IP version 13.1.x clamps this value to a maximum of 2147483647",
+          "description": "Specify percent of rate increase the system must discover in traffic in order to detect this attack",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
           "default": 500
         },
         "rateLimit": {
-          "description": "Specify the maximum number of this type of packet per second the system allows for a vector. The system drops packets once the traffic level exceeds the rate limit. BIG-IP versions below 13.1.0 clamp this value to a maximum of 2147483647",
+          "description": "Specify the maximum number of this type of packet per second the system allows for a vector. The system drops packets once the traffic level exceeds the rate limit.",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
@@ -17468,7 +18015,7 @@
           "default": {}
         },
         "autoAttackFloor": {
-          "description": "Specifies packets per second to identify an attack. These settings provide an absolute minimum of packets to allow before the attack is identified. As the automatic detection thresholds adjust to traffic and CPU usage on the system over time, this attack floor becomes less relevant. BIG-IP versions below 13.1.0 clamp this value to a maximum of 2147483647",
+          "description": "Specifies packets per second to identify an attack. These settings provide an absolute minimum of packets to allow before the attack is identified. As the automatic detection thresholds adjust to traffic and CPU usage on the system over time, this attack floor becomes less relevant.",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
@@ -17482,7 +18029,7 @@
           "default": 4294967295
         },
         "rateThreshold": {
-          "description": "Specify how many packets per second the system must discover in traffic in order to detect this attack. BIG-IP versions below 13.1.0 clamp this value to a maximum of 2147483647",
+          "description": "Specify how many packets per second the system must discover in traffic in order to detect this attack",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
@@ -17496,7 +18043,7 @@
           "default": 500
         },
         "rateLimit": {
-          "description": "Specify the maximum number of this type of packet per second the system allows for a vector. The system drops packets once the traffic level exceeds the rate limit. BIG-IP versions below 13.1.0 clamp this value to a maximum of 2147483647",
+          "description": "Specify the maximum number of this type of packet per second the system allows for a vector. The system drops packets once the traffic level exceeds the rate limit.",
           "type": "integer",
           "minimum": 0,
           "maximum": 4294967295,
@@ -19660,6 +20207,9 @@
       "allOf": [
         {
           "if": {
+            "required": [
+              "serverType"
+            ],
             "properties": {
               "serverType": {
                 "const": "generic-host"
@@ -19688,6 +20238,9 @@
         },
         {
           "if": {
+            "required": [
+              "serverType"
+            ],
             "properties": {
               "serverType": {
                 "const": "bigip"
@@ -20868,92 +21421,92 @@
           "default": false
         },
         "logAlarm": {
-          "description": "This option enables or disables the logging of requests with alarm mitigation. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with alarm mitigation. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logBlock": {
-          "description": "This option enables or disables the logging of requests with block mitigation. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with block mitigation. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logBrowser": {
-          "description": "This option enables or disables the logging of requests with browser classification. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with browser classification. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logBrowserVerificationAction": {
-          "description": "This option enables or disables the logging of requests by browser verification action. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests by browser verification action. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logCaptcha": {
-          "description": "This option enables or disables the logging of requests with captcha mitigation. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with captcha mitigation. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logDeviceIdCollectionRequest": {
-          "description": "This option enables or disables the logging of requests by device ID collection. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests by device ID collection. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logMaliciousBot": {
-          "description": "This option enables or disables the logging of requests with malicious bot classification. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with malicious bot classification. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logMobileApplication": {
-          "description": "This option enables or disables the logging of requests with mobile application classification. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with mobile application classification. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logNone": {
-          "description": "This option enables or disables the logging of requests with no mitigation. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with no mitigation. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logRateLimit": {
-          "description": "This option enables or disables the logging of requests with rate limit mitigation. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with rate limit mitigation. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logSuspiciousBrowser": {
-          "description": "This option enables or disables the logging of requests with suspicious browser classification. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with suspicious browser classification. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logTcpReset": {
-          "description": "This option enables or disables the logging of requests with TCP reset mitigation. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with TCP reset mitigation. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logTrustedBot": {
-          "description": "This option enables or disables the logging of requests with trusted bot classification. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with trusted bot classification. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logUnknown": {
-          "description": "This option enables or disables the logging of requests with unknown classification. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with unknown classification. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": true
         },
         "logUntrustedBot": {
-          "description": "This option enables or disables the logging of requests with untrusted bot classification. This feature is only supported in TMOS versions 14.1+",
+          "description": "This option enables or disables the logging of requests with untrusted bot classification. This property is available on BIGIP 14.1 and above.",
           "type": "boolean",
           "default": false
         },
         "logHoneyPotPage": {
-          "description": "This option enables or disables the logging of requests with honey pot page mitigation. This feature is only supported in TMOS versions 15.0+",
+          "description": "This option enables or disables the logging of requests with honey pot page mitigation. This property is available on BIGIP 15.0 and above.",
           "type": "boolean",
           "default": false
         },
         "logRedirectToPool": {
-          "description": "This option enables or disables the logging of requests with redirect to pool mitigation. This feature is only supported in TMOS versions 15.0+",
+          "description": "This option enables or disables the logging of requests with redirect to pool mitigation. This property is available on BIGIP 15.0 and above.",
           "type": "boolean",
           "default": false
         },
         "logChallengeFailureRequest": {
-          "description": "This option enables or disables the logging of requests by challenge failure. This feature is only supported in TMOS versions 15.0+",
+          "description": "This option enables or disables the logging of requests by challenge failure. This property is available on BIGIP 15.0 and above.",
           "type": "boolean",
           "default": false
         }
@@ -22667,7 +23220,8 @@
             "drop",
             "clientSsl",
             "persist",
-            "tcl"
+            "tcl",
+            "log"
           ]
         }
       },
@@ -22803,6 +23357,18 @@
           "then": {
             "$ref": "#/definitions/Policy_Action_TCL"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "log"
+              }
+            }
+          },
+          "then": {
+            "$ref": "#/definitions/Policy_Action_Log"
+          }
         }
       ],
       "required": [
@@ -22861,8 +23427,9 @@
           "type": "string",
           "description": "When to run this event in the request-response cycle",
           "enum": [
-            "ssl-client-hello",
-            "request"
+            "proxy-request",
+            "request",
+            "ssl-client-hello"
           ],
           "default": "ssl-client-hello"
         }
@@ -22871,28 +23438,44 @@
     "Policy_Action_Forward_Select": {
       "description": "Select appropriate location for forwarding the connection based on specified parameters",
       "type": "object",
-      "oneOf": [
+      "allOf": [
         {
-          "type": "object",
-          "properties": {
-            "pool": {
-              "$ref": "#/definitions/Pointer_Pool"
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "pool": {
+                  "$ref": "#/definitions/Pointer_Pool"
+                }
+              },
+              "required": [
+                "pool"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "service": {
+                  "$ref": "#/definitions/Pointer_Service"
+                }
+              },
+              "required": [
+                "service"
+              ]
             }
-          },
-          "required": [
-            "pool"
           ]
         },
         {
-          "type": "object",
           "properties": {
-            "service": {
-              "$ref": "#/definitions/Pointer_Service"
+            "snat": {
+              "description": "Controls snat automap",
+              "type": "string",
+              "enum": [
+                "disable",
+                "automap"
+              ]
             }
-          },
-          "required": [
-            "service"
-          ]
+          }
         }
       ]
     },
@@ -23564,6 +24147,7 @@
           "type": "string",
           "description": "When to run this event in the request-response cycle",
           "enum": [
+            "proxy-request",
             "request",
             "response",
             "ssl-client-hello",
@@ -23593,6 +24177,101 @@
       },
       "required": [
         "setVariable"
+      ]
+    },
+    "Policy_Action_Log": {
+      "type": "object",
+      "description": "Writes messages to local or remote system log",
+      "properties": {
+        "event": {
+          "type": "string",
+          "description": "When to run this event in the request-response cycle",
+          "enum": [
+            "classification-detected",
+            "client-accepted",
+            "proxy-connect",
+            "proxy-request",
+            "proxy-response",
+            "request",
+            "response",
+            "server-connected",
+            "ssl-client-hello",
+            "ssl-client-serverhello-send",
+            "ssl-server-handshake",
+            "ssl-server-hello",
+            "ws-request",
+            "ws-response"
+          ],
+          "default": "ssl-client-hello"
+        },
+        "write": {
+          "type": "object",
+          "description": "Write a message to the system log files",
+          "properties": {
+            "message": {
+              "type": "string",
+              "description": "The message to write to the system log. Can also be a Tcl command substitution",
+              "minLength": 1
+            },
+            "facility": {
+              "type": "string",
+              "description": "Standard syslog facility associated with the message",
+              "enum": [
+                "authpriv",
+                "cron",
+                "daemon",
+                "ftp",
+                "kern",
+                "local0",
+                "local1",
+                "local2",
+                "local3",
+                "local4",
+                "local5",
+                "local6",
+                "local7",
+                "lpr",
+                "mail",
+                "news",
+                "security",
+                "user",
+                "uucp"
+              ],
+              "default": "local0"
+            },
+            "priority": {
+              "type": "string",
+              "description": "Standard syslog priority associated with the message",
+              "enum": [
+                "crit",
+                "debug",
+                "error",
+                "info",
+                "notice",
+                "warning"
+              ],
+              "default": "info"
+            },
+            "ipAddress": {
+              "type": "string",
+              "description": "The IP address of the remote syslog server",
+              "format": "f5ip"
+            },
+            "port": {
+              "type": "integer",
+              "description": "The port number of the remote syslog server",
+              "minimum": 0,
+              "maximum": 65535,
+              "default": 0
+            }
+          },
+          "required": [
+            "message"
+          ]
+        }
+      },
+      "required": [
+        "write"
       ]
     },
     "Policy_Condition": {
@@ -23701,6 +24380,7 @@
               "description": "When to evaluate this condition in the request-response cycle",
               "type": "string",
               "enum": [
+                "proxy-request",
                 "request"
               ],
               "default": "request"
@@ -24162,7 +24842,7 @@
           "type": "object",
           "properties": {
             "event": {
-              "description": "When to evaluate this condition in the request-response cycle. 'client-accepted', 'server-connected', 'proxy-connect', 'proxy-request', 'proxy-response', and 'ssl-client-serverhello-send' require TMOS v13.1+.",
+              "description": "When to evaluate this condition in the request-response cycle",
               "type": "string",
               "enum": [
                 "request",
@@ -24191,58 +24871,9 @@
               "properties": {
                 "address": {
                   "description": "Specify the address to use",
-                  "oneOf": [
+                  "allOf": [
                     {
                       "$ref": "#/definitions/Policy_Match_String"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "datagroup": {
-                          "description": "Reference a data-group for the values",
-                          "type": "object",
-                          "properties": {
-                            "bigip": {
-                              "title": "BIG-IP Data-Group",
-                              "description": "Pathname of existing BIG-IP Data-Group",
-                              "type": "string",
-                              "format": "f5bigip"
-                            },
-                            "use": {
-                              "title": "Use",
-                              "description": "AS3 pointer to Data_Group",
-                              "type": "string",
-                              "minLength": 1,
-                              "f5pointsTo": {
-                                "properties": {
-                                  "class": {
-                                    "const": "Data_Group"
-                                  }
-                                },
-                                "required": [
-                                  "class"
-                                ]
-                              }
-                            }
-                          },
-                          "additionalProperties": false,
-                          "minProperties": 1,
-                          "maxProperties": 1,
-                          "f5bigComponent": "query ltm data-group internal"
-                        },
-                        "operand": {
-                          "description": "Specifies the comparison",
-                          "type": "string",
-                          "enum": [
-                            "matches",
-                            "does-not-match"
-                          ],
-                          "default": "matches"
-                        }
-                      },
-                      "required": [
-                        "datagroup"
-                      ]
                     }
                   ]
                 }
@@ -24276,7 +24907,7 @@
       "type": "object",
       "properties": {
         "operand": {
-          "description": "Specifies the comparison that the system should perform with values. exists/does-not-exist does not accept values is only supported on BIG-IP 15.0+",
+          "description": "Specifies the comparison that the system should perform with values. The operands exists and does-not-exist do not accept values and are available on BIGIP 15.0 and above.",
           "type": "string",
           "enum": [
             "equals",
@@ -24299,6 +24930,10 @@
             "type": "string"
           },
           "minItems": 1
+        },
+        "datagroup": {
+          "description": "Reference to a data-group containing the values",
+          "$ref": "#/definitions/Datagroup_Value"
         },
         "caseSensitive": {
           "description": "Specifies if the comparison the system should perform with case sensitivity",
@@ -24331,8 +24966,17 @@
             ]
           },
           "then": {
-            "required": [
-              "values"
+            "oneOf": [
+              {
+                "required": [
+                  "values"
+                ]
+              },
+              {
+                "required": [
+                  "datagroup"
+                ]
+              }
             ]
           }
         }
@@ -24390,12 +25034,57 @@
             "type": "string"
           },
           "minItems": 1
+        },
+        "datagroup": {
+          "description": "Reference to a data-group containing the values",
+          "$ref": "#/definitions/Datagroup_Value"
         }
       },
-      "required": [
-        "values"
+      "oneOf": [
+        {
+          "required": [
+            "values"
+          ]
+        },
+        {
+          "required": [
+            "datagroup"
+          ]
+        }
       ],
       "additionalProperties": false
+    },
+    "Datagroup_Value": {
+      "description": "Reference to a data-group containing the values",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "title": "BIG-IP Data-Group",
+          "description": "Pathname of existing BIG-IP Data-Group",
+          "type": "string",
+          "format": "f5bigip"
+        },
+        "use": {
+          "title": "Use",
+          "description": "AS3 pointer to Data_Group",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "const": "Data_Group"
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "f5bigComponent": "query ltm data-group internal"
     },
     "Bandwidth_Control_Policy": {
       "title": "Bandwidth_Control_Policy",
@@ -25912,7 +26601,7 @@
           "type": "string"
         },
         "protocolProfileGx": {
-          "description": "Specifies the protocol profile to be used when you enable subscriber discovery. The PEM protocol profile defines mapping of Diameter Gx AVPs to subscriber ID and other PEM subscriber session attributes. Note: The default BIG-IP reference values vary between versions. BIG-IP versions before 14.1 begin with ‘sys_gx’ (e.g. _sys_gx_proto_default). Versions 14.1 and later begin with ‘sys_diam’ (e.g. _sys_diam_proto_default).",
+          "description": "Specifies the protocol profile to be used when you enable subscriber discovery. The PEM protocol profile defines mapping of Diameter Gx AVPs to subscriber ID and other PEM subscriber session attributes. The default BIG-IP reference values vary between versions. BIGIP versions 14.1 and above begin with ‘sys_diam’ (e.g. _sys_diam_proto_default).",
           "allOf": [
             {
               "$ref": "#/definitions/Pointer_Enforcement_Profile_Gx"
@@ -26024,12 +26713,15 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "password": {
           "description": "The password of the RADIUS AAA profile for RADIUS server authentication",
@@ -26041,12 +26733,15 @@
               "default": false
             }
           },
-          "if": true,
-          "then": {
-            "$ref": "#/definitions/Secret"
-          },
+          "allOf": [
+            {
+              "$ref": "#/definitions/Secret"
+            }
+          ],
           "f5fetch": "object",
-          "f5secret": true
+          "f5PostProcess": {
+            "tag": "secret"
+          }
         },
         "transactionTimeout": {
           "description": "The number of seconds to wait before resending authentication or accounting transaction messages to the RADIUS server",
@@ -27771,12 +28466,12 @@
         }
       ]
     },
-    "Pointer_Existing_TLS_Client_Profile": {
-      "description": "Reference to a TLS Client profile",
+    "Pointer_Existing_TLS_Server_Profile": {
+      "description": "Reference to a TLS Server profile",
       "type": "object",
       "properties": {
         "bigip": {
-          "description": "Pathname of existing BIG-IP TLS Client profile",
+          "description": "Pathname of existing BIG-IP TLS Server profile",
           "type": "string",
           "format": "f5bigip"
         }
@@ -27790,12 +28485,12 @@
         }
       ]
     },
-    "Pointer_Existing_TLS_Server_Profile": {
-      "description": "Reference to a TLS Server profile",
+    "Pointer_Existing_TLS_Client_Profile": {
+      "description": "Reference to a TLS Client profile",
       "type": "object",
       "properties": {
         "bigip": {
-          "description": "Pathname of existing BIG-IP TLS Server profile",
+          "description": "Pathname of existing BIG-IP TLS Client profile",
           "type": "string",
           "format": "f5bigip"
         }
@@ -28499,6 +29194,42 @@
       "minProperties": 1,
       "maxProperties": 1
     },
+    "Pointer_HTML_Profile": {
+      "description": "Reference to a HTML_Profile",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to HTML_Profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "HTML_Profile"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP HTML_Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm profile html"
+        }
+      ]
+    },
     "Pointer_HTML_Rule": {
       "description": "Reference to a HTML_Rule",
       "type": "object",
@@ -28531,7 +29262,25 @@
       "maxProperties": 1,
       "allOf": [
         {
+          "f5bigComponent": "query ltm html-rule comment-raise-event"
+        },
+        {
+          "f5bigComponent": "query ltm html-rule comment-remove"
+        },
+        {
           "f5bigComponent": "query ltm html-rule tag-append-html"
+        },
+        {
+          "f5bigComponent": "query ltm html-rule tag-prepend-html"
+        },
+        {
+          "f5bigComponent": "query ltm html-rule tag-raise-event"
+        },
+        {
+          "f5bigComponent": "query ltm html-rule tag-remove"
+        },
+        {
+          "f5bigComponent": "query ltm html-rule tag-remove-attribute"
         }
       ]
     },
@@ -28626,6 +29375,44 @@
         }
       ]
     },
+    "Pointer_Integrated_Bot_Defense_Profile": {
+      "description": "Reference to a Integrated Bot Defense Profile",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Integrated Bot Defense Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query saas bd profile"
+        }
+      ]
+    },
+    "Pointer_IP_Intelligence_Policy": {
+      "description": "Reference to a IP Intelligence Policy",
+      "type": "object",
+      "properties": {
+        "bigip": {
+          "description": "Pathname of existing BIG-IP IP Intelligence Policy",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query security ip-intelligence policy"
+        }
+      ]
+    },
     "Pointer_NAT_Source_Translation": {
       "description": "Reference to a NAT Source Translation",
       "type": "object",
@@ -28659,6 +29446,66 @@
       "allOf": [
         {
           "f5bigComponent": "query security nat source-translation"
+        }
+      ]
+    },
+    "Pointer_Persist_Profile": {
+      "description": "Reference to a Persist Profile",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to Persist Profile declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Persist"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP Persist Profile",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query ltm persistence cookie"
+        },
+        {
+          "f5bigComponent": "query ltm persistence dest-addr"
+        },
+        {
+          "f5bigComponent": "query ltm persistence hash"
+        },
+        {
+          "f5bigComponent": "query ltm persistence host"
+        },
+        {
+          "f5bigComponent": "query ltm persistence msrdp"
+        },
+        {
+          "f5bigComponent": "query ltm persistence sip"
+        },
+        {
+          "f5bigComponent": "query ltm persistence source-addr"
+        },
+        {
+          "f5bigComponent": "query ltm persistence ssl"
+        },
+        {
+          "f5bigComponent": "query ltm persistence universal"
         }
       ]
     },

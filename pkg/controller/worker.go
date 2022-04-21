@@ -670,7 +670,7 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 	if tlsProfile.Spec.TLS.Reference == "secret" {
 		clientSecret, _ := ctlr.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), tlsProfile.Spec.TLS.ClientSSL, metav1.GetOptions{})
 		//validate clientSSL certificates and hostname
-		match := checkCertificateHost(clientSecret, vs.Spec.Host)
+		match := checkCertificateHost(vs.Spec.Host, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"])
 		if match == false {
 			return nil
 		}
@@ -2064,8 +2064,8 @@ func (ctlr *Controller) ProcessAssociatedExternalDNS(hostnames []string) {
 }
 
 //Validate certificate hostname
-func checkCertificateHost(res *v1.Secret, host string) bool {
-	cert, certErr := tls.X509KeyPair(res.Data["tls.crt"], res.Data["tls.key"])
+func checkCertificateHost(host string, certificate []byte, key []byte) bool {
+	cert, certErr := tls.X509KeyPair(certificate, key)
 	if certErr != nil {
 		log.Errorf("Failed to validate TLS cert and key: %v", certErr)
 		return false

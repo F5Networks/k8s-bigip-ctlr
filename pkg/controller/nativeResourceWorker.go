@@ -15,6 +15,7 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
+	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"reflect"
 )
@@ -294,14 +295,11 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string) []*routeapi.Route {
 	// Get the route group
 	orderedRoutes := ctlr.getOrderedRoutes(routeGroup)
 	var assocRoutes []*routeapi.Route
-	uniqueHostPathMap := map[string]struct{}{}
 	for _, route := range orderedRoutes {
 		// TODO: add combinations for a/b - svc weight ; valid svcs or not
-		if _, found := uniqueHostPathMap[route.Spec.Host+route.Spec.Path]; found {
-			log.Errorf(" Discarding route %v due to duplicate host %v, path %v combination", route.Name, route.Spec.Host, route.Spec.To)
-			continue
-		} else {
-			uniqueHostPathMap[route.Spec.Host+route.Spec.Path] = struct{}{}
+		if ctlr.checkValidRoute(route) {
+			ctlr.updateHostPathMap(route)
+			go ctlr.removeDeletedRouteFromHostPathMap()
 			assocRoutes = append(assocRoutes, route)
 		}
 	}
@@ -794,4 +792,175 @@ func frameRouteVSName(routeGroup string,
 		)
 	}
 	return rsName
+}
+
+// update route admit status
+func (ctlr *Controller) updateRouteAdmitStatus(
+	rscKey string,
+	reason string,
+	message string,
+	status v1.ConditionStatus,
+) {
+	route := ctlr.fetchRoute(rscKey)
+	if route == nil {
+		return
+	}
+	Admitted := false
+	for _, routeIngress := range route.Status.Ingress {
+		if routeIngress.RouterName == F5RouterName {
+			for _, condition := range routeIngress.Conditions {
+				if condition.Status == status {
+					Admitted = true
+				} else {
+					// remove all multiple route admit status submitted earlier
+					ctlr.eraseRouteAdmitStatus(rscKey)
+				}
+			}
+		}
+	}
+	retryCount := 0
+	for !Admitted && retryCount < 3 {
+		now := metaV1.Now().Rfc3339Copy()
+		route.Status.Ingress = append(route.Status.Ingress, routeapi.RouteIngress{
+			RouterName: F5RouterName,
+			Host:       route.Spec.Host,
+			Conditions: []routeapi.RouteIngressCondition{{
+				Type:               routeapi.RouteAdmitted,
+				Status:             status,
+				Reason:             reason,
+				Message:            message,
+				LastTransitionTime: &now,
+			}},
+		})
+		_, err := ctlr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
+		if err != nil {
+			retryCount++
+			log.Errorf("Error while Updating Route Admit Status: %v\n", err)
+			// Fetching the latest copy of route
+			route = ctlr.fetchRoute(rscKey)
+			if route == nil {
+				return
+			}
+		} else {
+			Admitted = true
+			log.Debugf("Admitted Route -  %v", route.ObjectMeta.Name)
+		}
+	}
+	// remove the route admit status for routes which are not monitored by CIS anymore
+	ctlr.eraseAllRouteAdmitStatus()
+}
+
+// remove the route admit status for routes which are not monitored by CIS anymore
+func (ctlr *Controller) eraseAllRouteAdmitStatus() {
+	// Get the list of all unwatched Routes from all NS.
+	unmonitoredOptions := metaV1.ListOptions{
+		LabelSelector: strings.ReplaceAll(ctlr.routeLabel, " in ", " notin "),
+	}
+	unmonitoredRoutes, err := ctlr.routeClientV1.Routes("").List(context.TODO(), unmonitoredOptions)
+	if err != nil {
+		log.Errorf("[CORE] Error listing all Routes: %v", err)
+		return
+	}
+	for _, route := range unmonitoredRoutes.Items {
+		ctlr.eraseRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name))
+	}
+}
+
+func (ctlr *Controller) eraseRouteAdmitStatus(rscKey string) {
+	// Fetching the latest copy of route
+	route := ctlr.fetchRoute(rscKey)
+	if route == nil {
+		return
+	}
+	for i := 0; i < len(route.Status.Ingress); i++ {
+		if route.Status.Ingress[i].RouterName == F5RouterName {
+			route.Status.Ingress = append(route.Status.Ingress[:i], route.Status.Ingress[i+1:]...)
+			erased := false
+			retryCount := 0
+			for !erased && retryCount < 3 {
+				_, err := ctlr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
+				if err != nil {
+					log.Errorf("[CORE] Error while Erasing Route Admit Status: %v\n", err)
+					retryCount++
+					route = ctlr.fetchRoute(rscKey)
+					if route == nil {
+						return
+					}
+				} else {
+					erased = true
+					log.Debugf("[CORE] Admit Status Erased for Route - %v\n", route.ObjectMeta.Name)
+				}
+			}
+			i-- // Since we just deleted a[i], we must redo that index
+		}
+	}
+}
+
+func (ctlr *Controller) fetchRoute(rscKey string) *routeapi.Route {
+	ns := strings.Split(rscKey, "/")[0]
+	nrInf, _ := ctlr.getNamespacedNativeInformer(ns)
+	obj, exist, err := nrInf.routeInformer.GetIndexer().GetByKey(rscKey)
+	if err != nil {
+		log.Debugf("Error while fetching Route: %v: %v",
+			rscKey, err)
+		return nil
+	}
+	if !exist {
+		log.Debugf("Route Not Found: %v", rscKey)
+		return nil
+	}
+	return obj.(*routeapi.Route)
+}
+
+func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
+	// Validate the hostpath
+	ctlr.processedHostPath.Lock()
+	defer ctlr.processedHostPath.Unlock()
+	if processedRoute, found := ctlr.processedHostPath.processedHostPathMap[route.Spec.Host+route.Spec.Path]; found {
+		// update the status if different route
+		if processedRoute != fmt.Sprintf("%v/%v", route.Namespace, route.Name) {
+			message := fmt.Sprintf("Discarding route %v as route %v already exposes URI %v%v and is older ", route.Name, processedRoute, route.Spec.Host, route.Spec.Path)
+			log.Errorf(message)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "HostAlreadyClaimed", message, v1.ConditionFalse)
+			return false
+		}
+	}
+	// Validate hostname if certificate is not provided in SSL annotations
+	if nil != route.Spec.TLS && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
+		ok := checkCertificateHost(route.Spec.Host, []byte(route.Spec.TLS.Certificate), []byte(route.Spec.TLS.Key))
+		if !ok {
+			//Invalid certificate and key
+			message := fmt.Sprintf("Invalid certificate and key for route: %v", route.ObjectMeta.Name)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			return false
+		}
+	}
+	// Validate the route service exists or not
+	return true
+}
+
+func (ctlr *Controller) updateHostPathMap(route *routeapi.Route) {
+	// This function updates the processedHostPathMap
+	ctlr.processedHostPath.Lock()
+	defer ctlr.processedHostPath.Unlock()
+	for hostPath, routeKey := range ctlr.processedHostPath.processedHostPathMap {
+		if routeKey == fmt.Sprintf("%v/%v", route.Namespace, route.Name) && hostPath != route.Spec.Host+route.Spec.Path {
+			// Deleting the ProcessedHostPath map if route's path is changed
+			delete(ctlr.processedHostPath.processedHostPathMap, hostPath)
+		}
+	}
+	// adding the ProcessedHostPath map entry
+	ctlr.processedHostPath.processedHostPathMap[route.Spec.Host+route.Spec.Path] = fmt.Sprintf("%v/%v", route.Namespace, route.Name)
+}
+
+func (ctlr *Controller) removeDeletedRouteFromHostPathMap() {
+	ctlr.processedHostPath.Lock()
+	defer ctlr.processedHostPath.Unlock()
+	// This function removes the deleted route's entry from host-path map
+	for hostPath, routeKey := range ctlr.processedHostPath.processedHostPathMap {
+		route := ctlr.fetchRoute(routeKey)
+		if route == nil {
+			delete(ctlr.processedHostPath.processedHostPathMap, hostPath)
+		}
+	}
 }

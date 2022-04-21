@@ -230,7 +230,7 @@ func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Inter
 		mac, err = getVtepMac(pod, kubePods, kubeNodes)
 		if nil != err {
 			log.Errorf("[VxLAN] %v", err)
-			return
+			continue
 		}
 		entry := arpEntry{
 			Name:    fmt.Sprintf("k8s-%v", pod.Address),

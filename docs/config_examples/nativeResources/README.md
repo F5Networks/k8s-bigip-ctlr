@@ -24,8 +24,7 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
 
 ## Multiple VIP and Partition support for routes
 
-* Current CIS implementation creates a single VIP and partition for all the routes configured in the cluster which impacts scalability and performance.
-* This feature is implemented to add support for creating multiple VIP in bigip mapping to route groups created per namespace.
+* Current CIS implementation creates a single VIP and partition for all the routes configured.This feature is implemented to add support for creating multiple VIP in bigip mapping to route groups created per namespace.
 * All the routes in the namespace are treated as part of one routegroup in this preview release.
 * One virtual server(VIP) is created for each routegroup and maps to each tenant on BIGIP
 * CIS processes mutliple tenant information and still sends the single unified declaration to bigip to avoid multiple posts to BIGIP.

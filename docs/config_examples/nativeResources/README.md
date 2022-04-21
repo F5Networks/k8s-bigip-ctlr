@@ -306,13 +306,14 @@ spec:
 ## FAQ
  
 ### Is exteneded confiMap mandatory ?
-Yes. CIS fails to start without --route-spec-configmap value provided.CIS logs "invalid value provided for --route-spec-configmap" and exits
+Yes. CIS fails to start without `--route-spec-configmap` value provided.CIS logs `invalid value provided for --route-spec-configmap` and exits
 ### What happens if configMap is not created or deleted?
-If refrenced configmap with --route-spec-configmap is not created, CIS logs below error and doesn't process any routes
-
+If referenced configmap with --route-spec-configmap is not created, CIS logs below error and doesn't process any routes
+```
 [ERROR] Unable to Get Extended Route Spec Config Map: default/global-cm, configmaps "global-cm" not found.
+```
 
-CIS uses cache to store extendedRouteSpec information. So, even if configmap is deleted the information loaded initially is used for route processing.
+CIS uses cache to store extendedRouteSpec information. Even if configmap is deleted, the information loaded initially is thus used for route processing.
 ### Can i create multiple extended configmap ?
 CIS only uses configmap provided through --route-spec-configmap argument. 
 ### Do i need to modify existing routes for extended configMap support?
@@ -320,7 +321,11 @@ No.
 ### What are the supported routes?
 Currently supports edge routes
 ### Do we support bigIP referenced SSL Profiles and health monitor on routes?
-currently HM and ssl profiles is not supported, will be added in future release through extended ConfigMap. Config from annotation is not considered for the NextGenController.
+Currently, SSL profiles is not supported, will be added in future release through extended ConfigMap.
+### Can we configure health monitors using annotations?
+No. With NextGenRoute controller, health monitors need to be configured through extended configMap.
+### Which fields are optional in the extended configMap?
+iRules and healthMonitors are optional values.
 ### Any changes in RBAC? 
 No.
 

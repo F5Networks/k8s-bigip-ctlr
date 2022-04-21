@@ -394,8 +394,7 @@ func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bool) {
 	for _, v := range cfg.Pools {
 		pool := &as3Pool{}
-		// TODO
-		// pool.LoadBalancingMode = v.Balance
+		pool.LoadBalancingMode = v.Balance
 		pool.Class = "Pool"
 		for _, val := range v.Members {
 			var member as3PoolMember

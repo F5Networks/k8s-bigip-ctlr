@@ -6,8 +6,13 @@ Next Release
 Added Functionality
 ```````````````````
 
+**What’s new:**
+    * CRD:
+        * LoadBalancingMethod support for VirtualServer and TransportServer CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+
 Bug Fixes
 ````````````
+* :issues:`2224` Selecting Load Balancing method on VS CRD
 
 2.8.1
 -------------

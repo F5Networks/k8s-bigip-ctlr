@@ -115,13 +115,13 @@ type (
 	}
 
 	metaData struct {
-		Active         bool
-		ResourceType   string
-		baseResources  map[string]bool
-		namespace      string
-		hosts          []string
-		Protocol       string
-		httpTraffic    string
+		Active        bool
+		ResourceType  string
+		baseResources map[string]bool
+		namespace     string
+		hosts         []string
+		Protocol      string
+		httpTraffic   string
 	}
 
 	// Virtual Server Key - unique server is Name + Port
@@ -264,6 +264,7 @@ type (
 		Partition       string       `json:"-"`
 		ServiceName     string       `json:"-"`
 		ServicePort     int32        `json:"-"`
+		Balance         string       `json:"loadBalancingMethod,omitempty"`
 		Members         []PoolMember `json:"members"`
 		NodeMemberLabel string       `json:"-"`
 		MonitorNames    []string     `json:"monitors,omitempty"`

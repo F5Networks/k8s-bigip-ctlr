@@ -29,6 +29,7 @@ var _ = Describe("Routes", func() {
 		mockCtlr.esInformers["default"] = mockCtlr.newNamespacedEssentialResourceInformer("default")
 		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
 		mockCtlr.esInformers["test"] = mockCtlr.newNamespacedEssentialResourceInformer("test")
+		mockCtlr.esInformers["default"] = mockCtlr.newNamespacedEssentialResourceInformer("default")
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]string)
 		mockCtlr.processedHostPath = &processedHostPath
@@ -165,24 +166,41 @@ var _ = Describe("Routes", func() {
 					DestinationCACertificate:      "",
 				},
 			}
+			spec2 := routeapi.RouteSpec{
+				Host: "bar.com",
+				Path: "/bar",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+			}
 			route1 := test.NewRoute("route1", "1", "default", spec1, nil)
 			route2 := test.NewRoute("route2", "1", "test", spec1, nil)
+			route3 := test.NewRoute("route3", "1", "default", spec2, nil)
 			mockCtlr.addRoute(route1)
 			mockCtlr.addRoute(route2)
+			mockCtlr.addRoute(route3)
 			rskey1 := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			rskey2 := fmt.Sprintf("%v/%v", route2.Namespace, route2.Name)
+			rskey3 := fmt.Sprintf("%v/%v", route3.Namespace, route3.Name)
 			Expect(mockCtlr.checkValidRoute(route1)).To(BeFalse())
 			mockCtlr.processedHostPath.processedHostPathMap[route1.Spec.Host+route1.Spec.Path] = fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			Expect(mockCtlr.checkValidRoute(route2)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route3)).To(BeFalse())
 			time.Sleep(100 * time.Millisecond)
 			route1 = mockCtlr.fetchRoute(rskey1)
 			route2 = mockCtlr.fetchRoute(rskey2)
+			route3 = mockCtlr.fetchRoute(rskey3)
 			Expect(route1.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
 			Expect(route2.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
 			Expect(route1.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route2.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route1.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("ExtendedValidationFailed"), "Incorrect route admit reason")
 			Expect(route2.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("HostAlreadyClaimed"), "incorrect the route admit reason")
+			// checkValidRoute should fail with ServiceNotFound error
+			Expect(route3.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
+			Expect(route3.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
+			Expect(route3.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("ServiceNotFound"), "Incorrect route admit reason")
 		})
 		It("Check Host-Path Map functions", func() {
 			spec1 := routeapi.RouteSpec{
@@ -228,6 +246,7 @@ var _ = Describe("Routes", func() {
 			Expect(len(rsCfg.Monitors)).To(BeEquivalentTo(2))
 
 		})
+
 	})
 
 	Describe("Extended Spec ConfigMap", func() {

@@ -24,7 +24,7 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/crmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/controller"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
@@ -74,6 +74,7 @@ type globalSection struct {
 	VerifyInterval int    `json:"verify-interval,omitempty"`
 	VXLANPartition string `json:"vxlan-partition,omitempty"`
 	DisableLTM     bool   `json:"disable-ltm,omitempty"`
+	DisableARP     bool   `json:"disable-arp,omitempty"`
 }
 
 type bigIPSection struct {
@@ -303,7 +304,8 @@ func _init() {
 		"Optional, type of BIG-IP pool members to create. "+
 			"'nodeport' will use k8s service NodePort. "+
 			"'cluster' will use service endpoints. "+
-			"The BIG-IP must be able access the cluster network")
+			"The BIG-IP must be able access the cluster network"+
+			"'nodeportlocal' only supported with antrea cni")
 	inCluster = kubeFlags.Bool("running-in-cluster", true,
 		"Optional, if this controller is running in a kubernetes cluster,"+
 			"use the pod secrets for creating a Kubernetes client.")
@@ -486,7 +488,7 @@ func verifyArgs() error {
 
 	if *poolMemberType == "nodeport" {
 		isNodePort = true
-	} else if *poolMemberType == "cluster" {
+	} else if *poolMemberType == "cluster" || *poolMemberType == "nodeportlocal" {
 		isNodePort = false
 	} else {
 		return fmt.Errorf("'%v' is not a valid Pool Member Type", *poolMemberType)
@@ -755,11 +757,11 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 	}
 }
 
-func initCustomResourceManager(
+func initController(
 	config *rest.Config,
-) *crmanager.CRManager {
+) *controller.Controller {
 
-	postMgrParams := crmanager.PostParams{
+	postMgrParams := controller.PostParams{
 		BIGIPUsername: *bigIPUsername,
 		BIGIPPassword: *bigIPPassword,
 		BIGIPURL:      *bigIPURL,
@@ -769,13 +771,13 @@ func initCustomResourceManager(
 		LogResponse:   *logAS3Response,
 	}
 
-	GtmParams := crmanager.GTMParams{
+	GtmParams := controller.GTMParams{
 		GTMBigIpUsername: *gtmBigIPUsername,
 		GTMBigIpPassword: *gtmBigIPPassword,
 		GTMBigIpUrl:      *gtmBigIPURL,
 	}
 
-	agentParams := crmanager.AgentParams{
+	agentParams := controller.AgentParams{
 		PostParams:     postMgrParams,
 		GTMParams:      GtmParams,
 		Partition:      (*bigIPPartitions)[0],
@@ -787,16 +789,22 @@ func initCustomResourceManager(
 		HttpAddress:    *httpAddress,
 		EnableIPV6:     *enableIPV6,
 	}
-	agent := crmanager.NewAgent(agentParams)
 
-	crMgr := crmanager.NewCRManager(
-		crmanager.Params{
+	// When CIS is configured in OCP cluster mode disable ARP in globalSection
+	if *openshiftSDNName != "" {
+		agentParams.DisableARP = true
+	}
+
+	agent := controller.NewAgent(agentParams)
+
+	ctlr := controller.NewController(
+		controller.Params{
 			Config:             config,
 			Namespaces:         *namespaces,
 			NamespaceLabel:     *namespaceLabel,
 			Partition:          (*bigIPPartitions)[0],
 			Agent:              agent,
-			ControllerMode:     *poolMemberType,
+			PoolMemberType:     *poolMemberType,
 			VXLANName:          vxlanName,
 			VXLANMode:          vxlanMode,
 			UseNodeInternal:    *useNodeInternal,
@@ -808,7 +816,7 @@ func initCustomResourceManager(
 		},
 	)
 
-	return crMgr
+	return ctlr
 }
 
 // TODO Remove the function and appMgr.K8sVersion property once v1beta1.Ingress is deprecated in k8s 1.22
@@ -943,7 +951,7 @@ func main() {
 
 	if *customResourceMode {
 		getGTMCredentials()
-		crMgr := initCustomResourceManager(config)
+		crMgr := initController(config)
 		crMgr.TeemData = td
 		if !(*disableTeems) {
 			key, err := crMgr.Agent.GetBigipRegKey()
@@ -973,11 +981,18 @@ func main() {
 	if *agent == cisAgent.AS3Agent {
 		disableLTM = true
 	}
+	// When CIS configured in OCP cluster mode disable ARP in globalSection
+	disableARP := false
+	if *openshiftSDNName != "" {
+		disableARP = true
+	}
+
 	gs := globalSection{
 		LogLevel:       *logLevel,
 		VerifyInterval: *verifyInterval,
 		VXLANPartition: vxlanPartition,
 		DisableLTM:     disableLTM,
+		DisableARP:     disableARP,
 	}
 	if *ccclLogLevel != "" {
 		gs.LogLevel = *ccclLogLevel
@@ -1137,6 +1152,7 @@ func getAppManagerParams() appmanager.Params {
 		SchemaLocal:            *schemaLocal,
 		ProcessAgentLabels:     getProcessAgentLabelFunc(),
 		DefaultRouteDomain:     *defaultRouteDomain,
+		PoolMemberType:         *poolMemberType,
 	}
 }
 

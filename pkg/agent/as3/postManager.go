@@ -39,11 +39,12 @@ const (
 )
 
 const (
-	responseStatusOk                 = "statusOK"
-	responseStatusCommon             = "statusCommonResponse"
-	responseStatusNotFound           = "statusNotFound"
-	responseStatusServiceUnavailable = "statusServiceUnavailable"
-	responseStatusDummy              = "dummy"
+	responseStatusOk                  = "statusOK"
+	responseStatusCommon              = "statusCommonResponse"
+	responseStatusNotFound            = "statusNotFound"
+	responseStatusServiceUnavailable  = "statusServiceUnavailable"
+	responseStatusUnprocessableEntity = "statusUnprocessableEntity"
+	responseStatusDummy               = "dummy"
 )
 
 type PostManager struct {
@@ -122,7 +123,7 @@ func (postMgr *PostManager) getAS3VersionURL() string {
 func getTimeDurationForErrorResponse(errRsp string) time.Duration {
 	duration := timeoutNill
 	switch errRsp {
-	case responseStatusCommon:
+	case responseStatusCommon, responseStatusUnprocessableEntity:
 		duration = timeoutMedium
 	case responseStatusServiceUnavailable:
 		duration = timeoutSmall
@@ -131,6 +132,7 @@ func getTimeDurationForErrorResponse(errRsp string) time.Duration {
 }
 
 func (postMgr *PostManager) postConfigRequests(data string, url string) (bool, string) {
+	defer log.Timeit("debug")("")
 	cfg := config{
 		data:      data,
 		as3APIURL: url,
@@ -157,6 +159,8 @@ func (postMgr *PostManager) postConfigRequests(data string, url string) (bool, s
 		return postMgr.handleResponseStatusServiceUnavailable(responseMap)
 	case http.StatusNotFound:
 		return postMgr.handleResponseStatusNotFound(responseMap)
+	case http.StatusUnprocessableEntity:
+		return postMgr.handleStatusUnprocessableEntity(responseMap)
 	default:
 		return postMgr.handleResponseOthers(responseMap)
 	}
@@ -284,6 +288,19 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
 	return true, responseStatusNotFound
+}
+
+func (postMgr *PostManager) handleStatusUnprocessableEntity(responseMap map[string]interface{}) (bool, string) {
+	if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
+		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])
+	} else {
+		log.Errorf("[AS3] Big-IP Responded with error code: %v", http.StatusUnprocessableEntity)
+	}
+
+	if postMgr.LogResponse {
+		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
+	}
+	return false, responseStatusUnprocessableEntity
 }
 
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}) (bool, string) {

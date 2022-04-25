@@ -84,11 +84,13 @@ func runBigIPDriver(pid chan<- int, cmd *exec.Cmd) {
 	defer close(pid)
 
 	// the config driver python logging goes to stderr by default
-	cmdOut, err := cmd.StderrPipe()
-	scanOut := bufio.NewScanner(cmdOut)
+	cmdOut, _ := cmd.StderrPipe()
 	go func() {
-		for true {
-			if scanOut.Scan() {
+		bufsize := bufio.MaxScanTokenSize
+		for {
+			scanOut := bufio.NewScanner(cmdOut)
+			scanOut.Buffer(make([]byte, 0, bufsize), bufsize)
+			for scanOut.Scan() {
 				if strings.Contains(scanOut.Text(), "DEBUG]") {
 					log.Debug(scanOut.Text())
 				} else if strings.Contains(scanOut.Text(), "WARNING]") {
@@ -100,13 +102,20 @@ func runBigIPDriver(pid chan<- int, cmd *exec.Cmd) {
 				} else {
 					log.Info(scanOut.Text())
 				}
+			}
+			if scanOut.Err() == bufio.ErrTooLong {
+				bufsize *= 2
+				log.Infof("Double the bufsize to %d", bufsize)
 			} else {
+				if scanOut.Err() != nil {
+					log.Errorf("unexpected error: %s", scanOut.Err().Error())
+				}
 				break
 			}
 		}
 	}()
 
-	err = cmd.Start()
+	err := cmd.Start()
 	if nil != err {
 		log.Fatalf("Internal error: failed to start config driver: %v", err)
 	}

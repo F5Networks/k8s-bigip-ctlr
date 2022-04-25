@@ -207,7 +207,7 @@ func updateTenantMap(tempAS3Config AS3Config) AS3Config {
 }
 
 func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string) {
-	defer log.Timeit("info")("")
+	defer log.Timeit("debug")("")
 
 	am.ResourceRequest = rsReq
 
@@ -253,7 +253,7 @@ func (am *AS3Manager) prepareTenantDeclaration(cfg *AS3Config, tenantName string
 }
 
 func (am *AS3Manager) processResponseCode(responseCode string, partition string, decl as3Declaration) {
-	if responseCode != responseStatusOk {
+	if responseCode != responseStatusOk && responseCode != responseStatusUnprocessableEntity {
 		am.failedContext.failedTenants[partition] = decl
 	} else {
 		am.excludePartitionFromFailureTenantList(partition)
@@ -291,12 +291,12 @@ func (am *AS3Manager) processTenantDeletion(tempAS3Config AS3Config) (bool, stri
 }
 
 func getResponseStatusList() map[string]int {
-	responseStatusList := map[string]int{responseStatusNotFound: 0, responseStatusServiceUnavailable: 0, responseStatusOk: 0, responseStatusCommon: 0, responseStatusDummy: 0}
+	responseStatusList := map[string]int{responseStatusNotFound: 0, responseStatusServiceUnavailable: 0, responseStatusOk: 0, responseStatusCommon: 0, responseStatusUnprocessableEntity: 0, responseStatusDummy: 0}
 	return responseStatusList
 }
 
 func (am *AS3Manager) processFilterTenants(tempAS3Config AS3Config) (bool, string) {
-
+	defer log.Timeit("debug")("")
 	// Delete Tenants from as3ActiveConfig.tenantMap
 	_, deleteResponseCode := am.processTenantDeletion(tempAS3Config)
 
@@ -340,6 +340,9 @@ func processResponseCodeList(responseList map[string]int) (bool, string) {
 	}
 	if responseList[responseStatusDummy] > 0 {
 		return true, responseStatusDummy
+	}
+	if responseList[responseStatusUnprocessableEntity] > 0 {
+		return true, responseStatusUnprocessableEntity
 	}
 	if responseList[responseStatusOk] > 0 {
 		return true, responseStatusOk

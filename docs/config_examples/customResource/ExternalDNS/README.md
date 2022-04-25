@@ -29,6 +29,23 @@ monitor:
 * type and interval are required fields.
 
 
+## Multiple Health Monitors
+
+You can also provide multiple health monitors for your Wide IP as follows:
+```
+monitors:
+-   type: 
+    send: 
+    recv:
+    interval: 
+    timeout:
+-   type: 
+    send: 
+    recv:
+    interval: 
+    timeout: 
+```
+Note: **monitors** take priority over **monitor** if both are provided in edns spec.
 ## externaldns-tcp-monitor.yaml
 
 By deploying this yaml file in your cluster, CIS will create a edns containing GSLB pool health monitored on BIG-IP.

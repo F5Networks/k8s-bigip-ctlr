@@ -1,8 +1,6 @@
 package prometheus
 
 import (
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -31,11 +29,19 @@ var CurrentErrors = prometheus.NewGaugeVec(
 	[]string{},
 )
 
+var MonitoredFuncTimeCost = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "bigip_monitored_function_time_cost",
+		Help: "Recording function execution time cost for performance tunning",
+	},
+	[]string{"function"},
+)
+
 // further metrics? todo think about
 // RegisterMetrics registers all Prometheus metrics defined above
 func RegisterMetrics() {
-	log.Info("[CORE] Registered BigIP Metrics")
 	prometheus.MustRegister(MonitoredNodes)
 	prometheus.MustRegister(MonitoredServices)
 	prometheus.MustRegister(CurrentErrors)
+	prometheus.MustRegister(MonitoredFuncTimeCost)
 }

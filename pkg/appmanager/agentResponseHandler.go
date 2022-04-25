@@ -23,6 +23,7 @@ import (
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 )
 
 const (
@@ -70,10 +71,13 @@ func (appMgr *Manager) updateRouteAdmitStatus() {
 	now := getRfc3339Timestamp()
 	var processedRoutes []*routeapi.Route
 	getOptions := metaV1.GetOptions{}
-
-	for namespace, routeNames := range appMgr.RoutesProcessed {
-		for _, routeName := range routeNames {
-			Admitted := false
+	appMgr.processedResourcesMutex.Lock()
+	defer appMgr.processedResourcesMutex.Unlock()
+	for key, processedStatus := range appMgr.processedResources {
+		dashSplit := strings.Split(key, "_")
+		if dashSplit[0] == Routes && processedStatus {
+			slashSplit := strings.Split(dashSplit[1], "/")
+			namespace, routeName, Admitted := slashSplit[0], slashSplit[1], false
 			route, err := appMgr.routeClientV1.Routes(namespace).Get(context.TODO(), routeName, getOptions)
 			if err != nil {
 				log.Debugf("[CORE] Unable to get route to update status. Name: %v, Namespace: %v\n", routeName, namespace)

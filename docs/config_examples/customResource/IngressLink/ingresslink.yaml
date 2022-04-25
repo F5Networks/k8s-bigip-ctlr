@@ -5,6 +5,7 @@ metadata:
   namespace: nginx-ingress
 spec:
   virtualServerAddress: "192.168.10.5"
+  host: cafe.example.com
   iRules:
     - /Common/Proxy_Protocol_iRule
   selector:

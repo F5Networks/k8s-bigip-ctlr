@@ -237,6 +237,9 @@ func (appMgr *Manager) createRSConfigFromIngress(
 					if pl.Balance != newPool.Balance {
 						cfg.Pools[i].Balance = newPool.Balance
 					}
+					if pl.ServicePort != newPool.ServicePort {
+						cfg.Pools[i].ServicePort = newPool.ServicePort
+					}
 					break
 				}
 			}
@@ -430,10 +433,10 @@ func (appMgr *Manager) createRSConfigFromRoute(
 	var policyName, rsName string
 
 	if pStruct.protocol == "http" {
-		policyName = "openshift_insecure_routes"
+		policyName = InsecurePolicyName
 		rsName = routeConfig.HttpVs
 	} else {
-		policyName = "openshift_secure_routes"
+		policyName = SecurePolicyName
 		rsName = routeConfig.HttpsVs
 	}
 
@@ -731,15 +734,15 @@ func (appMgr *Manager) handleRouteRules(
 
 // Creates an IRule if it doesn't already exist
 func (appMgr *Manager) addIRule(name, partition, rule string) {
-	appMgr.irulesMutex.Lock()
-	defer appMgr.irulesMutex.Unlock()
+	appMgr.IRulesStore.IrulesMutex.Lock()
+	defer appMgr.IRulesStore.IrulesMutex.Unlock()
 
 	key := NameRef{
 		Name:      name,
 		Partition: partition,
 	}
-	if _, found := appMgr.irulesMap[key]; !found {
-		appMgr.irulesMap[key] = NewIRule(name, partition, rule)
+	if _, found := appMgr.IRulesStore.IRulesMap[key]; !found {
+		appMgr.IRulesStore.IRulesMap[key] = NewIRule(name, partition, rule)
 	}
 }
 

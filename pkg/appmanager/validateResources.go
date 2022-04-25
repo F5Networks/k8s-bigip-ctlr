@@ -153,6 +153,55 @@ func (appMgr *Manager) checkValidEndpoints(
 	return true, keyList
 }
 
+//checks for NPLPodAnnotation and populates nplstore, later used for poolmembers
+//if valid adds the related svc keys to queue.
+func (appMgr *Manager) checkValidPod(
+	obj interface{}, operation string,
+) (bool, []*serviceQueueKey) {
+	pod := obj.(*v1.Pod)
+	namespace := pod.ObjectMeta.Namespace
+	podkey := namespace + "/" + pod.Name
+	_, ok := appMgr.getNamespaceInformer(namespace)
+	if !ok {
+		// Not watching this namespace
+		return false, nil
+	}
+	//delete annotations from nplstore
+	if operation == OprTypeDelete {
+		appMgr.nplStoreMutex.Lock()
+		delete(appMgr.nplStore, podkey)
+		appMgr.nplStoreMutex.Unlock()
+	} else {
+		ann := pod.GetAnnotations()
+		var annotations []NPLAnnotation
+		if val, ok := ann[NPLPodAnnotation]; ok {
+			if err := json.Unmarshal([]byte(val), &annotations); err != nil {
+				log.Errorf("key: %s, got error while unmarshaling NPL annotations: %v", err)
+			}
+			appMgr.nplStoreMutex.Lock()
+			appMgr.nplStore[podkey] = annotations
+			appMgr.nplStoreMutex.Unlock()
+		} else {
+			log.Info("key: %s, NPL annotation not found for Pod")
+			appMgr.nplStoreMutex.Lock()
+			delete(appMgr.nplStore, podkey)
+			appMgr.nplStoreMutex.Unlock()
+		}
+	}
+	svcs := appMgr.GetServicesForPod(pod)
+	var keyList []*serviceQueueKey
+	for _, svc := range svcs {
+		key := &serviceQueueKey{
+			ServiceName:  svc.ObjectMeta.Name,
+			Namespace:    namespace,
+			ResourceKind: Pod,
+			ResourceName: pod.Name,
+		}
+		keyList = append(keyList, key)
+	}
+	return true, keyList
+}
+
 func (appMgr *Manager) getSecretServiceQueueKeyForConfigMap(secret *v1.Secret) []*serviceQueueKey {
 	var keyList []*serviceQueueKey
 	// We will be adding ResourceKind as Configmaps so that particular Configmaps can be re-synced

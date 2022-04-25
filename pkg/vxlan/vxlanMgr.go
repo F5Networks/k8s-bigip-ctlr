@@ -214,7 +214,6 @@ func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
 }
 
 func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Interface) {
-	defer log.Timeit("debug")("")
 
 	arps := arpSection{}
 	kubePods, err := kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})

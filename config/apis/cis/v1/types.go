@@ -43,6 +43,7 @@ type VirtualServerSpec struct {
 	IRules                 []string         `json:"iRules,omitempty"`
 	ServiceIPAddress       []ServiceAddress `json:"serviceAddress,omitempty"`
 	PolicyName             string           `json:"policyName,omitempty"`
+	PersistenceProfile     string           `json:"persistenceProfile,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -138,6 +139,7 @@ type IngressLinkStatus struct {
 // IngressLinkSpec is Spec for IngressLink
 type IngressLinkSpec struct {
 	VirtualServerAddress string                `json:"virtualServerAddress,omitempty"`
+	Host                 string                `json:"host,omitempty"`
 	Selector             *metav1.LabelSelector `json:"selector"`
 	IRules               []string              `json:"iRules,omitempty"`
 	IPAMLabel            string                `json:"ipamLabel"`
@@ -163,7 +165,7 @@ type TransportServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec TransportServerSpec `json:"spec"`
+	Spec   TransportServerSpec   `json:"spec"`
 	Status TransportServerStatus `json:"status,omitempty"`
 }
 
@@ -178,6 +180,7 @@ type TransportServerSpec struct {
 	VirtualServerAddress string           `json:"virtualServerAddress"`
 	VirtualServerPort    int32            `json:"virtualServerPort"`
 	VirtualServerName    string           `json:"virtualServerName"`
+	Host                 string           `json:"host,omitempty"`
 	Mode                 string           `json:"mode"`
 	SNAT                 string           `json:"snat"`
 	Pool                 Pool             `json:"pool"`
@@ -187,6 +190,7 @@ type TransportServerSpec struct {
 	IPAMLabel            string           `json:"ipamLabel"`
 	IRules               []string         `json:"iRules,omitempty"`
 	PolicyName           string           `json:"policyName,omitempty"`
+	PersistenceProfile   string           `json:"persistenceProfile,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -219,10 +223,11 @@ type ExternalDNSSpec struct {
 }
 
 type DNSPool struct {
-	DataServerName    string  `json:"dataServerName"`
-	DNSRecordType     string  `json:"dnsRecordType"`
-	LoadBalanceMethod string  `json:"loadBalanceMethod"`
-	Monitor           Monitor `json:"monitor"`
+	DataServerName    string    `json:"dataServerName"`
+	DNSRecordType     string    `json:"dnsRecordType"`
+	LoadBalanceMethod string    `json:"loadBalanceMethod"`
+	Monitor           Monitor   `json:"monitor"`
+	Monitors          []Monitor `json:"monitors"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -259,12 +264,13 @@ type LtmIRulesSpec struct {
 }
 
 type ProfileSpec struct {
-	TCP            string   `json:"tcp,omitempty"`
-	UDP            string   `json:"udp,omitempty"`
-	HTTP           string   `json:"http,omitempty"`
-	HTTP2          string   `json:"http2,omitempty"`
-	RewriteProfile string   `json:"rewriteProfile,omitempty"`
-	LogProfiles    []string `json:"logProfiles,omitempty"`
+	TCP                string   `json:"tcp,omitempty"`
+	UDP                string   `json:"udp,omitempty"`
+	HTTP               string   `json:"http,omitempty"`
+	HTTP2              string   `json:"http2,omitempty"`
+	RewriteProfile     string   `json:"rewriteProfile,omitempty"`
+	PersistenceProfile string   `json:"persistenceProfile,omitempty"`
+	LogProfiles        []string `json:"logProfiles,omitempty"`
 }
 
 // +genclient

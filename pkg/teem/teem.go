@@ -3,6 +3,7 @@ package teem
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -105,8 +106,11 @@ func (td *TeemsData) PostTeemsData() bool {
 	}
 	for retryCount >= 0 {
 		err := teemDevice.Report(data, "CIS Telemetry Data", "1")
-		if err != nil {
-			log.Errorf("Error reporting telemetry data :%v", err)
+		if err != nil && !strings.Contains(err.Error(), "request-limit") {
+			//log teem error for debugging
+			//teems send error code 429 with request-limit, if the limit 30 requests per hour is hit
+			//TEEM will start accepting them again automatically after the waiting period.
+			log.Debugf("Error reporting telemetry data :%v", err)
 			retryCount--
 			if retryCount < 0 {
 				accessEnabled = false

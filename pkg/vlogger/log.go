@@ -24,6 +24,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 )
 
 // LogLevel is used for global (package-level) filtering of log messages based on their priority
@@ -278,6 +280,7 @@ func Timeit(logLevel string) func(format string, a ...interface{}) {
 		} else {
 			Infof("%s (%d ms): %s", f.Name(), tc.Milliseconds(), exstr)
 		}
+		bigIPPrometheus.MonitoredFuncTimeCost.WithLabelValues(f.Name()).Set(float64(tc.Milliseconds()))
 	}
 }
 

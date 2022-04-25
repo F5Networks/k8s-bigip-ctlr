@@ -5,12 +5,65 @@ Next Release
 -------------
 Enhancements
 ````````````
+* :issues:`2030` Fix for changes on Ingress Resource Service Port not reflected on BIGIP
+
+
+2.8.0
+-------------
+Added Functionality
+```````````````````
+
+**What’s new:**
+    * CRD:
+        * Persistence Profile support for VirtualServer, TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Added support for host in TransportServer and IngressLink CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Added support for multiple health monitors in EDNS resource, Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS>`_
+    * NodePortLocal(NPL) Antrea CNI feature support added to Ingress and Virtual Server Custom Resource, Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/NodePortLocal>`_
+    * Helm Chart Enhancements:
+        * Support for latest CRD schema
+
+Enhancements
+````````````
+* Added fix for processing oldest route when same host and path in routes
+* Added fix for cis crash with routes
+* :issues:`2212` Fix ExternalDNS adds both VSs to a Wide IP pool with using "httpTraffic: allow" with VS CR
+* :issues:`2221` Fixed Error in CIS logs while deleting multiple VS CRD
+* :issues:`2222` Fix deleting VirtualServer using hostGroup
+* :issues:`2233` TS and VS CRD don't detect the pool members for grafana service
+* :issues:`2234` Fix for CIS crash with subsequent creation and deletion of wrong ConfigMap
+* :issues:`2077` CIS deletes all existing ARP on restart and recreates it, which affects traffic
+
+2.7.1
+-------------
+Enhancements
+````````````
 * Optimized processing of ConfigMaps with FilterTenants enabled
 * Added support for multihost VS policy rules for same path and service backend combination
-* :issues:`2077` Fix recreating ARPs when CIS restarts
-* :issues:`2051` Fix AS3 Postdelay issue when error occurs
-* :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool
+* Improved error handling with EDNS Custom resource
 * :issues:`1872` Support protocol UDP in Services of type LoadBalancer
+* :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool
+* :issues:`2051` Fix AS3 Postdelay issue when error occurs
+* :issues:`2077` Fix recreating ARPs when CIS restarts
+* :issues:`2172` Fix Endpoint NodeName validation issue
+* Helm Chart Enhancements:
+    - issues:`2184` Helm Chart ClusterRole does not have correct permissions
+
+FIC Enhancements
+````````````````
+* Added support for FIC installation using Helm Charts, Refer `Documentation <https://github.com/F5Networks/f5-ipam-controller/blob/main/helm-charts/f5-ipam-controller/README.md>`_
+* Added support for FIC installation using OpenShift Operator
+
+Known issues
+````````````
+* CIS does not delete the arp entries immediately from BigIP, When we remove all the endpoints for a service in cccl mode,
+* Unable to pass multiple infoblox labels to FIC helm charts & OpenShit Operator
+* Deletion of EDNS resource not removing Wide IP config from BigIP intermittently
+* CIS sends the failed tenant declaration every 30 secs with filter-tenant parameter when a 422 error occurs in as3 response
+
+Upgrade notes
+``````````````
+* Moving from CIS > 2.6 with IPAM, see troubleshooting guide for IPAM issue ``ipams.fic.f5.com not found``. Refer `Troubleshooting Section <https://github.com/F5Networks/f5-ipam-controller/blob/main/docs/faq/README.md>`_
+* Moving to CIS > 2.4.1 requires update to RBAC and CR schema definition before upgrade. See `RBAC <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml>`_ and `CR schema <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_
 
 
 2.7.0

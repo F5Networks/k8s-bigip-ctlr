@@ -887,7 +887,7 @@ func (appMgr *Manager) syncIRules() {
 	// Delete any IRules for datagroups that are gone
 	if !iRef.https {
 		// http redirect rule may have a port appended, so find it
-		for irule, _ := range appMgr.irulesMap {
+		for irule, _ := range appMgr.IRulesStore.IRulesMap {
 			if strings.HasPrefix(irule.Name, HttpRedirectIRuleName) {
 				appMgr.deleteIRule(irule.Name)
 			}
@@ -907,7 +907,9 @@ func (appMgr *Manager) deleteIRule(rule string) {
 		Name:      rule,
 		Partition: DEFAULT_PARTITION,
 	}
-	delete(appMgr.irulesMap, ref)
+	appMgr.IRulesStore.IrulesMutex.Lock()
+	defer appMgr.IRulesStore.IrulesMutex.Unlock()
+	delete(appMgr.IRulesStore.IRulesMap, ref)
 	fullName := JoinBigipPath(DEFAULT_PARTITION, rule)
 	for _, cfg := range appMgr.resources.GetAllResources() {
 		if cfg.MetaData.ResourceType == "configmap" ||
@@ -923,7 +925,15 @@ func (slice RouteList) Len() int {
 }
 
 func (slice RouteList) Less(i, j int) bool {
+	if slice[i].Spec.Host == slice[j].Spec.Host {
+		if (len(slice[i].Spec.Path) == 0 || len(slice[j].Spec.Path) == 0) && (slice[i].Spec.Path == "/" || slice[j].Spec.Path == "/") {
+			return slice[i].CreationTimestamp.Before(&slice[j].CreationTimestamp)
+		}
+	}
 	return (slice[i].Spec.Host < slice[j].Spec.Host) ||
+		(slice[i].Spec.Host == slice[j].Spec.Host &&
+			slice[i].Spec.Path == slice[j].Spec.Path &&
+			slice[i].CreationTimestamp.Before(&slice[j].CreationTimestamp)) ||
 		(slice[i].Spec.Host == slice[j].Spec.Host &&
 			slice[i].Spec.Path < slice[j].Spec.Path)
 }

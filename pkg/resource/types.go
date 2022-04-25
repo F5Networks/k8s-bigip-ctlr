@@ -16,6 +16,8 @@
 
 package resource
 
+import "sync"
+
 type (
 	// Configs for each BIG-IP partition
 	PartitionMap map[string]*BigIPConfig
@@ -361,7 +363,11 @@ type (
 		Code      string `json:"apiAnonymous"`
 	}
 
-	IRulesMap map[NameRef]*IRule
+	IRulesStore struct {
+		IRulesMap map[NameRef]*IRule
+		// Mutex for irulesMap
+		IrulesMutex sync.Mutex
+	}
 
 	InternalDataGroup struct {
 		Name      string                   `json:"name"`
@@ -427,7 +433,7 @@ type (
 		PoolMembers  map[Member]struct{}
 		Resources    *AgentResources
 		Profs        map[SecretKey]CustomProfile
-		IrulesMap    IRulesMap
+		IRulesStore  IRulesStore
 		IntDgMap     InternalDataGroupMap
 		IntF5Res     InternalF5ResourcesGroup
 		AgentCfgmaps []*AgentCfgMap
@@ -463,6 +469,9 @@ const (
 	DEFAULT_BALANCE    string = "round-robin"
 	DEFAULT_HTTP_PORT  int32  = 80
 	DEFAULT_HTTPS_PORT int32  = 443
+
+	InsecurePolicyName = "openshift_insecure_routes"
+	SecurePolicyName   = "openshift_secure_routes"
 
 	urlRewriteRulePrefix      = "url-rewrite-rule-"
 	appRootForwardRulePrefix  = "app-root-forward-rule-"

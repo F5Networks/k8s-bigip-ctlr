@@ -27,6 +27,7 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 	[]*AS3ConfigMap,
 	string,
 ) {
+	defer log.Timeit("debug")("")
 	var as3Cfgmaps []*AS3ConfigMap
 	var overriderAS3CfgmapData string
 
@@ -53,8 +54,8 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			if am.as3Validation == true {
 				if ok := am.validateAS3Template(rscCfgMap.Data); !ok {
 					log.Errorf("[AS3][Configmap] Error validating AS3 template")
-					log.Errorf("[AS3][Configmap] Error in processing the ConfigMap: %v/%v",
-						rscCfgMap.Namespace, rscCfgMap.Name)
+					log.Errorf("[AS3][Configmap] Error in processing the resource ConfigMap: %v in Namespace: %v",
+						rscCfgMap.Name, rscCfgMap.Namespace)
 					continue
 				}
 			}
@@ -121,6 +122,7 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 	map[string]interface{},
 	[]Member,
 ) {
+	defer log.Timeit("debug")("")
 	as3Tmpl := as3Template(rscCfgMap.Data)
 	obj, ok := getAS3ObjectFromTemplate(as3Tmpl)
 	if !ok {

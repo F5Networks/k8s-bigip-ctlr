@@ -118,6 +118,9 @@ func NewController(params Params) *Controller {
 	case OpenShiftMode:
 		ctlr.routeSpecCMKey = params.RouteSpecConfigmap
 		ctlr.routeLabel = params.RouteLabel
+		var processedHostPath ProcessedHostPath
+		processedHostPath.processedHostPathMap = make(map[string]string)
+		ctlr.processedHostPath = &processedHostPath
 		fallthrough
 	case KubernetesMode:
 		ctlr.resourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)

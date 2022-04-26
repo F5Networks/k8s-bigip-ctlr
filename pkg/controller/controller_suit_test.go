@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"fmt"
+	routeapi "github.com/openshift/api/route/v1"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -103,6 +104,21 @@ func newMockAgent(writer writer.Writer) *Agent {
 		//incomingTenantDeclMap: make(map[string]interface{}),
 		userAgent: "",
 	}
+}
+
+func (m *mockController) addRoute(route *routeapi.Route) {
+	appInf, _ := m.getNamespacedNativeInformer(route.ObjectMeta.Namespace)
+	appInf.routeInformer.GetStore().Add(route)
+}
+
+func (m *mockController) deleteRoute(route *routeapi.Route) {
+	appInf, _ := m.getNamespacedNativeInformer(route.ObjectMeta.Namespace)
+	appInf.routeInformer.GetStore().Delete(route)
+}
+
+func (m *mockController) updateRoute(route *routeapi.Route) {
+	appInf, _ := m.getNamespacedNativeInformer(route.ObjectMeta.Namespace)
+	appInf.routeInformer.GetStore().Update(route)
 }
 
 //func (mockCtlr *mockController) getOrderedRoutes(resourceType, namespace string) []interface{} {

@@ -79,6 +79,7 @@ type (
 		nrInformers         map[string]*NRInformer
 		routeSpecCMKey      string
 		routeLabel          string
+		processedHostPath   *ProcessedHostPath
 	}
 
 	// Params defines parameters
@@ -873,6 +874,12 @@ type (
 		bigIPSSLProfiles BigIPSSLProfiles
 	}
 )
+
+// Store of CustomProfiles
+type ProcessedHostPath struct {
+	sync.Mutex
+	processedHostPathMap map[string]string
+}
 
 type (
 	extendedSpec struct {

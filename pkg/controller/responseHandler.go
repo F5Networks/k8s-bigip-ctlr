@@ -2,11 +2,8 @@ package controller
 
 import (
 	"container/list"
-	"context"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
-	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"sync"
 
@@ -93,39 +90,7 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 					ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 			case Route:
-				nrInf, ok := ctlr.getNamespacedNativeInformer(ns)
-				if !ok {
-					log.Debugf("Informer not found for namespace: %v, failed to update Route status", ns)
-					continue
-				}
-				obj, exist, err := nrInf.routeInformer.GetIndexer().GetByKey(rscKey)
-				if err != nil {
-					log.Debugf("Error while fetching Route: %v: %v, failed to update Route status",
-						rscKey, err)
-					continue
-				}
-				if !exist {
-					log.Debugf("Route Not Found: %v, failed to update Route status", rscKey)
-					continue
-				}
-
-				route := obj.(*routeapi.Route)
-				now := metaV1.Now().Rfc3339Copy()
-				route.Status.Ingress = append(route.Status.Ingress, routeapi.RouteIngress{
-					RouterName: F5RouterName,
-					Host:       route.Spec.Host,
-					Conditions: []routeapi.RouteIngressCondition{{
-						Type:               routeapi.RouteAdmitted,
-						Status:             v1.ConditionTrue,
-						LastTransitionTime: &now,
-					}},
-				})
-				_, err = ctlr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
-				if err != nil {
-					log.Errorf("Error while Updating Route Admit Status: %v\n", err)
-				} else {
-					log.Debugf("Admitted Route -  %v", route.ObjectMeta.Name)
-				}
+				go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
 			}
 		}
 	}

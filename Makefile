@@ -141,3 +141,7 @@ endif
 
 docker-devel-tag:
 	docker push k8s-bigip-ctlr-devel:latest
+
+crd-code-gen:
+	docker run --name crdcodegen -v $(PWD):/go/src/github.com/F5Networks/k8s-bigip-ctlr quay.io/f5networks/ciscrdcodegen:latest
+	docker rm crdcodegen

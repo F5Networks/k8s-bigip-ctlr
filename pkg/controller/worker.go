@@ -883,28 +883,36 @@ func (ctlr *Controller) processVirtualServers(
 		}
 
 		for _, vrt := range virtuals {
-			log.Debugf("Processing Virtual Server %s for port %v",
-				vrt.ObjectMeta.Name, portStruct.port)
-			rsCfg.MetaData.baseResources[vrt.Namespace+"/"+vrt.Name] = VirtualServer
-			err := ctlr.prepareRSConfigFromVirtualServer(
-				rsCfg,
-				vrt,
-			)
-			if err != nil {
-				processingError = true
-				break
-			}
-
+			passthroughVS := false
+			var tlsProf *cisapiv1.TLSProfile
 			if isTLSVirtualServer(vrt) {
 				// Handle TLS configuration for VirtualServer Custom Resource
-				tlsProf := ctlr.getTLSProfileForVirtualServer(vrt, vrt.Namespace)
+				tlsProf = ctlr.getTLSProfileForVirtualServer(vrt, vrt.Namespace)
 				if tlsProf == nil {
 					// Processing failed
 					// Stop processing further virtuals
 					processingError = true
 					break
 				}
+				if tlsProf.Spec.TLS.Termination == TLSPassthrough {
+					passthroughVS = true
+				}
+			}
 
+			log.Debugf("Processing Virtual Server %s for port %v",
+				vrt.ObjectMeta.Name, portStruct.port)
+			rsCfg.MetaData.baseResources[vrt.Namespace+"/"+vrt.Name] = VirtualServer
+			err := ctlr.prepareRSConfigFromVirtualServer(
+				rsCfg,
+				vrt,
+				passthroughVS,
+			)
+			if err != nil {
+				processingError = true
+				break
+			}
+
+			if tlsProf != nil {
 				processed := ctlr.handleVirtualServerTLS(rsCfg, vrt, tlsProf, ip)
 				if !processed {
 					// Processing failed

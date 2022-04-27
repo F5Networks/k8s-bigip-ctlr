@@ -22,9 +22,12 @@ var _ = Describe("Routes", func() {
 		mockCtlr.namespaces["default"] = true
 		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 		mockCtlr.nrInformers = make(map[string]*NRInformer)
+		mockCtlr.esInformers = make(map[string]*EssentialInformer)
 		mockCtlr.resourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 		mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.esInformers["default"] = mockCtlr.newNamespacedEssentialResourceInformer("default")
 		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.esInformers["test"] = mockCtlr.newNamespacedEssentialResourceInformer("test")
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]string)
 		mockCtlr.processedHostPath = &processedHostPath
@@ -34,7 +37,7 @@ var _ = Describe("Routes", func() {
 		var rt *routeapi.Route
 		var ns string
 		BeforeEach(func() {
-			ns = "samplens"
+			ns = "default"
 			rt = test.NewRoute(
 				"sampleroute",
 				"v1",
@@ -68,6 +71,57 @@ var _ = Describe("Routes", func() {
 			err := mockCtlr.processRoutes(ns, false)
 			Expect(err).To(BeNil(), "Failed to process routes")
 		})
+		It("Passthrough Route", func() {
+			mockCtlr.mockResources[ns] = []interface{}{rt}
+			mockCtlr.resources = NewResourceStore()
+			var override = false
+			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
+				override: override,
+				global: &ExtendedRouteGroupSpec{
+					VServerName:   "samplevs",
+					VServerAddr:   "10.10.10.10",
+					AllowOverride: false,
+					SNAT:          "auto",
+					WAF:           "/Common/WAFPolicy",
+					IRules:        []string{"/Common/iRule1"},
+				},
+			}
+			tlsConfig := &routeapi.TLSConfig{}
+			tlsConfig.Termination = TLSPassthrough
+			spec1 := routeapi.RouteSpec{
+				Host: "foo.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: tlsConfig,
+			}
+			route1 := test.NewRoute("route1", "1", ns, spec1, nil)
+			mockCtlr.addRoute(route1)
+			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+				{Port: 8080, NodePort: 38001},
+				{Port: 9090, NodePort: 39001}}
+			foo := test.NewService("foo", "1", ns, "NodePort", fooPorts)
+			mockCtlr.addService(foo)
+			fooIps := []string{"10.1.1.1"}
+			fooEndpts := test.NewEndpoints(
+				"foo", "1", "node0", ns, fooIps, []string{},
+				convertSvcPortsToEndpointPorts(fooPorts))
+			mockCtlr.addEndpoints(fooEndpts)
+			err := mockCtlr.processRoutes(ns, false)
+			mapKey := NameRef{
+				Name:      getRSCfgResName("samplevs_443", PassthroughHostsDgName),
+				Partition: ns,
+			}
+			Expect(err).To(BeNil(), "Failed to process routes")
+			Expect(len(mockCtlr.resources.ltmConfig[ns]["samplevs_443"].Policies)).To(BeEquivalentTo(0), "Policy should not be created for passthrough route")
+			dg, ok := mockCtlr.resources.ltmConfig[ns]["samplevs_443"].IntDgMap[mapKey]
+			Expect(ok).To(BeTrue(), "datagroup should be created for passthrough route")
+			Expect(dg[ns].Records[0].Name).To(BeEquivalentTo("foo.com"), "Invalid hostname in datagroup")
+			Expect(dg[ns].Records[0].Data).To(BeEquivalentTo("foo_80_default"), "Invalid hostname in datagroup")
+		})
+
 		It("Route Admit Status", func() {
 			spec1 := routeapi.RouteSpec{
 				Host: "foo.com",

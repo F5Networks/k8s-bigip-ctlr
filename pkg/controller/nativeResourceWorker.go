@@ -253,7 +253,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				log.Errorf("%v", err)
 				break
 			}
-			err = ctlr.prepareResourceConfigFromRoute(rsCfg, rt, routeGroup, servicePort, isPassthroughRoute(rt))
+			err = ctlr.prepareResourceConfigFromRoute(rsCfg, rt, routeGroup, servicePort, isPassthroughRoute(rt), portStruct)
 			if err != nil {
 				processingError = true
 				log.Errorf("%v", err)
@@ -405,7 +405,15 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	routeGroup string,
 	servicePort int32,
 	passthroughRoute bool,
+	portStruct portStruct,
 ) error {
+
+	// Skip adding the host, pool and forwarding policy rule to the resource config
+	// if it's an HTTP virtual server and the route doesn't allow insecure traffic
+	if portStruct.protocol == HTTP && route.Spec.TLS != nil &&
+		(route.Spec.TLS.InsecureEdgeTerminationPolicy == "" || route.Spec.TLS.InsecureEdgeTerminationPolicy == routeapi.InsecureEdgeTerminationPolicyNone) {
+		return nil
+	}
 
 	rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, route.Spec.Host)
 

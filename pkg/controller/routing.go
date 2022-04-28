@@ -82,13 +82,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
 		var err error
-		var event string
-		if tls != nil && tls.Spec.TLS.Termination == TLSPassthrough {
-			event = TLSClientHello
-		} else {
-			event = HTTPRequest
-		}
-		rl, err := createRule(uri, poolName, ruleName, event)
+		rl, err := createRule(uri, poolName, ruleName)
 		if nil != err {
 			log.Errorf("Error configuring rule: %v", err)
 			return nil
@@ -187,7 +181,7 @@ func formatVirtualServerRuleName(hostname, hostGroup, path, pool string) string 
 }
 
 // Create LTM policy rules
-func createRule(uri, poolName, ruleName, event string) (*Rule, error) {
+func createRule(uri, poolName, ruleName string) (*Rule, error) {
 	_u := "scheme://" + uri
 	_u = strings.TrimSuffix(_u, "/")
 	u, err := url.Parse(_u)
@@ -199,10 +193,7 @@ func createRule(uri, poolName, ruleName, event string) (*Rule, error) {
 		Forward: true,
 		Name:    "0",
 		Pool:    poolName,
-	}
-
-	if event == HTTPRequest {
-		a.Request = true
+		Request: true,
 	}
 
 	var conditions []*condition
@@ -227,14 +218,7 @@ func createRule(uri, poolName, ruleName, event string) (*Rule, error) {
 		}
 	}
 	if cond != nil {
-		switch event {
-		case HTTPRequest:
-			cond.Request = true
-		case TLSClientHello:
-			cond.SSLExtensionClient = true
-			cond.Equals = true
-		}
-
+		cond.Request = true
 		conditions = append(conditions, cond)
 	}
 
@@ -888,6 +872,7 @@ func updateDataGroupOfDgName(
 	dgName string,
 	hostName string,
 	namespace string,
+	partition string,
 ) {
 	rsDGName := getRSCfgResName(rsVSName, dgName)
 	switch dgName {
@@ -899,7 +884,13 @@ func updateDataGroupOfDgName(
 			routePath := hostName + pl.path
 			routePath = strings.TrimSuffix(routePath, "/")
 			updateDataGroup(intDgMap, rsDGName,
-				DEFAULT_PARTITION, namespace, routePath, pl.poolName)
+				partition, namespace, routePath, pl.poolName)
+		}
+	case PassthroughHostsDgName:
+		// only hostname will be used for passthrough routes
+		for _, pl := range poolPathRefs {
+			updateDataGroup(intDgMap, rsDGName,
+				partition, namespace, hostName, pl.poolName)
 		}
 	case HttpsRedirectDgName:
 		for _, pl := range poolPathRefs {
@@ -909,7 +900,7 @@ func updateDataGroupOfDgName(
 			}
 			routePath := hostName + path
 			updateDataGroup(intDgMap, rsDGName,
-				DEFAULT_PARTITION, namespace, routePath, path)
+				partition, namespace, routePath, path)
 		}
 	}
 }

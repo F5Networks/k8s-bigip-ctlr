@@ -251,7 +251,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				log.Errorf("%v", err)
 				break
 			}
-			err = ctlr.prepareResourceConfigFromRoute(rsCfg, rt, routeGroup, servicePort)
+			err = ctlr.prepareResourceConfigFromRoute(rsCfg, rt, routeGroup, servicePort, isPassthroughRoute(rt))
 			if err != nil {
 				processingError = true
 				log.Errorf("%v", err)
@@ -365,6 +365,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	route *routeapi.Route,
 	routeGroup string,
 	servicePort int32,
+	passthroughRoute bool,
 ) error {
 
 	rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, route.Spec.Host)
@@ -383,15 +384,17 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	}
 
 	rsCfg.Pools = append(rsCfg.Pools, pool)
+	// skip the policy creation for passthrough termination
+	if !passthroughRoute {
+		rules := ctlr.prepareRouteLTMRules(route, routeGroup, pool.Name)
+		if rules == nil {
+			return fmt.Errorf("failed to create LTM Rules")
+		}
 
-	rules := ctlr.prepareRouteLTMRules(route, routeGroup, pool.Name)
-	if rules == nil {
-		return fmt.Errorf("failed to create LTM Rules")
+		policyName := formatPolicyName(route.Spec.Host, routeGroup, rsCfg.Virtual.Name)
+
+		rsCfg.AddRuleToPolicy(policyName, routeGroup, rules)
 	}
-
-	policyName := formatPolicyName(route.Spec.Host, routeGroup, rsCfg.Virtual.Name)
-
-	rsCfg.AddRuleToPolicy(policyName, routeGroup, rules)
 
 	return nil
 }
@@ -410,9 +413,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 
 	ruleName := formatVirtualServerRuleName(route.Spec.Host, routeGroup, path, poolName)
 
-	event := HTTPRequest
-
-	rl, err := createRule(uri, poolName, ruleName, event)
+	rl, err := createRule(uri, poolName, ruleName)
 	if nil != err {
 		log.Errorf("Error configuring rule: %v", err)
 		return nil
@@ -748,6 +749,13 @@ func isSecureRoute(route *routeapi.Route) bool {
 	return route.Spec.TLS != nil
 }
 
+func isPassthroughRoute(route *routeapi.Route) bool {
+	if route.Spec.TLS != nil {
+		return route.Spec.TLS.Termination == TLSPassthrough
+	}
+	return false
+}
+
 func getAffectedRouteGroups(svc *v1.Service) []string {
 	return []string{svc.Namespace}
 }
@@ -904,7 +912,10 @@ func (ctlr *Controller) eraseRouteAdmitStatus(rscKey string) {
 
 func (ctlr *Controller) fetchRoute(rscKey string) *routeapi.Route {
 	ns := strings.Split(rscKey, "/")[0]
-	nrInf, _ := ctlr.getNamespacedNativeInformer(ns)
+	nrInf, ok := ctlr.getNamespacedNativeInformer(ns)
+	if !ok {
+		return nil
+	}
 	obj, exist, err := nrInf.routeInformer.GetIndexer().GetByKey(rscKey)
 	if err != nil {
 		log.Debugf("Error while fetching Route: %v: %v",

@@ -247,7 +247,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 		for _, rt := range routes {
 			rsCfg.MetaData.baseResources[rt.Namespace+"/"+rt.Name] = Route
-			err, servicePort := ctlr.getServicePort(rt)
+			_, servicePort := ctlr.getServicePort(rt)
 			if err != nil {
 				processingError = true
 				log.Errorf("%v", err)
@@ -1001,6 +1001,15 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
 		}
 	}
 	// Validate the route service exists or not
+	err, _ := ctlr.getServicePort(route)
+	if err != nil {
+		message := fmt.Sprintf("Discarding route %s as service associated with it doesn't exist",
+			route.Name)
+		log.Errorf(message)
+		go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%s/%s", route.Namespace, route.Name),
+			"ServiceNotFound", message, v1.ConditionFalse)
+		return false
+	}
 	return true
 }
 

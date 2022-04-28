@@ -252,7 +252,7 @@ var _ = Describe("Resource Config Tests", func() {
 					IRules:         []string{"SampleIRule"},
 				},
 			)
-			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs)
+			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 		})
 

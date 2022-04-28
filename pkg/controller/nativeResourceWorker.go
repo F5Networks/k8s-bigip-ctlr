@@ -56,6 +56,11 @@ func (ctlr *Controller) processNativeResource() bool {
 		}
 	}
 
+	rscDelete := false
+	if rKey.event == Delete {
+		rscDelete = true
+	}
+
 	// Check the type of resource and process accordingly.
 	switch rKey.kind {
 
@@ -71,7 +76,7 @@ func (ctlr *Controller) processNativeResource() bool {
 		}
 	case ConfigMap:
 		cm := rKey.rsc.(*v1.ConfigMap)
-		err, ok := ctlr.processConfigMap(cm, rKey.rscDelete)
+		err, ok := ctlr.processConfigMap(cm, rscDelete)
 		if err != nil {
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 			break
@@ -84,10 +89,10 @@ func (ctlr *Controller) processNativeResource() bool {
 	case Service:
 		svc := rKey.rsc.(*v1.Service)
 
-		_ = ctlr.processService(svc, nil, rKey.rscDelete)
+		_ = ctlr.processService(svc, nil, rscDelete)
 
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			err := ctlr.processLBServices(svc, rKey.rscDelete)
+			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -109,10 +114,10 @@ func (ctlr *Controller) processNativeResource() bool {
 			break
 		}
 
-		_ = ctlr.processService(svc, ep, rKey.rscDelete)
+		_ = ctlr.processService(svc, ep, rscDelete)
 
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			err := ctlr.processLBServices(svc, rKey.rscDelete)
+			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -127,7 +132,7 @@ func (ctlr *Controller) processNativeResource() bool {
 	case Namespace:
 		ns := rKey.rsc.(*v1.Namespace)
 		nsName := ns.ObjectMeta.Name
-		if rKey.rscDelete {
+		if rscDelete {
 			// TODO: Delete all the resource configs from the store
 
 			ctlr.nrInformers[nsName].stop()
@@ -228,6 +233,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+		// deletion ; update /health /app/path1
 
 		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, extdSpec)
 

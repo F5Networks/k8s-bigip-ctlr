@@ -329,6 +329,7 @@ type (
 		Timeout    int    `json:"timeout,omitempty"`
 		TargetPort int32  `json:"targetPort,omitempty"`
 		Path       string `json:"path,omitempty"`
+		InUse      bool   `json:"-"`
 	}
 	// Monitors  is slice of monitor
 	Monitors []Monitor
@@ -892,11 +893,12 @@ type (
 	}
 
 	ExtendedRouteGroupSpec struct {
-		VServerName   string   `yaml:"vserverName"`
-		VServerAddr   string   `yaml:"vserverAddr"`
-		AllowOverride bool     `yaml:"allowOverride"`
-		SNAT          string   `yaml:"snat"`
-		WAF           string   `yaml:"waf"`
-		IRules        []string `yaml:"iRules,omitempty"`
+		VServerName    string   `yaml:"vserverName"`
+		VServerAddr    string   `yaml:"vserverAddr"`
+		AllowOverride  bool     `yaml:"allowOverride"`
+		SNAT           string   `yaml:"snat"`
+		WAF            string   `yaml:"waf"`
+		IRules         []string `yaml:"iRules,omitempty"`
+		HealthMonitors Monitors `yaml:"healthMonitors,omitempty"`
 	}
 )

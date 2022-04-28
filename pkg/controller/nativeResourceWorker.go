@@ -3,21 +3,23 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	routeapi "github.com/openshift/api/route/v1"
+
+	"reflect"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"reflect"
 )
 
 // nativeResourceWorker starts the Custom Resource Worker.
@@ -271,6 +273,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				log.Debugf("Updated Route %s with TLSProfile", rt.ObjectMeta.Name)
 			}
 		}
+		ctlr.removeUnusedHealthMonitors(rsCfg)
 
 		if processingError {
 			log.Errorf("Unable to Process Route Group %s", routeGroup)
@@ -297,6 +300,24 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	return nil
 }
 
+func (ctlr *Controller) removeUnusedHealthMonitors(rsCfg *ResourceConfig) {
+	monitorLen := len(rsCfg.Monitors)
+	i := 0
+	for i < monitorLen {
+		if !rsCfg.Monitors[i].InUse {
+			log.Warningf("Discarding monitor %v with path %v as it is unused", rsCfg.Monitors[i].Name, rsCfg.Monitors[i].Path)
+			if i == len(rsCfg.Monitors)-1 {
+				rsCfg.Monitors = rsCfg.Monitors[:i]
+			} else {
+				rsCfg.Monitors = append(rsCfg.Monitors[:i], rsCfg.Monitors[i+1:]...)
+			}
+			monitorLen -= 1
+		} else {
+			i++
+		}
+	}
+}
+
 func (ctlr *Controller) getGroupedRoutes(routeGroup string) []*routeapi.Route {
 	// Get the route group
 	orderedRoutes := ctlr.getOrderedRoutes(routeGroup)
@@ -320,6 +341,24 @@ func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, extd
 	}
 	rsCfg.Virtual.WAF = extdSpec.WAF
 	rsCfg.Virtual.IRules = extdSpec.IRules
+
+	for _, hm := range extdSpec.HealthMonitors {
+		if hm.Type == "" {
+			hm.Type = "http"
+		}
+		rsCfg.Monitors = append(
+			rsCfg.Monitors,
+			Monitor{
+				Name:      AS3NameFormatter(hm.Path) + "_monitor",
+				Partition: rsCfg.Virtual.Partition,
+				Interval:  hm.Interval,
+				Type:      hm.Type,
+				Send:      hm.Send,
+				Recv:      hm.Recv,
+				Timeout:   hm.Timeout,
+				Path:      hm.Path,
+			})
+	}
 	return nil
 }
 
@@ -381,6 +420,15 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		ServiceName:     route.Spec.To.Name,
 		ServicePort:     servicePort,
 		NodeMemberLabel: "",
+	}
+
+	for index, monitor := range rsCfg.Monitors {
+		if strings.HasPrefix(monitor.Path, route.Spec.Host+route.Spec.Path) {
+			// Remove unused health monitors
+			rsCfg.Monitors[index].InUse = true
+			pool.MonitorNames = append(pool.MonitorNames, monitor.Name)
+			break
+		}
 	}
 
 	rsCfg.Pools = append(rsCfg.Pools, pool)

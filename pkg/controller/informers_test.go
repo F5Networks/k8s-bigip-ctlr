@@ -106,7 +106,7 @@ var _ = Describe("Informers Tests", func() {
 						ClientSSL:   "2359qhfniqlur89phuf;rhfi",
 					},
 				})
-			mockCtlr.enqueueTLSProfile(tlsp)
+			mockCtlr.enqueueTLSProfile(tlsp, Create)
 			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue TLS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue TLS  Failed")
@@ -233,7 +233,7 @@ var _ = Describe("Informers Tests", func() {
 				"SamplePolicy",
 				namespace,
 				cisapiv1.PolicySpec{})
-			mockCtlr.enqueuePolicy(plc)
+			mockCtlr.enqueuePolicy(plc, Create)
 			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Policy Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Policy  Failed")
@@ -297,7 +297,7 @@ var _ = Describe("Informers Tests", func() {
 					},
 				},
 			)
-			mockCtlr.enqueueEndpoints(eps)
+			mockCtlr.enqueueEndpoints(eps, Create)
 			key, quit := mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Endpoints Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Endpoints  Failed")
@@ -426,7 +426,7 @@ var _ = Describe("Informers Tests", func() {
 					Path: "bar",
 				},
 				nil)
-			mockCtlr.enqueueRoute(rt)
+			mockCtlr.enqueueRoute(rt, Create)
 			key, quit := mockCtlr.nativeResourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Route Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Route  Failed")
@@ -462,7 +462,7 @@ var _ = Describe("Informers Tests", func() {
 					"extendedSpec": "extendedRouteSpec",
 				},
 			)
-			mockCtlr.enqueueConfigmap(cm)
+			mockCtlr.enqueueConfigmap(cm, Create)
 			key, quit := mockCtlr.nativeResourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Global ConfigMap Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Global ConfigMap  Failed")
@@ -480,7 +480,7 @@ var _ = Describe("Informers Tests", func() {
 			cm.SetLabels(map[string]string{
 				"f5nr": "true",
 			})
-			mockCtlr.enqueueConfigmap(cm)
+			mockCtlr.enqueueConfigmap(cm, Update)
 			key, quit := mockCtlr.nativeResourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Local ConfigMap Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Local ConfigMap  Failed")

@@ -19,11 +19,12 @@ package controller
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"time"
+
 	routeapi "github.com/openshift/api/route/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
-	"reflect"
-	"time"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
@@ -465,8 +466,8 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 	if crInf.tlsInformer != nil {
 		crInf.tlsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueTLSProfile(obj) },
-				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueTLSProfile(cur) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueTLSProfile(obj, Create) },
+				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueTLSProfile(cur, Update) },
 				// DeleteFunc: func(obj interface{}) { ctlr.enqueueTLSProfile(obj) },
 			},
 		)
@@ -514,9 +515,9 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 	if crInf.epsInformer != nil {
 		crInf.epsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete) },
 			},
 		)
 	}
@@ -524,8 +525,8 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 	if crInf.plcInformer != nil {
 		crInf.plcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueuePolicy(obj, Create) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePolicy(cur, Update) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPolicy(obj) },
 			},
 		)
@@ -556,9 +557,9 @@ func (ctlr *Controller) addEssentialResourceEventHandlers(esInf *EssentialInform
 	if esInf.epsInformer != nil {
 		esInf.epsInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete) },
 			},
 		)
 	}
@@ -570,8 +571,8 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 	if nrInf.cmInformer != nil {
 		nrInf.cmInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigmap(obj) },
-				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigmap(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueConfigmap(obj, Create) },
+				UpdateFunc: func(old, obj interface{}) { ctlr.enqueueConfigmap(obj, Update) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedConfigmap(obj) },
 			},
 		)
@@ -580,9 +581,9 @@ func (ctlr *Controller) addNativeResourceEventHandlers(nrInf *NRInformer) {
 	if nrInf.routeInformer != nil {
 		nrInf.routeInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueRoute(obj) },
+				AddFunc:    func(obj interface{}) { ctlr.enqueueRoute(obj, Create) },
 				UpdateFunc: func(old, cur interface{}) { ctlr.enqueueUpdatedRoute(old, cur) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueRoute(obj) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueRoute(obj, Delete) },
 			},
 		)
 	}
@@ -609,6 +610,7 @@ func (ctlr *Controller) enqueueIPAM(obj interface{}) {
 		kind:      IPAM,
 		rscName:   ipamObj.ObjectMeta.Name,
 		rsc:       obj,
+		event:     Create,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -632,6 +634,7 @@ func (ctlr *Controller) enqueueUpdatedIPAM(oldObj, newObj interface{}) {
 		kind:      IPAM,
 		rscName:   curIpam.ObjectMeta.Name,
 		rsc:       newObj,
+		event:     Update,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -650,7 +653,7 @@ func (ctlr *Controller) enqueueDeletedIPAM(obj interface{}) {
 		kind:      IPAM,
 		rscName:   ipamObj.ObjectMeta.Name,
 		rsc:       obj,
-		rscDelete: true,
+		event:     Delete,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -664,6 +667,7 @@ func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {
 		kind:      VirtualServer,
 		rscName:   vs.ObjectMeta.Name,
 		rsc:       obj,
+		event:     Create,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -686,7 +690,7 @@ func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 			kind:      VirtualServer,
 			rscName:   oldVS.ObjectMeta.Name,
 			rsc:       oldObj,
-			rscDelete: true,
+			event:     Delete,
 		}
 		ctlr.rscQueue.Add(key)
 	}
@@ -697,6 +701,7 @@ func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 		kind:      VirtualServer,
 		rscName:   newVS.ObjectMeta.Name,
 		rsc:       newObj,
+		event:     Create,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -710,13 +715,13 @@ func (ctlr *Controller) enqueueDeletedVirtualServer(obj interface{}) {
 		kind:      VirtualServer,
 		rscName:   vs.ObjectMeta.Name,
 		rsc:       obj,
-		rscDelete: true,
+		event:     Delete,
 	}
 
 	ctlr.rscQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueTLSProfile(obj interface{}) {
+func (ctlr *Controller) enqueueTLSProfile(obj interface{}, event string) {
 	tls := obj.(*cisapiv1.TLSProfile)
 	log.Infof("Enqueueing TLSProfile: %v", tls)
 	key := &rqKey{
@@ -724,6 +729,7 @@ func (ctlr *Controller) enqueueTLSProfile(obj interface{}) {
 		kind:      TLSProfile,
 		rscName:   tls.ObjectMeta.Name,
 		rsc:       obj,
+		event:     event,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -737,6 +743,7 @@ func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
 		kind:      TransportServer,
 		rscName:   ts.ObjectMeta.Name,
 		rsc:       obj,
+		event:     Create,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -756,7 +763,7 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 			kind:      TransportServer,
 			rscName:   oldVS.ObjectMeta.Name,
 			rsc:       oldObj,
-			rscDelete: true,
+			event:     Delete,
 		}
 		ctlr.rscQueue.Add(key)
 	}
@@ -767,6 +774,7 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 		kind:      TransportServer,
 		rscName:   newVS.ObjectMeta.Name,
 		rsc:       newObj,
+		event:     Create,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -780,13 +788,13 @@ func (ctlr *Controller) enqueueDeletedTransportServer(obj interface{}) {
 		kind:      TransportServer,
 		rscName:   vs.ObjectMeta.Name,
 		rsc:       obj,
-		rscDelete: true,
+		event:     Delete,
 	}
 
 	ctlr.rscQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueuePolicy(obj interface{}) {
+func (ctlr *Controller) enqueuePolicy(obj interface{}, event string) {
 	pol := obj.(*cisapiv1.Policy)
 	log.Infof("Enqueueing Policy: %v", pol)
 	key := &rqKey{
@@ -794,6 +802,7 @@ func (ctlr *Controller) enqueuePolicy(obj interface{}) {
 		kind:      CustomPolicy,
 		rscName:   pol.ObjectMeta.Name,
 		rsc:       obj,
+		event:     event,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -807,7 +816,7 @@ func (ctlr *Controller) enqueueDeletedPolicy(obj interface{}) {
 		kind:      CustomPolicy,
 		rscName:   pol.ObjectMeta.Name,
 		rsc:       obj,
-		rscDelete: true,
+		event:     Delete,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -821,6 +830,7 @@ func (ctlr *Controller) enqueueIngressLink(obj interface{}) {
 		kind:      IngressLink,
 		rscName:   ingLink.ObjectMeta.Name,
 		rsc:       obj,
+		event:     Create,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -834,7 +844,7 @@ func (ctlr *Controller) enqueueDeletedIngressLink(obj interface{}) {
 		kind:      IngressLink,
 		rscName:   ingLink.ObjectMeta.Name,
 		rsc:       obj,
-		rscDelete: true,
+		event:     Delete,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -851,7 +861,7 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 			kind:      IngressLink,
 			rscName:   oldIngLink.ObjectMeta.Name,
 			rsc:       oldIngLink,
-			rscDelete: true,
+			event:     Delete,
 		}
 
 		ctlr.rscQueue.Add(key)
@@ -863,6 +873,7 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 		kind:      IngressLink,
 		rscName:   newIngLink.ObjectMeta.Name,
 		rsc:       newIngLink,
+		event:     Create,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -876,6 +887,7 @@ func (ctlr *Controller) enqueueExternalDNS(obj interface{}) {
 		kind:      ExternalDNS,
 		rscName:   edns.ObjectMeta.Name,
 		rsc:       obj,
+		event:     Create,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -891,7 +903,7 @@ func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 			kind:      ExternalDNS,
 			rscName:   oldEDNS.ObjectMeta.Name,
 			rsc:       oldEDNS,
-			rscDelete: true,
+			event:     Delete,
 		}
 
 		ctlr.rscQueue.Add(key)
@@ -903,6 +915,7 @@ func (ctlr *Controller) enqueueUpdatedExternalDNS(oldObj, newObj interface{}) {
 		kind:      ExternalDNS,
 		rscName:   edns.ObjectMeta.Name,
 		rsc:       edns,
+		event:     Create,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -916,7 +929,7 @@ func (ctlr *Controller) enqueueDeletedExternalDNS(obj interface{}) {
 		kind:      ExternalDNS,
 		rscName:   edns.ObjectMeta.Name,
 		rsc:       obj,
-		rscDelete: true,
+		event:     Delete,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -935,6 +948,7 @@ func (ctlr *Controller) enqueueService(obj interface{}) {
 		kind:      Service,
 		rscName:   svc.ObjectMeta.Name,
 		rsc:       obj,
+		event:     Create,
 	}
 	switch ctlr.mode {
 	case KubernetesMode, OpenShiftMode:
@@ -961,7 +975,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 			kind:      Service,
 			rscName:   svc.ObjectMeta.Name,
 			rsc:       obj,
-			rscDelete: true,
+			event:     Delete,
 		}
 		switch ctlr.mode {
 		case KubernetesMode, OpenShiftMode:
@@ -977,6 +991,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 		kind:      Service,
 		rscName:   curSvc.ObjectMeta.Name,
 		rsc:       cur,
+		event:     Create,
 	}
 	switch ctlr.mode {
 	case KubernetesMode, OpenShiftMode:
@@ -998,7 +1013,7 @@ func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
 		kind:      Service,
 		rscName:   svc.ObjectMeta.Name,
 		rsc:       obj,
-		rscDelete: true,
+		event:     Delete,
 	}
 	switch ctlr.mode {
 	case KubernetesMode, OpenShiftMode:
@@ -1008,7 +1023,7 @@ func (ctlr *Controller) enqueueDeletedService(obj interface{}) {
 	}
 }
 
-func (ctlr *Controller) enqueueEndpoints(obj interface{}) {
+func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
 	eps := obj.(*corev1.Endpoints)
 	// Ignore K8S Core Services
 	if _, ok := K8SCoreServices[eps.Name]; ok {
@@ -1020,6 +1035,7 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}) {
 		kind:      Endpoints,
 		rscName:   eps.ObjectMeta.Name,
 		rsc:       obj,
+		event:     event,
 	}
 
 	switch ctlr.mode {
@@ -1030,7 +1046,7 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}) {
 	}
 }
 
-func (ctlr *Controller) enqueueRoute(obj interface{}) {
+func (ctlr *Controller) enqueueRoute(obj interface{}, event string) {
 	rt := obj.(*routeapi.Route)
 
 	log.Debugf("Enqueueing Route: %v", rt)
@@ -1039,6 +1055,7 @@ func (ctlr *Controller) enqueueRoute(obj interface{}) {
 		kind:      Route,
 		rscName:   rt.ObjectMeta.Name,
 		rsc:       obj,
+		event:     event,
 	}
 	ctlr.nativeResourceQueue.Add(key)
 }
@@ -1055,12 +1072,13 @@ func (ctlr *Controller) enqueueUpdatedRoute(old, cur interface{}) {
 		namespace: newrt.ObjectMeta.Namespace,
 		kind:      Route,
 		rscName:   newrt.ObjectMeta.Name,
+		event:     Update,
 		rsc:       cur,
 	}
 	ctlr.nativeResourceQueue.Add(key)
 }
 
-func (ctlr *Controller) enqueueConfigmap(obj interface{}) {
+func (ctlr *Controller) enqueueConfigmap(obj interface{}, event string) {
 	cm := obj.(*corev1.ConfigMap)
 
 	// Filter out configmaps that are neither f5nr configmaps nor routeSpecConfigmap
@@ -1076,6 +1094,7 @@ func (ctlr *Controller) enqueueConfigmap(obj interface{}) {
 		kind:      ConfigMap,
 		rscName:   cm.ObjectMeta.Name,
 		rsc:       obj,
+		event:     event,
 	}
 	ctlr.nativeResourceQueue.Add(key)
 }
@@ -1089,7 +1108,7 @@ func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}) {
 		kind:      ConfigMap,
 		rscName:   cm.ObjectMeta.Name,
 		rsc:       obj,
-		rscDelete: true,
+		event:     Delete,
 	}
 	ctlr.nativeResourceQueue.Add(key)
 }
@@ -1195,6 +1214,7 @@ func (ctlr *Controller) enqueueNamespace(obj interface{}) {
 		kind:      Namespace,
 		rscName:   ns.ObjectMeta.Name,
 		rsc:       obj,
+		event:     Create,
 	}
 
 	ctlr.rscQueue.Add(key)
@@ -1208,7 +1228,7 @@ func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}) {
 		kind:      Namespace,
 		rscName:   ns.ObjectMeta.Name,
 		rsc:       obj,
-		rscDelete: true,
+		event:     Delete,
 	}
 
 	ctlr.rscQueue.Add(key)

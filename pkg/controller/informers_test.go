@@ -422,19 +422,20 @@ var _ = Describe("Informers Tests", func() {
 			//Expect(quit).To(BeFalse(), "Enqueue Route  Failed")
 		})
 
-		It("Invalid ConfigMap", func() {
-			cm := test.NewConfigMap(
-				"samplecfgmap",
-				"v1",
-				namespace,
-				map[string]string{
-					"extendedSpec": "extendedRouteSpec",
-				},
-			)
-			mockCtlr.enqueueConfigmap(cm)
-			len := mockCtlr.nativeResourceQueue.Len()
-			Expect(len).To(BeZero(), "Invalid ConfigMap enqueued")
-		})
+		// we are not validating this while enqueuing
+		//It("Invalid ConfigMap", func() {
+		//	cm := test.NewConfigMap(
+		//		"samplecfgmap",
+		//		"v1",
+		//		namespace,
+		//		map[string]string{
+		//			"extendedSpec": "extendedRouteSpec",
+		//		},
+		//	)
+		//	mockCtlr.enqueueConfigmap(cm)
+		//	len := mockCtlr.nativeResourceQueue.Len()
+		//	Expect(len).To(BeZero(), "Invalid ConfigMap enqueued")
+		//})
 
 		It("Global ConfigMap", func() {
 			cmName := "samplecfgmap"

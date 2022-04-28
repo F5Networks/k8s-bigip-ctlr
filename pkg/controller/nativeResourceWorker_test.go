@@ -2,6 +2,8 @@ package controller
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -9,7 +11,6 @@ import (
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	"time"
 )
 
 var _ = Describe("Routes", func() {
@@ -60,12 +61,13 @@ var _ = Describe("Routes", func() {
 			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
 				override: override,
 				global: &ExtendedRouteGroupSpec{
-					VServerName:   "samplevs",
-					VServerAddr:   "10.10.10.10",
-					AllowOverride: false,
-					SNAT:          "auto",
-					WAF:           "/Common/WAFPolicy",
-					IRules:        []string{"/Common/iRule1"},
+					VServerName:    "samplevs",
+					VServerAddr:    "10.10.10.10",
+					AllowOverride:  false,
+					SNAT:           "auto",
+					WAF:            "/Common/WAFPolicy",
+					IRules:         []string{"/Common/iRule1"},
+					HealthMonitors: Monitors{Monitor{Send: "HTTP GET /", Interval: 2, Timeout: 3}},
 				},
 			}
 			err := mockCtlr.processRoutes(ns, false)
@@ -213,6 +215,18 @@ var _ = Describe("Routes", func() {
 			mockCtlr.deleteRoute(route1)
 			mockCtlr.removeDeletedRouteFromHostPathMap()
 			Expect(len(mockCtlr.processedHostPath.processedHostPathMap)).To(BeEquivalentTo(0))
+		})
+		It("Remove unused health monitors", func() {
+			rsCfg := &ResourceConfig{}
+			monitor1 := Monitor{Path: "hello.com/health", Interval: 1, Timeout: 2, InUse: true}
+			monitor2 := Monitor{Path: "unused.com/", Interval: 2, Timeout: 3, InUse: false}
+			monitor3 := Monitor{Path: "demo.com/", Interval: 3, Timeout: 4, InUse: true}
+			monitor4 := Monitor{Path: "unused.com/", Interval: 4, Timeout: 6, InUse: false}
+
+			rsCfg.Monitors = []Monitor{monitor1, monitor2, monitor3, monitor4}
+			mockCtlr.removeUnusedHealthMonitors(rsCfg)
+			Expect(len(rsCfg.Monitors)).To(BeEquivalentTo(2))
+
 		})
 	})
 

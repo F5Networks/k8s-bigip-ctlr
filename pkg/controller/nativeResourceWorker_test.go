@@ -246,6 +246,93 @@ var _ = Describe("Routes", func() {
 			Expect(len(rsCfg.Monitors)).To(BeEquivalentTo(2))
 
 		})
+		It("Checks whether Forwarding policy is added correctly", func() {
+			routeGroup := "default"
+			spec1 := routeapi.RouteSpec{
+				Host: "foo.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "edge",
+					Certificate:                   "",
+					Key:                           "",
+					InsecureEdgeTerminationPolicy: "",
+					DestinationCACertificate:      "",
+				},
+			}
+			spec2 := routeapi.RouteSpec{
+				Host: "bar.com",
+				Path: "/bar",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "edge",
+					Certificate:                   "",
+					Key:                           "",
+					InsecureEdgeTerminationPolicy: "",
+					DestinationCACertificate:      "",
+				},
+			}
+			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
+			route2 := test.NewRoute("route2", "1", routeGroup, spec2, nil)
+
+			// Resource Config for unsecured virtual server
+			rsCfg := &ResourceConfig{}
+			rsCfg.Virtual.Partition = routeGroup
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = "newroutes_80"
+			rsCfg.MetaData.Protocol = HTTP
+			rsCfg.Virtual.SetVirtualAddress("10.8.3.11", DEFAULT_HTTP_PORT)
+			// Portstruct for unsecured virtual server
+			ps := portStruct{HTTP, DEFAULT_HTTP_PORT}
+			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = ""
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(rsCfg.Policies).To(BeNil())
+			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = "None"
+			route1.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyNone
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(rsCfg.Policies).To(BeNil())
+			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = "Allow"
+			route1.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyAllow
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(rsCfg.Policies).NotTo(BeNil())
+			Expect(len(rsCfg.Policies)).To(Equal(1))
+			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(1))
+			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = ""
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route2, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(rsCfg.Policies).NotTo(BeNil())
+			Expect(len(rsCfg.Policies)).To(Equal(1))
+			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(1))
+			Expect(rsCfg.Policies[0].Rules[0].FullURI).To(Equal("foo.com/foo"))
+
+			// ResourceConfig for secured virtual server
+			rsCfg = &ResourceConfig{}
+			rsCfg.Virtual.Partition = routeGroup
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = "newroutes_443"
+			rsCfg.MetaData.Protocol = HTTPS
+			rsCfg.Virtual.SetVirtualAddress("10.8.3.11", DEFAULT_HTTPS_PORT)
+			// Portstruct for secured virtual server
+			ps.protocol = HTTPS
+			ps.port = DEFAULT_HTTPS_PORT
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(rsCfg.Policies).NotTo(BeNil())
+			Expect(len(rsCfg.Policies)).To(Equal(1))
+			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(1))
+			Expect(rsCfg.Policies[0].Rules[0].FullURI).To(Equal("foo.com/foo"))
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route2, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(rsCfg.Policies).NotTo(BeNil())
+			Expect(len(rsCfg.Policies)).To(Equal(1))
+			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(2))
+			Expect(rsCfg.Policies[0].Rules[0].FullURI).To(Equal("foo.com/foo"))
+			Expect(rsCfg.Policies[0].Rules[1].FullURI).To(Equal("bar.com/bar"))
+
+		})
 
 	})
 

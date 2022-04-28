@@ -19,4 +19,7 @@ const (
 	Shared = "Shared"
 
 	F5RouterName = "F5 BIG-IP"
+
+	HTTP  = "http"
+	HTTPS = "https"
 )

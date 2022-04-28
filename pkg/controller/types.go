@@ -141,7 +141,7 @@ type (
 		kind      string
 		rscName   string
 		rsc       interface{}
-		rscDelete bool
+		event     string
 	}
 
 	metaData struct {

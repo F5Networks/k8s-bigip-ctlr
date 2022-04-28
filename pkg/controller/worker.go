@@ -21,10 +21,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"k8s.io/client-go/tools/cache"
 	"sort"
 	"strings"
 	"time"
+
+	"k8s.io/client-go/tools/cache"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
@@ -100,11 +101,16 @@ func (ctlr *Controller) processCustomResource() bool {
 		}
 	}
 
+	rscDelete := false
+	if rKey.event == Delete {
+		rscDelete = true
+	}
+
 	// Check the type of resource and process accordingly.
 	switch rKey.kind {
 	case VirtualServer:
 		virtual := rKey.rsc.(*cisapiv1.VirtualServer)
-		err := ctlr.processVirtualServers(virtual, rKey.rscDelete)
+		err := ctlr.processVirtualServers(virtual, rscDelete)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -127,7 +133,7 @@ func (ctlr *Controller) processCustomResource() bool {
 		}
 	case TransportServer:
 		virtual := rKey.rsc.(*cisapiv1.TransportServer)
-		err := ctlr.processTransportServers(virtual, rKey.rscDelete)
+		err := ctlr.processTransportServers(virtual, rscDelete)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -137,7 +143,7 @@ func (ctlr *Controller) processCustomResource() bool {
 		ingLink := rKey.rsc.(*cisapiv1.IngressLink)
 		log.Infof("Worker got IngressLink: %v\n", ingLink)
 		log.Infof("IngressLink Selector: %v\n", ingLink.Spec.Selector.String())
-		err := ctlr.processIngressLink(ingLink, rKey.rscDelete)
+		err := ctlr.processIngressLink(ingLink, rscDelete)
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -145,7 +151,7 @@ func (ctlr *Controller) processCustomResource() bool {
 		}
 	case ExternalDNS:
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
-		ctlr.processExternalDNS(edns, rKey.rscDelete)
+		ctlr.processExternalDNS(edns, rscDelete)
 	case IPAM:
 		ipam := rKey.rsc.(*ficV1.IPAM)
 		virtuals := ctlr.getVirtualServersForIPAM(ipam)
@@ -217,10 +223,10 @@ func (ctlr *Controller) processCustomResource() bool {
 	case Service:
 		svc := rKey.rsc.(*v1.Service)
 
-		_ = ctlr.processService(svc, nil, rKey.rscDelete)
+		_ = ctlr.processService(svc, nil, rscDelete)
 
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			err := ctlr.processLBServices(svc, rKey.rscDelete)
+			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -277,10 +283,10 @@ func (ctlr *Controller) processCustomResource() bool {
 			break
 		}
 
-		_ = ctlr.processService(svc, ep, rKey.rscDelete)
+		_ = ctlr.processService(svc, ep, rscDelete)
 
 		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			err := ctlr.processLBServices(svc, rKey.rscDelete)
+			err := ctlr.processLBServices(svc, rscDelete)
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
@@ -325,7 +331,7 @@ func (ctlr *Controller) processCustomResource() bool {
 	case Namespace:
 		ns := rKey.rsc.(*v1.Namespace)
 		nsName := ns.ObjectMeta.Name
-		if rKey.rscDelete {
+		if rscDelete {
 			for _, vrt := range ctlr.getAllVirtualServers(nsName) {
 				err := ctlr.processVirtualServers(vrt, true)
 				if err != nil {

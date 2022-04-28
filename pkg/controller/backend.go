@@ -792,6 +792,18 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			svc.PersistenceMethods = &[]string{}
 		}
 	}
+	// updating the virtual server to https if a passthrough datagroup is found
+	name := getRSCfgResName(cfg.Virtual.Name, PassthroughHostsDgName)
+	mapKey := NameRef{
+		Name:      name,
+		Partition: cfg.Virtual.Partition,
+	}
+	if _, ok := cfg.IntDgMap[mapKey]; ok {
+		svc.ServerTLS = &as3ResourcePointer{
+			BigIP: "/Common/clientssl",
+		}
+		updateVirtualToHTTPS(svc)
+	}
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		_, name := getPartitionAndName(profile.Name)
@@ -873,33 +885,6 @@ func createServiceAddressDecl(cfg *ResourceConfig, virtualAddress string, shared
 func createRuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 	for _, c := range rl.Conditions {
 		condition := &as3Condition{}
-		if c.SSLExtensionClient {
-			condition.Name = "host"
-			condition.Type = "sslExtension"
-			condition.Event = "ssl-client-hello"
-
-			// For ports other then 80 and 443, attaching port number to host.
-			// Ex. example.com:8080
-			if port != 80 && port != 443 {
-				var values []string
-				for i := range c.Values {
-					val := c.Values[i] + ":" + strconv.Itoa(port)
-					values = append(values, val)
-				}
-				condition.ServerName = &as3PolicyCompareString{
-					Values: values,
-				}
-			} else {
-				condition.ServerName = &as3PolicyCompareString{
-					Values: c.Values,
-				}
-			}
-			if c.Equals {
-				condition.ServerName.Operand = "equals"
-			}
-			rulesData.Conditions = append(rulesData.Conditions, condition)
-			continue
-		}
 
 		if c.Host {
 			condition.Name = "host"

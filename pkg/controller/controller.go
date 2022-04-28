@@ -86,10 +86,6 @@ const (
 	TLSAllowInsecure    = "allow"
 	TLSNoInsecure       = "none"
 
-	// HTTP Events for LTM Policy
-	HTTPRequest    = "HTTPRequest"
-	TLSClientHello = "TLSClientHello"
-
 	LBServiceIPAMLabelAnnotation = "cis.f5.com/ipamLabel"
 	HealthMonitorAnnotation      = "cis.f5.com/health"
 	//Antrea NodePortLocal support

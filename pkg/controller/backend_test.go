@@ -139,9 +139,8 @@ var _ = Describe("Backend Tests", func() {
 						&Rule{
 							Conditions: []*condition{
 								{
-									SSLExtensionClient: true,
-									Values:             []string{"test.com"},
-									Equals:             true,
+									Values: []string{"test.com"},
+									Equals: true,
 								},
 							},
 							Actions: []*action{

@@ -3,15 +3,15 @@ package controller
 import (
 	"bytes"
 	"fmt"
-	routeapi "github.com/openshift/api/route/v1"
-	"io/ioutil"
-	"net/http"
-	"testing"
-
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	mockhc "github.com/f5devcentral/mockhttpclient"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	routeapi "github.com/openshift/api/route/v1"
+	"io/ioutil"
+	v1 "k8s.io/api/core/v1"
+	"net/http"
+	"testing"
 )
 
 func TestController(t *testing.T) {
@@ -47,7 +47,7 @@ func newMockController() *mockController {
 	}
 }
 
-func (mockCtlr *mockController) shutdown() error {
+func (m *mockController) shutdown() error {
 	return nil
 }
 
@@ -119,6 +119,44 @@ func (m *mockController) deleteRoute(route *routeapi.Route) {
 func (m *mockController) updateRoute(route *routeapi.Route) {
 	appInf, _ := m.getNamespacedNativeInformer(route.ObjectMeta.Namespace)
 	appInf.routeInformer.GetStore().Update(route)
+}
+func (m *mockController) addService(svc *v1.Service) {
+	esInf, _ := m.getNamespacedEssentialInformer(svc.ObjectMeta.Namespace)
+	esInf.svcInformer.GetStore().Add(svc)
+}
+
+func (m *mockController) updateService(svc *v1.Service) {
+	esInf, _ := m.getNamespacedEssentialInformer(svc.ObjectMeta.Namespace)
+	esInf.svcInformer.GetStore().Update(svc)
+}
+
+func (m *mockController) deleteService(svc *v1.Service) {
+	esInf, _ := m.getNamespacedEssentialInformer(svc.ObjectMeta.Namespace)
+	esInf.svcInformer.GetStore().Delete(svc)
+}
+
+func (m *mockController) addEndpoints(ep *v1.Endpoints) {
+	esInf, _ := m.getNamespacedEssentialInformer(ep.ObjectMeta.Namespace)
+	esInf.epsInformer.GetStore().Add(ep)
+}
+
+func (m *mockController) updateEndpoints(ep *v1.Endpoints) {
+	esInf, _ := m.getNamespacedEssentialInformer(ep.ObjectMeta.Namespace)
+	esInf.epsInformer.GetStore().Update(ep)
+}
+
+func (m *mockController) deleteEndpoints(ep *v1.Endpoints) {
+	esInf, _ := m.getNamespacedEssentialInformer(ep.ObjectMeta.Namespace)
+	esInf.epsInformer.GetStore().Delete(ep)
+}
+
+func convertSvcPortsToEndpointPorts(svcPorts []v1.ServicePort) []v1.EndpointPort {
+	eps := make([]v1.EndpointPort, len(svcPorts))
+	for i, v := range svcPorts {
+		eps[i].Name = v.Name
+		eps[i].Port = v.Port
+	}
+	return eps
 }
 
 //func (mockCtlr *mockController) getOrderedRoutes(resourceType, namespace string) []interface{} {

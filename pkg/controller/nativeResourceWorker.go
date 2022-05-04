@@ -70,6 +70,15 @@ func (ctlr *Controller) processNativeResource() bool {
 		route := rKey.rsc.(*routeapi.Route)
 		// processRoutes knows when to delete a VS (in the event of global config update and route delete)
 		// so should not trigger delete from here
+		if rKey.event == Create {
+			if _, ok := ctlr.resources.processedNativeResources[resourceRef{
+				kind:      Route,
+				name:      route.Name,
+				namespace: route.Namespace,
+			}]; ok {
+				break
+			}
+		}
 		err := ctlr.processRoutes(route.Namespace, false)
 		if err != nil {
 			// TODO
@@ -272,6 +281,12 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 				log.Debugf("Updated Route %s with TLSProfile", rt.ObjectMeta.Name)
 			}
+
+			ctlr.resources.processedNativeResources[resourceRef{
+				kind:      Route,
+				namespace: rt.Namespace,
+				name:      rt.Name,
+			}] = struct{}{}
 		}
 		ctlr.removeUnusedHealthMonitors(rsCfg)
 

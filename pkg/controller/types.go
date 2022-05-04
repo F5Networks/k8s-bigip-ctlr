@@ -280,6 +280,12 @@ type (
 		reqId              int
 	}
 
+	resourceRef struct {
+		kind      string
+		name      string
+		namespace string
+	}
+
 	// Pool config
 	Pool struct {
 		Name            string       `json:"name"`
@@ -323,6 +329,8 @@ type (
 		poolMemCache PoolMemberCache
 		sslContext   map[string]*v1.Secret
 		extdSpecMap  extendedSpecMap
+
+		processedNativeResources map[resourceRef]struct{}
 	}
 
 	// key is group identifier

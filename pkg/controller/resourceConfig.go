@@ -50,6 +50,7 @@ func (rs *ResourceStore) Init() {
 	rs.dnsConfigCache = make(DNSConfig)
 	rs.poolMemCache = make(PoolMemberCache)
 	rs.extdSpecMap = make(extendedSpecMap)
+	rs.processedNativeResources = make(map[resourceRef]struct{})
 }
 
 const (

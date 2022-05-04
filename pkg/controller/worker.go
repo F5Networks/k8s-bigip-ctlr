@@ -110,6 +110,16 @@ func (ctlr *Controller) processCustomResource() bool {
 	switch rKey.kind {
 	case VirtualServer:
 		virtual := rKey.rsc.(*cisapiv1.VirtualServer)
+		if rKey.event == Create {
+			if _, ok := ctlr.resources.processedNativeResources[resourceRef{
+				kind:      VirtualServer,
+				name:      virtual.Name,
+				namespace: virtual.Namespace,
+			}]; ok {
+				break
+			}
+		}
+
 		err := ctlr.processVirtualServers(virtual, rscDelete)
 		if err != nil {
 			// TODO
@@ -916,6 +926,13 @@ func (ctlr *Controller) processVirtualServers(
 				log.Debugf("Updated Virtual %s with TLSProfile %s",
 					vrt.ObjectMeta.Name, vrt.Spec.TLSProfileName)
 			}
+
+			ctlr.resources.processedNativeResources[resourceRef{
+				kind:      VirtualServer,
+				namespace: vrt.Namespace,
+				name:      vrt.Name,
+			}] = struct{}{}
+
 		}
 
 		if processingError {

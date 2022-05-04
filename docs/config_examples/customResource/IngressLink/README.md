@@ -18,7 +18,7 @@ Minimum version to use IngressLink:
 
 Create IngressLink Custom Resource definition as follows:
 
-    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/crd/Install/customresourcedefinitions.yml
+    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
 
 
 ### 2. Create the Proxy iRule on BIG-IP.
@@ -43,7 +43,7 @@ Create IngressLink Custom Resource definition as follows:
 
 * Download the sample IngressLink Resource:
 
-  ```curl -OL https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/doc/docs/config_examples/crd/IngressLink/ingresslink.yaml```
+  ```curl -OL https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/IngressLink/ingresslink.yaml```
 
 * Update the "virtualServerAddress" parameter in the ingresslink.yaml resource. This IP address will be used to configure the BIG-IP device. It will be used to accept traffic and load balance it among the NGINX Ingress Controller pods.
 
@@ -57,9 +57,9 @@ Create IngressLink Custom Resource definition as follows:
 
 To test the integration, deploy a sample application:
 
-    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/doc/docs/config_examples/crd/IngressLink/ingress-example/cafe.yaml
-    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/doc/docs/config_examples/crd/IngressLink/ingress-example/cafe-secret.yaml
-    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/doc/docs/config_examples/crd/IngressLink/ingress-example/cafe-ingress.yaml
+    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/IngressLink/ingress-example/cafe.yaml
+    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/IngressLink/ingress-example/cafe-secret.yaml
+    kubectl apply -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/IngressLink/ingress-example/cafe-ingress.yaml
 
 The Ingress Controller pods are behind the IP configured in Step 5 (virtualServerAddress parameter).
 

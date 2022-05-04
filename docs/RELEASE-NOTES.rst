@@ -14,6 +14,7 @@ Added Functionality
 Bug Fixes
 ````````````
 * :issues:`2224` Selecting Load Balancing method on VS CRD
+* :issues:`2323` Fixed file and examples links in ingresslink document
 
 2.8.1
 -------------

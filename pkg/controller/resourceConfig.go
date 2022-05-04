@@ -51,6 +51,7 @@ func (rs *ResourceStore) Init() {
 	rs.poolMemCache = make(PoolMemberCache)
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
+	rs.processedNativeResources = make(map[resourceRef]struct{})
 }
 
 const (

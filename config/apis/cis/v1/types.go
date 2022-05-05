@@ -192,6 +192,7 @@ type TransportServerSpec struct {
 	IRules               []string         `json:"iRules,omitempty"`
 	PolicyName           string           `json:"policyName,omitempty"`
 	PersistenceProfile   string           `json:"persistenceProfile,omitempty"`
+	ProfileL4            string           `json:"profileL4,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -272,6 +273,7 @@ type ProfileSpec struct {
 	RewriteProfile     string   `json:"rewriteProfile,omitempty"`
 	PersistenceProfile string   `json:"persistenceProfile,omitempty"`
 	LogProfiles        []string `json:"logProfiles,omitempty"`
+	ProfileL4          string   `json:"profileL4,omitempty"`
 }
 
 // +genclient

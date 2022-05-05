@@ -273,6 +273,9 @@ spec:
                   type: string
                 persistenceProfile:
                   type: string
+                profileL4:
+                  type: string
+                  pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                 allowVlans:
                   items:
                     type: string
@@ -616,6 +619,9 @@ spec:
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                     persistenceProfile:
                       type: string
+                    profileL4:
+                      type: string
+                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                     rewriteProfile:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'

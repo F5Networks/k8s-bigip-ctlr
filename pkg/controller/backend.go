@@ -996,7 +996,13 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.Layer4 = "tcp"
 		}
 	}
+
 	svc.ProfileL4 = "basic"
+	if len(cfg.Virtual.ProfileL4) > 0 {
+		svc.ProfileL4 =	&as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileL4,
+		}
+	}
 
 	if len(cfg.Virtual.PersistenceProfile) > 0 {
 		svc.PersistenceMethods = &[]string{cfg.Virtual.PersistenceProfile}

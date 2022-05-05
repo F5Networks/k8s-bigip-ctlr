@@ -1142,6 +1142,9 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	rsCfg.Virtual.PoolName = pool.Name
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
+	if vs.Spec.ProfileL4 != "" {
+		rsCfg.Virtual.ProfileL4 = vs.Spec.ProfileL4
+	}
 	// set the SNAT policy to auto is it's not defined by end user
 	if vs.Spec.SNAT == "" {
 		rsCfg.Virtual.SNAT = snat
@@ -1291,6 +1294,7 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
 	rsCfg.Virtual.PersistenceProfile = plc.Spec.Profiles.PersistenceProfile
+	rsCfg.Virtual.ProfileL4 = plc.Spec.Profiles.ProfileL4
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)

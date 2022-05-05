@@ -678,7 +678,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	} else if len(es.ExtendedRouteGroupConfigs) > 0 {
 		ergc := es.ExtendedRouteGroupConfigs[0]
 		if ergc.Namespace != cm.Namespace {
-			return fmt.Errorf("Invalid Extended Route Spec Block in configmap: %v/%v", cm.Namespace, cm.Name), true
+			return fmt.Errorf("Invalid Extended Route Spec Block in configmap: Mismatching namespace found at index 0 in %v/%v", cm.Namespace, cm.Name), true
 		}
 		if spec, ok := ctlr.resources.extdSpecMap[ergc.Namespace]; ok {
 			if isDelete {

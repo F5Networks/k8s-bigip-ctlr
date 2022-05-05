@@ -981,6 +981,8 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	if cfg.Virtual.Mode == "standard" {
 		if cfg.Virtual.IpProtocol == "udp" {
 			svc.Class = "Service_UDP"
+		} else if cfg.Virtual.IpProtocol == "sctp" {
+			svc.Class = "Service_SCTP"
 		} else {
 			svc.Class = "Service_TCP"
 		}
@@ -988,6 +990,8 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		svc.Class = "Service_L4"
 		if cfg.Virtual.IpProtocol == "udp" {
 			svc.Layer4 = "udp"
+		} else if cfg.Virtual.IpProtocol == "sctp" {
+			svc.Layer4 = "sctp"
 		} else {
 			svc.Layer4 = "tcp"
 		}

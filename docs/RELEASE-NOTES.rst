@@ -9,6 +9,7 @@ Added Functionality
 **What’s new:**
     * CRD:
         * LoadBalancingMethod support for VirtualServer and TransportServer CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+    * Added support for SCTP protocol in Services of type LoadBalancer
     * Added support for AS3 3.36
 
 Bug Fixes

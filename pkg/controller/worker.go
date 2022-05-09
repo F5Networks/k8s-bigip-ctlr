@@ -2841,11 +2841,11 @@ func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
 	var annotations []NPLAnnotation
 	if val, ok := ann[NPLPodAnnotation]; ok {
 		if err := json.Unmarshal([]byte(val), &annotations); err != nil {
-			log.Errorf("key: %s, got error while unmarshaling NPL annotations: %v", err)
+			log.Errorf("key: %s, got error while unmarshaling NPL annotations: %v", podKey, err)
 		}
 		ctlr.resources.nplStore[podKey] = annotations
 	} else {
-		log.Info("key: %s, NPL annotation not found for Pod")
+		log.Infof("key: %s, NPL annotation not found for Pod", pod.Name)
 		delete(ctlr.resources.nplStore, podKey)
 	}
 	return nil

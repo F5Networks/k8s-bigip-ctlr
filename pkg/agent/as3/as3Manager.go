@@ -117,6 +117,7 @@ type AS3Manager struct {
 	unprocessableEntityStatus bool
 	shareNodes                bool
 	defaultRouteDomain        int
+	poolMemberType            string
 }
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -150,6 +151,7 @@ type Params struct {
 	As3SchemaVersion          string
 	unprocessableEntityStatus bool
 	DefaultRouteDomain        int
+	PoolMemberType            string
 }
 
 type failureContext struct {
@@ -176,6 +178,7 @@ func NewAS3Manager(params *Params) *AS3Manager {
 		OverriderCfgMapName:       params.OverriderCfgMapName,
 		shareNodes:                params.ShareNodes,
 		defaultRouteDomain:        params.DefaultRouteDomain,
+		poolMemberType:            params.PoolMemberType,
 		as3ActiveConfig:           AS3Config{tenantMap: make(map[string]interface{})},
 		l2l3Agent: L2L3Agent{eventChan: params.EventChan,
 			configWriter: params.ConfigWriter},

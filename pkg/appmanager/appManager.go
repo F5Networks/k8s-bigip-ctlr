@@ -227,7 +227,6 @@ const (
 	IngressClasses = "ingressclasses"
 
 	hubModeInterval  = 30 * time.Second //Hubmode ConfigMap resync interval
-	NodePortLocal    = "nodeportlocal"
 	NPLPodAnnotation = "nodeportlocal.antrea.io"
 	NPLSvcAnnotation = "nodeportlocal.antrea.io/enabled"
 )
@@ -3365,7 +3364,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 	}
 
 	for _, service := range services.Items {
-		if appMgr.isNodePort == false { // Controller is in ClusterIP Mode
+		if appMgr.isNodePort == false && appMgr.poolMemberType != NodePortLocal { // Controller is in ClusterIP Mode
 			endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
 				metav1.ListOptions{
 					FieldSelector: "metadata.name=" + service.Name,
@@ -3392,6 +3391,14 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 						}
 
 					}
+				}
+			}
+		} else if appMgr.poolMemberType == NodePortLocal { // Controller is in NodePortLocal Mode
+			pods := appMgr.GetPodsForService(service.Namespace, service.Name)
+			if pods != nil {
+				for _, portSpec := range service.Spec.Ports {
+					podPort := portSpec.TargetPort.IntVal
+					members = append(members, appMgr.getEndpointsForNPL(podPort, pods)...)
 				}
 			}
 		} else { // Controller is in NodePort mode.
@@ -3586,6 +3593,7 @@ func (appMgr *Manager) getEndpointsForNPL(
 				member := Member{
 					Address: annotation.NodeIP,
 					Port:    annotation.NodePort,
+					SvcPort: annotation.PodPort,
 					Session: "user-enabled",
 				}
 				members = append(members, member)

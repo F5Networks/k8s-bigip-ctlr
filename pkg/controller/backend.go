@@ -792,6 +792,11 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			svc.PersistenceMethods = &[]string{}
 		}
 	}
+	if len(cfg.Virtual.ProfileMultiplex) > 0 {
+		svc.ProfileMultiplex =&as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileMultiplex,
+		}
+	}
 	// updating the virtual server to https if a passthrough datagroup is found
 	name := getRSCfgResName(cfg.Virtual.Name, PassthroughHostsDgName)
 	mapKey := NameRef{
@@ -804,6 +809,8 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 		}
 		updateVirtualToHTTPS(svc)
 	}
+
+
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		_, name := getPartitionAndName(profile.Name)
@@ -841,6 +848,7 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			BigIP: fmt.Sprintf("%v", cfg.Virtual.WAF),
 		}
 	}
+
 
 	virtualAddress, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	// verify that ip address and port exists.

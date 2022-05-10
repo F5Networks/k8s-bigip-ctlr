@@ -16,6 +16,7 @@ spec:
     http: /Common/http
     http2: /Common/http2
     profileL4: /Common/security-fastL4
+    profileMultiplex: /Common/oneconnect
     logProfiles:
       - /Common/Log all requests
       - /Common/local-dos

@@ -3141,6 +3141,7 @@ func (appMgr *Manager) getEndpointsForNodePort(
 ) []Member {
 	nodes := appMgr.getNodesFromCache()
 	var members []Member
+	uniqueMembersMap := make(map[Member]struct{})
 	for _, v := range nodes {
 		member := Member{
 			Address: v.Addr,
@@ -3148,7 +3149,10 @@ func (appMgr *Manager) getEndpointsForNodePort(
 			SvcPort: port,
 			Session: "user-enabled",
 		}
-		members = append(members, member)
+		if _, ok := uniqueMembersMap[member]; !ok {
+			uniqueMembersMap[member] = struct{}{}
+			members = append(members, member)
+		}
 	}
 
 	return members
@@ -3328,7 +3332,7 @@ func (slice byTimestamp) Swap(i, j int) {
 
 func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 	var members []Member
-
+	uniqueMembersMap := make(map[Member]struct{})
 	svcListOptions := metav1.ListOptions{
 		LabelSelector: selector,
 	}
@@ -3381,7 +3385,10 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 								Port:    port.Port,
 								SvcPort: port.Port,
 							}
-							members = append(members, member)
+							if _, ok := uniqueMembersMap[member]; !ok {
+								uniqueMembersMap[member] = struct{}{}
+								members = append(members, member)
+							}
 						}
 
 					}

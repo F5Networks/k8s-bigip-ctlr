@@ -63,7 +63,7 @@ func NewAgent(params AgentParams) *Agent {
 		EventChan:             make(chan interface{}),
 		postChan:              make(chan ResourceConfigRequest, 1),
 		retryChan:             make(chan struct{}, 1),
-		respChan:              make(chan int),
+		respChan:              make(chan resourceStatusMeta, 1),
 		cachedTenantDeclMap:   make(map[string]as3Tenant),
 		incomingTenantDeclMap: make(map[string]as3Tenant),
 		retryTenantDeclMap:    make(map[string]*tenantParams),
@@ -211,9 +211,6 @@ func (agent *Agent) agentWorker() {
 
 		go agent.updatePoolMembers(rsConfig)
 
-		// notify response handler on successful tenant update
-		agent.notifyOnSuccess(cfg.id)
-
 		agent.updateTenantResponse(true)
 
 		if len(agent.retryTenantDeclMap) > 0 {
@@ -231,25 +228,34 @@ func (agent *Agent) agentWorker() {
 		*/
 		agent.pollTenantStatus()
 
+		// notify resourceStatusUpdate response handler on successful tenant update
+		agent.notifyRscStatusHandler(cfg.id, true)
+
 		agent.declUpdate.Unlock()
 	}
 }
 
-func (agent *Agent) notifyOnSuccess(id int) {
-	// TODO: improve to handle tenant updates after retry and multi partition cases
+func (agent *Agent) notifyRscStatusHandler(id int, overwriteCfg bool) {
 
-	for _, resp := range agent.tenantResponseMap {
-		// publish id for successful tenants
-		if resp.agentResponseCode == 200 {
-			// Always push latest id to channel
-			// Case1: Put latest id into the channel
-			// Case2: If channel is blocked because of earlier id, pop out earlier id and push latest id
-			// Either Case1 or Case2 executes, which ensures the above
-			select {
-			case agent.respChan <- id:
-			case <-agent.respChan:
-				agent.respChan <- id
-			}
+	rscUpdateMeta := resourceStatusMeta{
+		id,
+		make(map[string]struct{}),
+	}
+	for tenant := range agent.retryTenantDeclMap {
+		rscUpdateMeta.failedTenants[tenant] = struct{}{}
+	}
+	// If triggerred from retry block, process the previous successful request completely
+	if !overwriteCfg {
+		agent.respChan <- rscUpdateMeta
+	} else {
+		// Always push latest id to channel
+		// Case1: Put latest id into the channel
+		// Case2: If channel is blocked because of earlier id, pop out earlier id and push latest id
+		// Either Case1 or Case2 executes, which ensures the above
+		select {
+		case agent.respChan <- rscUpdateMeta:
+		case <-agent.respChan:
+			agent.respChan <- rscUpdateMeta
 		}
 	}
 }
@@ -345,6 +351,8 @@ func (agent *Agent) retryWorker() {
 
 			//If there are any failed tenants, retry posting them
 			agent.retryFailedTenant()
+
+			agent.notifyRscStatusHandler(0, false)
 
 			agent.declUpdate.Unlock()
 		}

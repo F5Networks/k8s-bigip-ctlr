@@ -297,6 +297,11 @@ type (
 		reqId              int
 	}
 
+	resourceStatusMeta struct {
+		id            int
+		failedTenants map[string]struct{}
+	}
+
 	resourceRef struct {
 		kind      string
 		name      string
@@ -544,7 +549,7 @@ type (
 		postChan        chan ResourceConfigRequest
 		EventChan       chan interface{}
 		retryChan       chan struct{}
-		respChan        chan int
+		respChan        chan resourceStatusMeta
 		PythonDriverPID int
 		userAgent       string
 		HttpAddress     string

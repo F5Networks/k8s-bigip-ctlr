@@ -249,6 +249,7 @@ type PolicySpec struct {
 	LtmPolicies LtmIRulesSpec `json:"ltmPolicies,omitempty"`
 	IRules      LtmIRulesSpec `json:"iRules,omitempty"`
 	Profiles    ProfileSpec   `json:"profiles,omitempty"`
+	SNAT        string        `json:"snat,omitempty"`
 }
 
 type L7PolicySpec struct {

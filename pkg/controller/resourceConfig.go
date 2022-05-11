@@ -1395,8 +1395,11 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 	}
 	rsCfg.Pools = Pools{pool}
 	rsCfg.Virtual.PoolName = poolName
-	rsCfg.Virtual.SNAT = DEFAULT_SNAT
 	rsCfg.Virtual.Mode = "standard"
+	// Use default SNAT if not provided by user
+	if rsCfg.Virtual.SNAT == "" {
+		rsCfg.Virtual.SNAT = DEFAULT_SNAT
+	}
 
 	return nil
 }
@@ -1504,6 +1507,13 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 		default:
 			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
 		}
+	}
+	// set snat as specified by user or else use auto as default
+	snat := plc.Spec.SNAT
+	if snat != "" {
+		rsCfg.Virtual.SNAT = snat
+	} else {
+		rsCfg.Virtual.SNAT = DEFAULT_SNAT
 	}
 	return nil
 }

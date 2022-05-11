@@ -930,5 +930,114 @@ var _ = Describe("Worker Tests", func() {
 			Expect(mems).To(Equal(members))
 		})
 
+		Describe("Processing Service of type LB with policy", func() {
+			It("Processing ServiceTypeLoadBalancer with Policy", func() {
+				//Policy CR
+				namespace = "default"
+				plc := test.NewPolicy("plc1", namespace,
+					cisapiv1.PolicySpec{
+						Profiles: cisapiv1.ProfileSpec{
+							TCP:                "/Common/f5-tcp-wan",
+							ProfileL4:          "/Common/security-fastL4",
+							PersistenceProfile: "source-address",
+							LogProfiles:        []string{"/Common/local-dos"},
+						},
+					},
+				)
+				mockCtlr.Agent = &Agent{
+					PostManager: &PostManager{
+						PostParams: PostParams{
+							BIGIPURL: "10.10.10.1",
+						},
+					},
+				}
+				mockCtlr.Partition = namespace
+				mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+				mockCtlr.eventNotifier = apm.NewEventNotifier(nil)
+
+				svc1.Spec.Type = v1.ServiceTypeLoadBalancer
+
+				mockCtlr.resources.Init()
+
+				// Service Without annotation
+				_ = mockCtlr.processLBServices(svc1, false)
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0),
+					"Resource Config should be empty")
+
+				svc1.Annotations = make(map[string]string)
+				svc1.Annotations[LBServiceIPAMLabelAnnotation] = "test"
+				svc1.Annotations[LBServicePolicyNameAnnotation] = "plc1"
+
+				svc1, _ = mockCtlr.kubeClient.CoreV1().Services(svc1.ObjectMeta.Namespace).UpdateStatus(
+					context.TODO(), svc1, metav1.UpdateOptions{})
+
+				_ = mockCtlr.createIPAMResource()
+				ipamCR := mockCtlr.getIPAMCR()
+
+				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
+					{
+						IPAMLabel: "test",
+						Host:      "",
+						Key:       svc1.Namespace + "/" + svc1.Name + "_svc",
+					},
+				}
+
+				ipamCR.Status.IPStatus = []*ficV1.IPSpec{
+					{
+						IPAMLabel: "test",
+						Host:      "",
+						IP:        "10.10.10.1",
+						Key:       svc1.Namespace + "/" + svc1.Name + "_svc",
+					},
+				}
+				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+
+				// Policy CRD not found
+				_ = mockCtlr.processLBServices(svc1, false)
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0),
+					"Resource Config should be empty")
+
+				mockCtlr.crInformers[namespace].plcInformer = cisinfv1.NewFilteredPolicyInformer(
+					mockCtlr.kubeCRClient,
+					namespace,
+					0,
+					cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+					func(options *metav1.ListOptions) {
+						options.LabelSelector = mockCtlr.resourceSelector.String()
+					},
+				)
+				_ = mockCtlr.crInformers[namespace].plcInformer.GetStore().Add(plc)
+
+				// Policy CRD exists
+				_ = mockCtlr.processLBServices(svc1, false)
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
+				rsname := "vs_lb_svc_default_svc1_10_10_10_1_80"
+				Expect(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.SNAT).To(Equal(DEFAULT_SNAT),
+					"Invalid Resource Configs")
+				Expect(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.PersistenceProfile).To(Equal(
+					plc.Spec.Profiles.PersistenceProfile), "Invalid Resource Configs")
+				Expect(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.ProfileL4).To(Equal(
+					plc.Spec.Profiles.ProfileL4), "Invalid Resource Configs")
+				Expect(len(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.LogProfiles)).To(
+					Equal(1), "Invalid Resource Configs")
+
+				// SNAT set to SNAT pool name
+				plc.Spec.SNAT = "Common/test"
+				_ = mockCtlr.crInformers[namespace].plcInformer.GetStore().Update(plc)
+				_ = mockCtlr.processLBServices(svc1, false)
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
+				Expect(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.SNAT).To(Equal(plc.Spec.SNAT),
+					"Invalid Resource Configs")
+
+				// SNAT set to none
+				plc.Spec.SNAT = "none"
+				_ = mockCtlr.crInformers[namespace].plcInformer.GetStore().Update(plc)
+				_ = mockCtlr.processLBServices(svc1, false)
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
+				Expect(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.SNAT).To(Equal(plc.Spec.SNAT),
+					"Invalid Resource Configs")
+
+			})
+		})
 	})
 })

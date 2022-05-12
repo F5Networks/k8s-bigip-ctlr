@@ -433,7 +433,7 @@ type (
 		PoolMembers  map[Member]struct{}
 		Resources    *AgentResources
 		Profs        map[SecretKey]CustomProfile
-		IRulesStore  IRulesStore
+		IRulesStore  *IRulesStore
 		IntDgMap     InternalDataGroupMap
 		IntF5Res     InternalF5ResourcesGroup
 		AgentCfgmaps []*AgentCfgMap

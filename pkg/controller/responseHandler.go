@@ -19,7 +19,7 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 	}
 
 	for _, cfg := range config.rsCfgs {
-		for key,_ := range cfg.MetaData.baseResources {
+		for key, _ := range cfg.MetaData.baseResources {
 			rm.meta[key] = cfg.MetaData
 		}
 	}
@@ -53,7 +53,7 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 				}
 				obj, exist, err := crInf.vsInformer.GetIndexer().GetByKey(rscKey)
 				if err != nil {
-					log.Debugf("Could not fetch VirtualServer: %v: %v",rscKey, err)
+					log.Debugf("Could not fetch VirtualServer: %v: %v", rscKey, err)
 					continue
 				}
 				if !exist {
@@ -61,7 +61,7 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 					continue
 				}
 				virtual := obj.(*cisapiv1.VirtualServer)
-				if virtual.Namespace + "/" + virtual.Name == rscKey {
+				if virtual.Namespace+"/"+virtual.Name == rscKey {
 					ctlr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 			case TransportServer:
@@ -73,7 +73,7 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 				}
 				obj, exist, err := crInf.tsInformer.GetIndexer().GetByKey(rscKey)
 				if err != nil {
-					log.Debugf("Could not fetch TransportServer: %v: %v",rscKey, err)
+					log.Debugf("Could not fetch TransportServer: %v: %v", rscKey, err)
 					continue
 				}
 				if !exist {
@@ -81,7 +81,7 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 					continue
 				}
 				virtual := obj.(*cisapiv1.TransportServer)
-				if virtual.Namespace + "/" + virtual.Name == rscKey {
+				if virtual.Namespace+"/"+virtual.Name == rscKey {
 					ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 

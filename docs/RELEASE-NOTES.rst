@@ -159,11 +159,11 @@ Bug Fixes
 `````````
 * Added the complete path for datagroups in http redirect irule
 * Added RouteDomain support for AS3 resources
-* :issues:`2032` EDNS will not work if both Virtual Server CRD and EDNS CRD applied at the same time
-* :issues:`2012` Invalid Pool Name passed to AS3
-* :issues:`1931` Cannot disable IngressClass in HelmChart
-* :issues:`1911` CIS delete all exist vs when cis pod restarting
-* :issues:`1792` EDNS fails to link WIP to Pool, error says "last-resort-pool" needs value in bipctrl log
+* :issues: 2032 EDNS will not work if both Virtual Server CRD and EDNS CRD applied at the same time
+* :issues: 2012 Invalid Pool Name passed to AS3
+* :issues: 1931 Cannot disable IngressClass in HelmChart
+* :issues: 1911 CIS delete all exist vs when cis pod restarting
+* :issues: 1792 EDNS fails to link WIP to Pool, error says "last-resort-pool" needs value in bipctrl log
 
 2.6.0
 -------------
@@ -176,9 +176,9 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`1679` CIS requires GTM parameter in CIS declaration even if GTM runs on the same BIG-IP
-* :issues:`1888` Unable to upgrade from 2.2.0 (or below) to 2.2.1 (or above)
-* :issues:`1941` CIS 2.5 output DEBUG log even with --log-level=INFO configured
+* :issues: 1679 CIS requires GTM parameter in CIS declaration even if GTM runs on the same BIG-IP
+* :issues:1888 Unable to upgrade from 2.2.0 (or below) to 2.2.1 (or above)
+* :issues: 1941 CIS 2.5 output DEBUG log even with --log-level=INFO configured
 * Fixes issue with deletion of monitor with EDNS custom resource deletion
 
 
@@ -205,8 +205,8 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`1921` Plain text login and password in process status on node that is running controller.
-* :issues:`1849` Fix VirtualServer CRD processing which share same IP and different port.
+* :issues: 1921 Plain text login and password in process status on node that is running controller.
+* :issues: 1849 Fix VirtualServer CRD processing which share same IP and different port.
 * CIS now supports:
     * Deletion of old F5IPAM CR which is not in use.
     * Skipping certificate validation for passthrough routes.
@@ -234,10 +234,10 @@ Added Functionality
 
 * Added support for:
     - Multiport Service and Health Monitor for Service type LoadBalancer in CRD mode. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/serviceTypeLB>`_.
-    - :issues:`1824` Support for Kubernetes networking.k8s.io/v1 Ingress and IngressClass. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1>`_.
+    - :issues: 1824 Support for Kubernetes networking.k8s.io/v1 Ingress and IngressClass. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1>`_.
     - For networking.k8s.io/v1 Ingress, add multiple BIGIP SSL client profiles with annotation ``virtual-server.f5.com/clientssl``. Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1>`_.
     - OpenShift route annotations ``virtual-server.f5.com/rewrite-app-root`` (`examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/routes/sample-route-rewrite-app-root.yaml>`_) and ``virtual-server.f5.com/rewrite-target-url`` (`examples <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/routes/sample-route-rewrite-target-url.yaml>`_) with agent AS3.
-    - :issues:`1570` iRule reference in TransportServer CRD.  Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer>`_.
+    - :issues: 1570 iRule reference in TransportServer CRD.  Refer for `examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer>`_.
     - CIS deployment configuration options:
          * ``--periodic-sync-interval`` - Configure the periodic sync of Kubernetes resources.
          * ``--hubmode`` - Enable Support for ConfigMaps to monitor services in same and different namespaces.
@@ -288,8 +288,8 @@ Added Functionality
 
 Bug Fixes
 `````````
-* :issues:`1737` Inconsistent ordering of policy rules when adding an Ingress path.
-* :issues:`1808` K8S BIG-IP Controller upload old certificate to BIG-IP.
+* :issues: 1737 Inconsistent ordering of policy rules when adding an Ingress path.
+* :issues: 1808 K8S BIG-IP Controller upload old certificate to BIG-IP.
 * Stale IPAM CR configuration gets deleted on CIS restart.
 * IPAM allocated IP address now populates for VirtualServer under VSAddress column.
 * CIS supports endpoints created without nodeNames in Cluster mode for Headless Service.
@@ -333,11 +333,11 @@ Added Functionality
 Bug Fixes
 `````````
 * SR - Fix continuous overwrites with iApp in cccl mode.
-* :issues:`1573` Added support for type UDP Transport Server CRD.
-* :issues:`1723` BIG-IP selects wrong certificate with ECDSA-signed certificate.
-* :issues:`1645` Certificate-check added in CISv2.2.2 logs too often.
-* :issues:`1730` Partition default_route_domain is being reset while creating VirtualServer via CRD to 0.
-* :issues:`1767` HTTPs redirect Data Group entry not cleaned up.
+* :issues: 1573 Added support for type UDP Transport Server CRD.
+* :issues: 1723 BIG-IP selects wrong certificate with ECDSA-signed certificate.
+* :issues: 1645 Certificate-check added in CISv2.2.2 logs too often.
+* :issues: 1730 Partition default_route_domain is being reset while creating VirtualServer via CRD to 0.
+* :issues: 1767 HTTPs redirect Data Group entry not cleaned up.
 
 Vulnerability Fixes
 ```````````````````
@@ -351,7 +351,7 @@ Vulnerability Fixes
 
 Limitations
 ```````````
-* :issues:`1508` VXLAN tunnel name starting with prefix "k8s" is not supported. CIS uses prefix "k8s" to differentiate managed and user created resources.
+* :issues: 1508 VXLAN tunnel name starting with prefix "k8s" is not supported. CIS uses prefix "k8s" to differentiate managed and user created resources.
 
 
 2.3.0
@@ -362,13 +362,13 @@ Added Functionality
 * CIS allows user to leverage Virtual IP address using either `F5 IPAM Controller <https://github.com/F5Networks/f5-ipam-controller/releases>`__ or virtualServerAddress field in VirtualServer CRD
 * Support Passthrough termination for TLS CRD
 * Added support for AS3 schema minor versions
-* :issues:`1631` Support `caCertificate` for OpenShift Routes
-* :issues:`1571` iRule reference for VirtualServer CRDs
-* :issues:`1592` :issues:`1621` Enabling VLANS for VirtualServer and TransportServer CRDs
+* :issues: 1631 Support `caCertificate` for OpenShift Routes
+* :issues: 1571 iRule reference for VirtualServer CRDs
+* :issues: 1592 :issues:`1621` Enabling VLANS for VirtualServer and TransportServer CRDs
 * Updated CR Kind from `NginxCisConnector` to `IngressLink`
 * Helm Chart Enhancements:
     - Added Support for `livenessProbe <https://github.com/F5Networks/charts/issues/34>`_, `ReadinessProbe <https://github.com/F5Networks/charts/issues/34>`_, `nodeSelectors <https://github.com/F5Networks/charts/issues/38>`_, `tolerations <https://github.com/F5Networks/charts/issues/38>`_.
-    - :issues:`1632`  Added Support for skipping CRDs.
+    - :issues: 1632  Added Support for skipping CRDs.
 
 Bug Fixes
 `````````

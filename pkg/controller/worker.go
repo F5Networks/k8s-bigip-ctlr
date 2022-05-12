@@ -933,7 +933,7 @@ func (ctlr *Controller) processVirtualServers(
 		for _, vrt := range virtuals {
 			log.Debugf("Processing Virtual Server %s for port %v",
 				vrt.ObjectMeta.Name, portStruct.port)
-			rsCfg.MetaData.baseResources[vrt.Namespace + "/" + vrt.Name] = true
+			rsCfg.MetaData.baseResources[vrt.Namespace+"/"+vrt.Name] = true
 			err := ctlr.prepareRSConfigFromVirtualServer(
 				rsCfg,
 				vrt,
@@ -1680,7 +1680,7 @@ func (ctlr *Controller) processTransportServers(
 	for _, vrt := range virtuals {
 		log.Debugf("Processing Transport Server %s for port %v",
 			vrt.ObjectMeta.Name, vrt.Spec.VirtualServerPort)
-		rsCfg.MetaData.baseResources[vrt.Namespace + "/" + vrt.Name] = true
+		rsCfg.MetaData.baseResources[vrt.Namespace+"/"+vrt.Name] = true
 		err := ctlr.prepareRSConfigFromTransportServer(
 			rsCfg,
 			vrt,
@@ -2065,8 +2065,8 @@ func (ctlr *Controller) processService(
 
 func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
-	if processedWIP,ok := ctlr.resources.dnsConfig[edns.Spec.DomainName]; ok{
-		if processedWIP.UID != string(edns.UID){
+	if processedWIP, ok := ctlr.resources.dnsConfig[edns.Spec.DomainName]; ok {
+		if processedWIP.UID != string(edns.UID) {
 			log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
 			return
 		}
@@ -2088,7 +2088,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		DomainName: edns.Spec.DomainName,
 		RecordType: edns.Spec.DNSRecordType,
 		LBMethod:   edns.Spec.LoadBalanceMethod,
-		UID :       string(edns.UID),
+		UID:        string(edns.UID),
 	}
 
 	if edns.Spec.DNSRecordType == "" {

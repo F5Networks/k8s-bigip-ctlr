@@ -999,7 +999,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	svc.ProfileL4 = "basic"
 	if len(cfg.Virtual.ProfileL4) > 0 {
-		svc.ProfileL4 =	&as3ResourcePointer{
+		svc.ProfileL4 = &as3ResourcePointer{
 			BigIP: cfg.Virtual.ProfileL4,
 		}
 	}

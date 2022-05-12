@@ -62,7 +62,7 @@ type RoutesMap map[string][]string
 type Manager struct {
 	resources           *Resources
 	customProfiles      *CustomProfileStore
-	IRulesStore         IRulesStore
+	IRulesStore         *IRulesStore
 	intDgMap            InternalDataGroupMap
 	agentCfgMap         map[string]*AgentCfgMap
 	agentCfgMapSvcCache map[string]*SvcEndPointsCache
@@ -241,7 +241,7 @@ func NewManager(params *Params) *Manager {
 	manager := Manager{
 		resources:              NewResources(),
 		customProfiles:         NewCustomProfiles(),
-		IRulesStore:            IRulesStore{},
+		IRulesStore:            &IRulesStore{},
 		intDgMap:               make(InternalDataGroupMap),
 		kubeClient:             params.KubeClient,
 		restClientv1:           params.restClient,

@@ -123,7 +123,7 @@ func NewController(params Params) *Controller {
 		ctlr.routeSpecCMKey = params.RouteSpecConfigmap
 		ctlr.routeLabel = params.RouteLabel
 		var processedHostPath ProcessedHostPath
-		processedHostPath.processedHostPathMap = make(map[string]string)
+		processedHostPath.processedHostPathMap = make(map[string]metaV1.Time)
 		ctlr.processedHostPath = &processedHostPath
 		fallthrough
 	case KubernetesMode:

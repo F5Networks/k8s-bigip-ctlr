@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 
 	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -511,7 +512,12 @@ func (appMgr *Manager) checkValidRoute(
 		ok := checkCertificateHost(route.Spec.Host, route.Spec.TLS.Certificate, route.Spec.TLS.Key)
 		if !ok {
 			//Invalid certificate and key
-			log.Debugf("[CORE] Invalid certificate and key for route: %v", route.ObjectMeta.Name)
+			message := fmt.Sprintf("Invalid certificate and key for route: %v", route.ObjectMeta.Name)
+			go appMgr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "HostMismatch", message, v1.ConditionFalse)
+			log.Debugf("[CORE] %v", message)
+			appMgr.processedResourcesMutex.Lock()
+			defer appMgr.processedResourcesMutex.Unlock()
+			appMgr.processedResources[prepareResourceKey(Routes, route.Namespace, route.Namespace)] = false
 			return false, nil
 		}
 	}

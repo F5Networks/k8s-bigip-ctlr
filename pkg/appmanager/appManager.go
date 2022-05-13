@@ -77,6 +77,7 @@ type Manager struct {
 	processedResources  map[string]bool
 	// Mutex to control access to processedResources map
 	processedResourcesMutex sync.Mutex
+	processedHostPath       ProcessedHostPath
 	// Use internal node IPs
 	useNodeInternal bool
 	// Running in nodeport (or cluster) mode
@@ -145,6 +146,12 @@ type Manager struct {
 	nplStore map[string]NPLAnnoations
 	// Mutex to control access to nplStore map
 	nplStoreMutex sync.Mutex
+}
+
+// Store of processed host-Path map
+type ProcessedHostPath struct {
+	sync.Mutex
+	processedHostPathMap map[string]metav1.Time
 }
 
 // Watched Namespaces for global availability.
@@ -282,6 +289,7 @@ func NewManager(params *Params) *Manager {
 		poolMemberType:         params.PoolMemberType,
 	}
 	manager.processedResources = make(map[string]bool)
+	manager.processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 	manager.nplStore = make(map[string]NPLAnnoations)
 	manager.IRulesStore.IRulesMap = make(map[NameRef]*IRule)
 	// Initialize agent response worker
@@ -1992,39 +2000,43 @@ func (appMgr *Manager) syncRoutes(
 	// buffer to hold F5Resources till all routes are processed
 	bufferF5Res := InternalF5Resources{}
 
-	routePathMap := make(map[string]string)
 	for _, route := range routeByIndex {
 		if route.ObjectMeta.Namespace != sKey.Namespace {
 			continue
 		}
-
 		var key string
 		if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
-			key = route.Spec.Host
+			key = route.Spec.Host + "/"
 		} else {
 			key = route.Spec.Host + route.Spec.Path
 		}
-		if _, ok := routePathMap[key]; ok {
-			if _, ok := appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)]; !ok {
-				// Adding the entry for resource so logs does not print repeatedly
-				log.Warningf("[CORE]  Route exist with same host: %v and path: %v", route.Spec.Host, route.Spec.Path)
-			}
-			// Putting the value as false so that route status gets updated
-			appMgr.processedResourcesMutex.Lock()
-			appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = false
-			appMgr.processedResourcesMutex.Unlock()
-			// Removing the route related object from appMgr.resources
+		if processedRouteTimstamp, ok := appMgr.processedHostPath.processedHostPathMap[key]; ok {
+			rsKey := prepareResourceKey(Routes, route.Namespace, route.Name)
+			if processedRouteTimstamp.Before(&route.ObjectMeta.CreationTimestamp) {
+				if _, ok := appMgr.processedResources[rsKey]; !ok {
+					// Adding the entry for resource so logs does not print repeatedly
+					log.Warningf("[CORE]  Route exist with same host: %v and path: %v", route.Spec.Host, route.Spec.Path)
+				}
+				// Putting the value as false so that route status gets updated
+				appMgr.processedResourcesMutex.Lock()
+				appMgr.processedResources[rsKey] = false
+				appMgr.processedResourcesMutex.Unlock()
+				appMgr.resources.RemoveDependency(ObjectDependency{Kind: "Route", Namespace: route.Namespace, Name: route.Name})
+				rules := GetRouteAssociatedRuleNames(route)
+				for _, ruleName := range rules {
+					appMgr.resources.UpdatePolicy(appMgr.routeConfig.HttpsVs, SecurePolicyName, ruleName)
+					appMgr.resources.UpdatePolicy(appMgr.routeConfig.HttpVs, InsecurePolicyName, ruleName)
+				}
 
-			appMgr.resources.RemoveDependency(ObjectDependency{Kind: "Route", Namespace: route.Namespace, Name: route.Name})
-			rules := GetRouteAssociatedRuleNames(route)
-			for _, ruleName := range rules {
-				appMgr.resources.UpdatePolicy(appMgr.routeConfig.HttpsVs, SecurePolicyName, ruleName)
-				appMgr.resources.UpdatePolicy(appMgr.routeConfig.HttpVs, InsecurePolicyName, ruleName)
+				message := fmt.Sprintf("Discarding route %v as other route already exposes URI %v%v and is older ", route.Name, route.Spec.Host, route.Spec.Path)
+				log.Errorf(message)
+				go appMgr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "HostAlreadyClaimed", message, v1.ConditionFalse)
+				continue
 			}
-			continue
-		} else {
-			routePathMap[key] = route.Spec.Host
 		}
+		// Updating the hostPath if route Path is changed
+		appMgr.updateHostPathMap(route.ObjectMeta.CreationTimestamp, key)
+
 		// Mark each resource  as it is already processed during init Time
 		// So that later the create event of the same resource will not processed, unnecessarily
 		appMgr.processedResourcesMutex.Lock()
@@ -3586,4 +3598,18 @@ func (appMgr *Manager) getEndpointsForNPL(
 		}
 	}
 	return members
+}
+
+func (appMgr *Manager) updateHostPathMap(timestamp metav1.Time, key string) {
+	// This function updates the processedHostPath
+	appMgr.processedHostPath.Lock()
+	defer appMgr.processedHostPath.Unlock()
+	for hostPath, routeTimestamp := range appMgr.processedHostPath.processedHostPathMap {
+		if routeTimestamp == timestamp && hostPath != key {
+			// Deleting the ProcessedHostPath map if route's path is changed
+			delete(appMgr.processedHostPath.processedHostPathMap, hostPath)
+		}
+	}
+	// adding the ProcessedHostPath map entry
+	appMgr.processedHostPath.processedHostPathMap[key] = timestamp
 }

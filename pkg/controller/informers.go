@@ -1122,7 +1122,7 @@ func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
 		kind:      Route,
 		rscName:   rt.ObjectMeta.Name,
 		rsc:       obj,
-		rscDelete: true,
+		event:     Delete,
 	}
 	ctlr.nativeResourceQueue.Add(key)
 }
@@ -1148,7 +1148,7 @@ func (ctlr *Controller) enqueueDeletedPod(obj interface{}) {
 		kind:      Pod,
 		rscName:   pod.ObjectMeta.Name,
 		rsc:       obj,
-		rscDelete: true,
+		event:     Delete,
 	}
 	ctlr.rscQueue.Add(key)
 }

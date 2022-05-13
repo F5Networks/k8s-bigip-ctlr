@@ -309,7 +309,6 @@ type (
 		Members         []PoolMember `json:"members"`
 		NodeMemberLabel string       `json:"-"`
 		MonitorNames    []string     `json:"monitors,omitempty"`
-		Balance         string       `json:"loadBalancingMode"`
 	}
 	// Pools is slice of pool
 	Pools []Pool

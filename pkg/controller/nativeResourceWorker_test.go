@@ -487,5 +487,64 @@ extendedRouteSpec:
 			Expect(ok).To(BeTrue())
 		})
 
+		It("Extended local Route Spec pickup alternate configmap when latest gets deleted", func() {
+			data["extendedSpec"] = `
+extendedRouteSpec:
+    - namespace: default
+      allowOverride: true
+`
+			namespace := "default"
+			err, ok := mockCtlr.processConfigMap(cm, false)
+			Expect(err).To(BeNil())
+			Expect(ok).To(BeTrue())
+
+			localData := make(map[string]string)
+			localCm1 := test.NewConfigMap(
+				"localESCM1",
+				"v1",
+				namespace,
+				localData)
+			localData["extendedSpec"] = `
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.110
+      vserverName: nextgenroutes
+`
+			localCm2 := test.NewConfigMap(
+				"localESCM2",
+				"v1",
+				namespace,
+				localData)
+			localData["extendedSpec"] = `
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.110
+      vserverName: newvs
+`
+			localCm3 := test.NewConfigMap(
+				"localESCM3",
+				"v1",
+				namespace,
+				localData)
+			localData["extendedSpec"] = `
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.110
+      vserverName: latestserver
+`
+
+			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Add(localCm1)
+			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Add(localCm2)
+			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Add(localCm3)
+			err, ok = mockCtlr.processConfigMap(localCm3, false)
+			Expect(err).To(BeNil())
+			Expect(ok).To(BeTrue())
+
+			_ = mockCtlr.nrInformers[namespace].cmInformer.GetIndexer().Delete(localCm3)
+			err, ok = mockCtlr.processConfigMap(localCm3, true)
+			Expect(err).To(BeNil())
+			Expect(ok).To(BeTrue())
+			Expect(mockCtlr.resources.extdSpecMap[namespace].local.VServerName).To(Equal("latestserver"), "Spec from wrong configmap")
+		})
 	})
 })

@@ -130,6 +130,9 @@ func NewConfigMap(id, rv, namespace string,
 			ResourceVersion: rv,
 			Namespace:       namespace,
 			Annotations:     make(map[string]string),
+			CreationTimestamp: metav1.Time{
+				Time: time.Now(),
+			},
 		},
 		Data: keys,
 	}

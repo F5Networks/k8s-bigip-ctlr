@@ -686,6 +686,17 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 					spec.local = nil
 					return nil, true
 				}
+
+				// check for alternative local configmaps (pick latest)
+				// process if one is available
+				localCM := ctlr.getLatestLocalConfigMap(ergc.Namespace)
+				if localCM != nil {
+					err, _ = ctlr.processConfigMap(localCM, false)
+					if err == nil {
+						return nil, true
+					}
+				}
+
 				_ = ctlr.processRoutes(ergc.Namespace, true)
 				spec.local = nil
 				// process routes again, this time routes get processed along with global config
@@ -753,6 +764,29 @@ func (ctlr *Controller) isGlobalExtendedRouteSpec(cm *v1.ConfigMap) bool {
 	}
 
 	return false
+}
+
+func (ctlr *Controller) getLatestLocalConfigMap(ns string) *v1.ConfigMap {
+	inf, ok := ctlr.getNamespacedNativeInformer(ns)
+
+	if !ok {
+		return nil
+	}
+
+	objList := inf.cmInformer.GetIndexer().List()
+
+	if len(objList) == 0 {
+		return nil
+	}
+
+	cm := objList[0].(*v1.ConfigMap)
+	for _, obj := range objList {
+		c := obj.(*v1.ConfigMap)
+		if cm.CreationTimestamp.Before(&c.CreationTimestamp) {
+			cm = c
+		}
+	}
+	return cm
 }
 
 func (ctlr *Controller) getOrderedRoutes(namespace string) []*routeapi.Route {

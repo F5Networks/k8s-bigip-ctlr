@@ -4800,11 +4800,13 @@ var _ = Describe("AppManager Tests", func() {
 					{
 						Address: "10.10.10.1",
 						Port:    40000,
+						SvcPort: 8080,
 						Session: "user-enabled",
 					},
 					{
 						Address: "10.10.10.1",
 						Port:    40001,
+						SvcPort: 8080,
 						Session: "user-enabled",
 					},
 				}

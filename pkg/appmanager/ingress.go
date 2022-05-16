@@ -1121,19 +1121,27 @@ func (appMgr *Manager) assignHealthMonitorsByPathForV1Ingress(
 		}
 		if false == found {
 			msg := "Rule not found for Health Monitor host " + host
-			log.Warningf("[CORE] %s", msg)
+			appMgr.processedResourcesMutex.Lock()
+			if _, ok := appMgr.processedResources[prepareResourceKey(Ingresses, ing.Namespace, ing.Name)]; !ok {
+				log.Warningf("[CORE] %s", msg)
+			}
 			if ing != nil {
 				appMgr.recordV1IngressEvent(ing, "MonitorRuleNotFound", msg)
 			}
+			appMgr.processedResourcesMutex.Unlock()
 			continue
 		}
 		ruleData, found := pm[path]
 		if false == found {
 			msg := "Rule not found for Health Monitor path " + mon.Path
-			log.Warningf("[CORE] %s", msg)
+			appMgr.processedResourcesMutex.Lock()
+			if _, ok := appMgr.processedResources[prepareResourceKey(Ingresses, ing.Namespace, ing.Name)]; !ok {
+				log.Warningf("[CORE] %s", msg)
+			}
 			if ing != nil {
 				appMgr.recordV1IngressEvent(ing, "MonitorRuleNotFound", msg)
 			}
+			appMgr.processedResourcesMutex.Unlock()
 			continue
 		}
 		ruleData.HealthMon = mon

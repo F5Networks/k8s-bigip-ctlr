@@ -44,6 +44,7 @@ type VirtualServerSpec struct {
 	ServiceIPAddress       []ServiceAddress `json:"serviceAddress,omitempty"`
 	PolicyName             string           `json:"policyName,omitempty"`
 	PersistenceProfile     string           `json:"persistenceProfile,omitempty"`
+	ProfileMultiplex       string           `json:"profileMultiplex,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -274,6 +275,7 @@ type ProfileSpec struct {
 	PersistenceProfile string   `json:"persistenceProfile,omitempty"`
 	LogProfiles        []string `json:"logProfiles,omitempty"`
 	ProfileL4          string   `json:"profileL4,omitempty"`
+	ProfileMultiplex   string   `json:"profileMultiplex,omitempty"`
 }
 
 // +genclient

@@ -371,6 +371,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	if vs.Spec.PersistenceProfile != "" {
 		rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 	}
+
+	if vs.Spec.ProfileMultiplex != "" {
+		rsCfg.Virtual.ProfileMultiplex = vs.Spec.ProfileMultiplex
+	}
+
 	// Do not Create Virtual Server L7 Forwarding policies if HTTPTraffic is set to None or Redirect
 	if len(vs.Spec.TLSProfileName) > 0 &&
 		rsCfg.Virtual.VirtualAddress.Port == httpPort &&
@@ -1412,6 +1417,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.WAF = plc.Spec.L7Policies.WAF
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
 	rsCfg.Virtual.PersistenceProfile = plc.Spec.Profiles.PersistenceProfile
+	rsCfg.Virtual.ProfileMultiplex = plc.Spec.Profiles.ProfileMultiplex
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)

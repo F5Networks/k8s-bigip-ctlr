@@ -182,7 +182,7 @@ func (appMgr *Manager) checkValidPod(
 			appMgr.nplStore[podkey] = annotations
 			appMgr.nplStoreMutex.Unlock()
 		} else {
-			log.Infof("key: %s, NPL annotation not found for Pod",pod.Name)
+			log.Infof("key: %s, NPL annotation not found for Pod", pod.Name)
 			appMgr.nplStoreMutex.Lock()
 			delete(appMgr.nplStore, podkey)
 			appMgr.nplStoreMutex.Unlock()

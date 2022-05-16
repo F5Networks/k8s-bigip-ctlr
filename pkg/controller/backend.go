@@ -425,7 +425,7 @@ func (agent *Agent) pollTenantStatus() {
 	}
 }
 
-func (agent Agent) PostGTMConfig(config ResourceConfigRequest) {
+func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
 
 	dnsConfig := make(map[string]interface{})
 	wideIPs := WideIPs{}

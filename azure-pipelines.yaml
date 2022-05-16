@@ -44,7 +44,6 @@ stages:
       displayName: Check Go format and Suspicious constructs
       inputs:
         script: 'make verify'
-      continueOnError: true
     - task: CmdLine@2
       displayName: Check documentation
       inputs:

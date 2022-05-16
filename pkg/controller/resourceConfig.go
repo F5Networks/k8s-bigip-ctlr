@@ -51,6 +51,7 @@ func (rs *ResourceStore) Init() {
 	rs.poolMemCache = make(PoolMemberCache)
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
+	rs.svcResourceCache = make(map[string]map[string]struct{})
 	rs.processedNativeResources = make(map[resourceRef]struct{})
 }
 
@@ -284,6 +285,40 @@ func formatPolicyName(hostname, hostGroup, name string) string {
 	}
 	policyName := fmt.Sprintf("%s_%s_%s", name, host, "policy")
 	return AS3NameFormatter(policyName)
+}
+
+func (ctlr *Controller) getSvcDepResources(svcDepRscKey string) map[string]struct{} {
+	return ctlr.resources.svcResourceCache[svcDepRscKey]
+}
+
+func (ctlr *Controller) updateSvcDepResources(rsName string, rsCfg *ResourceConfig) {
+	for _, pool := range rsCfg.Pools {
+		svcDepRscKey := rsCfg.MetaData.namespace + "_" + pool.ServiceName
+		if resources, found := ctlr.resources.svcResourceCache[svcDepRscKey]; found {
+			if _, found := resources[rsName]; !found {
+				ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = struct{}{}
+			}
+		} else {
+			ctlr.resources.svcResourceCache[svcDepRscKey] = make(map[string]struct{})
+			ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = struct{}{}
+		}
+	}
+}
+
+func (ctlr *Controller) deleteSvcDepResource(rsName string, rsCfg *ResourceConfig) {
+
+	if rsCfg == nil {
+		return
+	}
+
+	for _, pool := range rsCfg.Pools {
+		svcDepRscKey := rsCfg.MetaData.namespace + "_" + pool.ServiceName
+		if resources, found := ctlr.resources.svcResourceCache[svcDepRscKey]; found {
+			if _, found := resources[rsName]; found {
+				delete(ctlr.resources.svcResourceCache[svcDepRscKey], rsName)
+			}
+		}
+	}
 }
 
 // Prepares resource config based on VirtualServer resource config

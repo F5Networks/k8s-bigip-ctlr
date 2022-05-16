@@ -1220,6 +1220,7 @@ func getAS3Params() *as3.Params {
 		ConfigWriter:              getConfigWriter(),
 		EventChan:                 eventChan,
 		DefaultRouteDomain:        *defaultRouteDomain,
+		PoolMemberType:            *poolMemberType,
 	}
 }
 

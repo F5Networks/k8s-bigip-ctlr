@@ -167,38 +167,53 @@ func (am *AS3Manager) processCfgMap(rscCfgMap *AgentCfgMap) (
 					continue
 				}
 				poolMem := (((poolObj["members"]).([]interface{}))[0]).(map[string]interface{})
-
-				var ips []string
-				var port int32
-				for _, v := range eps {
-					if int(v.SvcPort) == int(poolMem["servicePort"].(float64)) {
-						ips = append(ips, v.Address)
-						members = append(members, v)
-						port = v.Port
-					}
-				}
-
-				if port == 0 {
-					ipMap := make(map[string]bool)
-					members = append(members, eps...)
+				if am.poolMemberType == NodePortLocal {
+					var poolMembers []map[string]interface{}
 					for _, v := range eps {
-						if _, ok := ipMap[v.Address]; !ok {
-							ipMap[v.Address] = true
+						var ips []string
+						if int(v.SvcPort) == int(poolMem["servicePort"].(float64)) {
+							members = append(members, v)
 							ips = append(ips, v.Address)
+							poolMember := make(map[string]interface{})
+							poolMember["serverAddresses"] = ips
+							poolMember["servicePort"] = v.Port
+							poolMember["shareNodes"] = poolMem["shareNodes"]
+							poolMembers = append(poolMembers, poolMember)
 						}
 					}
-					port = eps[0].Port
-				}
+					poolObj["members"] = poolMembers
+				} else {
+					var ips []string
+					var port int32
+					for _, v := range eps {
+						if int(v.SvcPort) == int(poolMem["servicePort"].(float64)) {
+							ips = append(ips, v.Address)
+							members = append(members, v)
+							port = v.Port
+						}
+					}
 
-				// Replace pool member IP addresses
-				poolMem["serverAddresses"] = ips
-				// Replace port number
-				poolMem["servicePort"] = port
+					if port == 0 {
+						ipMap := make(map[string]bool)
+						members = append(members, eps...)
+						for _, v := range eps {
+							if _, ok := ipMap[v.Address]; !ok {
+								ipMap[v.Address] = true
+								ips = append(ips, v.Address)
+							}
+						}
+						port = eps[0].Port
+					}
+
+					// Replace pool member IP addresses
+					poolMem["serverAddresses"] = ips
+					// Replace port number
+					poolMem["servicePort"] = port
+				}
 			}
 		}
 		tenantMap[string(tnt)] = tenantObj
 	}
-
 	return tenantMap, members
 }
 

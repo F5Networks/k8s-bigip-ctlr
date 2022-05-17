@@ -415,6 +415,7 @@ extendedRouteSpec:
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 		})
+
 		It("Extended Route Spec Do not Allow local", func() {
 			data["extendedSpec"] = `
 extendedRouteSpec:
@@ -446,6 +447,7 @@ extendedRouteSpec:
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 		})
+
 		It("Extended Route Spec Allow local Update with out spec change", func() {
 			data["extendedSpec"] = `
 extendedRouteSpec:
@@ -545,6 +547,109 @@ extendedRouteSpec:
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
 			Expect(mockCtlr.resources.extdSpecMap[namespace].local.VServerName).To(Equal("latestserver"), "Spec from wrong configmap")
+		})
+
+		It("Operational Specs on configmap Create/Update/Delete events", func() {
+			cachedExtdSpecMap := make(map[string]*extendedParsedSpec)
+			newExtdSpecMap := make(map[string]*extendedParsedSpec)
+
+			newExtdSpecMap["default"] = &extendedParsedSpec{
+				override: false,
+				local:    nil,
+				global: &ExtendedRouteGroupSpec{
+					VServerName:   "defaultServer",
+					VServerAddr:   "10.8.3.11",
+					WAF:           "/Common/defaultWAF",
+					AllowOverride: false,
+				},
+			}
+			newExtdSpecMap["new"] = &extendedParsedSpec{
+				override: false,
+				local:    nil,
+				global: &ExtendedRouteGroupSpec{
+					VServerName:   "newServer",
+					VServerAddr:   "10.8.3.12",
+					WAF:           "/Common/newWAF",
+					AllowOverride: false,
+				},
+			}
+			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigMapSpecs(
+				cachedExtdSpecMap, newExtdSpecMap, false,
+			)
+			Expect(len(deletedSpecs)).To(BeZero())
+			Expect(len(modifiedSpecs)).To(BeZero())
+			Expect(len(updatedSpecs)).To(BeZero())
+			Expect(len(createdSpecs)).To(Equal(2))
+
+			cachedExtdSpecMap["default"] = &extendedParsedSpec{
+				override: false,
+				local:    nil,
+				global: &ExtendedRouteGroupSpec{
+					VServerName:   "defaultServer",
+					VServerAddr:   "10.8.3.11",
+					WAF:           "/Common/defaultWAF",
+					AllowOverride: false,
+				},
+			}
+			cachedExtdSpecMap["new"] = &extendedParsedSpec{
+				override: false,
+				local:    nil,
+				global: &ExtendedRouteGroupSpec{
+					VServerName:   "newServer",
+					VServerAddr:   "10.8.3.12",
+					WAF:           "/Common/newWAF",
+					AllowOverride: false,
+				},
+			}
+
+			newExtdSpecMap["default"].global.WAF = "/Common/defaultWAF1"
+			newExtdSpecMap["new"].global.WAF = "/Common/newWAF1"
+
+			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigMapSpecs(
+				cachedExtdSpecMap, newExtdSpecMap, false,
+			)
+			Expect(len(deletedSpecs)).To(BeZero())
+			Expect(len(modifiedSpecs)).To(BeZero())
+			Expect(len(updatedSpecs)).To(Equal(2))
+			Expect(len(createdSpecs)).To(BeZero())
+
+			newExtdSpecMap["default"].global.VServerName = "defaultServer1"
+			newExtdSpecMap["new"].global.VServerName = "newServer1"
+
+			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigMapSpecs(
+				cachedExtdSpecMap, newExtdSpecMap, false,
+			)
+			Expect(len(deletedSpecs)).To(BeZero())
+			Expect(len(modifiedSpecs)).To(Equal(2))
+			Expect(len(updatedSpecs)).To(BeZero())
+			Expect(len(createdSpecs)).To(BeZero())
+
+			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigMapSpecs(
+				cachedExtdSpecMap, newExtdSpecMap, true,
+			)
+			Expect(len(deletedSpecs)).To(Equal(2))
+			Expect(len(modifiedSpecs)).To(BeZero())
+			Expect(len(updatedSpecs)).To(BeZero())
+			Expect(len(createdSpecs)).To(BeZero())
+
+			delete(newExtdSpecMap, "new")
+			newExtdSpecMap["default"] = &extendedParsedSpec{
+				override: false,
+				local:    nil,
+				global: &ExtendedRouteGroupSpec{
+					VServerName:   "defaultServer",
+					VServerAddr:   "10.8.3.11",
+					WAF:           "/Common/defaultWAF",
+					AllowOverride: false,
+				},
+			}
+			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigMapSpecs(
+				cachedExtdSpecMap, newExtdSpecMap, false,
+			)
+			Expect(len(deletedSpecs)).To(Equal(1))
+			Expect(len(modifiedSpecs)).To(BeZero())
+			Expect(len(updatedSpecs)).To(BeZero())
+			Expect(len(createdSpecs)).To(BeZero())
 		})
 	})
 })

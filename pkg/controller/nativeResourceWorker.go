@@ -602,39 +602,9 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			return nil, true
 		}
 
-		// deletedSpecs: the spec blocks are deleted from the configmap
-		// modifiedSpecs: specific params of spec entry are changed because of which virutals need to be deleted and framed again
-		// updatedSpecs: parameters are updated, so just reprocess the resources
-		// createSpecs: new spec blocks are added to the configmap
-		var deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs []string
-
-		if isDelete {
-			for ns := range newExtdSpecMap {
-				deletedSpecs = append(deletedSpecs, ns)
-			}
-		} else {
-			for ns, spec := range ctlr.resources.extdSpecMap {
-				newSpec, ok := newExtdSpecMap[ns]
-				if !ok {
-					deletedSpecs = append(deletedSpecs, ns)
-					continue
-				}
-				if !reflect.DeepEqual(spec, newExtdSpecMap[ns]) {
-					if spec.global.VServerName != newSpec.global.VServerName || spec.override != newSpec.override {
-						// Update to VServerName or override should trigger delete and recreation of object
-						modifiedSpecs = append(deletedSpecs, ns)
-					} else {
-						updatedSpecs = append(modifiedSpecs, ns)
-					}
-				}
-			}
-			for ns, _ := range newExtdSpecMap {
-				_, ok := ctlr.resources.extdSpecMap[ns]
-				if !ok {
-					createdSpecs = append(createdSpecs, ns)
-				}
-			}
-		}
+		deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigMapSpecs(
+			ctlr.resources.extdSpecMap, newExtdSpecMap, isDelete,
+		)
 
 		for _, ns := range deletedSpecs {
 			_ = ctlr.processRoutes(ns, true)
@@ -787,6 +757,45 @@ func (ctlr *Controller) getLatestLocalConfigMap(ns string) *v1.ConfigMap {
 		}
 	}
 	return cm
+}
+
+// deletedSpecs: the spec blocks are deleted from the configmap
+// modifiedSpecs: specific params of spec entry are changed because of which virutals need to be deleted and framed again
+// updatedSpecs: parameters are updated, so just reprocess the resources
+// createSpecs: new spec blocks are added to the configmap
+func getOperationalExtendedConfigMapSpecs(
+	cachedMap, newMap extendedSpecMap, isDelete bool,
+) (
+	deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs []string,
+) {
+	if isDelete {
+		for ns := range newMap {
+			deletedSpecs = append(deletedSpecs, ns)
+		}
+	} else {
+		for ns, spec := range cachedMap {
+			newSpec, ok := newMap[ns]
+			if !ok {
+				deletedSpecs = append(deletedSpecs, ns)
+				continue
+			}
+			if !reflect.DeepEqual(spec, newMap[ns]) {
+				if spec.global.VServerName != newSpec.global.VServerName || spec.override != newSpec.override {
+					// Update to VServerName or override should trigger delete and recreation of object
+					modifiedSpecs = append(modifiedSpecs, ns)
+				} else {
+					updatedSpecs = append(updatedSpecs, ns)
+				}
+			}
+		}
+		for ns, _ := range newMap {
+			_, ok := cachedMap[ns]
+			if !ok {
+				createdSpecs = append(createdSpecs, ns)
+			}
+		}
+	}
+	return
 }
 
 func (ctlr *Controller) getOrderedRoutes(namespace string) []*routeapi.Route {

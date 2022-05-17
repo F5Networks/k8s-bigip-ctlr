@@ -231,6 +231,16 @@ func (ctlr *Controller) processCustomResource() bool {
 				isError = true
 			}
 		}
+		//Sync Custompolicy for Services of type LB
+		lbServices := ctlr.getLBServicesForCustomPolicy(cp)
+		for _, lbService := range lbServices {
+			err := ctlr.processLBServices(lbService, false)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isError = true
+			}
+		}
 	case Service:
 		svc := rKey.rsc.(*v1.Service)
 
@@ -600,6 +610,30 @@ func (ctlr *Controller) getTransportServersForCustomPolicy(plc *cisapiv1.Policy)
 		plcVSNames, plc.Name)
 
 	return plcVSs
+}
+
+// getLBServicesForCustomPolicy gets all services of type LB affected by the policy
+func (ctlr *Controller) getLBServicesForCustomPolicy(plc *cisapiv1.Policy) []*v1.Service {
+	LBServices := ctlr.getAllLBServices(plc.Namespace)
+	if nil == LBServices {
+		log.Infof("No LB service found in namespace %s",
+			plc.Namespace)
+		return nil
+	}
+
+	var plcSvcs []*v1.Service
+	var plcSvcNames []string
+	for _, svc := range LBServices {
+		if plcName, found := svc.Annotations[LBServicePolicyNameAnnotation]; found && plcName == plc.Name {
+			plcSvcs = append(plcSvcs, svc)
+			plcSvcNames = append(plcSvcNames, svc.Name)
+		}
+	}
+
+	log.Debugf("LB Services %v are affected with Custom Policy %s: ",
+		plcSvcNames, plc.Name)
+
+	return plcSvcs
 }
 
 // getAllVirtualServers returns list of all valid VirtualServers in rkey namespace.
@@ -1189,6 +1223,11 @@ func (ctlr *Controller) getPolicyFromTransportServer(virtual *cisapiv1.Transport
 		return nil, nil
 	}
 	ns := virtual.Namespace
+	return ctlr.getPolicy(ns, plcName)
+}
+
+// getPolicy fetches the policy CR
+func (ctlr *Controller) getPolicy(ns string, plcName string) (*cisapiv1.Policy, error) {
 	crInf, ok := ctlr.getNamespacedInformer(ns)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", ns)
@@ -1765,6 +1804,38 @@ func (ctlr *Controller) getAllTransportServers(namespace string) []*cisapiv1.Tra
 	return allVirtuals
 }
 
+// getAllLBServices returns list of all valid LB Services in rkey namespace.
+func (ctlr *Controller) getAllLBServices(namespace string) []*v1.Service {
+	var allLBServices []*v1.Service
+
+	crInf, ok := ctlr.getNamespacedInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
+	var orderedSVCs []interface{}
+	var err error
+
+	if namespace == "" {
+		orderedSVCs = crInf.svcInformer.GetIndexer().List()
+	} else {
+		orderedSVCs, err = crInf.svcInformer.GetIndexer().ByIndex("namespace", namespace)
+		if err != nil {
+			log.Errorf("Unable to get list of Services for namespace '%v': %v",
+				namespace, err)
+			return nil
+		}
+	}
+	for _, obj := range orderedSVCs {
+		svc := obj.(*v1.Service)
+		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+			allLBServices = append(allLBServices, svc)
+		}
+	}
+
+	return allLBServices
+}
+
 // getTransportServersForService gets the List of VirtualServers which are effected
 // by the addition/deletion/updation of service.
 func (ctlr *Controller) getTransportServersForService(svc *v1.Service) []*cisapiv1.TransportServer {
@@ -1972,6 +2043,9 @@ func (ctlr *Controller) processLBServices(
 
 	for _, portSpec := range svc.Spec.Ports {
 
+		log.Debugf("Processing Service Type LB %s for port %v",
+			svc.ObjectMeta.Name, portSpec)
+
 		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		if isSVCDeleted {
 			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
@@ -1988,6 +2062,25 @@ func (ctlr *Controller) processLBServices(
 			ip,
 			portSpec.Port,
 		)
+		processingError := false
+		// Handle policy
+		plc, err := ctlr.getPolicyFromLBService(svc)
+		if plc != nil {
+			err := ctlr.handleTSResourceConfigForPolicy(rsCfg, plc)
+			if err != nil {
+				log.Errorf("%v", err)
+				processingError = true
+			}
+		}
+		if err != nil {
+			processingError = true
+			log.Errorf("%v", err)
+		}
+
+		if processingError {
+			log.Errorf("Cannot Publish LB Service %s", svc.ObjectMeta.Name)
+			break
+		}
 
 		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec)
 
@@ -2849,4 +2942,14 @@ func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
 		delete(ctlr.resources.nplStore, podKey)
 	}
 	return nil
+}
+
+// getPolicyFromLBService gets the policy attached to the service and returns it
+func (ctlr *Controller) getPolicyFromLBService(svc *v1.Service) (*cisapiv1.Policy, error) {
+	plcName, found := svc.Annotations[LBServicePolicyNameAnnotation]
+	if !found || plcName == "" {
+		return nil, nil
+	}
+	ns := svc.Namespace
+	return ctlr.getPolicy(ns, plcName)
 }

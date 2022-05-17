@@ -40,6 +40,7 @@ var K8SCoreServices = map[string]bool{
 	"kube-dns":                      true,
 	"kube-scheduler":                true,
 	"kube-controller-manager":       true,
+	"kube-apiserver":                true,
 	"docker-registry":               true,
 	"kubernetes":                    true,
 	"registry-console":              true,
@@ -54,6 +55,10 @@ var K8SCoreServices = map[string]bool{
 	"prometheus-k8s":                true,
 	"prometheus-operated":           true,
 	"prometheus-operatorwebconsole": true,
+	"kube-proxy":                    true,
+	"flannel":                       true,
+	"etcd":                          true,
+	"antrea":                        true,
 }
 
 // start the VirtualServer informer
@@ -1129,6 +1134,10 @@ func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
 
 func (ctlr *Controller) enqueuePod(obj interface{}) {
 	pod := obj.(*corev1.Pod)
+	//skip if pod belongs to coreService
+	if ctlr.checkCoreserviceLabels(pod.Labels) {
+		return
+	}
 	log.Debugf("Enqueueing pod: %v", pod)
 	key := &rqKey{
 		namespace: pod.ObjectMeta.Namespace,
@@ -1142,6 +1151,10 @@ func (ctlr *Controller) enqueuePod(obj interface{}) {
 
 func (ctlr *Controller) enqueueDeletedPod(obj interface{}) {
 	pod := obj.(*corev1.Pod)
+	//skip if pod belongs to coreService
+	if ctlr.checkCoreserviceLabels(pod.Labels) {
+		return
+	}
 	log.Debugf("Enqueueing pod: %v", pod)
 	key := &rqKey{
 		namespace: pod.ObjectMeta.Namespace,
@@ -1232,4 +1245,13 @@ func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}) {
 	}
 
 	ctlr.rscQueue.Add(key)
+}
+
+func (ctlr *Controller) checkCoreserviceLabels(labels map[string]string) bool {
+	for _, v := range labels {
+		if _, ok := K8SCoreServices[v]; ok {
+			return true
+		}
+	}
+	return false
 }

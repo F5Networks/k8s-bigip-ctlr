@@ -159,6 +159,10 @@ func (appMgr *Manager) checkValidPod(
 	obj interface{}, operation string,
 ) (bool, []*serviceQueueKey) {
 	pod := obj.(*v1.Pod)
+	//skip if pod belongs to coreService
+	if appMgr.checkCoreserviceLabels(pod.Labels) {
+		return false, nil
+	}
 	namespace := pod.ObjectMeta.Namespace
 	podkey := namespace + "/" + pod.Name
 	_, ok := appMgr.getNamespaceInformer(namespace)

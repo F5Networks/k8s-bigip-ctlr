@@ -4783,6 +4783,8 @@ var _ = Describe("AppManager Tests", func() {
 				mockMgr.appMgr.nplStore = make(map[string]NPLAnnoations)
 				mockMgr.checkValidPod(pod1, OprTypeCreate)
 				mockMgr.checkValidPod(pod2, OprTypeCreate)
+				Expect(mockMgr.appMgr.checkCoreserviceLabels(pod1.Labels)).To(Equal(false))
+				Expect(mockMgr.appMgr.checkCoreserviceLabels(pod2.Labels)).To(Equal(false))
 				var val1 NPLAnnoations
 				var val2 NPLAnnoations
 				json.Unmarshal([]byte(pod1.Annotations[NPLPodAnnotation]), &val1)

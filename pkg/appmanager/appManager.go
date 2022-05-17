@@ -1688,10 +1688,6 @@ func (appMgr *Manager) syncIngresses(
 				_, ingFound, _ := appInf.ingInformer.GetIndexer().GetByKey(ingKey)
 				return !ingFound
 			}
-			// So that later the create event of the same resource will not processed, unnecessarily
-			appMgr.processedResourcesMutex.Lock()
-			appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)] = true
-			appMgr.processedResourcesMutex.Unlock()
 			depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 				objKey, objDeps, svcDepKey, ingressLookupFunc)
 			portStructs := appMgr.virtualPorts(ing)
@@ -1813,6 +1809,10 @@ func (appMgr *Manager) syncIngresses(
 				// Set the Ingress Status IP address
 				appMgr.setIngressStatus(ing, rsCfg, appInf)
 			}
+			// So that later the create event of the same resource will not processed, unnecessarily
+			appMgr.processedResourcesMutex.Lock()
+			appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)] = true
+			appMgr.processedResourcesMutex.Unlock()
 		default:
 			ing := obj.(*netv1.Ingress)
 			// TODO: Each ingress resource must be processed for its associated service
@@ -1847,11 +1847,7 @@ func (appMgr *Manager) syncIngresses(
 				_, ingFound, _ := appInf.ingInformer.GetIndexer().GetByKey(ingKey)
 				return !ingFound
 			}
-			// Mark each resource as it is already processed
-			// So that later the create event of the same resource will not processed, unnecessarily
-			appMgr.processedResourcesMutex.Lock()
-			appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)] = true
-			appMgr.processedResourcesMutex.Unlock()
+
 			depsAdded, depsRemoved := appMgr.resources.UpdateDependencies(
 				objKey, objDeps, svcDepKey, ingressLookupFunc)
 			portStructs := appMgr.v1VirtualPorts(ing)
@@ -1974,7 +1970,11 @@ func (appMgr *Manager) syncIngresses(
 				// Set the Ingress Status IP address
 				appMgr.setV1IngressStatus(ing, rsCfg, appInf)
 			}
-
+			// Mark each resource as it is already processed
+			// So that later the create event of the same resource will not processed, unnecessarily
+			appMgr.processedResourcesMutex.Lock()
+			appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)] = true
+			appMgr.processedResourcesMutex.Unlock()
 		}
 
 	}

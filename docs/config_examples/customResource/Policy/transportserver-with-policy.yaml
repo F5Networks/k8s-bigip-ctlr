@@ -13,6 +13,7 @@ spec:
   mode: standard
   snat: auto
   policyName: sample-policy
+  dos: /Common/dos
   allowVlans: [ "/Common/devtraffic" ]
   pool:
     service: svc-1

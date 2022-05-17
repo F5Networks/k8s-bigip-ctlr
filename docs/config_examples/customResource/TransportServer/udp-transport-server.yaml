@@ -13,6 +13,7 @@ spec:
   mode: standard
   snat: auto
   allowVlans: ["/Common/devtraffic"]
+  dos: /Common/dos
   persistenceProfile: "cookie"
   iRules:
     - /Common/custom_irule

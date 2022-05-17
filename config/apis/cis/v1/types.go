@@ -45,6 +45,8 @@ type VirtualServerSpec struct {
 	PolicyName             string           `json:"policyName,omitempty"`
 	PersistenceProfile     string           `json:"persistenceProfile,omitempty"`
 	ProfileMultiplex       string           `json:"profileMultiplex,omitempty"`
+	DOS                    string           `json:"dos,omitempty"`
+	BotDefense             string           `json:"botDefense,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -194,6 +196,8 @@ type TransportServerSpec struct {
 	PolicyName           string           `json:"policyName,omitempty"`
 	PersistenceProfile   string           `json:"persistenceProfile,omitempty"`
 	ProfileL4            string           `json:"profileL4,omitempty"`
+	DOS                  string           `json:"dos,omitempty"`
+	BotDefense           string           `json:"botDefense,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -258,6 +262,7 @@ type L7PolicySpec struct {
 
 type L3PolicySpec struct {
 	DOS            string `json:"dos,omitempty"`
+	BotDefense     string `json:"botDefense,omitempty"`
 	FirewallPolicy string `json:"firewallPolicy,omitempty"`
 }
 

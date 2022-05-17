@@ -39,6 +39,12 @@ spec:
                   type: string
                 persistenceProfile:
                   type: string
+                dos:
+                  type: string
+                  pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
+                botDefense:
+                  type: string
+                  pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                 policyName:
                   type: string
                   pattern: '^([A-z0-9-_+])*([A-z0-9])$'
@@ -276,6 +282,9 @@ spec:
                   type: string
                 persistenceProfile:
                   type: string
+                dos:
+                  type: string
+                  pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                 profileL4:
                   type: string
                   pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
@@ -578,6 +587,9 @@ spec:
                     dos:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                    botDefense:
+                      type: string
+                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                     firewallPolicy:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'

@@ -183,6 +183,8 @@ type (
 		LogProfiles            []string              `json:"logProfiles,omitempty"`
 		ProfileL4              string                `json:"profileL4,omitempty"`
 		ProfileMultiplex       string                `json:"profileMultiplex,omitempty"`
+		ProfileDOS             string               `json:"profileDOS,omitempty"`
+		ProfileBotDefense      string               `json:"profileBotDefense,omitempty"`
 		Mode                   string                `json:"mode,omitempty"`
 		TranslateServerAddress bool                  `json:"translateServerAddress"`
 		TranslateServerPort    bool                  `json:"translateServerPort"`
@@ -762,6 +764,8 @@ type (
 		ProfileHTTP            as3MultiTypeParam    `json:"profileHTTP,omitempty"`
 		ProfileHTTP2           as3MultiTypeParam    `json:"profileHTTP2,omitempty"`
 		ProfileMultiplex       as3MultiTypeParam    `json:"profileMultiplex,omitempty"`
+		ProfileDOS             as3MultiTypeParam    `json:"profileDOS,omitempty"`
+		ProfileBotDefense      as3MultiTypeParam    `json:"profileBotDefense,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

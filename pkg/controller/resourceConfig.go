@@ -372,6 +372,14 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 	}
 
+	if vs.Spec.DOS != "" {
+		rsCfg.Virtual.ProfileDOS = vs.Spec.DOS
+	}
+
+	if vs.Spec.BotDefense != "" {
+		rsCfg.Virtual.ProfileBotDefense = vs.Spec.BotDefense
+	}
+
 	if vs.Spec.ProfileMultiplex != "" {
 		rsCfg.Virtual.ProfileMultiplex = vs.Spec.ProfileMultiplex
 	}
@@ -1328,6 +1336,14 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		rsCfg.Virtual.SNAT = vs.Spec.SNAT
 	}
 
+	if vs.Spec.DOS != "" {
+		rsCfg.Virtual.ProfileDOS = vs.Spec.DOS
+	}
+
+	if vs.Spec.BotDefense != "" {
+		rsCfg.Virtual.ProfileBotDefense = vs.Spec.BotDefense
+	}
+
 	if len(rsCfg.ServiceAddress) == 0 {
 		for _, sa := range vs.Spec.ServiceIPAddress {
 			rsCfg.ServiceAddress = append(rsCfg.ServiceAddress, ServiceAddress(sa))
@@ -1421,6 +1437,8 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
 	rsCfg.Virtual.PersistenceProfile = plc.Spec.Profiles.PersistenceProfile
 	rsCfg.Virtual.ProfileMultiplex = plc.Spec.Profiles.ProfileMultiplex
+	rsCfg.Virtual.ProfileDOS = plc.Spec.L3Policies.DOS
+	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
@@ -1478,6 +1496,8 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	rsCfg.Virtual.Firewall = plc.Spec.L3Policies.FirewallPolicy
 	rsCfg.Virtual.PersistenceProfile = plc.Spec.Profiles.PersistenceProfile
 	rsCfg.Virtual.ProfileL4 = plc.Spec.Profiles.ProfileL4
+	rsCfg.Virtual.ProfileDOS = plc.Spec.L3Policies.DOS
+	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)

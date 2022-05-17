@@ -792,6 +792,16 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			svc.PersistenceMethods = &[]string{}
 		}
 	}
+	if len(cfg.Virtual.ProfileDOS) > 0 {
+		svc.ProfileDOS = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileDOS,
+		}
+	}
+	if len(cfg.Virtual.ProfileBotDefense) > 0 {
+		svc.ProfileBotDefense = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileBotDefense,
+		}
+	}
 	if len(cfg.Virtual.ProfileMultiplex) > 0 {
 		svc.ProfileMultiplex = &as3ResourcePointer{
 			BigIP: cfg.Virtual.ProfileMultiplex,
@@ -1286,6 +1296,19 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 			svc.PersistenceMethods = &[]string{}
 		}
 	}
+
+	if len(cfg.Virtual.ProfileDOS) > 0 {
+		svc.ProfileDOS = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileDOS,
+		}
+	}
+
+	if len(cfg.Virtual.ProfileBotDefense) > 0 {
+		svc.ProfileBotDefense = &as3ResourcePointer{
+			BigIP: cfg.Virtual.ProfileBotDefense,
+		}
+	}
+
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		_, name := getPartitionAndName(profile.Name)

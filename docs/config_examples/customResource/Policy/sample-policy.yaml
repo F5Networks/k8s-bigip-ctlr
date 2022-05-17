@@ -10,6 +10,8 @@ spec:
     waf: /Common/WAF_Policy
   l3Policies:
     firewallPolicy: /Common/AFM_Policy
+    dos: /Common/dos
+    botDefense: /Common/bot-defense
   profiles:
     tcp: /Common/f5-tcp-wan
     udp: /Common/udp

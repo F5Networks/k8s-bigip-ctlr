@@ -9,6 +9,8 @@ Added Functionality
 **What’s new:**
     * CRD:
         * LoadBalancingMethod support for VirtualServer and TransportServer CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * DoS Protection Profile support for VirtualServer, TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Bot Defense Profile support for VirtualServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * client ProfileL4 support for TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * OneConnect profile support added for VirtualServer CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
     * Added support for SCTP protocol in Services of type LoadBalancer

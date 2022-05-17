@@ -21,4 +21,6 @@ spec:
       service: svc-1
       servicePort: 80
   snat: auto
+  dos: /Common/dos
+  botDefense: /Common/bot-defense
   virtualServerAddress: 10.1.2.3

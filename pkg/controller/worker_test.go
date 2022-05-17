@@ -909,6 +909,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod2.Name]).To(Equal(val2))
 			//verify selector match on pod
 			Expect(mockCtlr.matchSvcSelectorPodLabels(selectors, pod1.Labels)).To(Equal(true))
+			Expect(mockCtlr.checkCoreserviceLabels(pod1.Labels)).To(Equal(false))
 			var items []v1.Pod
 			items = append(items, *pod1, *pod2)
 			pods := v1.PodList{Items: items}

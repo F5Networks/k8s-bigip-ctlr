@@ -213,6 +213,31 @@ type SvcEndPointsCache struct {
 	labelString string
 }
 
+var K8SCoreServices = map[string]bool{
+	"kube-dns":                      true,
+	"kube-scheduler":                true,
+	"kube-controller-manager":       true,
+	"kube-apiserver":                true,
+	"docker-registry":               true,
+	"kubernetes":                    true,
+	"registry-console":              true,
+	"router":                        true,
+	"kubelet":                       true,
+	"console":                       true,
+	"alertmanager-main":             true,
+	"alertmanager-operated":         true,
+	"cluster-monitoring-operator":   true,
+	"kube-state-metrics":            true,
+	"node-exporter":                 true,
+	"prometheus-k8s":                true,
+	"prometheus-operated":           true,
+	"prometheus-operatorwebconsole": true,
+	"kube-proxy":                    true,
+	"flannel":                       true,
+	"etcd":                          true,
+	"antrea":                        true,
+}
+
 const (
 
 	// Kinds of Resources
@@ -3601,4 +3626,13 @@ func (appMgr *Manager) getEndpointsForNPL(
 		}
 	}
 	return members
+}
+
+func (appMgr *Manager) checkCoreserviceLabels(labels map[string]string) bool {
+	for _, v := range labels {
+		if _, ok := K8SCoreServices[v]; ok {
+			return true
+		}
+	}
+	return false
 }

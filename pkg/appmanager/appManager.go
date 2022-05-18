@@ -49,6 +49,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	watch "k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	rest "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -3343,6 +3344,20 @@ func (slice byTimestamp) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
+func createLabel(label string) (labels.Selector, error) {
+	var l labels.Selector
+	var err error
+	if label == "" {
+		l = labels.Everything()
+	} else {
+		l, err = labels.Parse(label)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse Label Selector string: %v", err)
+		}
+	}
+	return l, nil
+}
+
 // Performs Service discovery for the given AS3 Pool and returns a pool.
 // Service discovery is loosely coupled with Kubernetes Service labels. A Kubernetes Service is treated as a match for
 // an AS3 Pool, if the Kubernetes Service have the following labels and their values matches corresponding AS3
@@ -3357,64 +3372,80 @@ func (slice byTimestamp) Swap(i, j int) {
 func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 	var members []Member
 	uniqueMembersMap := make(map[Member]struct{})
-	svcListOptions := metav1.ListOptions{
-		LabelSelector: selector,
-	}
 
-	// Identify services that matches the given label
-	var services *v1.ServiceList
-	var err error
+	log.Infof("getting appInf for the ns: %v", namespace)
+	appInf, _ := appMgr.getNamespaceInformer(namespace)
+	log.Infof("got this appInf for the ns: %v", namespace)
+
+	var svcItems []v1.Service
+
 	if appMgr.hubMode {
+		// Leaving the old way for hubMode for now.
+		svcListOptions := metav1.ListOptions{
+			LabelSelector: selector,
+		}
+
+		var err error
+		// Identify services that matches the given label
+		var services *v1.ServiceList
+
 		services, err = appMgr.kubeClient.CoreV1().Services(v1.NamespaceAll).List(context.TODO(), svcListOptions)
+
+		if err != nil {
+			log.Errorf("[CORE] Error getting service list. %v", err)
+			return nil
+		}
+		svcItems = services.Items
 	} else {
-		services, err = appMgr.kubeClient.CoreV1().Services(namespace).List(context.TODO(), svcListOptions)
+		svcInformer := appInf.svcInformer
+		svcLister := listerscorev1.NewServiceLister(svcInformer.GetIndexer())
+		ls, _ := createLabel(selector)
+		svcListed, _ := svcLister.Services(namespace).List(ls)
+		log.Infof("length of svcListed: %d", len(svcListed))
+
+		for n, _ := range svcListed {
+			svcItems = append(svcItems, *svcListed[n])
+		}
+		log.Infof("length of svcItems: %d", len(svcItems))
 	}
 
-	if err != nil {
-		log.Errorf("[CORE] Error getting service list. %v", err)
-		return nil
-	}
-
-	if len(services.Items) > 1 {
+	if len(svcItems) > 1 {
 		svcName := ""
-		sort.Sort(byTimestamp(services.Items))
+		sort.Sort(byTimestamp(svcItems))
 		//picking up the oldest service
-		services.Items = services.Items[:1]
+		svcItems = svcItems[:1]
 
-		for _, service := range services.Items {
+		for _, service := range svcItems {
 			svcName += fmt.Sprintf("Service: %v, Namespace: %v,Timestamp: %v\n", service.Name, service.Namespace, service.GetCreationTimestamp())
 		}
 
 		log.Warningf("[CORE] Multiple Services are tagged for this pool. Using oldest service endpoints.\n%v", svcName)
 	}
 
-	for _, service := range services.Items {
+	for _, service := range svcItems {
 		if appMgr.isNodePort == false && appMgr.poolMemberType != NodePortLocal { // Controller is in ClusterIP Mode
-			endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
-				metav1.ListOptions{
-					FieldSelector: "metadata.name=" + service.Name,
-				},
-			)
-			if err != nil {
-				log.Debugf("[CORE] Error getting endpoints for service %v", service.Name)
+			myKey := namespace + "/" + service.Name
+			log.Info("now to obtain using GetByKey")
+			myItem, myFound, _ := appInf.endptInformer.GetStore().GetByKey(myKey)
+			log.Infof("now obtained using GetByKey, myFound is: %v", myFound)
+
+			if !myFound {
+				msg := "Endpoints for service " + myKey + " not found!"
+				log.Debug(msg)
 				continue
 			}
 
-			for _, endpoints := range endpointsList.Items {
-				for _, subset := range endpoints.Subsets {
-					for _, address := range subset.Addresses {
-						for _, port := range subset.Ports {
-							member := Member{
-								Address: address.IP,
-								Port:    port.Port,
-								SvcPort: port.Port,
-							}
-							if _, ok := uniqueMembersMap[member]; !ok {
-								uniqueMembersMap[member] = struct{}{}
-								members = append(members, member)
-							}
+			myEps, _ := myItem.(*v1.Endpoints)
+			for _, mySubset := range myEps.Subsets {
+				for _, myPort := range mySubset.Ports {
+					for _, myAddr := range mySubset.Addresses {
+						log.Infof("got 1 new member: %v-%v", myAddr.IP, myPort.Port)
+						mymember := Member{
+							Address: myAddr.IP,
+							Port:    myPort.Port,
+							SvcPort: myPort.Port,
 						}
-
+						members = append(members, mymember)
 					}
 				}
 			}

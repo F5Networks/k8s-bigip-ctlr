@@ -2,10 +2,11 @@ package controller
 
 import (
 	"container/list"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	v1 "k8s.io/api/core/v1"
 	"strings"
 	"sync"
+
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	v1 "k8s.io/api/core/v1"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 )
@@ -35,16 +36,12 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 	return rm.id
 }
 
-func (ctlr *Controller) responseHandler(respChan chan int) {
+func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
+	// todo: update only when there is a change(success to fail or vice versa) in tenant status
 	ctlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
+	for rscUpdateMeta := range respChan {
 
-	for id := range respChan {
-		var rm requestMeta
-		for ctlr.requestQueue.Len() > 0 && ctlr.requestQueue.Front().Value.(requestMeta).id <= id {
-			ctlr.requestQueue.Lock()
-			rm = ctlr.requestQueue.Remove(ctlr.requestQueue.Front()).(requestMeta)
-			ctlr.requestQueue.Unlock()
-		}
+		rm := ctlr.dequeueReq(rscUpdateMeta.id, len(rscUpdateMeta.failedTenants))
 
 		for rscKey, kind := range rm.meta {
 			ns := strings.Split(rscKey, "/")[0]
@@ -90,8 +87,45 @@ func (ctlr *Controller) responseHandler(respChan chan int) {
 					ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 			case Route:
-				go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
+				if _, found := rscUpdateMeta.failedTenants[ns]; found {
+					// TODO : distinguish between a 503 and an actual failure
+					go ctlr.updateRouteAdmitStatus(rscKey, "Failure while updating config", "Please check logs for more information", v1.ConditionFalse)
+				} else {
+					go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
+				}
 			}
 		}
 	}
+}
+
+func (ctlr *Controller) dequeueReq(id int, failedTenantsLen int) requestMeta {
+	var rm requestMeta
+	if id == 0 {
+		// request initiated from a retried tenant
+		ctlr.requestQueue.Lock()
+
+		if ctlr.requestQueue.Len() == 1 && failedTenantsLen > 0 {
+			// Retain the last request in the queue to update the config in later stages when retry is successful
+			rm = ctlr.requestQueue.Front().Value.(requestMeta)
+		} else {
+			rm = ctlr.requestQueue.Remove(ctlr.requestQueue.Front()).(requestMeta)
+		}
+		ctlr.requestQueue.Unlock()
+		return rm
+	}
+
+	for ctlr.requestQueue.Len() > 0 && ctlr.requestQueue.Front().Value.(requestMeta).id <= id {
+		ctlr.requestQueue.Lock()
+		if ctlr.requestQueue.Len() == 1 && failedTenantsLen > 0 {
+			// Retain the last request in the queue to update the config in later stages when retry is successful
+			rm = ctlr.requestQueue.Front().Value.(requestMeta)
+			ctlr.requestQueue.Unlock()
+			break
+		} else {
+			rm = ctlr.requestQueue.Remove(ctlr.requestQueue.Front()).(requestMeta)
+		}
+		ctlr.requestQueue.Unlock()
+	}
+
+	return rm
 }

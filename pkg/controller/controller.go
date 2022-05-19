@@ -86,8 +86,8 @@ const (
 	TLSAllowInsecure    = "allow"
 	TLSNoInsecure       = "none"
 
-	LBServiceIPAMLabelAnnotation = "cis.f5.com/ipamLabel"
-	HealthMonitorAnnotation      = "cis.f5.com/health"
+	LBServiceIPAMLabelAnnotation  = "cis.f5.com/ipamLabel"
+	HealthMonitorAnnotation       = "cis.f5.com/health"
 	LBServicePolicyNameAnnotation = "cis.f5.com/policyName"
 
 	//Antrea NodePortLocal support

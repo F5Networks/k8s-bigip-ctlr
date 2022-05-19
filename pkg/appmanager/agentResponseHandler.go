@@ -18,6 +18,7 @@ package appmanager
 
 import (
 	"context"
+	"fmt"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
@@ -30,35 +31,33 @@ const (
 	F5RouterName = "F5 BIG-IP"
 )
 
-// Get the RFC3339Copy of the timestamp for updating the OpenShift Routes
-func getRfc3339Timestamp() metaV1.Time {
-	return metaV1.Now().Rfc3339Copy()
-}
-
-// Check whether we are processing this route.
-// Else, clean the route metadata if we add any in past.
-func isProcessedRoute(route routeapi.Route, routes []*routeapi.Route) bool {
-	for _, rt := range routes {
-		if route.ObjectMeta.Name == rt.ObjectMeta.Name && route.ObjectMeta.Namespace == rt.ObjectMeta.Namespace {
-			return true
-		}
+// erase all the route admit status submitted by F5 BIG-IP router
+func (appMgr *Manager) eraseRouteAdmitStatus(rscKey string) {
+	// Fetching the latest copy of route
+	route := appMgr.fetchRoute(rscKey)
+	if route == nil {
+		return
 	}
-	return false
-}
-
-// Clean the MetaData for routes processed in the past and
-// not considered now.
-func (appMgr *Manager) eraseRouteAdmitStatus(route routeapi.Route) {
-	for i, _ := range route.Status.Ingress {
+	for i := 0; i < len(route.Status.Ingress); i++ {
 		if route.Status.Ingress[i].RouterName == F5RouterName {
 			route.Status.Ingress = append(route.Status.Ingress[:i], route.Status.Ingress[i+1:]...)
-			_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), &route, metaV1.UpdateOptions{})
-			if err != nil {
-				log.Errorf("[CORE] Error while Erasing Route Admit Status: %v\n", err)
-			} else {
-				log.Debugf("[CORE] Admit Status Erased for Route - %v\n", route.ObjectMeta.Name)
+			erased := false
+			retryCount := 0
+			for !erased && retryCount < 3 {
+				_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
+				if err != nil {
+					log.Errorf("[CORE] Error while Erasing Route Admit Status: %v\n", err)
+					retryCount++
+					route = appMgr.fetchRoute(rscKey)
+					if route == nil {
+						return
+					}
+				} else {
+					erased = true
+					log.Debugf("[CORE] Admit Status Erased for Route - %v\n", route.ObjectMeta.Name)
+				}
 			}
-			return
+			i-- // Since we just deleted a[i], we must redo that index
 		}
 	}
 }
@@ -67,64 +66,122 @@ func (appMgr *Manager) eraseRouteAdmitStatus(route routeapi.Route) {
 // This must be populated by CIS based on BIG-IP response 200 OK.
 // If BIG-IP response is an error, do care update Ingress.
 // Don't update an existing Ingress object when BIG-IP response is not 200 OK. Its already consumed.
-func (appMgr *Manager) updateRouteAdmitStatus() {
-	now := getRfc3339Timestamp()
-	var processedRoutes []*routeapi.Route
-	getOptions := metaV1.GetOptions{}
+func (appMgr *Manager) updateRouteAdmitStatusAll() {
+	processedRoutes := make(map[string]struct{})
 	appMgr.processedResourcesMutex.Lock()
 	defer appMgr.processedResourcesMutex.Unlock()
 	for key, processedStatus := range appMgr.processedResources {
 		dashSplit := strings.Split(key, "_")
 		if dashSplit[0] == Routes && processedStatus {
-			slashSplit := strings.Split(dashSplit[1], "/")
-			namespace, routeName, Admitted := slashSplit[0], slashSplit[1], false
-			route, err := appMgr.routeClientV1.Routes(namespace).Get(context.TODO(), routeName, getOptions)
-			if err != nil {
-				log.Debugf("[CORE] Unable to get route to update status. Name: %v, Namespace: %v\n", routeName, namespace)
-				continue
-			}
-			processedRoutes = append(processedRoutes, route)
-			for _, routeIngress := range route.Status.Ingress {
-				if routeIngress.RouterName == F5RouterName {
-					Admitted = true
-					break
-				}
-			}
-			if !Admitted {
-				route.Status.Ingress = append(route.Status.Ingress, routeapi.RouteIngress{
-					RouterName: F5RouterName,
-					Host:       route.Spec.Host,
-					Conditions: []routeapi.RouteIngressCondition{{
-						Type:               routeapi.RouteAdmitted,
-						Status:             v1.ConditionTrue,
-						LastTransitionTime: &now,
-					}},
-				})
-				_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
-				if err != nil {
-					log.Errorf("[CORE] Error while Updating Route Admit Status: %v\n", err)
-				} else {
-					log.Debugf("[CORE] Admitted Route -  %v", route.ObjectMeta.Name)
-				}
-			}
+			appMgr.updateRouteAdmitStatus(dashSplit[1], "", "", v1.ConditionTrue)
 		}
+		processedRoutes[dashSplit[1]] = struct{}{}
 	}
 
 	// Get the list of Routes from all NS and remove updated metadata.
 	allOptions := metaV1.ListOptions{
 		LabelSelector: "",
 	}
-
 	allNamespaces := ""
 	allRoutes, err := appMgr.routeClientV1.Routes(allNamespaces).List(context.TODO(), allOptions)
 	if err != nil {
 		log.Errorf("[CORE] Error listing Routes: %v", err)
+		return
 	}
+	// Check whether we are processing this route.
+	// Else, clean the route metadata if we add any in past.
 	for _, aRoute := range allRoutes.Items {
-		if !isProcessedRoute(aRoute, processedRoutes) {
-			appMgr.eraseRouteAdmitStatus(aRoute)
+		routeKey := fmt.Sprintf("%v/%v", aRoute.Namespace, aRoute.Name)
+		if _, ok := processedRoutes[routeKey]; !ok {
+			appMgr.eraseRouteAdmitStatus(routeKey)
+			// update the processedHostPathMap if the route is deleted
+			var key string
+			if aRoute.Spec.Path == "/" || len(aRoute.Spec.Path) == 0 {
+				key = aRoute.Spec.Host
+			} else {
+				key = aRoute.Spec.Host + aRoute.Spec.Path
+			}
+			appMgr.processedHostPath.Lock()
+			if timestamp, ok := appMgr.processedHostPath.processedHostPathMap[key]; ok && timestamp == aRoute.ObjectMeta.CreationTimestamp {
+				delete(appMgr.processedHostPath.processedHostPathMap, key)
+			}
+			appMgr.processedHostPath.Unlock()
 		}
 	}
+}
+
+// update the specified route admit status to a single route
+func (appMgr *Manager) updateRouteAdmitStatus(
+	rscKey string,
+	reason string,
+	message string,
+	status v1.ConditionStatus,
+) {
+	for retryCount := 0; retryCount < 3; retryCount++ {
+		route := appMgr.fetchRoute(rscKey)
+		if route == nil {
+			return
+		}
+		Admitted := false
+		now := metaV1.Now().Rfc3339Copy()
+		for _, routeIngress := range route.Status.Ingress {
+			if routeIngress.RouterName == F5RouterName {
+				for _, condition := range routeIngress.Conditions {
+					if condition.Status == status {
+						Admitted = true
+					} else {
+						// remove all multiple route admit status submitted earlier
+						appMgr.eraseRouteAdmitStatus(rscKey)
+					}
+				}
+			}
+		}
+		if Admitted {
+			return
+		}
+		route.Status.Ingress = append(route.Status.Ingress, routeapi.RouteIngress{
+			RouterName: F5RouterName,
+			Host:       route.Spec.Host,
+			Conditions: []routeapi.RouteIngressCondition{{
+				Type:               routeapi.RouteAdmitted,
+				Status:             status,
+				Reason:             reason,
+				Message:            message,
+				LastTransitionTime: &now,
+			}},
+		})
+		_, err := appMgr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
+		if err == nil {
+			log.Debugf("Admitted Route -  %v", route.ObjectMeta.Name)
+			return
+		}
+		log.Errorf("Error while Updating Route Admit Status: %v\n", err)
+	}
+}
+
+// Fetch the latest copy of route
+func (appMgr *Manager) fetchRoute(rscKey string) *routeapi.Route {
+	ns := strings.Split(rscKey, "/")[0]
+	appInf, haveNamespace := appMgr.getNamespaceInformer(ns)
+	if !haveNamespace {
+		// This shouldn't happen as the namespace is checked for every item before
+		// it is added to the queue, but issue a warning if it does.
+		log.Warningf(
+			"Received an update for an item from an un-watched namespace %v",
+			ns)
+		return nil
+	}
+	obj, exist, err := appInf.routeInformer.GetIndexer().GetByKey(rscKey)
+	if err != nil {
+		log.Debugf("Error while fetching Route: %v: %v",
+			rscKey, err)
+		return nil
+	}
+	if !exist {
+		log.Debugf("Route Not Found: %v", rscKey)
+		return nil
+	}
+	return obj.(*routeapi.Route)
 }
 
 // agentResponseWorker is a go routine blocks on agent Response Chan
@@ -140,7 +197,7 @@ func (appMgr *Manager) agentResponseWorker() {
 			// if route is configured in appManager
 			if appMgr.routeClientV1 != nil {
 				log.Debugf("[CORE] Updating Route Admit Status")
-				appMgr.updateRouteAdmitStatus()
+				appMgr.updateRouteAdmitStatusAll()
 			}
 		}
 	}

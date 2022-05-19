@@ -171,10 +171,11 @@ func NewRoute(
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            id,
-			ResourceVersion: rv,
-			Namespace:       namespace,
-			Annotations:     annotations,
+			Name:              id,
+			ResourceVersion:   rv,
+			Namespace:         namespace,
+			Annotations:       annotations,
+			CreationTimestamp: metav1.Now(),
 		},
 		Spec: spec,
 	}

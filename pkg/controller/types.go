@@ -18,6 +18,7 @@ package controller
 
 import (
 	"container/list"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"sync"
 
@@ -892,7 +893,7 @@ type (
 // Store of CustomProfiles
 type ProcessedHostPath struct {
 	sync.Mutex
-	processedHostPathMap map[string]string
+	processedHostPathMap map[string]metav1.Time
 }
 
 type (

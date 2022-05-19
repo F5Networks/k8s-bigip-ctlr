@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
@@ -31,7 +32,7 @@ var _ = Describe("Routes", func() {
 		mockCtlr.esInformers["test"] = mockCtlr.newNamespacedEssentialResourceInformer("test")
 		mockCtlr.esInformers["default"] = mockCtlr.newNamespacedEssentialResourceInformer("default")
 		var processedHostPath ProcessedHostPath
-		processedHostPath.processedHostPathMap = make(map[string]string)
+		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath
 	})
 
@@ -184,7 +185,7 @@ var _ = Describe("Routes", func() {
 			rskey2 := fmt.Sprintf("%v/%v", route2.Namespace, route2.Name)
 			rskey3 := fmt.Sprintf("%v/%v", route3.Namespace, route3.Name)
 			Expect(mockCtlr.checkValidRoute(route1)).To(BeFalse())
-			mockCtlr.processedHostPath.processedHostPathMap[route1.Spec.Host+route1.Spec.Path] = fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
+			mockCtlr.processedHostPath.processedHostPathMap[route1.Spec.Host+route1.Spec.Path] = route1.ObjectMeta.CreationTimestamp
 			Expect(mockCtlr.checkValidRoute(route2)).To(BeFalse())
 			Expect(mockCtlr.checkValidRoute(route3)).To(BeFalse())
 			time.Sleep(100 * time.Millisecond)
@@ -224,15 +225,13 @@ var _ = Describe("Routes", func() {
 			route1.Spec.Path = "/test"
 			newURI := route1.Spec.Host + route1.Spec.Path
 			mockCtlr.updateRoute(route1)
-			mockCtlr.updateHostPathMap(route1)
+			mockCtlr.updateHostPathMap(route1.ObjectMeta.CreationTimestamp, route1.Spec.Host+route1.Spec.Path)
 			_, found := mockCtlr.processedHostPath.processedHostPathMap[oldURI]
 			Expect(found).To(BeFalse())
 			_, found = mockCtlr.processedHostPath.processedHostPathMap[newURI]
 			Expect(found).To(BeTrue())
 			Expect(len(mockCtlr.processedHostPath.processedHostPathMap)).To(BeEquivalentTo(1))
 			mockCtlr.deleteRoute(route1)
-			mockCtlr.removeDeletedRouteFromHostPathMap()
-			Expect(len(mockCtlr.processedHostPath.processedHostPathMap)).To(BeEquivalentTo(0))
 		})
 		It("Remove unused health monitors", func() {
 			rsCfg := &ResourceConfig{}

@@ -340,8 +340,13 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string) []*routeapi.Route {
 	for _, route := range orderedRoutes {
 		// TODO: add combinations for a/b - svc weight ; valid svcs or not
 		if ctlr.checkValidRoute(route) {
-			ctlr.updateHostPathMap(route)
-			go ctlr.removeDeletedRouteFromHostPathMap()
+			var key string
+			if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
+				key = route.Spec.Host + "/"
+			} else {
+				key = route.Spec.Host + route.Spec.Path
+			}
+			ctlr.updateHostPathMap(route.ObjectMeta.CreationTimestamp, key)
 			assocRoutes = append(assocRoutes, route)
 		}
 	}
@@ -929,26 +934,28 @@ func (ctlr *Controller) updateRouteAdmitStatus(
 	message string,
 	status v1.ConditionStatus,
 ) {
-	route := ctlr.fetchRoute(rscKey)
-	if route == nil {
-		return
-	}
-	Admitted := false
-	for _, routeIngress := range route.Status.Ingress {
-		if routeIngress.RouterName == F5RouterName {
-			for _, condition := range routeIngress.Conditions {
-				if condition.Status == status {
-					Admitted = true
-				} else {
-					// remove all multiple route admit status submitted earlier
-					ctlr.eraseRouteAdmitStatus(rscKey)
+	for retryCount := 0; retryCount < 3; retryCount++ {
+		route := ctlr.fetchRoute(rscKey)
+		if route == nil {
+			return
+		}
+		Admitted := false
+		now := metaV1.Now().Rfc3339Copy()
+		for _, routeIngress := range route.Status.Ingress {
+			if routeIngress.RouterName == F5RouterName {
+				for _, condition := range routeIngress.Conditions {
+					if condition.Status == status {
+						Admitted = true
+					} else {
+						// remove all multiple route admit status submitted earlier
+						ctlr.eraseRouteAdmitStatus(rscKey)
+					}
 				}
 			}
 		}
-	}
-	retryCount := 0
-	for !Admitted && retryCount < 3 {
-		now := metaV1.Now().Rfc3339Copy()
+		if Admitted {
+			return
+		}
 		route.Status.Ingress = append(route.Status.Ingress, routeapi.RouteIngress{
 			RouterName: F5RouterName,
 			Host:       route.Spec.Host,
@@ -961,18 +968,11 @@ func (ctlr *Controller) updateRouteAdmitStatus(
 			}},
 		})
 		_, err := ctlr.routeClientV1.Routes(route.ObjectMeta.Namespace).UpdateStatus(context.TODO(), route, metaV1.UpdateOptions{})
-		if err != nil {
-			retryCount++
-			log.Errorf("Error while Updating Route Admit Status: %v\n", err)
-			// Fetching the latest copy of route
-			route = ctlr.fetchRoute(rscKey)
-			if route == nil {
-				return
-			}
-		} else {
-			Admitted = true
+		if err == nil {
 			log.Debugf("Admitted Route -  %v", route.ObjectMeta.Name)
+			return
 		}
+		log.Errorf("Error while Updating Route Admit Status: %v\n", err)
 	}
 	// remove the route admit status for routes which are not monitored by CIS anymore
 	ctlr.eraseAllRouteAdmitStatus()
@@ -989,8 +989,23 @@ func (ctlr *Controller) eraseAllRouteAdmitStatus() {
 		log.Errorf("[CORE] Error listing all Routes: %v", err)
 		return
 	}
+	ctlr.processedHostPath.Lock()
+	defer ctlr.processedHostPath.Unlock()
 	for _, route := range unmonitoredRoutes.Items {
 		ctlr.eraseRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name))
+		// This removes the deleted route's entry from host-path map
+		// update the processedHostPathMap if the route is deleted
+		var key string
+		if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
+			key = route.Spec.Host
+		} else {
+			key = route.Spec.Host + route.Spec.Path
+		}
+		ctlr.processedHostPath.Lock()
+		if timestamp, ok := ctlr.processedHostPath.processedHostPathMap[key]; ok && timestamp == route.ObjectMeta.CreationTimestamp {
+			delete(ctlr.processedHostPath.processedHostPathMap, key)
+		}
+		ctlr.processedHostPath.Unlock()
 	}
 }
 
@@ -1047,10 +1062,16 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
 	// Validate the hostpath
 	ctlr.processedHostPath.Lock()
 	defer ctlr.processedHostPath.Unlock()
-	if processedRoute, found := ctlr.processedHostPath.processedHostPathMap[route.Spec.Host+route.Spec.Path]; found {
+	var key string
+	if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
+		key = route.Spec.Host + "/"
+	} else {
+		key = route.Spec.Host + route.Spec.Path
+	}
+	if processedRouteTimestamp, found := ctlr.processedHostPath.processedHostPathMap[key]; found {
 		// update the status if different route
-		if processedRoute != fmt.Sprintf("%v/%v", route.Namespace, route.Name) {
-			message := fmt.Sprintf("Discarding route %v as route %v already exposes URI %v%v and is older ", route.Name, processedRoute, route.Spec.Host, route.Spec.Path)
+		if processedRouteTimestamp.Before(&route.ObjectMeta.CreationTimestamp) {
+			message := fmt.Sprintf("Discarding route %v as other route already exposes URI %v%v and is older ", route.Name, route.Spec.Host, route.Spec.Path)
 			log.Errorf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "HostAlreadyClaimed", message, v1.ConditionFalse)
 			return false
@@ -1079,28 +1100,16 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
 	return true
 }
 
-func (ctlr *Controller) updateHostPathMap(route *routeapi.Route) {
+func (ctlr *Controller) updateHostPathMap(timestamp metav1.Time, key string) {
 	// This function updates the processedHostPathMap
 	ctlr.processedHostPath.Lock()
 	defer ctlr.processedHostPath.Unlock()
-	for hostPath, routeKey := range ctlr.processedHostPath.processedHostPathMap {
-		if routeKey == fmt.Sprintf("%v/%v", route.Namespace, route.Name) && hostPath != route.Spec.Host+route.Spec.Path {
+	for hostPath, routeTimestamp := range ctlr.processedHostPath.processedHostPathMap {
+		if routeTimestamp == timestamp && hostPath != key {
 			// Deleting the ProcessedHostPath map if route's path is changed
 			delete(ctlr.processedHostPath.processedHostPathMap, hostPath)
 		}
 	}
 	// adding the ProcessedHostPath map entry
-	ctlr.processedHostPath.processedHostPathMap[route.Spec.Host+route.Spec.Path] = fmt.Sprintf("%v/%v", route.Namespace, route.Name)
-}
-
-func (ctlr *Controller) removeDeletedRouteFromHostPathMap() {
-	ctlr.processedHostPath.Lock()
-	defer ctlr.processedHostPath.Unlock()
-	// This function removes the deleted route's entry from host-path map
-	for hostPath, routeKey := range ctlr.processedHostPath.processedHostPathMap {
-		route := ctlr.fetchRoute(routeKey)
-		if route == nil {
-			delete(ctlr.processedHostPath.processedHostPathMap, hostPath)
-		}
-	}
+	ctlr.processedHostPath.processedHostPathMap[key] = timestamp
 }

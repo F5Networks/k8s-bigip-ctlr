@@ -183,8 +183,8 @@ type (
 		LogProfiles            []string              `json:"logProfiles,omitempty"`
 		ProfileL4              string                `json:"profileL4,omitempty"`
 		ProfileMultiplex       string                `json:"profileMultiplex,omitempty"`
-		ProfileDOS             string               `json:"profileDOS,omitempty"`
-		ProfileBotDefense      string               `json:"profileBotDefense,omitempty"`
+		ProfileDOS             string                `json:"profileDOS,omitempty"`
+		ProfileBotDefense      string                `json:"profileBotDefense,omitempty"`
 		Mode                   string                `json:"mode,omitempty"`
 		TranslateServerAddress bool                  `json:"translateServerAddress"`
 		TranslateServerPort    bool                  `json:"translateServerPort"`

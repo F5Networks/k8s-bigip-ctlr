@@ -3373,9 +3373,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 	var members []Member
 	uniqueMembersMap := make(map[Member]struct{})
 
-	log.Infof("getting appInf for the ns: %v", namespace)
 	appInf, _ := appMgr.getNamespaceInformer(namespace)
-	log.Infof("got this appInf for the ns: %v", namespace)
 
 	var svcItems []v1.Service
 
@@ -3401,12 +3399,11 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 		svcLister := listerscorev1.NewServiceLister(svcInformer.GetIndexer())
 		ls, _ := createLabel(selector)
 		svcListed, _ := svcLister.Services(namespace).List(ls)
-		log.Infof("length of svcListed: %d", len(svcListed))
 
 		for n, _ := range svcListed {
 			svcItems = append(svcItems, *svcListed[n])
 		}
-		log.Infof("length of svcItems: %d", len(svcItems))
+
 	}
 
 	if len(svcItems) > 1 {
@@ -3424,28 +3421,28 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 
 	for _, service := range svcItems {
 		if appMgr.isNodePort == false && appMgr.poolMemberType != NodePortLocal { // Controller is in ClusterIP Mode
-			myKey := namespace + "/" + service.Name
-			log.Info("now to obtain using GetByKey")
-			myItem, myFound, _ := appInf.endptInformer.GetStore().GetByKey(myKey)
-			log.Infof("now obtained using GetByKey, myFound is: %v", myFound)
+			svcKey := namespace + "/" + service.Name
+			item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
 
-			if !myFound {
-				msg := "Endpoints for service " + myKey + " not found!"
+			if !found {
+				msg := "Endpoints for service " + svcKey + " not found!"
 				log.Debug(msg)
 				continue
 			}
 
-			myEps, _ := myItem.(*v1.Endpoints)
-			for _, mySubset := range myEps.Subsets {
-				for _, myPort := range mySubset.Ports {
-					for _, myAddr := range mySubset.Addresses {
-						log.Infof("got 1 new member: %v-%v", myAddr.IP, myPort.Port)
-						mymember := Member{
-							Address: myAddr.IP,
-							Port:    myPort.Port,
-							SvcPort: myPort.Port,
+			eps, _ := item.(*v1.Endpoints)
+			for _, subset := range eps.Subsets {
+				for _, port := range subset.Ports {
+					for _, addr := range subset.Addresses {
+						member := Member{
+							Address: addr.IP,
+							Port:    port.Port,
+							SvcPort: port.Port,
 						}
-						members = append(members, mymember)
+						if _, ok := uniqueMembersMap[member]; !ok {
+							uniqueMembersMap[member] = struct{}{}
+							members = append(members, member)
+						}
 					}
 				}
 			}

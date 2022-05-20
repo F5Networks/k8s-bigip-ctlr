@@ -93,6 +93,51 @@ var _ = Describe("Informers Tests", func() {
 			key, quit = mockCtlr.rscQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted VS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted VS  Failed")
+
+			// Check if correct event in set while enqueuing vs
+			// Create updated VS CR
+			updatedVS1 := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host:                 "test.com",
+					VirtualServerAddress: "1.2.3.5",
+					SNAT:                 "none",
+				})
+			mockCtlr.enqueueUpdatedVirtualServer(newVS, updatedVS1)
+			// With a change of snat in VS CR, an update event should be enqueued
+			key, quit = mockCtlr.rscQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
+			rKey := key.(*rqKey)
+			Expect(rKey).ToNot(BeNil(), "Enqueue Updated VS Failed")
+			Expect(rKey.event).To(Equal(Update), "Incorrect event set")
+
+			// When VirtualServerAddress is updated then it should enqueue both delete & create events
+			updatedVS2 := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host:                 "test.com",
+					VirtualServerAddress: "5.6.7.8",
+					SNAT:                 "none",
+				})
+			mockCtlr.enqueueUpdatedVirtualServer(updatedVS1, updatedVS2)
+			key, quit = mockCtlr.rscQueue.Get()
+			// Delete event
+			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
+			rKey = key.(*rqKey)
+			Expect(rKey).ToNot(BeNil(), "Enqueue Updated VS Failed")
+			Expect(rKey.event).To(Equal(Delete), "Incorrect event set")
+			// Create event
+			key, quit = mockCtlr.rscQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
+			rKey = key.(*rqKey)
+			Expect(rKey).ToNot(BeNil(), "Enqueue Updated VS Failed")
+			Expect(rKey.event).To(Equal(Create), "Incorrect event set")
+
 		})
 
 		It("TLS Profile", func() {
@@ -488,4 +533,5 @@ var _ = Describe("Informers Tests", func() {
 		})
 
 	})
+
 })

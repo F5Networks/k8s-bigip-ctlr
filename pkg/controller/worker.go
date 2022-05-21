@@ -22,11 +22,12 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
 	"sort"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/tools/cache"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
@@ -306,49 +307,8 @@ func (ctlr *Controller) processCustomResource() bool {
 
 		_ = ctlr.processService(svc, ep, rscDelete)
 
-		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			err := ctlr.processLBServices(svc, rscDelete)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isError = true
-			}
-			break
-		}
-
-		virtuals := ctlr.getVirtualServersForService(svc)
-		for _, virtual := range virtuals {
-			err := ctlr.processVirtualServers(virtual, false)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isError = true
-			}
-		}
-		//Sync service for Transport Server virtuals
-		tsVirtuals := ctlr.getTransportServersForService(svc)
-		if nil != tsVirtuals {
-			for _, virtual := range tsVirtuals {
-				err := ctlr.processTransportServers(virtual, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isError = true
-				}
-			}
-		}
-		//Sync service for Ingress Links
-		ingLinks := ctlr.getIngressLinksForService(svc)
-		if nil != ingLinks {
-			for _, ingLink := range ingLinks {
-				err := ctlr.processIngressLink(ingLink, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isError = true
-				}
-			}
-		}
+		// once we fetch the VS, just update the endpoints instead of processing them entirely
+		ctlr.updatePoolMembersForVirtuals(svc)
 	case Pod:
 		pod := rKey.rsc.(*v1.Pod)
 		_ = ctlr.processPod(pod, rscDelete)
@@ -499,6 +459,34 @@ func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints) *v1.Service {
 	}
 
 	return svc.(*v1.Service)
+}
+
+func (ctlr *Controller) updatePoolMembersForVirtuals(svc *v1.Service) {
+
+	namespace := svc.Namespace
+	svcName := svc.Name
+	svcDepRscKey := namespace + "_" + svcName
+	partition := ctlr.Partition
+
+	for rsName := range ctlr.getSvcDepResources(svcDepRscKey) {
+		rsCfg := ctlr.getVirtualServer(partition, rsName)
+		if rsCfg == nil {
+			continue
+		}
+
+		freshRsCfg := &ResourceConfig{}
+		freshRsCfg.copyConfig(rsCfg)
+
+		if ctlr.PoolMemberType == NodePort {
+			ctlr.updatePoolMembersForNodePort(freshRsCfg, namespace)
+		} else if ctlr.PoolMemberType == NodePortLocal {
+			//supported with antrea cni.
+			ctlr.updatePoolMembersForNPL(freshRsCfg, namespace)
+		} else {
+			ctlr.updatePoolMembersForCluster(freshRsCfg, namespace)
+		}
+		_ = ctlr.resources.setResourceConfig(partition, rsName, freshRsCfg)
+	}
 }
 
 // getVirtualServersForService gets the List of VirtualServers which are effected
@@ -946,6 +934,7 @@ func (ctlr *Controller) processVirtualServers(
 			if _, ok := rsMap[rsName]; ok {
 				hostnames = rsMap[rsName].MetaData.hosts
 			}
+			ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
@@ -1027,6 +1016,8 @@ func (ctlr *Controller) processVirtualServers(
 				log.Debugf("Updated Virtual %s with TLSProfile %s",
 					vrt.ObjectMeta.Name, vrt.Spec.TLSProfileName)
 			}
+
+			ctlr.updateSvcDepResources(rsName, rsCfg)
 
 			ctlr.resources.processedNativeResources[resourceRef{
 				kind:      VirtualServer,
@@ -1707,6 +1698,8 @@ func (ctlr *Controller) processTransportServers(
 	}
 
 	if isTSDeleted {
+		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+		ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 		ctlr.deleteVirtualServer(ctlr.Partition, rsName)
 		return nil
 	}
@@ -1748,6 +1741,8 @@ func (ctlr *Controller) processTransportServers(
 		log.Errorf("Cannot Publish TransportServer %s", virtual.ObjectMeta.Name)
 		return nil
 	}
+
+	ctlr.updateSvcDepResources(rsName, rsCfg)
 
 	if ctlr.PoolMemberType == NodePort {
 		ctlr.updatePoolMembersForNodePort(rsCfg, virtual.ObjectMeta.Namespace)
@@ -2048,6 +2043,8 @@ func (ctlr *Controller) processLBServices(
 
 		rsName := AS3NameFormatter(fmt.Sprintf("vs_lb_svc_%s_%s_%s_%v", svc.Namespace, svc.Name, ip, portSpec.Port))
 		if isSVCDeleted {
+			rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+			ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
 			continue
 		}
@@ -2083,6 +2080,8 @@ func (ctlr *Controller) processLBServices(
 		}
 
 		_ = ctlr.prepareRSConfigFromLBService(rsCfg, svc, portSpec)
+
+		ctlr.updateSvcDepResources(rsName, rsCfg)
 
 		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, svc.Namespace)
@@ -2166,6 +2165,7 @@ func (ctlr *Controller) processService(
 	}
 
 	ctlr.resources.poolMemCache[svcKey] = pmi
+
 	return nil
 }
 
@@ -2442,6 +2442,8 @@ func (ctlr *Controller) processIngressLink(
 					hostnames = rsCfg.MetaData.hosts
 				}
 			}
+			rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+			ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
@@ -2527,6 +2529,8 @@ func (ctlr *Controller) processIngressLink(
 		if len(hostnames) > 0 {
 			ctlr.ProcessAssociatedExternalDNS(hostnames)
 		}
+
+		ctlr.updateSvcDepResources(rsName, rsCfg)
 
 		if ctlr.PoolMemberType == NodePort {
 			ctlr.updatePoolMembersForNodePort(rsCfg, ingLink.ObjectMeta.Namespace)

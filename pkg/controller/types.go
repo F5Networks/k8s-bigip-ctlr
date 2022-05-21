@@ -349,10 +349,10 @@ type (
 	Monitors []Monitor
 
 	supplementContextCache struct {
-		poolMemCache PoolMemberCache
-		sslContext   map[string]*v1.Secret
-		extdSpecMap  extendedSpecMap
-
+		poolMemCache             PoolMemberCache
+		sslContext               map[string]*v1.Secret
+		extdSpecMap              extendedSpecMap
+		svcResourceCache         map[string]map[string]struct{}
 		processedNativeResources map[resourceRef]struct{}
 	}
 

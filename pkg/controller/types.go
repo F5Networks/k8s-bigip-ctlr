@@ -186,6 +186,7 @@ type (
 		ProfileMultiplex       string                `json:"profileMultiplex,omitempty"`
 		ProfileDOS             string                `json:"profileDOS,omitempty"`
 		ProfileBotDefense      string                `json:"profileBotDefense,omitempty"`
+		TCP                    ProfileTCP            `json:"tcp,omitempty"`
 		Mode                   string                `json:"mode,omitempty"`
 		TranslateServerAddress bool                  `json:"translateServerAddress"`
 		TranslateServerPort    bool                  `json:"translateServerPort"`
@@ -196,6 +197,11 @@ type (
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
+
+	ProfileTCP struct {
+		Client string `json:"client,omitempty"`
+		Server string `json:"server,omitempty"`
+	}
 
 	// ServiceAddress Service IP address definition (BIG-IP virtual-address).
 	ServiceAddress struct {
@@ -663,6 +669,11 @@ type (
 		Name       string          `json:"name,omitempty"`
 		Conditions []*as3Condition `json:"conditions,omitempty"`
 		Actions    []*as3Action    `json:"actions,omitempty"`
+	}
+
+	as3ProfileTCP struct {
+		Ingress *as3ResourcePointer `json:"ingress,omitempty"`
+		Egress  *as3ResourcePointer `json:"egress,omitempty"`
 	}
 
 	// as3Action maps to Policy_Action in AS3 Resources

@@ -204,3 +204,15 @@ Refer Release Notes for [CIS v2.8.0](https://github.com/F5Networks/k8s-bigip-ctl
 
 * NodePortLocal(NPL) antrea cni feature support added to Ingress and CRD Resources
 * Persistence Profile support for VirtualServer, TransportServer and Policy CRs
+
+### **Upgrading from 2.8.1 to 2.9.0:**
+
+Refer Release Notes for [CIS v2.8.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#280)
+
+**_Functionality Change:_**
+
+* TCP Client and Server support for VirtualServer, TransportServer and Policy CRs
+
+**_Configuration Change:_**
+
+* Setting TCP Profile in Policy CRD changed to support TCP Client and Server profiles. (See [documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy))

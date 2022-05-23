@@ -407,6 +407,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 	}
 
+	if len(vs.Spec.Profiles.TCP.Client) > 0 || len(vs.Spec.Profiles.TCP.Server) > 0 {
+		rsCfg.Virtual.TCP.Client = vs.Spec.Profiles.TCP.Client
+		rsCfg.Virtual.TCP.Server = vs.Spec.Profiles.TCP.Server
+	}
+
 	if vs.Spec.DOS != "" {
 		rsCfg.Virtual.ProfileDOS = vs.Spec.DOS
 	}
@@ -1364,6 +1369,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	if vs.Spec.ProfileL4 != "" {
 		rsCfg.Virtual.ProfileL4 = vs.Spec.ProfileL4
 	}
+
 	// set the SNAT policy to auto is it's not defined by end user
 	if vs.Spec.SNAT == "" {
 		rsCfg.Virtual.SNAT = snat
@@ -1377,6 +1383,11 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 
 	if vs.Spec.BotDefense != "" {
 		rsCfg.Virtual.ProfileBotDefense = vs.Spec.BotDefense
+	}
+
+	if len(vs.Spec.Profiles.TCP.Client) > 0 || len(vs.Spec.Profiles.TCP.Server) > 0 {
+		rsCfg.Virtual.TCP.Client = vs.Spec.Profiles.TCP.Client
+		rsCfg.Virtual.TCP.Server = vs.Spec.Profiles.TCP.Server
 	}
 
 	if len(rsCfg.ServiceAddress) == 0 {
@@ -1474,6 +1485,8 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.ProfileMultiplex = plc.Spec.Profiles.ProfileMultiplex
 	rsCfg.Virtual.ProfileDOS = plc.Spec.L3Policies.DOS
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
+	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
+	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
@@ -1486,13 +1499,6 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
 			Name:         plc.Spec.Profiles.HTTP,
 			Context:      "http",
-			BigIPProfile: true,
-		})
-	}
-	if len(plc.Spec.Profiles.TCP) > 0 {
-		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name:         plc.Spec.Profiles.TCP,
-			Context:      "tcp",
 			BigIPProfile: true,
 		})
 	}
@@ -1533,6 +1539,8 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	rsCfg.Virtual.ProfileL4 = plc.Spec.Profiles.ProfileL4
 	rsCfg.Virtual.ProfileDOS = plc.Spec.L3Policies.DOS
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
+	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
+	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
@@ -1544,13 +1552,7 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 			BigIPProfile: true,
 		})
 	}
-	if len(plc.Spec.Profiles.TCP) > 0 {
-		rsCfg.Virtual.Profiles = append(rsCfg.Virtual.Profiles, ProfileRef{
-			Name:         plc.Spec.Profiles.TCP,
-			Context:      "tcp",
-			BigIPProfile: true,
-		})
-	}
+
 	var iRule string
 	iRule = plc.Spec.IRules.InSecure
 	if len(iRule) > 0 {

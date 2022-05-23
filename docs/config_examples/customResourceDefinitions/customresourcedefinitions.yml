@@ -39,6 +39,18 @@ spec:
                   type: string
                 persistenceProfile:
                   type: string
+                profiles:
+                  type: object
+                  properties:
+                    tcp:
+                      type: object
+                      properties:
+                        client:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
+                        server:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                 dos:
                   type: string
                   pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
@@ -280,6 +292,18 @@ spec:
                   enum: [tcp, udp]
                 snat:
                   type: string
+                profiles:
+                  type: object
+                  properties:
+                    tcp:
+                      type: object
+                      properties:
+                        client:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
+                        server:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                 persistenceProfile:
                   type: string
                 dos:
@@ -621,8 +645,14 @@ spec:
                   type: object
                   properties:
                     tcp:
-                      type: string
-                      pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
+                      type: object
+                      properties:
+                        client:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
+                        server:
+                          type: string
+                          pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'
                     udp:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9-]+\/?)*$'

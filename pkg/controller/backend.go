@@ -810,6 +810,28 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			BigIP: cfg.Virtual.ProfileBotDefense,
 		}
 	}
+
+	if len(cfg.Virtual.TCP.Client) > 0 || len(cfg.Virtual.TCP.Server) > 0 {
+		if cfg.Virtual.TCP.Client == "" {
+			log.Errorf("[AS3] resetting ProfileTCP as client profile doesnt co-exist with TCP Server Profile, Please include client TCP Profile ")
+		}
+		if cfg.Virtual.TCP.Server == "" {
+			svc.ProfileTCP = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
+			}
+		}
+		if cfg.Virtual.TCP.Client != "" && cfg.Virtual.TCP.Server != "" {
+			svc.ProfileTCP = as3ProfileTCP{
+				Ingress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
+				},
+				Egress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Server),
+				},
+			}
+		}
+	}
+
 	if len(cfg.Virtual.ProfileMultiplex) > 0 {
 		svc.ProfileMultiplex = &as3ResourcePointer{
 			BigIP: cfg.Virtual.ProfileMultiplex,
@@ -845,14 +867,6 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 				svc.ProfileHTTP = name
 			} else {
 				svc.ProfileHTTP = &as3ResourcePointer{
-					BigIP: fmt.Sprintf("%v", profile.Name),
-				}
-			}
-		case "tcp":
-			if !profile.BigIPProfile {
-				svc.ProfileTCP = name
-			} else {
-				svc.ProfileTCP = &as3ResourcePointer{
 					BigIP: fmt.Sprintf("%v", profile.Name),
 				}
 			}
@@ -1317,18 +1331,31 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		}
 	}
 
+	if len(cfg.Virtual.TCP.Client) > 0 || len(cfg.Virtual.TCP.Server) > 0 {
+		if cfg.Virtual.TCP.Client == "" {
+			log.Errorf("[AS3] resetting ProfileTCP as client profile doesnt co-exist with TCP Server Profile, Please include client TCP Profile ")
+		}
+		if cfg.Virtual.TCP.Server == "" {
+			svc.ProfileTCP = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
+			}
+		}
+		if cfg.Virtual.TCP.Client != "" && cfg.Virtual.TCP.Server != "" {
+			svc.ProfileTCP = as3ProfileTCP{
+				Ingress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Client),
+				},
+				Egress: &as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", cfg.Virtual.TCP.Server),
+				},
+			}
+		}
+	}
+
 	// Attaching Profiles from Policy CRD
 	for _, profile := range cfg.Virtual.Profiles {
 		_, name := getPartitionAndName(profile.Name)
 		switch profile.Context {
-		case "tcp":
-			if !profile.BigIPProfile {
-				svc.ProfileTCP = name
-			} else {
-				svc.ProfileTCP = &as3ResourcePointer{
-					BigIP: fmt.Sprintf("%v", profile.Name),
-				}
-			}
 		case "udp":
 			if !profile.BigIPProfile {
 				svc.ProfileUDP = name

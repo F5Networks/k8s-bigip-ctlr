@@ -937,7 +937,9 @@ var _ = Describe("Worker Tests", func() {
 				plc := test.NewPolicy("plc1", namespace,
 					cisapiv1.PolicySpec{
 						Profiles: cisapiv1.ProfileSpec{
-							TCP:                "/Common/f5-tcp-wan",
+							TCP: cisapiv1.ProfileTCP{
+								Client: "/Common/f5-tcp-wan",
+							},
 							ProfileL4:          "/Common/security-fastL4",
 							PersistenceProfile: "source-address",
 							LogProfiles:        []string{"/Common/local-dos"},

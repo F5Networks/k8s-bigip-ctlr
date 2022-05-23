@@ -13,7 +13,9 @@ spec:
     dos: /Common/dos
     botDefense: /Common/bot-defense
   profiles:
-    tcp: /Common/f5-tcp-wan
+    tcp:
+      client: /Common/f5-tcp-lan
+      server: /Common/f5-tcp-wan
     udp: /Common/udp
     http: /Common/http
     http2: /Common/http2

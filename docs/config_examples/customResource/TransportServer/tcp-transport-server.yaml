@@ -14,6 +14,10 @@ spec:
   allowVlans: ["/Common/devtraffic"]
   persistenceProfile: "destination-address"
   dos: /Common/dos
+  profiles:
+    tcp:
+      client: /Common/f5-tcp-lan
+      server: /Common/f5-tcp-wan
   pool:
     service: svc-1
     servicePort: 8181

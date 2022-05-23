@@ -47,6 +47,7 @@ type VirtualServerSpec struct {
 	ProfileMultiplex       string           `json:"profileMultiplex,omitempty"`
 	DOS                    string           `json:"dos,omitempty"`
 	BotDefense             string           `json:"botDefense,omitempty"`
+	Profiles               ProfileSpec      `json:"profiles,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -198,6 +199,7 @@ type TransportServerSpec struct {
 	ProfileL4            string           `json:"profileL4,omitempty"`
 	DOS                  string           `json:"dos,omitempty"`
 	BotDefense           string           `json:"botDefense,omitempty"`
+	Profiles             ProfileSpec      `json:"profiles,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -273,15 +275,19 @@ type LtmIRulesSpec struct {
 }
 
 type ProfileSpec struct {
-	TCP                string   `json:"tcp,omitempty"`
-	UDP                string   `json:"udp,omitempty"`
-	HTTP               string   `json:"http,omitempty"`
-	HTTP2              string   `json:"http2,omitempty"`
-	RewriteProfile     string   `json:"rewriteProfile,omitempty"`
-	PersistenceProfile string   `json:"persistenceProfile,omitempty"`
-	LogProfiles        []string `json:"logProfiles,omitempty"`
-	ProfileL4          string   `json:"profileL4,omitempty"`
-	ProfileMultiplex   string   `json:"profileMultiplex,omitempty"`
+	TCP                ProfileTCP   `json:"tcp,omitempty"`
+	UDP                string       `json:"udp,omitempty"`
+	HTTP               string       `json:"http,omitempty"`
+	HTTP2              string       `json:"http2,omitempty"`
+	RewriteProfile     string       `json:"rewriteProfile,omitempty"`
+	PersistenceProfile string       `json:"persistenceProfile,omitempty"`
+	LogProfiles        []string     `json:"logProfiles,omitempty"`
+	ProfileL4          string       `json:"profileL4,omitempty"`
+	ProfileMultiplex   string       `json:"profileMultiplex,omitempty"`
+}
+type ProfileTCP struct {
+	Client     string    `json:"client,omitempty"`
+	Server     string    `json:"server,omitempty"`
 }
 
 // +genclient

@@ -107,7 +107,7 @@ func (ctlr *Controller) dequeueReq(id int, failedTenantsLen int) requestMeta {
 		if ctlr.requestQueue.Len() == 1 && failedTenantsLen > 0 {
 			// Retain the last request in the queue to update the config in later stages when retry is successful
 			rm = ctlr.requestQueue.Front().Value.(requestMeta)
-		} else {
+		} else if ctlr.requestQueue.Len() > 0 {
 			rm = ctlr.requestQueue.Remove(ctlr.requestQueue.Front()).(requestMeta)
 		}
 		ctlr.requestQueue.Unlock()

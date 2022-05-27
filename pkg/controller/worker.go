@@ -1482,11 +1482,10 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 		}
 
 		for _, svcPort := range poolMemInfo.portSpec {
-			if svcPort.TargetPort.IntVal == pool.ServicePort {
-				nodePort := svcPort.NodePort
+			if svcPort.Port == pool.ServicePort {
 				rsCfg.MetaData.Active = true
 				rsCfg.Pools[index].Members =
-					ctlr.getEndpointsForNodePort(nodePort, pool.NodeMemberLabel)
+					ctlr.getEndpointsForNodePort(svcPort.NodePort, pool.NodeMemberLabel)
 			}
 		}
 	}

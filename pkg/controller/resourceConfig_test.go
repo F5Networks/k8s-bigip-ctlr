@@ -875,4 +875,115 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(ok).To(BeFalse(), "Failed to Process TLS Termination: Reencrypt")
 		})
 	})
+
+	Describe("SNAT in policy CRD", func() {
+		var rsCfg *ResourceConfig
+		var mockCtlr *mockController
+		var plc *cisapiv1.Policy
+
+		BeforeEach(func() {
+			mockCtlr = newMockController()
+			mockCtlr.mode = CustomResourceMode
+
+			rsCfg = &ResourceConfig{}
+			rsCfg.Virtual.SetVirtualAddress(
+				"1.2.3.4",
+				80,
+			)
+
+			plc = test.NewPolicy("plc1", namespace, cisapiv1.PolicySpec{})
+		})
+
+		It("Verifies SNAT whether is set properly for VirtualServer", func() {
+			plc.Spec.SNAT = DEFAULT_SNAT
+			err := mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(DEFAULT_SNAT), "SNAT should be set to automap")
+
+			plc.Spec.SNAT = "none"
+			err = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(plc.Spec.SNAT), "SNAT should be set to none")
+
+			plc.Spec.SNAT = "/Common/snatpool"
+			err = mockCtlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle VirtualServer for policy")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(plc.Spec.SNAT), "SNAT should be set "+
+				"to /Common/snatpool")
+
+			vs := test.NewVirtualServer(
+				"SamplevS",
+				namespace,
+				cisapiv1.VirtualServerSpec{},
+			)
+			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(plc.Spec.SNAT), "Default SNAT should be set "+
+				"to /Common/snatpool")
+
+			vs.Spec.SNAT = "none"
+			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(vs.Spec.SNAT), "SNAT should be set to none")
+
+			vs.Spec.SNAT = "/Common/snatpool"
+			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(vs.Spec.SNAT), "SNAT should be set "+
+				"to /Common/snatpool")
+
+			rsCfg.Virtual.SNAT = ""
+			vs.Spec.SNAT = ""
+			err = mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(DEFAULT_SNAT), "Default SNAT should be set "+
+				"to automap")
+
+		})
+
+		It("Verifies SNAT whether is set properly for TransportServer", func() {
+			err := mockCtlr.handleTSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle TransportServer for policy")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(DEFAULT_SNAT), "Default SNAT should be set "+
+				"to automap")
+
+			plc.Spec.SNAT = "none"
+			err = mockCtlr.handleTSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle TransportServer for policy")
+			Expect(rsCfg.Virtual.SNAT).To(Equal("none"), "SNAT should be set to none")
+
+			plc.Spec.SNAT = "/Common/snatpool"
+			err = mockCtlr.handleTSResourceConfigForPolicy(rsCfg, plc)
+			Expect(err).To(BeNil(), "Failed to handle TransportServer for policy")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(plc.Spec.SNAT), "SNAT should be set "+
+				"to /Common/snatpool")
+
+			ts := test.NewTransportServer(
+				"SampleTS",
+				namespace,
+				cisapiv1.TransportServerSpec{},
+			)
+			err = mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from TransportServer")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(plc.Spec.SNAT), "Default SNAT should be set "+
+				"to /Common/snatpool")
+
+			ts.Spec.SNAT = "none"
+			err = mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from TransportServer")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(ts.Spec.SNAT), "SNAT should be set to none")
+
+			ts.Spec.SNAT = "/Common/snatpool"
+			err = mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from TransportServer")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(ts.Spec.SNAT), "SNAT should be set "+
+				"to /Common/snatpool")
+
+			ts.Spec.SNAT = DEFAULT_SNAT
+			err = mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from TransportServer")
+			Expect(rsCfg.Virtual.SNAT).To(Equal(DEFAULT_SNAT), "Default SNAT should be set "+
+				"to automap")
+		})
+	})
 })

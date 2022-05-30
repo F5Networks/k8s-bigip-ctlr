@@ -380,7 +380,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	rsCfg.Pools = append(rsCfg.Pools, pools...)
 	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
 
-	// set the SNAT policy to auto  if it's not defined by end user
+	// set the SNAT policy to auto if it's not defined by end user
 	if vs.Spec.SNAT == "" {
 		if rsCfg.Virtual.SNAT == "" {
 			rsCfg.Virtual.SNAT = snat
@@ -1330,8 +1330,6 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 
 	var pools Pools
 	var monitors []Monitor
-	var snat string
-	snat = DEFAULT_SNAT
 	pool := Pool{
 		Name: formatPoolName(
 			vs.ObjectMeta.Namespace,
@@ -1369,10 +1367,11 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	if vs.Spec.ProfileL4 != "" {
 		rsCfg.Virtual.ProfileL4 = vs.Spec.ProfileL4
 	}
-
-	// set the SNAT policy to auto is it's not defined by end user
+	// Replace SNAT set from policy CR to the one defined by user in the TS spec
 	if vs.Spec.SNAT == "" {
-		rsCfg.Virtual.SNAT = snat
+		if rsCfg.Virtual.SNAT == "" {
+			rsCfg.Virtual.SNAT = DEFAULT_SNAT
+		}
 	} else {
 		rsCfg.Virtual.SNAT = vs.Spec.SNAT
 	}
@@ -1526,6 +1525,12 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 			rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, iRule)
 		}
 	}
+	// set snat as specified by user in the policy
+	snat := plc.Spec.SNAT
+	if snat != "" {
+		rsCfg.Virtual.SNAT = snat
+	}
+
 	return nil
 }
 

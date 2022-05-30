@@ -681,7 +681,7 @@ func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.VirtualServer)
 	newVS := newObj.(*cisapiv1.VirtualServer)
-
+	updateEvent := true
 	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress ||
 		oldVS.Spec.VirtualServerHTTPPort != newVS.Spec.VirtualServerHTTPPort ||
 		oldVS.Spec.VirtualServerHTTPSPort != newVS.Spec.VirtualServerHTTPSPort ||
@@ -697,6 +697,7 @@ func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 			rsc:       oldObj,
 			event:     Delete,
 		}
+		updateEvent = false
 		ctlr.rscQueue.Add(key)
 	}
 
@@ -708,7 +709,9 @@ func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 		rsc:       newObj,
 		event:     Create,
 	}
-
+	if updateEvent {
+		key.event = Update
+	}
 	ctlr.rscQueue.Add(key)
 }
 

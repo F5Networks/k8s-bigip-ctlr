@@ -960,6 +960,7 @@ func (rs *ResourceStore) getGTMConfigCopy() DNSConfig {
 	for dominName, wip := range rs.dnsConfig {
 		// Everytime new wip object gets created from the scratch
 		// so no need to deep copy wip
+		dnsConfig[dominName] = wip
 		rs.dnsConfigCache[dominName] = wip
 	}
 	return dnsConfig

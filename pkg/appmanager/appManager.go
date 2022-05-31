@@ -3441,7 +3441,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 
 	for _, service := range svcItems {
 		if appMgr.isNodePort == false && appMgr.poolMemberType != NodePortLocal { // Controller is in ClusterIP Mode
-			svcKey := namespace + "/" + service.Name
+			svcKey := service.Namespace + "/" + service.Name
 			item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
 
 			if !found {

@@ -807,6 +807,17 @@ func doesVSHandleHTTP(vrt *cisapiv1.VirtualServer) bool {
 		vrt.Spec.HTTPTraffic == TLSRedirectInsecure
 }
 
+// doVSHandleHTTP checks if any of the associated vituals handle HTTP traffic and use same port
+func doVSHandleHTTP(virtuals []*cisapiv1.VirtualServer, virtual *cisapiv1.VirtualServer) bool {
+	effectiveHTTPPort := getEffectiveHTTPPort(virtual)
+	for _, vrt := range virtuals {
+		if doesVSHandleHTTP(vrt) && effectiveHTTPPort == getEffectiveHTTPPort(vrt) {
+			return true
+		}
+	}
+	return false
+}
+
 // processVirtualServers takes the Virtual Server as input and processes all
 // associated VirtualServers to create a resource config(Internal DataStructure)
 // or to update if exists already.
@@ -927,7 +938,8 @@ func (ctlr *Controller) processVirtualServers(
 		// Delete rsCfg if no corresponding virtuals exist
 		// Delete rsCfg if it is HTTP rsCfg and the CR VirtualServer does not handle HTTPTraffic
 		if (len(virtuals) == 0) ||
-			(portStruct.protocol == "http" && !doesVSHandleHTTP(virtual)) {
+			(portStruct.protocol == HTTP && !doVSHandleHTTP(virtuals, virtual)) ||
+			(isVSDeleted && portStruct.protocol == HTTPS && !doVSUseSameHTTPSPort(virtuals, virtual)) {
 			var hostnames []string
 			rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
 
@@ -1065,6 +1077,24 @@ func (ctlr *Controller) processVirtualServers(
 	return nil
 }
 
+// getEffectiveHTTPPort returns the final HTTP port considered for virtual server
+func getEffectiveHTTPSPort(vrt *cisapiv1.VirtualServer) int32 {
+	effectiveHTTPSPort := DEFAULT_HTTPS_PORT
+	if vrt.Spec.VirtualServerHTTPSPort != 0 {
+		effectiveHTTPSPort = vrt.Spec.VirtualServerHTTPSPort
+	}
+	return effectiveHTTPSPort
+}
+
+// getEffectiveHTTPPort returns the final HTTP port considered for virtual server
+func getEffectiveHTTPPort(vrt *cisapiv1.VirtualServer) int32 {
+	effectiveHTTPPort := DEFAULT_HTTP_PORT
+	if vrt.Spec.VirtualServerHTTPPort != 0 {
+		effectiveHTTPPort = vrt.Spec.VirtualServerHTTPPort
+	}
+	return effectiveHTTPPort
+}
+
 func (ctlr *Controller) getAssociatedVirtualServers(
 	currentVS *cisapiv1.VirtualServer,
 	allVirtuals []*cisapiv1.VirtualServer,
@@ -1132,10 +1162,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 		}
 
 		// skip the virtuals with different custom HTTP/HTTPS ports
-		if vrt.Spec.VirtualServerHTTPPort != currentVS.Spec.VirtualServerHTTPPort ||
-			vrt.Spec.VirtualServerHTTPSPort != currentVS.Spec.VirtualServerHTTPSPort {
-			log.Debugf("Discarding the VirtualServer %v/%v due to unmatched custom HTTP/HTTPS port",
-				currentVS.Namespace, currentVS.Name)
+		if skipVirtual(currentVS, vrt) {
 			continue
 		}
 
@@ -2956,4 +2983,70 @@ func (ctlr *Controller) getPolicyFromLBService(svc *v1.Service) (*cisapiv1.Polic
 	}
 	ns := svc.Namespace
 	return ctlr.getPolicy(ns, plcName)
+}
+
+// skipVirtual return true if virtuals don't have any common HTTP/HTTPS ports, else returns false
+func skipVirtual(currentVS *cisapiv1.VirtualServer, vrt *cisapiv1.VirtualServer) bool {
+	effectiveCurrentVSHTTPSPort := getEffectiveHTTPSPort(currentVS)
+	effectiveVrtVSHTTPSPort := getEffectiveHTTPSPort(vrt)
+	effectiveCurrentVSHTTPPort := getEffectiveHTTPPort(currentVS)
+	effectiveVrtVSHTTPPort := getEffectiveHTTPPort(vrt)
+	if effectiveCurrentVSHTTPSPort == effectiveVrtVSHTTPSPort && effectiveCurrentVSHTTPPort == effectiveVrtVSHTTPPort {
+		// both virtuals use same ports
+		return false
+	}
+	if effectiveCurrentVSHTTPSPort != effectiveVrtVSHTTPSPort && effectiveCurrentVSHTTPPort != effectiveVrtVSHTTPPort {
+		// virtuals don't have any port in common
+		return true
+	}
+	if effectiveCurrentVSHTTPSPort == effectiveVrtVSHTTPSPort && effectiveCurrentVSHTTPPort != effectiveVrtVSHTTPPort {
+		// virtuals have HTTPS port is common
+		if currentVS.Spec.TLSProfileName == "" || vrt.Spec.TLSProfileName == "" {
+			// One of the vs is an unsecured vs so common HTTPS port is insignificant for this vs
+			return true
+		}
+		// both vs are secured vs and have common HTTPS port
+		return false
+	}
+
+	// virtuals have HTTP port in common
+	// setting HTTPTraffic="" for both none and "" value for HTTPTraffic to simplify comparison
+	currentVSHTTPTraffic := currentVS.Spec.HTTPTraffic
+	vrtVSHTTPTraffic := vrt.Spec.HTTPTraffic
+	if currentVSHTTPTraffic == "" || currentVSHTTPTraffic == "none" {
+		currentVSHTTPTraffic = ""
+	}
+	if vrtVSHTTPTraffic == "" || vrtVSHTTPTraffic == "none" {
+		vrtVSHTTPTraffic = ""
+	}
+	if currentVS.Spec.TLSProfileName != "" && vrt.Spec.TLSProfileName != "" {
+		if currentVSHTTPTraffic == "" || vrtVSHTTPTraffic == "" {
+			// both vs are secured vs but one/both of them doesn't handle HTTP traffic so common HTTP port is insignificant
+			return true
+		}
+		// both vs are secured and both of them handle HTTP traffic via the common HTTP port
+		return false
+	}
+	if currentVS.Spec.TLSProfileName != "" && currentVSHTTPTraffic == "" {
+		// current vs is secured vs, and it doesn't handle HTTP traffic so common HTTP port is insignificant
+		return true
+	}
+	if vrt.Spec.TLSProfileName != "" && vrtVSHTTPTraffic == "" {
+		// It's a secured vs, and it doesn't handle HTTP traffic so common HTTP port is insignificant
+		return true
+	}
+	// Either both are unsecured vs and have common HTTP port
+	// or one of them is a secured vs and handles HTTP traffic through the common port
+	return false
+}
+
+// doVSUseSameHTTPSPort checks if any of the associated secured VS uses the same HTTPS port that the current VS does
+func doVSUseSameHTTPSPort(virtuals []*cisapiv1.VirtualServer, currentVirtual *cisapiv1.VirtualServer) bool {
+	effectiveCurrentVSHTTPSPort := getEffectiveHTTPSPort(currentVirtual)
+	for _, virtual := range virtuals {
+		if virtual.Spec.TLSProfileName != "" && effectiveCurrentVSHTTPSPort == getEffectiveHTTPSPort(virtual) {
+			return true
+		}
+	}
+	return false
 }

@@ -18,9 +18,10 @@ package controller
 
 import (
 	"container/list"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"sync"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
@@ -288,11 +289,12 @@ type (
 	}
 
 	GSLBPool struct {
-		Name       string    `json:"name"`
-		RecordType string    `json:"recordType"`
-		LBMethod   string    `json:"LoadBalancingMode"`
-		Members    []string  `json:"members"`
-		Monitors   []Monitor `json:"monitors,omitempty"`
+		Name          string    `json:"name"`
+		RecordType    string    `json:"recordType"`
+		LBMethod      string    `json:"LoadBalancingMode"`
+		PriorityOrder int       `json:"order"`
+		Members       []string  `json:"members"`
+		Monitors      []Monitor `json:"monitors,omitempty"`
 	}
 
 	ResourceConfigRequest struct {

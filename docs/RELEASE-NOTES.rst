@@ -14,6 +14,7 @@ Added Functionality
         * client ProfileL4 support for TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * OneConnect profile support added for VirtualServer CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * TCP Client and Server profile support added for VirtualServer, TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * GTM global-availability LB method and order precedence support with EDNS CRs. See `Examples <https://github.com/sravyap135/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS>`_
     * Added support for SCTP protocol in Services of type LoadBalancer
     * Added support for AS3 3.36
     * Added support for route admit status for rejected routes
@@ -25,6 +26,11 @@ Bug Fixes
 * :issues:`2151` Fix for adding unique pool members only to AS3 declaration with AS3 configmap
 * :issues:`2326` Support for Configmap resource with NodePortLocal mode
 * :issues:`2294` Fix for service supporting with named ports
+
+Upgrade notes
+``````````````
+requires update to RBAC and CR schema definition before upgrade
+* To use order precedence mode in EDNS CR, upgrade the EDNS CRD. See `CR schema <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_
 
 2.8.1
 -------------

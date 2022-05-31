@@ -462,6 +462,8 @@ spec:
                         pattern: 'A'
                       loadBalanceMethod:
                         type: string
+                      order:
+                        type: integer
                       monitor:
                         type: object
                         properties:

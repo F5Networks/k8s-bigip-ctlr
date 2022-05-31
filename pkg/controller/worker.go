@@ -2209,9 +2209,10 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		UniquePoolName := edns.Spec.DomainName + "_" + strings.ReplaceAll(edns.GetCreationTimestamp().Format(time.RFC3339Nano), ":", "-")
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
-			Name:       UniquePoolName,
-			RecordType: pl.DNSRecordType,
-			LBMethod:   pl.LoadBalanceMethod,
+			Name:          UniquePoolName,
+			RecordType:    pl.DNSRecordType,
+			LBMethod:      pl.LoadBalanceMethod,
+			PriorityOrder: pl.PriorityOrder,
 		}
 
 		if pl.DNSRecordType == "" {

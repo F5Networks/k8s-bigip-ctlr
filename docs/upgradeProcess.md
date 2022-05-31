@@ -207,12 +207,14 @@ Refer Release Notes for [CIS v2.8.0](https://github.com/F5Networks/k8s-bigip-ctl
 
 ### **Upgrading from 2.8.1 to 2.9.0:**
 
-Refer Release Notes for [CIS v2.8.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#280)
+Refer Release Notes for [CIS v2.9.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#290)
 
 **_Functionality Change:_**
 
 * TCP Client and Server support for VirtualServer, TransportServer and Policy CRs
+* Support for GTM pools priority order with global-availability load balancing method
 
 **_Configuration Change:_**
 
 * Setting TCP Profile in Policy CRD changed to support TCP Client and Server profiles. (See [documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy))
+* Setting pool priority order in EDNS CRD requires a CRD schema update. (See [documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS))

@@ -23,6 +23,8 @@ type ResourceTypes struct {
 	IPAMVS          map[string]int
 	IPAMTS          map[string]int
 	IPAMSvcLB       map[string]int
+	NativeRoutes    map[string]int
+	RouteGroups     map[string]int
 }
 
 // TeemsData structure contains supporting data to be posted to TEEM's server
@@ -76,7 +78,8 @@ func (td *TeemsData) PostTeemsData() bool {
 	teemDevice := f5teem.AnonymousClient(assetInfo, apiKey)
 	types := []map[string]int{td.ResourceType.IngressLink, td.ResourceType.Ingresses, td.ResourceType.Routes,
 		td.ResourceType.Configmaps, td.ResourceType.VirtualServer, td.ResourceType.TransportServer,
-		td.ResourceType.ExternalDNS, td.ResourceType.IPAMVS, td.ResourceType.IPAMTS, td.ResourceType.IPAMSvcLB}
+		td.ResourceType.ExternalDNS, td.ResourceType.IPAMVS, td.ResourceType.IPAMTS, td.ResourceType.IPAMSvcLB,
+		td.ResourceType.NativeRoutes, td.ResourceType.RouteGroups}
 	var sum int
 	for _, rscType := range types {
 		sum = 0
@@ -103,6 +106,8 @@ func (td *TeemsData) PostTeemsData() bool {
 		"ipamVirtualServerCount":   td.ResourceType.IPAMVS[TOTAL],
 		"ipamTransportServerCount": td.ResourceType.IPAMTS[TOTAL],
 		"ipamSvcLBCount":           td.ResourceType.IPAMSvcLB[TOTAL],
+		"NativeRoutesCount":        td.ResourceType.NativeRoutes[TOTAL],
+		"RouteGroupsCount":         td.ResourceType.RouteGroups[TOTAL],
 	}
 	for retryCount >= 0 {
 		err := teemDevice.Report(data, "CIS Telemetry Data", "1")

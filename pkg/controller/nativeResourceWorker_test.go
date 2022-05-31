@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"time"
@@ -35,6 +36,12 @@ var _ = Describe("Routes", func() {
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 		mockCtlr.processedHostPath = &processedHostPath
+		mockCtlr.TeemData = &teem.TeemsData{
+			ResourceType: teem.ResourceTypes{
+				RouteGroups:  make(map[string]int),
+				NativeRoutes: make(map[string]int),
+			},
+		}
 	})
 
 	Describe("Routes", func() {
@@ -344,7 +351,6 @@ var _ = Describe("Routes", func() {
 			cmNamespace := "system"
 			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
 			mockCtlr.resources = NewResourceStore()
-
 			data = make(map[string]string)
 			cm = test.NewConfigMap(
 				cmName,
@@ -459,6 +465,7 @@ extendedRouteSpec:
       vserverAddr: 10.8.3.12
       allowOverride: true
 `
+
 			err, ok := mockCtlr.processConfigMap(cm, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())

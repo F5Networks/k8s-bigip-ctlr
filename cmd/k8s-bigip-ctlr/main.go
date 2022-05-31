@@ -954,6 +954,8 @@ func main() {
 			IPAMVS:          make(map[string]int),
 			IPAMTS:          make(map[string]int),
 			IPAMSvcLB:       make(map[string]int),
+			NativeRoutes:    make(map[string]int),
+			RouteGroups:     make(map[string]int),
 		},
 	}
 	if !(*disableTeems) {

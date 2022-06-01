@@ -17,15 +17,69 @@ func (appMgr *Manager) deployResource() error {
 	}
 	appMgr.customProfiles.Unlock()
 
+	// Prepare copy of InternalDataGroupMap
+	appMgr.intDgMutex.Lock()
+	idgMap := make(InternalDataGroupMap)
+	for nameRef, dgnMap := range appMgr.intDgMap {
+		dataGroupNamespaceMap := make(map[string]*InternalDataGroup)
+		for k, v := range dgnMap {
+			dg := &InternalDataGroup{}
+			idrgs := InternalDataGroupRecords{}
+			for _, record := range v.Records {
+				idrgs = append(idrgs, record)
+			}
+			dg.Records = idrgs
+			dg.Name = v.Name
+			dg.Partition = v.Partition
+			dataGroupNamespaceMap[k] = dg
+		}
+		idgMap[nameRef] = dataGroupNamespaceMap
+	}
+	appMgr.intDgMutex.Unlock()
+
+	// prepare copy of iRuleMap
+	iRulesMap := make(IRulesMap)
+	for key, value := range appMgr.irulesMap {
+		iRule := IRule{}
+		iRule.Name = value.Name
+		iRule.Partition = value.Partition
+		iRule.Code = value.Code
+		iRulesMap[key] = &iRule
+	}
+
+	// Prepare copy of RsMap
+	appMgr.resources.Lock()
+	resourceConfigMap := make(ResourceConfigMap)
+	for key, value := range appMgr.resources.RsMap {
+		rsConfig := ResourceConfig{}
+		rsConfig.CopyConfig(value)
+		resourceConfigMap[key] = &rsConfig
+	}
+	resourceConfigs := appMgr.resources.GetAllResources()
+	appMgr.resources.Unlock()
+
+	// Prepare InternalF5ResourcesGroup Copy
+	intF5Res := InternalF5ResourcesGroup{}
+	for k, v := range appMgr.intF5Res {
+		intF5Res[k] = v
+	}
+
 	// Initialize cfgMap context
 	agentCfgMapLst := []*AgentCfgMap{}
 	for _, cm := range appMgr.agentCfgMap {
 		agentCfgMapLst = append(agentCfgMapLst, cm)
 	}
-	deployCfg := ResourceRequest{Resources: &AgentResources{RsMap: appMgr.resources.RsMap,
-		RsCfgs: appMgr.resources.GetAllResources()}, Profs: Profs,
-		IRulesStore: appMgr.IRulesStore, IntDgMap: appMgr.intDgMap, IntF5Res: appMgr.intF5Res,
-		AgentCfgmaps: agentCfgMapLst}
+	deployCfg := ResourceRequest{
+		Resources: &AgentResources{
+			RsMap:  resourceConfigMap,
+			RsCfgs: resourceConfigs,
+		},
+		Profs:        Profs,
+		IrulesMap:    iRulesMap,
+		IntDgMap:     idgMap,
+		IntF5Res:     intF5Res,
+		AgentCfgmaps: agentCfgMapLst,
+	}
 	agentReq := MessageRequest{MsgType: cisAgent.MsgTypeSendDecl, ResourceRequest: deployCfg}
 	// Handle resources to agent and deploy to BIG-IP
 	appMgr.AgentCIS.Deploy(agentReq)

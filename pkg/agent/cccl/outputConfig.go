@@ -84,7 +84,7 @@ func (cm *CCCLManager) OutputConfigLocked() {
 		initPartitionData(resources, profile.Partition)
 		resources[profile.Partition].CustomProfiles = append(resources[profile.Partition].CustomProfiles, profile)
 	}
-	for _, irule := range cm.IRulesStore.IRulesMap {
+	for _, irule := range cm.IrulesMap {
 		initPartitionData(resources, irule.Partition)
 		resources[irule.Partition].IRules = append(resources[irule.Partition].IRules, *irule)
 	}

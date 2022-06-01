@@ -887,7 +887,7 @@ func (appMgr *Manager) syncIRules() {
 	// Delete any IRules for datagroups that are gone
 	if !iRef.https {
 		// http redirect rule may have a port appended, so find it
-		for irule, _ := range appMgr.IRulesStore.IRulesMap {
+		for irule, _ := range appMgr.irulesMap {
 			if strings.HasPrefix(irule.Name, HttpRedirectIRuleName) {
 				appMgr.deleteIRule(irule.Name)
 			}
@@ -907,9 +907,7 @@ func (appMgr *Manager) deleteIRule(rule string) {
 		Name:      rule,
 		Partition: DEFAULT_PARTITION,
 	}
-	appMgr.IRulesStore.IrulesMutex.Lock()
-	defer appMgr.IRulesStore.IrulesMutex.Unlock()
-	delete(appMgr.IRulesStore.IRulesMap, ref)
+	delete(appMgr.irulesMap, ref)
 	fullName := JoinBigipPath(DEFAULT_PARTITION, rule)
 	for _, cfg := range appMgr.resources.GetAllResources() {
 		if cfg.MetaData.ResourceType == "configmap" ||

@@ -63,7 +63,7 @@ type RoutesMap map[string][]string
 type Manager struct {
 	resources           *Resources
 	customProfiles      *CustomProfileStore
-	IRulesStore         *IRulesStore
+	irulesMap           IRulesMap
 	intDgMap            InternalDataGroupMap
 	agentCfgMap         map[string]*AgentCfgMap
 	agentCfgMapSvcCache map[string]*SvcEndPointsCache
@@ -273,7 +273,7 @@ func NewManager(params *Params) *Manager {
 	manager := Manager{
 		resources:              NewResources(),
 		customProfiles:         NewCustomProfiles(),
-		IRulesStore:            &IRulesStore{},
+		irulesMap:              make(IRulesMap),
 		intDgMap:               make(InternalDataGroupMap),
 		kubeClient:             params.KubeClient,
 		restClientv1:           params.restClient,
@@ -316,7 +316,6 @@ func NewManager(params *Params) *Manager {
 	manager.processedResources = make(map[string]bool)
 	manager.processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
 	manager.nplStore = make(map[string]NPLAnnoations)
-	manager.IRulesStore.IRulesMap = make(map[NameRef]*IRule)
 	// Initialize agent response worker
 	go manager.agentResponseWorker()
 

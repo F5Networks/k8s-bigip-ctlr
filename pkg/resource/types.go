@@ -16,8 +16,6 @@
 
 package resource
 
-import "sync"
-
 type (
 	// Configs for each BIG-IP partition
 	PartitionMap map[string]*BigIPConfig
@@ -363,11 +361,7 @@ type (
 		Code      string `json:"apiAnonymous"`
 	}
 
-	IRulesStore struct {
-		IRulesMap map[NameRef]*IRule
-		// Mutex for irulesMap
-		IrulesMutex sync.Mutex
-	}
+	IRulesMap map[NameRef]*IRule
 
 	InternalDataGroup struct {
 		Name      string                   `json:"name"`
@@ -433,7 +427,7 @@ type (
 		PoolMembers  map[Member]struct{}
 		Resources    *AgentResources
 		Profs        map[SecretKey]CustomProfile
-		IRulesStore  *IRulesStore
+		IrulesMap    IRulesMap
 		IntDgMap     InternalDataGroupMap
 		IntF5Res     InternalF5ResourcesGroup
 		AgentCfgmaps []*AgentCfgMap

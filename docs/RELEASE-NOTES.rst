@@ -18,6 +18,7 @@ Added Functionality
     * Added support for SCTP protocol in Services of type LoadBalancer
     * Added support for AS3 3.36
     * Added support for route admit status for rejected routes
+    * Added fix for cis crash with routes
 
 Bug Fixes
 ````````````

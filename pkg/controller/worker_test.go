@@ -541,6 +541,37 @@ var _ = Describe("Worker Tests", func() {
 				Expect(virts[0].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
 			})
 
+			It("Re-adding VirtualServer", func() {
+				vrt2 = test.NewVirtualServer(
+					"SampleVS2",
+					namespace,
+					cisapiv1.VirtualServerSpec{
+						Host:                 "test2.com",
+						VirtualServerAddress: "1.2.3.5",
+						Pools: []cisapiv1.Pool{
+							cisapiv1.Pool{
+								Path:    "/path",
+								Service: "svc",
+							},
+						},
+					})
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3},
+					false)
+				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
+				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
+				Expect(virts[1].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
+			})
+
+			It("Re-Deletion of VS", func() {
+				//vrt3.Spec.Pools[0].Path = "/path3"
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3},
+					true)
+				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
+				Expect(virts[0].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
+			})
+
 			It("Absence of HostName of Unassociated VS", func() {
 				vrt3.Spec.Host = ""
 				//vrt3.Spec.Pools[0].Path = "/path3"

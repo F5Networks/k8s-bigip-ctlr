@@ -79,6 +79,13 @@ func (ctlr *Controller) processNativeResource() bool {
 				break
 			}
 		}
+		if rscDelete {
+			delete(ctlr.resources.processedNativeResources, resourceRef{
+				kind:      Route,
+				namespace: route.Namespace,
+				name:      route.Name,
+			})
+		}
 		err := ctlr.processRoutes(route.Namespace, false)
 		if err != nil {
 			// TODO

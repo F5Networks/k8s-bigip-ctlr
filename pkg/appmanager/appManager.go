@@ -938,6 +938,9 @@ func (appMgr *Manager) enqueueIngress(obj interface{}, operation string) {
 
 func (appMgr *Manager) enqueueRoute(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidRoute(obj); ok {
+		if operation == OprTypeDelete {
+			appMgr.deleteHostPathMapEntry(obj)
+		}
 		for _, key := range keys {
 			key.Operation = operation
 			appMgr.vsQueue.Add(*key)
@@ -3696,4 +3699,23 @@ func (appMgr *Manager) updateHostPathMap(timestamp metav1.Time, key string) {
 	}
 	// adding the ProcessedHostPath map entry
 	appMgr.processedHostPath.processedHostPathMap[key] = timestamp
+}
+
+func (appMgr *Manager) deleteHostPathMapEntry(obj interface{}) {
+	// This function deletes the route entry from processedHostPath
+	route := obj.(*routeapi.Route)
+	appMgr.processedHostPath.Lock()
+	defer appMgr.processedHostPath.Unlock()
+	for hostPath, routeTimestamp := range appMgr.processedHostPath.processedHostPathMap {
+		var key string
+		if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
+			key = route.Spec.Host + "/"
+		} else {
+			key = route.Spec.Host + route.Spec.Path
+		}
+		if routeTimestamp == route.CreationTimestamp && hostPath == key {
+			// Deleting the ProcessedHostPath map if route's path is changed
+			delete(appMgr.processedHostPath.processedHostPathMap, hostPath)
+		}
+	}
 }

@@ -79,12 +79,15 @@ func (ctlr *Controller) processNativeResource() bool {
 				break
 			}
 		}
+
 		if rscDelete {
 			delete(ctlr.resources.processedNativeResources, resourceRef{
 				kind:      Route,
 				namespace: route.Namespace,
 				name:      route.Name,
 			})
+			// Delete the route entry from hostPath Map
+			ctlr.deleteHostPathMapEntry(route)
 		}
 		err := ctlr.processRoutes(route.Namespace, false)
 		if err != nil {
@@ -1119,4 +1122,22 @@ func (ctlr *Controller) updateHostPathMap(timestamp metav1.Time, key string) {
 	}
 	// adding the ProcessedHostPath map entry
 	ctlr.processedHostPath.processedHostPathMap[key] = timestamp
+}
+
+func (ctlr *Controller) deleteHostPathMapEntry(route *routeapi.Route) {
+	// This function deletes the route entry from processedHostPath
+	ctlr.processedHostPath.Lock()
+	defer ctlr.processedHostPath.Unlock()
+	for hostPath, routeTimestamp := range ctlr.processedHostPath.processedHostPathMap {
+		var key string
+		if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
+			key = route.Spec.Host + "/"
+		} else {
+			key = route.Spec.Host + route.Spec.Path
+		}
+		if routeTimestamp == route.CreationTimestamp && hostPath == key {
+			// Deleting the ProcessedHostPath map if route's path is changed
+			delete(ctlr.processedHostPath.processedHostPathMap, hostPath)
+		}
+	}
 }

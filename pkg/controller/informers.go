@@ -1056,7 +1056,6 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
 
 func (ctlr *Controller) enqueueRoute(obj interface{}, event string) {
 	rt := obj.(*routeapi.Route)
-
 	log.Debugf("Enqueueing Route: %v", rt)
 	key := &rqKey{
 		namespace: rt.ObjectMeta.Namespace,

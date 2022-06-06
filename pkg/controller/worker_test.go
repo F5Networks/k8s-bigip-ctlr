@@ -1042,4 +1042,142 @@ var _ = Describe("Worker Tests", func() {
 			})
 		})
 	})
+
+	Describe("Getting Associated virtuals", func() {
+		var vrt1 *cisapiv1.VirtualServer
+		var vrt2 *cisapiv1.VirtualServer
+		BeforeEach(func() {
+			vrt1 = test.NewVirtualServer(
+				"vrt1",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					TLSProfileName: "tls-profile-1",
+				},
+			)
+			vrt2 = test.NewVirtualServer(
+				"vrt2",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					TLSProfileName: "tls-profile-2",
+				},
+			)
+		})
+		It("Correctly skips adding the virtuals to associated virtuals if ports are not common", func() {
+			// Virtuals with common HTTP AND HTTPS ports
+			Expect(skipVirtual(vrt1, vrt2)).To(Equal(false), "Should not skip adding it to "+
+				"associated virtuals")
+			// Virtuals without any common HTTP AND HTTPS ports
+			vrt2.Spec.VirtualServerHTTPSPort = 8443
+			vrt2.Spec.VirtualServerHTTPPort = 8080
+			Expect(skipVirtual(vrt1, vrt2)).To(Equal(true), "Should skip adding it to "+
+				"associated virtuals")
+			// Secured virtuals with common HTTPS ports
+			vrt1.Spec.VirtualServerHTTPSPort = 8443
+			Expect(skipVirtual(vrt1, vrt2)).To(Equal(false), "Should not skip adding it to "+
+				"associated virtuals")
+			// Virtuals with common HTTPS ports(default 443) but one of them is unsecured vs
+			vrt2.Spec.VirtualServerHTTPSPort = 0
+			vrt1.Spec.VirtualServerHTTPSPort = 0
+			vrt2.Spec.TLSProfileName = ""
+			Expect(skipVirtual(vrt1, vrt2)).To(Equal(true), "Should skip adding it to "+
+				"associated virtuals")
+			// Secured virtuals with common HTTP ports, but HTTPTraffic is not allowed
+			vrt2.Spec.VirtualServerHTTPPort = 0
+			vrt2.Spec.VirtualServerHTTPSPort = 8443
+			vrt2.Spec.TLSProfileName = "tls-profile-2"
+			Expect(skipVirtual(vrt1, vrt2)).To(Equal(true), "Should skip adding it to "+
+				"associated virtuals")
+			// Both secured virtuals with common HTTP ports, and handle HTTPTraffic
+			vrt1.Spec.HTTPTraffic = TLSAllowInsecure
+			vrt2.Spec.HTTPTraffic = TLSRedirectInsecure
+			Expect(skipVirtual(vrt1, vrt2)).To(Equal(false), "Should not skip adding it to "+
+				"associated virtuals")
+			// Both secured virtuals with common HTTP ports, and one of them doesn't handle HTTPTraffic
+			vrt1.Spec.HTTPTraffic = "none"
+			vrt2.Spec.HTTPTraffic = TLSRedirectInsecure
+			Expect(skipVirtual(vrt1, vrt2)).To(Equal(true), "Should skip adding it to "+
+				"associated virtuals")
+			// One secured and one unsecured vs with common HTTP ports, and the secured one doesn't handle HTTPTraffic
+			vrt2.Spec.TLSProfileName = ""
+			Expect(skipVirtual(vrt1, vrt2)).To(Equal(true), "Should skip adding it to "+
+				"associated virtuals")
+			// One secured and one unsecured vs with common HTTP ports, and the secured one handles HTTPTraffic
+			vrt1.Spec.HTTPTraffic = TLSAllowInsecure
+			Expect(skipVirtual(vrt1, vrt2)).To(Equal(false), "Should not skip adding it to "+
+				"associated virtuals")
+			// Both unsecured virtuals with common HTTP ports
+			vrt1.Spec.TLSProfileName = ""
+			Expect(skipVirtual(vrt1, vrt2)).To(Equal(false), "Should not skip adding it to "+
+				"associated virtuals")
+		})
+		It("Verifies whether correct effective HTTPS port is evaluated for the virtual server", func() {
+			Expect(getEffectiveHTTPSPort(vrt1)).To(Equal(DEFAULT_HTTPS_PORT), "Incorrect HTTPS port "+
+				"value evaluated")
+			vrt1.Spec.VirtualServerHTTPSPort = 8443
+			Expect(getEffectiveHTTPSPort(vrt1)).To(Equal(vrt1.Spec.VirtualServerHTTPSPort), "Incorrect "+
+				" HTTPS port value evaluated")
+			vrt1.Spec.VirtualServerHTTPSPort = DEFAULT_HTTPS_PORT
+			Expect(getEffectiveHTTPSPort(vrt1)).To(Equal(DEFAULT_HTTPS_PORT), "Incorrect HTTPS "+
+				"port value evaluated")
+		})
+		It("Verifies whether correct effective HTTP port is evaluated for the virtual server", func() {
+			Expect(getEffectiveHTTPPort(vrt1)).To(Equal(DEFAULT_HTTP_PORT), "Incorrect HTTP port value "+
+				"evaluated")
+			vrt1.Spec.VirtualServerHTTPPort = 8080
+			Expect(getEffectiveHTTPPort(vrt1)).To(Equal(vrt1.Spec.VirtualServerHTTPPort), "Incorrect "+
+				"HTTP port value evaluated")
+			vrt1.Spec.VirtualServerHTTPPort = DEFAULT_HTTP_PORT
+			Expect(getEffectiveHTTPPort(vrt1)).To(Equal(DEFAULT_HTTP_PORT), "Incorrect HTTP "+
+				"port value evaluated")
+		})
+	})
+
+	Describe("Deletion of virtuals", func() {
+		var vrts []*cisapiv1.VirtualServer
+		var vrt2 *cisapiv1.VirtualServer
+		BeforeEach(func() {
+			vrts = []*cisapiv1.VirtualServer{test.NewVirtualServer(
+				"vrt1",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					TLSProfileName: "tls-profile-1",
+					HTTPTraffic:    TLSAllowInsecure,
+				},
+			)}
+			vrt2 = test.NewVirtualServer(
+				"vrt2",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					TLSProfileName:         "tls-profile-2",
+					HTTPTraffic:            TLSAllowInsecure,
+					VirtualServerHTTPSPort: 8443,
+				},
+			)
+		})
+		It("Verifies whether any of the associated virtuals handle HTTP traffic", func() {
+			// Check doVSHandleHTTP when associated virtuals handle HTTP traffic
+			Expect(doVSHandleHTTP(vrts, vrt2)).To(Equal(true), "Invalid value")
+			// Check doVSHandleHTTP when associated virtuals don't handle HTTP traffic
+			vrts[0].Spec.HTTPTraffic = ""
+			Expect(doVSHandleHTTP(vrts, vrt2)).To(Equal(false), "Invalid value")
+			// Check doVSHandleHTTP when associated unsecured virtual uses the same port that the current virtual does
+			vrts[0].Spec.TLSProfileName = ""
+			Expect(doVSHandleHTTP(vrts, vrt2)).To(Equal(true), "Invalid value")
+			// Check doVSHandleHTTP when associated unsecured virtual uses a different port
+			vrts[0].Spec.VirtualServerHTTPPort = 8080
+			Expect(doVSHandleHTTP(vrts, vrt2)).To(Equal(false), "Invalid value")
+		})
+		It("Verifies whether any of the associated virtuals uses the same HTTPS port", func() {
+			// Check when associated secured virtuals use same HTTPS port
+			vrts[0].Spec.VirtualServerHTTPSPort = 8443
+			Expect(doVSUseSameHTTPSPort(vrts, vrt2)).To(Equal(true), "Invalid value")
+			// Check when none of the associated secured virtuals uses same HTTPS port
+			vrts[0].Spec.VirtualServerHTTPSPort = 443
+			Expect(doVSUseSameHTTPSPort(vrts, vrt2)).To(Equal(false), "Invalid value")
+			// Check when associated virtuals has an unsecured virtual
+			vrts[0].Spec.TLSProfileName = ""
+			Expect(doVSUseSameHTTPSPort(vrts, vrt2)).To(Equal(false), "Invalid value")
+
+		})
+	})
 })

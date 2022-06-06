@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sort"
 	"strings"
 	"sync"
@@ -266,7 +267,8 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 		for _, rt := range routes {
 			rsCfg.MetaData.baseResources[rt.Namespace+"/"+rt.Name] = Route
-			_, servicePort := ctlr.getServicePort(rt)
+			_, port := ctlr.getServicePort(rt)
+			servicePort := intstr.IntOrString{IntVal: port}
 			if err != nil {
 				processingError = true
 				log.Errorf("%v", err)
@@ -433,7 +435,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	rsCfg *ResourceConfig,
 	route *routeapi.Route,
 	routeGroup string,
-	servicePort int32,
+	servicePort intstr.IntOrString,
 	passthroughRoute bool,
 	portStruct portStruct,
 ) error {

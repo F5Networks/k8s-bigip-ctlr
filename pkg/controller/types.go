@@ -18,6 +18,7 @@ package controller
 
 import (
 	"container/list"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"net/http"
 	"sync"
 
@@ -318,14 +319,14 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name            string       `json:"name"`
-		Partition       string       `json:"-"`
-		ServiceName     string       `json:"-"`
-		ServicePort     int32        `json:"-"`
-		Balance         string       `json:"loadBalancingMethod,omitempty"`
-		Members         []PoolMember `json:"members"`
-		NodeMemberLabel string       `json:"-"`
-		MonitorNames    []string     `json:"monitors,omitempty"`
+		Name            string             `json:"name"`
+		Partition       string             `json:"-"`
+		ServiceName     string             `json:"-"`
+		ServicePort     intstr.IntOrString `json:"-"`
+		Balance         string             `json:"loadBalancingMethod,omitempty"`
+		Members         []PoolMember       `json:"members"`
+		NodeMemberLabel string             `json:"-"`
+		MonitorNames    []string           `json:"monitors,omitempty"`
 	}
 	// Pools is slice of pool
 	Pools []Pool

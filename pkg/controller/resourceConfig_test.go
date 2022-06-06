@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sort"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
@@ -100,7 +101,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("My_VS_80"), "Invalid VirtualServer Name")
 		})
 		It("Pool Name", func() {
-			name := formatPoolName(namespace, "svc1", 80, "app=test")
+			name := formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test")
 			Expect(name).To(Equal("svc1_80_default_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {

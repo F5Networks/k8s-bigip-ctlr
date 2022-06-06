@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sort"
 	"strings"
 	"time"
@@ -1513,7 +1514,7 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 		}
 
 		for _, svcPort := range poolMemInfo.portSpec {
-			if svcPort.Port == pool.ServicePort {
+			if svcPort.TargetPort == pool.ServicePort {
 				rsCfg.MetaData.Active = true
 				rsCfg.Pools[index].Members =
 					ctlr.getEndpointsForNodePort(svcPort.NodePort, pool.NodeMemberLabel)
@@ -1540,7 +1541,7 @@ func (ctlr *Controller) updatePoolMembersForCluster(
 		}
 
 		for ref, mems := range poolMemInfo.memberMap {
-			if ref.port != pool.ServicePort {
+			if ref.name != pool.ServicePort.StrVal && ref.port != pool.ServicePort.IntVal {
 				continue
 			}
 			rsCfg.MetaData.Active = true
@@ -1573,7 +1574,7 @@ func (ctlr *Controller) updatePoolMembersForNPL(
 		pods := ctlr.GetPodsForService(namespace, svcName)
 		if pods != nil {
 			for _, svcPort := range poolMemInfo.portSpec {
-				if svcPort.TargetPort.IntVal == pool.ServicePort {
+				if svcPort.TargetPort == pool.ServicePort {
 					podPort := svcPort.TargetPort.IntVal
 					rsCfg.MetaData.Active = true
 					rsCfg.Pools[index].Members =
@@ -2533,17 +2534,17 @@ func (ctlr *Controller) processIngressLink(
 			ip,
 			port.Port,
 		)
-
+		svcPort := intstr.IntOrString{IntVal: port.Port}
 		pool := Pool{
 			Name: formatPoolName(
 				svc.ObjectMeta.Namespace,
 				svc.ObjectMeta.Name,
-				port.Port,
+				svcPort,
 				"",
 			),
 			Partition:   rsCfg.Virtual.Partition,
 			ServiceName: svc.ObjectMeta.Name,
-			ServicePort: port.Port,
+			ServicePort: svcPort,
 		}
 		monitorName := fmt.Sprintf("%s_monitor", pool.Name)
 		rsCfg.Monitors = append(
@@ -3053,4 +3054,14 @@ func doVSUseSameHTTPSPort(virtuals []*cisapiv1.VirtualServer, currentVirtual *ci
 		}
 	}
 	return false
+}
+
+func fetchPortString(port intstr.IntOrString) string {
+	if port.StrVal != "" {
+		return port.StrVal
+	}
+	if port.IntVal != 0 {
+		return fmt.Sprintf("%v", port.IntVal)
+	}
+	return ""
 }

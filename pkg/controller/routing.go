@@ -18,6 +18,7 @@ package controller
 
 import (
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"net/url"
 	"sort"
 	"strconv"
@@ -77,7 +78,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 		poolName := formatPoolName(
 			vs.ObjectMeta.Namespace,
 			pl.Service,
-			pl.ServicePort,
+			intstr.IntOrString{IntVal: pl.ServicePort},
 			pl.NodeMemberLabel,
 		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)

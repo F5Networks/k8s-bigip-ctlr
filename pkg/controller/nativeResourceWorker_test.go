@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
@@ -289,20 +290,20 @@ var _ = Describe("Routes", func() {
 			// Portstruct for unsecured virtual server
 			ps := portStruct{HTTP, DEFAULT_HTTP_PORT}
 			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = ""
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).To(BeNil())
 			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = "None"
 			route1.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyNone
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).To(BeNil())
 			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = "Allow"
 			route1.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyAllow
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).NotTo(BeNil())
 			Expect(len(rsCfg.Policies)).To(Equal(1))
 			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(1))
 			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = ""
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route2, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route2, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).NotTo(BeNil())
 			Expect(len(rsCfg.Policies)).To(Equal(1))
 			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(1))
@@ -319,12 +320,12 @@ var _ = Describe("Routes", func() {
 			// Portstruct for secured virtual server
 			ps.protocol = HTTPS
 			ps.port = DEFAULT_HTTPS_PORT
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).NotTo(BeNil())
 			Expect(len(rsCfg.Policies)).To(Equal(1))
 			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(1))
 			Expect(rsCfg.Policies[0].Rules[0].FullURI).To(Equal("foo.com/foo"))
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route2, routeGroup, 80, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route2, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).NotTo(BeNil())
 			Expect(len(rsCfg.Policies)).To(Equal(1))
 			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(2))

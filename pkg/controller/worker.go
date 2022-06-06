@@ -2455,8 +2455,8 @@ func (ctlr *Controller) processIngressLink(
 	}
 	if isILDeleted {
 		var delRes []string
-
-		for k := range ctlr.resources.ltmConfig {
+		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+		for k := range rsMap {
 			rsName := "ingress_link_" + formatVirtualServerName(
 				ip,
 				0,
@@ -2467,13 +2467,12 @@ func (ctlr *Controller) processIngressLink(
 		}
 		for _, rsName := range delRes {
 			var hostnames []string
-			if ctlr.resources.ltmConfig[rsName] != nil {
+			if rsMap[rsName] != nil {
 				rsCfg, err := ctlr.resources.getResourceConfig(ctlr.Partition, rsName)
 				if err == nil {
 					hostnames = rsCfg.MetaData.hosts
 				}
 			}
-			rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
 			ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
 			if len(hostnames) > 0 {

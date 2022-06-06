@@ -112,17 +112,13 @@ func (ctlr *Controller) processCustomResource() bool {
 	switch rKey.kind {
 	case VirtualServer:
 		virtual := rKey.rsc.(*cisapiv1.VirtualServer)
-		rscRefKey := resourceRef{
-			kind:      VirtualServer,
-			name:      virtual.Name,
-			namespace: virtual.Namespace,
-		}
-		if _, ok := ctlr.resources.processedNativeResources[rscRefKey]; ok {
-			switch rKey.event {
-			case Create:
+		if rKey.event == Create {
+			if _, ok := ctlr.resources.processedNativeResources[resourceRef{
+				kind:      VirtualServer,
+				name:      virtual.Name,
+				namespace: virtual.Namespace,
+			}]; ok {
 				break
-			case Delete:
-				delete(ctlr.resources.processedNativeResources, rscRefKey)
 			}
 		}
 

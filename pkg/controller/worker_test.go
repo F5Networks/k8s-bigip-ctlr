@@ -86,6 +86,15 @@ var _ = Describe("Worker Tests", func() {
 				options.LabelSelector = mockCtlr.resourceSelector.String()
 			},
 		)
+		mockCtlr.crInformers["default"].ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
+			mockCtlr.kubeCRClient,
+			namespace,
+			0,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+			func(options *metav1.ListOptions) {
+				options.LabelSelector = mockCtlr.resourceSelector.String()
+			},
+		)
 	})
 
 	Describe("Validating Ingress link functions", func() {
@@ -886,6 +895,56 @@ var _ = Describe("Worker Tests", func() {
 
 			mockCtlr.processExternalDNS(newEDNS, true)
 			Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(0))
+		})
+
+		It("Processing IngressLink", func() {
+			// Creation of IngressLink
+			fooPorts := []v1.ServicePort{
+				{
+					Port: 8080,
+					Name: "port0",
+				},
+			}
+			foo := test.NewService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
+			label1 := make(map[string]string)
+			label1["app"] = "ingresslink"
+			foo.ObjectMeta.Labels = label1
+			var (
+				selctor = &metav1.LabelSelector{
+					MatchLabels: label1,
+				}
+			)
+			var iRules []string
+			IngressLink1 := test.NewIngressLink("ingresslink1", namespace, "1",
+				cisapiv1.IngressLinkSpec{
+					VirtualServerAddress: "1.2.3.4",
+					Selector:             selctor,
+					IRules:               iRules,
+				})
+			_ = mockCtlr.crInformers["default"].ilInformer.GetIndexer().Add(IngressLink1)
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					IngressLink: make(map[string]int),
+				},
+			}
+			_, _ = mockCtlr.kubeClient.CoreV1().Services("default").Create(context.Background(), foo,
+				metav1.CreateOptions{})
+			err := mockCtlr.processIngressLink(IngressLink1, false)
+			Expect(err).To(BeNil(), "Failed to process IngressLink while creation")
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid LTM Config")
+			Expect(mockCtlr.resources.ltmConfig).Should(HaveKey(mockCtlr.Partition),
+				"Invalid LTM Config")
+			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition])).To(Equal(1),
+				"Invalid Resource Config")
+
+			// Deletion of IngressLink
+			err = mockCtlr.processIngressLink(IngressLink1, true)
+			Expect(err).To(BeNil(), "Failed to process IngressLink while deletion")
+			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid LTM Config")
+			Expect(mockCtlr.resources.ltmConfig).Should(HaveKey(mockCtlr.Partition), "Invalid LTM Config")
+			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition])).To(Equal(0),
+				"Invalid Resource Config")
+
 		})
 	})
 

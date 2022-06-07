@@ -758,7 +758,12 @@ func (ctlr *Controller) getLatestLocalConfigMap(ns string) *v1.ConfigMap {
 		return nil
 	}
 
-	objList := inf.cmInformer.GetIndexer().List()
+	objList, err := inf.cmInformer.GetIndexer().ByIndex("namespace", ns)
+
+	if err != nil {
+		log.Errorf("Unable to fetch local config map from namespace: %v ", ns)
+		return nil
+	}
 
 	if len(objList) == 0 {
 		return nil

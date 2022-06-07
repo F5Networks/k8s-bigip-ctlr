@@ -102,6 +102,9 @@ spec:
                   items:
                     type: object
                     properties:
+                      name:
+                        type: string
+                        pattern: '^([A-z0-9-_+])*([A-z0-9])$'
                       path:
                         type: string
                         pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
@@ -345,6 +348,9 @@ spec:
                 pool:
                   type: object
                   properties:
+                    name:
+                      type: string
+                      pattern: '^([A-z0-9-_+])*([A-z0-9])$'
                     service:
                       type: string
                       pattern: '^([A-z0-9-_+])*([A-z0-9])$'

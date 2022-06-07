@@ -334,38 +334,44 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	snat = DEFAULT_SNAT
 	var pools Pools
 	var rules *Rules
-	var poolExist bool
 	var monitors []Monitor
+
+	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
-		pool := Pool{
-			Name: formatPoolName(
+		poolName := pl.Name
+		monitorName := pl.Name + "-monitor"
+		if poolName == "" {
+			poolName = formatPoolName(
 				vs.ObjectMeta.Namespace,
 				pl.Service,
 				pl.ServicePort,
 				pl.NodeMemberLabel,
-			),
+			)
+		}
+
+		if _, ok := framedPools[poolName]; ok {
+			// Pool with same name framed earlier, so skipping this pool
+			log.Debugf("Duplicate pool name: %v in Virtual Server: %v/%v", poolName, vs.Namespace, vs.Name)
+			continue
+		}
+		framedPools[poolName] = struct{}{}
+
+		pool := Pool{
+			Name:            poolName,
 			Partition:       rsCfg.Virtual.Partition,
 			ServiceName:     pl.Service,
 			ServicePort:     pl.ServicePort,
 			NodeMemberLabel: pl.NodeMemberLabel,
 			Balance:         pl.Balance,
 		}
-		for _, p := range pools {
-			if pool.Name == p.Name {
-				poolExist = true
-				break
-			}
-		}
-		if poolExist {
-			poolExist = false
-			continue
-		}
 
 		if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
-			pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition,
-				formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort)))
+			if pl.Name == "" {
+				monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort)
+			}
+			pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition, monitorName))
 			monitor := Monitor{
-				Name:      formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort),
+				Name:      monitorName,
 				Partition: rsCfg.Virtual.Partition,
 				Type:      pl.Monitor.Type,
 				Interval:  pl.Monitor.Interval,
@@ -732,7 +738,16 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	}
 	var poolPathRefs []poolPathRef
 	for _, pl := range vs.Spec.Pools {
-		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, formatPoolName(vs.ObjectMeta.Namespace, pl.Service, pl.ServicePort, pl.NodeMemberLabel)})
+		poolName := pl.Name
+		if poolName == "" {
+			poolName = formatPoolName(
+				vs.ObjectMeta.Namespace,
+				pl.Service,
+				pl.ServicePort,
+				pl.NodeMemberLabel,
+			)
+		}
+		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName})
 	}
 	return ctlr.handleTLS(rsCfg, TLSContext{vs.ObjectMeta.Name,
 		vs.ObjectMeta.Namespace,
@@ -1329,15 +1344,18 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	vs *cisapiv1.TransportServer,
 ) error {
 
-	var pools Pools
-	var monitors []Monitor
-	pool := Pool{
-		Name: formatPoolName(
+	poolName := vs.Spec.Pool.Name
+	monitorName := vs.Spec.Pool.Name + "-monitor"
+	if poolName == "" {
+		poolName = formatPoolName(
 			vs.ObjectMeta.Namespace,
 			vs.Spec.Pool.Service,
 			vs.Spec.Pool.ServicePort,
 			vs.Spec.Pool.NodeMemberLabel,
-		),
+		)
+	}
+	pool := Pool{
+		Name:            poolName,
 		Partition:       rsCfg.Virtual.Partition,
 		ServiceName:     vs.Spec.Pool.Service,
 		ServicePort:     vs.Spec.Pool.ServicePort,
@@ -1346,10 +1364,13 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	}
 
 	if vs.Spec.Pool.Monitor.Type != "" {
-		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition,
-			formatMonitorName(vs.ObjectMeta.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.Monitor.Type, vs.Spec.Pool.ServicePort)))
+		if vs.Spec.Pool.Name == "" {
+			monitorName = formatMonitorName(vs.ObjectMeta.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.Monitor.Type, vs.Spec.Pool.ServicePort)
+		}
+		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition, monitorName))
+
 		monitor := Monitor{
-			Name:      formatMonitorName(vs.ObjectMeta.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.Monitor.Type, vs.Spec.Pool.ServicePort),
+			Name:      monitorName,
 			Partition: rsCfg.Virtual.Partition,
 			Type:      vs.Spec.Pool.Monitor.Type,
 			Interval:  vs.Spec.Pool.Monitor.Interval,
@@ -1357,14 +1378,14 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 			Recv:      "",
 			Timeout:   vs.Spec.Pool.Monitor.Timeout,
 		}
-		monitors = append(monitors, monitor)
+		rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 	}
-	pools = append(pools, pool)
+
 	rsCfg.Virtual.Mode = vs.Spec.Mode
 	rsCfg.Virtual.IpProtocol = vs.Spec.Type
 	rsCfg.Virtual.PoolName = pool.Name
-	rsCfg.Pools = append(rsCfg.Pools, pools...)
-	rsCfg.Monitors = append(rsCfg.Monitors, monitors...)
+	rsCfg.Pools = append(rsCfg.Pools, pool)
+
 	if vs.Spec.ProfileL4 != "" {
 		rsCfg.Virtual.ProfileL4 = vs.Spec.ProfileL4
 	}

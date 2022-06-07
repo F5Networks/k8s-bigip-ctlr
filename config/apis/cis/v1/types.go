@@ -61,6 +61,7 @@ type ServiceAddress struct {
 
 // Pool defines a pool object in BIG-IP.
 type Pool struct {
+	Name            string  `json:"name,omitempty"`
 	Path            string  `json:"path,omitempty"`
 	Service         string  `json:"service"`
 	ServicePort     int32   `json:"servicePort"`
@@ -276,19 +277,19 @@ type LtmIRulesSpec struct {
 }
 
 type ProfileSpec struct {
-	TCP                ProfileTCP   `json:"tcp,omitempty"`
-	UDP                string       `json:"udp,omitempty"`
-	HTTP               string       `json:"http,omitempty"`
-	HTTP2              string       `json:"http2,omitempty"`
-	RewriteProfile     string       `json:"rewriteProfile,omitempty"`
-	PersistenceProfile string       `json:"persistenceProfile,omitempty"`
-	LogProfiles        []string     `json:"logProfiles,omitempty"`
-	ProfileL4          string       `json:"profileL4,omitempty"`
-	ProfileMultiplex   string       `json:"profileMultiplex,omitempty"`
+	TCP                ProfileTCP `json:"tcp,omitempty"`
+	UDP                string     `json:"udp,omitempty"`
+	HTTP               string     `json:"http,omitempty"`
+	HTTP2              string     `json:"http2,omitempty"`
+	RewriteProfile     string     `json:"rewriteProfile,omitempty"`
+	PersistenceProfile string     `json:"persistenceProfile,omitempty"`
+	LogProfiles        []string   `json:"logProfiles,omitempty"`
+	ProfileL4          string     `json:"profileL4,omitempty"`
+	ProfileMultiplex   string     `json:"profileMultiplex,omitempty"`
 }
 type ProfileTCP struct {
-	Client     string    `json:"client,omitempty"`
-	Server     string    `json:"server,omitempty"`
+	Client string `json:"client,omitempty"`
+	Server string `json:"server,omitempty"`
 }
 
 // +genclient

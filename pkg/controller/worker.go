@@ -2083,6 +2083,7 @@ func (ctlr *Controller) processLBServices(
 		rsCfg.Virtual.Partition = ctlr.Partition
 		rsCfg.Virtual.IpProtocol = strings.ToLower(string(portSpec.Protocol))
 		rsCfg.MetaData.ResourceType = TransportServer
+		rsCfg.MetaData.namespace = svc.ObjectMeta.Namespace
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
 		rsCfg.Virtual.SetVirtualAddress(

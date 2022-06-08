@@ -1,2 +1,2 @@
 -e git+https://github.com/f5devcentral/f5-ctlr-agent.git@2d27867ee90d7fc1bfde9d07e24799410c772b03#egg=f5-ctlr-agent
--e git+https://github.com/f5devcentral/f5-cccl.git@09fc9e609b54a0d5eccb593a57834395db0edf4c#egg=f5-cccl
+-e git+https://github.com/f5devcentral/f5-cccl.git@fd62af5bc6e7231b0bb9bdaf0d77a9c61f449029#egg=f5-cccl

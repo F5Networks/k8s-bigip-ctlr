@@ -19,6 +19,9 @@ Added Functionality
     * Added support for AS3 3.36
     * Added support for route admit status for rejected routes
     * Add custom pool name in VirtualServer and TransportServer
+* Helm Chart Enhancements:
+    * Support for latest CRD schema
+    * issues:`2387` Inconsistent use of value in f5-bigip-ctlr helm chart
 
 Bug Fixes
 ````````````

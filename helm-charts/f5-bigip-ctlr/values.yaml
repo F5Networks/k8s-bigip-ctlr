@@ -18,7 +18,7 @@ serviceAccount:
 ingressClass:
   create: true
   ingressClassName: f5
-  defaultController: true
+  isDefaultIngressController: true
 namespace: kube-system
 args:
   # See http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/latest/#controller-configuration-parameters

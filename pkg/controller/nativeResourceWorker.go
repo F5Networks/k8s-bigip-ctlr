@@ -214,7 +214,9 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	}
 
 	routes := ctlr.getGroupedRoutes(routeGroup)
-
+	ctlr.TeemData.Lock()
+	ctlr.TeemData.ResourceType.NativeRoutes[namespace] = len(routes)
+	ctlr.TeemData.Unlock()
 	if triggerDelete || len(routes) == 0 {
 		// Delete all possible virtuals for this route group
 		for _, portStruct := range getBasicVirtualPorts() {
@@ -589,9 +591,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 
 	ersData := cm.Data
 	es := extendedSpec{}
-
 	//log.Debugf("GCM: %v", cm.Data)
-
 	err := yaml.UnmarshalStrict([]byte(ersData["extendedSpec"]), &es)
 	if err != nil {
 		return fmt.Errorf("invalid extended route spec in configmap: %v/%v", cm.Namespace, cm.Name), false
@@ -611,8 +611,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 				local:    nil,
 				global:   &ergc.ExtendedRouteGroupSpec,
 			}
+			ctlr.TeemData.Lock()
+			ctlr.TeemData.ResourceType.RouteGroups[ergc.Namespace] = 1
+			ctlr.TeemData.Unlock()
 		}
-
 		// Global configmap once gets processed even before processing other native resources
 		if ctlr.initState {
 			ctlr.resources.extdSpecMap = newExtdSpecMap
@@ -631,6 +633,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 				ctlr.resources.extdSpecMap[ns].global = nil
 				ctlr.resources.extdSpecMap[ns].override = false
 			}
+
 		}
 
 		for _, ns := range modifiedSpecs {
@@ -668,6 +671,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			return fmt.Errorf("Invalid Extended Route Spec Block in configmap: Mismatching namespace found at index 0 in %v/%v", cm.Namespace, cm.Name), true
 		}
 		if spec, ok := ctlr.resources.extdSpecMap[ergc.Namespace]; ok {
+
 			if isDelete {
 				if !spec.override {
 					spec.local = nil
@@ -739,7 +743,6 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			return nil, false
 		}
 	}
-
 	return nil, true
 }
 

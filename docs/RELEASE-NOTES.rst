@@ -26,8 +26,9 @@ Bug Fixes
 * :issues:`2323` Fixed file and examples links in ingresslink document
 * :issues:`2151` Fix for adding unique pool members only to AS3 declaration with AS3 configmap
 * :issues:`2326` Support for Configmap resource with NodePortLocal mode
-* :issues:`2294` Fix for service supporting with named ports
 * Added fix for cis crash with routes
+* Fix for different service Port and target port with CRs
+
 
 Upgrade notes
 ``````````````

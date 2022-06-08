@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/tools/cache"
 	"net"
 	"reflect"
 	"sort"
@@ -253,8 +255,8 @@ func formatCustomVirtualServerName(name string, port int32) string {
 }
 
 // format the pool name for an VirtualServer
-func formatPoolName(namespace, svc string, port int32, nodeMemberLabel string) string {
-	servicePort := fmt.Sprint(port)
+func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string) string {
+	servicePort := fetchPortString(port)
 	poolName := fmt.Sprintf("%s_%s_%s", svc, servicePort, namespace)
 	if nodeMemberLabel != "" {
 		nodeMemberLabel = strings.ReplaceAll(nodeMemberLabel, "=", "_")
@@ -321,6 +323,34 @@ func (ctlr *Controller) deleteSvcDepResource(rsName string, rsCfg *ResourceConfi
 	}
 }
 
+// fetch target port from service
+func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort int32) intstr.IntOrString {
+	var targetPort intstr.IntOrString
+	var svcIndexer cache.Indexer
+	svcKey := namespace + "/" + svcName
+	if ctlr.watchingAllNamespaces() {
+		svcIndexer = ctlr.crInformers[""].svcInformer.GetIndexer()
+	} else {
+		if informer, ok := ctlr.crInformers[namespace]; ok {
+			svcIndexer = informer.svcInformer.GetIndexer()
+		} else {
+			return targetPort
+		}
+	}
+	item, found, _ := svcIndexer.GetByKey(svcKey)
+	if !found {
+		log.Debugf("service '%v' not found", svcKey)
+		return targetPort
+	}
+	svc := item.(*v1.Service)
+	for _, port := range svc.Spec.Ports {
+		if port.Port == servicePort {
+			return port.TargetPort
+		}
+	}
+	return targetPort
+}
+
 // Prepares resource config based on VirtualServer resource config
 func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	rsCfg *ResourceConfig,
@@ -338,13 +368,17 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
+		targetPort := ctlr.fetchTargetPort(vs.Namespace, pl.Service, pl.ServicePort)
+		if (intstr.IntOrString{}) == targetPort {
+			targetPort = intstr.IntOrString{IntVal: pl.ServicePort}
+		}
 		poolName := pl.Name
 		monitorName := pl.Name + "-monitor"
 		if poolName == "" {
 			poolName = formatPoolName(
 				vs.ObjectMeta.Namespace,
 				pl.Service,
-				pl.ServicePort,
+				targetPort,
 				pl.NodeMemberLabel,
 			)
 		}
@@ -360,7 +394,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			Name:            poolName,
 			Partition:       rsCfg.Virtual.Partition,
 			ServiceName:     pl.Service,
-			ServicePort:     pl.ServicePort,
+			ServicePort:     targetPort,
 			NodeMemberLabel: pl.NodeMemberLabel,
 			Balance:         pl.Balance,
 		}
@@ -743,7 +777,7 @@ func (ctlr *Controller) handleVirtualServerTLS(
 			poolName = formatPoolName(
 				vs.ObjectMeta.Namespace,
 				pl.Service,
-				pl.ServicePort,
+				intstr.IntOrString{IntVal: pl.ServicePort},
 				pl.NodeMemberLabel,
 			)
 		}
@@ -1343,14 +1377,17 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.TransportServer,
 ) error {
-
+	targetPort := ctlr.fetchTargetPort(vs.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
+	if (intstr.IntOrString{}) == targetPort {
+		targetPort = intstr.IntOrString{IntVal: vs.Spec.Pool.ServicePort}
+	}
 	poolName := vs.Spec.Pool.Name
 	monitorName := vs.Spec.Pool.Name + "-monitor"
 	if poolName == "" {
 		poolName = formatPoolName(
 			vs.ObjectMeta.Namespace,
 			vs.Spec.Pool.Service,
-			vs.Spec.Pool.ServicePort,
+			targetPort,
 			vs.Spec.Pool.NodeMemberLabel,
 		)
 	}
@@ -1358,7 +1395,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		Name:            poolName,
 		Partition:       rsCfg.Virtual.Partition,
 		ServiceName:     vs.Spec.Pool.Service,
-		ServicePort:     vs.Spec.Pool.ServicePort,
+		ServicePort:     targetPort,
 		NodeMemberLabel: vs.Spec.Pool.NodeMemberLabel,
 		Balance:         vs.Spec.Pool.Balance,
 	}
@@ -1437,17 +1474,16 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 	svc *v1.Service,
 	svcPort v1.ServicePort,
 ) error {
-
 	poolName := formatPoolName(
 		svc.Namespace,
 		svc.Name,
-		svcPort.TargetPort.IntVal,
+		svcPort.TargetPort,
 		"")
 	pool := Pool{
 		Name:            poolName,
 		Partition:       rsCfg.Virtual.Partition,
 		ServiceName:     svc.Name,
-		ServicePort:     svcPort.TargetPort.IntVal,
+		ServicePort:     svcPort.TargetPort,
 		NodeMemberLabel: "",
 	}
 
@@ -1662,7 +1698,7 @@ func (ctlr *Controller) handleRouteTLS(
 	rsCfg *ResourceConfig,
 	route *routeapi.Route,
 	extdSpec *ExtendedRouteGroupSpec,
-	servicePort int32) bool {
+	servicePort intstr.IntOrString) bool {
 
 	if route.Spec.TLS == nil {
 		// Probably this is a non-tls route, nothing to do w.r.t TLS

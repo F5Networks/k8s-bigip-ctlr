@@ -464,7 +464,7 @@ func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3
 	// Re-initialise incomingTenantDeclMap map for each new config request
 	agent.incomingTenantDeclMap = make(map[string]as3Tenant)
 
-	for tenant, cfg := range createAS3ADC(config) {
+	for tenant, cfg := range agent.createAS3ADC(config) {
 		if !reflect.DeepEqual(cfg, agent.cachedTenantDeclMap[tenant]) {
 			agent.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
 		} else {
@@ -503,13 +503,26 @@ func (agent *Agent) createAS3Declaration(tenantDeclMap map[string]as3Tenant) as3
 	return as3Declaration(decl)
 }
 
-func createAS3ADC(config ResourceConfigRequest) as3ADC {
+func (agent *Agent) createAS3ADC(config ResourceConfigRequest) as3ADC {
 	as3JSONDecl := as3ADC{}
 	for tenantName, rsMap := range config.ltmConfig {
 		if len(rsMap) == 0 {
-			// Remove partition
-			as3JSONDecl[tenantName] = as3Tenant{
-				"class": "Tenant",
+			if agent.Partition == tenantName {
+				// Flush Partition contents
+				sharedApp := as3Application{}
+				sharedApp["class"] = "Application"
+				sharedApp["template"] = "shared"
+
+				tenantDecl := as3Tenant{
+					"class":              "Tenant",
+					as3SharedApplication: sharedApp,
+				}
+				as3JSONDecl[tenantName] = tenantDecl
+			} else {
+				// Remove Partition
+				as3JSONDecl[tenantName] = as3Tenant{
+					"class": "Tenant",
+				}
 			}
 			continue
 		}

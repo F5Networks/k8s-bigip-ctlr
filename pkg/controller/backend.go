@@ -177,7 +177,6 @@ func (agent *Agent) agentWorker() {
 		}
 		decl := agent.createTenantAS3Declaration(rsConfig)
 
-		log.Debugf("\n\n\n[AS3] [DECL]: \t%v\n\n\n\n", decl)
 		if len(agent.incomingTenantDeclMap) == 0 {
 			agent.declUpdate.Unlock()
 			continue

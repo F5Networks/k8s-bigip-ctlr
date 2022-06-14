@@ -98,7 +98,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								VirtualServer,
 								vs.ObjectMeta.Name,
 								vs,
-								Create,
+								Update,
 							}
 							ctlr.rscQueue.Add(qKey)
 						}
@@ -112,7 +112,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								TransportServer,
 								vs.ObjectMeta.Name,
 								vs,
-								Create,
+								Update,
 							}
 							ctlr.rscQueue.Add(qKey)
 						}
@@ -130,7 +130,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								VirtualServer,
 								virtual.ObjectMeta.Name,
 								virtual,
-								Create,
+								Update,
 							}
 							ctlr.rscQueue.Add(qKey)
 						}
@@ -140,7 +140,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								TransportServer,
 								virtual.ObjectMeta.Name,
 								virtual,
-								Create,
+								Update,
 							}
 							ctlr.rscQueue.Add(qKey)
 						}

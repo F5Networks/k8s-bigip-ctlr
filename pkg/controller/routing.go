@@ -75,11 +75,10 @@ func (ctlr *Controller) prepareVirtualServerRules(
 			path = vs.Spec.RewriteAppRoot
 		}
 
-		poolName := formatPoolName(
+		poolName := framePoolName(
 			vs.ObjectMeta.Namespace,
-			pl.Service,
+			pl,
 			intstr.IntOrString{IntVal: pl.ServicePort},
-			pl.NodeMemberLabel,
 		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
 		var err error

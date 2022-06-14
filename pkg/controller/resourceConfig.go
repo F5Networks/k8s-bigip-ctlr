@@ -254,6 +254,15 @@ func formatCustomVirtualServerName(name string, port int32) string {
 	return fmt.Sprintf("%s_%d", name, port)
 }
 
+func framePoolName(ns string, pool cisapiv1.Pool, port intstr.IntOrString) string {
+	poolName := pool.Name
+	if poolName == "" {
+		poolName = formatPoolName(ns, pool.Service, port, pool.NodeMemberLabel)
+	}
+
+	return poolName
+}
+
 // format the pool name for an VirtualServer
 func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLabel string) string {
 	servicePort := fetchPortString(port)
@@ -372,16 +381,8 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		if (intstr.IntOrString{}) == targetPort {
 			targetPort = intstr.IntOrString{IntVal: pl.ServicePort}
 		}
-		poolName := pl.Name
+		poolName := framePoolName(vs.ObjectMeta.Namespace, pl, targetPort)
 		monitorName := pl.Name + "-monitor"
-		if poolName == "" {
-			poolName = formatPoolName(
-				vs.ObjectMeta.Namespace,
-				pl.Service,
-				targetPort,
-				pl.NodeMemberLabel,
-			)
-		}
 
 		if _, ok := framedPools[poolName]; ok {
 			// Pool with same name framed earlier, so skipping this pool
@@ -772,15 +773,13 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	}
 	var poolPathRefs []poolPathRef
 	for _, pl := range vs.Spec.Pools {
-		poolName := pl.Name
-		if poolName == "" {
-			poolName = formatPoolName(
-				vs.ObjectMeta.Namespace,
-				pl.Service,
-				intstr.IntOrString{IntVal: pl.ServicePort},
-				pl.NodeMemberLabel,
-			)
-		}
+
+		poolName := framePoolName(
+			vs.ObjectMeta.Namespace,
+			pl,
+			intstr.IntOrString{IntVal: pl.ServicePort},
+		)
+
 		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName})
 	}
 	return ctlr.handleTLS(rsCfg, TLSContext{vs.ObjectMeta.Name,
@@ -1381,16 +1380,13 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	if (intstr.IntOrString{}) == targetPort {
 		targetPort = intstr.IntOrString{IntVal: vs.Spec.Pool.ServicePort}
 	}
-	poolName := vs.Spec.Pool.Name
-	monitorName := vs.Spec.Pool.Name + "-monitor"
-	if poolName == "" {
-		poolName = formatPoolName(
-			vs.ObjectMeta.Namespace,
-			vs.Spec.Pool.Service,
-			targetPort,
-			vs.Spec.Pool.NodeMemberLabel,
-		)
-	}
+	poolName := framePoolName(
+		vs.ObjectMeta.Namespace,
+		vs.Spec.Pool,
+		targetPort,
+	)
+	monitorName := poolName + "-monitor"
+
 	pool := Pool{
 		Name:            poolName,
 		Partition:       rsCfg.Virtual.Partition,

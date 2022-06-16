@@ -15,10 +15,12 @@ Added Functionality
         * OneConnect profile support added for VirtualServer CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * TCP Client and Server profile support added for VirtualServer, TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * GTM global-availability LB method and order precedence support with EDNS CRs. See `Examples <https://github.com/sravyap135/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS>`_
+        * SNAT support for Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
     * Added support for SCTP protocol in Services of type LoadBalancer
     * Added support for AS3 3.36
     * Added support for route admit status for rejected routes
     * Add custom pool name in VirtualServer and TransportServer
+    * Added policy support for Services of type LoadBalancer
 * Helm Chart Enhancements:
     * Support for latest CRD schema
     * issues:`2387` Inconsistent use of value in f5-bigip-ctlr helm chart

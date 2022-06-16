@@ -1,26 +1,34 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.9.0
 -------------
 Added Functionality
 ```````````````````
 
 **What’s new:**
+    * Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/nativeResources>`_ for more details
+        * Multiple VIP and partition support for routes
     * CRD:
         * LoadBalancingMethod support for VirtualServer and TransportServer CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * DoS Protection Profile support for VirtualServer, TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * Bot Defense Profile support for VirtualServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
-        * client ProfileL4 support for TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Protocol profile(client) support for TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * OneConnect profile support added for VirtualServer CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
-        * TCP Client and Server profile support added for VirtualServer, TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Custom TCP Client and Server profile support added for VirtualServer, TransportServer and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * SNAT pool name support in Policy CR for VirtualServer, TransportServer CRs. See `Example <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResource/Policy/sample-policy.yaml>`_
+        * Custom pool name support in VirtualServer and TransportServer CRs. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/customPoolName>`_
         * GTM global-availability LB method and order precedence support with EDNS CRs. See `Examples <https://github.com/sravyap135/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS>`_
-        * SNAT support for Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
-    * Added support for SCTP protocol in Services of type LoadBalancer
-    * Added support for AS3 3.36
-    * Added support for route admit status for rejected routes
-    * Add custom pool name in VirtualServer and TransportServer
-    * Added policy support for Services of type LoadBalancer
+    * Service Type LoadBalancer:
+        * SCTP protocol support in Services of type LoadBalancer. See `official documentation <https://kubernetes.io/docs/concepts/services-networking/network-policies/#sctp-support>`_
+        * Added support for attaching Policy CRD as an annotation
+            * SNAT pool name support in policy CR. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+    * ConfigMap:
+        * :issues:`2326` Support for Configmap resource with NodePortLocal mode
+    * Routes :
+        * Added support for route admit status for rejected legacy and next gen routes
+
+    * Added support for AS3 3.36, OCP 4.9
 * Helm Chart Enhancements:
     * Support for latest CRD schema
     * issues:`2387` Inconsistent use of value in f5-bigip-ctlr helm chart
@@ -30,15 +38,27 @@ Bug Fixes
 * :issues:`2224` Selecting Load Balancing method on VS CRD
 * :issues:`2323` Fixed file and examples links in ingresslink document
 * :issues:`2151` Fix for adding unique pool members only to AS3 declaration with AS3 configmap
-* :issues:`2326` Support for Configmap resource with NodePortLocal mode
-* Added fix for cis crash with routes
+* SR : Added fix for CIS crash with routes
 * Fix for different service Port and target port with CRs
-
 
 Upgrade notes
 ``````````````
-requires update to RBAC and CR schema definition before upgrade
-* To use order precedence mode in EDNS CR, upgrade the EDNS CRD. See `CR schema <https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml>`_
+* Some of the new features require an update to Custom resource definition file.
+
+FIC 0.1.8 Release notes :
+-------------------------
+Added Functionality
+```````````````````
+* Support for label with multiple IP ranges with comma seperated values :issues:`101`. See `documentation <https://raw.githubusercontent.com/F5Networks/f5-ipam-controller/main/docs/config_examples/f5-ip-provider/ipv4-addr-range-default-provider-deployment.yaml>`_
+
+Bug Fixes
+````````````
+* :issues:`115` Reference handled properly in Database table
+
+Known Issues
+`````````````
+* Appending new pool to existing range using the comma operator triggers FIC to reassign the newIP with new IP pool for the corresponding ipamLabel domains/keys
+
 
 2.8.1
 -------------

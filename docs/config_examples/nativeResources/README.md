@@ -291,17 +291,37 @@ spec:
 
 ![partition config](bigip-config3.png?raw=true "BIGIP config")
 
+
+## Legacy vs next generation routes feature comparison
+
+Unsupported features/annotations in next-gen routes are planned to be supported in upcoming releases
+
+| Features | Legacy Routes | Next-gen Routes |
+| ------ | ------ | ------ |
+| Insecure | YES | YES | 
+| Secure | YES | YES | 
+| Health Monitors | YES | YES |
+| WAF | YES | YES |
+| iRules | YES | YES |
+| Multiple VIP | NO | YES |
+| Multiple Partition | NO | YES |
+| SSL Profiles | YES | NO | 
+| Load Balancing Method | YES | NO | 
+| allow-source-range | YES | NO | 
+| URL-rewrite | YES | NO | 
+| App-rewrite | YES | NO |
+| A/B Deployment | YES | NO | 
+
+Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/nativeResources) for more details.
+
+
 ## Known issues
 
-* CIS is allowing the insecure Traffic for all the routes when one route is having insecureEdgeTerminationPolicy policy as allow
-  
-* Route admit status is not being updated.
-
-* Passthrough routes are not processed
-
-* CIS is not processing the changes in other tenants if any one of the tenant receives 422 error
-
-* CIS is not processing the complete route group if service is not found for any route
+* sharedNodes parameters should be enabled for NextGen Routes in NodePort mode
+* Route status is not updated when service is deleted for NextGen Routes
+* CIS processes the latest local extended configMap, when there are multiple extended local configMap.
+* CIS allows insecure traffic if URI path is included with CAPITAL letters for NextGen Routes
+* CIS delays processing the changes in other tenants if any one of the tenant receives 422 error (takes upto 60 seconds)
 
 ## FAQ
  
@@ -319,7 +339,7 @@ CIS only uses configmap provided through --route-spec-configmap argument.
 ### Do i need to modify existing routes for extended configMap support?
 No.
 ### What are the supported routes?
-Currently supports edge routes
+Currently, edge routes are supported
 ### Do we support bigIP referenced SSL Profiles and health monitor on routes?
 Currently, SSL profiles is not supported, will be added in future release through extended ConfigMap.
 ### Can we configure health monitors using annotations?

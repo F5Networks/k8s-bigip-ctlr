@@ -1,0 +1,81 @@
+FROM golang:1.15 as builder
+
+ARG REPOPATH=$GOPATH/src/github.com/F5Networks/k8s-bigip-ctlr
+ARG RUN_TESTS
+ARG COVERALLS_TOKEN
+ARG BUILD_VERSION
+ARG BUILD_INFO
+
+WORKDIR $REPOPATH
+ENV GO111MODULE on
+COPY . .
+
+RUN $REPOPATH/build-tools/rel-build.sh
+
+FROM registry.redhat.io/ubi7/ubi-minimal
+
+LABEL name="f5networks/k8s-bigip-ctlr" \
+      vendor="F5 Networks" \
+      # version - should be passed in via docker build
+      url="https://clouddocs.f5.com/containers/latest/" \
+      summary="F5 BIG-IP Controller for Kubernetes" \
+      description="Manages F5 BIG-IP from Kubernetes" \
+      run='docker run --name ${NAME} ${IMAGE} /app/bin/k8s-bigip-ctlr' \
+      io.k8s.description="Manages F5 BIG-IP from Kubernetes" \
+      io.k8s.display-name="F5 BIG-IP Controller for Kubernetes" \
+      io.openshift.expose-services="" \
+      io.openshift.tags="f5,f5networks,bigip,openshift,router"
+
+ENV APPPATH /app
+
+ARG BUILD_VERSION
+ARG BUILD_INFO
+
+WORKDIR $APPPATH
+
+COPY requirements.txt /tmp/requirements.txt
+
+RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
+ && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json
+
+RUN microdnf update && \
+    microdnf \
+      --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms  \
+      --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms \
+      install --nodocs \
+      rh-python38 git shadow-utils && \
+    microdnf \
+    --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms \
+    --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms \
+    update nss-tools nss-softokn nss-util scl-utils && \
+    . scl_source enable rh-python38 && \
+    pip install --no-cache-dir --upgrade pip==20.0.2 && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    python -m pip uninstall -y pip && \
+    adduser ctlr && \
+    microdnf remove  \
+    fipscheck fipscheck-lib    \
+    libgnome-keyring \
+    libedit openssh openssh-clients \
+    perl-Git  perl-TermReadKey  perl-macros git-core git-core-doc git less \
+    rsync shadow-utils  && \
+    microdnf clean all \
+    && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json \
+    && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
+
+USER ctlr
+COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/
+COPY LICENSE /licenses/
+
+COPY --from=builder /bin/k8s-bigip-ctlr $APPPATH/bin/k8s-bigip-ctlr.real
+
+# Enable CN Certificate validation
+ENV GODEBUG x509ignoreCN=0
+
+# entrypoint to enable scl python at runtime
+RUN echo $'#!/bin/sh\n\
+	  source scl_source enable rh-python38\n\
+	  exec $APPPATH/bin/k8s-bigip-ctlr.real "$@"' > $APPPATH/bin/k8s-bigip-ctlr && \
+    chmod +x $APPPATH/bin/k8s-bigip-ctlr
+
+CMD ["/app/bin/k8s-bigip-ctlr"]

@@ -4,6 +4,6 @@
 
 set -e
 
-npm install jsonschema nodeunit
+npm install jsonschema@1.2.11 nodeunit
 schemas/scripts/run-tests.sh
 rm -rf node_modules/

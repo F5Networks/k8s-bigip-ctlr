@@ -597,12 +597,18 @@ var _ = Describe("Main Tests", func() {
 			}
 
 			flags.SetOutput(MockOut{})
+			defer func() {
+				Expect(called).To(BeTrue())
+			}()
 			defer flags.SetOutput(os.Stderr)
-
+			defer func() {
+				if r := recover(); r != nil {
+					return
+				}
+			}()
 			err := flags.Parse(os.Args)
 			Expect(err).ToNot(BeNil())
-			Expect(called).To(BeTrue())
-			Expect(len(*openshiftSDNName)).To(Equal(0))
+
 		})
 
 		It("sets up watches for all namespaces", func() {

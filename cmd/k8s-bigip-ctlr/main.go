@@ -869,7 +869,7 @@ func getk8sVersion() string {
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			flags.Usage()
+			return
 		}
 	}()
 	err := flags.Parse(os.Args)

@@ -601,7 +601,7 @@ var _ = Describe("Main Tests", func() {
 			defer flags.SetOutput(os.Stderr)
 			defer func() {
 				if r := recover(); r != nil {
-					flags.Usage()
+					return
 				}
 			}()
 			err := flags.Parse(os.Args)

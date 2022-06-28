@@ -902,6 +902,12 @@ func (appMgr *Manager) handleV1IngressTls(
 		for _, rul := range ing.Spec.Rules {
 			if nil != rul.HTTP {
 				host := rul.Host
+				if port, ok := ing.ObjectMeta.Annotations[F5VsHttpPortAnnotation]; ok {
+					p, err := strconv.Atoi(port)
+					if err == nil && p != int(DEFAULT_HTTP_PORT) {
+						host = host + ":" + port
+					}
+				}
 				for _, path := range rul.HTTP.Paths {
 					svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
 						path.Backend.Service.Name, host, path.Path)

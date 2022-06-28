@@ -6,6 +6,7 @@ Next Release
 Bug Fixes
 ````````````
 * :issues:`2336` Fix for confusing EDNS Pool name
+* Fix Invalid Allow with Custom HTTP Port
 
 2.9.0
 -------------

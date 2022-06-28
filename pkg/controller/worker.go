@@ -22,10 +22,11 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"sort"
 	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
@@ -1464,6 +1465,7 @@ func (ctlr *Controller) releaseIP(ipamLabel string, host string, key string) str
 		for _, ipst := range ipamCR.Status.IPStatus {
 			if ipst.IPAMLabel == ipamLabel && ipst.Key == key {
 				ip = ipst.IP
+				break
 			}
 		}
 		if index != -1 {
@@ -2043,27 +2045,31 @@ func (ctlr *Controller) processLBServices(
 	}
 
 	svcKey := svc.Namespace + "/" + svc.Name + "_svc"
+	var ip string
+	var status int
+	if isSVCDeleted {
+		ip = ctlr.releaseIP(ipamLabel, "", svcKey)
+	} else {
+		ip, status = ctlr.requestIP(ipamLabel, "", svcKey)
 
-	ip, status := ctlr.requestIP(ipamLabel, "", svcKey)
-
-	switch status {
-	case NotEnabled:
-		log.Debug("IPAM Custom Resource Not Available")
-		return nil
-	case InvalidInput:
-		log.Debugf("IPAM Invalid IPAM Label: %v for service: %s/%s", ipamLabel, svc.Namespace, svc.Name)
-		return nil
-	case NotRequested:
-		return fmt.Errorf("unable to make IPAM Request, will be re-requested soon")
-	case Requested:
-		log.Debugf("IP address requested for service: %s/%s", svc.Namespace, svc.Name)
-		return nil
+		switch status {
+		case NotEnabled:
+			log.Debug("IPAM Custom Resource Not Available")
+			return nil
+		case InvalidInput:
+			log.Debugf("IPAM Invalid IPAM Label: %v for service: %s/%s", ipamLabel, svc.Namespace, svc.Name)
+			return nil
+		case NotRequested:
+			return fmt.Errorf("unable to make IPAM Request, will be re-requested soon")
+		case Requested:
+			log.Debugf("IP address requested for service: %s/%s", svc.Namespace, svc.Name)
+			return nil
+		}
 	}
 
 	if !isSVCDeleted {
 		ctlr.setLBServiceIngressStatus(svc, ip)
 	} else {
-		ctlr.releaseIP(ipamLabel, "", svcKey)
 		ctlr.unSetLBServiceIngressStatus(svc, ip)
 	}
 

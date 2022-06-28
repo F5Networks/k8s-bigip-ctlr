@@ -70,6 +70,14 @@ var _ = Describe("Worker Tests", func() {
 				IRules:           nil,
 				ServiceIPAddress: nil,
 			})
+		mockCtlr.Partition = "test"
+		mockCtlr.Agent = &Agent{
+			PostManager: &PostManager{
+				PostParams: PostParams{
+					BIGIPURL: "10.10.10.1",
+				},
+			},
+		}
 		mockCtlr.kubeCRClient = crdfake.NewSimpleClientset(vrt1)
 		mockCtlr.kubeClient = k8sfake.NewSimpleClientset(svc1)
 		mockCtlr.mode = CustomResourceMode

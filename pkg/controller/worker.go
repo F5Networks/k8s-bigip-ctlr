@@ -2239,7 +2239,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	log.Debugf("Processing WideIP: %v", edns.Spec.DomainName)
 
 	for _, pl := range edns.Spec.Pools {
-		UniquePoolName := edns.Spec.DomainName + "_" + strings.ReplaceAll(edns.GetCreationTimestamp().Format(time.RFC3339Nano), ":", "-")
+		UniquePoolName := edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + ctlr.Partition
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,

@@ -1327,8 +1327,10 @@ func AS3NameFormatter(name string) string {
 		"/": "_",
 		"%": ".",
 		"-": "_",
+		"[": "",
+		"]": "",
 		"=": "_"}
-	SpecialChars := [6]string{".", ":", "/", "%", "-", "="}
+	SpecialChars := [8]string{".", ":", "/", "%", "-", "[", "]", "="}
 	for _, key := range SpecialChars {
 		name = strings.ReplaceAll(name, key, modifySpecialChars[key])
 	}

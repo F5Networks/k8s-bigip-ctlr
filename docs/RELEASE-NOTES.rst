@@ -1,6 +1,12 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
+Next Release
+-------------
+Bug Fixes
+````````````
+* :issues:`2336` Fix for confusing EDNS Pool name
+
 2.9.0
 -------------
 Added Functionality

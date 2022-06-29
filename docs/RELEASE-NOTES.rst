@@ -9,6 +9,10 @@ Bug Fixes
 * :issues:`2337` Fix for EDNS pool deletion with invalid server config
 * Fix Invalid Allow with Custom HTTP Port
 
+FIC Bug Fixes
+`````````````
+* :issues:`104` Modifying invalid ipamLabel for a typeLB service
+
 2.9.0
 -------------
 Added Functionality

@@ -82,6 +82,7 @@ type AS3ConfigMap struct {
 	Namespace string   // AS3 specific ConfigMap namespace
 	config    as3ADC   // if AS3 Name is present, populate this with AS3 template data.
 	endPoints []Member // Endpoints of all the pools in the configmap
+	Validated bool     // Json Schema validated ok
 }
 
 // AS3Manager holds all the AS3 orchestration specific config
@@ -275,7 +276,6 @@ func (am *AS3Manager) excludePartitionFromFailureTenantList(partition string) {
 func (am *AS3Manager) processTenantDeletion(tempAS3Config AS3Config) (bool, string) {
 	// Delete Tenants from as3ActiveConfig.tenantMap
 	deletedTenants := am.getDeletedTenantsFromTenantMap(tempAS3Config.tenantMap)
-
 	responseStatusList := getResponseStatusList()
 
 	if len(deletedTenants) > 0 {
@@ -306,22 +306,13 @@ func (am *AS3Manager) processFilterTenants(tempAS3Config AS3Config) (bool, strin
 
 	responseStatusList := getResponseStatusList()
 	for partition, tenant := range tempAS3Config.tenantMap {
-		if !reflect.DeepEqual(am.as3ActiveConfig.tenantMap[partition], tenant) {
-
+		if tempAS3Config.tenantIsValid(partition) && !reflect.DeepEqual(am.as3ActiveConfig.tenantMap[partition], tenant) {
 			tenantDecl := am.prepareTenantDeclaration(&tempAS3Config, partition)
-
-			if am.as3Validation == true {
-				if ok := am.validateAS3Template(string(tenantDecl)); !ok {
-					return true, ""
-				}
-			}
-
-			log.Debugf("[AS3] Posting AS3 Declaration")
-
 			//Update as3ActiveConfig
 			am.as3ActiveConfig.tenantMap[partition] = tempAS3Config.tenantMap[partition]
 			am.as3ActiveConfig.updateConfig(tempAS3Config)
 
+			log.Debugf("[AS3] Posting AS3 Declaration")
 			_, responseCode := am.PostManager.postConfigRequests(string(tenantDecl), am.PostManager.getAS3APIURL([]string{partition}))
 			responseStatusList[responseCode] = responseStatusList[responseCode] + 1
 
@@ -385,6 +376,17 @@ func (cfg *AS3Config) updateConfig(newAS3Cfg AS3Config) {
 	cfg.unifiedDeclaration = newAS3Cfg.unifiedDeclaration
 	cfg.configmaps = newAS3Cfg.configmaps
 	cfg.overrideConfigmapData = newAS3Cfg.overrideConfigmapData
+}
+
+func (cfg *AS3Config) tenantIsValid(tenant string) bool {
+	for _, cfg := range cfg.configmaps {
+		for t := range cfg.config {
+			if t == tenant {
+				return cfg.Validated
+			}
+		}
+	}
+	return false
 }
 
 func (am *AS3Manager) getUnifiedDeclaration(cfg *AS3Config) as3Declaration {

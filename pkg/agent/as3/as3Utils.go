@@ -214,7 +214,7 @@ func getTenants(decl as3Declaration, includeEmptyTenant bool) []string {
 func getAS3ObjectFromTemplate(
 	template as3Template,
 ) (as3Object, bool) {
-	var tmpl interface{}
+	var tmpl map[string]interface{}
 	err := json.Unmarshal([]byte(template), &tmpl)
 	if err != nil {
 		log.Errorf("[AS3] JSON unmarshal failed: %v  %v", err, template)
@@ -224,16 +224,16 @@ func getAS3ObjectFromTemplate(
 	as3 := make(as3Object)
 
 	// extract as3 declaration from template
-	dclr := (tmpl.(map[string]interface{}))["declaration"]
-	if dclr == nil {
-		log.Error("[AS3] No ADC class declaration found.")
+	dclr := tmpl["declaration"]
+	if dclr == nil || !assertToBe("map", dclr) {
+		log.Error("[AS3] No ADC class declaration found or with wrong content.")
 		return nil, false
 	}
 
 	// Loop over all the tenants
 	for tn, t := range dclr.(map[string]interface{}) {
 		// Filter out non-json values
-		if _, ok := t.(map[string]interface{}); !ok {
+		if !assertToBe("map", t) {
 			continue
 		}
 
@@ -247,7 +247,7 @@ func getAS3ObjectFromTemplate(
 		// Loop over all the services in a tenant
 		for an, a := range t.(map[string]interface{}) {
 			// Filter out non-json values
-			if _, ok := a.(map[string]interface{}); !ok {
+			if !assertToBe("map", a) {
 				continue
 			}
 
@@ -255,7 +255,7 @@ func getAS3ObjectFromTemplate(
 			// Loop over all the json objects in an application
 			for pn, v := range a.(map[string]interface{}) {
 				// Filter out non-json values
-				if _, ok := v.(map[string]interface{}); !ok {
+				if !assertToBe("map", v) {
 					continue
 				}
 
@@ -270,8 +270,16 @@ func getAS3ObjectFromTemplate(
 					continue
 				}
 
-				srvAddrs := ((mems.([]interface{}))[0].(map[string]interface{}))["serverAddresses"]
-				if len(srvAddrs.([]interface{})) != 0 {
+				if !assertToBe("slice", mems) || len(mems.([]interface{})) == 0 {
+					continue
+				}
+
+				if !assertToBe("map", (mems.([]interface{}))[0]) {
+					continue
+				}
+				mem0 := (mems.([]interface{}))[0].(map[string]interface{})
+				srvAddrs := mem0["serverAddresses"]
+				if srvAddrs == nil || len(srvAddrs.([]interface{})) != 0 {
 					continue
 				}
 
@@ -310,6 +318,13 @@ func getClass(obj interface{}) string {
 		return ""
 	}
 	return cl.(string)
+}
+
+func assertToBe(kind string, obj interface{}) bool {
+	if obj == nil {
+		return false
+	}
+	return (reflect.TypeOf(obj).Kind().String() == kind)
 }
 
 // Build Control class with userAgent info

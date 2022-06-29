@@ -48,14 +48,15 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			cfgmap := &AS3ConfigMap{
 				Name:      rscCfgMap.Name,
 				Namespace: rscCfgMap.Namespace,
+				Validated: true,
 			}
 
-			if am.as3Validation == true {
+			if am.as3Validation {
 				if ok := am.validateAS3Template(rscCfgMap.Data); !ok {
 					log.Errorf("[AS3][Configmap] Error validating AS3 template")
 					log.Errorf("[AS3][Configmap] Error in processing the resource ConfigMap: %v in Namespace: %v",
 						rscCfgMap.Name, rscCfgMap.Namespace)
-					continue
+					cfgmap.Validated = false
 				}
 			}
 
@@ -63,6 +64,7 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 			if tenantMap == nil {
 				continue
 			}
+
 			cfgmap.config = tenantMap
 			cfgmap.endPoints = endPoints
 			as3Cfgmaps = append(as3Cfgmaps, cfgmap)

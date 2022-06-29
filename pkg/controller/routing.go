@@ -685,8 +685,8 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string) string {
 				# Set routepath as combination of servername and url path
 				append routepath $servername_lower $sslpath
      			append wc_routepath $wc_host $sslpath
-				set routepath [string tolower $routepath]
-				set wc_routepath [string tolower $wc_routepath]
+				# set routepath [string tolower $routepath]
+				# set wc_routepath [string tolower $wc_routepath]
 				set sslpath $routepath
 				# Find the number of "/" in the routepath
 				set rc 0

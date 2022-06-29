@@ -14,6 +14,7 @@ Bug Fixes
 * Helm Chart Enhancements:
     * Fix securityContext Block
     * Updated links in helm values.yaml documentation
+* Fix Allow invalid path with capital letters for VS
 
 FIC Bug Fixes
 `````````````

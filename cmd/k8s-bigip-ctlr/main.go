@@ -141,12 +141,12 @@ var (
 )
 
 func _init() {
-	flags = pflag.NewFlagSet("main", pflag.ContinueOnError)
-	globalFlags = pflag.NewFlagSet("Global", pflag.ContinueOnError)
-	bigIPFlags = pflag.NewFlagSet("BigIP", pflag.ContinueOnError)
-	kubeFlags = pflag.NewFlagSet("Kubernetes", pflag.ContinueOnError)
-	vxlanFlags = pflag.NewFlagSet("VXLAN", pflag.ContinueOnError)
-	osRouteFlags = pflag.NewFlagSet("OpenShift Routes", pflag.ContinueOnError)
+	flags = pflag.NewFlagSet("main", pflag.PanicOnError)
+	globalFlags = pflag.NewFlagSet("Global", pflag.PanicOnError)
+	bigIPFlags = pflag.NewFlagSet("BigIP", pflag.PanicOnError)
+	kubeFlags = pflag.NewFlagSet("Kubernetes", pflag.PanicOnError)
+	vxlanFlags = pflag.NewFlagSet("VXLAN", pflag.PanicOnError)
+	osRouteFlags = pflag.NewFlagSet("OpenShift Routes", pflag.PanicOnError)
 
 	// Flag wrapping
 	var err error
@@ -615,6 +615,11 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 }
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			return
+		}
+	}()
 	err := flags.Parse(os.Args)
 	if nil != err {
 		os.Exit(1)

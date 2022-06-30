@@ -2547,6 +2547,7 @@ func (ctlr *Controller) processIngressLink(
 				svc.ObjectMeta.Name,
 				svcPort,
 				"",
+				"",
 			),
 			Partition:   rsCfg.Virtual.Partition,
 			ServiceName: svc.ObjectMeta.Name,

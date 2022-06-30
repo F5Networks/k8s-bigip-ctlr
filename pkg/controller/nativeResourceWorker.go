@@ -457,6 +457,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			route.Spec.To.Name,
 			servicePort,
 			"",
+			"",
 		),
 		Partition:       rsCfg.Virtual.Partition,
 		ServiceName:     route.Spec.To.Name,

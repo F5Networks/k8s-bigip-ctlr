@@ -79,6 +79,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 			vs.ObjectMeta.Namespace,
 			pl,
 			intstr.IntOrString{IntVal: pl.ServicePort},
+			vs.Spec.Host,
 		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
 		var err error

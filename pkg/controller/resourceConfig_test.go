@@ -101,11 +101,11 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("My_VS_80"), "Invalid VirtualServer Name")
 		})
 		It("Pool Name", func() {
-			name := formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test")
-			Expect(name).To(Equal("svc1_80_default_app_test"), "Invalid Pool Name")
+			name := formatPoolName(namespace, "svc1", intstr.IntOrString{IntVal: 80}, "app=test", "foo")
+			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {
-			name := formatMonitorName(namespace, "svc1", "http", 80)
+			name := formatMonitorName(namespace, "svc1", "http", 80, "")
 			Expect(name).To(Equal("svc1_default_http_80"), "Invalid Monitor Name")
 		})
 		It("Rule Name", func() {

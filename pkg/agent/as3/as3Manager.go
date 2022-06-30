@@ -289,8 +289,15 @@ func (am *AS3Manager) processTenantDeletion(tempAS3Config AS3Config) (bool, stri
 			responseStatusList[responseCode] = responseStatusList[responseCode] + 1
 
 			am.processResponseCode(responseCode, partition, am.getEmptyAs3Declaration(partition))
+
 		}
-		return processResponseCodeList(responseStatusList)
+
+		resBool, resCode := processResponseCodeList(responseStatusList)
+		//Update as3ActiveConfig
+		if resCode == responseStatusOk {
+			am.as3ActiveConfig.updateConfig(tempAS3Config)
+		}
+		return resBool, resCode
 	}
 	return true, responseStatusDummy
 }
@@ -550,6 +557,7 @@ func (am *AS3Manager) ConfigDeployer() {
 		}
 		posted, event := am.postAS3Declaration(msgReq.ResourceRequest)
 		am.updateNetworkingConfig()
+
 		// To handle general errors
 		for !posted {
 			am.unprocessableEntityStatus = true

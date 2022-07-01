@@ -48,19 +48,19 @@ spec:
         {{- if $securityContext.runAsUser }}
         runAsUser: {{ $securityContext.runAsUser }}
         {{- else }}
-          runAsUser: 1000
+        runAsUser: 1000
         {{- end }}
         {{- $securityContext := .Values.securityContext | default dict }}
         {{- if $securityContext.runAsGroup }}
         runAsGroup: {{ $securityContext.runAsGroup }}
         {{- else }}
-          runAsGroup: 1000
+        runAsGroup: 1000
         {{- end }}
         {{- $securityContext := .Values.securityContext | default dict }}
         {{- if $securityContext.fsGroup }}
         fsGroup: {{ $securityContext.fsGroup }}
         {{- else }}
-          fsGroup: 1000
+        fsGroup: 1000
         {{- end }}
       containers:
       - name: {{ template "f5-bigip-ctlr.name" . }}

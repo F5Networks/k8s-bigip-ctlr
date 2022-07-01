@@ -19,6 +19,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -68,6 +69,25 @@ type bigIPSection struct {
 	BigIPPartitions []string `json:"partitions,omitempty"`
 }
 
+// OCP4 Version for TEEM
+type (
+	Ocp4Version struct {
+		Status ClusterVersionStatus `json:"status"`
+	}
+	ClusterVersionStatus struct {
+		History []UpdateHistory `json:"history,omitempty"`
+	}
+	UpdateHistory struct {
+		Version string `json:"version"`
+	}
+)
+
+const (
+	versionPathOpenshiftv3 = "/version/openshift"
+	versionPathOpenshiftv4 = "/apis/config.openshift.io/v1/clusterversions/version"
+	versionPathk8s         = "/version"
+)
+
 var (
 	// To be set by build
 	version   string
@@ -87,6 +107,7 @@ var (
 	nodePollInterval *int
 	printVersion     *bool
 	httpAddress      *string
+	disableTeems     *bool
 
 	namespaces             *[]string
 	useNodeInternal        *bool
@@ -138,6 +159,7 @@ var (
 	isNodePort         bool
 	watchAllNamespaces bool
 	vxlanName          string
+	kubeClient         kubernetes.Interface
 )
 
 func _init() {
@@ -172,6 +194,8 @@ func _init() {
 		"Optional, print version and exit.")
 	httpAddress = globalFlags.String("http-listen-address", "0.0.0.0:8080",
 		"Optional, address to serve http based informations (/metrics and /health).")
+	disableTeems = globalFlags.Bool("disable-teems", false,
+		"Optional, flag to disable sending telemetry data to TEEM")
 
 	globalFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Global:\n%s\n", globalFlags.FlagUsagesWrapped(width))
@@ -764,10 +788,13 @@ func main() {
 		log.Fatalf("error creating configuration: %v", err)
 	}
 	// creates the clientset
-	appMgrParms.KubeClient, err = kubernetes.NewForConfig(config)
+	kubeClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Fatalf("error connecting to the client: %v", err)
+		log.Fatalf("[INIT] error connecting to the client: %v", err)
+		os.Exit(1)
 	}
+	appMgrParms.KubeClient = kubeClient
+
 	if *manageRoutes {
 		var rclient *routeclient.RouteV1Client
 		rclient, err = routeclient.NewForConfig(config)
@@ -791,6 +818,58 @@ func main() {
 		RouteClientV1: appMgrParms.RouteClientV1,
 	}
 	appMgr.PostManager = postmanager.NewPostManager(postMgrParams)
+
+	// Adding the teems data
+	key, err := appMgr.PostManager.GetBigipRegKey()
+	if err != nil {
+		log.Debugf("Unable to get BigIP registration key %v", err)
+	}
+	td := &teem.TeemsData{
+		CisVersion:      version,
+		Agent:           *agent,
+		PoolMemberType:  *poolMemberType,
+		PlatformInfo:    getUserAgentInfo(),
+		DateOfCISDeploy: time.Now().UTC().Format(time.RFC3339Nano),
+		AccessEnabled:   true,
+		ResourceType: teem.ResourceTypes{
+			Ingresses:       make(map[string]int),
+			Routes:          make(map[string]int),
+			Configmaps:      make(map[string]int),
+			VirtualServer:   make(map[string]int),
+			TransportServer: make(map[string]int),
+			ExternalDNS:     make(map[string]int),
+			IngressLink:     make(map[string]int),
+			IPAMVS:          make(map[string]int),
+			IPAMTS:          make(map[string]int),
+			IPAMSvcLB:       make(map[string]int),
+			NativeRoutes:    make(map[string]int),
+			RouteGroups:     make(map[string]int),
+		},
+	}
+	if !(*disableTeems) {
+		if isNodePort {
+			td.SDNType = "nodeport-mode"
+		} else {
+			if len(*openshiftSDNName) > 0 {
+				td.SDNType = "openshiftSDN"
+			} else if len(*flannelName) > 0 {
+				td.SDNType = "flannel"
+			} else {
+				td.SDNType = "calico"
+			}
+		}
+
+		// Post telemetry data request
+		//if !td.PostTeemsData() {
+		//	td.AccessEnabled = false
+		//	log.Error("Unable to post data to TEEM server. Restart CIS once firewall rules permit")
+		//}
+	} else {
+		td.AccessEnabled = false
+		log.Debug("Telemetry data reporting to TEEM server is disabled")
+	}
+	td.RegistrationKey = key
+	appMgr.TeemData = td
 
 	// AS3 schema validation using latest AS3 version
 	fetchAS3Schema(appMgr)
@@ -878,4 +957,34 @@ func fallbackToLocalAS3Schema(appMgr *appmanager.Manager) {
 	log.Debugf("Unable to fetch the latest AS3 schema : validating AS3 schema with %v", as3SchemaFileName)
 	appMgr.As3SchemaLatest = appMgr.SchemaLocalPath + as3SchemaFileName
 	return
+}
+
+// Get platform info for TEEM
+func getUserAgentInfo() string {
+	var versionInfo map[string]string
+	var err error
+	var vInfo []byte
+	rc := kubeClient.Discovery().RESTClient()
+	// support for ocp < 3.11
+	if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv3).DoRaw(); err == nil {
+		if err = json.Unmarshal(vInfo, &versionInfo); err == nil {
+			return fmt.Sprintf("CIS/v%v OCP/%v", version, versionInfo["gitVersion"])
+		}
+	} else if vInfo, err = rc.Get().AbsPath(versionPathOpenshiftv4).DoRaw(); err == nil {
+		// support ocp > 4.0
+		var ocp4 Ocp4Version
+		if er := json.Unmarshal(vInfo, &ocp4); er == nil {
+			if len(ocp4.Status.History) > 0 {
+				return fmt.Sprintf("CIS/v%v OCP/v%v", version, ocp4.Status.History[0].Version)
+			}
+			return fmt.Sprintf("CIS/v%v OCP/v4.0.0", version)
+		}
+	} else if vInfo, err = rc.Get().AbsPath(versionPathk8s).DoRaw(); err == nil {
+		// support k8s
+		if er := json.Unmarshal(vInfo, &versionInfo); er == nil {
+			return fmt.Sprintf("CIS/v%v K8S/%v", version, versionInfo["gitVersion"])
+		}
+	}
+	log.Warningf("Unable to fetch user agent details. %v", err)
+	return fmt.Sprintf("CIS/v%v", version)
 }

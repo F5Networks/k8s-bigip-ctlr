@@ -4,6 +4,11 @@ Release Notes for BIG-IP Controller for Kubernetes
 1.14.1
 ------------
 
+Added Functionality
+`````````````````````
+* Added CIS deployment configuration option:
+    * ``--disable-teems`` - Configure to send anonymous analytics data to F5.
+
 Vulnerability Fixes
 ```````````````````
 Release image is upgrade to UBI-7 and  following vulnerabilities are fixed:

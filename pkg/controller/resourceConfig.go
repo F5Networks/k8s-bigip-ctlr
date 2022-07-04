@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"net"
 	"reflect"
 	"sort"
@@ -55,6 +56,7 @@ func (rs *ResourceStore) Init() {
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
 	rs.svcResourceCache = make(map[string]map[string]struct{})
+	rs.ipamContext = make(map[string]ficV1.IPSpec)
 	rs.processedNativeResources = make(map[resourceRef]struct{})
 }
 

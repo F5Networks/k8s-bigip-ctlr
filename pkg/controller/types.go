@@ -18,6 +18,7 @@ package controller
 
 import (
 	"container/list"
+	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"net/http"
 	"sync"
 
@@ -359,10 +360,12 @@ type (
 	Monitors []Monitor
 
 	supplementContextCache struct {
-		poolMemCache             PoolMemberCache
-		sslContext               map[string]*v1.Secret
-		extdSpecMap              extendedSpecMap
-		svcResourceCache         map[string]map[string]struct{}
+		poolMemCache     PoolMemberCache
+		sslContext       map[string]*v1.Secret
+		extdSpecMap      extendedSpecMap
+		svcResourceCache map[string]map[string]struct{}
+		// key of the map is IPSpec.Key
+		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
 	}
 

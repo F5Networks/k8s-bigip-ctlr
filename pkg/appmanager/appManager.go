@@ -3445,15 +3445,32 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 	for _, service := range svcItems {
 		if appMgr.isNodePort == false && appMgr.poolMemberType != NodePortLocal { // Controller is in ClusterIP Mode
 			svcKey := service.Namespace + "/" + service.Name
+
 			item, found, _ := appInf.endptInformer.GetStore().GetByKey(svcKey)
-
+			var eps *v1.Endpoints
 			if !found {
-				msg := "Endpoints for service " + svcKey + " not found!"
-				log.Debug(msg)
-				continue
+				if !appMgr.hubMode {
+					msg := "Endpoints for service " + svcKey + " not found!"
+					log.Debug(msg)
+					continue
+				}
+				endpointsList, err := appMgr.kubeClient.CoreV1().Endpoints(service.Namespace).List(context.TODO(),
+					metav1.ListOptions{
+						FieldSelector: "metadata.name=" + service.Name,
+					},
+				)
+				if err != nil {
+					log.Debugf("[CORE] Error getting endpoints for service %v", service.Name)
+					continue
+				}
+				if len(endpointsList.Items) == 0 {
+					log.Debugf("[CORE] Endpoints for service %v not found", service.Name)
+					continue
+				}
+				eps = &endpointsList.Items[0]
+			} else {
+				eps, _ = item.(*v1.Endpoints)
 			}
-
-			eps, _ := item.(*v1.Endpoints)
 			for _, subset := range eps.Subsets {
 				for _, port := range subset.Ports {
 					for _, addr := range subset.Addresses {

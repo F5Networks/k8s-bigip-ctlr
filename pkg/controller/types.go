@@ -18,9 +18,10 @@ package controller
 
 import (
 	"container/list"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"net/http"
 	"sync"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -928,7 +929,7 @@ type (
 	ExtendedRouteGroupSpec struct {
 		VServerName    string   `yaml:"vserverName"`
 		VServerAddr    string   `yaml:"vserverAddr"`
-		AllowOverride  bool     `yaml:"allowOverride"`
+		AllowOverride  string   `yaml:"allowOverride"`
 		SNAT           string   `yaml:"snat"`
 		WAF            string   `yaml:"waf"`
 		IRules         []string `yaml:"iRules,omitempty"`

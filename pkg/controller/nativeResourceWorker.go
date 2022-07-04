@@ -3,11 +3,13 @@ package controller
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -595,7 +597,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	//log.Debugf("GCM: %v", cm.Data)
 	err := yaml.UnmarshalStrict([]byte(ersData["extendedSpec"]), &es)
 	if err != nil {
-		return fmt.Errorf("invalid extended route spec in configmap: %v/%v", cm.Namespace, cm.Name), false
+		return fmt.Errorf("invalid extended route spec in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
 	}
 
 	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
@@ -607,8 +609,12 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			// if this were used as an iteration variable, on every loop we just use the same container instead of creating one
 			// using the same container overrides the previous iteration contents, which is not desired
 			ergc := es.ExtendedRouteGroupConfigs[rg]
+			var allowOverride bool
+			if allowOverride, err = strconv.ParseBool(ergc.AllowOverride); err != nil {
+				return fmt.Errorf("invalid allowOverride value in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false
+			}
 			newExtdSpecMap[ergc.Namespace] = &extendedParsedSpec{
-				override: ergc.AllowOverride,
+				override: allowOverride,
 				local:    nil,
 				global:   &ergc.ExtendedRouteGroupSpec,
 			}

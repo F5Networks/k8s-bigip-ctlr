@@ -8,6 +8,7 @@ Bug Fixes
 * :issues:`2336` Fix for confusing EDNS Pool name
 * :issues:`2337` Fix for EDNS pool deletion with invalid server config
 * Fix Invalid Allow with Custom HTTP Port
+* :issues:`2484` Fix scalability issue with IPAM processing
 
 FIC Bug Fixes
 `````````````

@@ -20,13 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/tools/cache"
 	"net"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/tools/cache"
 
 	routeapi "github.com/openshift/api/route/v1"
 

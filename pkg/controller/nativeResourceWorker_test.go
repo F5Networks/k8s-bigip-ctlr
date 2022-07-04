@@ -2,10 +2,11 @@ package controller
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
@@ -73,7 +74,7 @@ var _ = Describe("Routes", func() {
 				global: &ExtendedRouteGroupSpec{
 					VServerName:    "samplevs",
 					VServerAddr:    "10.10.10.10",
-					AllowOverride:  false,
+					AllowOverride:  "false",
 					SNAT:           "auto",
 					WAF:            "/Common/WAFPolicy",
 					IRules:         []string{"/Common/iRule1"},
@@ -92,7 +93,7 @@ var _ = Describe("Routes", func() {
 				global: &ExtendedRouteGroupSpec{
 					VServerName:   "samplevs",
 					VServerAddr:   "10.10.10.10",
-					AllowOverride: false,
+					AllowOverride: "False",
 					SNAT:          "auto",
 					WAF:           "/Common/WAFPolicy",
 					IRules:        []string{"/Common/iRule1"},
@@ -379,6 +380,20 @@ extendedRouteSpec:
     - namespace: default
       vserverAddr: 10.8.3.11
       vserverName: nextgenroutes
+      allowOverride: invalid
+    - namespace: new
+      vserverAddr: 10.8.3.12
+      allowOverride: true
+`
+			err, ok = mockCtlr.processConfigMap(cm, false)
+			Expect(err).ToNot(BeNil(), "invalid allowOverride value")
+			Expect(ok).To(BeFalse())
+
+			data["extendedSpec"] = `
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
       allowOverride: true
     - namespace: new
       vserverAddr: 10.8.3.12
@@ -567,7 +582,7 @@ extendedRouteSpec:
 					VServerName:   "defaultServer",
 					VServerAddr:   "10.8.3.11",
 					WAF:           "/Common/defaultWAF",
-					AllowOverride: false,
+					AllowOverride: "0",
 				},
 			}
 			newExtdSpecMap["new"] = &extendedParsedSpec{
@@ -577,7 +592,7 @@ extendedRouteSpec:
 					VServerName:   "newServer",
 					VServerAddr:   "10.8.3.12",
 					WAF:           "/Common/newWAF",
-					AllowOverride: false,
+					AllowOverride: "f",
 				},
 			}
 			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs := getOperationalExtendedConfigMapSpecs(
@@ -595,7 +610,7 @@ extendedRouteSpec:
 					VServerName:   "defaultServer",
 					VServerAddr:   "10.8.3.11",
 					WAF:           "/Common/defaultWAF",
-					AllowOverride: false,
+					AllowOverride: "false",
 				},
 			}
 			cachedExtdSpecMap["new"] = &extendedParsedSpec{
@@ -605,7 +620,7 @@ extendedRouteSpec:
 					VServerName:   "newServer",
 					VServerAddr:   "10.8.3.12",
 					WAF:           "/Common/newWAF",
-					AllowOverride: false,
+					AllowOverride: "FALSE",
 				},
 			}
 
@@ -647,7 +662,7 @@ extendedRouteSpec:
 					VServerName:   "defaultServer",
 					VServerAddr:   "10.8.3.11",
 					WAF:           "/Common/defaultWAF",
-					AllowOverride: false,
+					AllowOverride: "false",
 				},
 			}
 			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigMapSpecs(

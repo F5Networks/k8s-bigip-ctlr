@@ -1137,7 +1137,11 @@ func processCustomProfilesForAS3(rsMap ResourceMap, sharedApp as3Application) {
 	var tlsClient *as3TLSClient
 	// TLS Certificates are available in CustomProfiles
 	for _, rsCfg := range rsMap {
-		for key, prof := range rsCfg.customProfiles {
+		// Sort customProfiles so that they are processed in orderly manner
+		keys := getSortedCustomProfileKeys(rsCfg.customProfiles)
+
+		for _, key := range keys {
+			prof := rsCfg.customProfiles[key]
 			// Create TLSServer and Certificate for each profile
 			svcName := key.ResourceName
 			if svcName == "" {
@@ -1446,4 +1450,18 @@ func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 
 	//Process iRules for crd
 	processIrulesForCRD(cfg, svc)
+}
+
+// getSortedCustomProfileKeys sorts customProfiles by names and returns secretKeys in that order
+func getSortedCustomProfileKeys(customProfiles map[SecretKey]CustomProfile) []SecretKey {
+	keys := make([]SecretKey, len(customProfiles))
+	i := 0
+	for key := range customProfiles {
+		keys[i] = key
+		i++
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return customProfiles[keys[i]].Name < customProfiles[keys[j]].Name
+	})
+	return keys
 }

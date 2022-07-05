@@ -10,6 +10,7 @@ Bug Fixes
 * Fix Invalid Allow with Custom HTTP Port
 * :issues:`2484` Fix scalability issue with IPAM processing
 * :issues:`2464` Fix pool members empty issue with HubMode
+* Fixed certificate sorting issue in AS3 declaration
 
 FIC Bug Fixes
 `````````````

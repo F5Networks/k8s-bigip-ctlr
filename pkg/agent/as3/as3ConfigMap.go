@@ -56,7 +56,13 @@ func (am *AS3Manager) prepareResourceAS3ConfigMaps() (
 					log.Errorf("[AS3][Configmap] Error validating AS3 template")
 					log.Errorf("[AS3][Configmap] Error in processing the resource ConfigMap: %v in Namespace: %v",
 						rscCfgMap.Name, rscCfgMap.Namespace)
-					cfgmap.Validated = false
+					// Adding this condition as cfgmap.Validated flag is only used in filter-tenant case
+					if am.FilterTenants {
+						cfgmap.Validated = false
+					} else {
+						continue
+					}
+
 				}
 			}
 

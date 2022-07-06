@@ -11,6 +11,9 @@ Bug Fixes
 * :issues:`2484` Fix scalability issue with IPAM processing
 * :issues:`2464` Fix pool members empty issue with HubMode
 * Fixed certificate sorting issue in AS3 declaration
+* Helm Chart Enhancements:
+    * Fix securityContext Block
+    * Updated links in helm values.yaml documentation
 
 FIC Bug Fixes
 `````````````

@@ -1,10 +1,10 @@
 # For additional information on installing the k8-bigip-ctlr please see:
-# Kubernetes: http://clouddocs.f5.com/containers/latest/kubernetes/kctlr-app-install.html
-# OpenShift: http://clouddocs.f5.com/containers/latest/openshift/kctlr-openshift-app-install.html#install-kctlr-openshift
+# Kubernetes: https://clouddocs.f5.com/containers/latest/userguide/kubernetes/#cis-installation
+# OpenShift: https://clouddocs.f5.com/containers/latest/userguide/openshift/#cis-installation
 #
 # access / permissions / RBAC
 # To create a secret using kubectl see
-# http://clouddocs.f5.com/containers/latest/kubernetes/kctlr-secrets.html#secret-bigip-login
+# https://clouddocs.f5.com/containers/latest/userguide/kubernetes/#installing-cis-manually
 bigip_login_secret: f5-bigip-ctlr-login
 rbac:
   create: true
@@ -21,7 +21,7 @@ ingressClass:
   isDefaultIngressController: true
 namespace: kube-system
 args:
-  # See http://clouddocs.f5.com/products/connectors/k8s-bigip-ctlr/latest/#controller-configuration-parameters
+  # See https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html
   # NOTE: helm has difficulty with values using `-`; `_` are used for naming
   # and are replaced with `-` during rendering.
   # REQUIRED Params

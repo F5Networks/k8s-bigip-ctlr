@@ -26,6 +26,8 @@ import (
 
 // Dump out the Virtual Server configs to a file
 func (appMgr *Manager) outputConfig() {
+	// Posting Teems data
+	go appMgr.TeemData.PostTeemsData()
 	appMgr.resources.Lock()
 
 	switch appMgr.Agent {

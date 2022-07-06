@@ -19,6 +19,7 @@ package appmanager
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 	"net"
 	"reflect"
 	"sort"
@@ -137,6 +138,7 @@ type Manager struct {
 	manageIngress          bool
 	manageIngressClassOnly bool
 	ingressClass           string
+	TeemData               *teem.TeemsData
 	// Orchestration agent: AS3 or CCCL
 	Agent string
 	// Ingress SSL security Context
@@ -1126,7 +1128,9 @@ func (appMgr *Manager) syncConfigMaps(
 			sKey.Namespace, err)
 		return err
 	}
-
+	appMgr.TeemData.Lock()
+	appMgr.TeemData.ResourceType.Configmaps[sKey.Namespace] = len(cfgMapsByIndex)
+	appMgr.TeemData.Unlock()
 	for _, obj := range cfgMapsByIndex {
 		// We need to look at all config maps in the store, parse the data blob,
 		// and see if it belongs to the service that has changed.
@@ -1240,6 +1244,9 @@ func (appMgr *Manager) syncIngresses(
 			sKey.Namespace, err)
 		return err
 	}
+	appMgr.TeemData.Lock()
+	appMgr.TeemData.ResourceType.Ingresses[sKey.Namespace] = len(ingByIndex)
+	appMgr.TeemData.Unlock()
 	svcFwdRulesMap := NewServiceFwdRuleMap()
 	for _, obj := range ingByIndex {
 		// We need to look at all ingresses in the store, parse the data blob,
@@ -1447,7 +1454,9 @@ func (appMgr *Manager) syncRoutes(
 			sKey.Namespace, err)
 		return err
 	}
-
+	appMgr.TeemData.Lock()
+	appMgr.TeemData.ResourceType.Routes[sKey.Namespace] = len(routeByIndex)
+	appMgr.TeemData.Unlock()
 	// Rebuild all internal data groups for routes as we process each
 	svcFwdRulesMap := NewServiceFwdRuleMap()
 

@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -272,4 +273,67 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
 	return postMgr.postOnEventOrTimeout(timeoutMedium, cfg)
+}
+
+func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[string]interface{}) {
+	httpResp, err := postMgr.httpClient.Do(request)
+	if err != nil {
+		log.Errorf("[AS3] REST call error: %v ", err)
+		return nil, nil
+	}
+	defer httpResp.Body.Close()
+
+	body, err := ioutil.ReadAll(httpResp.Body)
+	if err != nil {
+		log.Errorf("[AS3] REST call response error: %v ", err)
+		return nil, nil
+	}
+	var response map[string]interface{}
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		log.Errorf("[AS3] Response body unmarshal failed: %v\n", err)
+		if postMgr.LogResponse {
+			log.Errorf("[AS3] Raw response from Big-IP: %v", string(body))
+		}
+		return nil, nil
+	}
+	return httpResp, response
+}
+
+// GetBigipRegKey ...
+func (postMgr *PostManager) GetBigipRegKey() (string, error) {
+	url := postMgr.getBigipRegKeyURL()
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Errorf("Creating new HTTP request error: %v ", err)
+		return "", err
+	}
+
+	log.Debugf("Posting GET BIGIP Reg Key request on %v", url)
+	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+
+	httpResp, responseMap := postMgr.httpReq(req)
+	if httpResp == nil || responseMap == nil {
+		return "", fmt.Errorf("Internal Error")
+	}
+
+	switch httpResp.StatusCode {
+	case http.StatusOK:
+		if responseMap["registrationKey"] != nil {
+			registrationKey := responseMap["registrationKey"].(string)
+			return registrationKey, nil
+		}
+	case http.StatusNotFound:
+		if int(responseMap["code"].(float64)) == http.StatusNotFound {
+			return "", fmt.Errorf("AS3 RPM is not installed on BIGIP,"+
+				" Error response from BIGIP with status code %v", httpResp.StatusCode)
+		}
+	}
+	return "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+}
+
+func (postMgr *PostManager) getBigipRegKeyURL() string {
+	apiURL := postMgr.BIGIPURL + "/mgmt/tm/shared/licensing/registration"
+	return apiURL
+
 }

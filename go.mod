@@ -4,7 +4,9 @@ go 1.16
 
 require (
 	github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a // indirect
+	github.com/f5devcentral/go-bigip/f5teem v0.0.0-20210918163638-28fdd0579913
 	github.com/golang/groupcache v0.0.0-20170421005642-b710c8433bd1 // indirect
+	github.com/google/uuid v1.3.0
 	github.com/googleapis/gnostic v0.0.0-20190828010002-635450e9295f // indirect
 	github.com/matttproud/golang_protobuf_extensions v0.0.0-20160424113007-c12348ce28de // indirect
 	github.com/miekg/dns v1.1.42
@@ -28,5 +30,3 @@ require (
 	k8s.io/client-go v0.0.0-20191016111102-bec269661e48
 	k8s.io/utils v0.0.0-20190907131718-3d4f5b7dea0b // indirect
 )
-
-

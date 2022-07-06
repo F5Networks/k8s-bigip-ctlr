@@ -27,27 +27,16 @@ all: local-build
 
 test: local-go-test
 
-prod: prod-build
+prod: fmt prod-build
 
 verify: fmt vet
 
 docs: _docs
 
-
-godep-restore: check-gopath
-	godep restore
-	rm -rf vendor Godeps
-
-godep-save: check-gopath
-	godep save ./...
-
 clean:
 	rm -rf _docker_workspace
 	rm -rf _build
-	rm -rf docs/_build
-	rm -f *_attributions.json
-	rm -f *_attributions.csv
-	rm -f docs/_static/ATTRIBUTIONS.md
+	docker volume rm -f workspace_vol
 	@echo "Did not clean local go workspace"
 
 info:
@@ -84,24 +73,28 @@ pre-build:
 	git describe --all --long --always
 
 prod-build: pre-build
-	@echo "Building with minimal instrumentation..."
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
-	RUN_TESTS=1 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
+	@echo "Building with running tests..."
+
+	docker build --build-arg RUN_TESTS=1 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
 
 prod-quick: prod-build-quick
 
 prod-build-quick: pre-build
-	@echo "Building with running tests..."
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
-	RUN_TESTS=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
+	@echo "Quick build without running tests..."
+	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr:latest -f build-tools/Dockerfile.$(BASE_OS) .
+
+dev-license: pre-build
+	@echo "Running with tests and licenses generated will be in all_attributions.txt..."
+	docker build -t cis-attributions:latest -f build-tools/Dockerfile.attribution .
+	$(eval id := $(shell docker create cis-attributions:latest))
+	docker cp $(id):/opt/all_attributions.txt ./
+	docker rm -v $(id)
+	docker rmi -f cis-attributions:latest
 
 debug: pre-build
 	@echo "Building with debug support..."
-	BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-devel-image.sh
-	DEBUG=0 RUN_TESTS=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-artifacts.sh
-	DEBUG=0 BASE_OS=$(BASE_OS) $(CURDIR)/build-tools/build-release-images.sh
+	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr-dbg:latest -f build-tools/Dockerfile.debug .
+
 
 fmt:
 	@echo "Enforcing code formatting using 'go fmt'..."
@@ -112,7 +105,7 @@ vet:
 	$(CURDIR)/build-tools/vet.sh
 
 devel-image:
-	BASE_OS=$(BASE_OS) ./build-tools/build-devel-image.sh
+	docker build --build-arg RUN_TESTS=0 --build-arg BUILD_VERSION=$(BUILD_VERSION) --build-arg BUILD_INFO=$(BUILD_INFO) -t k8s-bigip-ctlr-devel:latest -f build-tools/Dockerfile.(BASE_OS) .
 
 # Enable certain funtionalities only on a developer build
 dev-patch:
@@ -125,45 +118,38 @@ reset-dev-patch:
 # Build devloper image
 dev: dev-patch prod-quick reset-dev-patch
 
-#
 # Docs
-#
 doc-preview:
 	rm -rf docs/_build
 	DOCKER_RUN_ARGS="-p 127.0.0.1:8000:8000" \
 	  ./build-tools/docker-docs.sh make -C docs preview
 
-_docs: docs/_static/ATTRIBUTIONS.md always-build
+_docs: always-build
 	./build-tools/docker-docs.sh ./build-tools/make-docs.sh
 
 docker-test:
 	rm -rf docs/_build
 	./build-tools/docker-docs.sh ./build-tools/make-docs.sh
 
-# one-time html build using a docker container
-.PHONY: docker-html
-docker-html:
-	rm -rf docs/_build
-	./build-tools/docker-docs.sh make -C docs/ html
+docker-tag:
+ifdef tag
+	docker tag k8s-bigip-ctlr:latest $(tag)
+	docker push $(tag)
+else
+	@echo "Define a tag to push. Eg: make docker-tag tag=username/k8s-bigip-ctlr:dev"
+endif
 
-#
-# Attributions Generation
-#
-golang_attributions.json: Godeps/Godeps.json
-	./build-tools/attributions-generator.sh \
-		/usr/local/bin/golang-backend.py --project-path=$(CURDIR)
+docker-devel-tag:
+	docker push k8s-bigip-ctlr-devel:latest
 
-flatfile_attributions.json: .f5license
-	./build-tools/attributions-generator.sh \
-		/usr/local/bin/flatfile-backend.py --project-path=$(CURDIR)
+docker-dbg-tag:
+ifdef tag
+	docker tag k8s-bigip-ctlr-dbg:latest $(tag)
+	docker push $(tag)
+else
+	@echo "Define a tag to push. Eg: make docker-tag tag=username/k8s-bigip-ctlr:dev"
+endif
 
-pip_attributions.json: always-build
-	./build-tools/attributions-generator.sh \
-		/usr/local/bin/pip-backend.py \
-		--requirements=requirements.txt \
-		--project-path=$(CURDIR) \
-
-docs/_static/ATTRIBUTIONS.md: flatfile_attributions.json  golang_attributions.json  pip_attributions.json
-	./build-tools/attributions-generator.sh \
-		node /frontEnd/frontEnd.js --pd $(CURDIR) $(LIC_FLAG)
-	mv ATTRIBUTIONS.md $@
+crd-code-gen:
+	docker run --name crdcodegen -v $(PWD):/go/src/github.com/F5Networks/k8s-bigip-ctlr quay.io/f5networks/ciscrdcodegen:latest
+	docker rm crdcodegen

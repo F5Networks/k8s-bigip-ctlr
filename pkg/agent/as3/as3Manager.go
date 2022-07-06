@@ -213,7 +213,6 @@ func updateTenantMap(tempAS3Config AS3Config) AS3Config {
 }
 
 func (am *AS3Manager) postAS3Declaration(rsReq ResourceRequest) (bool, string) {
-	defer log.Timeit("debug")("")
 
 	am.ResourceRequest = rsReq
 

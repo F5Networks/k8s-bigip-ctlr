@@ -59,7 +59,7 @@ image:
   user: f5networks
   repo: k8s-bigip-ctlr
   pullPolicy: Always
-#  version: latest
+version: latest
 # affinity:
 #   nodeAffinity:
 #     requiredDuringSchedulingIgnoredDuringExecution:

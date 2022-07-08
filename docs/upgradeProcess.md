@@ -10,8 +10,8 @@ Latest [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master
 Compatibility Matrix
 -------------
 
-| CIS Version | BIG-IP Version | Kubernetes Version | OpenShift Version | SDN | OVN (Cluster Mode) | AS3 Version | FIC Version | FIC Chart Version | CIS Chart Version |
-|-------------|----------------|--------------------|-------------------| --- |--------------------| ------------| ----------- |-------------------| ------------------|
+| CIS Version | BIG-IP Version | Kubernetes Version | OpenShift Version                                             | SDN | OVN (Cluster Mode) | AS3 Version | FIC Version | FIC Chart Version | CIS Chart Version |
+|-------------|----------------|--------------------|---------------------------------------------------------------| --- |--------------------| ------------| ----------- |-------------------| ------------------|
 | v1.14       | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  |
 | v2.0        | v15.1          | v1.18              | v4.3                                                          | Yes |  - | v3.18      |             |            | v0.0.7  |
 | v2.1        | v15.1          | v1.18              | v4.4.5                                                        | Yes |  - | v3.20      |             |            | v0.0.7  |
@@ -28,7 +28,8 @@ Compatibility Matrix
 | v2.7.1      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.18 |
 | v2.8.0      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.19 |
 | v2.8.1      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.7      | v0.0.1     | v0.0.19 |
-| v2.9.0      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.36     | v0.1.8      | v0.0.1     | v0.0.20 |       
+| v2.9.0      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.1     | v0.0.20 |
+| v2.9.1      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.2     | v0.0.21 |       
 
 
 CIS Features and Examples
@@ -221,3 +222,7 @@ Refer Release Notes for [CIS v2.9.0](https://github.com/F5Networks/k8s-bigip-ctl
 
 * Setting TCP Profile in Policy CRD changed to support TCP Client and Server profiles. (See [documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy))
 * Setting pool priority order in EDNS CRD requires a CRD schema update. (See [documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/ExternalDNS))
+
+### **Upgrading from 2.9.0 to 2.9.1:**
+
+Refer Release Notes for [CIS v2.9.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#290)

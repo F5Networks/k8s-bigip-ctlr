@@ -1336,15 +1336,16 @@ func (idg *InternalDataGroup) RemoveRecord(name string) bool {
 // TODO: Should we use this? Or this will be done in agent?
 func AS3NameFormatter(name string) string {
 	modifySpecialChars := map[string]string{
-		".": "_",
-		":": "_",
-		"/": "_",
-		"%": ".",
-		"-": "_",
-		"[": "",
-		"]": "",
-		"=": "_"}
-	SpecialChars := [8]string{".", ":", "/", "%", "-", "[", "]", "="}
+		".":  "_",
+		":":  "_",
+		"/":  "_",
+		"%":  ".",
+		"-":  "_",
+		"[":  "",
+		"]":  "",
+		"=":  "_",
+		"*_": ""}
+	SpecialChars := [9]string{".", ":", "/", "%", "-", "[", "]", "=", "*_"}
 	for _, key := range SpecialChars {
 		name = strings.ReplaceAll(name, key, modifySpecialChars[key])
 	}

@@ -53,6 +53,7 @@ const (
 func (ctlr *Controller) customResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
 	ctlr.setInitialServiceCount()
+	ctlr.migrateIPAM()
 	for ctlr.processCustomResource() {
 	}
 }
@@ -826,10 +827,11 @@ func (ctlr *Controller) processVirtualServers(
 	if ctlr.ipamCli != nil {
 		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
 			if virtual.Spec.HostGroup != "" {
-				key := virtual.ObjectMeta.Namespace + "/" + virtual.Spec.HostGroup
+				key := virtual.ObjectMeta.Namespace + "/" + virtual.Spec.HostGroup + "_hg"
 				ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, "", key)
 			} else {
-				ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, "")
+				key := virtual.Namespace + "/" + virtual.Spec.Host + "_host"
+				ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, virtual.Spec.Host, key)
 			}
 		} else if virtual.Spec.VirtualServerAddress != "" {
 			// Prioritise VirtualServerAddress specified over IPAMLabel
@@ -840,7 +842,7 @@ func (ctlr *Controller) processVirtualServers(
 				key := virtual.ObjectMeta.Namespace + "/" + virtual.Spec.HostGroup + "_hg"
 				ip, status = ctlr.requestIP(ipamLabel, "", key)
 			} else {
-				key := virtual.Namespace + "/" + virtual.Name + "_vs"
+				key := virtual.Namespace + "/" + virtual.Spec.Host + "_host"
 				ip, status = ctlr.requestIP(ipamLabel, virtual.Spec.Host, key)
 			}
 
@@ -1271,6 +1273,37 @@ func (ctlr *Controller) getIPAMCR() *ficV1.IPAM {
 		return nil
 	}
 	return ipamCR
+}
+
+func (ctlr *Controller) migrateIPAM() {
+	if ctlr.ipamCli == nil {
+		return
+	}
+
+	ipamCR := ctlr.getIPAMCR()
+	if ipamCR == nil {
+		return
+	}
+
+	var specsToMigrate []ficV1.IPSpec
+
+	for _, spec := range ipamCR.Status.IPStatus {
+		idx := strings.LastIndex(spec.Key, "_")
+		var rscKind string
+		if idx != -1 {
+			rscKind = spec.Key[idx+1:]
+			switch rscKind {
+			case "hg", "host", "ts", "il", "svc":
+				// This entry is fine, process next entry
+				continue
+			}
+		}
+		specsToMigrate = append(specsToMigrate, *spec)
+	}
+
+	for _, spec := range specsToMigrate {
+		ctlr.releaseIP(spec.IPAMLabel, spec.Host, spec.Key)
+	}
 }
 
 //Request IPAM for virtual IP address
@@ -2364,26 +2397,26 @@ func checkCertificateHost(host string, certificate []byte, key []byte) bool {
 }
 
 func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
-	var resourcesToProcess []string
+	var keysToProcess []string
 	for _, ipSpec := range ipam.Status.IPStatus {
 		if cachedIPSpec, ok := ctlr.resources.ipamContext[ipSpec.Key]; ok {
 			if cachedIPSpec.IP != ipSpec.IP {
 				// TODO: Delete the VS with old IP in BIGIP in case of FIC reboot
-				resourcesToProcess = append(resourcesToProcess, ipSpec.Key)
+				keysToProcess = append(keysToProcess, ipSpec.Key)
 			}
 		} else {
 			ctlr.resources.ipamContext[ipSpec.Key] = *ipSpec
-			resourcesToProcess = append(resourcesToProcess, ipSpec.Key)
+			keysToProcess = append(keysToProcess, ipSpec.Key)
 		}
 	}
 
-	for _, rsc := range resourcesToProcess {
-		idx := strings.LastIndex(rsc, "_")
+	for _, pKey := range keysToProcess {
+		idx := strings.LastIndex(pKey, "_")
 		if idx == -1 {
 			continue
 		}
-		rscKind := rsc[idx+1:]
-		splits := strings.Split(rsc, "/")
+		rscKind := pKey[idx+1:]
+		splits := strings.Split(pKey, "/")
 		ns := splits[0]
 		crInf, ok := ctlr.getNamespacedInformer(ns)
 		if !ok {
@@ -2391,39 +2424,28 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			return nil
 		}
 		switch rscKind {
-		case "hg":
+		case "hg", "host":
 			vss := ctlr.getAllVirtualServers(ns)
 			for _, vs := range vss {
-				key := vs.Namespace + "/" + vs.Spec.HostGroup
-				if rsc == key {
+				key := vs.Namespace + "/" + vs.Spec.Host + "_host"
+				if rscKind == "hg" {
+					key = vs.Namespace + "/" + vs.Spec.HostGroup + "_hg"
+				}
+				if pKey == key {
 					ctlr.TeemData.Lock()
 					ctlr.TeemData.ResourceType.IPAMVS[ns]++
 					ctlr.TeemData.Unlock()
 					err := ctlr.processVirtualServers(vs, false)
 					if err != nil {
-						log.Errorf("Unable to process IPAM entry: %v", rsc)
+						log.Errorf("Unable to process IPAM entry: %v", pKey)
 					}
 					break
 				}
 			}
-		case "vs":
-			item, exists, err := crInf.vsInformer.GetIndexer().GetByKey(rsc[:idx])
-			if !exists || err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", rsc)
-				continue
-			}
-			ctlr.TeemData.Lock()
-			ctlr.TeemData.ResourceType.IPAMVS[ns]++
-			ctlr.TeemData.Unlock()
-			vs := item.(*cisapiv1.VirtualServer)
-			err = ctlr.processVirtualServers(vs, false)
-			if err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", rsc)
-			}
 		case "ts":
-			item, exists, err := crInf.tsInformer.GetIndexer().GetByKey(rsc[:idx])
+			item, exists, err := crInf.tsInformer.GetIndexer().GetByKey(pKey[:idx])
 			if !exists || err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", rsc)
+				log.Errorf("Unable to process IPAM entry: %v", pKey)
 				continue
 			}
 			ctlr.TeemData.Lock()
@@ -2432,23 +2454,23 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			ts := item.(*cisapiv1.TransportServer)
 			err = ctlr.processTransportServers(ts, false)
 			if err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", rsc)
+				log.Errorf("Unable to process IPAM entry: %v", pKey)
 			}
 		case "il":
-			item, exists, err := crInf.ilInformer.GetIndexer().GetByKey(rsc[:idx])
+			item, exists, err := crInf.ilInformer.GetIndexer().GetByKey(pKey[:idx])
 			if !exists || err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", rsc)
+				log.Errorf("Unable to process IPAM entry: %v", pKey)
 				continue
 			}
 			il := item.(*cisapiv1.IngressLink)
 			err = ctlr.processIngressLink(il, false)
 			if err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", rsc)
+				log.Errorf("Unable to process IPAM entry: %v", pKey)
 			}
 		case "svc":
-			item, exists, err := crInf.svcInformer.GetIndexer().GetByKey(rsc[:idx])
+			item, exists, err := crInf.svcInformer.GetIndexer().GetByKey(pKey[:idx])
 			if !exists || err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", rsc)
+				log.Errorf("Unable to process IPAM entry: %v", pKey)
 				continue
 			}
 			ctlr.TeemData.Lock()
@@ -2457,10 +2479,10 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			svc := item.(*v1.Service)
 			err = ctlr.processLBServices(svc, false)
 			if err != nil {
-				log.Errorf("Unable to process IPAM entry: %v", rsc)
+				log.Errorf("Unable to process IPAM entry: %v", pKey)
 			}
 		default:
-			log.Errorf("Found Invalid Key: %v while Processing IPAM", rsc)
+			log.Errorf("Found Invalid Key: %v while Processing IPAM", pKey)
 		}
 	}
 

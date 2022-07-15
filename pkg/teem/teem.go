@@ -66,9 +66,6 @@ func (td *TeemsData) PostTeemsData() bool {
 			return false
 		}
 	}
-	// Retry only once upon failure
-	var retryCount = 1
-	var accessEnabled = true
 
 	assetInfo := f5teem.AssetInfo{
 		Name:    "CIS-Ecosystem",
@@ -109,21 +106,13 @@ func (td *TeemsData) PostTeemsData() bool {
 		"NativeRoutesCount":        td.ResourceType.NativeRoutes[TOTAL],
 		"RouteGroupsCount":         td.ResourceType.RouteGroups[TOTAL],
 	}
-	for retryCount >= 0 {
-		err := teemDevice.Report(data, "CIS Telemetry Data", "1")
-		if err != nil && !strings.Contains(err.Error(), "request-limit") {
-			//log teem error for debugging
-			//teems send error code 429 with request-limit, if the limit 30 requests per hour is hit
-			//TEEM will start accepting them again automatically after the waiting period.
-			log.Debugf("Error reporting telemetry data :%v", err)
-			retryCount--
-			if retryCount < 0 {
-				accessEnabled = false
-			}
-		} else {
-			retryCount = -1
-		}
+	err := teemDevice.Report(data, "CIS Telemetry Data", "1")
+	if err != nil && !strings.Contains(err.Error(), "request-limit") {
+		//log teem error for debugging
+		//teems send error code 429 with request-limit, if the limit 30 requests per hour is hit
+		//TEEM will start accepting them again automatically after the waiting period.
+		log.Debugf("Error reporting telemetry data :%v", err)
+		td.AccessEnabled = false
 	}
-
-	return accessEnabled
+	return td.AccessEnabled
 }

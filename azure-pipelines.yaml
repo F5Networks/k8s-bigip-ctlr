@@ -53,6 +53,9 @@ stages:
   jobs:
   - job: BuildContainerImage
     steps:
+      - script: |
+          echo "##vso[task.setvariable variable=BUILD_VERSION]$(cat next-version.txt)"
+        displayName: Set CIS Version
       - task: Docker@2
         displayName: Login to redhat registry
         inputs:

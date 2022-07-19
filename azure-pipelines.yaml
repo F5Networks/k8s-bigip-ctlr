@@ -22,8 +22,6 @@ variables:
   scanConnection: 'cis-scan-bot'
   quay_path: 'quay.io/f5networks/k8s-bigip-ctlr-devel'
   redhat_prj_name: 'cntr-ingress-svcs'
-  redhat_tag: '$(BUILD_VERSION)-rhel7'
-  docker_version: '$(BUILD_VERSION)'
   docker_repo: 'f5networks/k8s-bigip-ctlr'
   chartPath: 'incubator'
   chartRepoName: 'charts'
@@ -98,8 +96,8 @@ stages:
       - script: |
           set -ex
           podman pull --authfile $(DOCKER_CONFIG)/config.json $(quay_path):$(Build.SourceVersion)
-          podman tag $(quay_path):$(Build.SourceVersion) scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(redhat_tag)
-          podman push --authfile $(DOCKER_CONFIG)/config.json scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(redhat_tag)
+          podman tag $(quay_path):$(Build.SourceVersion) scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-rhel7
+          podman push --authfile $(DOCKER_CONFIG)/config.json scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-rhel7
         condition: and(succeeded(), startsWith(variables['build.sourceBranch'], 'refs/tags/'))
         displayName: 'Push image to Redhat'
         continueOnError: true
@@ -107,15 +105,15 @@ stages:
           set -ex
           docker pull $(quay_path):$(Build.SourceVersion)
           docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):latest
-          docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(docker_version)
-          patch_version=`echo $(docker_version) | awk -F '.'  '{print $3}'`
+          docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):$(BUILD_VERSION)
+          patch_version=`echo $(BUILD_VERSION) | awk -F '.'  '{print $3}'`
           if [ "${patch_version}" == "0" ] ; then
-            stripped_version=`echo $(docker_version) | rev | cut -c3- | rev`
+            stripped_version=`echo $(BUILD_VERSION) | rev | cut -c3- | rev`
             docker tag $(quay_path):$(Build.SourceVersion) $(docker_repo):${stripped_version}
             docker push $(docker_repo):${stripped_version}
           fi
           docker push $(docker_repo):latest
-          docker push $(docker_repo):$(docker_version)
+          docker push $(docker_repo):$(BUILD_VERSION)
         displayName: 'Push image to DockerHub'
         condition: startsWith(variables['build.sourceBranch'], 'refs/tags/')
 - stage: Charts
@@ -166,7 +164,7 @@ stages:
         git config user.name "cisbotctlr"
         helm repo index --url https://$(chartOrganization).github.io/$(chartRepoName)/$(chartPath) $(chartPath)
         git add --all
-        git commit -m 'Updating charts for CIS Release v$(BUILD_VERSION) and Build Info azure-$(Build.BuildId)-$(Build.SourceVersion) in $(chartPath)'
+        git commit -m 'Updating charts for CIS Release v$(cat next-version.txt) and Build Info azure-$(Build.BuildId)-$(Build.SourceVersion) in $(chartPath)'
         git push origin gh-pages
         popd
       displayName: Upload charts

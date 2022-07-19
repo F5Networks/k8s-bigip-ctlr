@@ -1,23 +1,37 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.9.1
 -------------
+
+CIS Compatibility
+```````````````````
+**CIS is now compatible with:**
+    * Kubernetes 1.23
+    * OCP 4.10 with OVN & SDN CNI
+
 Bug Fixes
 ````````````
-* :issues:`2336` Fix for confusing EDNS Pool name
+* :issues:`2336` Fix confusing EDNS Pool name
 * :issues:`2337` Fix for EDNS pool deletion with invalid server config
-* Fix Invalid Allow with Custom HTTP Port
-* :issues:`2484` Fix scalability issue with IPAM processing
+* :issues:`2484` Fix scalability issue of LB services with IPAM processing
 * :issues:`2464` Fix pool members empty issue with HubMode
-* Fixed certificate sorting issue in AS3 declaration
-* Helm Chart Enhancements:
-    * Fix securityContext Block
-    * Updated links in helm values.yaml documentation
+* :issues:`2308` Fix ARP deletion in filter-tenant mode
+* Fix Invalid traffic Allow in Ingress with Custom HTTP Port
 
-FIC Bug Fixes
-`````````````
-* :issues:`104` Modifying invalid ipamLabel for a typeLB service
+CIS Helm Chart Fixes
+``````````````````````
+* :issues:`2422` Fix securityContext wrong indentation
+* :issues:`2434` Helm install values.yaml results in a bad image format
+* Updated links in helm values.yaml documentation
+
+FIC Helm Chart Fixes
+``````````````````````
+* :issues:`104` Fix modifying invalid ipamLabel for a typeLB service
+* :issues:`96` Added PVC creation to Helm charts
+* :issues:`102` Added tolerations support with Helm charts
+* Added support for multiple infoblox labels with Helm charts
+
 
 2.9.0
 -------------

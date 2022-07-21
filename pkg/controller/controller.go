@@ -140,6 +140,11 @@ func NewController(params Params) *Controller {
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 	}
 
+	//If pool-member-type type is nodeport, enable shareNodes by default
+	if ctlr.PoolMemberType == "nodeport" {
+		ctlr.shareNodes = true
+	}
+
 	if err := ctlr.setupClients(params.Config); err != nil {
 		log.Errorf("Failed to Setup Clients: %v", err)
 	}

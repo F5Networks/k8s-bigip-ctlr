@@ -75,6 +75,7 @@ type (
 		defaultRouteDomain int
 		TeemData           *teem.TeemsData
 		requestQueue       *requestQueue
+		namespaceLabel     string
 		nativeResourceContext
 	}
 	nativeResourceContext struct {
@@ -84,6 +85,7 @@ type (
 		nrInformers         map[string]*NRInformer
 		routeSpecCMKey      string
 		routeLabel          string
+		namespaceLabelMode  bool
 		processedHostPath   *ProcessedHostPath
 	}
 
@@ -323,14 +325,15 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name            string             `json:"name"`
-		Partition       string             `json:"-"`
-		ServiceName     string             `json:"-"`
-		ServicePort     intstr.IntOrString `json:"-"`
-		Balance         string             `json:"loadBalancingMethod,omitempty"`
-		Members         []PoolMember       `json:"members"`
-		NodeMemberLabel string             `json:"-"`
-		MonitorNames    []string           `json:"monitors,omitempty"`
+		Name             string             `json:"name"`
+		Partition        string             `json:"-"`
+		ServiceName      string             `json:"-"`
+		ServiceNamespace string             `json:"-"`
+		ServicePort      intstr.IntOrString `json:"-"`
+		Balance          string             `json:"loadBalancingMethod,omitempty"`
+		Members          []PoolMember       `json:"members"`
+		NodeMemberLabel  string             `json:"-"`
+		MonitorNames     []string           `json:"monitors,omitempty"`
 	}
 	// Pools is slice of pool
 	Pools []Pool
@@ -362,10 +365,11 @@ type (
 	Monitors []Monitor
 
 	supplementContextCache struct {
-		poolMemCache     PoolMemberCache
-		sslContext       map[string]*v1.Secret
-		extdSpecMap      extendedSpecMap
-		svcResourceCache map[string]map[string]struct{}
+		poolMemCache              PoolMemberCache
+		sslContext                map[string]*v1.Secret
+		extdSpecMap               extendedSpecMap
+		invertedNamespaceLabelMap map[string]string
+		svcResourceCache          map[string]map[string]struct{}
 		// key of the map is IPSpec.Key
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
@@ -376,9 +380,11 @@ type (
 
 	// Extended Spec for each group of Routes/Ingress
 	extendedParsedSpec struct {
-		override bool
-		local    *ExtendedRouteGroupSpec
-		global   *ExtendedRouteGroupSpec
+		override   bool
+		local      *ExtendedRouteGroupSpec
+		global     *ExtendedRouteGroupSpec
+		namespaces []string
+		partition  string
 	}
 
 	// This is the format for each item in the health monitor annotation used
@@ -1005,7 +1011,9 @@ type (
 	}
 
 	ExtendedRouteGroupConfig struct {
-		Namespace              string `yaml:"namespace"` // Group Identifier
+		Namespace              string `yaml:"namespace"`      // Group Identifier
+		NamespaceLabel         string `yaml:"namespaceLabel"` // Group Identifier
+		BigIpPartition         string `yaml:"bigIpPartition"` // bigip Partition
 		ExtendedRouteGroupSpec `yaml:",inline"`
 	}
 

@@ -98,6 +98,8 @@ var _ = Describe("Routes", func() {
 					WAF:           "/Common/WAFPolicy",
 					IRules:        []string{"/Common/iRule1"},
 				},
+				namespaces: []string{ns},
+				partition:  "test",
 			}
 			tlsConfig := &routeapi.TLSConfig{}
 			tlsConfig.Termination = TLSPassthrough
@@ -125,11 +127,11 @@ var _ = Describe("Routes", func() {
 			err := mockCtlr.processRoutes(ns, false)
 			mapKey := NameRef{
 				Name:      getRSCfgResName("samplevs_443", PassthroughHostsDgName),
-				Partition: ns,
+				Partition: "test",
 			}
 			Expect(err).To(BeNil(), "Failed to process routes")
-			Expect(len(mockCtlr.resources.ltmConfig[ns]["samplevs_443"].Policies)).To(BeEquivalentTo(0), "Policy should not be created for passthrough route")
-			dg, ok := mockCtlr.resources.ltmConfig[ns]["samplevs_443"].IntDgMap[mapKey]
+			Expect(len(mockCtlr.resources.ltmConfig["test"]["samplevs_443"].Policies)).To(BeEquivalentTo(0), "Policy should not be created for passthrough route")
+			dg, ok := mockCtlr.resources.ltmConfig["test"]["samplevs_443"].IntDgMap[mapKey]
 			Expect(ok).To(BeTrue(), "datagroup should be created for passthrough route")
 			Expect(dg[ns].Records[0].Name).To(BeEquivalentTo("foo.com"), "Invalid hostname in datagroup")
 			Expect(dg[ns].Records[0].Data).To(BeEquivalentTo("foo_80_default"), "Invalid hostname in datagroup")
@@ -298,20 +300,20 @@ var _ = Describe("Routes", func() {
 			// Portstruct for unsecured virtual server
 			ps := portStruct{HTTP, DEFAULT_HTTP_PORT}
 			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = ""
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).To(BeNil())
 			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = "None"
 			route1.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyNone
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).To(BeNil())
 			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = "Allow"
 			route1.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyAllow
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).NotTo(BeNil())
 			Expect(len(rsCfg.Policies)).To(Equal(1))
 			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(1))
 			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = ""
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route2, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route2, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).NotTo(BeNil())
 			Expect(len(rsCfg.Policies)).To(Equal(1))
 			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(1))
@@ -328,12 +330,12 @@ var _ = Describe("Routes", func() {
 			// Portstruct for secured virtual server
 			ps.protocol = HTTPS
 			ps.port = DEFAULT_HTTPS_PORT
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).NotTo(BeNil())
 			Expect(len(rsCfg.Policies)).To(Equal(1))
 			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(1))
 			Expect(rsCfg.Policies[0].Rules[0].FullURI).To(Equal("foo.com/foo"))
-			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route2, routeGroup, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route2, intstr.IntOrString{IntVal: 80}, false, ps)).To(BeNil())
 			Expect(rsCfg.Policies).NotTo(BeNil())
 			Expect(len(rsCfg.Policies)).To(Equal(1))
 			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(2))

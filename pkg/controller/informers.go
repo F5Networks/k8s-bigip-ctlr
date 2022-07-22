@@ -1231,8 +1231,12 @@ func (ctlr *Controller) enqueueNamespace(obj interface{}) {
 		rsc:       obj,
 		event:     Create,
 	}
-
-	ctlr.rscQueue.Add(key)
+	switch ctlr.mode {
+	case KubernetesMode, OpenShiftMode:
+		ctlr.nativeResourceQueue.Add(key)
+	case CustomResourceMode:
+		ctlr.rscQueue.Add(key)
+	}
 }
 
 func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}) {
@@ -1245,8 +1249,12 @@ func (ctlr *Controller) enqueueDeletedNamespace(obj interface{}) {
 		rsc:       obj,
 		event:     Delete,
 	}
-
-	ctlr.rscQueue.Add(key)
+	switch ctlr.mode {
+	case KubernetesMode, OpenShiftMode:
+		ctlr.nativeResourceQueue.Add(key)
+	case CustomResourceMode:
+		ctlr.rscQueue.Add(key)
+	}
 }
 
 func (ctlr *Controller) checkCoreserviceLabels(labels map[string]string) bool {

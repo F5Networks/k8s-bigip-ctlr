@@ -419,13 +419,14 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			}
 			pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition, monitorName))
 			monitor := Monitor{
-				Name:      monitorName,
-				Partition: rsCfg.Virtual.Partition,
-				Type:      pl.Monitor.Type,
-				Interval:  pl.Monitor.Interval,
-				Send:      pl.Monitor.Send,
-				Recv:      pl.Monitor.Recv,
-				Timeout:   pl.Monitor.Timeout,
+				Name:       monitorName,
+				Partition:  rsCfg.Virtual.Partition,
+				Type:       pl.Monitor.Type,
+				Interval:   pl.Monitor.Interval,
+				Send:       pl.Monitor.Send,
+				Recv:       pl.Monitor.Recv,
+				Timeout:    pl.Monitor.Timeout,
+				TargetPort: pl.Monitor.TargetPort,
 			}
 			monitors = append(monitors, monitor)
 		}
@@ -1421,13 +1422,14 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition, monitorName))
 
 		monitor := Monitor{
-			Name:      monitorName,
-			Partition: rsCfg.Virtual.Partition,
-			Type:      vs.Spec.Pool.Monitor.Type,
-			Interval:  vs.Spec.Pool.Monitor.Interval,
-			Send:      "",
-			Recv:      "",
-			Timeout:   vs.Spec.Pool.Monitor.Timeout,
+			Name:       monitorName,
+			Partition:  rsCfg.Virtual.Partition,
+			Type:       vs.Spec.Pool.Monitor.Type,
+			Interval:   vs.Spec.Pool.Monitor.Interval,
+			Send:       "",
+			Recv:       "",
+			Timeout:    vs.Spec.Pool.Monitor.Timeout,
+			TargetPort: vs.Spec.Pool.Monitor.TargetPort,
 		}
 		rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 	}

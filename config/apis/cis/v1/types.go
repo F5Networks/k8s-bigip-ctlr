@@ -73,11 +73,12 @@ type Pool struct {
 
 // Monitor defines a monitor object in BIG-IP.
 type Monitor struct {
-	Type     string `json:"type"`
-	Send     string `json:"send"`
-	Recv     string `json:"recv"`
-	Interval int    `json:"interval"`
-	Timeout  int    `json:"timeout"`
+	Type       string `json:"type"`
+	Send       string `json:"send"`
+	Recv       string `json:"recv"`
+	Interval   int    `json:"interval"`
+	Timeout    int    `json:"timeout"`
+	TargetPort int32  `json:"targetPort"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

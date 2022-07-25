@@ -818,7 +818,7 @@ type (
 		Dscp              *int    `json:"dscp,omitempty"`
 		Receive           string  `json:"receive"`
 		Send              string  `json:"send"`
-		TargetPort        *int32  `json:"targetPort,omitempty"`
+		TargetPort        int32   `json:"targetPort,omitempty"`
 		ClientCertificate string  `json:"clientCertificate,omitempty"`
 		Ciphers           string  `json:"ciphers,omitempty"`
 	}

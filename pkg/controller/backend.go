@@ -1265,7 +1265,7 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		monitor.MonitorType = v.Type
 		monitor.Timeout = v.Timeout
 		val := 0
-		monitor.TargetPort = &v.TargetPort
+		monitor.TargetPort = v.TargetPort
 		targetAddressStr := ""
 		monitor.TargetAddress = &targetAddressStr
 		//Monitor type

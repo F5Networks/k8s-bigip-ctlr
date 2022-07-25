@@ -137,6 +137,8 @@ spec:
                             type: integer
                           timeout:
                             type: integer
+                          targetPort:
+                            type: integer
                         required:
                           - type
                           - send
@@ -369,6 +371,8 @@ spec:
                         interval:
                           type: integer
                         timeout:
+                          type: integer
+                        targetPort:
                           type: integer
                       required:
                         - type

@@ -95,6 +95,7 @@ type (
 		Profiles              ProfileRefs           `json:"profiles,omitempty"`
 		Description           string                `json:"description,omitempty"`
 		VirtualAddress        *VirtualAddress       `json:"-"`
+		Mask                  string                `json:"mask,omitempty"`
 	}
 	Virtuals []Virtual
 

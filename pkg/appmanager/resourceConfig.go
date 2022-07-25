@@ -282,7 +282,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		cfg.Virtual.Enabled = true
 		SetProfilesForMode("http", &cfg)
 		cfg.Virtual.SourceAddrTranslation = SetSourceAddrTranslation(snatPoolName)
-		cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
+		cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port, true)
 		cfg.Pools = append(cfg.Pools, pools...)
 		if plcy != nil {
 			cfg.SetPolicy(*plcy)
@@ -547,7 +547,7 @@ func (appMgr *Manager) createRSConfigFromRoute(
 		if routeConfig.RouteVSAddr != "" {
 			bindAddr = routeConfig.RouteVSAddr
 		}
-		rsCfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
+		rsCfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port, true)
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 	}
 

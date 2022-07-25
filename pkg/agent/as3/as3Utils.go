@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -143,6 +144,13 @@ func DeepEqualJSON(decl1, decl2 as3Declaration) bool {
 
 func ExtractVirtualAddressAndPort(str string) (string, int) {
 	destination := strings.Split(str, "/")
+	// Handle CIDR if specified
+	if len(destination) >= 2 {
+		matched, _ := regexp.MatchString(`(^\d+[:.]\d+$)|(^\d+%\d+[:.]\d+$)`, destination[len(destination)-1])
+		if matched {
+			destination[len(destination)-1] = destination[len(destination)-2] + "/" + destination[len(destination)-1]
+		}
+	}
 	// split separator is in accordance with SetVirtualAddress function - ipv4/6 format
 	ipPort := strings.Split(destination[len(destination)-1], ":")
 	if len(ipPort) != 2 {

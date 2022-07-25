@@ -169,7 +169,7 @@ func (v *Virtual) RemoveProfile(prof ProfileRef) bool {
 	return false
 }
 
-func (v *Virtual) SetVirtualAddress(bindAddr string, port int32) {
+func (v *Virtual) SetVirtualAddress(bindAddr string, port int32, excludeCidr bool) {
 	v.Destination = ""
 	if bindAddr == "" && port == 0 {
 		v.VirtualAddress = nil
@@ -179,21 +179,49 @@ func (v *Virtual) SetVirtualAddress(bindAddr string, port int32) {
 			Port:     port,
 		}
 		// Validate the IP address, and create the destination
-		ip, rd := Split_ip_with_route_domain(bindAddr)
+		ip, rd, cidr := Split_ip_with_route_domain_cidr(bindAddr)
 		if len(rd) > 0 {
 			rd = "%" + rd
+		}
+		if len(cidr) > 0 && !excludeCidr {
+			cidr = "/" + cidr
+		} else {
+			cidr = ""
 		}
 		addr := net.ParseIP(ip)
 		if nil != addr {
 			var format string
 			if nil != addr.To4() {
-				format = "/%s/%s%s:%d"
+				format = "/%s/%s%s%s:%d"
 			} else {
-				format = "/%s/%s%s.%d"
+				format = "/%s/%s%s%s.%d"
 			}
-			v.Destination = fmt.Sprintf(format, v.Partition, ip, rd, port)
+			v.Destination = fmt.Sprintf(format, v.Partition, ip, cidr, rd, port)
 		}
 	}
+}
+
+// SetVirtualAddressNetMask calculates the netmask from CIDR notation and sets it in virtual server
+func (v *Virtual) SetVirtualAddressNetMask(bindAddr string) {
+	if !strings.Contains(bindAddr, "/") {
+		return
+	}
+	ipCIDR := strings.Split(bindAddr, "%")
+	_, ipNet, err := net.ParseCIDR(ipCIDR[0])
+	if err != nil {
+		log.Errorf("Error setting netmask for Virtual server with bindAddress: %s : ", bindAddr, err)
+		return
+	}
+	netMask := ipNet.Mask
+	if len(netMask) == 4 {
+		v.Mask = fmt.Sprintf("%d.%d.%d.%d", netMask[0], netMask[1], netMask[2], netMask[3])
+	} else if len(netMask) == 16 {
+		v.Mask = fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s", netMask[0:2], netMask[2:4], netMask[4:6], netMask[6:8],
+			netMask[8:10], netMask[10:12], netMask[12:14], netMask[14:16])
+	} else {
+		log.Errorf("Error setting netmask for Virtual server with bindAddress: %s", bindAddr)
+	}
+
 }
 
 // format the virtual server name for a ConfigMap
@@ -1498,7 +1526,7 @@ func ParseConfigMap(cm *v1.ConfigMap, schemaDBPath, snatPoolName string) (*Resou
 					} else if cfg.Virtual.VirtualAddress.BindAddr == "" {
 						// Check for IP annotation provided by IPAM system
 						if addr, ok := cm.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok == true {
-							cfg.Virtual.SetVirtualAddress(addr, cfg.Virtual.VirtualAddress.Port)
+							cfg.Virtual.SetVirtualAddress(addr, cfg.Virtual.VirtualAddress.Port, true)
 						}
 					}
 				}
@@ -1543,10 +1571,11 @@ func copyConfigMap(virtualName, ns, snatPoolName string, cfg *ResourceConfig, cf
 		if nil != cfgMap.VirtualServer.Frontend.VirtualAddress {
 			cfg.Virtual.SetVirtualAddress(
 				cfgMap.VirtualServer.Frontend.VirtualAddress.BindAddr,
-				cfgMap.VirtualServer.Frontend.VirtualAddress.Port)
+				cfgMap.VirtualServer.Frontend.VirtualAddress.Port,
+				true)
 		} else {
 			// Pool-only
-			cfg.Virtual.SetVirtualAddress("", 0)
+			cfg.Virtual.SetVirtualAddress("", 0, true)
 		}
 		if nil != cfgMap.VirtualServer.Frontend.SslProfile {
 			if len(cfgMap.VirtualServer.Frontend.SslProfile.F5ProfileName) > 0 {

@@ -7,9 +7,10 @@ Next Release
 Added Functionality
 ```````````````````
 
+
 Bug Fixes
 ````````````
-
+* :issues:`2361` Allow monitoring of an alias port in VirtualServer and TransportServer
 
 2.9.1
 -------------

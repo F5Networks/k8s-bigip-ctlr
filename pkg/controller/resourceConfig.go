@@ -419,13 +419,14 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			}
 			pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition, monitorName))
 			monitor := Monitor{
-				Name:      monitorName,
-				Partition: rsCfg.Virtual.Partition,
-				Type:      pl.Monitor.Type,
-				Interval:  pl.Monitor.Interval,
-				Send:      pl.Monitor.Send,
-				Recv:      pl.Monitor.Recv,
-				Timeout:   pl.Monitor.Timeout,
+				Name:       monitorName,
+				Partition:  rsCfg.Virtual.Partition,
+				Type:       pl.Monitor.Type,
+				Interval:   pl.Monitor.Interval,
+				Send:       pl.Monitor.Send,
+				Recv:       pl.Monitor.Recv,
+				Timeout:    pl.Monitor.Timeout,
+				TargetPort: pl.Monitor.TargetPort,
 			}
 			monitors = append(monitors, monitor)
 		}
@@ -470,6 +471,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.ProfileDOS = vs.Spec.DOS
 	}
 
+	if len(vs.Spec.AllowSourceRange) > 0 {
+		rsCfg.Virtual.AllowSourceRange = vs.Spec.AllowSourceRange
+	}
+
 	if vs.Spec.BotDefense != "" {
 		rsCfg.Virtual.ProfileBotDefense = vs.Spec.BotDefense
 	}
@@ -487,7 +492,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 
 	// skip the policy creation for passthrough termination
 	if !passthroughVS {
-		rules = ctlr.prepareVirtualServerRules(vs)
+		rules = ctlr.prepareVirtualServerRules(vs, rsCfg)
 		if rules == nil {
 			return fmt.Errorf("failed to create LTM Rules")
 		}
@@ -1421,13 +1426,14 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition, monitorName))
 
 		monitor := Monitor{
-			Name:      monitorName,
-			Partition: rsCfg.Virtual.Partition,
-			Type:      vs.Spec.Pool.Monitor.Type,
-			Interval:  vs.Spec.Pool.Monitor.Interval,
-			Send:      "",
-			Recv:      "",
-			Timeout:   vs.Spec.Pool.Monitor.Timeout,
+			Name:       monitorName,
+			Partition:  rsCfg.Virtual.Partition,
+			Type:       vs.Spec.Pool.Monitor.Type,
+			Interval:   vs.Spec.Pool.Monitor.Interval,
+			Send:       "",
+			Recv:       "",
+			Timeout:    vs.Spec.Pool.Monitor.Timeout,
+			TargetPort: vs.Spec.Pool.Monitor.TargetPort,
 		}
 		rsCfg.Monitors = append(rsCfg.Monitors, monitor)
 	}
@@ -1558,6 +1564,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
 	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
+	rsCfg.Virtual.AllowSourceRange = plc.Spec.L3Policies.AllowSourceRange
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)

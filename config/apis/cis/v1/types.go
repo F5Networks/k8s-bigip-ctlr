@@ -48,6 +48,7 @@ type VirtualServerSpec struct {
 	DOS                    string           `json:"dos,omitempty"`
 	BotDefense             string           `json:"botDefense,omitempty"`
 	Profiles               ProfileSpec      `json:"profiles,omitempty"`
+	AllowSourceRange       []string         `json:"allowSourceRange,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -73,11 +74,12 @@ type Pool struct {
 
 // Monitor defines a monitor object in BIG-IP.
 type Monitor struct {
-	Type     string `json:"type"`
-	Send     string `json:"send"`
-	Recv     string `json:"recv"`
-	Interval int    `json:"interval"`
-	Timeout  int    `json:"timeout"`
+	Type       string `json:"type"`
+	Send       string `json:"send"`
+	Recv       string `json:"recv"`
+	Interval   int    `json:"interval"`
+	Timeout    int    `json:"timeout"`
+	TargetPort int32  `json:"targetPort"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -265,9 +267,10 @@ type L7PolicySpec struct {
 }
 
 type L3PolicySpec struct {
-	DOS            string `json:"dos,omitempty"`
-	BotDefense     string `json:"botDefense,omitempty"`
-	FirewallPolicy string `json:"firewallPolicy,omitempty"`
+	DOS              string   `json:"dos,omitempty"`
+	BotDefense       string   `json:"botDefense,omitempty"`
+	FirewallPolicy   string   `json:"firewallPolicy,omitempty"`
+	AllowSourceRange []string `json:"allowSourceRange,omitempty"`
 }
 
 type LtmIRulesSpec struct {

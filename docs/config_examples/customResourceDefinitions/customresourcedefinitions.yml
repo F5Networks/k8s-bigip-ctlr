@@ -74,6 +74,10 @@ spec:
                     type: string
                     pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_]+\/?)*$'
                   type: array
+                allowSourceRange:
+                  items:
+                    type: string
+                  type: array
                 iRules:
                   type: array
                   items:
@@ -136,6 +140,8 @@ spec:
                           interval:
                             type: integer
                           timeout:
+                            type: integer
+                          targetPort:
                             type: integer
                         required:
                           - type
@@ -369,6 +375,8 @@ spec:
                         interval:
                           type: integer
                         timeout:
+                          type: integer
+                        targetPort:
                           type: integer
                       required:
                         - type
@@ -625,6 +633,10 @@ spec:
                     firewallPolicy:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                    allowSourceRange:
+                      items:
+                        type: string
+                      type: array
                 ltmPolicies:
                   type: object
                   properties:

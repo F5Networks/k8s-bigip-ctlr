@@ -91,6 +91,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | recv | String | Optional | NA | String or RegEx pattern to match in first 5,120 bytes of backend response. |
 | interval | Int | Required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
+| targetPort | Int | Optional | 0 | port (if any) monitor should probe ,if 0 (default) then pool member port is used.Translates to "Alias Service Port" on BIG-IP pool.|
 
 ### Examples
 
@@ -174,7 +175,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | type | String | Required | NA |  http or https |
 | interval | Int | Required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
-
+| targetPort | Int | Optional | 0 | Port (if any) monitor should probe ,if 0 (default) then pool member port is used.Translates to "Alias Service Port" on BIG-IP pool.  |
 ### Examples
 
    https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer

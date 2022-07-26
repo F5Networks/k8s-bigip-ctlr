@@ -66,7 +66,7 @@ func (td *TeemsData) PostTeemsData() bool {
 			return false
 		}
 	}
-
+	td.Lock()
 	assetInfo := f5teem.AssetInfo{
 		Name:    "CIS-Ecosystem",
 		Version: fmt.Sprintf("CIS/v%v", td.CisVersion),
@@ -77,9 +77,8 @@ func (td *TeemsData) PostTeemsData() bool {
 		td.ResourceType.Configmaps, td.ResourceType.VirtualServer, td.ResourceType.TransportServer,
 		td.ResourceType.ExternalDNS, td.ResourceType.IPAMVS, td.ResourceType.IPAMTS, td.ResourceType.IPAMSvcLB,
 		td.ResourceType.NativeRoutes, td.ResourceType.RouteGroups}
-	var sum int
 	for _, rscType := range types {
-		sum = 0
+		sum := 0
 		rscType[TOTAL] = 0 // Reset previous iteration sum
 		for _, count := range rscType {
 			sum += count
@@ -106,6 +105,7 @@ func (td *TeemsData) PostTeemsData() bool {
 		"NativeRoutesCount":        td.ResourceType.NativeRoutes[TOTAL],
 		"RouteGroupsCount":         td.ResourceType.RouteGroups[TOTAL],
 	}
+	td.Unlock()
 	err := teemDevice.Report(data, "CIS Telemetry Data", "1")
 	if err != nil && !strings.Contains(err.Error(), "request-limit") {
 		//log teem error for debugging

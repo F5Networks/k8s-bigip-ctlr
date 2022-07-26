@@ -74,6 +74,10 @@ spec:
                     type: string
                     pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_]+\/?)*$'
                   type: array
+                allowSourceRange:
+                  items:
+                    type: string
+                  type: array
                 iRules:
                   type: array
                   items:
@@ -629,6 +633,10 @@ spec:
                     firewallPolicy:
                       type: string
                       pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                    allowSourceRange:
+                      items:
+                        type: string
+                      type: array
                 ltmPolicies:
                   type: object
                   properties:

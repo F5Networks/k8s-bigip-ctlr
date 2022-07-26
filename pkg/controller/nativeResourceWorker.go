@@ -506,7 +506,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 
 	ruleName := formatVirtualServerRuleName(route.Spec.Host, routeGroup, path, poolName)
 
-	rl, err := createRule(uri, poolName, ruleName)
+	rl, err := createRule(uri, poolName, ruleName, []string{})
 	if nil != err {
 		log.Errorf("Error configuring rule: %v", err)
 		return nil

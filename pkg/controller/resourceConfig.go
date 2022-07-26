@@ -471,6 +471,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		rsCfg.Virtual.ProfileDOS = vs.Spec.DOS
 	}
 
+	if len(vs.Spec.AllowSourceRange) > 0 {
+		rsCfg.Virtual.AllowSourceRange = vs.Spec.AllowSourceRange
+	}
+
 	if vs.Spec.BotDefense != "" {
 		rsCfg.Virtual.ProfileBotDefense = vs.Spec.BotDefense
 	}
@@ -488,7 +492,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 
 	// skip the policy creation for passthrough termination
 	if !passthroughVS {
-		rules = ctlr.prepareVirtualServerRules(vs)
+		rules = ctlr.prepareVirtualServerRules(vs, rsCfg)
 		if rules == nil {
 			return fmt.Errorf("failed to create LTM Rules")
 		}
@@ -1560,6 +1564,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
 	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
+	rsCfg.Virtual.AllowSourceRange = plc.Spec.L3Policies.AllowSourceRange
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)

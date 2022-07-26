@@ -991,6 +991,13 @@ func createRuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 			if c.Equals {
 				condition.Path.Operand = "equals"
 			}
+		} else if c.Tcp {
+			if c.Address && len(c.Values) > 0 {
+				condition.Type = "tcp"
+				condition.Address = &as3PolicyAddressString{
+					Values: c.Values,
+				}
+			}
 		}
 		if c.Request {
 			condition.Event = "request"

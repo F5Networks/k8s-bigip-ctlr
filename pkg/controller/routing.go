@@ -34,6 +34,7 @@ import (
 // prepareVirtualServerRules prepares LTM Policy rules for VirtualServer
 func (ctlr *Controller) prepareVirtualServerRules(
 	vs *cisapiv1.VirtualServer,
+	rsCfg *ResourceConfig,
 ) *Rules {
 	rlMap := make(ruleMap)
 	wildcards := make(ruleMap)
@@ -43,7 +44,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 
 	if vs.Spec.RewriteAppRoot != "" {
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, "redirectto", vs.Spec.RewriteAppRoot)
-		rl, err := createRedirectRule(vs.Spec.Host+appRoot, vs.Spec.RewriteAppRoot, ruleName)
+		rl, err := createRedirectRule(vs.Spec.Host+appRoot, vs.Spec.RewriteAppRoot, ruleName, rsCfg.Virtual.AllowSourceRange)
 		if nil != err {
 			log.Errorf("Error configuring redirect rule: %v", err)
 			return nil
@@ -83,7 +84,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
 		var err error
-		rl, err := createRule(uri, poolName, ruleName)
+		rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange)
 		if nil != err {
 			log.Errorf("Error configuring rule: %v", err)
 			return nil
@@ -182,7 +183,7 @@ func formatVirtualServerRuleName(hostname, hostGroup, path, pool string) string 
 }
 
 // Create LTM policy rules
-func createRule(uri, poolName, ruleName string) (*Rule, error) {
+func createRule(uri, poolName, ruleName string, allowSourceRange []string) (*Rule, error) {
 	_u := "scheme://" + uri
 	_u = strings.TrimSuffix(_u, "/")
 	u, err := url.Parse(_u)
@@ -222,9 +223,16 @@ func createRule(uri, poolName, ruleName string) (*Rule, error) {
 		cond.Request = true
 		conditions = append(conditions, cond)
 	}
-
 	if 0 != len(u.EscapedPath()) {
 		conditions = append(conditions, createPathSegmentConditions(u)...)
+	}
+	if len(allowSourceRange) > 0 {
+		cond = &condition{
+			Tcp:     true,
+			Address: true,
+			Values:  allowSourceRange,
+		}
+		conditions = append(conditions, cond)
 	}
 
 	rl := Rule{
@@ -313,7 +321,7 @@ func getRewriteActions(path, rwPath string, actionNameIndex int) ([]*action, err
 	return actions, nil
 }
 
-func createRedirectRule(source, target, ruleName string) (*Rule, error) {
+func createRedirectRule(source, target, ruleName string, allowSourceRange []string) (*Rule, error) {
 	_u := "scheme://" + source
 	_u = strings.TrimSuffix(_u, "/")
 	u, err := url.Parse(_u)
@@ -361,6 +369,14 @@ func createRedirectRule(source, target, ruleName string) (*Rule, error) {
 		Values:  []string{"/"},
 	}
 	conds = append(conds, rootCondition)
+
+	if len(allowSourceRange) > 0 {
+		conds = append(conds, &condition{
+			Tcp:     true,
+			Address: true,
+			Values:  allowSourceRange,
+		})
+	}
 
 	rl := Rule{
 		Name:       ruleName,

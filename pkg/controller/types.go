@@ -198,6 +198,7 @@ type (
 		AllowVLANs             []string              `json:"allowVlans,omitempty"`
 		PersistenceProfile     string                `json:"persistenceProfile,omitempty"`
 		TLSTermination         string                `json:"-"`
+		AllowSourceRange       []string              `json:"allowSourceRange,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -711,6 +712,7 @@ type (
 		PathSegment *as3PolicyCompareString `json:"pathSegment,omitempty"`
 		Path        *as3PolicyCompareString `json:"path,omitempty"`
 		ServerName  *as3PolicyCompareString `json:"serverName,omitempty"`
+		Address     *as3PolicyAddressString `json:"address,omitempty"`
 	}
 
 	// as3ActionForwardSelect maps to Policy_Action_Forward_Select in AS3 Resources
@@ -728,6 +730,11 @@ type (
 		CaseSensitive bool     `json:"caseSensitive,omitempty"`
 		Values        []string `json:"values,omitempty"`
 		Operand       string   `json:"operand"`
+	}
+
+	// as3PolicyAddressString maps to Policy_Compare_String in AS3 Resources
+	as3PolicyAddressString struct {
+		Values []string `json:"values,omitempty"`
 	}
 
 	// as3Pool maps to Pool in AS3 Resources

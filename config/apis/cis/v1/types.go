@@ -48,6 +48,7 @@ type VirtualServerSpec struct {
 	DOS                    string           `json:"dos,omitempty"`
 	BotDefense             string           `json:"botDefense,omitempty"`
 	Profiles               ProfileSpec      `json:"profiles,omitempty"`
+	AllowSourceRange       []string         `json:"allowSourceRange,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -266,9 +267,10 @@ type L7PolicySpec struct {
 }
 
 type L3PolicySpec struct {
-	DOS            string `json:"dos,omitempty"`
-	BotDefense     string `json:"botDefense,omitempty"`
-	FirewallPolicy string `json:"firewallPolicy,omitempty"`
+	DOS              string   `json:"dos,omitempty"`
+	BotDefense       string   `json:"botDefense,omitempty"`
+	FirewallPolicy   string   `json:"firewallPolicy,omitempty"`
+	AllowSourceRange []string `json:"allowSourceRange,omitempty"`
 }
 
 type LtmIRulesSpec struct {

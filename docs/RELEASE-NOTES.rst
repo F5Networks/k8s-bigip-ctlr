@@ -6,6 +6,8 @@ Next Release
 
 Added Functionality
 ```````````````````
+* CRD:
+        * AllowSourceRange support for VirtualServer CRs and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
 
 Bug Fixes
 ````````````

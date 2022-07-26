@@ -53,6 +53,9 @@
           "type": "string",
           "$comment": "IMPORTANT: In enum array, please put current schema version first, oldest-supported version last.  Keep enum array sorted most-recent-first.",
           "enum": [
+            "3.38.0",
+            "3.36.1",
+            "3.37.0",
             "3.36.0",
             "3.35.0",
             "3.34.0",
@@ -1009,6 +1012,7 @@
               "DNS_Nameserver",
               "DOS_Profile",
               "GSLB_Domain",
+              "GSLB_iRule",
               "GSLB_Monitor",
               "GSLB_Pool",
               "GSLB_Server",
@@ -1024,6 +1028,7 @@
               "Endpoint_Strategy",
               "Bandwidth_Control_Policy",
               "Idle_Timeout_Policy",
+              "Net_Address_List",
               "Enforcement_Policy",
               "Enforcement_Diameter_Endpoint_Profile",
               "Enforcement_iRule",
@@ -1811,6 +1816,18 @@
             "if": {
               "properties": {
                 "class": {
+                  "const": "GSLB_iRule"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/GSLB_iRule"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
                   "const": "GSLB_Monitor"
                 }
               }
@@ -1985,6 +2002,18 @@
             },
             "then": {
               "$ref": "#/definitions/Idle_Timeout_Policy"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "class": {
+                  "const": "Net_Address_List"
+                }
+              }
+            },
+            "then": {
+              "$ref": "#/definitions/Net_Address_List"
             }
           },
           {
@@ -4399,6 +4428,9 @@
         {
           "if": {
             "not": {
+              "required": [
+                "virtualType"
+              ],
               "properties": {
                 "virtualType": {
                   "const": "internal"
@@ -4882,6 +4914,7 @@
           "description": "The absolute file path for the ASM policy stored on the BIG-IP",
           "type": "string",
           "minLength": 3,
+          "f5fetch": "string",
           "f5expand": true
         },
         "policy": {
@@ -5640,7 +5673,9 @@
             "$ref": "#/definitions/Pool_Member"
           },
           "$comment": "uniqueItems: true",
-          "f5node": true
+          "f5PostProcess": {
+            "tag": "node"
+          }
         },
         "reselectTries": {
           "title": "Reselect tries",
@@ -8286,6 +8321,16 @@
             "require"
           ]
         },
+        "smtpsStartTLS": {
+          "title": "Simple Mail Transfer Protocol Security (SMTPS) profile",
+          "description": "Creates a SMTPS profile with the specified activation mode STARTTTLS. Because HTTP profile is not compatible with SMTPS use with Service_TCP instead of Service_HTTPS. Also incompatible with ldapStartTLS. Use only one of the two.",
+          "type": "string",
+          "enum": [
+            "none",
+            "allow",
+            "require"
+          ]
+        },
         "staplerOCSPEnabled": {
           "description": "Specifies whether to enable OCSP stapling",
           "type": "boolean",
@@ -8359,6 +8404,74 @@
           "description": "Allow SSL v3 protocol",
           "type": "boolean",
           "default": true
+        },
+        "proxySslEnabled": {
+          "title": "Proxy SSL Enabled",
+          "description": "When enabled, further modification of application traffic within an SSL tunnel is allowed while still allowing the server to perform necessary authorization, authentication, and auditing steps. Requires a corresponding TLS_Client with this enabled to perform transparent SSL decryption.",
+          "type": "boolean",
+          "default": false
+        },
+        "proxySslPassthroughEnabled": {
+          "title": "Proxy SSL Passthrough Enabled",
+          "description": "When enabled, it allows Proxy SSL to passthrough the traffic when ciphersuite negotiated between the client and server is not supported. Requires a corresponding TLS_Client with this enabled to perform transparent SSL decryption.",
+          "type": "boolean",
+          "default": false
+        },
+        "secureRenegotiation": {
+          "title": "Secure Renegotiation",
+          "description": "Specifies the secure renegotiation mode. When set to require, any client attempting to renegotiate that does not support secure renegotiation will have its connection aborted. When set to require-strict, any client attempting to connect that does not support secure renegotiation will have its initial handshake denied. When set to request, unpatched clients will be permitted to renegotiate. Setting to request is not recommended as it is subject to active man-in-the-middle attacks.",
+          "type": "string",
+          "enum": [
+            "request",
+            "require",
+            "require-strict"
+          ],
+          "default": "require"
+        },
+        "uncleanShutdownEnabled": {
+          "title": "Unclean Shutdown Enabled",
+          "description": "When enabled, the profile performs unclean shutdowns of all SSL connections, which means the underlying TCP connections are closed without exchanging the required SSL shutdown alerts.",
+          "type": "boolean",
+          "default": true
+        },
+        "dtlsEnabled": {
+          "title": "DTLS Enabled",
+          "description": "Allows the DTLS protocol.",
+          "type": "boolean",
+          "default": true
+        },
+        "dtls1_2Enabled": {
+          "title": "DTLS1.2 Enabled",
+          "description": "Allows the DTLS 1.2 protocol.",
+          "type": "boolean",
+          "default": true
+        },
+        "certificateExtensions": {
+          "title": "Certificate Extensions",
+          "description": "Specifies the extensions of the web server certificates to be included in the generated certificates using SSL Forward Proxy.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "authority-key-identifier",
+              "basic-constraints",
+              "certificate-policies",
+              "crl-distribution-points",
+              "extended-key-usage",
+              "fresh-crl",
+              "issuer-alternative-name",
+              "key-usage",
+              "subject-alternative-name",
+              "subject-directory-attribute",
+              "subject-key-identifier"
+            ]
+          }
+        },
+        "nonSslConnectionsEnabled": {
+          "title": "Allow Non-SSL Connections",
+          "description": "Specifies if non-SSL connections are allowed.",
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false,
@@ -8371,6 +8484,13 @@
             "forwardProxyBypassEnabled": {
               "const": true
             }
+          }
+        },
+        "smtpsStartTLS": {
+          "not": {
+            "required": [
+              "ldapStartTLS"
+            ]
           }
         }
       },
@@ -8759,6 +8879,47 @@
         "ssl3Enabled": {
           "title": "SSL v3",
           "description": "Allow SSL v3 protocol",
+          "type": "boolean",
+          "default": true
+        },
+        "proxySslEnabled": {
+          "title": "Proxy SSL Enabled",
+          "description": "When enabled, further modification of application traffic within an SSL tunnel is allowed while still allowing the server to perform necessary authorization, authentication, and auditing steps. Requires a corresponding TLS_Server with this enabled to perform transparent SSL decryption.",
+          "type": "boolean",
+          "default": false
+        },
+        "proxySslPassthroughEnabled": {
+          "title": "Proxy SSL Passthrough Enabled",
+          "description": "When enabled, it allows Proxy SSL to passthrough the traffic when ciphersuite negotiated between the client and server is not supported. Requires a corresponding TLS_Server with this enabled to perform transparent SSL decryption.",
+          "type": "boolean",
+          "default": false
+        },
+        "secureRenegotiation": {
+          "title": "Secure Renegotiation",
+          "description": "Specifies the secure renegotiation mode. When set to require, any connection to an unpatched server will be aborted. For TLS_Client, require and require-strict are the same. When set to request, connections to unpatched servers will be permitted. Setting to request is not recommended as it is subject to active man-in-the-middle attacks.",
+          "type": "string",
+          "enum": [
+            "request",
+            "require",
+            "require-strict"
+          ],
+          "default": "require-strict"
+        },
+        "uncleanShutdownEnabled": {
+          "title": "Unclean Shutdown Enabled",
+          "description": "When enabled, the profile performs unclean shutdowns of all SSL connections, which means the underlying TCP connections are closed without exchanging the required SSL shutdown alerts.",
+          "type": "boolean",
+          "default": true
+        },
+        "dtlsEnabled": {
+          "title": "DTLS Enabled",
+          "description": "Allows the DTLS protocol.",
+          "type": "boolean",
+          "default": true
+        },
+        "dtls1_2Enabled": {
+          "title": "DTLS1.2 Enabled",
+          "description": "Allows the DTLS 1.2 protocol.",
           "type": "boolean",
           "default": true
         }
@@ -9669,12 +9830,20 @@
         "enforceTlsSessionReuseEnabled": {
           "description": "Enforce data connection to reuse TLS session",
           "type": "boolean",
-          "default": false
+          "default": false,
+          "f5PostProcess": {
+            "tag": "minVersion",
+            "data": "14.0"
+          }
         },
         "activeModeEnabled": {
           "description": "Specifies if the profile should allow FTP active transfer mode",
           "type": "boolean",
-          "default": true
+          "default": true,
+          "f5PostProcess": {
+            "tag": "minVersion",
+            "data": "14.0"
+          }
         },
         "securityEnabled": {
           "description": "Specifies whether to enable or disable secure FTP traffic for the BIG-IP Application Security Manager",
@@ -16515,17 +16684,23 @@
         },
         "allowlist": {
           "description": "Specifies the default allowlist address list for the system to use to determine which IP addresses are legitimate. The system does not examine traffic from the IP addresses in the list when performing DoS prevention. This property is available on BIGIP 14.1 and above.",
-          "allOf": [
+          "oneOf": [
             {
               "$ref": "#/definitions/Pointer_Firewall_Address_List"
+            },
+            {
+              "$ref": "#/definitions/Pointer_Net_Address_List"
             }
           ]
         },
         "whitelist": {
           "description": "Deprecated. Replaced with functionally equivalent allowlist. Specifies the default allowlist address list for the system to use to determine which IP addresses are legitimate. The system does not examine traffic from the IP addresses in the list when performing DoS prevention. This property is available on BIGIP 14.1 and above.",
-          "allOf": [
+          "oneOf": [
             {
               "$ref": "#/definitions/Pointer_Firewall_Address_List"
+            },
+            {
+              "$ref": "#/definitions/Pointer_Net_Address_List"
             }
           ]
         },
@@ -16534,9 +16709,12 @@
           "f5modules": [
             "asm"
           ],
-          "allOf": [
+          "oneOf": [
             {
               "$ref": "#/definitions/Pointer_Firewall_Address_List"
+            },
+            {
+              "$ref": "#/definitions/Pointer_Net_Address_List"
             }
           ]
         },
@@ -16545,9 +16723,12 @@
           "f5modules": [
             "asm"
           ],
-          "allOf": [
+          "oneOf": [
             {
               "$ref": "#/definitions/Pointer_Firewall_Address_List"
+            },
+            {
+              "$ref": "#/definitions/Pointer_Net_Address_List"
             }
           ]
         }
@@ -18818,7 +18999,42 @@
           "description": "Specifies the pools that this domain uses for load balancing. The system evaluates the pools in the order in which they are listed, until it finds a matching pool",
           "type": "array",
           "items": {
-            "$ref": "#/definitions/Pointer_GSLB_Pool"
+            "type": "object",
+            "properties": {
+              "use": {
+                "title": "Use",
+                "description": "AS3 pointer to GSLB Pool declaration",
+                "type": "string",
+                "minLength": 1,
+                "f5pointsTo": {
+                  "properties": {
+                    "class": {
+                      "const": "GSLB_Pool"
+                    }
+                  },
+                  "required": [
+                    "class"
+                  ]
+                }
+              },
+              "ratio": {
+                "title": "Ratio weight",
+                "description": "Ratio weight assigned to GSLB pool",
+                "type": "integer",
+                "default": 1
+              }
+            },
+            "additionalProperties": false,
+            "dependencies": {
+              "ratio": {
+                "minProperties": 2,
+                "maxProperties": 2
+              },
+              "use": {
+                "minProperties": 1,
+                "maxProperties": 2
+              }
+            }
           }
         },
         "poolsCname": {
@@ -18856,6 +19072,63 @@
             "CNAME",
             "MX"
           ]
+        },
+        "iRules": {
+          "title": "iRules",
+          "description": "List of GSLB iRules for this GSLB Domain (order is significant)",
+          "type": "array",
+          "items": {
+            "title": "iRule",
+            "description": "AS3 pointer to GSLB_iRule (declared separately)",
+            "if": {
+              "type": "string"
+            },
+            "then": {
+              "minLength": 1,
+              "f5pointsTo": {
+                "properties": {
+                  "class": {
+                    "const": "GSLB_iRule"
+                  }
+                },
+                "required": [
+                  "class"
+                ]
+              }
+            },
+            "else": {
+              "type": "object",
+              "properties": {
+                "bigip": {
+                  "title": "BIG-IP GTM iRule",
+                  "description": "Pathname of existing BIG-IP GTM iRule",
+                  "type": "string",
+                  "format": "f5bigip"
+                },
+                "use": {
+                  "title": "Use",
+                  "description": "AS3 pointer to GSLB_iRule (declared separately)",
+                  "type": "string",
+                  "minLength": 1,
+                  "f5pointsTo": {
+                    "properties": {
+                      "class": {
+                        "const": "GSLB_iRule"
+                      }
+                    },
+                    "required": [
+                      "class"
+                    ]
+                  }
+                }
+              },
+              "additionalProperties": false,
+              "minProperties": 1,
+              "maxProperties": 1,
+              "f5bigComponent": "query gtm rule"
+            }
+          },
+          "$comment": "uniqueItems: true"
         }
       },
       "if": {
@@ -18911,6 +19184,38 @@
         {
           "$ref": "#/definitions/GSLB_Domain"
         }
+      ]
+    },
+    "GSLB_iRule": {
+      "title": "GSLB_iRule",
+      "description": "Specifies or configures an iRule for use in GSLB Domains",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "GSLB_iRule"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "expand": {
+          "title": "Expand",
+          "description": "If true (default), expand backquoted variables in iRule",
+          "type": "boolean",
+          "default": true
+        },
+        "iRule": {
+          "$ref": "#/definitions/iRule_Core"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "class",
+        "iRule"
       ]
     },
     "GSLB_Monitor": {
@@ -25386,6 +25691,56 @@
       ],
       "additionalProperties": false
     },
+    "Net_Address_List": {
+      "title": "Net_Address_List",
+      "description": "You can use the address-list component to define reusable lists of addresses. This property requires a BIG-IP version of 14.1 or higher.",
+      "type": "object",
+      "properties": {
+        "class": {
+          "title": "Class",
+          "type": "string",
+          "const": "Net_Address_List"
+        },
+        "label": {
+          "$ref": "#/definitions/Label"
+        },
+        "remark": {
+          "$ref": "#/definitions/Remark"
+        },
+        "addresses": {
+          "type": "array",
+          "description": "A list of IPv4 and IPv6 addresses and address ranges. You can specify a network with CIDR slash notation.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "addressLists": {
+          "type": "array",
+          "description": "A list of other address lists (each by AS3 pointer or BIG-IP pathname).",
+          "items": {
+            "$ref": "#/definitions/Pointer_Net_Address_List"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "class"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "addresses"
+          ]
+        },
+        {
+          "required": [
+            "addressLists"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
     "Enforcement_Policy": {
       "title": "Enforcement_Policy",
       "description": "Configures policies for the Policy Enforcement Manager (PEM)",
@@ -29446,6 +29801,42 @@
       "allOf": [
         {
           "f5bigComponent": "query security nat source-translation"
+        }
+      ]
+    },
+    "Pointer_Net_Address_List": {
+      "description": "Reference to a net address list",
+      "type": "object",
+      "properties": {
+        "use": {
+          "description": "AS3 pointer to net address list declaration",
+          "type": "string",
+          "minLength": 1,
+          "f5pointsTo": {
+            "properties": {
+              "class": {
+                "enum": [
+                  "Net_Address_List"
+                ]
+              }
+            },
+            "required": [
+              "class"
+            ]
+          }
+        },
+        "bigip": {
+          "description": "Pathname of existing BIG-IP net address list",
+          "type": "string",
+          "format": "f5bigip"
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "allOf": [
+        {
+          "f5bigComponent": "query net address-list"
         }
       ]
     },

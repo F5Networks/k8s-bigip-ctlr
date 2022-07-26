@@ -36,8 +36,8 @@ const (
 	svcPoolLabel        = "cis.f5.com/as3-pool="
 	as3SupportedVersion = 3.18
 	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
-	as3Version           = 3.36
-	defaultAS3Version    = "3.36.0"
+	as3Version           = 3.38
+	defaultAS3Version    = "3.38.0"
 	defaultAS3Build      = "3"
 	as3tenant            = "Tenant"
 	as3class             = "class"

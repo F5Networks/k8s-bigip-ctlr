@@ -6,6 +6,7 @@ Next Release
 
 Added Functionality
 ```````````````````
+* Added Support for AS3 3.38.0
 * CRD:
         * AllowSourceRange support for VirtualServer CRs and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
 

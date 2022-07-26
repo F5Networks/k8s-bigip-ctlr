@@ -189,7 +189,7 @@ func (ctlr *Controller) processNativeResource() bool {
 		config := ResourceConfigRequest{
 			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
 			shareNodes:         ctlr.shareNodes,
-			dnsConfig:          ctlr.resources.getGTMConfigCopy(),
+			gtmConfig:          ctlr.resources.getGTMConfigCopy(),
 			defaultRouteDomain: ctlr.defaultRouteDomain,
 		}
 		go ctlr.TeemData.PostTeemsData()

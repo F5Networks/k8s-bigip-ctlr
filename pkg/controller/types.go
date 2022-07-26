@@ -254,8 +254,8 @@ type (
 	ResourceStore struct {
 		ltmConfig      LTMConfig
 		ltmConfigCache LTMConfig
-		dnsConfig      DNSConfig
-		dnsConfigCache DNSConfig
+		gtmConfig      GTMConfig
+		gtmConfigCache GTMConfig
 		nplStore       NPLStore
 		supplementContextCache
 	}
@@ -277,8 +277,8 @@ type (
 	// key is namespace/pod. stores list of npl annotation on pod
 	NPLStore map[string]NPLAnnoations
 
-	// DNSConfig key is domainName and value is WideIP
-	DNSConfig map[string]WideIP
+	// GTMConfig key is domainName and value is WideIP
+	GTMConfig map[string]WideIP
 
 	WideIPs struct {
 		WideIPs []WideIP `json:"wideIPs"`
@@ -299,12 +299,13 @@ type (
 		PriorityOrder int       `json:"order"`
 		Members       []string  `json:"members"`
 		Monitors      []Monitor `json:"monitors,omitempty"`
+		DataServer    string
 	}
 
 	ResourceConfigRequest struct {
 		ltmConfig          LTMConfig
 		shareNodes         bool
-		dnsConfig          DNSConfig
+		gtmConfig          GTMConfig
 		defaultRouteDomain int
 		reqId              int
 	}
@@ -549,6 +550,12 @@ type (
 
 	//List of NPL annotations
 	NPLAnnoations []NPLAnnotation
+
+	// Store of CustomProfiles
+	ProcessedHostPath struct {
+		sync.Mutex
+		processedHostPathMap map[string]metav1.Time
+	}
 )
 
 type (
@@ -890,6 +897,78 @@ type (
 		SvcPort int32  `json:"svcPort,omitempty"`
 		Session string `json:"session,omitempty"`
 	}
+)
+
+type (
+	// AS3 GTM
+
+	// as3GLSBDomain maps to GSLB_Domain in AS3 Resources
+	as3GLSBDomain struct {
+		Class      string              `json:"class"`
+		DomainName string              `json:"domainName"`
+		RecordType string              `json:"resourceRecordType"`
+		LBMode     string              `json:"poolLbMode"`
+		Pools      []as3GSLBDomainPool `json:"pools"`
+	}
+
+	as3GSLBDomainPool struct {
+		Use string `json:"use"`
+	}
+
+	// as3GSLBPool maps to GSLB_Pool in AS3 Resources
+	as3GSLBPool struct {
+		Class      string               `json:"class"`
+		RecordType string               `json:"resourceRecordType"`
+		LBMode     string               `json:"lbModeAlternate"`
+		Members    []as3GSLBPoolMemberA `json:"members"`
+		Monitors   []as3ResourcePointer `json:"monitors"`
+	}
+
+	// as3GSLBPoolMemberA maps to GSLB_Pool_Member_A in AS3 Resources
+	as3GSLBPoolMemberA struct {
+		Enabled       bool               `json:"enabled"`
+		Server        as3ResourcePointer `json:"server"`
+		VirtualServer string             `json:"virtualServer"`
+	}
+
+	as3GSLBMonitor struct {
+		Class    string `json:"class"`
+		Interval int    `json:"interval"`
+		Type     string `json:"monitorType"`
+		Send     string `json:"send"`
+		Receive  string `json:"receive"`
+		Timeout  int    `json:"timeout"`
+	}
+
+	// as3GSLBServer maps to GSLB_Server in AS3 Resources
+	//as3GSLBServer struct {
+	//	Class                     string `json:"class"`
+	//	VSDiscoveryMode           string `json:"virtualServerDiscoveryMode"`
+	//	ExposeRouteDomainsEnabled string `json:"exposeRouteDomainsEnabled"`
+	//
+	//	DataCenter as3ResourcePointer `json:"dataCenter"`
+	//
+	//	//VirtualServers  []as3GSLBVirtualServer `json:"virtualServers"`
+	//	//Devices         []as3GSLBServerDevice `json:"devices"`
+	//
+	//}
+
+	// as3GSLBServerDevice maps to GSLB_Server_Device in AS3 Resources
+	//as3GSLBServerDevice struct {
+	//	Address string `json:"address"`
+	//}
+
+	// as3GSLBVirtualServer maps to GSLB_Virtual_Server in AS3 Resources
+	//as3GSLBVirtualServer struct {
+	//	Address string               `json:"address"`
+	//	Port    int                  `json:"port"`
+	//	Name    string               `json:"name"`
+	//	Montors []as3ResourcePointer `json:"montors"`
+	//}
+)
+
+type (
+	// TLS Structures
 
 	BigIPSSLProfiles struct {
 		clientSSL                string
@@ -919,12 +998,6 @@ type (
 		bigIPSSLProfiles BigIPSSLProfiles
 	}
 )
-
-// Store of CustomProfiles
-type ProcessedHostPath struct {
-	sync.Mutex
-	processedHostPathMap map[string]metav1.Time
-}
 
 type (
 	extendedSpec struct {

@@ -2,67 +2,12 @@ package controller
 
 import (
 	"encoding/json"
-
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Backend Tests", func() {
-
-	It("DNS Config", func() {
-		var monitors []Monitor
-		monitors = append(monitors, Monitor{
-			Name:     "pool1_monitor",
-			Interval: 10,
-			Timeout:  10,
-			Type:     "http",
-			Send:     "GET /health",
-		})
-		dnsConfig := DNSConfig{
-			"test.com": WideIP{
-				DomainName: "test.com",
-				RecordType: "A",
-				LBMethod:   "round-robin",
-				Pools: []GSLBPool{
-					{
-						Name:       "pool1",
-						RecordType: "A",
-						LBMethod:   "round-robin",
-						Members:    []string{"vs1", "vs2"},
-						Monitors:   monitors,
-					},
-				},
-			},
-		}
-
-		config := ResourceConfigRequest{
-			ltmConfig:          make(LTMConfig),
-			shareNodes:         true,
-			dnsConfig:          dnsConfig,
-			defaultRouteDomain: 1,
-		}
-		config.ltmConfig["default"] = make(ResourceMap)
-
-		writer := &test.MockWriter{
-			FailStyle: test.Success,
-			Sections:  make(map[string]interface{}),
-		}
-		agent := newMockAgent(writer)
-		agent.PostGTMConfig(config)
-
-		writer.FailStyle = test.ImmediateFail
-		agent = newMockAgent(writer)
-		agent.PostGTMConfig(config)
-
-		writer.FailStyle = test.Timeout
-		agent = newMockAgent(writer)
-		agent.PostGTMConfig(config)
-
-		writer.FailStyle = test.AsyncFail
-		agent = newMockAgent(writer)
-		agent.PostGTMConfig(config)
-	})
 
 	Describe("Prepare AS3 Declaration", func() {
 		var mem1, mem2, mem3, mem4 PoolMember
@@ -279,7 +224,7 @@ var _ = Describe("Backend Tests", func() {
 			config := ResourceConfigRequest{
 				ltmConfig:          make(LTMConfig),
 				shareNodes:         true,
-				dnsConfig:          DNSConfig{},
+				gtmConfig:          GTMConfig{},
 				defaultRouteDomain: 1,
 			}
 
@@ -313,7 +258,7 @@ var _ = Describe("Backend Tests", func() {
 			config := ResourceConfigRequest{
 				ltmConfig:          make(LTMConfig),
 				shareNodes:         true,
-				dnsConfig:          DNSConfig{},
+				gtmConfig:          GTMConfig{},
 				defaultRouteDomain: 1,
 			}
 
@@ -329,7 +274,7 @@ var _ = Describe("Backend Tests", func() {
 			config := ResourceConfigRequest{
 				ltmConfig:          make(LTMConfig),
 				shareNodes:         true,
-				dnsConfig:          DNSConfig{},
+				gtmConfig:          GTMConfig{},
 				defaultRouteDomain: 1,
 			}
 
@@ -345,6 +290,61 @@ var _ = Describe("Backend Tests", func() {
 
 			Expect(agent.incomingTenantDeclMap["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
 			Expect(adc["default"]).To(Equal(map[string]interface{}(deletedTenantDecl)), "Failed to Create AS3 Declaration for deleted tenant")
+		})
+	})
+
+	Describe("GTM Config", func() {
+		var agent *Agent
+		BeforeEach(func() {
+			agent = newMockAgent(nil)
+		})
+
+		It("Empty GTM Config", func() {
+			gtmTenantConfig := agent.createAS3GTMConfigADC(ResourceConfigRequest{})
+			Expect(gtmTenantConfig).To(BeNil(), "Invalid GTM Config")
+		})
+
+		It("Valid GTM Config", func() {
+			monitors := []Monitor{
+				{
+					Name:     "pool1_monitor",
+					Interval: 10,
+					Timeout:  10,
+					Type:     "http",
+					Send:     "GET /health",
+				},
+			}
+			gtmConfig := GTMConfig{
+				"test.com": WideIP{
+					DomainName: "test.com",
+					RecordType: "A",
+					LBMethod:   "round-robin",
+					Pools: []GSLBPool{
+						{
+							Name:       "pool1",
+							RecordType: "A",
+							LBMethod:   "round-robin",
+							Members:    []string{"vs1", "vs2"},
+							Monitors:   monitors,
+						},
+					},
+				},
+			}
+			gtmTenantConfig := agent.createAS3GTMConfigADC(ResourceConfigRequest{
+				gtmConfig: gtmConfig,
+			})
+
+			Expect(gtmTenantConfig).To(HaveKey(as3SharedApplication))
+			sharedApp := gtmTenantConfig[as3SharedApplication].(as3Application)
+
+			Expect(sharedApp).To(HaveKey("test.com"))
+			Expect(sharedApp["test.com"].(as3GLSBDomain).Class).To(Equal("GSLB_Domain"))
+
+			Expect(sharedApp).To(HaveKey("pool1"))
+			Expect(sharedApp["pool1"].(as3GSLBPool).Class).To(Equal("GSLB_Pool"))
+
+			Expect(sharedApp).To(HaveKey("pool1_monitor"))
+			Expect(sharedApp["pool1_monitor"].(as3GSLBMonitor).Class).To(Equal("GSLB_Monitor"))
 		})
 	})
 
@@ -388,4 +388,5 @@ var _ = Describe("Backend Tests", func() {
 			Expect(ok).To(BeTrue())
 		})
 	})
+
 })

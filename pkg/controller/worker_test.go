@@ -886,9 +886,9 @@ var _ = Describe("Worker Tests", func() {
 				})
 
 			mockCtlr.processExternalDNS(newEDNS, false)
-			Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(1))
-			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools)).To(Equal(1))
-			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools[0].Members)).To(Equal(0))
+			Expect(len(mockCtlr.resources.gtmConfig)).To(Equal(1))
+			Expect(len(mockCtlr.resources.gtmConfig["test.com"].Pools)).To(Equal(1))
+			Expect(len(mockCtlr.resources.gtmConfig["test.com"].Pools[0].Members)).To(Equal(0))
 
 			mockCtlr.resources.ltmConfig["default"] = make(ResourceMap)
 			mockCtlr.resources.ltmConfig["default"]["SampleVS"] = &ResourceConfig{
@@ -897,12 +897,12 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 			mockCtlr.processExternalDNS(newEDNS, false)
-			Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(1))
-			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools)).To(Equal(1))
-			Expect(len(mockCtlr.resources.dnsConfig["test.com"].Pools[0].Members)).To(Equal(1))
+			Expect(len(mockCtlr.resources.gtmConfig)).To(Equal(1))
+			Expect(len(mockCtlr.resources.gtmConfig["test.com"].Pools)).To(Equal(1))
+			Expect(len(mockCtlr.resources.gtmConfig["test.com"].Pools[0].Members)).To(Equal(1))
 
 			mockCtlr.processExternalDNS(newEDNS, true)
-			Expect(len(mockCtlr.resources.dnsConfig)).To(Equal(0))
+			Expect(len(mockCtlr.resources.gtmConfig)).To(Equal(0))
 		})
 
 		It("Processing IngressLink", func() {

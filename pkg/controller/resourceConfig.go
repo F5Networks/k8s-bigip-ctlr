@@ -50,8 +50,8 @@ func NewResourceStore() *ResourceStore {
 func (rs *ResourceStore) Init() {
 	rs.ltmConfig = make(LTMConfig)
 	rs.ltmConfigCache = make(LTMConfig)
-	rs.dnsConfig = make(DNSConfig)
-	rs.dnsConfigCache = make(DNSConfig)
+	rs.gtmConfig = make(GTMConfig)
+	rs.gtmConfigCache = make(GTMConfig)
 	rs.poolMemCache = make(PoolMemberCache)
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
@@ -1022,26 +1022,26 @@ func (rs *ResourceStore) getLTMConfigDeepCopy() LTMConfig {
 }
 
 // getGTMConfigCopy is a WideIP reference copy of GTMConfig
-func (rs *ResourceStore) getGTMConfigCopy() DNSConfig {
-	dnsConfig := make(DNSConfig)
-	for dominName, wip := range rs.dnsConfig {
+func (rs *ResourceStore) getGTMConfigCopy() GTMConfig {
+	gtmConfig := make(GTMConfig)
+	for dominName, wip := range rs.gtmConfig {
 		// Everytime new wip object gets created from the scratch
 		// so no need to deep copy wip
-		dnsConfig[dominName] = wip
-		rs.dnsConfigCache[dominName] = wip
+		gtmConfig[dominName] = wip
+		rs.gtmConfigCache[dominName] = wip
 	}
-	return dnsConfig
+	return gtmConfig
 }
 
 func (rs *ResourceStore) updateCaches() {
 	// No need to deep copy as each RsCfg will be framed in a fresh memory block while creating live ltmConfig
 	rs.ltmConfigCache = rs.getLTMConfigCopy()
-	rs.dnsConfigCache = rs.getGTMConfigCopy()
+	rs.gtmConfigCache = rs.getGTMConfigCopy()
 }
 
 func (rs *ResourceStore) isConfigUpdated() bool {
 	return !reflect.DeepEqual(rs.ltmConfig, rs.ltmConfigCache) ||
-		!reflect.DeepEqual(rs.dnsConfig, rs.dnsConfigCache)
+		!reflect.DeepEqual(rs.gtmConfig, rs.gtmConfigCache)
 }
 
 // Deletes respective VirtualServer resource configuration from  ResourceStore

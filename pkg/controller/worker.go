@@ -377,7 +377,7 @@ func (ctlr *Controller) processCustomResource() bool {
 		config := ResourceConfigRequest{
 			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
 			shareNodes:         ctlr.shareNodes,
-			dnsConfig:          ctlr.resources.getGTMConfigCopy(),
+			gtmConfig:          ctlr.resources.getGTMConfigCopy(),
 			defaultRouteDomain: ctlr.defaultRouteDomain,
 		}
 		go ctlr.TeemData.PostTeemsData()
@@ -2205,7 +2205,7 @@ func (ctlr *Controller) processService(
 
 func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
-	if processedWIP, ok := ctlr.resources.dnsConfig[edns.Spec.DomainName]; ok {
+	if processedWIP, ok := ctlr.resources.gtmConfig[edns.Spec.DomainName]; ok {
 		if processedWIP.UID != string(edns.UID) {
 			log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
 			return
@@ -2213,7 +2213,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	}
 
 	if isDelete {
-		delete(ctlr.resources.dnsConfig, edns.Spec.DomainName)
+		delete(ctlr.resources.gtmConfig, edns.Spec.DomainName)
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.ExternalDNS[edns.Namespace]--
 		ctlr.TeemData.Unlock()
@@ -2248,6 +2248,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 			RecordType:    pl.DNSRecordType,
 			LBMethod:      pl.LoadBalanceMethod,
 			PriorityOrder: pl.PriorityOrder,
+			DataServer:    pl.DataServerName,
 		}
 
 		if pl.DNSRecordType == "" {
@@ -2275,8 +2276,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 					pl.DataServerName, DEFAULT_PARTITION, vsName))
 				pool.Members = append(
 					pool.Members,
-					fmt.Sprintf("%v:/%v/Shared/%v",
-						pl.DataServerName, DEFAULT_PARTITION, vsName),
+					fmt.Sprintf("/%v/Shared/%v", DEFAULT_PARTITION, vsName),
 				)
 			}
 		}
@@ -2325,7 +2325,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		wip.Pools = append(wip.Pools, pool)
 	}
 
-	ctlr.resources.dnsConfig[wip.DomainName] = wip
+	ctlr.resources.gtmConfig[wip.DomainName] = wip
 	return
 }
 

@@ -226,7 +226,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		return fmt.Errorf("extended Route Spec not available for RouteGroup/Namespace: %v", routeGroup)
 	}
 
-	routes := ctlr.getGroupedRoutes(routeGroup)
+	routes := ctlr.getGroupedRoutes(routeGroup, extdSpec)
 
 	if triggerDelete || len(routes) == 0 {
 		// Delete all possible virtuals for this route group
@@ -296,7 +296,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 			if isSecureRoute(rt) {
 				//TLS Logic
-				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort)
+				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort, extdSpec)
 				if !processed {
 					// Processing failed
 					// Stop processing further routes
@@ -359,7 +359,7 @@ func (ctlr *Controller) removeUnusedHealthMonitors(rsCfg *ResourceConfig) {
 	}
 }
 
-func (ctlr *Controller) getGroupedRoutes(routeGroup string) []*routeapi.Route {
+func (ctlr *Controller) getGroupedRoutes(routeGroup string, extdSpec *ExtendedRouteGroupSpec) []*routeapi.Route {
 	var assocRoutes []*routeapi.Route
 	// Get the route group
 	for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
@@ -369,7 +369,7 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string) []*routeapi.Route {
 		ctlr.TeemData.Unlock()
 		for _, route := range orderedRoutes {
 			// TODO: add combinations for a/b - svc weight ; valid svcs or not
-			if ctlr.checkValidRoute(route) {
+			if ctlr.checkValidRoute(route, extdSpec) {
 				var key string
 				if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
 					key = route.Spec.Host + "/"
@@ -1174,7 +1174,7 @@ func (ctlr *Controller) fetchRoute(rscKey string) *routeapi.Route {
 	return obj.(*routeapi.Route)
 }
 
-func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
+func (ctlr *Controller) checkValidRoute(route *routeapi.Route, extdSpec *ExtendedRouteGroupSpec) bool {
 	// Validate the hostpath
 	ctlr.processedHostPath.Lock()
 	defer ctlr.processedHostPath.Unlock()
@@ -1193,8 +1193,21 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
 			return false
 		}
 	}
-	// Validate hostname if certificate is not provided in SSL annotations
-	if nil != route.Spec.TLS && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
+
+	// If TLS reference of type BigIP is configured in ConfigMap, fetch Client and Server SSL profile references
+	if extdSpec != nil && extdSpec.TLS != (TLS{}) && extdSpec.TLS.Reference == BIGIP && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
+		if extdSpec.TLS.ClientSSL == "" {
+			message := fmt.Sprintf("Missing BigIP client SSL profile reference in the ConfigMap")
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			return false
+		}
+		if extdSpec.TLS.ServerSSL == "" && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
+			message := fmt.Sprintf("Missing BigIP server SSL profile reference in the ConfigMap")
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			return false
+		}
+	} else if nil != route.Spec.TLS && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
+		// Validate hostname if certificate is not provided in SSL annotations
 		ok := checkCertificateHost(route.Spec.Host, []byte(route.Spec.TLS.Certificate), []byte(route.Spec.TLS.Key))
 		if !ok {
 			//Invalid certificate and key

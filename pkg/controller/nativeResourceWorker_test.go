@@ -195,10 +195,10 @@ var _ = Describe("Routes", func() {
 			rskey1 := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			rskey2 := fmt.Sprintf("%v/%v", route2.Namespace, route2.Name)
 			rskey3 := fmt.Sprintf("%v/%v", route3.Namespace, route3.Name)
-			Expect(mockCtlr.checkValidRoute(route1)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route1, nil)).To(BeFalse())
 			mockCtlr.processedHostPath.processedHostPathMap[route1.Spec.Host+route1.Spec.Path] = route1.ObjectMeta.CreationTimestamp
-			Expect(mockCtlr.checkValidRoute(route2)).To(BeFalse())
-			Expect(mockCtlr.checkValidRoute(route3)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route2, nil)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route3, nil)).To(BeFalse())
 			time.Sleep(100 * time.Millisecond)
 			route1 = mockCtlr.fetchRoute(rskey1)
 			route2 = mockCtlr.fetchRoute(rskey2)
@@ -342,6 +342,114 @@ var _ = Describe("Routes", func() {
 			Expect(rsCfg.Policies[0].Rules[0].FullURI).To(Equal("foo.com/foo"))
 			Expect(rsCfg.Policies[0].Rules[1].FullURI).To(Equal("bar.com/bar"))
 
+		})
+
+		It("Check Route TLS", func() {
+
+			tls := TLS{
+				ClientSSL: "/Common/clientssl",
+				ServerSSL: "/Common/serverssl",
+				Reference: "bigip",
+			}
+
+			clientTls := TLS{
+				ClientSSL: "/Common/clientssl",
+				Reference: "bigip",
+			}
+			serverTls := TLS{
+				ServerSSL: "/Common/serverssl",
+				Reference: "bigip",
+			}
+
+			extdSpec := &ExtendedRouteGroupSpec{
+				VServerName:   "defaultServer",
+				VServerAddr:   "10.8.3.11",
+				TLS:           tls,
+				AllowOverride: "0",
+			}
+
+			//with no tls defined
+			extdSpec1 := &ExtendedRouteGroupSpec{
+				VServerName:   "defaultServer",
+				VServerAddr:   "10.8.3.11",
+				TLS:           serverTls,
+				AllowOverride: "0",
+			}
+
+			// with only client tls defined
+			extdSpec2 := &ExtendedRouteGroupSpec{
+				VServerName:   "defaultServer",
+				VServerAddr:   "10.8.3.11",
+				TLS:           clientTls,
+				AllowOverride: "0",
+			}
+
+			spec1 := routeapi.RouteSpec{
+				Host: "foo.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "edge"},
+			}
+
+			spec2 := routeapi.RouteSpec{
+				Host: "bar.com",
+				Path: "/bar",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "reencrypt"},
+			}
+
+			routeGroup := "default"
+
+			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
+			route2 := test.NewRoute("route2", "2", routeGroup, spec2, nil)
+			rsCfg := &ResourceConfig{}
+			rsCfg.Virtual.Partition = routeGroup
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = "newroutes_443"
+			rsCfg.MetaData.Protocol = HTTPS
+			rsCfg.Virtual.SetVirtualAddress("10.8.3.11", DEFAULT_HTTPS_PORT)
+			ps := portStruct{HTTP, DEFAULT_HTTP_PORT}
+			// Portstruct for secured virtual server
+			ps.protocol = HTTPS
+			ps.port = DEFAULT_HTTPS_PORT
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 443}, false, ps)).To(BeNil())
+
+			//for edge route, and big ip reference in global config map - It should pass
+			Expect(mockCtlr.handleRouteTLS(
+				rsCfg,
+				route1,
+				extdSpec.VServerAddr,
+				intstr.IntOrString{IntVal: 443}, extdSpec)).To(BeTrue())
+
+			//for edge route and global config map without client ssl profile - It should fail
+			Expect(mockCtlr.handleRouteTLS(
+				rsCfg,
+				route1,
+				extdSpec1.VServerAddr,
+				intstr.IntOrString{IntVal: 443}, extdSpec1)).To(BeFalse())
+
+			//for re-encrypt route, and big ip reference in global config map - It should pass
+			Expect(mockCtlr.handleRouteTLS(
+				rsCfg,
+				route2,
+				extdSpec.VServerAddr,
+				intstr.IntOrString{IntVal: 443}, extdSpec)).To(BeTrue())
+
+			//for re encrypt route and global config map without server ssl profile - It should fail
+			Expect(mockCtlr.handleRouteTLS(
+				rsCfg,
+				route2,
+				extdSpec2.VServerAddr,
+				intstr.IntOrString{IntVal: 443}, extdSpec2)).To(BeFalse())
 		})
 
 	})

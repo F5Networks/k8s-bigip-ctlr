@@ -1024,6 +1024,13 @@ type (
 		SNAT           string   `yaml:"snat"`
 		WAF            string   `yaml:"waf"`
 		IRules         []string `yaml:"iRules,omitempty"`
+		TLS            TLS      `yaml:"tls"`
 		HealthMonitors Monitors `yaml:"healthMonitors,omitempty"`
+	}
+
+	TLS struct {
+		ClientSSL string `yaml:"clientSSL,omitempty"`
+		ServerSSL string `yaml:"serverSSL,omitempty"`
+		Reference string `yaml:"reference,omitempty"`
 	}
 )

@@ -10,6 +10,7 @@ Added Functionality
 **What’s new:**
     * Next generation routes
         * Added support for namespaceLabel in global extended ConfigMap
+        * Added support for BigIP ClientSSL/ServerSSL profile reference in global extended ConfigMap
     * CRD:
         * AllowSourceRange support for VirtualServer CRs and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
     * Added support to configure netmask for Virtual Server for Ingress. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/>`_

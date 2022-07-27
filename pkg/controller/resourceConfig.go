@@ -1723,26 +1723,47 @@ func (ctlr *Controller) handleRouteTLS(
 	rsCfg *ResourceConfig,
 	route *routeapi.Route,
 	vServerAddr string,
-	servicePort intstr.IntOrString) bool {
+	servicePort intstr.IntOrString,
+	extdSpec *ExtendedRouteGroupSpec) bool {
 
 	if route.Spec.TLS == nil {
 		// Probably this is a non-tls route, nothing to do w.r.t TLS
 		return false
 	}
-
+	var tlsReferenceType string
 	bigIPSSLProfiles := BigIPSSLProfiles{}
 
-	if route.Spec.TLS.Key != "" {
-		bigIPSSLProfiles.key = route.Spec.TLS.Key
-	}
-	if route.Spec.TLS.Certificate != "" {
-		bigIPSSLProfiles.certificate = route.Spec.TLS.Certificate
-	}
-	if route.Spec.TLS.CACertificate != "" {
-		bigIPSSLProfiles.caCertificate = route.Spec.TLS.CACertificate
-	}
-	if route.Spec.TLS.DestinationCACertificate != "" {
-		bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
+	//If TLS config is present in the global configmap look for the bigIPReference
+	if extdSpec.TLS != (TLS{}) && extdSpec.TLS.Reference == BIGIP {
+		tlsReferenceType = extdSpec.TLS.Reference
+		if route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
+			if extdSpec.TLS.ClientSSL == "" {
+				return false
+			}
+			if route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt && extdSpec.TLS.ServerSSL == "" {
+				return false
+			}
+
+			bigIPSSLProfiles.clientSSL = extdSpec.TLS.ClientSSL
+			if route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
+				bigIPSSLProfiles.serverSSL = extdSpec.TLS.ServerSSL
+			}
+		}
+	} else {
+		tlsReferenceType = Certificate
+
+		if route.Spec.TLS.Key != "" {
+			bigIPSSLProfiles.key = route.Spec.TLS.Key
+		}
+		if route.Spec.TLS.Certificate != "" {
+			bigIPSSLProfiles.certificate = route.Spec.TLS.Certificate
+		}
+		if route.Spec.TLS.CACertificate != "" {
+			bigIPSSLProfiles.caCertificate = route.Spec.TLS.CACertificate
+		}
+		if route.Spec.TLS.DestinationCACertificate != "" {
+			bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
+		}
 	}
 	var poolPathRefs []poolPathRef
 
@@ -1771,7 +1792,7 @@ func (ctlr *Controller) handleRouteTLS(
 	return ctlr.handleTLS(rsCfg, TLSContext{route.ObjectMeta.Name,
 		route.ObjectMeta.Namespace,
 		Route,
-		Certificate,
+		tlsReferenceType,
 		route.Spec.Host,
 		DEFAULT_HTTPS_PORT,
 		vServerAddr,

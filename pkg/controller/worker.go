@@ -1500,7 +1500,7 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 		svcKey := namespace + "/" + svcName
 
 		poolMemInfo, ok := ctlr.resources.poolMemCache[svcKey]
-		if !ok || len(poolMemInfo.memberMap) == 0 {
+		if (!ok || len(poolMemInfo.memberMap) == 0) && pool.ServiceNamespace == namespace {
 			rsCfg.Pools[index].Members = []PoolMember{}
 			continue
 		}
@@ -1533,7 +1533,7 @@ func (ctlr *Controller) updatePoolMembersForCluster(
 
 		poolMemInfo, ok := ctlr.resources.poolMemCache[svcKey]
 
-		if !ok || len(poolMemInfo.memberMap) == 0 {
+		if (!ok || len(poolMemInfo.memberMap) == 0) && pool.ServiceNamespace == namespace {
 			rsCfg.Pools[index].Members = []PoolMember{}
 			continue
 		}

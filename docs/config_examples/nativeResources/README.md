@@ -51,6 +51,7 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
 * ExtendedSpecificConfimap is used to provide common config for routegroup like virtualservername, virtualserveraddress, WAF policy etc which is applied to all routes in the group.
 * Routegroup specific config for each namespace is provided as part of extendedRouteSpec in global configmap
 
+  
 ### Global Configmap
 
 * Global configmap provides control to the admin to create and maintain the resource configuration centrally. 
@@ -62,6 +63,23 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
 * Local configmap is used to specify route config for namespace and allows tenant users access to fine tune the route config. It is processed by CIS only when allowOverride is set to true in global confimap for this namespace.
 * Only one local configmap is allowed per namespace. Local configmap must have only one entry in extendedRouteSpec list and that should be the current namespace only
 
+### Extended Route Config Parameters
+
+| Parameter | Required | Description | Default | ConfigMap |
+| --------- | -------- | ----------- | ------- | --------- |
+| vsAddress | Mandatory | BigIP Virtual Server IP Address | - | Local and Global configMap |
+| vsName | Optional | Name of BigIP Virtual Server | auto | Local and Global configMap |
+| namespace | Mandatory | namespace to group the routes | - | Local and Global configMap |
+| namespaceLabel | Mandatory | namespace-label to group the routes* | - | Global configMap only |
+| allowOverride | Optional | allow users to override the namespace config | - | Global configMap only |
+| bigipPartition | Optional | partition for creating the virtual server | partition which is defined in CIS deployment parameter | Local and Global configMap |
+| WAF | Optional |  WAF Policy for BigIP Virtual Server | - | Local and Global configMap |
+| healthMonitors | Optional |  list of route's health monitors | - | Local and Global configMap |
+
+  **Note**: 1. namespaceLabel is mutually exclusive with namespace parameter
+            2. --namespace-label parameter has to be defined in CIS deployment to use the namespaceLabel in extended configMap
+
+### Example Global & Local ConfigMap with namespace parameter
 **Example: Global Configmap**
 ```
 apiVersion: v1
@@ -152,7 +170,7 @@ spec:
       serviceAccount: bigip-controller
       serviceAccountName: bigip-controller
 ```
-## Examples
+
 **Usecase1: Routes in different namespace**
 
 1) Create route in tenant1 namespace
@@ -209,6 +227,94 @@ spec:
   wildcardPolicy: None
 
 ```
+### Example Global ConfigMap with namespaceLabel parameter
+**Example: Global Configmap**
+```
+apiVersion: v1
+data:
+  extendedSpec: |
+    extendedRouteSpec:
+    - namespaceLabel: routegroup=group1
+      vserverAddr: 10.8.3.130
+      vserverName: routetenant1
+      allowOverride: true
+      bigIpPartition: dev
+    - namespaceLabel: routegroup=group2
+      vserverAddr: 10.8.3.132
+      vserverName: routetenant2
+kind: ConfigMap
+metadata:
+  labels:
+    f5nr: "true"
+  name: global-cm
+  namespace: default
+```
+**NOTE:** label f5nr needs to be set to true on global and local configmap to be processed by CIS.
+
+Cis args:
+````  
+  - --route-spec-configmap
+  - default/global-cm
+  - --controller-mode
+  - openshift
+  - --namespace-label=environement=dev
+````
+Example CIS Deployment:
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+  labels:
+    name: test-bigip-controller
+  name: test-bigip-controller
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: test-bigip-controller
+    spec:
+      containers:
+      - args:
+        - --bigip-partition
+        - test
+        - --bigip-url
+        - <ip_address-or-hostname>
+        - --bigip-username
+        - <username>
+        - --bigip-password
+        - <password>
+        - --as3-validation=true
+        - --disable-teems=true
+        - --insecure
+        - --route-label=systest
+        - --route-spec-configmap
+        - default/global-cm
+        - --controller-mode
+        - openshift
+        - --openshift-sdn-name
+        - /test/vxlan-tunnel-mp
+        - --pool-member-type
+        - cluster
+        - --namespace-label=environment=dev
+        command:
+        - /app/bin/k8s-bigip-ctlr
+        image: f5networks/k8s-bigip-ctlr:latest
+        imagePullPolicy: Always
+        name: test-bigip-controller
+      serviceAccount: bigip-controller
+      serviceAccountName: bigip-controller
+```
+Label the namespaces:
+```
+  oc label namespaces foo environment=dev routegroup=group1 --overwrite=true
+  oc label namespaces bar environment=dev routegroup=group1 --overwrite=true
+  oc label namespaces gamma environment=dev routegroup=group2 --overwrite=true
+  oc label namespaces echo environment=dev routegroup=group2 --overwrite=true
+```
+  
+* Routes in namespace foo & bar will be mapped into single group and a virtual server will be created in **dev** partition in bigip.
+* Routes in namespace gamma & echo will be grouped together and a virtual server will be created in **test** partition in bigip which is defined in CIS deployment.
 
 ## CIS Logs:
 
@@ -348,4 +454,5 @@ No. With NextGenRoute controller, health monitors need to be configured through 
 iRules and healthMonitors are optional values.
 ### Any changes in RBAC? 
 No.
+
 

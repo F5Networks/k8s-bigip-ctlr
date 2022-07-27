@@ -55,6 +55,7 @@ func (rs *ResourceStore) Init() {
 	rs.poolMemCache = make(PoolMemberCache)
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
+	rs.invertedNamespaceLabelMap = make(map[string]string)
 	rs.svcResourceCache = make(map[string]map[string]struct{})
 	rs.ipamContext = make(map[string]ficV1.IPSpec)
 	rs.processedNativeResources = make(map[resourceRef]struct{})
@@ -405,12 +406,13 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		framedPools[poolName] = struct{}{}
 
 		pool := Pool{
-			Name:            poolName,
-			Partition:       rsCfg.Virtual.Partition,
-			ServiceName:     pl.Service,
-			ServicePort:     targetPort,
-			NodeMemberLabel: pl.NodeMemberLabel,
-			Balance:         pl.Balance,
+			Name:             poolName,
+			Partition:        rsCfg.Virtual.Partition,
+			ServiceName:      pl.Service,
+			ServiceNamespace: vs.ObjectMeta.Namespace,
+			ServicePort:      targetPort,
+			NodeMemberLabel:  pl.NodeMemberLabel,
+			Balance:          pl.Balance,
 		}
 
 		if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
@@ -1411,12 +1413,13 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	monitorName := poolName + "-monitor"
 
 	pool := Pool{
-		Name:            poolName,
-		Partition:       rsCfg.Virtual.Partition,
-		ServiceName:     vs.Spec.Pool.Service,
-		ServicePort:     targetPort,
-		NodeMemberLabel: vs.Spec.Pool.NodeMemberLabel,
-		Balance:         vs.Spec.Pool.Balance,
+		Name:             poolName,
+		Partition:        rsCfg.Virtual.Partition,
+		ServiceName:      vs.Spec.Pool.Service,
+		ServiceNamespace: vs.ObjectMeta.Namespace,
+		ServicePort:      targetPort,
+		NodeMemberLabel:  vs.Spec.Pool.NodeMemberLabel,
+		Balance:          vs.Spec.Pool.Balance,
 	}
 
 	if vs.Spec.Pool.Monitor.Type != "" {
@@ -1500,11 +1503,12 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 		svcPort.TargetPort,
 		"", "")
 	pool := Pool{
-		Name:            poolName,
-		Partition:       rsCfg.Virtual.Partition,
-		ServiceName:     svc.Name,
-		ServicePort:     svcPort.TargetPort,
-		NodeMemberLabel: "",
+		Name:             poolName,
+		Partition:        rsCfg.Virtual.Partition,
+		ServiceName:      svc.Name,
+		ServiceNamespace: svc.Namespace,
+		ServicePort:      svcPort.TargetPort,
+		NodeMemberLabel:  "",
 	}
 
 	// Health Monitor Annotation
@@ -1663,11 +1667,11 @@ func getRSCfgResName(rsVSName, resName string) string {
 	return fmt.Sprintf("%s_%s", rsVSName, resName)
 }
 
-func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) *ExtendedRouteGroupSpec {
+func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRouteGroupSpec, string) {
 	extdSpec, ok := rs.extdSpecMap[routeGroup]
 
 	if !ok {
-		return nil
+		return nil, ""
 	}
 
 	if extdSpec.override && extdSpec.local != nil {
@@ -1707,10 +1711,10 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) *ExtendedRouteG
 			ergc.HealthMonitors = make(Monitors, len(extdSpec.global.HealthMonitors))
 			copy(ergc.HealthMonitors, extdSpec.global.HealthMonitors)
 		}
-		return ergc
+		return ergc, extdSpec.partition
 	}
 
-	return extdSpec.global
+	return extdSpec.global, extdSpec.partition
 }
 
 // handleRouteTLS handles TLS configuration for the Route resource
@@ -1718,7 +1722,7 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) *ExtendedRouteG
 func (ctlr *Controller) handleRouteTLS(
 	rsCfg *ResourceConfig,
 	route *routeapi.Route,
-	extdSpec *ExtendedRouteGroupSpec,
+	vServerAddr string,
 	servicePort intstr.IntOrString) bool {
 
 	if route.Spec.TLS == nil {
@@ -1770,7 +1774,7 @@ func (ctlr *Controller) handleRouteTLS(
 		Certificate,
 		route.Spec.Host,
 		DEFAULT_HTTPS_PORT,
-		extdSpec.VServerAddr,
+		vServerAddr,
 		string(route.Spec.TLS.Termination),
 		strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)),
 		poolPathRefs,

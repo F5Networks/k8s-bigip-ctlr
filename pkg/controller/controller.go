@@ -114,6 +114,7 @@ func NewController(params Params) *Controller {
 		eventNotifier:      apm.NewEventNotifier(nil),
 		defaultRouteDomain: params.DefaultRouteDomain,
 		mode:               params.Mode,
+		namespaceLabel:     params.NamespaceLabel,
 	}
 
 	log.Debug("Controller Created")

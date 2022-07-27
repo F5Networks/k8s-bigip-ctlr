@@ -1185,6 +1185,7 @@ func getAppManagerParams() appmanager.Params {
 		ProcessAgentLabels:     getProcessAgentLabelFunc(),
 		DefaultRouteDomain:     *defaultRouteDomain,
 		PoolMemberType:         *poolMemberType,
+		Agent:                  *agent,
 	}
 }
 

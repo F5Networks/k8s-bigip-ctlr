@@ -52,7 +52,7 @@ func newResourceConfig(
 	cfg.Pools[0].ServiceName = key.ServiceName
 	cfg.Pools[0].ServicePort = key.ServicePort
 	cfg.Virtual.Name = rsName
-	cfg.Virtual.SetVirtualAddress(bindAddr, bindPort)
+	cfg.Virtual.SetVirtualAddress(bindAddr, bindPort, false)
 	return &cfg
 }
 
@@ -492,6 +492,40 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(len(added)).To(BeZero())
 			Expect(len(removed)).To(Equal(4))
 			Expect(len(rs.objDeps)).To(BeZero())
+		})
+
+		It("Verifies whether netmask is set properly", func() {
+			v := Virtual{}
+			v.SetVirtualAddressNetMask("1.2.3.4")
+			Expect(v.Mask).To(Equal(""))
+
+			v.SetVirtualAddressNetMask("1.2.3.4/31")
+			Expect(v.Mask).To(Equal("255.255.255.254"))
+
+			v.Mask = ""
+			v.SetVirtualAddressNetMask("1.2.3.4/30%5")
+			Expect(v.Mask).To(Equal("255.255.255.252"))
+
+			v.Mask = ""
+			v.SetVirtualAddressNetMask("1.2.3.4%5/30")
+			Expect(v.Mask).To(Equal(""))
+
+			v.Mask = ""
+			v.SetVirtualAddressNetMask("2001:0DB8:ABCD:0012:0000:0000:0000:0000")
+			Expect(v.Mask).To(Equal(""))
+
+			v.Mask = ""
+			v.SetVirtualAddressNetMask("2001:1234:5678:1234:5678:ABCD:EF12:1234/64")
+			Expect(v.Mask).To(Equal("ffff:ffff:ffff:ffff:0000:0000:0000:0000"))
+
+			v.Mask = ""
+			v.SetVirtualAddressNetMask("2002::1234:abcd:ffff:c0a8:101/31")
+			Expect(v.Mask).To(Equal("ffff:fffe:0000:0000:0000:0000:0000:0000"))
+
+			v.Mask = ""
+			v.SetVirtualAddressNetMask("2002::1234:abcd:ffff:c0a8:101/30%5")
+			Expect(v.Mask).To(Equal("ffff:fffc:0000:0000:0000:0000:0000:0000"))
+
 		})
 	})
 

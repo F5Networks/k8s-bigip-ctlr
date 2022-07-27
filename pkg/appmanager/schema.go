@@ -30,13 +30,17 @@ type BigIPv4FormatChecker struct{}
 
 func (f BigIPv4FormatChecker) IsFormat(input interface{}) bool {
 	var strInput = input.(string)
-	ip, rd := Split_ip_with_route_domain(strInput)
+	ip, rd, cidr := Split_ip_with_route_domain_cidr(strInput)
 	if rd != "" {
 		if _, err := strconv.Atoi(rd); err != nil {
 			return false
 		}
 	}
-
+	if cidr != "" {
+		if _, _, err := net.ParseCIDR(ip + "/" + cidr); err != nil {
+			return false
+		}
+	}
 	address := net.ParseIP(ip)
 	if nil == address.To4() {
 		return false
@@ -48,13 +52,17 @@ type BigIPv6FormatChecker struct{}
 
 func (f BigIPv6FormatChecker) IsFormat(input interface{}) bool {
 	var strInput = input.(string)
-	ip, rd := Split_ip_with_route_domain(strInput)
+	ip, rd, cidr := Split_ip_with_route_domain_cidr(strInput)
 	if rd != "" {
 		if _, err := strconv.Atoi(rd); err != nil {
 			return false
 		}
 	}
-
+	if cidr != "" {
+		if _, _, err := net.ParseCIDR(ip + "/" + cidr); err != nil {
+			return false
+		}
+	}
 	address := net.ParseIP(ip)
 	if nil == address.To16() {
 		return false

@@ -24,38 +24,80 @@ import (
 var _ = Describe("Route Domain", func() {
 	It("split_ip_with_route_domain", func() {
 		type testDataType struct {
-			address    string
-			expectedIP string
-			expectedRD string
+			address      string
+			expectedIP   string
+			expectedRD   string
+			expectedCIDR string
 		}
 		testData := []testDataType{
 			{
-				address:    "",
-				expectedIP: "",
-				expectedRD: "",
+				address:      "",
+				expectedIP:   "",
+				expectedRD:   "",
+				expectedCIDR: "",
 			}, {
-				address:    "1.2.3.4",
-				expectedIP: "1.2.3.4",
-				expectedRD: "",
+				address:      "1.2.3.4",
+				expectedIP:   "1.2.3.4",
+				expectedRD:   "",
+				expectedCIDR: "",
 			}, {
-				address:    "fe80::",
-				expectedIP: "fe80::",
-				expectedRD: "",
+				address:      "fe80::",
+				expectedIP:   "fe80::",
+				expectedRD:   "",
+				expectedCIDR: "",
 			}, {
-				address:    "1.2.3.4%56",
-				expectedIP: "1.2.3.4",
-				expectedRD: "56",
+				address:      "1.2.3.4%56",
+				expectedIP:   "1.2.3.4",
+				expectedRD:   "56",
+				expectedCIDR: "",
 			}, {
-				address:    "fe80::%0",
-				expectedIP: "fe80::",
-				expectedRD: "0",
+				address:      "fe80::%0",
+				expectedIP:   "fe80::",
+				expectedRD:   "0",
+				expectedCIDR: "",
+			}, {
+				address:      "fe80::/40",
+				expectedIP:   "fe80::",
+				expectedRD:   "",
+				expectedCIDR: "40",
+			}, {
+				address:      "1.2.3.4/31",
+				expectedIP:   "1.2.3.4",
+				expectedRD:   "",
+				expectedCIDR: "31",
+			}, {
+				address:      "1.2.3.4/31%56",
+				expectedIP:   "1.2.3.4",
+				expectedRD:   "56",
+				expectedCIDR: "31",
+			}, {
+				address:      "fe80::/35%5",
+				expectedIP:   "fe80::",
+				expectedRD:   "5",
+				expectedCIDR: "35",
+			}, {
+				address:      "1.2.3.4%56/31",
+				expectedIP:   "1.2.3.4%56/31",
+				expectedRD:   "",
+				expectedCIDR: "",
+			}, {
+				address:      "fe80::%5/35",
+				expectedIP:   "fe80::%5/35",
+				expectedRD:   "",
+				expectedCIDR: "",
+			}, {
+				address:      "fe80::%ab",
+				expectedIP:   "fe80::%ab",
+				expectedRD:   "",
+				expectedCIDR: "",
 			},
 		}
 
 		for _, td := range testData {
-			ip, rd := Split_ip_with_route_domain(td.address)
+			ip, rd, cidr := Split_ip_with_route_domain_cidr(td.address)
 			Expect(ip).To(Equal(td.expectedIP))
 			Expect(rd).To(Equal(td.expectedRD))
+			Expect(cidr).To(Equal(td.expectedCIDR))
 		}
 	})
 })

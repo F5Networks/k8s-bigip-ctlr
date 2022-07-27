@@ -147,6 +147,7 @@ type Manager struct {
 	nplStore map[string]NPLAnnoations
 	// Mutex to control access to nplStore map
 	nplStoreMutex sync.Mutex
+	AgentName     string
 }
 
 // Store of processed host-Path map
@@ -312,6 +313,7 @@ func NewManager(params *Params) *Manager {
 		agentCfgMapSvcCache:    make(map[string]*SvcEndPointsCache),
 		defaultRouteDomain:     params.DefaultRouteDomain,
 		poolMemberType:         params.PoolMemberType,
+		AgentName:              params.Agent,
 	}
 	manager.processedResources = make(map[string]bool)
 	manager.processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
@@ -3025,7 +3027,7 @@ func (appMgr *Manager) setIngressStatus(
 	appInf *appInformer,
 ) {
 	// Set the ingress status to include the virtual IP
-	ip, _ := Split_ip_with_route_domain(rsCfg.Virtual.VirtualAddress.BindAddr)
+	ip, _, _ := Split_ip_with_route_domain_cidr(rsCfg.Virtual.VirtualAddress.BindAddr)
 	lbIngress := v1.LoadBalancerIngress{IP: ip}
 	if len(ing.Status.LoadBalancer.Ingress) == 0 {
 		ing.Status.LoadBalancer.Ingress = append(ing.Status.LoadBalancer.Ingress, lbIngress)

@@ -19,6 +19,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+const (
+	CCCLAgent = "cccl"
+)
+
 func (appMgr *Manager) checkV1Ingress(
 	ing *netv1.Ingress,
 ) (bool, []*serviceQueueKey) {
@@ -211,7 +215,7 @@ func (appMgr *Manager) setV1IngressStatus(
 	appInf *appInformer,
 ) {
 	// Set the ingress status to include the virtual IP
-	ip, _ := Split_ip_with_route_domain(rsCfg.Virtual.VirtualAddress.BindAddr)
+	ip, _, _ := Split_ip_with_route_domain_cidr(rsCfg.Virtual.VirtualAddress.BindAddr)
 	lbIngress := v1.LoadBalancerIngress{IP: ip}
 	if len(ing.Status.LoadBalancer.Ingress) == 0 {
 		ing.Status.LoadBalancer.Ingress = append(ing.Status.LoadBalancer.Ingress, lbIngress)
@@ -774,7 +778,14 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 		cfg.Virtual.Enabled = true
 		SetProfilesForMode("http", &cfg)
 		cfg.Virtual.SourceAddrTranslation = SetSourceAddrTranslation(snatPoolName)
-		cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port)
+		if appMgr.AgentName == CCCLAgent {
+			// CCCL doesn't support CIDR notation, it supports subnet mask
+			cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port, true)
+			cfg.Virtual.SetVirtualAddressNetMask(bindAddr)
+		} else {
+			// AS3 supports CIDR notation
+			cfg.Virtual.SetVirtualAddress(bindAddr, pStruct.port, false)
+		}
 		cfg.Pools = append(cfg.Pools, pools...)
 		if plcy != nil {
 			cfg.SetPolicy(*plcy)

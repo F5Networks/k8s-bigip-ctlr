@@ -17,25 +17,43 @@
 package resource
 
 import (
+	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"net"
 	"strconv"
 	"strings"
 )
 
-func Split_ip_with_route_domain(address string) (ip string, rd string) {
-	// Split the address into the ip and routeDomain (optional) parts
-	//     address is of the form: <ipv4_or_ipv6>[%<routeDomainID>]
+func Split_ip_with_route_domain_cidr(address string) (ip string, rd string, cidr string) {
+	// Split the address into the ip, CIDR (optional) and routeDomain (optional) parts
+	//     address is of the form: <ipv4_or_ipv6>[/<CIDR>][%<routeDomainID>]
 	match := strings.Split(address, "%")
+	if len(match) == 2 && strings.Contains(match[1], "/") {
+		// Address is in the format <ipv4_or_ipv6>[%<routeDomainID>][/<CIDR>], which is invalid
+		log.Errorf("Error CIDR format is invalid for address: %s", address)
+	}
+	ipCIDR := strings.Split(match[0], "/")
 	if len(match) == 2 {
 		_, err := strconv.Atoi(match[1])
 		//Matches only when RD contains number, Not allowing RD has 80f
 		if err == nil {
-			ip = match[0]
+			ip = ipCIDR[0]
 			rd = match[1]
 		} else {
 			ip = address
 		}
 	} else {
-		ip = match[0]
+		ip = ipCIDR[0]
+	}
+	if len(ipCIDR) == 2 {
+		if !strings.Contains(ipCIDR[1], "%") {
+			cidr = ipCIDR[1]
+		} else {
+			ipCIDR = strings.Split(ipCIDR[1], "%")
+			cidr = ipCIDR[0]
+		}
+		if _, _, err := net.ParseCIDR(ip + "/" + cidr); err != nil {
+			log.Errorf("Error CIDR for the address: %s is not valid", address)
+		}
 	}
 	return
 }

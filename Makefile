@@ -27,7 +27,7 @@ all: local-build
 
 test: local-go-test
 
-prod: fmt prod-build
+prod: prod-build
 
 verify: fmt vet
 

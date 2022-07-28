@@ -785,3 +785,122 @@ extendedRouteSpec:
 		})
 	})
 })
+
+var _ = Describe("With NamespaceLabel parameter in deployment", func() {
+	var mockCtlr *mockController
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.mode = OpenShiftMode
+		mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+		mockCtlr.namespaces = make(map[string]bool)
+		mockCtlr.namespaces["default"] = true
+		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.nrInformers = make(map[string]*NRInformer)
+		mockCtlr.esInformers = make(map[string]*EssentialInformer)
+		mockCtlr.nsInformers = make(map[string]*NSInformer)
+		mockCtlr.resourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+		mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+		mockCtlr.esInformers["default"] = mockCtlr.newNamespacedEssentialResourceInformer("default")
+		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+		mockCtlr.esInformers["test"] = mockCtlr.newNamespacedEssentialResourceInformer("test")
+		mockCtlr.esInformers["default"] = mockCtlr.newNamespacedEssentialResourceInformer("default")
+		mockCtlr.namespaceLabel = "environment=dev"
+		var processedHostPath ProcessedHostPath
+		processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
+		mockCtlr.processedHostPath = &processedHostPath
+		mockCtlr.TeemData = &teem.TeemsData{
+			ResourceType: teem.ResourceTypes{
+				RouteGroups:  make(map[string]int),
+				NativeRoutes: make(map[string]int),
+			},
+		}
+	})
+	Describe("Extended Spec ConfigMap", func() {
+		var cm *v1.ConfigMap
+		var data map[string]string
+		BeforeEach(func() {
+			cmName := "escm"
+			cmNamespace := "system"
+			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
+			mockCtlr.resources = NewResourceStore()
+			data = make(map[string]string)
+			cm = test.NewConfigMap(
+				cmName,
+				"v1",
+				cmNamespace,
+				data)
+		})
+
+		It("namespace and namespaceLabel combination", func() {
+			data["extendedSpec"] = `
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+      bigIpPartition: foo
+    - namespaceLabel: bar=true
+      vserverAddr: 10.8.3.12
+      allowOverride: true
+`
+			err := mockCtlr.setNamespaceLabelMode(cm)
+			Expect(err).To(MatchError(fmt.Sprintf("can not specify both namespace and namespace-label in extended configmap %v/%v", cm.Namespace, cm.Name)))
+		})
+		It("with namespaceLabel only", func() {
+			data["extendedSpec"] = `
+extendedRouteSpec:
+    - namespaceLabel: foo=true
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+      bigIpPartition: foo
+    - namespaceLabel: bar=true
+      vserverAddr: 10.8.3.12
+      allowOverride: true
+`
+			mockCtlr.namespaceLabelMode = true
+			err, ok := mockCtlr.processConfigMap(cm, false)
+			Expect(err).To(BeNil())
+			Expect(ok).To(BeTrue())
+		})
+	})
+})
+
+var _ = Describe("Without NamespaceLabel parameter in deployment", func() {
+	var mockCtlr *mockController
+	BeforeEach(func() {
+		mockCtlr = newMockController()
+		mockCtlr.mode = OpenShiftMode
+	})
+	Describe("Extended Spec ConfigMap", func() {
+		var cm *v1.ConfigMap
+		var data map[string]string
+		BeforeEach(func() {
+			cmName := "escm"
+			cmNamespace := "system"
+			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
+			mockCtlr.resources = NewResourceStore()
+			data = make(map[string]string)
+			cm = test.NewConfigMap(
+				cmName,
+				"v1",
+				cmNamespace,
+				data)
+		})
+		It("namespaceLabel only without namespace-label deployment parameter", func() {
+			data["extendedSpec"] = `
+extendedRouteSpec:
+    - namespaceLabel: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+      bigIpPartition: foo
+    - namespaceLabel: bar=true
+      vserverAddr: 10.8.3.12
+      allowOverride: true
+`
+			err := mockCtlr.setNamespaceLabelMode(cm)
+			Expect(err).To(MatchError("--namespace-label deployment parameter is required with namespace-label in extended configmap"))
+		})
+	})
+})

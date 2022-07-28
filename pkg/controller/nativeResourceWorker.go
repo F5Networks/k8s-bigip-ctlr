@@ -93,12 +93,15 @@ func (ctlr *Controller) processNativeResource() bool {
 			// Delete the route entry from hostPath Map
 			ctlr.deleteHostPathMapEntry(route)
 		}
-		err := ctlr.processRoutes(ctlr.resources.invertedNamespaceLabelMap[route.Namespace], false)
-		if err != nil {
-			// TODO
-			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-			isRetryableError = true
+		if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[route.Namespace]; ok {
+			err := ctlr.processRoutes(routeGroup, false)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isRetryableError = true
+			}
 		}
+
 	case ConfigMap:
 		cm := rKey.rsc.(*v1.ConfigMap)
 		err, ok := ctlr.processConfigMap(cm, rscDelete)
@@ -156,11 +159,14 @@ func (ctlr *Controller) processNativeResource() bool {
 		var triggerDelete bool
 		if rscDelete {
 			// TODO: Delete all the resource configs from the store
-
-			ctlr.nrInformers[nsName].stop()
-			ctlr.esInformers[nsName].stop()
-			delete(ctlr.nrInformers, nsName)
-			delete(ctlr.esInformers, nsName)
+			if nrInf, ok := ctlr.nrInformers[nsName]; ok {
+				nrInf.stop()
+				delete(ctlr.nrInformers, nsName)
+			}
+			if esInf, ok := ctlr.esInformers[nsName]; ok {
+				esInf.stop()
+				delete(ctlr.esInformers, nsName)
+			}
 			ctlr.namespacesMutex.Lock()
 			delete(ctlr.namespaces, nsName)
 			ctlr.namespacesMutex.Unlock()
@@ -170,15 +176,15 @@ func (ctlr *Controller) processNativeResource() bool {
 			ctlr.namespacesMutex.Lock()
 			ctlr.namespaces[nsName] = true
 			ctlr.namespacesMutex.Unlock()
-			_ = ctlr.addNamespacedInformers(nsName)
-			ctlr.nrInformers[nsName].start()
-			ctlr.esInformers[nsName].start()
+			_ = ctlr.addNamespacedInformers(nsName, true)
 			log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
 		}
 		if ctlr.namespaceLabelMode {
 			ctlr.processGlobalExtendedRouteConfig()
 		} else {
-			_ = ctlr.processRoutes(ctlr.resources.invertedNamespaceLabelMap[nsName], triggerDelete)
+			if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[nsName]; ok {
+				_ = ctlr.processRoutes(routeGroup, triggerDelete)
+			}
 		}
 	default:
 		log.Errorf("Unknown resource Kind: %v", rKey.kind)
@@ -282,11 +288,6 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 			rsCfg.MetaData.baseResources[rt.Namespace+"/"+rt.Name] = Route
 			_, port := ctlr.getServicePort(rt)
 			servicePort := intstr.IntOrString{IntVal: port}
-			if err != nil {
-				processingError = true
-				log.Errorf("%v", err)
-				break
-			}
 			err = ctlr.prepareResourceConfigFromRoute(rsCfg, rt, servicePort, isPassthroughRoute(rt), portStruct)
 			if err != nil {
 				processingError = true
@@ -596,12 +597,10 @@ func (ctlr *Controller) processGlobalExtendedRouteConfig() {
 	if err != nil {
 		log.Errorf("Unable to Get Extended Route Spec Config Map: %v, %v", ctlr.routeSpecCMKey, err)
 	}
-	if ctlr.initState {
-		err = ctlr.setNamespaceLabelMode(cm)
-		if err != nil {
-			log.Errorf("invalid configuration: %v", ctlr.routeSpecCMKey, err)
-			os.Exit(1)
-		}
+	err = ctlr.setNamespaceLabelMode(cm)
+	if err != nil {
+		log.Errorf("invalid configuration: %v", ctlr.routeSpecCMKey, err)
+		os.Exit(1)
 	}
 	err, _ = ctlr.processConfigMap(cm, false)
 	if err != nil {
@@ -637,6 +636,34 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 	}
 	if ctlr.namespaceLabel == "" && namespaceLabel {
 		return fmt.Errorf("--namespace-label deployment parameter is required with namespace-label in extended configmap")
+	}
+	// set namespaceLabel informers
+	if ctlr.namespaceLabelMode {
+		for rg := range es.ExtendedRouteGroupConfigs {
+			// ergc needs to be created at every iteration, as we are using address inside this container
+
+			// if this were used as an iteration variable, on every loop we just use the same container instead of creating one
+			// using the same container overrides the previous iteration contents, which is not desired
+			ergc := es.ExtendedRouteGroupConfigs[rg]
+
+			// setting up the namespace nsLabel informer
+			nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, ergc.NamespaceLabel)
+			if _, ok := ctlr.nsInformers[nsLabel]; !ok {
+				err := ctlr.createNamespaceLabeledInformer(nsLabel)
+				if err != nil {
+					log.Errorf("%v", err)
+					for _, nsInf := range ctlr.nsInformers {
+						for _, v := range nsInf.nsInformer.GetIndexer().List() {
+							ns := v.(*v1.Namespace)
+							ctlr.namespaces[ns.ObjectMeta.Name] = true
+						}
+					}
+				} else {
+					log.Debugf("Added namespace label informer: %v", nsLabel)
+					ctlr.nsInformers[nsLabel].start()
+				}
+			}
+		}
 	}
 	return nil
 }
@@ -717,11 +744,21 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			_ = ctlr.processRoutes(routeGroupKey, true)
 			if ctlr.resources.extdSpecMap[routeGroupKey].local == nil {
 				delete(ctlr.resources.extdSpecMap, routeGroupKey)
+				if ctlr.namespaceLabelMode {
+					// deleting and stopping the namespaceLabel informers if a routeGroupKey is modified or deleted
+					nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, routeGroupKey)
+					if nsInf, ok := ctlr.nsInformers[nsLabel]; ok {
+						log.Debugf("Removed namespace label informer: %v", nsLabel)
+						nsInf.stop()
+						delete(ctlr.nsInformers, nsLabel)
+					}
+				}
 			} else {
 				ctlr.resources.extdSpecMap[routeGroupKey].global = nil
 				ctlr.resources.extdSpecMap[routeGroupKey].override = false
 				ctlr.resources.extdSpecMap[routeGroupKey].partition = ""
 				ctlr.resources.extdSpecMap[routeGroupKey].namespaces = []string{}
+
 			}
 
 		}
@@ -770,7 +807,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		if ergc.Namespace != cm.Namespace {
 			return fmt.Errorf("Invalid Extended Route Spec Block in configmap: Mismatching namespace found at index 0 in %v/%v", cm.Namespace, cm.Name), true
 		}
-
+		routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace]
+		if !ok {
+			return fmt.Errorf("RouteGroup not found"), true
+		}
 		if spec, ok := ctlr.resources.extdSpecMap[ergc.Namespace]; ok {
 			if isDelete {
 				if !spec.override {
@@ -788,10 +828,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 					}
 				}
 
-				_ = ctlr.processRoutes(ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace], true)
+				_ = ctlr.processRoutes(routeGroup, true)
 				spec.local = nil
 				// process routes again, this time routes get processed along with global config
-				err := ctlr.processRoutes(ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace], false)
+				err := ctlr.processRoutes(routeGroup, false)
 				if err != nil {
 					log.Errorf("Failed to process RouteGroup: %v on with global extended spec after deletion of local extended spec", ergc.Namespace)
 				}
@@ -808,10 +848,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 					if spec.global.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
 						// Delete existing virtual that was framed with globla config
 						// later build new virtual with local config
-						_ = ctlr.processRoutes(ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace], true)
+						_ = ctlr.processRoutes(routeGroup, true)
 					}
 					spec.local = &ergc.ExtendedRouteGroupSpec
-					err := ctlr.processRoutes(ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace], false)
+					err := ctlr.processRoutes(routeGroup, false)
 					if err != nil {
 						log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
 					}
@@ -823,10 +863,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			if !reflect.DeepEqual(*(spec.local), ergc.ExtendedRouteGroupSpec) {
 				// if update event, update to VServerName should trigger delete and recreation of object
 				if spec.local.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
-					_ = ctlr.processRoutes(ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace], true)
+					_ = ctlr.processRoutes(routeGroup, true)
 				}
 				spec.local = &ergc.ExtendedRouteGroupSpec
-				err := ctlr.processRoutes(ctlr.resources.invertedNamespaceLabelMap[ergc.Namespace], false)
+				err := ctlr.processRoutes(routeGroup, false)
 				if err != nil {
 					log.Errorf("Failed to process RouteGroup: %v on addition of extended spec", ergc.Namespace)
 				}
@@ -1267,7 +1307,8 @@ func (ctlr *Controller) getNamespacesForRouteGroup(namespaceGroup string) []stri
 		namespaces = append(namespaces, namespaceGroup)
 		ctlr.resources.invertedNamespaceLabelMap[namespaceGroup] = namespaceGroup
 	} else {
-		nss, err := ctlr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: ctlr.namespaceLabel + "," + namespaceGroup})
+		nsLabel := fmt.Sprintf("%v,%v", ctlr.namespaceLabel, namespaceGroup)
+		nss, err := ctlr.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{LabelSelector: nsLabel})
 		if err != nil {
 			log.Errorf("Unable to Fetch Namespaces: %v", err)
 			return nil

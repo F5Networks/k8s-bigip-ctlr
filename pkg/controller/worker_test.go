@@ -83,7 +83,7 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.mode = CustomResourceMode
 		mockCtlr.crInformers = make(map[string]*CRInformer)
 		mockCtlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
-		_ = mockCtlr.addNamespacedInformers("default")
+		_ = mockCtlr.addNamespacedInformers("default", false)
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
 			mockCtlr.kubeCRClient,

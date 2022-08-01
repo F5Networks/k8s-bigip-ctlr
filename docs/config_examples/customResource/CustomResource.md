@@ -71,6 +71,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | servicePort | String | Required | NA | Port to access Service |
 | monitor | String | Optional | NA | Health Monitor to check the health of Pool Members |
 | rewrite | String | Optional | NA | Rewrites the path in the HTTP Header while submitting the request to Server in the pool |
+| svcNamespace | String | Optional | NA | Namespace of service, define it if service is present in a namespace other than the one where VS CR is present |
 
 **Service_Address Components**
 

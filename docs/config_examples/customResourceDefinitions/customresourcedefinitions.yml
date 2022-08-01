@@ -127,6 +127,8 @@ spec:
                       rewrite:
                         type: string
                         pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
+                      svcNamespace:
+                        type: string
                       monitor:
                         type: object
                         properties:

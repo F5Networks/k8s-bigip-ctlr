@@ -32,7 +32,6 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -227,6 +226,7 @@ func (ctlr *Controller) getWatchingNamespaces() []string {
 
 func (ctlr *Controller) addNamespacedInformers(
 	namespace string,
+	startInformer bool,
 ) error {
 	if ctlr.watchingAllNamespaces() {
 		return fmt.Errorf(
@@ -250,12 +250,18 @@ func (ctlr *Controller) addNamespacedInformers(
 			esInf := ctlr.newNamespacedEssentialResourceInformer(namespace)
 			ctlr.addEssentialResourceEventHandlers(esInf)
 			ctlr.esInformers[namespace] = esInf
+			if startInformer {
+				esInf.start()
+			}
 		}
 
 		if _, found := ctlr.nrInformers[namespace]; !found {
 			nrInf := ctlr.newNamespacedNativeResourceInformer(namespace)
 			ctlr.addNativeResourceEventHandlers(nrInf)
 			ctlr.nrInformers[namespace] = nrInf
+			if startInformer {
+				nrInf.start()
+			}
 		}
 	}
 
@@ -1179,23 +1185,24 @@ func (nsInfr *NSInformer) stop() {
 	close(nsInfr.stopCh)
 }
 
-func (ctlr *Controller) createNamespaceLabeledInformer(selector labels.Selector) error {
+func (ctlr *Controller) createNamespaceLabeledInformer(label string) error {
+	selector, err := createLabelSelector(label)
+	if err != nil {
+		return fmt.Errorf("unable to setup namespace-label informer for label: %v, Error:%v", label, err)
+	}
 	namespaceOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = selector.String()
 	}
 
-	if nil != ctlr.nsInformer && nil != ctlr.nsInformer.nsInformer {
-		return fmt.Errorf("Already have a namespace label informer added.")
-	}
 	if 0 != len(ctlr.crInformers) {
-		return fmt.Errorf("Cannot set a namespace label informer when informers " +
-			"have been setup for one or more namespaces.")
+		return fmt.Errorf("cannot set a namespace label informer when informers " +
+			"have been setup for one or more namespaces")
 	}
 
 	resyncPeriod := 0 * time.Second
 	restClientv1 := ctlr.kubeClient.CoreV1().RESTClient()
 
-	ctlr.nsInformer = &NSInformer{
+	ctlr.nsInformers[label] = &NSInformer{
 		stopCh: make(chan struct{}),
 		nsInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
@@ -1210,7 +1217,7 @@ func (ctlr *Controller) createNamespaceLabeledInformer(selector labels.Selector)
 		),
 	}
 
-	ctlr.nsInformer.nsInformer.AddEventHandlerWithResyncPeriod(
+	ctlr.nsInformers[label].nsInformer.AddEventHandlerWithResyncPeriod(
 		&cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { ctlr.enqueueNamespace(obj) },
 			DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedNamespace(obj) },

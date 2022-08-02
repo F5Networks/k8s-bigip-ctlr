@@ -359,7 +359,7 @@ func (ctlr *Controller) processCustomResource() bool {
 			ctlr.namespacesMutex.Lock()
 			ctlr.namespaces[nsName] = true
 			ctlr.namespacesMutex.Unlock()
-			_ = ctlr.addNamespacedInformers(nsName)
+			_ = ctlr.addNamespacedInformers(nsName, false)
 			ctlr.crInformers[nsName].start()
 			log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
 		}

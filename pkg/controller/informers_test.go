@@ -30,10 +30,11 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.crInformers = make(map[string]*CRInformer)
+			mockCtlr.nsInformers = make(map[string]*NSInformer)
 			mockCtlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		})
 		It("Resource Informers", func() {
-			err := mockCtlr.addNamespacedInformers(namespace)
+			err := mockCtlr.addNamespacedInformers(namespace, false)
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 
 			crInf, found := mockCtlr.getNamespacedInformer(namespace)
@@ -45,8 +46,7 @@ var _ = Describe("Informers Tests", func() {
 			namespaceSelector, err := createLabelSelector("app=test")
 			Expect(namespaceSelector).ToNot(BeNil(), "Failed to Create Label Selector")
 			Expect(err).To(BeNil(), "Failed to Create Label Selector")
-
-			err = mockCtlr.createNamespaceLabeledInformer(namespaceSelector)
+			err = mockCtlr.createNamespaceLabeledInformer("app=test")
 			Expect(err).To(BeNil(), "Failed to Create Namespace Informer")
 		})
 	})
@@ -440,7 +440,7 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.resourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 		})
 		It("Resource Informers", func() {
-			err := mockCtlr.addNamespacedInformers(namespace)
+			err := mockCtlr.addNamespacedInformers(namespace, false)
 			Expect(err).To(BeNil(), "Informers Creation Failed")
 
 			esInf, found := mockCtlr.getNamespacedEssentialInformer(namespace)

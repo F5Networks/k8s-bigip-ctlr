@@ -103,6 +103,7 @@ func NewController(params Params) *Controller {
 	ctlr := &Controller{
 		namespaces:         make(map[string]bool),
 		crInformers:        make(map[string]*CRInformer),
+		nsInformers:        make(map[string]*NSInformer),
 		resources:          NewResourceStore(),
 		Agent:              params.Agent,
 		PoolMemberType:     params.PoolMemberType,
@@ -151,10 +152,8 @@ func NewController(params Params) *Controller {
 		log.Errorf("Failed to Setup Clients: %v", err)
 	}
 
-	namespaceSelector, err := createLabelSelector(params.NamespaceLabel)
-
-	if params.NamespaceLabel == "" || err != nil {
-		if len(params.Namespaces) == 0 {
+	if ctlr.namespaceLabel == "" {
+		if len(ctlr.namespaces) == 0 {
 			ctlr.namespaces[""] = true
 			log.Debug("No namespaces provided. Watching all namespaces")
 		} else {
@@ -163,11 +162,14 @@ func NewController(params Params) *Controller {
 			}
 		}
 	} else {
-		err2 := ctlr.createNamespaceLabeledInformer(namespaceSelector)
+		err2 := ctlr.createNamespaceLabeledInformer(ctlr.namespaceLabel)
 		if err2 != nil {
-			for _, v := range ctlr.nsInformer.nsInformer.GetIndexer().List() {
-				ns := v.(*v1.Namespace)
-				ctlr.namespaces[ns.ObjectMeta.Name] = true
+			log.Errorf("%v", err2)
+			for _, nsInf := range ctlr.nsInformers {
+				for _, v := range nsInf.nsInformer.GetIndexer().List() {
+					ns := v.(*v1.Namespace)
+					ctlr.namespaces[ns.ObjectMeta.Name] = true
+				}
 			}
 		}
 	}
@@ -176,7 +178,7 @@ func NewController(params Params) *Controller {
 		log.Error("Failed to Setup Informers")
 	}
 
-	err = ctlr.SetupNodePolling(
+	err := ctlr.SetupNodePolling(
 		params.NodePollInterval,
 		params.NodeLabelSelector,
 		params.VXLANMode,
@@ -347,7 +349,7 @@ func (ctlr *Controller) setupClients(config *rest.Config) error {
 
 func (ctlr *Controller) setupInformers() error {
 	for n := range ctlr.namespaces {
-		if err := ctlr.addNamespacedInformers(n); err != nil {
+		if err := ctlr.addNamespacedInformers(n, false); err != nil {
 			log.Errorf("Unable to setup informer for namespace: %v, Error:%v", n, err)
 			return err
 		}
@@ -375,8 +377,8 @@ func (ctlr *Controller) Start() {
 		}
 	}
 
-	if ctlr.nsInformer != nil {
-		ctlr.nsInformer.start()
+	for _, nsInf := range ctlr.nsInformers {
+		nsInf.start()
 	}
 
 	if ctlr.ipamCli != nil {
@@ -413,8 +415,8 @@ func (ctlr *Controller) Stop() {
 		}
 	}
 
-	if ctlr.nsInformer != nil {
-		ctlr.nsInformer.stop()
+	for _, nsInf := range ctlr.nsInformers {
+		nsInf.stop()
 	}
 
 	ctlr.nodePoller.Stop()

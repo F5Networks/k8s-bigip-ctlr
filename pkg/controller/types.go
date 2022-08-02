@@ -53,7 +53,7 @@ type (
 		kubeClient         kubernetes.Interface
 		kubeAPIClient      *extClient.Clientset
 		crInformers        map[string]*CRInformer
-		nsInformer         *NSInformer
+		nsInformers        map[string]*NSInformer
 		eventNotifier      *apm.EventNotifier
 		resourceSelector   labels.Selector
 		namespacesMutex    sync.Mutex

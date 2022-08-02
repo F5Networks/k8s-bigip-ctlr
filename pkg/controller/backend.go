@@ -19,6 +19,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	"reflect"
 	"sort"
 	"strconv"
@@ -27,14 +28,12 @@ import (
 
 	rsc "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 )
 
 const (
 	as3SharedApplication = "Shared"
 
 	baseAS3Config = `{
-  "$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/3.18.0/as3-schema-3.18.0-4.json",
   "class": "AS3",
   "declaration": {
     "class": "ADC",
@@ -547,7 +546,6 @@ func (agent *Agent) createAS3ADC(config ResourceConfigRequest) as3ADC {
 		// Create AS3 Tenant
 		tenantDecl := as3Tenant{
 			"class":              "Tenant",
-			"defaultRouteDomain": config.defaultRouteDomain,
 			as3SharedApplication: sharedApp,
 		}
 		as3JSONDecl[tenantName] = tenantDecl

@@ -59,6 +59,7 @@ type PostParams struct {
 	BIGIPUsername string
 	BIGIPPassword string
 	BIGIPURL      string
+	TOKEN         string
 	TrustedCerts  string
 	SSLInsecure   bool
 	AS3PostDelay  int
@@ -143,11 +144,16 @@ func (postMgr *PostManager) postConfigRequests(data string, url string) (bool, s
 		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
 		return false, responseStatusCommon
 	}
+	log.Debugf("[AS3] posting AS3 Declaration: %v", httpReqBody)
 	log.Debugf("[AS3] posting request to %v", cfg.as3APIURL)
 	//req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
-	token := postMgr.getBigipAuthToken(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+	if len(postMgr.TOKEN) == 0 {
+		postMgr.TOKEN = postMgr.getBigipAuthToken(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+	}
+
 	// add authorization header to the req
-	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Add("Authorization", "Bearer "+ postMgr.TOKEN)
+	req.Header.Add("Content-Type", "application/json")
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
 		return false, responseStatusCommon
@@ -177,9 +183,12 @@ func (postMgr *PostManager) GetBigipAS3Version() (string, string, string, error)
 
 	log.Debugf("[AS3] posting GET BIGIP AS3 Version request on %v", url)
 	//req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
-	token := postMgr.getBigipAuthToken(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+	if len(postMgr.TOKEN) == 0 {
+		postMgr.TOKEN = postMgr.getBigipAuthToken(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+	}
 	// add authorization header to the req
-	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+ postMgr.TOKEN)
+	req.Header.Add("Content-Type", "application/json")
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
 		return "", "", "", fmt.Errorf("Internal Error")
@@ -213,12 +222,14 @@ func (postMgr *PostManager) GetBigipRegKey() (string, error) {
 		log.Errorf("Creating new HTTP request error: %v ", err)
 		return "", err
 	}
-
 	log.Debugf("Posting GET BIGIP Reg Key request on %v", url)
 	//req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
-	token := postMgr.getBigipAuthToken(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+	if len(postMgr.TOKEN) == 0 {
+		postMgr.TOKEN = postMgr.getBigipAuthToken(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
+	}
 	// add authorization header to the req
-	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+ postMgr.TOKEN)
+	req.Header.Add("Content-Type", "application/json")
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
 		return "", fmt.Errorf("Internal Error")
@@ -335,13 +346,12 @@ func (postMgr *PostManager) getBigipRegKeyURL() string {
 }
 
 func (postMgr *PostManager) getBigipAuthToken(username string, password string) string {
-	authPort := "5443"
-	authURL := postMgr.BIGIPURL + ":" + authPort + "/api/v1/login"
+	authURL := postMgr.BIGIPURL  + "/api/v1/login"
 	req, _ := http.NewRequest("GET", authURL, nil)
 	req.SetBasicAuth(username, password)
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
-		log.Errorf("Internal Error")
+		log.Errorf("[AS3] TokenAuth  Internal Error")
 		return ""
 	}
 
@@ -349,6 +359,7 @@ func (postMgr *PostManager) getBigipAuthToken(username string, password string) 
 	case http.StatusOK:
 		if responseMap["token"] != nil {
 			token := responseMap["token"].(string)
+			log.Debugf("posting TOKEN:%v",token)
 			return token
 		}
 	case http.StatusNotFound:

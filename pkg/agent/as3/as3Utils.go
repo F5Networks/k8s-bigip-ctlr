@@ -345,7 +345,6 @@ func (t as3Tenant) initDefault(defaultRouteDomain int) {
 	app.initDefault()
 	t[as3class] = as3tenant
 	t[as3SharedApplication] = app
-	t[as3defaultRouteDomain] = defaultRouteDomain
 }
 
 func (t as3Tenant) getAS3SharedApp() as3Application {

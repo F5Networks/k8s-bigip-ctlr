@@ -596,6 +596,7 @@ type (
 		BIGIPUsername string
 		BIGIPPassword string
 		BIGIPURL      string
+		TOKEN         string
 		TrustedCerts  string
 		SSLInsecure   bool
 		AS3PostDelay  int

@@ -20,10 +20,6 @@ func (ag *agentAS3) Init(params interface{}) error {
 		go ag.ConfigDeployer()
 	}
 
-	err := ag.IsBigIPAppServicesAvailable()
-	if err != nil {
-		return err
-	}
 	return nil
 }
 

@@ -57,7 +57,6 @@ type Params struct {
 
 const (
 	baseAS3Config = `{
-		"$schema": "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/3.18.0/as3-schema-3.18.0-4.json",
 		"class": "AS3",
 		"declaration": {
 		  "class": "ADC",
@@ -96,6 +95,7 @@ func (cm *CCCLManager) postConfig(data string) {
 		log.Errorf("[CCCL] Creating new HTTP request error: %v ", err)
 		return
 	}
+	log.Debugf("[CCCL] posting AS3 Declaration: %v", httpReqBody)
 	log.Debug("[CCCL] posting request to BIGIP.")
 	req.SetBasicAuth(cm.BIGIPUsername, cm.BIGIPPassword)
 	// Get the SystemCertPool, continue with an empty pool on error

@@ -462,6 +462,7 @@ type (
 	InternalDataGroup struct {
 		Name      string                   `json:"name"`
 		Partition string                   `json:"-"`
+		Type      string                   `json:"-"`
 		Records   InternalDataGroupRecords `json:"records"`
 	}
 

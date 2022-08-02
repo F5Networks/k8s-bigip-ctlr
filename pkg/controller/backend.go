@@ -622,7 +622,7 @@ func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
 				if !found {
 					dgMap := &as3DataGroup{}
 					dgMap.Class = "Data_Group"
-					dgMap.KeyDataType = "string"
+					dgMap.KeyDataType = dg.Type
 					for _, record := range dg.Records {
 						var rec as3Record
 						rec.Key = record.Name

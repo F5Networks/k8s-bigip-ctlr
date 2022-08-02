@@ -551,14 +551,10 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	return iRuleCode
 }
 
-func (ctlr *Controller) getTLSIRule(rsVSName string, partition string) string {
+func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSourceRange []string) string {
 	dgPath := strings.Join([]string{partition, Shared}, "/")
 
 	iRule := fmt.Sprintf(`
-		when CLIENT_ACCEPTED {
-			TCP::collect
-		}
-
 		when CLIENT_DATA {
 			# Byte 0 is the content type.
 			# Bytes 1-2 are the TLS version.
@@ -838,9 +834,18 @@ func (ctlr *Controller) getTLSIRule(rsVSName string, partition string) string {
 			}
         }`, dgPath, rsVSName)
 
-	iRuleCode := fmt.Sprintf("%s\n\n%s", ctlr.selectPoolIRuleFunc(rsVSName, dgPath), iRule)
+	iRuleCode := fmt.Sprintf("%s\n\n%s\n\n%s", ctlr.selectClientAcceptediRule(rsVSName, dgPath, allowSourceRange), ctlr.selectPoolIRuleFunc(rsVSName, dgPath), iRule)
 
 	return iRuleCode
+}
+
+func (ctlr *Controller) selectClientAcceptediRule(rsVSName string, dgPath string, allowSourceRange []string) string {
+
+	iRulePrefix := fmt.Sprintf(`when CLIENT_ACCEPTED { TCP::collect }`)
+	if len(allowSourceRange) > 0 {
+		iRulePrefix = fmt.Sprintf(`when CLIENT_ACCEPTED {if { [class match [IP::client_addr] eq "/%[1]s/%[2]s_allowSourceRange"] } then {TCP::collect} else {reject; event disable all; return;}}`, dgPath, rsVSName)
+	}
+	return iRulePrefix
 }
 
 func (ctlr *Controller) selectPoolIRuleFunc(rsVSName string, dgPath string) string {
@@ -890,6 +895,7 @@ func updateDataGroupOfDgName(
 	hostName string,
 	namespace string,
 	partition string,
+	allowSourceRange []string,
 ) {
 	rsDGName := getRSCfgResName(rsVSName, dgName)
 	switch dgName {
@@ -901,13 +907,13 @@ func updateDataGroupOfDgName(
 			routePath := hostName + pl.path
 			routePath = strings.TrimSuffix(routePath, "/")
 			updateDataGroup(intDgMap, rsDGName,
-				partition, namespace, routePath, pl.poolName)
+				partition, namespace, routePath, pl.poolName, DataGroupType)
 		}
 	case PassthroughHostsDgName:
 		// only hostname will be used for passthrough routes
 		for _, pl := range poolPathRefs {
 			updateDataGroup(intDgMap, rsDGName,
-				partition, namespace, hostName, pl.poolName)
+				partition, namespace, hostName, pl.poolName, DataGroupType)
 		}
 	case HttpsRedirectDgName:
 		for _, pl := range poolPathRefs {
@@ -917,7 +923,12 @@ func updateDataGroupOfDgName(
 			}
 			routePath := hostName + path
 			updateDataGroup(intDgMap, rsDGName,
-				partition, namespace, routePath, path)
+				partition, namespace, routePath, path, DataGroupType)
+		}
+	case AllowSourceRange:
+		for _, sourceNw := range allowSourceRange {
+			updateDataGroup(intDgMap, rsDGName,
+				partition, namespace, sourceNw, "true", DataGroupAllowSourceRangeType)
 		}
 	}
 }
@@ -930,6 +941,7 @@ func updateDataGroup(
 	namespace string,
 	key string,
 	value string,
+	dgType string,
 ) {
 
 	//for wildcard host
@@ -953,6 +965,7 @@ func updateDataGroup(
 		newDg := InternalDataGroup{
 			Name:      name,
 			Partition: partition,
+			Type:      dgType,
 		}
 		newDg.AddOrUpdateRecord(key, value)
 		nsDg[namespace] = &newDg

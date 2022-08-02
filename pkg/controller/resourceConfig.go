@@ -657,7 +657,7 @@ func (ctlr *Controller) handleTLS(
 					sslPath := tlsContext.hostname + poolPathRef.path
 					sslPath = strings.TrimSuffix(sslPath, "/")
 					updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName),
-						rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl)
+						rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl, DataGroupType)
 
 				case TLSReencrypt:
 					sslPath := tlsContext.hostname + poolPathRef.path
@@ -665,7 +665,7 @@ func (ctlr *Controller) handleTLS(
 					serverSsl := AS3NameFormatter("crd_" + tlsContext.ipAddress + "_tls_client")
 					if "" != serverSSL {
 						updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
-							rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl)
+							rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl, DataGroupType)
 					}
 				}
 			}
@@ -687,6 +687,7 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.hostname,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
+				[]string{},
 			)
 		case TLSEdge:
 			updateDataGroupOfDgName(
@@ -697,6 +698,7 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.hostname,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
+				[]string{},
 			)
 		case TLSPassthrough:
 			updateDataGroupOfDgName(
@@ -706,7 +708,19 @@ func (ctlr *Controller) handleTLS(
 				PassthroughHostsDgName,
 				tlsContext.hostname,
 				tlsContext.namespace,
-				rsCfg.Virtual.Partition)
+				rsCfg.Virtual.Partition,
+				[]string{})
+		}
+		if len(rsCfg.Virtual.AllowSourceRange) > 0 {
+			updateDataGroupOfDgName(
+				rsCfg.IntDgMap,
+				tlsContext.poolPathRefs,
+				rsCfg.Virtual.Name,
+				AllowSourceRangeDgName,
+				"",
+				tlsContext.namespace,
+				rsCfg.Virtual.Partition,
+				rsCfg.Virtual.AllowSourceRange)
 		}
 		ctlr.handleDataGroupIRules(
 			rsCfg,
@@ -746,6 +760,7 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.hostname,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
+				[]string{},
 			)
 		case TLSAllowInsecure:
 			// State 3, do not apply any policy
@@ -1165,6 +1180,7 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 				Name:      idg.Name,
 				Partition: idg.Partition,
 				Records:   make(InternalDataGroupRecords, len(idg.Records)),
+				Type:      idg.Type,
 			}
 			copy(rc.IntDgMap[nameRef][ns].Records, idg.Records)
 		}
@@ -1282,6 +1298,13 @@ const ReencryptServerSslDgName = "ssl_reencrypt_serverssl_dg"
 // on serverside.
 const EdgeServerSslDgName = "ssl_edge_serverssl_dg"
 
+// Internal DataGroup Default Type
+const DataGroupType = "string"
+
+// Allow Source Range
+const DataGroupAllowSourceRangeType = "ip"
+const AllowSourceRangeDgName = "allowSourceRange"
+
 // Internal data group for ab deployment routes.
 const AbDeploymentDgName = "ab_deployment_dg"
 
@@ -1369,7 +1392,7 @@ func (ctlr *Controller) handleDataGroupIRules(
 		tlsIRuleName := JoinBigipPath(rsCfg.Virtual.Partition,
 			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName))
 		rsCfg.addIRule(
-			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition, ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition, ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.AllowSourceRange))
 		switch tlsTerminationType {
 		case TLSEdge:
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), rsCfg.Virtual.Partition)

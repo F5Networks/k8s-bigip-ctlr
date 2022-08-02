@@ -62,15 +62,14 @@ func (rs *ResourceStore) Init() {
 }
 
 const (
-	DEFAULT_MODE       string = "tcp"
-	DEFAULT_BALANCE    string = "round-robin"
-	DEFAULT_HTTP_PORT  int32  = 80
-	DEFAULT_HTTPS_PORT int32  = 443
-	DEFAULT_SNAT       string = "auto"
-
-	urlRewriteRulePrefix      = "url-rewrite-rule-"
-	appRootForwardRulePrefix  = "app-root-forward-rule-"
-	appRootRedirectRulePrefix = "app-root-redirect-rule-"
+	DEFAULT_MODE              string = "tcp"
+	DEFAULT_BALANCE           string = "round-robin"
+	DEFAULT_HTTP_PORT         int32  = 80
+	DEFAULT_HTTPS_PORT        int32  = 443
+	DEFAULT_SNAT              string = "auto"
+	urlRewriteRulePrefix             = "url-rewrite-rule-"
+	appRootForwardRulePrefix         = "app-root-forward-rule-"
+	appRootRedirectRulePrefix        = "app-root-redirect-rule-"
 
 	// Indicator to use an F5 schema
 	schemaIndicator string = "f5schemadb://"
@@ -396,7 +395,13 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			targetPort = intstr.IntOrString{IntVal: pl.ServicePort}
 		}
 		poolName := framePoolName(vs.ObjectMeta.Namespace, pl, targetPort, vs.Spec.Host)
-		monitorName := pl.Name + "-monitor"
+		//check for custom monitor
+		var monitorName string
+		if pl.Monitor.Name != "" && pl.Monitor.Reference == BIGIP {
+			monitorName = pl.Monitor.Name
+		} else {
+			monitorName = pl.Name + "-monitor"
+		}
 
 		if _, ok := framedPools[poolName]; ok {
 			// Pool with same name framed earlier, so skipping this pool
@@ -414,12 +419,13 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			NodeMemberLabel:  pl.NodeMemberLabel,
 			Balance:          pl.Balance,
 		}
-
-		if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
+		if pl.Monitor.Name != "" && pl.Monitor.Reference == "bigip" {
+			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
+		} else if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
 			if pl.Name == "" {
 				monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort, pl.Monitor.Send)
 			}
-			pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition, monitorName))
+			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 			monitor := Monitor{
 				Name:       monitorName,
 				Partition:  rsCfg.Virtual.Partition,
@@ -1116,7 +1122,7 @@ func (rc *ResourceConfig) copyConfig(cfg *ResourceConfig) {
 	for i := range rc.Pools {
 		rc.Pools[i].Members = make([]PoolMember, len(cfg.Pools[i].Members))
 		copy(rc.Pools[i].Members, cfg.Pools[i].Members)
-		rc.Pools[i].MonitorNames = make([]string, len(cfg.Pools[i].MonitorNames))
+		rc.Pools[i].MonitorNames = make([]MonitorName, len(cfg.Pools[i].MonitorNames))
 		copy(rc.Pools[i].MonitorNames, cfg.Pools[i].MonitorNames)
 	}
 
@@ -1433,7 +1439,13 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		targetPort,
 		"",
 	)
-	monitorName := poolName + "-monitor"
+	//check for custom monitor
+	var monitorName string
+	if vs.Spec.Pool.Monitor.Name != "" && vs.Spec.Pool.Monitor.Reference == BIGIP {
+		monitorName = vs.Spec.Pool.Monitor.Name
+	} else {
+		monitorName = poolName + "-monitor"
+	}
 
 	pool := Pool{
 		Name:             poolName,
@@ -1444,12 +1456,13 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		NodeMemberLabel:  vs.Spec.Pool.NodeMemberLabel,
 		Balance:          vs.Spec.Pool.Balance,
 	}
-
-	if vs.Spec.Pool.Monitor.Type != "" {
+	if vs.Spec.Pool.Monitor.Name != "" && vs.Spec.Pool.Monitor.Reference == BIGIP {
+		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitorName, Reference: vs.Spec.Pool.Monitor.Reference})
+	} else if vs.Spec.Pool.Monitor.Type != "" {
 		if vs.Spec.Pool.Name == "" {
 			monitorName = formatMonitorName(vs.ObjectMeta.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.Monitor.Type, vs.Spec.Pool.ServicePort, "")
 		}
-		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition, monitorName))
+		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 
 		monitor := Monitor{
 			Name:       monitorName,
@@ -1546,8 +1559,8 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 				"Unable to parse health monitor JSON array '%v': %v", hmStr, err)
 			log.Errorf("[CORE] %s", msg)
 		}
-		pool.MonitorNames = append(pool.MonitorNames, JoinBigipPath(rsCfg.Virtual.Partition,
-			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal, "")))
+		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition,
+			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal, ""))})
 		monitor = Monitor{
 			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal, ""),
 			Partition: rsCfg.Virtual.Partition,

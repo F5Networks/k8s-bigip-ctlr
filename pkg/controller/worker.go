@@ -2647,7 +2647,7 @@ func (ctlr *Controller) processIngressLink(
 			rsCfg.Monitors,
 			Monitor{Name: monitorName, Partition: rsCfg.Virtual.Partition, Interval: 20,
 				Type: "http", Send: "GET /nginx-ready HTTP/1.1\r\n", Recv: "", Timeout: 10, TargetPort: targetPort})
-		pool.MonitorNames = append(pool.MonitorNames, monitorName)
+		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitorName})
 		rsCfg.Virtual.PoolName = pool.Name
 		rsCfg.Pools = append(rsCfg.Pools, pool)
 		// Update rsMap with ResourceConfigs created for the current ingresslink virtuals

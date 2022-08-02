@@ -92,6 +92,12 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | interval | Int | Required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
 | targetPort | Int | Optional | 0 | port (if any) monitor should probe ,if 0 (default) then pool member port is used.Translates to "Alias Service Port" on BIG-IP pool.|
+| name | String | Required | NA | Refrence to health monitor name existing on bigip|
+| reference | String  | Required | NA | Value should be bigip for referencing custom monitor on bigip|
+
+**Note**:
+* monitor can be a reference to existing helathmonitor on bigip in which case, name and reference are required parameters.
+* For creating health monitor object on bigip with UserInput type, send, interval are required parameters.
 
 ### Examples
 
@@ -176,6 +182,13 @@ different terminations(for same domain), one with edge and another with re-encry
 | interval | Int | Required | 5 | Seconds between health queries |
 | timeout | Int | Optional | 16 | Seconds before query fails |
 | targetPort | Int | Optional | 0 | Port (if any) monitor should probe ,if 0 (default) then pool member port is used.Translates to "Alias Service Port" on BIG-IP pool.  |
+| name | String | Required | NA | Refrence to health monitor name existing on bigip|
+| reference | String  | Required | NA | Value should be bigip for referencing custom monitor on bigip|
+
+**Note**:
+* monitor can be a reference to existing helathmonitor on bigip in which case, name and reference are required parameters.
+* For creating health monitor object on bigip with UserInput type, send, interval are required parameters.
+
 ### Examples
 
    https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer

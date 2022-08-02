@@ -758,12 +758,17 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 		}
 		for _, val := range v.MonitorNames {
 			var monitor as3ResourcePointer
-			use := strings.Split(val, "/")
-			monitor.Use = fmt.Sprintf("/%s/%s/%s",
-				tenant,
-				as3SharedApplication,
-				use[len(use)-1],
-			)
+			//Reference existing health monitor from BIGIP
+			if val.Reference == BIGIP {
+				monitor.BigIP = val.Name
+			} else {
+				use := strings.Split(val.Name, "/")
+				monitor.Use = fmt.Sprintf("/%s/%s/%s",
+					tenant,
+					as3SharedApplication,
+					use[len(use)-1],
+				)
+			}
 			pool.Monitors = append(pool.Monitors, monitor)
 		}
 		sharedApp[v.Name] = pool

@@ -80,6 +80,8 @@ type Monitor struct {
 	Interval   int    `json:"interval"`
 	Timeout    int    `json:"timeout"`
 	TargetPort int32  `json:"targetPort"`
+	Name       string `json:"name,omitempty"`
+	Reference  string `json:"reference,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

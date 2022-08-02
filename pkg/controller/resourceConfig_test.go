@@ -444,6 +444,7 @@ var _ = Describe("Resource Config Tests", func() {
 			idg := &InternalDataGroup{
 				Name:      "ServerNameDG",
 				Partition: DEFAULT_PARTITION,
+				Type:      "string",
 				Records:   InternalDataGroupRecords{},
 			}
 

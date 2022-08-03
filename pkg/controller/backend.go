@@ -63,6 +63,7 @@ func NewAgent(params AgentParams) *Agent {
 		ConfigWriter:          configWriter,
 		EventChan:             make(chan interface{}),
 		postChan:              make(chan ResourceConfigRequest, 1),
+		highPriorityPostChan:  make(chan ResourceConfigRequest, 10),
 		retryChan:             make(chan struct{}, 1),
 		respChan:              make(chan resourceStatusMeta, 1),
 		cachedTenantDeclMap:   make(map[string]as3Tenant),
@@ -70,7 +71,12 @@ func NewAgent(params AgentParams) *Agent {
 		retryTenantDeclMap:    make(map[string]*tenantParams),
 		userAgent:             params.UserAgent,
 		HttpAddress:           params.HttpAddress,
+		firstPost:             true,
 	}
+	// highPriorityWorker runs as a separate go routine
+	// blocks on highPriorityPostChan to post the high priority configuration on BIG-IP
+	go agent.highPriorityWorker()
+
 	// agentWorker runs as a separate go routine
 	// blocks on postChan to get new/updated configuration to be posted to BIG-IP
 	go agent.agentWorker()
@@ -146,25 +152,102 @@ func (agent *Agent) Stop() {
 }
 
 func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
-	// Always push latest activeConfig to channel
-	// Case1: Put latest config into the channel
-	// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
-	// Either Case1 or Case2 executes, which ensures the above
-	select {
-	case agent.postChan <- rsConfig:
-	case <-agent.postChan:
-		agent.postChan <- rsConfig
+	// post the high priority config to highPriorityChannel
+	if rsConfig.highPriority {
+		agent.highPriorityPostChan <- rsConfig
+		agent.highPriorityPostChanFlag = true
+	} else {
+		// Always push latest activeConfig to channel
+		// Case1: Put latest config into the channel
+		// Case2: If channel is blocked because of earlier config, pop out earlier config and push latest config
+		// Either Case1 or Case2 executes, which ensures the above
+		select {
+		case agent.postChan <- rsConfig:
+		case <-agent.postChan:
+			agent.postChan <- rsConfig
 
+		}
+	}
+}
+
+// agentWorker blocks on highPriorityPostChan
+// whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
+func (agent *Agent) highPriorityWorker() {
+	for rsConfig := range agent.highPriorityPostChan {
+		// If there are no retries going on in parallel, acquiring lock will be straight forward.
+		// Otherwise, we will wait for other worker to complete its current iteration
+		agent.declUpdate.Lock()
+
+		decl := agent.createTenantAS3Declaration(rsConfig)
+
+		if len(agent.incomingTenantDeclMap) == 0 {
+			agent.declUpdate.Unlock()
+			continue
+		}
+
+		var updatedTenants []string
+
+		/*
+			For every incoming post request, create a new tenantResponseMap.
+			tenantResponseMap will be updated with responses during postConfig.
+			It holds the updatedTenants in the current iteration's as keys.
+			This is needed to update response code in cases (202/404) when httpResponse body does not contain the tenant details.
+		*/
+		agent.tenantResponseMap = make(map[string]tenantResponse)
+
+		for tenant := range agent.incomingTenantDeclMap {
+			updatedTenants = append(updatedTenants, tenant)
+			agent.tenantResponseMap[tenant] = tenantResponse{}
+		}
+
+		cfg := agentConfig{
+			data:      string(decl),
+			as3APIURL: agent.getAS3APIURL(updatedTenants),
+			id:        rsConfig.reqId,
+		}
+
+		// For the very first post after starting controller, need not wait to post
+		agent.publishConfig(cfg, agent.firstPost)
+
+		agent.firstPost = false
+
+		go agent.updatePoolMembers(rsConfig)
+
+		agent.updateTenantResponse(true)
+
+		if len(agent.retryTenantDeclMap) > 0 {
+			// Activate retry
+			select {
+			case agent.retryChan <- struct{}{}:
+			case <-agent.retryChan:
+				agent.retryChan <- struct{}{}
+			}
+		} else {
+			agent.highPriorityPostChanFlag = false
+		}
+
+		/*
+			If there are any tenants with 201 response code,
+			poll for its status continuously and block incoming requests
+		*/
+		agent.pollTenantStatus()
+
+		// notify resourceStatusUpdate response handler on successful tenant update
+		agent.notifyRscStatusHandler(cfg.id, true)
+
+		agent.declUpdate.Unlock()
 	}
 }
 
 // agentWorker blocks on postChan
 // whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
 func (agent *Agent) agentWorker() {
-	firstPost := true
 	for rsConfig := range agent.postChan {
+		// wait until the highPriorityPostChanFlag is set to true
+		for agent.highPriorityPostChanFlag == true {
+		}
 		// If there are no retries going on in parallel, acquiring lock will be straight forward.
-		// Otherwise, we will wait for retryWorker to complete its current iteration
+		// Otherwise, we will wait for other worker to complete its current iteration
 		agent.declUpdate.Lock()
 
 		// Fetch the latest config from channel
@@ -202,9 +285,9 @@ func (agent *Agent) agentWorker() {
 		}
 
 		// For the very first post after starting controller, need not wait to post
-		agent.publishConfig(cfg, firstPost)
+		agent.publishConfig(cfg, agent.firstPost)
 
-		firstPost = false
+		agent.firstPost = false
 
 		go agent.updatePoolMembers(rsConfig)
 
@@ -337,6 +420,9 @@ func (agent *Agent) retryWorker() {
 
 			// If we had a delay in acquiring lock, re-check if we have any tenants to be retried
 			if len(agent.retryTenantDeclMap) == 0 {
+				if agent.highPriorityPostChanFlag == true {
+					agent.highPriorityPostChanFlag = false
+				}
 				agent.declUpdate.Unlock()
 				break
 			}

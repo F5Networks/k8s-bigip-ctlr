@@ -310,6 +310,7 @@ type (
 		gtmConfig          GTMConfig
 		defaultRouteDomain int
 		reqId              int
+		highPriority       bool
 	}
 
 	resourceStatusMeta struct {
@@ -572,22 +573,26 @@ type (
 type (
 	Agent struct {
 		*PostManager
-		Partition       string
-		ConfigWriter    writer.Writer
-		postChan        chan ResourceConfigRequest
-		EventChan       chan interface{}
-		retryChan       chan struct{}
-		respChan        chan resourceStatusMeta
-		PythonDriverPID int
-		userAgent       string
-		HttpAddress     string
-		EnableIPV6      bool
-		declUpdate      sync.Mutex
+		Partition            string
+		ConfigWriter         writer.Writer
+		postChan             chan ResourceConfigRequest
+		highPriorityPostChan chan ResourceConfigRequest
+		EventChan            chan interface{}
+		retryChan            chan struct{}
+		respChan             chan resourceStatusMeta
+		PythonDriverPID      int
+		userAgent            string
+		HttpAddress          string
+		EnableIPV6           bool
+		declUpdate           sync.Mutex
 		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
 		cachedTenantDeclMap   map[string]as3Tenant
 		incomingTenantDeclMap map[string]as3Tenant
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
 		retryTenantDeclMap map[string]*tenantParams
+		// highPriorityPostChanFlag to flag that high priority request is in processing
+		highPriorityPostChanFlag bool
+		firstPost                bool
 	}
 
 	AgentParams struct {

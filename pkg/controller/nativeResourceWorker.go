@@ -196,18 +196,19 @@ func (ctlr *Controller) processNativeResource() bool {
 	}
 
 	if ctlr.nativeResourceQueue.Len() == 0 {
-		ctlr.postResourceConfigRequest()
+		ctlr.postResourceConfigRequest(false)
 	}
 	return true
 }
 
-func (ctlr *Controller) postResourceConfigRequest() {
+func (ctlr *Controller) postResourceConfigRequest(highPriority bool) {
 	if ctlr.resources.isConfigUpdated() {
 		config := ResourceConfigRequest{
 			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
 			shareNodes:         ctlr.shareNodes,
 			gtmConfig:          ctlr.resources.getGTMConfigCopy(),
 			defaultRouteDomain: ctlr.defaultRouteDomain,
+			highPriority:       highPriority,
 		}
 		go ctlr.TeemData.PostTeemsData()
 		config.reqId = ctlr.enqueueReq(config)
@@ -767,7 +768,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			_ = ctlr.processRoutes(routeGroupKey, true)
 			// deleting the bigip partition when partition is changes
 			if ctlr.resources.extdSpecMap[routeGroupKey].partition != newExtdSpecMap[routeGroupKey].partition {
-				ctlr.postResourceConfigRequest()
+				ctlr.postResourceConfigRequest(true)
 			}
 			ctlr.resources.extdSpecMap[routeGroupKey].override = newExtdSpecMap[routeGroupKey].override
 			ctlr.resources.extdSpecMap[routeGroupKey].global = newExtdSpecMap[routeGroupKey].global

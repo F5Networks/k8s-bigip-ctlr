@@ -527,6 +527,19 @@ func (ctlr *Controller) prepareRouteLTMRules(
 		return nil
 	}
 
+	if rewritePath, ok := route.Annotations[string(URLRewriteAnnotation)]; ok {
+		rewriteActions, err := getRewriteActions(
+			path,
+			rewritePath,
+			len(rl.Actions),
+		)
+		if nil != err {
+			log.Errorf("Error configuring rule: %v", err)
+			return nil
+		}
+		rl.Actions = append(rl.Actions, rewriteActions...)
+	}
+
 	if strings.HasPrefix(uri, "*.") == true {
 		wildcards[uri] = rl
 	} else {

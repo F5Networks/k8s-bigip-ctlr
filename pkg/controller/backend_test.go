@@ -228,9 +228,9 @@ var _ = Describe("Backend Tests", func() {
 				defaultRouteDomain: 1,
 			}
 
-			config.ltmConfig["default"] = make(ResourceMap)
-			config.ltmConfig["default"]["crd_vs_172.13.14.15"] = rsCfg
-			config.ltmConfig["default"]["crd_vs_172.13.14.16"] = rsCfg2
+			config.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
+			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.16"] = rsCfg2
 
 			decl := agent.createTenantAS3Declaration(config)
 
@@ -262,8 +262,8 @@ var _ = Describe("Backend Tests", func() {
 				defaultRouteDomain: 1,
 			}
 
-			config.ltmConfig["default"] = make(ResourceMap)
-			config.ltmConfig["default"]["crd_vs_172.13.14.15"] = rsCfg
+			config.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			config.ltmConfig["default"].ResourceMap["crd_vs_172.13.14.15"] = rsCfg
 
 			decl := agent.createTenantAS3Declaration(config)
 
@@ -278,7 +278,7 @@ var _ = Describe("Backend Tests", func() {
 				defaultRouteDomain: 1,
 			}
 
-			config.ltmConfig["default"] = make(ResourceMap)
+			config.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
 
 			as3decl := agent.createTenantAS3Declaration(config)
 			var as3Config map[string]interface{}

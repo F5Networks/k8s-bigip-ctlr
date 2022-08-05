@@ -990,10 +990,10 @@ func (rc *ResourceConfig) FindPolicy(controlType string) *Policy {
 func (rs *ResourceStore) getPartitionResourceMap(partition string) ResourceMap {
 	_, ok := rs.ltmConfig[partition]
 	if !ok {
-		rs.ltmConfig[partition] = make(ResourceMap)
+		rs.ltmConfig[partition] = &PartitionConfig{make(ResourceMap), 0}
 	}
 
-	return rs.ltmConfig[partition]
+	return rs.ltmConfig[partition].ResourceMap
 }
 
 // getResourceConfig gets a specific Resource cfg
@@ -1003,29 +1003,39 @@ func (rs *ResourceStore) getResourceConfig(partition, name string) (*ResourceCon
 	if !ok {
 		return nil, fmt.Errorf("partition not available")
 	}
-	if res, ok := rsMap[name]; ok {
+	if res, ok := rsMap.ResourceMap[name]; ok {
 		return res, nil
 	}
 	return nil, fmt.Errorf("resource not available")
 }
 
 func (rs *ResourceStore) setResourceConfig(partition, name string, rsCfg *ResourceConfig) error {
-	rsMap, ok := rs.ltmConfig[partition]
+	partitionConfig, ok := rs.ltmConfig[partition]
 	if !ok {
 		return fmt.Errorf("partition not available")
 	}
-	rsMap[name] = rsCfg
+	partitionConfig.ResourceMap[name] = rsCfg
 	return nil
 }
 
-// getLTMConfigCopy is a Resource reference copy of LTMConfig
-func (rs *ResourceStore) getLTMConfigCopy() LTMConfig {
+// getSanitizedLTMConfigCopy is a Resource reference copy of LTMConfig
+func (rs *ResourceStore) getSanitizedLTMConfigCopy() LTMConfig {
 	ltmConfig := make(LTMConfig)
-	for prtn, rsMap := range rs.ltmConfig {
-		ltmConfig[prtn] = make(ResourceMap)
-		for rsName, res := range rsMap {
-			ltmConfig[prtn][rsName] = res
+	var deletePartitions []string
+	for prtn, partitionConfig := range rs.ltmConfig {
+		// copy only those partitions where virtual server exists otherwise remove from ltmConfig
+		if len(partitionConfig.ResourceMap) > 0 {
+			ltmConfig[prtn] = &PartitionConfig{make(ResourceMap), partitionConfig.Priority}
+			for rsName, res := range partitionConfig.ResourceMap {
+				ltmConfig[prtn].ResourceMap[rsName] = res
+			}
+		} else {
+			deletePartitions = append(deletePartitions, prtn)
 		}
+	}
+	// delete the partitions if there are no virtuals in that partition
+	for _, prtn := range deletePartitions {
+		delete(rs.ltmConfig, prtn)
 	}
 	return ltmConfig
 }
@@ -1033,12 +1043,12 @@ func (rs *ResourceStore) getLTMConfigCopy() LTMConfig {
 // getLTMConfigDeepCopy is a Resource reference copy of LTMConfig
 func (rs *ResourceStore) getLTMConfigDeepCopy() LTMConfig {
 	ltmConfig := make(LTMConfig)
-	for prtn, rsMap := range rs.ltmConfig {
-		ltmConfig[prtn] = make(ResourceMap)
-		for rsName, res := range rsMap {
+	for prtn, partitionConfig := range rs.ltmConfig {
+		ltmConfig[prtn] = &PartitionConfig{make(ResourceMap), partitionConfig.Priority}
+		for rsName, res := range partitionConfig.ResourceMap {
 			copyRes := &ResourceConfig{}
 			copyRes.copyConfig(res)
-			ltmConfig[prtn][rsName] = copyRes
+			ltmConfig[prtn].ResourceMap[rsName] = copyRes
 		}
 	}
 	return ltmConfig
@@ -1058,7 +1068,7 @@ func (rs *ResourceStore) getGTMConfigCopy() GTMConfig {
 
 func (rs *ResourceStore) updateCaches() {
 	// No need to deep copy as each RsCfg will be framed in a fresh memory block while creating live ltmConfig
-	rs.ltmConfigCache = rs.getLTMConfigCopy()
+	rs.ltmConfigCache = rs.getSanitizedLTMConfigCopy()
 	rs.gtmConfigCache = rs.getGTMConfigCopy()
 }
 
@@ -1072,12 +1082,19 @@ func (rs *ResourceStore) deleteVirtualServer(partition, rsName string) {
 	delete(rs.getPartitionResourceMap(partition), rsName)
 }
 
+// Update the tenant priority in ltmConfigCache
+func (rs *ResourceStore) updatePartitionPriority(partition string, priority int) {
+	if _, ok := rs.ltmConfig[partition]; ok {
+		rs.ltmConfig[partition].Priority = priority
+	}
+}
+
 func (lc LTMConfig) GetAllPoolMembers() []PoolMember {
 	// Get all pool members and write them to VxlanMgr to configure ARP entries
 	var allPoolMembers []PoolMember
 
-	for _, rsMap := range lc {
-		for _, cfg := range rsMap {
+	for _, partitionConfig := range lc {
+		for _, cfg := range partitionConfig.ResourceMap {
 			// Filter the configs to only those that have active services
 			if cfg.MetaData.Active {
 				for _, pool := range cfg.Pools {

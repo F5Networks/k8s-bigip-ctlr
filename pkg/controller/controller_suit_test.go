@@ -58,7 +58,7 @@ func newMockPostManger() *mockPostManager {
 		RespIndex:   0,
 	}
 	mockPM.tenantResponseMap = make(map[string]tenantResponse)
-
+	mockPM.firstPost = true
 	return mockPM
 }
 

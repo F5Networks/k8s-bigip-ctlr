@@ -21,10 +21,11 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 		rm.id = ctlr.requestQueue.Back().Value.(requestMeta).id + 1
 	}
 
-	for _, rsMap := range config.ltmConfig {
-		for _, cfg := range rsMap {
+	for partition, partitionConfig := range config.ltmConfig {
+		for _, cfg := range partitionConfig.ResourceMap {
 			for key, val := range cfg.MetaData.baseResources {
 				rm.meta[key] = val
+				rm.partition = partition
 			}
 		}
 	}
@@ -42,7 +43,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 	for rscUpdateMeta := range respChan {
 
 		rm := ctlr.dequeueReq(rscUpdateMeta.id, len(rscUpdateMeta.failedTenants))
-
+		partition := rm.partition
 		for rscKey, kind := range rm.meta {
 			ns := strings.Split(rscKey, "/")[0]
 			switch kind {
@@ -87,10 +88,12 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 			case Route:
-				if _, found := rscUpdateMeta.failedTenants[ns]; found {
+				if _, found := rscUpdateMeta.failedTenants[partition]; found {
 					// TODO : distinguish between a 503 and an actual failure
 					go ctlr.updateRouteAdmitStatus(rscKey, "Failure while updating config", "Please check logs for more information", v1.ConditionFalse)
 				} else {
+					// updating the tenant priority back to zero if it's not in failed tenants
+					ctlr.resources.updatePartitionPriority(partition, 0)
 					go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
 				}
 			}

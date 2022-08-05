@@ -47,7 +47,7 @@ const (
 	as3template          = "template"
 	//as3SchemaLatestURL   = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
 	as3defaultRouteDomain = "defaultRouteDomain"
-	as3SchemaFileName     = "as3-schema-3.36.0-6-cis.json"
+	as3SchemaFileName     = "as3-schema-3.38.0-4-cis.json"
 )
 
 var baseAS3Config = `{

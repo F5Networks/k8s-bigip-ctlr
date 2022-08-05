@@ -20,12 +20,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
 	"net/http"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/controller"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
@@ -821,6 +821,10 @@ func initController(
 		agentParams.DisableARP = true
 	}
 
+	agentParams.ProcessPythonDriver = true
+	if *poolMemberType == "nodeport" {
+		agentParams.ProcessPythonDriver = false
+	}
 	agent := controller.NewAgent(agentParams)
 
 	ctlr := controller.NewController(
@@ -1029,31 +1033,40 @@ func main() {
 	if *ccclLogLevel != "" {
 		gs.LogLevel = *ccclLogLevel
 	}
-	bs := bigIPSection{
-		BigIPUsername:   *bigIPUsername,
-		BigIPPassword:   *bigIPPassword,
-		BigIPURL:        *bigIPURL,
-		BigIPPartitions: *bigIPPartitions,
-	}
-
-	subPidCh, err := startPythonDriver(getConfigWriter(), gs, bs, *pythonBaseDir)
-	if nil != err {
-		log.Fatalf("Could not initialize subprocess configuration: %v", err)
-	}
-	subPid := <-subPidCh
-	defer func(pid int) {
-		if 0 != pid {
-			var proc *os.Process
-			proc, err = os.FindProcess(pid)
-			if nil != err {
-				log.Warningf("Failed to find sub-process on exit: %v", err)
-			}
-			err = proc.Signal(os.Interrupt)
-			if nil != err {
-				log.Warningf("Could not stop sub-process on exit: %d - %v", pid, err)
-			}
+	// Skip starting Python Driver for NodePort Mode in AS3 Mode
+	// stops the cccl calls to BIGIP.
+	if !(*agent == cisAgent.AS3Agent && *poolMemberType == "nodeport") {
+		bs := bigIPSection{
+			BigIPUsername:   *bigIPUsername,
+			BigIPPassword:   *bigIPPassword,
+			BigIPURL:        *bigIPURL,
+			BigIPPartitions: *bigIPPartitions,
 		}
-	}(subPid)
+
+		subPidCh, err := startPythonDriver(getConfigWriter(), gs, bs, *pythonBaseDir)
+		if nil != err {
+			log.Fatalf("Could not initialize subprocess configuration: %v", err)
+		}
+		subPid := <-subPidCh
+		defer func(pid int) {
+			if 0 != pid {
+				var proc *os.Process
+				proc, err = os.FindProcess(pid)
+				if nil != err {
+					log.Warningf("Failed to find sub-process on exit: %v", err)
+				}
+				err = proc.Signal(os.Interrupt)
+				if nil != err {
+					log.Warningf("Could not stop sub-process on exit: %d - %v", pid, err)
+				}
+			}
+		}(subPid)
+		// Add health check e.g. is Python process still there?
+		hc := &health.HealthChecker{
+			SubPID: subPid,
+		}
+		http.Handle("/health", hc.HealthCheckHandler())
+	}
 
 	if _, isSet := os.LookupEnv("SCALE_PERF_ENABLE"); isSet {
 		now := time.Now()
@@ -1119,11 +1132,6 @@ func main() {
 	setupWatchers(appMgr, time.Duration(*syncInterval)*time.Second)
 	// Expose Prometheus metrics
 	http.Handle("/metrics", promhttp.Handler())
-	// Add health check e.g. is Python process still there?
-	hc := &health.HealthChecker{
-		SubPID: subPid,
-	}
-	http.Handle("/health", hc.HealthCheckHandler())
 	bigIPPrometheus.RegisterMetrics()
 	go func() {
 		log.Fatal(http.ListenAndServe(*httpAddress, nil).Error())

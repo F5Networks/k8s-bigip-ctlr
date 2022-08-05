@@ -70,6 +70,7 @@ func NewAgent(params AgentParams) *Agent {
 		retryTenantDeclMap:    make(map[string]*tenantParams),
 		userAgent:             params.UserAgent,
 		HttpAddress:           params.HttpAddress,
+		ProcessPythonDriver:   params.ProcessPythonDriver,
 	}
 	// agentWorker runs as a separate go routine
 	// blocks on postChan to get new/updated configuration to be posted to BIG-IP
@@ -126,8 +127,10 @@ func NewAgent(params AgentParams) *Agent {
 			GtmBigIPURL:      params.GTMParams.GTMBigIpUrl,
 		}
 	}
+	// Skip starting Python Driver for NodePort Mode in AS3 Mode
+	// stops the cccl calls to BIGIP.
 	//For IPV6 net config is not required. f5-sdk doesnt support ipv6
-	if !(params.EnableIPV6) {
+	if !(params.EnableIPV6) && params.ProcessPythonDriver {
 		agent.startPythonDriver(
 			gs,
 			bs,
@@ -140,7 +143,7 @@ func NewAgent(params AgentParams) *Agent {
 
 func (agent *Agent) Stop() {
 	agent.ConfigWriter.Stop()
-	if !(agent.EnableIPV6) {
+	if !(agent.EnableIPV6) && agent.ProcessPythonDriver {
 		agent.stopPythonDriver()
 	}
 }

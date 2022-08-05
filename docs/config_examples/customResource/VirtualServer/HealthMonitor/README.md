@@ -18,3 +18,18 @@ monitor:
 ## health-monitored-pool-virtual-server.yaml
 
 By deploying this yaml file in your cluster, CIS will create a Virtual Server containing health monitored pool on BIG-IP.
+
+Option which can be used to link existing health monitor on bigip:
+```
+monitor:
+    name: 
+    reference: 
+```
+* name - name of monitor existing on bigip in the format `/<partition>/<monitor_name>` eg: `/Common/custom-http-monitor`
+* reference - This should be set as `bigip` to reference existing health monitor.
+
+## Custom-health-monitor-virtual-server.yaml
+
+By deploying this yaml file in your cluster, CIS will create a Virtual Server referencing health monitor existing on BIG-IP.
+
+

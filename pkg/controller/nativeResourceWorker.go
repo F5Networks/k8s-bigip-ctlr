@@ -487,7 +487,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		if strings.HasPrefix(monitor.Path, route.Spec.Host+route.Spec.Path) {
 			// Remove unused health monitors
 			rsCfg.Monitors[index].InUse = true
-			pool.MonitorNames = append(pool.MonitorNames, monitor.Name)
+			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
 			break
 		}
 	}

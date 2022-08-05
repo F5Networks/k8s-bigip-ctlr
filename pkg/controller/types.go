@@ -333,7 +333,7 @@ type (
 		Balance          string             `json:"loadBalancingMethod,omitempty"`
 		Members          []PoolMember       `json:"members"`
 		NodeMemberLabel  string             `json:"-"`
-		MonitorNames     []string           `json:"monitors,omitempty"`
+		MonitorNames     []MonitorName      `json:"monitors,omitempty"`
 	}
 	// Pools is slice of pool
 	Pools []Pool
@@ -360,6 +360,11 @@ type (
 		TargetPort int32  `json:"targetPort,omitempty"`
 		Path       string `json:"path,omitempty"`
 		InUse      bool   `json:"-"`
+	}
+	MonitorName struct {
+		Name string `json:"name"`
+		//Reference is used to link existing health monitor on bigip
+		Reference string `json:"reference,omitempty"`
 	}
 	// Monitors  is slice of monitor
 	Monitors []Monitor

@@ -148,10 +148,11 @@ stages:
         mkdir -p ./helm-charts/f5-bigip-ctlr/crds
         cp ./docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
         sed -i '/metadata:/r ./helm-charts/labels.txt' ./helm-charts/f5-bigip-ctlr/crds/f5-bigip-ctlr-customresourcedefinitions.yml
-        pip install -r ./build-tools/py-requirements.txt
+        pip install --disable-pip-version-check -r ./build-tools/py-requirements.txt
         python ./build-tools/helm-clusterrole-gen.py
         helm lint --strict ./helm-charts/f5-bigip-ctlr --set 'args.bigip_url=https://example.com'
         helm package ./helm-charts/f5-bigip-ctlr --destination .deploy/
+
       displayName: Package Helm Chart
       failOnStderr: true
       condition: and(succeeded(), or(startsWith(variables['build.sourceBranch'], 'refs/tags/'), eq(variables['chartsUpdated'], 'True')) )

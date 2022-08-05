@@ -59,8 +59,8 @@ var _ = Describe("Backend Tests", func() {
 				Pool{
 					Name:    "pool1",
 					Members: []PoolMember{mem1, mem2},
-					MonitorNames: []string{
-						"/test/http_monitor",
+					MonitorNames: []MonitorName{
+						{Name: "/test/http_monitor"},
 					},
 				},
 			}

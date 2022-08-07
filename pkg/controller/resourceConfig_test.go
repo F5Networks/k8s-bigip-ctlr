@@ -21,7 +21,14 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.resources = NewResourceStore()
 			mockCtlr.mode = CustomResourceMode
+			mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = TLSCipher{
+				"1.2",
+				"",
+				"",
+			}
+
 			vs = test.NewVirtualServer(
 				"SampleVS",
 				namespace,
@@ -603,6 +610,12 @@ var _ = Describe("Resource Config Tests", func() {
 
 		BeforeEach(func() {
 			mockCtlr = newMockController()
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = TLSCipher{
+				"1.2",
+				"",
+				""}
+
 			mockCtlr.SSLContext = make(map[string]*v1.Secret)
 
 			ip = "1.2.3.4"

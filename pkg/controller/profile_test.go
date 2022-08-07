@@ -11,7 +11,14 @@ var _ = Describe("Profile", func() {
 	var mockCtlr *mockController
 	BeforeEach(func() {
 		mockCtlr = newMockController()
+		mockCtlr.resources = NewResourceStore()
 		mockCtlr.mode = CustomResourceMode
+		mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher = TLSCipher{
+			"1.2",
+			"",
+			"",
+		}
+
 	})
 
 	It("Client SSL", func() {
@@ -43,27 +50,29 @@ var _ = Describe("Profile", func() {
 		secret.Data["tls.key"] = []byte("fawiueh9wuan;kasjf;")
 		secret.Data["tls.crt"] = []byte("ahfa;osejfn;kahse;ha")
 
-		err, updated := mockCtlr.createSecretClientSSLProfile(rsCfg, secret, "clientside")
+		tlsCipher := mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher
+
+		err, updated := mockCtlr.createSecretClientSSLProfile(rsCfg, secret, tlsCipher, "clientside")
 		Expect(err).To(BeNil(), "Failed to Create Client SSL")
 		Expect(updated).To(BeFalse(), "Failed to Create Client SSL")
 
-		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secret, "clientside")
+		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secret, tlsCipher, "clientside")
 		Expect(err).To(BeNil(), "Failed to Create Client SSL")
 		Expect(updated).To(BeFalse(), "Failed to Create Client SSL")
 
 		secret.Data["tls.crt"] = []byte("dfaf")
-		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secret, "clientside")
+		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secret, tlsCipher, "clientside")
 		Expect(err).To(BeNil(), "Failed to Update Client SSL")
 		Expect(updated).To(BeTrue(), "Failed to Update Client SSL")
 
 		// Negative Cases
 		delete(secret.Data, "tls.crt")
-		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secret, "clientside")
+		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secret, tlsCipher, "clientside")
 		Expect(err).ToNot(BeNil(), "Failed to Validate Client SSL")
 		Expect(updated).To(BeFalse(), "Failed to Validate Client SSL")
 
 		delete(secret.Data, "tls.key")
-		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secret, "clientside")
+		err, updated = mockCtlr.createSecretClientSSLProfile(rsCfg, secret, tlsCipher, "clientside")
 		Expect(err).ToNot(BeNil(), "Failed to Validate Client SSL")
 		Expect(updated).To(BeFalse(), "Failed to Validate Client SSL")
 
@@ -96,23 +105,23 @@ var _ = Describe("Profile", func() {
 			Type:       "",
 		}
 		secret.Data["tls.crt"] = []byte("ahfa;osejfn;kahse;ha")
-
-		err, updated := mockCtlr.createSecretServerSSLProfile(rsCfg, secret, "clientside")
+		tlsCipher := mockCtlr.resources.supplementContextCache.baseRouteConfig.TLSCipher
+		err, updated := mockCtlr.createSecretServerSSLProfile(rsCfg, secret, tlsCipher, "clientside")
 		Expect(err).To(BeNil(), "Failed to Create Server SSL")
 		Expect(updated).To(BeFalse(), "Failed to Create Server SSL")
 
-		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secret, "clientside")
+		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secret, tlsCipher, "clientside")
 		Expect(err).To(BeNil(), "Failed to Create Server SSL")
 		Expect(updated).To(BeFalse(), "Failed to Create Server SSL")
 
 		secret.Data["tls.crt"] = []byte("dfaf")
-		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secret, "clientside")
+		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secret, tlsCipher, "clientside")
 		Expect(err).To(BeNil(), "Failed to Update Server SSL")
 		Expect(updated).To(BeTrue(), "Failed to Update Server SSL")
 
 		// Negative Cases
 		delete(secret.Data, "tls.crt")
-		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secret, "clientside")
+		err, updated = mockCtlr.createSecretServerSSLProfile(rsCfg, secret, tlsCipher, "clientside")
 		Expect(err).ToNot(BeNil(), "Failed to Validate Server SSL")
 		Expect(updated).To(BeFalse(), "Failed to Validate Server SSL")
 

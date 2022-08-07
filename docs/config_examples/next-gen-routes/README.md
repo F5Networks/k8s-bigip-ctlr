@@ -56,7 +56,8 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
 
 * Global configmap provides control to the admin to create and maintain the resource configuration centrally. 
 * RBAC can be used to restrict modification of global configmap by users with tenant level access.
-* If any specific tenant requires modify access for routeconfig of their namespace, admin can grant access by setting **allowOverride** to true in the extendedRouteSpec of the namespace.  
+* If any specific tenant requires modify access for routeconfig of their namespace, admin can grant access by setting **allowOverride** to true in the extendedRouteSpec of the namespace.
+* Global ConfigMap allows to define base route configuration . This cannot be overridden from local configmap. This is an alternative to CLI parameters
 
 ### Local Configmap
 
@@ -78,6 +79,18 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
 
   **Note**: 1. namespaceLabel is mutually exclusive with namespace parameter
             2. --namespace-label parameter has to be defined in CIS deployment to use the namespaceLabel in extended configMap
+
+### Base Route Config Parameters
+
+| Parameter   | Required | Description                                                                                                               | Default | ConfigMap |
+|-------------|----------|---------------------------------------------------------------------------------------------------------------------------|---------| --------- |
+| tlsCiphers  | Optional | Block to define TLS cipher parameters                                                                                     | N/A     | Global configMap |
+| tlsVersion  | Optional | Configures TLS version to be enabled on BIG-IP. TLS 1.3 is only supported on TMOS version 14.0+.                          | 1.2     | Global configMap |
+| ciphers     | Optional | Configures a ciphersuite selection string. Cipher-group and ciphers are mutually exclusive, only use one.                 | N/A     | Global configMap |
+| cipherGroup | Optional | Configures a cipher group in BIG-IP and reference it here. Cipher group and ciphers are mutually exclusive, only use one. | N/A     | Global configMap |
+
+**Note**: 1. ciphers and cipherGroups are mutually exclusive. For tlsVersion 1.3 cipherGroup is considered and for 1.2 ciphers is considered
+
 
 ### Example Global & Local ConfigMap with namespace parameter
 **Example: Global Configmap**
@@ -116,7 +129,34 @@ metadata:
   name: extended-route-spec
   namespace: tenant1
 ```
+
+**Example: Global Configmap with Base Route Configuration**
+```
+apiVersion: v1
+data:
+  extendedSpec: |
+    baseRouteSpec:
+     tlsCipher:
+      tlsVersion: 1.2
+      ciphers: DEFAULT
+      cipherGroup: /Common/f5-default
+    extendedRouteSpec:
+    - namespace: tenant1
+      vserverAddr: 10.8.3.130
+      vserverName: routetenant1
+      allowOverride: true
+    - namespace: tenant2
+      vserverAddr: 10.8.3.132
+      vserverName: routetenant2
+kind: ConfigMap
+metadata:
+  labels:
+    f5nr: "true"
+  name: global-cm
+  namespace: default
+```
 **NOTE:** label f5nr needs to be set to true on global and local configmap to be processed by CIS.
+**NOTE:** tlsCipher - > ciphers and cipherGroup are mutual exclusive. For tlsVersion 1.3 cipherGroup is considered and for 1.2 ciphers is considered
 
 Cis args:
 ````  

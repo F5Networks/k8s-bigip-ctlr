@@ -112,6 +112,7 @@ func NewCustomProfile(
 	peerCertMode,
 	caFile string,
 	chainCA string,
+	tlsCipher TLSCipher,
 ) CustomProfile {
 	cp := CustomProfile{
 		Name:         profile.Name,
@@ -126,6 +127,12 @@ func NewCustomProfile(
 	}
 	if peerCertMode == PeerCertRequired {
 		cp.CAFile = caFile
+	}
+
+	if tlsCipher.TLSVersion == string(TLSVerion1_3) {
+		cp.CipherGroup = tlsCipher.CipherGroup
+	} else {
+		cp.Ciphers = tlsCipher.Ciphers
 	}
 	return cp
 }
@@ -568,7 +575,7 @@ func (ctlr *Controller) handleTLS(
 					if secret, ok := ctlr.SSLContext[clientSSL]; ok {
 						log.Debugf("clientSSL secret %s for '%s'/'%s' is already available with CIS in "+
 							"SSLContext as clientSSL", secret.ObjectMeta.Name, tlsContext.namespace, tlsContext.name)
-						err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
+						err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
 						if err != nil {
 							log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s' using secret '%s'",
 								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name, secret.ObjectMeta.Name)
@@ -586,7 +593,7 @@ func (ctlr *Controller) handleTLS(
 							return false
 						}
 						ctlr.SSLContext[clientSSL] = secret
-						err, _ = ctlr.createSecretClientSSLProfile(rsCfg, secret, CustomProfileClient)
+						err, _ = ctlr.createSecretClientSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
 						if err != nil {
 							log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
 								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -599,7 +606,7 @@ func (ctlr *Controller) handleTLS(
 					if secret, ok := ctlr.SSLContext[serverSSL]; ok {
 						log.Debugf("serverSSL secret %s for '%s'/'%s' is already available with CIS in "+
 							"SSLContext as serverSSL", secret.ObjectMeta.Name, tlsContext.namespace, tlsContext.name)
-						err, _ := ctlr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
+						err, _ := ctlr.createSecretServerSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
 						if err != nil {
 							log.Debugf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s' using secret '%s'",
 								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name, secret.ObjectMeta.Name)
@@ -617,7 +624,7 @@ func (ctlr *Controller) handleTLS(
 							return false
 						}
 						ctlr.SSLContext[serverSSL] = secret
-						err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secret, CustomProfileServer)
+						err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
 						if err != nil {
 							log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
 								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -629,7 +636,8 @@ func (ctlr *Controller) handleTLS(
 			case Certificate:
 				// Prepare SSL Transient Context
 				if tlsContext.bigIPSSLProfiles.key != "" && tlsContext.bigIPSSLProfiles.certificate != "" {
-					err, _ := ctlr.createClientSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.key, tlsContext.bigIPSSLProfiles.certificate, fmt.Sprintf("%s-clientssl", tlsContext.name), tlsContext.namespace, CustomProfileClient)
+					err, _ := ctlr.createClientSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.key, tlsContext.bigIPSSLProfiles.certificate,
+						fmt.Sprintf("%s-clientssl", tlsContext.name), tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
 					if err != nil {
 						log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s'",
 							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -640,9 +648,11 @@ func (ctlr *Controller) handleTLS(
 				if tlsContext.bigIPSSLProfiles.destinationCACertificate != "" {
 					var err error
 					if tlsContext.bigIPSSLProfiles.caCertificate != "" {
-						err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate, tlsContext.bigIPSSLProfiles.caCertificate, tlsContext.name, tlsContext.namespace, CustomProfileServer)
+						err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate,
+							tlsContext.bigIPSSLProfiles.caCertificate, tlsContext.name, tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
 					} else {
-						err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate, "", fmt.Sprintf("%s-serverssl", tlsContext.name), tlsContext.namespace, CustomProfileServer)
+						err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate,
+							"", fmt.Sprintf("%s-serverssl", tlsContext.name), tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
 					}
 					if err != nil {
 						log.Debugf("error %v encountered while creating serverssl profile  for '%s' '%s'/'%s'",
@@ -1816,6 +1826,11 @@ func (ctlr *Controller) handleRouteTLS(
 		}
 		if route.Spec.TLS.DestinationCACertificate != "" {
 			bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
+		}
+
+		//Flag to track the route groups which are using TLS Ciphers
+		ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+			DependsOnTLSCipher: true,
 		}
 	}
 	var poolPathRefs []poolPathRef

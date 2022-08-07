@@ -1268,6 +1268,12 @@ func createUpdateTLSServer(prof CustomProfile, svcName string, sharedApp as3Appl
 				Class:        "TLS_Server",
 				Certificates: []as3TLSServerCertificates{},
 			}
+			if prof.CipherGroup != "" {
+				tlsServer.CipherGroup = &as3ResourcePointer{BigIP: prof.CipherGroup}
+				tlsServer.TLS1_3Enabled = true
+			} else {
+				tlsServer.Ciphers = prof.Ciphers
+			}
 
 			sharedApp[tlsServerName] = tlsServer
 			svc.ServerTLS = tlsServerName
@@ -1329,7 +1335,12 @@ func createTLSClient(
 				Use: caBundleName,
 			},
 		}
-
+		if prof.CipherGroup != "" {
+			tlsClient.CipherGroup = &as3ResourcePointer{BigIP: prof.CipherGroup}
+			tlsClient.TLS1_3Enabled = true
+		} else {
+			tlsClient.Ciphers = prof.Ciphers
+		}
 		sharedApp[tlsClientName] = tlsClient
 		svc.ClientTLS = tlsClientName
 		updateVirtualToHTTPS(svc)

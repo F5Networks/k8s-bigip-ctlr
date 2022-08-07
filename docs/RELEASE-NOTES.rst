@@ -11,6 +11,7 @@ Added Functionality
     * Next generation routes
         * Added support for namespaceLabel in global extended ConfigMap
         * Added support for BigIP ClientSSL/ServerSSL profile reference in global extended ConfigMap
+        * Add support for path rewrite
     * CRD:
         * AllowSourceRange support for VirtualServer CRs and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * :issues:`2201` Support for linking existing healthmonitor on bigip with virtualSever and TransportServer CRs.

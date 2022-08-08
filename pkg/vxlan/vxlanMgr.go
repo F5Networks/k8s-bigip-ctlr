@@ -213,6 +213,19 @@ func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
 	return
 }
 
+func (vxm *VxlanMgr) SendEmptyArpBlockForCilium(kubePods *v1.PodList) {
+	// Send Empty arp block as "Cilium doesnt require static ARP addition"
+	for _, kPod := range kubePods.Items {
+		if strings.Contains(kPod.Name, "cilium") && kPod.Status.Phase == "Running" {
+			doneCh, errCh, err := vxm.config.SendSection(
+				"vxlan-arp",
+				arpSection{},
+			)
+			vxm.handleVxLANMgrChannel(doneCh, errCh, err, arpSection{})
+			return
+		}
+	}
+}
 func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Interface) {
 	arps := arpSection{}
 	kubePods, err := kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
@@ -220,6 +233,7 @@ func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Inter
 		log.Errorf("[VxLAN] Vxlan Manager could not list Kubernetes Pods for ARP entries: %v", err)
 		return
 	}
+	vxm.SendEmptyArpBlockForCilium(kubePods)
 	kubeNodes, err := kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if nil != err {
 		log.Errorf("[VxLAN] Vxlan Manager could not list Kubernetes Nodes for ARP entries: %v", err)
@@ -243,7 +257,10 @@ func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Inter
 		"vxlan-arp",
 		arps,
 	)
+	vxm.handleVxLANMgrChannel(doneCh, errCh, err, arps)
+}
 
+func (vxm *VxlanMgr) handleVxLANMgrChannel(doneCh <-chan struct{}, errCh <-chan error, err error, arps arpSection) {
 	if nil != err {
 		log.Warningf("[VxLAN] Vxlan manager (%s) failed to write arp config section: %v",
 			vxm.vxLAN, err)

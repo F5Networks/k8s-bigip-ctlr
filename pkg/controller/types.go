@@ -587,7 +587,6 @@ type (
 		userAgent       string
 		HttpAddress     string
 		EnableIPV6      bool
-		DisableARP      bool
 		declUpdate      sync.Mutex
 		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
 		cachedTenantDeclMap   map[string]as3Tenant

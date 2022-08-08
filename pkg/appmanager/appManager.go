@@ -254,6 +254,7 @@ const (
 	Services       = "services"
 	Endpoints      = "endpoints"
 	Pod            = "pod"
+	Nodes          = "nodes"
 	Configmaps     = "configmaps"
 	Ingresses      = "ingresses"
 	Routes         = "routes"
@@ -649,17 +650,6 @@ func (appMgr *Manager) newAppInformer(
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
-		endptInformer: cache.NewSharedIndexInformer(
-			cache.NewFilteredListWatchFromClient(
-				appMgr.restClientv1,
-				Endpoints,
-				namespace,
-				everything,
-			),
-			&v1.Endpoints{},
-			resyncPeriod,
-			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-		),
 		secretInformer: cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				appMgr.restClientv1,
@@ -682,6 +672,20 @@ func (appMgr *Manager) newAppInformer(
 				everything,
 			),
 			&v1.Pod{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		)
+	}
+	//For nodeport mode, disable ep informer
+	if appMgr.poolMemberType != NodePort {
+		appInf.endptInformer = cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				appMgr.restClientv1,
+				Endpoints,
+				namespace,
+				everything,
+			),
+			&v1.Endpoints{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
@@ -808,15 +812,16 @@ func (appMgr *Manager) newAppInformer(
 		},
 		resyncPeriod,
 	)
-
-	appInf.endptInformer.AddEventHandlerWithResyncPeriod(
-		&cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { appMgr.enqueueEndpoints(obj, OprTypeCreate) },
-			UpdateFunc: func(old, cur interface{}) { appMgr.enqueueEndpoints(cur, OprTypeUpdate) },
-			DeleteFunc: func(obj interface{}) { appMgr.enqueueEndpoints(obj, OprTypeDelete) },
-		},
-		resyncPeriod,
-	)
+	if appInf.endptInformer != nil {
+		appInf.endptInformer.AddEventHandlerWithResyncPeriod(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { appMgr.enqueueEndpoints(obj, OprTypeCreate) },
+				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueEndpoints(cur, OprTypeUpdate) },
+				DeleteFunc: func(obj interface{}) { appMgr.enqueueEndpoints(obj, OprTypeDelete) },
+			},
+			resyncPeriod,
+		)
+	}
 	appInf.secretInformer.AddEventHandlerWithResyncPeriod(
 		&cache.ResourceEventHandlerFuncs{
 			// Making all operation types as update because each change in secret will update the ingress/configmap
@@ -2398,7 +2403,7 @@ func serviceMatch(svcs []string, sKey serviceQueueKey) bool {
 	return false
 }
 
-// Common handling function for ConfigMaps, Ingresses, and Routes
+// handling function for Ingresses
 func (appMgr *Manager) handleConfigForTypeIngress(
 	rsCfg *ResourceConfig,
 	sKey serviceQueueKey,
@@ -2504,8 +2509,17 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 				appMgr.exposeKubernetesService(svc, svcKey, rsCfg, appInf, plIdx)
 			} else {
 				if appMgr.IsNodePort() {
-					correctBackend, reason, msg =
-						appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
+					//Pool members update required in Nodeport only in below scenarios
+					//1.If it's create event
+					//2.There's node update/update from ProcessNodeUpdate
+					//3.Backend serviceport is updated or service is deleted.
+					if sKey.Operation == OprTypeCreate || (sKey.ResourceKind == Nodes && sKey.Operation == OprTypeUpdate) || sKey.ResourceKind == Services {
+						correctBackend, reason, msg =
+							appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
+					} else {
+						//No node updates are observed.
+						correctBackend, reason, msg = true, "", ""
+					}
 				} else if appMgr.poolMemberType == NodePortLocal {
 					correctBackend, reason, msg =
 						appMgr.updatePoolMembersForNPL(svc, svcKey, rsCfg, plIdx)
@@ -2573,7 +2587,7 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 	return true, vsFound, vsUpdated
 }
 
-// Common handling function for ConfigMaps, Ingresses, and Routes
+// Common handling function for ConfigMaps and Routes
 func (appMgr *Manager) handleConfigForType(
 	rsCfg *ResourceConfig,
 	sKey serviceQueueKey,
@@ -2690,8 +2704,17 @@ func (appMgr *Manager) handleConfigForType(
 		appMgr.exposeKubernetesService(svc, svcKey, rsCfg, appInf, plIdx)
 	} else {
 		if appMgr.IsNodePort() {
-			correctBackend, reason, msg =
-				appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
+			//Pool members update required in Nodeport only in below scenarios
+			//1.If it's create event
+			//2.There's node update/update from ProcessNodeUpdate
+			//3.Backend serviceport is updated or service is deleted.
+			if sKey.Operation == OprTypeCreate || (sKey.ResourceKind == Nodes && sKey.Operation == OprTypeUpdate) || sKey.ResourceKind == Services {
+				correctBackend, reason, msg =
+					appMgr.updatePoolMembersForNodePort(svc, svcKey, rsCfg, plIdx)
+			} else {
+				//No node updates.
+				correctBackend, reason, msg = true, "", ""
+			}
 		} else if appMgr.poolMemberType == NodePortLocal {
 			correctBackend, reason, msg =
 				appMgr.updatePoolMembersForNPL(svc, svcKey, rsCfg, plIdx)
@@ -2754,6 +2777,7 @@ func (appMgr *Manager) updatePoolMembersForNodePort(
 	rsCfg *ResourceConfig,
 	index int,
 ) (bool, string, string) {
+	log.Debugf("Updating poolmembers for nodeport mode with service %v/%v", svcKey.ServiceName, svcKey.Namespace)
 	if svc.Spec.Type == v1.ServiceTypeNodePort || svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 		for _, portSpec := range svc.Spec.Ports {
 			if portSpec.Port == svcKey.ServicePort {
@@ -3278,8 +3302,10 @@ func (appMgr *Manager) ProcessNodeUpdate(
 			items := make(map[serviceQueueKey]int)
 			appMgr.resources.ForEach(func(key ServiceKey, cfg *ResourceConfig) {
 				queueKey := serviceQueueKey{
-					Namespace:   key.Namespace,
-					ServiceName: key.ServiceName,
+					Namespace:    key.Namespace,
+					ServiceName:  key.ServiceName,
+					ResourceKind: Nodes,
+					Operation:    OprTypeUpdate,
 				}
 				items[queueKey]++
 			})

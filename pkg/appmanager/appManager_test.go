@@ -209,6 +209,7 @@ func (m *mockAppManager) addConfigMap(cm *v1.ConfigMap) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
 		appInf.cfgMapInformer.GetStore().Add(cm)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeCreate
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -224,6 +225,7 @@ func (m *mockAppManager) updateConfigMap(cm *v1.ConfigMap) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
 		appInf.cfgMapInformer.GetStore().Update(cm)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeUpdate
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -239,6 +241,7 @@ func (m *mockAppManager) deleteConfigMap(cm *v1.ConfigMap) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(cm.ObjectMeta.Namespace)
 		appInf.cfgMapInformer.GetStore().Delete(cm)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeDelete
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -254,6 +257,7 @@ func (m *mockAppManager) addService(svc *v1.Service) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(svc.ObjectMeta.Namespace)
 		appInf.svcInformer.GetStore().Add(svc)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeCreate
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -269,6 +273,7 @@ func (m *mockAppManager) updateService(svc *v1.Service) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(svc.ObjectMeta.Namespace)
 		appInf.svcInformer.GetStore().Update(svc)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeUpdate
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -284,6 +289,7 @@ func (m *mockAppManager) deleteService(svc *v1.Service) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(svc.ObjectMeta.Namespace)
 		appInf.svcInformer.GetStore().Delete(svc)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeDelete
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -299,6 +305,7 @@ func (m *mockAppManager) addEndpoints(ep *v1.Endpoints) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
 		appInf.endptInformer.GetStore().Add(ep)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeCreate
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -314,6 +321,7 @@ func (m *mockAppManager) updateEndpoints(ep *v1.Endpoints) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
 		appInf.endptInformer.GetStore().Update(ep)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeUpdate
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -329,6 +337,7 @@ func (m *mockAppManager) deleteEndpoints(ep *v1.Endpoints) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(ep.ObjectMeta.Namespace)
 		appInf.endptInformer.GetStore().Delete(ep)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeDelete
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -346,6 +355,7 @@ func (m *mockAppManager) addIngress(ing *v1beta1.Ingress) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Add(ing)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeCreate
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -368,6 +378,7 @@ func (m *mockAppManager) updateIngress(ing *v1beta1.Ingress) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Update(ing)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeUpdate
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -386,6 +397,7 @@ func (m *mockAppManager) deleteIngress(ing *v1beta1.Ingress) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Delete(ing)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeDelete
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()

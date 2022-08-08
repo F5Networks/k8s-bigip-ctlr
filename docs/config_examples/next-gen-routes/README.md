@@ -34,7 +34,7 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
 ## Prerequisites
 
 * Cleanup the partition in bigip ,where existing route config is deployed.
-  * Use below POST call along with this AS3 declaration [Empty Declaration](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/nativeResources/AS3-empty-declaration.json) for cleanup
+  * Use below POST call along with this AS3 declaration [Empty Declaration](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/AS3-empty-declaration.json) for cleanup
 
     mgmt/shared/appsvcs/declare
 
@@ -418,7 +418,7 @@ Unsupported features/annotations in next-gen routes are planned to be supported 
 | App-rewrite | YES | NO |
 | A/B Deployment | YES | NO | 
 
-Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/nativeResources) for more details.
+Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes) for more details.
 
 
 ## Known issues

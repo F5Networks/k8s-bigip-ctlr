@@ -62,7 +62,7 @@ Added Functionality
 ```````````````````
 
 **What’s new:**
-    * Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/nativeResources>`_ for more details
+    * Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
         * Multiple VIP and partition support for routes
     * CRD:
         * LoadBalancingMethod support for VirtualServer and TransportServer CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_

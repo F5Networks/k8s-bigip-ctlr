@@ -1670,6 +1670,7 @@ func (m *mockAppManager) addV1Ingress(ing *netv1.Ingress) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Add(ing)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeCreate
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -1692,6 +1693,7 @@ func (m *mockAppManager) updateV1Ingress(ing *netv1.Ingress) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Update(ing)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeUpdate
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()
@@ -1710,6 +1712,7 @@ func (m *mockAppManager) deleteV1Ingress(ing *netv1.Ingress) bool {
 		appInf, _ := m.appMgr.getNamespaceInformer(ns)
 		appInf.ingInformer.GetStore().Delete(ing)
 		for _, vsKey := range keys {
+			vsKey.Operation = OprTypeDelete
 			mtx := m.getVsMutex(*vsKey)
 			mtx.Lock()
 			defer mtx.Unlock()

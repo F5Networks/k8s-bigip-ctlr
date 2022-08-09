@@ -429,8 +429,9 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			ServiceName:      pl.Service,
 			ServiceNamespace: svcNamespace,
 			ServicePort:      targetPort,
-			NodeMemberLabel:  pl.NodeMemberLabel,
-			Balance:          pl.Balance,
+
+			NodeMemberLabel: pl.NodeMemberLabel,
+			Balance:         pl.Balance,
 		}
 		if pl.Monitor.Name != "" && pl.Monitor.Reference == "bigip" {
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
@@ -450,6 +451,34 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				TargetPort: pl.Monitor.TargetPort,
 			}
 			monitors = append(monitors, monitor)
+		} else if pl.Monitors != nil {
+			for _, monitor := range pl.Monitors {
+				if monitor.Name != "" && monitor.Reference == BIGIP {
+					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
+				} else {
+					var formatPort int32
+					if monitor.TargetPort != 0 {
+						formatPort = monitor.TargetPort
+					} else {
+						formatPort = pl.ServicePort
+					}
+					if monitor.Name == "" {
+						monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, monitor.Type, formatPort, monitor.Send)
+					}
+					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+					monitor := Monitor{
+						Name:       monitorName,
+						Partition:  rsCfg.Virtual.Partition,
+						Type:       monitor.Type,
+						Interval:   monitor.Interval,
+						Send:       monitor.Send,
+						Recv:       monitor.Recv,
+						Timeout:    monitor.Timeout,
+						TargetPort: monitor.TargetPort,
+					}
+					rsCfg.Monitors = append(rsCfg.Monitors, monitor)
+				}
+			}
 		}
 		pools = append(pools, pool)
 	}
@@ -1508,6 +1537,36 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 			TargetPort: vs.Spec.Pool.Monitor.TargetPort,
 		}
 		rsCfg.Monitors = append(rsCfg.Monitors, monitor)
+	} else if vs.Spec.Pool.Monitors != nil {
+		pl := vs.Spec.Pool
+		for _, monitor := range pl.Monitors {
+			if monitor.Name != "" && monitor.Reference == BIGIP {
+				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
+			} else {
+				var formatPort int32
+				if monitor.TargetPort != 0 {
+					formatPort = monitor.TargetPort
+				} else {
+					formatPort = pl.ServicePort
+				}
+
+				if monitor.Name == "" {
+					monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, monitor.Type, formatPort, monitor.Send)
+				}
+				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
+				monitor := Monitor{
+					Name:       monitorName,
+					Partition:  rsCfg.Virtual.Partition,
+					Type:       monitor.Type,
+					Interval:   monitor.Interval,
+					Send:       "",
+					Recv:       "",
+					Timeout:    monitor.Timeout,
+					TargetPort: monitor.TargetPort,
+				}
+				rsCfg.Monitors = append(rsCfg.Monitors, monitor)
+			}
+		}
 	}
 
 	rsCfg.Virtual.Mode = vs.Spec.Mode

@@ -264,6 +264,65 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 		})
 
+		It("Validate Virtual server config with multiple monitors(tcp and http)", func() {
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = formatCustomVirtualServerName("My_VS", 80)
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+
+			vs := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host: "test.com",
+					Pools: []cisapiv1.Pool{
+						{
+							Path:    "/foo",
+							Service: "svc1",
+							Monitors: []cisapiv1.Monitor{
+								{
+									Type:       "http",
+									Send:       "GET /health",
+									Interval:   15,
+									Timeout:    10,
+									TargetPort: 80,
+								},
+								{
+									Type:       "tcp",
+									Send:       "GET /health",
+									Interval:   15,
+									Timeout:    10,
+									TargetPort: 80,
+								},
+								{
+									Name:      "/Common/monitor",
+									Reference: "bigip",
+								},
+							},
+							Rewrite: "/bar",
+						},
+						{
+							Path:    "/",
+							Service: "svc2",
+							Monitor: cisapiv1.Monitor{
+								Type:     "http",
+								Send:     "GET /health",
+								Interval: 15,
+								Timeout:  10,
+							},
+						},
+					},
+					RewriteAppRoot: "/home",
+					WAF:            "/Common/WAF",
+					IRules:         []string{"SampleIRule"},
+				},
+			)
+			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+
+		})
+
 		It("Prepare Resource Config from a TransportServer", func() {
 			ts := test.NewTransportServer(
 				"SampleTS",
@@ -276,6 +335,35 @@ var _ = Describe("Resource Config Tests", func() {
 							Type:     "tcp",
 							Timeout:  10,
 							Interval: 10,
+						},
+					},
+				},
+			)
+			err := mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
+			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from TransportServer")
+		})
+
+		It("Prepare Resource Config from a TransportServer", func() {
+			ts := test.NewTransportServer(
+				"SampleTS",
+				namespace,
+				cisapiv1.TransportServerSpec{
+					Pool: cisapiv1.Pool{
+						Service:     "svc1",
+						ServicePort: 80,
+						Monitors: []cisapiv1.Monitor{
+							{
+								Type:       "tcp",
+								Timeout:    10,
+								Interval:   10,
+								TargetPort: 80,
+							},
+							{
+								Type:       "tcp",
+								Timeout:    10,
+								Interval:   10,
+								TargetPort: 22,
+							},
 						},
 					},
 				},

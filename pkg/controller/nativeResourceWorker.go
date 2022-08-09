@@ -700,6 +700,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	newExtdSpecMap := make(extendedSpecMap, len(ctlr.resources.extdSpecMap))
 
 	if ctlr.isGlobalExtendedRouteSpec(cm) {
+
+		// Get the base route config from the Global ConfigMap
+		ctlr.readBaseRouteConfigFromGlobalCM(es.BaseRouteConfig)
+
 		for rg := range es.ExtendedRouteGroupConfigs {
 			// ergc needs to be created at every iteration, as we are using address inside this container
 
@@ -901,6 +905,30 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	return nil, true
 }
 
+func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRouteConfig) {
+
+	//declare default configuration for TLS Ciphers
+	ctlr.resources.baseRouteConfig.TLSCipher = TLSCipher{
+		"1.2",
+		"DEFAULT",
+		"/Common/f5-default",
+	}
+
+	if (baseRouteConfig != BaseRouteConfig{}) {
+		if baseRouteConfig.TLSCipher.TLSVersion != "" {
+			ctlr.resources.baseRouteConfig.TLSCipher.TLSVersion = baseRouteConfig.TLSCipher.TLSVersion
+		}
+
+		if baseRouteConfig.TLSCipher.Ciphers != "" {
+			ctlr.resources.baseRouteConfig.TLSCipher.Ciphers = baseRouteConfig.TLSCipher.Ciphers
+		}
+		if baseRouteConfig.TLSCipher.CipherGroup != "" {
+			ctlr.resources.baseRouteConfig.TLSCipher.CipherGroup = baseRouteConfig.TLSCipher.CipherGroup
+		}
+	}
+
+}
+
 func (ctlr *Controller) isGlobalExtendedRouteSpec(cm *v1.ConfigMap) bool {
 	cmKey := cm.Namespace + "/" + cm.Name
 
@@ -952,27 +980,37 @@ func getOperationalExtendedConfigMapSpecs(
 		for routeGroupKey := range newMap {
 			deletedSpecs = append(deletedSpecs, routeGroupKey)
 		}
-	} else {
-		for routeGroupKey, spec := range cachedMap {
-			newSpec, ok := newMap[routeGroupKey]
-			if !ok {
-				deletedSpecs = append(deletedSpecs, routeGroupKey)
-				continue
-			}
-			if !reflect.DeepEqual(spec, newMap[routeGroupKey]) {
-				if spec.global.VServerName != newSpec.global.VServerName || spec.override != newSpec.override || spec.partition != newSpec.partition {
-					// Update to VServerName or override should trigger delete and recreation of object
-					modifiedSpecs = append(modifiedSpecs, routeGroupKey)
-				} else {
-					updatedSpecs = append(updatedSpecs, routeGroupKey)
-				}
+		return
+	}
+	updateMap := make(map[string]bool)
+	for routeGroupKey, spec := range cachedMap {
+		newSpec, ok := newMap[routeGroupKey]
+		if !ok {
+			deletedSpecs = append(deletedSpecs, routeGroupKey)
+			continue
+		}
+		if !reflect.DeepEqual(spec, newMap[routeGroupKey]) {
+			if spec.global.VServerName != newSpec.global.VServerName || spec.override != newSpec.override || spec.partition != newSpec.partition {
+				// Update to VServerName or override should trigger delete and recreation of object
+				modifiedSpecs = append(modifiedSpecs, routeGroupKey)
+			} else {
+				updatedSpecs = append(updatedSpecs, routeGroupKey)
+				updateMap[routeGroupKey] = true
 			}
 		}
-		for routeGroupKey, _ := range newMap {
-			_, ok := cachedMap[routeGroupKey]
-			if !ok {
-				createdSpecs = append(createdSpecs, routeGroupKey)
+	}
+	for routeGroupKey, spec := range cachedMap {
+		if spec.global.Meta.DependsOnTLSCipher {
+			if _, ok := updateMap[routeGroupKey]; !ok {
+				updatedSpecs = append(updatedSpecs, routeGroupKey)
 			}
+		}
+	}
+
+	for routeGroupKey, _ := range newMap {
+		_, ok := cachedMap[routeGroupKey]
+		if !ok {
+			createdSpecs = append(createdSpecs, routeGroupKey)
 		}
 	}
 	return

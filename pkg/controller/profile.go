@@ -10,6 +10,7 @@ import (
 func (ctlr *Controller) createSecretClientSSLProfile(
 	rsCfg *ResourceConfig,
 	secret *v1.Secret,
+	tlsCipher TLSCipher,
 	context string,
 ) (error, bool) {
 
@@ -25,7 +26,7 @@ func (ctlr *Controller) createSecretClientSSLProfile(
 		return err, false
 	}
 
-	return ctlr.createClientSSLProfile(rsCfg, string(secret.Data["tls.key"]), string(secret.Data["tls.crt"]), secret.ObjectMeta.Name, secret.ObjectMeta.Namespace, context)
+	return ctlr.createClientSSLProfile(rsCfg, string(secret.Data["tls.key"]), string(secret.Data["tls.crt"]), secret.ObjectMeta.Name, secret.ObjectMeta.Namespace, tlsCipher, context)
 }
 
 // Creates a new ClientSSL profile from a Secret
@@ -35,6 +36,7 @@ func (ctlr *Controller) createClientSSLProfile(
 	cert string,
 	name string,
 	namespace string,
+	tlsCipher TLSCipher,
 	context string,
 ) (error, bool) {
 
@@ -50,7 +52,7 @@ func (ctlr *Controller) createClientSSLProfile(
 	}
 	if _, ok := rsCfg.customProfiles[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
-		cp := NewCustomProfile(sni, "", "", "", true, "", "", "")
+		cp := NewCustomProfile(sni, "", "", "", true, "", "", "", tlsCipher)
 		rsCfg.customProfiles[skey] = cp
 	}
 
@@ -72,7 +74,8 @@ func (ctlr *Controller) createClientSSLProfile(
 		false, // sni
 		"",    // peerCertMode
 		"",    // caFile
-		"",    // chainCA
+		"",    // chainCA,
+		tlsCipher,
 	)
 	skey = SecretKey{
 		Name:         cp.Name,
@@ -96,6 +99,7 @@ func (ctlr *Controller) createClientSSLProfile(
 func (ctlr *Controller) createSecretServerSSLProfile(
 	rsCfg *ResourceConfig,
 	secret *v1.Secret,
+	tlsCipher TLSCipher,
 	context string,
 ) (error, bool) {
 
@@ -105,7 +109,7 @@ func (ctlr *Controller) createSecretServerSSLProfile(
 			secret.ObjectMeta.Name)
 		return err, false
 	}
-	return ctlr.createServerSSLProfile(rsCfg, string(secret.Data["tls.crt"]), "", secret.ObjectMeta.Name, secret.ObjectMeta.Namespace, context)
+	return ctlr.createServerSSLProfile(rsCfg, string(secret.Data["tls.crt"]), "", secret.ObjectMeta.Name, secret.ObjectMeta.Namespace, tlsCipher, context)
 }
 
 // Creates a new ServerSSL profile from a Secret
@@ -115,6 +119,7 @@ func (ctlr *Controller) createServerSSLProfile(
 	certchain string,
 	name string,
 	namespace string,
+	tlsCipher TLSCipher,
 	context string,
 ) (error, bool) {
 
@@ -130,7 +135,7 @@ func (ctlr *Controller) createServerSSLProfile(
 	}
 	if _, ok := rsCfg.customProfiles[skey]; !ok {
 		// This is just a basic profile, so we don't need all the fields
-		cp := NewCustomProfile(sni, "", "", "", true, "", "", "")
+		cp := NewCustomProfile(sni, "", "", "", true, "", "", "", tlsCipher)
 		rsCfg.customProfiles[skey] = cp
 	}
 	// TODO
@@ -151,7 +156,8 @@ func (ctlr *Controller) createServerSSLProfile(
 		false,     // sni
 		"",        // peerCertMode
 		"",        // caFile
-		certchain, // certchain
+		certchain, // certchain,
+		tlsCipher,
 	)
 	skey = SecretKey{
 		Name:         cp.Name,

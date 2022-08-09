@@ -65,7 +65,7 @@ var _ = Describe("Routes", func() {
 			)
 		})
 
-		It("Basic Route", func() {
+		It("Base Route", func() {
 			mockCtlr.mockResources[ns] = []interface{}{rt}
 			mockCtlr.resources = NewResourceStore()
 			var override = false
@@ -124,6 +124,8 @@ var _ = Describe("Routes", func() {
 				"foo", "1", "node0", ns, fooIps, []string{},
 				convertSvcPortsToEndpointPorts(fooPorts))
 			mockCtlr.addEndpoints(fooEndpts)
+			mockCtlr.resources.invertedNamespaceLabelMap[ns] = ns
+
 			err := mockCtlr.processRoutes(ns, false)
 			mapKey := NameRef{
 				Name:      getRSCfgResName("samplevs_443", PassthroughHostsDgName),
@@ -782,6 +784,89 @@ extendedRouteSpec:
 			Expect(len(modifiedSpecs)).To(BeZero())
 			Expect(len(updatedSpecs)).To(BeZero())
 			Expect(len(createdSpecs)).To(BeZero())
+		})
+
+		It("Global ConfigMap with base route config", func() {
+			data["extendedSpec"] = `
+baseRouteSpec: 
+    tlsCipher:
+      tlsVersion : 1.2
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+    - namespace: new
+      vserverAddr: 10.8.3.12
+      allowOverride: true
+`
+			err, ok := mockCtlr.processConfigMap(cm, false)
+			Expect(err).To(BeNil())
+			Expect(ok).To(BeTrue())
+
+			data["extendedSpec"] = `
+baseRouteSpec: 
+    tlsCipher:
+      tlsVersion : 1.3
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      tls:
+        clientSSL: /Common/clientssl
+        serverSSL: /Common/serverssl
+        reference: bigip
+      allowOverride: true
+`
+			err, ok = mockCtlr.processConfigMap(cm, false)
+			Expect(err).To(BeNil())
+			Expect(ok).To(BeTrue())
+
+			routeGroup := "default"
+			spec1 := routeapi.RouteSpec{
+				Host: "foo.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "reencrypt"},
+			}
+			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+				{Port: 8080, NodePort: 38001},
+				{Port: 9090, NodePort: 39001}}
+			foo := test.NewService("foo", "1", routeGroup, "NodePort", fooPorts)
+			mockCtlr.addService(foo)
+			fooIps := []string{"10.1.1.1"}
+			fooEndpts := test.NewEndpoints(
+				"foo", "1", "node0", routeGroup, fooIps, []string{},
+				convertSvcPortsToEndpointPorts(fooPorts))
+			mockCtlr.addEndpoints(fooEndpts)
+			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
+
+			mockCtlr.addRoute(route1)
+			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+			mockCtlr.processRoutes(routeGroup, false)
+
+			err, ok = mockCtlr.processConfigMap(cm, false)
+			Expect(err).To(BeNil())
+			Expect(ok).To(BeTrue())
+
+			data["extendedSpec"] = `
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      tls:
+        clientSSL: /Common/clientssl
+        serverSSL: /Common/serverssl
+        reference: bigip
+      allowOverride: true
+`
+			err, ok = mockCtlr.processConfigMap(cm, false)
+			Expect(err).To(BeNil())
+			Expect(ok).To(BeTrue())
+
 		})
 	})
 })

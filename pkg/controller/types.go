@@ -376,6 +376,7 @@ type (
 	Monitors []Monitor
 
 	supplementContextCache struct {
+		baseRouteConfig           BaseRouteConfig
 		poolMemCache              PoolMemberCache
 		sslContext                map[string]*v1.Secret
 		extdSpecMap               extendedSpecMap
@@ -527,16 +528,19 @@ type (
 
 	// SSL Profile loaded from Secret or Route object
 	CustomProfile struct {
-		Name         string `json:"name"`
-		Partition    string `json:"-"`
-		Context      string `json:"context"` // 'clientside', 'serverside', or 'all'
-		Cert         string `json:"cert"`
-		Key          string `json:"key"`
-		ServerName   string `json:"serverName,omitempty"`
-		SNIDefault   bool   `json:"sniDefault,omitempty"`
-		PeerCertMode string `json:"peerCertMode,omitempty"`
-		CAFile       string `json:"caFile,omitempty"`
-		ChainCA      string `json:"chainCA,onitempty"`
+		Name          string `json:"name"`
+		Partition     string `json:"-"`
+		Context       string `json:"context"` // 'clientside', 'serverside', or 'all'
+		Cert          string `json:"cert"`
+		Key           string `json:"key"`
+		Ciphers       string `json:"ciphers,omitempty"`
+		CipherGroup   string `json:"cipherGroup,omitempty"`
+		TLS1_3Enabled bool   `json:"tls1_3Enabled"`
+		ServerName    string `json:"serverName,omitempty"`
+		SNIDefault    bool   `json:"sniDefault,omitempty"`
+		PeerCertMode  string `json:"peerCertMode,omitempty"`
+		CAFile        string `json:"caFile,omitempty"`
+		ChainCA       string `json:"chainCA,omitempty"`
 	}
 
 	portStruct struct {
@@ -879,7 +883,7 @@ type (
 		Certificates  []as3TLSServerCertificates `json:"certificates,omitempty"`
 		Ciphers       string                     `json:"ciphers,omitempty"`
 		CipherGroup   *as3ResourcePointer        `json:"cipherGroup,omitempty"`
-		Tls1_3Enabled bool                       `json:"tls1_3Enabled,omitempty"`
+		TLS1_3Enabled bool                       `json:"tls1_3Enabled,omitempty"`
 	}
 
 	// as3TLSServerCertificates maps to TLS_Server_certificates in AS3 Resources
@@ -892,6 +896,9 @@ type (
 		Class               string              `json:"class,omitempty"`
 		TrustCA             *as3ResourcePointer `json:"trustCA,omitempty"`
 		ValidateCertificate bool                `json:"validateCertificate,omitempty"`
+		Ciphers             string              `json:"ciphers,omitempty"`
+		CipherGroup         *as3ResourcePointer `json:"cipherGroup,omitempty"`
+		TLS1_3Enabled       bool                `json:"tls1_3Enabled,omitempty"`
 	}
 
 	// as3DataGroup maps to Data_Group in AS3 Resources
@@ -999,6 +1006,7 @@ type (
 		certificate              string
 		caCertificate            string
 		destinationCACertificate string
+		tlsCipher                TLSCipher
 	}
 
 	poolPathRef struct {
@@ -1024,6 +1032,7 @@ type (
 type (
 	extendedSpec struct {
 		ExtendedRouteGroupConfigs []ExtendedRouteGroupConfig `yaml:"extendedRouteSpec"`
+		BaseRouteConfig           `yaml:"baseRouteSpec"`
 	}
 
 	ExtendedRouteGroupConfig struct {
@@ -1042,6 +1051,11 @@ type (
 		IRules         []string `yaml:"iRules,omitempty"`
 		TLS            TLS      `yaml:"tls"`
 		HealthMonitors Monitors `yaml:"healthMonitors,omitempty"`
+		Meta           Meta
+	}
+
+	Meta struct {
+		DependsOnTLSCipher bool
 	}
 
 	TLS struct {
@@ -1049,4 +1063,20 @@ type (
 		ServerSSL string `yaml:"serverSSL,omitempty"`
 		Reference string `yaml:"reference,omitempty"`
 	}
+
+	BaseRouteConfig struct {
+		TLSCipher TLSCipher `yaml:"tlsCipher"`
+	}
+
+	TLSCipher struct {
+		TLSVersion  string `yaml:"tlsVersion,omitempty"`
+		Ciphers     string `yaml:"ciphers,omitempty"`
+		CipherGroup string `yaml:"cipherGroup,omitempty"` // by default this is bigip reference
+	}
+)
+
+type TLSVersion string
+
+const (
+	TLSVerion1_3 TLSVersion = "1.3"
 )

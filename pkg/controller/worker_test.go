@@ -851,7 +851,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 
 			_ = mockCtlr.processLBServices(svc1, true)
-			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition])).To(Equal(0), "Invalid Resource Configs")
+			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
 
 			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
 			mockCtlr.eraseLBServiceIngressStatus(svc1)
@@ -890,8 +890,8 @@ var _ = Describe("Worker Tests", func() {
 			Expect(len(mockCtlr.resources.gtmConfig["test.com"].Pools)).To(Equal(1))
 			Expect(len(mockCtlr.resources.gtmConfig["test.com"].Pools[0].Members)).To(Equal(0))
 
-			mockCtlr.resources.ltmConfig["default"] = make(ResourceMap)
-			mockCtlr.resources.ltmConfig["default"]["SampleVS"] = &ResourceConfig{
+			mockCtlr.resources.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			mockCtlr.resources.ltmConfig["default"].ResourceMap["SampleVS"] = &ResourceConfig{
 				MetaData: metaData{
 					hosts: []string{"test.com"},
 				},
@@ -942,7 +942,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid LTM Config")
 			Expect(mockCtlr.resources.ltmConfig).Should(HaveKey(mockCtlr.Partition),
 				"Invalid LTM Config")
-			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition])).To(Equal(1),
+			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(1),
 				"Invalid Resource Config")
 
 			// Deletion of IngressLink
@@ -950,7 +950,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(err).To(BeNil(), "Failed to process IngressLink while deletion")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid LTM Config")
 			Expect(mockCtlr.resources.ltmConfig).Should(HaveKey(mockCtlr.Partition), "Invalid LTM Config")
-			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition])).To(Equal(0),
+			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(0),
 				"Invalid Resource Config")
 
 		})
@@ -1112,13 +1112,13 @@ var _ = Describe("Worker Tests", func() {
 				_ = mockCtlr.processLBServices(svc1, false)
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 				rsname := "vs_lb_svc_default_svc1_10_10_10_1_80"
-				Expect(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.SNAT).To(Equal(DEFAULT_SNAT),
+				Expect(mockCtlr.resources.ltmConfig[namespace].ResourceMap[rsname].Virtual.SNAT).To(Equal(DEFAULT_SNAT),
 					"Invalid Resource Configs")
-				Expect(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.PersistenceProfile).To(Equal(
+				Expect(mockCtlr.resources.ltmConfig[namespace].ResourceMap[rsname].Virtual.PersistenceProfile).To(Equal(
 					plc.Spec.Profiles.PersistenceProfile), "Invalid Resource Configs")
-				Expect(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.ProfileL4).To(Equal(
+				Expect(mockCtlr.resources.ltmConfig[namespace].ResourceMap[rsname].Virtual.ProfileL4).To(Equal(
 					plc.Spec.Profiles.ProfileL4), "Invalid Resource Configs")
-				Expect(len(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.LogProfiles)).To(
+				Expect(len(mockCtlr.resources.ltmConfig[namespace].ResourceMap[rsname].Virtual.LogProfiles)).To(
 					Equal(1), "Invalid Resource Configs")
 
 				// SNAT set to SNAT pool name
@@ -1126,7 +1126,7 @@ var _ = Describe("Worker Tests", func() {
 				_ = mockCtlr.crInformers[namespace].plcInformer.GetStore().Update(plc)
 				_ = mockCtlr.processLBServices(svc1, false)
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
-				Expect(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.SNAT).To(Equal(plc.Spec.SNAT),
+				Expect(mockCtlr.resources.ltmConfig[namespace].ResourceMap[rsname].Virtual.SNAT).To(Equal(plc.Spec.SNAT),
 					"Invalid Resource Configs")
 
 				// SNAT set to none
@@ -1134,7 +1134,7 @@ var _ = Describe("Worker Tests", func() {
 				_ = mockCtlr.crInformers[namespace].plcInformer.GetStore().Update(plc)
 				_ = mockCtlr.processLBServices(svc1, false)
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
-				Expect(mockCtlr.resources.ltmConfig[namespace][rsname].Virtual.SNAT).To(Equal(plc.Spec.SNAT),
+				Expect(mockCtlr.resources.ltmConfig[namespace].ResourceMap[rsname].Virtual.SNAT).To(Equal(plc.Spec.SNAT),
 					"Invalid Resource Configs")
 
 			})

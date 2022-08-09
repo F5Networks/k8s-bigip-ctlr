@@ -68,6 +68,7 @@ func NewAgent(params AgentParams) *Agent {
 		cachedTenantDeclMap:   make(map[string]as3Tenant),
 		incomingTenantDeclMap: make(map[string]as3Tenant),
 		retryTenantDeclMap:    make(map[string]*tenantParams),
+		tenantPriorityMap:     make(map[string]int),
 		userAgent:             params.UserAgent,
 		HttpAddress:           params.HttpAddress,
 	}
@@ -161,7 +162,6 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 // agentWorker blocks on postChan
 // whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
 func (agent *Agent) agentWorker() {
-	firstPost := true
 	for rsConfig := range agent.postChan {
 		// If there are no retries going on in parallel, acquiring lock will be straight forward.
 		// Otherwise, we will wait for retryWorker to complete its current iteration
@@ -181,7 +181,8 @@ func (agent *Agent) agentWorker() {
 		}
 
 		var updatedTenants []string
-
+		// initializing the priority tenants
+		var priorityTenants []string
 		/*
 			For every incoming post request, create a new tenantResponseMap.
 			tenantResponseMap will be updated with responses during postConfig.
@@ -191,45 +192,56 @@ func (agent *Agent) agentWorker() {
 		agent.tenantResponseMap = make(map[string]tenantResponse)
 
 		for tenant := range agent.incomingTenantDeclMap {
-			updatedTenants = append(updatedTenants, tenant)
+			if _, ok := agent.tenantPriorityMap[tenant]; ok {
+				priorityTenants = append(priorityTenants, tenant)
+			} else {
+				updatedTenants = append(updatedTenants, tenant)
+			}
 			agent.tenantResponseMap[tenant] = tenantResponse{}
 		}
 
-		cfg := agentConfig{
-			data:      string(decl),
-			as3APIURL: agent.getAS3APIURL(updatedTenants),
-			id:        rsConfig.reqId,
+		// Update the priority tenants first
+		if len(priorityTenants) > 0 {
+			agent.postTenantsDeclaration(decl, rsConfig, priorityTenants)
 		}
-
-		// For the very first post after starting controller, need not wait to post
-		agent.publishConfig(cfg, firstPost)
-
-		firstPost = false
-
-		go agent.updatePoolMembers(rsConfig)
-
-		agent.updateTenantResponse(true)
-
-		if len(agent.retryTenantDeclMap) > 0 {
-			// Activate retry
-			select {
-			case agent.retryChan <- struct{}{}:
-			case <-agent.retryChan:
-				agent.retryChan <- struct{}{}
-			}
-		}
-
-		/*
-			If there are any tenants with 201 response code,
-			poll for its status continuously and block incoming requests
-		*/
-		agent.pollTenantStatus()
-
-		// notify resourceStatusUpdate response handler on successful tenant update
-		agent.notifyRscStatusHandler(cfg.id, true)
+		// Updating the remaining tenants
+		agent.postTenantsDeclaration(decl, rsConfig, updatedTenants)
 
 		agent.declUpdate.Unlock()
 	}
+}
+
+// Post the tenants declaration
+func (agent *Agent) postTenantsDeclaration(decl as3Declaration, rsConfig ResourceConfigRequest, tenants []string) {
+	cfg := agentConfig{
+		data:      string(decl),
+		as3APIURL: agent.getAS3APIURL(tenants),
+		id:        rsConfig.reqId,
+	}
+
+	agent.publishConfig(cfg)
+
+	go agent.updatePoolMembers(rsConfig)
+
+	agent.updateTenantResponse(true)
+
+	if len(agent.retryTenantDeclMap) > 0 {
+		// Activate retry
+		select {
+		case agent.retryChan <- struct{}{}:
+		case <-agent.retryChan:
+			agent.retryChan <- struct{}{}
+		}
+	}
+
+	/*
+		If there are any tenants with 201 response code,
+		poll for its status continuously and block incoming requests
+	*/
+	agent.pollTenantStatus()
+
+	// notify resourceStatusUpdate response handler on successful tenant update
+	agent.notifyRscStatusHandler(cfg.id, true)
 }
 
 func (agent *Agent) notifyRscStatusHandler(id int, overwriteCfg bool) {
@@ -261,6 +273,10 @@ func (agent *Agent) updateRetryMap(tenant string, resp tenantResponse, tenDecl i
 	if resp.agentResponseCode == 200 {
 		// delete the tenant entry from retry if any
 		delete(agent.retryTenantDeclMap, tenant)
+		// if received the 200 response remove the entry from tenantPriorityMap
+		if _, ok := agent.tenantPriorityMap[tenant]; ok {
+			delete(agent.tenantPriorityMap, tenant)
+		}
 	} else {
 		agent.retryTenantDeclMap[tenant] = &tenantParams{
 			tenDecl,
@@ -302,6 +318,10 @@ func (agent *Agent) updateTenantResponse(agentWorkerUpdate bool) {
 				agent.cachedTenantDeclMap[tenant] = agent.incomingTenantDeclMap[tenant]
 			} else {
 				agent.cachedTenantDeclMap[tenant] = agent.retryTenantDeclMap[tenant].as3Decl.(as3Tenant)
+			}
+			// if received the 200 response remove the entry from tenantPriorityMap
+			if _, ok := agent.tenantPriorityMap[tenant]; ok {
+				delete(agent.tenantPriorityMap, tenant)
 			}
 		}
 		if agentWorkerUpdate {
@@ -432,9 +452,9 @@ func (agent *Agent) pollTenantStatus() {
 
 // Creates AS3 adc only for tenants with updated configuration
 func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3Declaration {
-	// Re-initialise incomingTenantDeclMap map for each new config request
+	// Re-initialise incomingTenantDeclMap map and tenantPriorityMap for each new config request
 	agent.incomingTenantDeclMap = make(map[string]as3Tenant)
-
+	agent.tenantPriorityMap = make(map[string]int)
 	for tenant, cfg := range agent.createAS3LTMConfigADC(config) {
 		if !reflect.DeepEqual(cfg, agent.cachedTenantDeclMap[tenant]) {
 			agent.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
@@ -552,8 +572,12 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest) as3Tenan
 
 func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	as3JSONDecl := as3ADC{}
-	for tenantName, rsMap := range config.ltmConfig {
-		if len(rsMap) == 0 {
+	for tenantName, partitionConfig := range config.ltmConfig {
+		// TODO partitionConfig priority can be overridden by another request if agent is unable to process the prioritized request in time
+		if partitionConfig.Priority > 0 {
+			agent.tenantPriorityMap[tenantName] = partitionConfig.Priority
+		}
+		if len(partitionConfig.ResourceMap) == 0 {
 			if agent.Partition == tenantName {
 				// Flush Partition contents
 				sharedApp := as3Application{}
@@ -579,17 +603,17 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 		sharedApp["template"] = "shared"
 
 		// Process rscfg to create AS3 Resources
-		processResourcesForAS3(rsMap, sharedApp, config.shareNodes, tenantName)
+		processResourcesForAS3(partitionConfig.ResourceMap, sharedApp, config.shareNodes, tenantName)
 
 		// Process CustomProfiles
-		processCustomProfilesForAS3(rsMap, sharedApp)
+		processCustomProfilesForAS3(partitionConfig.ResourceMap, sharedApp)
 
 		// Process Profiles
-		processProfilesForAS3(rsMap, sharedApp)
+		processProfilesForAS3(partitionConfig.ResourceMap, sharedApp)
 
-		processIRulesForAS3(rsMap, sharedApp)
+		processIRulesForAS3(partitionConfig.ResourceMap, sharedApp)
 
-		processDataGroupForAS3(rsMap, sharedApp)
+		processDataGroupForAS3(partitionConfig.ResourceMap, sharedApp)
 
 		// Create AS3 Tenant
 		tenantDecl := as3Tenant{

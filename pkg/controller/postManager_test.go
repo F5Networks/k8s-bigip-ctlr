@@ -41,7 +41,8 @@ var _ = Describe("PostManager Tests", func() {
 				status: http.StatusOK,
 				body:   "",
 			}}, http.MethodPost)
-			mockPM.publishConfig(agentCfg, false)
+			mockPM.firstPost = false
+			mockPM.publishConfig(agentCfg)
 			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
 		})
 
@@ -52,7 +53,7 @@ var _ = Describe("PostManager Tests", func() {
 				status: http.StatusOK,
 				body:   "",
 			}}, http.MethodPost)
-			mockPM.publishConfig(agentCfg, true)
+			mockPM.publishConfig(agentCfg)
 			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
 		})
 
@@ -69,9 +70,9 @@ var _ = Describe("PostManager Tests", func() {
 					status: http.StatusAccepted,
 					body:   `{"id": "100", "code": 400}`,
 				}}, http.MethodPost)
-			mockPM.publishConfig(agentCfg, true)
+			mockPM.publishConfig(agentCfg)
 			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(BeEquivalentTo(http.StatusOK), "Posting Failed")
-			mockPM.publishConfig(agentCfg, true)
+			mockPM.publishConfig(agentCfg)
 		})
 
 		It("Handle Expected HTTP Response Errors", func() {
@@ -88,9 +89,9 @@ var _ = Describe("PostManager Tests", func() {
 					body:   "",
 				},
 			}, http.MethodPost)
-			mockPM.publishConfig(agentCfg, true)
+			mockPM.publishConfig(agentCfg)
 			Expect(len(mockPM.tenantResponseMap)).To(BeZero(), "Posting Failed")
-			mockPM.publishConfig(agentCfg, true)
+			mockPM.publishConfig(agentCfg)
 			Expect(len(mockPM.tenantResponseMap)).To(BeZero(), "Posting Failed")
 		})
 
@@ -114,15 +115,15 @@ var _ = Describe("PostManager Tests", func() {
 				},
 			}, http.MethodPost)
 
-			mockPM.publishConfig(agentCfg, true)
+			mockPM.publishConfig(agentCfg)
 			Expect(len(mockPM.tenantResponseMap)).To(Equal(1), "Posting Failed")
 			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(Equal(http.StatusRequestTimeout))
 
-			mockPM.publishConfig(agentCfg, true)
+			mockPM.publishConfig(agentCfg)
 			Expect(len(mockPM.tenantResponseMap)).To(Equal(1), "Posting Failed")
 			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(Equal(http.StatusRequestTimeout))
 
-			mockPM.publishConfig(agentCfg, true)
+			mockPM.publishConfig(agentCfg)
 			Expect(len(mockPM.tenantResponseMap)).To(Equal(1), "Posting Failed")
 			Expect(mockPM.tenantResponseMap[tnt].agentResponseCode).To(Equal(http.StatusAlreadyReported))
 		})
@@ -135,7 +136,7 @@ var _ = Describe("PostManager Tests", func() {
 				body:   "",
 			},
 			}, http.MethodPost)
-			mockPM.publishConfig(agentCfg, true)
+			mockPM.publishConfig(agentCfg)
 			Expect(len(mockPM.tenantResponseMap)).To(Equal(1), "Posting Failed")
 		})
 	})

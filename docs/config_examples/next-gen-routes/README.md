@@ -72,7 +72,7 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
 | namespace | Mandatory | namespace to group the routes | - | Local and Global configMap |
 | namespaceLabel | Mandatory | namespace-label to group the routes* | - | Global configMap only |
 | allowOverride | Optional | allow users to override the namespace config | - | Global configMap only |
-| bigipPartition | Optional | partition for creating the virtual server | partition which is defined in CIS deployment parameter | Local and Global configMap |
+| bigIpPartition | Optional | partition for creating the virtual server | partition which is defined in CIS deployment parameter | Global configMap only |
 | WAF | Optional |  WAF Policy for BigIP Virtual Server | - | Local and Global configMap |
 | healthMonitors | Optional |  list of route's health monitors | - | Local and Global configMap |
 
@@ -428,6 +428,7 @@ Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree
 * CIS processes the latest local extended configMap, when there are multiple extended local configMap.
 * CIS allows insecure traffic if URI path is included with CAPITAL letters for NextGen Routes
 * CIS delays processing the changes in other tenants if any one of the tenant receives 422 error (takes upto 60 seconds)
+* BigIp partition swap not supported with extended configMap
 
 ## FAQ
  

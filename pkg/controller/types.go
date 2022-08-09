@@ -263,7 +263,13 @@ type (
 	}
 
 	// LTMConfig contain partition based ResourceMap
-	LTMConfig map[string]ResourceMap
+	LTMConfig map[string]*PartitionConfig
+
+	// PartitionConfig contains ResourceMap and priority of partition
+	PartitionConfig struct {
+		ResourceMap ResourceMap
+		Priority    int
+	}
 
 	// ResourceMap key is resource name, value is pointer to config. May be shared.
 	ResourceMap map[string]*ResourceConfig
@@ -544,8 +550,9 @@ type (
 	}
 
 	requestMeta struct {
-		meta map[string]string
-		id   int
+		meta      map[string]string
+		partition string
+		id        int
 	}
 
 	Node struct {
@@ -591,6 +598,8 @@ type (
 		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
 		cachedTenantDeclMap   map[string]as3Tenant
 		incomingTenantDeclMap map[string]as3Tenant
+		// this map stores the tenant priority map
+		tenantPriorityMap map[string]int
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
 		retryTenantDeclMap map[string]*tenantParams
 	}
@@ -614,6 +623,7 @@ type (
 		httpClient        *http.Client
 		tenantResponseMap map[string]tenantResponse
 		PostParams
+		firstPost bool
 	}
 
 	PostParams struct {

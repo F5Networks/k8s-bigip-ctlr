@@ -160,7 +160,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			// Set the annotations the same as default and recheck
 			fooIng.ObjectMeta.Annotations[IngressSslRedirect] = "true"
 			fooIng.ObjectMeta.Annotations[IngressAllowHttp] = "false"
-			r = mockMgr.addIngress(fooIng)
+			r = mockMgr.updateIngress(fooIng)
 			httpCfg, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 80))
 			Expect(found).To(BeTrue())
 			Expect(httpCfg).ToNot(BeNil())
@@ -173,7 +173,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			// Now test state 1.
 			fooIng.ObjectMeta.Annotations[IngressSslRedirect] = "false"
 			fooIng.ObjectMeta.Annotations[IngressAllowHttp] = "false"
-			r = mockMgr.addIngress(fooIng)
+			r = mockMgr.updateIngress(fooIng)
 			httpsCfg, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
 			Expect(httpsCfg).ToNot(BeNil())
@@ -192,7 +192,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			Expect(clientProfileNames).To(Equal(secretArray))
 			// ServerSSL Profile tests
 			fooIng.ObjectMeta.Annotations[F5ServerSslProfileAnnotation] = "Common/server"
-			r = mockMgr.addIngress(fooIng)
+			r = mockMgr.updateIngress(fooIng)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			httpsCfg, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
 			Expect(found).To(BeTrue())
@@ -207,7 +207,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			// Now test state 3.
 			fooIng.ObjectMeta.Annotations[IngressSslRedirect] = "false"
 			fooIng.ObjectMeta.Annotations[IngressAllowHttp] = "true"
-			r = mockMgr.addIngress(fooIng)
+			r = mockMgr.updateIngress(fooIng)
 			httpCfg, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 80))
 			Expect(found).To(BeTrue())
 			Expect(httpCfg).ToNot(BeNil())
@@ -218,7 +218,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			fooIng.Spec.TLS = nil
 			delete(fooIng.ObjectMeta.Annotations, IngressSslRedirect)
 			delete(fooIng.ObjectMeta.Annotations, IngressAllowHttp)
-			r = mockMgr.addIngress(fooIng)
+			r = mockMgr.updateIngress(fooIng)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.PoolCount()).To(Equal(1))
 			Expect(resources.CountOf(svcKey)).To(Equal(1))

@@ -9,6 +9,8 @@ Added Functionality
 **What’s new:**
     * Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
     * Support for health monitors using route annotations See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
+    * CIS configures GTM configuration in default partition
+
 
 Bug Fixes
 ````````````
@@ -50,12 +52,14 @@ Added Functionality
         * :issues:`2361` Allow monitoring of an alias port in VirtualServer and TransportServer. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * :issues:`1933` Added serviceNamespace field in Pools for VirtualServer CR that allows to define a pool service from another namespace in a Virtual server CR.
           See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+
     * Ingress:
         * Added support to configure netmask for Virtual Server for Ingress. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/>`_
     * Support for Cilium CNI (>=v1.12.0) in kubernetes cluster
     * Support for --log-file deployment parameter to store the CIS logs in a file
     * Support for AS3 3.38.0
     * Support for operator in openshift 4.10 & openshift 4.11
+
 
 Bug Fixes
 ````````````

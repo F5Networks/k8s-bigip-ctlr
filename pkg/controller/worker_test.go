@@ -861,6 +861,7 @@ var _ = Describe("Worker Tests", func() {
 
 		It("Processing External DNS", func() {
 			mockCtlr.resources.Init()
+			DEFAULT_PARTITION = "default"
 			mockCtlr.TeemData = &teem.TeemsData{
 				ResourceType: teem.ResourceTypes{
 					ExternalDNS: make(map[string]int),
@@ -885,11 +886,11 @@ var _ = Describe("Worker Tests", func() {
 						},
 					},
 				})
-
 			mockCtlr.processExternalDNS(newEDNS, false)
-			Expect(len(mockCtlr.resources.gtmConfig)).To(Equal(1))
-			Expect(len(mockCtlr.resources.gtmConfig["test.com"].Pools)).To(Equal(1))
-			Expect(len(mockCtlr.resources.gtmConfig["test.com"].Pools[0].Members)).To(Equal(0))
+			gtmConfig := mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(1))
+			Expect(len(gtmConfig["test.com"].Pools)).To(Equal(1))
+			Expect(len(gtmConfig["test.com"].Pools[0].Members)).To(Equal(0))
 
 			mockCtlr.resources.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
 			mockCtlr.resources.ltmConfig["default"].ResourceMap["SampleVS"] = &ResourceConfig{
@@ -898,12 +899,14 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 			mockCtlr.processExternalDNS(newEDNS, false)
-			Expect(len(mockCtlr.resources.gtmConfig)).To(Equal(1))
-			Expect(len(mockCtlr.resources.gtmConfig["test.com"].Pools)).To(Equal(1))
-			Expect(len(mockCtlr.resources.gtmConfig["test.com"].Pools[0].Members)).To(Equal(1))
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(1))
+			Expect(len(gtmConfig["test.com"].Pools)).To(Equal(1))
+			Expect(len(gtmConfig["test.com"].Pools[0].Members)).To(Equal(1))
 
 			mockCtlr.processExternalDNS(newEDNS, true)
-			Expect(len(mockCtlr.resources.gtmConfig)).To(Equal(0))
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(0))
 		})
 
 		It("Processing IngressLink", func() {

@@ -52,7 +52,7 @@ var baseAS3Config = `{
 	  }
 	}
   }
-  `
+`
 
 var DEFAULT_PARTITION string
 
@@ -106,7 +106,7 @@ func NewAgent(params AgentParams) *Agent {
 		VerifyInterval: params.VerifyInterval,
 		VXLANPartition: vxlanPartition,
 		DisableLTM:     true,
-		GTM:            true,
+		GTM:            false,
 		DisableARP:     params.DisableARP,
 	}
 
@@ -225,9 +225,6 @@ func (agent *Agent) agentWorker() {
 		select {
 		case rsConfig = <-agent.postChan:
 		case <-time.After(1 * time.Microsecond):
-		}
-		if !(agent.EnableIPV6) {
-			agent.PostGTMConfig(rsConfig)
 		}
 
 		decl := agent.createTenantAS3Declaration(rsConfig)
@@ -507,39 +504,12 @@ func (agent *Agent) pollTenantStatus() {
 	}
 }
 
-func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
-
-	dnsConfig := make(map[string]interface{})
-	wideIPs := WideIPs{}
-	for _, v := range config.gtmConfig {
-		wideIPs.WideIPs = append(wideIPs.WideIPs, v)
-	}
-
-	// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
-	dnsConfig["Common"] = wideIPs
-
-	doneCh, errCh, err := agent.ConfigWriter.SendSection("gtm", dnsConfig)
-
-	if nil != err {
-		log.Warningf("Failed to write gtm config section: %v", err)
-	} else {
-		select {
-		case <-doneCh:
-			log.Debugf("Wrote gtm config section: %v", config.gtmConfig)
-		case e := <-errCh:
-			log.Warningf("Failed to write gtm config section: %v", e)
-		case <-time.After(time.Second):
-			log.Warningf("Did not receive write response in 1s")
-		}
-	}
-}
-
 // Creates AS3 adc only for tenants with updated configuration
 func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3Declaration {
 	// Re-initialise incomingTenantDeclMap map and tenantPriorityMap for each new config request
 	agent.incomingTenantDeclMap = make(map[string]as3Tenant)
 	agent.tenantPriorityMap = make(map[string]int)
-	for tenant, cfg := range agent.createAS3LTMConfigADC(config) {
+	for tenant, cfg := range agent.createAS3LTMAndGTMConfigADC(config) {
 		if !reflect.DeepEqual(cfg, agent.cachedTenantDeclMap[tenant]) {
 			agent.incomingTenantDeclMap[tenant] = cfg.(as3Tenant)
 		} else {
@@ -589,75 +559,95 @@ func (agent *Agent) createAS3Declaration(tenantDeclMap map[string]as3Tenant) as3
 	return as3Declaration(decl)
 }
 
-func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest) as3Tenant {
+func (agent *Agent) createAS3LTMAndGTMConfigADC(config ResourceConfigRequest) as3ADC {
+	adc := agent.createAS3LTMConfigADC(config)
+
+	adc = agent.createAS3GTMConfigADC(config, adc)
+
+	return adc
+}
+
+func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC {
 	if len(config.gtmConfig) == 0 {
-		return nil
-	}
-	sharedApp := as3Application{}
-	sharedApp["class"] = "Application"
-	sharedApp["template"] = "shared"
-
-	tenantDecl := as3Tenant{
-		"class":              "Tenant",
-		as3SharedApplication: sharedApp,
+		return adc
 	}
 
-	for domainName, wideIP := range config.gtmConfig {
+	for pn, gtmPartitionConcig := range config.gtmConfig {
+		var tenantDecl as3Tenant
+		var sharedApp as3Application
 
-		gslbDomain := as3GLSBDomain{
-			Class:      "GSLB_Domain",
-			DomainName: wideIP.DomainName,
-			RecordType: wideIP.RecordType,
-			LBMode:     wideIP.LBMethod,
-			Pools:      make([]as3GSLBDomainPool, 0, len(wideIP.Pools)),
+		if obj, ok := adc[pn]; ok {
+			tenantDecl = obj.(as3Tenant)
+			sharedApp = tenantDecl[as3SharedApplication].(as3Application)
+		} else {
+			sharedApp = as3Application{}
+			sharedApp["class"] = "Application"
+			sharedApp["template"] = "shared"
+
+			tenantDecl = as3Tenant{
+				"class":              "Tenant",
+				as3SharedApplication: sharedApp,
+			}
 		}
-		for _, pool := range wideIP.Pools {
-			gslbPool := as3GSLBPool{
-				Class:      "GSLB_Pool",
-				RecordType: pool.RecordType,
-				LBMode:     pool.LBMethod,
-				Members:    make([]as3GSLBPoolMemberA, 0, len(pool.Members)),
-				Monitors:   make([]as3ResourcePointer, 0, len(pool.Monitors)),
-			}
 
-			for _, mem := range pool.Members {
-				gslbPool.Members = append(gslbPool.Members, as3GSLBPoolMemberA{
-					Enabled: true,
-					Server: as3ResourcePointer{
-						BigIP: pool.DataServer,
-					},
-					VirtualServer: mem,
-				})
-			}
+		for domainName, wideIP := range gtmPartitionConcig.WideIPs {
 
-			for _, mon := range pool.Monitors {
-				gslbMon := as3GSLBMonitor{
-					Class:    "GSLB_Monitor",
-					Interval: mon.Interval,
-					Type:     mon.Type,
-					Send:     mon.Send,
-					Receive:  mon.Recv,
-					Timeout:  mon.Timeout,
+			gslbDomain := as3GLSBDomain{
+				Class:      "GSLB_Domain",
+				DomainName: wideIP.DomainName,
+				RecordType: wideIP.RecordType,
+				LBMode:     wideIP.LBMethod,
+				Pools:      make([]as3GSLBDomainPool, 0, len(wideIP.Pools)),
+			}
+			for _, pool := range wideIP.Pools {
+				gslbPool := as3GSLBPool{
+					Class:      "GSLB_Pool",
+					RecordType: pool.RecordType,
+					LBMode:     pool.LBMethod,
+					Members:    make([]as3GSLBPoolMemberA, 0, len(pool.Members)),
+					Monitors:   make([]as3ResourcePointer, 0, len(pool.Monitors)),
 				}
 
-				gslbPool.Monitors = append(gslbPool.Monitors, as3ResourcePointer{
-					Use: mon.Name,
-				})
+				for _, mem := range pool.Members {
+					gslbPool.Members = append(gslbPool.Members, as3GSLBPoolMemberA{
+						Enabled: true,
+						Server: as3ResourcePointer{
+							BigIP: pool.DataServer,
+						},
+						VirtualServer: mem,
+					})
+				}
 
-				sharedApp[mon.Name] = gslbMon
+				for _, mon := range pool.Monitors {
+					gslbMon := as3GSLBMonitor{
+						Class:    "GSLB_Monitor",
+						Interval: mon.Interval,
+						Type:     mon.Type,
+						Send:     mon.Send,
+						Receive:  mon.Recv,
+						Timeout:  mon.Timeout,
+					}
+
+					gslbPool.Monitors = append(gslbPool.Monitors, as3ResourcePointer{
+						Use: mon.Name,
+					})
+
+					sharedApp[mon.Name] = gslbMon
+				}
+				gslbDomain.Pools = append(gslbDomain.Pools, as3GSLBDomainPool{Use: pool.Name})
+				sharedApp[pool.Name] = gslbPool
 			}
-			gslbDomain.Pools = append(gslbDomain.Pools, as3GSLBDomainPool{Use: pool.Name})
-			sharedApp[pool.Name] = gslbPool
-		}
 
-		sharedApp[domainName] = gslbDomain
+			sharedApp[domainName] = gslbDomain
+		}
+		adc[pn] = tenantDecl
 	}
 
-	return tenantDecl
+	return adc
 }
 
 func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
-	as3JSONDecl := as3ADC{}
+	adc := as3ADC{}
 	for tenantName, partitionConfig := range config.ltmConfig {
 		// TODO partitionConfig priority can be overridden by another request if agent is unable to process the prioritized request in time
 		if partitionConfig.Priority > 0 {
@@ -674,10 +664,10 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 					"class":              "Tenant",
 					as3SharedApplication: sharedApp,
 				}
-				as3JSONDecl[tenantName] = tenantDecl
+				adc[tenantName] = tenantDecl
 			} else {
 				// Remove Partition
-				as3JSONDecl[tenantName] = as3Tenant{
+				adc[tenantName] = as3Tenant{
 					"class": "Tenant",
 				}
 			}
@@ -707,9 +697,9 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 			"defaultRouteDomain": config.defaultRouteDomain,
 			as3SharedApplication: sharedApp,
 		}
-		as3JSONDecl[tenantName] = tenantDecl
+		adc[tenantName] = tenantDecl
 	}
-	return as3JSONDecl
+	return adc
 }
 
 func processIRulesForAS3(rsMap ResourceMap, sharedApp as3Application) {

@@ -70,6 +70,7 @@ type Pool struct {
 	Monitor         Monitor `json:"monitor"`
 	Rewrite         string  `json:"rewrite,omitempty"`
 	Balance         string  `json:"loadBalancingMethod,omitempty"`
+	SvcNamespace    string  `json:"svcNamespace,omitempty"`
 }
 
 // Monitor defines a monitor object in BIG-IP.

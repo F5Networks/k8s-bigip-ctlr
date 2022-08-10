@@ -324,7 +324,7 @@ func (ctlr *Controller) getSvcDepResources(svcDepRscKey string) map[string]struc
 
 func (ctlr *Controller) updateSvcDepResources(rsName string, rsCfg *ResourceConfig) {
 	for _, pool := range rsCfg.Pools {
-		svcDepRscKey := rsCfg.MetaData.namespace + "_" + pool.ServiceName
+		svcDepRscKey := pool.ServiceNamespace + "_" + pool.ServiceName
 		if resources, found := ctlr.resources.svcResourceCache[svcDepRscKey]; found {
 			if _, found := resources[rsName]; !found {
 				ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = struct{}{}
@@ -343,7 +343,7 @@ func (ctlr *Controller) deleteSvcDepResource(rsName string, rsCfg *ResourceConfi
 	}
 
 	for _, pool := range rsCfg.Pools {
-		svcDepRscKey := rsCfg.MetaData.namespace + "_" + pool.ServiceName
+		svcDepRscKey := pool.ServiceNamespace + "_" + pool.ServiceName
 		if resources, found := ctlr.resources.svcResourceCache[svcDepRscKey]; found {
 			if _, found := resources[rsName]; found {
 				delete(ctlr.resources.svcResourceCache[svcDepRscKey], rsName)
@@ -394,10 +394,16 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	var pools Pools
 	var rules *Rules
 	var monitors []Monitor
+	var targetPort intstr.IntOrString
 
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
-		targetPort := ctlr.fetchTargetPort(vs.Namespace, pl.Service, pl.ServicePort)
+		svcNamespace := vs.Namespace
+		if pl.SvcNamespace != "" {
+			svcNamespace = pl.SvcNamespace
+		}
+		targetPort = ctlr.fetchTargetPort(svcNamespace, pl.Service, pl.ServicePort)
+
 		if (intstr.IntOrString{}) == targetPort {
 			targetPort = intstr.IntOrString{IntVal: pl.ServicePort}
 		}
@@ -421,7 +427,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			Name:             poolName,
 			Partition:        rsCfg.Virtual.Partition,
 			ServiceName:      pl.Service,
-			ServiceNamespace: vs.ObjectMeta.Namespace,
+			ServiceNamespace: svcNamespace,
 			ServicePort:      targetPort,
 			NodeMemberLabel:  pl.NodeMemberLabel,
 			Balance:          pl.Balance,

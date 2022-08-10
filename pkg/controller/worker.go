@@ -930,7 +930,6 @@ func (ctlr *Controller) processVirtualServers(
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 		rsCfg.MetaData.Protocol = portStruct.protocol
 		rsCfg.MetaData.httpTraffic = virtual.Spec.HTTPTraffic
-		rsCfg.MetaData.namespace = virtual.ObjectMeta.Namespace
 		rsCfg.MetaData.baseResources = make(map[string]string)
 		rsCfg.Virtual.SetVirtualAddress(
 			ip,
@@ -1497,7 +1496,7 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 
 	for index, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
-		svcKey := namespace + "/" + svcName
+		svcKey := pool.ServiceNamespace + "/" + svcName
 
 		poolMemInfo, ok := ctlr.resources.poolMemCache[svcKey]
 		if (!ok || len(poolMemInfo.memberMap) == 0) && pool.ServiceNamespace == namespace {
@@ -1529,7 +1528,7 @@ func (ctlr *Controller) updatePoolMembersForCluster(
 ) {
 	for index, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
-		svcKey := namespace + "/" + svcName
+		svcKey := pool.ServiceNamespace + "/" + svcName
 
 		poolMemInfo, ok := ctlr.resources.poolMemCache[svcKey]
 
@@ -1562,7 +1561,7 @@ func (ctlr *Controller) updatePoolMembersForNPL(
 
 	for index, pool := range rsCfg.Pools {
 		svcName := pool.ServiceName
-		svcKey := namespace + "/" + svcName
+		svcKey := pool.ServiceNamespace + "/" + svcName
 		poolMemInfo := ctlr.resources.poolMemCache[svcKey]
 		if poolMemInfo.svcType == v1.ServiceTypeNodePort {
 			log.Debugf("Requested service backend %s is of type NodePort is not valid for nodeportlocal mode.",
@@ -2638,9 +2637,10 @@ func (ctlr *Controller) processIngressLink(
 				"",
 				"",
 			),
-			Partition:   rsCfg.Virtual.Partition,
-			ServiceName: svc.ObjectMeta.Name,
-			ServicePort: svcPort,
+			Partition:        rsCfg.Virtual.Partition,
+			ServiceName:      svc.ObjectMeta.Name,
+			ServicePort:      svcPort,
+			ServiceNamespace: svc.ObjectMeta.Namespace,
 		}
 		monitorName := fmt.Sprintf("%s_monitor", pool.Name)
 		rsCfg.Monitors = append(

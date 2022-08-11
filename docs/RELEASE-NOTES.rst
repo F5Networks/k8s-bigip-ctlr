@@ -12,12 +12,15 @@ Added Functionality
         * Added support for namespaceLabel in global extended ConfigMap
         * Added support for BigIP ClientSSL/ServerSSL profile reference in global extended ConfigMap
         * Add support for path rewrite
+        * Add base config block for TLSCipher for NextGen Routes
     * CRD:
         * AllowSourceRange support for VirtualServer CRs and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * :issues:`2201` Support for linking existing healthmonitor on bigip with virtualSever and TransportServer CRs.
         * :issues:`2361` Allow monitoring of an alias port in VirtualServer and TransportServer
         * :issues:`1933` Added svcNamespace field in Pools for VirtualServer CR that allows to define a pool service from another namespace in a Virtual server CR.
           See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Add TCP Health Monitor support for VS CRs
+        * Add monitors support for VS and TS CRs
     * Added support to configure netmask for Virtual Server for Ingress. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/>`_
     * Added Support for AS3 3.38.0
 

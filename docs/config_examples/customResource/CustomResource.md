@@ -63,14 +63,15 @@ This page is created to document the behaviour of CIS in CRD Mode.
 
 **Pool Components**
 
-| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
-| ------ | ------ | ------ | ------ | ------ |
-| path | String | Required | NA |  Path to access the service |
-| service | String | Required | NA | Service deployed in kubernetes cluster |
-| nodeMemberLabel | String | Optional | NA | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode |
-| servicePort | String | Required | NA | Port to access Service |
-| monitor | String | Optional | NA | Health Monitor to check the health of Pool Members |
-| rewrite | String | Optional | NA | Rewrites the path in the HTTP Header while submitting the request to Server in the pool |
+| PARAMETER       | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                                         |
+|-----------------|---------| ------ | ------ |---------------------------------------------------------------------------------------------------------------------|
+| path            | String  | Required | NA | Path to access the service                                                                                          |
+| service         | String  | Required | NA | Service deployed in kubernetes cluster                                                                              |
+| nodeMemberLabel | String  | Optional | NA | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode |
+| servicePort     | String  | Required | NA | Port to access Service                                                                                              |
+| monitor         | String  | Optional | NA | Health Monitor to check the health of Pool Members                                                                  |
+| monitors        | monitor | Optional | NA | Specifies multiple monitors for VS Pool                                                                             |
+| rewrite         | String  | Optional | NA | Rewrites the path in the HTTP Header while submitting the request to Server in the pool                             |
 | svcNamespace | String | Optional | NA | Namespace of service, define it if service is present in a namespace other than the one where VS CR is present |
 
 **Service_Address Components**
@@ -85,16 +86,16 @@ This page is created to document the behaviour of CIS in CRD Mode.
 
 **Health Monitor**
 
-| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
-| ------ | ------ | ------ | ------ | ------ |
-| type | String | Required | NA |  http or https |
-| send | String | Required | “GET /rn” | HTTP request string to send. |
-| recv | String | Optional | NA | String or RegEx pattern to match in first 5,120 bytes of backend response. |
-| interval | Int | Required | 5 | Seconds between health queries |
-| timeout | Int | Optional | 16 | Seconds before query fails |
-| targetPort | Int | Optional | 0 | port (if any) monitor should probe ,if 0 (default) then pool member port is used.Translates to "Alias Service Port" on BIG-IP pool.|
-| name | String | Required | NA | Refrence to health monitor name existing on bigip|
-| reference | String  | Required | NA | Value should be bigip for referencing custom monitor on bigip|
+| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION                                                                                                                        |
+| ------ | ------ | ------ | ------ |------------------------------------------------------------------------------------------------------------------------------------|
+| type | String | Required | NA | http, https or tcp                                                                                                                 |
+| send | String | Required | “GET /rn” | HTTP request string to send.                                                                                                       |
+| recv | String | Optional | NA | String or RegEx pattern to match in first 5,120 bytes of backend response.                                                         |
+| interval | Int | Required | 5 | Seconds between health queries                                                                                                     |
+| timeout | Int | Optional | 16 | Seconds before query fails                                                                                                         |
+| targetPort | Int | Optional | 0 | port (if any) monitor should probe ,if 0 (default) then pool member port is used.Translates to "Alias Service Port" on BIG-IP pool. |
+| name | String | Required | NA | Refrence to health monitor name existing on bigip                                                                                  |
+| reference | String  | Required | NA | Value should be bigip for referencing custom monitor on bigip                                                                      |
 
 **Note**:
 * monitor can be a reference to existing helathmonitor on bigip in which case, name and reference are required parameters.
@@ -159,11 +160,12 @@ different terminations(for same domain), one with edge and another with re-encry
 
 **Pool Components**
 
-| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
-| ------ | ------ | ------ | ------ | ------ |
-| service | String | Required | NA | Service deployed in kubernetes cluster |
-| servicePort | String | Required | NA | Port to access Service |
-| monitor | String | Optional | NA | Health Monitor to check the health of Pool Members |
+| PARAMETER | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                        |
+| ------ |---------| ------ | ------ |----------------------------------------------------|
+| service | String  | Required | NA | Service deployed in kubernetes cluster             |
+| servicePort | String  | Required | NA | Port to access Service                             |
+| monitor | String  | Optional | NA | Health Monitor to check the health of Pool Members |
+| monitors | monitor | Optional | NA | Specifies multiple monitors for TS Pool            |
 
 **Service_Address Components**
 

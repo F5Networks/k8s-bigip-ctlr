@@ -26,8 +26,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
-
-
+* :issues:`2325` Supporting Prometheus service in CRDs
 
 2.9.1
 -------------

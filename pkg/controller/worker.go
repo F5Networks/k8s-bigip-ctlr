@@ -461,7 +461,7 @@ func (ctlr *Controller) getVirtualServersForService(svc *v1.Service) []*cisapiv1
 
 	allVirtuals := ctlr.getAllVirtualServers(svc.ObjectMeta.Namespace)
 	if nil == allVirtuals {
-		log.Infof("No VirtualServers founds in namespace %s",
+		log.Infof("No VirtualServers found in namespace %s",
 			svc.ObjectMeta.Namespace)
 		return nil
 	}
@@ -493,7 +493,7 @@ func (ctlr *Controller) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*ci
 
 	allVirtuals := ctlr.getAllVirtualServers(tls.ObjectMeta.Namespace)
 	if nil == allVirtuals {
-		log.Infof("No VirtualServers founds in namespace %s",
+		log.Infof("No VirtualServers found in namespace %s",
 			tls.ObjectMeta.Namespace)
 		return nil
 	}
@@ -1865,7 +1865,7 @@ func (ctlr *Controller) getTransportServersForService(svc *v1.Service) []*cisapi
 
 	allVirtuals := ctlr.getAllTransportServers(svc.ObjectMeta.Namespace)
 	if nil == allVirtuals {
-		log.Infof("No VirtualServers for TransportServer founds in namespace %s",
+		log.Infof("No VirtualServers for TransportServer found in namespace %s",
 			svc.ObjectMeta.Namespace)
 		return nil
 	}
@@ -2712,7 +2712,7 @@ func (ctlr *Controller) getIngressLinksForService(svc *v1.Service) []*cisapiv1.I
 	ctlr.TeemData.ResourceType.IngressLink[svc.ObjectMeta.Namespace] = len(ingLinks)
 	ctlr.TeemData.Unlock()
 	if nil == ingLinks {
-		log.Infof("No IngressLink founds in namespace %s",
+		log.Infof("No IngressLink found in namespace %s",
 			svc.ObjectMeta.Namespace)
 		return nil
 	}

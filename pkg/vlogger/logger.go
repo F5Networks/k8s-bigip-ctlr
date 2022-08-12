@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//log_console.go:
+//logger.go:
 //  Provides console logging through the common interface.
 //  To use, create the logger object with the following syntax:
 //    NewConsoleLogger()
 //
-package console
+package vlogger
 
 import (
 	"fmt"
@@ -31,6 +31,11 @@ type (
 		// slLogLevel uses syslog's definitions which have higher priority
 		// levels defined in descending order (0 is highest)
 		slLogLevel syslog.Priority
+	}
+	FileLogger struct {
+		FileName string
+		consoleLogger
+		fileHandler *os.File
 	}
 )
 
@@ -130,4 +135,33 @@ func (cl *consoleLogger) GetLogLevel() syslog.Priority {
 }
 
 func (cl *consoleLogger) Close() {
+}
+
+// A FileLogger which redirect stdout and stderr to a file
+func NewFileLogger(fn string) *FileLogger {
+	fl := &FileLogger{
+		FileName: fn,
+		consoleLogger: consoleLogger{
+			slLogLevel: syslog.LOG_DEBUG,
+		},
+	}
+	fl.SetFileWriter()
+	return fl
+}
+
+func (fl *FileLogger) SetFileWriter() {
+	// Open file
+	f, err := os.OpenFile(fl.FileName, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+	if err != nil {
+		panic(err)
+	}
+	fl.fileHandler = f
+	// set the stdout & stderr to file writer
+	os.Stdout = f
+	os.Stderr = f
+}
+
+// Close file
+func (fl *FileLogger) Close() {
+	fl.fileHandler.Close()
 }

@@ -52,8 +52,6 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	clog "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger/console"
-
 	//"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/spf13/pflag"
@@ -125,6 +123,7 @@ var (
 	pythonBaseDir    *string
 	logLevel         *string
 	ccclLogLevel     *string
+	logFile          *string
 	verifyInterval   *int
 	nodePollInterval *int
 	syncInterval     *int
@@ -230,6 +229,8 @@ func _init() {
 		"Optional, logging level")
 	ccclLogLevel = globalFlags.String("cccl-log-level", "",
 		"Optional, logging level for cccl")
+	logFile = globalFlags.String("log-file", "",
+		"Optional, filepath to store the CIS logs")
 	verifyInterval = globalFlags.Int("verify-interval", 30,
 		"Optional, interval (in seconds) at which to verify the BIG-IP configuration.")
 	nodePollInterval = globalFlags.Int("node-poll-interval", 30,
@@ -433,9 +434,15 @@ func _init() {
 	}
 }
 
-func initLogger(logLevel string) error {
+func initLogger(logLevel, logFile string) error {
+	var logger log.Logger
+	if len(logFile) > 0 {
+		logger = log.NewFileLogger(logFile)
+	} else {
+		logger = log.NewConsoleLogger()
+	}
 	log.RegisterLogger(
-		log.LL_MIN_LEVEL, log.LL_MAX_LEVEL, clog.NewConsoleLogger())
+		log.LL_MIN_LEVEL, log.LL_MAX_LEVEL, logger)
 
 	if ll := log.NewLogLevel(logLevel); nil != ll {
 		log.SetLogLevel(*ll)
@@ -462,7 +469,7 @@ func hasCommonPartition(partitions []string) bool {
 
 func verifyArgs() error {
 	*logLevel = strings.ToUpper(*logLevel)
-	logErr := initLogger(*logLevel)
+	logErr := initLogger(*logLevel, *logFile)
 	if nil != logErr {
 		return logErr
 	}
@@ -1138,6 +1145,7 @@ func main() {
 	sig := <-sigs
 	close(stopCh)
 	log.Infof("[INIT] Exiting - signal %v\n", sig)
+	log.Close()
 }
 
 func getConfigWriter() writer.Writer {

@@ -123,7 +123,7 @@ to the console:
 
   func init() {
     // Log all messages to the user's console
-    log.RegisterLogger(log.LL_MIN_LEVEL, log.LL_MAX_LEVEL, console.NewConsoleLogger())
+    log.RegisterLogger(log.LL_MIN_LEVEL, log.LL_MAX_LEVEL, logger.NewConsoleLogger())
     // only report errors at the LL_INFO level and above
     log.SetLogLevel(log.LL_INFO)
   }

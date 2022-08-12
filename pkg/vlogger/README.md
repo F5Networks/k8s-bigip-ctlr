@@ -43,6 +43,7 @@ The following types of loggers are currently provided as subpackages:
 
     func NewConsoleLogger() Logger
     func NewSyslogLogger(facility syslog.Priority, progname string) Logger
+    func NewFileLogger(filename string) Logger
     func NewSeelogLogger(filename string) Logger
     func NewLogrusLogger() Logger
 
@@ -116,11 +117,10 @@ statements to the console:
 
     import (
       log  "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-      "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger/console"
-
+    )
     func init() {
-      // Log all messages to the user's console
-      log.RegisterLogger(log.LL_MIN_LEVEL, log.LL_MAX_LEVEL, console.NewConsoleLogger())
+      // Log all messages to the user's logger
+      log.RegisterLogger(log.LL_MIN_LEVEL, log.LL_MAX_LEVEL, log.NewConsoleLogger())
       // only report errors at the LL_INFO level and above
       log.SetLogLevel(log.LL_INFO)
     }

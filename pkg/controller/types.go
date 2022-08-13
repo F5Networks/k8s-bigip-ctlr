@@ -588,17 +588,18 @@ type (
 type (
 	Agent struct {
 		*PostManager
-		Partition       string
-		ConfigWriter    writer.Writer
-		postChan        chan ResourceConfigRequest
-		EventChan       chan interface{}
-		retryChan       chan struct{}
-		respChan        chan resourceStatusMeta
-		PythonDriverPID int
-		userAgent       string
-		HttpAddress     string
-		EnableIPV6      bool
-		declUpdate      sync.Mutex
+		Partition           string
+		ConfigWriter        writer.Writer
+		postChan            chan ResourceConfigRequest
+		EventChan           chan interface{}
+		retryChan           chan struct{}
+		respChan            chan resourceStatusMeta
+		PythonDriverPID     int
+		userAgent           string
+		HttpAddress         string
+		EnableIPV6          bool
+		ProcessPythonDriver bool
+		declUpdate          sync.Mutex
 		// cachedTenantDeclMap,incomingTenantDeclMap hold tenant names and corresponding AS3 config
 		cachedTenantDeclMap   map[string]as3Tenant
 		incomingTenantDeclMap map[string]as3Tenant
@@ -612,15 +613,16 @@ type (
 		PostParams PostParams
 		GTMParams  GTMParams
 		//VxlnParams      VXLANParams
-		Partition      string
-		LogLevel       string
-		VerifyInterval int
-		VXLANName      string
-		PythonBaseDir  string
-		UserAgent      string
-		HttpAddress    string
-		EnableIPV6     bool
-		DisableARP     bool
+		Partition           string
+		LogLevel            string
+		VerifyInterval      int
+		VXLANName           string
+		PythonBaseDir       string
+		UserAgent           string
+		HttpAddress         string
+		EnableIPV6          bool
+		DisableARP          bool
+		ProcessPythonDriver bool
 	}
 
 	PostManager struct {

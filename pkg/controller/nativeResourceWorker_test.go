@@ -823,6 +823,26 @@ extendedRouteSpec:
 			Expect(ok).To(BeTrue())
 
 			routeGroup := "default"
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
+				override: false,
+				global: &ExtendedRouteGroupSpec{
+					VServerName:   "nextgenroutes",
+					VServerAddr:   "10.10.10.10",
+					AllowOverride: "False",
+					SNAT:          "auto",
+					WAF:           "/Common/WAFPolicy",
+					IRules:        []string{"/Common/iRule1"},
+					TLS: TLS{
+						ClientSSL: "/Common/clientssl",
+						ServerSSL: "/Common/serverssl",
+						Reference: "bigip",
+					},
+				},
+				namespaces: []string{routeGroup},
+				partition:  "test",
+			}
+
 			spec1 := routeapi.RouteSpec{
 				Host: "foo.com",
 				Path: "/foo",
@@ -842,15 +862,15 @@ extendedRouteSpec:
 				"foo", "1", "node0", routeGroup, fooIps, []string{},
 				convertSvcPortsToEndpointPorts(fooPorts))
 			mockCtlr.addEndpoints(fooEndpts)
-			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
-
+			annotations := make(map[string]string)
+			annotations["virtual-server.f5.com/balance"] = "least-connections-node"
+			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotations)
 			mockCtlr.addRoute(route1)
 			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
-			mockCtlr.processRoutes(routeGroup, false)
+			err = mockCtlr.processRoutes(routeGroup, false)
 
-			err, ok = mockCtlr.processConfigMap(cm, false)
 			Expect(err).To(BeNil())
-			Expect(ok).To(BeTrue())
+			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Pools[0].Balance == "least-connections-node").To(BeTrue())
 
 			data["extendedSpec"] = `
 extendedRouteSpec:

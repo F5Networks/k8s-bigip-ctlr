@@ -527,6 +527,47 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(v.Mask).To(Equal("ffff:fffc:0000:0000:0000:0000:0000:0000"))
 
 		})
+
+		It("Verifies that resource config is copied correctly and ensures safe concurrent usage", func() {
+			// Create resource config
+			resourceConfig := &ResourceConfig{
+				MetaData: MetaData{
+					Active:       true,
+					ResourceType: "route",
+					IngName:      "test1",
+					RouteProfs:   make(map[RouteKey]string),
+				},
+				Virtual: Virtual{Name: "test-virtual", Policies: []NameRef{}, Profiles: ProfileRefs{}},
+				Policies: []Policy{Policy{Name: "test-policy", Controls: []string{"forwarding"}, Rules: Rules{},
+					Requires: []string{}}},
+				Pools: []Pool{},
+			}
+			// Create a copy of resource config
+			rcConfigCopy := &ResourceConfig{}
+			rcConfigCopy.CopyConfig(resourceConfig)
+			// Verify that copy is done correctly
+			Expect(resourceConfig).To(Equal(rcConfigCopy))
+			// Verify that route profile map is copied safely so that concurrent usage can be done
+			// Go routine that simulates writing route profiles to the original resource config
+			go func(rcfg *ResourceConfig) {
+				// Populate random route profiles
+				for i := 0; i < 100000; i++ {
+					rtKey := RouteKey{
+						Name:      fmt.Sprintf("%d", i),
+						Namespace: fmt.Sprintf("%d", i),
+						Context:   fmt.Sprintf("%d", i),
+					}
+					rcfg.MetaData.RouteProfs[rtKey] = fmt.Sprintf("%d", i)
+				}
+			}(resourceConfig)
+			// Go routine that simulates reading route profiles from the copy of resource config
+			go func(rcfg *ResourceConfig) {
+				for i := 0; i < 50000; i++ {
+					for _, _ = range rcfg.MetaData.RouteProfs {
+					}
+				}
+			}(rcConfigCopy)
+		})
 	})
 
 	Describe("Config Manipulation", func() {

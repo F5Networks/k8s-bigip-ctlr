@@ -12,8 +12,8 @@ spec:
       service: svc-1
       servicePort: 80
     - path: /tea
-      # svcNamespace is the namespace of the service, define it if service is present in a namespace other than the one
+      # serviceNamespace is the namespace of the service, define it if service is present in a namespace other than the one
       # where VS CR is present
-      svcNamespace: tea
+      serviceNamespace: tea
       service: svc-2
       servicePort: 80

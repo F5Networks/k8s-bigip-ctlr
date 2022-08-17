@@ -62,16 +62,16 @@ type ServiceAddress struct {
 
 // Pool defines a pool object in BIG-IP.
 type Pool struct {
-	Name            string    `json:"name,omitempty"`
-	Path            string    `json:"path,omitempty"`
-	Service         string    `json:"service"`
-	ServicePort     int32     `json:"servicePort"`
-	NodeMemberLabel string    `json:"nodeMemberLabel,omitempty"`
-	Monitor         Monitor   `json:"monitor"`
-	Monitors        []Monitor `json:"monitors"`
-	Rewrite         string    `json:"rewrite,omitempty"`
-	Balance         string    `json:"loadBalancingMethod,omitempty"`
-	SvcNamespace    string    `json:"svcNamespace,omitempty"`
+	Name             string    `json:"name,omitempty"`
+	Path             string    `json:"path,omitempty"`
+	Service          string    `json:"service"`
+	ServicePort      int32     `json:"servicePort"`
+	NodeMemberLabel  string    `json:"nodeMemberLabel,omitempty"`
+	Monitor          Monitor   `json:"monitor"`
+	Monitors         []Monitor `json:"monitors"`
+	Rewrite          string    `json:"rewrite,omitempty"`
+	Balance          string    `json:"loadBalancingMethod,omitempty"`
+	ServiceNamespace string    `json:"serviceNamespace,omitempty"`
 }
 
 // Monitor defines a monitor object in BIG-IP.

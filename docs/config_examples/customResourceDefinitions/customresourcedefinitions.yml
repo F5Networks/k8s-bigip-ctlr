@@ -127,7 +127,7 @@ spec:
                       rewrite:
                         type: string
                         pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9]+\/?)*$'
-                      svcNamespace:
+                      serviceNamespace:
                         type: string
                       monitor:
                         type: object

@@ -399,8 +399,8 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
 		svcNamespace := vs.Namespace
-		if pl.SvcNamespace != "" {
-			svcNamespace = pl.SvcNamespace
+		if pl.ServiceNamespace != "" {
+			svcNamespace = pl.ServiceNamespace
 		}
 		targetPort = ctlr.fetchTargetPort(svcNamespace, pl.Service, pl.ServicePort)
 

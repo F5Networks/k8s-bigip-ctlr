@@ -1071,17 +1071,17 @@ func (ctlr *Controller) enqueueRoute(obj interface{}, event string) {
 }
 
 func (ctlr *Controller) enqueueUpdatedRoute(old, cur interface{}) {
-	oldrt := old.(*routeapi.Route)
-	newrt := cur.(*routeapi.Route)
+	oldRoute := old.(*routeapi.Route)
+	newRoute := cur.(*routeapi.Route)
 
-	if reflect.DeepEqual(oldrt.Spec, newrt.Spec) {
+	if reflect.DeepEqual(oldRoute.Spec, newRoute.Spec) && reflect.DeepEqual(oldRoute.Annotations, newRoute.Annotations) {
 		return
 	}
-	log.Debugf("Enqueueing Route: %v", newrt)
+	log.Debugf("Enqueueing Route: %v", newRoute)
 	key := &rqKey{
-		namespace: newrt.ObjectMeta.Namespace,
+		namespace: newRoute.ObjectMeta.Namespace,
 		kind:      Route,
-		rscName:   newrt.ObjectMeta.Name,
+		rscName:   newRoute.ObjectMeta.Name,
 		event:     Update,
 		rsc:       cur,
 	}

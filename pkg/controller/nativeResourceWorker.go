@@ -481,6 +481,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		ServiceNamespace: route.Namespace,
 		ServicePort:      servicePort,
 		NodeMemberLabel:  "",
+		Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
 	}
 
 	for index, monitor := range rsCfg.Monitors {

@@ -82,12 +82,12 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
 
 ### Base Route Config Parameters
 
-| Parameter   | Required | Description                                                                                                               | Default | ConfigMap |
-|-------------|----------|---------------------------------------------------------------------------------------------------------------------------|---------| --------- |
-| tlsCiphers  | Optional | Block to define TLS cipher parameters                                                                                     | N/A     | Global configMap |
-| tlsVersion  | Optional | Configures TLS version to be enabled on BIG-IP. TLS 1.3 is only supported on TMOS version 14.0+.                          | 1.2     | Global configMap |
-| ciphers     | Optional | Configures a ciphersuite selection string. Cipher-group and ciphers are mutually exclusive, only use one.                 | N/A     | Global configMap |
-| cipherGroup | Optional | Configures a cipher group in BIG-IP and reference it here. Cipher group and ciphers are mutually exclusive, only use one. | N/A     | Global configMap |
+| Parameter  | Required | Description                                                                                                               | Default | ConfigMap |
+|------------|----------|---------------------------------------------------------------------------------------------------------------------------|---------| --------- |
+| tlsCipher  | Optional | Block to define TLS cipher parameters                                                                                     | N/A     | Global configMap |
+| tlsVersion | Optional | Configures TLS version to be enabled on BIG-IP. TLS 1.3 is only supported on TMOS version 14.0+.                          | 1.2     | Global configMap |
+| ciphers    | Optional | Configures a ciphersuite selection string. Cipher-group and ciphers are mutually exclusive, only use one.                 | DEFAULT     | Global configMap |
+| cipherGroup | Optional | Configures a cipher group in BIG-IP and reference it here. Cipher group and ciphers are mutually exclusive, only use one. | /Common/f5-default     | Global configMap |
 
 **Note**: 1. ciphers and cipherGroups are mutually exclusive. For tlsVersion 1.3 cipherGroup is considered and for 1.2 ciphers is considered
 

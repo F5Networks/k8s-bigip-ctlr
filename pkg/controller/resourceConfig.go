@@ -288,19 +288,19 @@ func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLa
 }
 
 // format the monitor name for an VirtualServer pool
-func formatMonitorName(namespace, svc string, monitorType string, port int32, sendString string) string {
+func formatMonitorName(namespace, svc string, monitorType string, port int32, hostName string, path string) string {
 	monitorName := fmt.Sprintf("%s_%s", svc, namespace)
+
+	if len(hostName) > 0 {
+		monitorName = monitorName + fmt.Sprintf("_%s", hostName)
+	}
+	if len(path) > 0 && path != "/" {
+		monitorName = monitorName + fmt.Sprintf("_%s", path)
+	}
 
 	if monitorType != "" && port != 0 {
 		servicePort := fmt.Sprint(port)
 		monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
-	}
-	if len(sendString) > 0 && sendString != "/" {
-		if strings.Contains(sendString, "/") {
-			monitorName = monitorName + fmt.Sprintf("%s", sendString)
-		} else {
-			monitorName = monitorName + fmt.Sprintf("_%s", sendString)
-		}
 	}
 	return AS3NameFormatter(monitorName)
 }
@@ -437,7 +437,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
 		} else if pl.Monitor.Send != "" && pl.Monitor.Type != "" {
 			if pl.Name == "" {
-				monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort, pl.Monitor.Send)
+				monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, pl.Monitor.Type, pl.ServicePort, vs.Spec.Host, pl.Path)
 			}
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 			monitor := Monitor{
@@ -463,7 +463,7 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 						formatPort = pl.ServicePort
 					}
 					if monitor.Name == "" {
-						monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, monitor.Type, formatPort, monitor.Send)
+						monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, monitor.Type, formatPort, vs.Spec.Host, pl.Path)
 					}
 					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 					monitor := Monitor{
@@ -1522,7 +1522,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitorName, Reference: vs.Spec.Pool.Monitor.Reference})
 	} else if vs.Spec.Pool.Monitor.Type != "" {
 		if vs.Spec.Pool.Name == "" {
-			monitorName = formatMonitorName(vs.ObjectMeta.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.Monitor.Type, vs.Spec.Pool.ServicePort, "")
+			monitorName = formatMonitorName(vs.ObjectMeta.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.Monitor.Type, vs.Spec.Pool.ServicePort, "", "")
 		}
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 
@@ -1551,7 +1551,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 				}
 
 				if monitor.Name == "" {
-					monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, monitor.Type, formatPort, monitor.Send)
+					monitorName = formatMonitorName(vs.ObjectMeta.Namespace, pl.Service, monitor.Type, formatPort, "", "")
 				}
 				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition, monitorName)})
 				monitor := Monitor{
@@ -1652,9 +1652,9 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			log.Errorf("[CORE] %s", msg)
 		}
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition,
-			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal, ""))})
+			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal, "", ""))})
 		monitor = Monitor{
-			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal, ""),
+			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal, "", ""),
 			Partition: rsCfg.Virtual.Partition,
 			Type:      monitorType,
 			Interval:  mon.Interval,

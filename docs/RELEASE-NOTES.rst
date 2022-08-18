@@ -20,6 +20,7 @@ Added Functionality
         * :issues:`2361` Allow monitoring of an alias port in VirtualServer and TransportServer
         * :issues:`1933` Added serviceNamespace field in Pools for VirtualServer CR that allows to define a pool service from another namespace in a Virtual server CR.
           See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * :issues:`2507` Monitor name by accident includes health check command
         * Added TCP Health Monitor support for VS CRs
         * Added monitors support for VS and TS CRs
     * Ingress:

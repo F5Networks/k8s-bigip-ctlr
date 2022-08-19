@@ -40,7 +40,7 @@ func (appMgr *Manager) checkV1Ingress(
 	var keyList []*serviceQueueKey
 	// Depending on the Ingress, we may loop twice here, once for http and once for https
 	for _, portStruct := range appMgr.v1VirtualPorts(ing) {
-		rsCfg := appMgr.createRSConfigFromV1Ingress(
+		rsCfg, otherIngClass := appMgr.createRSConfigFromV1Ingress(
 			ing,
 			appMgr.resources,
 			namespace,
@@ -49,6 +49,11 @@ func (appMgr *Manager) checkV1Ingress(
 			appMgr.defaultIngIP,
 			appMgr.vsSnatPoolName,
 		)
+		// If it belongs to some other ingress class that CIS isn't managing then skip processing it
+		if otherIngClass {
+			log.Debugf("Skip processing ingress %s as cis doesn't manage this ingress class", ing.Name)
+			return false, nil
+		}
 		var rsType int
 		rsName := FormatIngressVSName(bindAddr, portStruct.port)
 		// If rsCfg is nil, delete any resources tied to this Ingress
@@ -543,10 +548,10 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 	pStruct portStruct,
 	defaultIP,
 	snatPoolName string,
-) *ResourceConfig {
+) (*ResourceConfig, bool) {
 	//check ingressclass exists
 	if !appMgr.checkManageIngressClass(ing) {
-		return nil
+		return nil, true
 	}
 	var cfg ResourceConfig
 	var balance string
@@ -799,7 +804,7 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 	for _, policy := range cfg.Policies {
 		sort.Sort(sort.Reverse(&policy.Rules))
 	}
-	return &cfg
+	return &cfg, false
 }
 
 // Return value is whether or not a custom profile was updated

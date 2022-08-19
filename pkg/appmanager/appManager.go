@@ -1878,7 +1878,7 @@ func (appMgr *Manager) syncIngresses(
 				objKey, objDeps, svcDepKey, ingressLookupFunc)
 			portStructs := appMgr.v1VirtualPorts(ing)
 			for i, portStruct := range portStructs {
-				rsCfg := appMgr.createRSConfigFromV1Ingress(
+				rsCfg, _ := appMgr.createRSConfigFromV1Ingress(
 					ing,
 					appMgr.resources,
 					sKey.Namespace,

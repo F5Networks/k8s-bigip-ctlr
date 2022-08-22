@@ -1813,6 +1813,7 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 			AllowOverride: extdSpec.global.AllowOverride,
 			SNAT:          extdSpec.global.SNAT,
 			WAF:           extdSpec.global.WAF,
+			TLS:           extdSpec.global.TLS,
 		}
 
 		if extdSpec.local.VServerName != "" {
@@ -1827,7 +1828,17 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 		if extdSpec.local.WAF != "" {
 			ergc.WAF = extdSpec.local.WAF
 		}
+		if extdSpec.local.TLS != (TLS{}) {
+			ergc.TLS = extdSpec.local.TLS
+		}
 
+		if extdSpec.local.AllowSourceRange != nil {
+			ergc.AllowSourceRange = make([]string, len(extdSpec.local.AllowSourceRange))
+			copy(ergc.AllowSourceRange, extdSpec.local.AllowSourceRange)
+		} else if extdSpec.global.AllowSourceRange != nil {
+			ergc.AllowSourceRange = make([]string, len(extdSpec.global.AllowSourceRange))
+			copy(ergc.AllowSourceRange, extdSpec.global.AllowSourceRange)
+		}
 		if extdSpec.local.IRules != nil {
 			ergc.IRules = make([]string, len(extdSpec.local.IRules))
 			copy(ergc.IRules, extdSpec.local.IRules)

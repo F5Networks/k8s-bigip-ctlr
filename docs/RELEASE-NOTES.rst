@@ -14,6 +14,7 @@ Added Functionality
         * Added support for path rewrite
         * Added base config block for TLSCipher for NextGen Routes
         * Add support for Load Balancing feature in NextGen Routes for Pools
+        * Add support for AllowSourceRange in NextGen Routes
     * CRD:
         * AllowSourceRange support for VirtualServer CRs and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * :issues:`2201` Support for linking existing healthmonitor on bigip with virtualSever and TransportServer CRs.

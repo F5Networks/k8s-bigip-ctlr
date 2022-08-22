@@ -295,7 +295,11 @@ func formatMonitorName(namespace, svc string, monitorType string, port int32, ho
 		monitorName = monitorName + fmt.Sprintf("_%s", hostName)
 	}
 	if len(path) > 0 && path != "/" {
-		monitorName = monitorName + fmt.Sprintf("_%s", path)
+		if path[0] == '/' {
+			monitorName = monitorName + fmt.Sprintf("%s", path)
+		} else {
+			monitorName = monitorName + fmt.Sprintf("_%s", path)
+		}
 	}
 
 	if monitorType != "" && port != 0 {

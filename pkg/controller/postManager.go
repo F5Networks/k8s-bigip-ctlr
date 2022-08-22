@@ -280,21 +280,20 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 	}
 }
 
-// GetBigipAS3Version ...
-func (postMgr *PostManager) GetBigipAS3Version() error {
+func (postMgr *PostManager) GetBigipAS3Version() (string, string, string, error) {
 	url := postMgr.getAS3VersionURL()
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.Errorf("Creating new HTTP request error: %v ", err)
-		return err
+		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
+		return "", "", "", err
 	}
 
-	log.Infof("Posting GET BIGIP AS3 Version request on %v", url)
+	log.Debugf("[AS3] posting GET BIGIP AS3 Version request on %v", url)
 	req.SetBasicAuth(postMgr.BIGIPUsername, postMgr.BIGIPPassword)
 
 	httpResp, responseMap := postMgr.httpReq(req)
 	if httpResp == nil || responseMap == nil {
-		return fmt.Errorf("Internal Error")
+		return "", "", "", fmt.Errorf("Internal Error")
 	}
 
 	switch httpResp.StatusCode {
@@ -302,16 +301,19 @@ func (postMgr *PostManager) GetBigipAS3Version() error {
 		if responseMap["version"] != nil {
 			as3VersionStr := responseMap["version"].(string)
 			as3versionreleaseStr := responseMap["release"].(string)
-			log.Infof("BIGIP is serving with AS3 version : %v ", as3VersionStr+"-"+as3versionreleaseStr)
-			return nil
+			as3SchemaVersion := responseMap["schemaCurrent"].(string)
+			return as3VersionStr, as3versionreleaseStr, as3SchemaVersion, nil
 		}
 	case http.StatusNotFound:
-		if int(responseMap["code"].(float64)) == http.StatusNotFound {
-			return fmt.Errorf("AS3 RPM is not installed on BIGIP,"+
+		responseMap["code"] = int(responseMap["code"].(float64))
+		if responseMap["code"] == http.StatusNotFound {
+			return "", "", "", fmt.Errorf("AS3 RPM is not installed on BIGIP,"+
 				" Error response from BIGIP with status code %v", httpResp.StatusCode)
 		}
+		// In case of 503 status code : CIS will exit and auto restart of the
+		// controller might fetch the BIGIP version once BIGIP is available.
 	}
-	return fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
+	return "", "", "", fmt.Errorf("Error response from BIGIP with status code %v", httpResp.StatusCode)
 }
 
 // GetBigipRegKey ...

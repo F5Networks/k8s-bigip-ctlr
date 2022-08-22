@@ -596,6 +596,7 @@ type (
 		respChan        chan resourceStatusMeta
 		PythonDriverPID int
 		userAgent       string
+		AS3VersionInfo  as3VersionInfo
 		HttpAddress     string
 		EnableIPV6      bool
 		declUpdate      sync.Mutex
@@ -683,6 +684,14 @@ type (
 		GtmBigIPUsername string `json:"username,omitempty"`
 		GtmBigIPPassword string `json:"password,omitempty"`
 		GtmBigIPURL      string `json:"url,omitempty"`
+	}
+
+	// AS3 version struct
+
+	as3VersionInfo struct {
+		as3Version       string
+		as3SchemaVersion string
+		as3Release       string
 	}
 
 	as3Declaration string

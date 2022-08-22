@@ -1001,7 +1001,7 @@ func main() {
 			ctlr.TeemData.RegistrationKey = key
 			ctlr.TeemData.Unlock()
 		}
-		err = ctlr.Agent.GetBigipAS3Version()
+		err = ctlr.IsBigIPAppServicesAvailable()
 		if err != nil {
 			log.Errorf("%v", err)
 			ctlr.Stop()

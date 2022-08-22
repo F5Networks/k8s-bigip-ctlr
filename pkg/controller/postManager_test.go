@@ -184,10 +184,10 @@ var _ = Describe("PostManager Tests", func() {
 				{
 					tenant: "test",
 					status: http.StatusOK,
-					body:   `{"version":"v1", "release":"r1"}`,
+					body:   `{"version":"v1", "release":"r1", "schemaCurrent":"test"}`,
 				},
 			}, http.MethodGet)
-			err := mockPM.GetBigipAS3Version()
+			_, _, _, err := mockPM.GetBigipAS3Version()
 			Expect(err).To(BeNil(), "Failed to get BIG-IP AS3 Version")
 		})
 
@@ -199,7 +199,7 @@ var _ = Describe("PostManager Tests", func() {
 					body:   fmt.Sprintf(`{"version":"v1", "release":"r1", "code":%d}`, http.StatusNotFound),
 				},
 			}, http.MethodGet)
-			err := mockPM.GetBigipAS3Version()
+			_, _, _, err := mockPM.GetBigipAS3Version()
 			Expect(err).NotTo(BeNil(), "Failed Validation while get BIG-IP AS3 Version")
 		})
 
@@ -211,7 +211,7 @@ var _ = Describe("PostManager Tests", func() {
 					body:   fmt.Sprintf(`{"code":%d}`, http.StatusNotFound),
 				},
 			}, http.MethodGet)
-			err := mockPM.GetBigipAS3Version()
+			_, _, _, err := mockPM.GetBigipAS3Version()
 			Expect(err).NotTo(BeNil(), "Failed Validation while get BIG-IP AS3 Version")
 		})
 
@@ -223,7 +223,7 @@ var _ = Describe("PostManager Tests", func() {
 					body:   `{`,
 				},
 			}, http.MethodGet)
-			err := mockPM.GetBigipAS3Version()
+			_, _, _, err := mockPM.GetBigipAS3Version()
 			Expect(err).NotTo(BeNil(), "Failed Validation while get BIG-IP AS3 Version")
 		})
 	})

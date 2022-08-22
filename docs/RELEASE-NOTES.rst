@@ -28,6 +28,7 @@ Added Functionality
         * Added support to configure netmask for Virtual Server for Ingress. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/>`_
     * Added support for --log-file deployment parameter to store the CIS logs in a file
     * Added Support for AS3 3.38.0
+    * Added Support for operator in openshift 4.10
 
 Bug Fixes
 ````````````

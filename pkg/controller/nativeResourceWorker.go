@@ -274,6 +274,10 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+		if extdSpec.AllowSourceRange != nil {
+			rsCfg.Virtual.AllowSourceRange = make([]string, len(extdSpec.AllowSourceRange))
+			copy(rsCfg.Virtual.AllowSourceRange, extdSpec.AllowSourceRange)
+		}
 		// deletion ; update /health /app/path1
 
 		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, extdSpec)
@@ -496,7 +500,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	rsCfg.Pools = append(rsCfg.Pools, pool)
 	// skip the policy creation for passthrough termination
 	if !passthroughRoute {
-		rules := ctlr.prepareRouteLTMRules(route, pool.Name)
+		rules := ctlr.prepareRouteLTMRules(route, pool.Name, rsCfg.Virtual.AllowSourceRange)
 		if rules == nil {
 			return fmt.Errorf("failed to create LTM Rules")
 		}
@@ -513,6 +517,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 func (ctlr *Controller) prepareRouteLTMRules(
 	route *routeapi.Route,
 	poolName string,
+	allowSourceRange []string,
 ) *Rules {
 	rlMap := make(ruleMap)
 	wildcards := make(ruleMap)
@@ -522,7 +527,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 
 	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName)
 
-	rl, err := createRule(uri, poolName, ruleName, []string{})
+	rl, err := createRule(uri, poolName, ruleName, allowSourceRange)
 	if nil != err {
 		log.Errorf("Error configuring rule: %v", err)
 		return nil

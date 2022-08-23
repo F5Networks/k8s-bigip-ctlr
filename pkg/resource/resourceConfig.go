@@ -1649,10 +1649,24 @@ func IsAnnotationRule(ruleName string) bool {
 	return false
 }
 
+// Returns a copy of the resource config metadata
+func copyRCMetaData(cfg *ResourceConfig) MetaData {
+	metadata := MetaData{
+		Active:       cfg.MetaData.Active,
+		ResourceType: cfg.MetaData.ResourceType,
+		RouteProfs:   make(map[RouteKey]string),
+		IngName:      cfg.MetaData.IngName,
+	}
+	for k, v := range cfg.MetaData.RouteProfs {
+		metadata.RouteProfs[k] = v
+	}
+	return metadata
+}
+
 // Copies from an existing config into our new config
 func (rc *ResourceConfig) CopyConfig(cfg *ResourceConfig) {
 	// MetaData
-	rc.MetaData = cfg.MetaData
+	rc.MetaData = copyRCMetaData(cfg)
 	// Virtual
 	rc.Virtual = cfg.Virtual
 	// Profiles

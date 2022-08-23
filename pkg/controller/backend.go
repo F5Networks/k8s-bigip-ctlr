@@ -105,7 +105,7 @@ func NewAgent(params AgentParams) *Agent {
 		VerifyInterval: params.VerifyInterval,
 		VXLANPartition: vxlanPartition,
 		DisableLTM:     true,
-		GTM:            false,
+		GTM:            true,
 		DisableARP:     params.DisableARP,
 	}
 
@@ -176,6 +176,9 @@ func (agent *Agent) agentWorker() {
 		select {
 		case rsConfig = <-agent.postChan:
 		case <-time.After(1 * time.Microsecond):
+		}
+		if !(agent.EnableIPV6) {
+			agent.PostGTMConfig(rsConfig)
 		}
 
 		decl := agent.createTenantAS3Declaration(rsConfig)
@@ -459,6 +462,33 @@ func (agent *Agent) pollTenantStatus() {
 	}
 }
 
+func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
+
+	dnsConfig := make(map[string]interface{})
+	wideIPs := WideIPs{}
+	for _, v := range config.gtmConfig {
+		wideIPs.WideIPs = append(wideIPs.WideIPs, v)
+	}
+
+	// TODO: Need to change to DEFAULT_PARTITION from Common, once Agent starts to support DEFAULT_PARTITION
+	dnsConfig["Common"] = wideIPs
+
+	doneCh, errCh, err := agent.ConfigWriter.SendSection("gtm", dnsConfig)
+
+	if nil != err {
+		log.Warningf("Failed to write gtm config section: %v", err)
+	} else {
+		select {
+		case <-doneCh:
+			log.Debugf("Wrote gtm config section: %v", config.gtmConfig)
+		case e := <-errCh:
+			log.Warningf("Failed to write gtm config section: %v", e)
+		case <-time.After(time.Second):
+			log.Warningf("Did not receive write response in 1s")
+		}
+	}
+}
+
 // Creates AS3 adc only for tenants with updated configuration
 func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3Declaration {
 	// Re-initialise incomingTenantDeclMap map and tenantPriorityMap for each new config request
@@ -477,14 +507,15 @@ func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3
 		}
 	}
 
-	gtmPartitionConfig := agent.createAS3GTMConfigADC(config)
-	if gtmPartitionConfig != nil {
-		if !reflect.DeepEqual(gtmPartitionConfig, agent.cachedTenantDeclMap[gtmPartition]) {
-			agent.incomingTenantDeclMap[gtmPartition] = gtmPartitionConfig
-		} else {
-			delete(agent.retryTenantDeclMap, gtmPartition)
-		}
-	}
+	// gtmAS3
+	//gtmPartitionConfig := agent.createAS3GTMConfigADC(config)
+	//if gtmPartitionConfig != nil {
+	//	if !reflect.DeepEqual(gtmPartitionConfig, agent.cachedTenantDeclMap[gtmPartition]) {
+	//		agent.incomingTenantDeclMap[gtmPartition] = gtmPartitionConfig
+	//	} else {
+	//		delete(agent.retryTenantDeclMap, gtmPartition)
+	//	}
+	//}
 
 	return agent.createAS3Declaration(agent.incomingTenantDeclMap)
 }
@@ -723,7 +754,7 @@ func getDGRecordValueForAS3(dgName string, sharedApp as3Application, virtualAddr
 	return "", false
 }
 
-//Process for AS3 Resource
+// Process for AS3 Resource
 func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNodes bool, tenant string) {
 	for _, cfg := range rsMap {
 		//Create policies
@@ -746,7 +777,7 @@ func processResourcesForAS3(rsMap ResourceMap, sharedApp as3Application, shareNo
 	}
 }
 
-//Create policy declaration
+// Create policy declaration
 func createPoliciesDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	_, port := extractVirtualAddressAndPort(cfg.Virtual.Destination)
 	for _, pl := range cfg.Policies {
@@ -1140,7 +1171,7 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 	}
 }
 
-//Extract virtual address and port from host URL
+// Extract virtual address and port from host URL
 func extractVirtualAddressAndPort(str string) (string, int) {
 
 	destination := strings.Split(str, "/")
@@ -1360,7 +1391,7 @@ func createTLSClient(
 	return nil
 }
 
-//Create health monitor declaration
+// Create health monitor declaration
 func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	for _, v := range cfg.Monitors {
@@ -1519,7 +1550,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 	sharedApp[cfg.Virtual.Name] = svc
 }
 
-//Process common declaration for VS and TS
+// Process common declaration for VS and TS
 func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 
 	if cfg.Virtual.SNAT == "auto" || cfg.Virtual.SNAT == "none" {

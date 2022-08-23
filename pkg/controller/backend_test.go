@@ -293,6 +293,60 @@ var _ = Describe("Backend Tests", func() {
 		})
 	})
 
+	It("DNS Config", func() {
+		var monitors []Monitor
+		monitors = append(monitors, Monitor{
+			Name:     "pool1_monitor",
+			Interval: 10,
+			Timeout:  10,
+			Type:     "http",
+			Send:     "GET /health",
+		})
+		dnsConfig := GTMConfig{
+			"test.com": WideIP{
+				DomainName: "test.com",
+				RecordType: "A",
+				LBMethod:   "round-robin",
+				Pools: []GSLBPool{
+					{
+						Name:       "pool1",
+						RecordType: "A",
+						LBMethod:   "round-robin",
+						Members:    []string{"vs1", "vs2"},
+						Monitors:   monitors,
+					},
+				},
+			},
+		}
+
+		config := ResourceConfigRequest{
+			ltmConfig:          make(LTMConfig),
+			shareNodes:         true,
+			gtmConfig:          dnsConfig,
+			defaultRouteDomain: 1,
+		}
+		config.ltmConfig["default"] = &PartitionConfig{}
+
+		writer := &test.MockWriter{
+			FailStyle: test.Success,
+			Sections:  make(map[string]interface{}),
+		}
+		agent := newMockAgent(writer)
+		agent.PostGTMConfig(config)
+
+		writer.FailStyle = test.ImmediateFail
+		agent = newMockAgent(writer)
+		agent.PostGTMConfig(config)
+
+		writer.FailStyle = test.Timeout
+		agent = newMockAgent(writer)
+		agent.PostGTMConfig(config)
+
+		writer.FailStyle = test.AsyncFail
+		agent = newMockAgent(writer)
+		agent.PostGTMConfig(config)
+	})
+
 	Describe("GTM Config", func() {
 		var agent *Agent
 		BeforeEach(func() {

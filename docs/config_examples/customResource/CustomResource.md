@@ -145,18 +145,18 @@ different terminations(for same domain), one with edge and another with re-encry
 
 **TransportServer Components**
 
-| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
-| ------ | ------ | ------ | ------ | ------ |
-| pool | pool | Required | NA | BIG-IP Pool member |
-| virtualServerAddress | String | Optional | NA | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address. |
-| ipamLabel | String | Optional | NA | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.|
-| serviceAddress | List of service address | Optional | NA | Service address definition allows you to add a number of properties to your (virtual) server address |
-| virtualServerPort | String | Required | NA | Port Address of BIG-IP Virtual Server |
-| virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server |
-| type | String | Optional | tcp | "tcp" or "udp" L4 transport server type |
-| mode | String | Required | NA |  "standard" or "performance". A Standard mode transport server processes connections using the full proxy architecture. A Performance mode transport server uses FastL4 packet-by-packet TCP behavior. |
-| snat | String | Optional | auto |  |
-| allowVlans | List of Vlans | Optional | Allow traffic from all VLANS | list of Vlan objects to allow traffic from |
+| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION                                                                                                                                                                                           |
+| ------ | ------ | ------ | ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| pool | pool | Required | NA | BIG-IP Pool member                                                                                                                                                                                    |
+| virtualServerAddress | String | Optional | NA | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address.                                                                                             |
+| ipamLabel | String | Optional | NA | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.                                                                                                     |
+| serviceAddress | List of service address | Optional | NA | Service address definition allows you to add a number of properties to your (virtual) server address                                                                                                  |
+| virtualServerPort | String | Required | NA | Port Address of BIG-IP Virtual Server                                                                                                                                                                 |
+| virtualServerName | String | Optional | NA | Custom name of BIG-IP Virtual Server                                                                                                                                                                  |
+| type | String | Optional | tcp | "tcp", "udp" or "sctp" L4 transport server type                                                                                                                                                        |
+| mode | String | Required | NA | "standard" or "performance". A Standard mode transport server processes connections using the full proxy architecture. A Performance mode transport server uses FastL4 packet-by-packet TCP behavior. |
+| snat | String | Optional | auto |                                                                                                                                                                                                       |
+| allowVlans | List of Vlans | Optional | Allow traffic from all VLANS | list of Vlan objects to allow traffic from                                                                                                                                                            |
 
 **Pool Components**
 

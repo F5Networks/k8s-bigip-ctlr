@@ -128,6 +128,11 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 		nodeAddrs := node.Status.Addresses
 		rec := fdbRecord{}
 		for _, addr := range nodeAddrs {
+			ip := strings.Split(addr.Address, ".")
+			if len(ip) != 4 {
+				log.Warningf("[VxLAN] IPv6 is not supported for FDB record: %s", addr.Address)
+				continue
+			}
 			if addr.Type == addrType {
 				rec.Endpoint = addr.Address
 				// Initially set the name to a fake MAC (for OpenShift use)

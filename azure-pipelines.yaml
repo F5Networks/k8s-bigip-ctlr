@@ -191,6 +191,18 @@ stages:
       inputs:
         command: login
         containerRegistry: $(redhatConnection)
+    - task: UsePythonVersion@0
+      displayName: Install Python
+      inputs:
+        versionSpec: '3.8'
+        addToPath: true
+        architecture: 'x64'
+      condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
+    - script: |
+        pip install --disable-pip-version-check -r ./build-tools/py-requirements.txt
+        python ./build-tools/helm-clusterrole-gen.py
+      displayName: 'Generate the ClusterRole file'
+      condition: and(succeeded(), eq(variables['operatorUpdated'], 'True'))
     - task: Docker@2
       displayName: Build Operator Image for test
       inputs:

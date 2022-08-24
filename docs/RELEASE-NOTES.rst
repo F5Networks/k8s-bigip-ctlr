@@ -35,6 +35,7 @@ Bug Fixes
 * :issues:`2325` Supporting Prometheus service in CRDs
 * :issues:`2158` CIS send logs to file from container
 * :issues:`2345` CIS crash due to Route Profiles
+* Fix CIS continuous processing of ingress belonging to unmanaged ingress class
 
 2.9.1
 -------------

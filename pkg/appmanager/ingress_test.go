@@ -184,7 +184,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				protocol: "http",
 				port:     80,
 			}
-			cfg := mockMgr.appMgr.createRSConfigFromV1Ingress(
+			cfg, _ := mockMgr.appMgr.createRSConfigFromV1Ingress(
 				ingress, &Resources{}, namespace, nil, ps, "", "test-snat-pool")
 			Expect(cfg.Pools[0].Balance).To(Equal("round-robin"))
 			Expect(cfg.Virtual.Partition).To(Equal("velcro"))
@@ -207,7 +207,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				protocol: "http",
 				port:     100,
 			}
-			cfg = mockMgr.appMgr.createRSConfigFromV1Ingress(
+			cfg, _ = mockMgr.appMgr.createRSConfigFromV1Ingress(
 				ingress, &Resources{}, namespace, nil, ps, "", "")
 			Expect(cfg.Pools[0].Balance).To(Equal("foobar"))
 			Expect(cfg.Virtual.VirtualAddress.Port).To(Equal(int32(100)))
@@ -216,7 +216,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				map[string]string{
 					K8sIngressClass: "notf5",
 				})
-			cfg = mockMgr.appMgr.createRSConfigFromV1Ingress(
+			cfg, _ = mockMgr.appMgr.createRSConfigFromV1Ingress(
 				ingress, &Resources{}, namespace, nil, ps, "", "")
 			Expect(cfg).To(BeNil())
 
@@ -226,9 +226,44 @@ var _ = Describe("V1 Ingress Tests", func() {
 					F5VsBindAddrAnnotation:  "controller-default",
 					F5VsPartitionAnnotation: "velcro",
 				})
-			cfg = mockMgr.appMgr.createRSConfigFromV1Ingress(
+			cfg, _ = mockMgr.appMgr.createRSConfigFromV1Ingress(
 				defaultIng, &Resources{}, namespace, nil, ps, "5.6.7.8", "")
 			Expect(cfg.Virtual.VirtualAddress.BindAddr).To(Equal("5.6.7.8"))
+		})
+		It("Verifies that ingress belonging to ingress class that cis doesn't manage isn't processed", func() {
+			namespace := "default"
+			mockMgr.appMgr.manageIngressClassOnly = false
+			mockMgr.appMgr.ingressClass = "f5"
+			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
+				DefaultBackend: &netv1.IngressBackend{
+					Service: &netv1.IngressServiceBackend{Name: "foo", Port: netv1.ServiceBackendPort{Number: int32(80)}},
+				},
+			}
+			ingress := NewV1Ingress("ingress1", "1", namespace, ingressConfig,
+				map[string]string{
+					F5VsBindAddrAnnotation:  "1.2.3.4",
+					F5VsPartitionAnnotation: "velcro",
+				})
+
+			expectedSvcQKey := []*serviceQueueKey{
+				{
+					Namespace:    "default",
+					ServiceName:  "foo",
+					ResourceKind: "ingresses",
+					ResourceName: "ingress1",
+				},
+			}
+			tf, svcQKey := mockMgr.appMgr.checkV1Ingress(ingress)
+			Expect(tf).To(Equal(true))
+			Expect(svcQKey).To(Equal(expectedSvcQKey))
+			// Attach a different ingress class to the ingress that cis doesn't manage and verify that CIS skips
+			// processing it
+			ingClassName := "f5-no-watch"
+			ingress.Spec.IngressClassName = &ingClassName
+			tf, svcQKey = mockMgr.appMgr.checkV1Ingress(ingress)
+			Expect(tf).To(Equal(false))
+			Expect(svcQKey).To(BeNil())
 		})
 	})
 

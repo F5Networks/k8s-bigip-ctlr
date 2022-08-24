@@ -24,6 +24,7 @@ Added Functionality
         * :issues:`2507` Monitor name by accident includes health check command
         * Added TCP Health Monitor support for VS CRs
         * Added monitors support for VS and TS CRs
+        * Add SCTP support for Transport Server Custom Resource
     * Ingress:
         * Added support to configure netmask for Virtual Server for Ingress. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/>`_
     * Added support for --log-file deployment parameter to store the CIS logs in a file

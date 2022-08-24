@@ -101,8 +101,8 @@ func (ctlr *Controller) checkValidTransportServer(
 
 	if tsResource.Spec.Type == "" {
 		tsResource.Spec.Type = "tcp"
-	} else if !(tsResource.Spec.Type == "udp" || tsResource.Spec.Type == "tcp") {
-		log.Errorf("Invalid type value for transport server %s. Supported values are tcp and udp only", vsName)
+	} else if !(tsResource.Spec.Type == "udp" || tsResource.Spec.Type == "tcp" || tsResource.Spec.Type == "sctp") {
+		log.Errorf("Invalid type value for transport server %s. Supported values are tcp, udp and sctp only", vsName)
 		return false
 	}
 

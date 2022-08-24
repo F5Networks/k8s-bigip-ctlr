@@ -324,7 +324,7 @@ spec:
                   enum: [standard, performance]
                 type:
                   type: string
-                  enum: [tcp, udp]
+                  enum: [tcp, udp, sctp]
                 snat:
                   type: string
                 profiles:

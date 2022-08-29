@@ -582,7 +582,11 @@ type (
 )
 
 type (
-	Services []v1.Service
+	Services        []v1.Service
+	RouteBackendCxt struct {
+		Weight int
+		Name   string
+	}
 )
 
 type (

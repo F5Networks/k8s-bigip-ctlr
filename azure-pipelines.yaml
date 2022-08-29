@@ -96,8 +96,8 @@ stages:
       - script: |
           set -ex
           podman pull --authfile $(DOCKER_CONFIG)/config.json $(quay_path):$(Build.SourceVersion)
-          podman tag $(quay_path):$(Build.SourceVersion) scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-rhel7
-          podman push --authfile $(DOCKER_CONFIG)/config.json scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-rhel7
+          podman tag $(quay_path):$(Build.SourceVersion) scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-ubi8
+          podman push --authfile $(DOCKER_CONFIG)/config.json scan.connect.redhat.com/$(REDHAT_PRJ_ID)/$(redhat_prj_name):$(BUILD_VERSION)-ubi8
         condition: and(succeeded(), startsWith(variables['build.sourceBranch'], 'refs/tags/'))
         displayName: 'Push image to Redhat'
         continueOnError: true

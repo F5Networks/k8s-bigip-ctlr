@@ -227,3 +227,7 @@ Refer Release Notes for [CIS v2.9.0](https://github.com/F5Networks/k8s-bigip-ctl
 ### **Upgrading from 2.9.0 to 2.9.1:**
 
 Refer Release Notes for [CIS v2.9.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#290)
+
+### **Upgrading from 2.9.1 to 2.10.0:**
+
+Refer Release Notes for [CIS v2.10.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#290)

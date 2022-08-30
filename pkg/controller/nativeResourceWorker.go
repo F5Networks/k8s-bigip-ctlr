@@ -292,7 +292,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 			rsCfg.MetaData.baseResources[rt.Namespace+"/"+rt.Name] = Route
 			_, port := ctlr.getServicePort(rt)
 			servicePort := intstr.IntOrString{IntVal: port}
-			err = ctlr.prepareResourceConfigFromRoute(rsCfg, rt, servicePort, isPassthroughRoute(rt), portStruct)
+			err = ctlr.prepareResourceConfigFromRoute(rsCfg, rt, servicePort, portStruct)
 			if err != nil {
 				processingError = true
 				log.Errorf("%v", err)
@@ -459,7 +459,6 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	rsCfg *ResourceConfig,
 	route *routeapi.Route,
 	servicePort intstr.IntOrString,
-	passthroughRoute bool,
 	portStruct portStruct,
 ) error {
 
@@ -472,42 +471,47 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 
 	rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, route.Spec.Host)
 
-	pool := Pool{
-		Name: formatPoolName(
-			route.Namespace,
-			route.Spec.To.Name,
-			servicePort,
-			"",
-			"",
-		),
-		Partition:        rsCfg.Virtual.Partition,
-		ServiceName:      route.Spec.To.Name,
-		ServiceNamespace: route.Namespace,
-		ServicePort:      servicePort,
-		NodeMemberLabel:  "",
-		Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
-	}
+	backendSvcs := GetRouteBackends(route)
 
-	for index, monitor := range rsCfg.Monitors {
-		if strings.HasPrefix(monitor.Path, route.Spec.Host+route.Spec.Path) {
-			// Remove unused health monitors
-			rsCfg.Monitors[index].InUse = true
-			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
-			break
-		}
-	}
-
-	rsCfg.Pools = append(rsCfg.Pools, pool)
-	// skip the policy creation for passthrough termination
-	if !passthroughRoute {
-		rules := ctlr.prepareRouteLTMRules(route, pool.Name, rsCfg.Virtual.AllowSourceRange)
-		if rules == nil {
-			return fmt.Errorf("failed to create LTM Rules")
+	for _, bs := range backendSvcs {
+		pool := Pool{
+			Name: formatPoolName(
+				route.Namespace,
+				bs.Name,
+				servicePort,
+				"",
+				"",
+			),
+			Partition:        rsCfg.Virtual.Partition,
+			ServiceName:      bs.Name,
+			ServiceNamespace: route.Namespace,
+			ServicePort:      servicePort,
+			NodeMemberLabel:  "",
+			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
 		}
 
-		policyName := formatPolicyName(route.Spec.Host, route.Namespace, rsCfg.Virtual.Name)
+		for index, monitor := range rsCfg.Monitors {
+			if strings.HasPrefix(monitor.Path, route.Spec.Host+route.Spec.Path) {
+				// Remove unused health monitors
+				rsCfg.Monitors[index].InUse = true
+				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
+				break
+			}
+		}
 
-		rsCfg.AddRuleToPolicy(policyName, rsCfg.Virtual.Partition, rules)
+		rsCfg.Pools = append(rsCfg.Pools, pool)
+		// skip the policy creation for passthrough termination
+		// skip the policy creation for A/B Deployment
+		if !isPassthroughRoute(route) && !IsRouteABDeployment(route) {
+			rules := ctlr.prepareRouteLTMRules(route, pool.Name, rsCfg.Virtual.AllowSourceRange)
+			if rules == nil {
+				return fmt.Errorf("failed to create LTM Rules")
+			}
+
+			policyName := formatPolicyName(route.Spec.Host, route.Namespace, rsCfg.Virtual.Name)
+
+			rsCfg.AddRuleToPolicy(policyName, rsCfg.Virtual.Partition, rules)
+		}
 	}
 
 	return nil

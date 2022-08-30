@@ -18,6 +18,7 @@ package controller
 
 import (
 	"fmt"
+	routeapi "github.com/openshift/api/route/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"net/url"
 	"sort"
@@ -970,4 +971,105 @@ func updateDataGroup(
 		newDg.AddOrUpdateRecord(key, value)
 		nsDg[namespace] = &newDg
 	}
+}
+
+// updateDataGroupForABRoute updates the data group map based on alternativeBackends of route.
+func (ctlr *Controller) updateDataGroupForABRoute(
+	route *routeapi.Route,
+	dgName string,
+	partition string,
+	namespace string,
+	dgMap InternalDataGroupMap,
+	port intstr.IntOrString,
+) {
+	if !IsRouteABDeployment(route) {
+		return
+	}
+
+	weightTotal := 0
+	backends := GetRouteBackends(route)
+	for _, svc := range backends {
+		weightTotal = weightTotal + svc.Weight
+	}
+
+	path := route.Spec.Path
+	tls := route.Spec.TLS
+	if tls != nil {
+		// We don't support path-based A/B for pass-thru and re-encrypt
+		switch tls.Termination {
+		case routeapi.TLSTerminationPassthrough:
+			path = ""
+		case routeapi.TLSTerminationReencrypt:
+			path = ""
+		}
+	}
+	if path == "/" {
+		path = ""
+	}
+	key := route.Spec.Host + path
+
+	if weightTotal == 0 {
+		// If all services have 0 weight, openshift requires a 503 to be returned
+		// (see https://docs.openshift.com/container-platform/3.6/architecture
+		//  /networking/routes.html#alternateBackends)
+		updateDataGroup(dgMap, dgName, partition, namespace, key, "", "")
+	} else {
+		// Place each service in a segment between 0.0 and 1.0 that corresponds to
+		// it's ratio percentage.  The order does not matter in regards to which
+		// service is listed first, but the list must be in ascending order.
+		var entries []string
+		runningWeightTotal := 0
+		for _, be := range backends {
+			if be.Weight == 0 {
+				continue
+			}
+			runningWeightTotal = runningWeightTotal + be.Weight
+			weightedSliceThreshold := float64(runningWeightTotal) / float64(weightTotal)
+			poolName := formatPoolName(
+				route.Namespace,
+				be.Name,
+				port,
+				"",
+				"",
+			)
+			entry := fmt.Sprintf("%s,%4.3f", poolName, weightedSliceThreshold)
+			entries = append(entries, entry)
+		}
+		value := strings.Join(entries, ";")
+		updateDataGroup(dgMap, dgName,
+			partition, namespace, key, value, "string")
+	}
+}
+
+func IsRouteABDeployment(route *routeapi.Route) bool {
+	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0
+}
+
+// return the services associated with a route (names + weight)
+func GetRouteBackends(route *routeapi.Route) []RouteBackendCxt {
+	numOfBackends := 1
+	if route.Spec.AlternateBackends != nil {
+		numOfBackends += len(route.Spec.AlternateBackends)
+	}
+	rbcs := make([]RouteBackendCxt, numOfBackends)
+
+	beIdx := 0
+	rbcs[beIdx].Name = route.Spec.To.Name
+	if route.Spec.To.Weight != nil {
+		rbcs[beIdx].Weight = int(*(route.Spec.To.Weight))
+	} else {
+		// Older versions of openshift do not have a weight field
+		// so we will basically ignore it.
+		rbcs[beIdx].Weight = 0
+	}
+
+	if route.Spec.AlternateBackends != nil {
+		for _, svc := range route.Spec.AlternateBackends {
+			beIdx = beIdx + 1
+			rbcs[beIdx].Name = svc.Name
+			rbcs[beIdx].Weight = int(*(svc.Weight))
+		}
+	}
+
+	return rbcs
 }

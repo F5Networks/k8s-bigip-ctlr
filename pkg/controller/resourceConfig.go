@@ -1937,6 +1937,16 @@ func (ctlr *Controller) handleRouteTLS(
 		}
 	}
 
+	if rsCfg.Virtual.VirtualAddress.Port == DEFAULT_HTTPS_PORT {
+		ctlr.updateDataGroupForABRoute(route,
+			getRSCfgResName(rsCfg.Virtual.Name, AbDeploymentDgName),
+			rsCfg.Virtual.Partition,
+			route.Namespace,
+			rsCfg.IntDgMap,
+			servicePort,
+		)
+	}
+
 	return ctlr.handleTLS(rsCfg, TLSContext{route.ObjectMeta.Name,
 		route.ObjectMeta.Namespace,
 		Route,

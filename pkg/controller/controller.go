@@ -151,8 +151,8 @@ func NewController(params Params) *Controller {
 			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 	}
 
-	//If pool-member-type type is nodeport, enable shareNodes by default
-	if ctlr.PoolMemberType == "nodeport" {
+	//If pool-member-type type is nodeport and it's running in openshift mode (multi-partition)
+	if ctlr.PoolMemberType == "nodeport" && ctlr.mode == OpenShiftMode {
 		ctlr.shareNodes = true
 	}
 

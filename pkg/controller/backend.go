@@ -327,16 +327,12 @@ func (agent *Agent) notifyRscStatusHandler(id int, overwriteCfg bool) {
 }
 
 func (agent *Agent) updateRetryMap(tenant string, resp tenantResponse, tenDecl interface{}) {
-	//422 Unprocessable Entity response status code indicates invalid config
-	//client should not repeat this request without modification.So remove from retry map.
-	if resp.agentResponseCode == http.StatusOK || resp.agentResponseCode == http.StatusUnprocessableEntity {
+	if resp.agentResponseCode == http.StatusOK {
 		// delete the tenant entry from retry if any
 		delete(agent.retryTenantDeclMap, tenant)
 		// if received the 200 response remove the entry from tenantPriorityMap
-		if resp.agentResponseCode == http.StatusOK {
-			if _, ok := agent.tenantPriorityMap[tenant]; ok {
-				delete(agent.tenantPriorityMap, tenant)
-			}
+		if _, ok := agent.tenantPriorityMap[tenant]; ok {
+			delete(agent.tenantPriorityMap, tenant)
 		}
 	} else {
 		agent.retryTenantDeclMap[tenant] = &tenantParams{

@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
 	"sort"
 	"strconv"
@@ -141,6 +142,13 @@ func NewAgent(params AgentParams) *Agent {
 			params.PythonBaseDir,
 		)
 	}
+	// Set the AS3 version for the agent
+	err = agent.IsBigIPAppServicesAvailable()
+	if err != nil {
+		log.Errorf("%v", err)
+		agent.Stop()
+		os.Exit(1)
+	}
 	return agent
 }
 
@@ -149,6 +157,47 @@ func (agent *Agent) Stop() {
 	if !(agent.EnableIPV6) {
 		agent.stopPythonDriver()
 	}
+}
+
+// Method to verify if App Services are installed or CIS as3 version is
+// compatible with BIG-IP, it will return with error if any one of the
+// requirements are not met
+func (agent *Agent) IsBigIPAppServicesAvailable() error {
+	version, build, schemaVersion, err := agent.PostManager.GetBigipAS3Version()
+	if err != nil {
+		log.Errorf("[AS3] %v ", err)
+		return err
+	}
+	am := as3VersionInfo{
+		as3Version:       version,
+		as3SchemaVersion: schemaVersion,
+		as3Release:       version + "-" + build,
+	}
+	agent.AS3VersionInfo = am
+	versionstr := version[:strings.LastIndex(version, ".")]
+	bigIPAS3Version, err := strconv.ParseFloat(versionstr, 64)
+	if err != nil {
+		log.Errorf("[AS3] Error while converting AS3 version to float")
+		return err
+	}
+	if bigIPAS3Version >= as3SupportedVersion && bigIPAS3Version <= as3Version {
+		log.Debugf("[AS3] BIGIP is serving with AS3 version: %v", version)
+		return nil
+	}
+
+	if bigIPAS3Version > as3Version {
+		am.as3Version = defaultAS3Version
+		am.as3SchemaVersion = fmt.Sprintf("%.2f.0", as3Version)
+		as3Build := defaultAS3Build
+		am.as3Release = am.as3Version + "-" + as3Build
+		log.Debugf("[AS3] BIGIP is serving with AS3 version: %v", bigIPAS3Version)
+		agent.AS3VersionInfo = am
+		return nil
+	}
+
+	return fmt.Errorf("CIS versions >= 2.0 are compatible with AS3 versions >= %v. "+
+		"Upgrade AS3 version in BIGIP from %v to %v or above.", as3SupportedVersion,
+		bigIPAS3Version, as3SupportedVersion)
 }
 
 func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {

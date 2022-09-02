@@ -2275,7 +2275,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 					pl.DataServerName, DEFAULT_PARTITION, vsName))
 				pool.Members = append(
 					pool.Members,
-					fmt.Sprintf("/%v/Shared/%v", DEFAULT_PARTITION, vsName),
+					fmt.Sprintf("%v:/%v/Shared/%v", pl.DataServerName, DEFAULT_PARTITION, vsName),
 				)
 			}
 		}

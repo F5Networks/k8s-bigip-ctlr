@@ -1001,12 +1001,6 @@ func main() {
 			ctlr.TeemData.RegistrationKey = key
 			ctlr.TeemData.Unlock()
 		}
-		err = ctlr.IsBigIPAppServicesAvailable()
-		if err != nil {
-			log.Errorf("%v", err)
-			ctlr.Stop()
-			os.Exit(1)
-		}
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigs

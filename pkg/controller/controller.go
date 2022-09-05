@@ -160,7 +160,7 @@ func NewController(params Params) *Controller {
 	}
 
 	if ctlr.namespaceLabel == "" {
-		if len(ctlr.namespaces) == 0 {
+		if len(params.Namespaces) == 0 {
 			ctlr.namespaces[""] = true
 			log.Debug("No namespaces provided. Watching all namespaces")
 		} else {

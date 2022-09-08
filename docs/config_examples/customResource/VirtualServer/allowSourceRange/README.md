@@ -1,8 +1,8 @@
-# Virtual Server with AllowSourceRange
+# Virtual Server with allowSourceRange
 
-This section demonstrates the option to configure AllowSourceRange in virtual server.
+This section demonstrates the option to configure allowSourceRange in virtual server.
 
-Option which can be use to AllowSourceRange:
+Option which can be use to allowSourceRange:
 
 ```
 allowSourceRange:

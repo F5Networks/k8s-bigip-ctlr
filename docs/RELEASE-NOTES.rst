@@ -1,43 +1,46 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.10.0
 -------------
 
 Added Functionality
 ```````````````````
 
 **What’s new:**
-    * Next generation routes
-        * Added support for namespaceLabel in global extended ConfigMap
-        * Added support for BigIP ClientSSL/ServerSSL profile reference in global extended ConfigMap
-        * Added support for path rewrite
-        * Added base config block for TLSCipher for NextGen Routes
-        * Add support for Load Balancing feature in NextGen Routes for Pools
-        * Add support for AllowSourceRange in NextGen Routes
-        * Add support for AB Deployment in NextGen Routes
+    * Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
+        * Added new base config block for TLSCiphers in global extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
+        * Support for namespaceLabel in global extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
+        * Support for BigIP ClientSSL/ServerSSL profile reference in global extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
+        * Support for allowSourceRange in global & local extended ConfigMap. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
+        * rewrite-target-url support via route annotations. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
+        * Load Balancing support via route annotation. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
+        * Support for AB Deployment in routes
     * CRD:
-        * AllowSourceRange support for VirtualServer CRs and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
-        * :issues:`2201` Support for linking existing healthmonitor on bigip with virtualSever and TransportServer CRs.
-        * :issues:`2361` Allow monitoring of an alias port in VirtualServer and TransportServer
+        * allowSourceRange support for VirtualServer CRs and Policy CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * Added support for TCP Health Monitor support in VS CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/HealthMonitor>`_
+        * Added support for multiple monitors in VS and TS CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/`_
+        * SCTP support for Transport Server Custom Resource. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer>`_
+        * :issues:`2201` Support for linking existing health monitor on bigip with virtualSever and TransportServer CRs. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
+        * :issues:`2361` Allow monitoring of an alias port in VirtualServer and TransportServer. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
         * :issues:`1933` Added serviceNamespace field in Pools for VirtualServer CR that allows to define a pool service from another namespace in a Virtual server CR.
           See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
-        * :issues:`2507` Monitor name by accident includes health check command
-        * Added TCP Health Monitor support for VS CRs
-        * Added monitors support for VS and TS CRs
-        * Add SCTP support for Transport Server Custom Resource
     * Ingress:
         * Added support to configure netmask for Virtual Server for Ingress. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/>`_
-    * Added support for --log-file deployment parameter to store the CIS logs in a file
-    * Added Support for AS3 3.38.0
-    * Added Support for operator in openshift 4.10
+    * Support for Cilium CNI (>=v1.12.0) in kubernetes cluster
+    * Support for --log-file deployment parameter to store the CIS logs in a file
+    * Support for AS3 3.38.0
+    * Support for operator in openshift 4.10 & openshift 4.11
 
 Bug Fixes
 ````````````
+* Fix CIS continuous processing of ingress belonging to unmanaged ingress class
 * :issues:`2325` Supporting Prometheus service in CRDs
 * :issues:`2158` CIS send logs to file from container
 * :issues:`2345` CIS crash due to Route Profiles
-* Fix CIS continuous processing of ingress belonging to unmanaged ingress class
+* :issues:`2507` Monitor name by accident includes health check command
+* :issues:`2413` Hyphens/dashes not allowed in VirtualServer pool path
+
 
 2.9.1
 -------------

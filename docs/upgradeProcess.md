@@ -29,7 +29,8 @@ Compatibility Matrix
 | v2.8.0      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.19 |
 | v2.8.1      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.7      | v0.0.1     | v0.0.19 |
 | v2.9.0      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.1     | v0.0.20 |
-| v2.9.1      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.2     | v0.0.21 |       
+| v2.9.1      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.2     | v0.0.21 |
+| v2.10.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |       
 
 
 CIS Features and Examples
@@ -226,3 +227,7 @@ Refer Release Notes for [CIS v2.9.0](https://github.com/F5Networks/k8s-bigip-ctl
 ### **Upgrading from 2.9.0 to 2.9.1:**
 
 Refer Release Notes for [CIS v2.9.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#290)
+
+### **Upgrading from 2.9.1 to 2.10.0:**
+
+Refer Release Notes for [CIS v2.10.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst#290)

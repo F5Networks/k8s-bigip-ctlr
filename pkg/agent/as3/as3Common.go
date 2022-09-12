@@ -515,6 +515,7 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		case "https":
 			//Todo: For https monitor type
 			adaptiveFalse := false
+			monitor.Send = v.Send
 			monitor.Adaptive = &adaptiveFalse
 		}
 		sharedApp[as3FormattedString(v.Name, cfg.MetaData.ResourceType)] = monitor

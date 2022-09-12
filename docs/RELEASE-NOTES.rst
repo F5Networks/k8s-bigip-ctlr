@@ -9,7 +9,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
-
+* :issues:`2394` Fix to set ingress https monitor send string
 
 2.10.0
 -------------

@@ -10,6 +10,7 @@ Added Functionality
 Bug Fixes
 ````````````
 * :issues:`2394` Fix to set ingress https monitor send string
+* :issues:`2549` Fix trafficGroup regex
 
 2.10.0
 -------------

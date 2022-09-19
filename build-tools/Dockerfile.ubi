@@ -39,8 +39,8 @@ RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
  && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json
 
 RUN microdnf update && \
-    microdnf --enablerepo=ubi-8-baseos install --nodocs python38 git shadow-utils && \
-    microdnf --enablerepo=ubi-8-baseos --enablerepo=ubi-8-appstream update nss-tools nss-softokn nss-util scl-utils && \
+    microdnf --enablerepo=ubi-8-baseos-rpms install --nodocs python38 git shadow-utils && \
+    microdnf --enablerepo=ubi-8-baseos-rpms --enablerepo=ubi-8-appstream-rpms update nss-tools nss-softokn nss-util scl-utils && \
     pip3 install --no-cache-dir --upgrade pip==20.0.2 && \
     pip3 install --no-cache-dir -r /tmp/requirements.txt && \
     python3 -m pip uninstall -y pip && \

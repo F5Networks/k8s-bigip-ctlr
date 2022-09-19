@@ -1059,7 +1059,7 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
 
 func (ctlr *Controller) enqueueRoute(obj interface{}, event string) {
 	rt := obj.(*routeapi.Route)
-	log.Debugf("Enqueueing Route: %v", rt)
+	log.Debugf("Enqueueing Route: %v/%v", rt.ObjectMeta.Namespace, rt.ObjectMeta.Name)
 	key := &rqKey{
 		namespace: rt.ObjectMeta.Namespace,
 		kind:      Route,
@@ -1077,7 +1077,7 @@ func (ctlr *Controller) enqueueUpdatedRoute(old, cur interface{}) {
 	if reflect.DeepEqual(oldRoute.Spec, newRoute.Spec) && reflect.DeepEqual(oldRoute.Annotations, newRoute.Annotations) {
 		return
 	}
-	log.Debugf("Enqueueing Route: %v", newRoute)
+	log.Debugf("Enqueueing Route: %v/%v", newRoute.ObjectMeta.Namespace, newRoute.ObjectMeta.Name)
 	key := &rqKey{
 		namespace: newRoute.ObjectMeta.Namespace,
 		kind:      Route,
@@ -1126,7 +1126,7 @@ func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}) {
 func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
 	rt := obj.(*routeapi.Route)
 
-	log.Debugf("Enqueueing Deleted Route: %v", rt)
+	log.Debugf("Enqueueing Deleted Route: %v/%v", rt.ObjectMeta.Namespace, rt.ObjectMeta.Name)
 	key := &rqKey{
 		namespace: rt.ObjectMeta.Namespace,
 		kind:      Route,

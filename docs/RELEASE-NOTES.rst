@@ -38,7 +38,7 @@ Added Functionality
           See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/>`_
     * Ingress:
         * Added support to configure netmask for Virtual Server for Ingress. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/>`_
-    * Support for Cilium CNI (>=v1.12.0) in kubernetes cluster
+    * Support for Cilium CNI (>=v1.12.0) in kubernetes cluster. See `Examples <https://github.com/f5devcentral/f5-ci-docs/blob/master/docs/cilium/cilium-bigip-info.rst>`_
     * Support for --log-file deployment parameter to store the CIS logs in a file
     * Support for AS3 3.38.0
     * Support for operator in openshift 4.10 & openshift 4.11

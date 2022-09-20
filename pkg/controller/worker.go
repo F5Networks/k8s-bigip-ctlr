@@ -2271,6 +2271,13 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 				if vs.MetaData.Protocol == "http" && (vs.MetaData.httpTraffic == TLSRedirectInsecure || vs.MetaData.httpTraffic == TLSAllowInsecure) {
 					continue
 				}
+				// add only one VS member to pool.
+				if len(pool.Members) > 0 && strings.HasPrefix(vsName, "ingress_link_") {
+					if strings.HasSuffix(vsName, "_443") {
+						pool.Members[0] = fmt.Sprintf("%v:/%v/Shared/%v", pl.DataServerName, DEFAULT_PARTITION, vsName)
+					}
+					continue
+				}
 				log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("%v:/%v/Shared/%v",
 					pl.DataServerName, DEFAULT_PARTITION, vsName))
 				pool.Members = append(
@@ -2612,7 +2619,7 @@ func (ctlr *Controller) processIngressLink(
 
 		rsCfg := &ResourceConfig{}
 		rsCfg.Virtual.Partition = ctlr.Partition
-		rsCfg.MetaData.ResourceType = "TransportServer"
+		rsCfg.MetaData.ResourceType = TransportServer
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, ingLink.Spec.Host)
 		rsCfg.Virtual.Mode = "standard"
 		rsCfg.Virtual.TranslateServerAddress = true

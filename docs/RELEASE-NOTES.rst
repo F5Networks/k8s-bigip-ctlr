@@ -13,6 +13,7 @@ Bug Fixes
 * :issues:`2549` Fix trafficGroup regex
 * : Fix issue with inconsistent pool names for VS
 * :issues:`2492` Fix for adding unique pool members in nodePort mode
+* :issues:`847`  Fix issue with adding both VIPs to GTM pool members for IngressLink
 
 2.10.0
 -------------

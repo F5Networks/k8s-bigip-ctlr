@@ -18,8 +18,10 @@ package controller
 
 import (
 	"fmt"
+
 	routeapi "github.com/openshift/api/route/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
 	"net/url"
 	"sort"
 	"strconv"
@@ -77,10 +79,9 @@ func (ctlr *Controller) prepareVirtualServerRules(
 			path = vs.Spec.RewriteAppRoot
 		}
 
-		poolName := framePoolName(
+		poolName := ctlr.framePoolName(
 			vs.ObjectMeta.Namespace,
 			pl,
-			intstr.IntOrString{IntVal: pl.ServicePort},
 			vs.Spec.Host,
 		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)

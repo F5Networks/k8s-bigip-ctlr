@@ -20,12 +20,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
+
 	"net"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+
+	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/cache"
@@ -264,10 +266,20 @@ func formatCustomVirtualServerName(name string, port int32) string {
 	return fmt.Sprintf("%s_%d", name, port)
 }
 
-func framePoolName(ns string, pool cisapiv1.Pool, port intstr.IntOrString, host string) string {
+func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string) string {
+
 	poolName := pool.Name
 	if poolName == "" {
-		poolName = formatPoolName(ns, pool.Service, port, pool.NodeMemberLabel, host)
+		targetPort := intstr.IntOrString{IntVal: pool.ServicePort}
+
+		if (intstr.IntOrString{}) == targetPort {
+			svcNamespace := ns
+			if pool.ServiceNamespace != "" {
+				svcNamespace = pool.ServiceNamespace
+			}
+			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
+		}
+		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host)
 	}
 
 	return poolName
@@ -398,20 +410,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	var pools Pools
 	var rules *Rules
 	var monitors []Monitor
-	var targetPort intstr.IntOrString
 
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
-		svcNamespace := vs.Namespace
-		if pl.ServiceNamespace != "" {
-			svcNamespace = pl.ServiceNamespace
-		}
-		targetPort = ctlr.fetchTargetPort(svcNamespace, pl.Service, pl.ServicePort)
 
-		if (intstr.IntOrString{}) == targetPort {
-			targetPort = intstr.IntOrString{IntVal: pl.ServicePort}
-		}
-		poolName := framePoolName(vs.ObjectMeta.Namespace, pl, targetPort, vs.Spec.Host)
+		poolName := ctlr.framePoolName(vs.Namespace, pl, vs.Spec.Host)
 		//check for custom monitor
 		var monitorName string
 		if pl.Monitor.Name != "" && pl.Monitor.Reference == BIGIP {
@@ -426,7 +429,15 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			continue
 		}
 		framedPools[poolName] = struct{}{}
+		targetPort := intstr.IntOrString{IntVal: pl.ServicePort}
 
+		if (intstr.IntOrString{}) == targetPort {
+			targetPort = ctlr.fetchTargetPort(vs.Namespace, pl.Service, pl.ServicePort)
+		}
+		svcNamespace := vs.Namespace
+		if pl.ServiceNamespace != "" {
+			svcNamespace = pl.ServiceNamespace
+		}
 		pool := Pool{
 			Name:             poolName,
 			Partition:        rsCfg.Virtual.Partition,
@@ -864,10 +875,9 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	var poolPathRefs []poolPathRef
 	for _, pl := range vs.Spec.Pools {
 
-		poolName := framePoolName(
+		poolName := ctlr.framePoolName(
 			vs.ObjectMeta.Namespace,
 			pl,
-			intstr.IntOrString{IntVal: pl.ServicePort},
 			vs.Spec.Host,
 		)
 
@@ -1495,14 +1505,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.TransportServer,
 ) error {
-	targetPort := ctlr.fetchTargetPort(vs.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
-	if (intstr.IntOrString{}) == targetPort {
-		targetPort = intstr.IntOrString{IntVal: vs.Spec.Pool.ServicePort}
-	}
-	poolName := framePoolName(
+
+	poolName := ctlr.framePoolName(
 		vs.ObjectMeta.Namespace,
 		vs.Spec.Pool,
-		targetPort,
 		"",
 	)
 	//check for custom monitor
@@ -1511,6 +1517,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		monitorName = vs.Spec.Pool.Monitor.Name
 	} else {
 		monitorName = poolName + "-monitor"
+	}
+	targetPort := ctlr.fetchTargetPort(vs.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
+	if (intstr.IntOrString{}) == targetPort {
+		targetPort = intstr.IntOrString{IntVal: vs.Spec.Pool.ServicePort}
 	}
 
 	pool := Pool{

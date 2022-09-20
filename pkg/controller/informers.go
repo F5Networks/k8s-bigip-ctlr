@@ -102,6 +102,10 @@ func (crInfr *CRInformer) start() {
 		go crInfr.podInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.podInformer.HasSynced)
 	}
+	if crInfr.secretsInformer != nil {
+		go crInfr.secretsInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.secretsInformer.HasSynced)
+	}
 	cache.WaitForNamedCacheSync(
 		"F5 CIS CRD Controller",
 		crInfr.stopCh,
@@ -300,6 +304,17 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 				everything,
 			),
 			&corev1.Endpoints{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+		secretsInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"secrets",
+				namespace,
+				everything,
+			),
+			&corev1.Secret{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
@@ -546,6 +561,16 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj) },
 				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj) },
+			},
+		)
+	}
+
+	if crInf.secretsInformer != nil {
+		crInf.secretsInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.enqueueSecret(obj, Create) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueSecret(cur, Update) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueSecret(obj, Delete) },
 			},
 		)
 	}
@@ -1055,6 +1080,20 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
 	case CustomResourceMode:
 		ctlr.rscQueue.Add(key)
 	}
+}
+
+func (ctlr *Controller) enqueueSecret(obj interface{}, event string) {
+	secret := obj.(*corev1.Secret)
+	log.Debugf("Enqueueing Secrets: %v/%v", secret.Namespace, secret.Name)
+	key := &rqKey{
+		namespace: secret.ObjectMeta.Namespace,
+		kind:      K8sSecret,
+		rscName:   secret.ObjectMeta.Name,
+		rsc:       obj,
+		event:     event,
+	}
+	ctlr.rscQueue.Add(key)
+
 }
 
 func (ctlr *Controller) enqueueRoute(obj interface{}, event string) {

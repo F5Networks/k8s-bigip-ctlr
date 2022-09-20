@@ -17,7 +17,6 @@
 package controller
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -33,8 +32,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	routeapi "github.com/openshift/api/route/v1"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -618,68 +615,50 @@ func (ctlr *Controller) handleTLS(
 				log.Debugf("Updated BIGIP referenced profiles for '%s' '%s'/'%s'",
 					tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
 			case Secret:
-				// Prepare SSL Transient Context
-				// Check if TLS Secret already exists
 				// Process ClientSSL stored as kubernetes secret
+				var namespace string
+				if ctlr.watchingAllNamespaces() {
+					namespace = ""
+				} else {
+					namespace = tlsContext.namespace
+				}
 				if clientSSL != "" {
-					if secret, ok := ctlr.SSLContext[clientSSL]; ok {
-						log.Debugf("clientSSL secret %s for '%s'/'%s' is already available with CIS in "+
-							"SSLContext as clientSSL", secret.ObjectMeta.Name, tlsContext.namespace, tlsContext.name)
-						err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
-						if err != nil {
-							log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s' using secret '%s'",
-								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name, secret.ObjectMeta.Name)
-							return false
-						}
-					} else {
-						// Check if profile is contained in a Secret
-						// Update the SSL Context if secret found, This is used to avoid api calls
-						log.Debugf("saving clientSSL secret for '%s' '%s'/'%s' into SSLContext", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-						secret, err := ctlr.kubeClient.CoreV1().Secrets(tlsContext.namespace).
-							Get(context.TODO(), clientSSL, metav1.GetOptions{})
-						if err != nil {
-							log.Errorf("secret %s not found for '%s' '%s'/'%s'",
-								clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-							return false
-						}
-						ctlr.SSLContext[clientSSL] = secret
-						err, _ = ctlr.createSecretClientSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
-						if err != nil {
-							log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
-								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-							return false
-						}
+					secretKey := tlsContext.namespace + "/" + clientSSL
+					if _, ok := ctlr.crInformers[namespace]; !ok {
+						return false
+					}
+					obj, found, err := ctlr.crInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+					if err != nil || !found {
+						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+							clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
+					}
+					secret := obj.(*v1.Secret)
+					err, _ = ctlr.createSecretClientSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
+					if err != nil {
+						log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
+							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
 					}
 				}
 				// Process ServerSSL stored as kubernetes secret
 				if serverSSL != "" {
-					if secret, ok := ctlr.SSLContext[serverSSL]; ok {
-						log.Debugf("serverSSL secret %s for '%s'/'%s' is already available with CIS in "+
-							"SSLContext as serverSSL", secret.ObjectMeta.Name, tlsContext.namespace, tlsContext.name)
-						err, _ := ctlr.createSecretServerSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
-						if err != nil {
-							log.Debugf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s' using secret '%s'",
-								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name, secret.ObjectMeta.Name)
-							return false
-						}
-					} else {
-						// Check if profile is contained in a Secret
-						// Update the SSL Context if secret found, This is used to avoid api calls
-						log.Debugf("saving serverSSL secret for '%s' '%s'/'%s' into SSLContext", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-						secret, err := ctlr.kubeClient.CoreV1().Secrets(tlsContext.namespace).
-							Get(context.TODO(), serverSSL, metav1.GetOptions{})
-						if err != nil {
-							log.Errorf("secret %s not found for '%s' '%s'/'%s'",
-								serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-							return false
-						}
-						ctlr.SSLContext[serverSSL] = secret
-						err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
-						if err != nil {
-							log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
-								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-							return false
-						}
+					secretKey := tlsContext.namespace + "/" + serverSSL
+					if _, ok := ctlr.crInformers[namespace]; !ok {
+						return false
+					}
+					obj, found, err := ctlr.crInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+					if err != nil || !found {
+						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+							serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
+					}
+					secret := obj.(*v1.Secret)
+					err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
+					if err != nil {
+						log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
+							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
 					}
 				}
 

@@ -363,6 +363,19 @@ var _ = Describe("Informers Tests", func() {
 			Expect(quit).To(BeFalse(), "Enqueue New Pod Failed")
 		})
 
+		It("Secret", func() {
+			secret := test.NewSecret(
+				"SampleSecret",
+				namespace,
+				"testcert",
+				"testkey",
+			)
+			mockCtlr.enqueueSecret(secret, Create)
+			key, quit := mockCtlr.rscQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue New Secret Failed")
+			Expect(quit).To(BeFalse(), "Enqueue New Secret Failed")
+		})
+
 		It("Namespace", func() {
 			labels := make(map[string]string)
 			labels["app"] = "test"

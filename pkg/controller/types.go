@@ -67,7 +67,6 @@ type (
 		oldNodes           []Node
 		UseNodeInternal    bool
 		initState          bool
-		SSLContext         map[string]*v1.Secret
 		dgPath             string
 		shareNodes         bool
 		ipamCli            *ipammachinery.IPAMClient
@@ -112,17 +111,18 @@ type (
 
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
-		namespace    string
-		stopCh       chan struct{}
-		svcInformer  cache.SharedIndexInformer
-		epsInformer  cache.SharedIndexInformer
-		vsInformer   cache.SharedIndexInformer
-		tlsInformer  cache.SharedIndexInformer
-		tsInformer   cache.SharedIndexInformer
-		ilInformer   cache.SharedIndexInformer
-		ednsInformer cache.SharedIndexInformer
-		plcInformer  cache.SharedIndexInformer
-		podInformer  cache.SharedIndexInformer
+		namespace       string
+		stopCh          chan struct{}
+		svcInformer     cache.SharedIndexInformer
+		epsInformer     cache.SharedIndexInformer
+		vsInformer      cache.SharedIndexInformer
+		tlsInformer     cache.SharedIndexInformer
+		tsInformer      cache.SharedIndexInformer
+		ilInformer      cache.SharedIndexInformer
+		ednsInformer    cache.SharedIndexInformer
+		plcInformer     cache.SharedIndexInformer
+		podInformer     cache.SharedIndexInformer
+		secretsInformer cache.SharedIndexInformer
 	}
 
 	EssentialInformer struct {

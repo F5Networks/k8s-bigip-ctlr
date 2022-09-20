@@ -150,6 +150,25 @@ func (ctlr *Controller) processCustomResource() bool {
 				isError = true
 			}
 		}
+	case K8sSecret:
+		secret := rKey.rsc.(*v1.Secret)
+		tlsProfiles := ctlr.getTLSProfilesForSecret(secret)
+		for _, tlsProfile := range tlsProfiles {
+			virtuals := ctlr.getVirtualsForTLSProfile(tlsProfile)
+			// No Virtuals are effected with the change in TLSProfile.
+			if nil == virtuals {
+				break
+			}
+			for _, virtual := range virtuals {
+				err := ctlr.processVirtualServers(virtual, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
+			}
+		}
+
 	case TransportServer:
 		virtual := rKey.rsc.(*cisapiv1.TransportServer)
 		err := ctlr.processTransportServers(virtual, rscDelete)
@@ -478,17 +497,6 @@ func (ctlr *Controller) getVirtualServersForService(svc *v1.Service) []*cisapiv1
 			svc.ObjectMeta.Name)
 		return nil
 	}
-	// Output list of all Virtuals Found.
-	var targetVirtualNames []string
-	for _, vs := range allVirtuals {
-		targetVirtualNames = append(targetVirtualNames, vs.ObjectMeta.Name)
-	}
-	log.Debugf("VirtualServers %v are affected with service %s change",
-		targetVirtualNames, svc.ObjectMeta.Name)
-
-	// TODO
-	// Remove Duplicate entries in the targetVirutalServers.
-	// or Add only Unique entries into the targetVirutalServers.
 	return virtualsForService
 }
 
@@ -510,18 +518,6 @@ func (ctlr *Controller) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*ci
 			tls.ObjectMeta.Name)
 		return nil
 	}
-	// Output list of all Virtuals Found.
-	var targetVirtualNames []string
-	for _, vs := range allVirtuals {
-		targetVirtualNames = append(targetVirtualNames, vs.ObjectMeta.Name)
-	}
-	log.Debugf("VirtualServers %v are affected with TLSProfile %s change",
-		targetVirtualNames, tls.ObjectMeta.Name)
-
-	// TODO
-	// Remove Duplicate entries in the targetVirutalServers.
-	// or Add only Unique entries into the targetVirutalServers.
-
 	return virtualsForTLSProfile
 }
 
@@ -1882,17 +1878,6 @@ func (ctlr *Controller) getTransportServersForService(svc *v1.Service) []*cisapi
 			svc.ObjectMeta.Name)
 		return nil
 	}
-	// Output list of all Virtuals Found.
-	var targetVirtualNames []string
-	for _, vs := range allVirtuals {
-		targetVirtualNames = append(targetVirtualNames, vs.ObjectMeta.Name)
-	}
-	log.Debugf("VirtualServers for TransportServer %v are affected with service %s change",
-		targetVirtualNames, svc.ObjectMeta.Name)
-
-	// TODO
-	// Remove Duplicate entries in the targetVirutalServers.
-	// or Add only Unique entries into the targetVirutalServers.
 	return virtualsForService
 }
 
@@ -3172,4 +3157,32 @@ func fetchPortString(port intstr.IntOrString) string {
 		return fmt.Sprintf("%v", port.IntVal)
 	}
 	return ""
+}
+
+// fetch list of tls profiles for given secret.
+func (ctlr *Controller) getTLSProfilesForSecret(secret *v1.Secret) []*cisapiv1.TLSProfile {
+	var allTLSProfiles []*cisapiv1.TLSProfile
+
+	crInf, ok := ctlr.getNamespacedInformer(secret.Namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", secret.Namespace)
+		return nil
+	}
+
+	var orderedTLS []interface{}
+	var err error
+	orderedTLS, err = crInf.tlsInformer.GetIndexer().ByIndex("namespace", secret.Namespace)
+	if err != nil {
+		log.Errorf("Unable to get list of TLS Profiles for namespace '%v': %v",
+			secret.Namespace, err)
+		return nil
+	}
+
+	for _, obj := range orderedTLS {
+		tlsProfile := obj.(*cisapiv1.TLSProfile)
+		if tlsProfile.Spec.TLS.Reference == Secret && tlsProfile.Spec.TLS.ClientSSL == secret.Name {
+			allTLSProfiles = append(allTLSProfiles, tlsProfile)
+		}
+	}
+	return allTLSProfiles
 }

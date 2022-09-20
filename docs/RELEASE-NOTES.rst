@@ -12,6 +12,7 @@ Bug Fixes
 * :issues:`2394` Fix to set ingress https monitor send string
 * :issues:`2549` Fix trafficGroup regex
 * : Fix issue with inconsistent pool names for VS
+* :issues:`2492` Fix for adding unique pool members in nodePort mode
 
 2.10.0
 -------------

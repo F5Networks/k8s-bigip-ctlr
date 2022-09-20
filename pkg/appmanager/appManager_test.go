@@ -1203,6 +1203,43 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(rs.MetaData.Active).To(BeFalse())
 			})
 
+			It("Handles services with same ports in nodeport mode", func() {
+				mockMgr.appMgr.poolMemberType = NodePort
+				// Add a node
+				nds := []Node{Node{"node0", "10.10.10.1"}}
+				mockMgr.appMgr.oldNodes = nds
+				// Service with same port
+				fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001, Protocol: "TCP"},
+					{Port: 9090, NodePort: 38001, Protocol: "TCP"},
+					{Port: 9090, NodePort: 38001, Protocol: "UDP"}}
+				foo := test.NewService("foo", "1", namespace, "NodePort", fooPorts)
+				foo.Labels = map[string]string{"cis.f5.com/as3-tenant": "test"}
+				r := mockMgr.addService(foo)
+				Expect(r).To(BeTrue(), "Service should be processed.")
+				fooIps := []string{"10.1.1.1"}
+				// Add endpoint
+				fooEndpts := test.NewEndpoints(
+					"foo", "1", "node0", namespace, fooIps, []string{},
+					convertSvcPortsToEndpointPorts(fooPorts))
+				r = mockMgr.addEndpoints(fooEndpts)
+				expMembers := []Member{
+					{
+						Address: "10.10.10.1",
+						Port:    30001,
+						SvcPort: 80,
+						Session: "user-enabled",
+					},
+					{
+						Address: "10.10.10.1",
+						Port:    38001,
+						SvcPort: 9090,
+						Session: "user-enabled",
+					},
+				}
+				mems := mockMgr.appMgr.getEndpoints("cis.f5.com/as3-tenant=test", "default")
+				Expect(mems).To(Equal(expMembers))
+			})
+
 			It("handles concurrent updates - NodePort", func() {
 				cfgFoo := test.NewConfigMap("foomap", "1", namespace, map[string]string{
 					"schema": schemaUrl,

@@ -254,10 +254,15 @@ func (ctlr *Controller) processCustomResource() bool {
 		ingLinks := ctlr.getIngressLinksForService(svc)
 		if nil != ingLinks {
 			for _, ingLink := range ingLinks {
-				err := ctlr.processIngressLink(ingLink, false)
+				// Delete/sync IngressLink. Delete will be processed with old service
+				err := ctlr.processIngressLink(ingLink, rscDelete)
 				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					if rscDelete {
+						utilruntime.HandleError(fmt.Errorf("Deleting IngresLink %v failed with %v", ingLink.Name, err))
+					} else {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					}
 					isError = true
 				}
 			}

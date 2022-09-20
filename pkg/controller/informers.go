@@ -979,7 +979,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
-		!reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
+		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
 		log.Debugf("Enqueueing Old Service: %v", svc)
 		key := &rqKey{
 			namespace: svc.ObjectMeta.Namespace,

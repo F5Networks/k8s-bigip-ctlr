@@ -61,6 +61,8 @@ const (
 	Service = "Service"
 	//Pod  is a k8s native object
 	Pod = "Pod"
+	//Secret  is a k8s native object
+	K8sSecret = "Secret"
 	// Endpoints is a k8s native Endpoint Resource.
 	Endpoints = "Endpoints"
 	// Namespace is k8s namespace
@@ -117,7 +119,6 @@ func NewController(params Params) *Controller {
 		UseNodeInternal:    params.UseNodeInternal,
 		Partition:          params.Partition,
 		initState:          true,
-		SSLContext:         make(map[string]*v1.Secret),
 		dgPath:             strings.Join([]string{DEFAULT_PARTITION, "Shared"}, "/"),
 		shareNodes:         params.ShareNodes,
 		eventNotifier:      apm.NewEventNotifier(nil),

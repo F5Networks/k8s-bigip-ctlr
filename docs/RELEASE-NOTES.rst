@@ -9,6 +9,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* :issues:`2570` Fix for TLSProfile doesn't get updated when K8s secret changes
 * :issues:`2394` Fix to set ingress https monitor send string
 * :issues:`2549` Fix trafficGroup regex
 * : Fix issue with inconsistent pool names for VS

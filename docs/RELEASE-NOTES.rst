@@ -9,13 +9,15 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* Fix to monitor NGINX+ service changes
+* Fix issue with inconsistent pool names for VS
+* :issues:`2596` Fix invalid property name with serviceAddress
 * :issues:`2570` Fix for TLSProfile doesn't get updated when K8s secret changes
 * :issues:`2394` Fix to set ingress https monitor send string
 * :issues:`2549` Fix trafficGroup regex
-* : Fix issue with inconsistent pool names for VS
 * :issues:`2492` Fix for adding unique pool members in nodePort mode
 * :issues:`847`  Fix issue with adding both VIPs to GTM pool members for IngressLink
-* :issues: Fix to monitor NGINX+ service changes
+
 
 
 2.10.0

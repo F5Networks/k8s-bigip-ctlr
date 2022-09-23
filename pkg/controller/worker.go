@@ -1518,6 +1518,10 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 					ctlr.getEndpointsForNodePort(svcPort.NodePort, pool.NodeMemberLabel)
 			}
 		}
+		//check if endpoints are found
+		if rsCfg.Pools[index].Members == nil {
+			log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort %v", svcName, pool.ServicePort.IntVal)
+		}
 	}
 }
 
@@ -1544,6 +1548,10 @@ func (ctlr *Controller) updatePoolMembersForCluster(
 			}
 			rsCfg.MetaData.Active = true
 			rsCfg.Pools[index].Members = mems
+		}
+		//check if endpoints are found
+		if rsCfg.Pools[index].Members == nil {
+			log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort %v", svcName, pool.ServicePort.IntVal)
 		}
 	}
 }

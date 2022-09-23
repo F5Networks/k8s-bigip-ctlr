@@ -1087,7 +1087,7 @@ func createServiceAddressDecl(cfg *ResourceConfig, virtualAddress string, shared
 		serviceAddress.SpanningEnabled = sa.SpanningEnabled
 		serviceAddress.TrafficGroup = sa.TrafficGroup
 		serviceAddress.VirtualAddress = virtualAddress
-		name = "crd_service_address_" + strings.Replace(virtualAddress, ".", "_", -1)
+		name = "crd_service_address_" + AS3NameFormatter(virtualAddress)
 		sharedApp[name] = serviceAddress
 	}
 	return name

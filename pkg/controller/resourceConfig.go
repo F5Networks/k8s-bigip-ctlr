@@ -436,14 +436,15 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			svcNamespace = pl.ServiceNamespace
 		}
 		pool := Pool{
-			Name:             poolName,
-			Partition:        rsCfg.Virtual.Partition,
-			ServiceName:      pl.Service,
-			ServiceNamespace: svcNamespace,
-			ServicePort:      targetPort,
-
-			NodeMemberLabel: pl.NodeMemberLabel,
-			Balance:         pl.Balance,
+			Name:              poolName,
+			Partition:         rsCfg.Virtual.Partition,
+			ServiceName:       pl.Service,
+			ServiceNamespace:  svcNamespace,
+			ServicePort:       targetPort,
+			NodeMemberLabel:   pl.NodeMemberLabel,
+			Balance:           pl.Balance,
+			ReselectTries:     pl.ReselectTries,
+			ServiceDownAction: pl.ServiceDownAction,
 		}
 		if pl.Monitor.Name != "" && pl.Monitor.Reference == "bigip" {
 			pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: pl.Monitor.Name, Reference: pl.Monitor.Reference})
@@ -1503,13 +1504,15 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	}
 
 	pool := Pool{
-		Name:             poolName,
-		Partition:        rsCfg.Virtual.Partition,
-		ServiceName:      vs.Spec.Pool.Service,
-		ServiceNamespace: vs.ObjectMeta.Namespace,
-		ServicePort:      targetPort,
-		NodeMemberLabel:  vs.Spec.Pool.NodeMemberLabel,
-		Balance:          vs.Spec.Pool.Balance,
+		Name:              poolName,
+		Partition:         rsCfg.Virtual.Partition,
+		ServiceName:       vs.Spec.Pool.Service,
+		ServiceNamespace:  vs.ObjectMeta.Namespace,
+		ServicePort:       targetPort,
+		NodeMemberLabel:   vs.Spec.Pool.NodeMemberLabel,
+		Balance:           vs.Spec.Pool.Balance,
+		ReselectTries:     vs.Spec.Pool.ReselectTries,
+		ServiceDownAction: vs.Spec.Pool.ServiceDownAction,
 	}
 	if vs.Spec.Pool.Monitor.Name != "" && vs.Spec.Pool.Monitor.Reference == BIGIP {
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitorName, Reference: vs.Spec.Pool.Monitor.Reference})

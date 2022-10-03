@@ -10,6 +10,7 @@ Added Functionality
     * Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
     * Support for health monitors using route annotations See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
     * CIS configures GTM configuration in default partition
+    * Pool reselect support for VS and TS
 
 
 Bug Fixes

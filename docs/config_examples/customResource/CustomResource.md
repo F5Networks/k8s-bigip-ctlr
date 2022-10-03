@@ -63,16 +63,18 @@ This page is created to document the behaviour of CIS in CRD Mode.
 
 **Pool Components**
 
-| PARAMETER        | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                                         |
-|------------------|---------| ------ | ------ |---------------------------------------------------------------------------------------------------------------------|
-| path             | String  | Required | NA | Path to access the service                                                                                          |
-| service          | String  | Required | NA | Service deployed in kubernetes cluster                                                                              |
-| nodeMemberLabel  | String  | Optional | NA | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode |
-| servicePort      | String  | Required | NA | Port to access Service                                                                                              |
-| monitor          | monitor  | Optional | NA | Health Monitor to check the health of Pool Members                                                                  |
-| monitors         | monitor | Optional | NA | Specifies multiple monitors for VS Pool                                                                             |
-| rewrite          | String  | Optional | NA | Rewrites the path in the HTTP Header while submitting the request to Server in the pool                             |
-| serviceNamespace | String | Optional | NA | Namespace of service, define it if service is present in a namespace other than the one where Virtual Server Custom Resource is present |
+| PARAMETER        | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                                                                                                             |
+|------------------|---------| ------ |---------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| path             | String  | Required | NA      | Path to access the service                                                                                                              |
+| service          | String  | Required | NA      | Service deployed in kubernetes cluster                                                                                                  |
+| nodeMemberLabel  | String  | Optional | NA      | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode                     |
+| servicePort      | String  | Required | NA      | Port to access Service                                                                                                                  |
+| monitor          | monitor | Optional | NA      | Health Monitor to check the health of Pool Members                                                                                      |
+| monitors         | monitor | Optional | NA      | Specifies multiple monitors for VS Pool                                                                                                 |
+| rewrite          | String  | Optional | NA      | Rewrites the path in the HTTP Header while submitting the request to Server in the pool                                                 |
+| serviceNamespace | String  | Optional | NA      | Namespace of service, define it if service is present in a namespace other than the one where Virtual Server Custom Resource is present |
+ | serviceDownAction | String  | Optional | none    | Specifies connection handling when member is non-responsive                                                                             |
+| reselectTries | Integer | Optional | 0       | Maximum number of attempts to find a responsive member for a connection                                                                 |
 
 Note: **monitors** take priority over **monitor** if both are provided in VS spec.
 

@@ -846,6 +846,8 @@ func createPoolDecl(cfg *ResourceConfig, sharedApp as3Application, shareNodes bo
 		pool := &as3Pool{}
 		pool.LoadBalancingMode = v.Balance
 		pool.Class = "Pool"
+		pool.ReselectTries = v.ReselectTries
+		pool.ServiceDownAction = v.ServiceDownAction
 		for _, val := range v.Members {
 			var member as3PoolMember
 			member.AddressDiscovery = "static"

@@ -23,200 +23,7 @@ import (
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
-
-// nativeResourceWorker starts the Custom Resource Worker.
-func (ctlr *Controller) nativeResourceWorker() {
-	log.Debugf("Starting Native Resource Worker")
-	ctlr.setInitialServiceCount()
-	ctlr.processGlobalExtendedRouteConfig()
-	for ctlr.processNativeResource() {
-	}
-}
-
-// processNativeResource gets resources from the nativeResourceQueue and processes the resource
-// depending  on its kind.
-func (ctlr *Controller) processNativeResource() bool {
-	key, quit := ctlr.nativeResourceQueue.Get()
-	if quit {
-		// The controller is shutting down.
-		log.Debugf("Resource Queue is empty, Going to StandBy Mode")
-		return false
-	}
-	var isRetryableError bool
-
-	defer ctlr.nativeResourceQueue.Done(key)
-	rKey := key.(*rqKey)
-	log.Debugf("Processing Key: %v", rKey)
-
-	// During Init time, just accumulate all the poolMembers by processing only services
-	if ctlr.initState && rKey.kind != Namespace {
-		if rKey.kind != Service {
-			ctlr.nativeResourceQueue.AddRateLimited(key)
-			return true
-		}
-		ctlr.initialSvcCount--
-		if ctlr.initialSvcCount <= 0 {
-			ctlr.initState = false
-		}
-	}
-
-	rscDelete := false
-	if rKey.event == Delete {
-		rscDelete = true
-	}
-
-	// Check the type of resource and process accordingly.
-	switch rKey.kind {
-
-	case Route:
-		route := rKey.rsc.(*routeapi.Route)
-		// processRoutes knows when to delete a VS (in the event of global config update and route delete)
-		// so should not trigger delete from here
-		if rKey.event == Create {
-			if _, ok := ctlr.resources.processedNativeResources[resourceRef{
-				kind:      Route,
-				name:      route.Name,
-				namespace: route.Namespace,
-			}]; ok {
-				break
-			}
-		}
-
-		if rscDelete {
-			delete(ctlr.resources.processedNativeResources, resourceRef{
-				kind:      Route,
-				namespace: route.Namespace,
-				name:      route.Name,
-			})
-			// Delete the route entry from hostPath Map
-			ctlr.deleteHostPathMapEntry(route)
-		}
-		if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[route.Namespace]; ok {
-			err := ctlr.processRoutes(routeGroup, false)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
-			}
-		}
-
-	case ConfigMap:
-		cm := rKey.rsc.(*v1.ConfigMap)
-		err, ok := ctlr.processConfigMap(cm, rscDelete)
-		if err != nil {
-			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-			break
-		}
-
-		if !ok {
-			isRetryableError = true
-		}
-
-	case Service:
-		svc := rKey.rsc.(*v1.Service)
-
-		_ = ctlr.processService(svc, nil, rscDelete)
-
-		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			err := ctlr.processLBServices(svc, rscDelete)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
-			}
-			break
-		}
-		if ctlr.initState {
-			break
-		}
-		ctlr.updatePoolMembersForRoutes(svc.Namespace)
-	case Endpoints:
-		ep := rKey.rsc.(*v1.Endpoints)
-		svc := ctlr.getServiceForEndpoints(ep)
-		// No Services are effected with the change in service.
-		if nil == svc {
-			break
-		}
-
-		_ = ctlr.processService(svc, ep, rscDelete)
-
-		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-			err := ctlr.processLBServices(svc, rscDelete)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
-			}
-			break
-		}
-		ctlr.updatePoolMembersForRoutes(svc.Namespace)
-
-	case Namespace:
-		ns := rKey.rsc.(*v1.Namespace)
-		nsName := ns.ObjectMeta.Name
-		var triggerDelete bool
-		if rscDelete {
-			// TODO: Delete all the resource configs from the store
-			if nrInf, ok := ctlr.nrInformers[nsName]; ok {
-				nrInf.stop()
-				delete(ctlr.nrInformers, nsName)
-			}
-			if esInf, ok := ctlr.esInformers[nsName]; ok {
-				esInf.stop()
-				delete(ctlr.esInformers, nsName)
-			}
-			ctlr.namespacesMutex.Lock()
-			delete(ctlr.namespaces, nsName)
-			ctlr.namespacesMutex.Unlock()
-			log.Debugf("Removed Namespace: '%v' from CIS scope", nsName)
-			triggerDelete = true
-		} else {
-			ctlr.namespacesMutex.Lock()
-			ctlr.namespaces[nsName] = true
-			ctlr.namespacesMutex.Unlock()
-			_ = ctlr.addNamespacedInformers(nsName, true)
-			log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
-		}
-		if ctlr.namespaceLabelMode {
-			ctlr.processGlobalExtendedRouteConfig()
-		} else {
-			if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[nsName]; ok {
-				_ = ctlr.processRoutes(routeGroup, triggerDelete)
-			}
-		}
-	default:
-		log.Errorf("Unknown resource Kind: %v", rKey.kind)
-	}
-	if isRetryableError {
-		ctlr.nativeResourceQueue.AddRateLimited(key)
-	} else {
-		ctlr.nativeResourceQueue.Forget(key)
-	}
-
-	if ctlr.nativeResourceQueue.Len() == 0 {
-		ctlr.postResourceConfigRequest()
-	}
-	return true
-}
-
-func (ctlr *Controller) postResourceConfigRequest() {
-	if ctlr.resources.isConfigUpdated() {
-		config := ResourceConfigRequest{
-			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
-			shareNodes:         ctlr.shareNodes,
-			gtmConfig:          ctlr.resources.getGTMConfigCopy(),
-			defaultRouteDomain: ctlr.defaultRouteDomain,
-		}
-		go ctlr.TeemData.PostTeemsData()
-		config.reqId = ctlr.enqueueReq(config)
-		ctlr.Agent.PostConfig(config)
-		ctlr.initState = false
-		ctlr.resources.updateCaches()
-	}
-
-}
 
 func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) error {
 	startTime := time.Now()
@@ -427,7 +234,7 @@ func (ctlr *Controller) getServicePort(
 	log.Debugf("Finding port for route %v", route.Name)
 	var err error
 	var port int32
-	nrInf, ok := ctlr.getNamespacedEssentialInformer(route.Namespace)
+	nrInf, ok := ctlr.getNamespacedCommonInformer(route.Namespace)
 	if !ok {
 		return fmt.Errorf("Informer not found for namespace: %v", route.Namespace), port
 	}
@@ -651,7 +458,7 @@ func (ctlr *Controller) setNamespaceLabelMode(cm *v1.ConfigMap) error {
 		}
 		if len(ergc.NamespaceLabel) > 0 {
 			namespaceLabel = true
-			ctlr.nativeResourceContext.namespaceLabelMode = true
+			ctlr.resourceContext.namespaceLabelMode = true
 		}
 	}
 	if namespace && namespaceLabel {
@@ -831,7 +638,7 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			}
 		}
 
-	} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.nativeResourceContext.namespaceLabelMode {
+	} else if len(es.ExtendedRouteGroupConfigs) > 0 && !ctlr.resourceContext.namespaceLabelMode {
 		ergc := es.ExtendedRouteGroupConfigs[0]
 		if ergc.Namespace != cm.Namespace {
 			return fmt.Errorf("Invalid Extended Route Spec Block in configmap: Mismatching namespace found at index 0 in %v/%v", cm.Namespace, cm.Name), true

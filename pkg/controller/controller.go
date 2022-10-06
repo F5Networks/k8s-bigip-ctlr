@@ -111,8 +111,6 @@ func NewController(params Params) *Controller {
 
 	ctlr := &Controller{
 		namespaces:         make(map[string]bool),
-		crInformers:        make(map[string]*CRInformer),
-		nsInformers:        make(map[string]*NSInformer),
 		resources:          NewResourceStore(),
 		Agent:              params.Agent,
 		PoolMemberType:     params.PoolMemberType,
@@ -129,26 +127,23 @@ func NewController(params Params) *Controller {
 
 	log.Debug("Controller Created")
 
+	ctlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+		workqueue.DefaultControllerRateLimiter(), "nextgen-resource-controller")
+	ctlr.comInformers = make(map[string]*CommonInformer)
+	ctlr.nrInformers = make(map[string]*NRInformer)
+	ctlr.crInformers = make(map[string]*CRInformer)
+	ctlr.nsInformers = make(map[string]*NSInformer)
+	ctlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+	ctlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 	switch ctlr.mode {
-	case OpenShiftMode:
+	case OpenShiftMode, KubernetesMode:
 		ctlr.routeSpecCMKey = params.RouteSpecConfigmap
 		ctlr.routeLabel = params.RouteLabel
 		var processedHostPath ProcessedHostPath
 		processedHostPath.processedHostPathMap = make(map[string]metaV1.Time)
 		ctlr.processedHostPath = &processedHostPath
-		fallthrough
-	case KubernetesMode:
-		ctlr.resourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-		ctlr.nativeResourceQueue = workqueue.NewNamedRateLimitingQueue(
-			workqueue.DefaultControllerRateLimiter(), "native-resource-controller")
-		ctlr.esInformers = make(map[string]*EssentialInformer)
-		ctlr.nrInformers = make(map[string]*NRInformer)
 	default:
-		ctlr.crInformers = make(map[string]*CRInformer)
-		ctlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		ctlr.mode = CustomResourceMode
-		ctlr.rscQueue = workqueue.NewNamedRateLimitingQueue(
-			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 	}
 
 	//If pool-member-type type is nodeport and it's running in openshift mode (multi-partition)
@@ -318,11 +313,9 @@ func createLabelSelector(label string) (labels.Selector, error) {
 func (ctlr *Controller) setupClients(config *rest.Config) error {
 	var kubeCRClient *versioned.Clientset
 	var err error
-	if ctlr.mode == CustomResourceMode {
-		kubeCRClient, err = versioned.NewForConfig(config)
-		if err != nil {
-			return fmt.Errorf("Failed to create Custum Resource kubeClient: %v", err)
-		}
+	kubeCRClient, err = versioned.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("Failed to create Custum Resource kubeClient: %v", err)
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(config)
@@ -369,24 +362,28 @@ func (ctlr *Controller) setupInformers() error {
 func (ctlr *Controller) Start() {
 	log.Infof("Starting Controller")
 	defer utilruntime.HandleCrash()
+	defer ctlr.resourceQueue.ShutDown()
+
+	// start nsinformer in all modes
+	for _, nsInf := range ctlr.nsInformers {
+		nsInf.start()
+	}
+
+	// start comInformers for all modes
+	for _, inf := range ctlr.comInformers {
+		inf.start()
+	}
 	switch ctlr.mode {
-	case CustomResourceMode:
-		defer ctlr.rscQueue.ShutDown()
-		for _, inf := range ctlr.crInformers {
-			inf.start()
-		}
-	case OpenShiftMode:
-		defer ctlr.nativeResourceQueue.ShutDown()
-		for _, inf := range ctlr.esInformers {
-			inf.start()
-		}
+	case OpenShiftMode, KubernetesMode:
+		// nrInformers only with openShiftMode
 		for _, inf := range ctlr.nrInformers {
 			inf.start()
 		}
-	}
-
-	for _, nsInf := range ctlr.nsInformers {
-		nsInf.start()
+	default:
+		// start customer resource informers in custom resource mode only
+		for _, inf := range ctlr.crInformers {
+			inf.start()
+		}
 	}
 
 	if ctlr.ipamCli != nil {
@@ -396,12 +393,8 @@ func (ctlr *Controller) Start() {
 	ctlr.nodePoller.Run()
 
 	stopChan := make(chan struct{})
-	switch ctlr.mode {
-	case CustomResourceMode:
-		go wait.Until(ctlr.customResourceWorker, time.Second, stopChan)
-	case OpenShiftMode:
-		go wait.Until(ctlr.nativeResourceWorker, time.Second, stopChan)
-	}
+
+	go wait.Until(ctlr.nextGenResourceWorker, time.Second, stopChan)
 
 	<-stopChan
 	ctlr.Stop()
@@ -410,19 +403,22 @@ func (ctlr *Controller) Start() {
 // Stop the Controller
 func (ctlr *Controller) Stop() {
 	switch ctlr.mode {
-	case CustomResourceMode:
-		for _, inf := range ctlr.crInformers {
-			inf.stop()
-		}
-	case OpenShiftMode:
-		for _, inf := range ctlr.esInformers {
-			inf.stop()
-		}
+	case OpenShiftMode, KubernetesMode:
+		// stop native resource informers
 		for _, inf := range ctlr.nrInformers {
+			inf.stop()
+		}
+	default:
+		// stop custom resource informers
+		for _, inf := range ctlr.crInformers {
 			inf.stop()
 		}
 	}
 
+	// stop common informers & namespace informers in all modes
+	for _, inf := range ctlr.comInformers {
+		inf.stop()
+	}
 	for _, nsInf := range ctlr.nsInformers {
 		nsInf.stop()
 	}

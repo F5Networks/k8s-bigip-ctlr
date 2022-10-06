@@ -34,6 +34,7 @@ import (
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -49,12 +50,15 @@ const (
 	Allocated
 )
 
-// customResourceWorker starts the Custom Resource Worker.
-func (ctlr *Controller) customResourceWorker() {
+// nextGenResourceWorker starts the Custom Resource Worker.
+func (ctlr *Controller) nextGenResourceWorker() {
 	log.Debugf("Starting Custom Resource Worker")
 	ctlr.setInitialServiceCount()
 	ctlr.migrateIPAM()
-	for ctlr.processCustomResource() {
+	if ctlr.mode == OpenShiftMode {
+		ctlr.processGlobalExtendedRouteConfig()
+	}
+	for ctlr.processResources() {
 	}
 }
 
@@ -78,26 +82,26 @@ func (ctlr *Controller) setInitialServiceCount() {
 	ctlr.initialSvcCount = svcCount
 }
 
-// processCustomResource gets resources from the rscQueue and processes the resource
+// processResources gets resources from the resourceQueue and processes the resource
 // depending  on its kind.
-func (ctlr *Controller) processCustomResource() bool {
+func (ctlr *Controller) processResources() bool {
 
-	key, quit := ctlr.rscQueue.Get()
+	key, quit := ctlr.resourceQueue.Get()
 	if quit {
 		// The controller is shutting down.
 		log.Debugf("Resource Queue is empty, Going to StandBy Mode")
 		return false
 	}
-	var isError bool
+	var isRetryableError bool
 
-	defer ctlr.rscQueue.Done(key)
+	defer ctlr.resourceQueue.Done(key)
 	rKey := key.(*rqKey)
 	log.Debugf("Processing Key: %v", rKey)
 
 	// During Init time, just accumulate all the poolMembers by processing only services
 	if ctlr.initState && rKey.kind != Namespace {
 		if rKey.kind != Service {
-			ctlr.rscQueue.AddRateLimited(key)
+			ctlr.resourceQueue.AddRateLimited(key)
 			return true
 		}
 		ctlr.initialSvcCount--
@@ -113,6 +117,49 @@ func (ctlr *Controller) processCustomResource() bool {
 
 	// Check the type of resource and process accordingly.
 	switch rKey.kind {
+	case Route:
+		route := rKey.rsc.(*routeapi.Route)
+		// processRoutes knows when to delete a VS (in the event of global config update and route delete)
+		// so should not trigger delete from here
+		if rKey.event == Create {
+			if _, ok := ctlr.resources.processedNativeResources[resourceRef{
+				kind:      Route,
+				name:      route.Name,
+				namespace: route.Namespace,
+			}]; ok {
+				break
+			}
+		}
+
+		if rscDelete {
+			delete(ctlr.resources.processedNativeResources, resourceRef{
+				kind:      Route,
+				namespace: route.Namespace,
+				name:      route.Name,
+			})
+			// Delete the route entry from hostPath Map
+			ctlr.deleteHostPathMapEntry(route)
+		}
+		if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[route.Namespace]; ok {
+			err := ctlr.processRoutes(routeGroup, false)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isRetryableError = true
+			}
+		}
+
+	case ConfigMap:
+		cm := rKey.rsc.(*v1.ConfigMap)
+		err, ok := ctlr.processConfigMap(cm, rscDelete)
+		if err != nil {
+			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+			break
+		}
+
+		if !ok {
+			isRetryableError = true
+		}
 	case VirtualServer:
 		virtual := rKey.rsc.(*cisapiv1.VirtualServer)
 		rscRefKey := resourceRef{
@@ -133,7 +180,7 @@ func (ctlr *Controller) processCustomResource() bool {
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-			isError = true
+			isRetryableError = true
 		}
 	case TLSProfile:
 		tlsProfile := rKey.rsc.(*cisapiv1.TLSProfile)
@@ -147,7 +194,7 @@ func (ctlr *Controller) processCustomResource() bool {
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isError = true
+				isRetryableError = true
 			}
 		}
 	case K8sSecret:
@@ -164,7 +211,7 @@ func (ctlr *Controller) processCustomResource() bool {
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isError = true
+					isRetryableError = true
 				}
 			}
 		}
@@ -175,7 +222,7 @@ func (ctlr *Controller) processCustomResource() bool {
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-			isError = true
+			isRetryableError = true
 		}
 	case IngressLink:
 		ingLink := rKey.rsc.(*cisapiv1.IngressLink)
@@ -185,7 +232,7 @@ func (ctlr *Controller) processCustomResource() bool {
 		if err != nil {
 			// TODO
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-			isError = true
+			isRetryableError = true
 		}
 	case ExternalDNS:
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
@@ -204,7 +251,7 @@ func (ctlr *Controller) processCustomResource() bool {
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isError = true
+				isRetryableError = true
 			}
 		}
 		//Sync Custompolicy for Transport Servers
@@ -214,7 +261,7 @@ func (ctlr *Controller) processCustomResource() bool {
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isError = true
+				isRetryableError = true
 			}
 		}
 		//Sync Custompolicy for Services of type LB
@@ -224,7 +271,7 @@ func (ctlr *Controller) processCustomResource() bool {
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isError = true
+				isRetryableError = true
 			}
 		}
 	case Service:
@@ -237,14 +284,16 @@ func (ctlr *Controller) processCustomResource() bool {
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isError = true
+				isRetryableError = true
 			}
 			break
 		}
 		if ctlr.initState {
 			break
 		}
-
+		if ctlr.mode == OpenShiftMode {
+			ctlr.updatePoolMembersForRoutes(svc.Namespace)
+		}
 		virtuals := ctlr.getVirtualServersForService(svc)
 		// If nil No Virtuals are effected with the change in service.
 		if nil != virtuals {
@@ -253,7 +302,7 @@ func (ctlr *Controller) processCustomResource() bool {
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isError = true
+					isRetryableError = true
 				}
 			}
 		}
@@ -265,7 +314,7 @@ func (ctlr *Controller) processCustomResource() bool {
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isError = true
+					isRetryableError = true
 				}
 			}
 		}
@@ -282,7 +331,7 @@ func (ctlr *Controller) processCustomResource() bool {
 						// TODO
 						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 					}
-					isError = true
+					isRetryableError = true
 				}
 			}
 		}
@@ -297,6 +346,18 @@ func (ctlr *Controller) processCustomResource() bool {
 
 		_ = ctlr.processService(svc, ep, rscDelete)
 
+		if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+			err := ctlr.processLBServices(svc, rscDelete)
+			if err != nil {
+				// TODO
+				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+				isRetryableError = true
+			}
+			break
+		}
+		if ctlr.mode == OpenShiftMode {
+			ctlr.updatePoolMembersForRoutes(svc.Namespace)
+		}
 		// once we fetch the VS, just update the endpoints instead of processing them entirely
 		ctlr.updatePoolMembersForVirtuals(svc)
 	case Pod:
@@ -312,9 +373,12 @@ func (ctlr *Controller) processCustomResource() bool {
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isError = true
+				isRetryableError = true
 			}
 			break
+		}
+		if ctlr.mode == OpenShiftMode {
+			ctlr.updatePoolMembersForRoutes(svc.Namespace)
 		}
 
 		virtuals := ctlr.getVirtualServersForService(svc)
@@ -323,7 +387,7 @@ func (ctlr *Controller) processCustomResource() bool {
 			if err != nil {
 				// TODO
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isError = true
+				isRetryableError = true
 			}
 		}
 		//Sync service for Transport Server virtuals
@@ -334,7 +398,7 @@ func (ctlr *Controller) processCustomResource() bool {
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isError = true
+					isRetryableError = true
 				}
 			}
 		}
@@ -346,7 +410,7 @@ func (ctlr *Controller) processCustomResource() bool {
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isError = true
+					isRetryableError = true
 				}
 			}
 		}
@@ -354,50 +418,85 @@ func (ctlr *Controller) processCustomResource() bool {
 	case Namespace:
 		ns := rKey.rsc.(*v1.Namespace)
 		nsName := ns.ObjectMeta.Name
-		if rscDelete {
-			for _, vrt := range ctlr.getAllVirtualServers(nsName) {
-				err := ctlr.processVirtualServers(vrt, true)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isError = true
+		switch ctlr.mode {
+
+		case OpenShiftMode:
+			var triggerDelete bool
+			if rscDelete {
+				// TODO: Delete all the resource configs from the store
+				if nrInf, ok := ctlr.nrInformers[nsName]; ok {
+					nrInf.stop()
+					delete(ctlr.nrInformers, nsName)
+				}
+				if comInf, ok := ctlr.comInformers[nsName]; ok {
+					comInf.stop()
+					delete(ctlr.comInformers, nsName)
+				}
+				ctlr.namespacesMutex.Lock()
+				delete(ctlr.namespaces, nsName)
+				ctlr.namespacesMutex.Unlock()
+				log.Debugf("Removed Namespace: '%v' from CIS scope", nsName)
+				triggerDelete = true
+			} else {
+				ctlr.namespacesMutex.Lock()
+				ctlr.namespaces[nsName] = true
+				ctlr.namespacesMutex.Unlock()
+				_ = ctlr.addNamespacedInformers(nsName, true)
+				log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
+			}
+			if ctlr.namespaceLabelMode {
+				ctlr.processGlobalExtendedRouteConfig()
+			} else {
+				if routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[nsName]; ok {
+					_ = ctlr.processRoutes(routeGroup, triggerDelete)
 				}
 			}
 
-			for _, ts := range ctlr.getAllTransportServers(nsName) {
-				err := ctlr.processTransportServers(ts, true)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isError = true
+		default:
+			if rscDelete {
+				for _, vrt := range ctlr.getAllVirtualServers(nsName) {
+					err := ctlr.processVirtualServers(vrt, true)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
 				}
-			}
 
-			ctlr.crInformers[nsName].stop()
-			delete(ctlr.crInformers, nsName)
-			ctlr.namespacesMutex.Lock()
-			delete(ctlr.namespaces, nsName)
-			ctlr.namespacesMutex.Unlock()
-			log.Debugf("Removed Namespace: '%v' from CIS scope", nsName)
-		} else {
-			ctlr.namespacesMutex.Lock()
-			ctlr.namespaces[nsName] = true
-			ctlr.namespacesMutex.Unlock()
-			_ = ctlr.addNamespacedInformers(nsName, false)
-			ctlr.crInformers[nsName].start()
-			log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
+				for _, ts := range ctlr.getAllTransportServers(nsName) {
+					err := ctlr.processTransportServers(ts, true)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
+				}
+
+				ctlr.crInformers[nsName].stop()
+				delete(ctlr.crInformers, nsName)
+				ctlr.namespacesMutex.Lock()
+				delete(ctlr.namespaces, nsName)
+				ctlr.namespacesMutex.Unlock()
+				log.Debugf("Removed Namespace: '%v' from CIS scope", nsName)
+			} else {
+				ctlr.namespacesMutex.Lock()
+				ctlr.namespaces[nsName] = true
+				ctlr.namespacesMutex.Unlock()
+				_ = ctlr.addNamespacedInformers(nsName, true)
+				log.Debugf("Added Namespace: '%v' to CIS scope", nsName)
+			}
 		}
 	default:
 		log.Errorf("Unknown resource Kind: %v", rKey.kind)
 	}
 
-	if isError {
-		ctlr.rscQueue.AddRateLimited(key)
+	if isRetryableError {
+		ctlr.resourceQueue.AddRateLimited(key)
 	} else {
-		ctlr.rscQueue.Forget(key)
+		ctlr.resourceQueue.Forget(key)
 	}
 
-	if ctlr.rscQueue.Len() == 0 && ctlr.resources.isConfigUpdated() {
+	if ctlr.resourceQueue.Len() == 0 && ctlr.resources.isConfigUpdated() {
 		config := ResourceConfigRequest{
 			ltmConfig:          ctlr.resources.getLTMConfigDeepCopy(),
 			shareNodes:         ctlr.shareNodes,
@@ -423,14 +522,14 @@ func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints) *v1.Service {
 	var svcInf cache.SharedIndexInformer
 	switch ctlr.mode {
 	case OpenShiftMode, KubernetesMode:
-		esInf, ok := ctlr.getNamespacedEssentialInformer(ep.Namespace)
+		comInf, ok := ctlr.getNamespacedCommonInformer(ep.Namespace)
 		if !ok {
 			log.Errorf("Informer not found for namespace: %v", ep.Namespace)
 			return nil
 		}
-		svcInf = esInf.svcInformer
+		svcInf = comInf.svcInformer
 	case CustomResourceMode:
-		crInf, ok := ctlr.getNamespacedInformer(epNamespace)
+		crInf, ok := ctlr.getNamespacedCommonInformer(epNamespace)
 		if !ok {
 			log.Errorf("Informer not found for namespace: %v", epNamespace)
 			return nil
@@ -595,7 +694,7 @@ func (ctlr *Controller) getLBServicesForCustomPolicy(plc *cisapiv1.Policy) []*v1
 func (ctlr *Controller) getAllVirtualServers(namespace string) []*cisapiv1.VirtualServer {
 	var allVirtuals []*cisapiv1.VirtualServer
 
-	crInf, ok := ctlr.getNamespacedInformer(namespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -703,7 +802,7 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 	tlsKey := fmt.Sprintf("%s/%s", namespace, tlsName)
 
 	// Initialize CustomResource Informer for required namespace
-	crInf, ok := ctlr.getNamespacedInformer(namespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -1178,7 +1277,7 @@ func (ctlr *Controller) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer
 	if plcName == "" {
 		return nil, nil
 	}
-	crInf, ok := ctlr.getNamespacedInformer(ns)
+	crInf, ok := ctlr.getNamespacedCommonInformer(ns)
 	if !ok {
 		return nil, fmt.Errorf("Informer not found for namespace: %v", ns)
 	}
@@ -1214,7 +1313,7 @@ func (ctlr *Controller) getPolicyFromTransportServer(virtual *cisapiv1.Transport
 
 // getPolicy fetches the policy CR
 func (ctlr *Controller) getPolicy(ns string, plcName string) (*cisapiv1.Policy, error) {
-	crInf, ok := ctlr.getNamespacedInformer(ns)
+	crInf, ok := ctlr.getNamespacedCommonInformer(ns)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", ns)
 		return nil, fmt.Errorf("Informer not found for namespace: %v", ns)
@@ -1488,8 +1587,8 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 	rsCfg *ResourceConfig,
 	namespace string,
 ) {
-	_, ok1 := ctlr.getNamespacedInformer(namespace)
-	_, ok2 := ctlr.getNamespacedEssentialInformer(namespace)
+	_, ok1 := ctlr.getNamespacedCRInformer(namespace)
+	_, ok2 := ctlr.getNamespacedCommonInformer(namespace)
 	if !ok1 && !ok2 {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return
@@ -1562,7 +1661,7 @@ func (ctlr *Controller) updatePoolMembersForNPL(
 	rsCfg *ResourceConfig,
 	namespace string,
 ) {
-	_, ok := ctlr.getNamespacedInformer(namespace)
+	_, ok := ctlr.getNamespacedCRInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return
@@ -1809,7 +1908,7 @@ func (ctlr *Controller) getAllTSFromMonitoredNamespaces() []*cisapiv1.TransportS
 func (ctlr *Controller) getAllTransportServers(namespace string) []*cisapiv1.TransportServer {
 	var allVirtuals []*cisapiv1.TransportServer
 
-	crInf, ok := ctlr.getNamespacedInformer(namespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -1840,7 +1939,7 @@ func (ctlr *Controller) getAllTransportServers(namespace string) []*cisapiv1.Tra
 func (ctlr *Controller) getAllLBServices(namespace string) []*v1.Service {
 	var allLBServices []*v1.Service
 
-	crInf, ok := ctlr.getNamespacedInformer(namespace)
+	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -1849,9 +1948,9 @@ func (ctlr *Controller) getAllLBServices(namespace string) []*v1.Service {
 	var err error
 
 	if namespace == "" {
-		orderedSVCs = crInf.svcInformer.GetIndexer().List()
+		orderedSVCs = comInf.svcInformer.GetIndexer().List()
 	} else {
-		orderedSVCs, err = crInf.svcInformer.GetIndexer().ByIndex("namespace", namespace)
+		orderedSVCs, err = comInf.svcInformer.GetIndexer().ByIndex("namespace", namespace)
 		if err != nil {
 			log.Errorf("Unable to get list of Services for namespace '%v': %v",
 				namespace, err)
@@ -1919,7 +2018,7 @@ func filterTransportServersForService(allVirtuals []*cisapiv1.TransportServer,
 func (ctlr *Controller) getAllServicesFromMonitoredNamespaces() []*v1.Service {
 	var svcList []*v1.Service
 	if ctlr.watchingAllNamespaces() {
-		objList := ctlr.crInformers[""].svcInformer.GetIndexer().List()
+		objList := ctlr.comInformers[""].svcInformer.GetIndexer().List()
 		for _, obj := range objList {
 			svcList = append(svcList, obj.(*v1.Service))
 		}
@@ -1927,7 +2026,7 @@ func (ctlr *Controller) getAllServicesFromMonitoredNamespaces() []*v1.Service {
 	}
 
 	for ns := range ctlr.namespaces {
-		objList := ctlr.crInformers[ns].svcInformer.GetIndexer().List()
+		objList := ctlr.comInformers[ns].svcInformer.GetIndexer().List()
 		for _, obj := range objList {
 			svcList = append(svcList, obj.(*v1.Service))
 		}
@@ -2144,24 +2243,12 @@ func (ctlr *Controller) processService(
 	}
 
 	if eps == nil {
-		var epInf cache.SharedIndexInformer
-		switch ctlr.mode {
-		case OpenShiftMode, KubernetesMode:
-			esInf, ok := ctlr.getNamespacedEssentialInformer(namespace)
-			if !ok {
-				log.Errorf("Informer not found for namespace: %v", namespace)
-				return fmt.Errorf("unable to process Service: %v", svcKey)
-			}
-			epInf = esInf.epsInformer
-		case CustomResourceMode:
-			crInf, ok := ctlr.getNamespacedInformer(namespace)
-			if !ok {
-				log.Errorf("Informer not found for namespace: %v", namespace)
-				return fmt.Errorf("unable to process Service: %v", svcKey)
-			}
-			epInf = crInf.epsInformer
+		comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+		if !ok {
+			log.Errorf("Informer not found for namespace: %v", namespace)
+			return fmt.Errorf("unable to process Service: %v", svcKey)
 		}
-
+		epInf := comInf.epsInformer
 		item, found, _ := epInf.GetIndexer().GetByKey(svcKey)
 		if !found {
 			return fmt.Errorf("Endpoints for service '%v' not found!", svcKey)
@@ -2335,7 +2422,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 func (ctlr *Controller) getAllExternalDNS(namespace string) []*cisapiv1.ExternalDNS {
 	var allEDNS []*cisapiv1.ExternalDNS
-	crInf, ok := ctlr.getNamespacedInformer(namespace)
+	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -2344,9 +2431,9 @@ func (ctlr *Controller) getAllExternalDNS(namespace string) []*cisapiv1.External
 	var err error
 
 	if namespace == "" {
-		orderedEDNSs = crInf.ednsInformer.GetIndexer().List()
+		orderedEDNSs = comInf.ednsInformer.GetIndexer().List()
 	} else {
-		orderedEDNSs, err = crInf.ednsInformer.GetIndexer().ByIndex("namespace", namespace)
+		orderedEDNSs, err = comInf.ednsInformer.GetIndexer().ByIndex("namespace", namespace)
 		if err != nil {
 			log.Errorf("Unable to get list of ExternalDNSs for namespace '%v': %v",
 				namespace, err)
@@ -2422,7 +2509,8 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 		rscKind := pKey[idx+1:]
 		splits := strings.Split(pKey, "/")
 		ns := splits[0]
-		crInf, ok := ctlr.getNamespacedInformer(ns)
+		crInf, ok := ctlr.getNamespacedCRInformer(ns)
+		comInf, ok := ctlr.getNamespacedCommonInformer(ns)
 		if !ok {
 			log.Errorf("Informer not found for namespace: %v", ns)
 			return nil
@@ -2472,7 +2560,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 				log.Errorf("Unable to process IPAM entry: %v", pKey)
 			}
 		case "svc":
-			item, exists, err := crInf.svcInformer.GetIndexer().GetByKey(pKey[:idx])
+			item, exists, err := comInf.svcInformer.GetIndexer().GetByKey(pKey[:idx])
 			if !exists || err != nil {
 				log.Errorf("Unable to process IPAM entry: %v", pKey)
 				continue
@@ -2681,7 +2769,7 @@ func (ctlr *Controller) processIngressLink(
 func (ctlr *Controller) getAllIngressLinks(namespace string) []*cisapiv1.IngressLink {
 	var allIngLinks []*cisapiv1.IngressLink
 
-	crInf, ok := ctlr.getNamespacedInformer(namespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
@@ -2988,12 +3076,12 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 //returns podlist with labels set to svc selector
 func (ctlr *Controller) GetPodsForService(namespace, serviceName string) *v1.PodList {
 	svcKey := namespace + "/" + serviceName
-	crInf, ok := ctlr.getNamespacedInformer(namespace)
+	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
 	}
-	svc, found, err := crInf.svcInformer.GetIndexer().GetByKey(svcKey)
+	svc, found, err := comInf.svcInformer.GetIndexer().GetByKey(svcKey)
 	if err != nil {
 		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
 		return nil
@@ -3030,12 +3118,12 @@ func (ctlr *Controller) GetPodsForService(namespace, serviceName string) *v1.Pod
 }
 
 func (ctlr *Controller) GetServicesForPod(pod *v1.Pod) *v1.Service {
-	crInf, ok := ctlr.getNamespacedInformer(pod.Namespace)
+	comInf, ok := ctlr.getNamespacedCommonInformer(pod.Namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", pod.Namespace)
 		return nil
 	}
-	services := crInf.svcInformer.GetIndexer().List()
+	services := comInf.svcInformer.GetIndexer().List()
 	for _, obj := range services {
 		svc := obj.(*v1.Service)
 		if svc.Spec.Type != v1.ServiceTypeNodePort {
@@ -3171,7 +3259,7 @@ func fetchPortString(port intstr.IntOrString) string {
 func (ctlr *Controller) getTLSProfilesForSecret(secret *v1.Secret) []*cisapiv1.TLSProfile {
 	var allTLSProfiles []*cisapiv1.TLSProfile
 
-	crInf, ok := ctlr.getNamespacedInformer(secret.Namespace)
+	crInf, ok := ctlr.getNamespacedCRInformer(secret.Namespace)
 	if !ok {
 		log.Errorf("Informer not found for namespace: %v", secret.Namespace)
 		return nil

@@ -371,9 +371,9 @@ func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort i
 	var svcIndexer cache.Indexer
 	svcKey := namespace + "/" + svcName
 	if ctlr.watchingAllNamespaces() {
-		svcIndexer = ctlr.crInformers[""].svcInformer.GetIndexer()
+		svcIndexer = ctlr.comInformers[""].svcInformer.GetIndexer()
 	} else {
-		if informer, ok := ctlr.crInformers[namespace]; ok {
+		if informer, ok := ctlr.comInformers[namespace]; ok {
 			svcIndexer = informer.svcInformer.GetIndexer()
 		} else {
 			return targetPort
@@ -624,10 +624,10 @@ func (ctlr *Controller) handleTLS(
 				}
 				if clientSSL != "" {
 					secretKey := tlsContext.namespace + "/" + clientSSL
-					if _, ok := ctlr.crInformers[namespace]; !ok {
+					if _, ok := ctlr.comInformers[namespace]; !ok {
 						return false
 					}
-					obj, found, err := ctlr.crInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+					obj, found, err := ctlr.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
 					if err != nil || !found {
 						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
 							clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -644,10 +644,10 @@ func (ctlr *Controller) handleTLS(
 				// Process ServerSSL stored as kubernetes secret
 				if serverSSL != "" {
 					secretKey := tlsContext.namespace + "/" + serverSSL
-					if _, ok := ctlr.crInformers[namespace]; !ok {
+					if _, ok := ctlr.comInformers[namespace]; !ok {
 						return false
 					}
-					obj, found, err := ctlr.crInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+					obj, found, err := ctlr.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
 					if err != nil || !found {
 						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
 							serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)

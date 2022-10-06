@@ -121,33 +121,33 @@ func (m *mockController) updateRoute(route *routeapi.Route) {
 	appInf.routeInformer.GetStore().Update(route)
 }
 func (m *mockController) addService(svc *v1.Service) {
-	esInf, _ := m.getNamespacedEssentialInformer(svc.ObjectMeta.Namespace)
-	esInf.svcInformer.GetStore().Add(svc)
+	comInf, _ := m.getNamespacedCommonInformer(svc.ObjectMeta.Namespace)
+	comInf.svcInformer.GetStore().Add(svc)
 }
 
 func (m *mockController) updateService(svc *v1.Service) {
-	esInf, _ := m.getNamespacedEssentialInformer(svc.ObjectMeta.Namespace)
-	esInf.svcInformer.GetStore().Update(svc)
+	comInf, _ := m.getNamespacedCommonInformer(svc.ObjectMeta.Namespace)
+	comInf.svcInformer.GetStore().Update(svc)
 }
 
 func (m *mockController) deleteService(svc *v1.Service) {
-	esInf, _ := m.getNamespacedEssentialInformer(svc.ObjectMeta.Namespace)
-	esInf.svcInformer.GetStore().Delete(svc)
+	comInf, _ := m.getNamespacedCommonInformer(svc.ObjectMeta.Namespace)
+	comInf.svcInformer.GetStore().Delete(svc)
 }
 
 func (m *mockController) addEndpoints(ep *v1.Endpoints) {
-	esInf, _ := m.getNamespacedEssentialInformer(ep.ObjectMeta.Namespace)
-	esInf.epsInformer.GetStore().Add(ep)
+	comInf, _ := m.getNamespacedCommonInformer(ep.ObjectMeta.Namespace)
+	comInf.epsInformer.GetStore().Add(ep)
 }
 
 func (m *mockController) updateEndpoints(ep *v1.Endpoints) {
-	esInf, _ := m.getNamespacedEssentialInformer(ep.ObjectMeta.Namespace)
-	esInf.epsInformer.GetStore().Update(ep)
+	comInf, _ := m.getNamespacedCommonInformer(ep.ObjectMeta.Namespace)
+	comInf.epsInformer.GetStore().Update(ep)
 }
 
 func (m *mockController) deleteEndpoints(ep *v1.Endpoints) {
-	esInf, _ := m.getNamespacedEssentialInformer(ep.ObjectMeta.Namespace)
-	esInf.epsInformer.GetStore().Delete(ep)
+	comInf, _ := m.getNamespacedCommonInformer(ep.ObjectMeta.Namespace)
+	comInf.epsInformer.GetStore().Delete(ep)
 }
 
 func convertSvcPortsToEndpointPorts(svcPorts []v1.ServicePort) []v1.EndpointPort {

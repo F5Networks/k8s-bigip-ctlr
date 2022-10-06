@@ -102,6 +102,10 @@ func (crInfr *CRInformer) start() {
 		go crInfr.podInformer.Run(crInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, crInfr.podInformer.HasSynced)
 	}
+	if crInfr.secretsInformer != nil {
+		go crInfr.secretsInformer.Run(crInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, crInfr.secretsInformer.HasSynced)
+	}
 	cache.WaitForNamedCacheSync(
 		"F5 CIS CRD Controller",
 		crInfr.stopCh,
@@ -300,6 +304,17 @@ func (ctlr *Controller) newNamespacedCustomResourceInformer(
 				everything,
 			),
 			&corev1.Endpoints{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
+		secretsInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"secrets",
+				namespace,
+				everything,
+			),
+			&corev1.Secret{},
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
@@ -546,6 +561,16 @@ func (ctlr *Controller) addCustomResourceEventHandlers(crInf *CRInformer) {
 				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj) },
 				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj) },
+			},
+		)
+	}
+
+	if crInf.secretsInformer != nil {
+		crInf.secretsInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.enqueueSecret(obj, Create) },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueSecret(cur, Update) },
+				DeleteFunc: func(obj interface{}) { ctlr.enqueueSecret(obj, Delete) },
 			},
 		)
 	}
@@ -979,7 +1004,7 @@ func (ctlr *Controller) enqueueUpdatedService(obj, cur interface{}) {
 
 	if (svc.Spec.Type != curSvc.Spec.Type && svc.Spec.Type == corev1.ServiceTypeLoadBalancer) ||
 		(svc.Annotations[LBServiceIPAMLabelAnnotation] != curSvc.Annotations[LBServiceIPAMLabelAnnotation]) ||
-		!reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
+		!reflect.DeepEqual(svc.Labels, curSvc.Labels) || !reflect.DeepEqual(svc.Spec.Ports, curSvc.Spec.Ports) {
 		log.Debugf("Enqueueing Old Service: %v", svc)
 		key := &rqKey{
 			namespace: svc.ObjectMeta.Namespace,
@@ -1057,9 +1082,23 @@ func (ctlr *Controller) enqueueEndpoints(obj interface{}, event string) {
 	}
 }
 
+func (ctlr *Controller) enqueueSecret(obj interface{}, event string) {
+	secret := obj.(*corev1.Secret)
+	log.Debugf("Enqueueing Secrets: %v/%v", secret.Namespace, secret.Name)
+	key := &rqKey{
+		namespace: secret.ObjectMeta.Namespace,
+		kind:      K8sSecret,
+		rscName:   secret.ObjectMeta.Name,
+		rsc:       obj,
+		event:     event,
+	}
+	ctlr.rscQueue.Add(key)
+
+}
+
 func (ctlr *Controller) enqueueRoute(obj interface{}, event string) {
 	rt := obj.(*routeapi.Route)
-	log.Debugf("Enqueueing Route: %v", rt)
+	log.Debugf("Enqueueing Route: %v/%v", rt.ObjectMeta.Namespace, rt.ObjectMeta.Name)
 	key := &rqKey{
 		namespace: rt.ObjectMeta.Namespace,
 		kind:      Route,
@@ -1077,7 +1116,7 @@ func (ctlr *Controller) enqueueUpdatedRoute(old, cur interface{}) {
 	if reflect.DeepEqual(oldRoute.Spec, newRoute.Spec) && reflect.DeepEqual(oldRoute.Annotations, newRoute.Annotations) {
 		return
 	}
-	log.Debugf("Enqueueing Route: %v", newRoute)
+	log.Debugf("Enqueueing Route: %v/%v", newRoute.ObjectMeta.Namespace, newRoute.ObjectMeta.Name)
 	key := &rqKey{
 		namespace: newRoute.ObjectMeta.Namespace,
 		kind:      Route,
@@ -1126,7 +1165,7 @@ func (ctlr *Controller) enqueueDeletedConfigmap(obj interface{}) {
 func (ctlr *Controller) enqueueDeletedRoute(obj interface{}) {
 	rt := obj.(*routeapi.Route)
 
-	log.Debugf("Enqueueing Deleted Route: %v", rt)
+	log.Debugf("Enqueueing Deleted Route: %v/%v", rt.ObjectMeta.Namespace, rt.ObjectMeta.Name)
 	key := &rqKey{
 		namespace: rt.ObjectMeta.Namespace,
 		kind:      Route,

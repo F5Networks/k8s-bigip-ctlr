@@ -697,8 +697,6 @@ var _ = Describe("Resource Config Tests", func() {
 				"",
 				""}
 
-			mockCtlr.SSLContext = make(map[string]*v1.Secret)
-
 			ip = "1.2.3.4"
 
 			vs = test.NewVirtualServer(
@@ -881,69 +879,6 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
 
 			Expect(len(rsCfg.Virtual.Profiles)).To(Equal(0), "Failed to Process TLS Termination: Edge")
-		})
-
-		It("TLS Edge with BIGIP Reference", func() {
-
-			vs.Spec.TLSProfileName = "SampleTLS"
-			tlsProf.Spec.TLS.Termination = TLSEdge
-			tlsProf.Spec.TLS.Reference = Secret
-			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
-
-			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
-
-			clSecret := test.NewSecret(
-				"clientsecret",
-				namespace,
-				"### cert ###",
-				"#### key ####",
-			)
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret)
-
-			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
-			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
-			Expect(len(rsCfg.customProfiles)).To(Equal(2), "Failed to Process TLS Termination: Edge")
-			Expect(len(mockCtlr.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
-
-			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
-			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Edge")
-			Expect(len(rsCfg.customProfiles)).To(Equal(2), "Failed to Process TLS Termination: Edge")
-			Expect(len(mockCtlr.SSLContext)).To(Equal(1), "Failed to Process TLS Termination: Edge")
-		})
-
-		It("TLS Reencrypt with BIGIP Reference", func() {
-
-			vs.Spec.TLSProfileName = "SampleTLS"
-			tlsProf.Spec.TLS.Termination = TLSReencrypt
-			tlsProf.Spec.TLS.Reference = Secret
-			tlsProf.Spec.TLS.ClientSSL = "clientsecret"
-			tlsProf.Spec.TLS.ServerSSL = "serversecret"
-
-			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
-
-			clSecret := test.NewSecret(
-				"clientsecret",
-				namespace,
-				"### cert ###",
-				"#### key ####",
-			)
-			svSecret := test.NewSecret(
-				"serversecret",
-				namespace,
-				"### cert ###",
-				"",
-			)
-			mockCtlr.kubeClient = k8sfake.NewSimpleClientset(clSecret, svSecret)
-
-			ok := mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
-			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(rsCfg.customProfiles)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(mockCtlr.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
-
-			ok = mockCtlr.handleVirtualServerTLS(rsCfg, vs, tlsProf, ip)
-			Expect(ok).To(BeTrue(), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(rsCfg.customProfiles)).To(Equal(4), "Failed to Process TLS Termination: Reencrypt")
-			Expect(len(mockCtlr.SSLContext)).To(Equal(2), "Failed to Process TLS Termination: Reencrypt")
 		})
 
 		It("Validate API failures", func() {

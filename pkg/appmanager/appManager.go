@@ -3524,7 +3524,13 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 		} else { // Controller is in NodePort mode.
 			if service.Spec.Type == v1.ServiceTypeNodePort {
 				for _, port := range service.Spec.Ports {
-					members = append(members, appMgr.getEndpointsForNodePort(port.NodePort, port.Port)...)
+					endpointMembers := appMgr.getEndpointsForNodePort(port.NodePort, port.Port)
+					for _, newMember := range endpointMembers {
+						if _, ok := uniqueMembersMap[newMember]; !ok {
+							uniqueMembersMap[newMember] = struct{}{}
+							members = append(members, newMember)
+						}
+					}
 				}
 			} /* else {
 				msg := fmt.Sprintf("[CORE] Requested service backend '%+v' not of NodePort type", service.Name)

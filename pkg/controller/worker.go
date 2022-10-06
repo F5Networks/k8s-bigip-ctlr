@@ -150,6 +150,25 @@ func (ctlr *Controller) processCustomResource() bool {
 				isError = true
 			}
 		}
+	case K8sSecret:
+		secret := rKey.rsc.(*v1.Secret)
+		tlsProfiles := ctlr.getTLSProfilesForSecret(secret)
+		for _, tlsProfile := range tlsProfiles {
+			virtuals := ctlr.getVirtualsForTLSProfile(tlsProfile)
+			// No Virtuals are effected with the change in TLSProfile.
+			if nil == virtuals {
+				break
+			}
+			for _, virtual := range virtuals {
+				err := ctlr.processVirtualServers(virtual, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isError = true
+				}
+			}
+		}
+
 	case TransportServer:
 		virtual := rKey.rsc.(*cisapiv1.TransportServer)
 		err := ctlr.processTransportServers(virtual, rscDelete)
@@ -254,10 +273,15 @@ func (ctlr *Controller) processCustomResource() bool {
 		ingLinks := ctlr.getIngressLinksForService(svc)
 		if nil != ingLinks {
 			for _, ingLink := range ingLinks {
-				err := ctlr.processIngressLink(ingLink, false)
+				// Delete/sync IngressLink. Delete will be processed with old service
+				err := ctlr.processIngressLink(ingLink, rscDelete)
 				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					if rscDelete {
+						utilruntime.HandleError(fmt.Errorf("Deleting IngresLink %v failed with %v", ingLink.Name, err))
+					} else {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					}
 					isError = true
 				}
 			}
@@ -473,17 +497,6 @@ func (ctlr *Controller) getVirtualServersForService(svc *v1.Service) []*cisapiv1
 			svc.ObjectMeta.Name)
 		return nil
 	}
-	// Output list of all Virtuals Found.
-	var targetVirtualNames []string
-	for _, vs := range allVirtuals {
-		targetVirtualNames = append(targetVirtualNames, vs.ObjectMeta.Name)
-	}
-	log.Debugf("VirtualServers %v are affected with service %s change",
-		targetVirtualNames, svc.ObjectMeta.Name)
-
-	// TODO
-	// Remove Duplicate entries in the targetVirutalServers.
-	// or Add only Unique entries into the targetVirutalServers.
 	return virtualsForService
 }
 
@@ -505,18 +518,6 @@ func (ctlr *Controller) getVirtualsForTLSProfile(tls *cisapiv1.TLSProfile) []*ci
 			tls.ObjectMeta.Name)
 		return nil
 	}
-	// Output list of all Virtuals Found.
-	var targetVirtualNames []string
-	for _, vs := range allVirtuals {
-		targetVirtualNames = append(targetVirtualNames, vs.ObjectMeta.Name)
-	}
-	log.Debugf("VirtualServers %v are affected with TLSProfile %s change",
-		targetVirtualNames, tls.ObjectMeta.Name)
-
-	// TODO
-	// Remove Duplicate entries in the targetVirutalServers.
-	// or Add only Unique entries into the targetVirutalServers.
-
 	return virtualsForTLSProfile
 }
 
@@ -1517,6 +1518,10 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 					ctlr.getEndpointsForNodePort(svcPort.NodePort, pool.NodeMemberLabel)
 			}
 		}
+		//check if endpoints are found
+		if rsCfg.Pools[index].Members == nil {
+			log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort %v", svcName, pool.ServicePort.IntVal)
+		}
 	}
 }
 
@@ -1543,6 +1548,10 @@ func (ctlr *Controller) updatePoolMembersForCluster(
 			}
 			rsCfg.MetaData.Active = true
 			rsCfg.Pools[index].Members = mems
+		}
+		//check if endpoints are found
+		if rsCfg.Pools[index].Members == nil {
+			log.Errorf("[CORE]Endpoints could not be fetched for service %v with targetPort %v", svcName, pool.ServicePort.IntVal)
 		}
 	}
 }
@@ -1877,17 +1886,6 @@ func (ctlr *Controller) getTransportServersForService(svc *v1.Service) []*cisapi
 			svc.ObjectMeta.Name)
 		return nil
 	}
-	// Output list of all Virtuals Found.
-	var targetVirtualNames []string
-	for _, vs := range allVirtuals {
-		targetVirtualNames = append(targetVirtualNames, vs.ObjectMeta.Name)
-	}
-	log.Debugf("VirtualServers for TransportServer %v are affected with service %s change",
-		targetVirtualNames, svc.ObjectMeta.Name)
-
-	// TODO
-	// Remove Duplicate entries in the targetVirutalServers.
-	// or Add only Unique entries into the targetVirutalServers.
 	return virtualsForService
 }
 
@@ -2271,6 +2269,13 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 				if vs.MetaData.Protocol == "http" && (vs.MetaData.httpTraffic == TLSRedirectInsecure || vs.MetaData.httpTraffic == TLSAllowInsecure) {
 					continue
 				}
+				// add only one VS member to pool.
+				if len(pool.Members) > 0 && strings.HasPrefix(vsName, "ingress_link_") {
+					if strings.HasSuffix(vsName, "_443") {
+						pool.Members[0] = fmt.Sprintf("%v:/%v/Shared/%v", pl.DataServerName, DEFAULT_PARTITION, vsName)
+					}
+					continue
+				}
 				log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("%v:/%v/Shared/%v",
 					pl.DataServerName, DEFAULT_PARTITION, vsName))
 				pool.Members = append(
@@ -2612,7 +2617,7 @@ func (ctlr *Controller) processIngressLink(
 
 		rsCfg := &ResourceConfig{}
 		rsCfg.Virtual.Partition = ctlr.Partition
-		rsCfg.MetaData.ResourceType = "TransportServer"
+		rsCfg.MetaData.ResourceType = TransportServer
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, ingLink.Spec.Host)
 		rsCfg.Virtual.Mode = "standard"
 		rsCfg.Virtual.TranslateServerAddress = true
@@ -3160,4 +3165,32 @@ func fetchPortString(port intstr.IntOrString) string {
 		return fmt.Sprintf("%v", port.IntVal)
 	}
 	return ""
+}
+
+// fetch list of tls profiles for given secret.
+func (ctlr *Controller) getTLSProfilesForSecret(secret *v1.Secret) []*cisapiv1.TLSProfile {
+	var allTLSProfiles []*cisapiv1.TLSProfile
+
+	crInf, ok := ctlr.getNamespacedInformer(secret.Namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", secret.Namespace)
+		return nil
+	}
+
+	var orderedTLS []interface{}
+	var err error
+	orderedTLS, err = crInf.tlsInformer.GetIndexer().ByIndex("namespace", secret.Namespace)
+	if err != nil {
+		log.Errorf("Unable to get list of TLS Profiles for namespace '%v': %v",
+			secret.Namespace, err)
+		return nil
+	}
+
+	for _, obj := range orderedTLS {
+		tlsProfile := obj.(*cisapiv1.TLSProfile)
+		if tlsProfile.Spec.TLS.Reference == Secret && tlsProfile.Spec.TLS.ClientSSL == secret.Name {
+			allTLSProfiles = append(allTLSProfiles, tlsProfile)
+		}
+	}
+	return allTLSProfiles
 }

@@ -17,22 +17,21 @@
 package controller
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
+
 	"net"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 
+	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
+
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/cache"
 
 	routeapi "github.com/openshift/api/route/v1"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
@@ -264,10 +263,20 @@ func formatCustomVirtualServerName(name string, port int32) string {
 	return fmt.Sprintf("%s_%d", name, port)
 }
 
-func framePoolName(ns string, pool cisapiv1.Pool, port intstr.IntOrString, host string) string {
+func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string) string {
+
 	poolName := pool.Name
 	if poolName == "" {
-		poolName = formatPoolName(ns, pool.Service, port, pool.NodeMemberLabel, host)
+		targetPort := intstr.IntOrString{IntVal: pool.ServicePort}
+
+		if (intstr.IntOrString{}) == targetPort {
+			svcNamespace := ns
+			if pool.ServiceNamespace != "" {
+				svcNamespace = pool.ServiceNamespace
+			}
+			targetPort = ctlr.fetchTargetPort(svcNamespace, pool.Service, pool.ServicePort)
+		}
+		poolName = formatPoolName(ns, pool.Service, targetPort, pool.NodeMemberLabel, host)
 	}
 
 	return poolName
@@ -398,20 +407,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	var pools Pools
 	var rules *Rules
 	var monitors []Monitor
-	var targetPort intstr.IntOrString
 
 	framedPools := make(map[string]struct{})
 	for _, pl := range vs.Spec.Pools {
-		svcNamespace := vs.Namespace
-		if pl.ServiceNamespace != "" {
-			svcNamespace = pl.ServiceNamespace
-		}
-		targetPort = ctlr.fetchTargetPort(svcNamespace, pl.Service, pl.ServicePort)
 
-		if (intstr.IntOrString{}) == targetPort {
-			targetPort = intstr.IntOrString{IntVal: pl.ServicePort}
-		}
-		poolName := framePoolName(vs.ObjectMeta.Namespace, pl, targetPort, vs.Spec.Host)
+		poolName := ctlr.framePoolName(vs.Namespace, pl, vs.Spec.Host)
 		//check for custom monitor
 		var monitorName string
 		if pl.Monitor.Name != "" && pl.Monitor.Reference == BIGIP {
@@ -426,7 +426,15 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 			continue
 		}
 		framedPools[poolName] = struct{}{}
+		targetPort := ctlr.fetchTargetPort(vs.Namespace, pl.Service, pl.ServicePort)
 
+		if (intstr.IntOrString{}) == targetPort {
+			targetPort = intstr.IntOrString{IntVal: pl.ServicePort}
+		}
+		svcNamespace := vs.Namespace
+		if pl.ServiceNamespace != "" {
+			svcNamespace = pl.ServiceNamespace
+		}
 		pool := Pool{
 			Name:             poolName,
 			Partition:        rsCfg.Virtual.Partition,
@@ -607,68 +615,50 @@ func (ctlr *Controller) handleTLS(
 				log.Debugf("Updated BIGIP referenced profiles for '%s' '%s'/'%s'",
 					tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
 			case Secret:
-				// Prepare SSL Transient Context
-				// Check if TLS Secret already exists
 				// Process ClientSSL stored as kubernetes secret
+				var namespace string
+				if ctlr.watchingAllNamespaces() {
+					namespace = ""
+				} else {
+					namespace = tlsContext.namespace
+				}
 				if clientSSL != "" {
-					if secret, ok := ctlr.SSLContext[clientSSL]; ok {
-						log.Debugf("clientSSL secret %s for '%s'/'%s' is already available with CIS in "+
-							"SSLContext as clientSSL", secret.ObjectMeta.Name, tlsContext.namespace, tlsContext.name)
-						err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
-						if err != nil {
-							log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s' using secret '%s'",
-								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name, secret.ObjectMeta.Name)
-							return false
-						}
-					} else {
-						// Check if profile is contained in a Secret
-						// Update the SSL Context if secret found, This is used to avoid api calls
-						log.Debugf("saving clientSSL secret for '%s' '%s'/'%s' into SSLContext", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-						secret, err := ctlr.kubeClient.CoreV1().Secrets(tlsContext.namespace).
-							Get(context.TODO(), clientSSL, metav1.GetOptions{})
-						if err != nil {
-							log.Errorf("secret %s not found for '%s' '%s'/'%s'",
-								clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-							return false
-						}
-						ctlr.SSLContext[clientSSL] = secret
-						err, _ = ctlr.createSecretClientSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
-						if err != nil {
-							log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
-								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-							return false
-						}
+					secretKey := tlsContext.namespace + "/" + clientSSL
+					if _, ok := ctlr.crInformers[namespace]; !ok {
+						return false
+					}
+					obj, found, err := ctlr.crInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+					if err != nil || !found {
+						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+							clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
+					}
+					secret := obj.(*v1.Secret)
+					err, _ = ctlr.createSecretClientSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
+					if err != nil {
+						log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
+							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
 					}
 				}
 				// Process ServerSSL stored as kubernetes secret
 				if serverSSL != "" {
-					if secret, ok := ctlr.SSLContext[serverSSL]; ok {
-						log.Debugf("serverSSL secret %s for '%s'/'%s' is already available with CIS in "+
-							"SSLContext as serverSSL", secret.ObjectMeta.Name, tlsContext.namespace, tlsContext.name)
-						err, _ := ctlr.createSecretServerSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
-						if err != nil {
-							log.Debugf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s' using secret '%s'",
-								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name, secret.ObjectMeta.Name)
-							return false
-						}
-					} else {
-						// Check if profile is contained in a Secret
-						// Update the SSL Context if secret found, This is used to avoid api calls
-						log.Debugf("saving serverSSL secret for '%s' '%s'/'%s' into SSLContext", tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-						secret, err := ctlr.kubeClient.CoreV1().Secrets(tlsContext.namespace).
-							Get(context.TODO(), serverSSL, metav1.GetOptions{})
-						if err != nil {
-							log.Errorf("secret %s not found for '%s' '%s'/'%s'",
-								serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-							return false
-						}
-						ctlr.SSLContext[serverSSL] = secret
-						err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
-						if err != nil {
-							log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
-								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-							return false
-						}
+					secretKey := tlsContext.namespace + "/" + serverSSL
+					if _, ok := ctlr.crInformers[namespace]; !ok {
+						return false
+					}
+					obj, found, err := ctlr.crInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+					if err != nil || !found {
+						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+							serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
+					}
+					secret := obj.(*v1.Secret)
+					err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
+					if err != nil {
+						log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
+							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+						return false
 					}
 				}
 
@@ -864,10 +854,9 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	var poolPathRefs []poolPathRef
 	for _, pl := range vs.Spec.Pools {
 
-		poolName := framePoolName(
+		poolName := ctlr.framePoolName(
 			vs.ObjectMeta.Namespace,
 			pl,
-			intstr.IntOrString{IntVal: pl.ServicePort},
 			vs.Spec.Host,
 		)
 
@@ -1495,14 +1484,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	rsCfg *ResourceConfig,
 	vs *cisapiv1.TransportServer,
 ) error {
-	targetPort := ctlr.fetchTargetPort(vs.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
-	if (intstr.IntOrString{}) == targetPort {
-		targetPort = intstr.IntOrString{IntVal: vs.Spec.Pool.ServicePort}
-	}
-	poolName := framePoolName(
+
+	poolName := ctlr.framePoolName(
 		vs.ObjectMeta.Namespace,
 		vs.Spec.Pool,
-		targetPort,
 		"",
 	)
 	//check for custom monitor
@@ -1511,6 +1496,10 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		monitorName = vs.Spec.Pool.Monitor.Name
 	} else {
 		monitorName = poolName + "-monitor"
+	}
+	targetPort := ctlr.fetchTargetPort(vs.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
+	if (intstr.IntOrString{}) == targetPort {
+		targetPort = intstr.IntOrString{IntVal: vs.Spec.Pool.ServicePort}
 	}
 
 	pool := Pool{

@@ -92,7 +92,6 @@ Base route configuration can be defined in Global ConfigMap. This cannot be over
 | vsName | Optional | Name of BigIP Virtual Server | auto | Local and Global configMap |
 | allowSourceRange | Optional | list of subnets to allow the traffic on BigIP Virtual Server | - | Local and Global configMap  |
 | WAF | Optional |  WAF Policy for BigIP Virtual Server | - | Local and Global configMap |
-| healthMonitors | Optional |  list of route's health monitors | - | Local and Global configMap |
 | tls | Optional |  Dictionary of client & server SSL profiles (See next section) | - | Local and Global configMap |
 
   **Note**: 1. namespaceLabel is mutually exclusive with namespace parameter
@@ -514,10 +513,10 @@ edge re-encrypt & passthrough routes are supported
 allow, redirect & none termination supported with edge routes, while re-encrypt routes supports redirect & none terminations. 
 ### Do we support bigIP referenced SSL Profiles annotations on routes?
 You can define SSL profiles in extended configMap.
-### Can we configure health monitors using annotations?
-Currently, you can define the health monitors in extended configMap, we will support the health monitor as annotation in upcoming release.
+### Can we configure health monitors using route annotations?
+Yes you can continue using the health monitors using route annotations
 ### Which fields are optional in the extended configMap?
-iRules and healthMonitors are optional values.
+iRules is optional values.
 ### Any changes in RBAC? 
 No.
 

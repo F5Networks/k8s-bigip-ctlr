@@ -364,7 +364,6 @@ type (
 		Timeout    int    `json:"timeout,omitempty"`
 		TargetPort int32  `json:"targetPort,omitempty"`
 		Path       string `json:"path,omitempty"`
-		InUse      bool   `json:"-"`
 	}
 	MonitorName struct {
 		Name string `json:"name"`
@@ -1063,7 +1062,6 @@ type (
 		WAF              string   `yaml:"waf"`
 		IRules           []string `yaml:"iRules,omitempty"`
 		TLS              TLS      `yaml:"tls"`
-		HealthMonitors   Monitors `yaml:"healthMonitors,omitempty"`
 		Meta             Meta
 	}
 

@@ -2,15 +2,15 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -125,7 +125,6 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				name:      rt.Name,
 			}] = struct{}{}
 		}
-		ctlr.removeUnusedHealthMonitors(rsCfg)
 
 		if processingError {
 			log.Errorf("Unable to Process Route Group %s", routeGroup)
@@ -151,24 +150,6 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	}
 
 	return nil
-}
-
-func (ctlr *Controller) removeUnusedHealthMonitors(rsCfg *ResourceConfig) {
-	monitorLen := len(rsCfg.Monitors)
-	i := 0
-	for i < monitorLen {
-		if !rsCfg.Monitors[i].InUse {
-			log.Warningf("Discarding monitor %v with path %v as it is unused", rsCfg.Monitors[i].Name, rsCfg.Monitors[i].Path)
-			if i == len(rsCfg.Monitors)-1 {
-				rsCfg.Monitors = rsCfg.Monitors[:i]
-			} else {
-				rsCfg.Monitors = append(rsCfg.Monitors[:i], rsCfg.Monitors[i+1:]...)
-			}
-			monitorLen -= 1
-		} else {
-			i++
-		}
-	}
 }
 
 func (ctlr *Controller) getGroupedRoutes(routeGroup string, extdSpec *ExtendedRouteGroupSpec) []*routeapi.Route {
@@ -204,24 +185,6 @@ func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, extd
 	}
 	rsCfg.Virtual.WAF = extdSpec.WAF
 	rsCfg.Virtual.IRules = extdSpec.IRules
-
-	for _, hm := range extdSpec.HealthMonitors {
-		if hm.Type == "" {
-			hm.Type = "http"
-		}
-		rsCfg.Monitors = append(
-			rsCfg.Monitors,
-			Monitor{
-				Name:      AS3NameFormatter(hm.Path) + "_monitor",
-				Partition: rsCfg.Virtual.Partition,
-				Interval:  hm.Interval,
-				Type:      hm.Type,
-				Send:      hm.Send,
-				Recv:      hm.Recv,
-				Timeout:   hm.Timeout,
-				Path:      hm.Path,
-			})
-	}
 	return nil
 }
 
@@ -297,12 +260,35 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			Balance:          route.ObjectMeta.Annotations[resource.F5VsBalanceAnnotation],
 		}
 
-		for index, monitor := range rsCfg.Monitors {
-			if strings.HasPrefix(monitor.Path, route.Spec.Host+route.Spec.Path) {
-				// Remove unused health monitors
-				rsCfg.Monitors[index].InUse = true
-				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
-				break
+		// Handle Route health monitors
+		hmStr, exists := route.ObjectMeta.Annotations[LegacyHealthMonitorAnnotation]
+		if exists {
+			var monitors Monitors
+			err := json.Unmarshal([]byte(hmStr), &monitors)
+			if err != nil {
+				log.Errorf("Unable to parse health monitor JSON array '%v': %v",
+					hmStr, err)
+			} else {
+				for _, hm := range monitors {
+					if hm.Type == "" {
+						hm.Type = "http"
+					}
+					monitor := Monitor{
+						Name:      pool.Name + "_monitor",
+						Partition: rsCfg.Virtual.Partition,
+						Interval:  hm.Interval,
+						Type:      hm.Type,
+						Send:      hm.Send,
+						Recv:      hm.Recv,
+						Timeout:   hm.Timeout,
+						Path:      hm.Path,
+					}
+					rsCfg.Monitors = append(
+						rsCfg.Monitors,
+						monitor,
+					)
+					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
+				}
 			}
 		}
 

@@ -5,9 +5,21 @@ metadata:
     name: simpleroute
     f5tnr: "true"
   name: simpleroute
+  annotations:
+    # annotations
+    # health monitoring
+    virtual-server.f5.com/health: |
+      [
+        {
+          "path": "test.com/",
+          "send": "HTTP GET /",
+          "interval": 5,
+          "timeout": 10
+        }
+      ]
 spec:
   host: test.com
-  path: "/test"
+  path: "/"
   port:
     targetPort: 80
   to:

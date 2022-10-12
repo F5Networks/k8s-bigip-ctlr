@@ -73,13 +73,12 @@ var _ = Describe("Routes", func() {
 			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
 				override: override,
 				global: &ExtendedRouteGroupSpec{
-					VServerName:    "samplevs",
-					VServerAddr:    "10.10.10.10",
-					AllowOverride:  "false",
-					SNAT:           "auto",
-					WAF:            "/Common/WAFPolicy",
-					IRules:         []string{"/Common/iRule1"},
-					HealthMonitors: Monitors{Monitor{Send: "HTTP GET /", Interval: 2, Timeout: 3}},
+					VServerName:   "samplevs",
+					VServerAddr:   "10.10.10.10",
+					AllowOverride: "false",
+					SNAT:          "auto",
+					WAF:           "/Common/WAFPolicy",
+					IRules:        []string{"/Common/iRule1"},
 				},
 			}
 			err := mockCtlr.processRoutes(ns, false)
@@ -246,18 +245,6 @@ var _ = Describe("Routes", func() {
 			Expect(found).To(BeTrue())
 			Expect(len(mockCtlr.processedHostPath.processedHostPathMap)).To(BeEquivalentTo(1))
 			mockCtlr.deleteRoute(route1)
-		})
-		It("Remove unused health monitors", func() {
-			rsCfg := &ResourceConfig{}
-			monitor1 := Monitor{Path: "hello.com/health", Interval: 1, Timeout: 2, InUse: true}
-			monitor2 := Monitor{Path: "unused.com/", Interval: 2, Timeout: 3, InUse: false}
-			monitor3 := Monitor{Path: "demo.com/", Interval: 3, Timeout: 4, InUse: true}
-			monitor4 := Monitor{Path: "unused.com/", Interval: 4, Timeout: 6, InUse: false}
-
-			rsCfg.Monitors = []Monitor{monitor1, monitor2, monitor3, monitor4}
-			mockCtlr.removeUnusedHealthMonitors(rsCfg)
-			Expect(len(rsCfg.Monitors)).To(BeEquivalentTo(2))
-
 		})
 		It("Checks whether Forwarding policy is added correctly", func() {
 			routeGroup := "default"

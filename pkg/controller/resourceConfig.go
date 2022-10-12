@@ -1836,13 +1836,6 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 			copy(ergc.IRules, extdSpec.global.IRules)
 		}
 
-		if extdSpec.local.HealthMonitors != nil {
-			ergc.HealthMonitors = make(Monitors, len(extdSpec.local.HealthMonitors))
-			copy(ergc.HealthMonitors, extdSpec.local.HealthMonitors)
-		} else if extdSpec.global.HealthMonitors != nil {
-			ergc.HealthMonitors = make(Monitors, len(extdSpec.global.HealthMonitors))
-			copy(ergc.HealthMonitors, extdSpec.global.HealthMonitors)
-		}
 		return ergc, extdSpec.partition
 	}
 

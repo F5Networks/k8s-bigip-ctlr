@@ -6,6 +6,9 @@ Next Release
 
 Added Functionality
 ```````````````````
+**What’s new:**
+    * Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
+    * Support for health monitors using route annotations See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
 
 Bug Fixes
 ````````````

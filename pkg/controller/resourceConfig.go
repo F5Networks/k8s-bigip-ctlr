@@ -1862,7 +1862,7 @@ func (ctlr *Controller) handleRouteTLS(
 	bigIPSSLProfiles := BigIPSSLProfiles{}
 
 	//If TLS config is present in the global configmap look for the bigIPReference
-	if extdSpec.TLS != (TLS{}) && extdSpec.TLS.Reference == BIGIP {
+	if extdSpec.TLS != (TLS{}) && (extdSpec.TLS.Reference == BIGIP || extdSpec.TLS.Reference == Secret) {
 		tlsReferenceType = extdSpec.TLS.Reference
 		if route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
 			if extdSpec.TLS.ClientSSL == "" {

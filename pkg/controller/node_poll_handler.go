@@ -88,7 +88,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 			// Handle NodeLabelUpdates
 			if ctlr.PoolMemberType == NodePort {
 				if ctlr.watchingAllNamespaces() {
-					crInf, _ := ctlr.getNamespacedInformer("")
+					crInf, _ := ctlr.getNamespacedCRInformer("")
 					virtuals := crInf.vsInformer.GetIndexer().List()
 					if len(virtuals) != 0 {
 						for _, virtual := range virtuals {
@@ -100,7 +100,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								vs,
 								Update,
 							}
-							ctlr.rscQueue.Add(qKey)
+							ctlr.resourceQueue.Add(qKey)
 						}
 					}
 					transportVirtuals := crInf.tsInformer.GetIndexer().List()
@@ -114,7 +114,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								vs,
 								Update,
 							}
-							ctlr.rscQueue.Add(qKey)
+							ctlr.resourceQueue.Add(qKey)
 						}
 					}
 
@@ -132,7 +132,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								virtual,
 								Update,
 							}
-							ctlr.rscQueue.Add(qKey)
+							ctlr.resourceQueue.Add(qKey)
 						}
 						for _, virtual := range transportVirtuals {
 							qKey := &rqKey{
@@ -142,7 +142,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								virtual,
 								Update,
 							}
-							ctlr.rscQueue.Add(qKey)
+							ctlr.resourceQueue.Add(qKey)
 						}
 					}
 				}

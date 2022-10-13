@@ -49,7 +49,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 			switch kind {
 			case VirtualServer:
 				// update status
-				crInf, ok := ctlr.getNamespacedInformer(ns)
+				crInf, ok := ctlr.getNamespacedCRInformer(ns)
 				if !ok {
 					log.Debugf("VirtualServer Informer not found for namespace: %v", ns)
 					continue
@@ -69,7 +69,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 				}
 			case TransportServer:
 				// update status
-				crInf, ok := ctlr.getNamespacedInformer(ns)
+				crInf, ok := ctlr.getNamespacedCRInformer(ns)
 				if !ok {
 					log.Debugf("TransportServer Informer not found for namespace: %v", ns)
 					continue

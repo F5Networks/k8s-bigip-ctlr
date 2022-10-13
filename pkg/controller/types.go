@@ -47,45 +47,46 @@ import (
 type (
 	// Controller defines the structure of K-Native and Custom Resource Controller
 	Controller struct {
-		mode               ControllerMode
-		resources          *ResourceStore
-		kubeCRClient       versioned.Interface
-		kubeClient         kubernetes.Interface
-		kubeAPIClient      *extClient.Clientset
+		mode                   ControllerMode
+		resources              *ResourceStore
+		kubeCRClient           versioned.Interface
+		kubeClient             kubernetes.Interface
+		kubeAPIClient          *extClient.Clientset
+		eventNotifier          *apm.EventNotifier
+		nativeResourceSelector labels.Selector
+		customResourceSelector labels.Selector
+		namespacesMutex        sync.Mutex
+		namespaces             map[string]bool
+		initialSvcCount        int
+		resourceQueue          workqueue.RateLimitingInterface
+		Partition              string
+		Agent                  *Agent
+		PoolMemberType         string
+		nodePoller             pollers.Poller
+		oldNodes               []Node
+		UseNodeInternal        bool
+		initState              bool
+		dgPath                 string
+		shareNodes             bool
+		ipamCli                *ipammachinery.IPAMClient
+		ipamCR                 string
+		defaultRouteDomain     int
+		TeemData               *teem.TeemsData
+		requestQueue           *requestQueue
+		namespaceLabel         string
+		resourceContext
+	}
+	resourceContext struct {
+		resourceQueue      workqueue.RateLimitingInterface
+		routeClientV1      routeclient.RouteV1Interface
+		comInformers       map[string]*CommonInformer
+		nrInformers        map[string]*NRInformer
 		crInformers        map[string]*CRInformer
 		nsInformers        map[string]*NSInformer
-		eventNotifier      *apm.EventNotifier
-		resourceSelector   labels.Selector
-		namespacesMutex    sync.Mutex
-		namespaces         map[string]bool
-		initialSvcCount    int
-		rscQueue           workqueue.RateLimitingInterface
-		Partition          string
-		Agent              *Agent
-		PoolMemberType     string
-		nodePoller         pollers.Poller
-		oldNodes           []Node
-		UseNodeInternal    bool
-		initState          bool
-		dgPath             string
-		shareNodes         bool
-		ipamCli            *ipammachinery.IPAMClient
-		ipamCR             string
-		defaultRouteDomain int
-		TeemData           *teem.TeemsData
-		requestQueue       *requestQueue
-		namespaceLabel     string
-		nativeResourceContext
-	}
-	nativeResourceContext struct {
-		nativeResourceQueue workqueue.RateLimitingInterface
-		routeClientV1       routeclient.RouteV1Interface
-		esInformers         map[string]*EssentialInformer
-		nrInformers         map[string]*NRInformer
-		routeSpecCMKey      string
-		routeLabel          string
-		namespaceLabelMode  bool
-		processedHostPath   *ProcessedHostPath
+		routeSpecCMKey     string
+		routeLabel         string
+		namespaceLabelMode bool
+		processedHostPath  *ProcessedHostPath
 	}
 
 	// Params defines parameters
@@ -111,25 +112,23 @@ type (
 
 	// CRInformer defines the structure of Custom Resource Informer
 	CRInformer struct {
+		namespace   string
+		stopCh      chan struct{}
+		vsInformer  cache.SharedIndexInformer
+		tlsInformer cache.SharedIndexInformer
+		tsInformer  cache.SharedIndexInformer
+		ilInformer  cache.SharedIndexInformer
+	}
+
+	CommonInformer struct {
 		namespace       string
 		stopCh          chan struct{}
 		svcInformer     cache.SharedIndexInformer
 		epsInformer     cache.SharedIndexInformer
-		vsInformer      cache.SharedIndexInformer
-		tlsInformer     cache.SharedIndexInformer
-		tsInformer      cache.SharedIndexInformer
-		ilInformer      cache.SharedIndexInformer
 		ednsInformer    cache.SharedIndexInformer
 		plcInformer     cache.SharedIndexInformer
 		podInformer     cache.SharedIndexInformer
 		secretsInformer cache.SharedIndexInformer
-	}
-
-	EssentialInformer struct {
-		namespace   string
-		stopCh      chan struct{}
-		svcInformer cache.SharedIndexInformer
-		epsInformer cache.SharedIndexInformer
 	}
 
 	// NRInformer is informer context for Native Resources of Kubernetes/Openshift

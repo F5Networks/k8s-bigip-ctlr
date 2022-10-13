@@ -82,7 +82,8 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.kubeClient = k8sfake.NewSimpleClientset(svc1)
 		mockCtlr.mode = CustomResourceMode
 		mockCtlr.crInformers = make(map[string]*CRInformer)
-		mockCtlr.resourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+		mockCtlr.comInformers = make(map[string]*CommonInformer)
+		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		_ = mockCtlr.addNamespacedInformers("default", false)
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
@@ -91,7 +92,7 @@ var _ = Describe("Worker Tests", func() {
 			0,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 			func(options *metav1.ListOptions) {
-				options.LabelSelector = mockCtlr.resourceSelector.String()
+				options.LabelSelector = mockCtlr.nativeResourceSelector.String()
 			},
 		)
 		mockCtlr.crInformers["default"].ilInformer = cisinfv1.NewFilteredIngressLinkInformer(
@@ -100,7 +101,7 @@ var _ = Describe("Worker Tests", func() {
 			0,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 			func(options *metav1.ListOptions) {
-				options.LabelSelector = mockCtlr.resourceSelector.String()
+				options.LabelSelector = mockCtlr.nativeResourceSelector.String()
 			},
 		)
 	})
@@ -1097,16 +1098,16 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0),
 					"Resource Config should be empty")
 
-				mockCtlr.crInformers[namespace].plcInformer = cisinfv1.NewFilteredPolicyInformer(
+				mockCtlr.comInformers[namespace].plcInformer = cisinfv1.NewFilteredPolicyInformer(
 					mockCtlr.kubeCRClient,
 					namespace,
 					0,
 					cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 					func(options *metav1.ListOptions) {
-						options.LabelSelector = mockCtlr.resourceSelector.String()
+						options.LabelSelector = mockCtlr.nativeResourceSelector.String()
 					},
 				)
-				_ = mockCtlr.crInformers[namespace].plcInformer.GetStore().Add(plc)
+				_ = mockCtlr.comInformers[namespace].plcInformer.GetStore().Add(plc)
 
 				// Policy CRD exists
 				_ = mockCtlr.processLBServices(svc1, false)
@@ -1123,7 +1124,7 @@ var _ = Describe("Worker Tests", func() {
 
 				// SNAT set to SNAT pool name
 				plc.Spec.SNAT = "Common/test"
-				_ = mockCtlr.crInformers[namespace].plcInformer.GetStore().Update(plc)
+				_ = mockCtlr.comInformers[namespace].plcInformer.GetStore().Update(plc)
 				_ = mockCtlr.processLBServices(svc1, false)
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 				Expect(mockCtlr.resources.ltmConfig[namespace].ResourceMap[rsname].Virtual.SNAT).To(Equal(plc.Spec.SNAT),
@@ -1131,7 +1132,7 @@ var _ = Describe("Worker Tests", func() {
 
 				// SNAT set to none
 				plc.Spec.SNAT = "none"
-				_ = mockCtlr.crInformers[namespace].plcInformer.GetStore().Update(plc)
+				_ = mockCtlr.comInformers[namespace].plcInformer.GetStore().Update(plc)
 				_ = mockCtlr.processLBServices(svc1, false)
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Resource Configs")
 				Expect(mockCtlr.resources.ltmConfig[namespace].ResourceMap[rsname].Virtual.SNAT).To(Equal(plc.Spec.SNAT),

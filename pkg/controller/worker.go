@@ -1629,6 +1629,10 @@ func (ctlr *Controller) releaseIP(ipamLabel string, host string, key string) str
 		log.Debugf("[IPAM] Invalid host and key.")
 	}
 
+	if len(ctlr.resources.ipamContext) == 0 {
+		ctlr.ipamHostSpecEmpty = true
+	}
+
 	return ip
 }
 
@@ -2551,15 +2555,25 @@ func checkCertificateHost(host string, certificate []byte, key []byte) bool {
 
 func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 	var keysToProcess []string
-	for _, ipSpec := range ipam.Status.IPStatus {
-		if cachedIPSpec, ok := ctlr.resources.ipamContext[ipSpec.Key]; ok {
-			if cachedIPSpec.IP != ipSpec.IP {
-				// TODO: Delete the VS with old IP in BIGIP in case of FIC reboot
+
+	if ctlr.ipamHostSpecEmpty {
+		ipamRes, _ := ctlr.ipamCli.Get(ipam.Namespace, ipam.Name)
+		if len(ipamRes.Spec.HostSpecs) > 0 {
+			ctlr.ipamHostSpecEmpty = false
+		}
+	}
+
+	if !ctlr.ipamHostSpecEmpty {
+		for _, ipSpec := range ipam.Status.IPStatus {
+			if cachedIPSpec, ok := ctlr.resources.ipamContext[ipSpec.Key]; ok {
+				if cachedIPSpec.IP != ipSpec.IP {
+					// TODO: Delete the VS with old IP in BIGIP in case of FIC reboot
+					keysToProcess = append(keysToProcess, ipSpec.Key)
+				}
+			} else {
+				ctlr.resources.ipamContext[ipSpec.Key] = *ipSpec
 				keysToProcess = append(keysToProcess, ipSpec.Key)
 			}
-		} else {
-			ctlr.resources.ipamContext[ipSpec.Key] = *ipSpec
-			keysToProcess = append(keysToProcess, ipSpec.Key)
 		}
 	}
 

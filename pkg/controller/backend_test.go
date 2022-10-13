@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -293,69 +294,39 @@ var _ = Describe("Backend Tests", func() {
 		})
 	})
 
-	It("DNS Config", func() {
-		var monitors []Monitor
-		monitors = append(monitors, Monitor{
-			Name:     "pool1_monitor",
-			Interval: 10,
-			Timeout:  10,
-			Type:     "http",
-			Send:     "GET /health",
-		})
-		dnsConfig := GTMConfig{
-			"test.com": WideIP{
-				DomainName: "test.com",
-				RecordType: "A",
-				LBMethod:   "round-robin",
-				Pools: []GSLBPool{
-					{
-						Name:       "pool1",
-						RecordType: "A",
-						LBMethod:   "round-robin",
-						Members:    []string{"vs1", "vs2"},
-						Monitors:   monitors,
-					},
-				},
-			},
-		}
-
-		config := ResourceConfigRequest{
-			ltmConfig:          make(LTMConfig),
-			shareNodes:         true,
-			gtmConfig:          dnsConfig,
-			defaultRouteDomain: 1,
-		}
-		config.ltmConfig["default"] = &PartitionConfig{}
-
-		writer := &test.MockWriter{
-			FailStyle: test.Success,
-			Sections:  make(map[string]interface{}),
-		}
-		agent := newMockAgent(writer)
-		agent.PostGTMConfig(config)
-
-		writer.FailStyle = test.ImmediateFail
-		agent = newMockAgent(writer)
-		agent.PostGTMConfig(config)
-
-		writer.FailStyle = test.Timeout
-		agent = newMockAgent(writer)
-		agent.PostGTMConfig(config)
-
-		writer.FailStyle = test.AsyncFail
-		agent = newMockAgent(writer)
-		agent.PostGTMConfig(config)
-	})
-
 	Describe("GTM Config", func() {
 		var agent *Agent
 		BeforeEach(func() {
 			agent = newMockAgent(nil)
+			DEFAULT_PARTITION = "default"
 		})
 
 		It("Empty GTM Config", func() {
-			gtmTenantConfig := agent.createAS3GTMConfigADC(ResourceConfigRequest{})
-			Expect(gtmTenantConfig).To(BeNil(), "Invalid GTM Config")
+			adc := as3ADC{}
+			adc = agent.createAS3GTMConfigADC(ResourceConfigRequest{
+				gtmConfig: GTMConfig{},
+			}, adc)
+
+			Expect(len(adc)).To(BeZero(), "Invalid GTM Config")
+		})
+
+		It("Empty GTM Partition Config / Delete Case", func() {
+			adc := as3ADC{}
+			adc = agent.createAS3GTMConfigADC(ResourceConfigRequest{
+				gtmConfig: GTMConfig{
+					DEFAULT_PARTITION: GTMPartitionConfig{},
+				},
+			}, adc)
+			Expect(len(adc)).To(Equal(1), "Invalid GTM Config")
+
+			Expect(adc).To(HaveKey(DEFAULT_PARTITION))
+			tenant := adc[DEFAULT_PARTITION].(as3Tenant)
+
+			Expect(tenant).To(HaveKey(as3SharedApplication))
+			sharedApp := tenant[as3SharedApplication].(as3Application)
+			Expect(len(sharedApp)).To(Equal(2))
+			Expect(sharedApp).To(HaveKeyWithValue("class", "Application"))
+			Expect(sharedApp).To(HaveKeyWithValue("template", "shared"))
 		})
 
 		It("Valid GTM Config", func() {
@@ -369,27 +340,35 @@ var _ = Describe("Backend Tests", func() {
 				},
 			}
 			gtmConfig := GTMConfig{
-				"test.com": WideIP{
-					DomainName: "test.com",
-					RecordType: "A",
-					LBMethod:   "round-robin",
-					Pools: []GSLBPool{
-						{
-							Name:       "pool1",
+				DEFAULT_PARTITION: GTMPartitionConfig{
+					WideIPs: map[string]WideIP{
+						"test.com": WideIP{
+							DomainName: "test.com",
 							RecordType: "A",
 							LBMethod:   "round-robin",
-							Members:    []string{"vs1", "vs2"},
-							Monitors:   monitors,
+							Pools: []GSLBPool{
+								{
+									Name:       "pool1",
+									RecordType: "A",
+									LBMethod:   "round-robin",
+									Members:    []string{"vs1", "vs2"},
+									Monitors:   monitors,
+								},
+							},
 						},
 					},
 				},
 			}
-			gtmTenantConfig := agent.createAS3GTMConfigADC(ResourceConfigRequest{
-				gtmConfig: gtmConfig,
-			})
+			adc := agent.createAS3GTMConfigADC(
+				ResourceConfigRequest{gtmConfig: gtmConfig},
+				as3ADC{},
+			)
 
-			Expect(gtmTenantConfig).To(HaveKey(as3SharedApplication))
-			sharedApp := gtmTenantConfig[as3SharedApplication].(as3Application)
+			Expect(adc).To(HaveKey(DEFAULT_PARTITION))
+			tenant := adc[DEFAULT_PARTITION].(as3Tenant)
+
+			Expect(tenant).To(HaveKey(as3SharedApplication))
+			sharedApp := tenant[as3SharedApplication].(as3Application)
 
 			Expect(sharedApp).To(HaveKey("test.com"))
 			Expect(sharedApp["test.com"].(as3GLSBDomain).Class).To(Equal("GSLB_Domain"))

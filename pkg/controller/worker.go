@@ -1405,7 +1405,7 @@ func (ctlr *Controller) migrateIPAM() {
 	}
 }
 
-//Request IPAM for virtual IP address
+// Request IPAM for virtual IP address
 func (ctlr *Controller) requestIP(ipamLabel string, host string, key string) (string, int) {
 	ipamCR := ctlr.getIPAMCR()
 	var ip string
@@ -2069,7 +2069,7 @@ func (ctlr *Controller) getTransportServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1
 	return tss
 }
 
-//Get List of ingLink associated with the IPAM resource
+// Get List of ingLink associated with the IPAM resource
 func (ctlr *Controller) getIngressLinkForIPAM(ipam *ficV1.IPAM) []*cisapiv1.IngressLink {
 	var allIngLinks, ils []*cisapiv1.IngressLink
 	allIngLinks = ctlr.getAllIngLinkFromMonitoredNamespaces()
@@ -2289,15 +2289,21 @@ func (ctlr *Controller) processService(
 
 func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
-	if processedWIP, ok := ctlr.resources.gtmConfig[edns.Spec.DomainName]; ok {
-		if processedWIP.UID != string(edns.UID) {
-			log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
-			return
+	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig[DEFAULT_PARTITION]; ok {
+		if processedWIP, ok := gtmPartitionConfig.WideIPs[edns.Spec.DomainName]; ok {
+			if processedWIP.UID != string(edns.UID) {
+				log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
+				return
+			}
 		}
 	}
 
 	if isDelete {
-		delete(ctlr.resources.gtmConfig, edns.Spec.DomainName)
+		if _, ok := ctlr.resources.gtmConfig[DEFAULT_PARTITION]; !ok {
+			return
+		}
+
+		delete(ctlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs, edns.Spec.DomainName)
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.ExternalDNS[edns.Namespace]--
 		ctlr.TeemData.Unlock()
@@ -2359,15 +2365,15 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 				// add only one VS member to pool.
 				if len(pool.Members) > 0 && strings.HasPrefix(vsName, "ingress_link_") {
 					if strings.HasSuffix(vsName, "_443") {
-						pool.Members[0] = fmt.Sprintf("%v:/%v/Shared/%v", pl.DataServerName, DEFAULT_PARTITION, vsName)
+						pool.Members[0] = fmt.Sprintf("/%v/Shared/%v", DEFAULT_PARTITION, vsName)
 					}
 					continue
 				}
-				log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("%v:/%v/Shared/%v",
-					pl.DataServerName, DEFAULT_PARTITION, vsName))
+				log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("/%v/Shared/%v",
+					DEFAULT_PARTITION, vsName))
 				pool.Members = append(
 					pool.Members,
-					fmt.Sprintf("%v:/%v/Shared/%v", pl.DataServerName, DEFAULT_PARTITION, vsName),
+					fmt.Sprintf("/%v/Shared/%v", DEFAULT_PARTITION, vsName),
 				)
 			}
 		}
@@ -2415,8 +2421,13 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		}
 		wip.Pools = append(wip.Pools, pool)
 	}
+	if _, ok := ctlr.resources.gtmConfig[DEFAULT_PARTITION]; !ok {
+		ctlr.resources.gtmConfig[DEFAULT_PARTITION] = GTMPartitionConfig{
+			WideIPs: make(map[string]WideIP),
+		}
+	}
 
-	ctlr.resources.gtmConfig[wip.DomainName] = wip
+	ctlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs[wip.DomainName] = wip
 	return
 }
 
@@ -2468,7 +2479,7 @@ func (ctlr *Controller) ProcessAssociatedExternalDNS(hostnames []string) {
 	}
 }
 
-//Validate certificate hostname
+// Validate certificate hostname
 func checkCertificateHost(host string, certificate []byte, key []byte) bool {
 	cert, certErr := tls.X509KeyPair(certificate, key)
 	if certErr != nil {
@@ -3007,7 +3018,7 @@ func (ctlr *Controller) recordLBServiceIngressEvent(
 	evNotifier.RecordEvent(svc, eventType, reason, message)
 }
 
-//sort services by timestamp
+// sort services by timestamp
 func (svcs Services) Len() int {
 	return len(svcs)
 }
@@ -3031,7 +3042,7 @@ func getNodeport(svc *v1.Service, servicePort int32) int32 {
 	return 0
 }
 
-//Update virtual server status with virtual server address
+// Update virtual server status with virtual server address
 func (ctlr *Controller) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip string, statusOk string) {
 	// Set the vs status to include the virtual IP address
 	vsStatus := cisapiv1.VirtualServerStatus{VSAddress: ip, StatusOk: statusOk}
@@ -3046,7 +3057,7 @@ func (ctlr *Controller) updateVirtualServerStatus(vs *cisapiv1.VirtualServer, ip
 	}
 }
 
-//Update Transport server status with virtual server address
+// Update Transport server status with virtual server address
 func (ctlr *Controller) updateTransportServerStatus(ts *cisapiv1.TransportServer, ip string, statusOk string) {
 	// Set the vs status to include the virtual IP address
 	tsStatus := cisapiv1.TransportServerStatus{VSAddress: ip, StatusOk: statusOk}
@@ -3061,7 +3072,7 @@ func (ctlr *Controller) updateTransportServerStatus(ts *cisapiv1.TransportServer
 	}
 }
 
-//Update ingresslink status with virtual server address
+// Update ingresslink status with virtual server address
 func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip string) {
 	// Set the vs status to include the virtual IP address
 	ilStatus := cisapiv1.IngressLinkStatus{VSAddress: ip}
@@ -3073,7 +3084,7 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 	}
 }
 
-//returns podlist with labels set to svc selector
+// returns podlist with labels set to svc selector
 func (ctlr *Controller) GetPodsForService(namespace, serviceName string) *v1.PodList {
 	svcKey := namespace + "/" + serviceName
 	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
@@ -3148,7 +3159,7 @@ func (ctlr *Controller) matchSvcSelectorPodLabels(svcSelector, podLabel map[stri
 	return true
 }
 
-//processPod populates NPL annotations for a pod in store.
+// processPod populates NPL annotations for a pod in store.
 func (ctlr *Controller) processPod(pod *v1.Pod, ispodDeleted bool) error {
 	podKey := pod.Namespace + "/" + pod.Name
 	if ispodDeleted {

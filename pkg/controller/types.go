@@ -284,11 +284,12 @@ type (
 	// key is namespace/pod. stores list of npl annotation on pod
 	NPLStore map[string]NPLAnnoations
 
-	// GTMConfig key is domainName and value is WideIP
-	GTMConfig map[string]WideIP
+	// GTMConfig key is PartitionName
+	GTMConfig map[string]GTMPartitionConfig
 
-	WideIPs struct {
-		WideIPs []WideIP `json:"wideIPs"`
+	GTMPartitionConfig struct {
+		// WideIPs: key is domainName, and value is WideIP
+		WideIPs map[string]WideIP
 	}
 
 	WideIP struct {

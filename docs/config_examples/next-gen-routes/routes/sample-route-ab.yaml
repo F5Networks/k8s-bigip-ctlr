@@ -5,6 +5,16 @@ metadata:
     name: f5-ab-route
     f5type: systest
   name: f5-demo-app-bg-route
+  annotations:
+    virtual-server.f5.com/health: |
+      [
+        {
+          "path": "mysite.f5demo.com/",
+          "send": "HTTP GET /",
+          "interval": 5,
+          "timeout": 10
+        }
+      ]
 spec:
   host: mysite.f5demo.com
   port:

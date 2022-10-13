@@ -14,17 +14,6 @@ data:
         clientSSL: /Common/clientssl
         serverSSL: /Common/serverssl
         reference: bigip
-      healthMonitors:
-      - path: "mysite1.f5demo.com/app/health"
-        send: "HTTP GET /"
-        recv: "ok"
-        interval: 5
-        timeout: 10
-      - path: "mysite2.f5demo.com/"
-        send: "HTTP GET /"
-        recv: "ok"
-        interval: 5
-        timeout: 15
     - namespace: new
       vserverAddr: 10.8.3.12
       allowOverride: true

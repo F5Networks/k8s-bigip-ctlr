@@ -10,16 +10,5 @@ data:
       vserverAddr: 10.8.3.11
       vserverName: nextgenroutes
       bigIpPartition: dev
-      healthMonitors:
-      - path: "mysite1.f5demo.com/app/health"
-        send: "HTTP GET /"
-        recv: "ok"
-        interval: 5
-        timeout: 10
-      - path: "mysite2.f5demo.com/"
-        send: "HTTP GET /"
-        recv: "ok"
-        interval: 5
-        timeout: 15
     - namespaceLabel: environment=test
       vserverAddr: 10.8.3.12

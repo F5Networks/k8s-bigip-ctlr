@@ -2725,6 +2725,16 @@ func (ctlr *Controller) processIngressLink(
 				return nil
 			}
 			ctlr.updateIngressLinkStatus(ingLink, ip)
+			svc, err := ctlr.getKICServiceOfIngressLink(ingLink)
+			if err != nil {
+				return err
+			}
+			if svc == nil {
+				return nil
+			}
+			if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+				ctlr.setLBServiceIngressStatus(svc, ip)
+			}
 		}
 	} else {
 		if ingLink.Spec.VirtualServerAddress == "" {
@@ -3163,7 +3173,27 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 	}
 }
 
-// returns podlist with labels set to svc selector
+//returns service obj with servicename
+func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
+	svcKey := namespace + "/" + serviceName
+	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", namespace)
+		return nil
+	}
+	svc, found, err := comInf.svcInformer.GetIndexer().GetByKey(svcKey)
+	if err != nil {
+		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
+		return nil
+	}
+	if !found {
+		log.Errorf("Error: Service %v not found", svcKey)
+		return nil
+	}
+	return svc.(*v1.Service)
+}
+
+//returns podlist with labels set to svc selector
 func (ctlr *Controller) GetPodsForService(namespace, serviceName string) *v1.PodList {
 	svcKey := namespace + "/" + serviceName
 	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)

@@ -120,6 +120,33 @@ func (appMgr *Manager) notifyUnusedHealthMonitorRules(
 	}
 }
 
+func RemoveUnReferredHealthMonitors(rsCfg *ResourceConfig, fullPoolName string, monitors AnnotationHealthMonitors) {
+	// For this pool remove the monitor names that are not present in - monitors
+	for pi, pool := range rsCfg.Pools {
+		_, poolName := SplitBigipPath(fullPoolName, false)
+		if pool.Name == poolName {
+			foundMon := make([]string, 0)
+			for _, monName := range pool.MonitorNames {
+				found := false
+				for _, mon := range monitors {
+					monType := mon.Type
+					if monType == "" {
+						monType = "http"
+					}
+					if strings.HasSuffix(monName, monType) {
+						found = true
+					}
+				}
+				if found {
+					foundMon = append(foundMon, monName)
+				}
+			}
+			rsCfg.Pools[pi].MonitorNames = foundMon
+			break
+		}
+	}
+}
+
 // TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) handleSingleServiceHealthMonitors(
 	rsName,

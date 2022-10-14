@@ -1913,6 +1913,7 @@ func (appMgr *Manager) syncIngresses(
 						if nil != ing.Spec.DefaultBackend {
 							fullPoolName := fmt.Sprintf("/%s/%s", rsCfg.Virtual.Partition,
 								FormatIngressPoolName(sKey.Namespace, sKey.ServiceName))
+							RemoveUnReferredHealthMonitors(rsCfg, fullPoolName, monitors)
 							appMgr.handleSingleServiceV1IngressHealthMonitors(
 								rsName, fullPoolName, rsCfg, ing, monitors)
 						} else {

@@ -15,7 +15,12 @@ Added Functionality
 
 Bug Fixes
 ````````````
+
 * :issues:`2586` Update ExternalIP of associated services of Type LB for VS and IngressLink CR
+* Fix to remove old ingress monitor when type gets modified
+* Fix to send AS3 declaration for the recreated domain after IPAM controller restart
+
+
 
 2.10.1
 -------------

@@ -1,7 +1,7 @@
 # Virtual Server with Host Group
 
 This section demonstrates the option to configure virtual server using Host Group to club virtual servers with different host names into one in BIG-IP. 
-This is optional to use.
+This is optional to use. Hostgroup label should be unique across namespaces as hostgroup can also be used to group virtualservers from different namespaces into one in BIGIP.
 
 
 Option which can be used to configure is :

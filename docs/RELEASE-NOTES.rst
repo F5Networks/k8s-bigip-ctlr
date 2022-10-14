@@ -11,7 +11,7 @@ Added Functionality
     * Support for health monitors using route annotations See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
     * CIS configures GTM configuration in default partition
     * Pool reselect support for VS and TS
-
+    * :issues:`2469` Support for virtual server grouping by hostgroup across namespaces.From 2.11, hostGroup should be unique across namespaces.See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
 
 Bug Fixes
 ````````````

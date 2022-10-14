@@ -911,7 +911,13 @@ func (ctlr *Controller) processVirtualServers(
 		}
 	}
 
-	allVirtuals := ctlr.getAllVirtualServers(virtual.ObjectMeta.Namespace)
+	var allVirtuals []*cisapiv1.VirtualServer
+	if virtual.Spec.HostGroup != "" {
+		// grouping by hg across all namespaces
+		allVirtuals = ctlr.getAllVSFromMonitoredNamespaces()
+	} else {
+		allVirtuals = ctlr.getAllVirtualServers(virtual.ObjectMeta.Namespace)
+	}
 	ctlr.TeemData.Lock()
 	ctlr.TeemData.ResourceType.VirtualServer[virtual.ObjectMeta.Namespace] = len(allVirtuals)
 	ctlr.TeemData.Unlock()
@@ -927,7 +933,9 @@ func (ctlr *Controller) processVirtualServers(
 	if ctlr.ipamCli != nil {
 		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
 			if virtual.Spec.HostGroup != "" {
-				key := virtual.ObjectMeta.Namespace + "/" + virtual.Spec.HostGroup + "_hg"
+				//hg is unique across namespaces
+				//all virtuals with same hg are grouped together across namespaces
+				key := virtual.Spec.HostGroup + "_hg"
 				ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, "", key)
 			} else {
 				key := virtual.Namespace + "/" + virtual.Spec.Host + "_host"
@@ -939,7 +947,8 @@ func (ctlr *Controller) processVirtualServers(
 		} else {
 			ipamLabel := getIPAMLabel(virtuals)
 			if virtual.Spec.HostGroup != "" {
-				key := virtual.ObjectMeta.Namespace + "/" + virtual.Spec.HostGroup + "_hg"
+				//hg is unique across namepsaces
+				key := virtual.Spec.HostGroup + "_hg"
 				ip, status = ctlr.requestIP(ipamLabel, "", key)
 			} else {
 				key := virtual.Namespace + "/" + virtual.Spec.Host + "_host"
@@ -1392,9 +1401,15 @@ func (ctlr *Controller) migrateIPAM() {
 		if idx != -1 {
 			rscKind = spec.Key[idx+1:]
 			switch rscKind {
-			case "hg", "host", "ts", "il", "svc":
+			case "host", "ts", "il", "svc":
 				// This entry is fine, process next entry
 				continue
+			case "hg":
+				//Check for format of hg.if key is of format ns/hostgroup_hg
+				//this is stale entry from older version, release ip
+				if !strings.Contains(spec.Key, "/") {
+					continue
+				}
 			}
 		}
 		specsToMigrate = append(specsToMigrate, *spec)
@@ -2518,21 +2533,35 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			continue
 		}
 		rscKind := pKey[idx+1:]
-		splits := strings.Split(pKey, "/")
-		ns := splits[0]
-		crInf, ok := ctlr.getNamespacedCRInformer(ns)
-		comInf, ok := ctlr.getNamespacedCommonInformer(ns)
-		if !ok {
-			log.Errorf("Informer not found for namespace: %v", ns)
-			return nil
+		var crInf *CRInformer
+		var comInf *CommonInformer
+		var ns string
+		if rscKind != "hg" {
+			splits := strings.Split(pKey, "/")
+			ns = splits[0]
+			var ok bool
+			crInf, ok = ctlr.getNamespacedCRInformer(ns)
+			comInf, ok = ctlr.getNamespacedCommonInformer(ns)
+			if !ok {
+				log.Errorf("Informer not found for namespace: %v", ns)
+				return nil
+			}
 		}
 		switch rscKind {
 		case "hg", "host":
-			vss := ctlr.getAllVirtualServers(ns)
+			var vss []*cisapiv1.VirtualServer
+			if rscKind == "hg" {
+				//grouping by hg across all namespaces
+				vss = ctlr.getAllVSFromMonitoredNamespaces()
+			} else {
+				vss = ctlr.getAllVirtualServers(ns)
+			}
 			for _, vs := range vss {
 				key := vs.Namespace + "/" + vs.Spec.Host + "_host"
 				if rscKind == "hg" {
-					key = vs.Namespace + "/" + vs.Spec.HostGroup + "_hg"
+					//hg is unique across namespaces
+					//all virtuals with same hg are grouped together across namespaces
+					key = vs.Spec.HostGroup + "_hg"
 				}
 				if pKey == key {
 					ctlr.TeemData.Lock()

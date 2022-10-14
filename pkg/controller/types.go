@@ -331,15 +331,17 @@ type (
 
 	// Pool config
 	Pool struct {
-		Name             string             `json:"name"`
-		Partition        string             `json:"-"`
-		ServiceName      string             `json:"-"`
-		ServiceNamespace string             `json:"-"`
-		ServicePort      intstr.IntOrString `json:"-"`
-		Balance          string             `json:"loadBalancingMethod,omitempty"`
-		Members          []PoolMember       `json:"members"`
-		NodeMemberLabel  string             `json:"-"`
-		MonitorNames     []MonitorName      `json:"monitors,omitempty"`
+		Name              string             `json:"name"`
+		Partition         string             `json:"-"`
+		ServiceName       string             `json:"-"`
+		ServiceNamespace  string             `json:"-"`
+		ServicePort       intstr.IntOrString `json:"-"`
+		Balance           string             `json:"loadBalancingMethod,omitempty"`
+		Members           []PoolMember       `json:"members"`
+		NodeMemberLabel   string             `json:"-"`
+		MonitorNames      []MonitorName      `json:"monitors,omitempty"`
+		ReselectTries     int32              `json:"reselectTries,omitempty"`
+		ServiceDownAction string             `json:"serviceDownAction,omitempty"`
 	}
 	// Pools is slice of pool
 	Pools []Pool
@@ -788,6 +790,8 @@ type (
 		LoadBalancingMode string               `json:"loadBalancingMode,omitempty"`
 		Members           []as3PoolMember      `json:"members,omitempty"`
 		Monitors          []as3ResourcePointer `json:"monitors,omitempty"`
+		ServiceDownAction string               `json:"serviceDownAction,omitempty"`
+		ReselectTries     int32                `json:"reselectTries,omitempty"`
 	}
 
 	// as3PoolMember maps to Pool_Member in AS3 Resources

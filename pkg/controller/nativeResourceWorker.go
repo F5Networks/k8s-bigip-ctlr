@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
 	"sort"
@@ -1175,4 +1176,14 @@ func (ctlr *Controller) getNamespacesForRouteGroup(namespaceGroup string) []stri
 		}
 	}
 	return namespaces
+}
+
+func (ctlr *Controller) getRoutesForCustomPolicy(plc *cisapiv1.Policy) []*routeapi.Route {
+	var routes []*routeapi.Route
+	return routes
+}
+
+// fetch routeGroup for given secret.
+func (ctlr *Controller) getRouteGroupForSecret(secret *v1.Secret) string {
+	return ""
 }

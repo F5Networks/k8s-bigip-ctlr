@@ -74,6 +74,7 @@ type (
 		TeemData               *teem.TeemsData
 		requestQueue           *requestQueue
 		namespaceLabel         string
+		ipamHostSpecEmpty      bool
 		resourceContext
 	}
 	resourceContext struct {

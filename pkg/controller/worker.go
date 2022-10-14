@@ -118,6 +118,9 @@ func (ctlr *Controller) processResources() bool {
 	// Check the type of resource and process accordingly.
 	switch rKey.kind {
 	case Route:
+		if ctlr.mode != OpenShiftMode {
+			break
+		}
 		route := rKey.rsc.(*routeapi.Route)
 		// processRoutes knows when to delete a VS (in the event of global config update and route delete)
 		// so should not trigger delete from here
@@ -150,6 +153,9 @@ func (ctlr *Controller) processResources() bool {
 		}
 
 	case ConfigMap:
+		if ctlr.mode != OpenShiftMode {
+			break
+		}
 		cm := rKey.rsc.(*v1.ConfigMap)
 		err, ok := ctlr.processConfigMap(cm, rscDelete)
 		if err != nil {
@@ -161,6 +167,9 @@ func (ctlr *Controller) processResources() bool {
 			isRetryableError = true
 		}
 	case VirtualServer:
+		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
+			break
+		}
 		virtual := rKey.rsc.(*cisapiv1.VirtualServer)
 		rscRefKey := resourceRef{
 			kind:      VirtualServer,
@@ -183,6 +192,9 @@ func (ctlr *Controller) processResources() bool {
 			isRetryableError = true
 		}
 	case TLSProfile:
+		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
+			break
+		}
 		tlsProfile := rKey.rsc.(*cisapiv1.TLSProfile)
 		virtuals := ctlr.getVirtualsForTLSProfile(tlsProfile)
 		// No Virtuals are effected with the change in TLSProfile.
@@ -199,24 +211,32 @@ func (ctlr *Controller) processResources() bool {
 		}
 	case K8sSecret:
 		secret := rKey.rsc.(*v1.Secret)
-		tlsProfiles := ctlr.getTLSProfilesForSecret(secret)
-		for _, tlsProfile := range tlsProfiles {
-			virtuals := ctlr.getVirtualsForTLSProfile(tlsProfile)
-			// No Virtuals are effected with the change in TLSProfile.
-			if nil == virtuals {
-				break
-			}
-			for _, virtual := range virtuals {
-				err := ctlr.processVirtualServers(virtual, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isRetryableError = true
+		switch ctlr.mode {
+		case OpenShiftMode:
+			ctlr.processRoutes(ctlr.getRouteGroupForSecret(secret), false)
+		default:
+			tlsProfiles := ctlr.getTLSProfilesForSecret(secret)
+			for _, tlsProfile := range tlsProfiles {
+				virtuals := ctlr.getVirtualsForTLSProfile(tlsProfile)
+				// No Virtuals are effected with the change in TLSProfile.
+				if nil == virtuals {
+					break
+				}
+				for _, virtual := range virtuals {
+					err := ctlr.processVirtualServers(virtual, false)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
 				}
 			}
 		}
 
 	case TransportServer:
+		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
+			break
+		}
 		virtual := rKey.rsc.(*cisapiv1.TransportServer)
 		err := ctlr.processTransportServers(virtual, rscDelete)
 		if err != nil {
@@ -225,6 +245,9 @@ func (ctlr *Controller) processResources() bool {
 			isRetryableError = true
 		}
 	case IngressLink:
+		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
+			break
+		}
 		ingLink := rKey.rsc.(*cisapiv1.IngressLink)
 		log.Infof("Worker got IngressLink: %v\n", ingLink)
 		log.Infof("IngressLink Selector: %v\n", ingLink.Spec.Selector.String())
@@ -235,6 +258,9 @@ func (ctlr *Controller) processResources() bool {
 			isRetryableError = true
 		}
 	case ExternalDNS:
+		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
+			break
+		}
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
 		ctlr.processExternalDNS(edns, rscDelete)
 	case IPAM:
@@ -243,35 +269,39 @@ func (ctlr *Controller) processResources() bool {
 
 	case CustomPolicy:
 		cp := rKey.rsc.(*cisapiv1.Policy)
-
-		virtuals := ctlr.getVirtualsForCustomPolicy(cp)
-		//Sync Custompolicy for Virtual Servers
-		for _, virtual := range virtuals {
-			err := ctlr.processVirtualServers(virtual, false)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
+		switch ctlr.mode {
+		case OpenShiftMode:
+			_ = ctlr.getRoutesForCustomPolicy(cp)
+		default:
+			virtuals := ctlr.getVirtualsForCustomPolicy(cp)
+			//Sync Custompolicy for Virtual Servers
+			for _, virtual := range virtuals {
+				err := ctlr.processVirtualServers(virtual, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isRetryableError = true
+				}
 			}
-		}
-		//Sync Custompolicy for Transport Servers
-		tsVirtuals := ctlr.getTransportServersForCustomPolicy(cp)
-		for _, virtual := range tsVirtuals {
-			err := ctlr.processTransportServers(virtual, false)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
+			//Sync Custompolicy for Transport Servers
+			tsVirtuals := ctlr.getTransportServersForCustomPolicy(cp)
+			for _, virtual := range tsVirtuals {
+				err := ctlr.processTransportServers(virtual, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isRetryableError = true
+				}
 			}
-		}
-		//Sync Custompolicy for Services of type LB
-		lbServices := ctlr.getLBServicesForCustomPolicy(cp)
-		for _, lbService := range lbServices {
-			err := ctlr.processLBServices(lbService, false)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
+			//Sync Custompolicy for Services of type LB
+			lbServices := ctlr.getLBServicesForCustomPolicy(cp)
+			for _, lbService := range lbServices {
+				err := ctlr.processLBServices(lbService, false)
+				if err != nil {
+					// TODO
+					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+					isRetryableError = true
+				}
 			}
 		}
 	case Service:
@@ -291,47 +321,49 @@ func (ctlr *Controller) processResources() bool {
 		if ctlr.initState {
 			break
 		}
-		if ctlr.mode == OpenShiftMode {
+		switch ctlr.mode {
+		case OpenShiftMode:
 			ctlr.updatePoolMembersForRoutes(svc.Namespace)
-		}
-		virtuals := ctlr.getVirtualServersForService(svc)
-		// If nil No Virtuals are effected with the change in service.
-		if nil != virtuals {
-			for _, virtual := range virtuals {
-				err := ctlr.processVirtualServers(virtual, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isRetryableError = true
-				}
-			}
-		}
-		//Sync service for Transport Server virtuals
-		tsVirtuals := ctlr.getTransportServersForService(svc)
-		if nil != tsVirtuals {
-			for _, virtual := range tsVirtuals {
-				err := ctlr.processTransportServers(virtual, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isRetryableError = true
-				}
-			}
-		}
-		//Sync service for Ingress Links
-		ingLinks := ctlr.getIngressLinksForService(svc)
-		if nil != ingLinks {
-			for _, ingLink := range ingLinks {
-				// Delete/sync IngressLink. Delete will be processed with old service
-				err := ctlr.processIngressLink(ingLink, rscDelete)
-				if err != nil {
-					if rscDelete {
-						utilruntime.HandleError(fmt.Errorf("Deleting IngresLink %v failed with %v", ingLink.Name, err))
-					} else {
+		default:
+			virtuals := ctlr.getVirtualServersForService(svc)
+			// If nil No Virtuals are effected with the change in service.
+			if nil != virtuals {
+				for _, virtual := range virtuals {
+					err := ctlr.processVirtualServers(virtual, false)
+					if err != nil {
 						// TODO
 						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+						isRetryableError = true
 					}
-					isRetryableError = true
+				}
+			}
+			//Sync service for Transport Server virtuals
+			tsVirtuals := ctlr.getTransportServersForService(svc)
+			if nil != tsVirtuals {
+				for _, virtual := range tsVirtuals {
+					err := ctlr.processTransportServers(virtual, false)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
+				}
+			}
+			//Sync service for Ingress Links
+			ingLinks := ctlr.getIngressLinksForService(svc)
+			if nil != ingLinks {
+				for _, ingLink := range ingLinks {
+					// Delete/sync IngressLink. Delete will be processed with old service
+					err := ctlr.processIngressLink(ingLink, rscDelete)
+					if err != nil {
+						if rscDelete {
+							utilruntime.HandleError(fmt.Errorf("Deleting IngresLink %v failed with %v", ingLink.Name, err))
+						} else {
+							// TODO
+							utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+						}
+						isRetryableError = true
+					}
 				}
 			}
 		}
@@ -355,11 +387,14 @@ func (ctlr *Controller) processResources() bool {
 			}
 			break
 		}
-		if ctlr.mode == OpenShiftMode {
+		switch ctlr.mode {
+		case OpenShiftMode:
 			ctlr.updatePoolMembersForRoutes(svc.Namespace)
+		default:
+			// once we fetch the VS, just update the endpoints instead of processing them entirely
+			ctlr.updatePoolMembersForVirtuals(svc)
 		}
-		// once we fetch the VS, just update the endpoints instead of processing them entirely
-		ctlr.updatePoolMembersForVirtuals(svc)
+
 	case Pod:
 		pod := rKey.rsc.(*v1.Pod)
 		_ = ctlr.processPod(pod, rscDelete)
@@ -377,40 +412,41 @@ func (ctlr *Controller) processResources() bool {
 			}
 			break
 		}
-		if ctlr.mode == OpenShiftMode {
+		switch ctlr.mode {
+		case OpenShiftMode:
 			ctlr.updatePoolMembersForRoutes(svc.Namespace)
-		}
-
-		virtuals := ctlr.getVirtualServersForService(svc)
-		for _, virtual := range virtuals {
-			err := ctlr.processVirtualServers(virtual, false)
-			if err != nil {
-				// TODO
-				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-				isRetryableError = true
-			}
-		}
-		//Sync service for Transport Server virtuals
-		tsVirtuals := ctlr.getTransportServersForService(svc)
-		if nil != tsVirtuals {
-			for _, virtual := range tsVirtuals {
-				err := ctlr.processTransportServers(virtual, false)
+		default:
+			virtuals := ctlr.getVirtualServersForService(svc)
+			for _, virtual := range virtuals {
+				err := ctlr.processVirtualServers(virtual, false)
 				if err != nil {
 					// TODO
 					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 					isRetryableError = true
 				}
 			}
-		}
-		//Sync service for Ingress Links
-		ingLinks := ctlr.getIngressLinksForService(svc)
-		if nil != ingLinks {
-			for _, ingLink := range ingLinks {
-				err := ctlr.processIngressLink(ingLink, false)
-				if err != nil {
-					// TODO
-					utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
-					isRetryableError = true
+			//Sync service for Transport Server virtuals
+			tsVirtuals := ctlr.getTransportServersForService(svc)
+			if nil != tsVirtuals {
+				for _, virtual := range tsVirtuals {
+					err := ctlr.processTransportServers(virtual, false)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
+				}
+			}
+			//Sync service for Ingress Links
+			ingLinks := ctlr.getIngressLinksForService(svc)
+			if nil != ingLinks {
+				for _, ingLink := range ingLinks {
+					err := ctlr.processIngressLink(ingLink, false)
+					if err != nil {
+						// TODO
+						utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
+						isRetryableError = true
+					}
 				}
 			}
 		}

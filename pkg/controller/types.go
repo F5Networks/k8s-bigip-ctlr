@@ -1060,15 +1060,12 @@ type (
 	}
 
 	ExtendedRouteGroupSpec struct {
-		VServerName      string   `yaml:"vserverName"`
-		VServerAddr      string   `yaml:"vserverAddr"`
-		AllowSourceRange []string `yaml:"allowSourceRange,omitempty"`
-		AllowOverride    string   `yaml:"allowOverride"`
-		SNAT             string   `yaml:"snat"`
-		WAF              string   `yaml:"waf"`
-		IRules           []string `yaml:"iRules,omitempty"`
-		TLS              TLS      `yaml:"tls"`
-		Meta             Meta
+		VServerName   string `yaml:"vserverName"`
+		VServerAddr   string `yaml:"vserverAddr"`
+		AllowOverride string `yaml:"allowOverride"`
+		Policy        string `yaml:"policyCR,omitempty"`
+		TLS           TLS    `yaml:"tls"`
+		Meta          Meta
 	}
 
 	Meta struct {

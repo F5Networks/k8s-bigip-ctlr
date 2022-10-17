@@ -82,10 +82,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
-		if extdSpec.AllowSourceRange != nil {
-			rsCfg.Virtual.AllowSourceRange = make([]string, len(extdSpec.AllowSourceRange))
-			copy(rsCfg.Virtual.AllowSourceRange, extdSpec.AllowSourceRange)
-		}
+
 		// deletion ; update /health /app/path1
 
 		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, extdSpec)
@@ -179,13 +176,29 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string, extdSpec *ExtendedRo
 }
 
 func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, extdSpec *ExtendedRouteGroupSpec) error {
-	if extdSpec.SNAT == "" {
-		rsCfg.Virtual.SNAT = DEFAULT_SNAT
-	} else {
-		rsCfg.Virtual.SNAT = extdSpec.SNAT
+	policy := extdSpec.Policy
+	if policy != "" {
+		splits := strings.Split(policy, "/")
+		policyNamespace := splits[0]
+		comInf, ok := ctlr.getNamespacedCommonInformer(policyNamespace)
+		if !ok {
+			return fmt.Errorf("Informer not found for namespace: %v", policyNamespace)
+		}
+		obj, exist, err := comInf.plcInformer.GetIndexer().GetByKey(policy)
+		if err != nil {
+			return fmt.Errorf("Error while fetching Policy: %v: %v", policy, err)
+		}
+		if !exist {
+			return fmt.Errorf("Policy Not Found: %v", policy)
+		}
+		plc := obj.(*cisapiv1.Policy)
+		if plc != nil {
+			err := ctlr.handleVSResourceConfigForPolicy(rsCfg, plc)
+			if err != nil {
+				return err
+			}
+		}
 	}
-	rsCfg.Virtual.WAF = extdSpec.WAF
-	rsCfg.Virtual.IRules = extdSpec.IRules
 	return nil
 }
 
@@ -241,6 +254,11 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	}
 
 	rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, route.Spec.Host)
+
+	// Use default SNAT if not provided by user
+	if rsCfg.Virtual.SNAT == "" {
+		rsCfg.Virtual.SNAT = DEFAULT_SNAT
+	}
 
 	backendSvcs := GetRouteBackends(route)
 
@@ -1179,9 +1197,33 @@ func (ctlr *Controller) getNamespacesForRouteGroup(namespaceGroup string) []stri
 	return namespaces
 }
 
-func (ctlr *Controller) getRoutesForCustomPolicy(plc *cisapiv1.Policy) []*routeapi.Route {
-	var routes []*routeapi.Route
-	return routes
+// fetch routeGroup for given policyCR.
+func (ctlr *Controller) getRouteGroupForCustomPolicy(policy string) []string {
+	var routeGroups []string
+	for rg, extdSpec := range ctlr.resources.extdSpecMap {
+		if extdSpec.override {
+			// continue if extended spec is not set
+			if extdSpec.local == nil {
+				if extdSpec.global != nil && extdSpec.global.Policy == policy {
+					routeGroups = append(routeGroups, rg)
+				}
+				continue
+			}
+			if extdSpec.local.Policy == policy {
+				routeGroups = append(routeGroups, rg)
+			}
+			if extdSpec.local.Policy == "" && extdSpec.global.Policy == policy {
+				routeGroups = append(routeGroups, rg)
+			} else {
+				continue
+			}
+		} else {
+			if extdSpec.global.Policy == policy {
+				routeGroups = append(routeGroups, rg)
+			}
+		}
+	}
+	return routeGroups
 }
 
 // fetch routeGroup for given secret.

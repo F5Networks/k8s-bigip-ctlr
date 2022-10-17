@@ -20,7 +20,7 @@ This page documents the behaviour of NextgenController. This is a preview releas
 
 ## Overview
 
-NextGenRoute Controller uses extenedConfigMap for extending the native resources (routes/ingress). Routes are extended using ConfigMap in this preview release. It also adds support for multi-partition.
+NextGenRoute Controller uses extenedConfigMap for extending the native resources (routes/ingress). Routes are extended using ConfigMap in this preview release. It also adds support for multi-partition and policy CR.
 
 ## Multiple VIP and Partition support for routes
 
@@ -28,8 +28,11 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
 * All the routes in the namespace/namespaceLabel are treated as part of one routegroup in this preview release.
 * One virtual server(VIP) is created for each routegroup and maps to each tenant on BIGIP
 * CIS processes mutliple tenant information and still sends the single unified declaration to bigip to avoid multiple posts to BIGIP.
+
+  **Note**: AS3 post call is formed as mgmt/shared/appsvcs/declare/tenant1,tenant2.
   
-  **Note**: AS3 post call is formed as mgmt/shared/appsvcs/declare/tenant1,tenant2..
+## Policy CR support for routes
+Policy CR integration with nextGenRoutes extends so many BIGIP features to the openshift routes . i.e. snat, custom tcp, http and https profiles, irules, http2 profile, persistance profile, profileMultiplex, profileL4, logProfiles, waf, botDefense, firewallPolicy, dos, allowSourceRange etc. 
 
 ## Prerequisites
 
@@ -39,7 +42,12 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
     mgmt/shared/appsvcs/declare
 
   **Note:** Please update "bigip-partition" name in AS3 declaration with partition name to be deleted
-
+* Install F5 CRDs
+  - Install the F5 CRDs using following Commands:
+  ```sh
+  kubectl create -f https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml
+  ```
+  
 ## Configuration
 
 * Routegroup specific config for each namespace/namespaceLabel is provided as part of extendedSpec through Configmap.
@@ -48,7 +56,7 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
 
 ## ExtendedSpecConfigmap:
 
-* ExtendedSpecificConfimap is used to provide common config for routegroup like virtualservername, virtualserveraddress, WAF policy etc which is applied to all routes in the group.
+* ExtendedSpecificConfimap is used to provide common config for routegroup like virtualservername, virtualserveraddress, policyCR etc which is applied to all routes in the group.
 * Routegroup specific config for each namespace/namespaceLabel is provided as part of extendedRouteSpec in global configmap
 
   
@@ -87,11 +95,10 @@ Base route configuration can be defined in Global ConfigMap. This cannot be over
 | allowOverride | Optional | allow users to override the namespace config | - | Global configMap only |
 | bigIpPartition | Optional | partition for creating the virtual server | partition which is defined in CIS deployment parameter | Global configMap only |
 | namespaceLabel | Mandatory | namespace-label to group the routes* | - | Global configMap only |
+| policyCR | Optional | Name of Policy CR to attach profiles/policies defined in it. | - | Local and Global configMap |
 | namespace | Mandatory | namespace to group the routes | - | Local and Global configMap |
 | vsAddress | Mandatory | BigIP Virtual Server IP Address | - | Local and Global configMap |
 | vsName | Optional | Name of BigIP Virtual Server | auto | Local and Global configMap |
-| allowSourceRange | Optional | list of subnets to allow the traffic on BigIP Virtual Server | - | Local and Global configMap  |
-| WAF | Optional |  WAF Policy for BigIP Virtual Server | - | Local and Global configMap |
 | tls | Optional |  Dictionary of client & server SSL profiles (See next section) | - | Local and Global configMap |
 
   **Note**: 1. namespaceLabel is mutually exclusive with namespace parameter
@@ -480,6 +487,7 @@ Unsupported features/annotations in next-gen routes are planned to be supported 
 | URL-rewrite | YES | YES | 
 | App-rewrite | YES | NO |
 | A/B Deployment | YES | YES | 
+| Policy CR | NO | YES | 
 
 Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes) for more details.
 
@@ -519,5 +527,8 @@ Yes you can continue using the health monitors using route annotations
 iRules is optional values.
 ### Any changes in RBAC? 
 No.
+### How to use policy CR with routes?
+You can define the policy CR in Extended ConfigMap [See Example](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/Policy).
+
 
 

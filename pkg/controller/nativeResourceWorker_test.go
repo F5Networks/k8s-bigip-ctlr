@@ -2,7 +2,6 @@ package controller
 
 import (
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
@@ -75,9 +74,6 @@ var _ = Describe("Routes", func() {
 					VServerName:   "samplevs",
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "false",
-					SNAT:          "auto",
-					WAF:           "/Common/WAFPolicy",
-					IRules:        []string{"/Common/iRule1"},
 				},
 			}
 			err := mockCtlr.processRoutes(ns, false)
@@ -93,9 +89,6 @@ var _ = Describe("Routes", func() {
 					VServerName:   "samplevs",
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
-					SNAT:          "auto",
-					WAF:           "/Common/WAFPolicy",
-					IRules:        []string{"/Common/iRule1"},
 				},
 				namespaces: []string{ns},
 				partition:  "test",
@@ -339,13 +332,9 @@ var _ = Describe("Routes", func() {
 			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
 				override: true,
 				global: &ExtendedRouteGroupSpec{
-					VServerName:      "nextgenroutes",
-					VServerAddr:      "10.10.10.10",
-					AllowOverride:    "False",
-					SNAT:             "auto",
-					WAF:              "/Common/WAFPolicy",
-					IRules:           []string{"/Common/iRule1"},
-					AllowSourceRange: []string{"10.1.0.0/16", "10.2.0.0/16"},
+					VServerName:   "nextgenroutes",
+					VServerAddr:   "10.10.10.10",
+					AllowOverride: "False",
 					TLS: TLS{
 						ClientSSL: "/Common/clientssl",
 						ServerSSL: "/Common/serverssl",
@@ -939,7 +928,6 @@ extendedRouteSpec:
 				global: &ExtendedRouteGroupSpec{
 					VServerName:   "defaultServer",
 					VServerAddr:   "10.8.3.11",
-					WAF:           "/Common/defaultWAF",
 					AllowOverride: "0",
 				},
 			}
@@ -949,7 +937,6 @@ extendedRouteSpec:
 				global: &ExtendedRouteGroupSpec{
 					VServerName:   "newServer",
 					VServerAddr:   "10.8.3.12",
-					WAF:           "/Common/newWAF",
 					AllowOverride: "f",
 				},
 			}
@@ -967,7 +954,6 @@ extendedRouteSpec:
 				global: &ExtendedRouteGroupSpec{
 					VServerName:   "defaultServer",
 					VServerAddr:   "10.8.3.11",
-					WAF:           "/Common/defaultWAF",
 					AllowOverride: "false",
 				},
 			}
@@ -977,13 +963,12 @@ extendedRouteSpec:
 				global: &ExtendedRouteGroupSpec{
 					VServerName:   "newServer",
 					VServerAddr:   "10.8.3.12",
-					WAF:           "/Common/newWAF",
 					AllowOverride: "FALSE",
 				},
 			}
 
-			newExtdSpecMap["default"].global.WAF = "/Common/defaultWAF1"
-			newExtdSpecMap["new"].global.WAF = "/Common/newWAF1"
+			newExtdSpecMap["default"].global.Policy = "test/policy1"
+			newExtdSpecMap["new"].global.Policy = "test/policy1"
 
 			deletedSpecs, modifiedSpecs, updatedSpecs, createdSpecs = getOperationalExtendedConfigMapSpecs(
 				cachedExtdSpecMap, newExtdSpecMap, false,
@@ -1019,7 +1004,6 @@ extendedRouteSpec:
 				global: &ExtendedRouteGroupSpec{
 					VServerName:   "defaultServer",
 					VServerAddr:   "10.8.3.11",
-					WAF:           "/Common/defaultWAF",
 					AllowOverride: "false",
 				},
 			}
@@ -1076,9 +1060,6 @@ extendedRouteSpec:
 					VServerName:   "nextgenroutes",
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
-					SNAT:          "auto",
-					WAF:           "/Common/WAFPolicy",
-					IRules:        []string{"/Common/iRule1"},
 					TLS: TLS{
 						ClientSSL: "/Common/clientssl",
 						ServerSSL: "/Common/serverssl",
@@ -1132,99 +1113,7 @@ extendedRouteSpec:
 			err, ok = mockCtlr.processConfigMap(cm, false)
 			Expect(err).To(BeNil())
 			Expect(ok).To(BeTrue())
-
 		})
-		It("Allow Source Range", func() {
-
-			routeGroup := "default"
-			mockCtlr.resources = NewResourceStore()
-			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
-				override: true,
-				global: &ExtendedRouteGroupSpec{
-					VServerName:      "nextgenroutes",
-					VServerAddr:      "10.10.10.10",
-					AllowOverride:    "False",
-					SNAT:             "auto",
-					WAF:              "/Common/WAFPolicy",
-					IRules:           []string{"/Common/iRule1"},
-					AllowSourceRange: []string{"10.1.0.0/16", "10.2.0.0/16"},
-					TLS: TLS{
-						ClientSSL: "/Common/clientssl",
-						ServerSSL: "/Common/serverssl",
-						Reference: "bigip",
-					},
-				},
-				namespaces: []string{routeGroup},
-				partition:  "test",
-			}
-
-			spec1 := routeapi.RouteSpec{
-				Host: "foo.com",
-				Path: "/foo",
-				To: routeapi.RouteTargetReference{
-					Kind: "Service",
-					Name: "foo",
-				},
-				TLS: &routeapi.TLSConfig{Termination: "reencrypt"},
-			}
-			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
-				{Port: 8080, NodePort: 38001},
-				{Port: 9090, NodePort: 39001}}
-			foo := test.NewService("foo", "1", routeGroup, "NodePort", fooPorts)
-			mockCtlr.addService(foo)
-			fooIps := []string{"10.1.1.1"}
-			fooEndpts := test.NewEndpoints(
-				"foo", "1", "node0", routeGroup, fooIps, []string{},
-				convertSvcPortsToEndpointPorts(fooPorts))
-			mockCtlr.addEndpoints(fooEndpts)
-			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
-
-			mockCtlr.addRoute(route1)
-			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
-			err := mockCtlr.processRoutes(routeGroup, false)
-
-			Expect(err).To(BeNil())
-			Expect(reflect.DeepEqual(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AllowSourceRange, []string{"10.1.0.0/16", "10.2.0.0/16"})).To(BeTrue())
-
-			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
-				override: true,
-				local: &ExtendedRouteGroupSpec{
-					VServerName:      "nextgenroutes",
-					VServerAddr:      "10.10.10.10",
-					AllowOverride:    "True",
-					SNAT:             "auto",
-					WAF:              "/Common/WAFPolicy",
-					IRules:           []string{"/Common/iRule1"},
-					AllowSourceRange: []string{"10.3.0.0/16", "10.4.0.0/16"},
-					TLS: TLS{
-						ClientSSL: "/Common/clientssl",
-						ServerSSL: "/Common/serverssl",
-						Reference: "bigip",
-					},
-				},
-				global: &ExtendedRouteGroupSpec{
-					VServerName:      "nextgenroutes",
-					VServerAddr:      "10.10.10.10",
-					AllowOverride:    "True",
-					SNAT:             "auto",
-					WAF:              "/Common/WAFPolicy",
-					IRules:           []string{"/Common/iRule1"},
-					AllowSourceRange: []string{"10.1.0.0/16", "10.2.0.0/16"},
-					TLS: TLS{
-						ClientSSL: "/Common/clientssl",
-						ServerSSL: "/Common/serverssl",
-						Reference: "bigip",
-					},
-				},
-				namespaces: []string{routeGroup},
-				partition:  "test",
-			}
-			err = mockCtlr.processRoutes(routeGroup, false)
-			Expect(err).To(BeNil())
-			Expect(reflect.DeepEqual(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Virtual.AllowSourceRange, []string{"10.3.0.0/16", "10.4.0.0/16"})).To(BeTrue())
-
-		})
-
 	})
 })
 

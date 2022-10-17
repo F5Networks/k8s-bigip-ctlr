@@ -1751,9 +1751,8 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 		}
 	}
 	// set snat as specified by user in the policy
-	snat := plc.Spec.SNAT
-	if snat != "" {
-		rsCfg.Virtual.SNAT = snat
+	if plc.Spec.SNAT != "" {
+		rsCfg.Virtual.SNAT = plc.Spec.SNAT
 	}
 
 	return nil
@@ -1821,8 +1820,6 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 			VServerName:   extdSpec.global.VServerName,
 			VServerAddr:   extdSpec.global.VServerAddr,
 			AllowOverride: extdSpec.global.AllowOverride,
-			SNAT:          extdSpec.global.SNAT,
-			WAF:           extdSpec.global.WAF,
 			TLS:           extdSpec.global.TLS,
 		}
 
@@ -1832,29 +1829,11 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 		if extdSpec.local.VServerAddr != "" {
 			ergc.VServerAddr = extdSpec.local.VServerAddr
 		}
-		if extdSpec.local.SNAT != "" {
-			ergc.SNAT = extdSpec.local.SNAT
-		}
-		if extdSpec.local.WAF != "" {
-			ergc.WAF = extdSpec.local.WAF
+		if extdSpec.local.Policy != "" {
+			ergc.Policy = extdSpec.local.Policy
 		}
 		if extdSpec.local.TLS != (TLS{}) {
 			ergc.TLS = extdSpec.local.TLS
-		}
-
-		if extdSpec.local.AllowSourceRange != nil {
-			ergc.AllowSourceRange = make([]string, len(extdSpec.local.AllowSourceRange))
-			copy(ergc.AllowSourceRange, extdSpec.local.AllowSourceRange)
-		} else if extdSpec.global.AllowSourceRange != nil {
-			ergc.AllowSourceRange = make([]string, len(extdSpec.global.AllowSourceRange))
-			copy(ergc.AllowSourceRange, extdSpec.global.AllowSourceRange)
-		}
-		if extdSpec.local.IRules != nil {
-			ergc.IRules = make([]string, len(extdSpec.local.IRules))
-			copy(ergc.IRules, extdSpec.local.IRules)
-		} else if extdSpec.global.IRules != nil {
-			ergc.IRules = make([]string, len(extdSpec.global.IRules))
-			copy(ergc.IRules, extdSpec.global.IRules)
 		}
 
 		return ergc, extdSpec.partition

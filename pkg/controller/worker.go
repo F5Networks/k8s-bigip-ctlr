@@ -274,7 +274,10 @@ func (ctlr *Controller) processResources() bool {
 		cp := rKey.rsc.(*cisapiv1.Policy)
 		switch ctlr.mode {
 		case OpenShiftMode:
-			_ = ctlr.getRoutesForCustomPolicy(cp)
+			routeGroups := ctlr.getRouteGroupForCustomPolicy(cp.Namespace + "/" + cp.Name)
+			for _, routeGroup := range routeGroups {
+				_ = ctlr.processRoutes(routeGroup, false)
+			}
 		default:
 			virtuals := ctlr.getVirtualsForCustomPolicy(cp)
 			//Sync Custompolicy for Virtual Servers

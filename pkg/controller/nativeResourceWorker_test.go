@@ -31,7 +31,6 @@ var _ = Describe("Routes", func() {
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 		mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
-		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
 		mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
 		mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
 		mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
@@ -440,6 +439,168 @@ var _ = Describe("Routes", func() {
 				route2,
 				extdSpec2.VServerAddr,
 				intstr.IntOrString{IntVal: 443}, extdSpec2)).To(BeFalse())
+		})
+
+		It("Verify NextGenRoutes K8S Secret as TLS certs", func() {
+			mockCtlr.resources = &ResourceStore{
+				supplementContextCache: supplementContextCache{
+					baseRouteConfig: BaseRouteConfig{
+						TLSCipher{
+							"1.2",
+							"DEFAULT",
+							"/Common/f5-default",
+						},
+					},
+				},
+			}
+			namespace := "default"
+			data := make(map[string][]byte)
+			data["tls.key"] = []byte{}
+			data["tls.crt"] = []byte{}
+			clientssl := &v1.Secret{
+				TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+				ObjectMeta: metav1.ObjectMeta{Name: "clientssl", Namespace: namespace},
+				Data:       data,
+			}
+			serverssl := &v1.Secret{
+				TypeMeta:   metav1.TypeMeta{Kind: "Secret", APIVersion: "v1"},
+				ObjectMeta: metav1.ObjectMeta{Name: "serverssl", Namespace: namespace},
+				Data:       data,
+			}
+			mockCtlr.comInformers["default"].secretsInformer.GetStore().Add(clientssl)
+			mockCtlr.comInformers["default"].secretsInformer.GetStore().Add(serverssl)
+			tls := TLS{
+				ClientSSL: "clientssl",
+				ServerSSL: "serverssl",
+				Reference: "secret",
+			}
+
+			clientTls := TLS{
+				ClientSSL: "clientssl",
+				Reference: "secret",
+			}
+			serverTls := TLS{
+				ServerSSL: "serverssl",
+				Reference: "secret",
+			}
+
+			extdSpec := &ExtendedRouteGroupSpec{
+				VServerName:   "defaultServer",
+				VServerAddr:   "10.8.3.11",
+				TLS:           tls,
+				AllowOverride: "0",
+			}
+
+			//with no tls defined
+			extdSpec1 := &ExtendedRouteGroupSpec{
+				VServerName:   "defaultServer",
+				VServerAddr:   "10.8.3.11",
+				TLS:           serverTls,
+				AllowOverride: "0",
+			}
+
+			// with only client tls defined
+			extdSpec2 := &ExtendedRouteGroupSpec{
+				VServerName:   "defaultServer",
+				VServerAddr:   "10.8.3.11",
+				TLS:           clientTls,
+				AllowOverride: "0",
+			}
+
+			spec1 := routeapi.RouteSpec{
+				Host: "foo.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "edge"},
+			}
+
+			spec2 := routeapi.RouteSpec{
+				Host: "bar.com",
+				Path: "/bar",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "reencrypt"},
+			}
+
+			routeGroup := "default"
+
+			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
+			route2 := test.NewRoute("route2", "2", routeGroup, spec2, nil)
+			rsCfg := &ResourceConfig{}
+			rsCfg.Virtual.Partition = routeGroup
+			rsCfg.MetaData.ResourceType = VirtualServer
+			rsCfg.Virtual.Enabled = true
+			rsCfg.Virtual.Name = "newroutes_443"
+			rsCfg.MetaData.Protocol = HTTPS
+			rsCfg.Virtual.SetVirtualAddress("10.8.3.11", DEFAULT_HTTPS_PORT)
+			ps := portStruct{HTTP, DEFAULT_HTTP_PORT}
+			// Portstruct for secured virtual server
+			ps.protocol = HTTPS
+			ps.port = DEFAULT_HTTPS_PORT
+			rsCfg.IntDgMap = make(InternalDataGroupMap)
+			rsCfg.IRulesMap = make(IRulesMap)
+			rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route1, intstr.IntOrString{IntVal: 443}, ps)).To(BeNil())
+
+			//for edge route, and k8s secret as TLS certs in global config map - It should pass
+			Expect(mockCtlr.handleRouteTLS(
+				rsCfg,
+				route1,
+				extdSpec.VServerAddr,
+				intstr.IntOrString{IntVal: 443}, extdSpec)).To(BeTrue())
+
+			//for edge route and global config map without client ssl profile - It should fail
+			Expect(mockCtlr.handleRouteTLS(
+				rsCfg,
+				route1,
+				extdSpec1.VServerAddr,
+				intstr.IntOrString{IntVal: 443}, extdSpec1)).To(BeFalse())
+
+			//for re-encrypt route, and k8s secret as TLS certs in global config map - It should pass
+			Expect(mockCtlr.handleRouteTLS(
+				rsCfg,
+				route2,
+				extdSpec.VServerAddr,
+				intstr.IntOrString{IntVal: 443}, extdSpec)).To(BeTrue())
+
+			//for re encrypt route and global config map without server ssl profile - It should fail
+			Expect(mockCtlr.handleRouteTLS(
+				rsCfg,
+				route2,
+				extdSpec2.VServerAddr,
+				intstr.IntOrString{IntVal: 443}, extdSpec2)).To(BeFalse())
+
+			// Verify that getRouteGroupForSecret fetches the correct routeGroup on k8s secret update
+			// Prepare extdSpecMap that holds all the
+			mockCtlr.resources.extdSpecMap = make(map[string]*extendedParsedSpec)
+			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
+				global: &ExtendedRouteGroupSpec{TLS: TLS{ClientSSL: "clientssl", ServerSSL: "serverssl", Reference: Secret}},
+			}
+			mockCtlr.resources.extdSpecMap["test1"] = &extendedParsedSpec{
+				global: &ExtendedRouteGroupSpec{TLS: TLS{ClientSSL: "clientssl", ServerSSL: "serverssl", Reference: BIGIP}},
+			}
+			mockCtlr.resources.extdSpecMap["test2"] = &extendedParsedSpec{
+				global: &ExtendedRouteGroupSpec{TLS: TLS{ClientSSL: "clientssl1", ServerSSL: "", Reference: Secret}},
+			}
+			// Prepare invertedNamespaceLabelMap that maps namespaces to routeGroup
+			mockCtlr.resources.invertedNamespaceLabelMap = make(map[string]string)
+			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+			mockCtlr.resources.invertedNamespaceLabelMap["test2"] = routeGroup
+			mockCtlr.resources.invertedNamespaceLabelMap["test1"] = "test1"
+			// get routeGroup clientssl secret which belongs to default namespace
+			Expect(mockCtlr.getRouteGroupForSecret(clientssl)).To(Equal(routeGroup))
+			// get routeGroup clientssl secret which belongs to test3 namespace
+			Expect(mockCtlr.getRouteGroupForSecret(&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "clientssl",
+				Namespace: "test3"}})).To(Equal(""))
+			// get routeGroup clientssl1 secret which belongs to default namespace
+			Expect(mockCtlr.getRouteGroupForSecret(&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "clientssl1",
+				Namespace: "default"}})).To(Equal(""))
+
 		})
 
 	})

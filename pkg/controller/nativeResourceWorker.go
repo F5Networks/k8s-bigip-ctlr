@@ -1091,15 +1091,16 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, extdSpec *Extende
 		}
 	}
 
-	// If TLS reference of type BigIP is configured in ConfigMap, fetch Client and Server SSL profile references
-	if extdSpec != nil && extdSpec.TLS != (TLS{}) && extdSpec.TLS.Reference == BIGIP && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
+	// If TLS reference of type BigIP/Secret is configured in ConfigMap, fetch Client and Server SSL profile references
+	if extdSpec != nil && extdSpec.TLS != (TLS{}) && (extdSpec.TLS.Reference == BIGIP || extdSpec.TLS.Reference == Secret) &&
+		route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
 		if extdSpec.TLS.ClientSSL == "" {
-			message := fmt.Sprintf("Missing BigIP client SSL profile reference in the ConfigMap")
+			message := fmt.Sprintf("Missing client SSL profile %s reference in the ConfigMap", extdSpec.TLS.Reference)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
 		if extdSpec.TLS.ServerSSL == "" && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
-			message := fmt.Sprintf("Missing BigIP server SSL profile reference in the ConfigMap")
+			message := fmt.Sprintf("Missing server SSL profile %s reference in the ConfigMap", extdSpec.TLS.Reference)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
@@ -1185,5 +1186,21 @@ func (ctlr *Controller) getRoutesForCustomPolicy(plc *cisapiv1.Policy) []*routea
 
 // fetch routeGroup for given secret.
 func (ctlr *Controller) getRouteGroupForSecret(secret *v1.Secret) string {
+	for rg, extdSpec := range ctlr.resources.extdSpecMap {
+		// Skip local extended configmaps for TLS secret update processing
+		if extdSpec == nil || extdSpec.global == nil {
+			continue
+		}
+		// Skip routeGroups with no TLS and TLS with reference other than secret
+		if extdSpec.global.TLS == (TLS{}) || extdSpec.global.TLS.Reference != Secret {
+			continue
+		}
+		// Check if the updated secret is used in any RouteGroup and, belongs to the same namespace as the RouteGroup
+		if extdSpec.global.TLS.ServerSSL == secret.Name || extdSpec.global.TLS.ClientSSL == secret.Name {
+			if ctlr.resources.invertedNamespaceLabelMap[secret.Namespace] == rg {
+				return rg
+			}
+		}
+	}
 	return ""
 }

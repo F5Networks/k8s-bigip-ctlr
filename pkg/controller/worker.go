@@ -213,7 +213,10 @@ func (ctlr *Controller) processResources() bool {
 		secret := rKey.rsc.(*v1.Secret)
 		switch ctlr.mode {
 		case OpenShiftMode:
-			ctlr.processRoutes(ctlr.getRouteGroupForSecret(secret), false)
+			routeGroup := ctlr.getRouteGroupForSecret(secret)
+			if routeGroup != "" {
+				ctlr.processRoutes(routeGroup, false)
+			}
 		default:
 			tlsProfiles := ctlr.getTLSProfilesForSecret(secret)
 			for _, tlsProfile := range tlsProfiles {

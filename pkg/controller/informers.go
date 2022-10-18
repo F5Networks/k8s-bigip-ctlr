@@ -768,7 +768,8 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress ||
 		oldVS.Spec.VirtualServerPort != newVS.Spec.VirtualServerPort ||
 		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerName ||
-		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel {
+		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel ||
+		oldVS.Spec.HostGroup != newVS.Spec.HostGroup {
 		log.Debugf("Enqueueing TransportServer: %v", oldVS)
 		key := &rqKey{
 			namespace: oldVS.ObjectMeta.Namespace,

@@ -1569,6 +1569,39 @@ func (ctlr *Controller) requestIP(ipamLabel string, host string, key string) (st
 
 }
 
+// Get List of VirtualServers associated with the IPAM resource
+func (ctlr *Controller) VerifyIPAMAssociatedHostGroupExists(key string) bool {
+	allTS := ctlr.getAllTSFromMonitoredNamespaces()
+	for _, ts := range allTS {
+		tskey := ts.Spec.HostGroup + "_hg"
+		if tskey == key {
+			return true
+		}
+	}
+	allVS := ctlr.getAllVSFromMonitoredNamespaces()
+	for _, vs := range allVS {
+		vskey := vs.Spec.HostGroup + "_hg"
+		if vskey == key {
+			return true
+		}
+	}
+	return false
+}
+
+func (ctlr *Controller) RemoveIPAMCRHostSpec(ipamCR *ficV1.IPAM, key string, index int) (res *ficV1.IPAM, err error) {
+	isExists := false
+	if strings.HasSuffix(key, "_hg") {
+		isExists = ctlr.VerifyIPAMAssociatedHostGroupExists(key)
+	}
+	if !isExists {
+		delete(ctlr.resources.ipamContext, key)
+		ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index+1:]...)
+		ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
+		return ctlr.ipamCli.Update(ipamCR)
+	}
+	return res, err
+}
+
 func (ctlr *Controller) releaseIP(ipamLabel string, host string, key string) string {
 	ipamCR := ctlr.getIPAMCR()
 	var ip string
@@ -1591,10 +1624,7 @@ func (ctlr *Controller) releaseIP(ipamLabel string, host string, key string) str
 			}
 		}
 		if index != -1 {
-			delete(ctlr.resources.ipamContext, key)
-			ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index+1:]...)
-			ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
-			_, err := ctlr.ipamCli.Update(ipamCR)
+			_, err := ctlr.RemoveIPAMCRHostSpec(ipamCR, key, index)
 			if err != nil {
 				log.Errorf("[ipam] ipam hostspec update error: %v", err)
 				return ""
@@ -1617,10 +1647,7 @@ func (ctlr *Controller) releaseIP(ipamLabel string, host string, key string) str
 			}
 		}
 		if index != -1 {
-			delete(ctlr.resources.ipamContext, key)
-			ipamCR.Spec.HostSpecs = append(ipamCR.Spec.HostSpecs[:index], ipamCR.Spec.HostSpecs[index+1:]...)
-			ipamCR.SetResourceVersion(ipamCR.ResourceVersion)
-			_, err := ctlr.ipamCli.Update(ipamCR)
+			_, err := ctlr.RemoveIPAMCRHostSpec(ipamCR, key, index)
 			if err != nil {
 				log.Errorf("[ipam] ipam hostspec update error: %v", err)
 				return ""
@@ -1848,6 +1875,9 @@ func (ctlr *Controller) processTransportServers(
 	var status int
 	key = virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name + "_ts"
 	if ctlr.ipamCli != nil {
+		if virtual.Spec.HostGroup != "" {
+			key = virtual.Spec.HostGroup + "_hg"
+		}
 		if isTSDeleted && virtual.Spec.VirtualServerAddress == "" {
 			ip = ctlr.releaseIP(virtual.Spec.IPAMLabel, "", key)
 		} else if virtual.Spec.VirtualServerAddress != "" {
@@ -2601,21 +2631,44 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 			}
 		}
 		switch rscKind {
-		case "hg", "host":
+		case "hg":
+			// For Virtual Server
 			var vss []*cisapiv1.VirtualServer
-			if rscKind == "hg" {
-				//grouping by hg across all namespaces
-				vss = ctlr.getAllVSFromMonitoredNamespaces()
-			} else {
-				vss = ctlr.getAllVirtualServers(ns)
+			vss = ctlr.getAllVSFromMonitoredNamespaces()
+			for _, vs := range vss {
+				key := vs.Spec.HostGroup + "_hg"
+				if pKey == key {
+					ctlr.TeemData.Lock()
+					ctlr.TeemData.ResourceType.IPAMVS[ns]++
+					ctlr.TeemData.Unlock()
+					err := ctlr.processVirtualServers(vs, false)
+					if err != nil {
+						log.Errorf("Unable to process IPAM entry: %v", pKey)
+					}
+					break
+				}
 			}
+			// For Transport Server
+			var tss []*cisapiv1.TransportServer
+			tss = ctlr.getAllTSFromMonitoredNamespaces()
+			for _, ts := range tss {
+				key := ts.Spec.HostGroup + "_hg"
+				if pKey == key {
+					ctlr.TeemData.Lock()
+					ctlr.TeemData.ResourceType.IPAMVS[ns]++
+					ctlr.TeemData.Unlock()
+					err := ctlr.processTransportServers(ts, false)
+					if err != nil {
+						log.Errorf("Unable to process IPAM entry: %v", pKey)
+					}
+					break
+				}
+			}
+		case "host":
+			var vss []*cisapiv1.VirtualServer
+			vss = ctlr.getAllVirtualServers(ns)
 			for _, vs := range vss {
 				key := vs.Namespace + "/" + vs.Spec.Host + "_host"
-				if rscKind == "hg" {
-					//hg is unique across namespaces
-					//all virtuals with same hg are grouped together across namespaces
-					key = vs.Spec.HostGroup + "_hg"
-				}
 				if pKey == key {
 					ctlr.TeemData.Lock()
 					ctlr.TeemData.ResourceType.IPAMVS[ns]++

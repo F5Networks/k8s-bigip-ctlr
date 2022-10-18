@@ -90,6 +90,7 @@ const (
 	// Internal data group for https redirect
 	HttpsRedirectDgName = "https_redirect_dg"
 	TLSIRuleName        = "tls_irule"
+	ABPathIRuleName     = "ab_deployment_path_irule"
 )
 
 // constants for TLS references
@@ -590,6 +591,7 @@ func (rsCfg *ResourceConfig) AddRuleToPolicy(policyName, partition string, rules
 func (ctlr *Controller) handleTLS(
 	rsCfg *ResourceConfig,
 	tlsContext TLSContext,
+	isRouteABDeploy bool,
 ) bool {
 
 	if rsCfg.Virtual.VirtualAddress.Port == tlsContext.httpsPort {
@@ -772,6 +774,7 @@ func (ctlr *Controller) handleTLS(
 			rsCfg,
 			tlsContext.hostname,
 			tlsContext.termination,
+			isRouteABDeploy,
 		)
 		return true
 	}
@@ -874,7 +877,7 @@ func (ctlr *Controller) handleVirtualServerTLS(
 		vs.Spec.HTTPTraffic,
 		poolPathRefs,
 		bigIPSSLProfiles,
-	})
+	}, false)
 }
 
 // validate TLSProfile
@@ -1448,6 +1451,7 @@ func (ctlr *Controller) handleDataGroupIRules(
 	rsCfg *ResourceConfig,
 	vsHost string,
 	tlsTerminationType string,
+	isRouteABDeploy bool,
 ) {
 	// For https
 	if "" != tlsTerminationType {
@@ -1455,6 +1459,10 @@ func (ctlr *Controller) handleDataGroupIRules(
 			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName))
 		rsCfg.addIRule(
 			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition, ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.AllowSourceRange))
+		if isRouteABDeploy {
+			rsCfg.addIRule(
+				getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+		}
 		switch tlsTerminationType {
 		case TLSEdge:
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), rsCfg.Virtual.Partition)
@@ -1467,6 +1475,11 @@ func (ctlr *Controller) handleDataGroupIRules(
 		}
 		if vsHost != "" {
 			rsCfg.Virtual.AddIRule(tlsIRuleName)
+			if isRouteABDeploy {
+				abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
+					getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
+				rsCfg.Virtual.AddIRule(abPathIRule)
+			}
 		}
 	}
 }
@@ -1943,5 +1956,5 @@ func (ctlr *Controller) handleRouteTLS(
 		strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)),
 		poolPathRefs,
 		bigIPSSLProfiles,
-	})
+	}, IsRouteABDeployment(route))
 }

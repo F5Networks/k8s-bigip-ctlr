@@ -899,7 +899,8 @@ func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 		}
 		if strings.HasSuffix(iRuleNoPort, HttpRedirectIRuleName) ||
 			strings.HasSuffix(iRuleNoPort, HttpRedirectNoHostIRuleName) ||
-			strings.HasSuffix(iRuleName, TLSIRuleName) {
+			strings.HasSuffix(iRuleName, TLSIRuleName) ||
+			strings.HasSuffix(iRuleName, ABPathIRuleName) {
 
 			IRules = append(IRules, iRuleName)
 		} else {

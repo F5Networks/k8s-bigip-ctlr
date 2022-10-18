@@ -14,6 +14,7 @@ Added Functionality
     * :issues:`2469` Support for virtual server grouping by hostgroup across namespaces.From 2.11, hostGroup should be unique across namespaces.See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
     * Support for TLS profiles as K8S secrets in next generation routes. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
     * Support to provide the same VIP for TS and VS CRs using hostGroup. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
+    * NextGen Routes : Support Path based A/B deployment for Re-encrypt termination
 
 Bug Fixes
 ````````````

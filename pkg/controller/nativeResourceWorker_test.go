@@ -333,6 +333,91 @@ var _ = Describe("Routes", func() {
 
 		})
 
+		It("Check Route A/B Deploy", func() {
+			routeGroup := "default"
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
+				override: true,
+				global: &ExtendedRouteGroupSpec{
+					VServerName:      "nextgenroutes",
+					VServerAddr:      "10.10.10.10",
+					AllowOverride:    "False",
+					SNAT:             "auto",
+					WAF:              "/Common/WAFPolicy",
+					IRules:           []string{"/Common/iRule1"},
+					AllowSourceRange: []string{"10.1.0.0/16", "10.2.0.0/16"},
+					TLS: TLS{
+						ClientSSL: "/Common/clientssl",
+						ServerSSL: "/Common/serverssl",
+						Reference: "bigip",
+					},
+				},
+				namespaces: []string{routeGroup},
+				partition:  "test",
+			}
+
+			spec1 := routeapi.RouteSpec{
+				Host: "pytest-foo-1.com",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "reencrypt",
+					Certificate:              " -----BEGIN CERTIFICATE-----\n      MIIDDjCCAfYCCQCgR208hrCAozANBgkqhkiG9w0BAQsFADBCMQswCQYDVQQGEwJV\n      UzELMAkGA1UECAwCQ08xDDAKBgNVBAcMA0JETzELMAkGA1UECwwCY2ExCzAJBgNV\n      BAoMAkY1MB4XDTIyMTAxODA4MDg0NVoXDTIyMTAyMTA4MDg0NVowUDELMAkGA1UE\n      BhMCVVMxCzAJBgNVBAgMAkNPMQwwCgYDVQQHDANCRE8xCzAJBgNVBAoMAkY1MRkw\n      FwYDVQQDDBBweXRlc3QtZm9vLTEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\n      MIIBCgKCAQEAy3IHmdvGjR/fSti25e4YKpotbwkG/WOcOkXk+IwJuu14c/4dsDM1\n      7IayBOWuyhxvQUTyIpmNNqkb1PJ1cY1+6eIdecXdFhUPZtKylxE6NhqWtxpYn1jU\n      byiH1iqKS899MjbQ9GUrfBy/SZxwEkupq/WJcdvbtuYClUgMXqAcLpDQFZoPCWn9\n      qkFj3BubkQp2trO+2K4VGURTNixDcSZs+GoTpZQSS1E6KFAFWu8T9WgnWODWZi1D\n      OGoYb0+rgso9qi1FgPNSPbEqgi82917rUobC8qK8TweXL0xq4rgpAv3Ypsc4Mhbx\n      cm9Gh1QflH+MDI3eqYhN9F5oMQYYeH3HKwIDAQABMA0GCSqGSIb3DQEBCwUAA4IB\n      AQCvmFvTHeY5x0MMYR99DmkxwgTKE5yRgUs5X276quCUL/XJezOmLXYmWeuKy3U8\n      Z4L1zkGj4saH9ysZ1PwhHgrBIIfJpsMMFyvA8CHlO0bCBk4q/5vLAGDlsVj6UXx4\n      VZupUmJbapBXIM20WSqDeM6PVlbsBO1t8tJPV+NOYOS+M8muXlotivKUrB2zwggS\n      7+VMgWgJ6Rq4+uPVL+LOYUEY31pUkhUFnxdw9iSwuLiFIT6B9QtwVydXqe82X6KM\n      ncH6TIRTYXmTXy9CU3YqJWGl6E4Bybr6Uzlkyoo1CEKDetbwBrgrEwr8Cs8i/K4C\n      rTbQUqAOMjosET4jarlY9/t0\n      -----END CERTIFICATE-----",
+					DestinationCACertificate: " -----BEGIN CERTIFICATE-----\n      MIIDVzCCAj+gAwIBAgIJAPl2S8PFsPkeMA0GCSqGSIb3DQEBCwUAMEIxCzAJBgNV\n      BAYTAlVTMQswCQYDVQQIDAJDTzEMMAoGA1UEBwwDQkRPMQswCQYDVQQLDAJjYTEL\n      MAkGA1UECgwCRjUwHhcNMjIwOTIzMTYxMzMxWhcNMjMwOTIzMTYxMzMxWjBCMQsw\n      CQYDVQQGEwJVUzELMAkGA1UECAwCQ08xDDAKBgNVBAcMA0JETzELMAkGA1UECwwC\n      Y2ExCzAJBgNVBAoMAkY1MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\n      0luQ/n3iC/3kA3RAYveM1hpXsOThcyzb8xT8QoL58i+J2P/pGl+8Ho2HHS+4+jbG\n      7iJ5m46yflLWSLXqSVtvIuEgXDFr8bkLGhuUYZfMQyprzSUN+QNM6EtHsrXSeJGE\n      /qOSOPPm7M2eJoS+DDhiAaTiOAAd2iUJ4bCrsc4RBRuZaXx4Gxcmdk5fqwt5Urqc\n      iNDteplu3UJ4TibP/dTkqEqZ7o6E2kUxzIBjtZqG09cqrygX/ayZYYjuFzl6Ksyp\n      5dUC0TZ2RZwfd7564xBOdCAKcHDgbm7ygP8MMJa2olj04f0d5hikJcFAxVhWePzL\n      BxpDjXNfv6shzshL0StXJQIDAQABo1AwTjAdBgNVHQ4EFgQUdGNL5SrEZp+ukaR/\n      lIken7t1um4wHwYDVR0jBBgwFoAUdGNL5SrEZp+ukaR/lIken7t1um4wDAYDVR0T\n      BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAaO8ZWa/94FvAW8ZcSLooEchWw98G\n      7IK4+nzLo+b4GEKhV9ALH0Cz6+UUW3+9v56kdHTIgDOR7lF5lPyzPTEh4PgpiX8M\n      rmtzqEM3CBJEGNuAaSk4vxNCTVX3vLBqMG53VmWFPuqHqoa46VIV/HzSQVBjJu6x\n      JfjKRDEvsgGSSrv6W/x5getsjIO0SQuuMVH4IJuD3oQWvf5WfYZMf+53ToHSRncy\n      2kiQtgbsxK/KWDix9TM+hhkILFvU/CmpTTweD8hNpCOvF5GLs9lhMVBFc+HJBVtZ\n      qfVuJiZMiyIyaGbxefgz60QgCBuLcyaAVafRH7rSRr43DNP0Pm2k4figzg==\n      -----END CERTIFICATE-----",
+					Key:                      "-----BEGIN RSA PRIVATE KEY-----\n      MIIEpAIBAAKCAQEAy3IHmdvGjR/fSti25e4YKpotbwkG/WOcOkXk+IwJuu14c/4d\n      sDM17IayBOWuyhxvQUTyIpmNNqkb1PJ1cY1+6eIdecXdFhUPZtKylxE6NhqWtxpY\n      n1jUbyiH1iqKS899MjbQ9GUrfBy/SZxwEkupq/WJcdvbtuYClUgMXqAcLpDQFZoP\n      CWn9qkFj3BubkQp2trO+2K4VGURTNixDcSZs+GoTpZQSS1E6KFAFWu8T9WgnWODW\n      Zi1DOGoYb0+rgso9qi1FgPNSPbEqgi82917rUobC8qK8TweXL0xq4rgpAv3Ypsc4\n      Mhbxcm9Gh1QflH+MDI3eqYhN9F5oMQYYeH3HKwIDAQABAoIBACLPujk7f/f58i1O\n      c81YNk5j305Wjxmgh8T43Lsiyy9vHuNKIi5aNOnqCmAIJSZ0Qx05/OyqtZ0axqZj\n      bnElswe2JzEFCFWU+POxLdnnmrxTRGLEYVGy03bJyqR81vkt4dBLzOlkvlIYYSrp\n      V8vponjIJOKUqj3bkamVkHhIkUnuM2lXdC30VcWBU5m9S6SuwjNFOLzhrIucXATA\n      vvKH+Bw6tGKI5yE8PkSyW8BCnFg24AF2UQq1k8XvjnT3CTVeCxEZUp+HOt1Y2F25\n      AhqE0viC2KeJtG0y34QKhbxq5gtUljbNCaKUkKJlO4Hu+bGVrZGPmAIEMPwMgX9u\n      JaH2w/ECgYEA63XUA243qlMESfasD2BbIxyO6Wqk47CGZvfj6N66pFQO075Vv3dO\n      IY1ENT/Cd73XE9zxr/9RQ4BG42pWL1/3g1jcpAa+iW2SK1YxaCe3SwSQY+EWuGsY\n      XmhahZ/V7aD5PH4v+ewOG1r6WF5ugwoaaEvn/9/f3At4TszX9/acWbcCgYEA3TFD\n      blSk+iFWjXnYzTTgS+5ZVt2c3Ix4iEY1pCRpcMsCbqx0BiqjXUCtHBDNQ5+LxlyD\n      wLMjcQGGIyfSlLxuXQONRRfo2PZjcYe7JvxsX/FrXTvFi0n+i9o2HM38nH2Un40Z\n      cpr/fpcpvC8kFD20jo/nt8J8OdZT9fZ5WIa2Di0CgYBQQW8sZCrxES7LDxsCerNV\n      umwzvzfIq+iDvEagnxo63LPZFG0hv8aPxRjUlZDxQ3HFwW9Xr8zBFz4SUbJin3E8\n      AdPizLGxIfnKb6yTdcYR+dJFWPlnjolV1HfWR+6g+lc5eUFdDEqapF3kNPuyCoWJ\n      uyWun14sIHS3Vzbdu9767QKBgQDQiTB0pXLAq4upaFYA6bgJflZWMitAN2Mvv1m1\n      Per2vz60zvu4EJziPya1zhVnitTBl9lTZNCmKvSm0lWTiq9WHBIlMOyDGJAaqgfF\n      MriOH9LEHKUatBE7EuhvcbiWZUMoxWNXjFASrjtXwu3181L2ETA6LC7obGvN+ajf\n      0Gl1pQKBgQCAzIzP5ab8vvqwHVhDN+mWfG3vvN3tCI2rL4zv5boO20MqVTxu9i7o\n      e7Zro8EKG/HNmt7hF46vq2OJa5QUpNf6a1II4dRsbbBoFUzGinm41TUENkeMumTU\n      XsGWrknaI+J90tmvkM8rSI1Qjcw1zHUWTyd7blDj/snjb/Qg4v57yw==\n      -----END RSA PRIVATE KEY-----"},
+			}
+			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+				{Port: 8080, NodePort: 38001},
+				{Port: 9090, NodePort: 39001}}
+			foo := test.NewService("foo", "1", routeGroup, "NodePort", fooPorts)
+			mockCtlr.addService(foo)
+			fooIps := []string{"10.1.1.1"}
+			fooEndpts := test.NewEndpoints(
+				"foo", "1", "node0", routeGroup, fooIps, []string{},
+				convertSvcPortsToEndpointPorts(fooPorts))
+			mockCtlr.addEndpoints(fooEndpts)
+			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
+
+			mockCtlr.addRoute(route1)
+			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+			err := mockCtlr.processRoutes(routeGroup, false)
+			parition := mockCtlr.resources.extdSpecMap[routeGroup].partition
+			vsName := frameRouteVSName(mockCtlr.resources.extdSpecMap[routeGroup].global.VServerName, mockCtlr.resources.extdSpecMap[routeGroup].global.VServerAddr, portStruct{protocol: "https", port: 443})
+			Expect(err).To(BeNil())
+			Expect(len(mockCtlr.resources.ltmConfig[parition].ResourceMap[vsName].IRulesMap) == 1).To(BeTrue())
+
+			var alternateBackend []routeapi.RouteTargetReference
+			weight := new(int32)
+			*weight = 50
+			alternateBackend = append(alternateBackend, routeapi.RouteTargetReference{Kind: "Service",
+				Name: "foo", Weight: weight})
+			spec2 := routeapi.RouteSpec{
+				Host: "pytest-foo-1.com",
+				Path: "/first",
+				To: routeapi.RouteTargetReference{
+					Kind:   "Service",
+					Name:   "foo",
+					Weight: weight,
+				},
+				AlternateBackends: alternateBackend,
+				TLS: &routeapi.TLSConfig{Termination: "reencrypt",
+					Certificate:              " -----BEGIN CERTIFICATE-----\n      MIIDDjCCAfYCCQCgR208hrCAozANBgkqhkiG9w0BAQsFADBCMQswCQYDVQQGEwJV\n      UzELMAkGA1UECAwCQ08xDDAKBgNVBAcMA0JETzELMAkGA1UECwwCY2ExCzAJBgNV\n      BAoMAkY1MB4XDTIyMTAxODA4MDg0NVoXDTIyMTAyMTA4MDg0NVowUDELMAkGA1UE\n      BhMCVVMxCzAJBgNVBAgMAkNPMQwwCgYDVQQHDANCRE8xCzAJBgNVBAoMAkY1MRkw\n      FwYDVQQDDBBweXRlc3QtZm9vLTEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\n      MIIBCgKCAQEAy3IHmdvGjR/fSti25e4YKpotbwkG/WOcOkXk+IwJuu14c/4dsDM1\n      7IayBOWuyhxvQUTyIpmNNqkb1PJ1cY1+6eIdecXdFhUPZtKylxE6NhqWtxpYn1jU\n      byiH1iqKS899MjbQ9GUrfBy/SZxwEkupq/WJcdvbtuYClUgMXqAcLpDQFZoPCWn9\n      qkFj3BubkQp2trO+2K4VGURTNixDcSZs+GoTpZQSS1E6KFAFWu8T9WgnWODWZi1D\n      OGoYb0+rgso9qi1FgPNSPbEqgi82917rUobC8qK8TweXL0xq4rgpAv3Ypsc4Mhbx\n      cm9Gh1QflH+MDI3eqYhN9F5oMQYYeH3HKwIDAQABMA0GCSqGSIb3DQEBCwUAA4IB\n      AQCvmFvTHeY5x0MMYR99DmkxwgTKE5yRgUs5X276quCUL/XJezOmLXYmWeuKy3U8\n      Z4L1zkGj4saH9ysZ1PwhHgrBIIfJpsMMFyvA8CHlO0bCBk4q/5vLAGDlsVj6UXx4\n      VZupUmJbapBXIM20WSqDeM6PVlbsBO1t8tJPV+NOYOS+M8muXlotivKUrB2zwggS\n      7+VMgWgJ6Rq4+uPVL+LOYUEY31pUkhUFnxdw9iSwuLiFIT6B9QtwVydXqe82X6KM\n      ncH6TIRTYXmTXy9CU3YqJWGl6E4Bybr6Uzlkyoo1CEKDetbwBrgrEwr8Cs8i/K4C\n      rTbQUqAOMjosET4jarlY9/t0\n      -----END CERTIFICATE-----",
+					DestinationCACertificate: " -----BEGIN CERTIFICATE-----\n      MIIDVzCCAj+gAwIBAgIJAPl2S8PFsPkeMA0GCSqGSIb3DQEBCwUAMEIxCzAJBgNV\n      BAYTAlVTMQswCQYDVQQIDAJDTzEMMAoGA1UEBwwDQkRPMQswCQYDVQQLDAJjYTEL\n      MAkGA1UECgwCRjUwHhcNMjIwOTIzMTYxMzMxWhcNMjMwOTIzMTYxMzMxWjBCMQsw\n      CQYDVQQGEwJVUzELMAkGA1UECAwCQ08xDDAKBgNVBAcMA0JETzELMAkGA1UECwwC\n      Y2ExCzAJBgNVBAoMAkY1MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\n      0luQ/n3iC/3kA3RAYveM1hpXsOThcyzb8xT8QoL58i+J2P/pGl+8Ho2HHS+4+jbG\n      7iJ5m46yflLWSLXqSVtvIuEgXDFr8bkLGhuUYZfMQyprzSUN+QNM6EtHsrXSeJGE\n      /qOSOPPm7M2eJoS+DDhiAaTiOAAd2iUJ4bCrsc4RBRuZaXx4Gxcmdk5fqwt5Urqc\n      iNDteplu3UJ4TibP/dTkqEqZ7o6E2kUxzIBjtZqG09cqrygX/ayZYYjuFzl6Ksyp\n      5dUC0TZ2RZwfd7564xBOdCAKcHDgbm7ygP8MMJa2olj04f0d5hikJcFAxVhWePzL\n      BxpDjXNfv6shzshL0StXJQIDAQABo1AwTjAdBgNVHQ4EFgQUdGNL5SrEZp+ukaR/\n      lIken7t1um4wHwYDVR0jBBgwFoAUdGNL5SrEZp+ukaR/lIken7t1um4wDAYDVR0T\n      BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAaO8ZWa/94FvAW8ZcSLooEchWw98G\n      7IK4+nzLo+b4GEKhV9ALH0Cz6+UUW3+9v56kdHTIgDOR7lF5lPyzPTEh4PgpiX8M\n      rmtzqEM3CBJEGNuAaSk4vxNCTVX3vLBqMG53VmWFPuqHqoa46VIV/HzSQVBjJu6x\n      JfjKRDEvsgGSSrv6W/x5getsjIO0SQuuMVH4IJuD3oQWvf5WfYZMf+53ToHSRncy\n      2kiQtgbsxK/KWDix9TM+hhkILFvU/CmpTTweD8hNpCOvF5GLs9lhMVBFc+HJBVtZ\n      qfVuJiZMiyIyaGbxefgz60QgCBuLcyaAVafRH7rSRr43DNP0Pm2k4figzg==\n      -----END CERTIFICATE-----",
+					Key:                      "-----BEGIN RSA PRIVATE KEY-----\n      MIIEpAIBAAKCAQEAy3IHmdvGjR/fSti25e4YKpotbwkG/WOcOkXk+IwJuu14c/4d\n      sDM17IayBOWuyhxvQUTyIpmNNqkb1PJ1cY1+6eIdecXdFhUPZtKylxE6NhqWtxpY\n      n1jUbyiH1iqKS899MjbQ9GUrfBy/SZxwEkupq/WJcdvbtuYClUgMXqAcLpDQFZoP\n      CWn9qkFj3BubkQp2trO+2K4VGURTNixDcSZs+GoTpZQSS1E6KFAFWu8T9WgnWODW\n      Zi1DOGoYb0+rgso9qi1FgPNSPbEqgi82917rUobC8qK8TweXL0xq4rgpAv3Ypsc4\n      Mhbxcm9Gh1QflH+MDI3eqYhN9F5oMQYYeH3HKwIDAQABAoIBACLPujk7f/f58i1O\n      c81YNk5j305Wjxmgh8T43Lsiyy9vHuNKIi5aNOnqCmAIJSZ0Qx05/OyqtZ0axqZj\n      bnElswe2JzEFCFWU+POxLdnnmrxTRGLEYVGy03bJyqR81vkt4dBLzOlkvlIYYSrp\n      V8vponjIJOKUqj3bkamVkHhIkUnuM2lXdC30VcWBU5m9S6SuwjNFOLzhrIucXATA\n      vvKH+Bw6tGKI5yE8PkSyW8BCnFg24AF2UQq1k8XvjnT3CTVeCxEZUp+HOt1Y2F25\n      AhqE0viC2KeJtG0y34QKhbxq5gtUljbNCaKUkKJlO4Hu+bGVrZGPmAIEMPwMgX9u\n      JaH2w/ECgYEA63XUA243qlMESfasD2BbIxyO6Wqk47CGZvfj6N66pFQO075Vv3dO\n      IY1ENT/Cd73XE9zxr/9RQ4BG42pWL1/3g1jcpAa+iW2SK1YxaCe3SwSQY+EWuGsY\n      XmhahZ/V7aD5PH4v+ewOG1r6WF5ugwoaaEvn/9/f3At4TszX9/acWbcCgYEA3TFD\n      blSk+iFWjXnYzTTgS+5ZVt2c3Ix4iEY1pCRpcMsCbqx0BiqjXUCtHBDNQ5+LxlyD\n      wLMjcQGGIyfSlLxuXQONRRfo2PZjcYe7JvxsX/FrXTvFi0n+i9o2HM38nH2Un40Z\n      cpr/fpcpvC8kFD20jo/nt8J8OdZT9fZ5WIa2Di0CgYBQQW8sZCrxES7LDxsCerNV\n      umwzvzfIq+iDvEagnxo63LPZFG0hv8aPxRjUlZDxQ3HFwW9Xr8zBFz4SUbJin3E8\n      AdPizLGxIfnKb6yTdcYR+dJFWPlnjolV1HfWR+6g+lc5eUFdDEqapF3kNPuyCoWJ\n      uyWun14sIHS3Vzbdu9767QKBgQDQiTB0pXLAq4upaFYA6bgJflZWMitAN2Mvv1m1\n      Per2vz60zvu4EJziPya1zhVnitTBl9lTZNCmKvSm0lWTiq9WHBIlMOyDGJAaqgfF\n      MriOH9LEHKUatBE7EuhvcbiWZUMoxWNXjFASrjtXwu3181L2ETA6LC7obGvN+ajf\n      0Gl1pQKBgQCAzIzP5ab8vvqwHVhDN+mWfG3vvN3tCI2rL4zv5boO20MqVTxu9i7o\n      e7Zro8EKG/HNmt7hF46vq2OJa5QUpNf6a1II4dRsbbBoFUzGinm41TUENkeMumTU\n      XsGWrknaI+J90tmvkM8rSI1Qjcw1zHUWTyd7blDj/snjb/Qg4v57yw==\n      -----END RSA PRIVATE KEY-----"},
+			}
+
+			route2 := test.NewRoute("route2", "1", routeGroup, spec2, nil)
+			mockCtlr.addRoute(route2)
+			err = mockCtlr.processRoutes(routeGroup, false)
+			Expect(err).To(BeNil())
+
+			abPathIRule := getRSCfgResName(vsName, ABPathIRuleName)
+			Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap[vsName].IRulesMap) == 2).To(BeTrue())
+			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap[vsName].IRulesMap[NameRef{abPathIRule, parition}].Name == abPathIRule).To(BeTrue())
+
+		})
+
 		It("Check Route TLS", func() {
 
 			tls := TLS{

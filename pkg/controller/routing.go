@@ -553,6 +553,52 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	return iRuleCode
 }
 
+func (ctlr *Controller) GetABDeployIRule(rsVSName string, partition string) string {
+	dgPath := strings.Join([]string{partition, Shared}, "/")
+
+	iRule := fmt.Sprintf(`proc select_ab_pool {path default_pool } {
+			set last_slash [string length $path]
+			set ab_class "/%[1]s/%[2]s_ab_deployment_dg"
+			while {$last_slash >= 0} {
+				if {[class match $path equals $ab_class]} then {
+					break
+				}
+				set last_slash [string last "/" $path $last_slash]
+				incr last_slash -1
+				set path [string range $path 0 $last_slash]
+			}
+			if {$last_slash >= 0} {
+				set ab_rule [class match -value $path equals $ab_class]
+				if {$ab_rule != ""} then {
+					set weight_selection [expr {rand()}]
+					set service_rules [split $ab_rule ";"]
+					foreach service_rule $service_rules {
+						set fields [split $service_rule ","]
+						set pool_name [lindex $fields 0]
+						set weight [expr {double([lindex $fields 1])}]
+						if {$weight_selection <= $weight} then {
+							return $pool_name
+						}
+					}
+				}
+				# If we had a match, but all weights were 0 then
+				# retrun a 503 (Service Unavailable)
+				HTTP::respond 503
+			}
+			return $default_pool
+		}
+		when HTTP_REQUEST priority 200 {
+			set path [string tolower [HTTP::host]][HTTP::path]
+			set selected_pool [call select_ab_pool $path ""]
+			if {$selected_pool != ""} then {
+				pool $selected_pool
+				event disable
+			}
+		}`, dgPath, rsVSName)
+
+	return iRule
+}
+
 func (ctlr *Controller) getTLSIRule(rsVSName string, partition string, allowSourceRange []string) string {
 	dgPath := strings.Join([]string{partition, Shared}, "/")
 
@@ -999,8 +1045,6 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 		// We don't support path-based A/B for pass-thru and re-encrypt
 		switch tls.Termination {
 		case routeapi.TLSTerminationPassthrough:
-			path = ""
-		case routeapi.TLSTerminationReencrypt:
 			path = ""
 		}
 	}

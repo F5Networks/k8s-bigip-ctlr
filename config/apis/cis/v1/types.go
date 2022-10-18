@@ -195,6 +195,7 @@ type TransportServerSpec struct {
 	VirtualServerPort    int32            `json:"virtualServerPort"`
 	VirtualServerName    string           `json:"virtualServerName"`
 	Host                 string           `json:"host,omitempty"`
+	HostGroup            string           `json:"hostGroup,omitempty"`
 	Mode                 string           `json:"mode"`
 	SNAT                 string           `json:"snat"`
 	Pool                 Pool             `json:"pool"`

@@ -13,13 +13,15 @@ Added Functionality
     * Pool reselect support for VS and TS
     * :issues:`2469` Support for virtual server grouping by hostgroup across namespaces.From 2.11, hostGroup should be unique across namespaces.See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
     * Support for TLS profiles as K8S secrets in next generation routes. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
+    * Support to provide the same VIP for TS and VS CRs using hostGroup. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
+
 Bug Fixes
 ````````````
 
 * :issues:`2586` Update ExternalIP of associated services of Type LB for VS and IngressLink CR
 * Fix to remove old ingress monitor when type gets modified
 * Fix to send AS3 declaration for the recreated domain after IPAM controller restart
-
+* :issues:`2581` IPAM to provide the same IP for different TS
 
 
 2.10.1

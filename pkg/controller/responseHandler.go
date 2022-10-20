@@ -70,7 +70,7 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 				// Update Corresponding Service Status of Type LB
 				for _, pool := range virtual.Spec.Pools {
 					svc := ctlr.GetService(virtual.Namespace, pool.Service)
-					if svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+					if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
 						ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
 					}
 				}

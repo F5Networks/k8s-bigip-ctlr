@@ -377,6 +377,7 @@ var _ = Describe("Routes", func() {
 				"foo", "1", "node0", routeGroup, fooIps, []string{},
 				convertSvcPortsToEndpointPorts(fooPorts))
 			mockCtlr.addEndpoints(fooEndpts)
+			//Domain Based Route
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
 
 			mockCtlr.addRoute(route1)
@@ -392,6 +393,17 @@ var _ = Describe("Routes", func() {
 			*weight = 50
 			alternateBackend = append(alternateBackend, routeapi.RouteTargetReference{Kind: "Service",
 				Name: "foo", Weight: weight})
+
+			spec1.AlternateBackends = alternateBackend
+			//Domain based route with alternate backend
+			route2 := test.NewRoute("route2", "1", routeGroup, spec1, nil)
+
+			mockCtlr.addRoute(route2)
+			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+			err = mockCtlr.processRoutes(routeGroup, false)
+			Expect(err).To(BeNil())
+			Expect(len(mockCtlr.resources.ltmConfig[parition].ResourceMap[vsName].IRulesMap) == 1).To(BeTrue())
+
 			spec2 := routeapi.RouteSpec{
 				Host: "pytest-foo-1.com",
 				Path: "/first",
@@ -407,8 +419,8 @@ var _ = Describe("Routes", func() {
 					Key:                      "-----BEGIN RSA PRIVATE KEY-----\n      MIIEpAIBAAKCAQEAy3IHmdvGjR/fSti25e4YKpotbwkG/WOcOkXk+IwJuu14c/4d\n      sDM17IayBOWuyhxvQUTyIpmNNqkb1PJ1cY1+6eIdecXdFhUPZtKylxE6NhqWtxpY\n      n1jUbyiH1iqKS899MjbQ9GUrfBy/SZxwEkupq/WJcdvbtuYClUgMXqAcLpDQFZoP\n      CWn9qkFj3BubkQp2trO+2K4VGURTNixDcSZs+GoTpZQSS1E6KFAFWu8T9WgnWODW\n      Zi1DOGoYb0+rgso9qi1FgPNSPbEqgi82917rUobC8qK8TweXL0xq4rgpAv3Ypsc4\n      Mhbxcm9Gh1QflH+MDI3eqYhN9F5oMQYYeH3HKwIDAQABAoIBACLPujk7f/f58i1O\n      c81YNk5j305Wjxmgh8T43Lsiyy9vHuNKIi5aNOnqCmAIJSZ0Qx05/OyqtZ0axqZj\n      bnElswe2JzEFCFWU+POxLdnnmrxTRGLEYVGy03bJyqR81vkt4dBLzOlkvlIYYSrp\n      V8vponjIJOKUqj3bkamVkHhIkUnuM2lXdC30VcWBU5m9S6SuwjNFOLzhrIucXATA\n      vvKH+Bw6tGKI5yE8PkSyW8BCnFg24AF2UQq1k8XvjnT3CTVeCxEZUp+HOt1Y2F25\n      AhqE0viC2KeJtG0y34QKhbxq5gtUljbNCaKUkKJlO4Hu+bGVrZGPmAIEMPwMgX9u\n      JaH2w/ECgYEA63XUA243qlMESfasD2BbIxyO6Wqk47CGZvfj6N66pFQO075Vv3dO\n      IY1ENT/Cd73XE9zxr/9RQ4BG42pWL1/3g1jcpAa+iW2SK1YxaCe3SwSQY+EWuGsY\n      XmhahZ/V7aD5PH4v+ewOG1r6WF5ugwoaaEvn/9/f3At4TszX9/acWbcCgYEA3TFD\n      blSk+iFWjXnYzTTgS+5ZVt2c3Ix4iEY1pCRpcMsCbqx0BiqjXUCtHBDNQ5+LxlyD\n      wLMjcQGGIyfSlLxuXQONRRfo2PZjcYe7JvxsX/FrXTvFi0n+i9o2HM38nH2Un40Z\n      cpr/fpcpvC8kFD20jo/nt8J8OdZT9fZ5WIa2Di0CgYBQQW8sZCrxES7LDxsCerNV\n      umwzvzfIq+iDvEagnxo63LPZFG0hv8aPxRjUlZDxQ3HFwW9Xr8zBFz4SUbJin3E8\n      AdPizLGxIfnKb6yTdcYR+dJFWPlnjolV1HfWR+6g+lc5eUFdDEqapF3kNPuyCoWJ\n      uyWun14sIHS3Vzbdu9767QKBgQDQiTB0pXLAq4upaFYA6bgJflZWMitAN2Mvv1m1\n      Per2vz60zvu4EJziPya1zhVnitTBl9lTZNCmKvSm0lWTiq9WHBIlMOyDGJAaqgfF\n      MriOH9LEHKUatBE7EuhvcbiWZUMoxWNXjFASrjtXwu3181L2ETA6LC7obGvN+ajf\n      0Gl1pQKBgQCAzIzP5ab8vvqwHVhDN+mWfG3vvN3tCI2rL4zv5boO20MqVTxu9i7o\n      e7Zro8EKG/HNmt7hF46vq2OJa5QUpNf6a1II4dRsbbBoFUzGinm41TUENkeMumTU\n      XsGWrknaI+J90tmvkM8rSI1Qjcw1zHUWTyd7blDj/snjb/Qg4v57yw==\n      -----END RSA PRIVATE KEY-----"},
 			}
 
-			route2 := test.NewRoute("route2", "1", routeGroup, spec2, nil)
-			mockCtlr.addRoute(route2)
+			route3 := test.NewRoute("route3", "1", routeGroup, spec2, nil)
+			mockCtlr.addRoute(route3)
 			err = mockCtlr.processRoutes(routeGroup, false)
 			Expect(err).To(BeNil())
 

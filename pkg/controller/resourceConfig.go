@@ -591,7 +591,6 @@ func (rsCfg *ResourceConfig) AddRuleToPolicy(policyName, partition string, rules
 func (ctlr *Controller) handleTLS(
 	rsCfg *ResourceConfig,
 	tlsContext TLSContext,
-	isRouteABDeploy bool,
 ) bool {
 
 	if rsCfg.Virtual.VirtualAddress.Port == tlsContext.httpsPort {
@@ -774,7 +773,6 @@ func (ctlr *Controller) handleTLS(
 			rsCfg,
 			tlsContext.hostname,
 			tlsContext.termination,
-			isRouteABDeploy,
 		)
 		return true
 	}
@@ -877,7 +875,7 @@ func (ctlr *Controller) handleVirtualServerTLS(
 		vs.Spec.HTTPTraffic,
 		poolPathRefs,
 		bigIPSSLProfiles,
-	}, false)
+	})
 }
 
 // validate TLSProfile
@@ -1451,7 +1449,6 @@ func (ctlr *Controller) handleDataGroupIRules(
 	rsCfg *ResourceConfig,
 	vsHost string,
 	tlsTerminationType string,
-	isRouteABDeploy bool,
 ) {
 	// For https
 	if "" != tlsTerminationType {
@@ -1459,10 +1456,6 @@ func (ctlr *Controller) handleDataGroupIRules(
 			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName))
 		rsCfg.addIRule(
 			getRSCfgResName(rsCfg.Virtual.Name, TLSIRuleName), rsCfg.Virtual.Partition, ctlr.getTLSIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition, rsCfg.Virtual.AllowSourceRange))
-		if isRouteABDeploy {
-			rsCfg.addIRule(
-				getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
-		}
 		switch tlsTerminationType {
 		case TLSEdge:
 			rsCfg.addInternalDataGroup(getRSCfgResName(rsCfg.Virtual.Name, EdgeHostsDgName), rsCfg.Virtual.Partition)
@@ -1475,11 +1468,23 @@ func (ctlr *Controller) handleDataGroupIRules(
 		}
 		if vsHost != "" {
 			rsCfg.Virtual.AddIRule(tlsIRuleName)
-			if isRouteABDeploy {
-				abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
-					getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
-				rsCfg.Virtual.AddIRule(abPathIRule)
-			}
+		}
+	}
+}
+
+func (ctlr *Controller) HandlePathBasedABIRule(
+	rsCfg *ResourceConfig,
+	vsHost string,
+	tlsTerminationType string,
+) {
+	// For https
+	if "" != tlsTerminationType && tlsTerminationType != TLSPassthrough {
+		rsCfg.addIRule(
+			getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName), rsCfg.Virtual.Partition, ctlr.GetPathBasedABDeployIRule(rsCfg.Virtual.Name, rsCfg.Virtual.Partition))
+		if vsHost != "" {
+			abPathIRule := JoinBigipPath(rsCfg.Virtual.Partition,
+				getRSCfgResName(rsCfg.Virtual.Name, ABPathIRuleName))
+			rsCfg.Virtual.AddIRule(abPathIRule)
 		}
 	}
 }
@@ -1943,6 +1948,11 @@ func (ctlr *Controller) handleRouteTLS(
 			rsCfg.IntDgMap,
 			servicePort,
 		)
+		if IsRoutePathBasedABDeployment(route) &&
+			(route.Spec.TLS.Termination == TLSEdge ||
+				(route.Spec.TLS.Termination == TLSReencrypt && strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)) != TLSAllowInsecure)) {
+			ctlr.HandlePathBasedABIRule(rsCfg, route.Spec.Host, string(route.Spec.TLS.Termination))
+		}
 	}
 
 	return ctlr.handleTLS(rsCfg, TLSContext{route.ObjectMeta.Name,
@@ -1956,5 +1966,5 @@ func (ctlr *Controller) handleRouteTLS(
 		strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)),
 		poolPathRefs,
 		bigIPSSLProfiles,
-	}, IsRouteABDeployment(route))
+	})
 }

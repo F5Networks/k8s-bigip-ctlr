@@ -1097,11 +1097,14 @@ func (rs *ResourceStore) getLTMConfigDeepCopy() LTMConfig {
 // getGTMConfigCopy is a WideIP reference copy of GTMConfig
 func (rs *ResourceStore) getGTMConfigCopy() GTMConfig {
 	gtmConfig := make(GTMConfig)
-	for dominName, wip := range rs.gtmConfig {
-		// Everytime new wip object gets created from the scratch
-		// so no need to deep copy wip
-		gtmConfig[dominName] = wip
-		rs.gtmConfigCache[dominName] = wip
+	for partition, gtmPartitionConfig := range rs.gtmConfig {
+		gtmConfig[partition] = GTMPartitionConfig{
+			WideIPs: make(map[string]WideIP),
+		}
+		for domainName, wip := range gtmPartitionConfig.WideIPs {
+			copyRes := copyGTMConfig(wip)
+			gtmConfig[partition].WideIPs[domainName] = copyRes
+		}
 	}
 	return gtmConfig
 }
@@ -1145,6 +1148,26 @@ func (lc LTMConfig) GetAllPoolMembers() []PoolMember {
 	}
 
 	return allPoolMembers
+}
+
+// Copies from an existing config into our new config
+func copyGTMConfig(cfg WideIP) (rc WideIP) {
+	// MetaData
+	rc.DomainName = cfg.DomainName
+	rc.UID = cfg.UID
+	rc.LBMethod = cfg.LBMethod
+	rc.RecordType = cfg.RecordType
+	// Pools
+	rc.Pools = make([]GSLBPool, len(cfg.Pools))
+	copy(rc.Pools, cfg.Pools)
+	// Pool Members and Monitor Names
+	for i := range rc.Pools {
+		rc.Pools[i].Members = make([]string, len(cfg.Pools[i].Members))
+		copy(rc.Pools[i].Members, cfg.Pools[i].Members)
+		rc.Pools[i].Monitors = make([]Monitor, len(cfg.Pools[i].Monitors))
+		copy(rc.Pools[i].Monitors, cfg.Pools[i].Monitors)
+	}
+	return rc
 }
 
 // Copies from an existing config into our new config

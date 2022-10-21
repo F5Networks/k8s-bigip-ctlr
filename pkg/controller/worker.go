@@ -2470,10 +2470,14 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 				if vs.MetaData.Protocol == "http" && (vs.MetaData.httpTraffic == TLSRedirectInsecure || vs.MetaData.httpTraffic == TLSAllowInsecure) {
 					continue
 				}
+				preGTMServerName := ""
+				if ctlr.Agent.ccclGTMAgent {
+					preGTMServerName = fmt.Sprintf("%v:", pl.DataServerName)
+				}
 				// add only one VS member to pool.
 				if len(pool.Members) > 0 && strings.HasPrefix(vsName, "ingress_link_") {
 					if strings.HasSuffix(vsName, "_443") {
-						pool.Members[0] = fmt.Sprintf("/%v/Shared/%v", DEFAULT_PARTITION, vsName)
+						pool.Members[0] = fmt.Sprintf("%v/%v/Shared/%v", preGTMServerName, DEFAULT_PARTITION, vsName)
 					}
 					continue
 				}
@@ -2481,7 +2485,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 					DEFAULT_PARTITION, vsName))
 				pool.Members = append(
 					pool.Members,
-					fmt.Sprintf("/%v/Shared/%v", DEFAULT_PARTITION, vsName),
+					fmt.Sprintf("%v/%v/Shared/%v", preGTMServerName, DEFAULT_PARTITION, vsName),
 				)
 			}
 		}

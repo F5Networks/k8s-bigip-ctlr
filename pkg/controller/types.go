@@ -285,6 +285,11 @@ type (
 	// key is namespace/pod. stores list of npl annotation on pod
 	NPLStore map[string]NPLAnnoations
 
+	// GTMConfig key is domainName and value is WideIP
+
+	WideIPs struct {
+		WideIPs []WideIP `json:"wideIPs"`
+	}
 	// GTMConfig key is PartitionName
 	GTMConfig map[string]GTMPartitionConfig
 
@@ -613,6 +618,7 @@ type (
 		tenantPriorityMap map[string]int
 		// retryTenantDeclMap holds tenant name and its agent Config,tenant details
 		retryTenantDeclMap map[string]*tenantParams
+		ccclGTMAgent       bool
 	}
 
 	AgentParams struct {
@@ -628,6 +634,7 @@ type (
 		HttpAddress    string
 		EnableIPV6     bool
 		DisableARP     bool
+		CCCLGTMAgent   bool
 	}
 
 	PostManager struct {

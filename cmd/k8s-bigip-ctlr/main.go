@@ -168,6 +168,7 @@ var (
 
 	trustedCertsCfgmap     *string
 	agent                  *string
+	ccclGtmAgent           *bool
 	logAS3Response         *bool
 	shareNodes             *bool
 	overriderAS3CfgmapName *string
@@ -291,6 +292,8 @@ func _init() {
 	// TODO: Rephrase agent functionality
 	agent = bigIPFlags.String("agent", "as3",
 		"Optional, when set to cccl, orchestration agent will be CCCL instead of AS3")
+	ccclGtmAgent = bigIPFlags.Bool("ccclGtmAgent", true,
+		"Optional, Option to configure GTM objects using CCCL or AS3 Agent. Default Agent is CCCL.")
 	overrideAS3UsageStr := "Optional, provide Namespace and Name of that ConfigMap as <namespace>/<configmap-name>." +
 		"The JSON key/values from this ConfigMap will override key/values from internally generated AS3 declaration."
 	overriderAS3CfgmapName = bigIPFlags.String("override-as3-declaration", "", overrideAS3UsageStr)
@@ -821,6 +824,7 @@ func initController(
 		UserAgent:      getUserAgentInfo(),
 		HttpAddress:    *httpAddress,
 		EnableIPV6:     *enableIPV6,
+		CCCLGTMAgent:   *ccclGtmAgent,
 	}
 
 	// When CIS is configured in OCP cluster mode disable ARP in globalSection

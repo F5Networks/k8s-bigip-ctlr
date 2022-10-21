@@ -77,6 +77,7 @@ func NewAgent(params AgentParams) *Agent {
 		tenantPriorityMap:     make(map[string]int),
 		userAgent:             params.UserAgent,
 		HttpAddress:           params.HttpAddress,
+		ccclGTMAgent:          params.CCCLGTMAgent,
 	}
 	// agentWorker runs as a separate go routine
 	// blocks on postChan to get new/updated configuration to be posted to BIG-IP
@@ -106,7 +107,7 @@ func NewAgent(params AgentParams) *Agent {
 		VerifyInterval: params.VerifyInterval,
 		VXLANPartition: vxlanPartition,
 		DisableLTM:     true,
-		GTM:            false,
+		GTM:            params.CCCLGTMAgent,
 		DisableARP:     params.DisableARP,
 	}
 
@@ -225,6 +226,10 @@ func (agent *Agent) agentWorker() {
 		select {
 		case rsConfig = <-agent.postChan:
 		case <-time.After(1 * time.Microsecond):
+		}
+
+		if !(agent.EnableIPV6) && agent.ccclGTMAgent {
+			agent.PostGTMConfig(rsConfig)
 		}
 
 		decl := agent.createTenantAS3Declaration(rsConfig)
@@ -504,6 +509,34 @@ func (agent *Agent) pollTenantStatus() {
 	}
 }
 
+func (agent *Agent) PostGTMConfig(config ResourceConfigRequest) {
+
+	dnsConfig := make(map[string]interface{})
+	wideIPs := WideIPs{}
+
+	for _, gtmPartitionConfig := range config.gtmConfig {
+		for _, v := range gtmPartitionConfig.WideIPs {
+			wideIPs.WideIPs = append(wideIPs.WideIPs, v)
+		}
+	}
+
+	dnsConfig["Common"] = wideIPs
+	doneCh, errCh, err := agent.ConfigWriter.SendSection("gtm", dnsConfig)
+
+	if nil != err {
+		log.Warningf("Failed to write gtm config section: %v", err)
+	} else {
+		select {
+		case <-doneCh:
+			log.Debugf("Wrote gtm config section: %v", config.gtmConfig)
+		case e := <-errCh:
+			log.Warningf("Failed to write gtm config section: %v", e)
+		case <-time.After(time.Second):
+			log.Warningf("Did not receive write response in 1s")
+		}
+	}
+}
+
 // Creates AS3 adc only for tenants with updated configuration
 func (agent *Agent) createTenantAS3Declaration(config ResourceConfigRequest) as3Declaration {
 	// Re-initialise incomingTenantDeclMap map and tenantPriorityMap for each new config request
@@ -561,8 +594,9 @@ func (agent *Agent) createAS3Declaration(tenantDeclMap map[string]as3Tenant) as3
 
 func (agent *Agent) createAS3LTMAndGTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := agent.createAS3LTMConfigADC(config)
-
-	adc = agent.createAS3GTMConfigADC(config, adc)
+	if !agent.ccclGTMAgent {
+		adc = agent.createAS3GTMConfigADC(config, adc)
+	}
 
 	return adc
 }
@@ -572,7 +606,7 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 		return adc
 	}
 
-	for pn, gtmPartitionConcig := range config.gtmConfig {
+	for pn, gtmPartitionConfig := range config.gtmConfig {
 		var tenantDecl as3Tenant
 		var sharedApp as3Application
 
@@ -590,7 +624,7 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 			}
 		}
 
-		for domainName, wideIP := range gtmPartitionConcig.WideIPs {
+		for domainName, wideIP := range gtmPartitionConfig.WideIPs {
 
 			gslbDomain := as3GLSBDomain{
 				Class:      "GSLB_Domain",

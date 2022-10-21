@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"net"
 	"reflect"
 	"sort"
@@ -1487,7 +1488,6 @@ func (appMgr *Manager) syncConfigMaps(
 			if tntOk && appOk && poolOk {
 				//TODO: Sorting endpoints members
 				members := appMgr.getEndpoints(selector, sKey.Namespace)
-
 				if _, ok := appMgr.agentCfgMapSvcCache[key]; !ok {
 					if len(members) != 0 {
 						appMgr.agentCfgMapSvcCache[key] = &SvcEndPointsCache{
@@ -2813,7 +2813,7 @@ func (appMgr *Manager) updatePoolMembersForNPL(
 		if pods != nil {
 			for _, portSpec := range svc.Spec.Ports {
 				if portSpec.Port == svcKey.ServicePort {
-					podPort := portSpec.TargetPort.IntVal
+					podPort := portSpec.TargetPort
 					ipPorts := appMgr.getEndpointsForNPL(podPort, pods)
 					log.Debugf("[CORE] Found endpoints for backend %+v: %v", svcKey, ipPorts)
 					rsCfg.MetaData.Active = true
@@ -3518,7 +3518,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 			pods := appMgr.GetPodsForService(service.Namespace, service.Name)
 			if pods != nil {
 				for _, portSpec := range service.Spec.Ports {
-					podPort := portSpec.TargetPort.IntVal
+					podPort := portSpec.TargetPort
 					members = append(members, appMgr.getEndpointsForNPL(podPort, pods)...)
 				}
 			}
@@ -3706,7 +3706,7 @@ func (appMgr *Manager) GetPodsForService(namespace, serviceName string) *v1.PodL
 
 // getEndpointsForNPL returns members.
 func (appMgr *Manager) getEndpointsForNPL(
-	podPort int32,
+	targetPort intstr.IntOrString,
 	pods *v1.PodList,
 ) []Member {
 	var members []Member
@@ -3714,6 +3714,23 @@ func (appMgr *Manager) getEndpointsForNPL(
 		anns, found := appMgr.nplStore[pod.Namespace+"/"+pod.Name]
 		if !found {
 			continue
+		}
+		var podPort int32
+		//Support for named targetPort
+		if targetPort.StrVal != "" {
+			targetPortStr := targetPort.StrVal
+			//Get the containerPort matching targetPort from pod spec.
+			for _, container := range pod.Spec.Containers {
+				for _, port := range container.Ports {
+					portStr := port.Name
+					if targetPortStr == portStr {
+						podPort = port.ContainerPort
+					}
+				}
+			}
+		} else {
+			// targetPort with int value
+			podPort = targetPort.IntVal
 		}
 		for _, annotation := range anns {
 			if annotation.PodPort == podPort {

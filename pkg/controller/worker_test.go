@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"reflect"
 	"sort"
 	"time"
@@ -1028,7 +1029,7 @@ var _ = Describe("Worker Tests", func() {
 					Session: "user-enabled",
 				},
 			}
-			mems := mockCtlr.getEndpointsForNPL(8080, &pods)
+			mems := mockCtlr.getEndpointsForNPL(intstr.FromInt(8080), &pods)
 			Expect(mems).To(Equal(members))
 		})
 

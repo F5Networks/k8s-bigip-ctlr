@@ -1765,7 +1765,7 @@ func (ctlr *Controller) updatePoolMembersForNPL(
 		if pods != nil {
 			for _, svcPort := range poolMemInfo.portSpec {
 				if svcPort.TargetPort == pool.ServicePort {
-					podPort := svcPort.TargetPort.IntVal
+					podPort := svcPort.TargetPort
 					rsCfg.MetaData.Active = true
 					rsCfg.Pools[index].Members =
 						ctlr.getEndpointsForNPL(podPort, pods)
@@ -1802,7 +1802,7 @@ func (ctlr *Controller) getEndpointsForNodePort(
 
 // getEndpointsForNPL returns members.
 func (ctlr *Controller) getEndpointsForNPL(
-	podPort int32,
+	targetPort intstr.IntOrString,
 	pods *v1.PodList,
 ) []PoolMember {
 	var members []PoolMember
@@ -1810,6 +1810,23 @@ func (ctlr *Controller) getEndpointsForNPL(
 		anns, found := ctlr.resources.nplStore[pod.Namespace+"/"+pod.Name]
 		if !found {
 			continue
+		}
+		var podPort int32
+		//Support for named targetPort
+		if targetPort.StrVal != "" {
+			targetPortStr := targetPort.StrVal
+			//Get the containerPort matching targetPort from pod spec.
+			for _, container := range pod.Spec.Containers {
+				for _, port := range container.Ports {
+					portStr := port.Name
+					if targetPortStr == portStr {
+						podPort = port.ContainerPort
+					}
+				}
+			}
+		} else {
+			// targetPort with int value
+			podPort = targetPort.IntVal
 		}
 		for _, annotation := range anns {
 			if annotation.PodPort == podPort {

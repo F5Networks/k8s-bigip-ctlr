@@ -553,7 +553,7 @@ func httpRedirectIRule(port int32, rsVSName string, partition string) string {
 	return iRuleCode
 }
 
-func (ctlr *Controller) GetABDeployIRule(rsVSName string, partition string) string {
+func (ctlr *Controller) GetPathBasedABDeployIRule(rsVSName string, partition string) string {
 	dgPath := strings.Join([]string{partition, Shared}, "/")
 
 	iRule := fmt.Sprintf(`proc select_ab_pool {path default_pool } {
@@ -1088,6 +1088,10 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 
 func IsRouteABDeployment(route *routeapi.Route) bool {
 	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0
+}
+
+func IsRoutePathBasedABDeployment(route *routeapi.Route) bool {
+	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0 && (route.Spec.Path != "" && route.Spec.Path != "/")
 }
 
 // return the services associated with a route (names + weight)

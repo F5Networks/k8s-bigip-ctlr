@@ -4861,7 +4861,7 @@ var _ = Describe("AppManager Tests", func() {
 						Session: "user-enabled",
 					},
 				}
-				mems := mockMgr.appMgr.getEndpointsForNPL(8080, &pods)
+				mems := mockMgr.appMgr.getEndpointsForNPL(intstr.FromInt(8080), &pods)
 				Expect(mems).To(Equal(members))
 			})
 

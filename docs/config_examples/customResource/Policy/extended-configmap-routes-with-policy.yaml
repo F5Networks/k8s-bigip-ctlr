@@ -6,11 +6,16 @@ metadata:
 data:
   extendedSpec: |
     extendedRouteSpec:
-    - namespaceLabel: environment=dev
+    - namespace: foo
       vserverAddr: 10.8.3.11
       vserverName: nextgenroutes
-      bigIpPartition: dev
+      allowOverride: true
       policyCR: default/sample-policy
-    - namespaceLabel: environment=test
+      tls:
+        clientSSL: /Common/clientssl
+        serverSSL: /Common/serverssl
+        reference: bigip
+    - namespace: bar
       vserverAddr: 10.8.3.12
+      allowOverride: true
       policyCR: default/sample-policy

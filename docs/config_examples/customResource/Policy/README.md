@@ -1,5 +1,7 @@
 # Policy
-Policy is used to apply existing BIG-IP profiles and policy with Virtual Server and Transport server. The Policy CRD resource defines the profile configuration for a virtual server in BIG-IP. VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource if the respective feature is supported. Examples of features supported in all resource CRD (i.e. VirtualServer, TransportServer, and Policy) are waf and persistenceProfile.
+Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual Server and Transport server. The Policy CRD resource defines the profile configuration for a virtual server in BIG-IP. 
+
+  **Note**: VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource if the respective feature supported. Examples of features supported in all resource CRD (i.e. VirtualServer, TransportServer, and Policy) are waf and persistenceProfile.
 
 ## Components
 ### Policy Components

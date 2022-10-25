@@ -56,7 +56,7 @@ type ServiceAddress struct {
 	ArpEnabled         bool   `json:"arpEnabled,omitempty"`
 	ICMPEcho           string `json:"icmpEcho,omitempty"`
 	RouteAdvertisement string `json:"routeAdvertisement,omitempty"`
-	TrafficGroup       string `json:"trafficGroup,omitempty,omitempty"`
+	TrafficGroup       string `json:"trafficGroup,omitempty"`
 	SpanningEnabled    bool   `json:"spanningEnabled,omitempty"`
 }
 

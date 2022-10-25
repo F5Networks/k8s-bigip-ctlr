@@ -868,7 +868,7 @@ type (
 		ArpEnabled         bool   `json:"arpEnabled"`
 		ICMPEcho           string `json:"icmpEcho,omitempty"`
 		RouteAdvertisement string `json:"routeAdvertisement,omitempty"`
-		TrafficGroup       string `json:"trafficGroup,omitempty,omitempty"`
+		TrafficGroup       string `json:"trafficGroup,omitempty"`
 		SpanningEnabled    bool   `json:"spanningEnabled"`
 	}
 

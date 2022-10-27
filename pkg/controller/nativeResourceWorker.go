@@ -309,6 +309,51 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
 				}
 			}
+		} else {
+			// Skip NPL Annotation check on service
+			svcPods := ctlr.GetPodsForService(route.Namespace, bs.Name, false)
+
+			if svcPods != nil {
+				port := pool.ServicePort.IntVal
+				pod := svcPods.Items[0]
+
+			out:
+				for _, container := range pod.Spec.Containers {
+					if container.LivenessProbe == nil {
+						continue
+					}
+					for _, cPort := range container.Ports {
+						if cPort.ContainerPort == port {
+							var scheme v1.URIScheme
+							switch container.LivenessProbe.HTTPGet.Scheme {
+							case v1.URISchemeHTTPS:
+								scheme = v1.URISchemeHTTPS
+							case v1.URISchemeHTTP:
+								scheme = v1.URISchemeHTTP
+							default:
+								scheme = v1.URISchemeHTTP
+							}
+
+							monitor := Monitor{
+								Name:      pool.Name + "_monitor",
+								Partition: rsCfg.Virtual.Partition,
+								Interval:  int(container.LivenessProbe.PeriodSeconds),
+								Type:      strings.ToLower(string(scheme)),
+								Send:      "GET /\r\n",
+								Recv:      "",
+								Timeout:   int(container.LivenessProbe.TimeoutSeconds),
+								Path:      container.LivenessProbe.HTTPGet.Path,
+							}
+							rsCfg.Monitors = append(
+								rsCfg.Monitors,
+								monitor,
+							)
+							pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name})
+							break out
+						}
+					}
+				}
+			}
 		}
 
 		rsCfg.Pools = append(rsCfg.Pools, pool)
@@ -397,7 +442,153 @@ func (ctlr *Controller) prepareRouteLTMRules(
 	return &rls
 }
 
-func (ctlr *Controller) updatePoolMembersForRoutes(namespace string) {
+func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg *ResourceConfig) {
+
+	//Get routes for service
+	route := ctlr.GetServiceRouteWithoutHealthAnnotation(service)
+	if route == nil {
+		return
+	}
+
+	err, port := ctlr.getServicePort(route)
+	if err != nil {
+		return
+	}
+	servicePort := intstr.IntOrString{IntVal: port}
+	poolName := formatPoolName(
+		service.Namespace,
+		service.Name,
+		servicePort,
+		"",
+		"",
+	)
+	svcPods := ctlr.GetPodsForService(service.Namespace, service.Name, false)
+	if svcPods != nil {
+		//Pick any one of the pod
+		pod := svcPods.Items[0]
+
+		var podMonitor Monitor
+	out:
+		for _, container := range pod.Spec.Containers {
+			for _, cPort := range container.Ports {
+				if cPort.ContainerPort == servicePort.IntVal {
+					if container.LivenessProbe == nil {
+						break out
+					} else {
+						var scheme v1.URIScheme
+						switch container.LivenessProbe.HTTPGet.Scheme {
+						case v1.URISchemeHTTPS:
+							scheme = v1.URISchemeHTTPS
+						case v1.URISchemeHTTP:
+							scheme = v1.URISchemeHTTP
+						default:
+							scheme = v1.URISchemeHTTP
+						}
+
+						podMonitor = Monitor{
+							Name:      poolName + "_monitor",
+							Partition: freshRsCfg.Virtual.Partition,
+							Interval:  int(container.LivenessProbe.PeriodSeconds),
+							Type:      strings.ToLower(string(scheme)),
+							Send:      "GET /\r\n",
+							Recv:      "",
+							Timeout:   int(container.LivenessProbe.TimeoutSeconds),
+							Path:      container.LivenessProbe.HTTPGet.Path,
+						}
+
+						break out
+					}
+				}
+			}
+		}
+
+		for monitorInd, mon := range freshRsCfg.Monitors {
+			if mon.Name == poolName+"_monitor" {
+				//If liveness spec is not modified, return
+				if reflect.DeepEqual(mon, podMonitor) {
+					return
+				} else {
+					//If liveness spec is modified/removed, remove the monitor from the config
+					if len(freshRsCfg.Monitors) == 1 {
+						freshRsCfg.Monitors = make([]Monitor, 0)
+					} else if monitorInd == len(freshRsCfg.Monitors)-1 {
+						freshRsCfg.Monitors = freshRsCfg.Monitors[:monitorInd]
+					} else if monitorInd == 0 {
+						freshRsCfg.Monitors = freshRsCfg.Monitors[1:]
+					} else {
+						freshRsCfg.Monitors = append(freshRsCfg.Monitors[:monitorInd], freshRsCfg.Monitors[monitorInd+1:]...)
+					}
+				}
+				break
+			}
+		}
+		//Add monitor if LivenessProbe is present in pod
+		if podMonitor != (Monitor{}) {
+			freshRsCfg.Monitors = append(
+				freshRsCfg.Monitors,
+				podMonitor,
+			)
+		}
+
+		for poolInd, pool := range freshRsCfg.Pools {
+			if pool.Name == poolName {
+				for monInd, monitorName := range pool.MonitorNames {
+					if monitorName.Name == poolName+"_monitor" {
+						//If liveness spec is modified/removed,Remove the monitor name from the pool
+						if len(pool.MonitorNames) == 1 {
+							freshRsCfg.Pools[poolInd].MonitorNames = make([]MonitorName, 0)
+						} else if monInd == len(pool.MonitorNames)-1 {
+							freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[:monInd]
+						} else if monInd == 0 {
+							freshRsCfg.Pools[poolInd].MonitorNames = pool.MonitorNames[1:]
+						} else {
+							freshRsCfg.Pools[poolInd].MonitorNames = append(pool.MonitorNames[:monInd], pool.MonitorNames[monInd+1:]...)
+						}
+						break
+					}
+				}
+				//Add monitor name to the pool if LivenessProbe is present in pod
+				if podMonitor != (Monitor{}) {
+					freshRsCfg.Pools[poolInd].MonitorNames = append(freshRsCfg.Pools[poolInd].MonitorNames, MonitorName{Name: podMonitor.Name})
+				}
+				break
+			}
+		}
+	}
+}
+
+func (ctlr *Controller) GetServiceRouteWithoutHealthAnnotation(service *v1.Service) *routeapi.Route {
+	natvInf, ok := ctlr.getNamespacedNativeInformer(service.Namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", service.Namespace)
+		return nil
+	}
+	routes, _ := natvInf.routeInformer.GetIndexer().ByIndex("namespace", service.Namespace)
+	routeMatched := false
+	for _, obj := range routes {
+		route := obj.(*routeapi.Route)
+		if route.Spec.To.Name == service.Name {
+			routeMatched = true
+		} else {
+			for _, altBEnd := range route.Spec.AlternateBackends {
+				if altBEnd.Name == service.Name {
+					routeMatched = true
+				}
+			}
+		}
+		_, exists := route.ObjectMeta.Annotations[LegacyHealthMonitorAnnotation]
+		//If LegacyHealthMonitorAnnotation annotation found, ignore route
+		if exists && routeMatched {
+			return nil
+		} else if routeMatched {
+			return route
+		}
+	}
+	return nil
+}
+
+func (ctlr *Controller) updatePoolMembersForRoutes(svc *v1.Service, updatePoolHealthMon bool) {
+	namespace := svc.Namespace
 	for _, portStruct := range getBasicVirtualPorts() {
 		routeGroup, ok := ctlr.resources.invertedNamespaceLabelMap[namespace]
 		if !ok {
@@ -414,12 +605,17 @@ func (ctlr *Controller) updatePoolMembersForRoutes(namespace string) {
 		}
 		freshRsCfg := &ResourceConfig{}
 		freshRsCfg.copyConfig(rsCfg)
+
 		for _, ns := range ctlr.getNamespacesForRouteGroup(routeGroup) {
 			if ctlr.PoolMemberType == NodePort {
 				ctlr.updatePoolMembersForNodePort(freshRsCfg, ns)
 			} else {
 				ctlr.updatePoolMembersForCluster(freshRsCfg, ns)
 			}
+		}
+		if updatePoolHealthMon {
+			// If service route has no healthMonitor annotation and route pod has LivenessProbe spec
+			ctlr.UpdatePoolHealthMonitors(svc, freshRsCfg)
 		}
 		_ = ctlr.resources.setResourceConfig(partition, rsName, freshRsCfg)
 	}

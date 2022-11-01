@@ -823,6 +823,9 @@ func getOperationalExtendedConfigMapSpecs(
 	}
 	for routeGroupKey, spec := range cachedMap {
 		if spec.global.Meta.DependsOnTLSCipher {
+			if _, ok := newMap[routeGroupKey]; !ok {
+				continue
+			}
 			if _, ok := updateMap[routeGroupKey]; !ok {
 				updatedSpecs = append(updatedSpecs, routeGroupKey)
 			}

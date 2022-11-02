@@ -158,6 +158,33 @@ var _ = Describe("Routes", func() {
 
 		})
 		It("Check Valid Route", func() {
+			var cm *v1.ConfigMap
+			var data map[string]string
+			cmName := "escm"
+			cmNamespace := "system"
+			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
+			mockCtlr.resources = NewResourceStore()
+			data = make(map[string]string)
+			cm = test.NewConfigMap(
+				cmName,
+				"v1",
+				cmNamespace,
+				data)
+			data["extendedSpec"] = `
+baseRouteSpec: 
+    tlsCipher:
+      tlsVersion : 1.2
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+    - namespace: new
+      vserverAddr: 10.8.3.12
+      allowOverride: true
+`
+			_, _ = mockCtlr.processConfigMap(cm, false)
+
 			spec1 := routeapi.RouteSpec{
 				Host: "foo.com",
 				Path: "/foo",
@@ -536,6 +563,7 @@ var _ = Describe("Routes", func() {
 							"DEFAULT",
 							"/Common/f5-default",
 						},
+						DefaultSSLProfile{},
 					},
 				},
 			}

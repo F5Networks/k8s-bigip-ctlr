@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: default-extended-route-spec
+  name: global-spec-config
   namespace: kube-system
 data:
   extendedSpec: |
@@ -10,12 +10,19 @@ data:
          tlsVersion: 1.2
          ciphers: DEFAULT
          cipherGroup: /Common/f5-default 
+     defaultTLS:
+       clientSSL: /Common/clientssl
+       serverSSL: /Common/serverssl
+       reference: bigip
     extendedRouteSpec:
     - namespace: default
-      vserverAddr: 10.8.3.11
+      vserverAddr: 10.8.0.4
       vserverName: nextgenroutes
       allowOverride: true
       tls:
         clientSSL: /Common/clientssl
         serverSSL: /Common/serverssl
         reference: bigip
+    - allowOverride: false
+      namespace: bar
+      vserverAddr: 10.8.0.5

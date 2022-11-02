@@ -931,6 +931,7 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 		"DEFAULT",
 		"/Common/f5-default",
 	}
+	ctlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{}
 
 	if (baseRouteConfig != BaseRouteConfig{}) {
 		if baseRouteConfig.TLSCipher.TLSVersion != "" {
@@ -944,7 +945,11 @@ func (ctlr *Controller) readBaseRouteConfigFromGlobalCM(baseRouteConfig BaseRout
 			ctlr.resources.baseRouteConfig.TLSCipher.CipherGroup = baseRouteConfig.TLSCipher.CipherGroup
 		}
 	}
-
+	if baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) {
+		ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL = baseRouteConfig.DefaultTLS.ClientSSL
+		ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL = baseRouteConfig.DefaultTLS.ServerSSL
+		ctlr.resources.baseRouteConfig.DefaultTLS.Reference = baseRouteConfig.DefaultTLS.Reference
+	}
 }
 
 func (ctlr *Controller) isGlobalExtendedRouteSpec(cm *v1.ConfigMap) bool {
@@ -1018,7 +1023,7 @@ func getOperationalExtendedConfigMapSpecs(
 		}
 	}
 	for routeGroupKey, spec := range cachedMap {
-		if spec.global.Meta.DependsOnTLSCipher {
+		if spec.global.Meta.DependsOnTLS {
 			if _, ok := newMap[routeGroupKey]; !ok {
 				continue
 			}
@@ -1321,12 +1326,30 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, extdSpec *Extende
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
+	} else if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) && ctlr.resources.baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) &&
+		ctlr.resources.baseRouteConfig.DefaultTLS.Reference == BIGIP && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
+		if ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL == "" {
+			message := fmt.Sprintf("Missing client SSL profile %s reference in the ConfigMap - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			return false
+		}
+		if ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL == "" && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
+			message := fmt.Sprintf("Missing server SSL profile %s reference in the ConfigMap - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+			return false
+		}
 	} else if nil != route.Spec.TLS && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
-		// Validate hostname if certificate is not provided in SSL annotations
-		ok := checkCertificateHost(route.Spec.Host, []byte(route.Spec.TLS.Certificate), []byte(route.Spec.TLS.Key))
-		if !ok {
-			//Invalid certificate and key
-			message := fmt.Sprintf("Invalid certificate and key for route: %v", route.ObjectMeta.Name)
+		if route.Spec.TLS.Certificate != "" && route.Spec.TLS.Key != "" {
+			// Validate hostname if certificate is not provided in SSL annotations
+			ok := checkCertificateHost(route.Spec.Host, []byte(route.Spec.TLS.Certificate), []byte(route.Spec.TLS.Key))
+			if !ok {
+				//Invalid certificate and key
+				message := fmt.Sprintf("Invalid certificate and key for route: %v", route.ObjectMeta.Name)
+				go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+				return false
+			}
+		} else {
+			message := fmt.Sprintf("Missing certificate/key for route: %v", route.ObjectMeta.Name)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}

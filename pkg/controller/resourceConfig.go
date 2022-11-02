@@ -1897,27 +1897,48 @@ func (ctlr *Controller) handleRouteTLS(
 				bigIPSSLProfiles.serverSSL = extdSpec.TLS.ServerSSL
 			}
 		}
-	} else {
-		tlsReferenceType = Certificate
+	} else if route.Spec.TLS != nil && route.Spec.TLS.Termination != TLSPassthrough {
+		// Check for default tls in baseRouteSpec
+		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) && ctlr.resources.baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) &&
+			ctlr.resources.baseRouteConfig.DefaultTLS.Reference == BIGIP {
+			tlsReferenceType = BIGIP
 
-		if route.Spec.TLS.Key != "" {
-			bigIPSSLProfiles.key = route.Spec.TLS.Key
-		}
-		if route.Spec.TLS.Certificate != "" {
-			bigIPSSLProfiles.certificate = route.Spec.TLS.Certificate
-		}
-		if route.Spec.TLS.CACertificate != "" {
-			bigIPSSLProfiles.caCertificate = route.Spec.TLS.CACertificate
-		}
-		if route.Spec.TLS.DestinationCACertificate != "" {
-			bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
+			if ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL == "" {
+				return false
+			}
+			bigIPSSLProfiles.clientSSL = ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL
+
+			if route.Spec.TLS.Termination == TLSReencrypt {
+				if ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL == "" {
+					return false
+				}
+				bigIPSSLProfiles.serverSSL = ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL
+			}
+		} else {
+			tlsReferenceType = Certificate
+
+			if route.Spec.TLS.Key != "" {
+				bigIPSSLProfiles.key = route.Spec.TLS.Key
+			}
+			if route.Spec.TLS.Certificate != "" {
+				bigIPSSLProfiles.certificate = route.Spec.TLS.Certificate
+			}
+			if route.Spec.TLS.CACertificate != "" {
+				bigIPSSLProfiles.caCertificate = route.Spec.TLS.CACertificate
+			}
+			if route.Spec.TLS.DestinationCACertificate != "" {
+				bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
+			}
 		}
 
-		//Flag to track the route groups which are using TLS Ciphers
-		ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
-			DependsOnTLSCipher: true,
+		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
+			//Flag to track the route groups which are using TLS Ciphers
+			ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+				DependsOnTLS: true,
+			}
 		}
 	}
+
 	var poolPathRefs []poolPathRef
 
 	for _, pl := range rsCfg.Pools {

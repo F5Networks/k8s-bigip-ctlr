@@ -1076,7 +1076,7 @@ type (
 	}
 
 	Meta struct {
-		DependsOnTLSCipher bool
+		DependsOnTLS bool
 	}
 
 	TLS struct {
@@ -1086,13 +1086,19 @@ type (
 	}
 
 	BaseRouteConfig struct {
-		TLSCipher TLSCipher `yaml:"tlsCipher"`
+		TLSCipher  TLSCipher         `yaml:"tlsCipher"`
+		DefaultTLS DefaultSSLProfile `yaml:"defaultTLS,omitempty"`
 	}
 
 	TLSCipher struct {
 		TLSVersion  string `yaml:"tlsVersion,omitempty"`
 		Ciphers     string `yaml:"ciphers,omitempty"`
 		CipherGroup string `yaml:"cipherGroup,omitempty"` // by default this is bigip reference
+	}
+	DefaultSSLProfile struct {
+		ClientSSL string `yaml:"clientSSL,omitempty"`
+		ServerSSL string `yaml:"serverSSL,omitempty"`
+		Reference string `yaml:"reference,omitempty"`
 	}
 )
 

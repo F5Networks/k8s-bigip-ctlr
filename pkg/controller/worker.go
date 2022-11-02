@@ -329,7 +329,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 		switch ctlr.mode {
 		case OpenShiftMode:
-			ctlr.updatePoolMembersForRoutes(svc.Namespace)
+			ctlr.updatePoolMembersForRoutes(svc, false)
 		default:
 			virtuals := ctlr.getVirtualServersForService(svc)
 			// If nil No Virtuals are effected with the change in service.
@@ -395,7 +395,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 		switch ctlr.mode {
 		case OpenShiftMode:
-			ctlr.updatePoolMembersForRoutes(svc.Namespace)
+			ctlr.updatePoolMembersForRoutes(svc, true)
 		default:
 			// once we fetch the VS, just update the endpoints instead of processing them entirely
 			ctlr.updatePoolMembersForVirtuals(svc)
@@ -420,7 +420,7 @@ func (ctlr *Controller) processResources() bool {
 		}
 		switch ctlr.mode {
 		case OpenShiftMode:
-			ctlr.updatePoolMembersForRoutes(svc.Namespace)
+			ctlr.updatePoolMembersForRoutes(svc, false)
 		default:
 			virtuals := ctlr.getVirtualServersForService(svc)
 			for _, virtual := range virtuals {
@@ -1764,7 +1764,7 @@ func (ctlr *Controller) updatePoolMembersForNPL(
 				svcKey)
 			return
 		}
-		pods := ctlr.GetPodsForService(namespace, svcName)
+		pods := ctlr.GetPodsForService(namespace, svcName, true)
 		if pods != nil {
 			for _, svcPort := range poolMemInfo.portSpec {
 				if svcPort.TargetPort == pool.ServicePort {
@@ -3273,8 +3273,8 @@ func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
 	return svc.(*v1.Service)
 }
 
-//returns podlist with labels set to svc selector
-func (ctlr *Controller) GetPodsForService(namespace, serviceName string) *v1.PodList {
+// GetPodsForService returns podList with labels set to svc selector
+func (ctlr *Controller) GetPodsForService(namespace, serviceName string, nplAnnotationRequired bool) *v1.PodList {
 	svcKey := namespace + "/" + serviceName
 	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
 	if !ok {
@@ -3291,7 +3291,7 @@ func (ctlr *Controller) GetPodsForService(namespace, serviceName string) *v1.Pod
 		return nil
 	}
 	annotations := svc.(*v1.Service).Annotations
-	if _, ok := annotations[NPLSvcAnnotation]; !ok {
+	if _, ok := annotations[NPLSvcAnnotation]; !ok && nplAnnotationRequired {
 		log.Errorf("NPL annotation %v not set on service %v", NPLSvcAnnotation, serviceName)
 		return nil
 	}

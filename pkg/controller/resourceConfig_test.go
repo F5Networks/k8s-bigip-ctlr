@@ -626,6 +626,87 @@ var _ = Describe("Resource Config Tests", func() {
 		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
 	})
 
+	It("Validate Multiple TLS Profiles", func() {
+		tlsRenc := test.NewTLSProfile(
+			"sampleTLS",
+			namespace,
+			cisapiv1.TLSProfileSpec{
+				//Hosts: "test.com",
+				TLS: cisapiv1.TLS{
+					Termination: TLSReencrypt,
+					ClientSSLs:  []string{"clientssl", "foo-clientssl"},
+					ServerSSLs:  []string{"serverssl", "foo-serverssl"},
+				},
+			},
+		)
+
+		tlsRencComb := test.NewTLSProfile(
+			"sampleTLS",
+			namespace,
+			cisapiv1.TLSProfileSpec{
+				//Hosts: "test.com",
+				TLS: cisapiv1.TLS{
+					Termination: TLSReencrypt,
+					ClientSSLs:  []string{"clientssl", "foo-clientssl"},
+					ServerSSL:   "serverssl",
+				},
+			},
+		)
+
+		tlsEdge := test.NewTLSProfile(
+			"sampleTLS",
+			namespace,
+			cisapiv1.TLSProfileSpec{
+				//Hosts: "test.com",
+				TLS: cisapiv1.TLS{
+					Termination: TLSEdge,
+					ClientSSLs:  []string{"clientssl", "foo-clientssl"},
+				},
+			},
+		)
+
+		tlsPst := test.NewTLSProfile(
+			"sampleTLS",
+			namespace,
+			cisapiv1.TLSProfileSpec{
+				//Hosts: "test.com",
+				TLS: cisapiv1.TLS{
+					Termination: TLSPassthrough,
+				},
+			},
+		)
+
+		ok := validateTLSProfile(tlsRenc)
+		Expect(ok).To(BeTrue(), "TLS Re-encryption Validation Failed")
+
+		ok = validateTLSProfile(tlsRencComb)
+		Expect(ok).To(BeFalse(), "TLS Re-encryption Validation Failed")
+
+		ok = validateTLSProfile(tlsEdge)
+		Expect(ok).To(BeTrue(), "TLS Edge Validation Failed")
+
+		ok = validateTLSProfile(tlsPst)
+		Expect(ok).To(BeTrue(), "TLS Passthrough Validation Failed")
+
+		// Negative cases
+		tlsPst.Spec.TLS.Termination = TLSEdge
+		tlsEdge.Spec.TLS.Termination = TLSReencrypt
+		tlsRenc.Spec.TLS.Termination = TLSPassthrough
+
+		ok = validateTLSProfile(tlsRenc)
+		Expect(ok).To(BeFalse(), "TLS Re-encryption Validation Failed")
+
+		ok = validateTLSProfile(tlsEdge)
+		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
+
+		ok = validateTLSProfile(tlsPst)
+		Expect(ok).To(BeFalse(), "TLS Passthrough Validation Failed")
+
+		tlsRenc.Spec.TLS.Termination = TLSEdge
+		ok = validateTLSProfile(tlsRenc)
+		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
+	})
+
 	Describe("ResourceStore", func() {
 		var rs ResourceStore
 		BeforeEach(func() {

@@ -867,9 +867,22 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 	tlsProfile := obj.(*cisapiv1.TLSProfile)
 
 	if tlsProfile.Spec.TLS.Reference == "secret" {
-		clientSecret, _ := ctlr.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), tlsProfile.Spec.TLS.ClientSSL, metav1.GetOptions{})
-		//validate clientSSL certificates and hostname
-		match := checkCertificateHost(vs.Spec.Host, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"])
+		var match bool
+		if len(tlsProfile.Spec.TLS.ClientSSLs) > 0 {
+			for _, secret := range tlsProfile.Spec.TLS.ClientSSLs {
+				clientSecret, _ := ctlr.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), secret, metav1.GetOptions{})
+				//validate at least one clientSSL certificates matches the VS hostname
+				if checkCertificateHost(vs.Spec.Host, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"]) {
+					match = true
+					break
+				}
+			}
+
+		} else {
+			clientSecret, _ := ctlr.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), tlsProfile.Spec.TLS.ClientSSL, metav1.GetOptions{})
+			//validate clientSSL certificates and hostname
+			match = checkCertificateHost(vs.Spec.Host, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"])
+		}
 		if match == false {
 			return nil
 		}
@@ -3476,7 +3489,16 @@ func (ctlr *Controller) getTLSProfilesForSecret(secret *v1.Secret) []*cisapiv1.T
 
 	for _, obj := range orderedTLS {
 		tlsProfile := obj.(*cisapiv1.TLSProfile)
-		if tlsProfile.Spec.TLS.Reference == Secret && tlsProfile.Spec.TLS.ClientSSL == secret.Name {
+		if tlsProfile.Spec.TLS.Reference == Secret {
+			if len(tlsProfile.Spec.TLS.ClientSSLs) > 0 {
+				for _, name := range tlsProfile.Spec.TLS.ClientSSLs {
+					if name == secret.Name {
+						allTLSProfiles = append(allTLSProfiles, tlsProfile)
+					}
+				}
+			}
+			allTLSProfiles = append(allTLSProfiles, tlsProfile)
+		} else if tlsProfile.Spec.TLS.ClientSSL == secret.Name {
 			allTLSProfiles = append(allTLSProfiles, tlsProfile)
 		}
 	}

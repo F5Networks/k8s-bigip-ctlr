@@ -538,8 +538,6 @@ type (
 		Name          string `json:"name"`
 		Partition     string `json:"-"`
 		Context       string `json:"context"` // 'clientside', 'serverside', or 'all'
-		Cert          string `json:"cert"`
-		Key           string `json:"key"`
 		Ciphers       string `json:"ciphers,omitempty"`
 		CipherGroup   string `json:"cipherGroup,omitempty"`
 		TLS1_3Enabled bool   `json:"tls1_3Enabled"`
@@ -548,6 +546,12 @@ type (
 		PeerCertMode  string `json:"peerCertMode,omitempty"`
 		CAFile        string `json:"caFile,omitempty"`
 		ChainCA       string `json:"chainCA,omitempty"`
+		Certificates  []certificate
+	}
+
+	certificate struct {
+		Cert string `json:"cert"`
+		Key  string `json:"key"`
 	}
 
 	portStruct struct {
@@ -1024,8 +1028,8 @@ type (
 	// TLS Structures
 
 	BigIPSSLProfiles struct {
-		clientSSL                string
-		serverSSL                string
+		clientSSLs               []string
+		serverSSLs               []string
 		key                      string
 		certificate              string
 		caCertificate            string
@@ -1034,8 +1038,9 @@ type (
 	}
 
 	poolPathRef struct {
-		path     string
-		poolName string
+		path           string
+		poolName       string
+		aliasHostnames []string
 	}
 
 	TLSContext struct {
@@ -1043,7 +1048,7 @@ type (
 		namespace        string
 		resourceType     string
 		referenceType    string
-		hostname         string
+		vsHostname       string
 		httpsPort        int32
 		ipAddress        string
 		termination      string

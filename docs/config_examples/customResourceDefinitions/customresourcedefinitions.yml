@@ -276,8 +276,16 @@ spec:
                       enum: [edge, reencrypt, passthrough]
                     clientSSL:
                       type: string
+                    clientSSLs:
+                      type: array
+                      items:
+                        type: string
                     serverSSL:
                       type: string
+                    serverSSLs:
+                      type: array
+                      items:
+                        type: string
                     reference:
                       type: string
                   required:

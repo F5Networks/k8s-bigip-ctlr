@@ -117,10 +117,12 @@ type TLSProfileSpec struct {
 
 // TLS contains required fields for TLS termination
 type TLS struct {
-	Termination string `json:"termination"`
-	ClientSSL   string `json:"clientSSL"`
-	ServerSSL   string `json:"serverSSL"`
-	Reference   string `json:"reference"`
+	Termination string   `json:"termination"`
+	ClientSSL   string   `json:"clientSSL"`
+	ClientSSLs  []string `json:"clientSSLs"`
+	ServerSSL   string   `json:"serverSSL"`
+	ServerSSLs  []string `json:"serverSSLs"`
+	Reference   string   `json:"reference"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -29,6 +29,7 @@ Bug Fixes
 * Fix to send AS3 declaration for the recreated domain after IPAM controller restart
 * :issues:`2581` IPAM to provide the same IP for different TS
 * :issues: `2609` TargetPort support for string with NPL
+* :issues:`2626` Process IngressLink on K8S node update
 
 2.10.1
 -------------

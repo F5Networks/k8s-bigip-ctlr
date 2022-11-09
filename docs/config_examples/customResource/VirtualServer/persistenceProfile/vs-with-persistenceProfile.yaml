@@ -9,6 +9,8 @@ spec:
   # check out tls examples to understand more.
   host: cafe.example.com
   virtualServerAddress: "172.16.3.4"
+  # Both default and custom persistence profiles are supported
+  # For example: persistenceProfile: /Common/newPersistenceMethod
   persistenceProfile: "source-address"
   pools:
   - path: /coffee

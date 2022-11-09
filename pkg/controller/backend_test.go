@@ -292,6 +292,29 @@ var _ = Describe("Backend Tests", func() {
 			Expect(agent.incomingTenantDeclMap["default"]).To(Equal(deletedTenantDecl), "Failed to Create AS3 Declaration for deleted tenant")
 			Expect(adc["default"]).To(Equal(map[string]interface{}(deletedTenantDecl)), "Failed to Create AS3 Declaration for deleted tenant")
 		})
+		It("Handles Persistence Methods", func() {
+			svc := &as3Service{}
+			// Default persistence methods
+			defaultValues := []string{"cookie", "destination-address", "hash", "msrdp",
+				"sip-info", "source-address", "tls-session-id", "universal"}
+			for _, defaultValue := range defaultValues {
+				svc.addPersistenceMethod(defaultValue)
+				Expect(svc.PersistenceMethods).To(Equal([]as3MultiTypeParam{as3MultiTypeParam(defaultValue)}))
+			}
+
+			// Persistence methods with no value and None
+			svc = &as3Service{}
+			svc.addPersistenceMethod("")
+			Expect(svc.PersistenceMethods).To(BeNil())
+			svc.addPersistenceMethod("none")
+			Expect(svc.PersistenceMethods).To(Equal([]as3MultiTypeParam{}))
+
+			// Custom persistence methods
+			svc.addPersistenceMethod("/Common/pm1")
+			Expect(svc.PersistenceMethods).To(Equal([]as3MultiTypeParam{as3ResourcePointer{BigIP: "/Common/pm1"}}))
+			svc.addPersistenceMethod("pm2")
+			Expect(svc.PersistenceMethods).To(Equal([]as3MultiTypeParam{as3ResourcePointer{BigIP: "pm2"}}))
+		})
 	})
 
 	Describe("GTM Config", func() {

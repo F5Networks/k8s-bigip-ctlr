@@ -995,12 +995,9 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 		}
 		svc.Class = "Service_TCP"
 	}
-	if len(cfg.Virtual.PersistenceProfile) > 0 {
-		svc.PersistenceMethods = &[]string{cfg.Virtual.PersistenceProfile}
-		if cfg.Virtual.PersistenceProfile == "none" {
-			svc.PersistenceMethods = &[]string{}
-		}
-	}
+
+	svc.addPersistenceMethod(cfg.Virtual.PersistenceProfile)
+
 	if len(cfg.Virtual.ProfileDOS) > 0 {
 		svc.ProfileDOS = &as3ResourcePointer{
 			BigIP: cfg.Virtual.ProfileDOS,
@@ -1536,12 +1533,7 @@ func createTransportServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		}
 	}
 
-	if len(cfg.Virtual.PersistenceProfile) > 0 {
-		svc.PersistenceMethods = &[]string{cfg.Virtual.PersistenceProfile}
-		if cfg.Virtual.PersistenceProfile == "none" {
-			svc.PersistenceMethods = &[]string{}
-		}
-	}
+	svc.addPersistenceMethod(cfg.Virtual.PersistenceProfile)
 
 	if len(cfg.Virtual.ProfileDOS) > 0 {
 		svc.ProfileDOS = &as3ResourcePointer{
@@ -1672,4 +1664,25 @@ func getSortedCustomProfileKeys(customProfiles map[SecretKey]CustomProfile) []Se
 		return customProfiles[keys[i]].Name < customProfiles[keys[j]].Name
 	})
 	return keys
+}
+
+// addPersistenceMethod adds persistence methods in the service declaration
+func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
+	if len(persistenceProfile) == 0 {
+		return
+	}
+	switch persistenceProfile {
+	case "none":
+		svc.PersistenceMethods = []as3MultiTypeParam{}
+	case "cookie", "destination-address", "hash", "msrdp", "sip-info", "source-address", "tls-session-id", "universal":
+		svc.PersistenceMethods = []as3MultiTypeParam{as3MultiTypeParam(persistenceProfile)}
+	default:
+		svc.PersistenceMethods = []as3MultiTypeParam{
+			as3MultiTypeParam(
+				as3ResourcePointer{
+					BigIP: fmt.Sprintf("%v", persistenceProfile),
+				},
+			),
+		}
+	}
 }

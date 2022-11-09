@@ -117,6 +117,20 @@ func (ctlr *Controller) ProcessNodeUpdate(
 							ctlr.resourceQueue.Add(qKey)
 						}
 					}
+					ingressLinks := crInf.ilInformer.GetIndexer().List()
+					if len(ingressLinks) != 0 {
+						for _, ingressLink := range ingressLinks {
+							il := ingressLink.(*cisapiv1.IngressLink)
+							qKey := &rqKey{
+								il.ObjectMeta.Namespace,
+								IngressLink,
+								il.ObjectMeta.Name,
+								il,
+								Update,
+							}
+							ctlr.resourceQueue.Add(qKey)
+						}
+					}
 
 				} else {
 					ctlr.namespacesMutex.Lock()
@@ -124,6 +138,7 @@ func (ctlr *Controller) ProcessNodeUpdate(
 					for ns, _ := range ctlr.namespaces {
 						virtuals := ctlr.getAllVirtualServers(ns)
 						transportVirtuals := ctlr.getAllTransportServers(ns)
+						ingressLinks := ctlr.getAllIngressLinks(ns)
 						for _, virtual := range virtuals {
 							qKey := &rqKey{
 								ns,
@@ -140,6 +155,16 @@ func (ctlr *Controller) ProcessNodeUpdate(
 								TransportServer,
 								virtual.ObjectMeta.Name,
 								virtual,
+								Update,
+							}
+							ctlr.resourceQueue.Add(qKey)
+						}
+						for _, ingressLink := range ingressLinks {
+							qKey := &rqKey{
+								ns,
+								IngressLink,
+								ingressLink.ObjectMeta.Name,
+								ingressLink,
 								Update,
 							}
 							ctlr.resourceQueue.Add(qKey)

@@ -20,6 +20,7 @@ Added Functionality
         * :issues:`2469` Support for virtual server grouping by hostgroup across namespaces.From 2.11, hostGroup should be unique across namespaces.See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
         * Support to provide the same VIP for TS and VS CRs using hostGroup. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
         * Support AS3 GTM Agent
+        * Support for allowVlans with policy CR.
 
 Bug Fixes
 ````````````

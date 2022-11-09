@@ -698,6 +698,11 @@ spec:
                       items:
                         type: string
                       type: array
+                    allowVlans:
+                      items:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)*([A-z0-9-_\s]+\/?)*$'
+                      type: array
                 ltmPolicies:
                   type: object
                   properties:

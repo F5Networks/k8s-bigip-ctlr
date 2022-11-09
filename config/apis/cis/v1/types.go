@@ -278,6 +278,7 @@ type L3PolicySpec struct {
 	BotDefense       string   `json:"botDefense,omitempty"`
 	FirewallPolicy   string   `json:"firewallPolicy,omitempty"`
 	AllowSourceRange []string `json:"allowSourceRange,omitempty"`
+	AllowVlans       []string `json:"allowVlans,omitempty"`
 }
 
 type LtmIRulesSpec struct {

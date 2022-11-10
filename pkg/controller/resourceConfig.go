@@ -520,8 +520,9 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	}
 
 	//Attach allowVlans.
-	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
-
+	if len(vs.Spec.AllowVLANs) > 0 {
+		rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
+	}
 	if vs.Spec.PersistenceProfile != "" {
 		rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 	}
@@ -1643,8 +1644,9 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	}
 
 	//set allowed VLAN's per TS config
-	rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
-
+	if len(vs.Spec.AllowVLANs) > 0 {
+		rsCfg.Virtual.AllowVLANs = vs.Spec.AllowVLANs
+	}
 	if vs.Spec.PersistenceProfile != "" {
 		rsCfg.Virtual.PersistenceProfile = vs.Spec.PersistenceProfile
 	}
@@ -1734,6 +1736,7 @@ func (ctlr *Controller) handleVSResourceConfigForPolicy(
 	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
 	rsCfg.Virtual.AllowSourceRange = plc.Spec.L3Policies.AllowSourceRange
+	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)
@@ -1793,6 +1796,7 @@ func (ctlr *Controller) handleTSResourceConfigForPolicy(
 	rsCfg.Virtual.ProfileBotDefense = plc.Spec.L3Policies.BotDefense
 	rsCfg.Virtual.TCP.Client = plc.Spec.Profiles.TCP.Client
 	rsCfg.Virtual.TCP.Server = plc.Spec.Profiles.TCP.Server
+	rsCfg.Virtual.AllowVLANs = plc.Spec.L3Policies.AllowVlans
 
 	if len(plc.Spec.Profiles.LogProfiles) > 0 {
 		rsCfg.Virtual.LogProfiles = append(rsCfg.Virtual.LogProfiles, plc.Spec.Profiles.LogProfiles...)

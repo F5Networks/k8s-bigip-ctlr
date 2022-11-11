@@ -124,8 +124,10 @@ Note: **monitors** take priority over **monitor** if both are provided in VS spe
 | PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
 | ------ | ------ | ------ | ------ | ------ |
 | termination | String | Required | NA |  Termination on BIG-IP Virtual Server. Allowed options are [edge, reencrypt, passthrough] |
-| clientSSL | String | Required | NA | ClientSSL Profile on the BIG-IP. Example /Common/clientssl |
-| serverSSL | String | Optional | NA | ServerSSL Profile on the BIG-IP. Example /Common/serverssl |
+| clientSSL | String | Required | NA | Single ClientSSL Profile on the BIG-IP OR a kubernetes secret.|
+| clientSSLs | String | Required | NA | Multiple ClientSSL Profiles on the BIG-IP OR list of kubernetes secrets.|
+| serverSSL | String | Optional | NA | Single ServerSSL Profile on the BIG-IP OR a kubernetes secret.|
+| serverSSLs | String | Optional | NA | Multiple ServerSSL Profiles on the BIG-IP OR list of kubernetes secrets.|
 | reference | String | Required | NA | Describes the location of profile, BIG-IP or k8s Secrets. We currently support BIG-IP profiles only |
 
 **Note**:

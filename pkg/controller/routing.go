@@ -940,7 +940,6 @@ func updateDataGroupOfDgName(
 	poolPathRefs []poolPathRef,
 	rsVSName string,
 	dgName string,
-	hostName string,
 	namespace string,
 	partition string,
 	allowSourceRange []string,
@@ -952,16 +951,20 @@ func updateDataGroupOfDgName(
 		// Servername and path from the ssl::payload of clientssl_data Irule event is
 		// used as value in edge and reencrypt Datagroup.
 		for _, pl := range poolPathRefs {
-			routePath := hostName + pl.path
-			routePath = strings.TrimSuffix(routePath, "/")
-			updateDataGroup(intDgMap, rsDGName,
-				partition, namespace, routePath, pl.poolName, DataGroupType)
+			for _, hostName := range pl.aliasHostnames {
+				routePath := hostName + pl.path
+				routePath = strings.TrimSuffix(routePath, "/")
+				updateDataGroup(intDgMap, rsDGName,
+					partition, namespace, routePath, pl.poolName, DataGroupType)
+			}
 		}
 	case PassthroughHostsDgName:
-		// only hostname will be used for passthrough routes
+		// only vsHostname will be used for passthrough routes
 		for _, pl := range poolPathRefs {
-			updateDataGroup(intDgMap, rsDGName,
-				partition, namespace, hostName, pl.poolName, DataGroupType)
+			for _, hostName := range pl.aliasHostnames {
+				updateDataGroup(intDgMap, rsDGName,
+					partition, namespace, hostName, pl.poolName, DataGroupType)
+			}
 		}
 	case HttpsRedirectDgName:
 		for _, pl := range poolPathRefs {
@@ -969,9 +972,11 @@ func updateDataGroupOfDgName(
 			if path == "" {
 				path = "/"
 			}
-			routePath := hostName + path
-			updateDataGroup(intDgMap, rsDGName,
-				partition, namespace, routePath, path, DataGroupType)
+			for _, hostName := range pl.aliasHostnames {
+				routePath := hostName + path
+				updateDataGroup(intDgMap, rsDGName,
+					partition, namespace, routePath, path, DataGroupType)
+			}
 		}
 	case AllowSourceRange:
 		for _, sourceNw := range allowSourceRange {

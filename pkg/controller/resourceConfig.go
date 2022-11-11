@@ -105,8 +105,7 @@ const (
 
 func NewCustomProfile(
 	profile ProfileRef,
-	cert,
-	key,
+	certificates []certificate,
 	serverName string,
 	sni bool,
 	peerCertMode,
@@ -118,8 +117,7 @@ func NewCustomProfile(
 		Name:         profile.Name,
 		Partition:    profile.Partition,
 		Context:      profile.Context,
-		Cert:         cert,
-		Key:          key,
+		Certificates: certificates,
 		ServerName:   serverName,
 		SNIDefault:   sni,
 		PeerCertMode: peerCertMode,
@@ -596,24 +594,28 @@ func (ctlr *Controller) handleTLS(
 
 	if rsCfg.Virtual.VirtualAddress.Port == tlsContext.httpsPort {
 		if tlsContext.termination != TLSPassthrough {
-			clientSSL := tlsContext.bigIPSSLProfiles.clientSSL
-			serverSSL := tlsContext.bigIPSSLProfiles.serverSSL
+			clientSSL := tlsContext.bigIPSSLProfiles.clientSSLs
+			serverSSL := tlsContext.bigIPSSLProfiles.serverSSLs
 			// Process Profile
 			switch tlsContext.referenceType {
 			case BIGIP:
 				log.Debugf("Processing  BIGIP referenced profiles for '%s' '%s'/'%s'",
 					tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
 				// Process referenced BIG-IP clientSSL
-				if clientSSL != "" {
-					clientProfRef := ConvertStringToProfileRef(
-						clientSSL, CustomProfileClient, tlsContext.namespace)
-					rsCfg.Virtual.AddOrUpdateProfile(clientProfRef)
+				if len(clientSSL) > 0 {
+					for _, profile := range clientSSL {
+						clientProfRef := ConvertStringToProfileRef(
+							profile, CustomProfileClient, tlsContext.namespace)
+						rsCfg.Virtual.AddOrUpdateProfile(clientProfRef)
+					}
 				}
 				// Process referenced BIG-IP serverSSL
-				if serverSSL != "" {
-					serverProfRef := ConvertStringToProfileRef(
-						serverSSL, CustomProfileServer, tlsContext.namespace)
-					rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
+				if len(serverSSL) > 0 {
+					for _, profile := range serverSSL {
+						serverProfRef := ConvertStringToProfileRef(
+							profile, CustomProfileServer, tlsContext.namespace)
+						rsCfg.Virtual.AddOrUpdateProfile(serverProfRef)
+					}
 				}
 				log.Debugf("Updated BIGIP referenced profiles for '%s' '%s'/'%s'",
 					tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -625,19 +627,22 @@ func (ctlr *Controller) handleTLS(
 				} else {
 					namespace = tlsContext.namespace
 				}
-				if clientSSL != "" {
-					secretKey := tlsContext.namespace + "/" + clientSSL
-					if _, ok := ctlr.comInformers[namespace]; !ok {
-						return false
+				if len(clientSSL) > 0 {
+					var secrets []*v1.Secret
+					for _, secretName := range clientSSL {
+						secretKey := tlsContext.namespace + "/" + secretName
+						if _, ok := ctlr.comInformers[namespace]; !ok {
+							return false
+						}
+						obj, found, err := ctlr.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+						if err != nil || !found {
+							log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+								clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+							return false
+						}
+						secrets = append(secrets, obj.(*v1.Secret))
 					}
-					obj, found, err := ctlr.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
-					if err != nil || !found {
-						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
-							clientSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-						return false
-					}
-					secret := obj.(*v1.Secret)
-					err, _ = ctlr.createSecretClientSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
+					err, _ := ctlr.createSecretClientSSLProfile(rsCfg, secrets, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
 					if err != nil {
 						log.Errorf("error %v encountered while creating clientssl profile for '%s' '%s'/'%s'",
 							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
@@ -645,30 +650,34 @@ func (ctlr *Controller) handleTLS(
 					}
 				}
 				// Process ServerSSL stored as kubernetes secret
-				if serverSSL != "" {
-					secretKey := tlsContext.namespace + "/" + serverSSL
-					if _, ok := ctlr.comInformers[namespace]; !ok {
-						return false
-					}
-					obj, found, err := ctlr.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
-					if err != nil || !found {
-						log.Errorf("secret %s not found for '%s' '%s'/'%s'",
-							serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-						return false
-					}
-					secret := obj.(*v1.Secret)
-					err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secret, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
-					if err != nil {
-						log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
-							err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
-						return false
+				if len(serverSSL) > 0 {
+					var secrets []*v1.Secret
+					for _, secret := range serverSSL {
+						secretKey := tlsContext.namespace + "/" + secret
+						if _, ok := ctlr.comInformers[namespace]; !ok {
+							return false
+						}
+						obj, found, err := ctlr.comInformers[namespace].secretsInformer.GetIndexer().GetByKey(secretKey)
+						if err != nil || !found {
+							log.Errorf("secret %s not found for '%s' '%s'/'%s'",
+								serverSSL, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+							return false
+						}
+						secrets = append(secrets, obj.(*v1.Secret))
+						err, _ = ctlr.createSecretServerSSLProfile(rsCfg, secrets, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
+						if err != nil {
+							log.Errorf("error %v encountered while creating serverssl profile for '%s' '%s'/'%s'",
+								err, tlsContext.resourceType, tlsContext.namespace, tlsContext.name)
+							return false
+						}
 					}
 				}
 
 			case Certificate:
 				// Prepare SSL Transient Context
 				if tlsContext.bigIPSSLProfiles.key != "" && tlsContext.bigIPSSLProfiles.certificate != "" {
-					err, _ := ctlr.createClientSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.key, tlsContext.bigIPSSLProfiles.certificate,
+					cert := certificate{Cert: tlsContext.bigIPSSLProfiles.certificate, Key: tlsContext.bigIPSSLProfiles.key}
+					err, _ := ctlr.createClientSSLProfile(rsCfg, []certificate{cert},
 						fmt.Sprintf("%s-clientssl", tlsContext.name), tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileClient)
 					if err != nil {
 						log.Debugf("error %v encountered while creating clientssl profile  for '%s' '%s'/'%s'",
@@ -679,11 +688,12 @@ func (ctlr *Controller) handleTLS(
 				// Create Server SSL profile for bigip
 				if tlsContext.bigIPSSLProfiles.destinationCACertificate != "" {
 					var err error
+					cert := certificate{Cert: tlsContext.bigIPSSLProfiles.destinationCACertificate}
 					if tlsContext.bigIPSSLProfiles.caCertificate != "" {
-						err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate,
+						err, _ = ctlr.createServerSSLProfile(rsCfg, []certificate{cert},
 							tlsContext.bigIPSSLProfiles.caCertificate, tlsContext.name, tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
 					} else {
-						err, _ = ctlr.createServerSSLProfile(rsCfg, tlsContext.bigIPSSLProfiles.destinationCACertificate,
+						err, _ = ctlr.createServerSSLProfile(rsCfg, []certificate{cert},
 							"", fmt.Sprintf("%s-serverssl", tlsContext.name), tlsContext.namespace, ctlr.resources.baseRouteConfig.TLSCipher, CustomProfileServer)
 					}
 					if err != nil {
@@ -702,18 +712,33 @@ func (ctlr *Controller) handleTLS(
 				switch tlsContext.termination {
 				case TLSEdge:
 					serverSsl := "false"
-					sslPath := tlsContext.hostname + poolPathRef.path
-					sslPath = strings.TrimSuffix(sslPath, "/")
-					updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName),
-						rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl, DataGroupType)
+					for _, hostname := range poolPathRef.aliasHostnames {
+						sslPath := hostname + poolPathRef.path
+						sslPath = strings.TrimSuffix(sslPath, "/")
+						updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, EdgeServerSslDgName),
+							rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl, DataGroupType)
+					}
 
 				case TLSReencrypt:
-					sslPath := tlsContext.hostname + poolPathRef.path
-					sslPath = strings.TrimSuffix(sslPath, "/")
-					serverSsl := AS3NameFormatter("crd_" + tlsContext.ipAddress + "_tls_client")
-					if "" != serverSSL {
-						updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
-							rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, serverSsl, DataGroupType)
+					for _, hostname := range poolPathRef.aliasHostnames {
+						sslPath := hostname + poolPathRef.path
+						sslPath = strings.TrimSuffix(sslPath, "/")
+						if len(serverSSL) > 0 {
+							if tlsContext.referenceType == BIGIP {
+								// for bigip referenced profiles we need to add entries for all profiles
+								for _, profileName := range serverSSL {
+									updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
+										rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, profileName, DataGroupType)
+								}
+
+							} else {
+								// for secrets all the ca certificates will be bundle within a single profile
+								profileName := AS3NameFormatter(rsCfg.Virtual.Name + "_tls_client")
+								updateDataGroup(rsCfg.IntDgMap, getRSCfgResName(rsCfg.Virtual.Name, ReencryptServerSslDgName),
+									rsCfg.Virtual.Partition, tlsContext.namespace, sslPath, profileName, DataGroupType)
+							}
+
+						}
 					}
 				}
 			}
@@ -732,7 +757,6 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.poolPathRefs,
 				rsCfg.Virtual.Name,
 				ReencryptHostsDgName,
-				tlsContext.hostname,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
 				[]string{},
@@ -743,7 +767,6 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.poolPathRefs,
 				rsCfg.Virtual.Name,
 				EdgeHostsDgName,
-				tlsContext.hostname,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
 				[]string{},
@@ -754,7 +777,6 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.poolPathRefs,
 				rsCfg.Virtual.Name,
 				PassthroughHostsDgName,
-				tlsContext.hostname,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
 				[]string{})
@@ -765,14 +787,13 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.poolPathRefs,
 				rsCfg.Virtual.Name,
 				AllowSourceRangeDgName,
-				"",
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
 				rsCfg.Virtual.AllowSourceRange)
 		}
 		ctlr.handleDataGroupIRules(
 			rsCfg,
-			tlsContext.hostname,
+			tlsContext.vsHostname,
 			tlsContext.termination,
 		)
 		return true
@@ -791,7 +812,7 @@ func (ctlr *Controller) handleTLS(
 			log.Debugf("Applying HTTP redirect iRule.")
 			log.Debugf("Redirect HTTP(insecure) requests for VirtualServer %s", tlsContext.name)
 			var ruleName string
-			if tlsContext.hostname == "" {
+			if tlsContext.vsHostname == "" {
 				ruleName = fmt.Sprintf("%s_%d", getRSCfgResName(rsCfg.Virtual.Name, HttpRedirectNoHostIRuleName), tlsContext.httpsPort)
 				rsCfg.addIRule(ruleName, rsCfg.Virtual.Partition, httpRedirectIRuleNoHost(tlsContext.httpsPort))
 			} else {
@@ -805,7 +826,6 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.poolPathRefs,
 				rsCfg.Virtual.Name,
 				HttpsRedirectDgName,
-				tlsContext.hostname,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
 				[]string{},
@@ -848,11 +868,17 @@ func (ctlr *Controller) handleVirtualServerTLS(
 		httpsPort = vs.Spec.VirtualServerHTTPSPort
 	}
 	bigIPSSLProfiles := BigIPSSLProfiles{}
-	if tls.Spec.TLS.ClientSSL != "" {
-		bigIPSSLProfiles.clientSSL = tls.Spec.TLS.ClientSSL
+	// Giving priority to ClientSSLs over ClientSSL
+	if len(tls.Spec.TLS.ClientSSLs) > 0 {
+		bigIPSSLProfiles.clientSSLs = tls.Spec.TLS.ClientSSLs
+	} else if tls.Spec.TLS.ClientSSL != "" {
+		bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, tls.Spec.TLS.ClientSSL)
 	}
-	if tls.Spec.TLS.ServerSSL != "" {
-		bigIPSSLProfiles.serverSSL = tls.Spec.TLS.ServerSSL
+	// Giving priority to ServerSSLs over ServerSSL
+	if len(tls.Spec.TLS.ServerSSLs) > 0 {
+		bigIPSSLProfiles.serverSSLs = tls.Spec.TLS.ServerSSLs
+	} else if tls.Spec.TLS.ServerSSL != "" {
+		bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, tls.Spec.TLS.ServerSSL)
 	}
 	var poolPathRefs []poolPathRef
 	for _, pl := range vs.Spec.Pools {
@@ -863,7 +889,7 @@ func (ctlr *Controller) handleVirtualServerTLS(
 			vs.Spec.Host,
 		)
 
-		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName})
+		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
 	}
 	return ctlr.handleTLS(rsCfg, TLSContext{vs.ObjectMeta.Name,
 		vs.ObjectMeta.Namespace,
@@ -885,28 +911,28 @@ func validateTLSProfile(tls *cisapiv1.TLSProfile) bool {
 	//validation for re-encrypt termination
 	if tls.Spec.TLS.Termination == "reencrypt" {
 		// Should contain both client and server SSL profiles
-		if (tls.Spec.TLS.ClientSSL == "") || (tls.Spec.TLS.ServerSSL == "") {
+		if (tls.Spec.TLS.ClientSSL == "" || tls.Spec.TLS.ServerSSL == "") && (len(tls.Spec.TLS.ClientSSLs) == 0 || len(tls.Spec.TLS.ServerSSLs) == 0) {
 			log.Errorf("TLSProfile %s of type re-encrypt termination should contain both "+
-				"ClientSSL and ServerSSL", tls.ObjectMeta.Name)
+				"ClientSSLs and ServerSSLs", tls.ObjectMeta.Name)
 			return false
 		}
 	} else if tls.Spec.TLS.Termination == "edge" {
 		// Should contain only client SSL
-		if tls.Spec.TLS.ClientSSL == "" {
-			log.Errorf("TLSProfile %s of type edge termination should contain Client SSL",
+		if tls.Spec.TLS.ClientSSL == "" && len(tls.Spec.TLS.ClientSSLs) == 0 {
+			log.Errorf("TLSProfile %s of type edge termination should contain ClientSSLs",
 				tls.ObjectMeta.Name)
 			return false
 		}
-		if tls.Spec.TLS.ServerSSL != "" {
-			log.Errorf("TLSProfile %s of type edge termination should NOT contain ServerSSL",
+		if tls.Spec.TLS.ServerSSL != "" || len(tls.Spec.TLS.ServerSSLs) != 0 {
+			log.Errorf("TLSProfile %s of type edge termination should NOT contain ServerSSLs",
 				tls.ObjectMeta.Name)
 			return false
 		}
 	} else {
 		// Pass-through
-		if (tls.Spec.TLS.ClientSSL != "") || (tls.Spec.TLS.ServerSSL != "") {
+		if (tls.Spec.TLS.ClientSSL != "") || (tls.Spec.TLS.ServerSSL != "") || len(tls.Spec.TLS.ClientSSLs) != 0 || len(tls.Spec.TLS.ServerSSLs) != 0 {
 			log.Errorf("TLSProfile %s of type Pass-through termination should NOT contain either "+
-				"ClientSSL or ServerSSL", tls.ObjectMeta.Name)
+				"ClientSSLs or ServerSSLs", tls.ObjectMeta.Name)
 			return false
 		}
 	}
@@ -1896,9 +1922,9 @@ func (ctlr *Controller) handleRouteTLS(
 				return false
 			}
 
-			bigIPSSLProfiles.clientSSL = extdSpec.TLS.ClientSSL
+			bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, extdSpec.TLS.ClientSSL)
 			if route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
-				bigIPSSLProfiles.serverSSL = extdSpec.TLS.ServerSSL
+				bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, extdSpec.TLS.ServerSSL)
 			}
 		}
 	} else if route.Spec.TLS != nil && route.Spec.TLS.Termination != TLSPassthrough {
@@ -1910,13 +1936,13 @@ func (ctlr *Controller) handleRouteTLS(
 			if ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL == "" {
 				return false
 			}
-			bigIPSSLProfiles.clientSSL = ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL
+			bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL)
 
 			if route.Spec.TLS.Termination == TLSReencrypt {
 				if ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL == "" {
 					return false
 				}
-				bigIPSSLProfiles.serverSSL = ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL
+				bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL)
 			}
 		} else {
 			tlsReferenceType = Certificate
@@ -1963,6 +1989,7 @@ func (ctlr *Controller) handleRouteTLS(
 						pl.ServicePort,
 						"",
 						""),
+					[]string{route.Spec.Host},
 				})
 		}
 	}

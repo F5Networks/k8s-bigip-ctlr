@@ -198,28 +198,28 @@ var _ = Describe("Backend Tests", func() {
 			}
 
 			rsCfg2.customProfiles = make(map[SecretKey]CustomProfile)
+			cert := certificate{Cert: "crthash", Key: "keyhash"}
 			rsCfg2.customProfiles[SecretKey{
 				Name:         "default_svc_test_com_cssl",
 				ResourceName: "crd_vs_172.13.14.15",
 			}] = CustomProfile{
-				Name:       "default_svc_test_com_cssl",
-				Partition:  "test",
-				Context:    "clientside",
-				Cert:       "crthash",
-				Key:        "keyhash",
-				ServerName: "test.com",
-				SNIDefault: false,
+				Name:         "default_svc_test_com_cssl",
+				Partition:    "test",
+				Context:      "clientside",
+				Certificates: []certificate{cert},
+				SNIDefault:   false,
 			}
+			certOnly := certificate{Cert: "crthash"}
 			rsCfg2.customProfiles[SecretKey{
 				Name:         "default_svc_test_com_sssl",
 				ResourceName: "crd_vs_172.13.14.15",
 			}] = CustomProfile{
-				Name:       "default_svc_test_com_sssl",
-				Partition:  "test",
-				Context:    "serverside",
-				Cert:       "crthash",
-				ServerName: "test.com",
-				SNIDefault: false,
+				Name:         "default_svc_test_com_sssl",
+				Partition:    "test",
+				Context:      "serverside",
+				Certificates: []certificate{certOnly},
+				ServerName:   "test.com",
+				SNIDefault:   false,
 			}
 
 			config := ResourceConfigRequest{
@@ -405,11 +405,6 @@ var _ = Describe("Backend Tests", func() {
 	})
 
 	Describe("Misc", func() {
-		It("Extracting virtual address", func() {
-			ipAddr := extractVirtualAddress("crd_1_2_3_4_tls_client")
-			Expect(ipAddr).To(Equal(AS3NameFormatter("1.2.3.4")), "Wrong or invalid virtual Address")
-		})
-
 		It("Service Address declaration", func() {
 			rsCfg := &ResourceConfig{
 				ServiceAddress: []ServiceAddress{

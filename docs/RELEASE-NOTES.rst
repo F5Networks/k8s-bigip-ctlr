@@ -22,6 +22,7 @@ Added Functionality
         * Support AS3 GTM Agent
         * Support for allowVlans with policy CR.
         * Support for custom persistence profile. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/persistenceProfile>`_
+        * :issues:`2585` Support for multiple clientssl & serverssl profiles in TLS Profiles. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
 
 Bug Fixes
 ````````````
@@ -285,14 +286,14 @@ Added Functionality
 
 Bug Fixes
 ````````````
-* :issues:`1684` [EDNS] CIS tries to remove non-existing monitor from GTM pool
-* :issues:`1873` Enable /metrics endpoint with crd mode
-* :issues:`1916` Display IPAM provided IPaddress for TransportServer
-* :issues:`2014` Allow type LoadBalancer with different TargetPort and Port values
-* :issues:`2016,2102` Fix for crash while validating secrets
-* :issues:`2025` Support 'sni-server-name' for GTM HTTPS Monitor
-* :issues:`2087` Enable nodeMemberLabel regex to support common node labels
-* :issues:`2053` Remove ECDSA cert SNI support for OpenShift Routes - Revert :issue:`1723`
+* :issues:1684 [EDNS] CIS tries to remove non-existing monitor from GTM pool
+* :issues:1873 Enable /metrics endpoint with crd mode
+* :issues:1916 Display IPAM provided IPaddress for TransportServer
+* :issues:2014 Allow type LoadBalancer with different TargetPort and Port values
+* :issues:2016,2102 Fix for crash while validating secrets
+* :issues:2025 Support 'sni-server-name' for GTM HTTPS Monitor
+* :issues:2087 Enable nodeMemberLabel regex to support common node labels
+* :issues:2053 Remove ECDSA cert SNI support for OpenShift Routes - Revert :issue:1723
 * Restructured docs examples directory
 * Improved performance while processing VS, services and endpoint resources
 

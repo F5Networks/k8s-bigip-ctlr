@@ -1340,7 +1340,7 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, extdSpec *Extende
 		}
 	} else if nil != route.Spec.TLS && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
 		if route.Spec.TLS.Certificate != "" && route.Spec.TLS.Key != "" {
-			// Validate hostname if certificate is not provided in SSL annotations
+			// Validate vsHostname if certificate is not provided in SSL annotations
 			ok := checkCertificateHost(route.Spec.Host, []byte(route.Spec.TLS.Certificate), []byte(route.Spec.TLS.Key))
 			if !ok {
 				//Invalid certificate and key

@@ -28,15 +28,13 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
-
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
@@ -557,29 +555,13 @@ func (ctlr *Controller) processResources() bool {
 // getServiceForEndpoints returns the service associated with endpoints.
 func (ctlr *Controller) getServiceForEndpoints(ep *v1.Endpoints) *v1.Service {
 
-	epName := ep.ObjectMeta.Name
-	epNamespace := ep.ObjectMeta.Namespace
-	svcKey := fmt.Sprintf("%s/%s", epNamespace, epName)
-
-	var svcInf cache.SharedIndexInformer
-	switch ctlr.mode {
-	case OpenShiftMode, KubernetesMode:
-		comInf, ok := ctlr.getNamespacedCommonInformer(ep.Namespace)
-		if !ok {
-			log.Errorf("Informer not found for namespace: %v", ep.Namespace)
-			return nil
-		}
-		svcInf = comInf.svcInformer
-	case CustomResourceMode:
-		crInf, ok := ctlr.getNamespacedCommonInformer(epNamespace)
-		if !ok {
-			log.Errorf("Informer not found for namespace: %v", epNamespace)
-			return nil
-		}
-		svcInf = crInf.svcInformer
+	svcKey := fmt.Sprintf("%s/%s", ep.Namespace, ep.Name)
+	comInf, ok := ctlr.getNamespacedCommonInformer(ep.Namespace)
+	if !ok {
+		log.Errorf("Informer not found for namespace: %v", ep.Namespace)
+		return nil
 	}
-
-	svc, exists, err := svcInf.GetIndexer().GetByKey(svcKey)
+	svc, exists, err := comInf.svcInformer.GetIndexer().GetByKey(svcKey)
 	if err != nil {
 		log.Infof("Error fetching service %v from the store: %v", svcKey, err)
 		return nil

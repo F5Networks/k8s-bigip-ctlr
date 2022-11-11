@@ -523,26 +523,6 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 			})
 	}
 
-	if comInf.svcInformer != nil {
-		comInf.svcInformer.AddEventHandler(
-			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueService(obj) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueUpdatedService(obj, cur) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedService(obj) },
-			},
-		)
-	}
-
-	if comInf.epsInformer != nil {
-		comInf.epsInformer.AddEventHandler(
-			&cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctlr.enqueueEndpoints(obj, Create) },
-				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueueEndpoints(cur, Update) },
-				DeleteFunc: func(obj interface{}) { ctlr.enqueueEndpoints(obj, Delete) },
-			},
-		)
-	}
-
 	if comInf.plcInformer != nil {
 		comInf.plcInformer.AddEventHandler(
 			&cache.ResourceEventHandlerFuncs{

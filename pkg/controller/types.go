@@ -589,6 +589,7 @@ type (
 	ProcessedHostPath struct {
 		sync.Mutex
 		processedHostPathMap map[string]metav1.Time
+		removedHosts         []string
 	}
 )
 

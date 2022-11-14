@@ -46,10 +46,12 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		// Delete all possible virtuals for this route group
 		for _, portStruct := range getBasicVirtualPorts() {
 			rsName := frameRouteVSName(extdSpec.VServerName, extdSpec.VServerAddr, portStruct)
-			if ctlr.getVirtualServer(partition, rsName) != nil {
+			vs := ctlr.getVirtualServer(partition, rsName)
+			if vs != nil {
 				log.Debugf("Removing virtual %v belongs to RouteGroup: %v",
 					rsName, routeGroup)
 				ctlr.deleteVirtualServer(partition, rsName)
+				ctlr.ProcessRouteEDNS(vs.MetaData.hosts)
 			}
 		}
 		return nil
@@ -141,10 +143,16 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	}
 
 	if !processingError {
+		var hosts []string
 		for name, rscfg := range vsMap {
 			rsMap := ctlr.resources.getPartitionResourceMap(partition)
 			rsMap[name] = rscfg
+
+			if len(rscfg.MetaData.hosts) > 0 {
+				hosts = rscfg.MetaData.hosts
+			}
 		}
+		ctlr.ProcessRouteEDNS(hosts)
 	}
 
 	return nil
@@ -1244,6 +1252,13 @@ func (ctlr *Controller) eraseAllRouteAdmitStatus() {
 	}
 }
 
+func (ctlr *Controller) GetHostFromHostPath(hostPath string) string {
+	if strings.Contains(hostPath, "/") {
+		return strings.Split(hostPath, "/")[0]
+	}
+	return hostPath
+}
+
 func (ctlr *Controller) eraseRouteAdmitStatus(rscKey string) {
 	// Fetching the latest copy of route
 	route := ctlr.fetchRoute(rscKey)
@@ -1375,6 +1390,8 @@ func (ctlr *Controller) updateHostPathMap(timestamp metav1.Time, key string) {
 		if routeTimestamp == timestamp && hostPath != key {
 			// Deleting the ProcessedHostPath map if route's path is changed
 			delete(ctlr.processedHostPath.processedHostPathMap, hostPath)
+			//track removed/modified hosts for EDNS processing
+			ctlr.processedHostPath.removedHosts = append(ctlr.processedHostPath.removedHosts, ctlr.GetHostFromHostPath(hostPath))
 		}
 	}
 	// adding the ProcessedHostPath map entry
@@ -1395,6 +1412,8 @@ func (ctlr *Controller) deleteHostPathMapEntry(route *routeapi.Route) {
 		if routeTimestamp == route.CreationTimestamp && hostPath == key {
 			// Deleting the ProcessedHostPath map if route's path is changed
 			delete(ctlr.processedHostPath.processedHostPathMap, hostPath)
+			//track removed/modified hosts for EDNS processing
+			ctlr.processedHostPath.removedHosts = append(ctlr.processedHostPath.removedHosts, ctlr.GetHostFromHostPath(key))
 		}
 	}
 }

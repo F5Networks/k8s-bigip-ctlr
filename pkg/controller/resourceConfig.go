@@ -1063,6 +1063,15 @@ func (rs *ResourceStore) getPartitionResourceMap(partition string) ResourceMap {
 	return rs.ltmConfig[partition].ResourceMap
 }
 
+func (rs *ResourceStore) GetLTMPartitions() []string {
+	var partitions []string
+
+	for partition, _ := range rs.ltmConfig {
+		partitions = append(partitions, partition)
+	}
+	return partitions
+}
+
 // getResourceConfig gets a specific Resource cfg
 func (rs *ResourceStore) getResourceConfig(partition, name string) (*ResourceConfig, error) {
 

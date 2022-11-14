@@ -259,7 +259,7 @@ func (ctlr *Controller) processResources() bool {
 			isRetryableError = true
 		}
 	case ExternalDNS:
-		if ctlr.mode == OpenShiftMode || ctlr.mode == KubernetesMode {
+		if ctlr.mode == KubernetesMode {
 			break
 		}
 		edns := rKey.rsc.(*cisapiv1.ExternalDNS)
@@ -2433,6 +2433,14 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 	log.Debugf("Processing WideIP: %v", edns.Spec.DomainName)
 
+	var partitions []string
+	switch ctlr.mode {
+	case OpenShiftMode:
+		partitions = ctlr.resources.GetLTMPartitions()
+	default:
+		partitions = append(partitions, DEFAULT_PARTITION)
+	}
+
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + ctlr.Partition
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
@@ -2450,38 +2458,49 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		if pl.LoadBalanceMethod == "" {
 			pool.LBMethod = "round-robin"
 		}
-		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+		for _, partition := range partitions {
+			rsMap := ctlr.resources.getPartitionResourceMap(partition)
 
-		for vsName, vs := range rsMap {
-			var found bool
-			for _, host := range vs.MetaData.hosts {
-				if host == edns.Spec.DomainName {
-					found = true
-					break
-				}
-			}
-			if found {
-				//No need to add insecure VS into wideIP pool if VS configured with httpTraffic as redirect
-				if vs.MetaData.Protocol == "http" && (vs.MetaData.httpTraffic == TLSRedirectInsecure || vs.MetaData.httpTraffic == TLSAllowInsecure) {
-					continue
-				}
-				preGTMServerName := ""
-				if ctlr.Agent.ccclGTMAgent {
-					preGTMServerName = fmt.Sprintf("%v:", pl.DataServerName)
-				}
-				// add only one VS member to pool.
-				if len(pool.Members) > 0 && strings.HasPrefix(vsName, "ingress_link_") {
-					if strings.HasSuffix(vsName, "_443") {
-						pool.Members[0] = fmt.Sprintf("%v/%v/Shared/%v", preGTMServerName, DEFAULT_PARTITION, vsName)
+			for vsName, vs := range rsMap {
+				var found bool
+				for _, host := range vs.MetaData.hosts {
+					if host == edns.Spec.DomainName {
+						found = true
+						break
 					}
-					continue
 				}
-				log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("/%v/Shared/%v",
-					DEFAULT_PARTITION, vsName))
-				pool.Members = append(
-					pool.Members,
-					fmt.Sprintf("%v/%v/Shared/%v", preGTMServerName, DEFAULT_PARTITION, vsName),
-				)
+				if found {
+					//No need to add insecure VS into wideIP pool if VS configured with httpTraffic as redirect
+					if vs.MetaData.Protocol == "http" && (vs.MetaData.httpTraffic == TLSRedirectInsecure || vs.MetaData.httpTraffic == TLSAllowInsecure) {
+						continue
+					}
+					preGTMServerName := ""
+					if ctlr.Agent.ccclGTMAgent {
+						preGTMServerName = fmt.Sprintf("%v:", pl.DataServerName)
+					}
+					// add only one VS member to pool.
+					if len(pool.Members) > 0 && strings.HasPrefix(vsName, "ingress_link_") {
+						if strings.HasSuffix(vsName, "_443") {
+							pool.Members[0] = fmt.Sprintf("%v/%v/Shared/%v", preGTMServerName, partition, vsName)
+							if partition != ctlr.Partition {
+								// Modify pool name to partition containing VS
+								pool.Name = edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + partition
+							}
+						}
+						continue
+					}
+					log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("/%v/Shared/%v",
+						partition, vsName))
+					// Modify pool name to partition containing VS
+					if partition != ctlr.Partition {
+						// Modify pool name to partition containing VS
+						pool.Name = edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + partition
+					}
+					pool.Members = append(
+						pool.Members,
+						fmt.Sprintf("%v/%v/Shared/%v", preGTMServerName, partition, vsName),
+					)
+				}
 			}
 		}
 		if len(pl.Monitors) > 0 {
@@ -2567,6 +2586,20 @@ func (ctlr *Controller) getAllExternalDNS(namespace string) []*cisapiv1.External
 	return allEDNS
 }
 
+func (ctlr *Controller) ProcessRouteEDNS(hosts []string) {
+	if len(ctlr.processedHostPath.removedHosts) > 0 {
+		removedHosts := ctlr.processedHostPath.removedHosts
+		ctlr.processedHostPath.Lock()
+		ctlr.processedHostPath.removedHosts = make([]string, 0)
+		ctlr.processedHostPath.Unlock()
+		//This will remove existing EDNS pool members
+		ctlr.ProcessAssociatedExternalDNS(removedHosts)
+	}
+	if len(hosts) > 0 {
+		ctlr.ProcessAssociatedExternalDNS(hosts)
+	}
+}
+
 func (ctlr *Controller) ProcessAssociatedExternalDNS(hostnames []string) {
 	var allEDNS []*cisapiv1.ExternalDNS
 	if ctlr.watchingAllNamespaces() {
@@ -2582,7 +2615,6 @@ func (ctlr *Controller) ProcessAssociatedExternalDNS(hostnames []string) {
 				ctlr.processExternalDNS(edns, false)
 			}
 		}
-
 	}
 }
 

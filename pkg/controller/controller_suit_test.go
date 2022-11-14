@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"fmt"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
 	mockhc "github.com/f5devcentral/mockhttpclient"
 	. "github.com/onsi/ginkgo"
@@ -104,6 +105,15 @@ func newMockAgent(writer writer.Writer) *Agent {
 		//incomingTenantDeclMap: make(map[string]interface{}),
 		userAgent: "",
 	}
+}
+func (m *mockController) addEDNS(edns *cisapiv1.ExternalDNS) {
+	appInf, _ := m.getNamespacedCommonInformer(edns.ObjectMeta.Namespace)
+	appInf.ednsInformer.GetStore().Add(edns)
+}
+
+func (m *mockController) deleteEDNS(edns *cisapiv1.ExternalDNS) {
+	appInf, _ := m.getNamespacedCommonInformer(edns.ObjectMeta.Namespace)
+	appInf.ednsInformer.GetStore().Delete(edns)
 }
 
 func (m *mockController) addRoute(route *routeapi.Route) {

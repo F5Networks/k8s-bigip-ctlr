@@ -2,6 +2,8 @@ package controller
 
 import (
 	"fmt"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
+	"strings"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
@@ -40,6 +42,14 @@ var _ = Describe("Routes", func() {
 			ResourceType: teem.ResourceTypes{
 				RouteGroups:  make(map[string]int),
 				NativeRoutes: make(map[string]int),
+				ExternalDNS:  make(map[string]int),
+			},
+		}
+		mockCtlr.Agent = &Agent{
+			PostManager: &PostManager{
+				PostParams: PostParams{
+					BIGIPURL: "10.10.10.1",
+				},
 			},
 		}
 	})
@@ -234,6 +244,232 @@ extendedRouteSpec:
 			Expect(route3.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
 			Expect(route3.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route3.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("ServiceNotFound"), "Incorrect route admit reason")
+		})
+		It("Check GSLB Support for Routes", func() {
+			var cm *v1.ConfigMap
+			var data map[string]string
+			cmName := "escm"
+			cmNamespace := "kube-system"
+			mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
+			mockCtlr.resources = NewResourceStore()
+			data = make(map[string]string)
+			mockCtlr.Partition = "default"
+			cm = test.NewConfigMap(
+				cmName,
+				"v1",
+				cmNamespace,
+				data)
+			data["extendedSpec"] = `
+baseRouteSpec: 
+    tlsCipher:
+      tlsVersion : 1.2
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+      tls:
+        clientSSL: /Common/clientssl
+        serverSSL: /Common/serverssl
+        reference: bigip
+    - namespace: test
+      vserverAddr: 10.8.3.12
+      allowOverride: true
+      tls:
+        clientSSL: /Common/clientssl
+        serverSSL: /Common/serverssl
+        reference: bigip
+      bigIpPartition: dev
+`
+			err, isProcessed := mockCtlr.processConfigMap(cm, false)
+			Expect(err).To(BeNil())
+			Expect(isProcessed).To(BeTrue())
+
+			namespace1 := "default"
+			namespace2 := "test"
+			spec1 := routeapi.RouteSpec{
+				Host: "pytest-foo-1.com",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "edge"},
+			}
+			spec2 := routeapi.RouteSpec{
+				Host: "pytest-bar-1.com",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "edge"},
+			}
+			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+				{Port: 8080, NodePort: 38001},
+				{Port: 9090, NodePort: 39001}}
+			foo := test.NewService("foo", "1", namespace1, "NodePort", fooPorts)
+			mockCtlr.addService(foo)
+			fooIps := []string{"10.1.1.1"}
+			fooEndpts := test.NewEndpoints(
+				"foo", "1", "node0", namespace1, fooIps, []string{},
+				convertSvcPortsToEndpointPorts(fooPorts))
+			mockCtlr.addEndpoints(fooEndpts)
+
+			//Add new Route
+			route1 := test.NewRoute("route1", "1", namespace1, spec1, nil)
+			mockCtlr.addRoute(route1)
+			mockCtlr.resources.invertedNamespaceLabelMap[namespace1] = namespace1
+			err = mockCtlr.processRoutes(namespace1, false)
+
+			bar := test.NewService("bar", "1", namespace2, "NodePort", fooPorts)
+			mockCtlr.addService(bar)
+			barIPs := []string{"10.1.1.1"}
+			barEndpts := test.NewEndpoints(
+				"bar", "1", "node0", namespace2, barIPs, []string{},
+				convertSvcPortsToEndpointPorts(fooPorts))
+			mockCtlr.addEndpoints(barEndpts)
+
+			//Add new Route
+			route2 := test.NewRoute("route2", "1", namespace2, spec2, nil)
+			mockCtlr.addRoute(route2)
+			mockCtlr.resources.invertedNamespaceLabelMap[namespace2] = namespace2
+			err = mockCtlr.processRoutes(namespace2, false)
+
+			newEDNS := test.NewExternalDNS(
+				"SampleEDNS",
+				"default",
+				cisapiv1.ExternalDNSSpec{
+					DomainName: "test.com",
+					Pools: []cisapiv1.DNSPool{
+						{
+							DataServerName: "DataServer",
+							Monitor: cisapiv1.Monitor{
+								Type:     "http",
+								Send:     "GET /health",
+								Interval: 10,
+								Timeout:  10,
+							},
+						},
+					},
+				})
+			//Process ENDS with non-matching domain
+			mockCtlr.addEDNS(newEDNS)
+			mockCtlr.processExternalDNS(newEDNS, false)
+			gtmConfig := mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(1))
+			Expect(len(gtmConfig["test.com"].Pools)).To(Equal(1))
+			// No pool member should be present
+			Expect(len(gtmConfig["test.com"].Pools[0].Members)).To(Equal(0))
+
+			//delete EDNS
+			mockCtlr.deleteEDNS(newEDNS)
+			mockCtlr.processExternalDNS(newEDNS, true)
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(0))
+
+			// Modify EDNS with matching domain and create again
+			mockCtlr.addEDNS(newEDNS)
+			newEDNS.Spec.DomainName = "pytest-foo-1.com"
+			mockCtlr.processExternalDNS(newEDNS, false)
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(1))
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
+			// Pool member should be present
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools[0].Members)).To(Equal(1))
+
+			// Delete domain matching route
+			mockCtlr.deleteRoute(route1)
+			mockCtlr.deleteHostPathMapEntry(route1)
+			mockCtlr.processRoutes(namespace1, false)
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(1))
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
+			// No pool member should be present
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools[0].Members)).To(Equal(0))
+
+			// Recreate route
+			mockCtlr.addRoute(route1)
+			mockCtlr.resources.invertedNamespaceLabelMap[namespace1] = namespace1
+			err = mockCtlr.processRoutes(namespace1, false)
+			Expect(len(gtmConfig)).To(Equal(1))
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools[0].Members)).To(Equal(1))
+
+			//Update route host
+			route1.Spec.Host = "pytest-foo-2.com"
+			mockCtlr.updateRoute(route1)
+			var key string
+			if route1.Spec.Path == "/" || len(route1.Spec.Path) == 0 {
+				key = route1.Spec.Host + "/"
+			} else {
+				key = route1.Spec.Host + route1.Spec.Path
+			}
+			mockCtlr.updateHostPathMap(route1.ObjectMeta.CreationTimestamp, key)
+			err = mockCtlr.processRoutes(namespace1, false)
+			Expect(len(gtmConfig)).To(Equal(1))
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
+			// There should be no pool members
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools[0].Members)).To(Equal(0))
+
+			//Reset host
+			route1.Spec.Host = "pytest-foo-1.com"
+			mockCtlr.updateRoute(route1)
+			err = mockCtlr.processRoutes(namespace1, false)
+
+			barEDNS := test.NewExternalDNS(
+				"barEDNS",
+				"default",
+				cisapiv1.ExternalDNSSpec{
+					DomainName: "pytest-bar-1.com",
+					Pools: []cisapiv1.DNSPool{
+						{
+							DataServerName: "DataServer",
+							Monitor: cisapiv1.Monitor{
+								Type:     "http",
+								Send:     "GET /health",
+								Interval: 10,
+								Timeout:  10,
+							},
+						},
+					},
+				})
+			//Test with 2nd route with bigIpPartition
+			mockCtlr.addEDNS(barEDNS)
+			mockCtlr.processExternalDNS(barEDNS, false)
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(2))
+			Expect(len(gtmConfig["pytest-bar-1.com"].Pools)).To(Equal(1))
+			Expect(len(gtmConfig["pytest-bar-1.com"].Pools[0].Members)).To(Equal(1))
+			Expect(strings.Contains(gtmConfig["pytest-bar-1.com"].Pools[0].Members[0], "routes_10.8_3_12_dev"))
+
+			mockCtlr.deleteEDNS(barEDNS)
+			mockCtlr.processExternalDNS(barEDNS, true)
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(1))
+
+			//Remove route group
+			data["extendedSpec"] = `
+baseRouteSpec: 
+    tlsCipher:
+      tlsVersion : 1.2
+extendedRouteSpec:
+    - namespace: test
+      vserverAddr: 10.8.3.12
+      allowOverride: true
+      tls:
+        clientSSL: /Common/clientssl
+        serverSSL: /Common/serverssl
+        reference: bigip
+`
+			err, isProcessed = mockCtlr.processConfigMap(cm, false)
+			Expect(err).To(BeNil())
+			Expect(isProcessed).To(BeTrue())
+
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			Expect(len(gtmConfig)).To(Equal(1))
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
+			//No pool members should present
+			Expect(len(gtmConfig["pytest-foo-1.com"].Pools[0].Members)).To(Equal(0))
+
 		})
 		It("Check Host-Path Map functions", func() {
 			spec1 := routeapi.RouteSpec{

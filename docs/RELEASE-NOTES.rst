@@ -14,6 +14,7 @@ Added Functionality
         * Support Path based A/B deployment for Re-encrypt termination
         * Support to create Health Monitor from the pod liveness probe that route exposes. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
         * Support for Default SSL profiles from baseRouteSpec in extended Configmap
+        * GSLB support for routes
     * CRD
         * CIS configures GTM configuration in default partition
         * Pool reselect support for VS and TS

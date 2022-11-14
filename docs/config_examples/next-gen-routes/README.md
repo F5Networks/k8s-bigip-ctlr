@@ -30,6 +30,9 @@ NextGenRoute Controller uses extenedConfigMap for extending the native resources
 * CIS processes mutliple tenant information and still sends the single unified declaration to bigip to avoid multiple posts to BIGIP.
 
   **Note**: AS3 post call is formed as mgmt/shared/appsvcs/declare/tenant1,tenant2.
+
+## GSLB support for routes
+For every EDNS resource created, CIS will add VS having matching domain as the Wide IP pool member.  
   
 ## Policy CR support for routes
 Policy CR integration with nextGenRoutes extends so many BIGIP features to the openshift routes . i.e. snat, custom tcp, http and https profiles, irules, http2 profile, persistance profile, profileMultiplex, profileL4, logProfiles, waf, botDefense, firewallPolicy, dos, allowSourceRange etc. 
@@ -498,6 +501,8 @@ Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree
 * CIS allows insecure traffic if URI path is included with CAPITAL letters for NextGen Routes
 * CIS delays processing the changes in other tenants if any one of the tenant receives 422 error (takes upto 60 seconds)
 * CIS is not detecting namespaceLabel update in global config map
+* GSLB - To create EDNS, VS should be available in prior on BigIP. This is an issue with as3 and will be resolved in further as3 release
+* GSLB - When there is a route group partition change, BigIP is taking more time to identify the VS on new partition.
 
 
 ## FAQ

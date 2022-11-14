@@ -508,6 +508,11 @@ func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 		monitor.Adaptive = false
 		monitor.Dscp = &val
 		monitor.TimeUnitilUp = &val
+		if v.SslProfile != "" {
+			monitor.ClientTLS = &as3ResourcePointer{
+				BigIP: fmt.Sprintf("%v", v.SslProfile),
+			}
+		}
 		sharedApp[as3FormattedString(v.Name, cfg.MetaData.ResourceType)] = monitor
 	}
 

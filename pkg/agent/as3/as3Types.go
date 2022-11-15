@@ -168,7 +168,7 @@ type (
 		TargetAddress     *string `json:"targetAddress,omitempty"`
 		Timeout           int     `json:"timeout,omitempty"`
 		TimeUnitilUp      *int    `json:"timeUntilUp,omitempty"`
-		Adaptive          *bool   `json:"adaptive,omitempty"`
+		Adaptive          bool    `json:"adaptive,omitempty"`
 		Dscp              *int    `json:"dscp,omitempty"`
 		Receive           string  `json:"receive,omitempty"`
 		Send              string  `json:"send,omitempty"`

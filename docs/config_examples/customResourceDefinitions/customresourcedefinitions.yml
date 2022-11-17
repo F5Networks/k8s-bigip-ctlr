@@ -408,6 +408,9 @@ spec:
                       maximum: 65535
                     loadBalancingMethod:
                       type: string
+                    nodeMemberLabel:
+                      type: string
+                      pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
                     monitor:
                       type: object
                       properties:

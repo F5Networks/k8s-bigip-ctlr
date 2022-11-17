@@ -132,13 +132,14 @@ type (
 
 	// Pool health monitor
 	Monitor struct {
-		Name      string `json:"name"`
-		Partition string `json:"-"`
-		Interval  int    `json:"interval,omitempty"`
-		Type      string `json:"type,omitempty"`
-		Send      string `json:"send,omitempty"`
-		Recv      string `json:"recv,omitempty"`
-		Timeout   int    `json:"timeout,omitempty"`
+		Name       string `json:"name"`
+		Partition  string `json:"-"`
+		Interval   int    `json:"interval,omitempty"`
+		Type       string `json:"type,omitempty"`
+		Send       string `json:"send,omitempty"`
+		Recv       string `json:"recv,omitempty"`
+		Timeout    int    `json:"timeout,omitempty"`
+		SslProfile string `json:"sslProfile,omitempty"`
 	}
 	Monitors []Monitor
 
@@ -322,12 +323,13 @@ type (
 	// This is the format for each item in the health monitor annotation used
 	// in the Ingress and Route objects.
 	AnnotationHealthMonitor struct {
-		Path     string `json:"path"`
-		Interval int    `json:"interval"`
-		Send     string `json:"send"`
-		Recv     string `json:"recv"`
-		Timeout  int    `json:"timeout"`
-		Type     string `json:"type"`
+		Path       string `json:"path"`
+		Interval   int    `json:"interval"`
+		Send       string `json:"send"`
+		Recv       string `json:"recv"`
+		Timeout    int    `json:"timeout"`
+		Type       string `json:"type"`
+		SslProfile string `json:"sslProfile"`
 	}
 	AnnotationHealthMonitors []AnnotationHealthMonitor
 

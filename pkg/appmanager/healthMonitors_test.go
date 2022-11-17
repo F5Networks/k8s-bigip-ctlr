@@ -117,13 +117,14 @@ var _ = Describe("Health Monitor Tests", func() {
 			hm.Timeout = 5
 
 			Expect(hm).To(MatchAllFields(Fields{
-				"Name":      Equal("svc"),
-				"Partition": Equal("f5"),
-				"Interval":  Equal(10),
-				"Type":      Equal("http"),
-				"Send":      Equal("GET / HTTP/1.0"),
-				"Recv":      Equal("Hello from"),
-				"Timeout":   Equal(5),
+				"Name":       Equal("svc"),
+				"Partition":  Equal("f5"),
+				"Interval":   Equal(10),
+				"Type":       Equal("http"),
+				"Send":       Equal("GET / HTTP/1.0"),
+				"Recv":       Equal("Hello from"),
+				"Timeout":    Equal(5),
+				"SslProfile": Equal(""),
 			}))
 		})
 
@@ -137,13 +138,14 @@ var _ = Describe("Health Monitor Tests", func() {
 			hm.Recv = "Hello from"
 			hm.Timeout = 5
 			Expect(hm).To(MatchAllFields(Fields{
-				"Name":      Equal("svc"),
-				"Partition": Equal("f5"),
-				"Interval":  Equal(10),
-				"Type":      Equal("https"),
-				"Send":      Equal("GET / HTTP/1.0"),
-				"Recv":      Equal("Hello from"),
-				"Timeout":   Equal(5),
+				"Name":       Equal("svc"),
+				"Partition":  Equal("f5"),
+				"Interval":   Equal(10),
+				"Type":       Equal("https"),
+				"Send":       Equal("GET / HTTP/1.0"),
+				"Recv":       Equal("Hello from"),
+				"Timeout":    Equal(5),
+				"SslProfile": Equal(""),
 			}))
 		})
 
@@ -178,12 +180,13 @@ var _ = Describe("Health Monitor Tests", func() {
 			ahm.Type = "http"
 
 			Expect(ahm).To(MatchAllFields(Fields{
-				"Path":     Equal("/foo"),
-				"Interval": Equal(10),
-				"Send":     Equal("GET / HTTP/1.0"),
-				"Recv":     Equal("Hello from"),
-				"Timeout":  Equal(5),
-				"Type":     Equal("http"),
+				"Path":       Equal("/foo"),
+				"Interval":   Equal(10),
+				"Send":       Equal("GET / HTTP/1.0"),
+				"Recv":       Equal("Hello from"),
+				"Timeout":    Equal(5),
+				"Type":       Equal("http"),
+				"SslProfile": Equal(""),
 			}))
 		})
 
@@ -290,6 +293,25 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, false)
+
+			// SSLPROFILE The third test omits the host part of the path
+			ing.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
+			{
+				"path":     "/",
+				"type":     "https",
+				"send":     "HTTPS GET /test4",
+				"sslProfile": "/Common/serverssl",
+				"interval": 5,
+				"timeout":  10
+			}]`
+			r = mockMgr.updateIngress(ing)
+			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+			Expect(resources.CountOf(svcKey)).To(Equal(1))
+			vsCfgFoo, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			Expect(found).To(BeTrue())
+			Expect(vsCfgFoo).ToNot(BeNil())
+			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
+			Expect(vsCfgFoo.Monitors[0].SslProfile).To(Equal("/Common/serverssl"))
 		})
 
 		checkMultiServiceHealthMonitor := func(

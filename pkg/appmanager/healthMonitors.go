@@ -98,6 +98,9 @@ func (appMgr *Manager) assignMonitorToPool(
 				Recv:      ruleData.HealthMon.Recv,
 				Timeout:   ruleData.HealthMon.Timeout,
 			}
+			if monitorType == "https" && ruleData.HealthMon.SslProfile != "" {
+				monitor.SslProfile = ruleData.HealthMon.SslProfile
+			}
 			updated = cfg.SetMonitor(&cfg.Pools[poolNdx], monitor)
 		}
 	}

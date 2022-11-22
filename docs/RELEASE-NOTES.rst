@@ -26,7 +26,7 @@ Added Functionality
         * :issues:`2585` Support for multiple clientssl & serverssl profiles in TLS Profiles. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_
         * :issues:`2420` Support for nodeMemberLabel in Transport Server pool. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer/>`_
     * Ingress
-        * Support for sslProfile in HTTPS health monitors for ingress. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/ingress-with-health-monitors.yaml>`_
+        * Support for sslProfile in HTTPS health monitors for ingress. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1/>`_
 
 Bug Fixes
 ````````````

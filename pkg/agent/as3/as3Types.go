@@ -143,7 +143,7 @@ type (
 	as3Service struct {
 		Layer4                 string            `json:"layer4,omitempty"`
 		Source                 string            `json:"source,omitempty"`
-		TranslateServerAddress bool              `json:"translateServerAddress,omitempty"`
+		TranslateServerAddress *bool             `json:"translateServerAddress,omitempty"`
 		TranslateServerPort    bool              `json:"translateServerPort,omitempty"`
 		Class                  string            `json:"class,omitempty"`
 		VirtualAddresses       []string          `json:"virtualAddresses,omitempty"`

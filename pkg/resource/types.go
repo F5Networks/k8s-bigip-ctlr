@@ -83,19 +83,20 @@ type (
 
 	// Virtual server config
 	Virtual struct {
-		Name                  string                `json:"name"`
-		PoolName              string                `json:"pool,omitempty"`
-		Partition             string                `json:"-"`
-		Destination           string                `json:"destination"`
-		Enabled               bool                  `json:"enabled"`
-		IpProtocol            string                `json:"ipProtocol,omitempty"`
-		SourceAddrTranslation SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
-		Policies              []NameRef             `json:"policies,omitempty"`
-		IRules                []string              `json:"rules,omitempty"`
-		Profiles              ProfileRefs           `json:"profiles,omitempty"`
-		Description           string                `json:"description,omitempty"`
-		VirtualAddress        *VirtualAddress       `json:"-"`
-		Mask                  string                `json:"mask,omitempty"`
+		Name                   string                `json:"name"`
+		PoolName               string                `json:"pool,omitempty"`
+		Partition              string                `json:"-"`
+		Destination            string                `json:"destination"`
+		Enabled                bool                  `json:"enabled"`
+		IpProtocol             string                `json:"ipProtocol,omitempty"`
+		SourceAddrTranslation  SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
+		Policies               []NameRef             `json:"policies,omitempty"`
+		IRules                 []string              `json:"rules,omitempty"`
+		Profiles               ProfileRefs           `json:"profiles,omitempty"`
+		Description            string                `json:"description,omitempty"`
+		VirtualAddress         *VirtualAddress       `json:"-"`
+		Mask                   string                `json:"mask,omitempty"`
+		TranslateServerAddress string                `json:"translateAddress"`
 	}
 	Virtuals []Virtual
 
@@ -518,6 +519,7 @@ const F5ClientSslProfileAnnotation = "virtual-server.f5.com/clientssl"
 const F5ServerSslProfileAnnotation = "virtual-server.f5.com/serverssl"
 const F5ServerSslSecureAnnotation = "virtual-server.f5.com/secure-serverssl"
 const DefaultSslServerCAName = "openshift_route_cluster_default-ca"
+const F5VSTranslateServerAddress = "virtual-server.f5.com/translate-server-address"
 const F5VsWAFPolicy = "virtual-server.f5.com/waf"
 const OprTypeCreate = "create"
 const OprTypeUpdate = "update"

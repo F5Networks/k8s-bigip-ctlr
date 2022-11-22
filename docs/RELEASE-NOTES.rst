@@ -27,6 +27,7 @@ Added Functionality
         * :issues:`2420` Support for nodeMemberLabel in Transport Server pool. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer/>`_
     * Ingress
         * Support for sslProfile in HTTPS health monitors for ingress. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1/>`_
+        * Support for Translate Address annotation in ingress.
 
 Bug Fixes
 ````````````

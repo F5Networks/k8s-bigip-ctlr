@@ -6,10 +6,6 @@ metadata:
   annotations:
     virtual-server.f5.com/ip:        "1.2.3.4"
     virtual-server.f5.com/partition: "k8s"
-    # Health monitor with sslProfile
-    # virtual-server.f5.com/health: '[{
-    #  "type": "https", "path": "/", "send": "HTTPS GET /", "interval": 2,"timeout": 5,"sslProfile": "/Common/serverssl"
-    # }]'
     virtual-server.f5.com/health: |
       [
         {

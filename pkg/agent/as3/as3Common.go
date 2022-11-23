@@ -340,7 +340,11 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	svc.Layer4 = cfg.Virtual.IpProtocol
 	svc.Source = "0.0.0.0/0"
-	svc.TranslateServerAddress = true
+	transSerAdd := true
+	if cfg.Virtual.TranslateServerAddress == "disabled" {
+		transSerAdd = false
+	}
+	svc.TranslateServerAddress = &transSerAdd
 	svc.TranslateServerPort = true
 
 	svc.Class = "Service_HTTP"

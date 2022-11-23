@@ -1315,6 +1315,62 @@ var _ = Describe("V1 Ingress Tests", func() {
 			}
 			Expect(found).To(BeNil())
 		})
+		It("check translate server address annotation on Ingress", func() {
+			mockMgr.appMgr.AgentName = "cccl"
+			svcName := "svc1"
+			svcPort := 8080
+
+			spec := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
+				DefaultBackend: &netv1.IngressBackend{
+					Service: &netv1.IngressServiceBackend{Name: svcName, Port: netv1.ServiceBackendPort{Number: int32(svcPort)}},
+				},
+			}
+			ing := NewV1Ingress("ingress", "1", namespace, spec,
+				map[string]string{
+					F5VsBindAddrAnnotation: "1.2.3.4",
+					F5VsHttpPortAnnotation: "443",
+				})
+
+			emptyIps := []string{}
+
+			svcPorts := []v1.ServicePort{newServicePort(svcName, int32(svcPort))}
+			fooSvc := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP,
+				svcPorts)
+			readyIps := []string{"10.2.96.0", "10.2.96.1", "10.2.96.2"}
+			endpts := test.NewEndpoints(svcName, "1", "node0", namespace,
+				readyIps, emptyIps, convertSvcPortsToEndpointPorts(svcPorts))
+
+			r := mockMgr.addV1Ingress(ing)
+			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
+
+			r = mockMgr.addService(fooSvc)
+			Expect(r).To(BeTrue(), "Service should be processed.")
+			r = mockMgr.addEndpoints(endpts)
+			Expect(r).To(BeTrue(), "Endpoints should be processed.")
+			resources := mockMgr.resources()
+			Expect(resources.PoolCount()).To(Equal(1))
+
+			rs, _ := resources.Get(
+				ServiceKey{ServiceName: svcName, ServicePort: 8080, Namespace: "default"},
+				FormatIngressVSName("1.2.3.4", 443))
+			Expect(rs.Virtual.TranslateServerAddress == "disabled")
+
+			ing.ObjectMeta.Annotations[F5VSTranslateServerAddress] = "false"
+			r = mockMgr.updateV1Ingress(ing)
+			rs, _ = resources.Get(
+				ServiceKey{ServiceName: svcName, ServicePort: 8080, Namespace: "default"},
+				FormatIngressVSName("1.2.3.4", 443))
+			Expect(rs.Virtual.TranslateServerAddress == "disabled")
+
+			ing.ObjectMeta.Annotations[F5VSTranslateServerAddress] = "true"
+			r = mockMgr.updateV1Ingress(ing)
+			rs, _ = resources.Get(
+				ServiceKey{ServiceName: svcName, ServicePort: 8080, Namespace: "default"},
+				FormatIngressVSName("1.2.3.4", 443))
+			Expect(rs.Virtual.TranslateServerAddress == "enabled")
+			mockMgr.appMgr.AgentName = ""
+		})
 
 		It("configure whitelist annotation, extra spaces, on Ingress", func() {
 			var found *Condition

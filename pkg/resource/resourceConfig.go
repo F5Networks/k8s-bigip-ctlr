@@ -496,6 +496,9 @@ type Resources struct {
 	rm      resourceKeyMap
 	RsMap   ResourceConfigMap
 	objDeps ObjectDependencyMap
+	//Only for ingress. For tracking translate address annotation across multiple ingress for single VS
+	//Namespace Key -> VS key -> List of translate address for all ingress sharing same VS
+	TranslateAddress map[string]map[string][]string
 }
 
 type ResourceInterface interface {

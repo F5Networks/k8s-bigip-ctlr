@@ -804,6 +804,18 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 	for _, policy := range cfg.Policies {
 		sort.Sort(sort.Reverse(&policy.Rules))
 	}
+
+	if appMgr.resources.TranslateAddress == nil {
+		appMgr.resources.TranslateAddress = make(map[string]map[string][]string)
+	}
+	if _, ok := appMgr.resources.TranslateAddress[ing.Namespace]; !ok {
+		appMgr.resources.TranslateAddress[ing.Namespace] = make(map[string][]string)
+	}
+	if transAdd, ok := ing.ObjectMeta.Annotations[F5VSTranslateServerAddress]; ok {
+		appMgr.resources.TranslateAddress[ing.Namespace][cfg.Virtual.Name] = append(appMgr.resources.TranslateAddress[ing.Namespace][cfg.Virtual.Name], transAdd)
+	} else {
+		appMgr.resources.TranslateAddress[ing.Namespace][cfg.Virtual.Name] = append(appMgr.resources.TranslateAddress[ing.Namespace][cfg.Virtual.Name], "")
+	}
 	return &cfg, false
 }
 

@@ -28,6 +28,7 @@ Added Functionality
     * Ingress
         * Support for sslProfile in HTTPS health monitors for ingress. `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/ingress/networkingV1/>`_
         * Support for Translate Address annotation in ingress.
+    * Add support for AS3 3.41.0
 
 Bug Fixes
 ````````````

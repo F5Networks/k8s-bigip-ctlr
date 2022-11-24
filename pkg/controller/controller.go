@@ -102,9 +102,9 @@ const (
 	// AS3 Related constants
 	as3SupportedVersion = 3.18
 	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
-	as3Version        = 3.38
-	defaultAS3Version = "3.38.0"
-	defaultAS3Build   = "3"
+	as3Version        = 3.41
+	defaultAS3Version = "3.41.0"
+	defaultAS3Build   = "1"
 )
 
 // NewController creates a new Controller Instance.

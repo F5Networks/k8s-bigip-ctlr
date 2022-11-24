@@ -2024,8 +2024,7 @@ func (appMgr *Manager) syncIngresses(
 func (appMgr *Manager) HandleTranslateAddress(sKey serviceQueueKey, stats *vsSyncStats) {
 	// Process for all ingress in a namespace
 	// Multiple ingress sharing same VS will have below logic applied
-	// In CCCL mode - default is disable. Enable if anyone ingress is having annotation true
-	// In AS3 mode - default is enable. Enable if anyone ingress is having annotation true / no annotation defined across all ingress
+	// default is enable. Enable if anyone ingress is having annotation true / no annotation defined across all ingress
 	if appMgr.resources.TranslateAddress == nil {
 		return
 	}
@@ -2034,37 +2033,19 @@ func (appMgr *Manager) HandleTranslateAddress(sKey serviceQueueKey, stats *vsSyn
 	if vsMap, ok := appMgr.resources.TranslateAddress[sKey.Namespace]; ok {
 		for vs, _ := range vsMap {
 			if _, ok := appMgr.resources.RsMap[vs]; ok {
-				if appMgr.AgentName == CCCLAgent {
-					//for cccl disabled by default
-					if appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress == "" {
-						appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress = "disabled"
-					}
-
-					if CheckFlag(appMgr.resources.TranslateAddress[sKey.Namespace][vs], "true") {
-						if appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress != "enabled" {
-							appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress = "enabled"
-							stats.vsUpdated += 1
-						}
-					} else if appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress != "disabled" {
+				if appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress == "" {
+					appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress = "enabled"
+				}
+				// if set false explicitly
+				if !CheckFlag(appMgr.resources.TranslateAddress[sKey.Namespace][vs], "true") &&
+					CheckFlag(appMgr.resources.TranslateAddress[sKey.Namespace][vs], "false") {
+					if appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress != "disabled" {
 						appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress = "disabled"
 						stats.vsUpdated += 1
 					}
-				} else {
-					//for as3 enabled by default
-					if appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress == "" {
-						appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress = "enabled"
-					}
-					// if set false explicitly
-					if !CheckFlag(appMgr.resources.TranslateAddress[sKey.Namespace][vs], "true") &&
-						CheckFlag(appMgr.resources.TranslateAddress[sKey.Namespace][vs], "false") {
-						if appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress != "disabled" {
-							appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress = "disabled"
-							stats.vsUpdated += 1
-						}
-					} else if appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress != "enabled" {
-						appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress = "enabled"
-						stats.vsUpdated += 1
-					}
+				} else if appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress != "enabled" {
+					appMgr.resources.RsMap[vs].Virtual.TranslateServerAddress = "enabled"
+					stats.vsUpdated += 1
 				}
 			}
 		}

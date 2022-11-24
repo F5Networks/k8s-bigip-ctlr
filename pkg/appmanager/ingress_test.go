@@ -1316,7 +1316,6 @@ var _ = Describe("V1 Ingress Tests", func() {
 			Expect(found).To(BeNil())
 		})
 		It("check translate server address annotation on Ingress", func() {
-			mockMgr.appMgr.AgentName = "cccl"
 			svcName := "svc1"
 			svcPort := 8080
 
@@ -1354,22 +1353,21 @@ var _ = Describe("V1 Ingress Tests", func() {
 			rs, _ := resources.Get(
 				ServiceKey{ServiceName: svcName, ServicePort: 8080, Namespace: "default"},
 				FormatIngressVSName("1.2.3.4", 443))
-			Expect(rs.Virtual.TranslateServerAddress == "disabled")
+			Expect(rs.Virtual.TranslateServerAddress).To(Equal("enabled"))
 
 			ing.ObjectMeta.Annotations[F5VSTranslateServerAddress] = "false"
 			r = mockMgr.updateV1Ingress(ing)
 			rs, _ = resources.Get(
 				ServiceKey{ServiceName: svcName, ServicePort: 8080, Namespace: "default"},
 				FormatIngressVSName("1.2.3.4", 443))
-			Expect(rs.Virtual.TranslateServerAddress == "disabled")
+			Expect(rs.Virtual.TranslateServerAddress).To(Equal("disabled"))
 
 			ing.ObjectMeta.Annotations[F5VSTranslateServerAddress] = "true"
 			r = mockMgr.updateV1Ingress(ing)
 			rs, _ = resources.Get(
 				ServiceKey{ServiceName: svcName, ServicePort: 8080, Namespace: "default"},
 				FormatIngressVSName("1.2.3.4", 443))
-			Expect(rs.Virtual.TranslateServerAddress == "enabled")
-			mockMgr.appMgr.AgentName = ""
+			Expect(rs.Virtual.TranslateServerAddress).To(Equal("enabled"))
 		})
 
 		It("configure whitelist annotation, extra spaces, on Ingress", func() {

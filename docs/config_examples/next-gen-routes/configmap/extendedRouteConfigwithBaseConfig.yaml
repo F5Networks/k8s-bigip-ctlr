@@ -19,6 +19,6 @@ data:
       vserverAddr: 10.8.0.4
       vserverName: nextgenroutes
       allowOverride: true
-    - allowOverride: false
-      namespace: bar
+    - namespace: bar
       vserverAddr: 10.8.0.5
+      allowOverride: false

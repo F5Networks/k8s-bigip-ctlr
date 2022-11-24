@@ -101,26 +101,9 @@ Base route configuration can be defined in Global ConfigMap. This cannot be over
 | namespace | Mandatory | namespace to group the routes | - | Local and Global configMap |
 | vsAddress | Mandatory | BigIP Virtual Server IP Address | - | Local and Global configMap |
 | vsName | Optional | Name of BigIP Virtual Server | auto | Local and Global configMap |
-| tls | Optional |  Dictionary of client and server SSL profiles (See next section). | - | Local and Global configMap |
 
   **Note**: 1. namespaceLabel is mutually exclusive with namespace parameter.
             2. --namespace-label parameter has to be defined in CIS deployment to use the namespaceLabel in extended configMap.
-
-#### TLS Config Parameters
-
-| Parameter | Required | Description | Default | ConfigMap |
-| --------- | -------- | ----------- | ------- | --------- |
-| clientSSL | Optional |  client SSL profile | - | Local and Global configMap |
-| serverSSL | Optional |  server SSL profile | - | Local and Global configMap |
-| reference | Mandatory |  Profile Object type  | - | Local and Global configMap |
-
-* tls schema:
-```
- tls:
-        clientSSL: /Common/clientssl
-        serverSSL: /Common/serverssl
-        reference: bigip
-```
 
 ## Example Global & Local ConfigMap with namespace parameter
 **Example: Global Configmap**

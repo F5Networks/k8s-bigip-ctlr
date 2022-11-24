@@ -1077,18 +1077,11 @@ type (
 		VServerAddr   string `yaml:"vserverAddr"`
 		AllowOverride string `yaml:"allowOverride"`
 		Policy        string `yaml:"policyCR,omitempty"`
-		TLS           TLS    `yaml:"tls"`
 		Meta          Meta
 	}
 
 	Meta struct {
 		DependsOnTLS bool
-	}
-
-	TLS struct {
-		ClientSSL string `yaml:"clientSSL,omitempty"`
-		ServerSSL string `yaml:"serverSSL,omitempty"`
-		Reference string `yaml:"reference,omitempty"`
 	}
 
 	BaseRouteConfig struct {

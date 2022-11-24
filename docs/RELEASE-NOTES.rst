@@ -10,11 +10,12 @@ Added Functionality
     * Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
         * Support for health monitors using route annotations See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
         * Policy CR integration with extended ConfigMap
-        * Support for TLS profiles as K8S secrets in next generation routes. See `Example <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/configmap>`_
+        * Support for TLS profiles as K8S secrets in route annotations. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
         * Support Path based A/B deployment for Re-encrypt termination
         * Support to create Health Monitor from the pod liveness probe that route exposes. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
         * Support for Default SSL profiles from baseRouteSpec in extended Configmap
         * GSLB support for routes in AS3 mode
+        * Support for TLS profiles as route annotations. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes/routes>`_
     * CRD
         * CIS configures GTM configuration in default partition
         * Pool reselect support for VS and TS

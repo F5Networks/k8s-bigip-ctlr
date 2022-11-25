@@ -96,7 +96,7 @@ type (
 		Description            string                `json:"description,omitempty"`
 		VirtualAddress         *VirtualAddress       `json:"-"`
 		Mask                   string                `json:"mask,omitempty"`
-		TranslateServerAddress string                `json:"translateAddress"`
+		TranslateServerAddress string                `json:"translateAddress,omitempty"`
 	}
 	Virtuals []Virtual
 

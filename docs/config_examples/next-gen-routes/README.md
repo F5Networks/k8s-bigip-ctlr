@@ -470,6 +470,77 @@ Label the namespaces:
 * Routes in namespace foo and bar will be mapped into a single group, and a virtual server will be created in the **dev** partition on bigip.
 * Routes in namespace gamma and echo will be grouped together, and a virtual server will be created in **test** partition in bigip, which is defined in the CIS deployment.
 
+## Example GSLB support for routes in AS3 mode
+
+
+* CIS supports only AS3 for GTM in NextGen routes
+
+1) Configure CIS args to AS3 agent:
+```
+- args:
+- --bigip-partition
+- test
+- --cccl-gtm-agent=false
+```
+
+2) Create a route with a host in namespace matching route group
+```
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  labels:
+    name: svc1
+    f5type: systest
+  name: svc1-route-edge
+  namespace: foo
+spec:
+  host: foo.com
+  path: "/"
+  port:
+    targetPort: 443
+  tls:
+    certificate: |
+      -----BEGIN CERTIFICATE-----
+      -----END CERTIFICATE-----
+    key: |
+      -----BEGIN PRIVATE KEY-----
+      -----END PRIVATE KEY-----
+    termination: edge
+  to:
+    kind: Service
+    name: svc1
+```
+
+3) Create a EDNS resource with domain name
+```
+apiVersion: "cis.f5.com/v1"
+kind: ExternalDNS
+metadata:
+  name: exdns-foo
+  labels:
+    f5cr: "true"
+spec:
+  domainName: foo.com
+  dnsRecordType: A
+  loadBalanceMethod: round-robin
+  pools:
+  - name: pytest-foo-1.com
+    dnsRecordType: A
+    loadBalanceMethod: round-robin
+    dataServerName: /Common/DC-SL
+    monitor:
+      type: https
+      send: "GET /"
+      recv: ""
+      interval: 10
+      timeout: 10
+```
+
+**Note**:
+1)  Before creating EDNS resource, we need to have LTM objects on BigIP
+2) CCCL mode is not supported.
+3) Like CRD's, all EDNS resources will be created in default partition in BigIP
+
 ## Legacy vs next generation routes feature comparison
 
 Unsupported features/annotations in next-gen routes are planned to be supported in upcoming releases:

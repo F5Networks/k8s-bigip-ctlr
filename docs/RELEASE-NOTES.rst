@@ -14,7 +14,7 @@ Added Functionality
         * Support Path based A/B deployment for Re-encrypt termination
         * Support to create Health Monitor from the pod liveness probe that route exposes. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
         * Support for Default SSL profiles from baseRouteSpec in extended Configmap
-        * GSLB support for routes
+        * GSLB support for routes in AS3 mode
     * CRD
         * CIS configures GTM configuration in default partition
         * Pool reselect support for VS and TS
@@ -190,18 +190,18 @@ Known Issues
 -------------
 Bug Fixes
 ````````````
-* :issues:`2030` Changes to Ingress resource ServicePort are now reflected on BIG-IP.
-* :issues:`2205` Bulk deletion of EDNS handled properly.
-* :issues:`2255` ServicePort is now optional and multi-port service handled properly in ConfigMaps.
-* :issues:`2164` CIS properly updates configuration in BIGIP when configured with agent CCCL and log-level DEBUG.
-* :issues:`2191` CIS properly logs iApps when configured with agent CCCL.
-* :issues:`2220` CRD VirtualServer status reported correctly when using hostGroup.
-* :issues:`2209` ConfigMap errors logs now contain ConfigMap name and namespace.
+* :issues: 2030  Changes to Ingress resource ServicePort are now reflected on BIG-IP.
+* :issues: 2205  Bulk deletion of EDNS handled properly.
+* :issues: 2255  ServicePort is now optional and multi-port service handled properly in ConfigMaps.
+* :issues: 2164  CIS properly updates configuration in BIGIP when configured with agent CCCL and log-level DEBUG.
+* :issues: 2191  CIS properly logs iApps when configured with agent CCCL.
+* :issues: 2220  CRD VirtualServer status reported correctly when using hostGroup.
+* :issues: 2209  ConfigMap errors logs now contain ConfigMap name and namespace.
 * SR - CIS configured in CCCL agent mode properly updates BIG-IP when there are no backend pods to iApps ConfigMaps
 
 FIC Bug Fixes
 ````````````````
-* :issues:`98` IPAM Storage initialisation handled properly.
+* :issues: 98  IPAM Storage initialisation handled properly.
 
 2.8.0
 -------------
@@ -221,12 +221,12 @@ Bug Fixes
 ````````````
 * Added fix for processing oldest route when same host and path in routes
 * Added fix for cis crash with routes
-* :issues:`2212` Fix ExternalDNS adds both VSs to a Wide IP pool with using "httpTraffic: allow" with VS CR
-* :issues:`2221` Fixed Error in CIS logs while deleting multiple VS CRD
-* :issues:`2222` Fix deleting VirtualServer using hostGroup
-* :issues:`2233` TS and VS CRD don't detect the pool members for grafana service
-* :issues:`2234` Fix for CIS crash with subsequent creation and deletion of wrong ConfigMap
-* :issues:`2077` CIS deletes all existing ARP on restart and recreates it, which affects traffic
+* :issues: 2212  Fix ExternalDNS adds both VSs to a Wide IP pool with using "httpTraffic: allow" with VS CR
+* :issues: 2221  Fixed Error in CIS logs while deleting multiple VS CRD
+* :issues: 2222  Fix deleting VirtualServer using hostGroup
+* :issues: 2233  TS and VS CRD don't detect the pool members for grafana service
+* :issues: 2234  Fix for CIS crash with subsequent creation and deletion of wrong ConfigMap
+* :issues: 2077  CIS deletes all existing ARP on restart and recreates it, which affects traffic
 
 2.7.1
 -------------
@@ -235,13 +235,13 @@ Bug Fixes
 * Optimized processing of ConfigMaps with FilterTenants enabled
 * Added support for multihost VS policy rules for same path and service backend combination
 * Improved error handling with EDNS Custom resource
-* :issues:`1872` Support protocol UDP in Services of type LoadBalancer
-* :issues:`1918` ExternalDNS adds both VSs to a Wide IP pool
-* :issues:`2051` Fix AS3 Postdelay issue when error occurs
-* :issues:`2077` Fix recreating ARPs when CIS restarts
-* :issues:`2172` Fix Endpoint NodeName validation issue
+* :issues: 1872 Support protocol UDP in Services of type LoadBalancer
+* :issues: 1918 ExternalDNS adds both VSs to a Wide IP pool
+* :issues: 2051 Fix AS3 Postdelay issue when error occurs
+* :issues: 2077 Fix recreating ARPs when CIS restarts
+* :issues: 2172 Fix Endpoint NodeName validation issue
 * Helm Chart Enhancements:
-    - issues:`2184` Helm Chart ClusterRole does not have correct permissions
+    - issues: 2184 Helm Chart ClusterRole does not have correct permissions
 
 FIC Enhancements
 ````````````````

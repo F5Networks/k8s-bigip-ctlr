@@ -292,7 +292,7 @@ func _init() {
 	// TODO: Rephrase agent functionality
 	agent = bigIPFlags.String("agent", "as3",
 		"Optional, when set to cccl, orchestration agent will be CCCL instead of AS3")
-	ccclGtmAgent = bigIPFlags.Bool("ccclGtmAgent", true,
+	ccclGtmAgent = bigIPFlags.Bool("cccl-gtm-agent", true,
 		"Optional, Option to configure GTM objects using CCCL or AS3 Agent. Default Agent is CCCL.")
 	overrideAS3UsageStr := "Optional, provide Namespace and Name of that ConfigMap as <namespace>/<configmap-name>." +
 		"The JSON key/values from this ConfigMap will override key/values from internally generated AS3 declaration."

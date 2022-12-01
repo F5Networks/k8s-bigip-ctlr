@@ -19,6 +19,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 
 	"net"
 	"reflect"
@@ -101,6 +102,14 @@ const (
 	Secret = "secret"
 	// reference for routes
 	Certificate = "certificate"
+)
+
+// constants for SSL options
+const (
+	AnnotationSSLOption       = "annotation"
+	RouteCertificateSSLOption = "routeCertificate"
+	DefaultSSLOption          = "defaultSSL"
+	InvalidSSLOption          = "invalid"
 )
 
 func NewCustomProfile(
@@ -1882,7 +1891,6 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 			VServerName:   extdSpec.global.VServerName,
 			VServerAddr:   extdSpec.global.VServerAddr,
 			AllowOverride: extdSpec.global.AllowOverride,
-			TLS:           extdSpec.global.TLS,
 		}
 
 		if extdSpec.local.VServerName != "" {
@@ -1893,9 +1901,6 @@ func (rs *ResourceStore) getExtendedRouteSpec(routeGroup string) (*ExtendedRoute
 		}
 		if extdSpec.local.Policy != "" {
 			ergc.Policy = extdSpec.local.Policy
-		}
-		if extdSpec.local.TLS != (TLS{}) {
-			ergc.TLS = extdSpec.local.TLS
 		}
 
 		return ergc, extdSpec.partition
@@ -1910,8 +1915,7 @@ func (ctlr *Controller) handleRouteTLS(
 	rsCfg *ResourceConfig,
 	route *routeapi.Route,
 	vServerAddr string,
-	servicePort intstr.IntOrString,
-	extdSpec *ExtendedRouteGroupSpec) bool {
+	servicePort intstr.IntOrString) bool {
 
 	if route.Spec.TLS == nil {
 		// Probably this is a non-tls route, nothing to do w.r.t TLS
@@ -1919,63 +1923,73 @@ func (ctlr *Controller) handleRouteTLS(
 	}
 	var tlsReferenceType string
 	bigIPSSLProfiles := BigIPSSLProfiles{}
-
-	//If TLS config is present in the global configmap look for the bigIPReference
-	if extdSpec.TLS != (TLS{}) && (extdSpec.TLS.Reference == BIGIP || extdSpec.TLS.Reference == Secret) {
-		tlsReferenceType = extdSpec.TLS.Reference
-		if route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
-			if extdSpec.TLS.ClientSSL == "" {
-				return false
+	sslProfileOption := ctlr.getSSLProfileOption(route)
+	switch sslProfileOption {
+	case "":
+		break
+	case AnnotationSSLOption:
+		if clientSSL, ok := route.ObjectMeta.Annotations[resource.F5ClientSslProfileAnnotation]; ok {
+			if len(strings.Split(clientSSL, "/")) > 1 {
+				tlsReferenceType = BIGIP
+			} else {
+				tlsReferenceType = Secret
 			}
-			if route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt && extdSpec.TLS.ServerSSL == "" {
-				return false
-			}
-
-			bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, extdSpec.TLS.ClientSSL)
+			bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, clientSSL)
+			serverSSL, ok := route.ObjectMeta.Annotations[resource.F5ServerSslProfileAnnotation]
 			if route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
-				bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, extdSpec.TLS.ServerSSL)
-			}
-		}
-	} else if route.Spec.TLS != nil && route.Spec.TLS.Termination != TLSPassthrough {
-		// Check for default tls in baseRouteSpec
-		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) && ctlr.resources.baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) &&
-			ctlr.resources.baseRouteConfig.DefaultTLS.Reference == BIGIP {
-			tlsReferenceType = BIGIP
-
-			if ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL == "" {
-				return false
-			}
-			bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL)
-
-			if route.Spec.TLS.Termination == TLSReencrypt {
-				if ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL == "" {
+				if !ok {
 					return false
 				}
-				bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL)
+				bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, serverSSL)
 			}
-		} else {
-			tlsReferenceType = Certificate
 
-			if route.Spec.TLS.Key != "" {
-				bigIPSSLProfiles.key = route.Spec.TLS.Key
-			}
-			if route.Spec.TLS.Certificate != "" {
-				bigIPSSLProfiles.certificate = route.Spec.TLS.Certificate
-			}
-			if route.Spec.TLS.CACertificate != "" {
-				bigIPSSLProfiles.caCertificate = route.Spec.TLS.CACertificate
-			}
-			if route.Spec.TLS.DestinationCACertificate != "" {
-				bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
-			}
 		}
-
+	case RouteCertificateSSLOption:
+		tlsReferenceType = Certificate
+		if route.Spec.TLS.Key != "" {
+			bigIPSSLProfiles.key = route.Spec.TLS.Key
+		}
+		if route.Spec.TLS.Certificate != "" {
+			bigIPSSLProfiles.certificate = route.Spec.TLS.Certificate
+		}
+		if route.Spec.TLS.CACertificate != "" {
+			bigIPSSLProfiles.caCertificate = route.Spec.TLS.CACertificate
+		}
+		if route.Spec.TLS.DestinationCACertificate != "" {
+			bigIPSSLProfiles.destinationCACertificate = route.Spec.TLS.DestinationCACertificate
+		}
+		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
 		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
 			//Flag to track the route groups which are using TLS Ciphers
 			ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
 				DependsOnTLS: true,
 			}
 		}
+	case DefaultSSLOption:
+		// Check for default tls in baseRouteSpec
+		tlsReferenceType = BIGIP
+
+		if ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL == "" {
+			return false
+		}
+		bigIPSSLProfiles.clientSSLs = append(bigIPSSLProfiles.clientSSLs, ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL)
+
+		if route.Spec.TLS.Termination == TLSReencrypt {
+			if ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL == "" {
+				return false
+			}
+			bigIPSSLProfiles.serverSSLs = append(bigIPSSLProfiles.serverSSLs, ctlr.resources.baseRouteConfig.DefaultTLS.ServerSSL)
+		}
+		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
+		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
+			//Flag to track the route groups which are using TLS Ciphers
+			ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+				DependsOnTLS: true,
+			}
+		}
+	default:
+		log.Errorf("Missing certificate/key/SSL profile annotation/defaultSSL for route: %v", route.ObjectMeta.Name)
+		return false
 	}
 
 	var poolPathRefs []poolPathRef
@@ -2030,4 +2044,27 @@ func (ctlr *Controller) handleRouteTLS(
 		poolPathRefs,
 		bigIPSSLProfiles,
 	})
+}
+
+/*
+	getSSLProfileOption returns which ssl profile option to be used for the route
+	Examples: annotation, routeCertificate, defaultSSL, invalid
+*/
+func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route) string {
+	sslProfileOption := ""
+	if route == nil || route.Spec.TLS == nil || route.Spec.TLS.Termination == routeapi.TLSTerminationPassthrough {
+		return sslProfileOption
+	}
+	if _, ok := route.ObjectMeta.Annotations[resource.F5ClientSslProfileAnnotation]; ok {
+		sslProfileOption = AnnotationSSLOption
+	} else if route.Spec.TLS != nil && route.Spec.TLS.Key != "" && route.Spec.TLS.Certificate != "" {
+		sslProfileOption = RouteCertificateSSLOption
+	} else if ctlr.resources != nil && ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) &&
+		ctlr.resources.baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) &&
+		ctlr.resources.baseRouteConfig.DefaultTLS.Reference == BIGIP {
+		sslProfileOption = DefaultSSLOption
+	} else {
+		sslProfileOption = InvalidSSLOption
+	}
+	return sslProfileOption
 }

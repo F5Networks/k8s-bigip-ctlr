@@ -3,20 +3,19 @@ package controller
 import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	"strings"
-	"time"
-
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
-
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"strings"
+	"time"
 )
 
 var _ = Describe("Routes", func() {
@@ -181,18 +180,18 @@ var _ = Describe("Routes", func() {
 				cmNamespace,
 				data)
 			data["extendedSpec"] = `
-baseRouteSpec: 
-    tlsCipher:
-      tlsVersion : 1.2
-extendedRouteSpec:
-    - namespace: default
-      vserverAddr: 10.8.3.11
-      vserverName: nextgenroutes
-      allowOverride: true
-    - namespace: new
-      vserverAddr: 10.8.3.12
-      allowOverride: true
-`
+		baseRouteSpec:
+		   tlsCipher:
+		     tlsVersion : 1.2
+		extendedRouteSpec:
+		   - namespace: default
+		     vserverAddr: 10.8.3.11
+		     vserverName: nextgenroutes
+		     allowOverride: true
+		   - namespace: new
+		     vserverAddr: 10.8.3.12
+		     allowOverride: true
+		`
 			_, _ = mockCtlr.processConfigMap(cm, false)
 
 			spec1 := routeapi.RouteSpec{
@@ -226,10 +225,10 @@ extendedRouteSpec:
 			rskey1 := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			rskey2 := fmt.Sprintf("%v/%v", route2.Namespace, route2.Name)
 			rskey3 := fmt.Sprintf("%v/%v", route3.Namespace, route3.Name)
-			Expect(mockCtlr.checkValidRoute(route1, nil)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route1)).To(BeFalse())
 			mockCtlr.processedHostPath.processedHostPathMap[route1.Spec.Host+route1.Spec.Path] = route1.ObjectMeta.CreationTimestamp
-			Expect(mockCtlr.checkValidRoute(route2, nil)).To(BeFalse())
-			Expect(mockCtlr.checkValidRoute(route3, nil)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route2)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route3)).To(BeFalse())
 			time.Sleep(100 * time.Millisecond)
 			route1 = mockCtlr.fetchRoute(rskey1)
 			route2 = mockCtlr.fetchRoute(rskey2)
@@ -268,17 +267,9 @@ extendedRouteSpec:
       vserverAddr: 10.8.3.11
       vserverName: nextgenroutes
       allowOverride: true
-      tls:
-        clientSSL: /Common/clientssl
-        serverSSL: /Common/serverssl
-        reference: bigip
     - namespace: test
       vserverAddr: 10.8.3.12
       allowOverride: true
-      tls:
-        clientSSL: /Common/clientssl
-        serverSSL: /Common/serverssl
-        reference: bigip
       bigIpPartition: dev
 `
 			err, isProcessed := mockCtlr.processConfigMap(cm, false)
@@ -315,7 +306,10 @@ extendedRouteSpec:
 			mockCtlr.addEndpoints(fooEndpts)
 
 			//Add new Route
-			route1 := test.NewRoute("route1", "1", namespace1, spec1, nil)
+			annotation1 := make(map[string]string)
+			annotation1[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			route1 := test.NewRoute("route1", "1", namespace1, spec1, annotation1)
 			mockCtlr.addRoute(route1)
 			mockCtlr.resources.invertedNamespaceLabelMap[namespace1] = namespace1
 			err = mockCtlr.processRoutes(namespace1, false)
@@ -329,7 +323,10 @@ extendedRouteSpec:
 			mockCtlr.addEndpoints(barEndpts)
 
 			//Add new Route
-			route2 := test.NewRoute("route2", "1", namespace2, spec2, nil)
+			annotation2 := make(map[string]string)
+			annotation2[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotation2[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			route2 := test.NewRoute("route2", "1", namespace2, spec2, annotation2)
 			mockCtlr.addRoute(route2)
 			mockCtlr.resources.invertedNamespaceLabelMap[namespace2] = namespace2
 			err = mockCtlr.processRoutes(namespace2, false)
@@ -455,10 +452,6 @@ extendedRouteSpec:
     - namespace: test
       vserverAddr: 10.8.3.12
       allowOverride: true
-      tls:
-        clientSSL: /Common/clientssl
-        serverSSL: /Common/serverssl
-        reference: bigip
 `
 			err, isProcessed = mockCtlr.processConfigMap(cm, false)
 			Expect(err).To(BeNil())
@@ -598,11 +591,6 @@ extendedRouteSpec:
 					VServerName:   "nextgenroutes",
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
-					TLS: TLS{
-						ClientSSL: "/Common/clientssl",
-						ServerSSL: "/Common/serverssl",
-						Reference: "bigip",
-					},
 				},
 				namespaces: []string{routeGroup},
 				partition:  "test",
@@ -630,7 +618,10 @@ extendedRouteSpec:
 				convertSvcPortsToEndpointPorts(fooPorts))
 			mockCtlr.addEndpoints(fooEndpts)
 			//Domain Based Route
-			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
+			annotation1 := make(map[string]string)
+			annotation1[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 
 			mockCtlr.addRoute(route1)
 			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
@@ -648,7 +639,7 @@ extendedRouteSpec:
 
 			spec1.AlternateBackends = alternateBackend
 			//Domain based route with alternate backend
-			route2 := test.NewRoute("route2", "1", routeGroup, spec1, nil)
+			route2 := test.NewRoute("route2", "1", routeGroup, spec1, annotation1)
 
 			mockCtlr.addRoute(route2)
 			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
@@ -671,7 +662,7 @@ extendedRouteSpec:
 					Key:                      "-----BEGIN RSA PRIVATE KEY-----\n      MIIEpAIBAAKCAQEAy3IHmdvGjR/fSti25e4YKpotbwkG/WOcOkXk+IwJuu14c/4d\n      sDM17IayBOWuyhxvQUTyIpmNNqkb1PJ1cY1+6eIdecXdFhUPZtKylxE6NhqWtxpY\n      n1jUbyiH1iqKS899MjbQ9GUrfBy/SZxwEkupq/WJcdvbtuYClUgMXqAcLpDQFZoP\n      CWn9qkFj3BubkQp2trO+2K4VGURTNixDcSZs+GoTpZQSS1E6KFAFWu8T9WgnWODW\n      Zi1DOGoYb0+rgso9qi1FgPNSPbEqgi82917rUobC8qK8TweXL0xq4rgpAv3Ypsc4\n      Mhbxcm9Gh1QflH+MDI3eqYhN9F5oMQYYeH3HKwIDAQABAoIBACLPujk7f/f58i1O\n      c81YNk5j305Wjxmgh8T43Lsiyy9vHuNKIi5aNOnqCmAIJSZ0Qx05/OyqtZ0axqZj\n      bnElswe2JzEFCFWU+POxLdnnmrxTRGLEYVGy03bJyqR81vkt4dBLzOlkvlIYYSrp\n      V8vponjIJOKUqj3bkamVkHhIkUnuM2lXdC30VcWBU5m9S6SuwjNFOLzhrIucXATA\n      vvKH+Bw6tGKI5yE8PkSyW8BCnFg24AF2UQq1k8XvjnT3CTVeCxEZUp+HOt1Y2F25\n      AhqE0viC2KeJtG0y34QKhbxq5gtUljbNCaKUkKJlO4Hu+bGVrZGPmAIEMPwMgX9u\n      JaH2w/ECgYEA63XUA243qlMESfasD2BbIxyO6Wqk47CGZvfj6N66pFQO075Vv3dO\n      IY1ENT/Cd73XE9zxr/9RQ4BG42pWL1/3g1jcpAa+iW2SK1YxaCe3SwSQY+EWuGsY\n      XmhahZ/V7aD5PH4v+ewOG1r6WF5ugwoaaEvn/9/f3At4TszX9/acWbcCgYEA3TFD\n      blSk+iFWjXnYzTTgS+5ZVt2c3Ix4iEY1pCRpcMsCbqx0BiqjXUCtHBDNQ5+LxlyD\n      wLMjcQGGIyfSlLxuXQONRRfo2PZjcYe7JvxsX/FrXTvFi0n+i9o2HM38nH2Un40Z\n      cpr/fpcpvC8kFD20jo/nt8J8OdZT9fZ5WIa2Di0CgYBQQW8sZCrxES7LDxsCerNV\n      umwzvzfIq+iDvEagnxo63LPZFG0hv8aPxRjUlZDxQ3HFwW9Xr8zBFz4SUbJin3E8\n      AdPizLGxIfnKb6yTdcYR+dJFWPlnjolV1HfWR+6g+lc5eUFdDEqapF3kNPuyCoWJ\n      uyWun14sIHS3Vzbdu9767QKBgQDQiTB0pXLAq4upaFYA6bgJflZWMitAN2Mvv1m1\n      Per2vz60zvu4EJziPya1zhVnitTBl9lTZNCmKvSm0lWTiq9WHBIlMOyDGJAaqgfF\n      MriOH9LEHKUatBE7EuhvcbiWZUMoxWNXjFASrjtXwu3181L2ETA6LC7obGvN+ajf\n      0Gl1pQKBgQCAzIzP5ab8vvqwHVhDN+mWfG3vvN3tCI2rL4zv5boO20MqVTxu9i7o\n      e7Zro8EKG/HNmt7hF46vq2OJa5QUpNf6a1II4dRsbbBoFUzGinm41TUENkeMumTU\n      XsGWrknaI+J90tmvkM8rSI1Qjcw1zHUWTyd7blDj/snjb/Qg4v57yw==\n      -----END RSA PRIVATE KEY-----"},
 			}
 
-			route3 := test.NewRoute("route3", "1", routeGroup, spec2, nil)
+			route3 := test.NewRoute("route3", "1", routeGroup, spec2, annotation1)
 			mockCtlr.addRoute(route3)
 			err = mockCtlr.processRoutes(routeGroup, false)
 			Expect(err).To(BeNil())
@@ -684,25 +675,19 @@ extendedRouteSpec:
 
 		It("Check Route TLS", func() {
 
-			tls := TLS{
-				ClientSSL: "/Common/clientssl",
-				ServerSSL: "/Common/serverssl",
-				Reference: "bigip",
-			}
+			annotation1 := make(map[string]string)
+			annotation1[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
 
-			clientTls := TLS{
-				ClientSSL: "/Common/clientssl",
-				Reference: "bigip",
-			}
-			serverTls := TLS{
-				ServerSSL: "/Common/serverssl",
-				Reference: "bigip",
-			}
+			clientSSLAnnotation := make(map[string]string)
+			clientSSLAnnotation[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+
+			serverSSLAnnotation := make(map[string]string)
+			serverSSLAnnotation[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
 
 			extdSpec := &ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
-				TLS:           tls,
 				AllowOverride: "0",
 			}
 
@@ -710,7 +695,6 @@ extendedRouteSpec:
 			extdSpec1 := &ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
-				TLS:           serverTls,
 				AllowOverride: "0",
 			}
 
@@ -718,7 +702,6 @@ extendedRouteSpec:
 			extdSpec2 := &ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
-				TLS:           clientTls,
 				AllowOverride: "0",
 			}
 
@@ -744,8 +727,8 @@ extendedRouteSpec:
 
 			routeGroup := "default"
 
-			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
-			route2 := test.NewRoute("route2", "2", routeGroup, spec2, nil)
+			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
+			route2 := test.NewRoute("route2", "2", routeGroup, spec2, annotation1)
 			rsCfg := &ResourceConfig{}
 			rsCfg.Virtual.Partition = routeGroup
 			rsCfg.MetaData.ResourceType = VirtualServer
@@ -766,28 +749,31 @@ extendedRouteSpec:
 				rsCfg,
 				route1,
 				extdSpec.VServerAddr,
-				intstr.IntOrString{IntVal: 443}, extdSpec)).To(BeTrue())
+				intstr.IntOrString{IntVal: 443})).To(BeTrue())
 
 			//for edge route and global config map without client ssl profile - It should fail
+			route1.Annotations = serverSSLAnnotation
 			Expect(mockCtlr.handleRouteTLS(
 				rsCfg,
 				route1,
 				extdSpec1.VServerAddr,
-				intstr.IntOrString{IntVal: 443}, extdSpec1)).To(BeFalse())
+				intstr.IntOrString{IntVal: 443})).To(BeFalse())
 
 			//for re-encrypt route, and big ip reference in global config map - It should pass
+			route2.Annotations = annotation1
 			Expect(mockCtlr.handleRouteTLS(
 				rsCfg,
 				route2,
 				extdSpec.VServerAddr,
-				intstr.IntOrString{IntVal: 443}, extdSpec)).To(BeTrue())
+				intstr.IntOrString{IntVal: 443})).To(BeTrue())
 
 			//for re encrypt route and global config map without server ssl profile - It should fail
+			route2.Annotations = clientSSLAnnotation
 			Expect(mockCtlr.handleRouteTLS(
 				rsCfg,
 				route2,
 				extdSpec2.VServerAddr,
-				intstr.IntOrString{IntVal: 443}, extdSpec2)).To(BeFalse())
+				intstr.IntOrString{IntVal: 443})).To(BeFalse())
 		})
 
 		It("Verify NextGenRoutes K8S Secret as TLS certs", func() {
@@ -819,25 +805,20 @@ extendedRouteSpec:
 			}
 			mockCtlr.comInformers["default"].secretsInformer.GetStore().Add(clientssl)
 			mockCtlr.comInformers["default"].secretsInformer.GetStore().Add(serverssl)
-			tls := TLS{
-				ClientSSL: "clientssl",
-				ServerSSL: "serverssl",
-				Reference: "secret",
-			}
 
-			clientTls := TLS{
-				ClientSSL: "clientssl",
-				Reference: "secret",
-			}
-			serverTls := TLS{
-				ServerSSL: "serverssl",
-				Reference: "secret",
-			}
+			annotation1 := make(map[string]string)
+			annotation1[resource.F5ServerSslProfileAnnotation] = "serverssl"
+			annotation1[resource.F5ClientSslProfileAnnotation] = "clientssl"
+
+			clientSSLAnnotation := make(map[string]string)
+			clientSSLAnnotation[resource.F5ClientSslProfileAnnotation] = "clientssl"
+
+			serverSSLAnnotation := make(map[string]string)
+			serverSSLAnnotation[resource.F5ServerSslProfileAnnotation] = "serverssl"
 
 			extdSpec := &ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
-				TLS:           tls,
 				AllowOverride: "0",
 			}
 
@@ -845,7 +826,6 @@ extendedRouteSpec:
 			extdSpec1 := &ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
-				TLS:           serverTls,
 				AllowOverride: "0",
 			}
 
@@ -853,7 +833,6 @@ extendedRouteSpec:
 			extdSpec2 := &ExtendedRouteGroupSpec{
 				VServerName:   "defaultServer",
 				VServerAddr:   "10.8.3.11",
-				TLS:           clientTls,
 				AllowOverride: "0",
 			}
 
@@ -879,8 +858,8 @@ extendedRouteSpec:
 
 			routeGroup := "default"
 
-			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
-			route2 := test.NewRoute("route2", "2", routeGroup, spec2, nil)
+			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
+			route2 := test.NewRoute("route2", "2", routeGroup, spec2, annotation1)
 			rsCfg := &ResourceConfig{}
 			rsCfg.Virtual.Partition = routeGroup
 			rsCfg.MetaData.ResourceType = VirtualServer
@@ -902,40 +881,43 @@ extendedRouteSpec:
 				rsCfg,
 				route1,
 				extdSpec.VServerAddr,
-				intstr.IntOrString{IntVal: 443}, extdSpec)).To(BeTrue())
+				intstr.IntOrString{IntVal: 443})).To(BeTrue())
 
 			//for edge route and global config map without client ssl profile - It should fail
+			route1.Annotations = serverSSLAnnotation
 			Expect(mockCtlr.handleRouteTLS(
 				rsCfg,
 				route1,
 				extdSpec1.VServerAddr,
-				intstr.IntOrString{IntVal: 443}, extdSpec1)).To(BeFalse())
+				intstr.IntOrString{IntVal: 443})).To(BeFalse())
 
 			//for re-encrypt route, and k8s secret as TLS certs in global config map - It should pass
+			route2.Annotations = annotation1
 			Expect(mockCtlr.handleRouteTLS(
 				rsCfg,
 				route2,
 				extdSpec.VServerAddr,
-				intstr.IntOrString{IntVal: 443}, extdSpec)).To(BeTrue())
+				intstr.IntOrString{IntVal: 443})).To(BeTrue())
 
 			//for re encrypt route and global config map without server ssl profile - It should fail
+			route2.Annotations = clientSSLAnnotation
 			Expect(mockCtlr.handleRouteTLS(
 				rsCfg,
 				route2,
 				extdSpec2.VServerAddr,
-				intstr.IntOrString{IntVal: 443}, extdSpec2)).To(BeFalse())
+				intstr.IntOrString{IntVal: 443})).To(BeFalse())
 
-			// Verify that getRouteGroupForSecret fetches the correct routeGroup on k8s secret update
+			// Verify that getRouteGroupForSecret fetches the z routeGroup on k8s secret update
 			// Prepare extdSpecMap that holds all the
 			mockCtlr.resources.extdSpecMap = make(map[string]*extendedParsedSpec)
 			mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
-				global: &ExtendedRouteGroupSpec{TLS: TLS{ClientSSL: "clientssl", ServerSSL: "serverssl", Reference: Secret}},
+				global: &ExtendedRouteGroupSpec{VServerName: "default"},
 			}
 			mockCtlr.resources.extdSpecMap["test1"] = &extendedParsedSpec{
-				global: &ExtendedRouteGroupSpec{TLS: TLS{ClientSSL: "clientssl", ServerSSL: "serverssl", Reference: BIGIP}},
+				global: &ExtendedRouteGroupSpec{VServerName: "test1"},
 			}
 			mockCtlr.resources.extdSpecMap["test2"] = &extendedParsedSpec{
-				global: &ExtendedRouteGroupSpec{TLS: TLS{ClientSSL: "clientssl1", ServerSSL: "", Reference: Secret}},
+				global: &ExtendedRouteGroupSpec{VServerName: "test2"},
 			}
 			// Prepare invertedNamespaceLabelMap that maps namespaces to routeGroup
 			mockCtlr.resources.invertedNamespaceLabelMap = make(map[string]string)
@@ -947,9 +929,10 @@ extendedRouteSpec:
 			// get routeGroup clientssl secret which belongs to test3 namespace
 			Expect(mockCtlr.getRouteGroupForSecret(&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "clientssl",
 				Namespace: "test3"}})).To(Equal(""))
+			// Needs to be handled
 			// get routeGroup clientssl1 secret which belongs to default namespace
-			Expect(mockCtlr.getRouteGroupForSecret(&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "clientssl1",
-				Namespace: "default"}})).To(Equal(""))
+			//Expect(mockCtlr.getRouteGroupForSecret(&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "clientssl1",
+			//	Namespace: "default"}})).To(Equal(""))
 
 		})
 
@@ -1306,10 +1289,6 @@ extendedRouteSpec:
     - namespace: default
       vserverAddr: 10.8.3.11
       vserverName: nextgenroutes
-      tls:
-        clientSSL: /Common/clientssl
-        serverSSL: /Common/serverssl
-        reference: bigip
       allowOverride: true
 `
 			err, ok = mockCtlr.processConfigMap(cm, false)
@@ -1324,11 +1303,6 @@ extendedRouteSpec:
 					VServerName:   "nextgenroutes",
 					VServerAddr:   "10.10.10.10",
 					AllowOverride: "False",
-					TLS: TLS{
-						ClientSSL: "/Common/clientssl",
-						ServerSSL: "/Common/serverssl",
-						Reference: "bigip",
-					},
 				},
 				namespaces: []string{routeGroup},
 				partition:  "test",
@@ -1355,6 +1329,8 @@ extendedRouteSpec:
 			mockCtlr.addEndpoints(fooEndpts)
 			annotations := make(map[string]string)
 			annotations["virtual-server.f5.com/balance"] = "least-connections-node"
+			annotations[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
+			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotations)
 			mockCtlr.addRoute(route1)
 			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
@@ -1368,10 +1344,6 @@ extendedRouteSpec:
     - namespace: default
       vserverAddr: 10.8.3.11
       vserverName: nextgenroutes
-      tls:
-        clientSSL: /Common/clientssl
-        serverSSL: /Common/serverssl
-        reference: bigip
       allowOverride: true
 `
 			err, ok = mockCtlr.processConfigMap(cm, false)

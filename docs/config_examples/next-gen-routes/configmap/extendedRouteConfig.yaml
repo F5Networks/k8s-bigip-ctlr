@@ -10,10 +10,6 @@ data:
       vserverAddr: 10.8.3.11
       vserverName: nextgenroutes
       allowOverride: true
-      tls:
-        clientSSL: /Common/clientssl
-        serverSSL: /Common/serverssl
-        reference: bigip
     - namespace: new
       vserverAddr: 10.8.3.12
       allowOverride: true

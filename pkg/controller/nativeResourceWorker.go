@@ -40,7 +40,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 		return fmt.Errorf("extended Route Spec not available for RouteGroup/Namespace: %v", routeGroup)
 	}
 
-	routes := ctlr.getGroupedRoutes(routeGroup, extdSpec)
+	routes := ctlr.getGroupedRoutes(routeGroup)
 
 	if triggerDelete || len(routes) == 0 {
 		// Delete all possible virtuals for this route group
@@ -108,7 +108,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 			if isSecureRoute(rt) {
 				//TLS Logic
-				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort, extdSpec)
+				processed := ctlr.handleRouteTLS(rsCfg, rt, extdSpec.VServerAddr, servicePort)
 				if !processed {
 					// Processing failed
 					// Stop processing further routes
@@ -158,7 +158,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	return nil
 }
 
-func (ctlr *Controller) getGroupedRoutes(routeGroup string, extdSpec *ExtendedRouteGroupSpec) []*routeapi.Route {
+func (ctlr *Controller) getGroupedRoutes(routeGroup string) []*routeapi.Route {
 	var assocRoutes []*routeapi.Route
 	// Get the route group
 	for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
@@ -168,7 +168,7 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string, extdSpec *ExtendedRo
 		ctlr.TeemData.Unlock()
 		for _, route := range orderedRoutes {
 			// TODO: add combinations for a/b - svc weight ; valid svcs or not
-			if ctlr.checkValidRoute(route, extdSpec) {
+			if ctlr.checkValidRoute(route) {
 				var key string
 				if route.Spec.Path == "/" || len(route.Spec.Path) == 0 {
 					key = route.Spec.Host + "/"
@@ -1308,7 +1308,7 @@ func (ctlr *Controller) fetchRoute(rscKey string) *routeapi.Route {
 	return obj.(*routeapi.Route)
 }
 
-func (ctlr *Controller) checkValidRoute(route *routeapi.Route, extdSpec *ExtendedRouteGroupSpec) bool {
+func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
 	// Validate the hostpath
 	ctlr.processedHostPath.Lock()
 	defer ctlr.processedHostPath.Unlock()
@@ -1327,22 +1327,26 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, extdSpec *Extende
 			return false
 		}
 	}
-
-	// If TLS reference of type BigIP/Secret is configured in ConfigMap, fetch Client and Server SSL profile references
-	if extdSpec != nil && extdSpec.TLS != (TLS{}) && (extdSpec.TLS.Reference == BIGIP || extdSpec.TLS.Reference == Secret) &&
-		route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
-		if extdSpec.TLS.ClientSSL == "" {
-			message := fmt.Sprintf("Missing client SSL profile %s reference in the ConfigMap", extdSpec.TLS.Reference)
+	sslProfileOption := ctlr.getSSLProfileOption(route)
+	switch sslProfileOption {
+	case "":
+		break
+	case AnnotationSSLOption:
+		if _, ok := route.ObjectMeta.Annotations[resource.F5ServerSslProfileAnnotation]; !ok && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
+			message := fmt.Sprintf("Missing server SSL profile in the annotation")
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
-		if extdSpec.TLS.ServerSSL == "" && route.Spec.TLS.Termination == routeapi.TLSTerminationReencrypt {
-			message := fmt.Sprintf("Missing server SSL profile %s reference in the ConfigMap", extdSpec.TLS.Reference)
+	case RouteCertificateSSLOption:
+		// Validate vsHostname if certificate is not provided in SSL annotations
+		ok := checkCertificateHost(route.Spec.Host, []byte(route.Spec.TLS.Certificate), []byte(route.Spec.TLS.Key))
+		if !ok {
+			//Invalid certificate and key
+			message := fmt.Sprintf("Invalid certificate and key for route: %v", route.ObjectMeta.Name)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
-	} else if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) && ctlr.resources.baseRouteConfig.DefaultTLS != (DefaultSSLProfile{}) &&
-		ctlr.resources.baseRouteConfig.DefaultTLS.Reference == BIGIP && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
+	case DefaultSSLOption:
 		if ctlr.resources.baseRouteConfig.DefaultTLS.ClientSSL == "" {
 			message := fmt.Sprintf("Missing client SSL profile %s reference in the ConfigMap - BaseRouteSpec", ctlr.resources.baseRouteConfig.DefaultTLS.Reference)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
@@ -1353,22 +1357,12 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route, extdSpec *Extende
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 			return false
 		}
-	} else if nil != route.Spec.TLS && route.Spec.TLS.Termination != routeapi.TLSTerminationPassthrough {
-		if route.Spec.TLS.Certificate != "" && route.Spec.TLS.Key != "" {
-			// Validate vsHostname if certificate is not provided in SSL annotations
-			ok := checkCertificateHost(route.Spec.Host, []byte(route.Spec.TLS.Certificate), []byte(route.Spec.TLS.Key))
-			if !ok {
-				//Invalid certificate and key
-				message := fmt.Sprintf("Invalid certificate and key for route: %v", route.ObjectMeta.Name)
-				go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
-				return false
-			}
-		} else {
-			message := fmt.Sprintf("Missing certificate/key for route: %v", route.ObjectMeta.Name)
-			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
-			return false
-		}
+	default:
+		message := fmt.Sprintf("Missing certificate/key/SSL profile annotation/defaultSSL for route: %v", route.ObjectMeta.Name)
+		go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
+		return false
 	}
+
 	// Validate the route service exists or not
 	err, _ := ctlr.getServicePort(route)
 	if err != nil {
@@ -1474,15 +1468,9 @@ func (ctlr *Controller) getRouteGroupForSecret(secret *v1.Secret) string {
 		if extdSpec == nil || extdSpec.global == nil {
 			continue
 		}
-		// Skip routeGroups with no TLS and TLS with reference other than secret
-		if extdSpec.global.TLS == (TLS{}) || extdSpec.global.TLS.Reference != Secret {
-			continue
-		}
-		// Check if the updated secret is used in any RouteGroup and, belongs to the same namespace as the RouteGroup
-		if extdSpec.global.TLS.ServerSSL == secret.Name || extdSpec.global.TLS.ClientSSL == secret.Name {
-			if ctlr.resources.invertedNamespaceLabelMap[secret.Namespace] == rg {
-				return rg
-			}
+		// Check if namespace of the secret matches with the namespace of the routes defined in a route group
+		if ctlr.resources.invertedNamespaceLabelMap[secret.Namespace] == rg {
+			return rg
 		}
 	}
 	return ""

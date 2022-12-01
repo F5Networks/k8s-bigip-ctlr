@@ -27,7 +27,7 @@ Support for Custom Resource Definitions [Documentation](https://github.com/F5Net
 Getting Help
 ------------
 
-We encourage you to use the cis-kubernetes channel in our [f5CloudSolutions Slack workspace](https://f5cloudsolutions.herokuapp.com/) for discussion and assistance on this
+We encourage you to use the cis-kubernetes channel in our [f5CloudSolutions Slack workspace](https://f5cloudsolutions.slack.com/)  for discussion and assistance on this
 controller. This channel is typically monitored Monday-Friday 9am-5pm MST by F5
 employees who will offer best-effort support.
 

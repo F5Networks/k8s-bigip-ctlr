@@ -5,36 +5,39 @@ This page documents the behaviour of NextGenController. This is a preview releas
 
 [Overview](#overview)
 
-[Multiple VIP and Partition support for routes](#multiple-vip-and-partition-support-for-routes)
-
 [Prerequisites](#prerequisites)
 
 [Configuration](#configuration)
 
-[ExtendedSpecConfigmap](#extendedspecconfigmap)
+[ExtendedSpecConfigMap](#extendedspecconfigmap)
 
 [Examples](#examples)
 
 [Known Issues](#known-issues)
 
+[FAQ](#faq)
+
 ## Overview
 
-NextGenRoute Controller uses extendedConfigMap for extending the native resources (routes/ingress). Routes are extended using ConfigMap in this preview release. It also adds support for multi-partition and policy CR.
+NextGen Controller uses extendedConfigMap for extending the native resources (routes). Routes are extended using ConfigMap in this release. NextGen Routes implementation also support for multi-partition, policy CR and externalDNS CR.
 
-## Multiple VIP and Partition support for routes
+### Multiple VIP and Partition support for routes
 
 * Current CIS implementation creates a single VIP and partition for all the routes configured. This is implemented to add support for creating multiple VIP in BIG-IP mapping to route groups created per namespace/namespaceLabel.
-* All the routes in the namespace/namespaceLabel are treated as part of one routegroup in this preview release.
-* One virtual server(VIP) is created for each routegroup and maps to each tenant on BIG-IP.
+* All the routes in the namespace/namespaceLabel are treated as part of one routegroup in this implementation.
+* One virtual server(VIP) is created for each routegroup and maps to defined/default tenant on BIG-IP.
 * CIS processes multiple tenant information and still sends the single unified declaration to BIG-IP to avoid multiple posts to BIG-IP.
 
   **Note**: AS3 post call is formed as mgmt/shared/appsvcs/declare/tenant1,tenant2.
 
-## GSLB support for routes
+### GSLB support for routes
 For every EDNS resource created, CIS will add VS having matching domain as the Wide IP pool member.  
   
-## Policy CR support for routes
-Policy CR integration with nextGenRoutes extends so many BIG-IP features to the Openshift routes, i.e. snat, custom tcp, http and https profiles, irules, http2 profile, persistance profile, profileMultiplex, profileL4, logProfiles, waf, botDefense, firewallPolicy, dos, allowSourceRange, etc. 
+### Policy CR support for routes
+Policy CR integration with nextGenRoutes extends so many BIG-IP features to the Openshift routes, i.e. snat, custom tcp, http and https profiles, irules, http2 profile, persistance profile, profileMultiplex, profileL4, logProfiles, waf, botDefense, firewallPolicy, dos, allowSourceRange, etc.
+
+### Support for Health Monitors from pod liveness probe
+CIS uses the liveness probe of the pods to form the health monitors, whenever health annotations not provided in the route annotations, 
 
 ## Prerequisites
 
@@ -52,24 +55,24 @@ Policy CR integration with nextGenRoutes extends so many BIG-IP features to the 
   
 ## Configuration
 
-* Routegroup specific config for each namespace/namespaceLabel is provided as part of extendedSpec through Configmap.
-* Global Configmap can be set using CIS deployment argument --route-spec-configmap="namespace/configmap-name"
+* Routegroup specific config for each namespace/namespaceLabel is provided as part of extendedSpec through ConfigMap.
+* Global ConfigMap can be set using CIS deployment argument --route-spec-configmap="namespace/configmap-name"
 * Controller mode should be set to Openshift to enable multiple VIP support(--controller-mode="openshift")
 
-## ExtendedSpecConfigmap:
+## Extended Spec ConfigMap:
 
-* ExtendedSpecificConfimap is used to provide common config for routegroup like virtualservername, virtualserveraddress, policyCR, etc., which is applied to all routes in the group.
-* Routegroup specific config for each namespace/namespaceLabel is provided as part of extendedRouteSpec in global configmap.
+* Extended spec ConfigMap is used to provide common config for routegroup like virtualservername, virtualserveraddress, policyCR, etc., which is applied to all routes in the group.
+* Routegroup specific config for each namespace/namespaceLabel is provided as part of extendedRouteSpec in global ConfigMap.
 
   
-### Global Configmap
+### Global ConfigMap
 
-* Global configmap provides control to the admin to create and maintain the resource configuration centrally. 
-* RBAC can be used to restrict modification of global configmap by users with tenant level access.
+* Global ConfigMap provides control to the admin to create and maintain the resource configuration centrally. 
+* RBAC can be used to restrict modification of global ConfigMap by users with tenant level access.
 * If any specific tenant requires modify access for routeconfig of their namespace, the admin can grant access by setting **allowOverride** to true in the extendedRouteSpec of the namespace.
-* Base route configuration can be defined in Global ConfigMap. This cannot be overridden from local configmap. This is an alternative to CIS deployment arguments.
+* Base route configuration can be defined in Global ConfigMap. This cannot be overridden from local ConfigMap. This is an alternative to CIS deployment arguments.
 
-### Local Configmap
+### Local ConfigMap
 
 * Local ConfigMap is used to specify route config for namespace and allows tenant users access to fine-tune the route config. It is processed by CIS only when allowOverride is set to true in global ConfigMap for this namespace.
 * Only one local ConfigMap is allowed per namespace. Local ConfigMap must have only one entry in the extendedRouteSpec list and that should be the current namespace only.
@@ -83,30 +86,58 @@ Base route configuration can be defined in Global ConfigMap. This cannot be over
 
 | Parameter   | Required | Description                                                                                                               | Default | ConfigMap |
 |-------------|----------|---------------------------------------------------------------------------------------------------------------------------|---------| --------- |
-| tlsCipher   | Optional | Block to define TLS cipher parameters                                                                                     | N/A     | Global configMap |
-| tlsVersion  | Optional | Configures TLS version to be enabled on BIG-IP. TLS 1.3 is only supported on TMOS version 14.0+.                          | 1.2     | Global configMap |
-| ciphers     | Optional | Configures a ciphersuite selection string. Cipher-group and ciphers are mutually exclusive; only use one.                 | DEFAULT     | Global configMap |
-| cipherGroup | Optional | Configures a cipher group in BIG-IP and references it here. Cipher group and ciphers are mutually exclusive; only use one. | /Common/f5-default     | Global configMap |
+| tlsCipher   | Optional | Block to define TLS cipher parameters                                                                                     | N/A     | Global ConfigMap |
+| defaultTLS | Optional | Configures a cipher group in BIG-IP and references it here. Cipher group and ciphers are mutually exclusive; only use one. | /Common/f5-default     | Global ConfigMap |
 
-  **Note**: 1. ciphers and cipherGroups are mutually exclusive. cipherGroup is considered for tls version 1.3 and ciphers for tls version 1.2.
+```
+ tlsCipher:
+    tlsVersion: 1.3
+    cipherGroup: /Common/f5-default
+```
+
+**Note**: 1. ciphers and cipherGroups are mutually exclusive. cipherGroup is considered for tls version 1.3 and ciphers for tls version 1.2.
+
+#### tlsCipher Config Parameters
+| Parameter   | Required | Description                                                                                                               | Default | ConfigMap |
+|-------------|----------|---------------------------------------------------------------------------------------------------------------------------|---------| --------- |
+| tlsVersion  | Optional | Configures TLS version to be enabled on BIG-IP. TLS 1.3 is only supported on TMOS version 14.0+.                          | 1.2     | Global ConfigMap |
+| ciphers     | Optional | Configures a ciphersuite selection string. Cipher-group and ciphers are mutually exclusive; only use one.                 | DEFAULT     | Global ConfigMap |
+| cipherGroup | Optional | Configures a cipher group in BIG-IP and references it here. Cipher group and ciphers are mutually exclusive; only use one. | /Common/f5-default     | Global ConfigMap |
+
+#### defaultTLS Config Parameters
+
+| Parameter | Required | Description | Default | ConfigMap |
+| --------- | -------- | ----------- | ------- | --------- |
+| clientSSL | Optional |  client SSL profile | - | Global ConfigMap |
+| serverSSL | Optional |  server SSL profile | - | Global ConfigMap |
+| reference | Mandatory |  Profile Object type  | - | Global ConfigMap |
+
+* defaultTLS schema:
+```
+ defaultTLS:
+    clientSSL: /Common/clientssl
+    serverSSL: /Common/serverssl
+    reference: bigip
+```
 
 ### Route Group Parameters
 
 | Parameter | Required | Description | Default | ConfigMap |
 | --------- | -------- | ----------- | ------- | --------- |
-| allowOverride | Optional | Allow users to override the namespace config | - | Global configMap only |
-| bigIpPartition | Optional | Partition for creating the virtual server | Partition which is defined in CIS deployment parameter | Global configMap only |
-| namespaceLabel | Mandatory | namespace-label to group the routes* | - | Global configMap only |
-| policyCR | Optional | Name of Policy CR to attach profiles/policies defined in it. | - | Local and Global configMap |
-| namespace | Mandatory | namespace to group the routes | - | Local and Global configMap |
-| vsAddress | Mandatory | BigIP Virtual Server IP Address | - | Local and Global configMap |
-| vsName | Optional | Name of BigIP Virtual Server | auto | Local and Global configMap |
+| allowOverride | Optional | Allow users to override the namespace config | - | Global ConfigMap only |
+| bigIpPartition | Optional | Partition for creating the virtual server | Partition which is defined in CIS deployment parameter | Global ConfigMap only |
+| namespaceLabel | Mandatory | namespace-label to group the routes* | - | Global ConfigMap only |
+| policyCR | Optional | Name of Policy CR to attach profiles/policies defined in it. | - | Local and Global ConfigMap |
+| namespace | Mandatory | namespace to group the routes | - | Local and Global ConfigMap |
+| vsAddress | Mandatory | BigIP Virtual Server IP Address | - | Local and Global ConfigMap |
+| vsName | Optional | Name of BigIP Virtual Server | auto | Local and Global ConfigMap |
 
   **Note**: 1. namespaceLabel is mutually exclusive with namespace parameter.
-            2. --namespace-label parameter has to be defined in CIS deployment to use the namespaceLabel in extended configMap.
+            2. --namespace-label parameter has to be defined in CIS deployment to use the namespaceLabel in extended ConfigMap.
+
 
 ## Example Global & Local ConfigMap with namespace parameter
-**Example: Global Configmap**
+**Example: Global ConfigMap**
 ```
 apiVersion: v1
 data:
@@ -128,7 +159,7 @@ metadata:
   name: global-cm
   namespace: default
 ```
-**Example: Local Configmap**
+**Example: Local ConfigMap**
 ```
 apiVersion: v1
 data:
@@ -145,7 +176,7 @@ metadata:
   namespace: tenant1
 ```
 
-**Example: Global Configmap with Base Route Configuration**
+**Example: Global ConfigMap with Base Route Configuration**
 ```
 apiVersion: v1
 data:
@@ -365,7 +396,7 @@ spec:
 ![partition config](bigip-config3.png?raw=true "BIGIP config")
 
 ## Example Global ConfigMap with namespaceLabel parameter
-**Example: Global Configmap**
+**Example: Global ConfigMap**
 ```
 apiVersion: v1
 data:
@@ -550,7 +581,7 @@ Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree
 
 ## Known issues
 * Route status is not updated when the service is deleted for NextGen Routes.
-* CIS processes the latest local extended configMap when there are multiple extended local configMap.
+* CIS processes the latest local extended ConfigMap when there are multiple extended local ConfigMap.
 * CIS allows insecure traffic if the URI path is included with CAPITAL letters for NextGen Routes.
 * CIS delays processing the changes in other tenants if any one of the tenant receives a 422 error (takes upto 60 seconds).
 * CIS is not detecting namespaceLabel update in global config map.
@@ -562,26 +593,28 @@ Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree
  
 ### Is exteneded confiMap mandatory?
 Yes. CIS fails to start without `--route-spec-configmap` value provided. CIS logs `invalid value provided for --route-spec-configmap` and exits
-### What happens if configMap is not created or deleted?
-If referenced configmap with --route-spec-configmap is not created, CIS logs below error and doesn't process any routes.
+### What happens if ConfigMap is not created or deleted?
+If referenced ConfigMap with --route-spec-configmap is not created, CIS logs below error and doesn't process any routes.
 ```
-[ERROR] Unable to Get Extended Route Spec Config Map: default/global-cm, configmaps "global-cm" not found.
+[ERROR] Unable to Get Extended Route Spec Config Map: default/global-cm, ConfigMaps "global-cm" not found.
 ```
 
-CIS uses cache to store extendedRouteSpec information. Even if configmap is deleted, the information loaded initially is thus used for route processing.
-### Can I create multiple global extended configmap ?
-CIS only uses configmap provided through --route-spec-configmap argument. 
-### Do I need to modify existing routes for extended configMap support?
+CIS uses cache to store extendedRouteSpec information. Even if ConfigMap is deleted, the information loaded initially is thus used for route processing.
+### Can I create multiple global extended ConfigMap ?
+CIS only uses ConfigMap provided through --route-spec-configmap argument. 
+### Do I need to modify existing routes for extended ConfigMap support?
 No.
 ### What are the supported routes?
 Edge re-encrypt and passthrough routes are supported.
 ### What are the supported insecureEdgeTerminations?
 allow, redirect and none termination supported with edge routes, while re-encrypt routes supports redirect and none terminations. 
 ### Do we support bigIP referenced SSL Profiles annotations on routes?
-You can define SSL profiles in extended configMap.
+Yes you can continue the SSL Profiles in route annotations.
+### Do we support Kubernetes secrets in SSL Profiles annotations on routes?
+Yes you can define the Kubernetes secret in route's SSL annotations.
 ### Can we configure health monitors using route annotations?
-Yes you can continue the health monitors using route annotations.
-### Which fields are optional in the extended configMap?
+Yes you can continue using the health monitors in route annotations.
+### Which fields are optional in the extended ConfigMap?
 iRules is optional values.
 ### Any changes in RBAC? 
 No.

@@ -299,7 +299,7 @@ var _ = Describe("Backend Tests", func() {
 				"sip-info", "source-address", "tls-session-id", "universal"}
 			for _, defaultValue := range defaultValues {
 				svc.addPersistenceMethod(defaultValue)
-				Expect(svc.PersistenceMethods).To(Equal([]as3MultiTypeParam{as3MultiTypeParam(defaultValue)}))
+				Expect(svc.PersistenceMethods).To(Equal(&[]as3MultiTypeParam{as3MultiTypeParam(defaultValue)}))
 			}
 
 			// Persistence methods with no value and None
@@ -307,13 +307,13 @@ var _ = Describe("Backend Tests", func() {
 			svc.addPersistenceMethod("")
 			Expect(svc.PersistenceMethods).To(BeNil())
 			svc.addPersistenceMethod("none")
-			Expect(svc.PersistenceMethods).To(Equal([]as3MultiTypeParam{}))
+			Expect(svc.PersistenceMethods).To(Equal(&[]as3MultiTypeParam{}))
 
 			// Custom persistence methods
 			svc.addPersistenceMethod("/Common/pm1")
-			Expect(svc.PersistenceMethods).To(Equal([]as3MultiTypeParam{as3ResourcePointer{BigIP: "/Common/pm1"}}))
+			Expect(svc.PersistenceMethods).To(Equal(&[]as3MultiTypeParam{as3ResourcePointer{BigIP: "/Common/pm1"}}))
 			svc.addPersistenceMethod("pm2")
-			Expect(svc.PersistenceMethods).To(Equal([]as3MultiTypeParam{as3ResourcePointer{BigIP: "pm2"}}))
+			Expect(svc.PersistenceMethods).To(Equal(&[]as3MultiTypeParam{as3ResourcePointer{BigIP: "pm2"}}))
 		})
 	})
 

@@ -557,8 +557,6 @@ spec:
 
 ## Legacy vs next generation routes feature comparison
 
-Unsupported features/annotations in next-gen routes are planned to be supported in upcoming releases:
-
 | Features | Legacy Routes | Next-gen Routes |
 | ------ | ------ | ------ |
 | Insecure | YES | YES | 
@@ -580,11 +578,9 @@ Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree
 
 
 ## Known issues
-* Route status is not updated when the service is deleted for NextGen Routes.
 * CIS processes the latest local extended ConfigMap when there are multiple extended local ConfigMap.
 * CIS allows insecure traffic if the URI path is included with CAPITAL letters for NextGen Routes.
 * CIS delays processing the changes in other tenants if any one of the tenant receives a 422 error (takes upto 60 seconds).
-* CIS is not detecting namespaceLabel update in global config map.
 * GSLB - To create EDNS, VS should be available in prior on the BIG-IP. This is an issue with AS3 and will be resolved in upcoming AS3 releases.
 * GSLB - When there is a route group partition change, BIG-IP is taking more time to identify the VS on new partition.
 
@@ -614,8 +610,6 @@ Yes you can continue the SSL Profiles in route annotations.
 Yes you can define the Kubernetes secret in route's SSL annotations.
 ### Can we configure health monitors using route annotations?
 Yes you can continue using the health monitors in route annotations.
-### Which fields are optional in the extended ConfigMap?
-iRules is optional values.
 ### Any changes in RBAC? 
 No.
 ### How do I use policy CR with routes?

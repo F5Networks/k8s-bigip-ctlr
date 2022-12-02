@@ -758,7 +758,6 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			} else {
 				partition = ctlr.Partition
 			}
-
 			newExtdSpecMap[routeGroup] = &extendedParsedSpec{
 				override:   allowOverride,
 				local:      nil,
@@ -776,6 +775,20 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 		// Global configmap once gets processed even before processing other native resources
 		if ctlr.initState {
 			ctlr.resources.extdSpecMap = newExtdSpecMap
+			for rg, ergps := range newExtdSpecMap {
+				if !ctlr.namespaceLabelMode && ergps.override {
+					// check for alternative local configmaps (pick latest)
+					// process if one is available
+					localCM := ctlr.getLatestLocalConfigMap(rg)
+					if localCM != nil {
+						err, _ = ctlr.processConfigMap(localCM, false)
+						if err != nil {
+							log.Errorf("Could not process local configmap for routeGroup : %v error: %v", rg, err)
+						}
+					}
+
+				}
+			}
 			return nil, true
 		}
 
@@ -890,6 +903,10 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			// creation event
 			if spec.local == nil {
 				if !reflect.DeepEqual(*(spec.global), ergc.ExtendedRouteGroupSpec) {
+					if ctlr.initState {
+						spec.local = &ergc.ExtendedRouteGroupSpec
+						return nil, true
+					}
 					if spec.global.VServerName != ergc.ExtendedRouteGroupSpec.VServerName {
 						// Delete existing virtual that was framed with globla config
 						// later build new virtual with local config

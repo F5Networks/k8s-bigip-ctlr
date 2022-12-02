@@ -27,7 +27,8 @@ Added Functionality
         * Support to create Health Monitor from the pod liveness probe for routes. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
     * CRD
         * CIS configures GTM configuration in default partition
-        * Pool reselect support for VS and TS
+        * Pool reselect support for VS and TS. `Example for VS <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/pool-reselect/vs-with-pool-reselect.yaml>`_ ,
+          `Example for TS <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer/tcp-transport-server.yaml>`_
         * Support for allowVlans with policy CR.
         * Support for --cccl-gtm-agent deployment parameter to set the gtm agent
         * Support to provide the same VIP for TS and VS CRs using hostGroup. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_

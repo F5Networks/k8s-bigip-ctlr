@@ -175,6 +175,8 @@ different terminations(for same domain), one with edge and another with re-encry
 | monitor | monitor  | Optional | NA | Health Monitor to check the health of Pool Members |
 | monitors | monitor | Optional | NA | Specifies multiple monitors for TS Pool            |
 | nodeMemberLabel  | String  | Optional | NA      | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode                     |
+| serviceDownAction | String  | Optional | none    | Specifies connection handling when member is non-responsive                                                                             |
+| reselectTries | Integer | Optional | 0       | Maximum number of attempts to find a responsive member for a connection                                                                 |
 
 Note: **monitors** take priority over **monitor** if both are provided in TS spec.
 

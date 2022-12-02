@@ -1651,11 +1651,11 @@ func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
 	}
 	switch persistenceProfile {
 	case "none":
-		svc.PersistenceMethods = []as3MultiTypeParam{}
+		svc.PersistenceMethods = &[]as3MultiTypeParam{}
 	case "cookie", "destination-address", "hash", "msrdp", "sip-info", "source-address", "tls-session-id", "universal":
-		svc.PersistenceMethods = []as3MultiTypeParam{as3MultiTypeParam(persistenceProfile)}
+		svc.PersistenceMethods = &[]as3MultiTypeParam{as3MultiTypeParam(persistenceProfile)}
 	default:
-		svc.PersistenceMethods = []as3MultiTypeParam{
+		svc.PersistenceMethods = &[]as3MultiTypeParam{
 			as3MultiTypeParam(
 				as3ResourcePointer{
 					BigIP: fmt.Sprintf("%v", persistenceProfile),

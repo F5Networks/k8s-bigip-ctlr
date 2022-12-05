@@ -240,3 +240,15 @@ Refer Release Notes for [CIS v2.10.1](https://github.com/F5Networks/k8s-bigip-ct
 **_Functionality Change:_**
 
 * Either secure or insecure virtual server added as EDNS pool member with Ingresslink, instead of both.
+
+### **Upgrading from 2.10.1 to 2.11.0:**
+
+Refer Release Notes for [CIS v2.11.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+
+### **Upgrading from 2.11.0 to 2.11.1:**
+
+Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
+
+**_Configuration Change:_**
+
+* Add pattern definition in CR schema to align with F5 BIGIP Object Naming convention

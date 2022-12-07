@@ -786,6 +786,7 @@ extendedRouteSpec:
 							"/Common/f5-default",
 						},
 						DefaultSSLProfile{},
+						DefaultRouteGroupConfig{},
 					},
 				},
 			}

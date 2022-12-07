@@ -1960,9 +1960,16 @@ func (ctlr *Controller) handleRouteTLS(
 		}
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
 		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
-			//Flag to track the route groups which are using TLS Ciphers
-			ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
-				DependsOnTLS: true,
+			//set for default routegroup
+			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+				//Flag to track the route groups which are using TLS profiles.
+				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+					DependsOnTLS: true,
+				}
+			} else {
+				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+					DependsOnTLS: true,
+				}
 			}
 		}
 	case DefaultSSLOption:
@@ -1983,8 +1990,14 @@ func (ctlr *Controller) handleRouteTLS(
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
 		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
 			//Flag to track the route groups which are using TLS Ciphers
-			ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
-				DependsOnTLS: true,
+			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+					DependsOnTLS: true,
+				}
+			} else {
+				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+					DependsOnTLS: true,
+				}
 			}
 		}
 	default:

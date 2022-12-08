@@ -402,6 +402,7 @@ type (
 		override   bool
 		local      *ExtendedRouteGroupSpec
 		global     *ExtendedRouteGroupSpec
+		defaultrg  *ExtendedRouteGroupSpec
 		namespaces []string
 		partition  string
 	}
@@ -1084,9 +1085,15 @@ type (
 		DependsOnTLS bool
 	}
 
+	DefaultRouteGroupConfig struct {
+		BigIpPartition        string                 `yaml:"bigIpPartition"` // bigip Partition
+		DefaultRouteGroupSpec ExtendedRouteGroupSpec `yaml:",inline"`
+	}
+
 	BaseRouteConfig struct {
-		TLSCipher  TLSCipher         `yaml:"tlsCipher"`
-		DefaultTLS DefaultSSLProfile `yaml:"defaultTLS,omitempty"`
+		TLSCipher               TLSCipher               `yaml:"tlsCipher"`
+		DefaultTLS              DefaultSSLProfile       `yaml:"defaultTLS,omitempty"`
+		DefaultRouteGroupConfig DefaultRouteGroupConfig `yaml:"defaultRouteGroup,omitempty"`
 	}
 
 	TLSCipher struct {

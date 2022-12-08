@@ -329,3 +329,21 @@ func (appMgr *Manager) handleRouteHealthMonitors(
 		stats.vsUpdated += 1
 	}
 }
+
+// RemoveUnusedHealthMonitors removes unused health monitors if there are any
+func RemoveUnusedHealthMonitors(rsCfg *ResourceConfig) {
+	var exists = struct{}{}
+	monitors := make(map[string]struct{})
+	for _, pl := range rsCfg.Pools {
+		for _, mn := range pl.MonitorNames {
+			monitors[mn] = exists
+		}
+	}
+	var usedMonitors []Monitor
+	for _, mn := range rsCfg.Monitors {
+		if _, ok := monitors["/"+mn.Partition+"/"+mn.Name]; ok {
+			usedMonitors = append(usedMonitors, mn)
+		}
+	}
+	rsCfg.Monitors = usedMonitors
+}

@@ -9,6 +9,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* Fix to remove unused ingress health monitors
 
 2.11.0
 -------------

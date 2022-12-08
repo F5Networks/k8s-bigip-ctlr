@@ -19,6 +19,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"k8s.io/client-go/rest"
 	"os"
 	"os/exec"
 	"sort"
@@ -775,6 +776,32 @@ var _ = Describe("Main Tests", func() {
 			}
 			// Timed out waiting for a ready message in the temp file
 			Expect(timeCount).ToNot(Equal(0), "Timed out waiting for a ready message in the temp file")
+		})
+	})
+	Describe("Check the SDNType", func() {
+		It("Check the SDNType nodeport", func() {
+			defer func() {
+				isNodePort = false
+			}()
+			var config *rest.Config
+			tunnelName := ""
+			flannelName = &tunnelName
+			isNodePort = true
+			openshiftSDNName = &tunnelName
+			Expect(getSDNType(config)).To(Equal("nodeport-mode"), "SDNType should be nodeport-mode")
+		})
+		It("Check the SDNType flannel", func() {
+			var config *rest.Config
+			tunnelName := "test"
+			flannelName = &tunnelName
+			Expect(getSDNType(config)).To(Equal("flannel"), "SDNType should be flannel")
+		})
+		It("Check the SDNType other", func() {
+			var config *rest.Config
+			tunnelName := ""
+			flannelName = &tunnelName
+			openshiftSDNName = &tunnelName
+			Expect(getSDNType(config)).To(Equal("other"), "SDNType should be other")
 		})
 	})
 })

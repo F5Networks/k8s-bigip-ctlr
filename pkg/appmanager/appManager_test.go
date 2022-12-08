@@ -42,6 +42,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 )
 
 func init() {
@@ -4865,6 +4866,36 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(mems).To(Equal(members))
 			})
 
+		})
+		var _ = Describe("OtherSDNType", func() {
+			var selectors map[string]string
+			var pod *v1.Pod
+			BeforeEach(func() {
+				mockMgr.appMgr.TeemData = &teem.TeemsData{SDNType: "other"}
+				selectors = make(map[string]string)
+
+			})
+			It("Check the SDNType Cilium", func() {
+				pod = test.NewPod("cilium-node1", "default", 8080, selectors)
+				pod.Status.Phase = "Running"
+				mockMgr.appMgr.kubeClient = k8sfake.NewSimpleClientset(pod)
+				mockMgr.appMgr.setOtherSDNType()
+				Expect(mockMgr.appMgr.TeemData.SDNType).To(Equal("cilium"), "SDNType should be cilium")
+			})
+			It("Check the SDNType Calico", func() {
+				pod = test.NewPod("calico-node1", "default", 8080, selectors)
+				pod.Status.Phase = "Running"
+				mockMgr.appMgr.kubeClient = k8sfake.NewSimpleClientset(pod)
+				mockMgr.appMgr.setOtherSDNType()
+				Expect(mockMgr.appMgr.TeemData.SDNType).To(Equal("calico"), "SDNType should be calico")
+			})
+			It("Check the SDNType other", func() {
+				pod = test.NewPod("node1", "default", 8080, selectors)
+				pod.Status.Phase = "Running"
+				mockMgr.appMgr.kubeClient = k8sfake.NewSimpleClientset(pod)
+				mockMgr.appMgr.setOtherSDNType()
+				Expect(mockMgr.appMgr.TeemData.SDNType).To(Equal("other"), "SDNType should be other")
+			})
 		})
 	})
 })

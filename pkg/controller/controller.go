@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -211,7 +212,32 @@ func NewController(params Params) *Controller {
 
 	go ctlr.Start()
 
+	go ctlr.setOtherSDNType()
+
 	return ctlr
+}
+
+//Set Other SDNType
+func (ctlr *Controller) setOtherSDNType() {
+	ctlr.TeemData.Lock()
+	defer ctlr.TeemData.Unlock()
+	if ctlr.TeemData.SDNType == "other" || ctlr.TeemData.SDNType == "flannel" {
+		kubePods, err := ctlr.kubeClient.CoreV1().Pods("").List(context.TODO(), metaV1.ListOptions{})
+		if nil != err {
+			log.Errorf("Could not list Kubernetes Pods for CNI Chek: %v", err)
+			return
+		}
+		for _, kPod := range kubePods.Items {
+			if strings.Contains(kPod.Name, "cilium") && kPod.Status.Phase == "Running" {
+				ctlr.TeemData.SDNType = "cilium"
+				return
+			}
+			if strings.Contains(kPod.Name, "calico") && kPod.Status.Phase == "Running" {
+				ctlr.TeemData.SDNType = "calico"
+				return
+			}
+		}
+	}
 }
 
 //Register IPAM CRD

@@ -28,13 +28,13 @@ import (
 
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
-	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/labels"

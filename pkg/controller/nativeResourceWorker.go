@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"os"
 	"sort"
@@ -13,14 +13,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	routeapi "github.com/openshift/api/route/v1"
 
 	"reflect"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"gopkg.in/yaml.v2"
 	v1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"

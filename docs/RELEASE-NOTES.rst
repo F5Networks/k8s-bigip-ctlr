@@ -12,6 +12,7 @@ Bug Fixes
 ````````````
 * Fix to remove unused ingress health monitors
 * Add pattern definition in CR schema to align with F5 BIGIP Object Naming convention
+* :issues:`2153` Update go.mod to v2
 
 2.11.0
 -------------

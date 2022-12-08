@@ -2,13 +2,13 @@ FROM golang:1.17
 
 ENV GO111MODULE on
 
-ENV PKGPATH /go/src/github.com/F5Networks/k8s-bigip-ctlr
+ENV PKGPATH /go/src/github.com/F5Networks/k8s-bigip-ctlr/v2
 
 RUN mkdir -p ${GOPATH}/src/github.com/F5Networks \
 	&& mkdir -p ${GOPATH}/src/k8s.io \
-	&& go get k8s.io/code-generator@v0.20.4 \
-	&& go get k8s.io/apimachinery \
-	&& go get k8s.io/apiextensions-apiserver \
+	&& go get -d k8s.io/code-generator@v0.20.4 \
+	&& go get -d k8s.io/apimachinery \
+	&& go get -d k8s.io/apiextensions-apiserver \
 	&& cp -r ${GOPATH}/pkg/mod/k8s.io/api@* ${GOPATH}/src/k8s.io/api \
 	&& cp -r ${GOPATH}/pkg/mod/k8s.io/apiextensions-apiserver@* ${GOPATH}/src/k8s.io/apiextensions-apiserver \
 	&& cp -r ${GOPATH}/pkg/mod/k8s.io/apimachinery@* ${GOPATH}/src/k8s.io/apimachinery \
@@ -22,4 +22,4 @@ RUN mkdir -p ${GOPATH}/src/github.com/F5Networks \
 
 WORKDIR ${PKGPATH}
 
-ENTRYPOINT $GOPATH/src/k8s.io/code-generator/generate-groups-extra.sh allcustom "github.com/F5Networks/k8s-bigip-ctlr/config/client" "github.com/F5Networks/k8s-bigip-ctlr/config/apis" cis:v1
+ENTRYPOINT $GOPATH/src/k8s.io/code-generator/generate-groups-extra.sh allcustom "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client" "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis" cis:v1

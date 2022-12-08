@@ -2,10 +2,10 @@ package controller
 
 import (
 	"fmt"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"

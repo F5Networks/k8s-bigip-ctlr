@@ -1,4 +1,4 @@
-module github.com/F5Networks/k8s-bigip-ctlr
+module github.com/F5Networks/k8s-bigip-ctlr/v2
 
 go 1.16
 

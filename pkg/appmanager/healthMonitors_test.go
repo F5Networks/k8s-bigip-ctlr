@@ -981,6 +981,31 @@ var _ = Describe("Health Monitor Tests", func() {
 			checkMultiServiceHealthMonitor(vsCfgBar, svc2Name, svc2Port, true)
 			checkMultiServiceHealthMonitor(vsCfgBaz, svc3Name, svc3Port, true)
 		})
+		It("Removes unused health monitors", func() {
+			rcfg := &ResourceConfig{}
+			//rcfg.Monitors = make([]Monitor, 0)
+			//rcfg.Pools = make([]Pool, 0)
+			rcfg.Pools = []Pool{
+				Pool{Name: "svc1", Partition: "test", MonitorNames: []string{"/test/hm1", "/test/hm2"}},
+				Pool{Name: "svc2", Partition: "test", MonitorNames: []string{"/test/hm3", "/test/hm4"}},
+			}
+			rcfg.Monitors = []Monitor{
+				Monitor{Name: "hm0", Partition: "test"},
+				Monitor{Name: "hm1", Partition: "test"},
+				Monitor{Name: "hm2", Partition: "test"},
+				Monitor{Name: "hm3", Partition: "test"},
+				Monitor{Name: "hm4", Partition: "test"},
+				Monitor{Name: "hm5", Partition: "test"},
+			}
+			expectedMonitors := Monitors([]Monitor{
+				Monitor{Name: "hm1", Partition: "test"},
+				Monitor{Name: "hm2", Partition: "test"},
+				Monitor{Name: "hm3", Partition: "test"},
+				Monitor{Name: "hm4", Partition: "test"},
+			})
+			RemoveUnusedHealthMonitors(rcfg)
+			Expect(rcfg.Monitors).To(Equal(expectedMonitors))
+		})
 	})
 
 	Context("route health monitors", func() {

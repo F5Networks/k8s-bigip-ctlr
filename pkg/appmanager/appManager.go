@@ -1921,6 +1921,7 @@ func (appMgr *Manager) syncIngresses(
 								rsName, rsCfg, ing, monitors)
 						}
 					}
+					RemoveUnusedHealthMonitors(rsCfg)
 					rsCfg.SortMonitors()
 				}
 				// Collect all service names on this Ingress.

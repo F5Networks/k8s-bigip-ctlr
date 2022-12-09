@@ -3,7 +3,7 @@ kind: Route
 metadata:
   labels:
     name: simpleroute
-    f5tnr: "true"
+    f5type: systest
   annotations:
     # rewrite-target-url annotation will redirect any traffic for "http://test.com/bar" to "test.com/foo"
     virtual-server.f5.com/rewrite-target-url: /foo

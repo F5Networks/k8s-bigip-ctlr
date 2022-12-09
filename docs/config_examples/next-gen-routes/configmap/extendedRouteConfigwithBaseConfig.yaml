@@ -3,6 +3,8 @@ kind: ConfigMap
 metadata:
   name: global-spec-config
   namespace: kube-system
+  labels:
+    f5nr: "true"
 data:
   extendedSpec: |
     baseRouteSpec:

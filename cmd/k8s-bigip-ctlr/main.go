@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	configclient "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"net/http"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
@@ -970,18 +971,7 @@ func main() {
 		},
 	}
 	if !(*disableTeems) {
-		if isNodePort {
-			td.SDNType = "nodeport-mode"
-		} else {
-			if len(*openshiftSDNName) > 0 {
-				td.SDNType = "openshiftSDN"
-			} else if len(*flannelName) > 0 {
-				td.SDNType = "flannel"
-			} else {
-				td.SDNType = "calico"
-			}
-		}
-
+		td.SDNType = getSDNType(config)
 		// Post telemetry data request
 		//if !td.PostTeemsData() {
 		//	td.AccessEnabled = false
@@ -1358,4 +1348,39 @@ func getUserAgentInfo() string {
 	}
 	log.Warningf("Unable to fetch user agent details. %v", err)
 	return fmt.Sprintf("CIS/v%v", version)
+}
+
+func getSDNType(config *rest.Config) string {
+	var sdnType string
+	if isNodePort {
+		sdnType = "nodeport-mode"
+	} else {
+		if len(*openshiftSDNName) > 0 {
+			rconfigclient, err := configclient.NewForConfig(config)
+			if nil != err {
+				log.Errorf("unable to create route config client: err: %+v\n", err)
+				return "openshiftSDN"
+			}
+			sdnType = setSDNTypeForOpenshift(rconfigclient)
+		} else if len(*flannelName) > 0 {
+			sdnType = "flannel"
+		} else {
+			sdnType = "other"
+		}
+	}
+	return sdnType
+}
+
+func setSDNTypeForOpenshift(rconfigclient *configclient.ConfigV1Client) string {
+	networks, err := rconfigclient.Networks().List(context.TODO(), metav1.ListOptions{})
+	if nil != err {
+		log.Errorf("unable to list networks: err: %+v\n", err)
+	}
+	if len(networks.Items) > 0 {
+		// Putting the first item in the network list
+		if strings.ToLower(networks.Items[0].Status.NetworkType) != "openshiftsdn" {
+			return networks.Items[0].Status.NetworkType
+		}
+	}
+	return "openshiftSDN"
 }

@@ -1056,6 +1056,7 @@ func (appMgr *Manager) UseNodeInternal() bool {
 
 func (appMgr *Manager) Run(stopCh <-chan struct{}) {
 	go appMgr.runImpl(stopCh)
+	go appMgr.setOtherSDNType()
 }
 
 func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
@@ -3830,6 +3831,29 @@ func (appMgr *Manager) deleteHostPathMapEntry(obj interface{}) {
 		if routeTimestamp == route.CreationTimestamp && hostPath == key {
 			// Deleting the ProcessedHostPath map if route's path is changed
 			delete(appMgr.processedHostPath.processedHostPathMap, hostPath)
+		}
+	}
+}
+
+//Set Other SDNType
+func (appMgr *Manager) setOtherSDNType() {
+	appMgr.TeemData.Lock()
+	defer appMgr.TeemData.Unlock()
+	if appMgr.TeemData.SDNType == "other" || appMgr.TeemData.SDNType == "flannel" {
+		kubePods, err := appMgr.kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+		if nil != err {
+			log.Errorf("Could not list Kubernetes Pods for CNI Chek: %v", err)
+			return
+		}
+		for _, kPod := range kubePods.Items {
+			if strings.Contains(kPod.Name, "cilium") && kPod.Status.Phase == "Running" {
+				appMgr.TeemData.SDNType = "cilium"
+				return
+			}
+			if strings.Contains(kPod.Name, "calico") && kPod.Status.Phase == "Running" {
+				appMgr.TeemData.SDNType = "calico"
+				return
+			}
 		}
 	}
 }

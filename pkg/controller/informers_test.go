@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"container/list"
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/fake"
+	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
 	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -12,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/util/workqueue"
+	"sync"
 )
 
 var _ = Describe("Informers Tests", func() {
@@ -55,8 +58,17 @@ var _ = Describe("Informers Tests", func() {
 	Describe("Custom Resource Queueing", func() {
 		BeforeEach(func() {
 			mockCtlr.mode = CustomResourceMode
+			mockCtlr.namespaces = make(map[string]bool)
+			mockCtlr.namespaces["default"] = true
+			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.crInformers = make(map[string]*CRInformer)
+			mockCtlr.nsInformers = make(map[string]*NSInformer)
+			mockCtlr.comInformers = make(map[string]*CommonInformer)
+			mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+			mockCtlr.resources = NewResourceStore()
 
 		})
 		AfterEach(func() {
@@ -139,6 +151,9 @@ var _ = Describe("Informers Tests", func() {
 			Expect(rKey).ToNot(BeNil(), "Enqueue Updated VS Failed")
 			Expect(rKey.event).To(Equal(Create), "Incorrect event set")
 
+			mockCtlr.enqueueVirtualServer(vs)
+			Expect(mockCtlr.processResources()).To(Equal(true))
+
 		})
 
 		It("TLS Profile", func() {
@@ -156,6 +171,9 @@ var _ = Describe("Informers Tests", func() {
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue TLS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue TLS  Failed")
+
+			mockCtlr.enqueueTLSProfile(tlsp, Create)
+			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
 		It("TransportServer", func() {
@@ -190,6 +208,9 @@ var _ = Describe("Informers Tests", func() {
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted TS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted TS  Failed")
+
+			mockCtlr.enqueueTransportServer(ts)
+			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
 		It("IngressLink", func() {
@@ -238,6 +259,9 @@ var _ = Describe("Informers Tests", func() {
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted IL Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted IL  Failed")
+
+			mockCtlr.enqueueIngressLink(il)
+			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
 		It("ExternalDNS", func() {
@@ -272,6 +296,28 @@ var _ = Describe("Informers Tests", func() {
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted EDNS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted EDNS  Failed")
+
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					RouteGroups:  make(map[string]int),
+					NativeRoutes: make(map[string]int),
+					ExternalDNS:  make(map[string]int),
+				},
+			}
+			mockCtlr.Agent = &Agent{
+				postChan: make(chan ResourceConfigRequest, 1),
+				PostManager: &PostManager{
+					PostParams: PostParams{
+						BIGIPURL: "10.10.10.1",
+					},
+				},
+			}
+
+			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
+
+			mockCtlr.Partition = "default"
+			mockCtlr.enqueueExternalDNS(edns)
+			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
 		It("Policy", func() {
@@ -292,6 +338,9 @@ var _ = Describe("Informers Tests", func() {
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated Policy Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated Policy  Failed")
+
+			mockCtlr.enqueuePolicy(plc, Create)
+			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
 		It("Service", func() {
@@ -326,6 +375,9 @@ var _ = Describe("Informers Tests", func() {
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted Service Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted Service  Failed")
+
+			mockCtlr.enqueueService(svc)
+			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
 		It("Endpoints", func() {
@@ -347,6 +399,9 @@ var _ = Describe("Informers Tests", func() {
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Endpoints Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Endpoints  Failed")
+
+			mockCtlr.enqueueEndpoints(eps, Create)
+			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
 		It("Pod", func() {
@@ -362,6 +417,14 @@ var _ = Describe("Informers Tests", func() {
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Pod Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Pod Failed")
+
+			mockCtlr.enqueueDeletedPod(pod)
+			key, quit = mockCtlr.resourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Deleted Pod Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Deleted Pod Failed")
+
+			mockCtlr.enqueuePod(pod)
+			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
 		It("Secret", func() {
@@ -375,6 +438,9 @@ var _ = Describe("Informers Tests", func() {
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue New Secret Failed")
 			Expect(quit).To(BeFalse(), "Enqueue New Secret Failed")
+
+			mockCtlr.enqueueSecret(secret, Create)
+			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
 		It("Namespace", func() {
@@ -394,6 +460,9 @@ var _ = Describe("Informers Tests", func() {
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted Namespace Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted Namespace  Failed")
+
+			//mockCtlr.enqueueNamespace(ns)
+			//Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 
 		It("IPAM", func() {
@@ -440,6 +509,9 @@ var _ = Describe("Informers Tests", func() {
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Deleted IPAM Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Deleted IPAM  Failed")
+
+			mockCtlr.enqueueIPAM(ipam)
+			Expect(mockCtlr.processResources()).To(Equal(true))
 		})
 	})
 
@@ -448,11 +520,14 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.mode = OpenShiftMode
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
+			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.nrInformers = make(map[string]*NRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
 			mockCtlr.crInformers = make(map[string]*CRInformer)
 			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+
+			mockCtlr.resources = NewResourceStore()
 		})
 		It("Resource Informers", func() {
 			err := mockCtlr.addNamespacedInformers(namespace, false)
@@ -467,10 +542,17 @@ var _ = Describe("Informers Tests", func() {
 	Describe("Native Resource Queueing", func() {
 		BeforeEach(func() {
 			mockCtlr.mode = OpenShiftMode
+			mockCtlr.namespaces = make(map[string]bool)
+			mockCtlr.namespaces["default"] = true
+			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.nrInformers = make(map[string]*NRInformer)
+			mockCtlr.comInformers = make(map[string]*CommonInformer)
+			mockCtlr.crInformers = make(map[string]*CRInformer)
+			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "native-resource-controller")
-			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
-
+			mockCtlr.resources = NewResourceStore()
 		})
 		AfterEach(func() {
 			mockCtlr.resourceQueue.ShutDown()
@@ -491,6 +573,16 @@ var _ = Describe("Informers Tests", func() {
 			Expect(key).ToNot(BeNil(), "Enqueue Route Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Route  Failed")
 
+			mockCtlr.enqueueRoute(rt, Create)
+			Expect(mockCtlr.processResources()).To(Equal(true))
+
+			rtNew := rt.DeepCopy()
+
+			rtNew.Spec.Host = "foo1.com"
+			mockCtlr.enqueueUpdatedRoute(rt, rtNew)
+			key, quit = mockCtlr.resourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Update Route Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Update Route  Failed")
 			//mockCtlr.enqueueDeletedRoute(rt)
 			//key, quit = mockCtlr.resourceQueue.Get()
 			//Expect(key).ToNot(BeNil(), "Enqueue Route Failed")
@@ -527,6 +619,11 @@ var _ = Describe("Informers Tests", func() {
 			key, quit := mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Global ConfigMap Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Global ConfigMap  Failed")
+
+			mockCtlr.enqueueConfigmap(cm, Delete)
+			key, quit = mockCtlr.resourceQueue.Get()
+			Expect(key).ToNot(BeNil(), "Enqueue Delete Global ConfigMap Failed")
+			Expect(quit).To(BeFalse(), "Enqueue Delete Global ConfigMap  Failed")
 		})
 
 		It("Local ConfigMap", func() {

@@ -6,6 +6,7 @@ Next Release
 
 Added Functionality
 ```````````````````
+* Base image upgraded to RedHat UBI-9 for CIS Container images.
 
 Bug Fixes
 ````````````

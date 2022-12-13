@@ -12,7 +12,7 @@ COPY . .
 
 RUN $REPOPATH/build-tools/rel-build.sh
 
-FROM registry.redhat.io/ubi8/ubi-minimal
+FROM registry.redhat.io/ubi9/ubi-minimal
 
 LABEL name="f5networks/k8s-bigip-ctlr" \
       vendor="F5 Networks" \
@@ -38,14 +38,14 @@ COPY requirements.txt /tmp/requirements.txt
 RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
  && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json
 
-RUN microdnf update && \
-    microdnf --enablerepo=ubi-8-baseos-rpms install --nodocs python38 git shadow-utils && \
-    microdnf --enablerepo=ubi-8-baseos-rpms --enablerepo=ubi-8-appstream-rpms update nss-tools nss-softokn nss-util scl-utils && \
+RUN microdnf update -y && \
+    microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs python39 python3-pip git shadow-utils -y && \
+    microdnf --enablerepo=ubi-9-baseos-rpms --enablerepo=ubi-9-appstream-rpms update nss-tools nss-softokn nss-util scl-utils -y && \
     pip3 install --no-cache-dir --upgrade pip==20.0.2 && \
     pip3 install --no-cache-dir -r /tmp/requirements.txt && \
     python3 -m pip uninstall -y pip && \
     adduser ctlr && \
-    microdnf remove libedit openssh openssh-clients perl-Git  perl-TermReadKey  perl-macros git-core git-core-doc git less shadow-utils  && \
+    microdnf remove libedit openssh openssh-clients perl-Git  perl-TermReadKey  perl-macros git-core git-core-doc git less shadow-utils -y && \
     microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
 
 USER ctlr

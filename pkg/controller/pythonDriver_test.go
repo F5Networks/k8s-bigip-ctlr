@@ -72,4 +72,31 @@ var _ = Describe("Python Driver Tests", func() {
 
 	})
 
+	It("Start Python Driver", func() {
+		//var mockCtlr *mockController
+		//mockCtlr = newMockController()
+		//
+		//mockCtlr.Agent = &Agent{}
+		//
+		//cw := &test.MockWriter{
+		//	FailStyle:    test.Success,
+		//	WrittenTimes: 0,
+		//	Sections:     make(map[string]interface{}),
+		//	File:         "",
+		//	Mutex:        sync.Mutex{},
+		//}
+		//mockCtlr.Agent.ConfigWriter = cw
+		//
+		////mockCtlr.Agent.startPythonDriver(
+		////	globalSection{GTM: true},
+		////	bigIPSection{},
+		////	gtmBigIPSection{},
+		////	"/Users/k.meka/go/src/github.com/F5Networks/k8s-bigip-ctlr/cmd/k8s-bigip-ctlr/test")
+		//
+		//mockCtlr.Agent.PythonDriverPID = 1
+		//go mockCtlr.Agent.healthCheckPythonDriver()
+		//time.Sleep(1 * time.Second)
+		//mockCtlr.Agent.stopPythonDriver()
+	})
+
 })

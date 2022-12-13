@@ -780,28 +780,57 @@ var _ = Describe("Main Tests", func() {
 	})
 	Describe("Check the SDNType", func() {
 		It("Check the SDNType nodeport", func() {
-			defer func() {
-				isNodePort = false
-			}()
-			var config *rest.Config
-			tunnelName := ""
-			flannelName = &tunnelName
-			isNodePort = true
-			openshiftSDNName = &tunnelName
+			defer _init()
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--bigip-password=admin",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--pool-member-type=nodeport",
+			}
+			flags.Parse(os.Args)
+			flags.Parse(os.Args)
+			err := verifyArgs()
+			Expect(err).To(BeNil())
+			config := &rest.Config{}
 			Expect(getSDNType(config)).To(Equal("nodeport-mode"), "SDNType should be nodeport-mode")
 		})
 		It("Check the SDNType flannel", func() {
-			var config *rest.Config
-			tunnelName := "test"
-			flannelName = &tunnelName
+			defer _init()
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--bigip-password=admin",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--flannel-name=vxlan500",
+				"--pool-member-type=cluster",
+			}
+			flags.Parse(os.Args)
+			flags.Parse(os.Args)
+			err := verifyArgs()
+			Expect(err).To(BeNil())
+			config := &rest.Config{}
 			Expect(getSDNType(config)).To(Equal("flannel"), "SDNType should be flannel")
 		})
 		It("Check the SDNType other", func() {
-			var config *rest.Config
-			tunnelName := ""
-			flannelName = &tunnelName
-			openshiftSDNName = &tunnelName
-			Expect(getSDNType(config)).To(Equal("other"), "SDNType should be other")
+			config := &rest.Config{}
+			defer _init()
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--bigip-password=admin",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--openshift-sdn-name=vxlan500",
+				"--pool-member-type=cluster",
+			}
+			flags.Parse(os.Args)
+			flags.Parse(os.Args)
+			err := verifyArgs()
+			Expect(err).To(BeNil())
+			Expect(getSDNType(config)).To(Equal("openshiftSDN"), "SDNType should be other")
 		})
 	})
 })

@@ -2118,107 +2118,107 @@ func filterTransportServersForService(allVirtuals []*cisapiv1.TransportServer,
 	return result
 }
 
-func (ctlr *Controller) getAllServicesFromMonitoredNamespaces() []*v1.Service {
-	var svcList []*v1.Service
-	if ctlr.watchingAllNamespaces() {
-		objList := ctlr.comInformers[""].svcInformer.GetIndexer().List()
-		for _, obj := range objList {
-			svcList = append(svcList, obj.(*v1.Service))
-		}
-		return svcList
-	}
+//func (ctlr *Controller) getAllServicesFromMonitoredNamespaces() []*v1.Service {
+//	var svcList []*v1.Service
+//	if ctlr.watchingAllNamespaces() {
+//		objList := ctlr.comInformers[""].svcInformer.GetIndexer().List()
+//		for _, obj := range objList {
+//			svcList = append(svcList, obj.(*v1.Service))
+//		}
+//		return svcList
+//	}
+//
+//	for ns := range ctlr.namespaces {
+//		objList := ctlr.comInformers[ns].svcInformer.GetIndexer().List()
+//		for _, obj := range objList {
+//			svcList = append(svcList, obj.(*v1.Service))
+//		}
+//	}
+//
+//	return svcList
+//}
 
-	for ns := range ctlr.namespaces {
-		objList := ctlr.comInformers[ns].svcInformer.GetIndexer().List()
-		for _, obj := range objList {
-			svcList = append(svcList, obj.(*v1.Service))
-		}
-	}
+//// Get List of VirtualServers associated with the IPAM resource
+//func (ctlr *Controller) getVirtualServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.VirtualServer {
+//	log.Debug("[ipam] Syncing IPAM dependent virtual servers")
+//	var allVS, vss []*cisapiv1.VirtualServer
+//	allVS = ctlr.getAllVSFromMonitoredNamespaces()
+//	for _, status := range ipam.Status.IPStatus {
+//		for _, vs := range allVS {
+//			key := vs.ObjectMeta.Namespace + "/" + vs.Spec.HostGroup
+//			if status.Host == vs.Spec.Host || status.Key == key {
+//				vss = append(vss, vs)
+//				break
+//			}
+//		}
+//	}
+//	return vss
+//}
 
-	return svcList
-}
+//// Get List of TransportServers associated with the IPAM resource
+//func (ctlr *Controller) getTransportServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.TransportServer {
+//	log.Debug("[ipam] Syncing IPAM dependent transport servers")
+//	var allTS, tss []*cisapiv1.TransportServer
+//	allTS = ctlr.getAllTSFromMonitoredNamespaces()
+//	for _, status := range ipam.Status.IPStatus {
+//		for _, ts := range allTS {
+//			key := ts.ObjectMeta.Namespace + "/" + ts.ObjectMeta.Name + "_ts"
+//			if status.Key == key {
+//				tss = append(tss, ts)
+//				break
+//			}
+//		}
+//	}
+//	return tss
+//}
 
-// Get List of VirtualServers associated with the IPAM resource
-func (ctlr *Controller) getVirtualServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.VirtualServer {
-	log.Debug("[ipam] Syncing IPAM dependent virtual servers")
-	var allVS, vss []*cisapiv1.VirtualServer
-	allVS = ctlr.getAllVSFromMonitoredNamespaces()
-	for _, status := range ipam.Status.IPStatus {
-		for _, vs := range allVS {
-			key := vs.ObjectMeta.Namespace + "/" + vs.Spec.HostGroup
-			if status.Host == vs.Spec.Host || status.Key == key {
-				vss = append(vss, vs)
-				break
-			}
-		}
-	}
-	return vss
-}
+//// Get List of ingLink associated with the IPAM resource
+//func (ctlr *Controller) getIngressLinkForIPAM(ipam *ficV1.IPAM) []*cisapiv1.IngressLink {
+//	var allIngLinks, ils []*cisapiv1.IngressLink
+//	allIngLinks = ctlr.getAllIngLinkFromMonitoredNamespaces()
+//	if allIngLinks == nil {
+//		return nil
+//	}
+//	for _, status := range ipam.Status.IPStatus {
+//		for _, il := range allIngLinks {
+//			key := il.ObjectMeta.Namespace + "/" + il.ObjectMeta.Name + "_il"
+//			if status.Key == key {
+//				ils = append(ils, il)
+//				break
+//			}
+//		}
+//	}
+//	return ils
+//}
 
-// Get List of TransportServers associated with the IPAM resource
-func (ctlr *Controller) getTransportServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.TransportServer {
-	log.Debug("[ipam] Syncing IPAM dependent transport servers")
-	var allTS, tss []*cisapiv1.TransportServer
-	allTS = ctlr.getAllTSFromMonitoredNamespaces()
-	for _, status := range ipam.Status.IPStatus {
-		for _, ts := range allTS {
-			key := ts.ObjectMeta.Namespace + "/" + ts.ObjectMeta.Name + "_ts"
-			if status.Key == key {
-				tss = append(tss, ts)
-				break
-			}
-		}
-	}
-	return tss
-}
-
-// Get List of ingLink associated with the IPAM resource
-func (ctlr *Controller) getIngressLinkForIPAM(ipam *ficV1.IPAM) []*cisapiv1.IngressLink {
-	var allIngLinks, ils []*cisapiv1.IngressLink
-	allIngLinks = ctlr.getAllIngLinkFromMonitoredNamespaces()
-	if allIngLinks == nil {
-		return nil
-	}
-	for _, status := range ipam.Status.IPStatus {
-		for _, il := range allIngLinks {
-			key := il.ObjectMeta.Namespace + "/" + il.ObjectMeta.Name + "_il"
-			if status.Key == key {
-				ils = append(ils, il)
-				break
-			}
-		}
-	}
-	return ils
-}
-
-func (ctlr *Controller) syncAndGetServicesForIPAM(ipam *ficV1.IPAM) []*v1.Service {
-
-	allServices := ctlr.getAllServicesFromMonitoredNamespaces()
-	if allServices == nil {
-		return nil
-	}
-	var svcList []*v1.Service
-	var staleSpec []*ficV1.IPSpec
-	for _, IPSpec := range ipam.Status.IPStatus {
-		for _, svc := range allServices {
-			svcKey := svc.Namespace + "/" + svc.Name + "_svc"
-			if IPSpec.Key == svcKey {
-				if svc.Spec.Type != v1.ServiceTypeLoadBalancer {
-					staleSpec = append(staleSpec, IPSpec)
-					ctlr.eraseLBServiceIngressStatus(svc)
-				} else {
-					svcList = append(svcList, svc)
-				}
-			}
-		}
-	}
-
-	for _, IPSpec := range staleSpec {
-		ctlr.releaseIP(IPSpec.IPAMLabel, "", IPSpec.Key)
-	}
-
-	return svcList
-}
+//func (ctlr *Controller) syncAndGetServicesForIPAM(ipam *ficV1.IPAM) []*v1.Service {
+//
+//	allServices := ctlr.getAllServicesFromMonitoredNamespaces()
+//	if allServices == nil {
+//		return nil
+//	}
+//	var svcList []*v1.Service
+//	var staleSpec []*ficV1.IPSpec
+//	for _, IPSpec := range ipam.Status.IPStatus {
+//		for _, svc := range allServices {
+//			svcKey := svc.Namespace + "/" + svc.Name + "_svc"
+//			if IPSpec.Key == svcKey {
+//				if svc.Spec.Type != v1.ServiceTypeLoadBalancer {
+//					staleSpec = append(staleSpec, IPSpec)
+//					ctlr.eraseLBServiceIngressStatus(svc)
+//				} else {
+//					svcList = append(svcList, svc)
+//				}
+//			}
+//		}
+//	}
+//
+//	for _, IPSpec := range staleSpec {
+//		ctlr.releaseIP(IPSpec.IPAMLabel, "", IPSpec.Key)
+//	}
+//
+//	return svcList
+//}
 
 func (ctlr *Controller) processLBServices(
 	svc *v1.Service,
@@ -2706,7 +2706,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 				key := ts.Spec.HostGroup + "_hg"
 				if pKey == key {
 					ctlr.TeemData.Lock()
-					ctlr.TeemData.ResourceType.IPAMVS[ns]++
+					ctlr.TeemData.ResourceType.IPAMTS[ns]++
 					ctlr.TeemData.Unlock()
 					err := ctlr.processTransportServers(ts, false)
 					if err != nil {

@@ -109,21 +109,33 @@ func newMockAgent(writer writer.Writer) *Agent {
 func (m *mockController) addEDNS(edns *cisapiv1.ExternalDNS) {
 	appInf, _ := m.getNamespacedCommonInformer(edns.ObjectMeta.Namespace)
 	appInf.ednsInformer.GetStore().Add(edns)
+	if m.resourceQueue != nil {
+		m.enqueueExternalDNS(edns)
+	}
 }
 
 func (m *mockController) deleteEDNS(edns *cisapiv1.ExternalDNS) {
 	appInf, _ := m.getNamespacedCommonInformer(edns.ObjectMeta.Namespace)
 	appInf.ednsInformer.GetStore().Delete(edns)
+	if m.resourceQueue != nil {
+		m.enqueueDeletedExternalDNS(edns)
+	}
 }
 
 func (m *mockController) addRoute(route *routeapi.Route) {
 	appInf, _ := m.getNamespacedNativeInformer(route.ObjectMeta.Namespace)
 	appInf.routeInformer.GetStore().Add(route)
+	if m.resourceQueue != nil {
+		m.enqueueRoute(route, Create)
+	}
 }
 
 func (m *mockController) deleteRoute(route *routeapi.Route) {
 	appInf, _ := m.getNamespacedNativeInformer(route.ObjectMeta.Namespace)
 	appInf.routeInformer.GetStore().Delete(route)
+	if m.resourceQueue != nil {
+		m.enqueueDeletedRoute(route)
+	}
 }
 
 func (m *mockController) updateRoute(route *routeapi.Route) {
@@ -133,6 +145,10 @@ func (m *mockController) updateRoute(route *routeapi.Route) {
 func (m *mockController) addService(svc *v1.Service) {
 	comInf, _ := m.getNamespacedCommonInformer(svc.ObjectMeta.Namespace)
 	comInf.svcInformer.GetStore().Add(svc)
+
+	if m.resourceQueue != nil {
+		m.enqueueService(svc)
+	}
 }
 
 func (m *mockController) updateService(svc *v1.Service) {
@@ -143,11 +159,18 @@ func (m *mockController) updateService(svc *v1.Service) {
 func (m *mockController) deleteService(svc *v1.Service) {
 	comInf, _ := m.getNamespacedCommonInformer(svc.ObjectMeta.Namespace)
 	comInf.svcInformer.GetStore().Delete(svc)
+	if m.resourceQueue != nil {
+		m.enqueueDeletedService(svc)
+	}
 }
 
 func (m *mockController) addEndpoints(ep *v1.Endpoints) {
 	comInf, _ := m.getNamespacedCommonInformer(ep.ObjectMeta.Namespace)
 	comInf.epsInformer.GetStore().Add(ep)
+
+	if m.resourceQueue != nil {
+		m.enqueueEndpoints(ep, Create)
+	}
 }
 
 func (m *mockController) updateEndpoints(ep *v1.Endpoints) {
@@ -158,6 +181,9 @@ func (m *mockController) updateEndpoints(ep *v1.Endpoints) {
 func (m *mockController) deleteEndpoints(ep *v1.Endpoints) {
 	comInf, _ := m.getNamespacedCommonInformer(ep.ObjectMeta.Namespace)
 	comInf.epsInformer.GetStore().Delete(ep)
+	if m.resourceQueue != nil {
+		m.enqueueEndpoints(ep, Delete)
+	}
 }
 
 func convertSvcPortsToEndpointPorts(svcPorts []v1.ServicePort) []v1.EndpointPort {
@@ -167,6 +193,141 @@ func convertSvcPortsToEndpointPorts(svcPorts []v1.ServicePort) []v1.EndpointPort
 		eps[i].Port = v.Port
 	}
 	return eps
+}
+
+func (m *mockController) addVirtualServer(vs *cisapiv1.VirtualServer) {
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf.vsInformer.GetStore().Add(vs)
+
+	if m.resourceQueue != nil {
+		m.enqueueVirtualServer(vs)
+	}
+}
+
+func (m *mockController) updateVirtualServer(oldVS *cisapiv1.VirtualServer, newVS *cisapiv1.VirtualServer) {
+	cusInf, _ := m.getNamespacedCRInformer(oldVS.ObjectMeta.Namespace)
+	cusInf.vsInformer.GetStore().Update(newVS)
+
+	if m.resourceQueue != nil {
+		m.enqueueUpdatedVirtualServer(oldVS, newVS)
+	}
+}
+
+func (m *mockController) deleteVirtualServer(vs *cisapiv1.VirtualServer) {
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf.vsInformer.GetStore().Delete(vs)
+
+	if m.resourceQueue != nil {
+		m.enqueueDeletedVirtualServer(vs)
+	}
+}
+
+func (m *mockController) addTransportServer(vs *cisapiv1.TransportServer) {
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf.tsInformer.GetStore().Add(vs)
+
+	if m.resourceQueue != nil {
+		m.enqueueTransportServer(vs)
+	}
+}
+
+func (m *mockController) updateTransportServer(oldVS *cisapiv1.TransportServer, newVS *cisapiv1.TransportServer) {
+	cusInf, _ := m.getNamespacedCRInformer(oldVS.ObjectMeta.Namespace)
+	cusInf.tsInformer.GetStore().Update(newVS)
+
+	if m.resourceQueue != nil {
+		m.enqueueUpdatedTransportServer(oldVS, newVS)
+	}
+}
+
+func (m *mockController) deleteTransportServer(vs *cisapiv1.TransportServer) {
+	cusInf, _ := m.getNamespacedCRInformer(vs.ObjectMeta.Namespace)
+	cusInf.tsInformer.GetStore().Delete(vs)
+
+	if m.resourceQueue != nil {
+		m.enqueueDeletedTransportServer(vs)
+	}
+}
+
+func (m *mockController) addPolicy(plc *cisapiv1.Policy) {
+	cusInf, _ := m.getNamespacedCommonInformer(plc.ObjectMeta.Namespace)
+	cusInf.plcInformer.GetStore().Add(plc)
+
+	if m.resourceQueue != nil {
+		m.enqueuePolicy(plc, Create)
+	}
+}
+
+func (m *mockController) deletePolicy(plc *cisapiv1.Policy) {
+	cusInf, _ := m.getNamespacedCommonInformer(plc.ObjectMeta.Namespace)
+	cusInf.plcInformer.GetStore().Delete(plc)
+
+	if m.resourceQueue != nil {
+		m.enqueueDeletedPolicy(plc)
+	}
+}
+
+func (m *mockController) addTLSProfile(prof *cisapiv1.TLSProfile) {
+	cusInf, _ := m.getNamespacedCRInformer(prof.ObjectMeta.Namespace)
+	cusInf.tlsInformer.GetStore().Add(prof)
+
+	if m.resourceQueue != nil {
+		m.enqueueTLSProfile(prof, Create)
+	}
+}
+
+func (m *mockController) addIngressLink(il *cisapiv1.IngressLink) {
+	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace)
+	cusInf.ilInformer.GetStore().Add(il)
+
+	if m.resourceQueue != nil {
+		m.enqueueIngressLink(il)
+	}
+}
+
+func (m *mockController) deleteIngressLink(il *cisapiv1.IngressLink) {
+	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace)
+	cusInf.ilInformer.GetStore().Delete(il)
+
+	if m.resourceQueue != nil {
+		m.enqueueDeletedIngressLink(il)
+	}
+}
+
+func (m *mockController) addPod(pod *v1.Pod) {
+	cusInf, _ := m.getNamespacedCommonInformer(pod.ObjectMeta.Namespace)
+	cusInf.podInformer.GetStore().Add(pod)
+
+	if m.resourceQueue != nil {
+		m.enqueuePod(pod)
+	}
+}
+
+func (m *mockController) deletePod(pod v1.Pod) {
+	cusInf, _ := m.getNamespacedCommonInformer(pod.ObjectMeta.Namespace)
+	cusInf.podInformer.GetStore().Delete(pod)
+
+	if m.resourceQueue != nil {
+		m.enqueueDeletedPod(pod)
+	}
+}
+
+func (m *mockController) addConfigMap(cm *v1.ConfigMap) {
+	cusInf, _ := m.getNamespacedNativeInformer(cm.ObjectMeta.Namespace)
+	cusInf.cmInformer.GetStore().Add(cm)
+
+	if m.resourceQueue != nil {
+		m.enqueueConfigmap(cm, Create)
+	}
+}
+
+func (m *mockController) deleteConfigMap(cm *v1.ConfigMap) {
+	cusInf, _ := m.getNamespacedNativeInformer(cm.ObjectMeta.Namespace)
+	cusInf.cmInformer.GetStore().Delete(cm)
+
+	if m.resourceQueue != nil {
+		m.enqueueDeletedConfigmap(cm)
+	}
 }
 
 //func (mockCtlr *mockController) getOrderedRoutes(resourceType, namespace string) []interface{} {

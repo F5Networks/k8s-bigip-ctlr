@@ -326,7 +326,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			// Skip NPL Annotation check on service
 			svcPods := ctlr.GetPodsForService(route.Namespace, bs.Name, false)
 
-			if svcPods != nil {
+			if svcPods != nil && len(svcPods.Items) > 0 {
 				port := pool.ServicePort.IntVal
 				pod := svcPods.Items[0]
 
@@ -476,7 +476,7 @@ func (ctlr *Controller) UpdatePoolHealthMonitors(service *v1.Service, freshRsCfg
 		"",
 	)
 	svcPods := ctlr.GetPodsForService(service.Namespace, service.Name, false)
-	if svcPods != nil {
+	if svcPods != nil && len(svcPods.Items) > 0 {
 		//Pick any one of the pod
 		pod := svcPods.Items[0]
 

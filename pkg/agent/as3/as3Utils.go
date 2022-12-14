@@ -23,8 +23,8 @@ import (
 	"strconv"
 	"strings"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 func ValidateJSONStringAndFetchObject(jsonData string, jsonObj *map[string]interface{}) error {

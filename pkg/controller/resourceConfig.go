@@ -19,7 +19,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 
 	"net"
 	"reflect"
@@ -34,8 +34,8 @@ import (
 
 	routeapi "github.com/openshift/api/route/v1"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 )
 

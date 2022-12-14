@@ -24,9 +24,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 func initializeDriverConfig(

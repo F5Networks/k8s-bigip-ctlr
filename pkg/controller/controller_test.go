@@ -1,8 +1,8 @@
 package controller
 
 import (
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"

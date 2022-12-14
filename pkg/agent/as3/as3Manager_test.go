@@ -18,7 +18,7 @@ package as3
 import (
 	"encoding/json"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

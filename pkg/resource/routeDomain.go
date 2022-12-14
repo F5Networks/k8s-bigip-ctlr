@@ -17,7 +17,7 @@
 package resource
 
 import (
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"net"
 	"strconv"
 	"strings"

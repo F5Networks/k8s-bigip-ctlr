@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"sort"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 func (am *AS3Manager) prepareAS3ResourceConfig() as3ADC {

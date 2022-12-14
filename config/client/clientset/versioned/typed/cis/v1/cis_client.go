@@ -19,8 +19,8 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/scheme"
+	v1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 

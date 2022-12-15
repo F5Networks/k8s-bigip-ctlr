@@ -9,11 +9,6 @@ import (
 
 // cfgMap States
 const (
-	cmInit = iota + 1
-	cmActive
-	cmError
-	cmDeletePending
-
 	F5TypeLabel      = "f5type"
 	VSLabel          = "virtual-server"
 	TrueLabel        = "true"

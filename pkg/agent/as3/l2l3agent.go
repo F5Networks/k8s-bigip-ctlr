@@ -54,17 +54,3 @@ func (am *AS3Manager) SendARPEntries() {
 	case <-time.After(3 * time.Second):
 	}
 }
-
-// Only append to the list if it isn't already in the list
-func appendPool(rsPools []Pool, p Pool) []Pool {
-	for i, rp := range rsPools {
-		if rp.Name == p.Name &&
-			rp.Partition == p.Partition {
-			if len(p.Members) > 0 {
-				rsPools[i].Members = p.Members
-			}
-			return rsPools
-		}
-	}
-	return append(rsPools, p)
-}

@@ -49,7 +49,7 @@ const (
 
 type PostManager struct {
 	postChan   chan config
-	httpClient *http.Client
+	HttpClient *http.Client
 	activeCfg  config
 	PostParams
 	Tenants map[string]bool
@@ -104,7 +104,7 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 		},
 	}
 
-	postMgr.httpClient = &http.Client{
+	postMgr.HttpClient = &http.Client{
 		Transport: tr,
 		Timeout:   timeoutLarge,
 	}
@@ -234,7 +234,7 @@ func (postMgr *PostManager) GetBigipRegKey() (string, error) {
 }
 
 func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[string]interface{}) {
-	httpResp, err := postMgr.httpClient.Do(request)
+	httpResp, err := postMgr.HttpClient.Do(request)
 	if err != nil {
 		log.Errorf("[AS3] REST call error: %v ", err)
 		return nil, nil

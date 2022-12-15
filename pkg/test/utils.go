@@ -19,24 +19,22 @@ package test
 import (
 	"bytes"
 	"fmt"
-	"io"
-	"io/ioutil"
-	netv1 "k8s.io/api/networking/v1"
-	"net/http"
-	"sync"
-	"time"
-
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"
+	"io"
+	"io/ioutil"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
+	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest/fake"
+	"net/http"
+	"sync"
+	"time"
 )
 
 const (

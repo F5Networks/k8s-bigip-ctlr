@@ -21,12 +21,15 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	netv1 "k8s.io/api/networking/v1"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
@@ -155,6 +158,33 @@ func NewIngress(id, rv, namespace string,
 		},
 		Spec: spec,
 	}
+}
+
+// NewIngress returns a new ingress object
+func Newnetv1Ingress(id, rv, namespace string,
+	spec netv1.IngressSpec,
+	annotations map[string]string) *netv1.Ingress {
+	return &netv1.Ingress{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "extensions/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            id,
+			ResourceVersion: rv,
+			Namespace:       namespace,
+			Annotations:     annotations,
+		},
+		Spec: spec,
+	}
+}
+
+func ReadConfigFile(path string) string {
+	defer GinkgoRecover()
+	data, err := ioutil.ReadFile(path)
+	RegisterFailHandler(Fail)
+	Expect(err).To(BeNil(), "Configuration files should be located in pkg/test/configs.")
+	return string(data)
 }
 
 // NewRoute returns a new route object

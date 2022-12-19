@@ -7,6 +7,7 @@ Next Release
 Added Functionality
 ```````````````````
 * Base image upgraded to RedHat UBI-9 for CIS Container images.
+* Support for AS3 3.41.0
 
 Bug Fixes
 ````````````

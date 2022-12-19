@@ -103,9 +103,10 @@ const (
 	// AS3 Related constants
 	as3SupportedVersion = 3.18
 	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
-	as3Version        = 3.38
-	defaultAS3Version = "3.38.0"
-	defaultAS3Build   = "3"
+	//While upgrading version update $id value in schema json to https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json
+	as3Version        = 3.41
+	defaultAS3Version = "3.41.0"
+	defaultAS3Build   = "1"
 )
 
 // NewController creates a new Controller Instance.

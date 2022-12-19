@@ -2060,8 +2060,8 @@ func (ctlr *Controller) handleRouteTLS(
 }
 
 /*
-	getSSLProfileOption returns which ssl profile option to be used for the route
-	Examples: annotation, routeCertificate, defaultSSL, invalid
+getSSLProfileOption returns which ssl profile option to be used for the route
+Examples: annotation, routeCertificate, defaultSSL, invalid
 */
 func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route) string {
 	sslProfileOption := ""

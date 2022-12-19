@@ -19,6 +19,7 @@ package appmanager
 import (
 	"context"
 	"fmt"
+	routeapi "github.com/openshift/api/route/v1"
 	"sort"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
@@ -311,121 +312,119 @@ var _ = Describe("AppManager Profile Tests", func() {
 			Expect(len(customProfiles)).To(Equal(0))
 		})
 
-		//FixMe: Fix this unit test as we updated checkValidRoute function - included certificate and key validation.
+		It("uses annotated profiles for Routes", func() {
+			spec := routeapi.RouteSpec{
+				Host: "foo.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: &routeapi.TLSConfig{
+					Termination:              "reencrypt",
+					Certificate:              cert,
+					Key:                      key,
+					DestinationCACertificate: destCACert,
+				},
+			}
+			route := test.NewRoute("route", "1", namespace, spec,
+				map[string]string{
+					F5ClientSslProfileAnnotation: "Common/client",
+					F5ServerSslProfileAnnotation: "Common/server",
+				})
+			r := mockMgr.addRoute(route)
+			Expect(r).To(BeTrue(), "Route resource should be processed.")
 
-		// It("uses annotated profiles for Routes", func() {
-		// 	spec := routeapi.RouteSpec{
-		// 		Host: "foo.com",
-		// 		Path: "/foo",
-		// 		To: routeapi.RouteTargetReference{
-		// 			Kind: "Service",
-		// 			Name: "foo",
-		// 		},
-		// 		TLS: &routeapi.TLSConfig{
-		// 			Termination:              "reencrypt",
-		// 			Certificate:              "cert",
-		// 			Key:                      "key",
-		// 			DestinationCACertificate: "destCaCert",
-		// 		},
-		// 	}
-		// 	route := test.NewRoute("route", "1", namespace, spec,
-		// 		map[string]string{
-		// 			F5ClientSslProfileAnnotation: "Common/client",
-		// 			F5ServerSslProfileAnnotation: "Common/server",
-		// 		})
-		// 	r := mockMgr.addRoute(route)
-		// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
+			fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+				[]v1.ServicePort{{Port: 443, NodePort: 37001}})
+			mockMgr.addService(fooSvc)
 
-		// 	fooSvc := test.NewService("foo", "1", namespace, "NodePort",
-		// 		[]v1.ServicePort{{Port: 443, NodePort: 37001}})
-		// 	mockMgr.addService(fooSvc)
+			resources := mockMgr.resources()
+			rs, ok := resources.Get(
+				ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: namespace}, "https-ose-vserver")
+			Expect(ok).To(BeTrue(), "Route should be accessible.")
+			Expect(rs).ToNot(BeNil(), "Route should be object.")
 
-		// 	resources := mockMgr.resources()
-		// 	rs, ok := resources.Get(
-		// 		ServiceKey{"foo", 443, namespace}, "https-ose-vserver")
-		// 	Expect(ok).To(BeTrue(), "Route should be accessible.")
-		// 	Expect(rs).ToNot(BeNil(), "Route should be object.")
+			Expect(rs.Virtual.Profiles).To(ContainElement(
+				ProfileRef{
+					Partition: "Common",
+					Name:      "client",
+					Context:   CustomProfileClient,
+					Namespace: namespace,
+				}))
+			Expect(rs.Virtual.Profiles).ToNot(ContainElement(
+				ProfileRef{
+					Partition: "velcro",
+					Name:      "/openshift_route_default_route-client-ssl",
+					Context:   CustomProfileClient,
+				}))
+			pRef := ProfileRef{
+				Name:      "server",
+				Partition: "Common",
+				Context:   CustomProfileServer,
+				Namespace: namespace,
+			}
+			Expect(rs.Virtual.Profiles).To(ContainElement(pRef))
+			customPRef := ProfileRef{
+				Name:      "openshift_route_default_route-server-ssl",
+				Partition: "velcro",
+				Context:   CustomProfileServer,
+				Namespace: namespace,
+			}
+			Expect(rs.Virtual.Profiles).ToNot(ContainElement(customPRef))
 
-		// 	Expect(rs.Virtual.Profiles).To(ContainElement(
-		// 		ProfileRef{
-		// 			Partition: "Common",
-		// 			Name:      "client",
-		// 			Context:   CustomProfileClient,
-		// 			Namespace: namespace,
-		// 		}))
-		// 	Expect(rs.Virtual.Profiles).ToNot(ContainElement(
-		// 		ProfileRef{
-		// 			Partition: "velcro",
-		// 			Name:      "/openshift_route_default_route-client-ssl",
-		// 			Context:   CustomProfileClient,
-		// 		}))
-		// 	pRef := ProfileRef{
-		// 		Name:      "server",
-		// 		Partition: "Common",
-		// 		Context:   CustomProfileServer,
-		// 		Namespace: namespace,
-		// 	}
-		// 	Expect(rs.Virtual.Profiles).To(ContainElement(pRef))
-		// 	customPRef := ProfileRef{
-		// 		Name:      "openshift_route_default_route-server-ssl",
-		// 		Partition: "velcro",
-		// 		Context:   CustomProfileServer,
-		// 		Namespace: namespace,
-		// 	}
-		// 	Expect(rs.Virtual.Profiles).ToNot(ContainElement(customPRef))
+			// Remove profiles
+			delete(route.Annotations, F5ClientSslProfileAnnotation)
+			delete(route.Annotations, F5ServerSslProfileAnnotation)
+			mockMgr.updateRoute(route)
 
-		// 	// Remove profiles
-		// 	delete(route.Annotations, F5ClientSslProfileAnnotation)
-		// 	delete(route.Annotations, F5ServerSslProfileAnnotation)
-		// 	mockMgr.updateRoute(route)
+			rs, _ = resources.Get(
+				ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: namespace}, "https-ose-vserver")
+			Expect(rs.Virtual.Profiles).ToNot(ContainElement(
+				ProfileRef{
+					Partition: "Common",
+					Name:      "client",
+					Context:   CustomProfileClient,
+				}))
+			Expect(rs.Virtual.Profiles).To(ContainElement(
+				ProfileRef{
+					Partition: "velcro",
+					Name:      "openshift_route_default_route-client-ssl",
+					Context:   CustomProfileClient,
+					Namespace: namespace,
+				}))
+			Expect(rs.Virtual.Profiles).ToNot(ContainElement(pRef))
+			Expect(rs.Virtual.Profiles).To(ContainElement(customPRef))
 
-		// 	rs, _ = resources.Get(
-		// 		ServiceKey{"foo", 443, namespace}, "https-ose-vserver")
-		// 	Expect(rs.Virtual.Profiles).ToNot(ContainElement(
-		// 		ProfileRef{
-		// 			Partition: "Common",
-		// 			Name:      "client",
-		// 			Context:   CustomProfileClient,
-		// 		}))
-		// 	Expect(rs.Virtual.Profiles).To(ContainElement(
-		// 		ProfileRef{
-		// 			Partition: "velcro",
-		// 			Name:      "openshift_route_default_route-client-ssl",
-		// 			Context:   CustomProfileClient,
-		// 			Namespace: namespace,
-		// 		}))
-		// 	Expect(rs.Virtual.Profiles).ToNot(ContainElement(pRef))
-		// 	Expect(rs.Virtual.Profiles).To(ContainElement(customPRef))
+			// Re-add the profiles
+			route.Annotations[F5ClientSslProfileAnnotation] = "Common/newClient"
+			route.Annotations[F5ServerSslProfileAnnotation] = "Common/newServer"
+			mockMgr.updateRoute(route)
 
-		// 	// Re-add the profiles
-		// 	route.Annotations[F5ClientSslProfileAnnotation] = "Common/newClient"
-		// 	route.Annotations[F5ServerSslProfileAnnotation] = "Common/newServer"
-		// 	mockMgr.updateRoute(route)
-
-		// 	rs, _ = resources.Get(
-		// 		ServiceKey{"foo", 443, namespace}, "https-ose-vserver")
-		// 	Expect(rs.Virtual.Profiles).To(ContainElement(
-		// 		ProfileRef{
-		// 			Partition: "Common",
-		// 			Name:      "newClient",
-		// 			Context:   CustomProfileClient,
-		// 			Namespace: namespace,
-		// 		}))
-		// 	Expect(rs.Virtual.Profiles).ToNot(ContainElement(
-		// 		ProfileRef{
-		// 			Partition: "velcro",
-		// 			Name:      "openshift_route_default_route-client-ssl",
-		// 			Context:   CustomProfileClient,
-		// 			Namespace: namespace,
-		// 		}))
-		// 	pRef = ProfileRef{
-		// 		Name:      "newServer",
-		// 		Partition: "Common",
-		// 		Context:   CustomProfileServer,
-		// 		Namespace: namespace,
-		// 	}
-		// 	Expect(rs.Virtual.Profiles).To(ContainElement(pRef))
-		// 	Expect(rs.Virtual.Profiles).ToNot(ContainElement(customPRef))
-		// })
+			rs, _ = resources.Get(
+				ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: namespace}, "https-ose-vserver")
+			Expect(rs.Virtual.Profiles).To(ContainElement(
+				ProfileRef{
+					Partition: "Common",
+					Name:      "newClient",
+					Context:   CustomProfileClient,
+					Namespace: namespace,
+				}))
+			Expect(rs.Virtual.Profiles).ToNot(ContainElement(
+				ProfileRef{
+					Partition: "velcro",
+					Name:      "openshift_route_default_route-client-ssl",
+					Context:   CustomProfileClient,
+					Namespace: namespace,
+				}))
+			pRef = ProfileRef{
+				Name:      "newServer",
+				Partition: "Common",
+				Context:   CustomProfileServer,
+				Namespace: namespace,
+			}
+			Expect(rs.Virtual.Profiles).To(ContainElement(pRef))
+			Expect(rs.Virtual.Profiles).ToNot(ContainElement(customPRef))
+		})
 	})
 })

@@ -218,7 +218,7 @@ func NewController(params Params) *Controller {
 	return ctlr
 }
 
-//Set Other SDNType
+// Set Other SDNType
 func (ctlr *Controller) setOtherSDNType() {
 	ctlr.TeemData.Lock()
 	defer ctlr.TeemData.Unlock()
@@ -241,7 +241,7 @@ func (ctlr *Controller) setOtherSDNType() {
 	}
 }
 
-//Register IPAM CRD
+// Register IPAM CRD
 func (ctlr *Controller) registerIPAMCRD() {
 	err := ipammachinery.RegisterCRD(ctlr.kubeAPIClient)
 	if err != nil {
@@ -249,7 +249,7 @@ func (ctlr *Controller) registerIPAMCRD() {
 	}
 }
 
-//Create IPAM CRD
+// Create IPAM CRD
 func (ctlr *Controller) createIPAMResource() error {
 
 	frameIPAMResourceName := func() string {

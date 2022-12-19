@@ -6,7 +6,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-//TODO use as Counter not Gauge
+// TODO use as Counter not Gauge
 var MonitoredNodes = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "bigip_monitored_nodes",

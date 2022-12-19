@@ -154,8 +154,8 @@ func (appMgr *Manager) checkValidEndpoints(
 	return true, keyList
 }
 
-//checks for NPLPodAnnotation and populates nplstore, later used for poolmembers
-//if valid adds the related svc keys to queue.
+// checks for NPLPodAnnotation and populates nplstore, later used for poolmembers
+// if valid adds the related svc keys to queue.
 func (appMgr *Manager) checkValidPod(
 	obj interface{}, operation string,
 ) (bool, []*serviceQueueKey) {
@@ -650,7 +650,7 @@ func validateAppRootAnnotations(rsType int, entries map[string]string) {
 	}
 }
 
-//Validate certificate hostname
+// Validate certificate hostname
 func checkCertificateHost(host string, certificate string, key string) bool {
 	cert, certErr := tls.X509KeyPair([]byte(certificate), []byte(key))
 	if certErr != nil {
@@ -669,7 +669,7 @@ func checkCertificateHost(host string, certificate string, key string) bool {
 	return true
 }
 
-//validate config json
+// validate config json
 func validateConfigJson(tmpConfig string) error {
 	var tmp interface{}
 	err := json.Unmarshal([]byte(tmpConfig), &tmp)

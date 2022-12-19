@@ -491,7 +491,7 @@ func createAS3RuleAction(rl *Rule, rulesData *as3Rule, resourceType string) {
 	}
 }
 
-//Create health monitor declaration
+// Create health monitor declaration
 func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	for _, v := range cfg.Monitors {

@@ -27,9 +27,7 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/controller"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/health"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -676,52 +674,6 @@ func getGTMCredentials() {
 	}
 }
 
-func setupNodePolling(
-	appMgr *appmanager.Manager,
-	np pollers.Poller,
-	eventChanl <-chan interface{},
-	kubeClient kubernetes.Interface,
-) error {
-	// Register appMgr to watch for node updates to keep track of watched nodes
-	err := np.RegisterListener(appMgr.ProcessNodeUpdate)
-	if nil != err {
-		return fmt.Errorf("error registering node update listener: %v",
-			err)
-	}
-
-	if 0 != len(vxlanMode) {
-		// If partition is part of vxlanName, extract just the tunnel name
-		tunnelName := vxlanName
-		cleanPath := strings.TrimLeft(vxlanName, "/")
-		slashPos := strings.Index(cleanPath, "/")
-		if slashPos != -1 {
-			tunnelName = cleanPath[slashPos+1:]
-		}
-		vxMgr, err := vxlan.NewVxlanMgr(
-			vxlanMode,
-			tunnelName,
-			appMgr.UseNodeInternal(),
-			getConfigWriter(),
-			eventChanl,
-		)
-		if nil != err {
-			return fmt.Errorf("error creating vxlan manager: %v", err)
-		}
-
-		// Register vxMgr to watch for node updates to process fdb records
-		err = np.RegisterListener(vxMgr.ProcessNodeUpdate)
-		if nil != err {
-			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
-				err)
-		}
-		if eventChanl != nil {
-			vxMgr.ProcessAppmanagerEvents(kubeClient)
-		}
-	}
-
-	return nil
-}
-
 func createLabel(label string) (labels.Selector, error) {
 	var l labels.Selector
 	var err error
@@ -1101,16 +1053,6 @@ func main() {
 	}
 	appMgr.TeemData = td
 	GetNamespaces(appMgr)
-	intervalFactor := time.Duration(*nodePollInterval)
-	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
-	err = setupNodePolling(appMgr, np, eventChan, appMgrParms.KubeClient)
-	if nil != err {
-		log.Fatalf("Required polling utility for node updates failed setup: %v",
-			err)
-	}
-
-	np.Run()
-	defer np.Stop()
 
 	setupWatchers(appMgr, time.Duration(*syncInterval)*time.Second)
 	// Expose Prometheus metrics
@@ -1183,6 +1125,10 @@ func getAppManagerParams() appmanager.Params {
 		DefaultRouteDomain:     *defaultRouteDomain,
 		PoolMemberType:         *poolMemberType,
 		Agent:                  *agent,
+		VXLANMode:              vxlanMode,
+		VXLANName:              vxlanName,
+		EventChan:              eventChan,
+		ConfigWriter:           getConfigWriter(),
 	}
 }
 

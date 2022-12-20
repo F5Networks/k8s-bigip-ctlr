@@ -2,45 +2,46 @@ package controller
 
 import (
 	"fmt"
-	"reflect"
-	"strings"
-	"time"
-
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
-
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	v1 "k8s.io/api/core/v1"
+	"reflect"
+	"sort"
+	"strings"
 )
 
-func (ctlr *Controller) SetupNodePolling(
-	nodePollInterval int,
-	nodeLabelSelector string,
-	vxlanMode string,
-	vxlanName string,
-) error {
-	intervalFactor := time.Duration(nodePollInterval)
-	ctlr.nodePoller = pollers.NewNodePoller(ctlr.kubeClient, intervalFactor*time.Second, nodeLabelSelector)
-
-	// Register appMgr to watch for node updates to keep track of watched nodes
-	err := ctlr.nodePoller.RegisterListener(ctlr.ProcessNodeUpdate)
-	if nil != err {
-		return fmt.Errorf("error registering node update listener: %v",
-			err)
+func (ctlr *Controller) SetupNodeProcessing() error {
+	//when there is update from node informer get list of nodes from nodeinformer cache
+	ns := ""
+	if ctlr.watchingAllNamespaces() {
+		ns = ""
+	} else {
+		for k := range ctlr.namespaces {
+			ns = k
+			break
+		}
 	}
+	appInf, _ := ctlr.getNamespacedCommonInformer(ns)
+	nodes := appInf.nodeInformer.GetIndexer().List()
+	var nodeslist []v1.Node
+	for _, obj := range nodes {
+		node := obj.(*v1.Node)
+		nodeslist = append(nodeslist, *node)
+	}
+	sort.Sort(NodeList(nodeslist))
+	ctlr.ProcessNodeUpdate(nodeslist)
 
-	if 0 != len(vxlanMode) {
+	if 0 != len(ctlr.vxlanMode) {
 		// If partition is part of vxlanName, extract just the tunnel name
-		tunnelName := vxlanName
-		cleanPath := strings.TrimLeft(vxlanName, "/")
+		tunnelName := ctlr.vxlanName
+		cleanPath := strings.TrimLeft(ctlr.vxlanName, "/")
 		slashPos := strings.Index(cleanPath, "/")
 		if slashPos != -1 {
 			tunnelName = cleanPath[slashPos+1:]
 		}
 		vxMgr, err := vxlan.NewVxlanMgr(
-			vxlanMode,
+			ctlr.vxlanMode,
 			tunnelName,
 			ctlr.UseNodeInternal,
 			ctlr.Agent.ConfigWriter,
@@ -51,11 +52,7 @@ func (ctlr *Controller) SetupNodePolling(
 		}
 
 		// Register vxMgr to watch for node updates to process fdb records
-		err = ctlr.nodePoller.RegisterListener(vxMgr.ProcessNodeUpdate)
-		if nil != err {
-			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
-				err)
-		}
+		vxMgr.ProcessNodeUpdate(nodeslist)
 		if ctlr.Agent.EventChan != nil {
 			// It handles arp entries related to PoolMembers
 			vxMgr.ProcessAppmanagerEvents(ctlr.kubeClient)
@@ -67,13 +64,8 @@ func (ctlr *Controller) SetupNodePolling(
 
 // Check for a change in Node state
 func (ctlr *Controller) ProcessNodeUpdate(
-	obj interface{}, err error,
+	obj interface{},
 ) {
-	if nil != err {
-		log.Warningf("Unable to get list of nodes, err=%+v", err)
-		return
-	}
-
 	newNodes, err := ctlr.getNodes(obj)
 	if nil != err {
 		log.Warningf("Unable to get list of nodes, err=%+v", err)

@@ -183,8 +183,8 @@ func NewController(params Params) *Controller {
 	if err3 := ctlr.setupInformers(); err3 != nil {
 		log.Error("Failed to Setup Informers")
 	}
-
-	err := ctlr.SetupNodePolling(
+	//ctlr.ProcessNodeUpdate()
+	/*err := ctlr.SetupNodePolling(
 		params.NodePollInterval,
 		params.NodeLabelSelector,
 		params.VXLANMode,
@@ -192,7 +192,7 @@ func NewController(params Params) *Controller {
 	)
 	if err != nil {
 		log.Errorf("Failed to Setup Node Polling: %v", err)
-	}
+	}*/
 
 	if params.IPAM {
 		ipamParams := ipammachinery.Params{

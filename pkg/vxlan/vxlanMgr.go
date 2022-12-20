@@ -92,13 +92,7 @@ func NewVxlanMgr(
 	return vxMgr, nil
 }
 
-func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
-	if nil != err {
-		log.Warningf("[VxLAN] Vxlan manager (%s) unable to get list of nodes: %v",
-			vxm.vxLAN, err)
-		return
-	}
-
+func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}) {
 	nodes, ok := obj.([]v1.Node)
 	if false == ok {
 		log.Warningf("[VxLAN] Vxlan manager (%s) received poll update with unexpected type",
@@ -142,8 +136,7 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 			}
 		}
 		if atn, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/backend-data"]; ok {
-			var mac string
-			mac, err = parseVtepMac(atn, node.ObjectMeta.Name)
+			mac, err := parseVtepMac(atn, node.ObjectMeta.Name)
 			if nil != err {
 				log.Errorf("[VxLAN] %v", err)
 			} else if rec.Endpoint != "" {
@@ -196,14 +189,14 @@ func ipv4ToMac(addr string) string {
 }
 
 // Listen for updates from resource containing pod names (for arp entries)
-func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
+func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface, kubeNodes *v1.NodeList) {
 	go func() {
 		log.Debugf("[VxLAN] Vxlan Manager waiting for pod events from appManager.")
 		for {
 			select {
 			case pods := <-vxm.podChan:
 				if pods, ok := pods.([]resource.Member); ok {
-					vxm.addArpForPods(pods, kubeClient)
+					vxm.addArpForPods(pods, kubeClient, kubeNodes)
 				} else {
 					log.Errorf("[VxLAN] Vxlan Manager could not read Endpoints from appManager channel.")
 				}
@@ -213,9 +206,12 @@ func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
 	return
 }
 
-func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Interface) {
+func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Interface, kubeNodes *v1.NodeList) {
 	arps := arpSection{}
+	start := time.Now()
 	kubePods, err := kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	elapsed := time.Since(start)
+	log.Debugf("lavanya: time for get pods is %v", elapsed)
 	if nil != err {
 		log.Errorf("[VxLAN] Vxlan Manager could not list Kubernetes Pods for ARP entries: %v", err)
 		return
@@ -231,11 +227,14 @@ func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Inter
 			return
 		}
 	}
-	kubeNodes, err := kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if nil != err {
 		log.Errorf("[VxLAN] Vxlan Manager could not list Kubernetes Nodes for ARP entries: %v", err)
 		return
 	}
+	t1 := time.Now()
+	kubeNodesClient, err := kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	nodetime := time.Since(t1)
+	log.Debugf("lavanya: node time debug is %v for %v", nodetime, kubeNodesClient)
 	for _, pod := range pods.([]resource.Member) {
 		var mac string
 		mac, err = getVtepMac(pod, kubePods, kubeNodes)

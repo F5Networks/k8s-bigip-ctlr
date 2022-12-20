@@ -27,9 +27,7 @@ import (
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/controller"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/health"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -676,7 +674,7 @@ func getGTMCredentials() {
 	}
 }
 
-func setupNodePolling(
+/*func setupNodePolling(
 	appMgr *appmanager.Manager,
 	np pollers.Poller,
 	eventChanl <-chan interface{},
@@ -720,7 +718,7 @@ func setupNodePolling(
 	}
 
 	return nil
-}
+}*/
 
 func createLabel(label string) (labels.Selector, error) {
 	var l labels.Selector
@@ -1064,6 +1062,8 @@ func main() {
 
 	// creates the clientset
 	appMgrParms.KubeClient = kubeClient
+	appMgrParms.EventChan = eventChan
+	appMgrParms.ConfigWriter = getConfigWriter()
 	if *manageRoutes {
 		var rclient *routeclient.RouteV1Client
 		rclient, err = routeclient.NewForConfig(config)
@@ -1100,16 +1100,16 @@ func main() {
 	}
 	appMgr.TeemData = td
 	GetNamespaces(appMgr)
-	intervalFactor := time.Duration(*nodePollInterval)
-	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
-	err = setupNodePolling(appMgr, np, eventChan, appMgrParms.KubeClient)
-	if nil != err {
+	//intervalFactor := time.Duration(*nodePollInterval)
+	//np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
+	//err = setupNodePolling(appMgr, np, eventChan, appMgrParms.KubeClient)
+	/*if nil != err {
 		log.Fatalf("Required polling utility for node updates failed setup: %v",
 			err)
 	}
 
 	np.Run()
-	defer np.Stop()
+	defer np.Stop()*/
 
 	setupWatchers(appMgr, time.Duration(*syncInterval)*time.Second)
 	// Expose Prometheus metrics

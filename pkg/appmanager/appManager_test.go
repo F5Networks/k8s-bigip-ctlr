@@ -196,7 +196,7 @@ func (m *mockAppManager) getVsMutex(sKey serviceQueueKey) *sync.Mutex {
 }
 
 func (m *mockAppManager) processNodeUpdate(obj interface{}, err error) {
-	m.appMgr.ProcessNodeUpdate(obj, err)
+	m.appMgr.ProcessNodeUpdate(obj)
 	// Consume all of the work queue entries added by ProcessNodeUpdate
 	queueLen := m.appMgr.vsQueue.Len()
 	for i := 0; i < queueLen; i++ {
@@ -953,7 +953,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err := fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			Expect(appMgr.oldNodes).To(Equal(expectedOgSet))
 
 			cachedNodes := appMgr.getNodesFromCache()
@@ -968,7 +968,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = true
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			Expect(appMgr.oldNodes).To(Equal(expectedInternal))
 
 			cachedNodes = appMgr.getNodesFromCache()
@@ -986,7 +986,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			expectedAddSet := append(expectedOgSet, Node{Name: "nodeAdd", Addr: "127.0.0.6"})
 
 			Expect(appMgr.oldNodes).To(Equal(expectedAddSet))
@@ -999,7 +999,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			expectedAddSet = append(expectedOgSet, Node{Name: "nodeAdd", Addr: "127.0.0.6"})
 
 			Expect(appMgr.oldNodes).To(Equal(expectedAddSet))
@@ -1025,7 +1025,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 
 			Expect(appMgr.oldNodes).To(Equal(expectedDelSet))
 

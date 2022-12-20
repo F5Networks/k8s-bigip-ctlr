@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"net"
 	"reflect"
@@ -149,6 +151,11 @@ type Manager struct {
 	// Mutex to control access to nplStore map
 	nplStoreMutex sync.Mutex
 	AgentName     string
+	//vxlan
+	vxlanName    string
+	vxlanMode    string
+	eventchan    chan interface{}
+	configwriter writer.Writer
 }
 
 // Store of processed host-Path map
@@ -187,6 +194,7 @@ type Params struct {
 	UseSecrets        bool
 	SchemaLocal       string
 	EventChan         chan interface{}
+	ConfigWriter      writer.Writer
 	// Package local for untesting only
 	restClient             rest.Interface
 	steadyState            bool
@@ -206,6 +214,9 @@ type Params struct {
 	UserAgent          string
 	DefaultRouteDomain int
 	PoolMemberType     string
+	//vxlan
+	VXLANName string
+	VXLANMode string
 }
 
 // Configuration options for Routes in OpenShift
@@ -316,6 +327,9 @@ func NewManager(params *Params) *Manager {
 		defaultRouteDomain:     params.DefaultRouteDomain,
 		poolMemberType:         params.PoolMemberType,
 		AgentName:              params.Agent,
+		vxlanName:              params.VXLANName,
+		vxlanMode:              params.VXLANMode,
+		configwriter:           params.ConfigWriter,
 	}
 	manager.processedResources = make(map[string]bool)
 	manager.processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
@@ -677,6 +691,19 @@ func (appMgr *Manager) newAppInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 	}
+
+	appInf.nodeInformer = cache.NewSharedIndexInformer(
+		cache.NewFilteredListWatchFromClient(
+			appMgr.restClientv1,
+			"nodes",
+			"",
+			everything,
+		),
+		&v1.Node{},
+		resyncPeriod,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+
 	//For nodeport mode, disable ep informer
 	if appMgr.poolMemberType != NodePort {
 		appInf.endptInformer = cache.NewSharedIndexInformer(
@@ -841,6 +868,17 @@ func (appMgr *Manager) newAppInformer(
 			},
 		)
 	}
+
+	if appInf.nodeInformer != nil {
+		appInf.nodeInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { appMgr.setupNodeProcessing(obj) },
+				UpdateFunc: func(obj, cur interface{}) { appMgr.setupNodeProcessing(cur) },
+				DeleteFunc: func(obj interface{}) { appMgr.setupNodeProcessing(obj) },
+			},
+		)
+	}
+
 	if true == appMgr.manageIngress {
 		log.Infof("[CORE] Handling Ingress resource events.")
 		appInf.ingInformer.AddEventHandlerWithResyncPeriod(
@@ -1143,7 +1181,14 @@ func (appMgr *Manager) GetAllWatchedNamespaces() []string {
 		NsListOptions := metav1.ListOptions{
 			LabelSelector: appMgr.WatchedNS.NamespaceLabel,
 		}
+		t1 := time.Now()
 		nsL, err := appMgr.kubeClient.CoreV1().Namespaces().List(context.TODO(), NsListOptions)
+		t2 := time.Since(t1)
+		log.Debugf("lavanya: namespace list with namespace label client is %v for namespace list %v", t2, nsL)
+		t3 := time.Now()
+		nsLinformer := appMgr.nsInformer.GetIndexer().List()
+		t4 := time.Since(t3)
+		log.Debugf("lavanya: namespace list with namespace label informer is %v for namespace list %v", t4, nsLinformer)
 		if err != nil {
 			log.Errorf("[CORE] Error getting Namespaces with Namespace label - %v.", err)
 		}
@@ -1356,6 +1401,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			delete(appMgr.processedResources, resKey)
 			appMgr.processedResourcesMutex.Unlock()
 		}
+
 	default:
 		// Resources other than Services will be tracked if they are processed earlier
 		resKey := prepareResourceKey(sKey.ResourceKind, sKey.Namespace, sKey.ResourceName)
@@ -3320,13 +3366,9 @@ type Node struct {
 
 // Check for a change in Node state
 func (appMgr *Manager) ProcessNodeUpdate(
-	obj interface{}, err error,
+	obj interface{},
 ) {
-	if nil != err {
-		log.Warningf("[CORE] Unable to get list of nodes, err=%+v", err)
-		return
-	}
-
+	log.Debugf("lavanya: node obj is %v", reflect.TypeOf(obj))
 	newNodes, err := appMgr.getNodes(obj)
 	if nil != err {
 		log.Warningf("[CORE] Unable to get list of nodes, err=%+v", err)
@@ -3856,4 +3898,54 @@ func (appMgr *Manager) setOtherSDNType() {
 			}
 		}
 	}
+}
+
+func (appMgr *Manager) setupNodeProcessing(
+	obj interface{},
+) error {
+	// Register appMgr to watch for node updates to keep track of watched nodes
+	log.Debugf("lavanya: obj addded to queue by node informer %v", reflect.TypeOf(obj))
+	//when there is update from node informer get list of nodes from nodeinformer cache
+	appInf, _ := appMgr.getNamespaceInformerLocked("")
+	nodes := appInf.nodeInformer.GetIndexer().List()
+	var nodeslist []*v1.Node
+	for _, obj := range nodes {
+		node := obj.(*v1.Node)
+		nodeslist = append(nodeslist, node)
+	}
+	log.Debugf("lavanya: nodelist is %v", nodeslist)
+	appMgr.ProcessNodeUpdate(nodeslist)
+	if 0 != len(appMgr.vxlanMode) {
+		// If partition is part of vxlanName, extract just the tunnel name
+		tunnelName := appMgr.vxlanName
+		cleanPath := strings.TrimLeft(appMgr.vxlanName, "/")
+		slashPos := strings.Index(cleanPath, "/")
+		if slashPos != -1 {
+			tunnelName = cleanPath[slashPos+1:]
+		}
+
+		vxMgr, err := vxlan.NewVxlanMgr(
+			appMgr.vxlanMode,
+			tunnelName,
+			appMgr.UseNodeInternal(),
+			appMgr.configwriter,
+			appMgr.eventChan,
+		)
+		if nil != err {
+			return fmt.Errorf("error creating vxlan manager: %v", err)
+		}
+
+		// Register vxMgr to watch for node updates to process fdb records
+		vxMgr.ProcessNodeUpdate(nodes)
+		if nil != err {
+			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
+				err)
+		}
+		if appMgr.eventchan != nil {
+			log.Debugf("lavnaya: node from informer is %v", nodes)
+			vxMgr.ProcessAppmanagerEvents(appMgr.kubeClient, interface{}(nodes).(*v1.NodeList))
+		}
+	}
+
+	return nil
 }

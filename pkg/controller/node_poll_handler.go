@@ -2,20 +2,14 @@ package controller
 
 import (
 	"fmt"
-	"reflect"
-	"strings"
-	"time"
-
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
-	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
-
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
+	"reflect"
+	"strings"
 )
 
-func (ctlr *Controller) SetupNodePolling(
+/*func (ctlr *Controller) SetupNodePolling(
 	nodePollInterval int,
 	nodeLabelSelector string,
 	vxlanMode string,
@@ -63,7 +57,7 @@ func (ctlr *Controller) SetupNodePolling(
 	}
 
 	return nil
-}
+}*/
 
 // Check for a change in Node state
 func (ctlr *Controller) ProcessNodeUpdate(

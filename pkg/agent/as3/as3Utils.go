@@ -383,7 +383,7 @@ func (a as3Application) initDefault() {
 	a[as3template] = as3shared
 }
 
-//Replacing "-" with "_" for given string
+// Replacing "-" with "_" for given string
 // also handling the IP addr to string as per AS3 for Ingress Resource.
 func as3FormattedString(str string, resourceType string) string {
 	var formattedString string

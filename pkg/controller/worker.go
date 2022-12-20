@@ -3280,7 +3280,7 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 	}
 }
 
-//returns service obj with servicename
+// returns service obj with servicename
 func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
 	svcKey := namespace + "/" + serviceName
 	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)

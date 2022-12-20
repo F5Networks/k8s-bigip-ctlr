@@ -1730,6 +1730,136 @@ var _ = Describe("V1 Ingress Tests", func() {
 			Expect(flatDg).To(BeNil(), "should not have data")
 		})
 	})
+	Context("Test checkV1Ingress", func() {
+		It("Test with URL Rewrite annotation", func() {
+			namespace := "default"
+			mockMgr.appMgr.manageIngressClassOnly = false
+			mockMgr.appMgr.ingressClass = "f5"
+			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
+				DefaultBackend: &netv1.IngressBackend{
+					Service: &netv1.IngressServiceBackend{Name: "foo", Port: netv1.ServiceBackendPort{Number: int32(80)}},
+				},
+			}
+			ingress := NewV1Ingress("ingress1", "1", namespace, ingressConfig,
+				map[string]string{
+					F5VsBindAddrAnnotation:   "1.2.3.4",
+					F5VsPartitionAnnotation:  "velcro",
+					F5VsURLRewriteAnnotation: "/foo",
+				})
+
+			expectedSvcQKey := []*serviceQueueKey{
+				{
+					Namespace:    "default",
+					ServiceName:  "foo",
+					ResourceKind: "ingresses",
+					ResourceName: "ingress1",
+				},
+			}
+			tf, svcQKey := mockMgr.appMgr.checkV1Ingress(ingress)
+			Expect(tf).To(Equal(true))
+			Expect(len(svcQKey)).To(Equal(1))
+			Expect(svcQKey).To(Equal(expectedSvcQKey))
+		})
+
+		It("Test with App Root annotation", func() {
+			namespace := "default"
+			mockMgr.appMgr.manageIngressClassOnly = false
+			mockMgr.appMgr.ingressClass = "f5"
+			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
+				DefaultBackend: &netv1.IngressBackend{
+					Service: &netv1.IngressServiceBackend{Name: "foo", Port: netv1.ServiceBackendPort{Number: int32(80)}},
+				},
+			}
+			ingress := NewV1Ingress("ingress1", "1", namespace, ingressConfig,
+				map[string]string{
+					F5VsBindAddrAnnotation:  "1.2.3.4",
+					F5VsPartitionAnnotation: "velcro",
+					F5VsAppRootAnnotation:   "/foo",
+				})
+
+			expectedSvcQKey := []*serviceQueueKey{
+				{
+					Namespace:    "default",
+					ServiceName:  "foo",
+					ResourceKind: "ingresses",
+					ResourceName: "ingress1",
+				},
+			}
+			tf, svcQKey := mockMgr.appMgr.checkV1Ingress(ingress)
+			Expect(tf).To(Equal(true))
+			Expect(len(svcQKey)).To(Equal(1))
+			Expect(svcQKey).To(Equal(expectedSvcQKey))
+		})
+
+		It("Test resolveV1IngressHost", func() {
+			namespace := "default"
+			mockMgr.appMgr.manageIngressClassOnly = false
+			mockMgr.appMgr.ingressClass = "f5"
+			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
+				DefaultBackend: &netv1.IngressBackend{
+					Service: &netv1.IngressServiceBackend{Name: "foo", Port: netv1.ServiceBackendPort{Number: int32(80)}},
+				},
+				Rules: []netv1.IngressRule{
+					{Host: "", IngressRuleValue: netv1.IngressRuleValue{
+						HTTP: &netv1.HTTPIngressRuleValue{
+							Paths: []netv1.HTTPIngressPath{
+								{
+									Path: "/foo",
+									Backend: netv1.IngressBackend{
+										Service: &netv1.IngressServiceBackend{Name: "svc1"},
+									},
+								},
+							},
+						},
+					}},
+				},
+			}
+			ingress := NewV1Ingress("ingress1", "1", namespace, ingressConfig,
+				map[string]string{
+					F5VsBindAddrAnnotation:  "1.2.3.4",
+					F5VsPartitionAnnotation: "velcro",
+					F5VsAppRootAnnotation:   "/foo",
+				})
+			mockMgr.appMgr.resolveV1IngressHost(ingress, namespace)
+
+			ingress.Spec.Rules[0].Host = "f5.com"
+			mockMgr.appMgr.resolveIng = "LOOKUP"
+			ing, err := mockMgr.appMgr.kubeClient.NetworkingV1().Ingresses(namespace).Create(
+				context.TODO(), ingress, metav1.CreateOptions{})
+			Expect(ing).NotTo(BeNil())
+			Expect(err).To(BeNil())
+			mockMgr.appMgr.resolveV1IngressHost(ingress, namespace)
+			ing, err = mockMgr.appMgr.kubeClient.NetworkingV1().Ingresses(namespace).Get(
+				context.TODO(), ingress.Name, metav1.GetOptions{})
+			Expect(ing).NotTo(BeNil())
+			_, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]
+			Expect(ok).To(BeTrue())
+			Expect(err).To(BeNil())
+
+			// DNS server with hostname
+			mockMgr.appMgr.resolveIng = "google.com"
+			mockMgr.appMgr.resolveV1IngressHost(ingress, namespace)
+			ing, err = mockMgr.appMgr.kubeClient.NetworkingV1().Ingresses(namespace).Get(
+				context.TODO(), ingress.Name, metav1.GetOptions{})
+			Expect(ing).NotTo(BeNil())
+			_, ok = ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]
+			Expect(ok).To(BeTrue())
+			Expect(err).To(BeNil())
+
+			// DNS server with IP
+			mockMgr.appMgr.resolveIng = "8.8.8.8"
+			mockMgr.appMgr.resolveV1IngressHost(ingress, namespace)
+			ing, err = mockMgr.appMgr.kubeClient.NetworkingV1().Ingresses(namespace).Get(
+				context.TODO(), ingress.Name, metav1.GetOptions{})
+			Expect(ing).NotTo(BeNil())
+			_, ok = ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]
+			Expect(ok).To(BeTrue())
+			Expect(err).To(BeNil())
+		})
+	})
 })
 
 // NewIngress returns a new ingress object

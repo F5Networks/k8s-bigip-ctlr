@@ -685,7 +685,7 @@ var _ = Describe("Resource Config Tests", func() {
 				F5VsAppRootAnnotation:    "chfo",
 			}
 			vsName := FormatIngressVSName("1.2.3.4", 80)
-			ingress := test.Newnetv1Ingress(vsName, "1", "ns2", ingressConfig, annotations)
+			ingress := test.NewIngressNetV1(vsName, "1", "ns2", ingressConfig, annotations)
 			key, deps := NewObjectDependencies(ingress)
 			Expect(key).To(Equal(ObjectDependency{
 				Kind: "Ingress", Namespace: "ns2", Name: vsName}))
@@ -737,7 +737,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(len(removed)).To(Equal(6))
 			Expect(len(rs.objDeps)).To(BeZero())
 
-			ingress = test.Newnetv1Ingress("ingress", "1", "ns3", ingressConfig, nil)
+			ingress = test.NewIngressNetV1("ingress", "1", "ns3", ingressConfig, nil)
 			key, deps = NewObjectDependencies(ingress)
 			Expect(key).To(Equal(ObjectDependency{
 				Kind: "Ingress", Namespace: "ns3", Name: "ingress"}))

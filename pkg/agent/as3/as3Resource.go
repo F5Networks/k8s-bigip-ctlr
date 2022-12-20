@@ -140,7 +140,7 @@ func processRouteTLSProfilesForAS3(metadata *MetaData, svc *as3Service) {
 
 }
 
-//Get sorted ServerTLS by value
+// Get sorted ServerTLS by value
 func getSortedServerTLS(serverTLS []as3ResourcePointer) []as3ResourcePointer {
 	if len(serverTLS) == 1 {
 		return serverTLS

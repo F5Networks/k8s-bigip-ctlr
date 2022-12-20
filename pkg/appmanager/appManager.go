@@ -163,14 +163,14 @@ type WatchedNamespaces struct {
 	NamespaceLabel string
 }
 
-//NPL information from pod annotation
+// NPL information from pod annotation
 type NPLAnnotation struct {
 	PodPort  int32  `json:"podPort"`
 	NodeIP   string `json:"nodeIP"`
 	NodePort int32  `json:"nodePort"`
 }
 
-//List of NPL annotations
+// List of NPL annotations
 type NPLAnnoations []NPLAnnotation
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -3426,7 +3426,7 @@ func containsNode(nodes []Node, name string) bool {
 
 type byTimestamp []v1.Service
 
-//sort services by timestamp
+// sort services by timestamp
 func (slice byTimestamp) Len() int {
 	return len(slice)
 }
@@ -3835,7 +3835,7 @@ func (appMgr *Manager) deleteHostPathMapEntry(obj interface{}) {
 	}
 }
 
-//Set Other SDNType
+// Set Other SDNType
 func (appMgr *Manager) setOtherSDNType() {
 	appMgr.TeemData.Lock()
 	defer appMgr.TeemData.Unlock()

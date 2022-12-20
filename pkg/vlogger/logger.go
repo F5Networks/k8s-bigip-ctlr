@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//logger.go:
-//  Provides console logging through the common interface.
-//  To use, create the logger object with the following syntax:
-//    NewConsoleLogger()
+// logger.go:
 //
+//	Provides console logging through the common interface.
+//	To use, create the logger object with the following syntax:
+//	  NewConsoleLogger()
 package vlogger
 
 import (

@@ -159,13 +159,13 @@ func NewIngress(id, rv, namespace string,
 }
 
 // NewIngress returns a new ingress object
-func Newnetv1Ingress(id, rv, namespace string,
+func NewIngressNetV1(id, rv, namespace string,
 	spec netv1.IngressSpec,
 	annotations map[string]string) *netv1.Ingress {
 	return &netv1.Ingress{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Ingress",
-			APIVersion: "extensions/v1beta1",
+			APIVersion: "networking.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            id,
@@ -256,7 +256,7 @@ func NewService(id, rv, namespace string, serviceType v1.ServiceType,
 	}
 }
 
-//NewEndpoints returns an endpoints objects
+// NewEndpoints returns an endpoints objects
 func NewEndpoints(
 	svcName,
 	rv,
@@ -427,7 +427,7 @@ func NewSecret(name, namespace, cert, key string) *v1.Secret {
 	}
 }
 
-//NewPod return a pod
+// NewPod return a pod
 func NewPod(name, namespace string, podport int, labels map[string]string) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: metav1.TypeMeta{

@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//log_null.go:
-//  Turns off all logging.
+// log_null.go:
 //
+//	Turns off all logging.
 package vlogger
 
 import "log/syslog"

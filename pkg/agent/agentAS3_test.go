@@ -26,7 +26,7 @@ type (
 	}
 )
 
-func newMockPostManger() *mockPostManager {
+func newMockPostManager() *mockPostManager {
 	mockPM := &mockPostManager{
 		PostManager: &as3.PostManager{},
 		Responses:   []int{},
@@ -73,11 +73,11 @@ var _ = Describe("Agent AS3 Tests", func() {
 			ag := agentAS3{AS3Manager: &as3.AS3Manager{}}
 			ag.ReqChan = make(chan resource.MessageRequest, 1)
 			ag.RspChan = make(chan interface{}, 1)
-			mockPM := newMockPostManger()
+			mockPM := newMockPostManager()
 			ag.PostManager = mockPM.PostManager
 			Expect(ag.IsImplInAgent(resource.ResourceTypeCfgMap)).To(BeTrue())
 			Expect(ag.IsImplInAgent("test")).To(BeFalse())
-			ag.Deploy(resource.MessageRequest{ReqID: 1, MsgType: "test"})
+			_ = ag.Deploy(resource.MessageRequest{ReqID: 1, MsgType: "test"})
 			_, ok := <-ag.ReqChan
 			Expect(ok).To(BeTrue())
 			// Test Get BIGIP Reg key
@@ -97,7 +97,7 @@ var _ = Describe("Agent AS3 Tests", func() {
 				body:   `{"registrationKey": "sfiifhanji"}`,
 			}}, http.MethodGet)
 			Expect(ag.GetBigipRegKey()).To(BeEmpty())
-			ag.DeInit()
+			_ = ag.DeInit()
 			_, ok = <-ag.ReqChan
 			Expect(ok).To(BeFalse())
 			_, ok = <-ag.RspChan

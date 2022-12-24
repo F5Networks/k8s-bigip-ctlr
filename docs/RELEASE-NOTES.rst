@@ -15,6 +15,10 @@ Bug Fixes
 * Add pattern definition in CR schema to align with F5 BIGIP Object Naming convention
 * :issues:`2153` Update go.mod to v2
 
+Documentation
+``````````````
+* Add UserGuides
+
 2.11.0
 -------------
 

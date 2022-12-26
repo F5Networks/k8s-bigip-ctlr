@@ -1963,8 +1963,10 @@ func (ctlr *Controller) handleRouteTLS(
 			//set for default routegroup
 			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
 				//Flag to track the route groups which are using TLS profiles.
-				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
-					DependsOnTLS: true,
+				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg != nil {
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+						DependsOnTLS: true,
+					}
 				}
 			} else {
 				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
@@ -1991,12 +1993,16 @@ func (ctlr *Controller) handleRouteTLS(
 		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
 			//Flag to track the route groups which are using TLS Ciphers
 			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
-				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
-					DependsOnTLS: true,
+				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg != nil {
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+						DependsOnTLS: true,
+					}
 				}
 			} else {
-				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
-					DependsOnTLS: true,
+				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global != nil {
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+						DependsOnTLS: true,
+					}
 				}
 			}
 		}

@@ -2,10 +2,10 @@ package controller
 
 import (
 	"encoding/json"
-
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/ghttp"
 )
 
 var _ = Describe("Backend Tests", func() {
@@ -437,6 +437,45 @@ var _ = Describe("Backend Tests", func() {
 		It("Verify two equal JSONs", func() {
 			ok := DeepEqualJSON(`{"key": "value"}`, `{"key": "value"}`)
 			Expect(ok).To(BeTrue())
+		})
+	})
+
+	Describe("Agent", func() {
+		var (
+			server *ghttp.Server
+			//body   []byte
+		)
+		BeforeEach(func() {
+			map1 := map[string]string{
+				"version":       "3.42.0",
+				"release":       "1",
+				"schemaCurrent": "3.41.0",
+				"schemaMinimum": "3.18.0",
+			}
+			// start a test http server
+			server = ghttp.NewServer()
+
+			statusCode := 200
+
+			server.AppendHandlers(
+				ghttp.CombineHandlers(
+					ghttp.VerifyRequest("GET", "/mgmt/shared/appsvcs/info"),
+					ghttp.RespondWithJSONEncoded(statusCode, map1),
+				))
+		})
+		AfterEach(func() {
+			server.Close()
+		})
+		It("New Agent", func() {
+			var agentParams AgentParams
+			agentParams.EnableIPV6 = true
+			agentParams.Partition = "test"
+			agentParams.VXLANName = "vxlan500"
+			agentParams.PostParams.BIGIPURL = "http://" + server.Addr()
+			agent := NewAgent(agentParams)
+			Expect(agent.AS3VersionInfo.as3Version).To(Equal("3.41.0"))
+			agent.Stop()
+
 		})
 	})
 

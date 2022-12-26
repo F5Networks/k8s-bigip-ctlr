@@ -1311,11 +1311,11 @@ func (ctlr *Controller) eraseAllRouteAdmitStatus() {
 		} else {
 			key = route.Spec.Host + route.Spec.Path
 		}
-		ctlr.processedHostPath.Lock()
+		//ctlr.processedHostPath.Lock()
 		if timestamp, ok := ctlr.processedHostPath.processedHostPathMap[key]; ok && timestamp == route.ObjectMeta.CreationTimestamp {
 			delete(ctlr.processedHostPath.processedHostPathMap, key)
 		}
-		ctlr.processedHostPath.Unlock()
+		//ctlr.processedHostPath.Unlock()
 	}
 }
 

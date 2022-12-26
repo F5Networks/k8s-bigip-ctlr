@@ -7,11 +7,13 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 	routeapi "github.com/openshift/api/route/v1"
+	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/util/workqueue"
 	"net/http"
 	"reflect"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -860,10 +862,7 @@ var _ = Describe("Worker Tests", func() {
 
 			_ = mockCtlr.processLBServices(svc1, true)
 			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
-
 			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
-			mockCtlr.eraseLBServiceIngressStatus(svc1)
-			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(0))
 		})
 
 		It("Processing External DNS", func() {
@@ -996,6 +995,7 @@ var _ = Describe("Worker Tests", func() {
 			ann := make(map[string]string)
 			ann[NPLSvcAnnotation] = "true"
 			nplsvc.Annotations = ann
+			mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
 		})
 		It("NodePortLocal", func() {
 			pod1 := test.NewPod("pod1", namespace, 8080, selectors)
@@ -1017,8 +1017,11 @@ var _ = Describe("Worker Tests", func() {
 			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod1.Name]).To(Equal(val1))
 			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod2.Name]).To(Equal(val2))
 			//verify selector match on pod
+			Expect(mockCtlr.matchSvcSelectorPodLabels(map[string]string{}, pod1.Labels)).To(Equal(false))
+			Expect(mockCtlr.matchSvcSelectorPodLabels(selectors, map[string]string{})).To(Equal(false))
 			Expect(mockCtlr.matchSvcSelectorPodLabels(selectors, pod1.Labels)).To(Equal(true))
 			Expect(mockCtlr.checkCoreserviceLabels(pod1.Labels)).To(Equal(false))
+			Expect(mockCtlr.GetServicesForPod(pod1)).To(BeNil())
 			var items []v1.Pod
 			items = append(items, *pod1, *pod2)
 			pods := v1.PodList{Items: items}
@@ -1037,6 +1040,36 @@ var _ = Describe("Worker Tests", func() {
 			}
 			mems := mockCtlr.getEndpointsForNPL(intstr.FromInt(8080), &pods)
 			Expect(mems).To(Equal(members))
+			mockCtlr.processPod(pod1, true)
+			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod1.Name]).To(BeNil())
+			ann[NPLPodAnnotation] = "[{\"podPort\",\"nodeIP\":\"10.10.10.1\",\"nodePort\":40000}]"
+			pod1.Annotations = ann
+			mockCtlr.processPod(pod1, false)
+			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod1.Name]).To(BeNil())
+			Expect(mockCtlr.GetPodsForService("test", "svc", true)).To(BeNil())
+			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
+			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+				{Port: 8080, NodePort: 38001},
+				{Port: 9090, NodePort: 39001}}
+			svc := test.NewService("svc", "1", "default", "ClusterIP", fooPorts)
+			mockCtlr.addService(svc)
+			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
+			svc.Annotations = map[string]string{"nodeportlocal.antrea.io/enabled": "enabled"}
+			mockCtlr.updateService(svc)
+			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
+			labels := make(map[string]string)
+			labels["app"] = "UpdatePoolHealthMonitors"
+			svc.Spec.Selector = labels
+			mockCtlr.updateService(svc)
+			Expect(mockCtlr.GetPodsForService("default", "svc", true).Items).To(BeNil())
+			pod1.Labels = labels
+			mockCtlr.addPod(pod1)
+			mockCtlr.kubeClient.CoreV1().Pods("default").Create(context.TODO(), pod1, metav1.CreateOptions{})
+			Expect(mockCtlr.GetPodsForService("default", "svc", true).Items).ToNot(BeNil())
+			Expect(mockCtlr.GetService("test", "svc")).To(BeNil())
+			Expect(mockCtlr.GetService("default", "svc1")).To(BeNil())
+			Expect(mockCtlr.GetService("default", "svc")).ToNot(BeNil())
+			Expect(getNodeport(svc, 81)).To(BeEquivalentTo(0))
 		})
 
 		Describe("Processing Service of type LB with policy", func() {
@@ -1451,6 +1484,8 @@ var _ = Describe("Worker Tests", func() {
 
 			var vs *cisapiv1.VirtualServer
 			var tlsProf *cisapiv1.TLSProfile
+			var secret *v1.Secret
+			var tlsSecretProf *cisapiv1.TLSProfile
 			var fooEndpts *v1.Endpoints
 			var fooPorts []v1.ServicePort
 
@@ -1473,7 +1508,9 @@ var _ = Describe("Worker Tests", func() {
 									Interval: 15,
 									Timeout:  10,
 								},
-								Rewrite: "/bar",
+								Rewrite:     "/bar",
+								Balance:     "fastest-node",
+								ServicePort: 80,
 							},
 							{
 								Path:    "/",
@@ -1484,11 +1521,26 @@ var _ = Describe("Worker Tests", func() {
 									Interval: 15,
 									Timeout:  10,
 								},
+								Rewrite:     "/bar1",
+								Balance:     "fastest-node",
+								ServicePort: 81,
 							},
 						},
-						RewriteAppRoot: "/home",
-						WAF:            "/Common/WAF",
-						IRules:         []string{"SampleIRule"},
+						RewriteAppRoot:     "/home",
+						AllowSourceRange:   []string{" 1.1.1.0/24", "2.2.2.0/24"},
+						BotDefense:         "/Common/bot-defense",
+						DOS:                "/Common/dos",
+						WAF:                "/Common/WAF",
+						IRules:             []string{"/Common/SampleIRule"},
+						PersistenceProfile: "source-address",
+						AllowVLANs:         []string{"/Common/devtraffic"},
+						Profiles: cisapiv1.ProfileSpec{
+							TCP: cisapiv1.ProfileTCP{
+								Client: "/Common/f5-tcp-lan",
+								Server: "/Common/f5-tcp-wan",
+							},
+							ProfileL4: "/Common/security-fastL4",
+						},
 					},
 				)
 
@@ -1514,10 +1566,29 @@ var _ = Describe("Worker Tests", func() {
 						},
 					},
 				)
+				tlsSecretProf = test.NewTLSProfile(
+					"sampleTLS",
+					namespace,
+					cisapiv1.TLSProfileSpec{
+						Hosts: []string{"test.com"},
+						TLS: cisapiv1.TLS{
+							Termination: TLSEdge,
+							ClientSSL:   "SampleSecret",
+							Reference:   Secret,
+						},
+					},
+				)
 
+				secret = test.NewSecret(
+					"SampleSecret",
+					namespace,
+					"-----BEGIN CERTIFICATE-----\nMIIC+DCCAeCgAwIBAgIQIBIcC6PuJQEHwwI0Hv5QmTANBgkqhkiG9w0BAQsFADAS\nMRAwDgYDVQQKEwdBY21lIENvMB4XDTIyMTIyMjA5MjE0OFoXDTIzMTIyMjA5MjE0\nOFowEjEQMA4GA1UEChMHQWNtZSBDbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC\nAQoCggEBAN0NWXsUvGYBV9uo2Iuz3gnovyk3W7p8AA4I8eRUFaWV1EYaxFpsGmdN\nrQgdVJ6w+POSykbDuZynYJyBjC11dJmfTaXffLaUSrJfu+a0QaeWIpt+XxzO4SKQ\nunUSh5Z9w4P45G8VKF7E67wFVN0ni10FLAfBUjYVsQpPagpkH8OdnYCsymCzVSWi\nYETZZ+Hbaih9flRgBQOsoUyNBSkCdJ2wEkZ/0p9+tYwZp1Xvp/Neu3TTsezpu7lE\nbTp0RLQNqfLHWiMV9BSAQRbXAvtvky3J42iy+ec24JyQPtiD85u8Pp/+ssV0ZL9l\nc5KoDEuAvf4NPFWu270gYyQljKcTbB8CAwEAAaNKMEgwDgYDVR0PAQH/BAQDAgWg\nMBMGA1UdJQQMMAoGCCsGAQUFBwMBMAwGA1UdEwEB/wQCMAAwEwYDVR0RBAwwCoII\ndGVzdC5jb20wDQYJKoZIhvcNAQELBQADggEBAI9VUdpVmfx+WUEejREa+plEjCIV\ns+d7v66ddyU4B+Zer1y4RgoWaVq5pywPPjBNJuz6NfwSvBCmuMUd1LUoF5tQFkqb\nVa85Aq6ODbwIMoQ53kTG9vLbT78qESrbukaW9v+axdD9/DIXZJtdwvLvHAVpelRi\n7z48Lxk1GTe7dM3ixKQrU4hz656kH3kXSnD79metOkJA6BAXsqL2XonIhNkCkQVV\n38IHDNkzk228d97ebLu+EhLlkjFgFQEnXusK1amrGJrRDli72pY01yxzGI1caKG5\nN6I8MEIqYI/POwbYWENqONF22pzw/OIs4T1a3jjUqEFugnELcTtx/xRLmOI=\n-----END CERTIFICATE-----\n",
+					"-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDdDVl7FLxmAVfb\nqNiLs94J6L8pN1u6fAAOCPHkVBWlldRGGsRabBpnTa0IHVSesPjzkspGw7mcp2Cc\ngYwtdXSZn02l33y2lEqyX7vmtEGnliKbfl8czuEikLp1EoeWfcOD+ORvFShexOu8\nBVTdJ4tdBSwHwVI2FbEKT2oKZB/DnZ2ArMpgs1UlomBE2Wfh22oofX5UYAUDrKFM\njQUpAnSdsBJGf9KffrWMGadV76fzXrt007Hs6bu5RG06dES0Danyx1ojFfQUgEEW\n1wL7b5MtyeNosvnnNuCckD7Yg/ObvD6f/rLFdGS/ZXOSqAxLgL3+DTxVrtu9IGMk\nJYynE2wfAgMBAAECggEAf8l91vcvylAweB1twaUjUNsp1yvXbUDNz09Adtxc/zJU\nWoqSxCsGQH3Y7331Mx/fav+Ky8nN/U+NPCxv2r+xvjUncCJ4OBwV6nQJbd76rWTP\ncNBnL4IxCAheodsqYsclRZ+WftjeU5rHJBR48Lgxin6462rImdeEVw99n7At5Kig\nGZmGNXnk6jgvoNU1YJZxSMWQQwKtrfJxXry5a90SfjiviGseuBPsgbrMxEPaeqlQ\nGAMi4nIVRmijL56vbbuuudZm+6dpOnbGzzF6J4M5Nrfr/qJF7ClwXjcMeb6lESIo\n5pmGl3QwSGQYeflFexP3ydvQdUwN5rLbtCexPC2CsQKBgQDxLPn8pIU7WuFiTuOp\n1o7/25v7ijPydIRBjjVeA7E7+mbq9FllkT4CW+HtP7zCCjdScuXhKjuPRrST4fsZ\nZex2nUYfc586s/W95b4QMKtXcJd1MMMWOK2/ZGN/6L5zLPupDrhyWHw91biFZG8h\nSFgn7G2zS/+09gJTglpdj3gClQKBgQDqo7f+kZiXGFvP4kcOWNgnOJOpdqzG/zeD\nuVP2Y6Q8mi7GhkiYhdlrl6Ibh9X0qjFMKMKy827jbUPSGaj5tIT8iXyFT4KVaqZQ\n7r2cMyCqbznKfWlyMyspaVEDa910+VwC2hYQvahTQzfdQqFp6JfiLqCdQtiNDGLf\nbvUOHk4a4wKBgHDLo0NowrMm5wBuewXExm6djE9RrMf5fJ2YYBdPTMYLb7T1gRYC\nnujFhl3KkIKD+qnB+QedE+wHmo8Lgr+3LqevGMu+7LqszgL5fzHdQVWM4Bk8LBGp\ngoFf9zUsal49rJm9u8Am6DyXR0yD04HSbwCFEC1qHvbIk//wmEjnv64dAoGANBbW\nYPBHlLt2nmbYaWn1ync36LYM0zyTQW3iIt+p9T4xRidHdHy6cLU/6qa0K9Wgjgy6\ndGmwY1K9bKX/qjeWEk4fU6T8E1mSxILLmyKKjOuWQ8qlnxGW8mGL95t5lV9KOuPZ\nZCwGcz2H6FnDZbSaCz9YrrDJTD7EsF98jX7SzgsCgYBQv5yi7aGxH6OcrAJPQH4v\n1fZo7mFbqp0WoUMpwuWKNOHZuZoF0EU/bllMZT7AipxVhso+hUC+rDEO7H36TAyc\nTUJbdxtlIC1JmJTmeBOWh3i3Htu8A97DLUNTqNikNyKyGWjy7eC0ncG3+CGG91wA\nky9KxzxszaIez6kIUCY7xQ==\n-----END PRIVATE KEY-----\n",
+				)
 			})
 
 			It("Virtual Server with Virtual Address", func() {
+
 				crInf := mockCtlr.newNamespacedCustomResourceInformer(namespace)
 				nrInf := mockCtlr.newNamespacedNativeResourceInformer(namespace)
 				crInf.start()
@@ -1529,6 +1600,10 @@ var _ = Describe("Worker Tests", func() {
 				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
 				mockCtlr.addService(svc)
 				mockCtlr.processResources()
+
+				mockCtlr.kubeClient.CoreV1().Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
+				mockCtlr.setInitialServiceCount()
+				mockCtlr.migrateIPAM()
 
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
@@ -1544,9 +1619,13 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.addPolicy(policy)
 				mockCtlr.processResources()
 
-				mockCtlr.addTLSProfile(tlsProf)
+				mockCtlr.addTLSProfile(tlsSecretProf)
 				mockCtlr.processResources()
 
+				mockCtlr.addSecret(secret)
+				mockCtlr.processResources()
+
+				mockCtlr.kubeClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
 				// Should process VS now
@@ -1557,13 +1636,24 @@ var _ = Describe("Worker Tests", func() {
 
 				// Update service
 				svc.Spec.Ports[0].NodePort = 30002
+				Expect(fetchPortString(intstr.IntOrString{StrVal: strconv.Itoa(int(vs.Spec.Pools[0].ServicePort))})).To(BeEquivalentTo("80"))
 				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				tlsSecretProf.Spec.TLS.ClientSSLs = []string{"SampleSecret"}
+				mockCtlr.addTLSProfile(tlsSecretProf)
+				mockCtlr.processResources()
+				mockCtlr.addSecret(secret)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not processed")
 
 				mockCtlr.deleteVirtualServer(vs)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Virtual Server not deleted")
+
+				//check valid virtual server
+				valid := mockCtlr.checkValidVirtualServer(vs)
+				Expect(valid).To(BeFalse())
 
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
@@ -1603,8 +1693,10 @@ var _ = Describe("Worker Tests", func() {
 				Expect(ok).To(Equal(false), "Namespace not deleted")
 
 			})
-			//
 			It("Virtual Server with IPAM", func() {
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
+
 				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
 				mockCtlr.addPolicy(policy)
 				mockCtlr.processResources()
@@ -1713,6 +1805,7 @@ var _ = Describe("Worker Tests", func() {
 
 				time.Sleep(10 * time.Millisecond)
 				mockCtlr.Agent.respChan <- rscUpdateMeta
+				time.Sleep(10 * time.Millisecond)
 
 				config := ResourceConfigRequest{
 					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
@@ -1761,13 +1854,26 @@ var _ = Describe("Worker Tests", func() {
 								Interval: 10,
 							},
 						},
+						BotDefense:         "/Common/bot-defense",
+						DOS:                "/Common/dos",
+						IRules:             []string{"/Common/SampleIRule"},
+						PersistenceProfile: "source-address",
+						AllowVLANs:         []string{"/Common/devtraffic"},
+						Profiles: cisapiv1.ProfileSpec{
+							TCP: cisapiv1.ProfileTCP{
+								Client: "/Common/f5-tcp-lan",
+								Server: "/Common/f5-tcp-wan",
+							},
+							ProfileL4: "/Common/security-fastL4",
+						},
 					},
 				)
 
 			})
 
 			It("Transport Server Validation", func() {
-
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
 				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
 
 				mockCtlr.addEndpoints(fooEndpts)
@@ -1776,6 +1882,10 @@ var _ = Describe("Worker Tests", func() {
 				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
 				mockCtlr.addService(svc)
 				mockCtlr.processResources()
+
+				//check if virtual server exist
+				valid := mockCtlr.checkValidTransportServer(ts)
+				Expect(valid).To(BeFalse())
 
 				// with invalid type
 				ts.Spec.Type = "sctp1"
@@ -1826,7 +1936,8 @@ var _ = Describe("Worker Tests", func() {
 			})
 
 			It("Transport Server with IPAM", func() {
-
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
 				mockCtlr.TeemData.ResourceType.IPAMTS = make(map[string]int)
 				//Add Service
 				mockCtlr.addEndpoints(fooEndpts)
@@ -1846,9 +1957,17 @@ var _ = Describe("Worker Tests", func() {
 
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Transport Server not processed")
 
+				//check if virtual server exist
+				ts.Spec.VirtualServerAddress = ""
+				valid := mockCtlr.checkValidTransportServer(ts)
+				Expect(valid).To(BeFalse())
+
+				ts.Spec.VirtualServerAddress = "10.1.1.1"
 				mockCtlr.deleteTransportServer(ts)
 				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Transport Server not deleted")
 
+				//mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
 				ts.Spec.VirtualServerAddress = ""
 				ts.Spec.IPAMLabel = "test"
 				mockCtlr.addTransportServer(ts)
@@ -1966,6 +2085,8 @@ var _ = Describe("Worker Tests", func() {
 
 			It("EDNS", func() {
 				//Add Service
+				//go mockCtlr.Agent.agentWorker()
+				//go mockCtlr.Agent.retryWorker()
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
@@ -1986,6 +2107,8 @@ var _ = Describe("Worker Tests", func() {
 
 		Describe("Processing Ingress Link", func() {
 			It("Ingress Link", func() {
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
 				fooPorts := []v1.ServicePort{
 					{
 						Port: 8080,
@@ -2018,6 +2141,9 @@ var _ = Describe("Worker Tests", func() {
 					},
 				}
 				IngressLink1.Spec.IPAMLabel = "test"
+
+				valid := mockCtlr.checkValidIngressLink(IngressLink1)
+				Expect(valid).To(BeFalse())
 
 				mockCtlr.addIngressLink(IngressLink1)
 				mockCtlr.processResources()
@@ -2054,7 +2180,6 @@ var _ = Describe("Worker Tests", func() {
 				_, status = mockCtlr.requestIP("test", host, key)
 				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "IngressLink not processed")
-
 				mockCtlr.deleteIngressLink(IngressLink1)
 				mockCtlr.processResources()
 
@@ -2062,12 +2187,27 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.addIngressLink(IngressLink1)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "IngressLink not processed")
-
-				//Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid LTM config")
-
 				ilList := mockCtlr.getAllIngLinkFromMonitoredNamespaces()
-
 				Expect(len(ilList)).To(Equal(1))
+				ilList = mockCtlr.getAllIngressLinks("")
+				Expect(len(ilList)).To(Equal(0))
+				mockCtlr.crInformers[""] = mockCtlr.newNamespacedCustomResourceInformer("")
+				mockCtlr.crInformers[""].ilInformer.GetStore().Add(IngressLink1)
+				ilList = mockCtlr.getAllIngressLinks("")
+				Expect(len(ilList)).To(Equal(1))
+				ilList = mockCtlr.getAllIngLinkFromMonitoredNamespaces()
+				Expect(len(ilList)).To(Equal(1))
+				delete(mockCtlr.crInformers, "")
+				IngressLink1.Spec.IPAMLabel = ""
+				IngressLink1.Spec.VirtualServerAddress = ""
+				valid = mockCtlr.checkValidIngressLink(IngressLink1)
+				Expect(valid).To(BeFalse(), "Invalid IngressLink")
+
+				mockCtlr.ipamCli = nil
+				IngressLink1.Spec.VirtualServerAddress = ""
+				valid = mockCtlr.checkValidIngressLink(IngressLink1)
+				Expect(valid).To(BeFalse(), "Invalid IngressLink")
+
 			})
 		})
 	})
@@ -2079,6 +2219,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.namespaces = make(map[string]bool)
 			mockCtlr.namespaces["default"] = true
 			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
 			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
 			mockCtlr.nrInformers = make(map[string]*NRInformer)
 			mockCtlr.comInformers = make(map[string]*CommonInformer)
@@ -2144,6 +2285,113 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.shutdown()
 		})
 
+		Describe("Process ConfigMap", func() {
+			var cm *v1.ConfigMap
+			var localCM *v1.ConfigMap
+			data := make(map[string]string)
+			BeforeEach(func() {
+				cmName := "samplecfgmap"
+				mockCtlr.routeSpecCMKey = namespace + "/" + cmName
+				routeGroup := "default"
+				mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
+					override: true,
+					global: &ExtendedRouteGroupSpec{
+						VServerName:   "nextgenroutes",
+						VServerAddr:   "10.10.10.10",
+						AllowOverride: "False",
+					},
+					namespaces: []string{routeGroup},
+					partition:  "test",
+				}
+
+				cm = test.NewConfigMap(
+					cmName,
+					"v1",
+					"default",
+					data)
+
+				data["extendedSpec"] = `
+baseRouteSpec: 
+    tlsCipher:
+      tlsVersion : 1.2
+      ciphers: DEFAULT
+      cipherGroup: /Common/f5-default
+    defaultTLS:
+       clientSSL: /Common/clientssl
+       serverSSL: /Common/serverssl
+       reference: bigip
+    defaultRouteGroup: 
+       bigIpPartition: test
+       vserverAddr: 10.1.1.1
+       allowOverride: false
+
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+    - namespace: test
+      vserverAddr: 10.8.3.12
+      vserverName: nextgenroutes
+      allowOverride: true
+    - namespace: new
+      vserverAddr: 10.8.3.13
+      vserverName: nextgenroutes
+      allowOverride: true
+`
+				localData := make(map[string]string)
+				localCM = test.NewConfigMap(
+					"localESCM",
+					"v1",
+					"default",
+					localData)
+				localData["extendedSpec"] = `
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.110
+      vserverName: nextgenroutes
+      policyCR : default/policy
+`
+			})
+
+			It("Process Global ConfigMap", func() {
+				mockCtlr.initState = true
+				mockCtlr.processConfigMap(cm, false)
+				mockCtlr.processConfigMap(localCM, false)
+				mockCtlr.initState = false
+				mockCtlr.processConfigMap(cm, false)
+				mockCtlr.processConfigMap(localCM, false)
+
+				data["extendedSpec"] = `
+baseRouteSpec: 
+    tlsCipher:
+      tlsVersion : 1.2
+      ciphers: DEFAULT
+      cipherGroup: /Common/f5-default
+    defaultTLS:
+       clientSSL: /Common/clientssl
+       serverSSL: /Common/serverssl
+       reference: bigip
+    defaultRouteGroup: 
+       bigIpPartition: test
+       vserverAddr: 10.1.1.1
+       allowOverride: false
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.17
+      vserverName: nextgenroutes
+      allowOverride: true 
+ 	- namespace: app
+      vserverAddr: 10.8.3.15
+      allowOverride: true
+`
+				mockCtlr.processConfigMap(cm, false)
+				mockCtlr.processConfigMap(localCM, false)
+			})
+			It("Process Local ConfigMap", func() {
+
+			})
+		})
 		Describe("Process Route", func() {
 			AfterEach(func() {
 				mockCtlr.shutdown()
@@ -2208,9 +2456,11 @@ var _ = Describe("Worker Tests", func() {
 						Name: "foo",
 					},
 					TLS: &routeapi.TLSConfig{Termination: "reencrypt",
-						Certificate:              "-----BEGIN CERTIFICATE-----\n      MIIDDjCCAfYCCQCVuYX2PYlNZDANBgkqhkiG9w0BAQsFADBCMQswCQYDVQQGEwJV\n      UzELMAkGA1UECAwCQ08xDDAKBgNVBAcMA0JETzELMAkGA1UECwwCY2ExCzAJBgNV\n      BAoMAkY1MB4XDTIyMTIxMTA2MjA1MFoXDTIyMTIxNDA2MjA1MFowUDELMAkGA1UE\n      BhMCVVMxCzAJBgNVBAgMAkNPMQwwCgYDVQQHDANCRE8xCzAJBgNVBAoMAkY1MRkw\n      FwYDVQQDDBBweXRlc3QtZm9vLTEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\n      MIIBCgKCAQEA617zmThTL3MarHEwLGoRMV3DilWLlP7c3l1M5vP20sMFUmXYbH80\n      El+a0ZpLegsHNYc817M+2davDb2ktAc7pNPbi/7Edrk9SFBUcjQtC7HYkgVNabmS\n      V+f/OuLw4CI63XW2S2LQhlATH8gq7WBrvXOjUBi/bfWCR5ZxYHY56UoHhu+Gx2+L\n      deyB2+mPSxqYGNkgy/zAAWOp9MSKSwAkmkhiQzkuxRZlMtBZ9w3DNt1l3cOxAVZY\n      wuvMoV0HmEhkASXkj5um4qt5wKm7iXibHw4kIG7M8cfegSnqP9owavik5CJR1vgF\n      eJLx5wwx6nK1KLebmMPjiHuwTxpfWcsSLQIDAQABMA0GCSqGSIb3DQEBCwUAA4IB\n      AQB8EzGbwOGDPDLcnvN/JnltorLs1T6JbFDW0GTsWF71Z9iqsXZ0erj72F4KyGlY\n      0hl14nRHFp5dho0zpy87IPLq2rdreBa0gBhYe5Ts53KLcb4WWyBcw3wMATZn4AMQ\n      5SFvrQyLK+lRkrC/+jXEtUKjgrF+/pZhVpJD4C4cvO6OQMhvkBFJs/Z8budk3Uz0\n      uO7e46KdGAibgTGO1cFY2itH2LK4yz9P+FzNTLcHOqeLt+cvhQ3gi4Kc/17FweIh\n      BdTXg2KQxjS8WMtsmrq/zZa6upMzkecz1I4uixbmpHwnZj6KsTgxcOeNImMXqqkr\n      P4XBIKM/+26luD1t/GjKfPQV\n      -----END CERTIFICATE-----",
+						Certificate:              "-----BEGIN CERTIFICATE-----\nMIIC+DCCAeCgAwIBAgIQIBIcC6PuJQEHwwI0Hv5QmTANBgkqhkiG9w0BAQsFADAS\nMRAwDgYDVQQKEwdBY21lIENvMB4XDTIyMTIyMjA5MjE0OFoXDTIzMTIyMjA5MjE0\nOFowEjEQMA4GA1UEChMHQWNtZSBDbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC\nAQoCggEBAN0NWXsUvGYBV9uo2Iuz3gnovyk3W7p8AA4I8eRUFaWV1EYaxFpsGmdN\nrQgdVJ6w+POSykbDuZynYJyBjC11dJmfTaXffLaUSrJfu+a0QaeWIpt+XxzO4SKQ\nunUSh5Z9w4P45G8VKF7E67wFVN0ni10FLAfBUjYVsQpPagpkH8OdnYCsymCzVSWi\nYETZZ+Hbaih9flRgBQOsoUyNBSkCdJ2wEkZ/0p9+tYwZp1Xvp/Neu3TTsezpu7lE\nbTp0RLQNqfLHWiMV9BSAQRbXAvtvky3J42iy+ec24JyQPtiD85u8Pp/+ssV0ZL9l\nc5KoDEuAvf4NPFWu270gYyQljKcTbB8CAwEAAaNKMEgwDgYDVR0PAQH/BAQDAgWg\nMBMGA1UdJQQMMAoGCCsGAQUFBwMBMAwGA1UdEwEB/wQCMAAwEwYDVR0RBAwwCoII\ndGVzdC5jb20wDQYJKoZIhvcNAQELBQADggEBAI9VUdpVmfx+WUEejREa+plEjCIV\ns+d7v66ddyU4B+Zer1y4RgoWaVq5pywPPjBNJuz6NfwSvBCmuMUd1LUoF5tQFkqb\nVa85Aq6ODbwIMoQ53kTG9vLbT78qESrbukaW9v+axdD9/DIXZJtdwvLvHAVpelRi\n7z48Lxk1GTe7dM3ixKQrU4hz656kH3kXSnD79metOkJA6BAXsqL2XonIhNkCkQVV\n38IHDNkzk228d97ebLu+EhLlkjFgFQEnXusK1amrGJrRDli72pY01yxzGI1caKG5\nN6I8MEIqYI/POwbYWENqONF22pzw/OIs4T1a3jjUqEFugnELcTtx/xRLmOI=\n-----END CERTIFICATE-----\n",
+						Key:                      "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDdDVl7FLxmAVfb\nqNiLs94J6L8pN1u6fAAOCPHkVBWlldRGGsRabBpnTa0IHVSesPjzkspGw7mcp2Cc\ngYwtdXSZn02l33y2lEqyX7vmtEGnliKbfl8czuEikLp1EoeWfcOD+ORvFShexOu8\nBVTdJ4tdBSwHwVI2FbEKT2oKZB/DnZ2ArMpgs1UlomBE2Wfh22oofX5UYAUDrKFM\njQUpAnSdsBJGf9KffrWMGadV76fzXrt007Hs6bu5RG06dES0Danyx1ojFfQUgEEW\n1wL7b5MtyeNosvnnNuCckD7Yg/ObvD6f/rLFdGS/ZXOSqAxLgL3+DTxVrtu9IGMk\nJYynE2wfAgMBAAECggEAf8l91vcvylAweB1twaUjUNsp1yvXbUDNz09Adtxc/zJU\nWoqSxCsGQH3Y7331Mx/fav+Ky8nN/U+NPCxv2r+xvjUncCJ4OBwV6nQJbd76rWTP\ncNBnL4IxCAheodsqYsclRZ+WftjeU5rHJBR48Lgxin6462rImdeEVw99n7At5Kig\nGZmGNXnk6jgvoNU1YJZxSMWQQwKtrfJxXry5a90SfjiviGseuBPsgbrMxEPaeqlQ\nGAMi4nIVRmijL56vbbuuudZm+6dpOnbGzzF6J4M5Nrfr/qJF7ClwXjcMeb6lESIo\n5pmGl3QwSGQYeflFexP3ydvQdUwN5rLbtCexPC2CsQKBgQDxLPn8pIU7WuFiTuOp\n1o7/25v7ijPydIRBjjVeA7E7+mbq9FllkT4CW+HtP7zCCjdScuXhKjuPRrST4fsZ\nZex2nUYfc586s/W95b4QMKtXcJd1MMMWOK2/ZGN/6L5zLPupDrhyWHw91biFZG8h\nSFgn7G2zS/+09gJTglpdj3gClQKBgQDqo7f+kZiXGFvP4kcOWNgnOJOpdqzG/zeD\nuVP2Y6Q8mi7GhkiYhdlrl6Ibh9X0qjFMKMKy827jbUPSGaj5tIT8iXyFT4KVaqZQ\n7r2cMyCqbznKfWlyMyspaVEDa910+VwC2hYQvahTQzfdQqFp6JfiLqCdQtiNDGLf\nbvUOHk4a4wKBgHDLo0NowrMm5wBuewXExm6djE9RrMf5fJ2YYBdPTMYLb7T1gRYC\nnujFhl3KkIKD+qnB+QedE+wHmo8Lgr+3LqevGMu+7LqszgL5fzHdQVWM4Bk8LBGp\ngoFf9zUsal49rJm9u8Am6DyXR0yD04HSbwCFEC1qHvbIk//wmEjnv64dAoGANBbW\nYPBHlLt2nmbYaWn1ync36LYM0zyTQW3iIt+p9T4xRidHdHy6cLU/6qa0K9Wgjgy6\ndGmwY1K9bKX/qjeWEk4fU6T8E1mSxILLmyKKjOuWQ8qlnxGW8mGL95t5lV9KOuPZ\nZCwGcz2H6FnDZbSaCz9YrrDJTD7EsF98jX7SzgsCgYBQv5yi7aGxH6OcrAJPQH4v\n1fZo7mFbqp0WoUMpwuWKNOHZuZoF0EU/bllMZT7AipxVhso+hUC+rDEO7H36TAyc\nTUJbdxtlIC1JmJTmeBOWh3i3Htu8A97DLUNTqNikNyKyGWjy7eC0ncG3+CGG91wA\nky9KxzxszaIez6kIUCY7xQ==\n-----END PRIVATE KEY-----\n",
 						DestinationCACertificate: "     -----BEGIN CERTIFICATE-----\n      MIIDVzCCAj+gAwIBAgIJANFsRSwLRI09MA0GCSqGSIb3DQEBCwUAMEIxCzAJBgNV\n      BAYTAlVTMQswCQYDVQQIDAJDTzEMMAoGA1UEBwwDQkRPMQswCQYDVQQLDAJjYTEL\n      MAkGA1UECgwCRjUwHhcNMjIxMTI4MDc0NTIwWhcNMjMxMTI4MDc0NTIwWjBCMQsw\n      CQYDVQQGEwJVUzELMAkGA1UECAwCQ08xDDAKBgNVBAcMA0JETzELMAkGA1UECwwC\n      Y2ExCzAJBgNVBAoMAkY1MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\n      sCDsFH9xMWAPD8VNOnLPJi49jJ5hRhQcx5oYP9FVvHDvRv0PQKXOfA1BOZeGSOjK\n      3p0k4SVXFBg4EHMBVhW3NRFIR0JppoyrF8Jj9Ts83D5N6eLW1ShYJnXrqrEKhjI1\n      c0e+Eta+LsVwktRLQCABsb2Ca/J/PUpD450i9ss11wGzX3lHg2XKr8vUZGkJRJmB\n      iqHV1Ahm9y9SDceyWQ9AESq+sKkz/swoEAwi1Vb2Bmri8aj7a0hlCVy59dngPayP\n      jhqoJDxMOThGaNn4EcOKuPtqfJ6CwOyOEFdc6DGnEuTdXpMbj+L8V1R1mgyZX/uo\n      OIhJkEG0aPz3ZB7Ks94ykQIDAQABo1AwTjAdBgNVHQ4EFgQUlOlkzFc3BF8jhoDv\n      rhMthDD3TDQwHwYDVR0jBBgwFoAUlOlkzFc3BF8jhoDvrhMthDD3TDQwDAYDVR0T\n      BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAmyvLI5T8dqJVzWXwwVTRwX8ca2Li\n      Y53oiChuBTtT2TUyRoeWFSqN5QwpxvexFxLpCUWdO1v+GjeLIKyYa2yq86Gr4oi3\n      NNBy+8BA2q092AKWDSMqGhw0COJMapoWKWekwbXw+yOBwfpM36+OrHbRRf/00USv\n      VwNB+TJA1MvdiXRs9WXCIqtOjEcQwFTzQSnhejyXMUWodEsooTmnLENfskdCAoMp\n      oqUPGMn1HxiPewweP6Hh+up4g6accrZ59pBaeQ+t4xrevUSh0CUqx5xobOhB2Z8S\n      Dn7eCxGJDOKqJ2TZWFQWEw6Gk6gRpbNHL96HPztQUnp6dgyLjX2USHbMZg==\n      -----END CERTIFICATE-----",
-						Key:                      "-----BEGIN RSA PRIVATE KEY-----\n      MIIEpAIBAAKCAQEA617zmThTL3MarHEwLGoRMV3DilWLlP7c3l1M5vP20sMFUmXY\n      bH80El+a0ZpLegsHNYc817M+2davDb2ktAc7pNPbi/7Edrk9SFBUcjQtC7HYkgVN\n      abmSV+f/OuLw4CI63XW2S2LQhlATH8gq7WBrvXOjUBi/bfWCR5ZxYHY56UoHhu+G\n      x2+LdeyB2+mPSxqYGNkgy/zAAWOp9MSKSwAkmkhiQzkuxRZlMtBZ9w3DNt1l3cOx\n      AVZYwuvMoV0HmEhkASXkj5um4qt5wKm7iXibHw4kIG7M8cfegSnqP9owavik5CJR\n      1vgFeJLx5wwx6nK1KLebmMPjiHuwTxpfWcsSLQIDAQABAoIBAQCmPkWOViMjI4iW\n      fcfJxwznslNXlL5m+XBlOr8DbRNLn+VVYovvbhUIWTCPlQx0Ye+wlhmaPIdK84Bn\n      EyiO44D0FZM/GS4IsSOgvOQ4WbPrS60szcP0xdagckNqgzohBOxQ2UBtlJi2FT68\n      tvPi/7R5doDGJQSolLx09cSUnkyfAYjlA66jjwHj7sGhpnsQL5cuo4sSQiAoLMU3\n      pUXumPlraL+LOnz2qhBpNOAGTlEwfIfG9jkyE7HiKNkPSfYkY4T513nhTftgZvG3\n      9t8NyzZ4Lp6kspyaFt/MPrQ41VBPdnm7YrhoN5ToJ3L9o3BOidHQWNs7rMw1F/MN\n      b/2lDpQdAoGBAPqVsp3oZPKQt0go+ew7G/Ajw/qdhVsQvCbFGC7EdX/kJdP+Opnt\n      0je6+wuYvB5mMf6zuA2Er/Ced9eDpug9WkSIMit5NOatGNNLtSb1YiZL9C6cwXib\n      O9tVE6aIZ8O+2w7v5WPN9rqa/brKubwsLpFIpVS8x1nRrnlkLZB3TaETAoGBAPB1\n      FjLBzFgBs+5PlJ44Oa5HBKAt5Um6fUNUP8TgUA2xvMGxJIT2SV1h8pPf2KD6YcTR\n      7xm7dc+Ot4h5hzdWwxacU/XUc4W+mX2hpNS0xXYM2Z/AZ+BJzr/Moj/Ntxh3czfv\n      0nr/Bcm8bPxe+n+Cmk2NT0kmyp1yiFkpA/EQEie/AoGBAMvLu7zZKGBueeFiEgCi\n      AhLHw7erLK3nal5NpWFDvhwJPQqwlJBj7rgMhefki/pdOwPevi2gYEbdWrIYDEKM\n      w0FBUywwI2oIFUyjIe1RXEWxOCJAssiX15KGGrkx7tIwApCfYnxNIgCZ1Ql5npz/\n      gc/+uRe1gJv4AGIRq0z2+lepAoGAch8f6fcQhLRKMVCTuIP23D/Yci1WJSfdS5cw\n      rL/JPracX1Ezg+df6nISLxyOM9ihjkgUsqHFyDxz3tHO2vTSomiPcJzkNxW+w2F0\n      WX9yOBThNHCc3FYrSdxVJPL9cx8+D85Clx1yIczL7Psm6F2T3jqy5oUCpLc2/xn4\n      RPDbrQECgYBojX05ZWq9JtxPZiLFhOKZ3FDv55BUToZyz4kWpLFn/APBgww4CQY+\n      hYA7QNR35IFYY1cMNhAb9BgCfghfrwVP7OZHkoIBLabqcwTL8Dm2wzlRQn3ZXIrV\n      Asf2Zp6Xe13czHUkm+ehrh4yZpkJaHb7VrFUaPd8Yz2CATgHDjMU1g==\n      -----END RSA PRIVATE KEY-----"},
+						CACertificate:            "     -----BEGIN CERTIFICATE-----\n      MIIDVzCCAj+gAwIBAgIJANFsRSwLRI09MA0GCSqGSIb3DQEBCwUAMEIxCzAJBgNV\n      BAYTAlVTMQswCQYDVQQIDAJDTzEMMAoGA1UEBwwDQkRPMQswCQYDVQQLDAJjYTEL\n      MAkGA1UECgwCRjUwHhcNMjIxMTI4MDc0NTIwWhcNMjMxMTI4MDc0NTIwWjBCMQsw\n      CQYDVQQGEwJVUzELMAkGA1UECAwCQ08xDDAKBgNVBAcMA0JETzELMAkGA1UECwwC\n      Y2ExCzAJBgNVBAoMAkY1MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\n      sCDsFH9xMWAPD8VNOnLPJi49jJ5hRhQcx5oYP9FVvHDvRv0PQKXOfA1BOZeGSOjK\n      3p0k4SVXFBg4EHMBVhW3NRFIR0JppoyrF8Jj9Ts83D5N6eLW1ShYJnXrqrEKhjI1\n      c0e+Eta+LsVwktRLQCABsb2Ca/J/PUpD450i9ss11wGzX3lHg2XKr8vUZGkJRJmB\n      iqHV1Ahm9y9SDceyWQ9AESq+sKkz/swoEAwi1Vb2Bmri8aj7a0hlCVy59dngPayP\n      jhqoJDxMOThGaNn4EcOKuPtqfJ6CwOyOEFdc6DGnEuTdXpMbj+L8V1R1mgyZX/uo\n      OIhJkEG0aPz3ZB7Ks94ykQIDAQABo1AwTjAdBgNVHQ4EFgQUlOlkzFc3BF8jhoDv\n      rhMthDD3TDQwHwYDVR0jBBgwFoAUlOlkzFc3BF8jhoDvrhMthDD3TDQwDAYDVR0T\n      BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAmyvLI5T8dqJVzWXwwVTRwX8ca2Li\n      Y53oiChuBTtT2TUyRoeWFSqN5QwpxvexFxLpCUWdO1v+GjeLIKyYa2yq86Gr4oi3\n      NNBy+8BA2q092AKWDSMqGhw0COJMapoWKWekwbXw+yOBwfpM36+OrHbRRf/00USv\n      VwNB+TJA1MvdiXRs9WXCIqtOjEcQwFTzQSnhejyXMUWodEsooTmnLENfskdCAoMp\n      oqUPGMn1HxiPewweP6Hh+up4g6accrZ59pBaeQ+t4xrevUSh0CUqx5xobOhB2Z8S\n      Dn7eCxGJDOKqJ2TZWFQWEw6Gk6gRpbNHL96HPztQUnp6dgyLjX2USHbMZg==\n      -----END CERTIFICATE-----",
+					},
 				}
 
 				//Policy
@@ -2269,10 +2519,17 @@ var _ = Describe("Worker Tests", func() {
 baseRouteSpec: 
     tlsCipher:
       tlsVersion : 1.2
+      ciphers: DEFAULT
+      cipherGroup: /Common/f5-default
     defaultTLS:
        clientSSL: /Common/clientssl
        serverSSL: /Common/serverssl
        reference: bigip
+    defaultRouteGroup: 
+       bigIpPartition: test
+       vserverAddr: vs
+       allowOverride: false
+
 extendedRouteSpec:
     - namespace: default
       vserverAddr: 10.8.3.11
@@ -2291,6 +2548,7 @@ extendedRouteSpec:
     - namespace: default
       vserverAddr: 10.8.3.110
       vserverName: nextgenroutes
+      policyCR : default/policy
 `
 
 				//Annotations
@@ -2309,19 +2567,20 @@ extendedRouteSpec:
 
 				mockCtlr.addConfigMap(cm)
 				mockCtlr.processResources()
+				mockCtlr.Agent.ccclGTMAgent = true
+				writer := &test.MockWriter{
+					FailStyle: test.Success,
+					Sections:  make(map[string]interface{}),
+				}
+				mockCtlr.Agent.ConfigWriter = writer
 				go mockCtlr.Agent.agentWorker()
 				go mockCtlr.Agent.retryWorker()
 
-				// Cannot use below method. It's using kubeapi
-				//mockCtlr.processGlobalExtendedRouteConfig()
-
 				routeGroup := "default"
-
 				mockCtlr.addPolicy(policy)
 				mockCtlr.processResources()
 
 				labels := make(map[string]string)
-
 				labels["app"] = "UpdatePoolHealthMonitors"
 				svc.Spec.Selector = labels
 				pod := &v1.Pod{
@@ -2331,7 +2590,6 @@ extendedRouteSpec:
 						Namespace: namespace,
 					},
 				}
-
 				Handler := v1.Handler{
 					HTTPGet: &v1.HTTPGetAction{
 						Path: "/",
@@ -2341,7 +2599,6 @@ extendedRouteSpec:
 						Scheme: HTTP,
 					},
 				}
-
 				cnt := v1.Container{
 					LivenessProbe: &v1.Probe{
 						FailureThreshold: 3,
@@ -2382,11 +2639,11 @@ extendedRouteSpec:
 
 				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 				route1.Spec.TLS.Termination = TLSReencrypt
-				route1.Spec.TLS.Certificate = ""
-				route1.Spec.TLS.Key = ""
+				//route1.Spec.TLS.Certificate = ""
+				//route1.Spec.TLS.Key = ""
+				route1.Spec.Host = "test.com"
 				delete(route1.Annotations, resource.F5ClientSslProfileAnnotation)
 
-				// cert validation failing. Need to check
 				checkCertificateHost(route1.Spec.Host, []byte(route1.Spec.TLS.Certificate), []byte(route1.Spec.TLS.Key))
 
 				mockCtlr.addRoute(route1)
@@ -2394,6 +2651,8 @@ extendedRouteSpec:
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
 
+				route1.Spec.TLS.Certificate = ""
+				route1.Spec.TLS.Key = ""
 				mockCtlr.deleteRoute(route1)
 				mockCtlr.processResources()
 
@@ -2417,8 +2676,24 @@ extendedRouteSpec:
 
 				// Remove health Annotation - This won't work because current we are querying the pods from the kube client instead of informers
 				delete(route1.Annotations, resource.HealthMonitorAnnotation)
+				mockCtlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
+				mockCtlr.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
 				mockCtlr.addRoute(route1)
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+				mockCtlr.processResources()
+
+				mockCtlr.deleteEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				pod.Spec.Containers[0].LivenessProbe.TimeoutSeconds = 1
+				mockCtlr.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				mockCtlr.deleteEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
 				//length should be 1
@@ -2436,8 +2711,12 @@ extendedRouteSpec:
 				_, ok := mockCtlr.nsInformers[namespace]
 				Expect(ok).To(Equal(false), "Namespace not deleted")
 
+				mockCtlr.Agent.retryFailedTenant()
+				//time.Sleep(1 * time.Microsecond)
 			})
 			It("Process Edge Route", func() {
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
 
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
 				mockCtlr.addConfigMap(cm)
@@ -2453,21 +2732,24 @@ extendedRouteSpec:
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
-				//delete(annotation1, resource.F5ClientSslProfileAnnotation)
+				delete(annotation1, resource.F5ClientSslProfileAnnotation)
+				delete(annotation1, resource.F5ServerSslProfileAnnotation)
+				spec1.Host = "test.com"
 				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 				route1.Spec.TLS.Termination = TLSEdge
 				mockCtlr.addRoute(route1)
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
 
 				mockCtlr.deleteRoute(route1)
 				mockCtlr.processResources()
 
-				//route1.Annotations[resource.F5ClientSslProfileAnnotation] = "/common/clientssl"
 				route1.Spec.TLS.Key = ""
 				route1.Spec.TLS.Certificate = ""
 				mockCtlr.addRoute(route1)
 				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
 
 				mockCtlr.deleteRoute(route1)
 				mockCtlr.processResources()
@@ -2475,10 +2757,13 @@ extendedRouteSpec:
 			})
 			It("Process Pass-through Route", func() {
 				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
 				mockCtlr.initState = true
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
 				mockCtlr.addConfigMap(cm)
 				mockCtlr.processResources()
+				mockCtlr.resourceQueue.Get()
 				routeGroup := "default"
 
 				mockCtlr.initState = false
@@ -2486,6 +2771,11 @@ extendedRouteSpec:
 				//mockCtlr.processResources()
 
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
+				mockCtlr.mode = CustomResourceMode
+				mockCtlr.addConfigMap(cm)
+				mockCtlr.processResources()
+
+				mockCtlr.mode = OpenShiftMode
 				mockCtlr.addConfigMap(cm)
 				mockCtlr.processResources()
 
@@ -2504,6 +2794,13 @@ extendedRouteSpec:
 
 				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
 				route1.Spec.TLS.Termination = TLSPassthrough
+
+				mockCtlr.mode = CustomResourceMode
+				mockCtlr.addRoute(route1)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Controller Mode")
+
+				mockCtlr.mode = OpenShiftMode
 				mockCtlr.addRoute(route1)
 				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
 				mockCtlr.processResources()
@@ -2512,26 +2809,29 @@ extendedRouteSpec:
 				mockCtlr.addPolicy(policy)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
-				//rscUpdateMeta := resourceStatusMeta{
-				//	0,
-				//	make(map[string]struct{}),
-				//}
+				//Expect(len(mockCtlr.getOrderedRoutes(""))).To(Equal(1), "Invalid no of Routes")
+				rscUpdateMeta := resourceStatusMeta{
+					0,
+					make(map[string]struct{}),
+				}
 
-				// This will fail the TC because we are updating route status
-				//time.Sleep(10 * time.Millisecond)
-				//mockCtlr.Agent.respChan <- rscUpdateMeta
-				//
-				//config := ResourceConfigRequest{
-				//	ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
-				//	shareNodes: mockCtlr.shareNodes,
-				//	gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
-				//}
-				//config.reqId = mockCtlr.Controller.enqueueReq(config)
-				//mockCtlr.Agent.respChan <- rscUpdateMeta
-				//
-				//mockCtlr.Agent.respChan <- rscUpdateMeta
-				//
-				//time.Sleep(10 * time.Millisecond)
+				mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
+
+				//	This will fail the TC because we are updating route status
+				time.Sleep(10 * time.Millisecond)
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+
+				config := ResourceConfigRequest{
+					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
+					shareNodes: mockCtlr.shareNodes,
+					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
+				}
+				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+
+				time.Sleep(10 * time.Millisecond)
 
 			})
 		})

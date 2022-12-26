@@ -1491,7 +1491,7 @@ func (appMgr *Manager) syncConfigMaps(
 				members, err := appMgr.getEndpoints(selector, sKey.Namespace)
 				if err != nil {
 					// If err is not nil, we should keep the current configuration
-					log.Debug("fdgddf")
+					log.Debug("An error occured to get the endpoints")
 					return err
 				}
 

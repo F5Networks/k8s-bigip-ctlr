@@ -1488,7 +1488,13 @@ func (appMgr *Manager) syncConfigMaps(
 			// A service can be considered as an as3 configmap associated service only when it has these 3 labels
 			if tntOk && appOk && poolOk {
 				//TODO: Sorting endpoints members
-				members := appMgr.getEndpoints(selector, sKey.Namespace)
+				members, err := appMgr.getEndpoints(selector, sKey.Namespace)
+				if err != nil {
+					// If err is not nil, we should keep the current configuration
+					log.Debug("fdgddf")
+					return err
+				}
+
 				if _, ok := appMgr.agentCfgMapSvcCache[key]; !ok {
 					if len(members) != 0 {
 						appMgr.agentCfgMapSvcCache[key] = &SvcEndPointsCache{
@@ -3466,7 +3472,7 @@ func createLabel(label string) (labels.Selector, error) {
 // When controller is in ClusterIP mode, returns a list of Cluster IP Address and Service Port. Also, it accumulates
 // members for static ARP entry population.
 
-func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
+func (appMgr *Manager) getEndpoints(selector, namespace string) ([]Member, error) {
 	var members []Member
 	uniqueMembersMap := make(map[Member]struct{})
 
@@ -3488,7 +3494,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 
 		if err != nil {
 			log.Errorf("[CORE] Error getting service list. %v", err)
-			return nil
+			return nil, err
 		}
 		svcItems = services.Items
 	} else {
@@ -3585,7 +3591,7 @@ func (appMgr *Manager) getEndpoints(selector, namespace string) []Member {
 			}*/
 		}
 	}
-	return members
+	return members, nil
 }
 
 func (appMgr *Manager) exposeKubernetesService(

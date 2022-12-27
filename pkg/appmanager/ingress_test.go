@@ -308,6 +308,9 @@ var _ = Describe("V1 Ingress Tests", func() {
 			r := mockMgr.addV1Ingress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 
+			// enqueue ingress and check the queue length
+			mockMgr.appMgr.enqueueIngress(ing, OprTypeCreate)
+			Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
 			r = mockMgr.addService(fooSvc)
 			Expect(r).To(BeTrue(), "Service should be processed.")
 			r = mockMgr.addEndpoints(endpts)

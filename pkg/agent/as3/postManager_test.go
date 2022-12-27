@@ -283,5 +283,11 @@ var _ = Describe("PostManager Tests", func() {
 			Expect(err).NotTo(BeNil(), "Failed to fetch registration key")
 			Expect(key).To(BeEmpty(), "Fetched invalid registration key")
 		})
+		It("function getTimeDurationForErrorResponse", func() {
+			Expect(getTimeDurationForErrorResponse(responseStatusCommon)).To(Equal(timeoutMedium))
+			Expect(getTimeDurationForErrorResponse(responseStatusUnprocessableEntity)).To(Equal(timeoutMedium))
+			Expect(getTimeDurationForErrorResponse(responseStatusServiceUnavailable)).To(Equal(timeoutSmall))
+			Expect(getTimeDurationForErrorResponse("")).To(Equal(timeoutNill))
+		})
 	})
 })

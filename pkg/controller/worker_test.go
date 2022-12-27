@@ -747,6 +747,23 @@ var _ = Describe("Worker Tests", func() {
 					false)
 				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
 			})
+			It("function getVirtualServerAddress", func() {
+				address, err := getVirtualServerAddress([]*cisapiv1.VirtualServer{})
+				Expect(address).To(Equal(""), "Should return empty virtual address")
+				Expect(err).To(BeNil(), "error should be nil")
+				vrt1.Spec.VirtualServerAddress = ""
+				address, err = getVirtualServerAddress([]*cisapiv1.VirtualServer{vrt1})
+				Expect(address).To(Equal(""), "Should return empty virtual address")
+				Expect(err).ToNot(BeNil(), "error should not be nil")
+				vrt1.Spec.VirtualServerAddress = "192.168.1.1"
+				vrt2.Spec.VirtualServerAddress = "192.168.1.2"
+				address, err = getVirtualServerAddress([]*cisapiv1.VirtualServer{vrt1, vrt2})
+				Expect(address).To(Equal(""), "Should return empty virtual address")
+				Expect(err).ToNot(BeNil(), "error should not be nil")
+				address, err = getVirtualServerAddress([]*cisapiv1.VirtualServer{vrt1})
+				Expect(address).To(Equal("192.168.1.1"), "Should not return empty virtual address")
+				Expect(err).To(BeNil(), "error should be nil")
+			})
 		})
 	})
 	Describe("Endpoints", func() {
@@ -1329,6 +1346,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.crInformers["default"] = &CRInformer{}
 			mockCtlr.comInformers["default"] = &CommonInformer{}
 			mockCtlr.resources.poolMemCache = make(map[string]poolMembersInfo)
+			mockCtlr.resources.ltmConfig = LTMConfig{}
 			mockCtlr.oldNodes = []Node{{Name: "node-1", Addr: "10.10.10.1"}, {Name: "node-2", Addr: "10.10.10.2"}}
 		})
 		It("verify pool member update", func() {
@@ -1370,9 +1388,19 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.oldNodes = append(mockCtlr.oldNodes, Node{Name: "node-3", Addr: "10.10.10.3"})
 			mockCtlr.updatePoolMembersForNodePort(rsCfg, "default")
 			Expect(len(rsCfg.Pools[0].Members)).To(Equal(3), "Members should be increased")
+			mockCtlr.PoolMemberType = NodePort
+			mockCtlr.updateSvcDepResources("test-resource", rsCfg)
+			mockCtlr.resources.ltmConfig["test"] = &PartitionConfig{ResourceMap: ResourceMap{}}
+			mockCtlr.resources.setResourceConfig("test", "test-resource", rsCfg)
+			rsCfgCopy := mockCtlr.getVirtualServer("test", "test-resource")
+			Expect(rsCfgCopy).ToNot(BeNil())
+			Expect(len(rsCfgCopy.Pools[0].Members)).To(Equal(3), "There should be three pool members")
 			mockCtlr.oldNodes = append(mockCtlr.oldNodes[:1], mockCtlr.oldNodes[2:]...)
-			mockCtlr.updatePoolMembersForNodePort(rsCfg, "default")
-			Expect(len(rsCfg.Pools[0].Members)).To(Equal(2), "Members should be reduced")
+			svc := test.NewService("svc-1", "1", "default", "NodePort", []v1.ServicePort{})
+			mockCtlr.updatePoolMembersForVirtuals(svc)
+			rsCfgCopy = mockCtlr.getVirtualServer("test", "test-resource")
+			Expect(rsCfgCopy).ToNot(BeNil())
+			Expect(len(rsCfgCopy.Pools[0].Members)).To(Equal(2), "Pool members should be updated to 2")
 		})
 	})
 	Describe("Processing Custom Resources", func() {

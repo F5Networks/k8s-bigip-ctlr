@@ -114,7 +114,9 @@ var _ = Describe("Test Validation", func() {
 			ret, scvKeyList := mockMgr.appMgr.checkValidPod(pod1, "create")
 			Expect(ret).To(BeTrue())
 			Expect(len(scvKeyList)).To(Equal(1))
-
+			// enqueue and check queue length
+			mockMgr.appMgr.enqueuePod(pod1, resource.OprTypeCreate)
+			Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
 			// Pod in core ns
 			pod1.Labels["component"] = "etcd"
 			ret, scvKeyList = mockMgr.appMgr.checkValidPod(pod1, "create")
@@ -274,7 +276,6 @@ var _ = Describe("Test Validation", func() {
 			appInfmr.ingInformer.GetStore().Update(ingress2)
 			keyList = mockMgr.appMgr.getSecretServiceQueueKeyForIngress(secret1)
 			Expect(len(keyList)).To(Equal(1))
-
 		})
 
 		It("Test checkValidSecrets", func() {
@@ -285,7 +286,9 @@ var _ = Describe("Test Validation", func() {
 			ret, keyList := mockMgr.appMgr.checkValidSecrets(secret1)
 			Expect(ret).To(BeFalse())
 			Expect(len(keyList)).To(Equal(0))
-
+			// enqueue and check queue length
+			mockMgr.appMgr.enqueueSecrets(secret1, resource.OprTypeCreate)
+			Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(0))
 			// Using secrets and configmap created
 			mockMgr.appMgr.useSecrets = true
 			selector, err := labels.Parse(defaultLabel)

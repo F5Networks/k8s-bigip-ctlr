@@ -862,6 +862,9 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 
 		} else {
 			clientSecret, _ := ctlr.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), tlsProfile.Spec.TLS.ClientSSL, metav1.GetOptions{})
+			if clientSecret == nil {
+				return nil
+			}
 			//validate clientSSL certificates and hostname
 			match = checkCertificateHost(vs.Spec.Host, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"])
 		}
@@ -2633,6 +2636,7 @@ func checkCertificateHost(host string, certificate []byte, key []byte) bool {
 	ok := x509cert.VerifyHostname(host)
 	if ok != nil {
 		log.Debugf("Error: Hostname in virtualserver does not match with certificate hostname: %v", ok)
+		return false
 	}
 	return true
 }
@@ -3177,29 +3181,29 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 	}
 }
 
-func (ctlr *Controller) eraseLBServiceIngressStatus(
-	svc *v1.Service,
-) {
-	svc.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{}
-
-	_, updateErr := ctlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
-		context.TODO(), svc, metav1.UpdateOptions{})
-	if nil != updateErr {
-		// Multi-service causes the controller to try to update the status multiple times
-		// at once. Ignore this error.
-		if strings.Contains(updateErr.Error(), "object has been modified") {
-			log.Debugf("Error while updating service: %v/%v. %v", svc.Namespace, svc.Name, updateErr.Error())
-			return
-		}
-		warning := fmt.Sprintf(
-			"Error when erasing Service LB Ingress status IP: %v", updateErr)
-		log.Warning(warning)
-		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning)
-	} else {
-		message := fmt.Sprintf("F5 CIS erased LoadBalancer IP in Status")
-		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message)
-	}
-}
+//func (ctlr *Controller) eraseLBServiceIngressStatus(
+//	svc *v1.Service,
+//) {
+//	svc.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{}
+//
+//	_, updateErr := ctlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
+//		context.TODO(), svc, metav1.UpdateOptions{})
+//	if nil != updateErr {
+//		// Multi-service causes the controller to try to update the status multiple times
+//		// at once. Ignore this error.
+//		if strings.Contains(updateErr.Error(), "object has been modified") {
+//			log.Debugf("Error while updating service: %v/%v. %v", svc.Namespace, svc.Name, updateErr.Error())
+//			return
+//		}
+//		warning := fmt.Sprintf(
+//			"Error when erasing Service LB Ingress status IP: %v", updateErr)
+//		log.Warning(warning)
+//		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning)
+//	} else {
+//		message := fmt.Sprintf("F5 CIS erased LoadBalancer IP in Status")
+//		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message)
+//	}
+//}
 
 func (ctlr *Controller) recordLBServiceIngressEvent(
 	svc *v1.Service,
@@ -3510,10 +3514,9 @@ func (ctlr *Controller) getTLSProfilesForSecret(secret *v1.Secret) []*cisapiv1.T
 						allTLSProfiles = append(allTLSProfiles, tlsProfile)
 					}
 				}
+			} else if tlsProfile.Spec.TLS.ClientSSL == secret.Name {
+				allTLSProfiles = append(allTLSProfiles, tlsProfile)
 			}
-			allTLSProfiles = append(allTLSProfiles, tlsProfile)
-		} else if tlsProfile.Spec.TLS.ClientSSL == secret.Name {
-			allTLSProfiles = append(allTLSProfiles, tlsProfile)
 		}
 	}
 	return allTLSProfiles

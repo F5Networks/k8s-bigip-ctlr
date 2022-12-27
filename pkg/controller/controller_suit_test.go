@@ -276,6 +276,15 @@ func (m *mockController) addTLSProfile(prof *cisapiv1.TLSProfile) {
 	}
 }
 
+func (m *mockController) addSecret(secret *v1.Secret) {
+	comInf, _ := m.getNamespacedCommonInformer(secret.ObjectMeta.Namespace)
+	comInf.secretsInformer.GetStore().Add(secret)
+
+	if m.resourceQueue != nil {
+		m.enqueueSecret(secret, Create)
+	}
+}
+
 func (m *mockController) addIngressLink(il *cisapiv1.IngressLink) {
 	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace)
 	cusInf.ilInformer.GetStore().Add(il)

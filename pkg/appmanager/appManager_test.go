@@ -2544,9 +2544,14 @@ var _ = Describe("AppManager Tests", func() {
 				r := mockMgr.addService(foo)
 				Expect(r).To(BeTrue(), "Service should be processed.")
 
-				r = mockMgr.addEndpoints(test.NewEndpoints(svcName, "1", "node0", namespace,
-					svcPodIps, []string{}, endptPorts))
+				endpoint := test.NewEndpoints(svcName, "1", "node0", namespace,
+					svcPodIps, []string{}, endptPorts)
+				r = mockMgr.addEndpoints(endpoint)
 				Expect(r).To(BeTrue(), "Endpoints should be processed.")
+
+				// enqueue endpoints and check the queue length
+				mockMgr.appMgr.enqueueEndpoints(endpoint, OprTypeCreate)
+				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
 
 				// no virtual servers yet
 				resources := mockMgr.resources()
@@ -3021,7 +3026,18 @@ var _ = Describe("AppManager Tests", func() {
 				route1 := test.NewRoute("route1", "1", namespace, spec1, nil)
 				r = mockMgr.addRoute(route1)
 				Expect(r).To(BeTrue(), "Route resource should be processed.")
+				// enqueue Route and check the queue length
+				mockMgr.appMgr.enqueueRoute(route1, OprTypeCreate)
+				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
 
+				// enqueue Route with delete operation and check the hostPath Map
+				key := route1.Spec.Host + route1.Spec.Path
+				mockMgr.appMgr.updateHostPathMap(route1.CreationTimestamp, key)
+				_, ok := mockMgr.appMgr.processedHostPath.processedHostPathMap[key]
+				Expect(ok).To(BeTrue())
+				mockMgr.appMgr.enqueueRoute(route1, OprTypeDelete)
+				_, ok = mockMgr.appMgr.processedHostPath.processedHostPathMap[key]
+				Expect(ok).To(BeFalse())
 				spec2 := routeapi.RouteSpec{
 					Host: "bar.com",
 					Path: "/bar",
@@ -4658,6 +4674,9 @@ var _ = Describe("AppManager Tests", func() {
 				resources := mockMgr.resources()
 				r := mockMgr.addConfigMap(cfgNs1)
 				Expect(r).To(BeTrue(), "Config map should be processed.")
+				// enqueue configMap and check the queue length
+				mockMgr.appMgr.enqueueConfigMap(cfgNs1, OprTypeCreate)
+				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
 				rs, ok := resources.Get(
 					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: ns1}, FormatConfigMapVSName(cfgNs1))
 				Expect(ok).To(BeTrue(), "Config map should be accessible.")
@@ -5431,6 +5450,65 @@ var _ = Describe("AppManager Tests", func() {
 				appInf.svcInformer.GetStore().Add(svc)
 				mockMgr.appMgr.triggerSyncResources(namespace, appInf)
 				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
+			})
+
+			It("Test getQueueLength for svc", func() {
+				svcName := "svc1"
+				namespace := "default"
+				svc := &v1.Service{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Service",
+						APIVersion: "v1",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      svcName,
+						Namespace: namespace,
+					},
+					Spec: v1.ServiceSpec{},
+				}
+				mockMgr.appMgr.kubeClient = fake.NewSimpleClientset(svc)
+				mockMgr.appMgr.WatchedNS = WatchedNamespaces{Namespaces: []string{"default"}}
+				mockMgr.appMgr.appInformers["default"] = &appInformer{namespace: "default"}
+				defer delete(mockMgr.appMgr.appInformers, "default")
+				Expect(mockMgr.appMgr.getQueueLength()).To(Equal(1))
+				mockMgr.appMgr.enqueueService(svc, OprTypeCreate)
+				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
+			})
+			It("Test getQueueLength for configMap", func() {
+				cfgNs1 := test.NewConfigMap("foomap", "1", "default",
+					map[string]string{
+						"schema": schemaUrl,
+						"data":   configmapFoo,
+					})
+				mockMgr.appMgr.kubeClient = fake.NewSimpleClientset(cfgNs1)
+				mockMgr.appMgr.WatchedNS = WatchedNamespaces{Namespaces: []string{"default"}}
+				mockMgr.appMgr.appInformers["default"] = &appInformer{namespace: "default"}
+				defer delete(mockMgr.appMgr.appInformers, "default")
+				Expect(mockMgr.appMgr.getQueueLength()).To(Equal(1))
+				mockMgr.appMgr.enqueueConfigMap(cfgNs1, OprTypeCreate)
+				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
+			})
+			It("Test GetAllWatchedNamespaces", func() {
+				namespaces := mockMgr.appMgr.GetAllWatchedNamespaces()
+				Expect(len(namespaces)).To(Equal(1))
+				Expect(namespaces[0]).To(Equal(""))
+				mockMgr.appMgr.WatchedNS = WatchedNamespaces{NamespaceLabel: "watching"}
+				ns1 := test.NewNamespace("ns1", "1", map[string]string{})
+				ns2 := test.NewNamespace("ns2", "1", map[string]string{"notwatching": "no"})
+				ns3 := test.NewNamespace("ns3", "1", map[string]string{"watching": "yes"})
+				mockMgr.appMgr.kubeClient = fake.NewSimpleClientset(ns1)
+				mockMgr.appMgr.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns1, metav1.CreateOptions{})
+				mockMgr.appMgr.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns2, metav1.CreateOptions{})
+				mockMgr.appMgr.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns3, metav1.CreateOptions{})
+				namespaces = mockMgr.appMgr.GetAllWatchedNamespaces()
+				Expect(len(namespaces)).To(Equal(1))
+				Expect(namespaces[0]).To(Equal("ns3"))
+				ns4 := test.NewNamespace("ns4", "1", map[string]string{"watching": "yes"})
+				mockMgr.appMgr.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns4, metav1.CreateOptions{})
+				namespaces = mockMgr.appMgr.GetAllWatchedNamespaces()
+				Expect(len(namespaces)).To(Equal(2))
+				Expect(namespaces[0]).To(Equal("ns3"))
+				Expect(namespaces[1]).To(Equal("ns4"))
 			})
 		})
 	})

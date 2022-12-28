@@ -201,7 +201,7 @@ var (
 	agRspChan          chan interface{}
 	eventChan          chan interface{}
 	configWriter       writer.Writer
-	k8sVersion         string
+	userAgentInfo      string
 )
 
 func _init() {
@@ -822,7 +822,7 @@ func initController(
 		VerifyInterval: *verifyInterval,
 		VXLANName:      vxlanName,
 		PythonBaseDir:  *pythonBaseDir,
-		UserAgent:      getUserAgentInfo(),
+		UserAgent:      userAgentInfo,
 		HttpAddress:    *httpAddress,
 		EnableIPV6:     *enableIPV6,
 		CCCLGTMAgent:   *ccclGtmAgent,
@@ -948,11 +948,12 @@ func main() {
 		log.Fatalf("[INIT] error connecting to the client: %v", err)
 		os.Exit(1)
 	}
+	userAgentInfo = getUserAgentInfo()
 	td := &teem.TeemsData{
 		CisVersion:      version,
 		Agent:           *agent,
 		PoolMemberType:  *poolMemberType,
-		PlatformInfo:    getUserAgentInfo(),
+		PlatformInfo:    userAgentInfo,
 		DateOfCISDeploy: time.Now().UTC().Format(time.RFC3339Nano),
 		AccessEnabled:   true,
 		ResourceType: teem.ResourceTypes{
@@ -1215,7 +1216,7 @@ func getAS3Params() *as3.Params {
 		LogResponse:               *logAS3Response,
 		ShareNodes:                *shareNodes,
 		RspChan:                   agRspChan,
-		UserAgent:                 getUserAgentInfo(),
+		UserAgent:                 userAgentInfo,
 		ConfigWriter:              getConfigWriter(),
 		EventChan:                 eventChan,
 		DefaultRouteDomain:        *defaultRouteDomain,

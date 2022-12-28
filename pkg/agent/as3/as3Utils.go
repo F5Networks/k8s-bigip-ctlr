@@ -167,14 +167,6 @@ func ExtractVirtualAddressAndPort(str string) (string, int) {
 
 }
 
-func DeepEqualAS3ArbitraryJsonObject(obj1, obj2 map[string]interface{}) bool {
-	if len(obj1) == 0 && len(obj2) == 0 {
-		return true
-	}
-
-	return reflect.DeepEqual(obj1, obj2)
-}
-
 func getTenants(decl as3Declaration, includeEmptyTenant bool) []string {
 
 	var tmpl interface{}

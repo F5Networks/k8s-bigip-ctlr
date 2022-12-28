@@ -635,41 +635,6 @@ func (appMgr *Manager) sslPassthroughIRule() string {
 	return iRuleCode
 }
 
-// Update a specific datagroup for passthrough routes, indicating if
-// something had changed.
-func (appMgr *Manager) updatePassthroughRouteDataGroups(
-	partition string,
-	namespace string,
-	poolName string,
-	hostName string,
-) (bool, error) {
-
-	changed := false
-	key := NameRef{
-		Name:      PassthroughHostsDgName,
-		Partition: partition,
-	}
-
-	appMgr.intDgMutex.Lock()
-	defer appMgr.intDgMutex.Unlock()
-	nsHostDg, found := appMgr.intDgMap[key]
-	if false == found {
-		return false, fmt.Errorf("Internal Data-group /%s/%s does not exist.",
-			partition, PassthroughHostsDgName)
-	}
-
-	hostDg, found := nsHostDg[namespace]
-	if !found {
-		hostDg = &InternalDataGroup{}
-		nsHostDg[namespace] = hostDg
-	}
-	if hostDg.AddOrUpdateRecord(hostName, poolName) {
-		changed = true
-	}
-
-	return changed, nil
-}
-
 // Update a data group map based on a passthrough route object.
 func updateDataGroupForPassthroughRoute(
 	route *routeapi.Route,

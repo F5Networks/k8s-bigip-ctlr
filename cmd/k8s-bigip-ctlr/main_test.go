@@ -18,6 +18,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/as3"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
 	"io/ioutil"
 	"k8s.io/client-go/rest"
 	"os"
@@ -392,10 +394,14 @@ var _ = Describe("Main Tests", func() {
 				"./bin/k8s-bigip-ctlr",
 				"--namespace=testing",
 				"--credentials-directory=/tmp/k8s-test-creds",
+				"--gtm-credentials-directory=/tmp/k8s-test-gtm-creds",
 				"--bigip-partition=velcro1",
 				"--bigip-url=bigip.example.com",
 				"--bigip-username=cli-user",
 				"--bigip-password=cli-pass",
+				"--gtm-bigip-url=bigip1.example.com",
+				"--gtm-bigip-username=cli-user-gtm",
+				"--gtm-bigip-password=cli-pass-gtm",
 				"--pool-member-type=nodeport",
 			}
 			flags.Parse(os.Args)
@@ -404,12 +410,23 @@ var _ = Describe("Main Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			err = ioutil.WriteFile("/tmp/k8s-test-creds/password", []byte("pass"), 0755)
 			Expect(err).ToNot(HaveOccurred())
+			os.Mkdir("/tmp/k8s-test-gtm-creds", 0755)
+			err = ioutil.WriteFile("/tmp/k8s-test-gtm-creds/username", []byte("user-gtm"), 0755)
+			Expect(err).ToNot(HaveOccurred())
+			err = ioutil.WriteFile("/tmp/k8s-test-gtm-creds/password", []byte("pass-gtm"), 0755)
+			Expect(err).ToNot(HaveOccurred())
 
 			err = getCredentials()
 			Expect(err).ToNot(HaveOccurred())
+			// get gtm credentials
+			getGTMCredentials()
 			Expect(*bigIPURL).To(Equal("https://bigip.example.com"))
 			Expect(*bigIPUsername).To(Equal("user"))
 			Expect(*bigIPPassword).To(Equal("pass"))
+			Expect(*gtmBigIPURL).To(Equal("https://bigip1.example.com"))
+			Expect(*gtmBigIPUsername).To(Equal("user-gtm"))
+			Expect(*gtmBigIPPassword).To(Equal("pass-gtm"))
+
 		})
 
 		It("sets up the node poller", func() {
@@ -697,6 +714,92 @@ var _ = Describe("Main Tests", func() {
 			Expect(len(namespaces)).To(Equal(0))
 			nsInf := vsm.GetNamespaceLabelInformer()
 			Expect(nsInf).ToNot(BeNil())
+		})
+		It("Fetch parameters for CCCL", func() {
+			defer _init()
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--bigip-password=admin",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--route-label=test2",
+				"--openshift-sdn-name=vxlan500",
+				"--pool-member-type=cluster",
+				"--default-client-ssl=clientssl",
+				"--default-server-ssl=serverssl",
+				"--route-vserver-addr=192.168.1.1",
+				"--agent=cccl",
+				"--trusted-certs-cfgmap=default/foomap",
+			}
+			flags.Parse(os.Args)
+			err := verifyArgs()
+			Expect(err).To(BeNil())
+			appManagerParams := getAppManagerParams()
+			Expect(appManagerParams.RouteConfig.RouteVSAddr).To(Equal("192.168.1.1"))
+			Expect(appManagerParams.RouteConfig.ServerSSL).To(Equal("serverssl"))
+			Expect(appManagerParams.RouteConfig.ClientSSL).To(Equal("clientssl"))
+			Expect(appManagerParams.RouteConfig.RouteLabel).To(Equal("test2"))
+			Expect(appManagerParams.RouteConfig.HttpVs).To(Equal("ose-vserver"))
+			Expect(appManagerParams.RouteConfig.HttpsVs).To(Equal("https-ose-vserver"))
+			cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
+				"key": "testkey"})
+			kubeClient = fake.NewSimpleClientset(cfgFoo)
+			Expect(kubeClient).ToNot(BeNil(), "Mock client cannot be nil.")
+			params := getAgentParams(*agent)
+			ccclParams := params.(*cccl.Params)
+			Expect(ccclParams.BIGIPURL).To(Equal("bigip.example.com"))
+			Expect(ccclParams.BIGIPPassword).To(Equal("admin"))
+			Expect(ccclParams.BIGIPUsername).To(Equal("admin"))
+			Expect(ccclParams.SSLInsecure).To(BeFalse())
+			Expect(ccclParams.ConfigWriter).ToNot(BeNil())
+			Expect(ccclParams.EventChan).To(BeNil())
+			Expect(ccclParams.TrustedCerts).To(Equal("testkey\n"))
+		})
+		It("Fetch parameters for AS3", func() {
+			defer _init()
+			os.Args = []string{
+				"./bin/k8s-bigip-ctlr",
+				"--bigip-partition=velcro1",
+				"--bigip-password=admin",
+				"--bigip-url=bigip.example.com",
+				"--bigip-username=admin",
+				"--route-label=test2",
+				"--openshift-sdn-name=vxlan500",
+				"--pool-member-type=cluster",
+				"--default-client-ssl=clientssl",
+				"--default-server-ssl=serverssl",
+				"--route-vserver-addr=192.168.1.1",
+				"--trusted-certs-cfgmap=default/foomap",
+			}
+			flags.Parse(os.Args)
+			err := verifyArgs()
+			Expect(err).To(BeNil())
+			appManagerParams := getAppManagerParams()
+			Expect(appManagerParams.RouteConfig.RouteVSAddr).To(Equal("192.168.1.1"))
+			Expect(appManagerParams.RouteConfig.ServerSSL).To(Equal("serverssl"))
+			Expect(appManagerParams.RouteConfig.ClientSSL).To(Equal("clientssl"))
+			Expect(appManagerParams.RouteConfig.RouteLabel).To(Equal("test2"))
+			Expect(appManagerParams.RouteConfig.HttpVs).To(Equal("ose-vserver"))
+			Expect(appManagerParams.RouteConfig.HttpsVs).To(Equal("https-ose-vserver"))
+			cfgFoo := test.NewConfigMap("foomap", "1", "default", map[string]string{
+				"key": "testkey"})
+			kubeClient = fake.NewSimpleClientset(cfgFoo)
+			Expect(kubeClient).ToNot(BeNil(), "Mock client cannot be nil.")
+			params := getAgentParams(*agent)
+			as3Params := params.(*as3.Params)
+			Expect(as3Params.BIGIPURL).To(Equal("bigip.example.com"))
+			Expect(as3Params.BIGIPPassword).To(Equal("admin"))
+			Expect(as3Params.BIGIPUsername).To(Equal("admin"))
+			Expect(as3Params.SSLInsecure).To(BeFalse())
+			Expect(as3Params.ConfigWriter).ToNot(BeNil())
+			Expect(as3Params.EventChan).To(BeNil())
+			Expect(as3Params.TrustedCerts).To(Equal("testkey\n"))
+			Expect(as3Params.EnableTLS).To(Equal("1.2"))
+			Expect(as3Params.TLS13CipherGroupReference).To(Equal("/Common/f5-default"))
+			Expect(as3Params.Ciphers).To(Equal("DEFAULT"))
+			Expect(as3Params.AS3PostDelay).To(Equal(0))
+			Expect(as3Params.PoolMemberType).To(Equal("cluster"))
 		})
 	})
 

@@ -1,6 +1,16 @@
 Release Notes for BIG-IP Controller for Kubernetes
 ==================================================
 
+1.14.2
+------------
+Added Functionality
+`````````````````````
+* Upgrade Base OS to UBI 9
+
+Bug Fixes
+`````````
+* Teems Data Crash issue fixed
+
 1.14.1
 ------------
 
@@ -11,7 +21,7 @@ Added Functionality
 
 Vulnerability Fixes
 ```````````````````
-Release image is upgrade to UBI-7 and  following vulnerabilities are fixed:
+Release image is upgrade to UBI-7 and fixed the following vulnerabilities:
 
 +---------------------------------+----------------+
 | CVE                             | PACKAGE        |

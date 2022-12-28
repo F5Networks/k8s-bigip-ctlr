@@ -12,7 +12,7 @@ COPY . .
 
 RUN $REPOPATH/build-tools/rel-build.sh
 
-FROM registry.redhat.io/ubi7/ubi-minimal
+FROM registry.redhat.io/ubi9/ubi-minimal
 
 LABEL name="f5networks/k8s-bigip-ctlr" \
       vendor="F5 Networks" \
@@ -38,30 +38,15 @@ COPY requirements.txt /tmp/requirements.txt
 RUN mkdir -p "$APPPATH/bin" "$APPPATH/vendor/src/f5/schemas/" \
  && touch $APPPATH/vendor/src/f5/VERSION_BUILD.json
 
-RUN microdnf update && \
-    microdnf \
-      --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms  \
-      --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms \
-      install --nodocs \
-      rh-python38 git shadow-utils && \
-    microdnf \
-    --enablerepo=ubi-7-server-devtools-rpms --enablerepo=ubi-7-server-extras-rpms \
-    --enablerepo=ubi-7-server-optional-rpms --enablerepo=ubi-server-rhscl-7-rpms \
-    update nss-tools nss-softokn nss-util scl-utils && \
-    . scl_source enable rh-python38 && \
-    pip install --no-cache-dir --upgrade pip==20.0.2 && \
-    pip install --no-cache-dir -r /tmp/requirements.txt && \
-    python -m pip uninstall -y pip && \
+RUN microdnf update -y && \
+    microdnf --enablerepo=ubi-9-baseos-rpms install --nodocs python39 python3-pip git shadow-utils -y && \
+    microdnf --enablerepo=ubi-9-baseos-rpms --enablerepo=ubi-9-appstream-rpms update nss-tools nss-softokn nss-util scl-utils -y && \
+    pip3 install --no-cache-dir --upgrade pip==20.0.2 && \
+    pip3 install --no-cache-dir -r /tmp/requirements.txt && \
+    python3 -m pip uninstall -y pip && \
     adduser ctlr && \
-    microdnf remove  \
-    fipscheck fipscheck-lib    \
-    libgnome-keyring \
-    libedit openssh openssh-clients \
-    perl-Git  perl-TermReadKey  perl-macros git-core git-core-doc git less \
-    rsync shadow-utils  && \
-    microdnf clean all \
-    && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json \
-    && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
+    microdnf remove libedit openssh openssh-clients perl-Git  perl-TermReadKey  perl-macros git-core git-core-doc git less shadow-utils -y && \
+    microdnf clean all && echo "{\"version\": \"${BUILD_VERSION}\", \"build\": \"${BUILD_INFO}\"}" > $APPPATH/vendor/src/f5/VERSION_BUILD.json && chown -R ctlr "$APPPATH" && chmod -R 755 "$APPPATH"
 
 USER ctlr
 COPY schemas/*.json $APPPATH/vendor/src/f5/schemas/
@@ -74,8 +59,7 @@ ENV GODEBUG x509ignoreCN=0
 
 # entrypoint to enable scl python at runtime
 RUN echo $'#!/bin/sh\n\
-	  source scl_source enable rh-python38\n\
-	  exec $APPPATH/bin/k8s-bigip-ctlr.real "$@"' > $APPPATH/bin/k8s-bigip-ctlr && \
+    exec $APPPATH/bin/k8s-bigip-ctlr.real "$@"' > $APPPATH/bin/k8s-bigip-ctlr && \
     chmod +x $APPPATH/bin/k8s-bigip-ctlr
 
 CMD ["/app/bin/k8s-bigip-ctlr"]

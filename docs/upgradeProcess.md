@@ -35,7 +35,7 @@ Compatibility Matrix
 | v2.10.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |Red Hat Enterprise Linux release 8.6 (Ootpa)|
 | v2.10.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |Red Hat Enterprise Linux release 8.6 (Ootpa)|
 | v2.11.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.3     | v0.0.22 |Red Hat Enterprise Linux release 8.7 (Ootpa)|
-| v2.11.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.3     | v0.0.23 |Red Hat Enterprise Linux release 9.1 (Plow)|     
+| v2.11.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.41     | v0.1.8      | v0.0.4     | v0.0.23 |Red Hat Enterprise Linux release 9.1 (Plow)|            
 
 
 CIS Features and Examples
@@ -254,6 +254,6 @@ Refer Release Notes for [CIS v2.11.0](https://github.com/F5Networks/k8s-bigip-ct
 Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
 
 **_Configuration Change:_**
-* Add pattern definition in CR schema to align with F5 BIGIP Object Naming convention
-* RBAC Changes to read the openshift network config
-* Moving to CIS > 2.11.1 requires update to RBAC and CR schema definition before upgrade. See [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml) and [CR schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml) 
+* Add pattern definition in CR schema to align with F5 BIGIP object naming convention.
+* RBAC changes to read the openshift network config
+* Moving to CIS > 2.11.1 requires an update to RBAC and CR schema definition. See [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml) and [CR schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml) 

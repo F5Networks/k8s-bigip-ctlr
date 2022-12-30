@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"errors"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/fake"
 	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/cis/v1"
@@ -25,15 +24,6 @@ var _ = Describe("Node Poller Handler", func() {
 
 	AfterEach(func() {
 		mockCtlr.shutdown()
-	})
-
-	It("Setup", func() {
-		err := mockCtlr.SetupNodePolling(
-			30,
-			"",
-			"maintain",
-			"test/vxlan")
-		Expect(err).To(BeNil(), "Failed to setup Node Poller")
 	})
 
 	It("Nodes", func() {
@@ -177,18 +167,18 @@ var _ = Describe("Node Poller Handler", func() {
 				[]v1.NodeAddress{nodeAddr3}, nil))
 			tempNodeObjs := nodeObjs
 
-			mockCtlr.ProcessNodeUpdate(nil, nil)
+			mockCtlr.ProcessNodeUpdate(nil)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(0))
 			mockCtlr.initState = true
-			mockCtlr.ProcessNodeUpdate(nodeObjs, errors.New("error"))
+			mockCtlr.ProcessNodeUpdate(nodeObjs)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(0))
-			mockCtlr.ProcessNodeUpdate(nil, nil)
+			mockCtlr.ProcessNodeUpdate(nil)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(0))
 			mockCtlr.initState = false
 			nodeObjs = tempNodeObjs
 			mockCtlr.oldNodes = nil
 			// Process Node update and verify that ingressLink is added to the resource queue for processing
-			mockCtlr.ProcessNodeUpdate(nodeObjs, nil)
+			mockCtlr.ProcessNodeUpdate(nodeObjs)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(1),
 				"IngressLink not added to resource queue for processing")
 			key, _ := mockCtlr.resourceQueue.Get()
@@ -200,7 +190,7 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs = nodeObjs[:len(nodeObjs)-1]
 			err = mockCtlr.crInformers[""].vsInformer.GetStore().Add(vs)
 			Expect(err).To(BeNil(), "Failed to add Virtual Server resource to informer store")
-			mockCtlr.ProcessNodeUpdate(nodeObjs, nil)
+			mockCtlr.ProcessNodeUpdate(nodeObjs)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(1),
 				"Virtual Server not added to resource queue for processing")
 			key, _ = mockCtlr.resourceQueue.Get()
@@ -211,7 +201,7 @@ var _ = Describe("Node Poller Handler", func() {
 			nodeObjs = nodeObjs[:len(nodeObjs)-1]
 			err = mockCtlr.crInformers[""].tsInformer.GetStore().Add(ts)
 			Expect(err).To(BeNil(), "Failed to add Transport Server resource to informer store")
-			mockCtlr.ProcessNodeUpdate(nodeObjs, nil)
+			mockCtlr.ProcessNodeUpdate(nodeObjs)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(1),
 				"Transport Server not added to resource queue for processing")
 			key, _ = mockCtlr.resourceQueue.Get()
@@ -226,7 +216,7 @@ var _ = Describe("Node Poller Handler", func() {
 			mockCtlr.crInformers["default"] = mockCtlr.newNamespacedCustomResourceInformer("default")
 			mockCtlr.crInformers["nginx-ingress"] = mockCtlr.newNamespacedCustomResourceInformer("nginx-ingress")
 			mockCtlr.crInformers["nginx-ingress"].ilInformer.GetStore().Add(ingressLink)
-			mockCtlr.ProcessNodeUpdate(nodeObjs, nil)
+			mockCtlr.ProcessNodeUpdate(nodeObjs)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(1),
 				"IngressLink not added to resource queue for processing")
 			key, _ = mockCtlr.resourceQueue.Get()
@@ -237,7 +227,7 @@ var _ = Describe("Node Poller Handler", func() {
 
 			mockCtlr.crInformers["default"].vsInformer.GetStore().Add(vs)
 			nodeObjs = nodeObjs[:len(nodeObjs)-1]
-			mockCtlr.ProcessNodeUpdate(nodeObjs, nil)
+			mockCtlr.ProcessNodeUpdate(nodeObjs)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(1),
 				"Virtual Server not added to resource queue for processing")
 			key, _ = mockCtlr.resourceQueue.Get()
@@ -247,7 +237,7 @@ var _ = Describe("Node Poller Handler", func() {
 
 			mockCtlr.crInformers["default"].tsInformer.GetStore().Add(ts)
 			nodeObjs = nodeObjs[:len(nodeObjs)-1]
-			mockCtlr.ProcessNodeUpdate(nodeObjs, nil)
+			mockCtlr.ProcessNodeUpdate(nodeObjs)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(1),
 				"Transport Server not added to resource queue for processing")
 			key, _ = mockCtlr.resourceQueue.Get()
@@ -272,7 +262,7 @@ var _ = Describe("Node Poller Handler", func() {
 			// Delete a K8S node and verify
 			nodeObjs = nodeObjs[:len(nodeObjs)-1]
 			// Process Node update and verify that ingressLink is added to the resource queue for processing
-			mockCtlr.ProcessNodeUpdate(nodeObjs, nil)
+			mockCtlr.ProcessNodeUpdate(nodeObjs)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(1),
 				"IngressLink not added to resource queue for processing")
 			key, _ = mockCtlr.resourceQueue.Get()
@@ -282,7 +272,7 @@ var _ = Describe("Node Poller Handler", func() {
 
 			// Verify that ingressLink isn't added to the resource queue for processing if no node is added/deleted
 			// Process Node update and verify
-			mockCtlr.ProcessNodeUpdate(nodeObjs, nil)
+			mockCtlr.ProcessNodeUpdate(nodeObjs)
 			Expect(mockCtlr.resourceQueue.Len()).To(Equal(0),
 				"IngressLink should not be added to resource queue for processing")
 		})

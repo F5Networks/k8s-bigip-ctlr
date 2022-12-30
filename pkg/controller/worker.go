@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"sort"
 	"strings"
 	"time"
@@ -63,12 +64,16 @@ func (ctlr *Controller) nextGenResourceWorker() {
 func (ctlr *Controller) setInitialServiceCount() {
 	var svcCount int
 	for _, ns := range ctlr.getWatchingNamespaces() {
-		services, err := ctlr.kubeClient.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{})
+		comInf, found := ctlr.getNamespacedCommonInformer(ns)
+		if !found {
+			continue
+		}
+		services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", ns)
 		if err != nil {
 			continue
 		}
-
-		for _, svc := range services.Items {
+		for _, obj := range services {
+			svc := obj.(*v1.Service)
 			if _, ok := K8SCoreServices[svc.Name]; ok {
 				continue
 			}
@@ -831,7 +836,11 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
 	}
-
+	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+	if !ok {
+		log.Errorf("Common Informer not found for namespace: %v", namespace)
+		return nil
+	}
 	// TODO: Create Internal Structure to hold TLSProfiles. Make API call only for a new TLSProfile
 	// Check if the TLSProfile exists and valid for us.
 	obj, tlsFound, _ := crInf.tlsInformer.GetIndexer().GetByKey(tlsKey)
@@ -852,7 +861,12 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 		var match bool
 		if len(tlsProfile.Spec.TLS.ClientSSLs) > 0 {
 			for _, secret := range tlsProfile.Spec.TLS.ClientSSLs {
-				clientSecret, _ := ctlr.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), secret, metav1.GetOptions{})
+				secretKey := namespace + "/" + secret
+				clientSecretobj, found, err := comInf.secretsInformer.GetIndexer().GetByKey(secretKey)
+				if err != nil || !found {
+					return nil
+				}
+				clientSecret := clientSecretobj.(*v1.Secret)
 				//validate at least one clientSSL certificates matches the VS hostname
 				if checkCertificateHost(vs.Spec.Host, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"]) {
 					match = true
@@ -861,10 +875,12 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 			}
 
 		} else {
-			clientSecret, _ := ctlr.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), tlsProfile.Spec.TLS.ClientSSL, metav1.GetOptions{})
-			if clientSecret == nil {
+			secretKey := namespace + "/" + tlsProfile.Spec.TLS.ClientSSL
+			clientSecretobj, found, err := comInf.secretsInformer.GetIndexer().GetByKey(secretKey)
+			if err != nil || !found {
 				return nil
 			}
+			clientSecret := clientSecretobj.(*v1.Secret)
 			//validate clientSSL certificates and hostname
 			match = checkCertificateHost(vs.Spec.Host, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"])
 		}
@@ -1804,10 +1820,10 @@ func (ctlr *Controller) getEndpointsForNodePort(
 // getEndpointsForNPL returns members.
 func (ctlr *Controller) getEndpointsForNPL(
 	targetPort intstr.IntOrString,
-	pods *v1.PodList,
+	pods []*v1.Pod,
 ) []PoolMember {
 	var members []PoolMember
-	for _, pod := range pods.Items {
+	for _, pod := range pods {
 		anns, found := ctlr.resources.nplStore[pod.Namespace+"/"+pod.Name]
 		if !found {
 			continue
@@ -3083,29 +3099,29 @@ func (ctlr *Controller) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink
 	}
 	selector = selector[:len(selector)-1]
 
-	svcListOptions := metav1.ListOptions{
-		LabelSelector: selector,
+	comInf, ok := ctlr.getNamespacedCommonInformer(ingLink.ObjectMeta.Namespace)
+	if !ok {
+		return nil, fmt.Errorf("informer not found for namepsace %v", ingLink.ObjectMeta.Namespace)
 	}
-
-	// Identify services that matches the given label
-	serviceList, err := ctlr.kubeClient.CoreV1().Services(ingLink.ObjectMeta.Namespace).List(context.TODO(), svcListOptions)
+	ls, _ := createLabel(selector)
+	serviceList, err := listerscorev1.NewServiceLister(comInf.svcInformer.GetIndexer()).Services(ingLink.ObjectMeta.Namespace).List(ls)
 
 	if err != nil {
 		log.Errorf("Error getting service list From IngressLink. Error: %v", err)
 		return nil, err
 	}
 
-	if len(serviceList.Items) == 0 {
+	if len(serviceList) == 0 {
 		log.Infof("No services for with labels : %v", ingLink.Spec.Selector.MatchLabels)
 		return nil, nil
 	}
 
-	if len(serviceList.Items) == 1 {
-		return &serviceList.Items[0], nil
+	if len(serviceList) == 1 {
+		return serviceList[0], nil
 	}
 
-	sort.Sort(Services(serviceList.Items))
-	return &serviceList.Items[0], nil
+	sort.Sort(Services(serviceList))
+	return serviceList[0], nil
 }
 
 func (ctlr *Controller) setLBServiceIngressStatus(
@@ -3143,12 +3159,13 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 ) {
 
 	svcName := svc.Namespace + "/" + svc.Name
-	svc, err := ctlr.kubeClient.CoreV1().Services(svc.Namespace).Get(context.TODO(), svc.Name, metav1.GetOptions{})
-	if err != nil {
+	comInf, _ := ctlr.getNamespacedCommonInformer(svc.Namespace)
+	service, found, err := comInf.svcInformer.GetIndexer().GetByKey(svcName)
+	if !found || err != nil {
 		log.Debugf("Unable to Update Status of Service: %v due to unavailability", svcName)
 		return
 	}
-
+	svc = service.(*v1.Service)
 	index := -1
 	for i, lbIng := range svc.Status.LoadBalancer.Ingress {
 		if lbIng.IP == ip {
@@ -3233,6 +3250,19 @@ func (svcs Services) Swap(i, j int) {
 	svcs[i], svcs[j] = svcs[j], svcs[i]
 }
 
+// sort Nodes by Name
+func (nodes NodeList) Len() int {
+	return len(nodes)
+}
+
+func (nodes NodeList) Less(i, j int) bool {
+	return nodes[i].Name < nodes[j].Name
+}
+
+func (nodes NodeList) Swap(i, j int) {
+	nodes[i], nodes[j] = nodes[j], nodes[i]
+}
+
 func getNodeport(svc *v1.Service, servicePort int32) int32 {
 	for _, port := range svc.Spec.Ports {
 		if port.Port == servicePort {
@@ -3305,7 +3335,7 @@ func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
 }
 
 // GetPodsForService returns podList with labels set to svc selector
-func (ctlr *Controller) GetPodsForService(namespace, serviceName string, nplAnnotationRequired bool) *v1.PodList {
+func (ctlr *Controller) GetPodsForService(namespace, serviceName string, nplAnnotationRequired bool) []*v1.Pod {
 	svcKey := namespace + "/" + serviceName
 	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
 	if !ok {
@@ -3337,10 +3367,8 @@ func (ctlr *Controller) GetPodsForService(namespace, serviceName string, nplAnno
 	if err != nil {
 		return nil
 	}
-	podListOptions := metav1.ListOptions{
-		LabelSelector: labels.SelectorFromSet(labelmap).String(),
-	}
-	podList, err := ctlr.kubeClient.CoreV1().Pods(namespace).List(context.TODO(), podListOptions)
+	pl, _ := createLabel(labels.SelectorFromSet(labelmap).String())
+	podList, err := listerscorev1.NewPodLister(comInf.podInformer.GetIndexer()).Pods(namespace).List(pl)
 	if err != nil {
 		log.Debugf("Got error while listing Pods with selector %v: %v", selector, err)
 		return nil
@@ -3354,7 +3382,10 @@ func (ctlr *Controller) GetServicesForPod(pod *v1.Pod) *v1.Service {
 		log.Errorf("Informer not found for namespace: %v", pod.Namespace)
 		return nil
 	}
-	services := comInf.svcInformer.GetIndexer().List()
+	services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", pod.Namespace)
+	if err != nil {
+		log.Debugf("Unable to find services for namespace %v with error: %v", pod.Namespace, err)
+	}
 	for _, obj := range services {
 		svc := obj.(*v1.Service)
 		if svc.Spec.Type != v1.ServiceTypeNodePort {
@@ -3520,4 +3551,18 @@ func (ctlr *Controller) getTLSProfilesForSecret(secret *v1.Secret) []*cisapiv1.T
 		}
 	}
 	return allTLSProfiles
+}
+
+func createLabel(label string) (labels.Selector, error) {
+	var l labels.Selector
+	var err error
+	if label == "" {
+		l = labels.Everything()
+	} else {
+		l, err = labels.Parse(label)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse Label Selector string: %v", err)
+		}
+	}
+	return l, nil
 }

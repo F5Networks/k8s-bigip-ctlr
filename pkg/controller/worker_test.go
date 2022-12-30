@@ -170,7 +170,7 @@ var _ = Describe("Worker Tests", func() {
 			time.Sleep(10 * time.Millisecond)
 			foo.ObjectMeta.CreationTimestamp = metav1.NewTime(time.Now())
 			var services Services
-			services = append(services, *foo, *bar)
+			services = append(services, foo, bar)
 			sort.Sort(services)
 			Expect(services[0].Name).To(Equal("bar"), "Should return the service name as bar")
 		})
@@ -962,8 +962,7 @@ var _ = Describe("Worker Tests", func() {
 					IngressLink: make(map[string]int),
 				},
 			}
-			_, _ = mockCtlr.kubeClient.CoreV1().Services("default").Create(context.Background(), foo,
-				metav1.CreateOptions{})
+			_ = mockCtlr.comInformers["default"].svcInformer.GetIndexer().Add(foo)
 			err := mockCtlr.processIngressLink(IngressLink1, false)
 			Expect(err).To(BeNil(), "Failed to process IngressLink while creation")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid LTM Config")
@@ -1038,10 +1037,8 @@ var _ = Describe("Worker Tests", func() {
 			Expect(mockCtlr.matchSvcSelectorPodLabels(selectors, map[string]string{})).To(Equal(false))
 			Expect(mockCtlr.matchSvcSelectorPodLabels(selectors, pod1.Labels)).To(Equal(true))
 			Expect(mockCtlr.checkCoreserviceLabels(pod1.Labels)).To(Equal(false))
-			Expect(mockCtlr.GetServicesForPod(pod1)).To(BeNil())
-			var items []v1.Pod
-			items = append(items, *pod1, *pod2)
-			pods := v1.PodList{Items: items}
+			var pods []*v1.Pod
+			pods = append(pods, pod1, pod2)
 			//Verify endpoints
 			members := []PoolMember{
 				{
@@ -1055,7 +1052,7 @@ var _ = Describe("Worker Tests", func() {
 					Session: "user-enabled",
 				},
 			}
-			mems := mockCtlr.getEndpointsForNPL(intstr.FromInt(8080), &pods)
+			mems := mockCtlr.getEndpointsForNPL(intstr.FromInt(8080), pods)
 			Expect(mems).To(Equal(members))
 			mockCtlr.processPod(pod1, true)
 			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod1.Name]).To(BeNil())
@@ -1078,11 +1075,11 @@ var _ = Describe("Worker Tests", func() {
 			labels["app"] = "UpdatePoolHealthMonitors"
 			svc.Spec.Selector = labels
 			mockCtlr.updateService(svc)
-			Expect(mockCtlr.GetPodsForService("default", "svc", true).Items).To(BeNil())
+			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
 			pod1.Labels = labels
 			mockCtlr.addPod(pod1)
 			mockCtlr.kubeClient.CoreV1().Pods("default").Create(context.TODO(), pod1, metav1.CreateOptions{})
-			Expect(mockCtlr.GetPodsForService("default", "svc", true).Items).ToNot(BeNil())
+			Expect(mockCtlr.GetPodsForService("default", "svc", true)).ToNot(BeNil())
 			Expect(mockCtlr.GetService("test", "svc")).To(BeNil())
 			Expect(mockCtlr.GetService("default", "svc1")).To(BeNil())
 			Expect(mockCtlr.GetService("default", "svc")).ToNot(BeNil())

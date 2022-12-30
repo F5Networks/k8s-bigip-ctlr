@@ -134,6 +134,10 @@ func (comInfr *CommonInformer) start() {
 		go comInfr.podInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.podInformer.HasSynced)
 	}
+	if comInfr.nodeInformer != nil {
+		go comInfr.nodeInformer.Run(comInfr.stopCh)
+		cacheSyncs = append(cacheSyncs, comInfr.nodeInformer.HasSynced)
+	}
 	if comInfr.secretsInformer != nil {
 		go comInfr.secretsInformer.Run(comInfr.stopCh)
 		cacheSyncs = append(cacheSyncs, comInfr.secretsInformer.HasSynced)
@@ -382,6 +386,9 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 	crOptions := func(options *metav1.ListOptions) {
 		options.LabelSelector = ctlr.customResourceSelector.String()
 	}
+	nodeOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = ctlr.nodeLabelSelector
+	}
 	comInf := &CommonInformer{
 		namespace: namespace,
 		stopCh:    make(chan struct{}),
@@ -418,6 +425,17 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 			resyncPeriod,
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		),
+		nodeInformer: cache.NewSharedIndexInformer(
+			cache.NewFilteredListWatchFromClient(
+				restClientv1,
+				"nodes",
+				"",
+				nodeOptions,
+			),
+			&corev1.Node{},
+			resyncPeriod,
+			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+		),
 	}
 	comInf.ednsInformer = cisinfv1.NewFilteredExternalDNSInformer(
 		ctlr.kubeCRClient,
@@ -434,8 +452,8 @@ func (ctlr *Controller) newNamespacedCommonResourceInformer(
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		crOptions,
 	)
-	//enable pod informer for nodeport local mode
-	if ctlr.PoolMemberType == NodePortLocal {
+	//enable pod informer for nodeport local mode and openshift mode
+	if ctlr.PoolMemberType == NodePortLocal || ctlr.mode == OpenShiftMode {
 		comInf.podInformer = cache.NewSharedIndexInformer(
 			cache.NewFilteredListWatchFromClient(
 				restClientv1,
@@ -539,6 +557,16 @@ func (ctlr *Controller) addCommonResourceEventHandlers(comInf *CommonInformer) {
 				AddFunc:    func(obj interface{}) { ctlr.enqueuePod(obj) },
 				UpdateFunc: func(obj, cur interface{}) { ctlr.enqueuePod(cur) },
 				DeleteFunc: func(obj interface{}) { ctlr.enqueueDeletedPod(obj) },
+			},
+		)
+	}
+
+	if comInf.nodeInformer != nil {
+		comInf.nodeInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { ctlr.SetupNodeProcessing() },
+				UpdateFunc: func(obj, cur interface{}) { ctlr.SetupNodeProcessing() },
+				DeleteFunc: func(obj interface{}) { ctlr.SetupNodeProcessing() },
 			},
 		)
 	}

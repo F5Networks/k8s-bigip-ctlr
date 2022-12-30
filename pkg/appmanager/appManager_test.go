@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -195,8 +196,8 @@ func (m *mockAppManager) getVsMutex(sKey serviceQueueKey) *sync.Mutex {
 	return mtx
 }
 
-func (m *mockAppManager) processNodeUpdate(obj interface{}, err error) {
-	m.appMgr.ProcessNodeUpdate(obj, err)
+func (m *mockAppManager) processNodeUpdate(obj interface{}) {
+	m.appMgr.ProcessNodeUpdate(obj)
 	// Consume all of the work queue entries added by ProcessNodeUpdate
 	queueLen := m.appMgr.vsQueue.Len()
 	for i := 0; i < queueLen; i++ {
@@ -953,7 +954,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err := fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			Expect(appMgr.oldNodes).To(Equal(expectedOgSet))
 
 			cachedNodes := appMgr.getNodesFromCache()
@@ -968,7 +969,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = true
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			Expect(appMgr.oldNodes).To(Equal(expectedInternal))
 
 			cachedNodes = appMgr.getNodesFromCache()
@@ -986,7 +987,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			expectedAddSet := append(expectedOgSet, Node{Name: "nodeAdd", Addr: "127.0.0.6"})
 
 			Expect(appMgr.oldNodes).To(Equal(expectedAddSet))
@@ -999,7 +1000,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 			expectedAddSet = append(expectedOgSet, Node{Name: "nodeAdd", Addr: "127.0.0.6"})
 
 			Expect(appMgr.oldNodes).To(Equal(expectedAddSet))
@@ -1025,7 +1026,7 @@ var _ = Describe("AppManager Tests", func() {
 			appMgr.useNodeInternal = false
 			nodes, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			appMgr.ProcessNodeUpdate(nodes.Items, err)
+			appMgr.ProcessNodeUpdate(nodes.Items)
 
 			Expect(appMgr.oldNodes).To(Equal(expectedDelSet))
 
@@ -1174,7 +1175,7 @@ var _ = Describe("AppManager Tests", func() {
 						{Type: "InternalIP", Address: "127.0.0.0"}}, []v1.Taint{}),
 				}
 
-				mockMgr.processNodeUpdate(nodeSet, nil)
+				mockMgr.processNodeUpdate(nodeSet)
 
 				cfgFoo := test.NewConfigMap("foomap", "1", namespace, map[string]string{
 					"schema": schemaUrl,
@@ -1345,7 +1346,7 @@ var _ = Describe("AppManager Tests", func() {
 
 						nodes, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 						Expect(err).To(BeNil(), "Should not fail listing nodes.")
-						mockMgr.processNodeUpdate(nodes.Items, err)
+						mockMgr.processNodeUpdate(nodes.Items)
 					}
 
 					nodeCh <- struct{}{}
@@ -1403,7 +1404,7 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(err).To(BeNil())
 					nodes, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 					Expect(err).To(BeNil(), "Should not fail listing nodes.")
-					mockMgr.processNodeUpdate(nodes.Items, err)
+					mockMgr.processNodeUpdate(nodes.Items)
 
 					nodeCh <- struct{}{}
 				}()
@@ -1464,7 +1465,7 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
-				mockMgr.processNodeUpdate(n.Items, nil)
+				mockMgr.processNodeUpdate(n.Items)
 
 				cfgFoo := test.NewConfigMap("foomap", "1", namespace, map[string]string{
 					"schema": schemaUrl,
@@ -1621,7 +1622,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				Expect(len(n.Items)).To(Equal(3))
 
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 
 				// ConfigMap added
 				r := mockMgr.addConfigMap(cfgFoo)
@@ -1715,7 +1716,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 				Expect(resources.PoolCount()).To(Equal(4))
 				rs, ok = resources.Get(
 					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
@@ -1787,7 +1788,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgFoo))
@@ -1925,7 +1926,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 
 				cfgFoo := test.NewConfigMap("foomap", "1", namespace, map[string]string{
 					"schema": schemaUrl,
@@ -2042,7 +2043,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				Expect(len(n.Items)).To(Equal(4))
 
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 
 				// ConfigMap ADDED
 				r := mockMgr.addConfigMap(cfgIapp1)
@@ -2098,7 +2099,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgIapp1))
@@ -2119,7 +2120,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err = fakeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 				Expect(resources.PoolCount()).To(Equal(2))
 				rs, ok = resources.Get(
 					ServiceKey{ServiceName: "iapp1", ServicePort: 80, Namespace: namespace}, FormatConfigMapVSName(cfgIapp1))
@@ -2293,7 +2294,7 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
-				mockMgr.processNodeUpdate(n.Items, nil)
+				mockMgr.processNodeUpdate(n.Items)
 
 				endptPorts := convertSvcPortsToEndpointPorts(svcPorts)
 				goodEndpts := test.NewEndpoints(svcName, "1", "node0", namespace,
@@ -2386,7 +2387,7 @@ var _ = Describe("AppManager Tests", func() {
 				}
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
-				mockMgr.processNodeUpdate(n.Items, nil)
+				mockMgr.processNodeUpdate(n.Items)
 
 				foo := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 
@@ -2468,7 +2469,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				nodes, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
-				mockMgr.processNodeUpdate(nodes.Items, nil)
+				mockMgr.processNodeUpdate(nodes.Items)
 
 				foo := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 
@@ -2535,7 +2536,7 @@ var _ = Describe("AppManager Tests", func() {
 
 				nodes, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil())
-				mockMgr.processNodeUpdate(nodes.Items, nil)
+				mockMgr.processNodeUpdate(nodes.Items)
 
 				foo := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP, svcPorts)
 
@@ -2968,7 +2969,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 
 				// Create the services
 				fooSvc := test.NewService("foo", "1", namespace, "NodePort",
@@ -4646,7 +4647,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 
 				cfgNs1 := test.NewConfigMap("foomap", "1", ns1,
 					map[string]string{
@@ -4803,7 +4804,7 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(err).To(BeNil())
 				n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).To(BeNil(), "Should not fail listing nodes.")
-				mockMgr.processNodeUpdate(n.Items, err)
+				mockMgr.processNodeUpdate(n.Items)
 
 				cfgNs1 := test.NewConfigMap("foomap", "1", ns1.ObjectMeta.Name,
 					map[string]string{
@@ -5080,9 +5081,8 @@ var _ = Describe("AppManager Tests", func() {
 				Expect(mockMgr.appMgr.nplStore[namespace+"/"+pod2.Name]).To(Equal(val2))
 				//verify selector match on pod
 				Expect(mockMgr.appMgr.matchSvcSelectorPodLabels(selectors, pod1.Labels)).To(Equal(true))
-				var items []v1.Pod
-				items = append(items, *pod1, *pod2)
-				pods := v1.PodList{Items: items}
+				var pods []*v1.Pod
+				pods = append(pods, pod1, pod2)
 				//Verify endpoints
 				members := []Member{
 					{
@@ -5098,7 +5098,7 @@ var _ = Describe("AppManager Tests", func() {
 						Session: "user-enabled",
 					},
 				}
-				mems := mockMgr.appMgr.getEndpointsForNPL(intstr.FromInt(8080), &pods)
+				mems := mockMgr.appMgr.getEndpointsForNPL(intstr.FromInt(8080), pods)
 				Expect(mems).To(Equal(members))
 			})
 
@@ -5141,6 +5141,7 @@ var _ = Describe("AppManager Tests", func() {
 				selector, err := labels.Parse(DefaultConfigMapLabel)
 				Expect(err).To(BeNil())
 				// no service and different namespace
+				mockMgr.appMgr.poolMemberType = NodePortLocal
 				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
 				podList := mockMgr.appMgr.GetPodsForService("diff-ns", svcName)
 				Expect(podList).To(BeNil())
@@ -5172,9 +5173,7 @@ var _ = Describe("AppManager Tests", func() {
 				svc1.Spec.Selector["app"] = "app1"
 				appInf.svcInformer.GetStore().Update(svc1)
 				podList = mockMgr.appMgr.GetPodsForService(namespace, svcName)
-				Expect(podList).NotTo(BeNil())
-				Expect(len(podList.Items)).To(Equal(0))
-
+				Expect(podList).To(BeNil())
 			})
 			It("Test getEndpoints", func() {
 				namespace := "test"
@@ -5254,11 +5253,8 @@ var _ = Describe("AppManager Tests", func() {
 						},
 					},
 				}
-				pods := &v1.PodList{
-					Items: []v1.Pod{
-						pod1,
-					},
-				}
+				var pods []*v1.Pod
+				pods = append(pods, &pod1)
 				mockMgr.appMgr.nplStore[namespace+"/"+podName] = []NPLAnnotation{nplanno}
 				members := mockMgr.appMgr.getEndpointsForNPL(targetPort, pods)
 				Expect(len(members)).To(Equal(1))
@@ -5342,6 +5338,7 @@ var _ = Describe("AppManager Tests", func() {
 				svcName := "svc1"
 				selector, err := labels.Parse(DefaultConfigMapLabel)
 				Expect(err).To(BeNil())
+				mockMgr.appMgr.poolMemberType = NodePortLocal
 				// no service and different namespace
 				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
 				svcPorts := []v1.ServicePort{
@@ -5455,6 +5452,8 @@ var _ = Describe("AppManager Tests", func() {
 			It("Test getQueueLength for svc", func() {
 				svcName := "svc1"
 				namespace := "default"
+				selector, _ := labels.Parse(DefaultConfigMapLabel)
+				mockMgr.appMgr.AddNamespace(namespace, selector, 0)
 				svc := &v1.Service{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Service",
@@ -5466,24 +5465,23 @@ var _ = Describe("AppManager Tests", func() {
 					},
 					Spec: v1.ServiceSpec{},
 				}
-				mockMgr.appMgr.kubeClient = fake.NewSimpleClientset(svc)
 				mockMgr.appMgr.WatchedNS = WatchedNamespaces{Namespaces: []string{"default"}}
-				mockMgr.appMgr.appInformers["default"] = &appInformer{namespace: "default"}
-				defer delete(mockMgr.appMgr.appInformers, "default")
+				mockMgr.addService(svc)
 				Expect(mockMgr.appMgr.getQueueLength()).To(Equal(1))
 				mockMgr.appMgr.enqueueService(svc, OprTypeCreate)
 				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
 			})
 			It("Test getQueueLength for configMap", func() {
+				err := mockMgr.startNonLabelMode([]string{"default"})
+				Expect(err).To(BeNil())
 				cfgNs1 := test.NewConfigMap("foomap", "1", "default",
 					map[string]string{
 						"schema": schemaUrl,
 						"data":   configmapFoo,
 					})
-				mockMgr.appMgr.kubeClient = fake.NewSimpleClientset(cfgNs1)
+				cfgNs1.ObjectMeta.Labels = map[string]string{"f5type": "virtual-server"}
 				mockMgr.appMgr.WatchedNS = WatchedNamespaces{Namespaces: []string{"default"}}
-				mockMgr.appMgr.appInformers["default"] = &appInformer{namespace: "default"}
-				defer delete(mockMgr.appMgr.appInformers, "default")
+				mockMgr.addConfigMap(cfgNs1)
 				Expect(mockMgr.appMgr.getQueueLength()).To(Equal(1))
 				mockMgr.appMgr.enqueueConfigMap(cfgNs1, OprTypeCreate)
 				Expect(mockMgr.appMgr.vsQueue.Len()).To(Equal(1))
@@ -5492,20 +5490,22 @@ var _ = Describe("AppManager Tests", func() {
 				namespaces := mockMgr.appMgr.GetAllWatchedNamespaces()
 				Expect(len(namespaces)).To(Equal(1))
 				Expect(namespaces[0]).To(Equal(""))
-				mockMgr.appMgr.WatchedNS = WatchedNamespaces{NamespaceLabel: "watching"}
+				err := mockMgr.startLabelMode("watching")
+				Expect(err).To(BeNil())
+				mockMgr.appMgr.WatchedNS.NamespaceLabel = "watching"
 				ns1 := test.NewNamespace("ns1", "1", map[string]string{})
 				ns2 := test.NewNamespace("ns2", "1", map[string]string{"notwatching": "no"})
 				ns3 := test.NewNamespace("ns3", "1", map[string]string{"watching": "yes"})
-				mockMgr.appMgr.kubeClient = fake.NewSimpleClientset(ns1)
-				mockMgr.appMgr.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns1, metav1.CreateOptions{})
-				mockMgr.appMgr.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns2, metav1.CreateOptions{})
-				mockMgr.appMgr.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns3, metav1.CreateOptions{})
+				mockMgr.addNamespace(ns1)
+				mockMgr.addNamespace(ns2)
+				mockMgr.addNamespace(ns3)
 				namespaces = mockMgr.appMgr.GetAllWatchedNamespaces()
 				Expect(len(namespaces)).To(Equal(1))
 				Expect(namespaces[0]).To(Equal("ns3"))
 				ns4 := test.NewNamespace("ns4", "1", map[string]string{"watching": "yes"})
-				mockMgr.appMgr.kubeClient.CoreV1().Namespaces().Create(context.TODO(), ns4, metav1.CreateOptions{})
+				mockMgr.addNamespace(ns4)
 				namespaces = mockMgr.appMgr.GetAllWatchedNamespaces()
+				sort.Strings(namespaces)
 				Expect(len(namespaces)).To(Equal(2))
 				Expect(namespaces[0]).To(Equal("ns3"))
 				Expect(namespaces[1]).To(Equal("ns4"))

@@ -92,13 +92,7 @@ func NewVxlanMgr(
 	return vxMgr, nil
 }
 
-func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
-	if nil != err {
-		log.Warningf("[VxLAN] Vxlan manager (%s) unable to get list of nodes: %v",
-			vxm.vxLAN, err)
-		return
-	}
-
+func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}) {
 	nodes, ok := obj.([]v1.Node)
 	if false == ok {
 		log.Warningf("[VxLAN] Vxlan manager (%s) received poll update with unexpected type",
@@ -142,8 +136,7 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 			}
 		}
 		if atn, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/backend-data"]; ok {
-			var mac string
-			mac, err = parseVtepMac(atn, node.ObjectMeta.Name)
+			mac, err := parseVtepMac(atn, node.ObjectMeta.Name)
 			if nil != err {
 				log.Errorf("[VxLAN] %v", err)
 			} else if rec.Endpoint != "" {

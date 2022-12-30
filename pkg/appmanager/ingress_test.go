@@ -1067,7 +1067,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			Expect(err).To(BeNil())
 			n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			mockMgr.processNodeUpdate(n.Items, err)
+			mockMgr.processNodeUpdate(n.Items)
 
 			// Create the services
 			fooSvc := test.NewService("foo", "1", namespace, "NodePort",

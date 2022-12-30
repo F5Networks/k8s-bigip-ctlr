@@ -126,6 +126,9 @@ func NewController(params Params) *Controller {
 		defaultRouteDomain: params.DefaultRouteDomain,
 		mode:               params.Mode,
 		namespaceLabel:     params.NamespaceLabel,
+		nodeLabelSelector:  params.NodeLabelSelector,
+		vxlanName:          params.VXLANName,
+		vxlanMode:          params.VXLANMode,
 	}
 
 	log.Debug("Controller Created")
@@ -182,16 +185,6 @@ func NewController(params Params) *Controller {
 
 	if err3 := ctlr.setupInformers(); err3 != nil {
 		log.Error("Failed to Setup Informers")
-	}
-
-	err := ctlr.SetupNodePolling(
-		params.NodePollInterval,
-		params.NodeLabelSelector,
-		params.VXLANMode,
-		params.VXLANName,
-	)
-	if err != nil {
-		log.Errorf("Failed to Setup Node Polling: %v", err)
 	}
 
 	if params.IPAM {
@@ -418,8 +411,6 @@ func (ctlr *Controller) Start() {
 		go ctlr.ipamCli.Start()
 	}
 
-	ctlr.nodePoller.Run()
-
 	stopChan := make(chan struct{})
 
 	go wait.Until(ctlr.nextGenResourceWorker, time.Second, stopChan)
@@ -451,7 +442,6 @@ func (ctlr *Controller) Stop() {
 		nsInf.stop()
 	}
 
-	ctlr.nodePoller.Stop()
 	ctlr.Agent.Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()

@@ -57,6 +57,9 @@ type (
 		customResourceSelector labels.Selector
 		namespacesMutex        sync.Mutex
 		namespaces             map[string]bool
+		nodeLabelSelector      string
+		vxlanMode              string
+		vxlanName              string
 		initialSvcCount        int
 		resourceQueue          workqueue.RateLimitingInterface
 		Partition              string
@@ -130,6 +133,7 @@ type (
 		plcInformer     cache.SharedIndexInformer
 		podInformer     cache.SharedIndexInformer
 		secretsInformer cache.SharedIndexInformer
+		nodeInformer    cache.SharedIndexInformer
 	}
 
 	// NRInformer is informer context for Native Resources of Kubernetes/Openshift
@@ -595,7 +599,8 @@ type (
 )
 
 type (
-	Services        []v1.Service
+	Services        []*v1.Service
+	NodeList        []v1.Node
 	RouteBackendCxt struct {
 		Weight int
 		Name   string

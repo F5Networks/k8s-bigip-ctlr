@@ -10,30 +10,32 @@ Latest [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master
 Compatibility Matrix
 -------------
 
-| CIS Version | BIG-IP Version | Kubernetes Version | OpenShift Version                                             | SDN | OVN (Cluster Mode) | AS3 Version | FIC Version | FIC Chart Version | CIS Chart Version |
-|-------------|----------------|--------------------|---------------------------------------------------------------| --- |--------------------| ------------| ----------- |-------------------| ------------------|
-| v1.14       | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  |
-| v2.0        | v15.1          | v1.18              | v4.3                                                          | Yes |  - | v3.18      |             |            | v0.0.7  |
-| v2.1        | v15.1          | v1.18              | v4.4.5                                                        | Yes |  - | v3.20      |             |            | v0.0.7  |
-| v2.1.1      | v15.1          | v1.18              | v4.5                                                          | Yes |  - | v3.21      |             |            | v0.0.8  |
-| v2.2.0      | v15.1          | v1.18              | v4.5                                                          | Yes |  - | v3.23      |             |            | v0.0.9  |
-| v2.2.1      | v15.1          | v1.18              | v4.6.4                                                        | Yes |  - | v3.24      |             |            | v0.0.10 |
-| v2.2.2      | v16.0          | v1.19              | v4.6.4                                                        | Yes |  - | v3.25      |             |            | v0.0.11 |
-| v2.3        | v16.0          | v1.19              | v4.6.4                                                        | Yes |  - | v3.25      |             |            | v0.0.12 |
-| v2.4.0      | v16.0          | v1.20              | v4.6.4                                                        | Yes |  - | v3.25      | v0.1.2      |            | v0.0.13 |
-| v2.4.1      | v16.0          | v1.20              | v4.6.4                                                        | Yes |  - | v3.25      | v0.1.3      |            | v0.0.14 |
-| v2.5.0      | v16.0          | v1.21              | v4.7.13                                                       | Yes |  - | v3.28      | v0.1.4      |            | v0.0.14 |
-| v2.6.0      | v16.0          | v1.21              | v4.8.12 (OpenShift SDN and OVN- Kubernetes with HyperOverlay) | Yes | Yes | v3.28     | v0.1.5      |            | v0.0.16 |
-| v2.7.0      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.17 |
-| v2.7.1      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.18 |
-| v2.8.0      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.19 |
-| v2.8.1      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.7      | v0.0.1     | v0.0.19 |
-| v2.9.0      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.1     | v0.0.20 |
-| v2.9.1      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.2     | v0.0.21 |
-| v2.10.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |
-| v2.10.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |
-| v2.11.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.3     | v0.0.22 |
-| v2.11.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.3     | v0.0.23 |       
+| CIS Version | BIG-IP Version | Kubernetes Version | OpenShift Version                                             | SDN | OVN (Cluster Mode) | AS3 Version | FIC Version | FIC Chart Version | CIS Chart Version | OS Version |
+|-------------|----------------|--------------------|---------------------------------------------------------------| --- |--------------------| ------------| ----------- |-------------------| ------------------|------------|
+| v1.14.0       | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  | Debian GNU/Linux 10.3 (bluster)|
+| v1.14.1       | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v1.14.2       | v15.1          | v1.16.2            | v4.2                                                          | Yes |  - | v3.17      |             |            | v0.0.7  |Red Hat Enterprise Linux release 9.1 (Plow)|
+| v2.0        | v15.1          | v1.18              | v4.3                                                          | Yes |  - | v3.18      |             |            | v0.0.7  |Red Hat Enterprise Linux Server release 7.8 (Maipo)|
+| v2.1        | v15.1          | v1.18              | v4.4.5                                                        | Yes |  - | v3.20      |             |            | v0.0.7  |Red Hat Enterprise Linux Server release 7.8 (Maipo)|
+| v2.1.1      | v15.1          | v1.18              | v4.5                                                          | Yes |  - | v3.21      |             |            | v0.0.8  |Red Hat Enterprise Linux Server release 7.8 (Maipo)|
+| v2.2.0      | v15.1          | v1.18              | v4.5                                                          | Yes |  - | v3.23      |             |            | v0.0.9  |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.2.1      | v15.1          | v1.18              | v4.6.4                                                        | Yes |  - | v3.24      |             |            | v0.0.10 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.2.2      | v16.0          | v1.19              | v4.6.4                                                        | Yes |  - | v3.25      |             |            | v0.0.11 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.3        | v16.0          | v1.19              | v4.6.4                                                        | Yes |  - | v3.25      |             |            | v0.0.12 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.4.0      | v16.0          | v1.20              | v4.6.4                                                        | Yes |  - | v3.25      | v0.1.2      |            | v0.0.13 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.4.1      | v16.0          | v1.20              | v4.6.4                                                        | Yes |  - | v3.25      | v0.1.3      |            | v0.0.14 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.5.0      | v16.0          | v1.21              | v4.7.13                                                       | Yes |  - | v3.28      | v0.1.4      |            | v0.0.14 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.6.0      | v16.0          | v1.21              | v4.8.12 (OpenShift SDN and OVN- Kubernetes with HyperOverlay) | Yes | Yes | v3.28     | v0.1.5      |            | v0.0.16 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.7.0      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.17 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.7.1      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.18 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.8.0      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.6      | v0.0.1     | v0.0.19 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.8.1      | v16.0          | v1.22              | v4.9                                                          | Yes | Yes | v3.30     | v0.1.7      | v0.0.1     | v0.0.19 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.9.0      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.1     | v0.0.20 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.9.1      | v16.0          | v1.23              | v4.10.3                                                       | Yes | Yes | v3.36     | v0.1.8      | v0.0.2     | v0.0.21 |Red Hat Enterprise Linux Server release 7.9 (Maipo)|
+| v2.10.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |Red Hat Enterprise Linux release 8.6 (Ootpa)|
+| v2.10.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |Red Hat Enterprise Linux release 8.6 (Ootpa)|
+| v2.11.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.3     | v0.0.22 |Red Hat Enterprise Linux release 8.7 (Ootpa)|
+| v2.11.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.3     | v0.0.23 |Red Hat Enterprise Linux release 9.1 (Plow)|     
 
 
 CIS Features and Examples

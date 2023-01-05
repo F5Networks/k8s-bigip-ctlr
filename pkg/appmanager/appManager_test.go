@@ -466,6 +466,12 @@ func (m *mockAppManager) addNamespace(ns *v1.Namespace) bool {
 	return found
 }
 
+func (m *mockAppManager) addNode(node *v1.Node, ns string) {
+	appInf, _ := m.appMgr.getNamespaceInformer(ns)
+	appInf.nodeInformer.GetStore().Add(node)
+	m.appMgr.setupNodeProcessing()
+}
+
 func (m *mockAppManager) getFakeEvents(ns string) []FakeEvent {
 	nen := m.appMgr.eventNotifier.GetNotifierForNamespace(ns)
 	if nil != nen {

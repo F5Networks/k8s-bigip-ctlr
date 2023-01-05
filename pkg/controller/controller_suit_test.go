@@ -339,6 +339,14 @@ func (m *mockController) deleteConfigMap(cm *v1.ConfigMap) {
 	}
 }
 
+func (m *mockController) addNode(node *v1.Node, ns string) {
+	comInf, _ := m.getNamespacedCommonInformer(ns)
+	comInf.nodeInformer.GetStore().Add(node)
+	if m.resourceQueue != nil {
+		m.SetupNodeProcessing()
+	}
+}
+
 //func (mockCtlr *mockController) getOrderedRoutes(resourceType, namespace string) []interface{} {
 //	return mockCtlr.mockResources[namespace+"/"+resourceType]
 //}

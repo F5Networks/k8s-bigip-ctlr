@@ -1035,7 +1035,10 @@ var _ = Describe("V1 Ingress Tests", func() {
 	})
 	Context(" Test V1 Ingress annotations ", func() {
 		It("doesn't deactivate a multi-service config unnecessarily", func() {
+			err := mockMgr.startNonLabelMode([]string{namespace})
+			Expect(err).To(BeNil())
 			mockMgr.appMgr.useNodeInternal = true
+			mockMgr.appMgr.WatchedNS = WatchedNamespaces{Namespaces: []string{namespace}}
 			// Ingress first
 			ingressConfig := netv1.IngressSpec{
 				IngressClassName: &IngressClassName,
@@ -1063,11 +1066,9 @@ var _ = Describe("V1 Ingress Tests", func() {
 			// Create Node so we get endpoints
 			node := test.NewNode("node1", "1", false,
 				[]v1.NodeAddress{{Type: "InternalIP", Address: "127.0.0.1"}}, []v1.Taint{})
-			_, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().Create(context.TODO(), node, metav1.CreateOptions{})
-			Expect(err).To(BeNil())
-			n, err := mockMgr.appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
-			Expect(err).To(BeNil(), "Should not fail listing nodes.")
-			mockMgr.processNodeUpdate(n.Items)
+			mockMgr.addNode(node, namespace)
+			appInf, _ := mockMgr.appMgr.getNamespaceInformer(namespace)
+			Expect(len(appInf.nodeInformer.GetIndexer().List())).To(Equal(1))
 
 			// Create the services
 			fooSvc := test.NewService("foo", "1", namespace, "NodePort",

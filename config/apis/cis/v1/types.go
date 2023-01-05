@@ -49,6 +49,7 @@ type VirtualServerSpec struct {
 	BotDefense             string           `json:"botDefense,omitempty"`
 	Profiles               ProfileSpec      `json:"profiles,omitempty"`
 	AllowSourceRange       []string         `json:"allowSourceRange,omitempty"`
+	HttpMrfRoutingEnabled  bool             `json:"httpMrfRoutingEnabled,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).

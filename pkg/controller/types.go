@@ -205,6 +205,7 @@ type (
 		PersistenceProfile     string                `json:"persistenceProfile,omitempty"`
 		TLSTermination         string                `json:"-"`
 		AllowSourceRange       []string              `json:"allowSourceRange,omitempty"`
+		HttpMrfRoutingEnabled  bool                  `json:"httpMrfRoutingEnabled,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -865,6 +866,7 @@ type (
 		ProfileMultiplex       as3MultiTypeParam    `json:"profileMultiplex,omitempty"`
 		ProfileDOS             as3MultiTypeParam    `json:"profileDOS,omitempty"`
 		ProfileBotDefense      as3MultiTypeParam    `json:"profileBotDefense,omitempty"`
+		HttpMrfRoutingEnabled  bool                 `json:"httpMrfRoutingEnabled,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

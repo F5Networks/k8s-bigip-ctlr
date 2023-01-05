@@ -61,6 +61,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | snat | String | Optional | auto | Reference to SNAT pool on BIG-IP or Other allowed value is: "none" |
 | allowVlans | List of Vlans | Optional | NA | list of Vlan objects to allow traffic from |  
 | hostGroup | String | Optional | NA | Label to group virtualservers with different host names into one in BIG-IP. |
+| httpMrfRoutingEnabled | boolean |	Optional | false | Specifies whether to use the HTTP message routing framework (MRF) functionality. This property is available on BIGIP 14.1 and above.|
 
 **Pool Components**
 

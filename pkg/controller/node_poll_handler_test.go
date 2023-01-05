@@ -16,10 +16,12 @@ import (
 
 var _ = Describe("Node Poller Handler", func() {
 	var mockCtlr *mockController
-
 	BeforeEach(func() {
 		mockCtlr = newMockController()
 		mockCtlr.Agent = newMockAgent(&test.MockWriter{FailStyle: test.Success})
+		mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+		mockCtlr.comInformers = make(map[string]*CommonInformer)
+		mockCtlr.crInformers = make(map[string]*CRInformer)
 	})
 
 	AfterEach(func() {
@@ -27,6 +29,9 @@ var _ = Describe("Node Poller Handler", func() {
 	})
 
 	It("Nodes", func() {
+		namespace := "default"
+		mockCtlr.addNamespacedInformers(namespace, false)
+		cominf, _ := mockCtlr.getNamespacedCommonInformer(namespace)
 		nodeAddr1 := v1.NodeAddress{
 			Type:    v1.NodeInternalIP,
 			Address: "1.2.3.4",
@@ -41,7 +46,10 @@ var _ = Describe("Node Poller Handler", func() {
 			*test.NewNode("worker2", "1", false,
 				[]v1.NodeAddress{nodeAddr2}, nil),
 		}
-
+		for _, node := range nodeObjs {
+			mockCtlr.addNode(&node, namespace)
+		}
+		Expect(len(cominf.nodeInformer.GetIndexer().List())).To(Equal(2))
 		nodes, err := mockCtlr.getNodes(nodeObjs)
 		Expect(nodes).ToNot(BeNil(), "Failed to get nodes")
 		Expect(err).To(BeNil(), "Failed to get nodes")

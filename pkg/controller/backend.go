@@ -1051,6 +1051,8 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 			svc.VirtualPort = port
 		}
 	}
+	//set HttpMrfRoutingEnabled
+	svc.HttpMrfRoutingEnabled = cfg.Virtual.HttpMrfRoutingEnabled
 	processCommonDecl(cfg, svc)
 	sharedApp[cfg.Virtual.Name] = svc
 }

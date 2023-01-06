@@ -1693,11 +1693,14 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid VS")
-
 				vs.Spec.VirtualServerAddress = "10.8.0.1"
+				// set HttpMrfRoutingEnabled to true
+				vs.Spec.HttpMrfRoutingEnabled = true
 				mockCtlr.addVirtualServer(vs)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not processed")
+				rsname := "crd_10_8_0_1_443"
+				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.HttpMrfRoutingEnabled).To(Equal(true), "HttpMrfRoutingEnabled not enabled on VS")
 
 				// Validate the scenario. For now changing to 1
 				mockCtlr.deletePolicy(policy)

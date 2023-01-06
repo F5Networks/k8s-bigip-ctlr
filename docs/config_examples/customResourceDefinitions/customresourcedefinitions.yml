@@ -83,6 +83,8 @@ spec:
                   items:
                     type: string
                   type: array
+                httpMrfRoutingEnabled:
+                  type: boolean
                 iRules:
                   type: array
                   items:

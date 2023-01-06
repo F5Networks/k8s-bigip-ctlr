@@ -6,6 +6,7 @@ Next Release
 
 Added Functionality
 ```````````````````
+* :issues:`2682` Support to Enable "HTTP MRF Router" on VirtualServer CRD required for HTTP2 Full Proxy feature
 
 Bug Fixes
 ````````````

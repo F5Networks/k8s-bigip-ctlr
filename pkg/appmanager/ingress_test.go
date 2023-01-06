@@ -159,7 +159,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			// This should remove the custom profile.
 			mockMgr.deleteV1Ingress(ingress)
 			resources := mockMgr.resources()
-			Expect(len(resources.GetAllResources())).To(Equal(0))
+			Expect(len(resources.RsMap)).To(Equal(0))
 			Expect(len(customProfiles)).To(Equal(0))
 		})
 
@@ -320,7 +320,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			// The first test uses an explicit server name
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
@@ -336,7 +336,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			r = mockMgr.updateV1Ingress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
@@ -352,7 +352,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			r = mockMgr.updateV1Ingress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
@@ -367,7 +367,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			r = mockMgr.updateV1Ingress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, false)
@@ -539,7 +539,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc1Port),
 			}
 			Expect(resources.CountOf(svc1Key)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svc1Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -562,7 +562,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc2Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBar, found := resources.Get(svc2Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -585,7 +585,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc3Port),
 			}
 			Expect(resources.CountOf(svc3Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc3Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBaz, found := resources.Get(svc3Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -716,7 +716,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc1aPort),
 			}
 			Expect(resources.CountOf(svc1aKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1aKey, FormatIngressVSName("172.16.3.2", 80))
+			vsCfgFoo, found := resources.Get(svc1aKey, NameRef{Name: FormatIngressVSName("172.16.3.2", 80), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -726,7 +726,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc1bPort),
 			}
 			Expect(resources.CountOf(svc1bKey)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc1bKey, FormatIngressVSName("172.16.3.2", 80))
+			vsCfgBar, found := resources.Get(svc1bKey, NameRef{Name: FormatIngressVSName("172.16.3.2", 80), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -736,7 +736,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc2Key, FormatIngressVSName("172.16.3.2", 80))
+			vsCfgBaz, found := resources.Get(svc2Key, NameRef{Name: FormatIngressVSName("172.16.3.2", 80), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -834,7 +834,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc1aPort),
 			}
 			Expect(resources.CountOf(svc1aKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1aKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svc1aKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -857,7 +857,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc1bPort),
 			}
 			Expect(resources.CountOf(svc1bKey)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc1bKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBar, found := resources.Get(svc1bKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -880,7 +880,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc2Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBaz, found := resources.Get(svc2Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -978,7 +978,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc1Port),
 			}
 			Expect(resources.CountOf(svc1Key)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svc1Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -1001,7 +1001,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc2Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBar, found := resources.Get(svc2Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -1024,7 +1024,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 				ServicePort: int32(svc3Port),
 			}
 			Expect(resources.CountOf(svc3Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc3Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBaz, found := resources.Get(svc3Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -1093,21 +1093,21 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			deleteServices := func() {
 				rs, ok := resources.Get(
-					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
+					ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, NameRef{Name: FormatIngressVSName("1.2.3.4", 80), Partition: DEFAULT_PARTITION})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 
 				// Delete one service, config should still be active
 				mockMgr.deleteService(fooSvc)
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
+					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, NameRef{Name: FormatIngressVSName("1.2.3.4", 80), Partition: DEFAULT_PARTITION})
 				Expect(ok).To(BeTrue())
 				Expect(rs.MetaData.Active).To(BeTrue())
 
 				// Delete final service, config should go inactive
 				mockMgr.deleteService(barSvc)
 				rs, ok = resources.Get(
-					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("1.2.3.4", 80))
+					ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"}, NameRef{Name: FormatIngressVSName("1.2.3.4", 80), Partition: DEFAULT_PARTITION})
 				Expect(ok).To(BeFalse())
 			}
 			deleteServices()
@@ -1173,7 +1173,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			rs, ok := resources.Get(
 				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-				FormatIngressVSName("1.2.3.4", 80))
+				NameRef{Name: FormatIngressVSName("1.2.3.4", 80), Partition: DEFAULT_PARTITION})
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(rs).ToNot(BeNil(), "Ingress should be object.")
 			Expect(rs.MetaData.Active).To(BeTrue())
@@ -1204,7 +1204,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			resources = mockMgr.resources()
 			rs, ok = resources.Get(
 				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-				FormatIngressVSName("2.2.2.2", 80))
+				NameRef{Name: FormatIngressVSName("2.2.2.2", 80), Partition: DEFAULT_PARTITION})
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(2))
 
@@ -1276,7 +1276,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			rs, ok := resources.Get(
 				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-				FormatIngressVSName("1.2.3.4", 80))
+				NameRef{Name: FormatIngressVSName("1.2.3.4", 80), Partition: DEFAULT_PARTITION})
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(rs).ToNot(BeNil(), "Ingress should be object.")
 			Expect(rs.MetaData.Active).To(BeTrue())
@@ -1307,7 +1307,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			resources = mockMgr.resources()
 			rs, ok = resources.Get(
 				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-				FormatIngressVSName("2.2.2.2", 80))
+				NameRef{Name: FormatIngressVSName("2.2.2.2", 80), Partition: DEFAULT_PARTITION})
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(len(rs.Policies[0].Rules[0].Conditions)).To(Equal(2))
 
@@ -1356,21 +1356,21 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			rs, _ := resources.Get(
 				ServiceKey{ServiceName: svcName, ServicePort: 8080, Namespace: "default"},
-				FormatIngressVSName("1.2.3.4", 443))
+				NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(rs.Virtual.TranslateServerAddress).To(Equal("enabled"))
 
 			ing.ObjectMeta.Annotations[F5VSTranslateServerAddress] = "false"
 			r = mockMgr.updateV1Ingress(ing)
 			rs, _ = resources.Get(
 				ServiceKey{ServiceName: svcName, ServicePort: 8080, Namespace: "default"},
-				FormatIngressVSName("1.2.3.4", 443))
+				NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(rs.Virtual.TranslateServerAddress).To(Equal("disabled"))
 
 			ing.ObjectMeta.Annotations[F5VSTranslateServerAddress] = "true"
 			r = mockMgr.updateV1Ingress(ing)
 			rs, _ = resources.Get(
 				ServiceKey{ServiceName: svcName, ServicePort: 8080, Namespace: "default"},
-				FormatIngressVSName("1.2.3.4", 443))
+				NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(rs.Virtual.TranslateServerAddress).To(Equal("enabled"))
 		})
 
@@ -1428,7 +1428,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			rs, ok := resources.Get(
 				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-				FormatIngressVSName("1.2.3.4", 80))
+				NameRef{Name: FormatIngressVSName("1.2.3.4", 80), Partition: DEFAULT_PARTITION})
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(rs).ToNot(BeNil(), "Ingress should be object.")
 			Expect(rs.MetaData.Active).To(BeTrue())
@@ -1508,7 +1508,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 
 			rs, ok := resources.Get(
 				ServiceKey{ServiceName: "bar", ServicePort: 80, Namespace: "default"},
-				FormatIngressVSName("1.2.3.4", 80))
+				NameRef{Name: FormatIngressVSName("1.2.3.4", 80), Partition: DEFAULT_PARTITION})
 			Expect(ok).To(BeTrue(), "Ingress should be accessible.")
 			Expect(rs).ToNot(BeNil(), "Ingress should be object.")
 			Expect(rs.MetaData.Active).To(BeTrue())
@@ -1571,7 +1571,7 @@ var _ = Describe("V1 Ingress Tests", func() {
 			Expect(resources.VirtualCount()).To(Equal(1))
 			Expect(resources.PoolCount()).To(Equal(2))
 			_, ok := resources.Get(
-				ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, FormatIngressVSName("10.1.2.3", 80))
+				ServiceKey{ServiceName: "foo", ServicePort: 80, Namespace: "default"}, NameRef{Name: FormatIngressVSName("10.1.2.3", 80), Partition: DEFAULT_PARTITION})
 			Expect(ok).To(BeTrue())
 
 			ingress2.Annotations[F5VsBindAddrAnnotation] = "1.2.3.4"
@@ -1862,6 +1862,123 @@ var _ = Describe("V1 Ingress Tests", func() {
 			_, ok = ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]
 			Expect(ok).To(BeTrue())
 			Expect(err).To(BeNil())
+		})
+	})
+	Context("Test V1Ingress annotation updates", func() {
+		It("Test single service ingress Partition Update", func() {
+			var oldIngress *netv1.Ingress
+			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
+				DefaultBackend: &netv1.IngressBackend{
+					Service: &netv1.IngressServiceBackend{Name: "foo", Port: netv1.ServiceBackendPort{Number: int32(80)}},
+				},
+			}
+			namespace := "default"
+			mockMgr.appMgr.manageIngressClassOnly = false
+			mockMgr.appMgr.ingressClass = "f5"
+			oldIngress = NewV1Ingress("ingress1", "1", namespace, ingressConfig,
+				map[string]string{
+					IngressSslRedirect:           "true",
+					IngressAllowHttp:             "false",
+					F5VsBindAddrAnnotation:       "1.2.3.4",
+					F5VsHttpPortAnnotation:       "8080",
+					F5VsHttpsPortAnnotation:      "8443",
+					F5VsPartitionAnnotation:      "velcro",
+					F5ClientSslProfileAnnotation: "/Common/clientssl",
+				})
+			fooSvc := test.NewService("foo", "1", namespace, "NodePort",
+				[]v1.ServicePort{{Port: 80, NodePort: 37001}})
+			mockMgr.addService(fooSvc)
+			mockMgr.addV1Ingress(oldIngress)
+
+			newIngress := NewV1Ingress("ingress1", "1", namespace, ingressConfig,
+				map[string]string{
+					IngressSslRedirect:      "true",
+					IngressAllowHttp:        "false",
+					F5VsBindAddrAnnotation:  "1.1.1.1",
+					F5VsHttpPortAnnotation:  "8080",
+					F5VsHttpsPortAnnotation: "8443",
+					F5VsPartitionAnnotation: "test",
+				})
+			mockMgr.appMgr.enqueueIngressUpdate(newIngress, oldIngress, OprTypeUpdate)
+			for nameRef, _ := range mockMgr.appMgr.resources.RsMap {
+				Expect(nameRef.Partition).ToNot(Equal("velcro"))
+				Expect(nameRef.Partition).To(Equal("test"))
+				Expect(nameRef.Name).To(ContainSubstring("1.1.1.1"))
+				Expect(nameRef.Name).NotTo(ContainSubstring("1.2.3.4"))
+			}
+		})
+		It("Test multi service ingress Partition Update", func() {
+			var oldIngress *netv1.Ingress
+			svc1Name := "svc1"
+			svc1Port := 8080
+			svc1Path := "/foo"
+			svc2Name := "svc2"
+			svc2Port := 9090
+			svc2Path := "/bar"
+			ingressConfig := netv1.IngressSpec{
+				IngressClassName: &IngressClassName,
+				Rules: []netv1.IngressRule{
+					{
+						IngressRuleValue: netv1.IngressRuleValue{
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path: svc1Path,
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{Name: svc1Name, Port: netv1.ServiceBackendPort{Number: int32(svc1Port)}},
+										},
+									}, {
+										Path: svc2Path,
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{Name: svc2Name, Port: netv1.ServiceBackendPort{Number: int32(svc2Port)}},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			namespace := "default"
+			mockMgr.appMgr.manageIngressClassOnly = false
+			mockMgr.appMgr.ingressClass = "f5"
+			oldIngress = NewV1Ingress("ingress1", "1", namespace, ingressConfig,
+				map[string]string{
+					IngressSslRedirect:           "true",
+					IngressAllowHttp:             "false",
+					F5VsBindAddrAnnotation:       "1.2.3.4",
+					F5VsHttpPortAnnotation:       "8080",
+					F5VsHttpsPortAnnotation:      "8443",
+					F5VsPartitionAnnotation:      "velcro",
+					F5ClientSslProfileAnnotation: "/Common/clientssl",
+				})
+			svc1Ports := []v1.ServicePort{newServicePort(svc1Name, int32(svc1Port))}
+			fooSvc := test.NewService(svc1Name, "1", namespace, v1.ServiceTypeClusterIP,
+				svc1Ports)
+			svc2Ports := []v1.ServicePort{newServicePort(svc2Name, int32(svc2Port))}
+			barSvc := test.NewService(svc2Name, "1", namespace, v1.ServiceTypeClusterIP,
+				svc2Ports)
+			mockMgr.addService(fooSvc)
+			mockMgr.addService(barSvc)
+			mockMgr.addV1Ingress(oldIngress)
+
+			newIngress := NewV1Ingress("ingress1", "1", namespace, ingressConfig,
+				map[string]string{
+					IngressSslRedirect:      "true",
+					IngressAllowHttp:        "false",
+					F5VsBindAddrAnnotation:  "1.1.1.1",
+					F5VsHttpPortAnnotation:  "8080",
+					F5VsHttpsPortAnnotation: "8443",
+					F5VsPartitionAnnotation: "test",
+				})
+			mockMgr.appMgr.enqueueIngressUpdate(newIngress, oldIngress, OprTypeUpdate)
+			for nameRef, _ := range mockMgr.appMgr.resources.RsMap {
+				Expect(nameRef.Partition).ToNot(Equal("velcro"))
+				Expect(nameRef.Partition).To(Equal("test"))
+				Expect(nameRef.Name).To(ContainSubstring("1.1.1.1"))
+				Expect(nameRef.Name).NotTo(ContainSubstring("1.2.3.4"))
+			}
 		})
 	})
 })

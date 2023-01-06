@@ -33,8 +33,9 @@ import (
 )
 
 type simpleTestConfig struct {
-	name string
-	addr VirtualAddress
+	name    string
+	addr    VirtualAddress
+	nameRef NameRef
 }
 
 type resourceMap map[ServiceKey][]simpleTestConfig
@@ -71,7 +72,7 @@ func newTestMap(nbrBackends, nbrConfigsPer int) *resourceMap {
 		for j := 0; j < nbrConfigsPer; j++ {
 			cfgName := fmt.Sprintf("rs-%d-%d", i, j)
 			addr := VirtualAddress{"10.0.0.1", int32(bindPort + j)}
-			rm[svcKey] = append(rm[svcKey], simpleTestConfig{cfgName, addr})
+			rm[svcKey] = append(rm[svcKey], simpleTestConfig{cfgName, addr, NameRef{Name: cfgName, Partition: "velcro"}})
 		}
 	}
 	return &rm
@@ -80,7 +81,7 @@ func newTestMap(nbrBackends, nbrConfigsPer int) *resourceMap {
 func assignTestMap(rs *Resources, rm *resourceMap) {
 	for key, val := range *rm {
 		for _, tf := range val {
-			rs.Assign(key, tf.name, newResourceConfig(
+			rs.Assign(key, tf.nameRef, newResourceConfig(
 				key, tf.name, tf.addr.BindAddr, tf.addr.Port))
 		}
 	}
@@ -307,12 +308,12 @@ var _ = Describe("Resource Config Tests", func() {
 				for _, tf := range val {
 					countBefore := rs.CountOf(key)
 					Expect(countBefore).To(BeNumerically(">", 0))
-					ok := rs.Delete(key, tf.name)
+					ok := rs.Delete(key, tf.nameRef)
 					Expect(ok).To(BeTrue())
 					countAfter := rs.CountOf(key)
 					Expect(countAfter).To(Equal(countBefore - 1))
 					// Test double-delete fails correctly
-					ok = rs.Delete(key, tf.name)
+					ok = rs.Delete(key, tf.nameRef)
 					Expect(ok).To(BeFalse())
 					Expect(rs.CountOf(key)).To(Equal(countAfter))
 				}
@@ -344,7 +345,7 @@ var _ = Describe("Resource Config Tests", func() {
 			// Test Get() to make sure we can access specific configs.
 			for key, val := range *rm {
 				for _, tf := range val {
-					r, ok := rs.Get(key, tf.name)
+					r, ok := rs.Get(key, tf.nameRef)
 					Expect(ok).To(BeTrue())
 					Expect(r).ToNot(BeNil())
 					Expect(r.Virtual.VirtualAddress.BindAddr).To(Equal(tf.addr.BindAddr))

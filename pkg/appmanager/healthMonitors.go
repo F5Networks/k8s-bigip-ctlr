@@ -30,7 +30,6 @@ import (
 
 // TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) assignHealthMonitorsByPath(
-	rsName string,
 	ing *v1beta1.Ingress, // used in Ingress case for logging events
 	rulesMap HostToPathMap,
 	monitors AnnotationHealthMonitors,
@@ -109,7 +108,6 @@ func (appMgr *Manager) assignMonitorToPool(
 
 // TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) notifyUnusedHealthMonitorRules(
-	rsName string,
 	ing *v1beta1.Ingress,
 	htpMap HostToPathMap,
 ) {
@@ -152,7 +150,6 @@ func RemoveUnReferredHealthMonitors(rsCfg *ResourceConfig, fullPoolName string, 
 
 // TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) handleSingleServiceHealthMonitors(
-	rsName,
 	poolName string,
 	cfg *ResourceConfig,
 	ing *v1beta1.Ingress,
@@ -168,7 +165,7 @@ func (appMgr *Manager) handleSingleServiceHealthMonitors(
 	htpMap["*"] = ruleItem
 
 	err := appMgr.assignHealthMonitorsByPath(
-		rsName, ing, htpMap, monitors)
+		ing, htpMap, monitors)
 	if nil != err {
 		log.Errorf("[CORE] %s", err.Error())
 		appMgr.recordIngressEvent(ing, "MonitorError", err.Error())
@@ -185,12 +182,11 @@ func (appMgr *Manager) handleSingleServiceHealthMonitors(
 		}
 	}
 
-	appMgr.notifyUnusedHealthMonitorRules(rsName, ing, htpMap)
+	appMgr.notifyUnusedHealthMonitorRules(ing, htpMap)
 }
 
 // TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
 func (appMgr *Manager) handleMultiServiceHealthMonitors(
-	rsName string,
 	cfg *ResourceConfig,
 	ing *v1beta1.Ingress,
 	monitors AnnotationHealthMonitors,
@@ -243,7 +239,7 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 	}
 
 	err := appMgr.assignHealthMonitorsByPath(
-		rsName, ing, htpMap, monitors)
+		ing, htpMap, monitors)
 	if nil != err {
 		log.Errorf("[CORE] %s", err.Error())
 		appMgr.recordIngressEvent(ing, "MonitorError", err.Error())
@@ -285,11 +281,10 @@ func (appMgr *Manager) handleMultiServiceHealthMonitors(
 		}
 	}
 
-	appMgr.notifyUnusedHealthMonitorRules(rsName, ing, htpMap)
+	appMgr.notifyUnusedHealthMonitorRules(ing, htpMap)
 }
 
 func (appMgr *Manager) handleRouteHealthMonitors(
-	rsName string,
 	pool Pool,
 	cfg *ResourceConfig,
 	monitors AnnotationHealthMonitors, // Only one monitor in this list
@@ -306,7 +301,7 @@ func (appMgr *Manager) handleRouteHealthMonitors(
 	htpMap := make(HostToPathMap)
 	htpMap["*"] = ruleItem
 
-	err := appMgr.assignHealthMonitorsByPath(rsName, nil, htpMap, monitors)
+	err := appMgr.assignHealthMonitorsByPath(nil, htpMap, monitors)
 	if nil != err {
 		log.Errorf("[CORE] %s", err.Error())
 		// If this monitor exists already, remove it

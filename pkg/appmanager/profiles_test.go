@@ -129,11 +129,11 @@ var _ = Describe("AppManager Profile Tests", func() {
 			resources := mockMgr.resources()
 			Expect(resources.PoolCount()).To(Equal(1))
 			Expect(resources.CountOf(svcKey)).To(Equal(2))
-			httpCfg, found := resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 80))
+			httpCfg, found := resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 80), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(httpCfg).ToNot(BeNil())
 
-			httpsCfg, found := resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			httpsCfg, found := resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(httpsCfg).ToNot(BeNil())
 			secretArray := []string{
@@ -162,7 +162,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			fooIng.ObjectMeta.Annotations[IngressSslRedirect] = "true"
 			fooIng.ObjectMeta.Annotations[IngressAllowHttp] = "false"
 			r = mockMgr.updateIngress(fooIng)
-			httpCfg, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 80))
+			httpCfg, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 80), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(httpCfg).ToNot(BeNil())
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -175,7 +175,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			fooIng.ObjectMeta.Annotations[IngressSslRedirect] = "false"
 			fooIng.ObjectMeta.Annotations[IngressAllowHttp] = "false"
 			r = mockMgr.updateIngress(fooIng)
-			httpsCfg, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			httpsCfg, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(httpsCfg).ToNot(BeNil())
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -195,7 +195,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			fooIng.ObjectMeta.Annotations[F5ServerSslProfileAnnotation] = "Common/server"
 			r = mockMgr.updateIngress(fooIng)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
-			httpsCfg, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			httpsCfg, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(httpsCfg).ToNot(BeNil())
 			Expect(httpsCfg.Virtual.Profiles).To(ContainElement(
@@ -209,7 +209,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			fooIng.ObjectMeta.Annotations[IngressSslRedirect] = "false"
 			fooIng.ObjectMeta.Annotations[IngressAllowHttp] = "true"
 			r = mockMgr.updateIngress(fooIng)
-			httpCfg, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 80))
+			httpCfg, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 80), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(httpCfg).ToNot(BeNil())
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
@@ -223,12 +223,12 @@ var _ = Describe("AppManager Profile Tests", func() {
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.PoolCount()).To(Equal(1))
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			httpCfg, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 80))
+			httpCfg, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 80), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(httpCfg).ToNot(BeNil())
 			Expect(len(httpCfg.Policies)).To(Equal(0))
 
-			httpsCfg, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			httpsCfg, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeFalse())
 			Expect(httpsCfg).To(BeNil())
 		})
@@ -308,7 +308,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			// This should remove the custom profile.
 			mockMgr.deleteIngress(ingress)
 			resources := mockMgr.resources()
-			Expect(len(resources.GetAllResources())).To(Equal(0))
+			Expect(len(resources.RsMap)).To(Equal(0))
 			Expect(len(customProfiles)).To(Equal(0))
 		})
 
@@ -341,7 +341,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 
 			resources := mockMgr.resources()
 			rs, ok := resources.Get(
-				ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: namespace}, "https-ose-vserver")
+				ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: namespace}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
 			Expect(ok).To(BeTrue(), "Route should be accessible.")
 			Expect(rs).ToNot(BeNil(), "Route should be object.")
 
@@ -379,7 +379,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			mockMgr.updateRoute(route)
 
 			rs, _ = resources.Get(
-				ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: namespace}, "https-ose-vserver")
+				ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: namespace}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
 			Expect(rs.Virtual.Profiles).ToNot(ContainElement(
 				ProfileRef{
 					Partition: "Common",
@@ -402,7 +402,7 @@ var _ = Describe("AppManager Profile Tests", func() {
 			mockMgr.updateRoute(route)
 
 			rs, _ = resources.Get(
-				ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: namespace}, "https-ose-vserver")
+				ServiceKey{ServiceName: "foo", ServicePort: 443, Namespace: namespace}, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
 			Expect(rs.Virtual.Profiles).To(ContainElement(
 				ProfileRef{
 					Partition: "Common",

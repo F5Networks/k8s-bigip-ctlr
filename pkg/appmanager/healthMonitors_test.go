@@ -243,7 +243,7 @@ var _ = Describe("Health Monitor Tests", func() {
 
 			// The first test uses an explicit server name
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
@@ -259,7 +259,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.updateIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
@@ -275,7 +275,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.updateIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
@@ -290,7 +290,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.updateIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, false)
@@ -308,7 +308,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			r = mockMgr.updateIngress(ing)
 			Expect(r).To(BeTrue(), "Ingress resource should be processed.")
 			Expect(resources.CountOf(svcKey)).To(Equal(1))
-			vsCfgFoo, found = resources.Get(svcKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found = resources.Get(svcKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
@@ -483,7 +483,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1Port),
 			}
 			Expect(resources.CountOf(svc1Key)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svc1Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -506,7 +506,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc2Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBar, found := resources.Get(svc2Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -529,7 +529,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc3Port),
 			}
 			Expect(resources.CountOf(svc3Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc3Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBaz, found := resources.Get(svc3Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -662,7 +662,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1aPort),
 			}
 			Expect(resources.CountOf(svc1aKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1aKey, FormatIngressVSName("172.16.3.2", 80))
+			vsCfgFoo, found := resources.Get(svc1aKey, NameRef{Name: FormatIngressVSName("172.16.3.2", 80), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -672,7 +672,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1bPort),
 			}
 			Expect(resources.CountOf(svc1bKey)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc1bKey, FormatIngressVSName("172.16.3.2", 80))
+			vsCfgBar, found := resources.Get(svc1bKey, NameRef{Name: FormatIngressVSName("172.16.3.2", 80), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -682,7 +682,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc2Key, FormatIngressVSName("172.16.3.2", 80))
+			vsCfgBaz, found := resources.Get(svc2Key, NameRef{Name: FormatIngressVSName("172.16.3.2", 80), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -782,7 +782,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1aPort),
 			}
 			Expect(resources.CountOf(svc1aKey)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1aKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svc1aKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -805,7 +805,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1bPort),
 			}
 			Expect(resources.CountOf(svc1bKey)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc1bKey, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBar, found := resources.Get(svc1bKey, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -828,7 +828,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc2Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBaz, found := resources.Get(svc2Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -928,7 +928,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc1Port),
 			}
 			Expect(resources.CountOf(svc1Key)).To(Equal(1))
-			vsCfgFoo, found := resources.Get(svc1Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgFoo, found := resources.Get(svc1Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgFoo).ToNot(BeNil())
 
@@ -951,7 +951,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc2Port),
 			}
 			Expect(resources.CountOf(svc2Key)).To(Equal(1))
-			vsCfgBar, found := resources.Get(svc2Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBar, found := resources.Get(svc2Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBar).ToNot(BeNil())
 
@@ -974,7 +974,7 @@ var _ = Describe("Health Monitor Tests", func() {
 				ServicePort: int32(svc3Port),
 			}
 			Expect(resources.CountOf(svc3Key)).To(Equal(1))
-			vsCfgBaz, found := resources.Get(svc3Key, FormatIngressVSName("1.2.3.4", 443))
+			vsCfgBaz, found := resources.Get(svc3Key, NameRef{Name: FormatIngressVSName("1.2.3.4", 443), Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			Expect(vsCfgBaz).ToNot(BeNil())
 
@@ -1067,7 +1067,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			Expect(resources.PoolCount()).To(Equal(1))
 
 			// The first test uses an explicit server name
-			vsCfgFoo, found := resources.Get(svcKey, "https-ose-vserver")
+			vsCfgFoo, found := resources.Get(svcKey, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
@@ -1081,7 +1081,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			}]`
 			r = mockMgr.updateRoute(route)
 			Expect(r).To(BeTrue(), "Route resource should be processed.")
-			vsCfgFoo, found = resources.Get(svcKey, "https-ose-vserver")
+			vsCfgFoo, found = resources.Get(svcKey, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
@@ -1095,7 +1095,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			}]`
 			r = mockMgr.updateRoute(route)
 			Expect(r).To(BeTrue(), "Route resource should be processed.")
-			vsCfgFoo, found = resources.Get(svcKey, "https-ose-vserver")
+			vsCfgFoo, found = resources.Get(svcKey, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
@@ -1108,7 +1108,7 @@ var _ = Describe("Health Monitor Tests", func() {
 			}]`
 			r = mockMgr.updateRoute(route)
 			Expect(r).To(BeTrue(), "Route resource should be processed.")
-			vsCfgFoo, found = resources.Get(svcKey, "https-ose-vserver")
+			vsCfgFoo, found = resources.Get(svcKey, NameRef{Name: "https-ose-vserver", Partition: DEFAULT_PARTITION})
 			Expect(found).To(BeTrue())
 			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, false)
 		})

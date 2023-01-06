@@ -448,7 +448,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 	// no longer referenced, or have been deleted
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
-	for _, cfg := range appMgr.resources.GetAllResources() {
+	for _, cfg := range appMgr.resources.RsMap {
 		if cfg.MetaData.ResourceType == "iapp" {
 			continue
 		}
@@ -675,7 +675,7 @@ func (appMgr *Manager) deleteUnusedProfiles(
 			continue
 		}
 		found = false
-		for _, cfg := range appMgr.resources.GetAllResources() {
+		for _, cfg := range appMgr.resources.RsMap {
 			if key.ResourceName == cfg.GetName() &&
 				cfg.Virtual.ReferencesProfile(profile) {
 				found = true

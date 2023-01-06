@@ -104,13 +104,12 @@ type AS3Manager struct {
 	// POSTs configuration to BIG-IP using AS3
 	PostManager *PostManager
 	// To put list of tenants in BIG-IP REST call URL that are in AS3 declaration
-	FilterTenants    bool
-	failedContext    failureContext
-	DefaultPartition string
-	ReqChan          chan MessageRequest
-	RspChan          chan interface{}
-	userAgent        string
-	l2l3Agent        L2L3Agent
+	FilterTenants bool
+	failedContext failureContext
+	ReqChan       chan MessageRequest
+	RspChan       chan interface{}
+	userAgent     string
+	l2l3Agent     L2L3Agent
 	ResourceRequest
 	ResourceResponse
 	as3Version                string
@@ -357,7 +356,6 @@ func (am *AS3Manager) postAS3Config(tempAS3Config AS3Config) (bool, string) {
 	if am.FilterTenants {
 		return am.processFilterTenants(tempAS3Config)
 	}
-
 	unifiedDecl := am.getUnifiedDeclaration(&tempAS3Config)
 	if unifiedDecl == "" {
 		return true, ""
@@ -404,24 +402,20 @@ func (am *AS3Manager) getUnifiedDeclaration(cfg *AS3Config) as3Declaration {
 	baseAS3ConfigTemplate := fmt.Sprintf(baseAS3Config, am.as3Version, am.as3Release, am.as3SchemaVersion)
 	_ = json.Unmarshal([]byte(baseAS3ConfigTemplate), &as3Obj)
 	adc, _ := as3Obj["declaration"].(map[string]interface{})
-
 	for tenantName, tenant := range cfg.resourceConfig {
 		adc[tenantName] = tenant
 	}
-
 	for _, cm := range cfg.configmaps {
 		for tenantName, tenant := range cm.config {
 			adc[tenantName] = tenant
 		}
 	}
-
 	for _, tnt := range am.getDeletedTenants(adc) {
 		// This config deletes the partition in BIG-IP
 		adc[tnt] = as3Tenant{
 			"class": "Tenant",
 		}
 	}
-
 	unifiedDecl, err := json.Marshal(as3Obj)
 	if err != nil {
 		log.Debugf("[AS3] Unified declaration: %v\n", err)

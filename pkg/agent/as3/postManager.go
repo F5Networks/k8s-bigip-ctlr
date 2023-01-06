@@ -52,7 +52,6 @@ type PostManager struct {
 	HttpClient *http.Client
 	activeCfg  config
 	PostParams
-	Tenants map[string]bool
 }
 
 type PostParams struct {
@@ -76,7 +75,6 @@ func NewPostManager(params PostParams) *PostManager {
 	pm := &PostManager{
 		postChan:   make(chan config, 1),
 		PostParams: params,
-		Tenants:    make(map[string]bool),
 	}
 	pm.setupBIGIPRESTClient()
 

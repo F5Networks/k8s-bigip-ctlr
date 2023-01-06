@@ -6,40 +6,40 @@ Next Release
 
 Added Functionality
 ```````````````````
-* :issues:`2682` Support to Enable "HTTP MRF Router" on VirtualServer CRD required for HTTP2 Full Proxy feature
+* `Issue 2682 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2682>`_: Support to Enable "HTTP MRF Router" on VirtualServer CRD required for HTTP2 Full Proxy feature
 
 Bug Fixes
-````````````
+`````````
 
 2.11.1
--------------
+------
 
 Added Functionality
 ```````````````````
-* Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
+* Next generation routes preview. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
     * Support for default routeGroup (Migration Only)
-* Base image upgraded to RedHat UBI-9 for CIS Container image.
+* Base image upgraded to RedHat UBI-9 for CIS Container image
 * Support for AS3 3.41.0
 
 Bug Fixes
-````````````
-* Add pattern definition in CR schema to align with F5 BIGIP Object Naming convention
-* :issues:`2153` Update go.mod to v2
-* :issues:`2657` WAF policy name does not allow hyphen (-)
+`````````
+* Added pattern definition in CR schema to align with F5 BIG-IP Object Naming convention
+* `Issue 2153 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2153>`_: Updated go.mod to v2
+* `Issue 2657 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2657>`_: WAF policy name does not allow hyphen (-)
 
 Documentation
-``````````````
-* User guides `See here <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/user_guides/README.md>`_
-* :issues:`2606` Applying setup files from clouddocs fails
+`````````````
+* Updated user guides (`See here <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/user_guides/README.md>`_)
+* `Issue 2606 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2606>`_: Applying setup files from Clouddocs fails.
 
 CIS Helm Chart Fixes
-``````````````````````
+````````````````````
 * CRD Schema Update
 * RBAC Update
 
 FIC Helm Chart Fixes
-``````````````````````
-* Add support for infoblox credentials using k8s secrets in helm charts
+````````````````````
+* Added support for Infoblox credentials using k8s secrets in helm charts
 
 
 2.11.0

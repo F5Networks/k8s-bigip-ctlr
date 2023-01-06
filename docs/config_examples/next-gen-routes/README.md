@@ -610,6 +610,10 @@ Yes you can continue the SSL Profiles in route annotations.
 Yes you can define the Kubernetes secret in route's SSL annotations.
 ### Can we configure health monitors using route annotations?
 Yes you can continue using the health monitors in route annotations.
+### Can we configure waf using route annotations?
+Yes you can continue using the waf in route annotations.
+### Can we configure allowSourceRange using route annotations?
+Yes you can continue using the allowSourceRange in route annotations.
 ### Any changes in RBAC? 
 No.
 ### How do I use policy CR with routes?

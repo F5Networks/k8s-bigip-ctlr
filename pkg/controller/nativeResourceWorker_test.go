@@ -1,11 +1,12 @@
 package controller
 
 import (
+	"context"
 	"fmt"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"
@@ -64,7 +65,7 @@ var _ = Describe("Routes", func() {
 				ns,
 				routeapi.RouteSpec{
 					Host: "foo.com",
-					Path: "bar",
+					Path: "/bar",
 					To: routeapi.RouteTargetReference{
 						Name: "samplesvc",
 					},
@@ -166,6 +167,34 @@ var _ = Describe("Routes", func() {
 			Expect(mockCtlr.fetchRoute(fmt.Sprintf("%v-invalid", rskey))).To(BeNil(), "We should not be able to fetch the route")
 
 		})
+		It("Erase All Route Admit Status", func() {
+			spec1 := routeapi.RouteSpec{
+				Host: "foo.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+			}
+			route1 := test.NewRoute("route1", "1", "default", spec1, nil)
+			route1.ObjectMeta.Labels = map[string]string{
+				"pro": "asb",
+			}
+			mockCtlr.addRoute(route1)
+			mockCtlr.namespaces = map[string]bool{
+				"test": true,
+			}
+			rskey := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
+			mockCtlr.updateRouteAdmitStatus(rskey, "Route Admitted", "", v1.ConditionTrue)
+			route := mockCtlr.fetchRoute(rskey)
+			Expect(len(route1.Status.Ingress)).To(BeEquivalentTo(1), "Incorrect route admit status")
+			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
+			mockCtlr.routeLabel = " pro in (pro) "
+			mockCtlr.processedHostPath.processedHostPathMap["foo.com/foo"] = route1.ObjectMeta.CreationTimestamp
+			mockCtlr.eraseAllRouteAdmitStatus()
+			route = mockCtlr.fetchRoute(rskey)
+			Expect(len(route.Status.Ingress)).To(BeEquivalentTo(0), "Incorrect route admit status")
+		})
 		It("Check Valid Route", func() {
 			var cm *v1.ConfigMap
 			var data map[string]string
@@ -201,7 +230,7 @@ var _ = Describe("Routes", func() {
 					Kind: "Service",
 					Name: "foo",
 				},
-				TLS: &routeapi.TLSConfig{Termination: "edge",
+				TLS: &routeapi.TLSConfig{Termination: TLSReencrypt,
 					Certificate:                   "",
 					Key:                           "",
 					InsecureEdgeTerminationPolicy: "",
@@ -216,12 +245,46 @@ var _ = Describe("Routes", func() {
 					Name: "bar",
 				},
 			}
-			route1 := test.NewRoute("route1", "1", "default", spec1, nil)
+			spec3 := routeapi.RouteSpec{
+				Host: "default.com",
+				Path: "/test",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+				TLS: &routeapi.TLSConfig{Termination: TLSEdge,
+					Certificate: "-----BEGIN CERTIFICATE-----\nMIIC+DCCAeCgAwIBAgIQIBIcC6PuJQEHwwI0Hv5QmTANBgkqhkiG9w0BAQsFADAS\nMRAwDgYDVQQKEwdBY21lIENvMB4XDTIyMTIyMjA5MjE0OFoXDTIzMTIyMjA5MjE0\nOFowEjEQMA4GA1UEChMHQWNtZSBDbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC\nAQoCggEBAN0NWXsUvGYBV9uo2Iuz3gnovyk3W7p8AA4I8eRUFaWV1EYaxFpsGmdN\nrQgdVJ6w+POSykbDuZynYJyBjC11dJmfTaXffLaUSrJfu+a0QaeWIpt+XxzO4SKQ\nunUSh5Z9w4P45G8VKF7E67wFVN0ni10FLAfBUjYVsQpPagpkH8OdnYCsymCzVSWi\nYETZZ+Hbaih9flRgBQOsoUyNBSkCdJ2wEkZ/0p9+tYwZp1Xvp/Neu3TTsezpu7lE\nbTp0RLQNqfLHWiMV9BSAQRbXAvtvky3J42iy+ec24JyQPtiD85u8Pp/+ssV0ZL9l\nc5KoDEuAvf4NPFWu270gYyQljKcTbB8CAwEAAaNKMEgwDgYDVR0PAQH/BAQDAgWg\nMBMGA1UdJQQMMAoGCCsGAQUFBwMBMAwGA1UdEwEB/wQCMAAwEwYDVR0RBAwwCoII\ndGVzdC5jb20wDQYJKoZIhvcNAQELBQADggEBAI9VUdpVmfx+WUEejREa+plEjCIV\ns+d7v66ddyU4B+Zer1y4RgoWaVq5pywPPjBNJuz6NfwSvBCmuMUd1LUoF5tQFkqb\nVa85Aq6ODbwIMoQ53kTG9vLbT78qESrbukaW9v+axdD9/DIXZJtdwvLvHAVpelRi\n7z48Lxk1GTe7dM3ixKQrU4hz656kH3kXSnD79metOkJA6BAXsqL2XonIhNkCkQVV\n38IHDNkzk228d97ebLu+EhLlkjFgFQEnXusK1amrGJrRDli72pY01yxzGI1caKG5\nN6I8MEIqYI/POwbYWENqONF22pzw/OIs4T1a3jjUqEFugnELcTtx/xRLmOI=\n-----END CERTIFICATE-----\n",
+					Key:         "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDdDVl7FLxmAVfb\nqNiLs94J6L8pN1u6fAAOCPHkVBWlldRGGsRabBpnTa0IHVSesPjzkspGw7mcp2Cc\ngYwtdXSZn02l33y2lEqyX7vmtEGnliKbfl8czuEikLp1EoeWfcOD+ORvFShexOu8\nBVTdJ4tdBSwHwVI2FbEKT2oKZB/DnZ2ArMpgs1UlomBE2Wfh22oofX5UYAUDrKFM\njQUpAnSdsBJGf9KffrWMGadV76fzXrt007Hs6bu5RG06dES0Danyx1ojFfQUgEEW\n1wL7b5MtyeNosvnnNuCckD7Yg/ObvD6f/rLFdGS/ZXOSqAxLgL3+DTxVrtu9IGMk\nJYynE2wfAgMBAAECggEAf8l91vcvylAweB1twaUjUNsp1yvXbUDNz09Adtxc/zJU\nWoqSxCsGQH3Y7331Mx/fav+Ky8nN/U+NPCxv2r+xvjUncCJ4OBwV6nQJbd76rWTP\ncNBnL4IxCAheodsqYsclRZ+WftjeU5rHJBR48Lgxin6462rImdeEVw99n7At5Kig\nGZmGNXnk6jgvoNU1YJZxSMWQQwKtrfJxXry5a90SfjiviGseuBPsgbrMxEPaeqlQ\nGAMi4nIVRmijL56vbbuuudZm+6dpOnbGzzF6J4M5Nrfr/qJF7ClwXjcMeb6lESIo\n5pmGl3QwSGQYeflFexP3ydvQdUwN5rLbtCexPC2CsQKBgQDxLPn8pIU7WuFiTuOp\n1o7/25v7ijPydIRBjjVeA7E7+mbq9FllkT4CW+HtP7zCCjdScuXhKjuPRrST4fsZ\nZex2nUYfc586s/W95b4QMKtXcJd1MMMWOK2/ZGN/6L5zLPupDrhyWHw91biFZG8h\nSFgn7G2zS/+09gJTglpdj3gClQKBgQDqo7f+kZiXGFvP4kcOWNgnOJOpdqzG/zeD\nuVP2Y6Q8mi7GhkiYhdlrl6Ibh9X0qjFMKMKy827jbUPSGaj5tIT8iXyFT4KVaqZQ\n7r2cMyCqbznKfWlyMyspaVEDa910+VwC2hYQvahTQzfdQqFp6JfiLqCdQtiNDGLf\nbvUOHk4a4wKBgHDLo0NowrMm5wBuewXExm6djE9RrMf5fJ2YYBdPTMYLb7T1gRYC\nnujFhl3KkIKD+qnB+QedE+wHmo8Lgr+3LqevGMu+7LqszgL5fzHdQVWM4Bk8LBGp\ngoFf9zUsal49rJm9u8Am6DyXR0yD04HSbwCFEC1qHvbIk//wmEjnv64dAoGANBbW\nYPBHlLt2nmbYaWn1ync36LYM0zyTQW3iIt+p9T4xRidHdHy6cLU/6qa0K9Wgjgy6\ndGmwY1K9bKX/qjeWEk4fU6T8E1mSxILLmyKKjOuWQ8qlnxGW8mGL95t5lV9KOuPZ\nZCwGcz2H6FnDZbSaCz9YrrDJTD7EsF98jX7SzgsCgYBQv5yi7aGxH6OcrAJPQH4v\n1fZo7mFbqp0WoUMpwuWKNOHZuZoF0EU/bllMZT7AipxVhso+hUC+rDEO7H36TAyc\nTUJbdxtlIC1JmJTmeBOWh3i3Htu8A97DLUNTqNikNyKyGWjy7eC0ncG3+CGG91wA\nky9KxzxszaIez6kIUCY7xQ==\n-----END PRIVATE KEY-----\n",
+				},
+			}
+			spec4 := routeapi.RouteSpec{
+				Host: "test.com",
+				Path: "/",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+				TLS: &routeapi.TLSConfig{Termination: TLSReencrypt},
+			}
+			annotations := make(map[string]string)
+			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+
+			route1 := test.NewRoute("route1", "1", "default", spec1, annotations)
 			route2 := test.NewRoute("route2", "1", "test", spec1, nil)
 			route3 := test.NewRoute("route3", "1", "default", spec2, nil)
+			route4 := test.NewRoute("route4", "1", "default", spec3, nil)
+			route5 := test.NewRoute("route5", "1", "default", spec4, nil)
 			mockCtlr.addRoute(route1)
 			mockCtlr.addRoute(route2)
 			mockCtlr.addRoute(route3)
+			mockCtlr.addRoute(route4)
+			_, _ = mockCtlr.processConfigMap(cm, false)
+			mockCtlr.addRoute(route5)
+			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
+			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route2, metav1.CreateOptions{})
+			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route3, metav1.CreateOptions{})
+			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route4, metav1.CreateOptions{})
+			mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route5, metav1.CreateOptions{})
 			rskey1 := fmt.Sprintf("%v/%v", route1.Namespace, route1.Name)
 			rskey2 := fmt.Sprintf("%v/%v", route2.Namespace, route2.Name)
 			rskey3 := fmt.Sprintf("%v/%v", route3.Namespace, route3.Name)
@@ -229,6 +292,13 @@ var _ = Describe("Routes", func() {
 			mockCtlr.processedHostPath.processedHostPathMap[route1.Spec.Host+route1.Spec.Path] = route1.ObjectMeta.CreationTimestamp
 			Expect(mockCtlr.checkValidRoute(route2)).To(BeFalse())
 			Expect(mockCtlr.checkValidRoute(route3)).To(BeFalse())
+			Expect(mockCtlr.checkValidRoute(route4)).To(BeFalse())
+			mockCtlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{Reference: BIGIP}
+			Expect(mockCtlr.checkValidRoute(route5)).To(BeFalse())
+			mockCtlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{Reference: BIGIP, ClientSSL: "/Common/clientSSL"}
+			Expect(mockCtlr.checkValidRoute(route5)).To(BeFalse())
+			mockCtlr.resources.baseRouteConfig.DefaultTLS = DefaultSSLProfile{}
+			Expect(mockCtlr.checkValidRoute(route5)).To(BeFalse())
 			time.Sleep(100 * time.Millisecond)
 			route1 = mockCtlr.fetchRoute(rskey1)
 			route2 = mockCtlr.fetchRoute(rskey2)
@@ -786,6 +856,7 @@ extendedRouteSpec:
 							"/Common/f5-default",
 						},
 						DefaultSSLProfile{},
+						DefaultRouteGroupConfig{},
 					},
 				},
 			}
@@ -934,6 +1005,49 @@ extendedRouteSpec:
 			//Expect(mockCtlr.getRouteGroupForSecret(&v1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "clientssl1",
 			//	Namespace: "default"}})).To(Equal(""))
 
+		})
+		It("Verify Routes with Different scenarios", func() {
+			ports := []portStruct{
+				{
+					protocol: "http",
+					port:     DEFAULT_HTTP_PORT,
+				},
+			}
+			secureRoute := *rt
+			secureRoute.Spec.TLS = &routeapi.TLSConfig{}
+			secureRoute.Spec.TLS.Termination = TLSReencrypt
+			secureRoute.Spec.TLS.InsecureEdgeTerminationPolicy = routeapi.InsecureEdgeTerminationPolicyAllow
+
+			mockCtlr.addRoute(rt)
+			rsKey := fmt.Sprintf("%v/%v", "test1", rt.Name)
+			route := mockCtlr.fetchRoute(rsKey)
+			//Invalid Namespace
+			Expect(route).To(BeNil())
+
+			rsKey = fmt.Sprintf("%v/%v", "test", "")
+			route = mockCtlr.fetchRoute(rsKey)
+			Expect(route).To(BeNil())
+
+			rsKey = fmt.Sprintf("%v/%v", rt.Namespace, rt.Name)
+			route = mockCtlr.fetchRoute(rsKey)
+			Expect(route).ToNot(BeNil())
+			Expect(mockCtlr.GetHostFromHostPath(rt.Spec.Host)).To(Equal("foo.com"))
+			Expect(isPassthroughRoute(rt)).To(BeFalse())
+			Expect(doRoutesHandleHTTP([]*routeapi.Route{rt})).To(BeTrue())
+			Expect(doRoutesHandleHTTP([]*routeapi.Route{&secureRoute})).To(BeTrue())
+			secureRoute.Namespace = "test1"
+			mockCtlr.getServicePort(&secureRoute)
+
+			// Invalid Route Key
+			mockCtlr.eraseRouteAdmitStatus("test")
+			// Invalid Route Key
+			mockCtlr.updateRouteAdmitStatus("test", "", "", v1.ConditionTrue)
+			Expect(getVirtualPortsForRoutes([]*routeapi.Route{rt})).To(Equal(ports))
+			secureRoute.Namespace = "test"
+			mockCtlr.getServicePort(&secureRoute)
+
+			rt.Spec.Port = &routeapi.RoutePort{TargetPort: intstr.IntOrString{StrVal: "http"}}
+			mockCtlr.getServicePort(rt)
 		})
 
 	})

@@ -17,13 +17,14 @@
 package appmanager
 
 import (
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
+	routeapi "github.com/openshift/api/route/v1"
 
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
@@ -981,6 +982,31 @@ var _ = Describe("Health Monitor Tests", func() {
 			checkMultiServiceHealthMonitor(vsCfgBar, svc2Name, svc2Port, true)
 			checkMultiServiceHealthMonitor(vsCfgBaz, svc3Name, svc3Port, true)
 		})
+		It("Removes unused health monitors", func() {
+			rcfg := &ResourceConfig{}
+			//rcfg.Monitors = make([]Monitor, 0)
+			//rcfg.Pools = make([]Pool, 0)
+			rcfg.Pools = []Pool{
+				Pool{Name: "svc1", Partition: "test", MonitorNames: []string{"/test/hm1", "/test/hm2"}},
+				Pool{Name: "svc2", Partition: "test", MonitorNames: []string{"/test/hm3", "/test/hm4"}},
+			}
+			rcfg.Monitors = []Monitor{
+				Monitor{Name: "hm0", Partition: "test"},
+				Monitor{Name: "hm1", Partition: "test"},
+				Monitor{Name: "hm2", Partition: "test"},
+				Monitor{Name: "hm3", Partition: "test"},
+				Monitor{Name: "hm4", Partition: "test"},
+				Monitor{Name: "hm5", Partition: "test"},
+			}
+			expectedMonitors := Monitors([]Monitor{
+				Monitor{Name: "hm1", Partition: "test"},
+				Monitor{Name: "hm2", Partition: "test"},
+				Monitor{Name: "hm3", Partition: "test"},
+				Monitor{Name: "hm4", Partition: "test"},
+			})
+			RemoveUnusedHealthMonitors(rcfg)
+			Expect(rcfg.Monitors).To(Equal(expectedMonitors))
+		})
 	})
 
 	Context("route health monitors", func() {
@@ -991,102 +1017,100 @@ var _ = Describe("Health Monitor Tests", func() {
 			}
 		})
 
-		//FixMe: Fix this unit test as we updated checkValidRoute function - included certificate and key validation.
+		It("configures route health monitors", func() {
+			svcName := "svc1"
+			svcPort := 8080
+			spec := routeapi.RouteSpec{
+				Host: "foo.com",
+				Path: "/bar",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: svcName,
+				},
+				Port: &routeapi.RoutePort{
+					TargetPort: intstr.FromInt(svcPort),
+				},
+				TLS: &routeapi.TLSConfig{
+					Termination: "edge",
+					Certificate: cert,
+					Key:         key,
+				},
+			}
+			route := test.NewRoute("route", "1", namespace, spec,
+				map[string]string{
+					HealthMonitorAnnotation: `[
+					{
+						"path":     "svc1/",
+						"send":     "HTTP GET /test1",
+						"recv":     "Hello from",
+						"interval": 5,
+						"timeout":  10
+					}
+				]`,
+				})
+			svcKey := ServiceKey{
+				Namespace:   namespace,
+				ServiceName: svcName,
+				ServicePort: int32(svcPort),
+			}
 
-		// It("configures route health monitors", func() {
-		// 	svcName := "svc1"
-		// 	svcPort := 8080
-		// 	spec := routeapi.RouteSpec{
-		// 		Host: "foo.com",
-		// 		Path: "/bar",
-		// 		To: routeapi.RouteTargetReference{
-		// 			Kind: "Service",
-		// 			Name: svcName,
-		// 		},
-		// 		Port: &routeapi.RoutePort{
-		// 			TargetPort: intstr.FromInt(svcPort),
-		// 		},
-		// 		TLS: &routeapi.TLSConfig{
-		// 			Termination: "edge",
-		// 			Certificate: "cert",
-		// 			Key:         "key",
-		// 		},
-		// 	}
-		// 	route := test.NewRoute("route", "1", namespace, spec,
-		// 		map[string]string{
-		// 			HealthMonitorAnnotation: `[
-		// 			{
-		// 				"path":     "svc1/",
-		// 				"send":     "HTTP GET /test1",
-		// 				"recv":     "Hello from",
-		// 				"interval": 5,
-		// 				"timeout":  10
-		// 			}
-		// 		]`,
-		// 		})
-		// 	svcKey := ServiceKey{
-		// 		Namespace:   namespace,
-		// 		ServiceName: svcName,
-		// 		ServicePort: int32(svcPort),
-		// 	}
+			svcPorts := []v1.ServicePort{newServicePort(svcName, int32(svcPort))}
+			fooSvc := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP,
+				svcPorts)
 
-		// 	svcPorts := []v1.ServicePort{newServicePort(svcName, int32(svcPort))}
-		// 	fooSvc := test.NewService(svcName, "1", namespace, v1.ServiceTypeClusterIP,
-		// 		svcPorts)
+			r := mockMgr.addRoute(route)
+			Expect(r).To(BeTrue(), "Route resource should be processed.")
 
-		// 	r := mockMgr.addRoute(route)
-		// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
+			r = mockMgr.addService(fooSvc)
+			Expect(r).To(BeTrue(), "Service should be processed.")
+			resources := mockMgr.resources()
+			Expect(resources.PoolCount()).To(Equal(1))
 
-		// 	r = mockMgr.addService(fooSvc)
-		// 	Expect(r).To(BeTrue(), "Service should be processed.")
-		// 	resources := mockMgr.resources()
-		// 	Expect(resources.PoolCount()).To(Equal(1))
+			// The first test uses an explicit server name
+			vsCfgFoo, found := resources.Get(svcKey, "https-ose-vserver")
+			Expect(found).To(BeTrue())
+			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
-		// 	// The first test uses an explicit server name
-		// 	vsCfgFoo, found := resources.Get(svcKey, "https-ose-vserver")
-		// 	Expect(found).To(BeTrue())
-		// 	checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
+			// The second test uses a wildcard host name
+			route.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
+			{
+				"path":     "*/foo",
+				"send":     "HTTP GET /test2",
+				"interval": 5,
+				"timeout":  10
+			}]`
+			r = mockMgr.updateRoute(route)
+			Expect(r).To(BeTrue(), "Route resource should be processed.")
+			vsCfgFoo, found = resources.Get(svcKey, "https-ose-vserver")
+			Expect(found).To(BeTrue())
+			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
-		// 	// The second test uses a wildcard host name
-		// 	route.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
-		// 	{
-		// 		"path":     "*/foo",
-		// 		"send":     "HTTP GET /test2",
-		// 		"interval": 5,
-		// 		"timeout":  10
-		// 	}]`
-		// 	r = mockMgr.updateRoute(route)
-		// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-		// 	vsCfgFoo, found = resources.Get(svcKey, "https-ose-vserver")
-		// 	Expect(found).To(BeTrue())
-		// 	checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
+			// The third test omits the host part of the path
+			route.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
+			{
+				"path":     "/",
+				"send":     "HTTP GET /test3",
+				"interval": 5,
+				"timeout":  10
+			}]`
+			r = mockMgr.updateRoute(route)
+			Expect(r).To(BeTrue(), "Route resource should be processed.")
+			vsCfgFoo, found = resources.Get(svcKey, "https-ose-vserver")
+			Expect(found).To(BeTrue())
+			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
 
-		// 	// The third test omits the host part of the path
-		// 	route.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
-		// 	{
-		// 		"path":     "/",
-		// 		"send":     "HTTP GET /test3",
-		// 		"interval": 5,
-		// 		"timeout":  10
-		// 	}]`
-		// 	r = mockMgr.updateRoute(route)
-		// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-		// 	vsCfgFoo, found = resources.Get(svcKey, "https-ose-vserver")
-		// 	Expect(found).To(BeTrue())
-		// 	checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, true)
-
-		// 	// The fourth test omits the path entirely (error case)
-		// 	route.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
-		// 	{
-		// 		"send":     "HTTP GET /test3",
-		// 		"interval": 5,
-		// 		"timeout":  10
-		// 	}]`
-		// 	r = mockMgr.updateRoute(route)
-		// 	Expect(r).To(BeTrue(), "Route resource should be processed.")
-		// 	vsCfgFoo, found = resources.Get(svcKey, "https-ose-vserver")
-		// 	Expect(found).To(BeTrue())
-		// 	checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, false)
-		// })
+			// The fourth test omits the path entirely (error case)
+			route.ObjectMeta.Annotations[HealthMonitorAnnotation] = `[
+			{
+				"send":     "HTTP GET /test3",
+				"interval": 5,
+				"timeout":  10
+			}]`
+			r = mockMgr.updateRoute(route)
+			Expect(r).To(BeTrue(), "Route resource should be processed.")
+			vsCfgFoo, found = resources.Get(svcKey, "https-ose-vserver")
+			Expect(found).To(BeTrue())
+			checkSingleServiceHealthMonitor(vsCfgFoo, svcName, svcPort, false)
+		})
 	})
 })

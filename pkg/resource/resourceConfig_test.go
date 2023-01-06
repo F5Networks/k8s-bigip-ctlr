@@ -18,9 +18,12 @@ package resource
 
 import (
 	"fmt"
+	netv1 "k8s.io/api/networking/v1"
+	"os"
 	"sort"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	"encoding/json"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -133,10 +136,12 @@ var _ = Describe("Resource Config Tests", func() {
 			virtuals = append(virtuals, v)
 			expectedList[2] = v
 
-			sort.Sort(virtuals)
+			var cfg BigIPConfig
+			cfg.Virtuals = virtuals
+			cfg.SortVirtuals()
 
 			for i, _ := range expectedList {
-				Expect(virtuals[i]).To(Equal(expectedList[i]),
+				Expect(cfg.Virtuals[i]).To(Equal(expectedList[i]),
 					"Sorted list elements should be equal.")
 			}
 		})
@@ -175,10 +180,12 @@ var _ = Describe("Resource Config Tests", func() {
 			pools = append(pools, p)
 			expectedList[4] = p
 
-			sort.Sort(pools)
+			var cfg BigIPConfig
+			cfg.Pools = pools
+			cfg.SortPools()
 
 			for i, _ := range expectedList {
-				Expect(pools[i]).To(Equal(expectedList[i]),
+				Expect(cfg.Pools[i]).To(Equal(expectedList[i]),
 					"Sorted list elements should be equal.")
 			}
 		})
@@ -217,12 +224,44 @@ var _ = Describe("Resource Config Tests", func() {
 			monitors = append(monitors, m)
 			expectedList[4] = m
 
-			sort.Sort(monitors)
+			var cfg BigIPConfig
+			cfg.Monitors = monitors
+			cfg.SortMonitors()
 
 			for i, _ := range expectedList {
-				Expect(monitors[i]).To(Equal(expectedList[i]),
+				Expect(cfg.Monitors[i]).To(Equal(expectedList[i]),
 					"Sorted list elements should be equal.")
+
 			}
+		})
+
+		It("Sets and Removes monitors", func() {
+			var rc ResourceConfig
+
+			m := Monitor{}
+			m.Partition = "foo"
+			m.Name = "mon"
+
+			p := Pool{}
+			p.Partition = "b"
+			p.Name = "foo"
+
+			m.Name = FormatMonitorName(p.Name, "http")
+
+			rc.Pools = []Pool{p}
+			//Set Monitor sets the monitor in the pool
+			Expect(rc.SetMonitor(&p, m)).To(Equal(true))
+			Expect(rc.SetMonitor(&p, m)).To(Equal(false))
+			Expect(rc.Monitors).To(Equal(Monitors{m}))
+			rc.Pools[0].MonitorNames = []string{"/foo/foo_0_http"}
+			rc.SortMonitors()
+			Expect(rc.Pools).To(Equal(Pools{p}))
+			Expect(rc.Monitors).To(Equal(Monitors{m}))
+			Expect(rc.RemoveMonitor(p.Name)).To(Equal(true))
+			Expect(rc.RemoveMonitor(p.Name)).To(Equal(false))
+			p.MonitorNames = []string{}
+			Expect(rc.Pools).To(Equal(Pools{p}))
+			Expect(len(rc.Monitors)).To(Equal(0))
 		})
 
 		It("creates new resources", func() {
@@ -322,6 +361,58 @@ var _ = Describe("Resource Config Tests", func() {
 				Expect(len(rsCfgs)).To(Equal(nbrCfgsPer))
 			}
 		})
+		It("route Services", func() {
+			//var weight *int32
+			weight := new(int32)
+			*weight = 50
+			spec := routeapi.RouteSpec{
+				Host: "host.com",
+				Path: "/foo",
+				Port: &routeapi.RoutePort{
+					TargetPort: intstr.FromInt(80),
+				},
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				AlternateBackends: []routeapi.RouteTargetReference{
+					{
+						Kind:   "Service",
+						Name:   "bar",
+						Weight: weight,
+					}, {
+						Kind:   "Service",
+						Name:   "baz",
+						Weight: weight,
+					},
+				},
+			}
+
+			annotations := map[string]string{
+				F5VsURLRewriteAnnotation:           "foo/baz",
+				F5VsAppRootAnnotation:              "chfo",
+				F5VsWhitelistSourceRangeAnnotation: "10.10.10.1/23,2.2.2.2",
+				F5VsAllowSourceRangeAnnotation:     "10.10.10.1/255.255.0.0",
+			}
+			route := test.NewRoute("route", "1", "ns1", spec, annotations)
+			Expect(ExistsRouteServiceName(route, "foo")).To(Equal(true))
+			Expect(ExistsRouteServiceName(route, "foo1")).To(Equal(false))
+
+			svcs := GetRouteServiceNames(route)
+			Expect(svcs).To(Equal([]string{"bar", "baz", "foo"}))
+
+			// IS Route AB Deployment
+			Expect(IsABServiceOfRoute(route, "baz")).To(Equal(true))
+			Expect(IsABServiceOfRoute(route, "foo")).To(Equal(false))
+			Expect(IsABServiceOfRoute(route, "bar")).To(Equal(true))
+
+			Expect(IsRouteABDeployment(route)).To(Equal(true))
+			val := ParseWhitelistSourceRangeAnnotations(annotations[F5VsWhitelistSourceRangeAnnotation])
+			Expect(val).To(Equal([]string{"10.10.10.1/23", "2.2.2.2"}))
+			val = ParseWhitelistSourceRangeAnnotations(annotations[F5VsAllowSourceRangeAnnotation])
+			Expect(val).To(Equal([]string{"10.10.10.1/255.255.0.0"}))
+
+		})
 
 		It("route object dependencies", func() {
 			// Make sure NewObjectDependencies finds all the services in a Route.
@@ -342,7 +433,14 @@ var _ = Describe("Resource Config Tests", func() {
 					},
 				},
 			}
-			route := test.NewRoute("route", "1", "ns1", spec, nil)
+
+			annotations := map[string]string{
+				F5VsURLRewriteAnnotation:           "foo/baz",
+				F5VsAppRootAnnotation:              "chfo",
+				F5VsWhitelistSourceRangeAnnotation: "10.10.10.1",
+				F5VsAllowSourceRangeAnnotation:     "10.10.10.1",
+			}
+			route := test.NewRoute("route", "1", "ns1", spec, annotations)
 			key, deps := NewObjectDependencies(route)
 			Expect(key).To(Equal(ObjectDependency{
 				Kind: "Route", Namespace: "ns1", Name: "route"}))
@@ -351,6 +449,9 @@ var _ = Describe("Resource Config Tests", func() {
 				{Kind: "Service", Namespace: "ns1", Name: "bar"},
 				{Kind: "Service", Namespace: "ns1", Name: "baz"},
 				{Kind: "Rule", Namespace: "ns1", Name: "host.com/foo"},
+				{Kind: "Whitelist-Annotation", Namespace: "ns1", Name: "10.10.10.1"},
+				{Kind: "URL-Rewrite-Annotation", Namespace: "ns1", Name: "url-rewrite-rule-host.com_foo-foo_baz"},
+				{Kind: "App-Root-Annotation", Namespace: "ns1", Name: "app-root-redirect-rule-host.com_foo-chfo,app-root-forward-rule-host.com_foo-chfo"},
 			}
 			for _, dep := range routeDeps {
 				_, found := deps[dep]
@@ -385,7 +486,7 @@ var _ = Describe("Resource Config Tests", func() {
 			added, removed = rs.UpdateDependencies(
 				key, deps, routeDeps[0], routeNeverFound)
 			Expect(len(added)).To(BeZero())
-			Expect(len(removed)).To(Equal(1))
+			Expect(len(removed)).To(Equal(len(annotations)))
 			Expect(len(rs.objDeps)).To(BeZero())
 		})
 
@@ -443,7 +544,11 @@ var _ = Describe("Resource Config Tests", func() {
 				},
 			}
 			// Add a new Ingress
-			ingress := test.NewIngress("ingress", "1", "ns2", ingressConfig, nil)
+			annotations := map[string]string{
+				F5VsURLRewriteAnnotation: "foo/baz",
+				F5VsAppRootAnnotation:    "chfo",
+			}
+			ingress := test.NewIngress("ingress", "1", "ns2", ingressConfig, annotations)
 			key, deps := NewObjectDependencies(ingress)
 			Expect(key).To(Equal(ObjectDependency{
 				Kind: "Ingress", Namespace: "ns2", Name: "ingress"}))
@@ -456,6 +561,8 @@ var _ = Describe("Resource Config Tests", func() {
 				{Kind: "Rule", Namespace: "ns2", Name: "host1/baz"},
 				{Kind: "Rule", Namespace: "ns2", Name: "host2/baz"},
 				{Kind: "Rule", Namespace: "ns2", Name: "host2/foobarbaz"},
+				{Kind: "App-Root-Annotation", Namespace: "ns2", Name: ","},
+				{Kind: "URL-Rewrite-Annotation", Namespace: "ns2"},
 			}
 			for _, dep := range ingressDeps {
 				_, found := deps[dep]
@@ -490,8 +597,162 @@ var _ = Describe("Resource Config Tests", func() {
 			added, removed = rs.UpdateDependencies(
 				key, deps, ingressDeps[0], ingNeverFound)
 			Expect(len(added)).To(BeZero())
-			Expect(len(removed)).To(Equal(4))
+			Expect(len(removed)).To(Equal(6))
 			Expect(len(rs.objDeps)).To(BeZero())
+		})
+		It("Netv1 ingress object dependencies", func() {
+			// Make sure NewObjectDependencies finds all the services in an Ingress.
+			ingressConfig := netv1.IngressSpec{
+				DefaultBackend: &netv1.IngressBackend{
+					Service: &netv1.IngressServiceBackend{
+						Name: "foo",
+						Port: netv1.ServiceBackendPort{
+							Number: 80,
+							Name:   "http",
+						},
+					},
+				},
+				Rules: []netv1.IngressRule{
+					{
+						Host: "host1",
+						IngressRuleValue: netv1.IngressRuleValue{
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path: "/bar",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{
+												Name: "bar",
+												Port: netv1.ServiceBackendPort{
+													Number: 80,
+													Name:   "http",
+												},
+											},
+										},
+									}, {
+										Path: "/baz",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{
+												Name: "baz",
+												Port: netv1.ServiceBackendPort{
+													Number: 80,
+													Name:   "http",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					}, {
+						Host: "host2",
+						IngressRuleValue: netv1.IngressRuleValue{
+							HTTP: &netv1.HTTPIngressRuleValue{
+								Paths: []netv1.HTTPIngressPath{
+									{
+										Path: "/baz",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{
+												Name: "baz",
+												Port: netv1.ServiceBackendPort{
+													Number: 80,
+													Name:   "http",
+												},
+											},
+										},
+									},
+									{
+										Path: "/foobarbaz",
+										Backend: netv1.IngressBackend{
+											Service: &netv1.IngressServiceBackend{
+												Name: "foobarbaz",
+												Port: netv1.ServiceBackendPort{
+													Number: 80,
+													Name:   "http",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			// Add a new Ingress
+			annotations := map[string]string{
+				F5VsURLRewriteAnnotation: "foo/baz",
+				F5VsAppRootAnnotation:    "chfo",
+			}
+			vsName := FormatIngressVSName("1.2.3.4", 80)
+			ingress := test.NewIngressNetV1(vsName, "1", "ns2", ingressConfig, annotations)
+			key, deps := NewObjectDependencies(ingress)
+			Expect(key).To(Equal(ObjectDependency{
+				Kind: "Ingress", Namespace: "ns2", Name: vsName}))
+			ingressDeps := []ObjectDependency{
+				{Kind: "Service", Namespace: "ns2", Name: "foo"},
+				{Kind: "Service", Namespace: "ns2", Name: "bar"},
+				{Kind: "Service", Namespace: "ns2", Name: "baz"},
+				{Kind: "Service", Namespace: "ns2", Name: "foobarbaz"},
+				{Kind: "Rule", Namespace: "ns2", Name: "host1/bar"},
+				{Kind: "Rule", Namespace: "ns2", Name: "host1/baz"},
+				{Kind: "Rule", Namespace: "ns2", Name: "host2/baz"},
+				{Kind: "Rule", Namespace: "ns2", Name: "host2/foobarbaz"},
+				{Kind: "App-Root-Annotation", Namespace: "ns2", Name: ","},
+				{Kind: "URL-Rewrite-Annotation", Namespace: "ns2"},
+			}
+			for _, dep := range ingressDeps {
+				_, found := deps[dep]
+				Expect(found).To(BeTrue())
+			}
+
+			ingAlwaysFound := func(key ObjectDependency) bool {
+				return false
+			}
+			ingNeverFound := func(key ObjectDependency) bool {
+				return true
+			}
+
+			// First add
+			Expect(len(rs.objDeps)).To(BeZero())
+			added, removed := rs.UpdateDependencies(
+				key, deps, ingressDeps[0], ingAlwaysFound)
+			Expect(len(added)).To(Equal(len(ingressDeps)))
+			Expect(len(removed)).To(BeZero())
+			Expect(len(rs.objDeps)).To(Equal(1))
+
+			// Change a dependent service
+			ingress.Spec.Rules[1].HTTP.Paths[1].Backend.Service.Name = "boo"
+			key, deps = NewObjectDependencies(ingress)
+			added, removed = rs.UpdateDependencies(
+				key, deps, ingressDeps[0], ingAlwaysFound)
+			Expect(len(added)).To(Equal(1))
+			Expect(len(removed)).To(Equal(1))
+			Expect(len(rs.objDeps)).To(Equal(1))
+
+			// 'remove' Ingress. Should remove entry from rs.objDeps
+			added, removed = rs.UpdateDependencies(
+				key, deps, ingressDeps[0], ingNeverFound)
+			Expect(len(added)).To(BeZero())
+			Expect(len(removed)).To(Equal(6))
+			Expect(len(rs.objDeps)).To(BeZero())
+
+			ingress = test.NewIngressNetV1("ingress", "1", "ns3", ingressConfig, nil)
+			key, deps = NewObjectDependencies(ingress)
+			Expect(key).To(Equal(ObjectDependency{
+				Kind: "Ingress", Namespace: "ns3", Name: "ingress"}))
+			depKey := ObjectDependency{
+				Kind: "Ingress", Namespace: "ns3", Name: "ingress"}
+			Expect(len(rs.objDeps)).To(BeZero())
+			added, removed = rs.UpdateDependencies(
+				key, deps, depKey, ingAlwaysFound)
+			Expect(len(added)).To(Equal(8))
+			Expect(len(removed)).To(BeZero())
+			Expect(len(rs.objDeps)).To(Equal(1))
+			//Expect(len(rs.objDeps)).To(BeZero())
+			rs.RemoveDependency(depKey)
+			Expect(len(rs.objDeps)).To(BeZero())
+
 		})
 
 		It("Verifies whether netmask is set properly", func() {
@@ -530,6 +791,8 @@ var _ = Describe("Resource Config Tests", func() {
 
 		It("Verifies that resource config is copied correctly and ensures safe concurrent usage", func() {
 			// Create resource config
+			rule, _ := CreateRule("*.host.com/bar", "poolname", "k8s", "policy_rule_1_rule1")
+
 			resourceConfig := &ResourceConfig{
 				MetaData: MetaData{
 					Active:       true,
@@ -538,14 +801,45 @@ var _ = Describe("Resource Config Tests", func() {
 					RouteProfs:   make(map[RouteKey]string),
 				},
 				Virtual: Virtual{Name: "test-virtual", Policies: []NameRef{}, Profiles: ProfileRefs{}},
-				Policies: []Policy{Policy{Name: "test-policy", Controls: []string{"forwarding"}, Rules: Rules{},
+				Policies: []Policy{Policy{Name: "test-policy", Controls: []string{"forwarding"}, Rules: Rules{rule},
 					Requires: []string{}}},
-				Pools: []Pool{},
+				Pools: []Pool{
+					Pool{
+						Name:        "poolname",
+						Partition:   "ns",
+						ServiceName: "svc",
+						ServicePort: 80,
+						MonitorNames: []string{
+							"test-monitor-1",
+						},
+						Members: []Member{
+							Member{
+								Address: "1.1.1.1",
+								Port:    8080,
+								SvcPort: 80,
+							},
+						},
+					},
+				},
+				Monitors: []Monitor{
+					Monitor{
+						Name:     "test-monitor-1",
+						Interval: 10,
+						Type:     "http",
+					},
+				},
 			}
 			// Create a copy of resource config
 			rcConfigCopy := &ResourceConfig{}
 			rcConfigCopy.CopyConfig(resourceConfig)
 			// Verify that copy is done correctly
+			Expect(resourceConfig).To(Equal(rcConfigCopy))
+			//Verify that Remove Pool removes Pool and respective Pool Members
+			cfgChanged, svcKey := resourceConfig.RemovePool("ns", "poolname", make(map[string]map[string]MergedRuleEntry))
+			Expect(svcKey).To(Equal(&ServiceKey{ServiceName: "svc", ServicePort: 80, Namespace: "ns"}))
+			Expect(cfgChanged).To(Equal(true))
+			rcConfigCopy.Pools = []Pool{}
+			rcConfigCopy.Policies = nil
 			Expect(resourceConfig).To(Equal(rcConfigCopy))
 			// Verify that route profile map is copied safely so that concurrent usage can be done
 			// Go routine that simulates writing route profiles to the original resource config
@@ -567,7 +861,9 @@ var _ = Describe("Resource Config Tests", func() {
 					}
 				}
 			}(rcConfigCopy)
+
 		})
+
 	})
 
 	Describe("Config Manipulation", func() {
@@ -594,17 +890,29 @@ var _ = Describe("Resource Config Tests", func() {
 
 			// set a name and make sure it is saved
 			profileName := "profileName"
+			firstProfile := ProfileRef{Name: profileName, Context: CustomProfileClient}
 			rs.Virtual.AddOrUpdateProfile(
-				ProfileRef{Name: profileName, Context: CustomProfileClient})
+				firstProfile)
 			Expect(getClientProfileNames(rs.Virtual)).To(
 				Equal([]string{profileName}))
 
 			// add a second profile
 			newProfileName := "newProfileName"
+			secondProfile := ProfileRef{Name: newProfileName, Context: CustomProfileClient}
 			rs.Virtual.AddOrUpdateProfile(
-				ProfileRef{Name: newProfileName, Context: CustomProfileClient})
+				secondProfile)
 			Expect(getClientProfileNames(rs.Virtual)).To(
 				Equal([]string{newProfileName, profileName}))
+
+			var expectedProfiles = ProfileRefs{secondProfile, firstProfile}
+			// Verify swaping the one profile with second profile
+			Expect(rs.Virtual.Profiles).To(Equal(expectedProfiles))
+			rs.Virtual.Profiles.Swap(0, 1)
+			expectedProfiles = ProfileRefs{firstProfile, secondProfile}
+			Expect(rs.Virtual.Profiles).To(Equal(expectedProfiles))
+			rs.Virtual.Profiles.Swap(0, 1)
+			expectedProfiles = ProfileRefs{secondProfile, firstProfile}
+			Expect(rs.Virtual.Profiles).To(Equal(expectedProfiles))
 
 			// Remove both profiles and make sure the pointer goes back to nil
 			r := rs.Virtual.RemoveProfile(
@@ -616,6 +924,125 @@ var _ = Describe("Resource Config Tests", func() {
 				ProfileRef{Name: newProfileName, Context: CustomProfileClient})
 			Expect(r).To(BeTrue())
 			Expect(getClientProfileNames(rs.Virtual)).To(Equal(empty))
+		})
+
+		It("sets and removes irule", func() {
+			var rs ResourceConfig
+			// verify initial state
+			Expect(len(rs.Virtual.IRules)).To(Equal(0))
+			Expect(rs.Virtual.AddIRule("firstIRule")).To(Equal(true))
+			Expect(rs.Virtual.AddIRule("SecondIRule")).To(Equal(true))
+			Expect(rs.Virtual.AddIRule("ThirdIRule")).To(Equal(true))
+			Expect(rs.Virtual.AddIRule("ThirdIRule")).To(Equal(false))
+			expectedIRules := []string{"firstIRule", "SecondIRule", "ThirdIRule"}
+			Expect(len(rs.Virtual.IRules)).To(Equal(3))
+			Expect(rs.Virtual.IRules).To(Equal(expectedIRules))
+			Expect(rs.Virtual.IRules[1]).To(Equal("SecondIRule"))
+			// Remove Non-Existing IRule
+			Expect(rs.Virtual.RemoveIRule("testIrule")).To(Equal(false))
+			//Remove Existing Irule
+			Expect(rs.Virtual.RemoveIRule("SecondIRule")).To(Equal(true))
+			Expect(len(rs.Virtual.IRules)).To(Equal(2))
+			Expect(rs.Virtual.IRules).To(Equal([]string{"firstIRule", "ThirdIRule"}))
+			// Verify ToString Works
+			Expect(rs.Virtual.ToString()).To(Equal("{\"name\":\"\",\"destination\":\"\",\"enabled\":false,\"sourceAddressTranslation\":{\"type\":\"\"},\"rules\":[\"firstIRule\",\"ThirdIRule\"]}"))
+			//Verify NewIRule
+			var newiRule = &IRule{
+				Name:      "uri",
+				Partition: "test",
+				Code:      "{client:l}",
+			}
+			Expect(NewIRule("uri", "test", "{client:l}")).To(Equal(newiRule))
+		})
+
+		It("TODO Add and  removes Rule & policies", func() {
+			var rc ResourceConfig
+
+			lenValidate := func(expectedLen int) {
+				Expect(len(rc.Virtual.Policies)).To(Equal(expectedLen))
+				Expect(len(rc.Policies)).To(Equal(len(rc.Virtual.Policies)))
+			}
+
+			// verify initial state
+			lenValidate(0)
+
+			// add a policy
+			policyname := "policy1"
+			partition := "k8s"
+
+			var rule, rule1 *Rule
+			rule, _ = CreateRule("*.host.com/bar", "poolname", partition, "url-rewrite-rule1")
+			rule1, _ = CreateRule("host.com/foo", "poolname", partition, "url-rewrite-rule2")
+			// create policy
+			samplePolicy := Policy{
+				Name:      policyname,
+				Partition: partition,
+				Controls:  []string{"forwarding"},
+				Legacy:    true,
+				Requires:  []string{"http"},
+				Rules:     Rules{rule},
+				Strategy:  "/Common/first-match",
+			}
+
+			Expect(CreatePolicy(Rules{rule}, policyname, partition)).To(Equal(&samplePolicy))
+
+			rc.SetPolicy(samplePolicy)
+			lenValidate(1)
+			Expect(rc.Policies[0].Strategy).To(Equal("/Common/first-match"))
+			// Add Rule to policy
+			rc.AddRuleToPolicy(policyname, rule)
+			Expect(rc.Policies[0]).To(Equal(samplePolicy))
+
+			//Delete Rule From policy
+			mergedRulesMap := make(map[string]map[string]MergedRuleEntry)
+			rc.DeleteRuleFromPolicy(policyname, rule, mergedRulesMap)
+			samplePolicy.Rules = Rules{}
+			Expect(len(rc.Policies)).To(Equal(0))
+			rc.SetPolicy(samplePolicy)
+			lenValidate(1)
+
+			// change data in existing policy
+			samplePolicy.Strategy = "best-match"
+			Expect(rc.Policies[0].Strategy).To(Equal("/Common/first-match"))
+			rc.SetPolicy(samplePolicy)
+			lenValidate(1)
+			Expect(rc.Policies[0].Strategy).To(Equal("best-match"))
+
+			secondpolicy := "policy2"
+			// create policy
+			policy2 := Policy{
+				Name:      secondpolicy,
+				Partition: partition,
+				Controls:  []string{"forwarding"},
+				Legacy:    true,
+				Requires:  []string{"http"},
+				Rules:     Rules{rule1},
+				Strategy:  "first-match",
+			}
+			rc.SetPolicy(policy2)
+			lenValidate(2)
+
+			// make sure it is appended
+			Expect(rc.Policies[0].Name).To(Equal(policyname))
+			Expect(rc.Policies[1].Name).To(Equal(secondpolicy))
+
+			// Remove Rules
+			policy2.RemoveRules([]int{0})
+			rc.Policies[1].Rules = []*Rule{}
+			Expect(rc.Policies[1]).To(Equal(policy2))
+			// remove first policy
+			rc.RemovePolicy(samplePolicy)
+
+			lenValidate(1)
+			Expect(rc.Policies[0].Name).To(Equal("policy2"))
+
+			// remove last policy
+			rc.RemovePolicy(policy2)
+			lenValidate(0)
+
+			// make sure deleting something that isn't there doesn't fail badly
+			rc.RemovePolicy(policy2)
+			lenValidate(0)
 		})
 
 		It("sets and removes policies", func() {
@@ -1685,4 +2112,114 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(result).To(BeFalse())
 		})
 	})
+	Describe("Configmap Manipulation", func() {
+		It("properly handles ConfigMap keys ", func() {
+			var cfg ResourceConfig
+			var key = ServiceKey{
+				ServiceName: "svc",
+				ServicePort: 80,
+				Namespace:   "ns",
+			}
+			cfg.Pools = append(cfg.Pools, Pool{})
+			cfg.Pools[0].ServiceName = key.ServiceName
+			cfg.Pools[0].ServicePort = key.ServicePort
+			cfg.Virtual.Name = "cm_Name"
+			cfg.Virtual.SetVirtualAddress("10.0.0.1", 80, false)
+
+			workingDir, _ := os.Getwd()
+			schemaUrl := "file://" + workingDir + "/../../schemas/bigip-virtual-server_v0.1.7.json"
+			DEFAULT_PARTITION = "velcro"
+			var configPath = "../test/configs/"
+			var configmapFoo = test.ReadConfigFile(configPath + "configmapFoo.json")
+
+			// Config map with no schema key
+			noschemakey := test.NewConfigMap("noschema", "1", key.Namespace,
+				map[string]string{"data": configmapFoo})
+			cfgmap, err := ParseConfigMap(noschemakey, "", "")
+			Expect(err.Error()).To(Equal("configmap noschema does not contain schema key"),
+				"Should receive 'no schema' error.")
+
+			// Config map with no data key
+			nodatakey := test.NewConfigMap("nodata", "1", key.Namespace, map[string]string{
+				"schema": schemaUrl,
+			})
+			cfgmap, err = ParseConfigMap(nodatakey, "", "")
+			Expect(cfgmap).To(BeNil(), "Should not have parsed bad configmap.")
+			Expect(err.Error()).To(Equal("configmap nodata does not contain data key"),
+				"Should receive 'no data' error.")
+
+			// Config map with bad json
+			badjson := test.NewConfigMap("badjson", "1", key.Namespace, map[string]string{
+				"schema": schemaUrl,
+				"data":   "///// **invalid json** /////",
+			})
+			cfgmap, err = ParseConfigMap(badjson, "", "")
+			Expect(cfgmap).To(BeNil(), "Should not have parsed bad configmap.")
+			Expect(err.Error()).To(Equal(
+				"invalid character '/' looking for beginning of value"))
+
+			// Config map with invalid schemapath
+			badjson = test.NewConfigMap("badjson", "1", key.Namespace, map[string]string{
+				"schema": schemaUrl,
+				"data":   "///// **invalid json** /////",
+			})
+			cfgmap, err = ParseConfigMap(badjson, "junkdbpath", "")
+			Expect(cfgmap).To(BeNil(), "Should not have parsed bad configmap.")
+			Expect(err.Error()).To(Equal(
+				"invalid character '/' looking for beginning of value"))
+
+			// Config map with extra keys
+			extrakeys := test.NewConfigMap("extrakeys", "1", key.Namespace, map[string]string{
+				"schema": schemaUrl,
+				"data":   configmapFoo,
+				"key1":   "value1",
+				"key2":   "value2",
+			})
+			cfgmap, err = ParseConfigMap(extrakeys, "", "")
+			Expect(cfgmap).ToNot(BeNil(), "Config map should parse with extra keys.")
+			Expect(err).To(BeNil(), "Should not receive errors.")
+
+			// Config map with no mode or balance
+			var configmapNoModeBalance = test.ReadConfigFile(configPath + "configmapNoModeBalance.json")
+			defaultModeAndBalance := test.NewConfigMap("mode_balance", "1", key.Namespace, map[string]string{
+				"schema": schemaUrl,
+				"data":   configmapNoModeBalance,
+			})
+			cfgmap, err = ParseConfigMap(defaultModeAndBalance, "", "")
+			Expect(cfgmap).ToNot(BeNil(), "Config map should exist and contain default mode and balance.")
+			Expect(err).To(BeNil(), "Should not receive errors.")
+
+			// Normal config map with source address translation set
+			setSourceAddrTranslation := test.NewConfigMap("source_addr_translation", "1", key.Namespace, map[string]string{
+				"schema": schemaUrl,
+				"data":   configmapFoo,
+			})
+			cfgmap, err = ParseConfigMap(setSourceAddrTranslation, "", "test-snat-pool")
+			Expect(cfgmap).ToNot(BeNil(), "Config map should exist and contain default mode and balance.")
+			Expect(err).To(BeNil(), "Should not receive errors.")
+			Expect(cfgmap.Virtual.SourceAddrTranslation).To(Equal(SourceAddrTranslation{
+				Type: "snat",
+				Pool: "test-snat-pool",
+			}))
+
+			//Normal Configmap with iapp
+			var cfgMapiApp ConfigMap
+			configmapiAPP := test.ReadConfigFile(configPath + "configmapIApp1.json")
+			cfgIAPP := test.NewConfigMap("source_addr_translation", "1", key.Namespace, map[string]string{
+				"schema": schemaUrl,
+				"data":   configmapiAPP,
+			})
+			FormatConfigMapVSName(cfgIAPP)
+			json.Unmarshal([]byte(cfgIAPP.Data["data"]), &cfgMapiApp)
+			cfgmap, err = ParseConfigMap(cfgIAPP, "", "test-snat-pool")
+			Expect(cfgmap).ToNot(BeNil(), "Config map should exist and contain default mode and balance.")
+			Expect(err).To(BeNil(), "Should not receive errors.")
+			Expect(cfgmap.IApp.IApp).To(Equal(cfgMapiApp.VirtualServer.Frontend.IApp))
+			Expect(cfgmap.GetPartition()).To(Equal(cfgMapiApp.VirtualServer.Frontend.Partition))
+			Expect(cfgmap.GetName()).To(Equal("ns_source_addr_translation"))
+
+		})
+
+	})
+
 })

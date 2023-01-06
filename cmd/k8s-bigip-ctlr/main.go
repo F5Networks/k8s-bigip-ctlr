@@ -20,16 +20,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	configclient "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"net/http"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/controller"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/health"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/vxlan"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/controller"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/health"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
@@ -45,13 +44,13 @@ import (
 	"syscall"
 	"time"
 
-	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/as3"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/as3"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	//"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/spf13/pflag"
@@ -200,7 +199,7 @@ var (
 	agRspChan          chan interface{}
 	eventChan          chan interface{}
 	configWriter       writer.Writer
-	k8sVersion         string
+	userAgentInfo      string
 )
 
 func _init() {
@@ -675,52 +674,6 @@ func getGTMCredentials() {
 	}
 }
 
-func setupNodePolling(
-	appMgr *appmanager.Manager,
-	np pollers.Poller,
-	eventChanl <-chan interface{},
-	kubeClient kubernetes.Interface,
-) error {
-	// Register appMgr to watch for node updates to keep track of watched nodes
-	err := np.RegisterListener(appMgr.ProcessNodeUpdate)
-	if nil != err {
-		return fmt.Errorf("error registering node update listener: %v",
-			err)
-	}
-
-	if 0 != len(vxlanMode) {
-		// If partition is part of vxlanName, extract just the tunnel name
-		tunnelName := vxlanName
-		cleanPath := strings.TrimLeft(vxlanName, "/")
-		slashPos := strings.Index(cleanPath, "/")
-		if slashPos != -1 {
-			tunnelName = cleanPath[slashPos+1:]
-		}
-		vxMgr, err := vxlan.NewVxlanMgr(
-			vxlanMode,
-			tunnelName,
-			appMgr.UseNodeInternal(),
-			getConfigWriter(),
-			eventChanl,
-		)
-		if nil != err {
-			return fmt.Errorf("error creating vxlan manager: %v", err)
-		}
-
-		// Register vxMgr to watch for node updates to process fdb records
-		err = np.RegisterListener(vxMgr.ProcessNodeUpdate)
-		if nil != err {
-			return fmt.Errorf("error registering node update listener for vxlan mode: %v",
-				err)
-		}
-		if eventChanl != nil {
-			vxMgr.ProcessAppmanagerEvents(kubeClient)
-		}
-	}
-
-	return nil
-}
-
 func createLabel(label string) (labels.Selector, error) {
 	var l labels.Selector
 	var err error
@@ -821,7 +774,7 @@ func initController(
 		VerifyInterval: *verifyInterval,
 		VXLANName:      vxlanName,
 		PythonBaseDir:  *pythonBaseDir,
-		UserAgent:      getUserAgentInfo(),
+		UserAgent:      userAgentInfo,
 		HttpAddress:    *httpAddress,
 		EnableIPV6:     *enableIPV6,
 		CCCLGTMAgent:   *ccclGtmAgent,
@@ -947,11 +900,12 @@ func main() {
 		log.Fatalf("[INIT] error connecting to the client: %v", err)
 		os.Exit(1)
 	}
+	userAgentInfo = getUserAgentInfo()
 	td := &teem.TeemsData{
 		CisVersion:      version,
 		Agent:           *agent,
 		PoolMemberType:  *poolMemberType,
-		PlatformInfo:    getUserAgentInfo(),
+		PlatformInfo:    userAgentInfo,
 		DateOfCISDeploy: time.Now().UTC().Format(time.RFC3339Nano),
 		AccessEnabled:   true,
 		ResourceType: teem.ResourceTypes{
@@ -970,18 +924,7 @@ func main() {
 		},
 	}
 	if !(*disableTeems) {
-		if isNodePort {
-			td.SDNType = "nodeport-mode"
-		} else {
-			if len(*openshiftSDNName) > 0 {
-				td.SDNType = "openshiftSDN"
-			} else if len(*flannelName) > 0 {
-				td.SDNType = "flannel"
-			} else {
-				td.SDNType = "calico"
-			}
-		}
-
+		td.SDNType = getSDNType(config)
 		// Post telemetry data request
 		//if !td.PostTeemsData() {
 		//	td.AccessEnabled = false
@@ -1110,16 +1053,6 @@ func main() {
 	}
 	appMgr.TeemData = td
 	GetNamespaces(appMgr)
-	intervalFactor := time.Duration(*nodePollInterval)
-	np := pollers.NewNodePoller(appMgrParms.KubeClient, intervalFactor*time.Second, *nodeLabelSelector)
-	err = setupNodePolling(appMgr, np, eventChan, appMgrParms.KubeClient)
-	if nil != err {
-		log.Fatalf("Required polling utility for node updates failed setup: %v",
-			err)
-	}
-
-	np.Run()
-	defer np.Stop()
 
 	setupWatchers(appMgr, time.Duration(*syncInterval)*time.Second)
 	// Expose Prometheus metrics
@@ -1192,6 +1125,10 @@ func getAppManagerParams() appmanager.Params {
 		DefaultRouteDomain:     *defaultRouteDomain,
 		PoolMemberType:         *poolMemberType,
 		Agent:                  *agent,
+		VXLANMode:              vxlanMode,
+		VXLANName:              vxlanName,
+		EventChan:              eventChan,
+		ConfigWriter:           getConfigWriter(),
 	}
 }
 
@@ -1225,7 +1162,7 @@ func getAS3Params() *as3.Params {
 		LogResponse:               *logAS3Response,
 		ShareNodes:                *shareNodes,
 		RspChan:                   agRspChan,
-		UserAgent:                 getUserAgentInfo(),
+		UserAgent:                 userAgentInfo,
 		ConfigWriter:              getConfigWriter(),
 		EventChan:                 eventChan,
 		DefaultRouteDomain:        *defaultRouteDomain,
@@ -1358,4 +1295,39 @@ func getUserAgentInfo() string {
 	}
 	log.Warningf("Unable to fetch user agent details. %v", err)
 	return fmt.Sprintf("CIS/v%v", version)
+}
+
+func getSDNType(config *rest.Config) string {
+	var sdnType string
+	if isNodePort {
+		sdnType = "nodeport-mode"
+	} else {
+		if len(*openshiftSDNName) > 0 {
+			rconfigclient, err := configclient.NewForConfig(config)
+			if nil != err {
+				log.Errorf("unable to create route config client: err: %+v\n", err)
+				return "openshiftSDN"
+			}
+			sdnType = setSDNTypeForOpenshift(rconfigclient)
+		} else if len(*flannelName) > 0 {
+			sdnType = "flannel"
+		} else {
+			sdnType = "other"
+		}
+	}
+	return sdnType
+}
+
+func setSDNTypeForOpenshift(rconfigclient *configclient.ConfigV1Client) string {
+	networks, err := rconfigclient.Networks().List(context.TODO(), metav1.ListOptions{})
+	if nil != err {
+		log.Errorf("unable to list networks: err: %+v\n", err)
+	}
+	if len(networks.Items) > 0 {
+		// Putting the first item in the network list
+		if strings.ToLower(networks.Items[0].Status.NetworkType) != "openshiftsdn" {
+			return networks.Items[0].Status.NetworkType
+		}
+	}
+	return "openshiftSDN"
 }

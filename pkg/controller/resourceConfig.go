@@ -19,7 +19,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 
 	"net"
 	"reflect"
@@ -34,8 +34,8 @@ import (
 
 	routeapi "github.com/openshift/api/route/v1"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -1960,9 +1960,18 @@ func (ctlr *Controller) handleRouteTLS(
 		}
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
 		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
-			//Flag to track the route groups which are using TLS Ciphers
-			ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
-				DependsOnTLS: true,
+			//set for default routegroup
+			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+				//Flag to track the route groups which are using TLS profiles.
+				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg != nil {
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+						DependsOnTLS: true,
+					}
+				}
+			} else {
+				ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+					DependsOnTLS: true,
+				}
 			}
 		}
 	case DefaultSSLOption:
@@ -1983,8 +1992,18 @@ func (ctlr *Controller) handleRouteTLS(
 		// Set DependsOnTLS to true in case of route certificate and defaultSSLProfile
 		if ctlr.resources.baseRouteConfig != (BaseRouteConfig{}) {
 			//Flag to track the route groups which are using TLS Ciphers
-			ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
-				DependsOnTLS: true,
+			if ctlr.resources.baseRouteConfig.DefaultRouteGroupConfig != (DefaultRouteGroupConfig{}) {
+				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg != nil {
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].defaultrg.Meta = Meta{
+						DependsOnTLS: true,
+					}
+				}
+			} else {
+				if ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global != nil {
+					ctlr.resources.extdSpecMap[ctlr.resources.supplementContextCache.invertedNamespaceLabelMap[route.Namespace]].global.Meta = Meta{
+						DependsOnTLS: true,
+					}
+				}
 			}
 		}
 	default:
@@ -2047,8 +2066,8 @@ func (ctlr *Controller) handleRouteTLS(
 }
 
 /*
-	getSSLProfileOption returns which ssl profile option to be used for the route
-	Examples: annotation, routeCertificate, defaultSSL, invalid
+getSSLProfileOption returns which ssl profile option to be used for the route
+Examples: annotation, routeCertificate, defaultSSL, invalid
 */
 func (ctlr *Controller) getSSLProfileOption(route *routeapi.Route) string {
 	sslProfileOption := ""

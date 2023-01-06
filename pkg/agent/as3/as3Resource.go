@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"sort"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 func (am *AS3Manager) prepareAS3ResourceConfig() as3ADC {
@@ -140,7 +140,7 @@ func processRouteTLSProfilesForAS3(metadata *MetaData, svc *as3Service) {
 
 }
 
-//Get sorted ServerTLS by value
+// Get sorted ServerTLS by value
 func getSortedServerTLS(serverTLS []as3ResourcePointer) []as3ResourcePointer {
 	if len(serverTLS) == 1 {
 		return serverTLS

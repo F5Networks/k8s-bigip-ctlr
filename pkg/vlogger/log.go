@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//log.go:
-//  This module provides the generic interface that end-user libraries and apps should program to.
+// log.go:
 //
+//	This module provides the generic interface that end-user libraries and apps should program to.
 package vlogger
 
 import (

@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"net"
 	"reflect"
@@ -29,17 +31,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 
 	netv1 "k8s.io/api/networking/v1"
 
-	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
-	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/pkg/prometheus"
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/miekg/dns"
 	routeapi "github.com/openshift/api/route/v1"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	listersroutev1 "github.com/openshift/client-go/route/listers/route/v1"
 	"golang.org/x/mod/semver"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
@@ -149,6 +152,10 @@ type Manager struct {
 	// Mutex to control access to nplStore map
 	nplStoreMutex sync.Mutex
 	AgentName     string
+	//vxlan
+	vxlanName    string
+	vxlanMode    string
+	configWriter writer.Writer
 }
 
 // Store of processed host-Path map
@@ -163,14 +170,14 @@ type WatchedNamespaces struct {
 	NamespaceLabel string
 }
 
-//NPL information from pod annotation
+// NPL information from pod annotation
 type NPLAnnotation struct {
 	PodPort  int32  `json:"podPort"`
 	NodeIP   string `json:"nodeIP"`
 	NodePort int32  `json:"nodePort"`
 }
 
-//List of NPL annotations
+// List of NPL annotations
 type NPLAnnoations []NPLAnnotation
 
 // Struct to allow NewManager to receive all or only specific parameters.
@@ -187,6 +194,7 @@ type Params struct {
 	UseSecrets        bool
 	SchemaLocal       string
 	EventChan         chan interface{}
+	ConfigWriter      writer.Writer
 	// Package local for untesting only
 	restClient             rest.Interface
 	steadyState            bool
@@ -206,6 +214,9 @@ type Params struct {
 	UserAgent          string
 	DefaultRouteDomain int
 	PoolMemberType     string
+	//vxlan
+	VXLANName string
+	VXLANMode string
 }
 
 // Configuration options for Routes in OpenShift
@@ -294,7 +305,6 @@ func NewManager(params *Params) *Manager {
 		vsSnatPoolName:         params.VsSnatPoolName,
 		schemaLocal:            params.SchemaLocal,
 		useSecrets:             params.UseSecrets,
-		eventChan:              params.EventChan,
 		vsQueue:                vsQueue,
 		nsQueue:                nsQueue,
 		appInformers:           make(map[string]*appInformer),
@@ -316,6 +326,10 @@ func NewManager(params *Params) *Manager {
 		defaultRouteDomain:     params.DefaultRouteDomain,
 		poolMemberType:         params.PoolMemberType,
 		AgentName:              params.Agent,
+		vxlanName:              params.VXLANName,
+		vxlanMode:              params.VXLANMode,
+		eventChan:              params.EventChan,
+		configWriter:           params.ConfigWriter,
 	}
 	manager.processedResources = make(map[string]bool)
 	manager.processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
@@ -621,10 +635,10 @@ type appInformer struct {
 	endptInformer    cache.SharedIndexInformer
 	ingInformer      cache.SharedIndexInformer
 	routeInformer    cache.SharedIndexInformer
-	nodeInformer     cache.SharedIndexInformer
 	secretInformer   cache.SharedIndexInformer
 	ingClassInformer cache.SharedIndexInformer
 	podInformer      cache.SharedIndexInformer
+	nodeInformer     cache.SharedIndexInformer
 	stopCh           chan struct{}
 }
 
@@ -636,6 +650,9 @@ func (appMgr *Manager) newAppInformer(
 	log.Debugf("[CORE] Creating new app informer")
 	everything := func(options *metav1.ListOptions) {
 		options.LabelSelector = ""
+	}
+	nodeOptions := func(options *metav1.ListOptions) {
+		options.LabelSelector = appMgr.nodeLabelSelector
 	}
 	appInf := appInformer{
 		namespace: namespace,
@@ -677,6 +694,19 @@ func (appMgr *Manager) newAppInformer(
 			cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 		)
 	}
+
+	appInf.nodeInformer = cache.NewSharedIndexInformer(
+		cache.NewFilteredListWatchFromClient(
+			appMgr.restClientv1,
+			"nodes",
+			"",
+			nodeOptions,
+		),
+		&v1.Node{},
+		resyncPeriod,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
+	)
+
 	//For nodeport mode, disable ep informer
 	if appMgr.poolMemberType != NodePort {
 		appInf.endptInformer = cache.NewSharedIndexInformer(
@@ -841,6 +871,17 @@ func (appMgr *Manager) newAppInformer(
 			},
 		)
 	}
+
+	if appInf.nodeInformer != nil {
+		appInf.nodeInformer.AddEventHandler(
+			&cache.ResourceEventHandlerFuncs{
+				AddFunc:    func(obj interface{}) { appMgr.setupNodeProcessing() },
+				UpdateFunc: func(obj, cur interface{}) { appMgr.setupNodeProcessing() },
+				DeleteFunc: func(obj interface{}) { appMgr.setupNodeProcessing() },
+			},
+		)
+	}
+
 	if true == appMgr.manageIngress {
 		log.Infof("[CORE] Handling Ingress resource events.")
 		appInf.ingInformer.AddEventHandlerWithResyncPeriod(
@@ -995,14 +1036,14 @@ func (appInf *appInformer) start() {
 	if nil != appInf.cfgMapInformer {
 		go appInf.cfgMapInformer.Run(appInf.stopCh)
 	}
-	if nil != appInf.nodeInformer {
-		go appInf.nodeInformer.Run(appInf.stopCh)
-	}
 	if nil != appInf.ingClassInformer {
 		go appInf.ingClassInformer.Run(appInf.stopCh)
 	}
 	if nil != appInf.podInformer {
 		go appInf.podInformer.Run(appInf.stopCh)
+	}
+	if nil != appInf.nodeInformer {
+		go appInf.nodeInformer.Run(appInf.stopCh)
 	}
 }
 
@@ -1056,6 +1097,7 @@ func (appMgr *Manager) UseNodeInternal() bool {
 
 func (appMgr *Manager) Run(stopCh <-chan struct{}) {
 	go appMgr.runImpl(stopCh)
+	go appMgr.setOtherSDNType()
 }
 
 func (appMgr *Manager) runImpl(stopCh <-chan struct{}) {
@@ -1139,14 +1181,12 @@ func (appMgr *Manager) GetAllWatchedNamespaces() []string {
 	case len(appMgr.WatchedNS.Namespaces) != 0:
 		namespaces = appMgr.WatchedNS.Namespaces
 	case len(appMgr.WatchedNS.NamespaceLabel) != 0:
-		NsListOptions := metav1.ListOptions{
-			LabelSelector: appMgr.WatchedNS.NamespaceLabel,
-		}
-		nsL, err := appMgr.kubeClient.CoreV1().Namespaces().List(context.TODO(), NsListOptions)
+		NsLabel, _ := createLabel(appMgr.WatchedNS.NamespaceLabel)
+		nsL, err := listerscorev1.NewNamespaceLister(appMgr.nsInformer.GetIndexer()).List(NsLabel)
 		if err != nil {
 			log.Errorf("[CORE] Error getting Namespaces with Namespace label - %v.", err)
 		}
-		for _, v := range nsL.Items {
+		for _, v := range nsL {
 			namespaces = append(namespaces, v.Name)
 		}
 	default:
@@ -1158,50 +1198,49 @@ func (appMgr *Manager) GetAllWatchedNamespaces() []string {
 // Get the length of queue
 func (appMgr *Manager) getQueueLength() int {
 	qLen := 0
-
-	cmOptions := metav1.ListOptions{
-		LabelSelector: appMgr.configMapLabel,
-	}
-
-	rtOptions := metav1.ListOptions{
-		LabelSelector: appMgr.routeConfig.RouteLabel,
-	}
-
 	for _, ns := range appMgr.GetAllWatchedNamespaces() {
-		services, err := appMgr.kubeClient.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{})
-		for _, svc := range services.Items {
-			if ok, _ := appMgr.checkValidService(&svc); ok {
+		var services []interface{}
+		var err error
+		appInf, _ := appMgr.getNamespaceInformer(ns)
+		if ns == "" {
+			services = appInf.svcInformer.GetIndexer().List()
+		} else {
+			services, err = appInf.svcInformer.GetIndexer().ByIndex("namespace", ns)
+		}
+		if err != nil {
+			continue
+		}
+		for _, obj := range services {
+			svc := obj.(*v1.Service)
+			if ok, _ := appMgr.checkValidService(svc); ok {
 				qLen++
 			}
 		}
-		if err != nil {
-			log.Errorf("[CORE] Failed getting Services from watched namespace : %v.", err)
-			return appMgr.vsQueue.Len()
-		}
-
 		if false != appMgr.manageConfigMaps {
-			cms, err := appMgr.kubeClient.CoreV1().ConfigMaps(ns).List(context.TODO(), cmOptions)
-			for _, cm := range cms.Items {
-				if ok, _ := appMgr.checkValidConfigMap(&cm, OprTypeCreate); ok {
+			//Get cms using informers*/
+			cmLister := listerscorev1.NewConfigMapLister(appInf.cfgMapInformer.GetIndexer())
+			ls, _ := createLabel(appMgr.configMapLabel)
+			cms, err := cmLister.ConfigMaps(ns).List(ls)
+			if err != nil {
+				continue
+			}
+			for _, cm := range cms {
+				if ok, _ := appMgr.checkValidConfigMap(cm, OprTypeCreate); ok {
 					qLen++
 				}
-			}
-			if err != nil {
-				log.Errorf("[CORE] Failed getting Configmaps from watched namespace : %v.", err)
-				return appMgr.vsQueue.Len()
 			}
 		}
-
 		if nil != appMgr.routeClientV1 {
-			rts, err := appMgr.routeClientV1.Routes(ns).List(context.TODO(), rtOptions)
-			for _, rt := range rts.Items {
-				if ok, _ := appMgr.checkValidRoute(&rt); ok {
+			//get routes from informers
+			rs, _ := createLabel(appMgr.routeConfig.RouteLabel)
+			rts, err := listersroutev1.NewRouteLister(appInf.routeInformer.GetIndexer()).Routes(ns).List(rs)
+			if err != nil {
+				continue
+			}
+			for _, rt := range rts {
+				if ok, _ := appMgr.checkValidRoute(rt); ok {
 					qLen++
 				}
-			}
-			if err != nil {
-				log.Errorf("[CORE] Failed getting Routes from watched namespace : %v.", err)
-				return appMgr.vsQueue.Len()
 			}
 		}
 	}
@@ -1355,6 +1394,7 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 			delete(appMgr.processedResources, resKey)
 			appMgr.processedResourcesMutex.Unlock()
 		}
+
 	default:
 		// Resources other than Services will be tracked if they are processed earlier
 		resKey := prepareResourceKey(sKey.ResourceKind, sKey.Namespace, sKey.ResourceName)
@@ -1921,6 +1961,7 @@ func (appMgr *Manager) syncIngresses(
 								rsName, rsCfg, ing, monitors)
 						}
 					}
+					RemoveUnusedHealthMonitors(rsCfg)
 					rsCfg.SortMonitors()
 				}
 				// Collect all service names on this Ingress.
@@ -3318,13 +3359,8 @@ type Node struct {
 
 // Check for a change in Node state
 func (appMgr *Manager) ProcessNodeUpdate(
-	obj interface{}, err error,
+	obj interface{},
 ) {
-	if nil != err {
-		log.Warningf("[CORE] Unable to get list of nodes, err=%+v", err)
-		return
-	}
-
 	newNodes, err := appMgr.getNodes(obj)
 	if nil != err {
 		log.Warningf("[CORE] Unable to get list of nodes, err=%+v", err)
@@ -3423,8 +3459,9 @@ func containsNode(nodes []Node, name string) bool {
 }
 
 type byTimestamp []v1.Service
+type NodeList []v1.Node
 
-//sort services by timestamp
+// sort services by timestamp
 func (slice byTimestamp) Len() int {
 	return len(slice)
 }
@@ -3437,6 +3474,19 @@ func (slice byTimestamp) Less(i, j int) bool {
 
 func (slice byTimestamp) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
+}
+
+// sort nodes by Name
+func (nodes NodeList) Len() int {
+	return len(nodes)
+}
+
+func (nodes NodeList) Less(i, j int) bool {
+	return nodes[i].Name < nodes[j].Name
+}
+
+func (nodes NodeList) Swap(i, j int) {
+	nodes[i], nodes[j] = nodes[j], nodes[i]
 }
 
 func createLabel(label string) (labels.Selector, error) {
@@ -3705,7 +3755,7 @@ func (appMgr *Manager) GetServicesForPod(pod *v1.Pod) []*v1.Service {
 	return svcList
 }
 
-func (appMgr *Manager) GetPodsForService(namespace, serviceName string) *v1.PodList {
+func (appMgr *Manager) GetPodsForService(namespace, serviceName string) []*v1.Pod {
 	svcKey := namespace + "/" + serviceName
 	crInf, ok := appMgr.getNamespaceInformer(namespace)
 	if !ok {
@@ -3737,10 +3787,8 @@ func (appMgr *Manager) GetPodsForService(namespace, serviceName string) *v1.PodL
 	if err != nil {
 		return nil
 	}
-	podListOptions := metav1.ListOptions{
-		LabelSelector: labels.SelectorFromSet(labelmap).String(),
-	}
-	podList, err := appMgr.kubeClient.CoreV1().Pods(namespace).List(context.TODO(), podListOptions)
+	pl, _ := createLabel(labels.SelectorFromSet(labelmap).String())
+	podList, err := listerscorev1.NewPodLister(crInf.podInformer.GetIndexer()).Pods(namespace).List(pl)
 	if err != nil {
 		log.Debugf("Got error while listing Pods with selector %v: %v", selector, err)
 		return nil
@@ -3751,10 +3799,10 @@ func (appMgr *Manager) GetPodsForService(namespace, serviceName string) *v1.PodL
 // getEndpointsForNPL returns members.
 func (appMgr *Manager) getEndpointsForNPL(
 	targetPort intstr.IntOrString,
-	pods *v1.PodList,
+	pods []*v1.Pod,
 ) []Member {
 	var members []Member
-	for _, pod := range pods.Items {
+	for _, pod := range pods {
 		anns, found := appMgr.nplStore[pod.Namespace+"/"+pod.Name]
 		if !found {
 			continue
@@ -3831,4 +3879,78 @@ func (appMgr *Manager) deleteHostPathMapEntry(obj interface{}) {
 			delete(appMgr.processedHostPath.processedHostPathMap, hostPath)
 		}
 	}
+}
+
+// Set Other SDNType
+func (appMgr *Manager) setOtherSDNType() {
+	appMgr.TeemData.Lock()
+	defer appMgr.TeemData.Unlock()
+	if appMgr.TeemData.SDNType == "other" || appMgr.TeemData.SDNType == "flannel" {
+		kubePods, err := appMgr.kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+		if nil != err {
+			log.Errorf("Could not list Kubernetes Pods for CNI Chek: %v", err)
+			return
+		}
+		for _, kPod := range kubePods.Items {
+			if strings.Contains(kPod.Name, "cilium") && kPod.Status.Phase == "Running" {
+				appMgr.TeemData.SDNType = "cilium"
+				return
+			}
+			if strings.Contains(kPod.Name, "calico") && kPod.Status.Phase == "Running" {
+				appMgr.TeemData.SDNType = "calico"
+				return
+			}
+		}
+	}
+}
+
+func (appMgr *Manager) setupNodeProcessing() error {
+	// Register appMgr to watch for node updates to keep track of watched nodes
+	//when there is update from node informer get list of nodes from nodeinformer cache
+	ns := ""
+	if appMgr.watchingAllNamespacesLocked() {
+		ns = ""
+	} else {
+		for _, k := range appMgr.GetAllWatchedNamespaces() {
+			ns = k
+			break
+		}
+	}
+	appInf, _ := appMgr.getNamespaceInformer(ns)
+	nodes := appInf.nodeInformer.GetIndexer().List()
+	var nodeslist []v1.Node
+	for _, obj := range nodes {
+		node := obj.(*v1.Node)
+		nodeslist = append(nodeslist, *node)
+	}
+	sort.Sort(NodeList(nodeslist))
+	appMgr.ProcessNodeUpdate(nodeslist)
+	if 0 != len(appMgr.vxlanMode) {
+		// If partition is part of vxlanName, extract just the tunnel name
+		tunnelName := appMgr.vxlanName
+		cleanPath := strings.TrimLeft(appMgr.vxlanName, "/")
+		slashPos := strings.Index(cleanPath, "/")
+		if slashPos != -1 {
+			tunnelName = cleanPath[slashPos+1:]
+		}
+		vxMgr, err := vxlan.NewVxlanMgr(
+			appMgr.vxlanMode,
+			tunnelName,
+			appMgr.UseNodeInternal(),
+			appMgr.configWriter,
+			appMgr.eventChan,
+		)
+		if nil != err {
+			return fmt.Errorf("error creating vxlan manager: %v", err)
+		}
+
+		// Register vxMgr to watch for node updates to process fdb records
+		vxMgr.ProcessNodeUpdate(nodeslist)
+
+		if appMgr.eventChan != nil {
+			vxMgr.ProcessAppmanagerEvents(appMgr.kubeClient)
+		}
+	}
+
+	return nil
 }

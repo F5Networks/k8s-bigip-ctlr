@@ -24,10 +24,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 )
 
 const (
@@ -36,9 +36,10 @@ const (
 	svcPoolLabel        = "cis.f5.com/as3-pool="
 	as3SupportedVersion = 3.18
 	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
-	as3Version           = 3.38
-	defaultAS3Version    = "3.38.0"
-	defaultAS3Build      = "3"
+	//While upgrading version update $id value in schema json to https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json
+	as3Version           = 3.41
+	defaultAS3Version    = "3.41.0"
+	defaultAS3Build      = "1"
 	as3tenant            = "Tenant"
 	as3class             = "class"
 	as3SharedApplication = "Shared"
@@ -47,7 +48,7 @@ const (
 	as3template          = "template"
 	//as3SchemaLatestURL   = "https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json"
 	as3defaultRouteDomain = "defaultRouteDomain"
-	as3SchemaFileName     = "as3-schema-3.38.0-4-cis.json"
+	as3SchemaFileName     = "as3-schema-3.41.0-1-cis.json"
 )
 
 var baseAS3Config = `{
@@ -649,8 +650,8 @@ func (am *AS3Manager) IsBigIPAppServicesAvailable() error {
 		return nil
 	}
 
-	return fmt.Errorf("CIS versions >= 2.0 are compatible with AS3 versions >= %v. "+
-		"Upgrade AS3 version in BIGIP from %v to %v or above.", as3SupportedVersion,
+	return fmt.Errorf("CIS versions >= 2.0 are compatible with AS3 versions >= %v. "+
+		"Upgrade AS3 version in BIGIP from %v to %v or above.", as3SupportedVersion,
 		bigIPAS3Version, as3SupportedVersion)
 }
 

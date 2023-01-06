@@ -4,7 +4,6 @@ layout:
 plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
-  sdk.x-openshift.io/v1: {}
 projectName: f5-bigip-ctlr-operator
 resources:
 - api:

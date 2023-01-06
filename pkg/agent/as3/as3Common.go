@@ -23,8 +23,8 @@ import (
 	"strconv"
 	"strings"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/xeipuuv/gojsonschema"
 )
 
@@ -491,7 +491,7 @@ func createAS3RuleAction(rl *Rule, rulesData *as3Rule, resourceType string) {
 	}
 }
 
-//Create health monitor declaration
+// Create health monitor declaration
 func createMonitorDecl(cfg *ResourceConfig, sharedApp as3Application) {
 
 	for _, v := range cfg.Monitors {

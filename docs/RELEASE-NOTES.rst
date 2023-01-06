@@ -1,7 +1,38 @@
 Release Notes for Container Ingress Services for Kubernetes & OpenShift
 =======================================================================
 
-Next Release
+2.11.1
+-------------
+
+Added Functionality
+```````````````````
+* Next generation routes preview. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
+    * Support for default routeGroup (Migration Only)
+* Base image upgraded to RedHat UBI-9 for CIS Container image.
+* Support for AS3 3.41.0
+
+Bug Fixes
+````````````
+* Add pattern definition in CR schema to align with F5 BIGIP Object Naming convention
+* :issues:`2153` Update go.mod to v2
+* :issues:`2657` WAF policy name does not allow hyphen (-)
+
+Documentation
+``````````````
+* User guides `See here <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/user_guides/README.md>`_
+* :issues:`2606` Applying setup files from clouddocs fails
+
+CIS Helm Chart Fixes
+``````````````````````
+* CRD Schema Update
+* RBAC Update
+
+FIC Helm Chart Fixes
+``````````````````````
+* Add support for infoblox credentials using k8s secrets in helm charts
+
+
+2.11.0
 -------------
 
 Added Functionality
@@ -18,7 +49,8 @@ Added Functionality
         * Support to create Health Monitor from the pod liveness probe for routes. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
     * CRD
         * CIS configures GTM configuration in default partition
-        * Pool reselect support for VS and TS
+        * Pool reselect support for VS and TS. `Example for VS <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/pool-reselect/vs-with-pool-reselect.yaml>`_ ,
+          `Example for TS <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/TransportServer/tcp-transport-server.yaml>`_
         * Support for allowVlans with policy CR.
         * Support for --cccl-gtm-agent deployment parameter to set the gtm agent
         * Support to provide the same VIP for TS and VS CRs using hostGroup. See `Examples <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/customResource/VirtualServer/virtual-with-hostGroup>`_

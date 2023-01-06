@@ -19,21 +19,22 @@ package test
 import (
 	"bytes"
 	"fmt"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	routeapi "github.com/openshift/api/route/v1"
 	"io"
 	"io/ioutil"
-	"net/http"
-	"sync"
-	"time"
-
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
-
-	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
+	netv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest/fake"
+	"net/http"
+	"sync"
+	"time"
 )
 
 const (
@@ -157,6 +158,33 @@ func NewIngress(id, rv, namespace string,
 	}
 }
 
+// NewIngress returns a new ingress object
+func NewIngressNetV1(id, rv, namespace string,
+	spec netv1.IngressSpec,
+	annotations map[string]string) *netv1.Ingress {
+	return &netv1.Ingress{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Ingress",
+			APIVersion: "networking.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            id,
+			ResourceVersion: rv,
+			Namespace:       namespace,
+			Annotations:     annotations,
+		},
+		Spec: spec,
+	}
+}
+
+func ReadConfigFile(path string) string {
+	defer GinkgoRecover()
+	data, err := ioutil.ReadFile(path)
+	RegisterFailHandler(Fail)
+	Expect(err).To(BeNil(), "Configuration files should be located in pkg/test/configs.")
+	return string(data)
+}
+
 // NewRoute returns a new route object
 func NewRoute(
 	id,
@@ -228,7 +256,7 @@ func NewService(id, rv, namespace string, serviceType v1.ServiceType,
 	}
 }
 
-//NewEndpoints returns an endpoints objects
+// NewEndpoints returns an endpoints objects
 func NewEndpoints(
 	svcName,
 	rv,
@@ -399,7 +427,7 @@ func NewSecret(name, namespace, cert, key string) *v1.Secret {
 	}
 }
 
-//NewPod return a pod
+// NewPod return a pod
 func NewPod(name, namespace string, podport int, labels map[string]string) *v1.Pod {
 	return &v1.Pod{
 		TypeMeta: metav1.TypeMeta{

@@ -23,9 +23,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 
 	"encoding/json"
 
@@ -92,13 +92,7 @@ func NewVxlanMgr(
 	return vxMgr, nil
 }
 
-func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
-	if nil != err {
-		log.Warningf("[VxLAN] Vxlan manager (%s) unable to get list of nodes: %v",
-			vxm.vxLAN, err)
-		return
-	}
-
+func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}) {
 	nodes, ok := obj.([]v1.Node)
 	if false == ok {
 		log.Warningf("[VxLAN] Vxlan manager (%s) received poll update with unexpected type",
@@ -142,8 +136,7 @@ func (vxm *VxlanMgr) ProcessNodeUpdate(obj interface{}, err error) {
 			}
 		}
 		if atn, ok := node.ObjectMeta.Annotations["flannel.alpha.coreos.com/backend-data"]; ok {
-			var mac string
-			mac, err = parseVtepMac(atn, node.ObjectMeta.Name)
+			mac, err := parseVtepMac(atn, node.ObjectMeta.Name)
 			if nil != err {
 				log.Errorf("[VxLAN] %v", err)
 			} else if rec.Endpoint != "" {
@@ -213,7 +206,13 @@ func (vxm *VxlanMgr) ProcessAppmanagerEvents(kubeClient kubernetes.Interface) {
 	return
 }
 
-func (vxm *VxlanMgr) SendEmptyArpBlockForCilium(kubePods *v1.PodList) {
+func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Interface) {
+	arps := arpSection{}
+	kubePods, err := kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	if nil != err {
+		log.Errorf("[VxLAN] Vxlan Manager could not list Kubernetes Pods for ARP entries: %v", err)
+		return
+	}
 	// Send Empty arp block as "Cilium doesnt require static ARP addition"
 	for _, kPod := range kubePods.Items {
 		if strings.Contains(kPod.Name, "cilium") && kPod.Status.Phase == "Running" {
@@ -225,15 +224,6 @@ func (vxm *VxlanMgr) SendEmptyArpBlockForCilium(kubePods *v1.PodList) {
 			return
 		}
 	}
-}
-func (vxm *VxlanMgr) addArpForPods(pods interface{}, kubeClient kubernetes.Interface) {
-	arps := arpSection{}
-	kubePods, err := kubeClient.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
-	if nil != err {
-		log.Errorf("[VxLAN] Vxlan Manager could not list Kubernetes Pods for ARP entries: %v", err)
-		return
-	}
-	vxm.SendEmptyArpBlockForCilium(kubePods)
 	kubeNodes, err := kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if nil != err {
 		log.Errorf("[VxLAN] Vxlan Manager could not list Kubernetes Nodes for ARP entries: %v", err)

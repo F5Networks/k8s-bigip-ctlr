@@ -17,6 +17,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -25,9 +26,9 @@ import (
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
-	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -102,9 +103,10 @@ const (
 	// AS3 Related constants
 	as3SupportedVersion = 3.18
 	//Update as3Version,defaultAS3Version,defaultAS3Build while updating AS3 validation schema.
-	as3Version        = 3.38
-	defaultAS3Version = "3.38.0"
-	defaultAS3Build   = "3"
+	//While upgrading version update $id value in schema json to https://raw.githubusercontent.com/F5Networks/f5-appsvcs-extension/master/schema/latest/as3-schema.json
+	as3Version        = 3.41
+	defaultAS3Version = "3.41.0"
+	defaultAS3Build   = "1"
 )
 
 // NewController creates a new Controller Instance.
@@ -124,6 +126,9 @@ func NewController(params Params) *Controller {
 		defaultRouteDomain: params.DefaultRouteDomain,
 		mode:               params.Mode,
 		namespaceLabel:     params.NamespaceLabel,
+		nodeLabelSelector:  params.NodeLabelSelector,
+		vxlanName:          params.VXLANName,
+		vxlanMode:          params.VXLANMode,
 	}
 
 	log.Debug("Controller Created")
@@ -182,16 +187,6 @@ func NewController(params Params) *Controller {
 		log.Error("Failed to Setup Informers")
 	}
 
-	err := ctlr.SetupNodePolling(
-		params.NodePollInterval,
-		params.NodeLabelSelector,
-		params.VXLANMode,
-		params.VXLANName,
-	)
-	if err != nil {
-		log.Errorf("Failed to Setup Node Polling: %v", err)
-	}
-
 	if params.IPAM {
 		ipamParams := ipammachinery.Params{
 			Config:        params.Config,
@@ -211,10 +206,35 @@ func NewController(params Params) *Controller {
 
 	go ctlr.Start()
 
+	go ctlr.setOtherSDNType()
+
 	return ctlr
 }
 
-//Register IPAM CRD
+// Set Other SDNType
+func (ctlr *Controller) setOtherSDNType() {
+	ctlr.TeemData.Lock()
+	defer ctlr.TeemData.Unlock()
+	if ctlr.TeemData.SDNType == "other" || ctlr.TeemData.SDNType == "flannel" {
+		kubePods, err := ctlr.kubeClient.CoreV1().Pods("").List(context.TODO(), metaV1.ListOptions{})
+		if nil != err {
+			log.Errorf("Could not list Kubernetes Pods for CNI Chek: %v", err)
+			return
+		}
+		for _, kPod := range kubePods.Items {
+			if strings.Contains(kPod.Name, "cilium") && kPod.Status.Phase == "Running" {
+				ctlr.TeemData.SDNType = "cilium"
+				return
+			}
+			if strings.Contains(kPod.Name, "calico") && kPod.Status.Phase == "Running" {
+				ctlr.TeemData.SDNType = "calico"
+				return
+			}
+		}
+	}
+}
+
+// Register IPAM CRD
 func (ctlr *Controller) registerIPAMCRD() {
 	err := ipammachinery.RegisterCRD(ctlr.kubeAPIClient)
 	if err != nil {
@@ -222,7 +242,7 @@ func (ctlr *Controller) registerIPAMCRD() {
 	}
 }
 
-//Create IPAM CRD
+// Create IPAM CRD
 func (ctlr *Controller) createIPAMResource() error {
 
 	frameIPAMResourceName := func() string {
@@ -391,8 +411,6 @@ func (ctlr *Controller) Start() {
 		go ctlr.ipamCli.Start()
 	}
 
-	ctlr.nodePoller.Run()
-
 	stopChan := make(chan struct{})
 
 	go wait.Until(ctlr.nextGenResourceWorker, time.Second, stopChan)
@@ -424,7 +442,6 @@ func (ctlr *Controller) Stop() {
 		nsInf.stop()
 	}
 
-	ctlr.nodePoller.Stop()
 	ctlr.Agent.Stop()
 	if ctlr.ipamCli != nil {
 		ctlr.ipamCli.Stop()

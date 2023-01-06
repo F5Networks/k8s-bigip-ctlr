@@ -28,13 +28,13 @@ import (
 
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
-	"github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/pollers"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/pollers"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 	v1 "k8s.io/api/core/v1"
 	extClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/labels"
@@ -57,6 +57,9 @@ type (
 		customResourceSelector labels.Selector
 		namespacesMutex        sync.Mutex
 		namespaces             map[string]bool
+		nodeLabelSelector      string
+		vxlanMode              string
+		vxlanName              string
 		initialSvcCount        int
 		resourceQueue          workqueue.RateLimitingInterface
 		Partition              string
@@ -130,6 +133,7 @@ type (
 		plcInformer     cache.SharedIndexInformer
 		podInformer     cache.SharedIndexInformer
 		secretsInformer cache.SharedIndexInformer
+		nodeInformer    cache.SharedIndexInformer
 	}
 
 	// NRInformer is informer context for Native Resources of Kubernetes/Openshift
@@ -402,6 +406,7 @@ type (
 		override   bool
 		local      *ExtendedRouteGroupSpec
 		global     *ExtendedRouteGroupSpec
+		defaultrg  *ExtendedRouteGroupSpec
 		namespaces []string
 		partition  string
 	}
@@ -594,7 +599,8 @@ type (
 )
 
 type (
-	Services        []v1.Service
+	Services        []*v1.Service
+	NodeList        []v1.Node
 	RouteBackendCxt struct {
 		Weight int
 		Name   string
@@ -851,7 +857,7 @@ type (
 		LogProfiles            []as3ResourcePointer `json:"securityLogProfiles,omitempty"`
 		ProfileL4              as3MultiTypeParam    `json:"profileL4,omitempty"`
 		AllowVLANs             []as3ResourcePointer `json:"allowVlans,omitempty"`
-		PersistenceMethods     []as3MultiTypeParam  `json:"persistenceMethods,omitempty"`
+		PersistenceMethods     *[]as3MultiTypeParam `json:"persistenceMethods,omitempty"`
 		ProfileTCP             as3MultiTypeParam    `json:"profileTCP,omitempty"`
 		ProfileUDP             as3MultiTypeParam    `json:"profileUDP,omitempty"`
 		ProfileHTTP            as3MultiTypeParam    `json:"profileHTTP,omitempty"`
@@ -1084,9 +1090,15 @@ type (
 		DependsOnTLS bool
 	}
 
+	DefaultRouteGroupConfig struct {
+		BigIpPartition        string                 `yaml:"bigIpPartition"` // bigip Partition
+		DefaultRouteGroupSpec ExtendedRouteGroupSpec `yaml:",inline"`
+	}
+
 	BaseRouteConfig struct {
-		TLSCipher  TLSCipher         `yaml:"tlsCipher"`
-		DefaultTLS DefaultSSLProfile `yaml:"defaultTLS,omitempty"`
+		TLSCipher               TLSCipher               `yaml:"tlsCipher"`
+		DefaultTLS              DefaultSSLProfile       `yaml:"defaultTLS,omitempty"`
+		DefaultRouteGroupConfig DefaultRouteGroupConfig `yaml:"defaultRouteGroup,omitempty"`
 	}
 
 	TLSCipher struct {

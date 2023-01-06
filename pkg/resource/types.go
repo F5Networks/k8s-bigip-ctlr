@@ -105,7 +105,7 @@ type (
 		Name                string                    `json:"name"`
 		Partition           string                    `json:"-"`
 		IApp                string                    `json:"template"`
-		IAppPoolMemberTable *iappPoolMemberTable      `json:"poolMemberTable,omitempty"`
+		IAppPoolMemberTable *IappPoolMemberTable      `json:"poolMemberTable,omitempty"`
 		IAppOptions         map[string]string         `json:"options,omitempty"`
 		IAppTables          map[string]iappTableEntry `json:"tables,omitempty"`
 		IAppVariables       map[string]string         `json:"variables,omitempty"`
@@ -243,7 +243,7 @@ type (
 	}
 
 	// frontend pool member table
-	iappPoolMemberTable struct {
+	IappPoolMemberTable struct {
 		Name    string                 `json:"name"`
 		Columns []iappPoolMemberColumn `json:"columns"`
 		Members []Member               `json:"members,omitempty"`
@@ -315,7 +315,7 @@ type (
 
 		// iApp parameters
 		IApp                string                    `json:"iapp,omitempty"`
-		IAppPoolMemberTable *iappPoolMemberTable      `json:"iappPoolMemberTable,omitempty"`
+		IAppPoolMemberTable *IappPoolMemberTable      `json:"iappPoolMemberTable,omitempty"`
 		IAppOptions         map[string]string         `json:"iappOptions,omitempty"`
 		IAppTables          map[string]iappTableEntry `json:"iappTables,omitempty"`
 		IAppVariables       map[string]string         `json:"iappVariables,omitempty"`

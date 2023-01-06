@@ -19,9 +19,9 @@ package appmanager
 import (
 	"fmt"
 
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	routeapi "github.com/openshift/api/route/v1"

@@ -17,7 +17,7 @@
 package as3
 
 import (
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 )
 
 type (

@@ -1,24 +1,32 @@
 package controller
 
 import (
+	"container/list"
 	"context"
 	"encoding/json"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/teem"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
+	routeapi "github.com/openshift/api/route/v1"
+	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/util/workqueue"
+	"net/http"
 	"reflect"
 	"sort"
+	"strconv"
+	"sync"
 	"time"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"github.com/F5Networks/f5-ipam-controller/pkg/ipammachinery"
-	crdfake "github.com/F5Networks/k8s-bigip-ctlr/config/client/clientset/versioned/fake"
-	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/config/client/informers/externalversions/cis/v1"
-	apm "github.com/F5Networks/k8s-bigip-ctlr/pkg/appmanager"
+	crdfake "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/clientset/versioned/fake"
+	cisinfv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/client/informers/externalversions/cis/v1"
+	apm "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/appmanager"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/test"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -162,7 +170,7 @@ var _ = Describe("Worker Tests", func() {
 			time.Sleep(10 * time.Millisecond)
 			foo.ObjectMeta.CreationTimestamp = metav1.NewTime(time.Now())
 			var services Services
-			services = append(services, *foo, *bar)
+			services = append(services, foo, bar)
 			sort.Sort(services)
 			Expect(services[0].Name).To(Equal("bar"), "Should return the service name as bar")
 		})
@@ -739,6 +747,23 @@ var _ = Describe("Worker Tests", func() {
 					false)
 				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
 			})
+			It("function getVirtualServerAddress", func() {
+				address, err := getVirtualServerAddress([]*cisapiv1.VirtualServer{})
+				Expect(address).To(Equal(""), "Should return empty virtual address")
+				Expect(err).To(BeNil(), "error should be nil")
+				vrt1.Spec.VirtualServerAddress = ""
+				address, err = getVirtualServerAddress([]*cisapiv1.VirtualServer{vrt1})
+				Expect(address).To(Equal(""), "Should return empty virtual address")
+				Expect(err).ToNot(BeNil(), "error should not be nil")
+				vrt1.Spec.VirtualServerAddress = "192.168.1.1"
+				vrt2.Spec.VirtualServerAddress = "192.168.1.2"
+				address, err = getVirtualServerAddress([]*cisapiv1.VirtualServer{vrt1, vrt2})
+				Expect(address).To(Equal(""), "Should return empty virtual address")
+				Expect(err).ToNot(BeNil(), "error should not be nil")
+				address, err = getVirtualServerAddress([]*cisapiv1.VirtualServer{vrt1})
+				Expect(address).To(Equal("192.168.1.1"), "Should not return empty virtual address")
+				Expect(err).To(BeNil(), "error should be nil")
+			})
 		})
 	})
 	Describe("Endpoints", func() {
@@ -854,10 +879,7 @@ var _ = Describe("Worker Tests", func() {
 
 			_ = mockCtlr.processLBServices(svc1, true)
 			Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(0), "Invalid Resource Configs")
-
 			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(1))
-			mockCtlr.eraseLBServiceIngressStatus(svc1)
-			Expect(len(svc1.Status.LoadBalancer.Ingress)).To(Equal(0))
 		})
 
 		It("Processing External DNS", func() {
@@ -940,8 +962,7 @@ var _ = Describe("Worker Tests", func() {
 					IngressLink: make(map[string]int),
 				},
 			}
-			_, _ = mockCtlr.kubeClient.CoreV1().Services("default").Create(context.Background(), foo,
-				metav1.CreateOptions{})
+			_ = mockCtlr.comInformers["default"].svcInformer.GetIndexer().Add(foo)
 			err := mockCtlr.processIngressLink(IngressLink1, false)
 			Expect(err).To(BeNil(), "Failed to process IngressLink while creation")
 			Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid LTM Config")
@@ -990,6 +1011,7 @@ var _ = Describe("Worker Tests", func() {
 			ann := make(map[string]string)
 			ann[NPLSvcAnnotation] = "true"
 			nplsvc.Annotations = ann
+			mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
 		})
 		It("NodePortLocal", func() {
 			pod1 := test.NewPod("pod1", namespace, 8080, selectors)
@@ -1011,11 +1033,12 @@ var _ = Describe("Worker Tests", func() {
 			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod1.Name]).To(Equal(val1))
 			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod2.Name]).To(Equal(val2))
 			//verify selector match on pod
+			Expect(mockCtlr.matchSvcSelectorPodLabels(map[string]string{}, pod1.Labels)).To(Equal(false))
+			Expect(mockCtlr.matchSvcSelectorPodLabels(selectors, map[string]string{})).To(Equal(false))
 			Expect(mockCtlr.matchSvcSelectorPodLabels(selectors, pod1.Labels)).To(Equal(true))
 			Expect(mockCtlr.checkCoreserviceLabels(pod1.Labels)).To(Equal(false))
-			var items []v1.Pod
-			items = append(items, *pod1, *pod2)
-			pods := v1.PodList{Items: items}
+			var pods []*v1.Pod
+			pods = append(pods, pod1, pod2)
 			//Verify endpoints
 			members := []PoolMember{
 				{
@@ -1029,8 +1052,38 @@ var _ = Describe("Worker Tests", func() {
 					Session: "user-enabled",
 				},
 			}
-			mems := mockCtlr.getEndpointsForNPL(intstr.FromInt(8080), &pods)
+			mems := mockCtlr.getEndpointsForNPL(intstr.FromInt(8080), pods)
 			Expect(mems).To(Equal(members))
+			mockCtlr.processPod(pod1, true)
+			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod1.Name]).To(BeNil())
+			ann[NPLPodAnnotation] = "[{\"podPort\",\"nodeIP\":\"10.10.10.1\",\"nodePort\":40000}]"
+			pod1.Annotations = ann
+			mockCtlr.processPod(pod1, false)
+			Expect(mockCtlr.resources.nplStore[namespace+"/"+pod1.Name]).To(BeNil())
+			Expect(mockCtlr.GetPodsForService("test", "svc", true)).To(BeNil())
+			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
+			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+				{Port: 8080, NodePort: 38001},
+				{Port: 9090, NodePort: 39001}}
+			svc := test.NewService("svc", "1", "default", "ClusterIP", fooPorts)
+			mockCtlr.addService(svc)
+			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
+			svc.Annotations = map[string]string{"nodeportlocal.antrea.io/enabled": "enabled"}
+			mockCtlr.updateService(svc)
+			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
+			labels := make(map[string]string)
+			labels["app"] = "UpdatePoolHealthMonitors"
+			svc.Spec.Selector = labels
+			mockCtlr.updateService(svc)
+			Expect(mockCtlr.GetPodsForService("default", "svc", true)).To(BeNil())
+			pod1.Labels = labels
+			mockCtlr.addPod(pod1)
+			mockCtlr.kubeClient.CoreV1().Pods("default").Create(context.TODO(), pod1, metav1.CreateOptions{})
+			Expect(mockCtlr.GetPodsForService("default", "svc", true)).ToNot(BeNil())
+			Expect(mockCtlr.GetService("test", "svc")).To(BeNil())
+			Expect(mockCtlr.GetService("default", "svc1")).To(BeNil())
+			Expect(mockCtlr.GetService("default", "svc")).ToNot(BeNil())
+			Expect(getNodeport(svc, 81)).To(BeEquivalentTo(0))
 		})
 
 		Describe("Processing Service of type LB with policy", func() {
@@ -1290,6 +1343,7 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.crInformers["default"] = &CRInformer{}
 			mockCtlr.comInformers["default"] = &CommonInformer{}
 			mockCtlr.resources.poolMemCache = make(map[string]poolMembersInfo)
+			mockCtlr.resources.ltmConfig = LTMConfig{}
 			mockCtlr.oldNodes = []Node{{Name: "node-1", Addr: "10.10.10.1"}, {Name: "node-2", Addr: "10.10.10.2"}}
 		})
 		It("verify pool member update", func() {
@@ -1331,9 +1385,1480 @@ var _ = Describe("Worker Tests", func() {
 			mockCtlr.oldNodes = append(mockCtlr.oldNodes, Node{Name: "node-3", Addr: "10.10.10.3"})
 			mockCtlr.updatePoolMembersForNodePort(rsCfg, "default")
 			Expect(len(rsCfg.Pools[0].Members)).To(Equal(3), "Members should be increased")
+			mockCtlr.PoolMemberType = NodePort
+			mockCtlr.updateSvcDepResources("test-resource", rsCfg)
+			mockCtlr.resources.ltmConfig["test"] = &PartitionConfig{ResourceMap: ResourceMap{}}
+			mockCtlr.resources.setResourceConfig("test", "test-resource", rsCfg)
+			rsCfgCopy := mockCtlr.getVirtualServer("test", "test-resource")
+			Expect(rsCfgCopy).ToNot(BeNil())
+			Expect(len(rsCfgCopy.Pools[0].Members)).To(Equal(3), "There should be three pool members")
 			mockCtlr.oldNodes = append(mockCtlr.oldNodes[:1], mockCtlr.oldNodes[2:]...)
-			mockCtlr.updatePoolMembersForNodePort(rsCfg, "default")
-			Expect(len(rsCfg.Pools[0].Members)).To(Equal(2), "Members should be reduced")
+			svc := test.NewService("svc-1", "1", "default", "NodePort", []v1.ServicePort{})
+			mockCtlr.updatePoolMembersForVirtuals(svc)
+			rsCfgCopy = mockCtlr.getVirtualServer("test", "test-resource")
+			Expect(rsCfgCopy).ToNot(BeNil())
+			Expect(len(rsCfgCopy.Pools[0].Members)).To(Equal(2), "Pool members should be updated to 2")
+		})
+	})
+	Describe("Processing Custom Resources", func() {
+		var mockPM *mockPostManager
+		var policy *cisapiv1.Policy
+		BeforeEach(func() {
+			mockCtlr.mode = CustomResourceMode
+			mockCtlr.namespaces = make(map[string]bool)
+			mockCtlr.namespaces["default"] = true
+			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.crInformers = make(map[string]*CRInformer)
+			mockCtlr.nsInformers = make(map[string]*NSInformer)
+			mockCtlr.comInformers = make(map[string]*CommonInformer)
+			mockCtlr.customResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
+			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					RouteGroups:     make(map[string]int),
+					NativeRoutes:    make(map[string]int),
+					ExternalDNS:     make(map[string]int),
+					IngressLink:     make(map[string]int),
+					VirtualServer:   make(map[string]int),
+					TransportServer: make(map[string]int),
+				},
+			}
+
+			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
+			err := mockCtlr.addNamespacedInformers(namespace, false)
+			Expect(err).To(BeNil(), "Informers Creation Failed")
+
+			mockCtlr.Agent = &Agent{
+				postChan:            make(chan ResourceConfigRequest, 1),
+				cachedTenantDeclMap: make(map[string]as3Tenant),
+				respChan:            make(chan resourceStatusMeta, 1),
+				retryTenantDeclMap:  make(map[string]*tenantParams),
+			}
+
+			mockPM = newMockPostManger()
+			mockPM.BIGIPURL = "bigip.com"
+			mockPM.BIGIPUsername = "user"
+			mockPM.BIGIPPassword = "pswd"
+			mockPM.tenantResponseMap = make(map[string]tenantResponse)
+			mockPM.LogResponse = true
+			//					mockPM.AS3PostDelay =
+			mockPM.setupBIGIPRESTClient()
+			tnt := "test"
+			mockPM.setResponses([]responceCtx{{
+				tenant: tnt,
+				status: http.StatusOK,
+				body:   "",
+			}}, http.MethodPost)
+			mockPM.firstPost = false
+			mockCtlr.Agent.PostManager = mockPM.PostManager
+
+			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			_ = mockCtlr.createIPAMResource()
+
+			policy = &cisapiv1.Policy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "policy",
+					Namespace: "default",
+				},
+				Spec: cisapiv1.PolicySpec{
+					SNAT: "auto",
+					L7Policies: cisapiv1.L7PolicySpec{
+						WAF: "/Common/WAF_Policy",
+					},
+					L3Policies: cisapiv1.L3PolicySpec{
+						FirewallPolicy: "/Common/AFM_Policy",
+						DOS:            "/Common/dos",
+						BotDefense:     "/Common/bot-defense",
+						AllowSourceRange: []string{
+							"1.1.1.0/24",
+							"2.2.2.0/24",
+						},
+						AllowVlans: []string{
+							" /Common/external",
+						},
+					},
+					Profiles: cisapiv1.ProfileSpec{
+						TCP: cisapiv1.ProfileTCP{
+							Client: "/Common/f5-tcp-lan",
+							Server: "/Common/f5-tcp-wan",
+						},
+						HTTP:  "/Common/http",
+						HTTP2: "/Common/http2",
+						LogProfiles: []string{
+							"/Common/Log all requests", "/Common/local-dos"},
+						ProfileL4:        " /Common/security-fastL4",
+						ProfileMultiplex: "/Common/oneconnect",
+						UDP:              "/Common/udp",
+					},
+				},
+			}
+		})
+		AfterEach(func() {
+			mockCtlr.resourceQueue.ShutDown()
+		})
+
+		Describe("Processing Virtual Server", func() {
+			AfterEach(func() {
+				mockCtlr.resourceQueue.ShutDown()
+			})
+
+			var vs *cisapiv1.VirtualServer
+			var tlsProf *cisapiv1.TLSProfile
+			var secret *v1.Secret
+			var tlsSecretProf *cisapiv1.TLSProfile
+			var fooEndpts *v1.Endpoints
+			var fooPorts []v1.ServicePort
+
+			BeforeEach(func() {
+				//Add Virtual Server
+				vs = test.NewVirtualServer(
+					"SampleVS",
+					namespace,
+					cisapiv1.VirtualServerSpec{
+						Host:           "test.com",
+						PolicyName:     "policy",
+						TLSProfileName: "sampleTLS",
+						Pools: []cisapiv1.Pool{
+							{
+								Path:    "/foo",
+								Service: "svc1",
+								Monitor: cisapiv1.Monitor{
+									Type:     "http",
+									Send:     "GET /health",
+									Interval: 15,
+									Timeout:  10,
+								},
+								Rewrite:     "/bar",
+								Balance:     "fastest-node",
+								ServicePort: 80,
+							},
+							{
+								Path:    "/",
+								Service: "svc2",
+								Monitor: cisapiv1.Monitor{
+									Type:     "http",
+									Send:     "GET /health",
+									Interval: 15,
+									Timeout:  10,
+								},
+								Rewrite:     "/bar1",
+								Balance:     "fastest-node",
+								ServicePort: 81,
+							},
+						},
+						RewriteAppRoot:     "/home",
+						AllowSourceRange:   []string{" 1.1.1.0/24", "2.2.2.0/24"},
+						BotDefense:         "/Common/bot-defense",
+						DOS:                "/Common/dos",
+						WAF:                "/Common/WAF",
+						IRules:             []string{"/Common/SampleIRule"},
+						PersistenceProfile: "source-address",
+						AllowVLANs:         []string{"/Common/devtraffic"},
+						Profiles: cisapiv1.ProfileSpec{
+							TCP: cisapiv1.ProfileTCP{
+								Client: "/Common/f5-tcp-lan",
+								Server: "/Common/f5-tcp-wan",
+							},
+							ProfileL4: "/Common/security-fastL4",
+						},
+					},
+				)
+
+				fooPorts = []v1.ServicePort{{Port: 80, NodePort: 30001},
+					{Port: 8080, NodePort: 38001},
+					{Port: 9090, NodePort: 39001}}
+				fooIps := []string{"10.1.1.1"}
+
+				fooEndpts = test.NewEndpoints(
+					"svc1", "1", "node0", namespace, fooIps, []string{},
+					convertSvcPortsToEndpointPorts(fooPorts))
+
+				tlsProf = test.NewTLSProfile(
+					"sampleTLS",
+					namespace,
+					cisapiv1.TLSProfileSpec{
+						Hosts: []string{"test.com"},
+						TLS: cisapiv1.TLS{
+							Termination: TLSReencrypt,
+							ClientSSL:   "clientssl",
+							ServerSSL:   "serverssl",
+							Reference:   BIGIP,
+						},
+					},
+				)
+				tlsSecretProf = test.NewTLSProfile(
+					"sampleTLS",
+					namespace,
+					cisapiv1.TLSProfileSpec{
+						Hosts: []string{"test.com"},
+						TLS: cisapiv1.TLS{
+							Termination: TLSEdge,
+							ClientSSL:   "SampleSecret",
+							Reference:   Secret,
+						},
+					},
+				)
+
+				secret = test.NewSecret(
+					"SampleSecret",
+					namespace,
+					"-----BEGIN CERTIFICATE-----\nMIIC+DCCAeCgAwIBAgIQIBIcC6PuJQEHwwI0Hv5QmTANBgkqhkiG9w0BAQsFADAS\nMRAwDgYDVQQKEwdBY21lIENvMB4XDTIyMTIyMjA5MjE0OFoXDTIzMTIyMjA5MjE0\nOFowEjEQMA4GA1UEChMHQWNtZSBDbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC\nAQoCggEBAN0NWXsUvGYBV9uo2Iuz3gnovyk3W7p8AA4I8eRUFaWV1EYaxFpsGmdN\nrQgdVJ6w+POSykbDuZynYJyBjC11dJmfTaXffLaUSrJfu+a0QaeWIpt+XxzO4SKQ\nunUSh5Z9w4P45G8VKF7E67wFVN0ni10FLAfBUjYVsQpPagpkH8OdnYCsymCzVSWi\nYETZZ+Hbaih9flRgBQOsoUyNBSkCdJ2wEkZ/0p9+tYwZp1Xvp/Neu3TTsezpu7lE\nbTp0RLQNqfLHWiMV9BSAQRbXAvtvky3J42iy+ec24JyQPtiD85u8Pp/+ssV0ZL9l\nc5KoDEuAvf4NPFWu270gYyQljKcTbB8CAwEAAaNKMEgwDgYDVR0PAQH/BAQDAgWg\nMBMGA1UdJQQMMAoGCCsGAQUFBwMBMAwGA1UdEwEB/wQCMAAwEwYDVR0RBAwwCoII\ndGVzdC5jb20wDQYJKoZIhvcNAQELBQADggEBAI9VUdpVmfx+WUEejREa+plEjCIV\ns+d7v66ddyU4B+Zer1y4RgoWaVq5pywPPjBNJuz6NfwSvBCmuMUd1LUoF5tQFkqb\nVa85Aq6ODbwIMoQ53kTG9vLbT78qESrbukaW9v+axdD9/DIXZJtdwvLvHAVpelRi\n7z48Lxk1GTe7dM3ixKQrU4hz656kH3kXSnD79metOkJA6BAXsqL2XonIhNkCkQVV\n38IHDNkzk228d97ebLu+EhLlkjFgFQEnXusK1amrGJrRDli72pY01yxzGI1caKG5\nN6I8MEIqYI/POwbYWENqONF22pzw/OIs4T1a3jjUqEFugnELcTtx/xRLmOI=\n-----END CERTIFICATE-----\n",
+					"-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDdDVl7FLxmAVfb\nqNiLs94J6L8pN1u6fAAOCPHkVBWlldRGGsRabBpnTa0IHVSesPjzkspGw7mcp2Cc\ngYwtdXSZn02l33y2lEqyX7vmtEGnliKbfl8czuEikLp1EoeWfcOD+ORvFShexOu8\nBVTdJ4tdBSwHwVI2FbEKT2oKZB/DnZ2ArMpgs1UlomBE2Wfh22oofX5UYAUDrKFM\njQUpAnSdsBJGf9KffrWMGadV76fzXrt007Hs6bu5RG06dES0Danyx1ojFfQUgEEW\n1wL7b5MtyeNosvnnNuCckD7Yg/ObvD6f/rLFdGS/ZXOSqAxLgL3+DTxVrtu9IGMk\nJYynE2wfAgMBAAECggEAf8l91vcvylAweB1twaUjUNsp1yvXbUDNz09Adtxc/zJU\nWoqSxCsGQH3Y7331Mx/fav+Ky8nN/U+NPCxv2r+xvjUncCJ4OBwV6nQJbd76rWTP\ncNBnL4IxCAheodsqYsclRZ+WftjeU5rHJBR48Lgxin6462rImdeEVw99n7At5Kig\nGZmGNXnk6jgvoNU1YJZxSMWQQwKtrfJxXry5a90SfjiviGseuBPsgbrMxEPaeqlQ\nGAMi4nIVRmijL56vbbuuudZm+6dpOnbGzzF6J4M5Nrfr/qJF7ClwXjcMeb6lESIo\n5pmGl3QwSGQYeflFexP3ydvQdUwN5rLbtCexPC2CsQKBgQDxLPn8pIU7WuFiTuOp\n1o7/25v7ijPydIRBjjVeA7E7+mbq9FllkT4CW+HtP7zCCjdScuXhKjuPRrST4fsZ\nZex2nUYfc586s/W95b4QMKtXcJd1MMMWOK2/ZGN/6L5zLPupDrhyWHw91biFZG8h\nSFgn7G2zS/+09gJTglpdj3gClQKBgQDqo7f+kZiXGFvP4kcOWNgnOJOpdqzG/zeD\nuVP2Y6Q8mi7GhkiYhdlrl6Ibh9X0qjFMKMKy827jbUPSGaj5tIT8iXyFT4KVaqZQ\n7r2cMyCqbznKfWlyMyspaVEDa910+VwC2hYQvahTQzfdQqFp6JfiLqCdQtiNDGLf\nbvUOHk4a4wKBgHDLo0NowrMm5wBuewXExm6djE9RrMf5fJ2YYBdPTMYLb7T1gRYC\nnujFhl3KkIKD+qnB+QedE+wHmo8Lgr+3LqevGMu+7LqszgL5fzHdQVWM4Bk8LBGp\ngoFf9zUsal49rJm9u8Am6DyXR0yD04HSbwCFEC1qHvbIk//wmEjnv64dAoGANBbW\nYPBHlLt2nmbYaWn1ync36LYM0zyTQW3iIt+p9T4xRidHdHy6cLU/6qa0K9Wgjgy6\ndGmwY1K9bKX/qjeWEk4fU6T8E1mSxILLmyKKjOuWQ8qlnxGW8mGL95t5lV9KOuPZ\nZCwGcz2H6FnDZbSaCz9YrrDJTD7EsF98jX7SzgsCgYBQv5yi7aGxH6OcrAJPQH4v\n1fZo7mFbqp0WoUMpwuWKNOHZuZoF0EU/bllMZT7AipxVhso+hUC+rDEO7H36TAyc\nTUJbdxtlIC1JmJTmeBOWh3i3Htu8A97DLUNTqNikNyKyGWjy7eC0ncG3+CGG91wA\nky9KxzxszaIez6kIUCY7xQ==\n-----END PRIVATE KEY-----\n",
+				)
+			})
+
+			It("Virtual Server with Virtual Address", func() {
+
+				crInf := mockCtlr.newNamespacedCustomResourceInformer(namespace)
+				nrInf := mockCtlr.newNamespacedNativeResourceInformer(namespace)
+				crInf.start()
+				nrInf.start()
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				mockCtlr.kubeClient.CoreV1().Services("default").Create(context.TODO(), svc, metav1.CreateOptions{})
+				mockCtlr.setInitialServiceCount()
+				mockCtlr.migrateIPAM()
+
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Virtual Server")
+
+				vs.Spec.VirtualServerAddress = "10.8.0.1"
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+
+				// Policy and TLSProfile missing
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Virtual Server")
+
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+
+				mockCtlr.addTLSProfile(tlsSecretProf)
+				mockCtlr.processResources()
+
+				mockCtlr.addSecret(secret)
+				mockCtlr.processResources()
+
+				mockCtlr.kubeClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+				// Should process VS now
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not Processed")
+
+				mockCtlr.deleteService(svc)
+				mockCtlr.processResources()
+
+				// Update service
+				svc.Spec.Ports[0].NodePort = 30002
+				Expect(fetchPortString(intstr.IntOrString{StrVal: strconv.Itoa(int(vs.Spec.Pools[0].ServicePort))})).To(BeEquivalentTo("80"))
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				tlsSecretProf.Spec.TLS.ClientSSLs = []string{"SampleSecret"}
+				mockCtlr.addTLSProfile(tlsSecretProf)
+				mockCtlr.processResources()
+				mockCtlr.addSecret(secret)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not processed")
+
+				mockCtlr.deleteVirtualServer(vs)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Virtual Server not deleted")
+
+				//check valid virtual server
+				valid := mockCtlr.checkValidVirtualServer(vs)
+				Expect(valid).To(BeFalse())
+
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not processed")
+
+				mockCtlr.deleteVirtualServer(vs)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Virtual Server not deleted")
+
+				vs.Spec.VirtualServerAddress = ""
+				mockCtlr.ipamCli = nil
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid VS")
+
+				vs.Spec.VirtualServerAddress = "10.8.0.1"
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not processed")
+
+				// Validate the scenario. For now changing to 1
+				mockCtlr.deletePolicy(policy)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid VS")
+
+				labels := make(map[string]string)
+				labels["app"] = "test"
+				ns := test.NewNamespace(
+					"default",
+					"1",
+					labels,
+				)
+				mockCtlr.enqueueDeletedNamespace(ns)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Virtual Server not deleted")
+				_, ok := mockCtlr.nsInformers[namespace]
+				Expect(ok).To(Equal(false), "Namespace not deleted")
+
+			})
+			It("Virtual Server with IPAM", func() {
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
+
+				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+
+				mockCtlr.addTLSProfile(tlsProf)
+				mockCtlr.processResources()
+
+				mockCtlr.TeemData.ResourceType.IPAMVS = make(map[string]int)
+
+				//	Add Service
+				vs.Spec.IPAMLabel = "test"
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Virtual Server")
+
+				var key, host string
+
+				ipamCR := mockCtlr.getIPAMCR()
+				host = "test.com"
+				key = "default/test.com_host"
+
+				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
+					{
+						IPAMLabel: "test",
+						Host:      "test.com",
+					},
+				}
+				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				newIpamCR := ipamCR.DeepCopy()
+
+				newIpamCR.Status.IPStatus = []*ficV1.IPSpec{
+					{
+						IPAMLabel: "test",
+						Host:      host,
+						IP:        "10.10.10.1",
+						Key:       key,
+					},
+				}
+				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+
+				mockCtlr.enqueueUpdatedIPAM(ipamCR, newIpamCR)
+				mockCtlr.processResources()
+
+				_, status := mockCtlr.requestIP("test", host, key)
+				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "VS not Processed")
+
+				mockCtlr.deleteVirtualServer(vs)
+				mockCtlr.processResources()
+				vs.Spec.VirtualServerAddress = "10.10.10.1"
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "VS not Processed")
+
+				mockCtlr.deleteVirtualServer(vs)
+				mockCtlr.processResources()
+
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Virtual Server")
+
+				vs.Spec.HostGroup = "hg"
+				vs.Spec.VirtualServerAddress = ""
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Virtual Server")
+
+				key = "hg_hg"
+				newIpamCR.Spec.HostSpecs = []*ficV1.HostSpec{
+					{
+						IPAMLabel: "test",
+						Key:       key,
+					},
+				}
+				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+				ipamCR = newIpamCR.DeepCopy()
+
+				newIpamCR.Status.IPStatus = []*ficV1.IPSpec{
+					{
+						IPAMLabel: "test",
+						//Host:      host,
+						IP:  "10.10.10.1",
+						Key: key,
+					},
+				}
+				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+
+				mockCtlr.enqueueUpdatedIPAM(ipamCR, newIpamCR)
+				mockCtlr.processResources()
+
+				_, status = mockCtlr.requestIP("test", "", key)
+				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not processed")
+
+				rscUpdateMeta := resourceStatusMeta{
+					0,
+					make(map[string]struct{}),
+				}
+
+				time.Sleep(10 * time.Millisecond)
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+				time.Sleep(10 * time.Millisecond)
+
+				config := ResourceConfigRequest{
+					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
+					shareNodes: mockCtlr.shareNodes,
+					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
+				}
+				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+
+				rscUpdateMeta.failedTenants["test"] = struct{}{}
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+
+				time.Sleep(10 * time.Millisecond)
+			})
+		})
+
+		Describe("Processing Transport Server", func() {
+			var ts *cisapiv1.TransportServer
+			var fooEndpts *v1.Endpoints
+			var fooPorts []v1.ServicePort
+
+			BeforeEach(func() {
+				//Add Virtual Server
+				fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+					{Port: 8080, NodePort: 38001},
+					{Port: 9090, NodePort: 39001}}
+				fooIps := []string{"10.1.1.1"}
+
+				fooEndpts = test.NewEndpoints(
+					"svc1", "1", "node0", namespace, fooIps, []string{},
+					convertSvcPortsToEndpointPorts(fooPorts))
+
+				//Add Virtual Server
+				ts = test.NewTransportServer(
+					"SampleTS",
+					namespace,
+					cisapiv1.TransportServerSpec{
+						VirtualServerAddress: "10.1.1.1",
+						PolicyName:           "policy",
+						Pool: cisapiv1.Pool{
+							Service:     "svc1",
+							ServicePort: 80,
+							Monitor: cisapiv1.Monitor{
+								Type:     "tcp",
+								Timeout:  10,
+								Interval: 10,
+							},
+						},
+						BotDefense:         "/Common/bot-defense",
+						DOS:                "/Common/dos",
+						IRules:             []string{"/Common/SampleIRule"},
+						PersistenceProfile: "source-address",
+						AllowVLANs:         []string{"/Common/devtraffic"},
+						Profiles: cisapiv1.ProfileSpec{
+							TCP: cisapiv1.ProfileTCP{
+								Client: "/Common/f5-tcp-lan",
+								Server: "/Common/f5-tcp-wan",
+							},
+							ProfileL4: "/Common/security-fastL4",
+						},
+					},
+				)
+
+			})
+
+			It("Transport Server Validation", func() {
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
+				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				//check if virtual server exist
+				valid := mockCtlr.checkValidTransportServer(ts)
+				Expect(valid).To(BeFalse())
+
+				// with invalid type
+				ts.Spec.Type = "sctp1"
+				mockCtlr.addTransportServer(ts)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Transport Server")
+
+				mockCtlr.deleteTransportServer(ts)
+				mockCtlr.processResources()
+
+				// with missing policy
+				ts.Spec.Type = "tcp"
+				ts.Spec.VirtualServerAddress = "10.0.0.1"
+				mockCtlr.addTransportServer(ts)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Transport Server")
+
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Transport Server not processed")
+
+				rscUpdateMeta := resourceStatusMeta{
+					0,
+					make(map[string]struct{}),
+				}
+
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+
+				config := ResourceConfigRequest{
+					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
+					shareNodes: mockCtlr.shareNodes,
+					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
+				}
+				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				rscUpdateMeta.id = 3
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+
+				rscUpdateMeta.failedTenants["test"] = struct{}{}
+				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				rscUpdateMeta.id = 3
+
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+
+				time.Sleep(10 * time.Millisecond)
+
+			})
+
+			It("Transport Server with IPAM", func() {
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
+				mockCtlr.TeemData.ResourceType.IPAMTS = make(map[string]int)
+				//Add Service
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				mockCtlr.addTransportServer(ts)
+				mockCtlr.processResources()
+
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Transport Server")
+
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Transport Server not processed")
+
+				//check if virtual server exist
+				ts.Spec.VirtualServerAddress = ""
+				valid := mockCtlr.checkValidTransportServer(ts)
+				Expect(valid).To(BeFalse())
+
+				ts.Spec.VirtualServerAddress = "10.1.1.1"
+				mockCtlr.deleteTransportServer(ts)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Transport Server not deleted")
+
+				//mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+				ts.Spec.VirtualServerAddress = ""
+				ts.Spec.IPAMLabel = "test"
+				mockCtlr.addTransportServer(ts)
+				mockCtlr.processResources()
+
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Transport Server")
+
+				var key string
+
+				ipamCR := mockCtlr.getIPAMCR()
+				key = "default/SampleTS_ts"
+
+				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
+					{
+						IPAMLabel: "test",
+						Key:       key,
+					},
+				}
+				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				newIpamCR := ipamCR.DeepCopy()
+
+				newIpamCR.Status.IPStatus = []*ficV1.IPSpec{
+					{
+						IPAMLabel: "test",
+						Host:      "",
+						IP:        "10.1.1.2",
+						Key:       key,
+					},
+				}
+				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+
+				mockCtlr.enqueueUpdatedIPAM(ipamCR, newIpamCR)
+				mockCtlr.processResources()
+
+				_, status := mockCtlr.requestIP("test", "", key)
+
+				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
+				mockCtlr.deleteTransportServer(ts)
+				mockCtlr.processResources()
+
+				ts.Spec.HostGroup = "hg"
+				ts.Spec.VirtualServerAddress = ""
+				mockCtlr.addTransportServer(ts)
+				mockCtlr.processResources()
+
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Transport Server")
+
+				key = "hg_hg"
+				newIpamCR.Spec.HostSpecs = []*ficV1.HostSpec{
+					{
+						IPAMLabel: "test",
+						Key:       key,
+					},
+				}
+				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+				ipamCR = newIpamCR.DeepCopy()
+
+				newIpamCR.Status.IPStatus = []*ficV1.IPSpec{
+					{
+						IPAMLabel: "test",
+						//Host:      host,
+						IP:  "10.10.10.1",
+						Key: key,
+					},
+				}
+				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+
+				mockCtlr.enqueueUpdatedIPAM(ipamCR, newIpamCR)
+				mockCtlr.processResources()
+
+				_, status = mockCtlr.requestIP("test", "", key)
+				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
+
+				mockCtlr.ipamCli = nil
+				mockCtlr.addTransportServer(ts)
+				mockCtlr.processResources()
+			})
+		})
+
+		Describe("Processing EDNS", func() {
+			var fooEndpts *v1.Endpoints
+			var fooPorts []v1.ServicePort
+			var newEDNS *cisapiv1.ExternalDNS
+
+			BeforeEach(func() {
+				//Add Virtual Server
+				fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+					{Port: 8080, NodePort: 38001},
+					{Port: 9090, NodePort: 39001}}
+				fooIps := []string{"10.1.1.1"}
+
+				fooEndpts = test.NewEndpoints(
+					"svc1", "1", "node0", namespace, fooIps, []string{},
+					convertSvcPortsToEndpointPorts(fooPorts))
+
+				//Add EDNS
+				newEDNS = test.NewExternalDNS(
+					"SampleEDNS",
+					"default",
+					cisapiv1.ExternalDNSSpec{
+						DomainName: "test.com",
+						Pools: []cisapiv1.DNSPool{
+							{
+								DataServerName: "DataServer",
+								Monitor: cisapiv1.Monitor{
+									Type:     "http",
+									Send:     "GET /health",
+									Interval: 10,
+									Timeout:  10,
+								},
+							},
+						},
+					})
+			})
+
+			It("EDNS", func() {
+				//Add Service
+				//go mockCtlr.Agent.agentWorker()
+				//go mockCtlr.Agent.retryWorker()
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				mockCtlr.addEDNS(newEDNS)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.gtmConfig)).To(Equal(1), "EDNS not processed")
+
+				mockCtlr.deleteEDNS(newEDNS)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.gtmConfig["test"].WideIPs)).To(Equal(0), "EDNS  not deleted")
+
+			})
+		})
+
+		Describe("Processing Ingress Link", func() {
+			It("Ingress Link", func() {
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
+				fooPorts := []v1.ServicePort{
+					{
+						Port: 8080,
+						Name: "port0",
+					},
+				}
+				foo := test.NewService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
+				label1 := make(map[string]string)
+				label1["app"] = "ingresslink"
+				foo.ObjectMeta.Labels = label1
+				var (
+					selector = &metav1.LabelSelector{
+						MatchLabels: label1,
+					}
+				)
+
+				mockCtlr.kubeClient.CoreV1().Services("default").Create(context.TODO(), foo, metav1.CreateOptions{})
+				mockCtlr.addService(foo)
+				mockCtlr.processResources()
+
+				var iRules []string
+				IngressLink1 := test.NewIngressLink("ingresslink1", namespace, "1",
+					cisapiv1.IngressLinkSpec{
+						Selector: selector,
+						IRules:   iRules,
+					})
+				mockCtlr.TeemData = &teem.TeemsData{
+					ResourceType: teem.ResourceTypes{
+						IngressLink: make(map[string]int),
+					},
+				}
+				IngressLink1.Spec.IPAMLabel = "test"
+
+				valid := mockCtlr.checkValidIngressLink(IngressLink1)
+				Expect(valid).To(BeFalse())
+
+				mockCtlr.addIngressLink(IngressLink1)
+				mockCtlr.processResources()
+
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid IngressLink")
+
+				var key, host string
+				var status int
+
+				ipamCR := mockCtlr.getIPAMCR()
+				key = "default/ingresslink1_il"
+
+				ipamCR.Spec.HostSpecs = []*ficV1.HostSpec{
+					{
+						IPAMLabel: "test",
+						Key:       key,
+					},
+				}
+				ipamCR, _ = mockCtlr.ipamCli.Update(ipamCR)
+				newIpamCR := ipamCR.DeepCopy()
+
+				newIpamCR.Status.IPStatus = []*ficV1.IPSpec{
+					{
+						IPAMLabel: "test",
+						IP:        "10.10.10.1",
+						Key:       key,
+					},
+				}
+				newIpamCR, _ = mockCtlr.ipamCli.Update(newIpamCR)
+
+				mockCtlr.enqueueUpdatedIPAM(ipamCR, newIpamCR)
+				mockCtlr.processResources()
+
+				_, status = mockCtlr.requestIP("test", host, key)
+				Expect(status).To(Equal(Allocated), "Failed to fetch Allocated IP")
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "IngressLink not processed")
+				mockCtlr.deleteIngressLink(IngressLink1)
+				mockCtlr.processResources()
+
+				IngressLink1.Spec.VirtualServerAddress = "10.10.10.1"
+				mockCtlr.addIngressLink(IngressLink1)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "IngressLink not processed")
+				ilList := mockCtlr.getAllIngLinkFromMonitoredNamespaces()
+				Expect(len(ilList)).To(Equal(1))
+				ilList = mockCtlr.getAllIngressLinks("")
+				Expect(len(ilList)).To(Equal(0))
+				mockCtlr.crInformers[""] = mockCtlr.newNamespacedCustomResourceInformer("")
+				mockCtlr.crInformers[""].ilInformer.GetStore().Add(IngressLink1)
+				ilList = mockCtlr.getAllIngressLinks("")
+				Expect(len(ilList)).To(Equal(1))
+				ilList = mockCtlr.getAllIngLinkFromMonitoredNamespaces()
+				Expect(len(ilList)).To(Equal(1))
+				delete(mockCtlr.crInformers, "")
+				IngressLink1.Spec.IPAMLabel = ""
+				IngressLink1.Spec.VirtualServerAddress = ""
+				valid = mockCtlr.checkValidIngressLink(IngressLink1)
+				Expect(valid).To(BeFalse(), "Invalid IngressLink")
+
+				mockCtlr.ipamCli = nil
+				IngressLink1.Spec.VirtualServerAddress = ""
+				valid = mockCtlr.checkValidIngressLink(IngressLink1)
+				Expect(valid).To(BeFalse(), "Invalid IngressLink")
+
+			})
+		})
+	})
+
+	Describe("Processing Native Resources", func() {
+		var mockPM *mockPostManager
+		BeforeEach(func() {
+			mockCtlr.mode = OpenShiftMode
+			mockCtlr.namespaces = make(map[string]bool)
+			mockCtlr.namespaces["default"] = true
+			mockCtlr.kubeCRClient = crdfake.NewSimpleClientset()
+			mockCtlr.routeClientV1 = fakeRouteClient.NewSimpleClientset().RouteV1()
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.nrInformers = make(map[string]*NRInformer)
+			mockCtlr.comInformers = make(map[string]*CommonInformer)
+			mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultNativeResourceLabel)
+			mockCtlr.PoolMemberType = NodePortLocal
+			mockCtlr.nrInformers["default"] = mockCtlr.newNamespacedNativeResourceInformer("default")
+			mockCtlr.nrInformers["test"] = mockCtlr.newNamespacedNativeResourceInformer("test")
+			mockCtlr.comInformers["test"] = mockCtlr.newNamespacedCommonResourceInformer("test")
+			mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+			mockCtlr.nrInformers["system"] = mockCtlr.newNamespacedNativeResourceInformer("system")
+			var processedHostPath ProcessedHostPath
+			processedHostPath.processedHostPathMap = make(map[string]metav1.Time)
+			mockCtlr.processedHostPath = &processedHostPath
+			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+			mockCtlr.resources = NewResourceStore()
+			mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					RouteGroups:     make(map[string]int),
+					NativeRoutes:    make(map[string]int),
+					ExternalDNS:     make(map[string]int),
+					IngressLink:     make(map[string]int),
+					VirtualServer:   make(map[string]int),
+					TransportServer: make(map[string]int),
+				},
+			}
+
+			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
+			err := mockCtlr.addNamespacedInformers(namespace, false)
+			Expect(err).To(BeNil(), "Informers Creation Failed")
+
+			mockCtlr.Agent = &Agent{
+				postChan:            make(chan ResourceConfigRequest, 1),
+				cachedTenantDeclMap: make(map[string]as3Tenant),
+				respChan:            make(chan resourceStatusMeta, 1),
+				retryTenantDeclMap:  make(map[string]*tenantParams),
+			}
+
+			mockPM = newMockPostManger()
+			mockPM.BIGIPURL = "bigip.com"
+			mockPM.BIGIPUsername = "user"
+			mockPM.BIGIPPassword = "pswd"
+			mockPM.tenantResponseMap = make(map[string]tenantResponse)
+			mockPM.LogResponse = true
+			//					mockPM.AS3PostDelay =
+			mockPM.setupBIGIPRESTClient()
+			tnt := "test"
+			mockPM.setResponses([]responceCtx{{
+				tenant: tnt,
+				status: http.StatusOK,
+				body:   "",
+			}}, http.MethodPost)
+			mockPM.firstPost = false
+			mockCtlr.Agent.PostManager = mockPM.PostManager
+
+			mockCtlr.ipamCli = ipammachinery.NewFakeIPAMClient(nil, nil, nil)
+			_ = mockCtlr.createIPAMResource()
+
+		})
+		AfterEach(func() {
+			mockCtlr.shutdown()
+		})
+
+		Describe("Process ConfigMap", func() {
+			var cm *v1.ConfigMap
+			var localCM *v1.ConfigMap
+			data := make(map[string]string)
+			BeforeEach(func() {
+				cmName := "samplecfgmap"
+				mockCtlr.routeSpecCMKey = namespace + "/" + cmName
+				routeGroup := "default"
+				mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
+					override: true,
+					global: &ExtendedRouteGroupSpec{
+						VServerName:   "nextgenroutes",
+						VServerAddr:   "10.10.10.10",
+						AllowOverride: "False",
+					},
+					namespaces: []string{routeGroup},
+					partition:  "test",
+				}
+
+				cm = test.NewConfigMap(
+					cmName,
+					"v1",
+					"default",
+					data)
+
+				data["extendedSpec"] = `
+baseRouteSpec: 
+    tlsCipher:
+      tlsVersion : 1.2
+      ciphers: DEFAULT
+      cipherGroup: /Common/f5-default
+    defaultTLS:
+       clientSSL: /Common/clientssl
+       serverSSL: /Common/serverssl
+       reference: bigip
+    defaultRouteGroup: 
+       bigIpPartition: test
+       vserverAddr: 10.1.1.1
+       allowOverride: false
+
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+    - namespace: test
+      vserverAddr: 10.8.3.12
+      vserverName: nextgenroutes
+      allowOverride: true
+    - namespace: new
+      vserverAddr: 10.8.3.13
+      vserverName: nextgenroutes
+      allowOverride: true
+`
+				localData := make(map[string]string)
+				localCM = test.NewConfigMap(
+					"localESCM",
+					"v1",
+					"default",
+					localData)
+				localData["extendedSpec"] = `
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.110
+      vserverName: nextgenroutes
+      policyCR : default/policy
+`
+			})
+
+			It("Process Global ConfigMap", func() {
+				mockCtlr.initState = true
+				mockCtlr.processConfigMap(cm, false)
+				mockCtlr.processConfigMap(localCM, false)
+				mockCtlr.initState = false
+				mockCtlr.processConfigMap(cm, false)
+				mockCtlr.processConfigMap(localCM, false)
+
+				data["extendedSpec"] = `
+baseRouteSpec: 
+    tlsCipher:
+      tlsVersion : 1.2
+      ciphers: DEFAULT
+      cipherGroup: /Common/f5-default
+    defaultTLS:
+       clientSSL: /Common/clientssl
+       serverSSL: /Common/serverssl
+       reference: bigip
+    defaultRouteGroup: 
+       bigIpPartition: test
+       vserverAddr: 10.1.1.1
+       allowOverride: false
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.17
+      vserverName: nextgenroutes
+      allowOverride: true 
+ 	- namespace: app
+      vserverAddr: 10.8.3.15
+      allowOverride: true
+`
+				mockCtlr.processConfigMap(cm, false)
+				mockCtlr.processConfigMap(localCM, false)
+			})
+			It("Process Local ConfigMap", func() {
+
+			})
+		})
+		Describe("Process Route", func() {
+			AfterEach(func() {
+				mockCtlr.shutdown()
+			})
+
+			var fooEndpts *v1.Endpoints
+			var fooPorts []v1.ServicePort
+			var spec1 routeapi.RouteSpec
+			var routeGroup = "default"
+			var svc *v1.Service
+			var policy *cisapiv1.Policy
+			var cm *v1.ConfigMap
+			var localCM *v1.ConfigMap
+			var annotation1 map[string]string
+
+			BeforeEach(func() {
+				fooPorts = []v1.ServicePort{{Port: 80, NodePort: 30001},
+					{Port: 8080, NodePort: 38001},
+					{Port: 9090, NodePort: 39001}}
+				svc = test.NewService("foo", "1", routeGroup, "ClusterIP", fooPorts)
+
+				fooIps := []string{"10.1.1.1"}
+				fooEndpts = test.NewEndpoints(
+					"foo", "1", "node0", routeGroup, fooIps, []string{},
+					convertSvcPortsToEndpointPorts(fooPorts))
+
+				mockCtlr.resources = NewResourceStore()
+				mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
+					override: true,
+					global: &ExtendedRouteGroupSpec{
+						VServerName:   "nextgenroutes",
+						VServerAddr:   "10.10.10.10",
+						AllowOverride: "False",
+					},
+					namespaces: []string{routeGroup},
+					partition:  "test",
+				}
+
+				//Add Service
+
+				mockCtlr.resources.extdSpecMap[routeGroup] = &extendedParsedSpec{
+					override: true,
+					global: &ExtendedRouteGroupSpec{
+						VServerName:   "nextgenroutes",
+						VServerAddr:   "10.10.10.10",
+						AllowOverride: "False",
+					},
+					namespaces: []string{routeGroup},
+					partition:  "test",
+				}
+
+				spec1 = routeapi.RouteSpec{
+					Host: "pytest-foo-1.com",
+					Path: "/test",
+					Port: &routeapi.RoutePort{
+						TargetPort: intstr.IntOrString{
+							IntVal: 80,
+						},
+					},
+					To: routeapi.RouteTargetReference{
+						Kind: "Service",
+						Name: "foo",
+					},
+					TLS: &routeapi.TLSConfig{Termination: "reencrypt",
+						Certificate:              "-----BEGIN CERTIFICATE-----\nMIIC+DCCAeCgAwIBAgIQIBIcC6PuJQEHwwI0Hv5QmTANBgkqhkiG9w0BAQsFADAS\nMRAwDgYDVQQKEwdBY21lIENvMB4XDTIyMTIyMjA5MjE0OFoXDTIzMTIyMjA5MjE0\nOFowEjEQMA4GA1UEChMHQWNtZSBDbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC\nAQoCggEBAN0NWXsUvGYBV9uo2Iuz3gnovyk3W7p8AA4I8eRUFaWV1EYaxFpsGmdN\nrQgdVJ6w+POSykbDuZynYJyBjC11dJmfTaXffLaUSrJfu+a0QaeWIpt+XxzO4SKQ\nunUSh5Z9w4P45G8VKF7E67wFVN0ni10FLAfBUjYVsQpPagpkH8OdnYCsymCzVSWi\nYETZZ+Hbaih9flRgBQOsoUyNBSkCdJ2wEkZ/0p9+tYwZp1Xvp/Neu3TTsezpu7lE\nbTp0RLQNqfLHWiMV9BSAQRbXAvtvky3J42iy+ec24JyQPtiD85u8Pp/+ssV0ZL9l\nc5KoDEuAvf4NPFWu270gYyQljKcTbB8CAwEAAaNKMEgwDgYDVR0PAQH/BAQDAgWg\nMBMGA1UdJQQMMAoGCCsGAQUFBwMBMAwGA1UdEwEB/wQCMAAwEwYDVR0RBAwwCoII\ndGVzdC5jb20wDQYJKoZIhvcNAQELBQADggEBAI9VUdpVmfx+WUEejREa+plEjCIV\ns+d7v66ddyU4B+Zer1y4RgoWaVq5pywPPjBNJuz6NfwSvBCmuMUd1LUoF5tQFkqb\nVa85Aq6ODbwIMoQ53kTG9vLbT78qESrbukaW9v+axdD9/DIXZJtdwvLvHAVpelRi\n7z48Lxk1GTe7dM3ixKQrU4hz656kH3kXSnD79metOkJA6BAXsqL2XonIhNkCkQVV\n38IHDNkzk228d97ebLu+EhLlkjFgFQEnXusK1amrGJrRDli72pY01yxzGI1caKG5\nN6I8MEIqYI/POwbYWENqONF22pzw/OIs4T1a3jjUqEFugnELcTtx/xRLmOI=\n-----END CERTIFICATE-----\n",
+						Key:                      "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDdDVl7FLxmAVfb\nqNiLs94J6L8pN1u6fAAOCPHkVBWlldRGGsRabBpnTa0IHVSesPjzkspGw7mcp2Cc\ngYwtdXSZn02l33y2lEqyX7vmtEGnliKbfl8czuEikLp1EoeWfcOD+ORvFShexOu8\nBVTdJ4tdBSwHwVI2FbEKT2oKZB/DnZ2ArMpgs1UlomBE2Wfh22oofX5UYAUDrKFM\njQUpAnSdsBJGf9KffrWMGadV76fzXrt007Hs6bu5RG06dES0Danyx1ojFfQUgEEW\n1wL7b5MtyeNosvnnNuCckD7Yg/ObvD6f/rLFdGS/ZXOSqAxLgL3+DTxVrtu9IGMk\nJYynE2wfAgMBAAECggEAf8l91vcvylAweB1twaUjUNsp1yvXbUDNz09Adtxc/zJU\nWoqSxCsGQH3Y7331Mx/fav+Ky8nN/U+NPCxv2r+xvjUncCJ4OBwV6nQJbd76rWTP\ncNBnL4IxCAheodsqYsclRZ+WftjeU5rHJBR48Lgxin6462rImdeEVw99n7At5Kig\nGZmGNXnk6jgvoNU1YJZxSMWQQwKtrfJxXry5a90SfjiviGseuBPsgbrMxEPaeqlQ\nGAMi4nIVRmijL56vbbuuudZm+6dpOnbGzzF6J4M5Nrfr/qJF7ClwXjcMeb6lESIo\n5pmGl3QwSGQYeflFexP3ydvQdUwN5rLbtCexPC2CsQKBgQDxLPn8pIU7WuFiTuOp\n1o7/25v7ijPydIRBjjVeA7E7+mbq9FllkT4CW+HtP7zCCjdScuXhKjuPRrST4fsZ\nZex2nUYfc586s/W95b4QMKtXcJd1MMMWOK2/ZGN/6L5zLPupDrhyWHw91biFZG8h\nSFgn7G2zS/+09gJTglpdj3gClQKBgQDqo7f+kZiXGFvP4kcOWNgnOJOpdqzG/zeD\nuVP2Y6Q8mi7GhkiYhdlrl6Ibh9X0qjFMKMKy827jbUPSGaj5tIT8iXyFT4KVaqZQ\n7r2cMyCqbznKfWlyMyspaVEDa910+VwC2hYQvahTQzfdQqFp6JfiLqCdQtiNDGLf\nbvUOHk4a4wKBgHDLo0NowrMm5wBuewXExm6djE9RrMf5fJ2YYBdPTMYLb7T1gRYC\nnujFhl3KkIKD+qnB+QedE+wHmo8Lgr+3LqevGMu+7LqszgL5fzHdQVWM4Bk8LBGp\ngoFf9zUsal49rJm9u8Am6DyXR0yD04HSbwCFEC1qHvbIk//wmEjnv64dAoGANBbW\nYPBHlLt2nmbYaWn1ync36LYM0zyTQW3iIt+p9T4xRidHdHy6cLU/6qa0K9Wgjgy6\ndGmwY1K9bKX/qjeWEk4fU6T8E1mSxILLmyKKjOuWQ8qlnxGW8mGL95t5lV9KOuPZ\nZCwGcz2H6FnDZbSaCz9YrrDJTD7EsF98jX7SzgsCgYBQv5yi7aGxH6OcrAJPQH4v\n1fZo7mFbqp0WoUMpwuWKNOHZuZoF0EU/bllMZT7AipxVhso+hUC+rDEO7H36TAyc\nTUJbdxtlIC1JmJTmeBOWh3i3Htu8A97DLUNTqNikNyKyGWjy7eC0ncG3+CGG91wA\nky9KxzxszaIez6kIUCY7xQ==\n-----END PRIVATE KEY-----\n",
+						DestinationCACertificate: "     -----BEGIN CERTIFICATE-----\n      MIIDVzCCAj+gAwIBAgIJANFsRSwLRI09MA0GCSqGSIb3DQEBCwUAMEIxCzAJBgNV\n      BAYTAlVTMQswCQYDVQQIDAJDTzEMMAoGA1UEBwwDQkRPMQswCQYDVQQLDAJjYTEL\n      MAkGA1UECgwCRjUwHhcNMjIxMTI4MDc0NTIwWhcNMjMxMTI4MDc0NTIwWjBCMQsw\n      CQYDVQQGEwJVUzELMAkGA1UECAwCQ08xDDAKBgNVBAcMA0JETzELMAkGA1UECwwC\n      Y2ExCzAJBgNVBAoMAkY1MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\n      sCDsFH9xMWAPD8VNOnLPJi49jJ5hRhQcx5oYP9FVvHDvRv0PQKXOfA1BOZeGSOjK\n      3p0k4SVXFBg4EHMBVhW3NRFIR0JppoyrF8Jj9Ts83D5N6eLW1ShYJnXrqrEKhjI1\n      c0e+Eta+LsVwktRLQCABsb2Ca/J/PUpD450i9ss11wGzX3lHg2XKr8vUZGkJRJmB\n      iqHV1Ahm9y9SDceyWQ9AESq+sKkz/swoEAwi1Vb2Bmri8aj7a0hlCVy59dngPayP\n      jhqoJDxMOThGaNn4EcOKuPtqfJ6CwOyOEFdc6DGnEuTdXpMbj+L8V1R1mgyZX/uo\n      OIhJkEG0aPz3ZB7Ks94ykQIDAQABo1AwTjAdBgNVHQ4EFgQUlOlkzFc3BF8jhoDv\n      rhMthDD3TDQwHwYDVR0jBBgwFoAUlOlkzFc3BF8jhoDvrhMthDD3TDQwDAYDVR0T\n      BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAmyvLI5T8dqJVzWXwwVTRwX8ca2Li\n      Y53oiChuBTtT2TUyRoeWFSqN5QwpxvexFxLpCUWdO1v+GjeLIKyYa2yq86Gr4oi3\n      NNBy+8BA2q092AKWDSMqGhw0COJMapoWKWekwbXw+yOBwfpM36+OrHbRRf/00USv\n      VwNB+TJA1MvdiXRs9WXCIqtOjEcQwFTzQSnhejyXMUWodEsooTmnLENfskdCAoMp\n      oqUPGMn1HxiPewweP6Hh+up4g6accrZ59pBaeQ+t4xrevUSh0CUqx5xobOhB2Z8S\n      Dn7eCxGJDOKqJ2TZWFQWEw6Gk6gRpbNHL96HPztQUnp6dgyLjX2USHbMZg==\n      -----END CERTIFICATE-----",
+						CACertificate:            "     -----BEGIN CERTIFICATE-----\n      MIIDVzCCAj+gAwIBAgIJANFsRSwLRI09MA0GCSqGSIb3DQEBCwUAMEIxCzAJBgNV\n      BAYTAlVTMQswCQYDVQQIDAJDTzEMMAoGA1UEBwwDQkRPMQswCQYDVQQLDAJjYTEL\n      MAkGA1UECgwCRjUwHhcNMjIxMTI4MDc0NTIwWhcNMjMxMTI4MDc0NTIwWjBCMQsw\n      CQYDVQQGEwJVUzELMAkGA1UECAwCQ08xDDAKBgNVBAcMA0JETzELMAkGA1UECwwC\n      Y2ExCzAJBgNVBAoMAkY1MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\n      sCDsFH9xMWAPD8VNOnLPJi49jJ5hRhQcx5oYP9FVvHDvRv0PQKXOfA1BOZeGSOjK\n      3p0k4SVXFBg4EHMBVhW3NRFIR0JppoyrF8Jj9Ts83D5N6eLW1ShYJnXrqrEKhjI1\n      c0e+Eta+LsVwktRLQCABsb2Ca/J/PUpD450i9ss11wGzX3lHg2XKr8vUZGkJRJmB\n      iqHV1Ahm9y9SDceyWQ9AESq+sKkz/swoEAwi1Vb2Bmri8aj7a0hlCVy59dngPayP\n      jhqoJDxMOThGaNn4EcOKuPtqfJ6CwOyOEFdc6DGnEuTdXpMbj+L8V1R1mgyZX/uo\n      OIhJkEG0aPz3ZB7Ks94ykQIDAQABo1AwTjAdBgNVHQ4EFgQUlOlkzFc3BF8jhoDv\n      rhMthDD3TDQwHwYDVR0jBBgwFoAUlOlkzFc3BF8jhoDvrhMthDD3TDQwDAYDVR0T\n      BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAmyvLI5T8dqJVzWXwwVTRwX8ca2Li\n      Y53oiChuBTtT2TUyRoeWFSqN5QwpxvexFxLpCUWdO1v+GjeLIKyYa2yq86Gr4oi3\n      NNBy+8BA2q092AKWDSMqGhw0COJMapoWKWekwbXw+yOBwfpM36+OrHbRRf/00USv\n      VwNB+TJA1MvdiXRs9WXCIqtOjEcQwFTzQSnhejyXMUWodEsooTmnLENfskdCAoMp\n      oqUPGMn1HxiPewweP6Hh+up4g6accrZ59pBaeQ+t4xrevUSh0CUqx5xobOhB2Z8S\n      Dn7eCxGJDOKqJ2TZWFQWEw6Gk6gRpbNHL96HPztQUnp6dgyLjX2USHbMZg==\n      -----END CERTIFICATE-----",
+					},
+				}
+
+				//Policy
+
+				policy = &cisapiv1.Policy{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "policy",
+						Namespace: "default",
+					},
+					Spec: cisapiv1.PolicySpec{
+						SNAT: "auto",
+						L7Policies: cisapiv1.L7PolicySpec{
+							WAF: "/Common/WAF_Policy",
+						},
+						L3Policies: cisapiv1.L3PolicySpec{
+							FirewallPolicy: "/Common/AFM_Policy",
+							DOS:            "/Common/dos",
+							BotDefense:     "/Common/bot-defense",
+							AllowSourceRange: []string{
+								"1.1.1.0/24",
+								"2.2.2.0/24",
+							},
+							AllowVlans: []string{
+								" /Common/external",
+							},
+						},
+						Profiles: cisapiv1.ProfileSpec{
+							TCP: cisapiv1.ProfileTCP{
+								Client: "/Common/f5-tcp-lan",
+								Server: "/Common/f5-tcp-wan",
+							},
+							HTTP:  "/Common/http",
+							HTTP2: "/Common/http2",
+							LogProfiles: []string{
+								"/Common/Log all requests", "/Common/local-dos"},
+							ProfileL4:        " /Common/security-fastL4",
+							ProfileMultiplex: "/Common/oneconnect",
+							UDP:              "/Common/udp",
+						},
+					},
+				}
+
+				// ConfigMap
+				cmName := "escm"
+				cmNamespace := "system"
+				mockCtlr.routeSpecCMKey = cmNamespace + "/" + cmName
+				mockCtlr.resources = NewResourceStore()
+				data := make(map[string]string)
+				cm = test.NewConfigMap(
+					cmName,
+					"v1",
+					cmNamespace,
+					data)
+
+				data["extendedSpec"] = `
+baseRouteSpec: 
+    tlsCipher:
+      tlsVersion : 1.2
+      ciphers: DEFAULT
+      cipherGroup: /Common/f5-default
+    defaultTLS:
+       clientSSL: /Common/clientssl
+       serverSSL: /Common/serverssl
+       reference: bigip
+    defaultRouteGroup: 
+       bigIpPartition: test
+       vserverAddr: vs
+       allowOverride: false
+
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.11
+      vserverName: nextgenroutes
+      allowOverride: true
+      policyCR : default/policy
+`
+				localData := make(map[string]string)
+				localCM = test.NewConfigMap(
+					"localESCM",
+					"v1",
+					"default",
+					localData)
+				localData["extendedSpec"] = `
+extendedRouteSpec:
+    - namespace: default
+      vserverAddr: 10.8.3.110
+      vserverName: nextgenroutes
+      policyCR : default/policy
+`
+
+				//Annotations
+				annotation1 = make(map[string]string)
+				annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+				annotation1[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
+				annotation1[resource.F5VsBalanceAnnotation] = "least-connections-node"
+				annotation1[resource.F5VsURLRewriteAnnotation] = "/foo"
+				annotation1[resource.HealthMonitorAnnotation] = "[{\"path\": \"pytest-foo-1.com/\",\"send\": \"HTTP GET pytest-foo-1.com/\", \"recv\": \"\",\"interval\": 2,\"timeout\": 5,  \"type\": \"https\"}]"
+
+			})
+
+			It("Process Re-encrypt Route", func() {
+
+				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
+
+				mockCtlr.addConfigMap(cm)
+				mockCtlr.processResources()
+				mockCtlr.Agent.ccclGTMAgent = true
+				writer := &test.MockWriter{
+					FailStyle: test.Success,
+					Sections:  make(map[string]interface{}),
+				}
+				mockCtlr.Agent.ConfigWriter = writer
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
+
+				routeGroup := "default"
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+
+				labels := make(map[string]string)
+				labels["app"] = "UpdatePoolHealthMonitors"
+				svc.Spec.Selector = labels
+				pod := &v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "pod",
+						Labels:    labels,
+						Namespace: namespace,
+					},
+				}
+				Handler := v1.Handler{
+					HTTPGet: &v1.HTTPGetAction{
+						Path: "/",
+						Port: intstr.IntOrString{
+							IntVal: 80,
+						},
+						Scheme: HTTP,
+					},
+				}
+				cnt := v1.Container{
+					LivenessProbe: &v1.Probe{
+						FailureThreshold: 3,
+						TimeoutSeconds:   10,
+						PeriodSeconds:    10,
+						SuccessThreshold: 1,
+						Handler:          Handler,
+					},
+					Ports: []v1.ContainerPort{
+						v1.ContainerPort{
+							ContainerPort: 80,
+							Protocol:      v1.ProtocolTCP,
+						},
+					},
+				}
+				pod.Spec.Containers = append(pod.Spec.Containers, cnt)
+
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				mockCtlr.addPod(pod)
+				mockCtlr.processResources()
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				mockCtlr.deleteEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				mockCtlr.deleteService(svc)
+				mockCtlr.processResources()
+
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
+				route1.Spec.TLS.Termination = TLSReencrypt
+				//route1.Spec.TLS.Certificate = ""
+				//route1.Spec.TLS.Key = ""
+				route1.Spec.Host = "test.com"
+				delete(route1.Annotations, resource.F5ClientSslProfileAnnotation)
+
+				checkCertificateHost(route1.Spec.Host, []byte(route1.Spec.TLS.Certificate), []byte(route1.Spec.TLS.Key))
+
+				mockCtlr.addRoute(route1)
+				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
+
+				route1.Spec.TLS.Certificate = ""
+				route1.Spec.TLS.Key = ""
+				mockCtlr.deleteRoute(route1)
+				mockCtlr.processResources()
+
+				mockCtlr.addConfigMap(localCM)
+				mockCtlr.processResources()
+
+				route1.Annotations[resource.F5ClientSslProfileAnnotation] = "common/client-ssl"
+				mockCtlr.addRoute(route1)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
+
+				// Route count should be 0
+				Expect(mockCtlr.GetServiceRouteWithoutHealthAnnotation(svc)).To(BeNil())
+
+				pod.Name = "pod1"
+				mockCtlr.addPod(pod)
+				mockCtlr.processResources()
+
+				mockCtlr.deleteRoute(route1)
+				mockCtlr.processResources()
+
+				// Remove health Annotation - This won't work because current we are querying the pods from the kube client instead of informers
+				delete(route1.Annotations, resource.HealthMonitorAnnotation)
+				mockCtlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).Create(context.TODO(), svc, metav1.CreateOptions{})
+				mockCtlr.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
+				mockCtlr.addRoute(route1)
+				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+				mockCtlr.processResources()
+
+				mockCtlr.deleteEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				pod.Spec.Containers[0].LivenessProbe.TimeoutSeconds = 1
+				mockCtlr.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				mockCtlr.deleteEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				//length should be 1
+				mockCtlr.getWatchingNamespaces()
+
+				labels["app"] = "test"
+				ns := test.NewNamespace(
+					"default",
+					"1",
+					labels,
+				)
+				mockCtlr.enqueueDeletedNamespace(ns)
+				mockCtlr.processResources()
+
+				_, ok := mockCtlr.nsInformers[namespace]
+				Expect(ok).To(Equal(false), "Namespace not deleted")
+
+				mockCtlr.Agent.retryFailedTenant()
+				//time.Sleep(1 * time.Microsecond)
+			})
+			It("Process Edge Route", func() {
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
+
+				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
+				mockCtlr.addConfigMap(cm)
+				mockCtlr.processResources()
+				routeGroup := "default"
+
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				delete(annotation1, resource.F5ClientSslProfileAnnotation)
+				delete(annotation1, resource.F5ServerSslProfileAnnotation)
+				spec1.Host = "test.com"
+				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
+				route1.Spec.TLS.Termination = TLSEdge
+				mockCtlr.addRoute(route1)
+				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
+
+				mockCtlr.deleteRoute(route1)
+				mockCtlr.processResources()
+
+				route1.Spec.TLS.Key = ""
+				route1.Spec.TLS.Certificate = ""
+				mockCtlr.addRoute(route1)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
+
+				mockCtlr.deleteRoute(route1)
+				mockCtlr.processResources()
+
+			})
+			It("Process Pass-through Route", func() {
+				go mockCtlr.responseHandler(mockCtlr.Agent.respChan)
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
+				mockCtlr.initState = true
+				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
+				mockCtlr.addConfigMap(cm)
+				mockCtlr.processResources()
+				mockCtlr.resourceQueue.Get()
+				routeGroup := "default"
+
+				mockCtlr.initState = false
+				//mockCtlr.DeleteConfigMap(cm)
+				//mockCtlr.processResources()
+
+				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
+				mockCtlr.mode = CustomResourceMode
+				mockCtlr.addConfigMap(cm)
+				mockCtlr.processResources()
+
+				mockCtlr.mode = OpenShiftMode
+				mockCtlr.addConfigMap(cm)
+				mockCtlr.processResources()
+
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				// Invalid Service
+				svcObj := mockCtlr.GetService(svc.Namespace, "sv3")
+				Expect(svcObj).To(BeNil())
+				//Val
+				svcObj = mockCtlr.GetService(svc.Namespace, svc.Name)
+				Expect(svcObj).NotTo(BeNil())
+
+				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
+				route1.Spec.TLS.Termination = TLSPassthrough
+
+				mockCtlr.mode = CustomResourceMode
+				mockCtlr.addRoute(route1)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid Controller Mode")
+
+				mockCtlr.mode = OpenShiftMode
+				mockCtlr.addRoute(route1)
+				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(0), "Invalid ltm config")
+
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
+				//Expect(len(mockCtlr.getOrderedRoutes(""))).To(Equal(1), "Invalid no of Routes")
+				rscUpdateMeta := resourceStatusMeta{
+					0,
+					make(map[string]struct{}),
+				}
+
+				mockCtlr.routeClientV1.Routes("default").Create(context.TODO(), route1, metav1.CreateOptions{})
+
+				//	This will fail the TC because we are updating route status
+				time.Sleep(10 * time.Millisecond)
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+
+				config := ResourceConfigRequest{
+					ltmConfig:  mockCtlr.resources.getLTMConfigDeepCopy(),
+					shareNodes: mockCtlr.shareNodes,
+					gtmConfig:  mockCtlr.resources.getGTMConfigCopy(),
+				}
+				config.reqId = mockCtlr.Controller.enqueueReq(config)
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+
+				mockCtlr.Agent.respChan <- rscUpdateMeta
+
+				time.Sleep(10 * time.Millisecond)
+
+			})
 		})
 	})
 })

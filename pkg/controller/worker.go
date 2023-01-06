@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"sort"
 	"strings"
 	"time"
@@ -29,8 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
-	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/config/apis/cis/v1"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
+	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,12 +64,16 @@ func (ctlr *Controller) nextGenResourceWorker() {
 func (ctlr *Controller) setInitialServiceCount() {
 	var svcCount int
 	for _, ns := range ctlr.getWatchingNamespaces() {
-		services, err := ctlr.kubeClient.CoreV1().Services(ns).List(context.TODO(), metav1.ListOptions{})
+		comInf, found := ctlr.getNamespacedCommonInformer(ns)
+		if !found {
+			continue
+		}
+		services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", ns)
 		if err != nil {
 			continue
 		}
-
-		for _, svc := range services.Items {
+		for _, obj := range services {
+			svc := obj.(*v1.Service)
 			if _, ok := K8SCoreServices[svc.Name]; ok {
 				continue
 			}
@@ -831,7 +836,11 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 		log.Errorf("Informer not found for namespace: %v", namespace)
 		return nil
 	}
-
+	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
+	if !ok {
+		log.Errorf("Common Informer not found for namespace: %v", namespace)
+		return nil
+	}
 	// TODO: Create Internal Structure to hold TLSProfiles. Make API call only for a new TLSProfile
 	// Check if the TLSProfile exists and valid for us.
 	obj, tlsFound, _ := crInf.tlsInformer.GetIndexer().GetByKey(tlsKey)
@@ -852,7 +861,12 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 		var match bool
 		if len(tlsProfile.Spec.TLS.ClientSSLs) > 0 {
 			for _, secret := range tlsProfile.Spec.TLS.ClientSSLs {
-				clientSecret, _ := ctlr.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), secret, metav1.GetOptions{})
+				secretKey := namespace + "/" + secret
+				clientSecretobj, found, err := comInf.secretsInformer.GetIndexer().GetByKey(secretKey)
+				if err != nil || !found {
+					return nil
+				}
+				clientSecret := clientSecretobj.(*v1.Secret)
 				//validate at least one clientSSL certificates matches the VS hostname
 				if checkCertificateHost(vs.Spec.Host, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"]) {
 					match = true
@@ -861,7 +875,12 @@ func (ctlr *Controller) getTLSProfileForVirtualServer(
 			}
 
 		} else {
-			clientSecret, _ := ctlr.kubeClient.CoreV1().Secrets(namespace).Get(context.TODO(), tlsProfile.Spec.TLS.ClientSSL, metav1.GetOptions{})
+			secretKey := namespace + "/" + tlsProfile.Spec.TLS.ClientSSL
+			clientSecretobj, found, err := comInf.secretsInformer.GetIndexer().GetByKey(secretKey)
+			if err != nil || !found {
+				return nil
+			}
+			clientSecret := clientSecretobj.(*v1.Secret)
 			//validate clientSSL certificates and hostname
 			match = checkCertificateHost(vs.Spec.Host, clientSecret.Data["tls.crt"], clientSecret.Data["tls.key"])
 		}
@@ -1801,10 +1820,10 @@ func (ctlr *Controller) getEndpointsForNodePort(
 // getEndpointsForNPL returns members.
 func (ctlr *Controller) getEndpointsForNPL(
 	targetPort intstr.IntOrString,
-	pods *v1.PodList,
+	pods []*v1.Pod,
 ) []PoolMember {
 	var members []PoolMember
-	for _, pod := range pods.Items {
+	for _, pod := range pods {
 		anns, found := ctlr.resources.nplStore[pod.Namespace+"/"+pod.Name]
 		if !found {
 			continue
@@ -2118,107 +2137,107 @@ func filterTransportServersForService(allVirtuals []*cisapiv1.TransportServer,
 	return result
 }
 
-func (ctlr *Controller) getAllServicesFromMonitoredNamespaces() []*v1.Service {
-	var svcList []*v1.Service
-	if ctlr.watchingAllNamespaces() {
-		objList := ctlr.comInformers[""].svcInformer.GetIndexer().List()
-		for _, obj := range objList {
-			svcList = append(svcList, obj.(*v1.Service))
-		}
-		return svcList
-	}
+//func (ctlr *Controller) getAllServicesFromMonitoredNamespaces() []*v1.Service {
+//	var svcList []*v1.Service
+//	if ctlr.watchingAllNamespaces() {
+//		objList := ctlr.comInformers[""].svcInformer.GetIndexer().List()
+//		for _, obj := range objList {
+//			svcList = append(svcList, obj.(*v1.Service))
+//		}
+//		return svcList
+//	}
+//
+//	for ns := range ctlr.namespaces {
+//		objList := ctlr.comInformers[ns].svcInformer.GetIndexer().List()
+//		for _, obj := range objList {
+//			svcList = append(svcList, obj.(*v1.Service))
+//		}
+//	}
+//
+//	return svcList
+//}
 
-	for ns := range ctlr.namespaces {
-		objList := ctlr.comInformers[ns].svcInformer.GetIndexer().List()
-		for _, obj := range objList {
-			svcList = append(svcList, obj.(*v1.Service))
-		}
-	}
+//// Get List of VirtualServers associated with the IPAM resource
+//func (ctlr *Controller) getVirtualServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.VirtualServer {
+//	log.Debug("[ipam] Syncing IPAM dependent virtual servers")
+//	var allVS, vss []*cisapiv1.VirtualServer
+//	allVS = ctlr.getAllVSFromMonitoredNamespaces()
+//	for _, status := range ipam.Status.IPStatus {
+//		for _, vs := range allVS {
+//			key := vs.ObjectMeta.Namespace + "/" + vs.Spec.HostGroup
+//			if status.Host == vs.Spec.Host || status.Key == key {
+//				vss = append(vss, vs)
+//				break
+//			}
+//		}
+//	}
+//	return vss
+//}
 
-	return svcList
-}
+//// Get List of TransportServers associated with the IPAM resource
+//func (ctlr *Controller) getTransportServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.TransportServer {
+//	log.Debug("[ipam] Syncing IPAM dependent transport servers")
+//	var allTS, tss []*cisapiv1.TransportServer
+//	allTS = ctlr.getAllTSFromMonitoredNamespaces()
+//	for _, status := range ipam.Status.IPStatus {
+//		for _, ts := range allTS {
+//			key := ts.ObjectMeta.Namespace + "/" + ts.ObjectMeta.Name + "_ts"
+//			if status.Key == key {
+//				tss = append(tss, ts)
+//				break
+//			}
+//		}
+//	}
+//	return tss
+//}
 
-// Get List of VirtualServers associated with the IPAM resource
-func (ctlr *Controller) getVirtualServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.VirtualServer {
-	log.Debug("[ipam] Syncing IPAM dependent virtual servers")
-	var allVS, vss []*cisapiv1.VirtualServer
-	allVS = ctlr.getAllVSFromMonitoredNamespaces()
-	for _, status := range ipam.Status.IPStatus {
-		for _, vs := range allVS {
-			key := vs.ObjectMeta.Namespace + "/" + vs.Spec.HostGroup
-			if status.Host == vs.Spec.Host || status.Key == key {
-				vss = append(vss, vs)
-				break
-			}
-		}
-	}
-	return vss
-}
+//// Get List of ingLink associated with the IPAM resource
+//func (ctlr *Controller) getIngressLinkForIPAM(ipam *ficV1.IPAM) []*cisapiv1.IngressLink {
+//	var allIngLinks, ils []*cisapiv1.IngressLink
+//	allIngLinks = ctlr.getAllIngLinkFromMonitoredNamespaces()
+//	if allIngLinks == nil {
+//		return nil
+//	}
+//	for _, status := range ipam.Status.IPStatus {
+//		for _, il := range allIngLinks {
+//			key := il.ObjectMeta.Namespace + "/" + il.ObjectMeta.Name + "_il"
+//			if status.Key == key {
+//				ils = append(ils, il)
+//				break
+//			}
+//		}
+//	}
+//	return ils
+//}
 
-// Get List of TransportServers associated with the IPAM resource
-func (ctlr *Controller) getTransportServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.TransportServer {
-	log.Debug("[ipam] Syncing IPAM dependent transport servers")
-	var allTS, tss []*cisapiv1.TransportServer
-	allTS = ctlr.getAllTSFromMonitoredNamespaces()
-	for _, status := range ipam.Status.IPStatus {
-		for _, ts := range allTS {
-			key := ts.ObjectMeta.Namespace + "/" + ts.ObjectMeta.Name + "_ts"
-			if status.Key == key {
-				tss = append(tss, ts)
-				break
-			}
-		}
-	}
-	return tss
-}
-
-// Get List of ingLink associated with the IPAM resource
-func (ctlr *Controller) getIngressLinkForIPAM(ipam *ficV1.IPAM) []*cisapiv1.IngressLink {
-	var allIngLinks, ils []*cisapiv1.IngressLink
-	allIngLinks = ctlr.getAllIngLinkFromMonitoredNamespaces()
-	if allIngLinks == nil {
-		return nil
-	}
-	for _, status := range ipam.Status.IPStatus {
-		for _, il := range allIngLinks {
-			key := il.ObjectMeta.Namespace + "/" + il.ObjectMeta.Name + "_il"
-			if status.Key == key {
-				ils = append(ils, il)
-				break
-			}
-		}
-	}
-	return ils
-}
-
-func (ctlr *Controller) syncAndGetServicesForIPAM(ipam *ficV1.IPAM) []*v1.Service {
-
-	allServices := ctlr.getAllServicesFromMonitoredNamespaces()
-	if allServices == nil {
-		return nil
-	}
-	var svcList []*v1.Service
-	var staleSpec []*ficV1.IPSpec
-	for _, IPSpec := range ipam.Status.IPStatus {
-		for _, svc := range allServices {
-			svcKey := svc.Namespace + "/" + svc.Name + "_svc"
-			if IPSpec.Key == svcKey {
-				if svc.Spec.Type != v1.ServiceTypeLoadBalancer {
-					staleSpec = append(staleSpec, IPSpec)
-					ctlr.eraseLBServiceIngressStatus(svc)
-				} else {
-					svcList = append(svcList, svc)
-				}
-			}
-		}
-	}
-
-	for _, IPSpec := range staleSpec {
-		ctlr.releaseIP(IPSpec.IPAMLabel, "", IPSpec.Key)
-	}
-
-	return svcList
-}
+//func (ctlr *Controller) syncAndGetServicesForIPAM(ipam *ficV1.IPAM) []*v1.Service {
+//
+//	allServices := ctlr.getAllServicesFromMonitoredNamespaces()
+//	if allServices == nil {
+//		return nil
+//	}
+//	var svcList []*v1.Service
+//	var staleSpec []*ficV1.IPSpec
+//	for _, IPSpec := range ipam.Status.IPStatus {
+//		for _, svc := range allServices {
+//			svcKey := svc.Namespace + "/" + svc.Name + "_svc"
+//			if IPSpec.Key == svcKey {
+//				if svc.Spec.Type != v1.ServiceTypeLoadBalancer {
+//					staleSpec = append(staleSpec, IPSpec)
+//					ctlr.eraseLBServiceIngressStatus(svc)
+//				} else {
+//					svcList = append(svcList, svc)
+//				}
+//			}
+//		}
+//	}
+//
+//	for _, IPSpec := range staleSpec {
+//		ctlr.releaseIP(IPSpec.IPAMLabel, "", IPSpec.Key)
+//	}
+//
+//	return svcList
+//}
 
 func (ctlr *Controller) processLBServices(
 	svc *v1.Service,
@@ -2633,6 +2652,7 @@ func checkCertificateHost(host string, certificate []byte, key []byte) bool {
 	ok := x509cert.VerifyHostname(host)
 	if ok != nil {
 		log.Debugf("Error: Hostname in virtualserver does not match with certificate hostname: %v", ok)
+		return false
 	}
 	return true
 }
@@ -2706,7 +2726,7 @@ func (ctlr *Controller) processIPAM(ipam *ficV1.IPAM) error {
 				key := ts.Spec.HostGroup + "_hg"
 				if pKey == key {
 					ctlr.TeemData.Lock()
-					ctlr.TeemData.ResourceType.IPAMVS[ns]++
+					ctlr.TeemData.ResourceType.IPAMTS[ns]++
 					ctlr.TeemData.Unlock()
 					err := ctlr.processTransportServers(ts, false)
 					if err != nil {
@@ -3079,29 +3099,29 @@ func (ctlr *Controller) getKICServiceOfIngressLink(ingLink *cisapiv1.IngressLink
 	}
 	selector = selector[:len(selector)-1]
 
-	svcListOptions := metav1.ListOptions{
-		LabelSelector: selector,
+	comInf, ok := ctlr.getNamespacedCommonInformer(ingLink.ObjectMeta.Namespace)
+	if !ok {
+		return nil, fmt.Errorf("informer not found for namepsace %v", ingLink.ObjectMeta.Namespace)
 	}
-
-	// Identify services that matches the given label
-	serviceList, err := ctlr.kubeClient.CoreV1().Services(ingLink.ObjectMeta.Namespace).List(context.TODO(), svcListOptions)
+	ls, _ := createLabel(selector)
+	serviceList, err := listerscorev1.NewServiceLister(comInf.svcInformer.GetIndexer()).Services(ingLink.ObjectMeta.Namespace).List(ls)
 
 	if err != nil {
 		log.Errorf("Error getting service list From IngressLink. Error: %v", err)
 		return nil, err
 	}
 
-	if len(serviceList.Items) == 0 {
+	if len(serviceList) == 0 {
 		log.Infof("No services for with labels : %v", ingLink.Spec.Selector.MatchLabels)
 		return nil, nil
 	}
 
-	if len(serviceList.Items) == 1 {
-		return &serviceList.Items[0], nil
+	if len(serviceList) == 1 {
+		return serviceList[0], nil
 	}
 
-	sort.Sort(Services(serviceList.Items))
-	return &serviceList.Items[0], nil
+	sort.Sort(Services(serviceList))
+	return serviceList[0], nil
 }
 
 func (ctlr *Controller) setLBServiceIngressStatus(
@@ -3139,12 +3159,13 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 ) {
 
 	svcName := svc.Namespace + "/" + svc.Name
-	svc, err := ctlr.kubeClient.CoreV1().Services(svc.Namespace).Get(context.TODO(), svc.Name, metav1.GetOptions{})
-	if err != nil {
+	comInf, _ := ctlr.getNamespacedCommonInformer(svc.Namespace)
+	service, found, err := comInf.svcInformer.GetIndexer().GetByKey(svcName)
+	if !found || err != nil {
 		log.Debugf("Unable to Update Status of Service: %v due to unavailability", svcName)
 		return
 	}
-
+	svc = service.(*v1.Service)
 	index := -1
 	for i, lbIng := range svc.Status.LoadBalancer.Ingress {
 		if lbIng.IP == ip {
@@ -3177,29 +3198,29 @@ func (ctlr *Controller) unSetLBServiceIngressStatus(
 	}
 }
 
-func (ctlr *Controller) eraseLBServiceIngressStatus(
-	svc *v1.Service,
-) {
-	svc.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{}
-
-	_, updateErr := ctlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
-		context.TODO(), svc, metav1.UpdateOptions{})
-	if nil != updateErr {
-		// Multi-service causes the controller to try to update the status multiple times
-		// at once. Ignore this error.
-		if strings.Contains(updateErr.Error(), "object has been modified") {
-			log.Debugf("Error while updating service: %v/%v. %v", svc.Namespace, svc.Name, updateErr.Error())
-			return
-		}
-		warning := fmt.Sprintf(
-			"Error when erasing Service LB Ingress status IP: %v", updateErr)
-		log.Warning(warning)
-		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning)
-	} else {
-		message := fmt.Sprintf("F5 CIS erased LoadBalancer IP in Status")
-		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message)
-	}
-}
+//func (ctlr *Controller) eraseLBServiceIngressStatus(
+//	svc *v1.Service,
+//) {
+//	svc.Status.LoadBalancer.Ingress = []v1.LoadBalancerIngress{}
+//
+//	_, updateErr := ctlr.kubeClient.CoreV1().Services(svc.ObjectMeta.Namespace).UpdateStatus(
+//		context.TODO(), svc, metav1.UpdateOptions{})
+//	if nil != updateErr {
+//		// Multi-service causes the controller to try to update the status multiple times
+//		// at once. Ignore this error.
+//		if strings.Contains(updateErr.Error(), "object has been modified") {
+//			log.Debugf("Error while updating service: %v/%v. %v", svc.Namespace, svc.Name, updateErr.Error())
+//			return
+//		}
+//		warning := fmt.Sprintf(
+//			"Error when erasing Service LB Ingress status IP: %v", updateErr)
+//		log.Warning(warning)
+//		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeWarning, "StatusIPError", warning)
+//	} else {
+//		message := fmt.Sprintf("F5 CIS erased LoadBalancer IP in Status")
+//		ctlr.recordLBServiceIngressEvent(svc, v1.EventTypeNormal, "ExternalIP", message)
+//	}
+//}
 
 func (ctlr *Controller) recordLBServiceIngressEvent(
 	svc *v1.Service,
@@ -3227,6 +3248,19 @@ func (svcs Services) Less(i, j int) bool {
 
 func (svcs Services) Swap(i, j int) {
 	svcs[i], svcs[j] = svcs[j], svcs[i]
+}
+
+// sort Nodes by Name
+func (nodes NodeList) Len() int {
+	return len(nodes)
+}
+
+func (nodes NodeList) Less(i, j int) bool {
+	return nodes[i].Name < nodes[j].Name
+}
+
+func (nodes NodeList) Swap(i, j int) {
+	nodes[i], nodes[j] = nodes[j], nodes[i]
 }
 
 func getNodeport(svc *v1.Service, servicePort int32) int32 {
@@ -3280,7 +3314,7 @@ func (ctlr *Controller) updateIngressLinkStatus(il *cisapiv1.IngressLink, ip str
 	}
 }
 
-//returns service obj with servicename
+// returns service obj with servicename
 func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
 	svcKey := namespace + "/" + serviceName
 	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
@@ -3301,7 +3335,7 @@ func (ctlr *Controller) GetService(namespace, serviceName string) *v1.Service {
 }
 
 // GetPodsForService returns podList with labels set to svc selector
-func (ctlr *Controller) GetPodsForService(namespace, serviceName string, nplAnnotationRequired bool) *v1.PodList {
+func (ctlr *Controller) GetPodsForService(namespace, serviceName string, nplAnnotationRequired bool) []*v1.Pod {
 	svcKey := namespace + "/" + serviceName
 	comInf, ok := ctlr.getNamespacedCommonInformer(namespace)
 	if !ok {
@@ -3333,10 +3367,8 @@ func (ctlr *Controller) GetPodsForService(namespace, serviceName string, nplAnno
 	if err != nil {
 		return nil
 	}
-	podListOptions := metav1.ListOptions{
-		LabelSelector: labels.SelectorFromSet(labelmap).String(),
-	}
-	podList, err := ctlr.kubeClient.CoreV1().Pods(namespace).List(context.TODO(), podListOptions)
+	pl, _ := createLabel(labels.SelectorFromSet(labelmap).String())
+	podList, err := listerscorev1.NewPodLister(comInf.podInformer.GetIndexer()).Pods(namespace).List(pl)
 	if err != nil {
 		log.Debugf("Got error while listing Pods with selector %v: %v", selector, err)
 		return nil
@@ -3350,7 +3382,10 @@ func (ctlr *Controller) GetServicesForPod(pod *v1.Pod) *v1.Service {
 		log.Errorf("Informer not found for namespace: %v", pod.Namespace)
 		return nil
 	}
-	services := comInf.svcInformer.GetIndexer().List()
+	services, err := comInf.svcInformer.GetIndexer().ByIndex("namespace", pod.Namespace)
+	if err != nil {
+		log.Debugf("Unable to find services for namespace %v with error: %v", pod.Namespace, err)
+	}
 	for _, obj := range services {
 		svc := obj.(*v1.Service)
 		if svc.Spec.Type != v1.ServiceTypeNodePort {
@@ -3510,11 +3545,24 @@ func (ctlr *Controller) getTLSProfilesForSecret(secret *v1.Secret) []*cisapiv1.T
 						allTLSProfiles = append(allTLSProfiles, tlsProfile)
 					}
 				}
+			} else if tlsProfile.Spec.TLS.ClientSSL == secret.Name {
+				allTLSProfiles = append(allTLSProfiles, tlsProfile)
 			}
-			allTLSProfiles = append(allTLSProfiles, tlsProfile)
-		} else if tlsProfile.Spec.TLS.ClientSSL == secret.Name {
-			allTLSProfiles = append(allTLSProfiles, tlsProfile)
 		}
 	}
 	return allTLSProfiles
+}
+
+func createLabel(label string) (labels.Selector, error) {
+	var l labels.Selector
+	var err error
+	if label == "" {
+		l = labels.Everything()
+	} else {
+		l, err = labels.Parse(label)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse Label Selector string: %v", err)
+		}
+	}
+	return l, nil
 }

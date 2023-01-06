@@ -56,6 +56,7 @@ rules:
   - events
   - configmaps
   - secrets
+  - serviceaccounts
   verbs:
   - create
   - delete
@@ -79,5 +80,30 @@ rules:
   - patch
   - update
   - watch
+
+  ##
+  ## Rules for creating cluster roles & custom resource definitions
+  ##
+- apiGroups:
+    - rbac.authorization.k8s.io
+  resources:
+    - clusterroles
+    - clusterrolebindings
+    - roles
+    - rolebindings
+  verbs:
+    - '*'
+- apiGroups:
+    - apiextensions.k8s.io
+  resources:
+    - customresourcedefinitions
+  verbs:
+    - '*'
+- apiGroups:
+    - charts.helm.k8s.io
+  resources:
+    - '*'
+  verbs:
+    - '*'
 
 #+kubebuilder:scaffold:rules

@@ -22,7 +22,7 @@ import (
 
 	"github.com/xeipuuv/gojsonschema"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 )
 
 // Big-IP ipv4/ipv6 checkers

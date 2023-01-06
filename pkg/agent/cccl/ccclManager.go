@@ -17,17 +17,10 @@
 package cccl
 
 import (
-	"bytes"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/json"
-	"io/ioutil"
-	"net/http"
 	"time"
 
-	. "github.com/F5Networks/k8s-bigip-ctlr/pkg/resource"
-	log "github.com/F5Networks/k8s-bigip-ctlr/pkg/vlogger"
-	"github.com/F5Networks/k8s-bigip-ctlr/pkg/writer"
+	. "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/writer"
 )
 
 // AS3AS3Manager holds all the AS3 orchestration specific config
@@ -87,69 +80,4 @@ func NewCCCLManager(params *Params) *CCCLManager {
 
 func (cm *CCCLManager) ConfigWriter() writer.Writer {
 	return cm.configWriter
-}
-
-func (cm *CCCLManager) postConfig(data string) {
-	httpReqBody := bytes.NewBuffer([]byte(data))
-	req, err := http.NewRequest("POST", cm.BIGIPURL+"/mgmt/shared/appsvcs/declare", httpReqBody)
-	if err != nil {
-		log.Errorf("[CCCL] Creating new HTTP request error: %v ", err)
-		return
-	}
-	log.Debug("[CCCL] posting request to BIGIP.")
-	req.SetBasicAuth(cm.BIGIPUsername, cm.BIGIPPassword)
-	// Get the SystemCertPool, continue with an empty pool on error
-	rootCAs, _ := x509.SystemCertPool()
-	if rootCAs == nil {
-		rootCAs = x509.NewCertPool()
-	}
-	// TODO: Make sure appMgr sets certificates in bigipInfo
-	certs := []byte(cm.TrustedCerts)
-
-	// Append our certs to the system pool
-	if ok := rootCAs.AppendCertsFromPEM(certs); !ok {
-		log.Debug("[CCCL] No certs appended, using only system certs")
-	}
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: cm.SSLInsecure,
-			RootCAs:            rootCAs,
-		},
-	}
-	httpClient := &http.Client{
-		Transport: tr,
-		Timeout:   timeoutLarge,
-	}
-	httpResp, err := httpClient.Do(req)
-	if err != nil {
-		log.Errorf("[CCCL] REST call error: %v ", err)
-		return
-	}
-	defer httpResp.Body.Close()
-
-	body, err := ioutil.ReadAll(httpResp.Body)
-	if err != nil {
-		log.Errorf("[CCCL] REST call response error: %v ", err)
-		return
-	}
-	var response map[string]interface{}
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		log.Errorf("[CCCL] Response body unmarshal failed: %v\n", err)
-		return
-	}
-	if httpResp == nil {
-		log.Debug("[CCCL] HTTP Response Error.")
-		return
-	}
-	if httpResp.StatusCode == 200 {
-		results := (response["results"]).([]interface{})
-		for _, value := range results {
-			v := value.(map[string]interface{})
-			//log result with code, tenant and message
-			log.Debugf("[CCCL] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
-		}
-	} else {
-		log.Debugf("[CCCL] Response Error: %v", response)
-	}
 }

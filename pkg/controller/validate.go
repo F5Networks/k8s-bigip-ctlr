@@ -42,6 +42,12 @@ func (ctlr *Controller) checkValidVirtualServer(
 		log.Infof("VirtualServer %s is invalid", vsName)
 		return false
 	}
+	// Check if HTTPTraffic is set for insecure VS
+	if vsResource.Spec.TLSProfileName == "" && vsResource.Spec.HTTPTraffic != "" {
+		log.Errorf("HTTPTraffic not allowed to be set for insecure VirtualServer: %v", vsName)
+		return false
+	}
+
 	bindAddr := vsResource.Spec.VirtualServerAddress
 	if ctlr.ipamCli == nil {
 

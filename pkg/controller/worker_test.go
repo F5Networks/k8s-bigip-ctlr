@@ -1720,6 +1720,15 @@ var _ = Describe("Worker Tests", func() {
 				_, ok := mockCtlr.nsInformers[namespace]
 				Expect(ok).To(Equal(false), "Namespace not deleted")
 
+				// verify HTTPTraffic is not set for insecure virtual server
+				vs.Spec.HTTPTraffic = TLSAllowInsecure
+				vs.Spec.TLSProfileName = ""
+				valid = mockCtlr.checkValidVirtualServer(vs)
+				Expect(valid).To(BeFalse(), "HTTPTraffic not allowed to be set for insecure VS")
+				vs.Spec.HTTPTraffic = TLSRedirectInsecure
+				valid = mockCtlr.checkValidVirtualServer(vs)
+				Expect(valid).To(BeFalse(), "HTTPTraffic not allowed to be set for insecure VS")
+
 			})
 			It("Virtual Server with IPAM", func() {
 				go mockCtlr.Agent.agentWorker()

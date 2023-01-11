@@ -944,8 +944,16 @@ var _ = Describe("AppManager Tests", func() {
 							Effect: v1.TaintEffectNoSchedule,
 						},
 					}),
+				*test.NewNode("node7", "7", false, []v1.NodeAddress{
+					{Type: "ExternalIP", Address: "127.0.0.7"}},
+					[]v1.Taint{
+						{
+							Key:    "node-role.kubernetes.io/worker",
+							Effect: v1.TaintEffectNoExecute,
+						},
+					}),
 			}
-
+			// should ignore nodes with NotReady state(v1.TaintEffectNoExecute)
 			expectedOgSet := []Node{
 				{Name: "node0", Addr: "127.0.0.0"},
 				{Name: "node1", Addr: "127.0.0.1"},

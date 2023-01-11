@@ -15,6 +15,7 @@ Added Functionality
         * `Issue 2682 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2682>`_: Support to Enable "HTTP MRF Router" on VirtualServer CRD required for HTTP2 Full Proxy feature
         * `Issue 2686 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2686>`_: Validate insecure Virtual Server CR
         * `Issue 2666 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2666>`_: Support multiple virtual addresses on VirtualServer CR
+    * `Issue 2677 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2677>`_: Remove NotReady state nodes from BIGIP poolmembers in NodePortMode
 
 Bug Fixes
 `````````

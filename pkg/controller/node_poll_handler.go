@@ -203,6 +203,16 @@ func (ctlr *Controller) getNodes(
 
 	// Append list of nodes to watchedNodes
 	for _, node := range nodes {
+		// Ignore the Nodes with status NotReady
+		var notExecutable bool
+		for _, t := range node.Spec.Taints {
+			if v1.TaintEffectNoExecute == t.Effect {
+				notExecutable = true
+			}
+		}
+		if notExecutable == true {
+			continue
+		}
 		nodeAddrs := node.Status.Addresses
 		for _, addr := range nodeAddrs {
 			if addr.Type == addrType {

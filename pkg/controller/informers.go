@@ -694,14 +694,23 @@ func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) 
 	oldVS := oldObj.(*cisapiv1.VirtualServer)
 	newVS := newObj.(*cisapiv1.VirtualServer)
 	updateEvent := true
+	oldVSPartition := ctlr.getCRPartition(oldVS.Spec.Partition)
+	newVSPartition := ctlr.getCRPartition(newVS.Spec.Partition)
 	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress ||
 		oldVS.Spec.VirtualServerHTTPPort != newVS.Spec.VirtualServerHTTPPort ||
 		oldVS.Spec.VirtualServerHTTPSPort != newVS.Spec.VirtualServerHTTPSPort ||
 		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerName ||
 		oldVS.Spec.Host != newVS.Spec.Host ||
 		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel ||
-		oldVS.Spec.HostGroup != newVS.Spec.HostGroup {
+		oldVS.Spec.HostGroup != newVS.Spec.HostGroup ||
+		oldVSPartition != newVSPartition {
 		log.Debugf("Enqueueing Old VirtualServer: %v", oldVS)
+
+		// delete vs from previous partition on priority when partition is changed
+		if oldVSPartition != newVSPartition {
+			ctlr.resources.updatePartitionPriority(oldVSPartition, 1)
+		}
+
 		key := &rqKey{
 			namespace: oldVS.ObjectMeta.Namespace,
 			kind:      VirtualServer,
@@ -773,12 +782,21 @@ func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}
 	oldVS := oldObj.(*cisapiv1.TransportServer)
 	newVS := newObj.(*cisapiv1.TransportServer)
 
+	oldVSPartition := ctlr.getCRPartition(oldVS.Spec.Partition)
+	newVSPartition := ctlr.getCRPartition(newVS.Spec.Partition)
 	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress ||
 		oldVS.Spec.VirtualServerPort != newVS.Spec.VirtualServerPort ||
 		oldVS.Spec.VirtualServerName != newVS.Spec.VirtualServerName ||
 		oldVS.Spec.IPAMLabel != newVS.Spec.IPAMLabel ||
-		oldVS.Spec.HostGroup != newVS.Spec.HostGroup {
+		oldVS.Spec.HostGroup != newVS.Spec.HostGroup ||
+		oldVSPartition != newVSPartition {
 		log.Debugf("Enqueueing TransportServer: %v", oldVS)
+
+		// delete vs from previous partition on priority when partition is changed
+		if oldVSPartition != newVSPartition {
+			ctlr.resources.updatePartitionPriority(oldVSPartition, 1)
+		}
+
 		key := &rqKey{
 			namespace: oldVS.ObjectMeta.Namespace,
 			kind:      TransportServer,
@@ -875,8 +893,17 @@ func (ctlr *Controller) enqueueUpdatedIngressLink(oldObj, newObj interface{}) {
 	oldIngLink := oldObj.(*cisapiv1.IngressLink)
 	newIngLink := newObj.(*cisapiv1.IngressLink)
 
+	oldILPartition := ctlr.getCRPartition(oldIngLink.Spec.Partition)
+	newILPartition := ctlr.getCRPartition(newIngLink.Spec.Partition)
 	if oldIngLink.Spec.VirtualServerAddress != newIngLink.Spec.VirtualServerAddress ||
-		oldIngLink.Spec.IPAMLabel != newIngLink.Spec.IPAMLabel {
+		oldIngLink.Spec.IPAMLabel != newIngLink.Spec.IPAMLabel ||
+		oldILPartition != newILPartition {
+
+		// delete vs from previous partition on priority when partition is changed
+		if oldILPartition != newILPartition {
+			ctlr.resources.updatePartitionPriority(oldILPartition, 1)
+		}
+
 		key := &rqKey{
 			namespace: oldIngLink.ObjectMeta.Namespace,
 			kind:      IngressLink,

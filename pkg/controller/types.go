@@ -393,10 +393,14 @@ type (
 		sslContext                map[string]*v1.Secret
 		extdSpecMap               extendedSpecMap
 		invertedNamespaceLabelMap map[string]string
-		svcResourceCache          map[string]map[string]struct{}
+		svcResourceCache          map[string]map[string]svcResourceCacheMeta
 		// key of the map is IPSpec.Key
 		ipamContext              map[string]ficV1.IPSpec
 		processedNativeResources map[resourceRef]struct{}
+	}
+
+	svcResourceCacheMeta struct {
+		partition string
 	}
 
 	// key is group identifier

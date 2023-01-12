@@ -70,6 +70,9 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
 				workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
 			mockCtlr.resources = NewResourceStore()
+			mockCtlr.resources.ltmConfig = make(map[string]*PartitionConfig, 0)
+			mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
+			mockCtlr.Partition = "test"
 
 		})
 		AfterEach(func() {
@@ -94,11 +97,15 @@ var _ = Describe("Informers Tests", func() {
 				cisapiv1.VirtualServerSpec{
 					Host:                 "test.com",
 					VirtualServerAddress: "1.2.3.5",
+					Partition:            "dev",
 				})
+			mockCtlr.resources.ltmConfig[mockCtlr.Partition] = &PartitionConfig{}
 			mockCtlr.enqueueUpdatedVirtualServer(vs, newVS)
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
+			Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
+			delete(mockCtlr.resources.ltmConfig, mockCtlr.Partition)
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
@@ -116,6 +123,7 @@ var _ = Describe("Informers Tests", func() {
 				cisapiv1.VirtualServerSpec{
 					Host:                 "test.com",
 					VirtualServerAddress: "1.2.3.5",
+					Partition:            "dev",
 					SNAT:                 "none",
 				})
 			mockCtlr.enqueueUpdatedVirtualServer(newVS, updatedVS1)
@@ -212,6 +220,11 @@ var _ = Describe("Informers Tests", func() {
 
 			mockCtlr.enqueueTransportServer(ts)
 			Expect(mockCtlr.processResources()).To(Equal(true))
+			tsWithPartition := newTS.DeepCopy()
+			tsWithPartition.Spec.Partition = "dev"
+			mockCtlr.resources.ltmConfig[mockCtlr.Partition] = &PartitionConfig{}
+			mockCtlr.enqueueUpdatedTransportServer(newTS, tsWithPartition)
+			Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
 		})
 
 		It("IngressLink", func() {
@@ -263,6 +276,13 @@ var _ = Describe("Informers Tests", func() {
 
 			mockCtlr.enqueueIngressLink(il)
 			Expect(mockCtlr.processResources()).To(Equal(true))
+
+			ilWithPartition := newIL.DeepCopy()
+			ilWithPartition.Spec.Partition = "dev"
+			mockCtlr.resources.ltmConfig[mockCtlr.Partition] = &PartitionConfig{}
+			mockCtlr.enqueueUpdatedIngressLink(newIL, ilWithPartition)
+			Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
+
 		})
 
 		It("ExternalDNS", func() {

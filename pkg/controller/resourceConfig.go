@@ -56,7 +56,7 @@ func (rs *ResourceStore) Init() {
 	rs.nplStore = make(NPLStore)
 	rs.extdSpecMap = make(extendedSpecMap)
 	rs.invertedNamespaceLabelMap = make(map[string]string)
-	rs.svcResourceCache = make(map[string]map[string]struct{})
+	rs.svcResourceCache = make(map[string]map[string]svcResourceCacheMeta)
 	rs.ipamContext = make(map[string]ficV1.IPSpec)
 	rs.processedNativeResources = make(map[resourceRef]struct{})
 }
@@ -339,7 +339,7 @@ func formatPolicyName(hostname, hostGroup, name string) string {
 	return AS3NameFormatter(policyName)
 }
 
-func (ctlr *Controller) getSvcDepResources(svcDepRscKey string) map[string]struct{} {
+func (ctlr *Controller) getSvcDepResources(svcDepRscKey string) map[string]svcResourceCacheMeta {
 	return ctlr.resources.svcResourceCache[svcDepRscKey]
 }
 
@@ -348,11 +348,11 @@ func (ctlr *Controller) updateSvcDepResources(rsName string, rsCfg *ResourceConf
 		svcDepRscKey := pool.ServiceNamespace + "_" + pool.ServiceName
 		if resources, found := ctlr.resources.svcResourceCache[svcDepRscKey]; found {
 			if _, found := resources[rsName]; !found {
-				ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = struct{}{}
+				ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = svcResourceCacheMeta{partition: rsCfg.Virtual.Partition}
 			}
 		} else {
-			ctlr.resources.svcResourceCache[svcDepRscKey] = make(map[string]struct{})
-			ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = struct{}{}
+			ctlr.resources.svcResourceCache[svcDepRscKey] = make(map[string]svcResourceCacheMeta)
+			ctlr.resources.svcResourceCache[svcDepRscKey][rsName] = svcResourceCacheMeta{partition: rsCfg.Virtual.Partition}
 		}
 	}
 }
@@ -1072,7 +1072,7 @@ func (rs *ResourceStore) getPartitionResourceMap(partition string) ResourceMap {
 	return rs.ltmConfig[partition].ResourceMap
 }
 
-func (rs *ResourceStore) GetLTMPartitions() []string {
+func (rs *ResourceStore) getLTMPartitions() []string {
 	var partitions []string
 
 	for partition, _ := range rs.ltmConfig {

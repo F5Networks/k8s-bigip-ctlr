@@ -8,6 +8,7 @@ Added Functionality
 ```````````````````
 * `Issue 2682 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2682>`_: Support to Enable "HTTP MRF Router" on VirtualServer CRD required for HTTP2 Full Proxy feature
 * `Issue 2686 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2686>`_: Validate insecure Virtual Server CR
+*  Add partition support for custom resources - VS, TS and IngressLink
 
 Bug Fixes
 `````````

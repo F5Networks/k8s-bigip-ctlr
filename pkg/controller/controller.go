@@ -152,8 +152,8 @@ func NewController(params Params) *Controller {
 		ctlr.mode = CustomResourceMode
 	}
 
-	//If pool-member-type type is nodeport and it's running in openshift mode (multi-partition)
-	if ctlr.PoolMemberType == "nodeport" && ctlr.mode == OpenShiftMode {
+	//If pool-member-type type is nodeport enable share nodes ( for multi-partition)
+	if ctlr.PoolMemberType == "nodeport" {
 		ctlr.shareNodes = true
 	}
 

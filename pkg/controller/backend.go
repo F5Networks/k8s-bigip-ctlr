@@ -1039,6 +1039,11 @@ func createServiceDecl(cfg *ResourceConfig, sharedApp as3Application, tenant str
 	if virtualAddress != "" && port != 0 {
 		if len(cfg.ServiceAddress) == 0 {
 			va := append(svc.VirtualAddresses, virtualAddress)
+			if len(cfg.Virtual.AdditionalVirtualAddresses) > 0 {
+				for _, val := range cfg.Virtual.AdditionalVirtualAddresses {
+					va = append(va, val)
+				}
+			}
 			svc.VirtualAddresses = va
 			svc.VirtualPort = port
 		} else {

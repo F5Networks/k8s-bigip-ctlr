@@ -294,6 +294,15 @@ func (m *mockController) addIngressLink(il *cisapiv1.IngressLink) {
 	}
 }
 
+func (m *mockController) updateIngressLink(oldIL *cisapiv1.IngressLink, newIL *cisapiv1.IngressLink) {
+	cusInf, _ := m.getNamespacedCRInformer(oldIL.ObjectMeta.Namespace)
+	cusInf.ilInformer.GetStore().Update(newIL)
+
+	if m.resourceQueue != nil {
+		m.enqueueUpdatedIngressLink(oldIL, newIL)
+	}
+}
+
 func (m *mockController) deleteIngressLink(il *cisapiv1.IngressLink) {
 	cusInf, _ := m.getNamespacedCRInformer(il.ObjectMeta.Namespace)
 	cusInf.ilInformer.GetStore().Delete(il)

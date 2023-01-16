@@ -65,6 +65,9 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 				}
 				virtual := obj.(*cisapiv1.VirtualServer)
 				if virtual.Namespace+"/"+virtual.Name == rscKey {
+					if _, found := rscUpdateMeta.failedTenants[partition]; !found {
+						ctlr.resources.updatePartitionPriority(partition, 0)
+					}
 					ctlr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 				// Update Corresponding Service Status of Type LB
@@ -92,6 +95,10 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 				}
 				virtual := obj.(*cisapiv1.TransportServer)
 				if virtual.Namespace+"/"+virtual.Name == rscKey {
+					if _, found := rscUpdateMeta.failedTenants[partition]; !found {
+						// updating the tenant priority back to zero if it's not in failed tenants
+						ctlr.resources.updatePartitionPriority(partition, 0)
+					}
 					ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 				}
 			case Route:
@@ -102,6 +109,11 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					// updating the tenant priority back to zero if it's not in failed tenants
 					ctlr.resources.updatePartitionPriority(partition, 0)
 					go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
+				}
+			case IngressLink:
+				// updating the tenant priority back to zero if it's not in failed tenants
+				if _, found := rscUpdateMeta.failedTenants[partition]; !found {
+					ctlr.resources.updatePartitionPriority(partition, 0)
 				}
 			}
 		}

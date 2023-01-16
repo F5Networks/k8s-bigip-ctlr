@@ -586,7 +586,11 @@ func (ctlr *Controller) updatePoolMembersForVirtuals(svc *v1.Service) {
 	svcDepRscKey := namespace + "_" + svcName
 	partition := ctlr.Partition
 
-	for rsName := range ctlr.getSvcDepResources(svcDepRscKey) {
+	for rsName, rsMeta := range ctlr.getSvcDepResources(svcDepRscKey) {
+		// Override default partition with resource partition
+		if rsMeta != (svcResourceCacheMeta{}) && rsMeta.partition != "" {
+			partition = rsMeta.partition
+		}
 		rsCfg := ctlr.getVirtualServer(partition, rsName)
 		if rsCfg == nil {
 			continue
@@ -986,6 +990,7 @@ func (ctlr *Controller) processVirtualServers(
 
 	var ip string
 	var status int
+	partition := ctlr.getCRPartition(virtual.Spec.Partition)
 	if ctlr.ipamCli != nil {
 		if isVSDeleted && len(virtuals) == 0 && virtual.Spec.VirtualServerAddress == "" {
 			if virtual.Spec.HostGroup != "" {
@@ -1074,13 +1079,13 @@ func (ctlr *Controller) processVirtualServers(
 			(portStruct.protocol == HTTP && !doVSHandleHTTP(virtuals, virtual)) ||
 			(isVSDeleted && portStruct.protocol == HTTPS && !doVSUseSameHTTPSPort(virtuals, virtual)) {
 			var hostnames []string
-			rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+			rsMap := ctlr.resources.getPartitionResourceMap(partition)
 
 			if _, ok := rsMap[rsName]; ok {
 				hostnames = rsMap[rsName].MetaData.hosts
 			}
 			ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
-			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
+			ctlr.deleteVirtualServer(partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}
@@ -1088,7 +1093,7 @@ func (ctlr *Controller) processVirtualServers(
 		}
 
 		rsCfg := &ResourceConfig{}
-		rsCfg.Virtual.Partition = ctlr.Partition
+		rsCfg.Virtual.Partition = partition
 		rsCfg.MetaData.ResourceType = VirtualServer
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
@@ -1192,7 +1197,7 @@ func (ctlr *Controller) processVirtualServers(
 
 	if !processingError {
 		var hostnames []string
-		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+		rsMap := ctlr.resources.getPartitionResourceMap(partition)
 
 		// Update ltmConfig with ResourceConfigs created for the current virtuals
 		for rsName, rsCfg := range vsMap {
@@ -1253,11 +1258,21 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 	var virtuals []*cisapiv1.VirtualServer
 	// {hostname: {path: <empty_struct>}}
 	uniqueHostPathMap := make(map[string]map[string]struct{})
+	currentVSPartition := ctlr.getCRPartition(currentVS.Spec.Partition)
 
 	for _, vrt := range allVirtuals {
 		// skip the deleted virtual in the event of deletion
 		if isVSDeleted && vrt.Name == currentVS.Name {
 			continue
+		}
+
+		// Multiple VS sharing same VS address with different partition is invalid
+		// This also handles for host group/VS with same hosts
+		if currentVS.Spec.VirtualServerAddress != "" &&
+			currentVS.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress &&
+			currentVSPartition != ctlr.getCRPartition(vrt.Spec.Partition) {
+			log.Errorf("Multiple Virtual Servers %v,%v are configured with same VirtualServerAddress : %v with different partitions", currentVS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
+			return nil
 		}
 
 		// skip the virtuals in other HostGroups
@@ -1321,6 +1336,58 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 		}
 	}
 	return virtuals
+}
+
+func (ctlr *Controller) validateTSWithSameVSAddress(
+	currentTS *cisapiv1.TransportServer,
+	allVirtuals []*cisapiv1.TransportServer,
+	isVSDeleted bool) bool {
+	currentTSPartition := ctlr.getCRPartition(currentTS.Spec.Partition)
+	for _, vrt := range allVirtuals {
+		// skip the deleted virtual in the event of deletion
+		if isVSDeleted && vrt.Name == currentTS.Name {
+			continue
+		}
+
+		// Multiple TS sharing same VS address with different partition is invalid
+		// This also handles for host group/ vs with same hosts
+		if currentTS.Spec.VirtualServerAddress != "" &&
+			currentTS.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress &&
+			currentTSPartition != ctlr.getCRPartition(vrt.Spec.Partition) {
+			log.Errorf("Multiple Transport Servers %v,%v are configured with same VirtualServerAddress : %v "+
+				"with different partitions", currentTS.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
+			return false
+		}
+	}
+	return true
+}
+func (ctlr *Controller) validateILsWithSameVSAddress(
+	currentIL *cisapiv1.IngressLink,
+	allILs []*cisapiv1.IngressLink,
+	isILDeleted bool) bool {
+	currentILPartition := ctlr.getCRPartition(currentIL.Spec.Partition)
+	for _, vrt := range allILs {
+		// skip the deleted virtual in the event of deletion
+		if isILDeleted && vrt.Name == currentIL.Name {
+			continue
+		}
+
+		// Multiple IL sharing same VS address with different partition is invalid
+		if currentIL.Spec.VirtualServerAddress != "" &&
+			currentIL.Spec.VirtualServerAddress == vrt.Spec.VirtualServerAddress &&
+			currentILPartition != ctlr.getCRPartition(vrt.Spec.Partition) {
+			log.Errorf("Multiple Ingress Links %v,%v are configured with same VirtualServerAddress : %v "+
+				"with different partitions", currentIL.Name, vrt.Name, vrt.Spec.VirtualServerAddress)
+			return false
+		}
+	}
+	return true
+}
+func (ctlr *Controller) getCRPartition(partition string) string {
+	if partition == "" {
+		return ctlr.Partition
+	}
+	return partition
 }
 
 func (ctlr *Controller) getPolicyFromVirtuals(virtuals []*cisapiv1.VirtualServer) (*cisapiv1.Policy, error) {
@@ -1905,9 +1972,22 @@ func (ctlr *Controller) processTransportServers(
 		ctlr.TeemData.Unlock()
 	}
 
+	var allVirtuals []*cisapiv1.TransportServer
+	if virtual.Spec.HostGroup != "" {
+		// grouping by hg across all namespaces
+		allVirtuals = ctlr.getAllTSFromMonitoredNamespaces()
+	} else {
+		allVirtuals = ctlr.getAllTransportServers(virtual.ObjectMeta.Namespace)
+	}
+	isValidTS := ctlr.validateTSWithSameVSAddress(virtual, allVirtuals, isTSDeleted)
+	if !isValidTS {
+		return nil
+	}
+
 	var ip string
 	var key string
 	var status int
+	partition := ctlr.getCRPartition(virtual.Spec.Partition)
 	key = virtual.ObjectMeta.Namespace + "/" + virtual.ObjectMeta.Name + "_ts"
 	if ctlr.ipamCli != nil {
 		if virtual.Spec.HostGroup != "" {
@@ -1957,14 +2037,14 @@ func (ctlr *Controller) processTransportServers(
 	}
 
 	if isTSDeleted {
-		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+		rsMap := ctlr.resources.getPartitionResourceMap(partition)
 		ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
-		ctlr.deleteVirtualServer(ctlr.Partition, rsName)
+		ctlr.deleteVirtualServer(partition, rsName)
 		return nil
 	}
 
 	rsCfg := &ResourceConfig{}
-	rsCfg.Virtual.Partition = ctlr.Partition
+	rsCfg.Virtual.Partition = partition
 	rsCfg.MetaData.ResourceType = TransportServer
 	rsCfg.Virtual.Enabled = true
 	rsCfg.Virtual.Name = rsName
@@ -2009,7 +2089,7 @@ func (ctlr *Controller) processTransportServers(
 		ctlr.updatePoolMembersForCluster(rsCfg, virtual.ObjectMeta.Namespace)
 	}
 
-	rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	rsMap[rsName] = rsCfg
 
 	return nil
@@ -2137,108 +2217,6 @@ func filterTransportServersForService(allVirtuals []*cisapiv1.TransportServer,
 
 	return result
 }
-
-//func (ctlr *Controller) getAllServicesFromMonitoredNamespaces() []*v1.Service {
-//	var svcList []*v1.Service
-//	if ctlr.watchingAllNamespaces() {
-//		objList := ctlr.comInformers[""].svcInformer.GetIndexer().List()
-//		for _, obj := range objList {
-//			svcList = append(svcList, obj.(*v1.Service))
-//		}
-//		return svcList
-//	}
-//
-//	for ns := range ctlr.namespaces {
-//		objList := ctlr.comInformers[ns].svcInformer.GetIndexer().List()
-//		for _, obj := range objList {
-//			svcList = append(svcList, obj.(*v1.Service))
-//		}
-//	}
-//
-//	return svcList
-//}
-
-//// Get List of VirtualServers associated with the IPAM resource
-//func (ctlr *Controller) getVirtualServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.VirtualServer {
-//	log.Debug("[ipam] Syncing IPAM dependent virtual servers")
-//	var allVS, vss []*cisapiv1.VirtualServer
-//	allVS = ctlr.getAllVSFromMonitoredNamespaces()
-//	for _, status := range ipam.Status.IPStatus {
-//		for _, vs := range allVS {
-//			key := vs.ObjectMeta.Namespace + "/" + vs.Spec.HostGroup
-//			if status.Host == vs.Spec.Host || status.Key == key {
-//				vss = append(vss, vs)
-//				break
-//			}
-//		}
-//	}
-//	return vss
-//}
-
-//// Get List of TransportServers associated with the IPAM resource
-//func (ctlr *Controller) getTransportServersForIPAM(ipam *ficV1.IPAM) []*cisapiv1.TransportServer {
-//	log.Debug("[ipam] Syncing IPAM dependent transport servers")
-//	var allTS, tss []*cisapiv1.TransportServer
-//	allTS = ctlr.getAllTSFromMonitoredNamespaces()
-//	for _, status := range ipam.Status.IPStatus {
-//		for _, ts := range allTS {
-//			key := ts.ObjectMeta.Namespace + "/" + ts.ObjectMeta.Name + "_ts"
-//			if status.Key == key {
-//				tss = append(tss, ts)
-//				break
-//			}
-//		}
-//	}
-//	return tss
-//}
-
-//// Get List of ingLink associated with the IPAM resource
-//func (ctlr *Controller) getIngressLinkForIPAM(ipam *ficV1.IPAM) []*cisapiv1.IngressLink {
-//	var allIngLinks, ils []*cisapiv1.IngressLink
-//	allIngLinks = ctlr.getAllIngLinkFromMonitoredNamespaces()
-//	if allIngLinks == nil {
-//		return nil
-//	}
-//	for _, status := range ipam.Status.IPStatus {
-//		for _, il := range allIngLinks {
-//			key := il.ObjectMeta.Namespace + "/" + il.ObjectMeta.Name + "_il"
-//			if status.Key == key {
-//				ils = append(ils, il)
-//				break
-//			}
-//		}
-//	}
-//	return ils
-//}
-
-//func (ctlr *Controller) syncAndGetServicesForIPAM(ipam *ficV1.IPAM) []*v1.Service {
-//
-//	allServices := ctlr.getAllServicesFromMonitoredNamespaces()
-//	if allServices == nil {
-//		return nil
-//	}
-//	var svcList []*v1.Service
-//	var staleSpec []*ficV1.IPSpec
-//	for _, IPSpec := range ipam.Status.IPStatus {
-//		for _, svc := range allServices {
-//			svcKey := svc.Namespace + "/" + svc.Name + "_svc"
-//			if IPSpec.Key == svcKey {
-//				if svc.Spec.Type != v1.ServiceTypeLoadBalancer {
-//					staleSpec = append(staleSpec, IPSpec)
-//					ctlr.eraseLBServiceIngressStatus(svc)
-//				} else {
-//					svcList = append(svcList, svc)
-//				}
-//			}
-//		}
-//	}
-//
-//	for _, IPSpec := range staleSpec {
-//		ctlr.releaseIP(IPSpec.IPAMLabel, "", IPSpec.Key)
-//	}
-//
-//	return svcList
-//}
 
 func (ctlr *Controller) processLBServices(
 	svc *v1.Service,
@@ -2453,13 +2431,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 
 	log.Debugf("Processing WideIP: %v", edns.Spec.DomainName)
 
-	var partitions []string
-	switch ctlr.mode {
-	case OpenShiftMode:
-		partitions = ctlr.resources.GetLTMPartitions()
-	default:
-		partitions = append(partitions, DEFAULT_PARTITION)
-	}
+	partitions := ctlr.resources.getLTMPartitions()
 
 	for _, pl := range edns.Spec.Pools {
 		UniquePoolName := edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + ctlr.Partition
@@ -2821,9 +2793,21 @@ func (ctlr *Controller) processIngressLink(
 			return nil
 		}
 	}
+	var ingLinks []*cisapiv1.IngressLink
+	if ingLink.Spec.Host != "" {
+		ingLinks = ctlr.getAllIngLinkFromMonitoredNamespaces()
+	} else {
+		ingLinks = ctlr.getAllIngressLinks(ingLink.ObjectMeta.Namespace)
+	}
+	isValidIL := ctlr.validateILsWithSameVSAddress(ingLink, ingLinks, isILDeleted)
+	if !isValidIL {
+		return nil
+	}
+
 	var ip string
 	var key string
 	var status int
+	partition := ctlr.getCRPartition(ingLink.Spec.Partition)
 	key = ingLink.ObjectMeta.Namespace + "/" + ingLink.ObjectMeta.Name + "_il"
 	if ctlr.ipamCli != nil {
 		if isILDeleted && ingLink.Spec.VirtualServerAddress == "" {
@@ -2872,7 +2856,7 @@ func (ctlr *Controller) processIngressLink(
 	}
 	if isILDeleted {
 		var delRes []string
-		rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+		rsMap := ctlr.resources.getPartitionResourceMap(partition)
 		for k := range rsMap {
 			rsName := "ingress_link_" + formatVirtualServerName(
 				ip,
@@ -2885,13 +2869,13 @@ func (ctlr *Controller) processIngressLink(
 		for _, rsName := range delRes {
 			var hostnames []string
 			if rsMap[rsName] != nil {
-				rsCfg, err := ctlr.resources.getResourceConfig(ctlr.Partition, rsName)
+				rsCfg, err := ctlr.resources.getResourceConfig(partition, rsName)
 				if err == nil {
 					hostnames = rsCfg.MetaData.hosts
 				}
 			}
 			ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
-			ctlr.deleteVirtualServer(ctlr.Partition, rsName)
+			ctlr.deleteVirtualServer(partition, rsName)
 			if len(hostnames) > 0 {
 				ctlr.ProcessAssociatedExternalDNS(hostnames)
 			}
@@ -2920,7 +2904,7 @@ func (ctlr *Controller) processIngressLink(
 		}
 	}
 
-	rsMap := ctlr.resources.getPartitionResourceMap(ctlr.Partition)
+	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	for _, port := range svc.Spec.Ports {
 		//for nginx health monitor port skip vs creation
 		if port.Port == nginxMonitorPort {
@@ -2932,7 +2916,7 @@ func (ctlr *Controller) processIngressLink(
 		)
 
 		rsCfg := &ResourceConfig{}
-		rsCfg.Virtual.Partition = ctlr.Partition
+		rsCfg.Virtual.Partition = partition
 		rsCfg.MetaData.ResourceType = TransportServer
 		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, ingLink.Spec.Host)
 		rsCfg.Virtual.Mode = "standard"

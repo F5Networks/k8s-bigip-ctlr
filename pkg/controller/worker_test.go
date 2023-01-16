@@ -1857,6 +1857,85 @@ var _ = Describe("Worker Tests", func() {
 
 				time.Sleep(10 * time.Millisecond)
 			})
+			It("Processing VS with partition", func() {
+				crInf := mockCtlr.newNamespacedCustomResourceInformer(namespace)
+				nrInf := mockCtlr.newNamespacedNativeResourceInformer(namespace)
+				crInf.start()
+				nrInf.start()
+				vs.Spec.TLSProfileName = ""
+				mockCtlr.Partition = "test"
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+
+				vs.Spec.VirtualServerAddress = "10.8.0.1"
+				vs.Spec.Partition = "dev"
+				mockCtlr.addVirtualServer(vs)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition Count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid VS count")
+
+				// create vs2 with different partition and same VIP
+				// this is invalid scenario. VS should not get processed
+				vs2 := *vs
+				vs3 := *vs
+				vs2.Spec.Partition = "dev2"
+				vs2.Name = "vs1"
+				vs2.Spec.VirtualServerName = "vs_crd"
+				mockCtlr.addVirtualServer(&vs2)
+				// Should not process TS now. Already one TS with same IP is present in different partition
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid VS count")
+
+				// create new vs with partition dev3
+				vs3.Spec.Partition = "dev3"
+				vs3.Name = "vs3"
+				vs3.Spec.Host = "abc.com"
+				vs3.Spec.VirtualServerName = "vs3_crd"
+				vs3.Spec.VirtualServerAddress = "10.8.0.3"
+				mockCtlr.addVirtualServer(&vs3)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev3"].ResourceMap)).To(Equal(1), "Invalid VS count")
+
+				// update partition dev3 to dev
+				vs31 := vs3
+				vs31.Spec.Partition = "dev"
+				mockCtlr.updateVirtualServer(&vs3, &vs31)
+				mockCtlr.processResources()
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(2), "Invalid VS count")
+
+				// remove partition for both vs
+				// update partition dev3 to dev
+				vs32 := vs31
+				vs32.Spec.Partition = ""
+				mockCtlr.updateVirtualServer(&vs31, &vs32)
+				mockCtlr.processResources()
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(1), "Invalid VS count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid VS count")
+
+				vs2.Spec.Partition = ""
+				vs2.Spec.VirtualServerAddress = "10.0.0.15"
+				vs2.Spec.Host = "zya.com"
+				mockCtlr.updateVirtualServer(vs, &vs2)
+				mockCtlr.processResources()
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid VS count")
+
+			})
 		})
 
 		Describe("Processing Transport Server", func() {
@@ -2082,6 +2161,99 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.addTransportServer(ts)
 				mockCtlr.processResources()
 			})
+
+			It("Transport Server with Partition", func() {
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
+				mockCtlr.Partition = "test"
+				mockCtlr.TeemData.ResourceType.IPAMTS = make(map[string]int)
+				//Add Service
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				ts.Spec.Partition = "dev"
+				mockCtlr.addTransportServer(ts)
+
+				mockCtlr.processResources()
+
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition Count")
+				Expect(len(mockCtlr.resources.ltmConfig[ts.Spec.Partition].ResourceMap)).To(Equal(1), "Invalid TS Count")
+
+				newTS := *ts
+				newTS.Spec.Partition = "dev1"
+				newTS.Name = "vs1"
+				newTS.Spec.VirtualServerName = "vs_crd"
+				mockCtlr.addTransportServer(&newTS)
+				// Should not process TS now. Already one TS with same IP is present in different partition
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition Count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid TS count")
+
+				// create vs2 with different partition and same VIP
+				// this is invalid scenario. VS should not get processed
+				newTS2 := newTS
+				newTS2.Spec.Partition = "dev2"
+				newTS2.Name = "vs1"
+				newTS2.Spec.VirtualServerAddress = "10.1.1.3"
+				newTS2.Spec.VirtualServerName = "ts_crd_2"
+				mockCtlr.addTransportServer(&newTS2)
+				// Should not process TS now. Already one TS with same IP is present in different partition
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev2"].ResourceMap)).To(Equal(1), "Invalid TS count")
+
+				// create new vs with partition dev3
+				newTS3 := newTS
+				newTS3.Spec.Partition = "dev3"
+				newTS3.Name = "vs3"
+				newTS3.Spec.VirtualServerName = "ts_crd_3"
+				newTS3.Spec.VirtualServerAddress = "10.8.0.10"
+				mockCtlr.addTransportServer(&newTS3)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(3), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid TS count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev2"].ResourceMap)).To(Equal(1), "Invalid TS count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev3"].ResourceMap)).To(Equal(1), "Invalid TS count")
+
+				// update partition dev3 to dev2
+				newTS31 := newTS3
+				newTS31.Spec.Partition = "dev2"
+				mockCtlr.updateTransportServer(&newTS3, &newTS31)
+				mockCtlr.processResources()
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid TS count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev2"].ResourceMap)).To(Equal(2), "Invalid TS count")
+
+				// remove partition for both ts
+				// update partition dev3 to test(Default)
+				newTS32 := newTS31
+				newTS32.Spec.Partition = ""
+				mockCtlr.updateTransportServer(&newTS31, &newTS32)
+				mockCtlr.processResources()
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(3), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(1), "Invalid TS count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid TS count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev2"].ResourceMap)).To(Equal(1), "Invalid TS count")
+
+				newTS.Spec.Partition = ""
+				newTS.Spec.VirtualServerAddress = "10.0.0.15"
+				mockCtlr.updateTransportServer(ts, &newTS)
+				mockCtlr.processResources()
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid TS count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev2"].ResourceMap)).To(Equal(1), "Invalid TS count")
+
+			})
 		})
 
 		Describe("Processing EDNS", func() {
@@ -2244,6 +2416,90 @@ var _ = Describe("Worker Tests", func() {
 				IngressLink1.Spec.VirtualServerAddress = ""
 				valid = mockCtlr.checkValidIngressLink(IngressLink1)
 				Expect(valid).To(BeFalse(), "Invalid IngressLink")
+
+			})
+			It("Ingress Link with partition", func() {
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
+				mockCtlr.Partition = "test"
+				fooPorts := []v1.ServicePort{
+					{
+						Port: 8080,
+						Name: "port0",
+					},
+				}
+				foo := test.NewService("foo", "1", namespace, v1.ServiceTypeClusterIP, fooPorts)
+				label1 := make(map[string]string)
+				label1["app"] = "ingresslink"
+				foo.ObjectMeta.Labels = label1
+				var (
+					selector = &metav1.LabelSelector{
+						MatchLabels: label1,
+					}
+				)
+
+				mockCtlr.kubeClient.CoreV1().Services("default").Create(context.TODO(), foo, metav1.CreateOptions{})
+				mockCtlr.addService(foo)
+				mockCtlr.processResources()
+
+				var iRules []string
+				ingressLink1 := test.NewIngressLink("ingresslink1", namespace, "1",
+					cisapiv1.IngressLinkSpec{
+						Selector: selector,
+						IRules:   iRules,
+					})
+				mockCtlr.TeemData = &teem.TeemsData{
+					ResourceType: teem.ResourceTypes{
+						IngressLink: make(map[string]int),
+					},
+				}
+				ingressLink1.Spec.VirtualServerAddress = "10.0.0.1"
+				ingressLink1.Spec.Partition = "dev"
+				mockCtlr.addIngressLink(ingressLink1)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition Count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid IL count")
+
+				// Invalid ingress link. Shared same ip in different partitions
+				ingressLink2 := *ingressLink1
+				ingressLink2.Name = "ing2"
+				ingressLink2.Spec.Partition = "dev1"
+				mockCtlr.addIngressLink(&ingressLink2)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid IngressLink")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid IL count")
+
+				ingressLink2.Spec.VirtualServerAddress = "10.0.0.2"
+				mockCtlr.addIngressLink(&ingressLink2)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid IL count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev1"].ResourceMap)).To(Equal(1), "Invalid IL count")
+
+				ingressLink21 := ingressLink2
+				ingressLink21.Spec.Partition = "dev"
+				mockCtlr.updateIngressLink(&ingressLink2, &ingressLink21)
+				mockCtlr.processResources()
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(2), "Invalid IL count")
+
+				ingressLink22 := ingressLink21
+				ingressLink22.Spec.Partition = ""
+				mockCtlr.updateIngressLink(&ingressLink21, &ingressLink22)
+				mockCtlr.processResources()
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid IL count")
+				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(1), "Invalid IL count")
+
+				ingressLink11 := *ingressLink1
+				ingressLink11.Spec.Partition = ""
+				mockCtlr.updateIngressLink(ingressLink1, &ingressLink11)
+				mockCtlr.processResources()
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
+				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid IL count")
 
 			})
 		})

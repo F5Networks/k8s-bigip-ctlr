@@ -50,6 +50,7 @@ type VirtualServerSpec struct {
 	Profiles               ProfileSpec      `json:"profiles,omitempty"`
 	AllowSourceRange       []string         `json:"allowSourceRange,omitempty"`
 	HttpMrfRoutingEnabled  bool             `json:"httpMrfRoutingEnabled,omitempty"`
+	Partition              string           `json:"partition,omitempty"`
 }
 
 // ServiceAddress Service IP address definition (BIG-IP virtual-address).
@@ -160,6 +161,7 @@ type IngressLinkSpec struct {
 	Selector             *metav1.LabelSelector `json:"selector"`
 	IRules               []string              `json:"iRules,omitempty"`
 	IPAMLabel            string                `json:"ipamLabel"`
+	Partition            string                `json:"partition,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -213,6 +215,7 @@ type TransportServerSpec struct {
 	DOS                  string           `json:"dos,omitempty"`
 	BotDefense           string           `json:"botDefense,omitempty"`
 	Profiles             ProfileSpec      `json:"profiles,omitempty"`
+	Partition            string           `json:"partition,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

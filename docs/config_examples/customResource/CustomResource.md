@@ -62,6 +62,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | allowVlans | List of Vlans | Optional | NA | list of Vlan objects to allow traffic from |  
 | hostGroup | String | Optional | NA | Label to group virtualservers with different host names into one in BIG-IP. |
 | httpMrfRoutingEnabled | boolean |	Optional | false | Specifies whether to use the HTTP message routing framework (MRF) functionality. This property is available on BIGIP 14.1 and above.|
+| additionalVirtualServerAddresses | List of virtualserver address | Optional | NA | List of virtual addresses additional to virtualServerAddress where virtual will be listening on.Uses AS3 virtualAddresses param to expose Virtual server which will listen to each IP address in list|
 
 **Pool Components**
 

@@ -176,36 +176,37 @@ type (
 
 	// Virtual server config
 	Virtual struct {
-		Name                   string                `json:"name"`
-		PoolName               string                `json:"pool,omitempty"`
-		Partition              string                `json:"-"`
-		Destination            string                `json:"destination"`
-		Enabled                bool                  `json:"enabled"`
-		IpProtocol             string                `json:"ipProtocol,omitempty"`
-		SourceAddrTranslation  SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
-		Policies               []nameRef             `json:"policies,omitempty"`
-		Profiles               ProfileRefs           `json:"profiles,omitempty"`
-		IRules                 []string              `json:"rules,omitempty"`
-		Description            string                `json:"description,omitempty"`
-		VirtualAddress         *virtualAddress       `json:"-"`
-		SNAT                   string                `json:"snat,omitempty"`
-		WAF                    string                `json:"waf,omitempty"`
-		Firewall               string                `json:"firewallPolicy,omitempty"`
-		LogProfiles            []string              `json:"logProfiles,omitempty"`
-		ProfileL4              string                `json:"profileL4,omitempty"`
-		ProfileMultiplex       string                `json:"profileMultiplex,omitempty"`
-		ProfileDOS             string                `json:"profileDOS,omitempty"`
-		ProfileBotDefense      string                `json:"profileBotDefense,omitempty"`
-		TCP                    ProfileTCP            `json:"tcp,omitempty"`
-		Mode                   string                `json:"mode,omitempty"`
-		TranslateServerAddress bool                  `json:"translateServerAddress"`
-		TranslateServerPort    bool                  `json:"translateServerPort"`
-		Source                 string                `json:"source,omitempty"`
-		AllowVLANs             []string              `json:"allowVlans,omitempty"`
-		PersistenceProfile     string                `json:"persistenceProfile,omitempty"`
-		TLSTermination         string                `json:"-"`
-		AllowSourceRange       []string              `json:"allowSourceRange,omitempty"`
-		HttpMrfRoutingEnabled  bool                  `json:"httpMrfRoutingEnabled,omitempty"`
+		Name                       string                `json:"name"`
+		PoolName                   string                `json:"pool,omitempty"`
+		Partition                  string                `json:"-"`
+		Destination                string                `json:"destination"`
+		Enabled                    bool                  `json:"enabled"`
+		IpProtocol                 string                `json:"ipProtocol,omitempty"`
+		SourceAddrTranslation      SourceAddrTranslation `json:"sourceAddressTranslation,omitempty"`
+		Policies                   []nameRef             `json:"policies,omitempty"`
+		Profiles                   ProfileRefs           `json:"profiles,omitempty"`
+		IRules                     []string              `json:"rules,omitempty"`
+		Description                string                `json:"description,omitempty"`
+		VirtualAddress             *virtualAddress       `json:"-"`
+		AdditionalVirtualAddresses []string              `json:"additionalVirtualAddresses,omitempty"`
+		SNAT                       string                `json:"snat,omitempty"`
+		WAF                        string                `json:"waf,omitempty"`
+		Firewall                   string                `json:"firewallPolicy,omitempty"`
+		LogProfiles                []string              `json:"logProfiles,omitempty"`
+		ProfileL4                  string                `json:"profileL4,omitempty"`
+		ProfileMultiplex           string                `json:"profileMultiplex,omitempty"`
+		ProfileDOS                 string                `json:"profileDOS,omitempty"`
+		ProfileBotDefense          string                `json:"profileBotDefense,omitempty"`
+		TCP                        ProfileTCP            `json:"tcp,omitempty"`
+		Mode                       string                `json:"mode,omitempty"`
+		TranslateServerAddress     bool                  `json:"translateServerAddress"`
+		TranslateServerPort        bool                  `json:"translateServerPort"`
+		Source                     string                `json:"source,omitempty"`
+		AllowVLANs                 []string              `json:"allowVlans,omitempty"`
+		PersistenceProfile         string                `json:"persistenceProfile,omitempty"`
+		TLSTermination             string                `json:"-"`
+		AllowSourceRange           []string              `json:"allowSourceRange,omitempty"`
+		HttpMrfRoutingEnabled      bool                  `json:"httpMrfRoutingEnabled,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual

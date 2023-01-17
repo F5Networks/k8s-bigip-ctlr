@@ -13,6 +13,7 @@ Added Functionality
         *  Add partition support for custom resources - VS, TS and IngressLink
         * `Issue 2682 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2682>`_: Support to Enable "HTTP MRF Router" on VirtualServer CRD required for HTTP2 Full Proxy feature
         * `Issue 2686 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2686>`_: Validate insecure Virtual Server CR
+        * `Issue 2666 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2666>`_: Support multiple virtual addresses on VirtualServer CR
 
 Bug Fixes
 `````````
@@ -24,7 +25,7 @@ Vulnerability Fixes
 +==================+==================================================================+
 | CVE-2022-40897   | Upgraded the setuptools package in f5-cccl                       |
 +------------------+------------------------------------------------------------------+
-| CVE-2022-23491   | Upgraded certifi package in f5-cccl repository              |
+| CVE-2022-23491   | Upgraded certifi package in f5-cccl repository                   |
 +------------------+------------------------------------------------------------------+
 
 Known Issues

@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -1106,6 +1107,10 @@ func (ctlr *Controller) processVirtualServers(
 			ip,
 			portStruct.port,
 		)
+		//set additionalVirtualAddresses if present
+		if len(virtual.Spec.AdditionalVirtualServerAddresses) > 0 {
+			rsCfg.Virtual.AdditionalVirtualAddresses = virtual.Spec.AdditionalVirtualServerAddresses
+		}
 		rsCfg.IntDgMap = make(InternalDataGroupMap)
 		rsCfg.IRulesMap = make(IRulesMap)
 		rsCfg.customProfiles = make(map[SecretKey]CustomProfile)
@@ -1245,7 +1250,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 	// The VirtualServers that are being grouped by "hostGroup" or "host" should obey below rules,
 	// otherwise the grouping would be treated as invalid and the associatedVirtualServers will be nil.
 	//		* all of them should have same "ipamLabel"
-	//      * if no "ipamLabel" present, should have same "VirtualServerAddress"
+	//      * if no "ipamLabel" present, should have same "VirtualServerAddress" and "additionalVirtualServerAddresses"
 	//
 	// However, there are some parameters that are not as stringent as above.
 	// which include
@@ -1293,6 +1298,15 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 					return nil
 				}
 				// In case of empty host name, skip the virtual with other VirtualServerAddress
+				continue
+			}
+			//with additonalVirtualServerAddresses, skip the virtuals if ip list doesn't match
+			if !reflect.DeepEqual(currentVS.Spec.AdditionalVirtualServerAddresses, vrt.Spec.AdditionalVirtualServerAddresses) {
+				if vrt.Spec.Host != "" {
+					log.Errorf("Same host %v is configured with different AdditionalVirtualServerAddress : %v ", vrt.Spec.Host, vrt.ObjectMeta.Name)
+					return nil
+				}
+				// In case of empty host name, skip the virtual with other AdditionalVirtualServerAddress
 				continue
 			}
 		}

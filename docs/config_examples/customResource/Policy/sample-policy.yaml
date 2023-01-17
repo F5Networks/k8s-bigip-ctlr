@@ -13,6 +13,7 @@ spec:
     firewallPolicy: /Common/AFM_Policy
     dos: /Common/dos
     botDefense: /Common/bot-defense
+    ipIntelligencePolicy: /Common/IP_Intelligence_Policy
     allowVlans:
       - /Common/external
     allowSourceRange:

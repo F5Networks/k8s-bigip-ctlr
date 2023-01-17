@@ -30,7 +30,8 @@ Policy is used to apply existing BIG-IP profiles and policy with Routes, Virtual
 | dos              | String | Optional | N/A     | Pathname of existing BIG-IP DOS policy.                                                                                                                                                                        |
 | firewallPolicy   | String | Optional | N/A     | Pathname of existing BIG-IP firewall(AFM) policy.                                                                                                                                                              |
 | allowSourceRange | String | Optional | N/A     | Comma-separated list of CIDR addresses to allow inbound to services corresponding to VirtualServer CRD. Allowed values are comma-separated, CIDR formatted, IP addresses. For example: `1.2.3.4/32,2.2.2.0/24` 
-| allowVlans       | List of Vlans | Optional | NA | List of Vlan objects to allow traffic from towards virtual in BIGIP. Object configured in VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource.| 
+| allowVlans       | List of Vlans | Optional | NA | List of Vlan objects to allow traffic from towards virtual in BIGIP. Object configured in VirtualServer or TransportServer CRD resource takes precedence over Policy CRD resource.|
+| ipIntelligencePolicy       | String | Optional | NA | Pathname of existing BIG-IP ipIntelligence Policy.                                                                                                                                                                        | 
 ### LTM Policy Components
 
 | Parameter | Type   | Required | Default | Description                                                         |

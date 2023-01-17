@@ -749,6 +749,9 @@ spec:
                     firewallPolicy:
                       type: string
                       pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
+                    ipIntelligencePolicy:
+                      type: string
+                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                     allowSourceRange:
                       items:
                         type: string

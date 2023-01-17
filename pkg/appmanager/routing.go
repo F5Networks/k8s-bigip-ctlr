@@ -874,7 +874,7 @@ func (appMgr *Manager) deleteIRule(rule string) {
 	}
 	delete(appMgr.irulesMap, ref)
 	fullName := JoinBigipPath(DEFAULT_PARTITION, rule)
-	for _, cfg := range appMgr.resources.GetAllResources() {
+	for _, cfg := range appMgr.resources.RsMap {
 		if cfg.MetaData.ResourceType == "configmap" ||
 			cfg.MetaData.ResourceType == "iapp" {
 			continue
@@ -950,14 +950,14 @@ func (sfrm ServiceFwdRuleMap) AddEntry(ns, svc, host, path string) {
 	}
 }
 
-func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap) {
+func (sfrm ServiceFwdRuleMap) AddToDataGroup(dgMap DataGroupNamespaceMap, partition string) {
 	// Multiple service keys may reference the same host, so flatten those first
 	for skey, hostMap := range sfrm {
 		nsGrp, found := dgMap[skey.Namespace]
 		if !found {
 			nsGrp = &InternalDataGroup{
 				Name:      HttpsRedirectDgName,
-				Partition: DEFAULT_PARTITION,
+				Partition: partition,
 			}
 			dgMap[skey.Namespace] = nsGrp
 		}

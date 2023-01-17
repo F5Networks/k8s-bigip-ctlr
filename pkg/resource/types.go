@@ -423,8 +423,8 @@ type (
 	}
 
 	AgentResources struct {
-		RsMap  ResourceConfigMap
-		RsCfgs ResourceConfigs
+		RsMap      ResourceConfigMap
+		Partitions map[string]struct{}
 	}
 
 	ResourceRequest struct {

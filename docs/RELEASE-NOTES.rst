@@ -6,9 +6,13 @@ Next Release
 
 Added Functionality
 ```````````````````
-* `Issue 2682 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2682>`_: Support to Enable "HTTP MRF Router" on VirtualServer CRD required for HTTP2 Full Proxy feature
-* `Issue 2686 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2686>`_: Validate insecure Virtual Server CR
-*  Add partition support for custom resources - VS, TS and IngressLink
+**What’s new:**
+    * Ingress
+        * Support for partition annotation in Ingress
+    * CRD
+        *  Add partition support for custom resources - VS, TS and IngressLink
+        * `Issue 2682 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2682>`_: Support to Enable "HTTP MRF Router" on VirtualServer CRD required for HTTP2 Full Proxy feature
+        * `Issue 2686 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2686>`_: Validate insecure Virtual Server CR
 
 Bug Fixes
 `````````
@@ -22,6 +26,12 @@ Vulnerability Fixes
 +------------------+------------------------------------------------------------------+
 | CVE-2022-23491   | Upgraded certifi package in f5-cccl repository              |
 +------------------+------------------------------------------------------------------+
+
+Known Issues
+`````````````
+Partition annotation change for ingress intermittently cause AS3 422 error. If you encounter this issue it's advised to delete the old ingress & recreate the ingress with new partition.
+
+
 
 2.11.1
 ------

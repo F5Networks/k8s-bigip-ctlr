@@ -333,7 +333,7 @@ func (c as3Control) initDefault(userAgent string) {
 	c["userAgent"] = userAgent
 }
 
-func (adc as3ADC) initDefault(partition string, defaultRouteDomain int) {
+func (adc as3ADC) initTenant(partition string, defaultRouteDomain int) {
 	tnt := as3Tenant{}
 	tnt.initDefault(defaultRouteDomain)
 	adc[partition] = tnt

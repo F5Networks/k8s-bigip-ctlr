@@ -468,13 +468,13 @@ func NewCustomProfiles() *CustomProfileStore {
 }
 
 // Key is resource name, value is unused (since go doesn't have set objects).
-type resourceList map[string]bool
+type resourceList map[NameRef]bool
 
 // Key is namespace/servicename/serviceport, value is map of resources.
 type resourceKeyMap map[ServiceKey]resourceList
 
 // Key is resource name, value is pointer to config. May be shared.
-type ResourceConfigMap map[string]*ResourceConfig
+type ResourceConfigMap map[NameRef]*ResourceConfig
 
 // ObjectDependency identifies a K8s Object
 type ObjectDependency struct {
@@ -498,7 +498,7 @@ type Resources struct {
 	objDeps ObjectDependencyMap
 	//Only for ingress. For tracking translate address annotation across multiple ingress for single VS
 	//Namespace Key -> VS key -> List of translate address for all ingress sharing same VS
-	TranslateAddress map[string]map[string][]string
+	TranslateAddress map[string]map[NameRef][]string
 }
 
 type ResourceInterface interface {
@@ -850,7 +850,7 @@ func (rs *Resources) RemoveDependency(
 
 // UpdatePolicy will keep the rs.RsMap map updated and remove the unwanted rules from policy,
 func (rs *Resources) UpdatePolicy(
-	rsName string,
+	rsName NameRef,
 	policyName string,
 	ruleName string,
 ) {
@@ -961,14 +961,14 @@ func (rs *Resources) Init() {
 type ResourceEnumFunc func(key ServiceKey, cfg *ResourceConfig)
 
 // Add or update a Resource config, identified by key.
-func (rs *Resources) Assign(svcKey ServiceKey, name string, cfg *ResourceConfig) {
+func (rs *Resources) Assign(svcKey ServiceKey, nameRef NameRef, cfg *ResourceConfig) {
 	rsList, ok := rs.rm[svcKey]
 	if !ok {
 		rsList = make(resourceList)
 		rs.rm[svcKey] = rsList
 	}
-	rsList[name] = true
-	rs.RsMap[name] = cfg
+	rsList[nameRef] = true
+	rs.RsMap[nameRef] = cfg
 }
 
 func (cfg *ResourceConfig) GetName() string {
@@ -985,6 +985,13 @@ func (cfg *ResourceConfig) GetPartition() string {
 	return cfg.Virtual.Partition
 }
 
+func (cfg *ResourceConfig) GetNameRef() NameRef {
+	return NameRef{
+		Name:      cfg.GetName(),
+		Partition: cfg.GetPartition(),
+	}
+}
+
 // Count of all pools (svcKeys) currently stored.
 func (rs *Resources) PoolCount() int {
 	var pools []Pool
@@ -996,8 +1003,7 @@ func (rs *Resources) PoolCount() int {
 		}
 		return append(rsPools, p)
 	}
-	cfgs := rs.GetAllResources()
-	for _, cfg := range cfgs {
+	for _, cfg := range rs.RsMap {
 		for _, pool := range cfg.Pools {
 			pools = appendPool(pools, pool)
 		}
@@ -1020,13 +1026,13 @@ func (rs *Resources) CountOf(svcKey ServiceKey) int {
 
 func (rs *Resources) deleteImpl(
 	rsList resourceList,
-	rsName string,
+	rsName NameRef,
 	svcKey ServiceKey,
 ) {
 	bigIPPrometheus.MonitoredServices.DeleteLabelValues(svcKey.Namespace, svcKey.ServiceName, "parse-error")
-	bigIPPrometheus.MonitoredServices.DeleteLabelValues(svcKey.Namespace, rsName, "port-not-found")
-	bigIPPrometheus.MonitoredServices.DeleteLabelValues(svcKey.Namespace, rsName, "service-not-found")
-	bigIPPrometheus.MonitoredServices.DeleteLabelValues(svcKey.Namespace, rsName, "success")
+	bigIPPrometheus.MonitoredServices.DeleteLabelValues(svcKey.Namespace, rsName.Name, "port-not-found")
+	bigIPPrometheus.MonitoredServices.DeleteLabelValues(svcKey.Namespace, rsName.Name, "service-not-found")
+	bigIPPrometheus.MonitoredServices.DeleteLabelValues(svcKey.Namespace, rsName.Name, "success")
 
 	// Remove mapping for a backend -> virtual/iapp
 	delete(rsList, rsName)
@@ -1052,43 +1058,43 @@ func (rs *Resources) deleteImpl(
 }
 
 // Remove a specific resource configuration.
-func (rs *Resources) Delete(svcKey ServiceKey, name string) bool {
+func (rs *Resources) Delete(svcKey ServiceKey, nameRef NameRef) bool {
 	rsList, ok := rs.rm[svcKey]
 	if !ok {
 		// svcKey not found
 		return false
 	}
-	if name == "" {
+	if nameRef == (NameRef{}) {
 		// Delete all resources for svcKey
 		for rsName, _ := range rsList {
 			rs.deleteImpl(rsList, rsName, svcKey)
 		}
 		return true
 	}
-	if _, ok = rsList[name]; ok {
+	if _, ok = rsList[nameRef]; ok {
 		// Delete specific named resource for svcKey
-		rs.deleteImpl(rsList, name, svcKey)
+		rs.deleteImpl(rsList, nameRef, svcKey)
 		return true
 	}
 	return false
 }
 
 // Remove a svcKey's reference to a config (pool was removed)
-func (rs *Resources) DeleteKeyRef(sKey ServiceKey, name string) bool {
+func (rs *Resources) DeleteKeyRef(sKey ServiceKey, nameRef NameRef) bool {
 	rs.Lock()
 	defer rs.Unlock()
-	return rs.DeleteKeyRefLocked(sKey, name)
+	return rs.DeleteKeyRefLocked(sKey, nameRef)
 }
 
 // Remove a svcKey's reference to a config (pool was removed)
-func (rs *Resources) DeleteKeyRefLocked(sKey ServiceKey, name string) bool {
+func (rs *Resources) DeleteKeyRefLocked(sKey ServiceKey, nameRef NameRef) bool {
 	rsList, ok := rs.rm[sKey]
 	if !ok {
 		// sKey not found
 		return false
 	}
-	if _, ok = rsList[name]; ok {
-		delete(rsList, name)
+	if _, ok = rsList[nameRef]; ok {
+		delete(rsList, nameRef)
 		return true
 	}
 	return false
@@ -1105,22 +1111,22 @@ func (rs *Resources) ForEach(f ResourceEnumFunc) {
 }
 
 // Get a specific Resource cfg
-func (rs *Resources) Get(svcKey ServiceKey, name string) (*ResourceConfig, bool) {
+func (rs *Resources) Get(svcKey ServiceKey, nameRef NameRef) (*ResourceConfig, bool) {
 	rsList, ok := rs.rm[svcKey]
 	if !ok {
 		return nil, ok
 	}
-	_, ok = rsList[name]
+	_, ok = rsList[nameRef]
 	if !ok {
 		return nil, ok
 	}
-	resource, ok := rs.RsMap[name]
+	resource, ok := rs.RsMap[nameRef]
 	return resource, ok
 }
 
 // Get a specific Resource cfg
-func (rs *Resources) GetByName(name string) (*ResourceConfig, bool) {
-	resource, ok := rs.RsMap[name]
+func (rs *Resources) GetByName(nameRef NameRef) (*ResourceConfig, bool) {
+	resource, ok := rs.RsMap[nameRef]
 	return resource, ok
 }
 
@@ -1138,24 +1144,16 @@ func (rs *Resources) GetAll(svcKey ServiceKey) ResourceConfigs {
 
 // Get all configurations with a specific name, spanning multiple backends
 // This is for multi-service ingress
-func (rs *Resources) GetAllWithName(name string) (ResourceConfigs, []ServiceKey) {
+func (rs *Resources) GetAllWithName(nameRef NameRef) (ResourceConfigs, []ServiceKey) {
 	var cfgs ResourceConfigs
 	var keys []ServiceKey
 	rs.ForEach(func(key ServiceKey, cfg *ResourceConfig) {
-		if name == cfg.Virtual.Name {
+		if nameRef == cfg.GetNameRef() {
 			cfgs = append(cfgs, cfg)
 			keys = append(keys, key)
 		}
 	})
 	return cfgs, keys
-}
-
-func (rs *Resources) GetAllResources() ResourceConfigs {
-	var cfgs ResourceConfigs
-	for _, cfg := range rs.RsMap {
-		cfgs = append(cfgs, cfg)
-	}
-	return cfgs
 }
 
 func SetProfilesForMode(mode string, cfg *ResourceConfig) {
@@ -1676,8 +1674,10 @@ func (rc *ResourceConfig) CopyConfig(cfg *ResourceConfig) {
 	rc.Virtual.Profiles = make([]ProfileRef, len(cfg.Virtual.Profiles))
 	copy(rc.Virtual.Profiles, cfg.Virtual.Profiles)
 	// Policies ref
-	rc.Virtual.Policies = make([]NameRef, len(cfg.Virtual.Policies))
-	copy(rc.Virtual.Policies, cfg.Virtual.Policies)
+	if cfg.Virtual.Policies != nil {
+		rc.Virtual.Policies = make([]NameRef, len(cfg.Virtual.Policies))
+		copy(rc.Virtual.Policies, cfg.Virtual.Policies)
+	}
 	// IRules
 	if len(cfg.Virtual.IRules) > 0 {
 		rc.Virtual.IRules = make([]string, len(cfg.Virtual.IRules))

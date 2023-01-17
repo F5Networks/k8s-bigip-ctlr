@@ -67,8 +67,7 @@ var _ = Describe("Agent AS3 Tests", func() {
 					Requires: []string{}}},
 		}
 		agentresources = &AgentResources{
-			RsMap:  ResourceConfigMap{},
-			RsCfgs: ResourceConfigs{},
+			RsMap: ResourceConfigMap{},
 		}
 	})
 	AfterEach(func() {
@@ -81,7 +80,7 @@ var _ = Describe("Agent AS3 Tests", func() {
 				Partition:           DEFAULT_PARTITION,
 				IAppPoolMemberTable: &IappPoolMemberTable{}}
 			cfg.MetaData.ResourceType = "iapp"
-			agentresources.RsCfgs = append(agentresources.RsCfgs, cfg)
+			agentresources.RsMap[NameRef{Name: "test", Partition: DEFAULT_PARTITION}] = cfg
 			cm.Resources = agentresources
 			Expect(len(mw.Sections)).To(Equal(0), "Section map should not have any entry")
 			cm.OutputConfigLocked()
@@ -110,7 +109,7 @@ var _ = Describe("Agent AS3 Tests", func() {
 				Partition:   DEFAULT_PARTITION,
 				Destination: fmt.Sprintf("/%s/%s%s%s:%d", DEFAULT_PARTITION, "192.168.1.3", "24", "0", 443),
 				IRules:      []string{"test_irule", SslPassthroughIRuleName}}
-			agentresources.RsCfgs = append(agentresources.RsCfgs, cfg)
+			agentresources.RsMap[NameRef{Name: "test", Partition: DEFAULT_PARTITION}] = cfg
 			cm.Resources = agentresources
 			Expect(len(mw.Sections)).To(Equal(0), "Section map should not have any entry")
 			cm.OutputConfigLocked()

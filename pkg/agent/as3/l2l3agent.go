@@ -38,7 +38,7 @@ func (am *AS3Manager) SendARPEntries() {
 	var allPoolMembers []Member
 
 	// Filter the configs to only those that have active services
-	for _, cfg := range am.Resources.RsCfgs {
+	for _, cfg := range am.Resources.RsMap {
 		if cfg.MetaData.Active == true {
 			for _, pool := range cfg.Pools {
 				allPoolMembers = append(allPoolMembers, pool.Members...)

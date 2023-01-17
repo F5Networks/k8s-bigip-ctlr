@@ -34,7 +34,7 @@ func (cm *CCCLManager) OutputConfigLocked() {
 	resources := PartitionMap{}
 
 	// Filter the configs to only those that have active services
-	for _, cfg := range cm.Resources.RsCfgs {
+	for _, cfg := range cm.Resources.RsMap {
 		if cfg.MetaData.Active == true {
 			initPartitionData(resources, cfg.GetPartition())
 

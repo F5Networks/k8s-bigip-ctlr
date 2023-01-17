@@ -32,7 +32,6 @@ func newMockPostManager() *mockPostManager {
 		Responses:   []int{},
 		RespIndex:   0,
 	}
-	mockPM.Tenants = make(map[string]bool)
 	return mockPM
 }
 

@@ -579,7 +579,7 @@ func (appMgr *Manager) syncNamespace(nsName string) error {
 		rsDeleted := 0
 		appMgr.resources.ForEach(func(key ServiceKey, cfg *ResourceConfig) {
 			if key.Namespace == nsName {
-				if appMgr.resources.Delete(key, "") {
+				if appMgr.resources.Delete(key, NameRef{}) {
 					rsDeleted += 1
 				}
 			}
@@ -887,7 +887,7 @@ func (appMgr *Manager) newAppInformer(
 		appInf.ingInformer.AddEventHandlerWithResyncPeriod(
 			&cache.ResourceEventHandlerFuncs{
 				AddFunc:    func(obj interface{}) { appMgr.enqueueIngress(obj, OprTypeCreate) },
-				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueIngress(cur, OprTypeUpdate) },
+				UpdateFunc: func(old, cur interface{}) { appMgr.enqueueIngressUpdate(cur, old, OprTypeUpdate) },
 				DeleteFunc: func(obj interface{}) { appMgr.enqueueIngress(obj, OprTypeDelete) },
 			},
 			resyncPeriod,
@@ -978,6 +978,40 @@ func (appMgr *Manager) enqueueSecrets(obj interface{}, operation string) {
 
 func (appMgr *Manager) enqueueIngress(obj interface{}, operation string) {
 	if ok, keys := appMgr.checkValidIngress(obj); ok {
+		for _, key := range keys {
+			key.Operation = operation
+			appMgr.vsQueue.Add(*key)
+		}
+	}
+}
+
+func (appMgr *Manager) handleIngressUpdate(
+	cur, old interface{},
+) (bool, []*serviceQueueKey) {
+	//TODO remove the switch case and checkV1beta1Ingress function
+	var validIngress bool
+	var keys []*serviceQueueKey
+	switch cur.(type) {
+	case *v1beta1.Ingress:
+		oldIngress := old.(*v1beta1.Ingress)
+		curIngress := cur.(*v1beta1.Ingress)
+		if fetchVSDeletionStatus(curIngress.ObjectMeta.Annotations, oldIngress.ObjectMeta.Annotations) {
+			appMgr.removeOldV1beta1IngressObjects(oldIngress)
+		}
+		validIngress, keys = appMgr.checkV1beta1Ingress(curIngress)
+	default:
+		oldIngress := old.(*netv1.Ingress)
+		curIngress := cur.(*netv1.Ingress)
+		if fetchVSDeletionStatus(curIngress.ObjectMeta.Annotations, oldIngress.ObjectMeta.Annotations) {
+			appMgr.removeOldVIngressObjects(oldIngress)
+		}
+		validIngress, keys = appMgr.checkV1Ingress(curIngress)
+	}
+	return validIngress, keys
+}
+
+func (appMgr *Manager) enqueueIngressUpdate(cur, old interface{}, operation string) {
+	if ok, keys := appMgr.handleIngressUpdate(cur, old); ok {
 		for _, key := range keys {
 			key.Operation = operation
 			appMgr.vsQueue.Add(*key)
@@ -1647,7 +1681,7 @@ func (appMgr *Manager) syncConfigMaps(
 			}
 		}
 
-		rsName := rsCfg.GetName()
+		rsName := rsCfg.GetNameRef()
 		ok, found, updated := appMgr.handleConfigForType(
 			rsCfg, sKey, rsMap, rsName, svcPortMap,
 			svc, appInf, []string{}, nil)
@@ -1714,11 +1748,12 @@ func (appMgr *Manager) syncIngresses(
 	appMgr.TeemData.Lock()
 	appMgr.TeemData.ResourceType.Ingresses[sKey.Namespace] = len(ingByIndex)
 	appMgr.TeemData.Unlock()
-	svcFwdRulesMap := NewServiceFwdRuleMap()
 	for _, obj := range ingByIndex {
 		// We need to look at all ingresses in the store, parse the data blob,
 		// and process ingresses that has changed.
 		//TODO remove the switch case and checkV1beta1Ingress function
+		var partition string
+		svcFwdRulesMap := NewServiceFwdRuleMap()
 		switch obj.(type) {
 		case *v1beta1.Ingress:
 			ing := obj.(*v1beta1.Ingress)
@@ -1738,6 +1773,12 @@ func (appMgr *Manager) syncIngresses(
 			_, exists := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]
 			if !exists && appMgr.resolveIng != "" {
 				appMgr.resolveIngressHost(ing, sKey.Namespace)
+			}
+			// Get partition for ingress
+			if p, ok := ing.ObjectMeta.Annotations[F5VsPartitionAnnotation]; ok == true {
+				partition = p
+			} else {
+				partition = DEFAULT_PARTITION
 			}
 			// Get a list of dependencies removed so their pools can be removed.
 			objKey, objDeps := NewObjectDependencies(ing)
@@ -1780,7 +1821,7 @@ func (appMgr *Manager) syncIngresses(
 				}
 
 				// Handle Ingress health monitors
-				rsName := rsCfg.GetName()
+				rsName := rsCfg.GetNameRef()
 				hmStr, found := ing.ObjectMeta.Annotations[HealthMonitorAnnotation]
 				if found {
 					var monitors AnnotationHealthMonitors
@@ -1793,11 +1834,9 @@ func (appMgr *Manager) syncIngresses(
 						if nil != ing.Spec.Backend {
 							fullPoolName := fmt.Sprintf("/%s/%s", rsCfg.Virtual.Partition,
 								FormatIngressPoolName(sKey.Namespace, sKey.ServiceName))
-							appMgr.handleSingleServiceHealthMonitors(
-								rsName, fullPoolName, rsCfg, ing, monitors)
+							appMgr.handleSingleServiceHealthMonitors(fullPoolName, rsCfg, ing, monitors)
 						} else {
-							appMgr.handleMultiServiceHealthMonitors(
-								rsName, rsCfg, ing, monitors)
+							appMgr.handleMultiServiceHealthMonitors(rsCfg, ing, monitors)
 						}
 					}
 					rsCfg.SortMonitors()
@@ -1898,6 +1937,12 @@ func (appMgr *Manager) syncIngresses(
 			if !exists && appMgr.resolveIng != "" {
 				appMgr.resolveV1IngressHost(ing, sKey.Namespace)
 			}
+			// Get partition for ingress
+			if p, ok := ing.ObjectMeta.Annotations[F5VsPartitionAnnotation]; ok == true {
+				partition = p
+			} else {
+				partition = DEFAULT_PARTITION
+			}
 			// Get a list of dependencies removed so their pools can be removed.
 			objKey, objDeps := NewObjectDependencies(ing)
 			svcDepKey := ObjectDependency{
@@ -1940,7 +1985,7 @@ func (appMgr *Manager) syncIngresses(
 				}
 
 				// Handle Ingress health monitors
-				rsName := rsCfg.GetName()
+				rsName := rsCfg.GetNameRef()
 				hmStr, found := ing.ObjectMeta.Annotations[HealthMonitorAnnotation]
 				if found {
 					var monitors AnnotationHealthMonitors
@@ -1954,11 +1999,9 @@ func (appMgr *Manager) syncIngresses(
 							fullPoolName := fmt.Sprintf("/%s/%s", rsCfg.Virtual.Partition,
 								FormatIngressPoolName(sKey.Namespace, sKey.ServiceName))
 							RemoveUnReferredHealthMonitors(rsCfg, fullPoolName, monitors)
-							appMgr.handleSingleServiceV1IngressHealthMonitors(
-								rsName, fullPoolName, rsCfg, ing, monitors)
+							appMgr.handleSingleServiceV1IngressHealthMonitors(fullPoolName, rsCfg, ing, monitors)
 						} else {
-							appMgr.handleMultiServiceV1IngressHealthMonitors(
-								rsName, rsCfg, ing, monitors)
+							appMgr.handleMultiServiceV1IngressHealthMonitors(rsCfg, ing, monitors)
 						}
 					}
 					RemoveUnusedHealthMonitors(rsCfg)
@@ -2016,7 +2059,6 @@ func (appMgr *Manager) syncIngresses(
 						}
 					}
 				}
-
 				if ok, found, updated := appMgr.handleConfigForTypeIngress(
 					rsCfg, sKey, rsMap, rsName, svcPortMap,
 					svc, appInf, svcs, obj); !ok {
@@ -2044,19 +2086,18 @@ func (appMgr *Manager) syncIngresses(
 			appMgr.processedResources[prepareResourceKey(Ingresses, sKey.Namespace, ing.Name)] = true
 			appMgr.processedResourcesMutex.Unlock()
 		}
-
+		if len(svcFwdRulesMap) > 0 {
+			httpsRedirectDg := NameRef{
+				Name:      HttpsRedirectDgName,
+				Partition: partition,
+			}
+			if _, found := dgMap[httpsRedirectDg]; !found {
+				dgMap[httpsRedirectDg] = make(DataGroupNamespaceMap)
+			}
+			svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg], partition)
+		}
 	}
 	appMgr.HandleTranslateAddress(sKey, stats)
-	if len(svcFwdRulesMap) > 0 {
-		httpsRedirectDg := NameRef{
-			Name:      HttpsRedirectDgName,
-			Partition: DEFAULT_PARTITION,
-		}
-		if _, found := dgMap[httpsRedirectDg]; !found {
-			dgMap[httpsRedirectDg] = make(DataGroupNamespaceMap)
-		}
-		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
-	}
 
 	return nil
 }
@@ -2152,8 +2193,8 @@ func (appMgr *Manager) syncRoutes(
 				appMgr.resources.RemoveDependency(ObjectDependency{Kind: "Route", Namespace: route.Namespace, Name: route.Name})
 				rules := GetRouteAssociatedRuleNames(route)
 				for _, ruleName := range rules {
-					appMgr.resources.UpdatePolicy(appMgr.routeConfig.HttpsVs, SecurePolicyName, ruleName)
-					appMgr.resources.UpdatePolicy(appMgr.routeConfig.HttpVs, InsecurePolicyName, ruleName)
+					appMgr.resources.UpdatePolicy(NameRef{Name: appMgr.routeConfig.HttpsVs, Partition: DEFAULT_PARTITION}, SecurePolicyName, ruleName)
+					appMgr.resources.UpdatePolicy(NameRef{Name: appMgr.routeConfig.HttpVs, Partition: DEFAULT_PARTITION}, InsecurePolicyName, ruleName)
 				}
 
 				message := fmt.Sprintf("Discarding route %v as other route already exposes URI %v%v and is older ", route.Name, route.Spec.Host, route.Spec.Path)
@@ -2209,9 +2250,7 @@ func (appMgr *Manager) syncRoutes(
 				log.Warningf("[CORE] %v", err)
 				continue
 			}
-
-			rsName := rsCfg.GetName()
-
+			rsName := rsCfg.GetNameRef()
 			// Handle Route health monitors
 			hmStr, exists := route.ObjectMeta.Annotations[HealthMonitorAnnotation]
 			if exists {
@@ -2221,7 +2260,7 @@ func (appMgr *Manager) syncRoutes(
 					log.Errorf("[CORE] Unable to parse health monitor JSON array '%v': %v",
 						hmStr, err)
 				} else {
-					appMgr.handleRouteHealthMonitors(rsName, pool, rsCfg, monitors, stats)
+					appMgr.handleRouteHealthMonitors(pool, rsCfg, monitors, stats)
 				}
 				rsCfg.SortMonitors()
 			}
@@ -2356,7 +2395,7 @@ func (appMgr *Manager) syncRoutes(
 		if _, found := dgMap[httpsRedirectDg]; !found {
 			dgMap[httpsRedirectDg] = make(DataGroupNamespaceMap)
 		}
-		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg])
+		svcFwdRulesMap.AddToDataGroup(dgMap[httpsRedirectDg], DEFAULT_PARTITION)
 	}
 
 	return nil
@@ -2494,7 +2533,7 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 	rsCfg *ResourceConfig,
 	sKey serviceQueueKey,
 	rsMap ResourceMap,
-	rsName string,
+	rsName NameRef,
 	svcPortMap map[int32]bool,
 	svc *v1.Service,
 	appInf *appInformer,
@@ -2557,11 +2596,11 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 			// we delete the necessary pools later on, while leaving everything else intact.
 			cfgList := rsMap[pool.ServicePort]
 			if serviceMatch(currResourceSvcs, sKey) {
-				if len(cfgList) == 1 && cfgList[0].GetName() == rsName {
+				if len(cfgList) == 1 && cfgList[0].GetNameRef() == rsName {
 					delete(rsMap, pool.ServicePort)
 				} else if len(cfgList) > 1 {
 					for index, val := range cfgList {
-						if val.GetName() == rsName {
+						if val.GetNameRef() == rsName {
 							cfgList = append(cfgList[:index], cfgList[index+1:]...)
 						}
 					}
@@ -2569,21 +2608,21 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 				}
 			}
 
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "port-not-found").Set(0)
+			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "port-not-found").Set(0)
 			if _, ok := svcPortMap[pool.ServicePort]; !ok {
 				log.Debugf("[CORE] Process Service delete - name: %v namespace: %v",
 					pool.ServiceName, svcKey.Namespace)
 				log.Infof("[CORE] Port '%v' for service '%v' was not found.",
 					pool.ServicePort, pool.ServiceName)
-				bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "port-not-found").Set(1)
-				bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(0)
+				bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "port-not-found").Set(1)
+				bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(0)
 				if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
 					vsUpdated += 1
 				}
 				deactivated = true
 			}
 
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "service-not-found").Set(0)
+			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "service-not-found").Set(0)
 
 			// Update pool members.
 			vsFound += 1
@@ -2633,13 +2672,13 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 			}
 
 			if !deactivated {
-				bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(1)
+				bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(1)
 			}
 		} else {
 			// The service is gone, de-activate it in the config.
 			log.Infof("[CORE] Service '%v' has not been found.", pool.ServiceName)
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "service-not-found").Set(1)
-			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(0)
+			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "service-not-found").Set(1)
+			bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(0)
 			if !deactivated {
 				deactivated = true
 				if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
@@ -2664,7 +2703,7 @@ func (appMgr *Manager) handleConfigForTypeIngress(
 			return false, vsFound, vsUpdated
 		}
 		if vsUpdated > 0 && !appMgr.processAllMultiSvc(len(rsCfg.Pools),
-			rsCfg.GetName()) {
+			rsCfg.GetNameRef()) {
 			vsUpdated -= 1
 			vsFound -= 1
 		}
@@ -2678,7 +2717,7 @@ func (appMgr *Manager) handleConfigForType(
 	rsCfg *ResourceConfig,
 	sKey serviceQueueKey,
 	rsMap ResourceMap,
-	rsName string,
+	rsName NameRef,
 	svcPortMap map[int32]bool,
 	svc *v1.Service,
 	appInf *appInformer,
@@ -2725,11 +2764,11 @@ func (appMgr *Manager) handleConfigForType(
 	// we delete the necessary pools later on, while leaving everything else intact.
 	cfgList := rsMap[pool.ServicePort]
 	if serviceMatch(currResourceSvcs, sKey) {
-		if len(cfgList) == 1 && cfgList[0].GetName() == rsName {
+		if len(cfgList) == 1 && cfgList[0].GetNameRef() == rsName {
 			delete(rsMap, pool.ServicePort)
 		} else if len(cfgList) > 1 {
 			for index, val := range cfgList {
-				if val.GetName() == rsName {
+				if val.GetNameRef() == rsName {
 					cfgList = append(cfgList[:index], cfgList[index+1:]...)
 				}
 			}
@@ -2738,26 +2777,26 @@ func (appMgr *Manager) handleConfigForType(
 	}
 
 	deactivated := false
-	bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "port-not-found").Set(0)
+	bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "port-not-found").Set(0)
 	if _, ok := svcPortMap[pool.ServicePort]; !ok {
 		log.Debugf("[CORE] Process Service delete - name: %v namespace: %v",
 			pool.ServiceName, svcKey.Namespace)
 		log.Infof("[CORE] Port '%v' for service '%v' was not found.",
 			pool.ServicePort, pool.ServiceName)
-		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "port-not-found").Set(1)
-		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(0)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "port-not-found").Set(1)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(0)
 		if appMgr.deactivateVirtualServer(svcKey, rsName, rsCfg, plIdx) {
 			vsUpdated += 1
 		}
 		deactivated = true
 	}
 
-	bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "service-not-found").Set(0)
+	bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "service-not-found").Set(0)
 	if nil == svc {
 		// The service is gone, de-activate it in the config.
 		log.Infof("[CORE] Service '%v' has not been found.", pool.ServiceName)
-		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "service-not-found").Set(1)
-		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(0)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "service-not-found").Set(1)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(0)
 
 		if !deactivated {
 			deactivated = true
@@ -2829,13 +2868,13 @@ func (appMgr *Manager) handleConfigForType(
 	}
 
 	if !deactivated {
-		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName, "success").Set(1)
+		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(1)
 	}
 
 	return true, vsFound, vsUpdated
 }
 
-func (appMgr *Manager) syncPoolMembers(rsName string, rsCfg *ResourceConfig) {
+func (appMgr *Manager) syncPoolMembers(rsName NameRef, rsCfg *ResourceConfig) {
 	appMgr.resources.Lock()
 	defer appMgr.resources.Unlock()
 	if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
@@ -2950,7 +2989,7 @@ func (appMgr *Manager) updatePoolMembersForCluster(
 
 func (appMgr *Manager) deactivateVirtualServer(
 	sKey ServiceKey,
-	rsName string,
+	rsName NameRef,
 	rsCfg *ResourceConfig,
 	index int,
 ) bool {
@@ -2997,7 +3036,7 @@ func (appMgr *Manager) deactivateVirtualServer(
 
 func (appMgr *Manager) saveVirtualServer(
 	sKey ServiceKey,
-	rsName string,
+	rsName NameRef,
 	newRsCfg *ResourceConfig,
 ) bool {
 	appMgr.resources.Lock()
@@ -3028,7 +3067,7 @@ func (appMgr *Manager) getResourcesForKey(sKey serviceQueueKey) ResourceMap {
 	return rsMap
 }
 
-func (appMgr *Manager) processAllMultiSvc(numPools int, rsName string) bool {
+func (appMgr *Manager) processAllMultiSvc(numPools int, rsName NameRef) bool {
 	// If multi-service and we haven't yet configured keys/cfgs for each service,
 	// then we don't want to update
 	appMgr.resources.Lock()
@@ -3056,7 +3095,7 @@ func (appMgr *Manager) deleteUnusedConfigs(
 			ServicePort: port,
 		}
 		for _, cfg := range cfgList {
-			rsName := cfg.GetName()
+			rsName := cfg.GetNameRef()
 			if appMgr.resources.Delete(tmpKey, rsName) {
 				rsDeleted += 1
 			}
@@ -3076,7 +3115,7 @@ func (appMgr *Manager) deleteUnusedResources(
 	rsUpdated := 0
 	namespace := sKey.Namespace
 	svcName := sKey.ServiceName
-	for _, cfg := range appMgr.resources.GetAllResources() {
+	for _, cfg := range appMgr.resources.RsMap {
 		if cfg.MetaData.ResourceType == "configmap" ||
 			cfg.MetaData.ResourceType == "iapp" {
 			continue
@@ -3090,10 +3129,10 @@ func (appMgr *Manager) deleteUnusedResources(
 					Namespace:   namespace,
 				}
 				poolNS := strings.Split(pool.Name, "_")[1]
-				_, ok := appMgr.resources.Get(key, cfg.GetName())
+				_, ok := appMgr.resources.Get(key, cfg.GetNameRef())
 				if pool.ServiceName == svcName && poolNS == namespace && (!ok || !svcFound) {
 					if updated, svcKey := cfg.RemovePool(namespace, pool.Name, appMgr.mergedRulesMap); updated {
-						appMgr.resources.DeleteKeyRefLocked(*svcKey, cfg.GetName())
+						appMgr.resources.DeleteKeyRefLocked(*svcKey, cfg.GetNameRef())
 						rsUpdated += 1
 					}
 				}
@@ -3337,7 +3376,10 @@ func handleConfigMapParseFailure(
 			servicePort = cfg.Pools[0].ServicePort
 		}
 		sKey := ServiceKey{ServiceName: serviceName, ServicePort: servicePort, Namespace: cm.ObjectMeta.Namespace}
-		rsName := FormatConfigMapVSName(cm)
+		rsName := NameRef{
+			Name:      FormatConfigMapVSName(cm),
+			Partition: cfg.GetPartition(),
+		}
 		appMgr.resources.Lock()
 		defer appMgr.resources.Unlock()
 		if _, ok := appMgr.resources.Get(sKey, rsName); ok {

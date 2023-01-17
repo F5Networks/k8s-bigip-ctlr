@@ -52,6 +52,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			As3Release:       "3.41.0-1",
 			As3SchemaVersion: "3.41.0",
 		})
+		mockMgr.Resources = &AgentResources{}
 	})
 	AfterEach(func() {
 		mockMgr.shutdown()
@@ -122,9 +123,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			)
 			as3config := &AS3Config{}
 			as3config.configmaps, _ = mockMgr.prepareResourceAS3ConfigMaps()
-
 			result := mockMgr.getUnifiedDeclaration(as3config)
-
 			Expect(string(result)).To(MatchJSON(unified), "Failed to Create JSON with correct configuration")
 		})
 		It("Unified Declaration only with Openshift Route", func() {
@@ -136,9 +135,7 @@ var _ = Describe("AS3Manager Tests", func() {
 
 			var tempAS3Config AS3Config
 			tempAS3Config.resourceConfig = routeAdc
-
 			result := mockMgr.getUnifiedDeclaration(&tempAS3Config)
-
 			Expect(string(result)).To(MatchJSON(routeCfg), "Failed to Create JSON with correct configuration")
 		})
 		It("Unified Declaration with User Defined ConfigMap and Openshift Route", func() {
@@ -167,11 +164,8 @@ var _ = Describe("AS3Manager Tests", func() {
 			err := json.Unmarshal([]byte(routeCfg), &routeAdc)
 			Expect(err).To(BeNil(), "Route Config should be json")
 			as3config.resourceConfig = routeAdc
-
 			result := mockMgr.getUnifiedDeclaration(as3config)
-
 			Expect(string(result)).To(MatchJSON(unifiedConfig), "Failed to Create JSON with correct configuration")
-
 			ok := DeepEqualJSON(as3Declaration(unifiedConfig), result)
 			Expect(ok).To(BeTrue())
 		})
@@ -262,9 +256,7 @@ var _ = Describe("AS3Manager Tests", func() {
 			err := json.Unmarshal([]byte(routeCfg), &routeAdc)
 			Expect(err).To(BeNil(), "Route Config should be json")
 			as3config.resourceConfig = routeAdc
-
 			result := mockMgr.getUnifiedDeclaration(as3config)
-
 			Expect(string(result)).To(MatchJSON(unifiedConfig), "Failed to Create JSON with correct configuration")
 		})
 
@@ -372,10 +364,9 @@ var _ = Describe("AS3Manager Tests", func() {
 				Pools: []Pool{{Name: "test-pool", Partition: DEFAULT_PARTITION, ServiceName: "test-svc", ServicePort: 80, MonitorNames: []string{"test_monitor"}, Members: []Member{{Port: 80, Address: "192.168.1.1"}}}},
 			}
 			agentresources := &AgentResources{
-				RsMap:  ResourceConfigMap{},
-				RsCfgs: ResourceConfigs{},
+				RsMap: ResourceConfigMap{},
 			}
-			agentresources.RsCfgs = append(agentresources.RsCfgs, cfg)
+			agentresources.RsMap[NameRef{Name: "test", Partition: DEFAULT_PARTITION}] = cfg
 			mockMgr.Resources = agentresources
 			//as3ConfigMaps := []*AS3ConfigMap{{Name: "test"}}
 			//mockMgr.as3ActiveConfig = AS3Config{configmaps: as3ConfigMaps}
@@ -414,8 +405,7 @@ var _ = Describe("AS3Manager Tests", func() {
 		It("Post AS3 Declaration on event timeout", func() {
 			mockMgr.ReqChan = make(chan MessageRequest, 1)
 			agentresource := &AgentResources{
-				RsMap:  ResourceConfigMap{},
-				RsCfgs: ResourceConfigs{},
+				RsMap: ResourceConfigMap{},
 			}
 			tnt := "test"
 			mockPM := newMockPostManger()
@@ -461,8 +451,7 @@ var _ = Describe("AS3Manager Tests", func() {
 					body:   ""},
 			}, http.MethodPost)
 			agentresource := &AgentResources{
-				RsMap:  ResourceConfigMap{},
-				RsCfgs: ResourceConfigs{},
+				RsMap: ResourceConfigMap{},
 			}
 			resourceRequest := ResourceRequest{
 				PoolMembers: make(map[Member]struct{}),

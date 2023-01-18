@@ -1,0 +1,18 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    # rewrite-app-root annotation will redirect any traffic for root path(http://st.com/) to path(https://st.com/bar)
+    virtual-server.f5.com/rewrite-app-root: /bar
+  labels:
+    f5type: systest
+  name: st-com
+  namespace: default
+spec:
+  host: st.com
+  to:
+    kind: Service
+    name: svc
+    weight: 100
+  wildcardPolicy: None
+

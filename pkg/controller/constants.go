@@ -22,4 +22,6 @@ const (
 
 	HTTP  = "http"
 	HTTPS = "https"
+
+	defaultRouteGroupName string = "defaultRouteGroup"
 )

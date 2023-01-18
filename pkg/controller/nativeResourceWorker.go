@@ -395,19 +395,35 @@ func (ctlr *Controller) prepareRouteLTMRules(
 ) *Rules {
 	rlMap := make(ruleMap)
 	wildcards := make(ruleMap)
-
+	var redirects []*Rule
 	uri := route.Spec.Host + route.Spec.Path
 	path := route.Spec.Path
+	appRoot := "/"
+	// Handle app-root annotation
+	appRootPath, appRootOk := route.Annotations[resource.F5VsAppRootAnnotation]
+	if appRootOk {
+		ruleName := formatVirtualServerRuleName(route.Spec.Host, "", "redirectto", appRootPath)
+		rl, err := createRedirectRule(route.Spec.Host+appRoot, appRootPath, ruleName, allowSourceRange)
+		if nil != err {
+			log.Errorf("Error configuring redirect rule: %v", err)
+			return nil
+		}
+		redirects = append(redirects, rl)
+		if path == appRoot || path == "" {
+			uri = route.Spec.Host + appRootPath
+			path = appRootPath
+		}
+	}
 
 	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName)
-
 	rl, err := createRule(uri, poolName, ruleName, allowSourceRange)
 	if nil != err {
 		log.Errorf("Error configuring rule: %v", err)
 		return nil
 	}
 
-	if rewritePath, ok := route.Annotations[string(URLRewriteAnnotation)]; ok {
+	// Handle url-rewrite annotation
+	if rewritePath, ok := route.Annotations[resource.F5VsURLRewriteAnnotation]; ok {
 		rewriteActions, err := getRewriteActions(
 			path,
 			rewritePath,
@@ -420,10 +436,29 @@ func (ctlr *Controller) prepareRouteLTMRules(
 		rl.Actions = append(rl.Actions, rewriteActions...)
 	}
 
-	if strings.HasPrefix(uri, "*.") == true {
+	if route.Spec.Path == appRoot || route.Spec.Path == "" {
+		redirects = append(redirects, rl)
+	} else if strings.HasPrefix(uri, "*.") == true {
 		wildcards[uri] = rl
 	} else {
 		rlMap[uri] = rl
+	}
+
+	if appRootOk && len(redirects) != 2 {
+		log.Error("AppRoot path not found for rewriting")
+		return nil
+	}
+
+	if rlMap[route.Spec.Host] == nil && len(redirects) == 2 {
+		rl := &Rule{
+			Name:    formatVirtualServerRuleName(route.Spec.Host, route.Namespace, "", redirects[1].Actions[0].Pool),
+			FullURI: route.Spec.Host,
+			Actions: redirects[1].Actions,
+			Conditions: []*condition{
+				redirects[1].Conditions[0],
+			},
+		}
+		redirects = append(redirects, rl)
 	}
 
 	var wg sync.WaitGroup
@@ -451,7 +486,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 
 	rls = append(rls, w...)
 	sort.Sort(rls)
-
+	rls = append(redirects, rls...)
 	return &rls
 }
 
@@ -1428,6 +1463,22 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
 		message := fmt.Sprintf("Missing certificate/key/SSL profile annotation/defaultSSL for route: %v", route.ObjectMeta.Name)
 		go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "ExtendedValidationFailed", message, v1.ConditionFalse)
 		return false
+	}
+
+	// Validate appRoot Rewrite annotation
+	if appRootPath, ok := route.Annotations[resource.F5VsAppRootAnnotation]; ok {
+		if appRootPath == "" {
+			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, resource.F5VsAppRootAnnotation)
+			log.Errorf(message)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			return false
+		}
+		if route.Spec.Path != "" && route.Spec.Path != "/" {
+			message := fmt.Sprintf("Invalid annotation: %v=%v can not target path for app-root annotation for route %v, skipping", resource.F5VsAppRootAnnotation, appRootPath, route.Name)
+			log.Errorf(message)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			return false
+		}
 	}
 
 	// Validate the route service exists or not

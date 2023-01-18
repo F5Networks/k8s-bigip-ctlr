@@ -46,6 +46,7 @@ var _ = Describe("Backend Tests", func() {
 			rsCfg.Virtual.Name = "crd_vs_172.13.14.15"
 			rsCfg.Virtual.Destination = "/test/172.13.14.5:8080"
 			rsCfg.Virtual.AllowVLANs = []string{"flannel_vxlan"}
+			rsCfg.Virtual.IpIntelligencePolicy = "/Common/ip-intelligence-policy"
 			rsCfg.Virtual.Policies = []nameRef{
 				{
 					Name:      "policy1",

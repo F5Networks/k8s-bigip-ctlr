@@ -281,11 +281,12 @@ type L7PolicySpec struct {
 }
 
 type L3PolicySpec struct {
-	DOS              string   `json:"dos,omitempty"`
-	BotDefense       string   `json:"botDefense,omitempty"`
-	FirewallPolicy   string   `json:"firewallPolicy,omitempty"`
-	AllowSourceRange []string `json:"allowSourceRange,omitempty"`
-	AllowVlans       []string `json:"allowVlans,omitempty"`
+	DOS                  string   `json:"dos,omitempty"`
+	BotDefense           string   `json:"botDefense,omitempty"`
+	FirewallPolicy       string   `json:"firewallPolicy,omitempty"`
+	AllowSourceRange     []string `json:"allowSourceRange,omitempty"`
+	AllowVlans           []string `json:"allowVlans,omitempty"`
+	IpIntelligencePolicy string   `json:"ipIntelligencePolicy,omitempty"`
 }
 
 type LtmIRulesSpec struct {

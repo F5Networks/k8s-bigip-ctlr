@@ -207,6 +207,7 @@ type (
 		TLSTermination             string                `json:"-"`
 		AllowSourceRange           []string              `json:"allowSourceRange,omitempty"`
 		HttpMrfRoutingEnabled      bool                  `json:"httpMrfRoutingEnabled,omitempty"`
+		IpIntelligencePolicy       string                `json:"ipIntelligencePolicy,omitempty"`
 	}
 	// Virtuals is slice of virtuals
 	Virtuals []Virtual
@@ -872,6 +873,7 @@ type (
 		ProfileDOS             as3MultiTypeParam    `json:"profileDOS,omitempty"`
 		ProfileBotDefense      as3MultiTypeParam    `json:"profileBotDefense,omitempty"`
 		HttpMrfRoutingEnabled  bool                 `json:"httpMrfRoutingEnabled,omitempty"`
+		IpIntelligencePolicy   as3MultiTypeParam    `json:"ipIntelligencePolicy,omitempty"`
 	}
 
 	// as3ServiceAddress maps to VirtualAddress in AS3 Resources

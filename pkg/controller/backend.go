@@ -1625,6 +1625,13 @@ func processCommonDecl(cfg *ResourceConfig, svc *as3Service) {
 		}
 	}
 
+	//Attach ipIntelligence policy
+	if cfg.Virtual.IpIntelligencePolicy != "" {
+		svc.IpIntelligencePolicy = &as3ResourcePointer{
+			BigIP: fmt.Sprintf("%v", cfg.Virtual.IpIntelligencePolicy),
+		}
+	}
+
 	//Attach logging profile
 	if cfg.Virtual.LogProfiles != nil {
 		for _, lp := range cfg.Virtual.LogProfiles {

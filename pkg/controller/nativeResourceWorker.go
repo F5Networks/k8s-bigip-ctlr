@@ -99,7 +99,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 			log.Errorf("%v", err)
 			break
 		}
-
+		ctlr.wafAnnotationUsed = false
 		for _, rt := range routes {
 			rsCfg.MetaData.baseResources[rt.Namespace+"/"+rt.Name] = Route
 			_, port := ctlr.getServicePort(rt)
@@ -129,6 +129,10 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 				namespace: rt.Namespace,
 				name:      rt.Name,
 			}] = struct{}{}
+		}
+
+		if ctlr.wafAnnotationUsed {
+			ctlr.addDefaultWAFDisableRule(rsCfg)
 		}
 
 		if processingError {
@@ -161,6 +165,40 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	}
 
 	return nil
+}
+
+// addDefaultWAFDisableRule adds default WAF disable rule and WAF disable action for rules without WAF
+func (ctlr *Controller) addDefaultWAFDisableRule(rsCfg *ResourceConfig) {
+	enabled := false
+	wafDisableAction := &action{
+		WAF:     true,
+		Enabled: &enabled,
+	}
+	wafDropAction := &action{
+		Drop:    true,
+		Request: true,
+	}
+	wafDisableRule := &Rule{
+		Name:    "openshift_route_waf_disable",
+		Actions: []*action{wafDropAction, wafDisableAction},
+	}
+	for index, pol := range rsCfg.Policies {
+		for _, rule := range pol.Rules {
+			isRuleWithWAF := false
+			for _, action := range rule.Actions {
+				if action.WAF {
+					isRuleWithWAF = true
+					break
+				}
+			}
+			// Add a default WAF disable action to all non-WAF rules
+			if !isRuleWithWAF {
+				rule.Actions = append(rule.Actions, wafDisableAction)
+			}
+		}
+		// BigIP requires a default WAF disable rule doesn't require WAF
+		rsCfg.Policies[index].Rules = append(rsCfg.Policies[index].Rules, wafDisableRule)
+	}
 }
 
 func (ctlr *Controller) getGroupedRoutes(routeGroup string) []*routeapi.Route {
@@ -273,6 +311,16 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		rsCfg.Virtual.SNAT = DEFAULT_SNAT
 	}
 
+	wafAnnotation := false
+	wafPolicy := ""
+	wafPolicy, wafAnnotation = route.Annotations["virtual-server.f5.com/waf"]
+	if wafAnnotation && rsCfg.Virtual.WAF != "" {
+		wafPolicy = ""
+	}
+	if wafPolicy != "" {
+		ctlr.wafAnnotationUsed = true
+	}
+
 	backendSvcs := GetRouteBackends(route)
 
 	for _, bs := range backendSvcs {
@@ -373,7 +421,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		// skip the policy creation for passthrough termination
 		// skip the policy creation for A/B Deployment
 		if !isPassthroughRoute(route) && !IsRouteABDeployment(route) {
-			rules := ctlr.prepareRouteLTMRules(route, pool.Name, rsCfg.Virtual.AllowSourceRange)
+			rules := ctlr.prepareRouteLTMRules(route, pool.Name, rsCfg.Virtual.AllowSourceRange, wafPolicy)
 			if rules == nil {
 				return fmt.Errorf("failed to create LTM Rules")
 			}
@@ -383,7 +431,6 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			rsCfg.AddRuleToPolicy(policyName, rsCfg.Virtual.Partition, rules)
 		}
 	}
-
 	return nil
 }
 
@@ -392,6 +439,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 	route *routeapi.Route,
 	poolName string,
 	allowSourceRange []string,
+	wafPolicy string,
 ) *Rules {
 	rlMap := make(ruleMap)
 	wildcards := make(ruleMap)
@@ -401,7 +449,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 
 	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName)
 
-	rl, err := createRule(uri, poolName, ruleName, allowSourceRange)
+	rl, err := createRule(uri, poolName, ruleName, allowSourceRange, wafPolicy)
 	if nil != err {
 		log.Errorf("Error configuring rule: %v", err)
 		return nil

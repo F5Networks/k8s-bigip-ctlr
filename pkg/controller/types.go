@@ -78,6 +78,7 @@ type (
 		requestQueue           *requestQueue
 		namespaceLabel         string
 		ipamHostSpecEmpty      bool
+		wafAnnotationUsed      bool
 		resourceContext
 	}
 	resourceContext struct {
@@ -450,6 +451,10 @@ type (
 		Reset     bool   `json:"reset,omitempty"`
 		Select    bool   `json:"select,omitempty"`
 		Value     string `json:"value,omitempty"`
+		WAF       bool   `json:"waf,omitempty"`
+		Policy    string `json:"policy,omitempty"`
+		Drop      bool   `json:"drop,omitempty"`
+		Enabled   *bool  `json:"enabled,omitempty"`
 	}
 
 	// condition config for a Rule

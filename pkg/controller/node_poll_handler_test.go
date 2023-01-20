@@ -31,26 +31,40 @@ var _ = Describe("Node Poller Handler", func() {
 	It("Nodes", func() {
 		namespace := "default"
 		mockCtlr.addNamespacedInformers(namespace, false)
+		mockCtlr.UseNodeInternal = true
 		cominf, _ := mockCtlr.getNamespacedCommonInformer(namespace)
 		nodeAddr1 := v1.NodeAddress{
 			Type:    v1.NodeInternalIP,
 			Address: "1.2.3.4",
 		}
 		nodeAddr2 := v1.NodeAddress{
-			Type:    v1.NodeExternalIP,
+			Type:    v1.NodeInternalIP,
 			Address: "1.2.3.5",
+		}
+		nodeAddr3 := v1.NodeAddress{
+			Type:    v1.NodeInternalIP,
+			Address: "1.2.3.6",
 		}
 		nodeObjs := []v1.Node{
 			*test.NewNode("worker1", "1", false,
 				[]v1.NodeAddress{nodeAddr1}, nil),
 			*test.NewNode("worker2", "1", false,
 				[]v1.NodeAddress{nodeAddr2}, nil),
+			*test.NewNode("worker3", "1", false,
+				[]v1.NodeAddress{nodeAddr3}, []v1.Taint{
+					{
+						Key:    "node-role.kubernetes.io/worker",
+						Effect: v1.TaintEffectNoExecute,
+					},
+				}),
 		}
 		for _, node := range nodeObjs {
 			mockCtlr.addNode(&node, namespace)
 		}
-		Expect(len(cominf.nodeInformer.GetIndexer().List())).To(Equal(2))
+		Expect(len(cominf.nodeInformer.GetIndexer().List())).To(Equal(3))
 		nodes, err := mockCtlr.getNodes(nodeObjs)
+		//verify node with NotReady state not added to node list
+		Expect(len(nodes)).To(Equal(2))
 		Expect(nodes).ToNot(BeNil(), "Failed to get nodes")
 		Expect(err).To(BeNil(), "Failed to get nodes")
 

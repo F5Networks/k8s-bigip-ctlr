@@ -570,7 +570,7 @@ spec:
 | Load Balancing Method | YES | YES | 
 | allow-source-range | YES | YES | 
 | URL-rewrite | YES | YES | 
-| App-rewrite | YES | NO |
+| App-rewrite | YES | YES |
 | A/B Deployment | YES | YES | 
 | Policy CR | NO | YES | 
 
@@ -614,6 +614,8 @@ Yes you can continue using the health monitors in route annotations.
 Yes you can continue using the waf in route annotations.
 ### Can we configure allowSourceRange using route annotations?
 Yes you can continue using the allowSourceRange in route annotations.
+### Can we configure rewriteAppRoot using route annotations?
+Yes you can continue using the rewriteAppRoot in route annotations.
 ### Any changes in RBAC? 
 No.
 ### How do I use policy CR with routes?

@@ -313,6 +313,43 @@ var _ = Describe("Routes", func() {
 			Expect(route3.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
 			Expect(route3.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route3.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("ServiceNotFound"), "Incorrect route admit reason")
+			// Check valid route with app root annotation
+			annotations[resource.F5VsAppRootAnnotation] = ""
+			spec6 := routeapi.RouteSpec{
+				Host: "test.com",
+				Path: "/",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+			}
+			route6 := test.NewRoute("route6", "1", "default", spec6, annotations)
+			mockCtlr.addRoute(route6)
+			Expect(mockCtlr.checkValidRoute(route6)).To(BeFalse())
+			time.Sleep(100 * time.Millisecond)
+			rskey6 := fmt.Sprintf("%v/%v", route6.Namespace, route6.Name)
+			route6 = mockCtlr.fetchRoute(rskey6)
+			Expect(route6.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
+			Expect(route6.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
+			Expect(route6.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("InvalidAnnotation"), "Incorrect route admit reason")
+			annotations[resource.F5VsAppRootAnnotation] = "/foo"
+			spec7 := routeapi.RouteSpec{
+				Host: "test.com",
+				Path: "/test",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+			}
+			route7 := test.NewRoute("route7", "1", "default", spec7, annotations)
+			mockCtlr.addRoute(route7)
+			Expect(mockCtlr.checkValidRoute(route7)).To(BeFalse())
+			time.Sleep(100 * time.Millisecond)
+			rskey7 := fmt.Sprintf("%v/%v", route7.Namespace, route7.Name)
+			route7 = mockCtlr.fetchRoute(rskey7)
+			Expect(route7.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
+			Expect(route7.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
+			Expect(route7.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("InvalidAnnotation"), "Incorrect route admit reason")
 		})
 		It("Check GSLB Support for Routes", func() {
 			var cm *v1.ConfigMap
@@ -1424,7 +1461,7 @@ extendedRouteSpec:
 
 			spec1 := routeapi.RouteSpec{
 				Host: "foo.com",
-				Path: "/foo",
+				Path: "/",
 				To: routeapi.RouteTargetReference{
 					Kind: "Service",
 					Name: "foo",
@@ -1445,6 +1482,7 @@ extendedRouteSpec:
 			annotations["virtual-server.f5.com/balance"] = "least-connections-node"
 			annotations[resource.F5ServerSslProfileAnnotation] = "/Common/serverssl"
 			annotations[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			annotations[resource.F5VsAppRootAnnotation] = "/foo"
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotations)
 			mockCtlr.addRoute(route1)
 			mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
@@ -1452,6 +1490,7 @@ extendedRouteSpec:
 
 			Expect(err).To(BeNil())
 			Expect(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Pools[0].Balance == "least-connections-node").To(BeTrue())
+			Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["nextgenroutes_443"].Policies[0].Rules) == 3).To(BeTrue())
 
 			data["extendedSpec"] = `
 extendedRouteSpec:

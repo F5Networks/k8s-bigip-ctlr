@@ -350,6 +350,28 @@ var _ = Describe("Routes", func() {
 			Expect(route7.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
 			Expect(route7.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route7.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("InvalidAnnotation"), "Incorrect route admit reason")
+
+			// Check valid route with WAF annotation
+			wafAnnotation := make(map[string]string)
+			wafAnnotation[resource.F5VsWAFPolicy] = ""
+			spec8 := routeapi.RouteSpec{
+				Host: "test.com",
+				Path: "/",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+			}
+			route8 := test.NewRoute("route8", "1", "default", spec8, wafAnnotation)
+			mockCtlr.addRoute(route8)
+			Expect(mockCtlr.checkValidRoute(route8)).To(BeFalse())
+			time.Sleep(100 * time.Millisecond)
+			rskey8 := fmt.Sprintf("%v/%v", route8.Namespace, route8.Name)
+			route8 = mockCtlr.fetchRoute(rskey8)
+			Expect(route8.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
+			Expect(route8.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
+			Expect(route8.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("InvalidAnnotation"), "Incorrect route admit reason")
+
 		})
 		It("Check GSLB Support for Routes", func() {
 			var cm *v1.ConfigMap
@@ -1085,6 +1107,90 @@ extendedRouteSpec:
 
 			rt.Spec.Port = &routeapi.RoutePort{TargetPort: intstr.IntOrString{StrVal: "http"}}
 			mockCtlr.getServicePort(rt)
+		})
+
+		It("Verify Routes with WAF", func() {
+			mockCtlr.mockResources[ns] = []interface{}{rt}
+			mockCtlr.resources = NewResourceStore()
+			var override = false
+			mockCtlr.resources.extdSpecMap[ns] = &extendedParsedSpec{
+				override: override,
+				global: &ExtendedRouteGroupSpec{
+					VServerName:   "samplevs",
+					VServerAddr:   "10.10.10.10",
+					AllowOverride: "False",
+				},
+				namespaces: []string{ns},
+				partition:  "test",
+			}
+			tlsConfig := &routeapi.TLSConfig{}
+			tlsConfig.Termination = TLSEdge
+			annotation1 := make(map[string]string)
+			annotation1[resource.F5VsWAFPolicy] = "/Common/WAF_Policy1"
+			annotation1[resource.F5ClientSslProfileAnnotation] = "/Common/clientssl"
+			spec1 := routeapi.RouteSpec{
+				Host: "foo.com",
+				Path: "/foo",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+				TLS: tlsConfig,
+			}
+
+			spec2 := routeapi.RouteSpec{
+				Host: "foo2.com",
+				Path: "/foo2",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "foo",
+				},
+			}
+			route1 := test.NewRoute("route1", "1", ns, spec1, annotation1)
+			mockCtlr.addRoute(route1)
+
+			route2 := test.NewRoute("route2", "1", ns, spec2, nil)
+			mockCtlr.addRoute(route2)
+
+			fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+				{Port: 8080, NodePort: 38001},
+				{Port: 9090, NodePort: 39001}}
+			foo := test.NewService("foo", "1", ns, "NodePort", fooPorts)
+			mockCtlr.addService(foo)
+			fooIps := []string{"10.1.1.1"}
+			fooEndpts := test.NewEndpoints(
+				"foo", "1", "node0", ns, fooIps, []string{},
+				convertSvcPortsToEndpointPorts(fooPorts))
+			mockCtlr.addEndpoints(fooEndpts)
+			mockCtlr.resources.invertedNamespaceLabelMap[ns] = ns
+
+			err := mockCtlr.processRoutes(ns, false)
+			Expect(err).To(BeNil(), "Failed to process routes")
+			Expect(len(mockCtlr.Controller.resources.ltmConfig["test"].ResourceMap["samplevs_443"].Policies)).
+				To(BeNumerically(">", 0), "Policy should not be empty")
+			createdPolicies := mockCtlr.resources.ltmConfig["test"].ResourceMap["samplevs_443"].Policies
+
+			checkWAFRules := func(policies Policies) bool {
+				defaultWAFDisableRule := false
+				for _, policy := range createdPolicies {
+					for _, rule := range policy.Rules {
+						if rule.Name == "openshift_route_waf_disable" {
+							defaultWAFDisableRule = true
+						}
+						wafRule := false
+						for _, action := range rule.Actions {
+							if action.WAF {
+								wafRule = true
+							}
+						}
+						if !wafRule {
+							return false
+						}
+					}
+				}
+				return defaultWAFDisableRule
+			}
+			Expect(checkWAFRules(createdPolicies)).To(BeTrue(), "WAF should be added in rules")
 		})
 
 	})

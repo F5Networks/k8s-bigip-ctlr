@@ -11,6 +11,7 @@ Added Functionality
         * Support for rewrite-app-root annotation in routes
     * Ingress
         * Support for partition annotation in Ingress
+        * Added wildcard character(*) validation for ingress path
     * CRD
         * Support for ipIntelligencePolicy with policy CR
         * Add partition support for custom resources - VS, TS and IngressLink

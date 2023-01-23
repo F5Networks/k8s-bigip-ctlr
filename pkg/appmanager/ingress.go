@@ -631,6 +631,10 @@ func (appMgr *Manager) createRSConfigFromV1Ingress(
 		for _, rule := range ing.Spec.Rules {
 			if nil != rule.IngressRuleValue.HTTP {
 				for _, path := range rule.IngressRuleValue.HTTP.Paths {
+					if strings.ContainsAny(path.Path, "*") {
+						log.Errorf("[CORE] Ingress path should not contain wildcard character '*'.")
+						continue
+					}
 					exists := false
 					for _, pl := range pools {
 						if path.Backend.Service.Port.Name != "" {

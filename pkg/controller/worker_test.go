@@ -81,6 +81,10 @@ var _ = Describe("Worker Tests", func() {
 			})
 		mockCtlr.Partition = "test"
 		mockCtlr.Agent = &Agent{
+			postChan:            make(chan ResourceConfigRequest, 1),
+			cachedTenantDeclMap: make(map[string]as3Tenant),
+			respChan:            make(chan resourceStatusMeta, 1),
+			retryTenantDeclMap:  make(map[string]*tenantParams),
 			PostManager: &PostManager{
 				PostParams: PostParams{
 					BIGIPURL: "10.10.10.1",
@@ -94,6 +98,14 @@ var _ = Describe("Worker Tests", func() {
 		mockCtlr.comInformers = make(map[string]*CommonInformer)
 		mockCtlr.nativeResourceSelector, _ = createLabelSelector(DefaultCustomResourceLabel)
 		_ = mockCtlr.addNamespacedInformers("default", false)
+		mockCtlr.resourceQueue = workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(), "custom-resource-controller")
+		mockCtlr.TeemData = &teem.TeemsData{
+			ResourceType: teem.ResourceTypes{
+				VirtualServer: make(map[string]int),
+			},
+		}
+		mockCtlr.requestQueue = &requestQueue{sync.Mutex{}, list.New()}
 		mockCtlr.resources = NewResourceStore()
 		mockCtlr.crInformers["default"].vsInformer = cisinfv1.NewFilteredVirtualServerInformer(
 			mockCtlr.kubeCRClient,
@@ -671,6 +683,28 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
 				Expect(virts[0].Spec.Host).To(Equal("test2.com"), "Wrong Virtual Server Host")
 				Expect(virts[1].Spec.Host).To(Equal("test3.com"), "Wrong Virtual Server Host")
+			})
+
+			It("Host Group with Multiple Hosts", func() {
+				vrt2.Spec.HostGroup = "test"
+				vrt3.Spec.HostGroup = "test"
+				vrt3.Spec.Host = "test3.com"
+				vrt2.Namespace = "default"
+				vrt3.Namespace = "default"
+				mockCtlr.namespaces = map[string]bool{
+					"default": true,
+				}
+				mockCtlr.addVirtualServer(vrt2)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap)).To(Equal(1), "Invalid VS count")
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_1_2_3_5_80"].MetaData.hosts)).
+					To(Equal(1), "Invalid host count")
+				mockCtlr.addVirtualServer(vrt3)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap)).To(Equal(1),
+					"Invalid VS count")
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap["crd_1_2_3_5_80"].MetaData.hosts)).
+					To(Equal(2), "Invalid host count")
 			})
 
 			It("HostGroup with wrong custom port", func() {

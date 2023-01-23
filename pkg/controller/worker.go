@@ -1098,7 +1098,6 @@ func (ctlr *Controller) processVirtualServers(
 		rsCfg.MetaData.ResourceType = VirtualServer
 		rsCfg.Virtual.Enabled = true
 		rsCfg.Virtual.Name = rsName
-		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 		rsCfg.MetaData.Protocol = portStruct.protocol
 		rsCfg.MetaData.httpTraffic = virtual.Spec.HTTPTraffic
 		rsCfg.Virtual.HttpMrfRoutingEnabled = virtual.Spec.HttpMrfRoutingEnabled

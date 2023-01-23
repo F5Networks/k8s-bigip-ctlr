@@ -578,6 +578,11 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	if len(vs.Spec.IRules) > 0 {
 		rsCfg.Virtual.IRules = append(rsCfg.Virtual.IRules, vs.Spec.IRules...)
 	}
+
+	// Append all the hosts from a host group/ single host
+	if vs.Spec.Host != "" {
+		rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, vs.Spec.Host)
+	}
 	return nil
 }
 

@@ -369,7 +369,7 @@ func (appMgr *Manager) checkV1beta1Ingress(
 	partition := DEFAULT_PARTITION
 	if p, ok := ing.ObjectMeta.Annotations[F5VsPartitionAnnotation]; ok {
 		if _, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; !ok {
-			log.Warningf("%v annotation should be provided with %v", F5VsBindAddrAnnotation, F5VsPartitionAnnotation)
+			log.Warningf("%v annotation should be provided with %v in ingress %s/%s", F5VsBindAddrAnnotation, F5VsPartitionAnnotation, ing.Namespace, ing.Name)
 			return false, nil
 		}
 		partition = p
@@ -429,12 +429,12 @@ func (appMgr *Manager) checkV1beta1Ingress(
 			appRootMap := ParseAppRootURLRewriteAnnotations(appRoot)
 			if rsType == SingleServiceIngressType {
 				if len(appRootMap) > 1 {
-					log.Warning("Single service ingress does not support multiple app-root annotation values, not processing")
+					log.Warningf("Single service ingress does not support multiple app-root annotation values for single service ingress %s/%s, not processing", ing.Namespace, ing.Name)
 				} else {
 					if _, ok := appRootMap["single"]; ok {
 						validateAppRootAnnotations(rsType, appRootMap)
 					} else {
-						log.Warningf("[CORE] App root annotation: %s does not support targeted values for single service ingress, not processing", appRoot)
+						log.Warningf("[CORE] App root annotation: %s does not support targeted values for single service ingress %s/%s, not processing", appRoot, ing.Namespace, ing.Name)
 					}
 				}
 			} else {
@@ -457,7 +457,7 @@ func (appMgr *Manager) checkV1beta1Ingress(
 				oldCfg.MetaData.IngName != ing.ObjectMeta.Name &&
 				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
 				log.Warningf(
-					"Single-service Ingress cannot share the IP and port: '%s:%d'.",
+					"Single-service Ingress cannot share the IP and port for ingress %s/%s: '%s:%d'.", ing.Namespace, ing.Name,
 					oldCfg.Virtual.VirtualAddress.BindAddr, oldCfg.Virtual.VirtualAddress.Port)
 				return false, nil
 			}
@@ -500,7 +500,7 @@ func (appMgr *Manager) checkV1Beta1SingleServivceIngress(
 				oldCfg.MetaData.IngName != ing.ObjectMeta.Name &&
 				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
 				log.Warningf(
-					"Single-service Ingress cannot share the IP and port: '%s:%d'.",
+					"Single-service Ingress cannot share the IP and port for ingress %s/%s: '%s:%d'.", ing.Namespace, ing.Name,
 					oldCfg.Virtual.VirtualAddress.BindAddr, oldCfg.Virtual.VirtualAddress.Port)
 				return false
 			}

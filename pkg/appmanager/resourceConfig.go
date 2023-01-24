@@ -120,7 +120,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 			if nil != rule.IngressRuleValue.HTTP {
 				for _, path := range rule.IngressRuleValue.HTTP.Paths {
 					if strings.ContainsAny(path.Path, "*") {
-						log.Errorf("[CORE] Ingress path should not contain wildcard character '*'.")
+						log.Errorf("[CORE] Ingress path should not contain wildcard character '*' for ingress %v/%v", ing.Namespace, ing.Name)
 						continue
 					}
 					exists := false
@@ -128,7 +128,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 						if path.Backend.ServicePort.StrVal != "" {
 							backendPort, err := GetServicePort(ns, path.Backend.ServiceName, svcIndexer, path.Backend.ServicePort.StrVal, ResourceTypeIngress)
 							if err != nil {
-								log.Warningf("[CORE] Error fetching service port: %v", err)
+								log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 								continue
 							}
 							//Assigning backendPort to find existing pool entries
@@ -155,7 +155,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 					} else if path.Backend.ServicePort.StrVal != "" {
 						backendPort, err = GetServicePort(ns, path.Backend.ServiceName, svcIndexer, path.Backend.ServicePort.StrVal, ResourceTypeIngress)
 						if err != nil {
-							log.Warningf("[CORE] Error fetching service port: %v", err)
+							log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 							continue
 						}
 						//Assigning backendPort to find existing pool entries
@@ -191,7 +191,7 @@ func (appMgr *Manager) createRSConfigFromIngress(
 		if ing.Spec.Backend.ServicePort.StrVal != "" {
 			backendPort, err = GetServicePort(ns, ing.Spec.Backend.ServiceName, svcIndexer, ing.Spec.Backend.ServicePort.StrVal, ResourceTypeIngress)
 			if err != nil {
-				log.Warningf("[CORE] Error fetching service port: %v", err)
+				log.Warningf("[CORE] Error fetching service port for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 			}
 		} else {
 			backendPort = ing.Spec.Backend.ServicePort.IntVal
@@ -338,9 +338,9 @@ func (appMgr *Manager) handleIngressTls(
 				secret := appMgr.rsrcSSLCtxt[tls.SecretName]
 				if secret == nil {
 					// No secret, so we assume the profile is a BIG-IP default
-					log.Debugf("[CORE] No Secret with name '%s' in namespace '%s', "+
+					log.Debugf("[CORE] No Secret with name '%s' in namespace '%s for ingress %s', "+
 						"parsing secretName as path instead.",
-						tls.SecretName, ing.ObjectMeta.Namespace)
+						tls.SecretName, ing.ObjectMeta.Namespace, ing.Name)
 					profRef := ConvertStringToProfileRef(
 						tls.SecretName, CustomProfileClient, ing.ObjectMeta.Namespace)
 					rsCfg.Virtual.AddOrUpdateProfile(profRef)
@@ -349,7 +349,7 @@ func (appMgr *Manager) handleIngressTls(
 				var err error
 				err, cpUpdated = appMgr.createSecretSslProfile(rsCfg, secret)
 				if err != nil {
-					log.Warningf("[CORE] %v", err)
+					log.Warningf("[CORE] Error creating ssl profiles for ingress %s/%s: %v", ing.Namespace, ing.Name, err)
 					continue
 				}
 				updateState = updateState || cpUpdated

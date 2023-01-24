@@ -2063,7 +2063,6 @@ func (ctlr *Controller) processTransportServers(
 	rsCfg.Virtual.Name = rsName
 	rsCfg.MetaData.hosts = append(rsCfg.MetaData.hosts, virtual.Spec.Host)
 	rsCfg.Virtual.IpProtocol = virtual.Spec.Type
-	rsCfg.MetaData.namespace = virtual.ObjectMeta.Namespace
 	rsCfg.MetaData.baseResources = make(map[string]string)
 	rsCfg.Virtual.SetVirtualAddress(
 		ip,

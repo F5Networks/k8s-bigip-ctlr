@@ -1589,7 +1589,11 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	} else {
 		monitorName = poolName + "-monitor"
 	}
-	targetPort := ctlr.fetchTargetPort(vs.Namespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
+	svcNamespace := vs.Namespace
+	if vs.Spec.Pool.ServiceNamespace != "" {
+		svcNamespace = vs.Spec.Pool.ServiceNamespace
+	}
+	targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
 	if (intstr.IntOrString{}) == targetPort {
 		targetPort = intstr.IntOrString{IntVal: vs.Spec.Pool.ServicePort}
 	}
@@ -1598,7 +1602,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 		Name:              poolName,
 		Partition:         rsCfg.Virtual.Partition,
 		ServiceName:       vs.Spec.Pool.Service,
-		ServiceNamespace:  vs.ObjectMeta.Namespace,
+		ServiceNamespace:  svcNamespace,
 		ServicePort:       targetPort,
 		NodeMemberLabel:   vs.Spec.Pool.NodeMemberLabel,
 		Balance:           vs.Spec.Pool.Balance,

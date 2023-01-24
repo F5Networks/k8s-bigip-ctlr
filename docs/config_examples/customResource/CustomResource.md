@@ -179,6 +179,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | nodeMemberLabel  | String  | Optional | NA      | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode                     |
 | serviceDownAction | String  | Optional | none    | Specifies connection handling when member is non-responsive                                                                             |
 | reselectTries | Integer | Optional | 0       | Maximum number of attempts to find a responsive member for a connection                                                                 |
+| serviceNamespace | String  | Optional | NA      | Namespace of service, define it if service is present in a namespace other than the one where transport Server Custom Resource is present |
 
 Note: **monitors** take priority over **monitor** if both are provided in TS spec.
 

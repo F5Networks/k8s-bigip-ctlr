@@ -1199,6 +1199,24 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 				},
 			}
 		}
+		// WAF action
+		if v.WAF {
+			action.Type = "waf"
+		}
+		// Add policy reference
+		if v.Policy != "" {
+			action.Policy = &as3ResourcePointer{
+				BigIP: v.Policy,
+			}
+		}
+		if v.Enabled != nil {
+			action.Enabled = v.Enabled
+		}
+		// Add drop action if specified
+		if v.Drop {
+			action.Type = "drop"
+		}
+
 		rulesData.Actions = append(rulesData.Actions, action)
 	}
 }

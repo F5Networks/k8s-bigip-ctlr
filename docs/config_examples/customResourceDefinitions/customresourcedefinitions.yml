@@ -439,6 +439,9 @@ spec:
                       type: integer
                       minimum: 1
                       maximum: 65535
+                    serviceNamespace:
+                      type: string
+                      pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
                     loadBalancingMethod:
                       type: string
                       pattern: '^[a-z]+[a-z_-]+[a-z]+$'

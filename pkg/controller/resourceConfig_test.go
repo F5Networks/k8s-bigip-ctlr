@@ -228,8 +228,9 @@ var _ = Describe("Resource Config Tests", func() {
 					Host: "test.com",
 					Pools: []cisapiv1.Pool{
 						{
-							Path:    "/foo",
-							Service: "svc1",
+							Path:             "/foo",
+							Service:          "svc1",
+							ServiceNamespace: "test",
 							Monitor: cisapiv1.Monitor{
 								Type:     "http",
 								Send:     "GET /health",
@@ -256,6 +257,7 @@ var _ = Describe("Resource Config Tests", func() {
 			)
 			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
+			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
 		})
 
 		It("Validate Virtual server config with multiple monitors(tcp and http)", func() {
@@ -323,8 +325,9 @@ var _ = Describe("Resource Config Tests", func() {
 				namespace,
 				cisapiv1.TransportServerSpec{
 					Pool: cisapiv1.Pool{
-						Service:     "svc1",
-						ServicePort: 80,
+						Service:          "svc1",
+						ServicePort:      80,
+						ServiceNamespace: "test",
 						Monitor: cisapiv1.Monitor{
 							Type:     "tcp",
 							Timeout:  10,
@@ -335,6 +338,7 @@ var _ = Describe("Resource Config Tests", func() {
 			)
 			err := mockCtlr.prepareRSConfigFromTransportServer(rsCfg, ts)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from TransportServer")
+			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
 		})
 
 		It("Prepare Resource Config from a TransportServer", func() {

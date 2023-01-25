@@ -225,6 +225,9 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string, annotationsUsed *Ann
 				if _, ok := route.Annotations[resource.F5VsWAFPolicy]; ok {
 					annotationsUsed.WAF = true
 				}
+				if _, ok := route.Annotations[resource.F5VsAllowSourceRangeAnnotation]; ok {
+					annotationsUsed.AllowSourceRange = true
+				}
 			}
 		}
 	}
@@ -257,6 +260,13 @@ func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, extd
 			// If allowOverride is true and routes use WAF annotation then WAF specified in policy CR is deprioritized
 			if allowOverride, err := strconv.ParseBool(extdSpec.AllowOverride); err == nil && allowOverride && au.WAF {
 				rsCfg.Virtual.WAF = ""
+			}
+
+			// If allowOverride is true and routes use allow-source-range annotation then allow-source-range specified
+			// in policy CR is deprioritized
+			if allowOverride, err := strconv.ParseBool(extdSpec.AllowOverride); err == nil && allowOverride &&
+				au.AllowSourceRange {
+				rsCfg.Virtual.AllowSourceRange = nil
 			}
 		}
 	}
@@ -325,6 +335,17 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	wafPolicy := ""
 	if rsCfg.Virtual.WAF == "" {
 		wafPolicy, _ = route.Annotations[resource.F5VsWAFPolicy]
+	}
+
+	// If not using AllowSourceRange from policy CR, use it from route annotations
+	var allowSourceRange []string
+	if rsCfg.Virtual.AllowSourceRange == nil {
+		sourceRange, ok := route.Annotations[resource.F5VsAllowSourceRangeAnnotation]
+		if ok {
+			allowSourceRange = resource.ParseWhitelistSourceRangeAnnotations(sourceRange)
+		}
+	} else {
+		allowSourceRange = rsCfg.Virtual.AllowSourceRange
 	}
 
 	backendSvcs := GetRouteBackends(route)
@@ -427,7 +448,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		// skip the policy creation for passthrough termination
 		// skip the policy creation for A/B Deployment
 		if !isPassthroughRoute(route) && !IsRouteABDeployment(route) {
-			rules := ctlr.prepareRouteLTMRules(route, pool.Name, rsCfg.Virtual.AllowSourceRange, wafPolicy)
+			rules := ctlr.prepareRouteLTMRules(route, pool.Name, allowSourceRange, wafPolicy)
 			if rules == nil {
 				return fmt.Errorf("failed to create LTM Rules")
 			}
@@ -1539,6 +1560,26 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
 	if wafPolicy, ok := route.Annotations[resource.F5VsWAFPolicy]; ok {
 		if wafPolicy == "" {
 			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, resource.F5VsWAFPolicy)
+			log.Errorf(message)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			return false
+		}
+	}
+
+	// Validate AllowSourceRange annotation
+	if sourceRange, ok := route.Annotations[resource.F5VsAllowSourceRangeAnnotation]; ok {
+		invalidAllowSourceRange := false
+		if sourceRange == "" {
+			invalidAllowSourceRange = true
+		} else {
+			allowSourceRange := resource.ParseWhitelistSourceRangeAnnotations(sourceRange)
+			if allowSourceRange == nil && len(allowSourceRange) == 0 {
+				invalidAllowSourceRange = true
+			}
+		}
+		if invalidAllowSourceRange {
+			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name,
+				resource.F5VsAllowSourceRangeAnnotation)
 			log.Errorf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 			return false

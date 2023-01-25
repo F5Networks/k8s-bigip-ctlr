@@ -86,7 +86,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
 		var err error
-		rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange)
+		rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange, "")
 		if nil != err {
 			log.Errorf("Error configuring rule: %v", err)
 			return nil
@@ -185,7 +185,7 @@ func formatVirtualServerRuleName(hostname, hostGroup, path, pool string) string 
 }
 
 // Create LTM policy rules
-func createRule(uri, poolName, ruleName string, allowSourceRange []string) (*Rule, error) {
+func createRule(uri, poolName, ruleName string, allowSourceRange []string, wafPolicy string) (*Rule, error) {
 	_u := "scheme://" + uri
 	_u = strings.TrimSuffix(_u, "/")
 	u, err := url.Parse(_u)
@@ -193,6 +193,7 @@ func createRule(uri, poolName, ruleName string, allowSourceRange []string) (*Rul
 		return nil, err
 	}
 
+	var actions []*action
 	a := action{
 		Forward: true,
 		Name:    "0",
@@ -237,10 +238,22 @@ func createRule(uri, poolName, ruleName string, allowSourceRange []string) (*Rul
 		conditions = append(conditions, cond)
 	}
 
+	actions = append(actions, &a)
+
+	// Add WAF rule
+	if wafPolicy != "" {
+		wafAction := &action{
+			WAF:     true,
+			Policy:  wafPolicy,
+			Request: true,
+		}
+		actions = append(actions, wafAction)
+	}
+
 	rl := Rule{
 		Name:       ruleName,
 		FullURI:    uri,
-		Actions:    []*action{&a},
+		Actions:    actions,
 		Conditions: conditions,
 	}
 

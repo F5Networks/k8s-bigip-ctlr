@@ -36,6 +36,10 @@ For every EDNS resource created, CIS will add VS having matching domain as the W
 ### Policy CR support for routes
 Policy CR integration with nextGenRoutes extends so many BIG-IP features to the Openshift routes, i.e. snat, custom tcp, http and https profiles, irules, http2 profile, persistance profile, profileMultiplex, profileL4, logProfiles, waf, botDefense, firewallPolicy, dos, allowSourceRange, etc.
 
+### WAF precedence 
+WAF can be specified either in route annotations or in policy CR.
+If it's specified in both the places then WAF in policy CR has more precedence over annotation, however with allowOverride field set to true in the route group in Extended configmap, WAF in route annotation will have more precedence.
+
 ### Support for Health Monitors from pod liveness probe
 CIS uses the liveness probe of the pods to form the health monitors, whenever health annotations not provided in the route annotations. 
 

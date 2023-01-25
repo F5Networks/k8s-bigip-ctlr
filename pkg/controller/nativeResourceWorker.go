@@ -45,7 +45,8 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 			return fmt.Errorf("extended Route Spec not available for RouteGroup/Namespace: %v", routeGroup)
 		}
 	}
-	routes := ctlr.getGroupedRoutes(routeGroup)
+	annotationsUsed := &AnnotationsUsed{}
+	routes := ctlr.getGroupedRoutes(routeGroup, annotationsUsed)
 
 	if triggerDelete || len(routes) == 0 {
 		// Delete all possible virtuals for this route group
@@ -92,7 +93,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 		// deletion ; update /health /app/path1
 
-		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, extdSpec)
+		err := ctlr.handleRouteGroupExtendedSpec(rsCfg, extdSpec, annotationsUsed)
 
 		if err != nil {
 			processingError = true
@@ -131,6 +132,11 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 			}] = struct{}{}
 		}
 
+		// Add default WAF disable rule if WAF annotation is used
+		if annotationsUsed.WAF && rsCfg.Virtual.WAF == "" {
+			ctlr.addDefaultWAFDisableRule(rsCfg)
+		}
+
 		if processingError {
 			log.Errorf("Unable to Process Route Group %s", routeGroup)
 			break
@@ -163,7 +169,41 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 	return nil
 }
 
-func (ctlr *Controller) getGroupedRoutes(routeGroup string) []*routeapi.Route {
+// addDefaultWAFDisableRule adds WAF disable action for rules without WAF and a default WAF disable rule
+func (ctlr *Controller) addDefaultWAFDisableRule(rsCfg *ResourceConfig) {
+	enabled := false
+	wafDisableAction := &action{
+		WAF:     true,
+		Enabled: &enabled,
+	}
+	wafDropAction := &action{
+		Drop:    true,
+		Request: true,
+	}
+	wafDisableRule := &Rule{
+		Name:    "openshift_route_waf_disable",
+		Actions: []*action{wafDropAction, wafDisableAction},
+	}
+	for index, pol := range rsCfg.Policies {
+		for _, rule := range pol.Rules {
+			isRuleWithWAF := false
+			for _, action := range rule.Actions {
+				if action.WAF {
+					isRuleWithWAF = true
+					break
+				}
+			}
+			// Add a default WAF disable action to all non-WAF rules
+			if !isRuleWithWAF {
+				rule.Actions = append(rule.Actions, wafDisableAction)
+			}
+		}
+		// BigIP requires a default WAF disable rule doesn't require WAF
+		rsCfg.Policies[index].Rules = append(rsCfg.Policies[index].Rules, wafDisableRule)
+	}
+}
+
+func (ctlr *Controller) getGroupedRoutes(routeGroup string, annotationsUsed *AnnotationsUsed) []*routeapi.Route {
 	var assocRoutes []*routeapi.Route
 	// Get the route group
 	for _, namespace := range ctlr.resources.extdSpecMap[routeGroup].namespaces {
@@ -182,13 +222,17 @@ func (ctlr *Controller) getGroupedRoutes(routeGroup string) []*routeapi.Route {
 				}
 				ctlr.updateHostPathMap(route.ObjectMeta.CreationTimestamp, key)
 				assocRoutes = append(assocRoutes, route)
+				if _, ok := route.Annotations[resource.F5VsWAFPolicy]; ok {
+					annotationsUsed.WAF = true
+				}
 			}
 		}
 	}
 	return assocRoutes
 }
 
-func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, extdSpec *ExtendedRouteGroupSpec) error {
+func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, extdSpec *ExtendedRouteGroupSpec,
+	au *AnnotationsUsed) error {
 	policy := extdSpec.Policy
 	if policy != "" {
 		splits := strings.Split(policy, "/")
@@ -209,6 +253,10 @@ func (ctlr *Controller) handleRouteGroupExtendedSpec(rsCfg *ResourceConfig, extd
 			err := ctlr.handleVSResourceConfigForPolicy(rsCfg, plc)
 			if err != nil {
 				return err
+			}
+			// If allowOverride is true and routes use WAF annotation then WAF specified in policy CR is deprioritized
+			if allowOverride, err := strconv.ParseBool(extdSpec.AllowOverride); err == nil && allowOverride && au.WAF {
+				rsCfg.Virtual.WAF = ""
 			}
 		}
 	}
@@ -271,6 +319,12 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 	// Use default SNAT if not provided by user
 	if rsCfg.Virtual.SNAT == "" {
 		rsCfg.Virtual.SNAT = DEFAULT_SNAT
+	}
+
+	// If not using WAF from policy CR, use WAF from route annotations
+	wafPolicy := ""
+	if rsCfg.Virtual.WAF == "" {
+		wafPolicy, _ = route.Annotations[resource.F5VsWAFPolicy]
 	}
 
 	backendSvcs := GetRouteBackends(route)
@@ -373,7 +427,7 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 		// skip the policy creation for passthrough termination
 		// skip the policy creation for A/B Deployment
 		if !isPassthroughRoute(route) && !IsRouteABDeployment(route) {
-			rules := ctlr.prepareRouteLTMRules(route, pool.Name, rsCfg.Virtual.AllowSourceRange)
+			rules := ctlr.prepareRouteLTMRules(route, pool.Name, rsCfg.Virtual.AllowSourceRange, wafPolicy)
 			if rules == nil {
 				return fmt.Errorf("failed to create LTM Rules")
 			}
@@ -383,7 +437,6 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 			rsCfg.AddRuleToPolicy(policyName, rsCfg.Virtual.Partition, rules)
 		}
 	}
-
 	return nil
 }
 
@@ -392,6 +445,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 	route *routeapi.Route,
 	poolName string,
 	allowSourceRange []string,
+	wafPolicy string,
 ) *Rules {
 	rlMap := make(ruleMap)
 	wildcards := make(ruleMap)
@@ -416,7 +470,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 	}
 
 	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName)
-	rl, err := createRule(uri, poolName, ruleName, allowSourceRange)
+	rl, err := createRule(uri, poolName, ruleName, allowSourceRange, wafPolicy)
 	if nil != err {
 		log.Errorf("Error configuring rule: %v", err)
 		return nil
@@ -1475,6 +1529,16 @@ func (ctlr *Controller) checkValidRoute(route *routeapi.Route) bool {
 		}
 		if route.Spec.Path != "" && route.Spec.Path != "/" {
 			message := fmt.Sprintf("Invalid annotation: %v=%v can not target path for app-root annotation for route %v, skipping", resource.F5VsAppRootAnnotation, appRootPath, route.Name)
+			log.Errorf(message)
+			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
+			return false
+		}
+	}
+
+	// Validate WAF annotation
+	if wafPolicy, ok := route.Annotations[resource.F5VsWAFPolicy]; ok {
+		if wafPolicy == "" {
+			message := fmt.Sprintf("Discarding route %v as annotation %v is empty", route.Name, resource.F5VsWAFPolicy)
 			log.Errorf(message)
 			go ctlr.updateRouteAdmitStatus(fmt.Sprintf("%v/%v", route.Namespace, route.Name), "InvalidAnnotation", message, v1.ConditionFalse)
 			return false

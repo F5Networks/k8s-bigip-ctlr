@@ -9,6 +9,7 @@ Added Functionality
 **What’s new:**
     * Next generation routes preview. See `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details.
         * Support for rewrite-app-root annotation in routes
+        * Support for WAF annotation in routes
     * Ingress
         * Support for partition annotation in Ingress
         * Added wildcard character(*) validation for ingress path

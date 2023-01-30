@@ -275,7 +275,7 @@ func (ctlr *Controller) framePoolName(ns string, pool cisapiv1.Pool, host string
 
 	poolName := pool.Name
 	if poolName == "" {
-		targetPort := intstr.IntOrString{IntVal: pool.ServicePort}
+		targetPort := pool.ServicePort
 
 		if (intstr.IntOrString{}) == targetPort {
 			svcNamespace := ns
@@ -305,7 +305,7 @@ func formatPoolName(namespace, svc string, port intstr.IntOrString, nodeMemberLa
 }
 
 // format the monitor name for an VirtualServer pool
-func formatMonitorName(namespace, svc string, monitorType string, port int32, hostName string, path string) string {
+func formatMonitorName(namespace, svc string, monitorType string, port intstr.IntOrString, hostName string, path string) string {
 	monitorName := fmt.Sprintf("%s_%s", svc, namespace)
 
 	if len(hostName) > 0 {
@@ -319,8 +319,8 @@ func formatMonitorName(namespace, svc string, monitorType string, port int32, ho
 		}
 	}
 
-	if monitorType != "" && port != 0 {
-		servicePort := fmt.Sprint(port)
+	if monitorType != "" && (port.IntVal != 0 || port.StrVal != "") {
+		servicePort := fetchPortString(port)
 		monitorName = monitorName + fmt.Sprintf("_%s_%s", monitorType, servicePort)
 	}
 	return AS3NameFormatter(monitorName)
@@ -374,7 +374,7 @@ func (ctlr *Controller) deleteSvcDepResource(rsName string, rsCfg *ResourceConfi
 }
 
 // fetch target port from service
-func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort int32) intstr.IntOrString {
+func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort intstr.IntOrString) intstr.IntOrString {
 	var targetPort intstr.IntOrString
 	var svcIndexer cache.Indexer
 	svcKey := namespace + "/" + svcName
@@ -394,7 +394,11 @@ func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort i
 	}
 	svc := item.(*v1.Service)
 	for _, port := range svc.Spec.Ports {
-		if port.Port == servicePort {
+		if port.Port == servicePort.IntVal || port.Name == servicePort.StrVal || port.TargetPort.StrVal == servicePort.StrVal {
+			// In case of named targetPort, send service port name to match endpoint name as targetPort
+			if port.TargetPort.StrVal != "" {
+				return intstr.IntOrString{StrVal: port.Name}
+			}
 			return port.TargetPort
 		}
 	}
@@ -435,9 +439,8 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 		}
 		framedPools[poolName] = struct{}{}
 		targetPort := ctlr.fetchTargetPort(vs.Namespace, pl.Service, pl.ServicePort)
-
 		if (intstr.IntOrString{}) == targetPort {
-			targetPort = intstr.IntOrString{IntVal: pl.ServicePort}
+			targetPort = pl.ServicePort
 		}
 		svcNamespace := vs.Namespace
 		if pl.ServiceNamespace != "" {
@@ -477,9 +480,9 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 				if monitor.Name != "" && monitor.Reference == BIGIP {
 					pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
 				} else {
-					var formatPort int32
+					var formatPort intstr.IntOrString
 					if monitor.TargetPort != 0 {
-						formatPort = monitor.TargetPort
+						formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
 					} else {
 						formatPort = pl.ServicePort
 					}
@@ -1595,7 +1598,7 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 	}
 	targetPort := ctlr.fetchTargetPort(svcNamespace, vs.Spec.Pool.Service, vs.Spec.Pool.ServicePort)
 	if (intstr.IntOrString{}) == targetPort {
-		targetPort = intstr.IntOrString{IntVal: vs.Spec.Pool.ServicePort}
+		targetPort = vs.Spec.Pool.ServicePort
 	}
 
 	pool := Pool{
@@ -1634,9 +1637,9 @@ func (ctlr *Controller) prepareRSConfigFromTransportServer(
 			if monitor.Name != "" && monitor.Reference == BIGIP {
 				pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: monitor.Name, Reference: monitor.Reference})
 			} else {
-				var formatPort int32
+				var formatPort intstr.IntOrString
 				if monitor.TargetPort != 0 {
-					formatPort = monitor.TargetPort
+					formatPort = intstr.IntOrString{IntVal: monitor.TargetPort}
 				} else {
 					formatPort = pl.ServicePort
 				}
@@ -1744,9 +1747,9 @@ func (ctlr *Controller) prepareRSConfigFromLBService(
 			log.Errorf("[CORE] %s", msg)
 		}
 		pool.MonitorNames = append(pool.MonitorNames, MonitorName{Name: JoinBigipPath(rsCfg.Virtual.Partition,
-			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal, "", ""))})
+			formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""))})
 		monitor = Monitor{
-			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort.IntVal, "", ""),
+			Name:      formatMonitorName(svc.Namespace, svc.Name, monitorType, svcPort.TargetPort, "", ""),
 			Partition: rsCfg.Virtual.Partition,
 			Type:      monitorType,
 			Interval:  mon.Interval,

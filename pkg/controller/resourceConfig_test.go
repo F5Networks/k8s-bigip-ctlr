@@ -105,7 +105,7 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(name).To(Equal("svc1_80_default_foo_app_test"), "Invalid Pool Name")
 		})
 		It("Monitor Name", func() {
-			name := formatMonitorName(namespace, "svc1", "http", 80, "foo.com", "path")
+			name := formatMonitorName(namespace, "svc1", "http", intstr.IntOrString{IntVal: 80}, "foo.com", "path")
 			Expect(name).To(Equal("svc1_default_foo_com_path_http_80"), "Invalid Monitor Name")
 		})
 		It("Rule Name", func() {
@@ -326,7 +326,7 @@ var _ = Describe("Resource Config Tests", func() {
 				cisapiv1.TransportServerSpec{
 					Pool: cisapiv1.Pool{
 						Service:          "svc1",
-						ServicePort:      80,
+						ServicePort:      intstr.IntOrString{IntVal: 80},
 						ServiceNamespace: "test",
 						Monitor: cisapiv1.Monitor{
 							Type:     "tcp",
@@ -348,7 +348,7 @@ var _ = Describe("Resource Config Tests", func() {
 				cisapiv1.TransportServerSpec{
 					Pool: cisapiv1.Pool{
 						Service:     "svc1",
-						ServicePort: 80,
+						ServicePort: intstr.IntOrString{IntVal: 80},
 						Monitors: []cisapiv1.Monitor{
 							{
 								Type:       "tcp",

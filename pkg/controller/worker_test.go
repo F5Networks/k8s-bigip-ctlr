@@ -1569,7 +1569,7 @@ var _ = Describe("Worker Tests", func() {
 								},
 								Rewrite:     "/bar",
 								Balance:     "fastest-node",
-								ServicePort: 80,
+								ServicePort: intstr.IntOrString{IntVal: 80},
 							},
 							{
 								Path:    "/",
@@ -1582,7 +1582,7 @@ var _ = Describe("Worker Tests", func() {
 								},
 								Rewrite:     "/bar1",
 								Balance:     "fastest-node",
-								ServicePort: 81,
+								ServicePort: intstr.IntOrString{IntVal: 81},
 							},
 						},
 						RewriteAppRoot:     "/home",
@@ -1603,7 +1603,7 @@ var _ = Describe("Worker Tests", func() {
 					},
 				)
 
-				fooPorts = []v1.ServicePort{{Port: 80, NodePort: 30001},
+				fooPorts = []v1.ServicePort{{Port: 80, NodePort: 30001, TargetPort: intstr.IntOrString{StrVal: "port-80"}},
 					{Port: 8080, NodePort: 38001},
 					{Port: 9090, NodePort: 39001}}
 				fooIps := []string{"10.1.1.1"}
@@ -1689,13 +1689,12 @@ var _ = Describe("Worker Tests", func() {
 				mockCtlr.processResources()
 				// Should process VS now
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Virtual Server not Processed")
-
 				mockCtlr.deleteService(svc)
 				mockCtlr.processResources()
 
 				// Update service
 				svc.Spec.Ports[0].NodePort = 30002
-				Expect(fetchPortString(intstr.IntOrString{StrVal: strconv.Itoa(int(vs.Spec.Pools[0].ServicePort))})).To(BeEquivalentTo("80"))
+				Expect(fetchPortString(intstr.IntOrString{StrVal: strconv.Itoa(int(vs.Spec.Pools[0].ServicePort.IntVal))})).To(BeEquivalentTo("80"))
 				mockCtlr.addService(svc)
 				mockCtlr.processResources()
 
@@ -1982,7 +1981,7 @@ var _ = Describe("Worker Tests", func() {
 
 			BeforeEach(func() {
 				//Add Virtual Server
-				fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001},
+				fooPorts := []v1.ServicePort{{Port: 80, NodePort: 30001, TargetPort: intstr.IntOrString{StrVal: "port-80"}},
 					{Port: 8080, NodePort: 38001},
 					{Port: 9090, NodePort: 39001}}
 				fooIps := []string{"10.1.1.1"}
@@ -2000,7 +1999,7 @@ var _ = Describe("Worker Tests", func() {
 						PolicyName:           "policy",
 						Pool: cisapiv1.Pool{
 							Service:     "svc1",
-							ServicePort: 80,
+							ServicePort: intstr.IntOrString{StrVal: "port-80"},
 							Monitor: cisapiv1.Monitor{
 								Type:     "tcp",
 								Timeout:  10,

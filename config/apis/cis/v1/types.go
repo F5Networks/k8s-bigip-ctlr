@@ -2,6 +2,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // +genclient
@@ -65,18 +66,18 @@ type ServiceAddress struct {
 
 // Pool defines a pool object in BIG-IP.
 type Pool struct {
-	Name              string    `json:"name,omitempty"`
-	Path              string    `json:"path,omitempty"`
-	Service           string    `json:"service"`
-	ServicePort       int32     `json:"servicePort"`
-	NodeMemberLabel   string    `json:"nodeMemberLabel,omitempty"`
-	Monitor           Monitor   `json:"monitor"`
-	Monitors          []Monitor `json:"monitors"`
-	Rewrite           string    `json:"rewrite,omitempty"`
-	Balance           string    `json:"loadBalancingMethod,omitempty"`
-	ServiceNamespace  string    `json:"serviceNamespace,omitempty"`
-	ReselectTries     int32     `json:"reselectTries,omitempty"`
-	ServiceDownAction string    `json:"serviceDownAction,omitempty"`
+	Name              string             `json:"name,omitempty"`
+	Path              string             `json:"path,omitempty"`
+	Service           string             `json:"service"`
+	ServicePort       intstr.IntOrString `json:"servicePort"`
+	NodeMemberLabel   string             `json:"nodeMemberLabel,omitempty"`
+	Monitor           Monitor            `json:"monitor"`
+	Monitors          []Monitor          `json:"monitors"`
+	Rewrite           string             `json:"rewrite,omitempty"`
+	Balance           string             `json:"loadBalancingMethod,omitempty"`
+	ServiceNamespace  string             `json:"serviceNamespace,omitempty"`
+	ReselectTries     int32              `json:"reselectTries,omitempty"`
+	ServiceDownAction string             `json:"serviceDownAction,omitempty"`
 }
 
 // Monitor defines a monitor object in BIG-IP.

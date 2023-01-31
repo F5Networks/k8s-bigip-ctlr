@@ -71,7 +71,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | path             | String  | Required | NA      | Path to access the service                                                                                                              |
 | service          | String  | Required | NA      | Service deployed in kubernetes cluster                                                                                                  |
 | nodeMemberLabel  | String  | Optional | NA      | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode                     |
-| servicePort      | String  | Required | NA      | Port to access Service                                                                                                                  |
+| servicePort      | Integer or String  | Required | NA      | Port to access Service.Could be service port, service port name or targetPort of the service                                 |                                                                                |
 | monitor          | monitor | Optional | NA      | Health Monitor to check the health of Pool Members                                                                                      |
 | monitors         | monitor | Optional | NA      | Specifies multiple monitors for VS Pool                                                                                                 |
 | rewrite          | String  | Optional | NA      | Rewrites the path in the HTTP Header while submitting the request to Server in the pool                                                 |
@@ -173,7 +173,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | PARAMETER | TYPE    | REQUIRED | DEFAULT | DESCRIPTION                                        |
 | ------ |---------| ------ | ------ |----------------------------------------------------|
 | service | String  | Required | NA | Service deployed in kubernetes cluster             |
-| servicePort | String  | Required | NA | Port to access Service                             |
+| servicePort | Integer or String  | Required | NA | Port to access Service.Could be service port, service port name or targetPort of the service|
 | monitor | monitor  | Optional | NA | Health Monitor to check the health of Pool Members |
 | monitors | monitor | Optional | NA | Specifies multiple monitors for TS Pool            |
 | nodeMemberLabel  | String  | Optional | NA      | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode                     |

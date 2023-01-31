@@ -1862,7 +1862,7 @@ func (ctlr *Controller) updatePoolMembersForNPL(
 		pods := ctlr.GetPodsForService(namespace, svcName, true)
 		if pods != nil {
 			for _, svcPort := range poolMemInfo.portSpec {
-				if svcPort.TargetPort == pool.ServicePort {
+				if svcPort.TargetPort == pool.ServicePort || svcPort.Name == pool.ServicePort.StrVal {
 					podPort := svcPort.TargetPort
 					rsCfg.MetaData.Active = true
 					rsCfg.Pools[index].Members =

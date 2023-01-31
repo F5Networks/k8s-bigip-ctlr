@@ -133,9 +133,10 @@ spec:
                         type: string
                         pattern: '^[a-zA-Z0-9][-A-Za-z0-9_.\/]{0,61}[a-zA-Z0-9]=[a-zA-Z0-9][-A-Za-z0-9_.]{0,61}[a-zA-Z0-9]$'
                       servicePort:
-                        type: integer
-                        minimum: 1
-                        maximum: 65535
+                        x-kubernetes-int-or-string: true
+                        anyOf:
+                          - type: integer
+                          - type: string
                       rewrite:
                         type: string
                         pattern: '^\/([A-z0-9-_+]+\/)*([-A-z0-9_.:]+\/?)*$'
@@ -436,9 +437,10 @@ spec:
                       type: string
                       pattern: '^[a-zA-Z]+([-A-z0-9_.+])*([A-z0-9])+$'
                     servicePort:
-                      type: integer
-                      minimum: 1
-                      maximum: 65535
+                      x-kubernetes-int-or-string: true
+                      anyOf:
+                        - type: integer
+                        - type: string
                     serviceNamespace:
                       type: string
                       pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'

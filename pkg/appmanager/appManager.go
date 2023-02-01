@@ -3977,6 +3977,8 @@ func (appMgr *Manager) setupNodeProcessing() error {
 	}
 	sort.Sort(NodeList(nodeslist))
 	appMgr.ProcessNodeUpdate(nodeslist)
+	// adding the bigip_monitored_nodes	metrics
+	bigIPPrometheus.MonitoredNodes.WithLabelValues(appMgr.nodeLabelSelector).Set(float64(len(appMgr.oldNodes)))
 	if 0 != len(appMgr.vxlanMode) {
 		// If partition is part of vxlanName, extract just the tunnel name
 		tunnelName := appMgr.vxlanName

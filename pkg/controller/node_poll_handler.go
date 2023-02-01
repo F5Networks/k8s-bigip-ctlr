@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
+	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vxlan"
 	v1 "k8s.io/api/core/v1"
@@ -31,7 +32,8 @@ func (ctlr *Controller) SetupNodeProcessing() error {
 	}
 	sort.Sort(NodeList(nodeslist))
 	ctlr.ProcessNodeUpdate(nodeslist)
-
+	// adding the bigip_monitored_nodes	metrics
+	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.nodeLabelSelector).Set(float64(len(ctlr.oldNodes)))
 	if 0 != len(ctlr.vxlanMode) {
 		// If partition is part of vxlanName, extract just the tunnel name
 		tunnelName := ctlr.vxlanName

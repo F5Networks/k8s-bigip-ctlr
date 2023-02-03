@@ -40,6 +40,11 @@ Policy CR integration with nextGenRoutes extends so many BIG-IP features to the 
 WAF can be specified either in route annotations or in policy CR.
 If it's specified in both the places then WAF in policy CR has more precedence over annotation, however with allowOverride field set to true in the route group in Extended configmap, WAF in route annotation will have more precedence.
 
+### Allow source range precedence
+Allow source range can be specified either in route annotations or in policy CR.
+If it's specified in both the places then allow source range in policy CR has more precedence over annotation, however with allowOverride field set to true in the route group in Extended configmap, allow source range in route annotation will have more precedence.
+
+
 ### Support for Health Monitors from pod liveness probe
 CIS uses the liveness probe of the pods to form the health monitors, whenever health annotations not provided in the route annotations. 
 

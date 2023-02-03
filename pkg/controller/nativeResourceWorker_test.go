@@ -372,6 +372,27 @@ var _ = Describe("Routes", func() {
 			Expect(route8.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
 			Expect(route8.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("InvalidAnnotation"), "Incorrect route admit reason")
 
+			// Check valid route with AllowSourceRange annotation
+			sourceRangeAnnotation := make(map[string]string)
+			sourceRangeAnnotation[resource.F5VsAllowSourceRangeAnnotation] = ""
+			spec9 := routeapi.RouteSpec{
+				Host: "test.com",
+				Path: "/",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "bar",
+				},
+			}
+			route9 := test.NewRoute("route9", "1", "default", spec9, sourceRangeAnnotation)
+			mockCtlr.addRoute(route9)
+			Expect(mockCtlr.checkValidRoute(route9)).To(BeFalse())
+			time.Sleep(100 * time.Millisecond)
+			rskey9 := fmt.Sprintf("%v/%v", route9.Namespace, route9.Name)
+			route9 = mockCtlr.fetchRoute(rskey9)
+			Expect(route9.Status.Ingress[0].RouterName).To(BeEquivalentTo(F5RouterName), "Incorrect router name")
+			Expect(route9.Status.Ingress[0].Conditions[0].Status).To(BeEquivalentTo(v1.ConditionFalse), "Incorrect route admit status")
+			Expect(route9.Status.Ingress[0].Conditions[0].Reason).To(BeEquivalentTo("InvalidAnnotation"), "Incorrect route admit reason")
+
 		})
 		It("Check GSLB Support for Routes", func() {
 			var cm *v1.ConfigMap

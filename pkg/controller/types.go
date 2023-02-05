@@ -18,9 +18,10 @@ package controller
 
 import (
 	"container/list"
-	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 	"net/http"
 	"sync"
+
+	ficV1 "github.com/F5Networks/f5-ipam-controller/pkg/ipamapis/apis/fic/v1"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 
@@ -383,7 +384,7 @@ type (
 	}
 	MonitorName struct {
 		Name string `json:"name"`
-		//Reference is used to link existing health monitor on bigip
+		// Reference is used to link existing health monitor on bigip
 		Reference string `json:"reference,omitempty"`
 	}
 	// Monitors  is slice of monitor
@@ -591,14 +592,14 @@ type (
 		Addr   string
 		Labels map[string]string
 	}
-	//NPL information from pod annotation
+	// NPL information from pod annotation
 	NPLAnnotation struct {
 		PodPort  int32  `json:"podPort"`
 		NodeIP   string `json:"nodeIP"`
 		NodePort int32  `json:"nodePort"`
 	}
 
-	//List of NPL annotations
+	// List of NPL annotations
 	NPLAnnoations []NPLAnnotation
 
 	// Store of CustomProfiles
@@ -646,7 +647,7 @@ type (
 	AgentParams struct {
 		PostParams PostParams
 		GTMParams  GTMParams
-		//VxlnParams      VXLANParams
+		// VxlnParams      VXLANParams
 		Partition      string
 		LogLevel       string
 		VerifyInterval int
@@ -673,8 +674,9 @@ type (
 		TrustedCerts  string
 		SSLInsecure   bool
 		AS3PostDelay  int
-		//Log the AS3 response body in Controller logs
-		LogResponse bool
+		// Log the AS3 response body in Controller logs
+		LogResponse       bool
+		HTTPClientMetrics bool
 	}
 
 	GTMParams struct {

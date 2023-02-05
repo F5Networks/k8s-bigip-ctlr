@@ -27,8 +27,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	routeclient "github.com/openshift/client-go/route/clientset/versioned/typed/route/v1"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -103,9 +105,24 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 		},
 	}
 
-	postMgr.HttpClient = &http.Client{
-		Transport: tr,
-		Timeout:   timeoutLarge,
+	if postMgr.HTTPClientMetrics {
+		log.Debug("[BIGIP] Http client instrumented with metrics!")
+		instrumentedRoundTripper := promhttp.InstrumentRoundTripperInFlight(prometheus.ClientInFlightGauge,
+			promhttp.InstrumentRoundTripperCounter(prometheus.ClientAPIRequestsCounter,
+				promhttp.InstrumentRoundTripperTrace(prometheus.ClientTrace,
+					promhttp.InstrumentRoundTripperDuration(prometheus.ClientHistVec, tr),
+				),
+			),
+		)
+		postMgr.HttpClient = &http.Client{
+			Transport: instrumentedRoundTripper,
+			Timeout:   timeoutLarge,
+		}
+	} else {
+		postMgr.HttpClient = &http.Client{
+			Transport: tr,
+			Timeout:   timeoutLarge,
+		}
 	}
 }
 

@@ -301,6 +301,9 @@ func _init() {
 	overriderAS3CfgmapName = bigIPFlags.String("override-as3-declaration", "", overrideAS3UsageStr)
 	filterTenants = kubeFlags.Bool("filter-tenants", false,
 		"Optional, specify whether or not to use tenant filtering API for AS3 declaration")
+	httpClientMetrics = bigIPFlags.Bool("http-client-metrics", false,
+		"Optional, adds HTTP client metric instrumentation for the k8s-bigip-ctlr")
+
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
 	}

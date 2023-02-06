@@ -4360,9 +4360,11 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(found).To(BeTrue(), "redirect group not found")
 					flatDg := nsMap.FlattenNamespaces()
 					Expect(flatDg).ToNot(BeNil(), "should have data")
-					Expect(len(flatDg.Records)).To(Equal(1))
+					Expect(len(flatDg.Records)).To(Equal(2))
 					Expect(flatDg.Records[0].Name).To(Equal(host + fooPath))
 					Expect(flatDg.Records[0].Data).To(Equal(fooPath))
+					Expect(flatDg.Records[1].Name).To(Equal(host + ":80" + fooPath))
+					Expect(flatDg.Records[1].Data).To(Equal(fooPath))
 
 					// Add a route for the same host but different path
 					route1b := test.NewRoute("route1b", "1", ns1, spec, nil)
@@ -4373,7 +4375,7 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(found).To(BeTrue(), "redirect group not found")
 					flatDg = nsMap.FlattenNamespaces()
 					Expect(flatDg).ToNot(BeNil(), "should have data")
-					Expect(len(flatDg.Records)).To(Equal(2))
+					Expect(len(flatDg.Records)).To(Equal(4))
 
 					// Delete one of the duplicates for foo.com/foo, should not change dg
 					r = mockMgr.deleteRoute(route2)
@@ -4382,7 +4384,7 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(found).To(BeTrue(), "redirect group not found")
 					flatDg = nsMap.FlattenNamespaces()
 					Expect(flatDg).ToNot(BeNil(), "should have data")
-					Expect(len(flatDg.Records)).To(Equal(2))
+					Expect(len(flatDg.Records)).To(Equal(4))
 
 					// Delete the second duplicate for foo.com/foo, should change dg
 					r = mockMgr.deleteRoute(route1a)
@@ -4391,9 +4393,11 @@ var _ = Describe("AppManager Tests", func() {
 					Expect(found).To(BeTrue(), "redirect group not found")
 					flatDg = nsMap.FlattenNamespaces()
 					Expect(flatDg).ToNot(BeNil(), "should have data")
-					Expect(len(flatDg.Records)).To(Equal(1))
+					Expect(len(flatDg.Records)).To(Equal(2))
 					Expect(flatDg.Records[0].Name).To(Equal(host + barPath))
 					Expect(flatDg.Records[0].Data).To(Equal(barPath))
+					Expect(flatDg.Records[1].Name).To(Equal(host + ":80" + barPath))
+					Expect(flatDg.Records[1].Data).To(Equal(barPath))
 
 					// Delete last route, should produce a nil dg
 					r = mockMgr.deleteRoute(route1b)

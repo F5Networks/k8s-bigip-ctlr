@@ -1568,6 +1568,7 @@ var _ = Describe("Worker Tests", func() {
 									Timeout:  10,
 								},
 								Rewrite:     "/bar",
+								HostRewrite: "internal.test.com",
 								Balance:     "fastest-node",
 								ServicePort: intstr.IntOrString{IntVal: 80},
 							},
@@ -1738,6 +1739,15 @@ var _ = Describe("Worker Tests", func() {
 				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.HttpMrfRoutingEnabled).To(Equal(true), "HttpMrfRoutingEnabled not enabled on VS")
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.AdditionalVirtualAddresses)).To(Equal(1))
 				Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Virtual.AdditionalVirtualAddresses[0]).To(Equal("10.16.0.1"))
+				for _, rule := range mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap[rsname].Policies[0].Rules {
+					if rule.Name == "vs_test_com_foo_svc1_80_default_test_com" {
+						Expect(len(rule.Actions)).To(Equal(3))
+					} else if rule.Name == "vs_test_com_redirectto__home" {
+						Expect(len(rule.Actions)).To(Equal(1))
+					} else {
+						Expect(len(rule.Actions)).To(Equal(2))
+					}
+				}
 				// Validate the scenario. For now changing to 1
 				mockCtlr.deletePolicy(policy)
 				mockCtlr.processResources()

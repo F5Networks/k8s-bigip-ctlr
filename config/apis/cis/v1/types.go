@@ -78,6 +78,7 @@ type Pool struct {
 	ServiceNamespace  string             `json:"serviceNamespace,omitempty"`
 	ReselectTries     int32              `json:"reselectTries,omitempty"`
 	ServiceDownAction string             `json:"serviceDownAction,omitempty"`
+	HostRewrite       string             `json:"hostRewrite,omitempty"`
 }
 
 // Monitor defines a monitor object in BIG-IP.

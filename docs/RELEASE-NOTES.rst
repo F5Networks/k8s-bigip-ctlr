@@ -9,7 +9,7 @@ Added Functionality
     * Ingress
         *
     * CRD
-        *
+        * Support PERSISTENCE capability for service published through EDNS
 Bug Fixes
 ````````````
 * Exclude the removal of static ARP entries for Flannel CNI during CIS restart

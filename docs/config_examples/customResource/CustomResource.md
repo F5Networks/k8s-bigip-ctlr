@@ -59,6 +59,7 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | rewriteAppRoot | String | Optional | NA |  Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path |
 | waf | String | Optional | NA | Reference to WAF policy on BIG-IP |
 | snat | String | Optional | auto | Reference to SNAT pool on BIG-IP or Other allowed value is: "none" |
+| httpTraffic | String | Optional | allow | Configure behavior of HTTP Virtual Server. The allowed values are: allow: allow HTTP (default), none: only HTTPs, redirect: redirect HTTP to HTTPS. |
 | allowVlans | List of Vlans | Optional | NA | list of Vlan objects to allow traffic from |  
 | hostGroup | String | Optional | NA | Label to group virtualservers with different host names into one in BIG-IP. |
 | httpMrfRoutingEnabled | boolean |	Optional | false | Specifies whether to use the HTTP message routing framework (MRF) functionality. This property is available on BIGIP 14.1 and above.|

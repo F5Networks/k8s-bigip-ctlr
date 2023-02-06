@@ -27,7 +27,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -67,9 +69,24 @@ func (postMgr *PostManager) setupBIGIPRESTClient() {
 		},
 	}
 
-	postMgr.httpClient = &http.Client{
-		Transport: tr,
-		Timeout:   timeoutLarge,
+	if postMgr.HTTPClientMetrics {
+		log.Debug("[BIGIP] Http client instrumented with metrics!")
+		instrumentedRoundTripper := promhttp.InstrumentRoundTripperInFlight(prometheus.ClientInFlightGauge,
+			promhttp.InstrumentRoundTripperCounter(prometheus.ClientAPIRequestsCounter,
+				promhttp.InstrumentRoundTripperTrace(prometheus.ClientTrace,
+					promhttp.InstrumentRoundTripperDuration(prometheus.ClientHistVec, tr),
+				),
+			),
+		)
+		postMgr.httpClient = &http.Client{
+			Transport: instrumentedRoundTripper,
+			Timeout:   timeoutLarge,
+		}
+	} else {
+		postMgr.httpClient = &http.Client{
+			Transport: tr,
+			Timeout:   timeoutLarge,
+		}
 	}
 }
 
@@ -131,7 +148,6 @@ func (postMgr *PostManager) postConfig(cfg *agentConfig) {
 	default:
 		postMgr.handleResponseOthers(responseMap, cfg)
 	}
-
 }
 
 func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map[string]interface{}) {
@@ -171,7 +187,7 @@ func (postMgr *PostManager) updateTenantResponse(code int, id string, tenant str
 }
 
 func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}) {
-	//traverse all response results
+	// traverse all response results
 	results := (responseMap["results"]).([]interface{})
 	for _, value := range results {
 		v := value.(map[string]interface{})
@@ -181,7 +197,6 @@ func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interf
 }
 
 func (postMgr *PostManager) getTenantConfigStatus(id string) {
-
 	req, err := http.NewRequest("GET", postMgr.getAS3TaskIdURL(id), nil)
 	if err != nil {
 		log.Errorf("[AS3] Creating new HTTP request error: %v ", err)
@@ -218,7 +233,6 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 }
 
 func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}) {
-
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
 		for _, value := range results {
 			v := value.(map[string]interface{})
@@ -234,7 +248,7 @@ func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}
 }
 
 func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interface{}) {
-	//traverse all response results
+	// traverse all response results
 	if respId, ok := (responseMap["id"]).(string); ok {
 		postMgr.updateTenantResponse(http.StatusAccepted, respId, "")
 		log.Debugf("[AS3] Response from BIG-IP: code 201 id %v, waiting %v seconds to poll response", respId, timeoutMedium)
@@ -376,11 +390,9 @@ func (postMgr *PostManager) httpReq(request *http.Request) (*http.Response, map[
 func (postMgr *PostManager) getAS3VersionURL() string {
 	apiURL := postMgr.BIGIPURL + "/mgmt/shared/appsvcs/info"
 	return apiURL
-
 }
 
 func (postMgr *PostManager) getBigipRegKeyURL() string {
 	apiURL := postMgr.BIGIPURL + "/mgmt/tm/shared/licensing/registration"
 	return apiURL
-
 }

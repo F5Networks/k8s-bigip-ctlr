@@ -74,10 +74,11 @@ This page is created to document the behaviour of CIS in CRD Mode.
 | servicePort      | Integer or String  | Required | NA      | Port to access Service.Could be service port, service port name or targetPort of the service                                 |                                                                                |
 | monitor          | monitor | Optional | NA      | Health Monitor to check the health of Pool Members                                                                                      |
 | monitors         | monitor | Optional | NA      | Specifies multiple monitors for VS Pool                                                                                                 |
-| rewrite          | String  | Optional | NA      | Rewrites the path in the HTTP Header while submitting the request to Server in the pool                                                 |
+| rewrite          | String  | Optional | NA      | Rewrites the path in the HTTP Header while submitting the request to pool members                                                 |
 | serviceNamespace | String  | Optional | NA      | Namespace of service, define it if service is present in a namespace other than the one where Virtual Server Custom Resource is present |
  | serviceDownAction | String  | Optional | none    | Specifies connection handling when member is non-responsive                                                                             |
 | reselectTries | Integer | Optional | 0       | Maximum number of attempts to find a responsive member for a connection                                                                 |
+| hostRewrite | String | Optional | NA       | Rewrites the hostname http header while submitting the request to pool members                                                             |
 
 Note: **monitors** take priority over **monitor** if both are provided in VS spec.
 

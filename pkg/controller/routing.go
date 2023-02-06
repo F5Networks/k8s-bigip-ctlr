@@ -91,6 +91,17 @@ func (ctlr *Controller) prepareVirtualServerRules(
 			log.Errorf("Error configuring rule: %v", err)
 			return nil
 		}
+		if pl.HostRewrite != "" {
+			hostRewriteActions, err := getHostRewriteActions(
+				pl.HostRewrite,
+				len(rl.Actions),
+			)
+			if nil != err {
+				log.Errorf("Error configuring rule: %v", err)
+				return nil
+			}
+			rl.Actions = append(rl.Actions, hostRewriteActions...)
+		}
 		if pl.Rewrite != "" {
 			rewriteActions, err := getRewriteActions(
 				path,
@@ -334,6 +345,19 @@ func getRewriteActions(path, rwPath string, actionNameIndex int) ([]*action, err
 		}
 	}
 	return actions, nil
+}
+
+func getHostRewriteActions(rwHost string, actionNameIndex int) ([]*action, error) {
+	if rwHost == "" {
+		return nil, fmt.Errorf("empty host")
+	}
+	return []*action{{
+		Name:     fmt.Sprintf("%d", actionNameIndex),
+		HTTPHost: true,
+		Replace:  true,
+		Request:  true,
+		Value:    rwHost,
+	}}, nil
 }
 
 func createRedirectRule(source, target, ruleName string, allowSourceRange []string) (*Rule, error) {

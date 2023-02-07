@@ -625,6 +625,10 @@ func (appMgr *Manager) handleRouteRules(
 					}
 					svcFwdRulesMap.AddEntry(route.ObjectMeta.Namespace, route.Spec.To.Name,
 						route.Spec.Host, path)
+					// Add redirect datagroup support for host header match as host and host:port
+					hostPort := route.Spec.Host + ":" + strconv.Itoa(int(DEFAULT_HTTP_PORT))
+					svcFwdRulesMap.AddEntry(route.ObjectMeta.Namespace, route.Spec.To.Name,
+						hostPort, path)
 					rc.AddRuleToPolicy(policyName, rule)
 					SetAnnotationRulesForRoute(policyName, urlRewriteRule, appRootRules, rc, true)
 				}

@@ -14,6 +14,7 @@ Added Functionality
     * Ingress
         * Support for partition annotation in Ingress
         * Added wildcard character(*) validation for ingress path
+        * LTM policy fix for default http and https ports
     * CRD
         * Support for ipIntelligencePolicy with policy CR
         * Add partition support for custom resources - VS, TS and IngressLink

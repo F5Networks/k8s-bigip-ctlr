@@ -11,6 +11,7 @@ Added Functionality
         * Support for rewrite-app-root annotation in routes
         * Support for WAF annotation in routes
         * Support for allow-source-range annotation in routes
+        * Support for targetPort in route's health monitors
     * Ingress
         * Support for partition annotation in Ingress
         * Added wildcard character(*) validation for ingress path

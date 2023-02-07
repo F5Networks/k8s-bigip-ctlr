@@ -381,14 +381,15 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 						hm.Type = "http"
 					}
 					monitor := Monitor{
-						Name:      pool.Name + "_monitor",
-						Partition: rsCfg.Virtual.Partition,
-						Interval:  hm.Interval,
-						Type:      hm.Type,
-						Send:      hm.Send,
-						Recv:      hm.Recv,
-						Timeout:   hm.Timeout,
-						Path:      hm.Path,
+						Name:       pool.Name + "_monitor",
+						Partition:  rsCfg.Virtual.Partition,
+						Interval:   hm.Interval,
+						Type:       hm.Type,
+						Send:       hm.Send,
+						Recv:       hm.Recv,
+						Timeout:    hm.Timeout,
+						Path:       hm.Path,
+						TargetPort: hm.TargetPort,
 					}
 					rsCfg.Monitors = append(
 						rsCfg.Monitors,

@@ -546,9 +546,16 @@ var _ = Describe("Worker Tests", func() {
 				vrt3.Spec.Pools[0].Path = "/path"
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
+			})
+			It("Verify Pool Based WAF ", func() {
+				vrt2.Spec.Pools[0].WAF = "/Common/WAF_Policy"
+				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
+					[]*cisapiv1.VirtualServer{vrt2, vrt3},
+					false, &VSSpecProperties{})
+				Expect(virts[0].Spec.Pools[0].WAF).To(Equal("/Common/WAF_Policy"))
 			})
 
 			It("Unassociated VS", func() {
@@ -556,7 +563,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt4.Spec.VirtualServerAddress = "1.2.3.6"
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt4},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
 			})
@@ -565,7 +572,7 @@ var _ = Describe("Worker Tests", func() {
 				//vrt3.Spec.Pools[0].Path = "/path3"
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
 				Expect(virts[1].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
@@ -575,7 +582,7 @@ var _ = Describe("Worker Tests", func() {
 				//vrt3.Spec.Pools[0].Path = "/path3"
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3},
-					true)
+					true, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
 			})
@@ -596,7 +603,7 @@ var _ = Describe("Worker Tests", func() {
 					})
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
 				Expect(virts[1].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
@@ -606,7 +613,7 @@ var _ = Describe("Worker Tests", func() {
 				//vrt3.Spec.Pools[0].Path = "/path3"
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3},
-					true)
+					true, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
 			})
@@ -616,7 +623,7 @@ var _ = Describe("Worker Tests", func() {
 				//vrt3.Spec.Pools[0].Path = "/path3"
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
 			})
@@ -628,7 +635,7 @@ var _ = Describe("Worker Tests", func() {
 
 				virts := mockCtlr.getAssociatedVirtualServers(vrt3,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
 				Expect(virts[1].Name).To(Equal("SampleVS4"), "Wrong Virtual Server")
@@ -642,7 +649,7 @@ var _ = Describe("Worker Tests", func() {
 
 				virts := mockCtlr.getAssociatedVirtualServers(vrt3,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(1), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
 			})
@@ -653,7 +660,7 @@ var _ = Describe("Worker Tests", func() {
 
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt4},
-					false)
+					false, &VSSpecProperties{})
 				Expect(virts).To(BeNil(), "Wrong Number of Virtual Servers")
 			})
 
@@ -664,7 +671,7 @@ var _ = Describe("Worker Tests", func() {
 
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
 				Expect(virts[0].Spec.Host).To(Equal("test2.com"), "Wrong Virtual Server Host")
 				Expect(virts[1].Spec.Host).To(Equal("test3.com"), "Wrong Virtual Server Host")
@@ -678,7 +685,7 @@ var _ = Describe("Worker Tests", func() {
 
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
-					false)
+					false, &VSSpecProperties{})
 
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
 				Expect(virts[0].Spec.Host).To(Equal("test2.com"), "Wrong Virtual Server Host")
@@ -721,7 +728,7 @@ var _ = Describe("Worker Tests", func() {
 
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(2), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
 				Expect(virts[1].Name).To(Equal("SampleVS4"), "Wrong Virtual Server")
@@ -741,7 +748,7 @@ var _ = Describe("Worker Tests", func() {
 
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(3), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
 				Expect(virts[1].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
@@ -755,7 +762,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt4.Spec.IPAMLabel = "test"
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(3), "Wrong number of Virtual Servers")
 				Expect(virts[0].Name).To(Equal("SampleVS2"), "Wrong Virtual Server")
 				Expect(virts[1].Name).To(Equal("SampleVS3"), "Wrong Virtual Server")
@@ -769,7 +776,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt4.Spec.IPAMLabel = ""
 				virts := mockCtlr.getAssociatedVirtualServers(vrt2,
 					[]*cisapiv1.VirtualServer{vrt2, vrt3, vrt4},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
 			})
 			It("IPAM Label in a virtualServer with empty host", func() {
@@ -778,7 +785,7 @@ var _ = Describe("Worker Tests", func() {
 				vrt4.Spec.Host = ""
 				virts := mockCtlr.getAssociatedVirtualServers(vrt4,
 					[]*cisapiv1.VirtualServer{vrt4},
-					false)
+					false, &VSSpecProperties{})
 				Expect(len(virts)).To(Equal(0), "Wrong number of Virtual Servers")
 			})
 			It("function getVirtualServerAddress", func() {

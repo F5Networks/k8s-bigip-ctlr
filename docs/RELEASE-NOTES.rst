@@ -717,6 +717,7 @@ Added Functionality
 * VirtualServer Custom Resource without Host Parameter.
 * Share Nodes implementation for CRD, Ingress and Routes.
 * WAF Integration.
+* Support Pool Based WAF for VS CR
 * SNAT in VirtualServer CRD.
 * Option to configure Virtual address port.
 * App-Root Rewrite and Path Rewrite.

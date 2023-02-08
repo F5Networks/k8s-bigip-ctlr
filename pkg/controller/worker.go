@@ -1794,7 +1794,7 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 		}
 
 		for _, svcPort := range poolMemInfo.portSpec {
-			if svcPort.TargetPort == pool.ServicePort {
+			if svcPort.TargetPort == pool.ServicePort || svcPort.Name == pool.ServicePort.StrVal {
 				rsCfg.MetaData.Active = true
 				rsCfg.Pools[index].Members =
 					ctlr.getEndpointsForNodePort(svcPort.NodePort, pool.NodeMemberLabel)

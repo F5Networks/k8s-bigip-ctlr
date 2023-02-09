@@ -987,7 +987,9 @@ func (ctlr *Controller) processVirtualServers(
 	// In the event of deletion, exclude the deleted VirtualServer
 	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
 
-	virtuals := ctlr.getAssociatedVirtualServers(virtual, allVirtuals, isVSDeleted)
+	VSSpecProps := &VSSpecProperties{}
+	virtuals := ctlr.getAssociatedVirtualServers(virtual, allVirtuals, isVSDeleted, VSSpecProps)
+	//ctlr.getAssociatedSpecVirtuals(virtuals,VSSpecProps)
 
 	var ip string
 	var status int
@@ -1181,6 +1183,9 @@ func (ctlr *Controller) processVirtualServers(
 
 		}
 
+		if VSSpecProps.PoolWAF && rsCfg.Virtual.WAF == "" {
+			ctlr.addDefaultWAFDisableRule(rsCfg, "vs_waf_disable")
+		}
 		if processingError {
 			log.Errorf("Cannot Publish VirtualServer %s", virtual.ObjectMeta.Name)
 			break
@@ -1241,6 +1246,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 	currentVS *cisapiv1.VirtualServer,
 	allVirtuals []*cisapiv1.VirtualServer,
 	isVSDeleted bool,
+	VSSpecProperties *VSSpecProperties,
 ) []*cisapiv1.VirtualServer {
 	// Associated VirutalServers are grouped based on "hostGroup" parameter
 	// if hostGroup parameter is not available, they will be grouped on "host" parameter
@@ -1335,6 +1341,10 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 		}
 		isUnique := true
 		for _, pool := range vrt.Spec.Pools {
+			//Setting PoolWAF to true if exists
+			if pool.WAF != "" {
+				VSSpecProperties.PoolWAF = true
+			}
 			if _, ok := uniquePaths[pool.Path]; ok {
 				// path already exists for the same host
 				log.Debugf("Discarding the VirtualServer %v/%v due to duplicate path",

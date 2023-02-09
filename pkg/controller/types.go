@@ -342,6 +342,10 @@ type (
 		namespace string
 	}
 
+	VSSpecProperties struct {
+		PoolWAF bool
+	}
+
 	// Pool config
 	Pool struct {
 		Name              string             `json:"name"`

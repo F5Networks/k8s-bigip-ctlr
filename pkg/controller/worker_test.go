@@ -941,6 +941,7 @@ var _ = Describe("Worker Tests", func() {
 					Pools: []cisapiv1.DNSPool{
 						{
 							DataServerName: "DataServer",
+							Ratio:          4,
 							Monitor: cisapiv1.Monitor{
 								Type:     "http",
 								Send:     "GET /health",
@@ -955,6 +956,7 @@ var _ = Describe("Worker Tests", func() {
 			Expect(len(gtmConfig)).To(Equal(1))
 			Expect(len(gtmConfig["test.com"].Pools)).To(Equal(1))
 			Expect(len(gtmConfig["test.com"].Pools[0].Members)).To(Equal(0))
+			Expect(gtmConfig["test.com"].Pools[0].Ratio).To(Equal(4))
 
 			mockCtlr.resources.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
 			mockCtlr.resources.ltmConfig["default"].ResourceMap["SampleVS"] = &ResourceConfig{

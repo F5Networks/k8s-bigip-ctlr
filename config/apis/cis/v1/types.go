@@ -256,6 +256,7 @@ type DNSPool struct {
 	DNSRecordType     string    `json:"dnsRecordType"`
 	LoadBalanceMethod string    `json:"loadBalanceMethod"`
 	PriorityOrder     int       `json:"order"`
+	Ratio             int       `json:"ratio""`
 	Monitor           Monitor   `json:"monitor"`
 	Monitors          []Monitor `json:"monitors"`
 }

@@ -600,6 +600,8 @@ spec:
                         pattern: '^[a-z]+[a-z_-]+[a-z]+$'
                       order:
                         type: integer
+                      ratio:
+                        type: integer
                       monitor:
                         type: object
                         properties:

@@ -2464,6 +2464,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 			LBMethod:      pl.LoadBalanceMethod,
 			PriorityOrder: pl.PriorityOrder,
 			DataServer:    pl.DataServerName,
+			Ratio:         pl.Ratio,
 		}
 
 		if pl.DNSRecordType == "" {

@@ -668,7 +668,7 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 
 					sharedApp[mon.Name] = gslbMon
 				}
-				gslbDomain.Pools = append(gslbDomain.Pools, as3GSLBDomainPool{Use: pool.Name})
+				gslbDomain.Pools = append(gslbDomain.Pools, as3GSLBDomainPool{Use: pool.Name, Ratio: pool.Ratio})
 				sharedApp[pool.Name] = gslbPool
 			}
 

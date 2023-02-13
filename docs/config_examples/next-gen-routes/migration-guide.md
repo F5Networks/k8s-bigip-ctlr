@@ -1,10 +1,12 @@
-# Migrating to NextGen Routes(**For Preview Release only**)
+# Migrating to NextGen Routes
 
 ### Contents
 
 [Overview](#overview)
 
 [Prerequisites](#prerequisites)
+
+[Migration Tool](#MigrationTool)
 
 [Deprecated Annotations](#deprecated-annotations)
 
@@ -83,6 +85,8 @@ data:
 ## Prerequisites
 Stop the running CIS.
 
+## MigrationTool
+Follow this tool 
 ## Example Migration to nextGen Routes
 
 ### Old Configuration

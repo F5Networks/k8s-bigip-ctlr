@@ -32,6 +32,7 @@ Added Functionality
 Bug Fixes
 `````````
 * `Issue 2726 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2726>`_: Fix prometheus metrics broken in v2.11.1
+* `Issue 2767 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2767>`_: Fix wrong pool member port configured
 
 Vulnerability Fixes
 ```````````````````

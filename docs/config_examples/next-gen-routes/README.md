@@ -87,7 +87,7 @@ If it's specified in both the places then allow source range in policy CR has mo
 ### Support for Health Monitors from pod liveness probe
 CIS uses the liveness probe of the pods to form the health monitors, whenever health annotations not provided in the route annotations. 
 
-##Migration-Guide
+## Migration Guide
 Follow this for easy migration [Migration Guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/migration-guide.md)
 
 ## Prerequisites

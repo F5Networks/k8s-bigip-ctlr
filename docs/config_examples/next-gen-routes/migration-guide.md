@@ -86,7 +86,8 @@ data:
 Stop the running CIS.
 
 ## MigrationTool
-Follow this tool 
+* This tool helps in migrating from Legacy Routes to nextGenRoutes and generates the required ExtendedConfigmap, policyCR(if as3 override configmap file is provided) and CIS deployment file which can be used to migrate to nextGenRoutes mode. [NextGenMigrationTool](https://github.com/f5devcentral/f5-cis-docs/tree/main/nextgen-route-migration)
+
 ## Example Migration to nextGen Routes
 
 ### Old Configuration

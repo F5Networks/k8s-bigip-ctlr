@@ -1,9 +1,11 @@
-# NextGenControllerGuide(**Preview**)
+# NextGenControllerGuide
 
-This page documents the behaviour of NextGenController. This is a preview release which supports limited features and is not recommended to use in production environments. Check the Known Issues section for more information on features not supported.
+This page documents the behaviour of NextGenController. Check the Known Issues section for more information on features not supported.
 ## Contents
 
 [Overview](#overview)
+
+[MigrationGuide](#Migration-Guide)
 
 [Prerequisites](#prerequisites)
 
@@ -20,7 +22,42 @@ This page documents the behaviour of NextGenController. This is a preview releas
 ## Overview
 
 NextGen Controller uses extendedConfigMap for extending the native resources (routes). Routes are extended using ConfigMap in this release. NextGen Routes implementation also support for multi-partition, policy CR and externalDNS CR.
+**Note**: CIS supports processing of routes in traditional way as well as with NextGen Controller.
 
+###RouteGroup
+All the routes are grouped by namespaces or namespace-labels into RouteGroups.
+Each RouteGroup shares the same vsAddress, vsName, bigIpPartition and policy CR which is specified in extendedConfigMap
+
+All the routes in the namespace/namespaceLabel are treated as part of one routegroup in this implementation
+
+**Note**: namespace and namespace-label is mutual exclusive. That means CIS can support ExtendedConfigmap with either all RouteGroups with namespace or all with namespace-label parameter.
+
+Below is the sample representing RouteGroups.
+```
+extendedRouteSpec:
+- namespace: foo   -------------------------------------|
+  vserverAddr: 10.8.0.4                                 |
+  vserverName: nextgenroutes                            |----------------> RouteGroup with namespace
+  allowOverride: true                                   |
+  bigIpPartition: MultiTenant                           |
+  policyCR: default/sample-policy  _____________________|
+- namespace: bar -------------------------------------|
+  vserverAddr: 10.8.0.5                               |----------------> RouteGroup with namespace
+  allowOverride: false           _____________________|
+```
+```
+extendedRouteSpec:
+- namespaceLabel: environment=dev -------------------|
+  vserverAddr: 10.8.3.11                             |
+  vserverName: nextgenroutes                         |----------------> RouteGroup with namespacelabel
+  bigIpPartition: dev                                |
+  allowOverride: true                                |
+  policyCR: default/sample-policy ___________________|                
+- namespaceLabel: environment=test -----------------|
+  vserverAddr: 10.8.3.12                            |----------------> RouteGroup with namespacelabel
+  policyCR: default/sample-policy __________________|
+```
+###  Refer [Route Group Parameters Section](#Route-Group-Parameters) for more details
 ### Multiple VIP and Partition support for routes
 
 * Current CIS implementation creates a single VIP and partition for all the routes configured. This is implemented to add support for creating multiple VIP in BIG-IP mapping to route groups created per namespace/namespaceLabel.
@@ -31,14 +68,16 @@ NextGen Controller uses extendedConfigMap for extending the native resources (ro
   **Note**: AS3 post call is formed as mgmt/shared/appsvcs/declare/tenant1,tenant2.
 
 ### GSLB support for routes
-For every EDNS resource created, CIS will add VS having matching domain as the Wide IP pool member.  
-  
+**Prerequisite**: AS3 Version >= 3.41.0 to use EDNS feature.
+For every EDNS resource created, CIS will add VS having matching domain as the Wide IP pool member.
+
 ### Policy CR support for routes
 Policy CR integration with nextGenRoutes extends so many BIG-IP features to the Openshift routes, i.e. snat, custom tcp, http and https profiles, irules, http2 profile, persistance profile, profileMultiplex, profileL4, logProfiles, waf, botDefense, firewallPolicy, dos, allowSourceRange, etc.
 
 ### WAF precedence 
 WAF can be specified either in route annotations or in policy CR.
 If it's specified in both the places then WAF in policy CR has more precedence over annotation, however with allowOverride field set to true in the route group in Extended configmap, WAF in route annotation will have more precedence.
+WAF specified in route annotations configures WAF at LTM Policy, whereas WAF in Policy CR configures WAF at VirtualServer(VIP) Level
 
 ### Allow source range precedence
 Allow source range can be specified either in route annotations or in policy CR.
@@ -48,10 +87,13 @@ If it's specified in both the places then allow source range in policy CR has mo
 ### Support for Health Monitors from pod liveness probe
 CIS uses the liveness probe of the pods to form the health monitors, whenever health annotations not provided in the route annotations. 
 
+##Migration-Guide
+Follow this for easy migration [Migration Guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/migration-guide.md)
+
 ## Prerequisites
 
 * Clean up the partition in BIG-IP, where the existing route config is deployed.
-  * Use the POST call below along with this AS3 declaration [Empty Declaration](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/AS3-empty-declaration.json) for cleanup.
+  * Use the POST Method with below endpoint along with this AS3 declaration [Empty Declaration](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/AS3-empty-declaration.json) for cleanup.
 
     mgmt/shared/appsvcs/declare
 
@@ -157,6 +199,7 @@ data:
       vserverName: routetenant1
       allowOverride: true
       bigIpPartition: tenant1
+      policyCR: default/sample-policy
     - namespace: tenant2
       vserverAddr: 10.8.3.132
       vserverName: routetenant2
@@ -590,7 +633,6 @@ Please refer to the [examples](https://github.com/F5Networks/k8s-bigip-ctlr/tree
 * CIS processes the latest local extended ConfigMap when there are multiple extended local ConfigMap.
 * CIS allows insecure traffic if the URI path is included with CAPITAL letters for NextGen Routes.
 * CIS delays processing the changes in other tenants if any one of the tenant receives a 422 error (takes upto 60 seconds).
-* GSLB - To create EDNS, VS should be available in prior on the BIG-IP. This is an issue with AS3 and will be resolved in upcoming AS3 releases.
 * GSLB - When there is a route group partition change, BIG-IP is taking more time to identify the VS on new partition.
 
 

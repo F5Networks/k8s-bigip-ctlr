@@ -1804,7 +1804,8 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 		}
 
 		for _, svcPort := range poolMemInfo.portSpec {
-			if svcPort.TargetPort == pool.ServicePort || svcPort.Name == pool.ServicePort.StrVal {
+			// if target port is a named port then we need to match it with service port name, otherwise directly match with the target port
+			if (pool.ServicePort.StrVal != "" && svcPort.Name == pool.ServicePort.StrVal) || svcPort.TargetPort == pool.ServicePort {
 				rsCfg.MetaData.Active = true
 				rsCfg.Pools[index].Members =
 					ctlr.getEndpointsForNodePort(svcPort.NodePort, pool.NodeMemberLabel)
@@ -1872,7 +1873,8 @@ func (ctlr *Controller) updatePoolMembersForNPL(
 		pods := ctlr.GetPodsForService(namespace, svcName, true)
 		if pods != nil {
 			for _, svcPort := range poolMemInfo.portSpec {
-				if svcPort.TargetPort == pool.ServicePort || svcPort.Name == pool.ServicePort.StrVal {
+				// if target port is a named port then we need to match it with service port name, otherwise directly match with the target port
+				if (pool.ServicePort.StrVal != "" && svcPort.Name == pool.ServicePort.StrVal) || svcPort.TargetPort == pool.ServicePort {
 					podPort := svcPort.TargetPort
 					rsCfg.MetaData.Active = true
 					rsCfg.Pools[index].Members =

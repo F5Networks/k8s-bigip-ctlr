@@ -11,11 +11,14 @@ Added Functionality
         * Support for rewrite-app-root annotation in routes
         * Support for WAF annotation in routes
         * Support for allow-source-range annotation in routes
+        * Support for targetPort in route's health monitors
     * Ingress
         * Support for partition annotation in Ingress
         * Added wildcard character(*) validation for ingress path
+        * LTM policy fix for default http and https ports
     * CRD
         * Support for ipIntelligencePolicy with policy CR
+        * Support for configuring ratio on GSLBDomainPool with externaldns CR
         * Add partition support for custom resources - VS, TS and IngressLink
         * `Issue 2737 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2737>`_: Support for serviceNamespace field in transport server spec that allows to define a pool service from another namespace for transport server CR.
         * `Issue 2682 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2682>`_: Support to Enable "HTTP MRF Router" on VirtualServer CRD required for HTTP2 Full Proxy feature
@@ -29,6 +32,7 @@ Added Functionality
 Bug Fixes
 `````````
 * `Issue 2726 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2726>`_: Fix prometheus metrics broken in v2.11.1
+* `Issue 2767 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2767>`_: Fix wrong pool member port configured
 
 Vulnerability Fixes
 ```````````````````
@@ -715,6 +719,7 @@ Added Functionality
 * VirtualServer Custom Resource without Host Parameter.
 * Share Nodes implementation for CRD, Ingress and Routes.
 * WAF Integration.
+* Support Pool Based WAF for VS CR
 * SNAT in VirtualServer CRD.
 * Option to configure Virtual address port.
 * App-Root Rewrite and Path Rewrite.

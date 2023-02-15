@@ -987,7 +987,9 @@ func (ctlr *Controller) processVirtualServers(
 	// In the event of deletion, exclude the deleted VirtualServer
 	log.Debugf("Process all the Virtual Servers which share same VirtualServerAddress")
 
-	virtuals := ctlr.getAssociatedVirtualServers(virtual, allVirtuals, isVSDeleted)
+	VSSpecProps := &VSSpecProperties{}
+	virtuals := ctlr.getAssociatedVirtualServers(virtual, allVirtuals, isVSDeleted, VSSpecProps)
+	//ctlr.getAssociatedSpecVirtuals(virtuals,VSSpecProps)
 
 	var ip string
 	var status int
@@ -1181,6 +1183,9 @@ func (ctlr *Controller) processVirtualServers(
 
 		}
 
+		if VSSpecProps.PoolWAF && rsCfg.Virtual.WAF == "" {
+			ctlr.addDefaultWAFDisableRule(rsCfg, "vs_waf_disable")
+		}
 		if processingError {
 			log.Errorf("Cannot Publish VirtualServer %s", virtual.ObjectMeta.Name)
 			break
@@ -1241,6 +1246,7 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 	currentVS *cisapiv1.VirtualServer,
 	allVirtuals []*cisapiv1.VirtualServer,
 	isVSDeleted bool,
+	VSSpecProperties *VSSpecProperties,
 ) []*cisapiv1.VirtualServer {
 	// Associated VirutalServers are grouped based on "hostGroup" parameter
 	// if hostGroup parameter is not available, they will be grouped on "host" parameter
@@ -1335,6 +1341,10 @@ func (ctlr *Controller) getAssociatedVirtualServers(
 		}
 		isUnique := true
 		for _, pool := range vrt.Spec.Pools {
+			//Setting PoolWAF to true if exists
+			if pool.WAF != "" {
+				VSSpecProperties.PoolWAF = true
+			}
 			if _, ok := uniquePaths[pool.Path]; ok {
 				// path already exists for the same host
 				log.Debugf("Discarding the VirtualServer %v/%v due to duplicate path",
@@ -1794,7 +1804,8 @@ func (ctlr *Controller) updatePoolMembersForNodePort(
 		}
 
 		for _, svcPort := range poolMemInfo.portSpec {
-			if svcPort.TargetPort == pool.ServicePort {
+			// if target port is a named port then we need to match it with service port name, otherwise directly match with the target port
+			if (pool.ServicePort.StrVal != "" && svcPort.Name == pool.ServicePort.StrVal) || svcPort.TargetPort == pool.ServicePort {
 				rsCfg.MetaData.Active = true
 				rsCfg.Pools[index].Members =
 					ctlr.getEndpointsForNodePort(svcPort.NodePort, pool.NodeMemberLabel)
@@ -1862,7 +1873,8 @@ func (ctlr *Controller) updatePoolMembersForNPL(
 		pods := ctlr.GetPodsForService(namespace, svcName, true)
 		if pods != nil {
 			for _, svcPort := range poolMemInfo.portSpec {
-				if svcPort.TargetPort == pool.ServicePort || svcPort.Name == pool.ServicePort.StrVal {
+				// if target port is a named port then we need to match it with service port name, otherwise directly match with the target port
+				if (pool.ServicePort.StrVal != "" && svcPort.Name == pool.ServicePort.StrVal) || svcPort.TargetPort == pool.ServicePort {
 					podPort := svcPort.TargetPort
 					rsCfg.MetaData.Active = true
 					rsCfg.Pools[index].Members =
@@ -2454,6 +2466,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 			LBMethod:      pl.LoadBalanceMethod,
 			PriorityOrder: pl.PriorityOrder,
 			DataServer:    pl.DataServerName,
+			Ratio:         pl.Ratio,
 		}
 
 		if pl.DNSRecordType == "" {

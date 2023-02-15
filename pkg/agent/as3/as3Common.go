@@ -385,13 +385,16 @@ func createAS3RuleCondition(rl *Rule, rulesData *as3Rule, port int) {
 					val := c.Values[i] + ":" + strconv.Itoa(port)
 					values = append(values, val)
 				}
-				condition.All = &as3PolicyCompareString{
-					Values: values,
-				}
 			} else {
-				condition.All = &as3PolicyCompareString{
-					Values: c.Values,
+				//For ports 80 and 443, host header should match both
+				// host and host:port match
+				for i := range c.Values {
+					val := c.Values[i] + ":" + strconv.Itoa(port)
+					values = append(values, val, c.Values[i])
 				}
+			}
+			condition.All = &as3PolicyCompareString{
+				Values: values,
 			}
 			if c.HTTPHost {
 				condition.Type = "httpHeader"

@@ -134,7 +134,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 
 		// Add default WAF disable rule if WAF annotation is used
 		if annotationsUsed.WAF && rsCfg.Virtual.WAF == "" {
-			ctlr.addDefaultWAFDisableRule(rsCfg)
+			ctlr.addDefaultWAFDisableRule(rsCfg, "openshift_route_waf_disable")
 		}
 
 		if processingError {
@@ -170,7 +170,7 @@ func (ctlr *Controller) processRoutes(routeGroup string, triggerDelete bool) err
 }
 
 // addDefaultWAFDisableRule adds WAF disable action for rules without WAF and a default WAF disable rule
-func (ctlr *Controller) addDefaultWAFDisableRule(rsCfg *ResourceConfig) {
+func (ctlr *Controller) addDefaultWAFDisableRule(rsCfg *ResourceConfig, wafDisableRuleName string) {
 	enabled := false
 	wafDisableAction := &action{
 		WAF:     true,
@@ -181,7 +181,7 @@ func (ctlr *Controller) addDefaultWAFDisableRule(rsCfg *ResourceConfig) {
 		Request: true,
 	}
 	wafDisableRule := &Rule{
-		Name:    "openshift_route_waf_disable",
+		Name:    wafDisableRuleName,
 		Actions: []*action{wafDropAction, wafDisableAction},
 	}
 	for index, pol := range rsCfg.Policies {
@@ -381,14 +381,15 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 						hm.Type = "http"
 					}
 					monitor := Monitor{
-						Name:      pool.Name + "_monitor",
-						Partition: rsCfg.Virtual.Partition,
-						Interval:  hm.Interval,
-						Type:      hm.Type,
-						Send:      hm.Send,
-						Recv:      hm.Recv,
-						Timeout:   hm.Timeout,
-						Path:      hm.Path,
+						Name:       pool.Name + "_monitor",
+						Partition:  rsCfg.Virtual.Partition,
+						Interval:   hm.Interval,
+						Type:       hm.Type,
+						Send:       hm.Send,
+						Recv:       hm.Recv,
+						Timeout:    hm.Timeout,
+						Path:       hm.Path,
+						TargetPort: hm.TargetPort,
 					}
 					rsCfg.Monitors = append(
 						rsCfg.Monitors,

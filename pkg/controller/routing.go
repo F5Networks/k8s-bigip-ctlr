@@ -61,6 +61,11 @@ func (ctlr *Controller) prepareVirtualServerRules(
 		if pl.Service == "" {
 			continue
 		}
+		// If not using WAF from policy CR, use Pool Based WAF from VS
+		wafPolicy := ""
+		if rsCfg.Virtual.WAF == "" {
+			wafPolicy = pl.WAF
+		}
 
 		uri := vs.Spec.Host + pl.Path
 
@@ -86,7 +91,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
 		var err error
-		rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange, "")
+		rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange, wafPolicy)
 		if nil != err {
 			log.Errorf("Error configuring rule: %v", err)
 			return nil

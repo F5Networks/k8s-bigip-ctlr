@@ -943,18 +943,33 @@ func (appMgr *Manager) handleV1IngressTls(
 			svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
 				ing.Spec.DefaultBackend.Service.Name, "\\*", "/")
 		}
+		defaultHttpPort := false
 		for _, rul := range ing.Spec.Rules {
 			if nil != rul.HTTP {
 				host := rul.Host
 				if port, ok := ing.ObjectMeta.Annotations[F5VsHttpPortAnnotation]; ok {
 					p, err := strconv.Atoi(port)
-					if err == nil && p != int(DEFAULT_HTTP_PORT) {
-						host = host + ":" + port
+					if err == nil {
+						if p != int(DEFAULT_HTTP_PORT) {
+							host = host + ":" + port
+						} else {
+							defaultHttpPort = true
+						}
 					}
+				} else {
+					//when no annotation set.default port is 80
+					defaultHttpPort = true
 				}
 				for _, path := range rul.HTTP.Paths {
 					svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
 						path.Backend.Service.Name, host, path.Path)
+					//for default port 80, when host header is sent as host or host:port
+					//needs to be redirected in sslRedirect scenario
+					if defaultHttpPort {
+						defaultHost := host + ":" + strconv.Itoa(int(DEFAULT_HTTP_PORT))
+						svcFwdRulesMap.AddEntry(ing.ObjectMeta.Namespace,
+							path.Backend.Service.Name, defaultHost, path.Path)
+					}
 				}
 			}
 		}

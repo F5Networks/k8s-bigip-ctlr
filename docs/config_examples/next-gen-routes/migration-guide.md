@@ -1,10 +1,12 @@
-# Migrating to NextGen Routes(**For Preview Release only**)
+# Migrating to NextGen Routes
 
 ### Contents
 
 [Overview](#overview)
 
 [Prerequisites](#prerequisites)
+
+[Migration Tool](#MigrationTool)
 
 [Deprecated Annotations](#deprecated-annotations)
 
@@ -82,6 +84,9 @@ data:
 
 ## Prerequisites
 Stop the running CIS.
+
+## MigrationTool
+* This tool helps in migrating from Legacy Routes to nextGenRoutes and generates the required ExtendedConfigmap, policyCR(if as3 override configmap file is provided) and CIS deployment file which can be used to migrate to nextGenRoutes mode. [NextGenMigrationTool](https://github.com/f5devcentral/f5-cis-docs/tree/main/nextgen-route-migration)
 
 ## Example Migration to nextGen Routes
 

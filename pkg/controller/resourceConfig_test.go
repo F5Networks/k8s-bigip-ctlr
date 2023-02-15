@@ -711,6 +711,102 @@ var _ = Describe("Resource Config Tests", func() {
 		Expect(ok).To(BeFalse(), "TLS Edge Validation Failed")
 	})
 
+	Describe("Fetch target ports", func() {
+		var mockCtlr *mockController
+		BeforeEach(func() {
+			mockCtlr = newMockController()
+			mockCtlr.mode = CustomResourceMode
+			mockCtlr.comInformers = make(map[string]*CommonInformer)
+			mockCtlr.nsInformers = make(map[string]*NSInformer)
+			mockCtlr.kubeClient = k8sfake.NewSimpleClientset()
+			mockCtlr.comInformers["default"] = mockCtlr.newNamespacedCommonResourceInformer("default")
+		})
+		It("Int target port is returned with integer targetPort", func() {
+			svcPort := v1.ServicePort{
+				Name:       "http-port",
+				Port:       80,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{IntVal: 8080},
+			}
+			svcPort2 := v1.ServicePort{
+				Name:       "https-port",
+				Port:       443,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{IntVal: 8443},
+			}
+			svc := test.NewService(
+				"svc1",
+				"1",
+				namespace,
+				v1.ServiceTypeLoadBalancer,
+				[]v1.ServicePort{svcPort, svcPort2},
+			)
+			mockCtlr.addService(svc)
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80})).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "http-port"})).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 443})).To(Equal(intstr.IntOrString{IntVal: 8443}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "https-port"})).To(Equal(intstr.IntOrString{IntVal: 8443}), "Incorrect target port returned")
+		})
+		It("Service port name is returned with named target port", func() {
+			svcPort := v1.ServicePort{
+				Name:       "http-port",
+				Port:       80,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{StrVal: "http-web"},
+			}
+			svcPort2 := v1.ServicePort{
+				Name:       "https-port",
+				Port:       443,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{StrVal: "https-web"},
+			}
+			svc := test.NewService(
+				"svc1",
+				"1",
+				namespace,
+				v1.ServiceTypeLoadBalancer,
+				[]v1.ServicePort{svcPort, svcPort2},
+			)
+			mockCtlr.addService(svc)
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80})).To(Equal(intstr.IntOrString{StrVal: "http-port"}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "http-port"})).To(Equal(intstr.IntOrString{StrVal: "http-port"}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 443})).To(Equal(intstr.IntOrString{StrVal: "https-port"}), "Incorrect target port returned")
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{StrVal: "https-port"})).To(Equal(intstr.IntOrString{StrVal: "https-port"}), "Incorrect target port returned")
+		})
+		It("empty target port is returned without port name with named target port", func() {
+			svcPort := v1.ServicePort{
+				Port:       80,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{StrVal: "http-web"},
+			}
+			svc := test.NewService(
+				"svc1",
+				"1",
+				namespace,
+				v1.ServiceTypeLoadBalancer,
+				[]v1.ServicePort{svcPort},
+			)
+			mockCtlr.addService(svc)
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80})).To(Equal(intstr.IntOrString{}), "Incorrect target port returned")
+		})
+		It("int target port is returned without port name with int target port", func() {
+			svcPort := v1.ServicePort{
+				Port:       80,
+				Protocol:   "http",
+				TargetPort: intstr.IntOrString{IntVal: 8080},
+			}
+			svc := test.NewService(
+				"svc1",
+				"1",
+				namespace,
+				v1.ServiceTypeLoadBalancer,
+				[]v1.ServicePort{svcPort},
+			)
+			mockCtlr.addService(svc)
+			Expect(mockCtlr.fetchTargetPort(namespace, "svc1", intstr.IntOrString{IntVal: 80})).To(Equal(intstr.IntOrString{IntVal: 8080}), "Incorrect target port returned")
+		})
+	})
+
 	Describe("ResourceStore", func() {
 		var rs ResourceStore
 		BeforeEach(func() {

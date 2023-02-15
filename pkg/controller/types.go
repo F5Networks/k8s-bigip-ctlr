@@ -319,6 +319,7 @@ type (
 		RecordType    string    `json:"recordType"`
 		LBMethod      string    `json:"LoadBalancingMode"`
 		PriorityOrder int       `json:"order"`
+		Ratio         int       `json:"ratio"`
 		Members       []string  `json:"members"`
 		Monitors      []Monitor `json:"monitors,omitempty"`
 		DataServer    string
@@ -341,6 +342,10 @@ type (
 		kind      string
 		name      string
 		namespace string
+	}
+
+	VSSpecProperties struct {
+		PoolWAF bool
 	}
 
 	// Pool config
@@ -991,7 +996,8 @@ type (
 	}
 
 	as3GSLBDomainPool struct {
-		Use string `json:"use"`
+		Use   string `json:"use"`
+		Ratio int    `json:"ratio"`
 	}
 
 	// as3GSLBPool maps to GSLB_Pool in AS3 Resources

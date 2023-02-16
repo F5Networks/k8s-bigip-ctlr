@@ -1078,6 +1078,7 @@ type (
 		referenceType    string
 		vsHostname       string
 		httpsPort        int32
+		httpPort         int32
 		ipAddress        string
 		termination      string
 		httpTraffic      string

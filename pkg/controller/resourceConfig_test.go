@@ -1016,11 +1016,23 @@ var _ = Describe("Resource Config Tests", func() {
 			tlsProf.Spec.TLS.Reference = BIGIP
 			tlsProf.Spec.TLS.ClientSSL = "/Common/clientssl"
 			tlsProf.Spec.TLS.ServerSSL = "/Common/serverssl"
-
+			tlsProf.Spec.Hosts = []string{"test.com"}
 			ok := mockCtlr.handleVirtualServerTLS(inSecRsCfg, vs, tlsProf, ip)
 			Expect(ok).To(BeTrue(), "Failed to Handle insecure virtual with Redirect config")
 			Expect(len(inSecRsCfg.IRulesMap)).To(Equal(1))
 			Expect(len(inSecRsCfg.Virtual.IRules)).To(Equal(1))
+			Expect(len(inSecRsCfg.IntDgMap)).To(Equal(1))
+			for _, idg := range inSecRsCfg.IntDgMap {
+				for _, dg := range idg {
+					//record should have host and host:port match
+					Expect(len(dg.Records)).To(Equal(2))
+					Expect(dg.Records[0].Name).To(Equal("test.com/path"))
+					Expect(dg.Records[0].Data).To(Equal("/path"))
+					Expect(dg.Records[1].Name).To(Equal("test.com:80/path"))
+					Expect(dg.Records[1].Data).To(Equal("/path"))
+				}
+			}
+
 		})
 
 		It("Handle HTTP Server when Redirect with out host", func() {

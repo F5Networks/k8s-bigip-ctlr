@@ -27,12 +27,14 @@ Added Functionality
         * `Issue 2703 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2703>`_: Support host group having multiple hosts with EDNS
         * `Issue 2729 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2729>`_: Support for named port with servicePort
         * `Issue 2744 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2744>`_: Support for Host header rewrite in VirtualServer CR
+        * `Issue 2764 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2764>`_: Support to eliminate adding iRules by default on BIGIP See `VS CR Documentation
     * `Issue 2677 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2677>`_: Remove NotReady state nodes from BIGIP poolmembers in NodePortMode
 
 Bug Fixes
 `````````
 * `Issue 2726 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2726>`_: Fix prometheus metrics broken in v2.11.1
 * `Issue 2767 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2767>`_: Fix wrong pool member port configured
+* `Issue 2764 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2764>`_: Remove unwanted TLS iRule deployed on reencrypt when passing XFF
 
 Vulnerability Fixes
 ```````````````````

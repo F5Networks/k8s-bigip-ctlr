@@ -4,6 +4,7 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // TODO use as Counter not Gauge
@@ -31,11 +32,73 @@ var CurrentErrors = prometheus.NewGaugeVec(
 	[]string{},
 )
 
+var ClientInFlightGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "bigip_http_client_in_flight_requests",
+	Help: "A gauge of in-flight requests for the wrapped client.",
+})
+
+var ClientAPIRequestsCounter = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "bigip_http_client_api_requests_total",
+		Help: "A counter for requests from the wrapped client.",
+	},
+	[]string{"code", "method"},
+)
+
+var ClientDNSLatencyVec = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "bigip_http_client_dns_duration_seconds",
+		Help:    "Trace dns latency histogram.",
+		Buckets: []float64{.005, .01, .025, .05},
+	},
+	[]string{"event"},
+)
+
+var ClientTLSLatencyVec = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "bigip_http_client_tls_duration_seconds",
+		Help:    "Trace tls latency histogram.",
+		Buckets: []float64{.05, .1, .25, .5},
+	},
+	[]string{"event"},
+)
+
+var ClientHistVec = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "bigip_http_client_request_duration_seconds",
+		Help:    "A histogram of request latencies.",
+		Buckets: prometheus.DefBuckets,
+	},
+	[]string{},
+)
+
+var ClientTrace = &promhttp.InstrumentTrace{
+	DNSStart: func(t float64) {
+		ClientDNSLatencyVec.WithLabelValues("dns_start").Observe(t)
+	},
+	DNSDone: func(t float64) {
+		ClientDNSLatencyVec.WithLabelValues("dns_done").Observe(t)
+	},
+	TLSHandshakeStart: func(t float64) {
+		ClientTLSLatencyVec.WithLabelValues("tls_handshake_start").Observe(t)
+	},
+	TLSHandshakeDone: func(t float64) {
+		ClientTLSLatencyVec.WithLabelValues("tls_handshake_done").Observe(t)
+	},
+}
+
 // further metrics? todo think about
 // RegisterMetrics registers all Prometheus metrics defined above
 func RegisterMetrics() {
 	log.Info("[CORE] Registered BigIP Metrics")
-	prometheus.MustRegister(MonitoredNodes)
-	prometheus.MustRegister(MonitoredServices)
-	prometheus.MustRegister(CurrentErrors)
+	prometheus.MustRegister(
+		MonitoredNodes,
+		MonitoredServices,
+		CurrentErrors,
+		ClientInFlightGauge,
+		ClientAPIRequestsCounter,
+		ClientDNSLatencyVec,
+		ClientTLSLatencyVec,
+		ClientHistVec,
+	)
 }

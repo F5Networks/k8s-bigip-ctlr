@@ -11,7 +11,7 @@ import (
 var MonitoredNodes = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "bigip_monitored_nodes",
-		Help: "Total count of monitored nodes by the BigIP k8s CTLR",
+		Help: "Total count of monitored nodes by the BigIP k8s CTLR.",
 	},
 	[]string{"nodeselector"},
 )
@@ -19,7 +19,7 @@ var MonitoredNodes = prometheus.NewGaugeVec(
 var MonitoredServices = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "bigip_monitored_services",
-		Help: "Total count of monitored services by the BigIP k8s CTLR",
+		Help: "Total count of monitored services by the BigIP k8s CTLR.",
 	},
 	[]string{"namespace", "name", "status"},
 )
@@ -27,20 +27,20 @@ var MonitoredServices = prometheus.NewGaugeVec(
 var CurrentErrors = prometheus.NewGaugeVec(
 	prometheus.GaugeOpts{
 		Name: "bigip_current_errors",
-		Help: "Total count of errors occured parsing the configuration",
+		Help: "Total count of errors occured parsing the configuration.",
 	},
 	[]string{},
 )
 
 var ClientInFlightGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 	Name: "bigip_http_client_in_flight_requests",
-	Help: "A gauge of in-flight requests for the wrapped client.",
+	Help: "Total count of in-flight requests for the wrapped http client.",
 })
 
 var ClientAPIRequestsCounter = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "bigip_http_client_api_requests_total",
-		Help: "A counter for requests from the wrapped client.",
+		Help: "A counter for requests from the wrapped http client.",
 	},
 	[]string{"code", "method"},
 )
@@ -66,7 +66,7 @@ var ClientTLSLatencyVec = prometheus.NewHistogramVec(
 var ClientHistVec = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		Name:    "bigip_http_client_request_duration_seconds",
-		Help:    "A histogram of request latencies.",
+		Help:    "Trace http request latencies histogram.",
 		Buckets: prometheus.DefBuckets,
 	},
 	[]string{},
@@ -89,16 +89,24 @@ var ClientTrace = &promhttp.InstrumentTrace{
 
 // further metrics? todo think about
 // RegisterMetrics registers all Prometheus metrics defined above
-func RegisterMetrics() {
+func RegisterMetrics(httpClientMetrics bool) {
 	log.Info("[CORE] Registered BigIP Metrics")
-	prometheus.MustRegister(
-		MonitoredNodes,
-		MonitoredServices,
-		CurrentErrors,
-		ClientInFlightGauge,
-		ClientAPIRequestsCounter,
-		ClientDNSLatencyVec,
-		ClientTLSLatencyVec,
-		ClientHistVec,
-	)
+	if httpClientMetrics {
+		prometheus.MustRegister(
+			MonitoredNodes,
+			MonitoredServices,
+			CurrentErrors,
+			ClientInFlightGauge,
+			ClientAPIRequestsCounter,
+			ClientDNSLatencyVec,
+			ClientTLSLatencyVec,
+			ClientHistVec,
+		)
+	} else {
+		prometheus.MustRegister(
+			MonitoredNodes,
+			MonitoredServices,
+			CurrentErrors,
+		)
+	}
 }

@@ -204,6 +204,6 @@ func (agent *Agent) healthCheckPythonDriver() {
 		SubPID: agent.PythonDriverPID,
 	}
 	http.Handle("/health", hc.HealthCheckHandler())
-	bigIPPrometheus.RegisterMetrics()
+	bigIPPrometheus.RegisterMetrics(agent.PostManager.HTTPClientMetrics)
 	log.Fatal(http.ListenAndServe(agent.HttpAddress, nil).Error())
 }

@@ -1067,7 +1067,7 @@ func main() {
 		SubPID: subPid,
 	}
 	http.Handle("/health", hc.HealthCheckHandler())
-	bigIPPrometheus.RegisterMetrics()
+	bigIPPrometheus.RegisterMetrics(*httpClientMetrics)
 	go func() {
 		log.Fatal(http.ListenAndServe(*httpAddress, nil).Error())
 	}()
@@ -1172,6 +1172,7 @@ func getAS3Params() *as3.Params {
 		EventChan:                 eventChan,
 		DefaultRouteDomain:        *defaultRouteDomain,
 		PoolMemberType:            *poolMemberType,
+		HTTPClientMetrics:         *httpClientMetrics,
 	}
 }
 

@@ -196,7 +196,8 @@ func JoinBigipPath(partition, objName string) string {
 // Adds an IRule reference to a Virtual object
 func (v *Virtual) AddIRule(ruleName string) bool {
 	for _, irule := range v.IRules {
-		if irule == ruleName {
+		// Skip adding iRule for "none" value
+		if irule == ruleName || irule == "none" {
 			return false
 		}
 	}

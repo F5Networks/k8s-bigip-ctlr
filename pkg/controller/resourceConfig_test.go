@@ -258,6 +258,7 @@ var _ = Describe("Resource Config Tests", func() {
 			err := mockCtlr.prepareRSConfigFromVirtualServer(rsCfg, vs, false)
 			Expect(err).To(BeNil(), "Failed to Prepare Resource Config from VirtualServer")
 			Expect(rsCfg.Pools[0].ServiceNamespace).To(Equal("test"), "Incorrect namespace defined for pool")
+			Expect(rsCfg.Virtual.IRules[0]).To(Equal("SampleIRule"))
 		})
 
 		It("Validate Virtual server config with multiple monitors(tcp and http)", func() {

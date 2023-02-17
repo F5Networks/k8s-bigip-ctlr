@@ -985,6 +985,7 @@ func updateDataGroupOfDgName(
 	namespace string,
 	partition string,
 	allowSourceRange []string,
+	httpPort int32,
 ) {
 	rsDGName := getRSCfgResName(rsVSName, dgName)
 	switch dgName {
@@ -1014,10 +1015,24 @@ func updateDataGroupOfDgName(
 			if path == "" {
 				path = "/"
 			}
-			for _, hostName := range pl.aliasHostnames {
-				routePath := hostName + path
-				updateDataGroup(intDgMap, rsDGName,
-					partition, namespace, routePath, path, DataGroupType)
+			//for custom http port, host:port match should redirect traffic
+			if httpPort != DEFAULT_HTTP_PORT {
+				for _, hostName := range pl.aliasHostnames {
+					routePath := hostName + ":" + strconv.Itoa(int(httpPort)) + path
+					updateDataGroup(intDgMap, rsDGName,
+						partition, namespace, routePath, path, DataGroupType)
+				}
+			} else {
+				//for default port 80 either host or host:port match traffic
+				//should be redirected
+				for _, hostName := range pl.aliasHostnames {
+					routePath := hostName + path
+					routePathwithPort := hostName + ":" + strconv.Itoa(int(DEFAULT_HTTP_PORT)) + path
+					updateDataGroup(intDgMap, rsDGName,
+						partition, namespace, routePath, path, DataGroupType)
+					updateDataGroup(intDgMap, rsDGName,
+						partition, namespace, routePathwithPort, path, DataGroupType)
+				}
 			}
 		}
 	case AllowSourceRange:

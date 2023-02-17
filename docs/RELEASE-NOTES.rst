@@ -15,7 +15,6 @@ Added Functionality
     * Ingress
         * Support for partition annotation in Ingress
         * Added wildcard character(*) validation for ingress path
-        * LTM policy fix for default http and https ports
     * CRD
         * Support for ipIntelligencePolicy with policy CR
         * Support for configuring ratio on GSLBDomainPool with externaldns CR
@@ -36,6 +35,7 @@ Bug Fixes
 * `Issue 2764 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2764>`_: Remove unwanted TLS iRule deployed on reencrypt when passing XFF
 * `Issue 2677 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2677>`_: Remove NotReady state nodes from BIGIP poolmembers in NodePortMode
 * `Issue 2686 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2686>`_: Validate insecure Virtual Server CR
+* LTM policy fix for default http and https ports
 
 Vulnerability Fixes
 ```````````````````

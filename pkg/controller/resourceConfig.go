@@ -575,7 +575,10 @@ func (ctlr *Controller) prepareRSConfigFromVirtualServer(
 	if vs.Spec.ProfileMultiplex != "" {
 		rsCfg.Virtual.ProfileMultiplex = vs.Spec.ProfileMultiplex
 	}
-
+	// check if custom http port set on virtual
+	if vs.Spec.VirtualServerHTTPPort != 0 {
+		httpPort = vs.Spec.VirtualServerHTTPPort
+	}
 	// Do not Create Virtual Server L7 Forwarding policies if HTTPTraffic is set to None or Redirect
 	if len(vs.Spec.TLSProfileName) > 0 &&
 		rsCfg.Virtual.VirtualAddress.Port == httpPort &&
@@ -795,6 +798,7 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
 				[]string{},
+				tlsContext.httpPort,
 			)
 		case TLSEdge:
 			updateDataGroupOfDgName(
@@ -805,6 +809,7 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
 				[]string{},
+				tlsContext.httpPort,
 			)
 		case TLSPassthrough:
 			updateDataGroupOfDgName(
@@ -814,7 +819,8 @@ func (ctlr *Controller) handleTLS(
 				PassthroughHostsDgName,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
-				[]string{})
+				[]string{},
+				tlsContext.httpPort)
 		}
 		if len(rsCfg.Virtual.AllowSourceRange) > 0 {
 			updateDataGroupOfDgName(
@@ -824,7 +830,8 @@ func (ctlr *Controller) handleTLS(
 				AllowSourceRangeDgName,
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
-				rsCfg.Virtual.AllowSourceRange)
+				rsCfg.Virtual.AllowSourceRange,
+				tlsContext.httpPort)
 		}
 		ctlr.handleDataGroupIRules(
 			rsCfg,
@@ -864,6 +871,7 @@ func (ctlr *Controller) handleTLS(
 				tlsContext.namespace,
 				rsCfg.Virtual.Partition,
 				[]string{},
+				tlsContext.httpPort,
 			)
 		case TLSAllowInsecure:
 			// State 3, do not apply any policy
@@ -896,11 +904,16 @@ func (ctlr *Controller) handleVirtualServerTLS(
 	}
 
 	var httpsPort int32
-
+	var httpPort int32
 	if vs.Spec.VirtualServerHTTPSPort == 0 {
 		httpsPort = DEFAULT_HTTPS_PORT
 	} else {
 		httpsPort = vs.Spec.VirtualServerHTTPSPort
+	}
+	if vs.Spec.VirtualServerHTTPPort == 0 {
+		httpPort = DEFAULT_HTTP_PORT
+	} else {
+		httpPort = vs.Spec.VirtualServerHTTPPort
 	}
 	bigIPSSLProfiles := BigIPSSLProfiles{}
 	// Giving priority to ClientSSLs over ClientSSL
@@ -926,17 +939,18 @@ func (ctlr *Controller) handleVirtualServerTLS(
 
 		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
 	}
-	return ctlr.handleTLS(rsCfg, TLSContext{vs.ObjectMeta.Name,
-		vs.ObjectMeta.Namespace,
-		VirtualServer,
-		tls.Spec.TLS.Reference,
-		vs.Spec.Host,
-		httpsPort,
-		ip,
-		tls.Spec.TLS.Termination,
-		vs.Spec.HTTPTraffic,
-		poolPathRefs,
-		bigIPSSLProfiles,
+	return ctlr.handleTLS(rsCfg, TLSContext{name: vs.ObjectMeta.Name,
+		namespace:        vs.ObjectMeta.Namespace,
+		resourceType:     VirtualServer,
+		referenceType:    tls.Spec.TLS.Reference,
+		vsHostname:       vs.Spec.Host,
+		httpsPort:        httpsPort,
+		httpPort:         httpPort,
+		ipAddress:        ip,
+		termination:      tls.Spec.TLS.Termination,
+		httpTraffic:      vs.Spec.HTTPTraffic,
+		poolPathRefs:     poolPathRefs,
+		bigIPSSLProfiles: bigIPSSLProfiles,
 	})
 }
 
@@ -2089,6 +2103,7 @@ func (ctlr *Controller) handleRouteTLS(
 		tlsReferenceType,
 		route.Spec.Host,
 		DEFAULT_HTTPS_PORT,
+		DEFAULT_HTTP_PORT,
 		vServerAddr,
 		string(route.Spec.TLS.Termination),
 		strings.ToLower(string(route.Spec.TLS.InsecureEdgeTerminationPolicy)),

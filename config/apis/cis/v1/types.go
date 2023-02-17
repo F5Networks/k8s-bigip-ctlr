@@ -75,6 +75,7 @@ type Pool struct {
 	Monitors          []Monitor          `json:"monitors"`
 	Rewrite           string             `json:"rewrite,omitempty"`
 	Balance           string             `json:"loadBalancingMethod,omitempty"`
+	WAF               string             `json:"waf,omitempty"`
 	ServiceNamespace  string             `json:"serviceNamespace,omitempty"`
 	ReselectTries     int32              `json:"reselectTries,omitempty"`
 	ServiceDownAction string             `json:"serviceDownAction,omitempty"`
@@ -255,6 +256,7 @@ type DNSPool struct {
 	DNSRecordType     string    `json:"dnsRecordType"`
 	LoadBalanceMethod string    `json:"loadBalanceMethod"`
 	PriorityOrder     int       `json:"order"`
+	Ratio             int       `json:"ratio""`
 	Monitor           Monitor   `json:"monitor"`
 	Monitors          []Monitor `json:"monitors"`
 }

@@ -20,8 +20,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	configclient "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	"io/ioutil"
 	"net/http"
+	"net/url"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	configclient "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/teem"
 
@@ -32,17 +40,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	//"github.com/F5Networks/k8s-bigip-ctlr/pkg/agent/cccl"
-	"io/ioutil"
 
 	v1 "k8s.io/api/core/v1"
 
 	//"net/http"
-	"net/url"
-	"os"
-	"os/signal"
-	"strings"
-	"syscall"
-	"time"
 
 	cisAgent "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/as3"
@@ -191,6 +192,8 @@ var (
 	gtmBigIPPassword *string
 	gtmCredsDir      *string
 
+	httpClientMetrics *bool
+
 	// package variables
 	isNodePort         bool
 	watchAllNamespaces bool
@@ -298,6 +301,9 @@ func _init() {
 	overriderAS3CfgmapName = bigIPFlags.String("override-as3-declaration", "", overrideAS3UsageStr)
 	filterTenants = kubeFlags.Bool("filter-tenants", false,
 		"Optional, specify whether or not to use tenant filtering API for AS3 declaration")
+	httpClientMetrics = bigIPFlags.Bool("http-client-metrics", false,
+		"Optional, adds HTTP client metric instrumentation for the k8s-bigip-ctlr")
+
 	bigIPFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  BigIP:\n%s\n", bigIPFlags.FlagUsagesWrapped(width))
 	}
@@ -749,15 +755,15 @@ func setupWatchers(appMgr *appmanager.Manager, resyncPeriod time.Duration) {
 func initController(
 	config *rest.Config,
 ) *controller.Controller {
-
 	postMgrParams := controller.PostParams{
-		BIGIPUsername: *bigIPUsername,
-		BIGIPPassword: *bigIPPassword,
-		BIGIPURL:      *bigIPURL,
-		TrustedCerts:  "",
-		SSLInsecure:   true,
-		AS3PostDelay:  *as3PostDelay,
-		LogResponse:   *logAS3Response,
+		BIGIPUsername:     *bigIPUsername,
+		BIGIPPassword:     *bigIPPassword,
+		BIGIPURL:          *bigIPURL,
+		TrustedCerts:      "",
+		SSLInsecure:       true,
+		AS3PostDelay:      *as3PostDelay,
+		LogResponse:       *logAS3Response,
+		HTTPClientMetrics: *httpClientMetrics,
 	}
 
 	GtmParams := controller.GTMParams{
@@ -810,7 +816,6 @@ func initController(
 	)
 
 	return ctlr
-
 }
 
 // TODO Remove the function and appMgr.K8sVersion property once v1beta1.Ingress is deprecated in k8s 1.22
@@ -1013,7 +1018,7 @@ func main() {
 	}
 
 	agRspChan = make(chan interface{}, 1)
-	var appMgrParms = getAppManagerParams()
+	appMgrParms := getAppManagerParams()
 
 	// creates the clientset
 	appMgrParms.KubeClient = kubeClient
@@ -1062,7 +1067,7 @@ func main() {
 		SubPID: subPid,
 	}
 	http.Handle("/health", hc.HealthCheckHandler())
-	bigIPPrometheus.RegisterMetrics()
+	bigIPPrometheus.RegisterMetrics(*httpClientMetrics)
 	go func() {
 		log.Fatal(http.ListenAndServe(*httpAddress, nil).Error())
 	}()
@@ -1167,6 +1172,7 @@ func getAS3Params() *as3.Params {
 		EventChan:                 eventChan,
 		DefaultRouteDomain:        *defaultRouteDomain,
 		PoolMemberType:            *poolMemberType,
+		HTTPClientMetrics:         *httpClientMetrics,
 	}
 }
 
@@ -1174,7 +1180,7 @@ func getCCCLParams() *cccl.Params {
 	return &cccl.Params{
 		ConfigWriter: getConfigWriter(),
 		EventChan:    eventChan,
-		//ToDo: Remove this post 2.2 release
+		// ToDo: Remove this post 2.2 release
 		BIGIPUsername: *bigIPUsername,
 		BIGIPPassword: *bigIPPassword,
 		BIGIPURL:      *bigIPURL,

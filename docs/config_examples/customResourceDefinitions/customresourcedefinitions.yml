@@ -92,7 +92,7 @@ spec:
                   type: array
                   items:
                     type: string
-                    pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                    pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                 serviceAddress:
                   type: array
                   maxItems: 1
@@ -143,6 +143,9 @@ spec:
                       hostRewrite:
                         type: string
                         pattern: '^(([a-zA-Z0-9\*]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
+                      waf:
+                        type: string
+                        pattern: '^\/([A-z0-9-_+]+\/)+([A-z0-9]+\/?)*$'
                       serviceNamespace:
                         type: string
                         pattern: '^[a-zA-Z]+([-A-z0-9_.+:])*([A-z0-9])+$'
@@ -597,6 +600,8 @@ spec:
                         pattern: '^[a-z]+[a-z_-]+[a-z]+$'
                       order:
                         type: integer
+                      ratio:
+                        type: integer
                       monitor:
                         type: object
                         properties:
@@ -786,10 +791,10 @@ spec:
                   properties:
                     insecure:
                       type: string
-                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                      pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                     secure:
                       type: string
-                      pattern: '^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
+                      pattern: '^none$|^\/[a-zA-Z]+([A-z0-9-_+]+\/)+([-A-z0-9_.:]+\/?)*$'
                     priority:
                       type: string
                       enum: [ low, high ]

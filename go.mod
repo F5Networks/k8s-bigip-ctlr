@@ -13,7 +13,7 @@ require (
 	github.com/onsi/gomega v1.16.0
 	github.com/openshift/api v0.0.0-20210315202829-4b79815405ec
 	github.com/openshift/client-go v0.0.0-20210112165513-ebc401615f47
-	github.com/prometheus/client_golang v1.7.1
+	github.com/prometheus/client_golang v1.11.1
 	github.com/spf13/pflag v1.0.5
 	github.com/xeipuuv/gojsonpointer v0.0.0-20151027082146-e0fe6f683076 // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20150808065054-e02fc20de94c // indirect

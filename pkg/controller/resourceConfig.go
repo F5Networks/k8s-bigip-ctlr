@@ -196,7 +196,8 @@ func JoinBigipPath(partition, objName string) string {
 // Adds an IRule reference to a Virtual object
 func (v *Virtual) AddIRule(ruleName string) bool {
 	for _, irule := range v.IRules {
-		if irule == ruleName {
+		// Skip adding iRule for "none" value
+		if irule == ruleName || irule == "none" {
 			return false
 		}
 	}
@@ -394,12 +395,29 @@ func (ctlr *Controller) fetchTargetPort(namespace, svcName string, servicePort i
 	}
 	svc := item.(*v1.Service)
 	for _, port := range svc.Spec.Ports {
-		if port.Port == servicePort.IntVal || port.Name == servicePort.StrVal || port.TargetPort.StrVal == servicePort.StrVal {
-			// In case of named targetPort, send service port name to match endpoint name as targetPort
-			if port.TargetPort.StrVal != "" {
-				return intstr.IntOrString{StrVal: port.Name}
+		if servicePort.StrVal == "" {
+			if port.Port == servicePort.IntVal {
+				// In case of named targetPort, send service port name to match endpoint name as targetPort
+				if port.TargetPort.StrVal != "" {
+					// port name is required when using the named targetPort
+					if port.Name != "" {
+						return intstr.IntOrString{StrVal: port.Name}
+					} else {
+						log.Errorf("port name should be defined with the named targetPort for service %v", svcKey)
+						return targetPort
+					}
+				}
+				return port.TargetPort
 			}
-			return port.TargetPort
+		} else {
+			if port.Name == servicePort.StrVal {
+				// In case of named targetPort, send service port name to match endpoint name as targetPort
+				if port.TargetPort.StrVal != "" {
+					// port name is required when using the named targetPort
+					return intstr.IntOrString{StrVal: port.Name}
+				}
+				return port.TargetPort
+			}
 		}
 	}
 	return targetPort

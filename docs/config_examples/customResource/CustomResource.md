@@ -241,6 +241,7 @@ Note: **monitors** take priority over **monitor** if both are provided in TS spe
 | dataServerName | String | Required | NA | Name of the GSLB server on BIG-IP (i.e. /Common/SiteName) |
 | monitor | Monitor | Optional | NA | Monitor for GSLB Pool |
 | monitors | Monitor | Optional | NA | Specifies multiple monitors for GSLB Pool |
+| ratio    | Int     | Optional | 1  | Ratio weight assigned to GSLB pool        |
 
 
 **Note**: The user needs to mention the same GSLB DataServer Name to dataServerName field, which is create on the BIG-IP common partition.

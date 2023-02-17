@@ -668,7 +668,7 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 
 					sharedApp[mon.Name] = gslbMon
 				}
-				gslbDomain.Pools = append(gslbDomain.Pools, as3GSLBDomainPool{Use: pool.Name})
+				gslbDomain.Pools = append(gslbDomain.Pools, as3GSLBDomainPool{Use: pool.Name, Ratio: pool.Ratio})
 				sharedApp[pool.Name] = gslbPool
 			}
 
@@ -738,6 +738,12 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 
 func processIRulesForAS3(rsMap ResourceMap, sharedApp as3Application) {
 	for _, rsCfg := range rsMap {
+		// Skip processing IRules for "None" value
+		for _, v := range rsCfg.Virtual.IRules {
+			if v == "none" {
+				continue
+			}
+		}
 		// Create irule declaration
 		for _, v := range rsCfg.IRulesMap {
 			iRule := &as3IRules{}
@@ -750,6 +756,12 @@ func processIRulesForAS3(rsMap ResourceMap, sharedApp as3Application) {
 
 func processDataGroupForAS3(rsMap ResourceMap, sharedApp as3Application) {
 	for _, rsCfg := range rsMap {
+		// Skip processing DataGroup for "None" iRule value
+		for _, v := range rsCfg.Virtual.IRules {
+			if v == "none" {
+				continue
+			}
+		}
 		for _, idg := range rsCfg.IntDgMap {
 			for _, dg := range idg {
 				dataGroupRecord, found := sharedApp[dg.Name]
@@ -876,7 +888,11 @@ func updateVirtualToHTTPS(v *as3Service) {
 // Process Irules for CRD
 func processIrulesForCRD(cfg *ResourceConfig, svc *as3Service) {
 	var IRules []interface{}
+	// Skip processing IRules for "None" value
 	for _, v := range cfg.Virtual.IRules {
+		if v == "none" {
+			continue
+		}
 		splits := strings.Split(v, "/")
 		iRuleName := splits[len(splits)-1]
 

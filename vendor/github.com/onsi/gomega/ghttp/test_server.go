@@ -111,7 +111,6 @@ package ghttp
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -121,6 +120,7 @@ import (
 	"sync"
 
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/internal/gutil"
 )
 
 func new() *Server {
@@ -269,7 +269,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	} else {
 		s.rwMutex.Unlock()
 		if s.GetAllowUnhandledRequests() {
-			ioutil.ReadAll(req.Body)
+			gutil.ReadAll(req.Body)
 			req.Body.Close()
 			w.WriteHeader(s.GetUnhandledRequestStatusCode())
 		} else {

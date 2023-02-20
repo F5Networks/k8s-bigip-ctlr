@@ -65,6 +65,10 @@ spec:
       containers:
       - name: {{ template "f5-bigip-ctlr.name" . }}
         image: "{{ .Values.image.user }}/{{ .Values.image.repo }}:{{ .Values.version }}"
+        {{- if .Values.podSecurityContext }}
+        securityContext:
+{{ toYaml .Values.podSecurityContext | indent 12 }}
+        {{- end }}
         livenessProbe:
           failureThreshold: 3
           httpGet:
@@ -123,5 +127,9 @@ spec:
       volumes:
       - name: bigip-creds
         secret:
-           secretName: {{ .Values.bigip_login_secret }}
+      {{- if .Values.bigip_secret.create }}
+          secretName: f5-bigip-ctlr-login
+      {{- else }}
+          secretName: {{ .Values.bigip_login_secret }}
+      {{- end }}
 {{- end }}

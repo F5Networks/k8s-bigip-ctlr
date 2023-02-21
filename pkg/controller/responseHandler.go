@@ -68,23 +68,26 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					virtual := obj.(*cisapiv1.VirtualServer)
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if _, found := rscUpdateMeta.failedTenants[partition]; !found {
+							// updating the tenant priority back to zero if it's not in failed tenants
 							ctlr.resources.updatePartitionPriority(partition, 0)
+							// update the status for virtual server as tenant posting is success
+							ctlr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, "Ok")
+							// Update Corresponding Service Status of Type LB
+							for _, pool := range virtual.Spec.Pools {
+								var svcNamespace string
+								if pool.ServiceNamespace != "" {
+									svcNamespace = pool.ServiceNamespace
+								} else {
+									svcNamespace = virtual.Namespace
+								}
+								svc := ctlr.GetService(svcNamespace, pool.Service)
+								if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+									ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
+								}
+							}
 						}
-						ctlr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 					}
-					// Update Corresponding Service Status of Type LB
-					for _, pool := range virtual.Spec.Pools {
-						var svcNamespace string
-						if pool.ServiceNamespace != "" {
-							svcNamespace = pool.ServiceNamespace
-						} else {
-							svcNamespace = virtual.Namespace
-						}
-						svc := ctlr.GetService(svcNamespace, pool.Service)
-						if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-							ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
-						}
-					}
+
 				case TransportServer:
 					// update status
 					crInf, ok := ctlr.getNamespacedCRInformer(ns)
@@ -106,8 +109,9 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 						if _, found := rscUpdateMeta.failedTenants[partition]; !found {
 							// updating the tenant priority back to zero if it's not in failed tenants
 							ctlr.resources.updatePartitionPriority(partition, 0)
+							// update the status for transport server as tenant posting is success
+							ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 						}
-						ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 					}
 				case Route:
 					if _, found := rscUpdateMeta.failedTenants[partition]; found {
@@ -119,8 +123,8 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 						go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
 					}
 				case IngressLink:
-					// updating the tenant priority back to zero if it's not in failed tenants
 					if _, found := rscUpdateMeta.failedTenants[partition]; !found {
+						// updating the tenant priority back to zero if it's not in failed tenants
 						ctlr.resources.updatePartitionPriority(partition, 0)
 					}
 				}

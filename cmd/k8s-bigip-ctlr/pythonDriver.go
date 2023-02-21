@@ -69,7 +69,7 @@ func createDriverCmd(
 			"--ctlr-prefix", "k8s"}
 		cmd = exec.Command(pyCmd, cmdArgs...)
 	} else {
-		cmdName := "python"
+		cmdName := "python3"
 		cmdArgs := []string{
 			pyCmd,
 			"--config-file", configFilename,

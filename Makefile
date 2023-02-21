@@ -12,7 +12,7 @@ export BUILD_INFO := $(shell ./build-tools/version-tool build-info)
 GO_BUILD_FLAGS=-v -ldflags "-extldflags \"-static\" -X main.version=$(BUILD_VERSION) -X main.buildInfo=$(BUILD_INFO)"
 
 # Allow users to pass in BASE_OS build options (debian or rhel7)
-BASE_OS ?= ubi
+BASE_OS ?= debian
 
 # This is for builds not triggered through Travis CI 
 LICENSE_STRICT ?= false

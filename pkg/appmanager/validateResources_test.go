@@ -5,14 +5,11 @@ import (
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/agent/cccl"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/resource"
 	"github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/test"
-	"k8s.io/api/extensions/v1beta1"
-	netv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	fakeRouteClient "github.com/openshift/client-go/route/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -178,58 +175,8 @@ var _ = Describe("Test Validation", func() {
 			keyList = mockMgr.appMgr.getSecretServiceQueueKeyForIngress(secret1)
 			Expect(len(keyList)).To(Equal(0))
 
-			// With Ingress, No TLS
-			ingCfg1 := v1beta1.IngressSpec{
-				Backend: &v1beta1.IngressBackend{
-					ServiceName: "foo",
-					ServicePort: intstr.IntOrString{IntVal: 80},
-				},
-			}
-			ingress1 := test.NewIngress("ingress1", "1", namespace, ingCfg1,
-				map[string]string{
-					resource.F5VsBindAddrAnnotation:  "controller-default",
-					resource.F5VsPartitionAnnotation: "velcro",
-				})
 			appInfmr := mockMgr.appMgr.appInformers[namespace]
-			appInfmr.ingInformer.GetStore().Add(ingress1)
-			keyList = mockMgr.appMgr.getSecretServiceQueueKeyForIngress(secret1)
-			Expect(len(keyList)).To(Equal(0))
-
-			// With Ingress and TLS and backend service
-			ingCfg1.TLS = []v1beta1.IngressTLS{
-				{Hosts: []string{"abc.com"}, SecretName: "secret1"},
-			}
-			ingress1.Spec = ingCfg1
-			appInfmr.ingInformer.GetStore().Update(ingress1)
-			keyList = mockMgr.appMgr.getSecretServiceQueueKeyForIngress(secret1)
-			Expect(len(keyList)).To(Equal(1))
-
-			// With Ingress and TLS, with Rules
-			ingCfg1.Backend = nil
-			ingCfg1.Rules = []v1beta1.IngressRule{
-				{
-					Host: "abc.com",
-					IngressRuleValue: v1beta1.IngressRuleValue{
-						HTTP: &v1beta1.HTTPIngressRuleValue{
-							Paths: []v1beta1.HTTPIngressPath{
-								{
-									Path: "/foo",
-									Backend: v1beta1.IngressBackend{
-										ServiceName: "svc1",
-									},
-								},
-							},
-						},
-					},
-				},
-			}
-			ingress1.Spec = ingCfg1
-			appInfmr.ingInformer.GetStore().Update(ingress1)
-			keyList = mockMgr.appMgr.getSecretServiceQueueKeyForIngress(secret1)
-			Expect(len(keyList)).To(Equal(1))
-
 			// Netv1 Ingress
-			appInfmr.ingInformer.GetStore().Delete(ingress1)
 			// With Ingress, No TLS
 			ingCfg2 := netv1.IngressSpec{}
 			ingress2 := test.NewIngressNetV1("ingress1", "1", namespace, ingCfg2,

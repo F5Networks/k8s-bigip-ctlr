@@ -15,6 +15,7 @@ Added Functionality
     * Ingress
         * Support for partition annotation in Ingress
         * Added wildcard character(*) validation for ingress path
+        * Deprecated  extensions/v1beta1 ingress API and it's no longer processed by CIS >=2.12
     * CRD
         * Support for ipIntelligencePolicy with policy CR
         * Support for configuring ratio on GSLBDomainPool with externaldns CR

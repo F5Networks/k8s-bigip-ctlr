@@ -257,3 +257,6 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
 * Add pattern definition in CR schema to align with F5 BIGIP object naming convention.
 * RBAC changes to read the openshift network config
 * Moving to CIS > 2.11.1 requires an update to RBAC and CR schema definition. See [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml) and [CR schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml) 
+
+### **Upgrading from 2.11.1 to 2.12:**
+* Deprecated extensions/v1beta1 ingress API and it's no longer processed by CIS >=2.12.Use networking.k8s.io/v1  API for ingress

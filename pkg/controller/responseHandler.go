@@ -13,7 +13,7 @@ import (
 
 func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 	rm := requestMeta{
-		meta: make(map[string]string, len(config.ltmConfig)),
+		partitionMap: make(map[string]map[string]string, len(config.ltmConfig)),
 	}
 	if ctlr.requestQueue.Len() == 0 {
 		rm.id = 1
@@ -21,15 +21,17 @@ func (ctlr *Controller) enqueueReq(config ResourceConfigRequest) int {
 		rm.id = ctlr.requestQueue.Back().Value.(requestMeta).id + 1
 	}
 
+	metaPresent := false
 	for partition, partitionConfig := range config.ltmConfig {
+		rm.partitionMap[partition] = make(map[string]string)
 		for _, cfg := range partitionConfig.ResourceMap {
 			for key, val := range cfg.MetaData.baseResources {
-				rm.meta[key] = val
-				rm.partition = partition
+				rm.partitionMap[partition][key] = val
+				metaPresent = true
 			}
 		}
 	}
-	if len(rm.meta) > 0 {
+	if metaPresent {
 		ctlr.requestQueue.Lock()
 		ctlr.requestQueue.PushBack(rm)
 		ctlr.requestQueue.Unlock()
@@ -43,83 +45,88 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 	for rscUpdateMeta := range respChan {
 
 		rm := ctlr.dequeueReq(rscUpdateMeta.id, len(rscUpdateMeta.failedTenants))
-		partition := rm.partition
-		for rscKey, kind := range rm.meta {
-			ns := strings.Split(rscKey, "/")[0]
-			switch kind {
-			case VirtualServer:
-				// update status
-				crInf, ok := ctlr.getNamespacedCRInformer(ns)
-				if !ok {
-					log.Debugf("VirtualServer Informer not found for namespace: %v", ns)
-					continue
-				}
-				obj, exist, err := crInf.vsInformer.GetIndexer().GetByKey(rscKey)
-				if err != nil {
-					log.Debugf("Could not fetch VirtualServer: %v: %v", rscKey, err)
-					continue
-				}
-				if !exist {
-					log.Debugf("VirtualServer Not Found: %v", rscKey)
-					continue
-				}
-				virtual := obj.(*cisapiv1.VirtualServer)
-				if virtual.Namespace+"/"+virtual.Name == rscKey {
-					if _, found := rscUpdateMeta.failedTenants[partition]; !found {
-						ctlr.resources.updatePartitionPriority(partition, 0)
+		for partition, meta := range rm.partitionMap {
+			for rscKey, kind := range meta {
+				ns := strings.Split(rscKey, "/")[0]
+				switch kind {
+				case VirtualServer:
+					// update status
+					crInf, ok := ctlr.getNamespacedCRInformer(ns)
+					if !ok {
+						log.Debugf("VirtualServer Informer not found for namespace: %v", ns)
+						continue
 					}
-					ctlr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, "Ok")
-				}
-				// Update Corresponding Service Status of Type LB
-				for _, pool := range virtual.Spec.Pools {
-					var svcNamespace string
-					if pool.ServiceNamespace != "" {
-						svcNamespace = pool.ServiceNamespace
+					obj, exist, err := crInf.vsInformer.GetIndexer().GetByKey(rscKey)
+					if err != nil {
+						log.Debugf("Could not fetch VirtualServer: %v: %v", rscKey, err)
+						continue
+					}
+					if !exist {
+						log.Debugf("VirtualServer Not Found: %v", rscKey)
+						continue
+					}
+					virtual := obj.(*cisapiv1.VirtualServer)
+					if virtual.Namespace+"/"+virtual.Name == rscKey {
+						if _, found := rscUpdateMeta.failedTenants[partition]; !found {
+							// updating the tenant priority back to zero if it's not in failed tenants
+							ctlr.resources.updatePartitionPriority(partition, 0)
+							// update the status for virtual server as tenant posting is success
+							ctlr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, "Ok")
+							// Update Corresponding Service Status of Type LB
+							for _, pool := range virtual.Spec.Pools {
+								var svcNamespace string
+								if pool.ServiceNamespace != "" {
+									svcNamespace = pool.ServiceNamespace
+								} else {
+									svcNamespace = virtual.Namespace
+								}
+								svc := ctlr.GetService(svcNamespace, pool.Service)
+								if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
+									ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
+								}
+							}
+						}
+					}
+
+				case TransportServer:
+					// update status
+					crInf, ok := ctlr.getNamespacedCRInformer(ns)
+					if !ok {
+						log.Debugf("TransportServer Informer not found for namespace: %v", ns)
+						continue
+					}
+					obj, exist, err := crInf.tsInformer.GetIndexer().GetByKey(rscKey)
+					if err != nil {
+						log.Debugf("Could not fetch TransportServer: %v: %v", rscKey, err)
+						continue
+					}
+					if !exist {
+						log.Debugf("TransportServer Not Found: %v", rscKey)
+						continue
+					}
+					virtual := obj.(*cisapiv1.TransportServer)
+					if virtual.Namespace+"/"+virtual.Name == rscKey {
+						if _, found := rscUpdateMeta.failedTenants[partition]; !found {
+							// updating the tenant priority back to zero if it's not in failed tenants
+							ctlr.resources.updatePartitionPriority(partition, 0)
+							// update the status for transport server as tenant posting is success
+							ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
+						}
+					}
+				case Route:
+					if _, found := rscUpdateMeta.failedTenants[partition]; found {
+						// TODO : distinguish between a 503 and an actual failure
+						go ctlr.updateRouteAdmitStatus(rscKey, "Failure while updating config", "Please check logs for more information", v1.ConditionFalse)
 					} else {
-						svcNamespace = virtual.Namespace
+						// updating the tenant priority back to zero if it's not in failed tenants
+						ctlr.resources.updatePartitionPriority(partition, 0)
+						go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
 					}
-					svc := ctlr.GetService(svcNamespace, pool.Service)
-					if svc != nil && svc.Spec.Type == v1.ServiceTypeLoadBalancer {
-						ctlr.setLBServiceIngressStatus(svc, virtual.Status.VSAddress)
-					}
-				}
-			case TransportServer:
-				// update status
-				crInf, ok := ctlr.getNamespacedCRInformer(ns)
-				if !ok {
-					log.Debugf("TransportServer Informer not found for namespace: %v", ns)
-					continue
-				}
-				obj, exist, err := crInf.tsInformer.GetIndexer().GetByKey(rscKey)
-				if err != nil {
-					log.Debugf("Could not fetch TransportServer: %v: %v", rscKey, err)
-					continue
-				}
-				if !exist {
-					log.Debugf("TransportServer Not Found: %v", rscKey)
-					continue
-				}
-				virtual := obj.(*cisapiv1.TransportServer)
-				if virtual.Namespace+"/"+virtual.Name == rscKey {
+				case IngressLink:
 					if _, found := rscUpdateMeta.failedTenants[partition]; !found {
 						// updating the tenant priority back to zero if it's not in failed tenants
 						ctlr.resources.updatePartitionPriority(partition, 0)
 					}
-					ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
-				}
-			case Route:
-				if _, found := rscUpdateMeta.failedTenants[partition]; found {
-					// TODO : distinguish between a 503 and an actual failure
-					go ctlr.updateRouteAdmitStatus(rscKey, "Failure while updating config", "Please check logs for more information", v1.ConditionFalse)
-				} else {
-					// updating the tenant priority back to zero if it's not in failed tenants
-					ctlr.resources.updatePartitionPriority(partition, 0)
-					go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
-				}
-			case IngressLink:
-				// updating the tenant priority back to zero if it's not in failed tenants
-				if _, found := rscUpdateMeta.failedTenants[partition]; !found {
-					ctlr.resources.updatePartitionPriority(partition, 0)
 				}
 			}
 		}

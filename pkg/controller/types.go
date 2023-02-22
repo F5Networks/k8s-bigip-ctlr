@@ -587,9 +587,8 @@ type (
 	}
 
 	requestMeta struct {
-		meta      map[string]string
-		partition string
-		id        int
+		partitionMap map[string]map[string]string
+		id           int
 	}
 
 	Node struct {

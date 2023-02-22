@@ -692,6 +692,7 @@ type (
 	tenantResponse struct {
 		agentResponseCode int
 		taskId            string
+		isDeleted         bool
 	}
 
 	tenantParams struct {

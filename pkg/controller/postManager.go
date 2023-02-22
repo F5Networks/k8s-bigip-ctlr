@@ -150,6 +150,15 @@ func (postMgr *PostManager) postConfig(cfg *agentConfig) {
 	}
 }
 
+func updateTenantDeletion(tenant string, declaration map[string]interface{}) bool {
+	// We are finding the tenant is deleted based on the AS3 API response,
+	// if results contain the partition with status code of 200 and declaration does not contain the partition we assume that partition is deleted.
+	if _, ok := declaration[tenant]; !ok {
+		return true
+	}
+	return false
+}
+
 func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map[string]interface{}) {
 	httpResp, err := postMgr.httpClient.Do(request)
 	if err != nil {
@@ -175,13 +184,13 @@ func (postMgr *PostManager) httpPOST(request *http.Request) (*http.Response, map
 	return httpResp, response
 }
 
-func (postMgr *PostManager) updateTenantResponse(code int, id string, tenant string) {
+func (postMgr *PostManager) updateTenantResponse(code int, id string, tenant string, isDeleted bool) {
 	// Update status for a specific tenant if mentioned, else update the response for all tenants
 	if tenant != "" {
-		postMgr.tenantResponseMap[tenant] = tenantResponse{code, id}
+		postMgr.tenantResponseMap[tenant] = tenantResponse{code, id, isDeleted}
 	} else {
 		for tenant := range postMgr.tenantResponseMap {
-			postMgr.tenantResponseMap[tenant] = tenantResponse{code, id}
+			postMgr.tenantResponseMap[tenant] = tenantResponse{code, id, false}
 		}
 	}
 }
@@ -189,10 +198,11 @@ func (postMgr *PostManager) updateTenantResponse(code int, id string, tenant str
 func (postMgr *PostManager) handleResponseStatusOK(responseMap map[string]interface{}) {
 	// traverse all response results
 	results := (responseMap["results"]).([]interface{})
+	declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
 	for _, value := range results {
 		v := value.(map[string]interface{})
 		log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
-		postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string))
+		postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
 	}
 }
 
@@ -212,13 +222,14 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 
 	if httpResp.StatusCode == http.StatusOK {
 		results := (responseMap["results"]).([]interface{})
+		declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
 		for _, value := range results {
 			v := value.(map[string]interface{})
 			if msg, ok := v["message"]; ok && msg.(string) == "in progress" {
 				return
 			} else {
 				// reset task id, so that any failed tenants will go to post call in the next retry
-				postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string))
+				postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
 				if _, ok := v["response"]; ok {
 					log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v %v", v["code"], v["tenant"], v["message"], v["response"])
 				} else {
@@ -228,19 +239,21 @@ func (postMgr *PostManager) getTenantConfigStatus(id string) {
 		}
 	} else if httpResp.StatusCode != http.StatusServiceUnavailable {
 		// reset task id, so that any failed tenants will go to post call in the next retry
-		postMgr.updateTenantResponse(httpResp.StatusCode, "", "")
+		postMgr.updateTenantResponse(httpResp.StatusCode, "", "", false)
 	}
 }
 
 func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}) {
 	if results, ok := (responseMap["results"]).([]interface{}); ok {
+		declaration := (responseMap["declaration"]).(interface{}).(map[string]interface{})
 		for _, value := range results {
 			v := value.(map[string]interface{})
-			postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string))
 
 			if v["code"].(float64) != 200 {
+				postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string), false)
 				log.Errorf("[AS3] Error response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 			} else {
+				postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string), updateTenantDeletion(v["tenant"].(string), declaration))
 				log.Debugf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
 			}
 		}
@@ -250,7 +263,7 @@ func (postMgr *PostManager) handleMultiStatus(responseMap map[string]interface{}
 func (postMgr *PostManager) handleResponseAccepted(responseMap map[string]interface{}) {
 	// traverse all response results
 	if respId, ok := (responseMap["id"]).(string); ok {
-		postMgr.updateTenantResponse(http.StatusAccepted, respId, "")
+		postMgr.updateTenantResponse(http.StatusAccepted, respId, "", false)
 		log.Debugf("[AS3] Response from BIG-IP: code 201 id %v, waiting %v seconds to poll response", respId, timeoutMedium)
 	}
 }
@@ -260,7 +273,7 @@ func (postMgr *PostManager) handleResponseStatusServiceUnavailable(responseMap m
 		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])
 	}
 	log.Debugf("[AS3] Response from BIG-IP: BIG-IP is busy, waiting %v seconds and re-posting the declaration", timeoutMedium)
-	postMgr.updateTenantResponse(http.StatusServiceUnavailable, "", "")
+	postMgr.updateTenantResponse(http.StatusServiceUnavailable, "", "", false)
 }
 
 func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]interface{}) {
@@ -272,7 +285,7 @@ func (postMgr *PostManager) handleResponseStatusNotFound(responseMap map[string]
 	if postMgr.LogResponse {
 		log.Errorf("[AS3] Raw response from Big-IP: %v ", responseMap)
 	}
-	postMgr.updateTenantResponse(http.StatusNotFound, "", "")
+	postMgr.updateTenantResponse(http.StatusNotFound, "", "", false)
 }
 
 func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interface{}, cfg *agentConfig) {
@@ -283,14 +296,14 @@ func (postMgr *PostManager) handleResponseOthers(responseMap map[string]interfac
 		for _, value := range results {
 			v := value.(map[string]interface{})
 			log.Errorf("[AS3] Response from BIG-IP: code: %v --- tenant:%v --- message: %v", v["code"], v["tenant"], v["message"])
-			postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string))
+			postMgr.updateTenantResponse(int(v["code"].(float64)), "", v["tenant"].(string), false)
 		}
 	} else if err, ok := (responseMap["error"]).(map[string]interface{}); ok {
 		log.Errorf("[AS3] Big-IP Responded with error code: %v", err["code"])
-		postMgr.updateTenantResponse(int(err["code"].(float64)), "", "")
+		postMgr.updateTenantResponse(int(err["code"].(float64)), "", "", false)
 	} else {
 		log.Errorf("[AS3] Big-IP Responded with code: %v", responseMap["code"])
-		postMgr.updateTenantResponse(int(responseMap["code"].(float64)), "", "")
+		postMgr.updateTenantResponse(int(responseMap["code"].(float64)), "", "", false)
 	}
 }
 

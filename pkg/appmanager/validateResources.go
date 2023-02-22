@@ -26,7 +26,6 @@ import (
 	log "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/vlogger"
 	routeapi "github.com/openshift/api/route/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
 	netv1 "k8s.io/api/networking/v1"
 )
 
@@ -248,74 +247,38 @@ func (appMgr *Manager) getSecretServiceQueueKeyForIngress(secret *v1.Secret) []*
 	}
 	ingresses := appInf.ingInformer.GetIndexer().List()
 	for _, obj := range ingresses {
-		// TODO remove the switch and v1beta1 once v1beta1.Ingress is deprecated in k8s 1.22
-		switch obj.(type) {
-		case *v1beta1.Ingress:
-			ingress := obj.(*v1beta1.Ingress)
-			var tlsSecret v1beta1.IngressTLS
-			for _, tlsSecret = range ingress.Spec.TLS {
-				if tlsSecret.SecretName == secret.Name {
-					if ingress.Spec.Backend != nil {
-						key := &serviceQueueKey{
-							ServiceName:  ingress.Spec.Backend.ServiceName,
-							Namespace:    secret.ObjectMeta.Namespace,
-							ResourceKind: Ingresses,
-							ResourceName: ingress.Name,
-						}
-						keyList = append(keyList, key)
-					} else {
-						var rule v1beta1.IngressRule
-						for _, rule = range ingress.Spec.Rules {
-							var path v1beta1.HTTPIngressPath
-							for _, path = range rule.IngressRuleValue.HTTP.Paths {
-								if len(path.Backend.ServiceName) > 0 {
-									key := &serviceQueueKey{
-										ServiceName:  path.Backend.ServiceName,
-										Namespace:    secret.ObjectMeta.Namespace,
-										ResourceKind: Ingresses,
-										ResourceName: ingress.Name,
-									}
-									keyList = append(keyList, key)
+		ingress := obj.(*netv1.Ingress)
+		var tlsSecret netv1.IngressTLS
+		for _, tlsSecret = range ingress.Spec.TLS {
+			if tlsSecret.SecretName == secret.Name {
+				if ingress.Spec.DefaultBackend != nil {
+					key := &serviceQueueKey{
+						ServiceName:  ingress.Spec.DefaultBackend.Service.Name,
+						Namespace:    secret.ObjectMeta.Namespace,
+						ResourceKind: Ingresses,
+						ResourceName: ingress.Name,
+					}
+					keyList = append(keyList, key)
+				} else {
+					var rule netv1.IngressRule
+					for _, rule = range ingress.Spec.Rules {
+						var path netv1.HTTPIngressPath
+						for _, path = range rule.IngressRuleValue.HTTP.Paths {
+							if len(path.Backend.Service.Name) > 0 {
+								key := &serviceQueueKey{
+									ServiceName:  path.Backend.Service.Name,
+									Namespace:    secret.ObjectMeta.Namespace,
+									ResourceKind: Ingresses,
+									ResourceName: ingress.Name,
 								}
+								keyList = append(keyList, key)
 							}
 						}
 					}
 				}
 			}
-		default:
-			ingress := obj.(*netv1.Ingress)
-			var tlsSecret netv1.IngressTLS
-			for _, tlsSecret = range ingress.Spec.TLS {
-				if tlsSecret.SecretName == secret.Name {
-					if ingress.Spec.DefaultBackend != nil {
-						key := &serviceQueueKey{
-							ServiceName:  ingress.Spec.DefaultBackend.Service.Name,
-							Namespace:    secret.ObjectMeta.Namespace,
-							ResourceKind: Ingresses,
-							ResourceName: ingress.Name,
-						}
-						keyList = append(keyList, key)
-					} else {
-						var rule netv1.IngressRule
-						for _, rule = range ingress.Spec.Rules {
-							var path netv1.HTTPIngressPath
-							for _, path = range rule.IngressRuleValue.HTTP.Paths {
-								if len(path.Backend.Service.Name) > 0 {
-									key := &serviceQueueKey{
-										ServiceName:  path.Backend.Service.Name,
-										Namespace:    secret.ObjectMeta.Namespace,
-										ResourceKind: Ingresses,
-										ResourceName: ingress.Name,
-									}
-									keyList = append(keyList, key)
-								}
-							}
-						}
-					}
-				}
-			}
-
 		}
+
 	}
 	return keyList
 }
@@ -347,166 +310,8 @@ func (appMgr *Manager) checkValidSecrets(
 func (appMgr *Manager) checkValidIngress(
 	obj interface{},
 ) (bool, []*serviceQueueKey) {
-	//TODO remove the switch case and checkV1beta1Ingress function
-	switch obj.(type) {
-	case *v1beta1.Ingress:
-		return appMgr.checkV1beta1Ingress(obj.(*v1beta1.Ingress))
-	default:
-		return appMgr.checkV1Ingress(obj.(*netv1.Ingress))
-	}
-}
+	return appMgr.checkV1Ingress(obj.(*netv1.Ingress))
 
-// TODO remove the function once v1beta1.Ingress is deprecated in k8s 1.22
-func (appMgr *Manager) checkV1beta1Ingress(
-	ing *v1beta1.Ingress,
-) (bool, []*serviceQueueKey) {
-	namespace := ing.ObjectMeta.Namespace
-	appInf, ok := appMgr.getNamespaceInformer(namespace)
-	if !ok {
-		// Not watching this namespace
-		return false, nil
-	}
-	partition := DEFAULT_PARTITION
-	if p, ok := ing.ObjectMeta.Annotations[F5VsPartitionAnnotation]; ok {
-		if _, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; !ok {
-			log.Warningf("%v annotation should be provided with %v in ingress %s/%s", F5VsBindAddrAnnotation, F5VsPartitionAnnotation, ing.Namespace, ing.Name)
-			return false, nil
-		}
-		partition = p
-	}
-	bindAddr := ""
-	if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok {
-		bindAddr = addr
-	}
-	var keyList []*serviceQueueKey
-	// Depending on the Ingress, we may loop twice here, once for http and once for https
-	for _, portStruct := range appMgr.virtualPorts(ing) {
-		rsCfg := appMgr.createRSConfigFromIngress(
-			ing,
-			appMgr.resources,
-			namespace,
-			appInf.svcInformer.GetIndexer(),
-			portStruct,
-			appMgr.defaultIngIP,
-			appMgr.vsSnatPoolName,
-		)
-		var rsType int
-		rsName := NameRef{Name: FormatIngressVSName(bindAddr, portStruct.port), Partition: partition}
-		// If rsCfg is nil, delete any resources tied to this Ingress
-		if rsCfg == nil {
-			if nil == ing.Spec.Rules { //single-service
-				rsType = SingleServiceIngressType
-				serviceName := ing.Spec.Backend.ServiceName
-				servicePort := ing.Spec.Backend.ServicePort.IntVal
-				sKey := ServiceKey{ServiceName: serviceName, ServicePort: servicePort, Namespace: namespace}
-				if _, ok := appMgr.resources.Get(sKey, rsName); ok {
-					appMgr.resources.Delete(sKey, rsName)
-					appMgr.deployResource()
-				}
-			} else { //multi-service
-				rsType = MultiServiceIngressType
-				_, keys := appMgr.resources.GetAllWithName(rsName)
-				for _, key := range keys {
-					appMgr.resources.Delete(key, rsName)
-					appMgr.deployResource()
-				}
-			}
-			return false, nil
-		}
-
-		// Validate url-rewrite annotations
-		if urlRewrite, ok := ing.ObjectMeta.Annotations[F5VsURLRewriteAnnotation]; ok {
-			if rsType == MultiServiceIngressType {
-				urlRewriteMap := ParseAppRootURLRewriteAnnotations(urlRewrite)
-				validateURLRewriteAnnotations(rsType, urlRewriteMap)
-			} else {
-				log.Warning("Single service ingress does not support url-rewrite annotation, not processing")
-			}
-		}
-
-		// Validate app-root annotations
-		if appRoot, ok := ing.ObjectMeta.Annotations[F5VsAppRootAnnotation]; ok {
-			appRootMap := ParseAppRootURLRewriteAnnotations(appRoot)
-			if rsType == SingleServiceIngressType {
-				if len(appRootMap) > 1 {
-					log.Warningf("Single service ingress does not support multiple app-root annotation values for single service ingress %s/%s, not processing", ing.Namespace, ing.Name)
-				} else {
-					if _, ok := appRootMap["single"]; ok {
-						validateAppRootAnnotations(rsType, appRootMap)
-					} else {
-						log.Warningf("[CORE] App root annotation: %s does not support targeted values for single service ingress %s/%s, not processing", appRoot, ing.Namespace, ing.Name)
-					}
-				}
-			} else {
-				validateAppRootAnnotations(rsType, appRootMap)
-			}
-		}
-
-		// This ensures that pool-only mode only logs the message below the first
-		// time we see a config.
-		if _, exists := appMgr.resources.GetByName(rsName); !exists && bindAddr == "" {
-			log.Infof("[CORE] No virtual IP was specified for the virtual server %s, creating pool only.",
-				rsName)
-		}
-
-		// If we have a config for this IP:Port, and either that config or the current config
-		// is for a single service ingress, then we don't allow the new Ingress to share the VS
-		// It doesn't make sense for single service Ingresses to share a VS
-		if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
-			if (oldCfg.Virtual.PoolName != "" || ing.Spec.Rules == nil) &&
-				oldCfg.MetaData.IngName != ing.ObjectMeta.Name &&
-				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
-				log.Warningf(
-					"Single-service Ingress cannot share the IP and port for ingress %s/%s: '%s:%d'.", ing.Namespace, ing.Name,
-					oldCfg.Virtual.VirtualAddress.BindAddr, oldCfg.Virtual.VirtualAddress.Port)
-				return false, nil
-			}
-		}
-	}
-	//Get svc keys to queue
-	svcs := getIngressBackend(ing)
-	for _, svc := range svcs {
-		key := &serviceQueueKey{
-			ServiceName:  svc,
-			Namespace:    namespace,
-			ResourceKind: Ingresses,
-			ResourceName: ing.Name,
-		}
-		keyList = append(keyList, key)
-	}
-
-	return true, keyList
-}
-
-func (appMgr *Manager) checkV1Beta1SingleServivceIngress(
-	ing *v1beta1.Ingress,
-) bool {
-	bindAddr := ""
-	partition := DEFAULT_PARTITION
-	if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok {
-		bindAddr = addr
-	}
-	if p, ok := ing.ObjectMeta.Annotations[F5VsPartitionAnnotation]; ok {
-		partition = p
-	}
-	// Depending on the Ingress, we may loop twice here, once for http and once for https
-	for _, portStruct := range appMgr.virtualPorts(ing) {
-		rsName := NameRef{Name: FormatIngressVSName(bindAddr, portStruct.port), Partition: partition}
-		// If we have a config for this IP:Port, and either that config or the current config
-		// is for a single service ingress, then we don't allow the new Ingress to share the VS
-		// It doesn't make sense for single service Ingresses to share a VS
-		if oldCfg, exists := appMgr.resources.GetByName(rsName); exists {
-			if (oldCfg.Virtual.PoolName != "" || ing.Spec.Rules == nil) &&
-				oldCfg.MetaData.IngName != ing.ObjectMeta.Name &&
-				oldCfg.Virtual.VirtualAddress.BindAddr != "" {
-				log.Warningf(
-					"Single-service Ingress cannot share the IP and port for ingress %s/%s: '%s:%d'.", ing.Namespace, ing.Name,
-					oldCfg.Virtual.VirtualAddress.BindAddr, oldCfg.Virtual.VirtualAddress.Port)
-				return false
-			}
-		}
-	}
-	return true
 }
 
 func (appMgr *Manager) checkValidRoute(
@@ -685,47 +490,6 @@ func validateConfigJson(tmpConfig string) error {
 	var tmp interface{}
 	err := json.Unmarshal([]byte(tmpConfig), &tmp)
 	return err
-}
-
-func (appMgr *Manager) removeOldV1beta1IngressObjects(ing *v1beta1.Ingress) {
-	bindAddr := ""
-	if addr, ok := ing.ObjectMeta.Annotations[F5VsBindAddrAnnotation]; ok {
-		bindAddr = addr
-	}
-	partition := DEFAULT_PARTITION
-	if p, ok := ing.ObjectMeta.Annotations[F5VsPartitionAnnotation]; ok {
-		partition = p
-	}
-	for _, portStruct := range appMgr.virtualPorts(ing) {
-		rsName := NameRef{Name: FormatIngressVSName(bindAddr, portStruct.port), Partition: partition}
-		if nil == ing.Spec.Rules { //single-service
-			serviceName := ing.Spec.Backend.ServiceName
-			servicePort := ing.Spec.Backend.ServicePort.IntVal
-			sKey := ServiceKey{ServiceName: serviceName, ServicePort: servicePort, Namespace: ing.ObjectMeta.Namespace}
-			if _, ok := appMgr.resources.Get(sKey, rsName); ok {
-				appMgr.resources.Delete(sKey, rsName)
-			}
-		} else { //multi-service
-			_, keys := appMgr.resources.GetAllWithName(rsName)
-			for _, key := range keys {
-				appMgr.resources.Delete(key, rsName)
-			}
-		}
-	}
-	var vsCount int
-	for nameRef, _ := range appMgr.resources.RsMap {
-		if nameRef.Partition == partition {
-			vsCount++
-		}
-	}
-	if vsCount == 0 {
-		redirectDG := NameRef{Name: HttpsRedirectDgName, Partition: partition}
-		if _, ok := appMgr.intDgMap[redirectDG]; ok {
-			delete(appMgr.intDgMap, redirectDG)
-		}
-	}
-	appMgr.syncIRules()
-	appMgr.deployResource()
 }
 
 func fetchVSDeletionStatus(newAnnotations, oldAnnotations map[string]string) bool {

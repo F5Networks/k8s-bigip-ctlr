@@ -6,6 +6,12 @@
 # To create a secret using kubectl see
 # https://clouddocs.f5.com/containers/latest/userguide/kubernetes/#installing-cis-manually
 bigip_login_secret: f5-bigip-ctlr-login
+
+bigip_secret:
+  create: false
+  username:
+  password:
+
 rbac:
   create: true
 serviceAccount:
@@ -13,13 +19,14 @@ serviceAccount:
   create: true
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
-  name:
+  name: f5-bigip-ctlr-serviceaccount
 # This namespace is where the Controller lives;
+namespace: kube-system
+
 ingressClass:
   create: true
   ingressClassName: f5
   isDefaultIngressController: true
-namespace: kube-system
 args:
   # See https://clouddocs.f5.com/containers/latest/userguide/config-parameters.html
   # NOTE: helm has difficulty with values using `-`; `_` are used for naming
@@ -76,4 +83,8 @@ version: latest
 # limits_memory: 512Mi
 # requests_cpu: 100m
 # requests_memory: 512Mi
-
+# Set podSecurityContext for Pod Security Admission and Pod Security Standards
+# podSecurityContext:
+#   runAsUser: 1000
+#   runAsGroup: 1000
+#   privileged: true

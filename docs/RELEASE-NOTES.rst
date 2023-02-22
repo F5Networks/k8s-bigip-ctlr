@@ -15,6 +15,7 @@ Added Functionality
     * Ingress
         * Support for partition annotation in Ingress
         * Added wildcard character(*) validation for ingress path
+        * Deprecated  extensions/v1beta1 ingress API and it's no longer processed by CIS >=2.12
     * CRD
         * Support for ipIntelligencePolicy with policy CR
         * Support for configuring ratio on GSLBDomainPool with externaldns CR
@@ -26,6 +27,10 @@ Added Functionality
         * `Issue 2703 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2703>`_: Support host group having multiple hosts with EDNS
         * `Issue 2729 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2729>`_: Support for named port with servicePort
         * `Issue 2744 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2744>`_: Support for Host header rewrite in VirtualServer CR
+    * Helm Chart Enhancements
+        * Support for podSecurityContext
+        * Support for bigip-login secret creation
+        * Support for latest CRD schema
     * Support for --http-client-metrics deployment parameter to export the AS3 http client prometheus metrics
 
 Bug Fixes

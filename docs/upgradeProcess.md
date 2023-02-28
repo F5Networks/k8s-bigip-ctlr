@@ -35,7 +35,8 @@ Compatibility Matrix
 | v2.10.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |Red Hat Enterprise Linux release 8.6 (Ootpa)|
 | v2.10.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.2     | v0.0.22 |Red Hat Enterprise Linux release 8.6 (Ootpa)|
 | v2.11.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.38     | v0.1.8      | v0.0.3     | v0.0.22 |Red Hat Enterprise Linux release 8.7 (Ootpa)|
-| v2.11.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.41     | v0.1.8      | v0.0.4     | v0.0.23 |Red Hat Enterprise Linux release 9.1 (Plow)|            
+| v2.11.1     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.41     | v0.1.8      | v0.0.4     | v0.0.23 |Red Hat Enterprise Linux release 9.1 (Plow)|
+| v2.12.0     | v16.0          | v1.24              | v4.11.1                                                       | Yes | Yes | v3.41     | v0.1.9      | v0.0.4     | v0.0.24 |Red Hat Enterprise Linux release 9.1 (Plow)|            
 
 
 CIS Features and Examples
@@ -258,5 +259,7 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
 * RBAC changes to read the openshift network config
 * Moving to CIS > 2.11.1 requires an update to RBAC and CR schema definition. See [RBAC](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/rbac/clusterrole.yaml) and [CR schema](https://raw.githubusercontent.com/F5Networks/k8s-bigip-ctlr/master/docs/config_examples/customResourceDefinitions/customresourcedefinitions.yml) 
 
-### **Upgrading from 2.11.1 to 2.12:**
-* Deprecated extensions/v1beta1 ingress API and it's no longer processed by CIS >=2.12.Use networking.k8s.io/v1  API for ingress
+### **Upgrading from 2.11.1 to 2.12.0:**
+* Deprecated extensions/v1beta1 ingress API and it's no longer processed by CIS >=2.12.Use networking.k8s.io/v1 API for ingress.
+* Refer [guide](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/migration-guide.md) to migrate to next generation routes.
+* Deprecated CommonName support for host certificate verification in secrets, use subject alternative name(SAN) in certificates instead.

@@ -15,7 +15,7 @@
 
 ## Overview
 NextGenRoute Controller uses extendedConfigMap for extending the native resources (routes). All the routes are group by namespaces or namespace-labels into RouteGroups. Each RouteGroup shares the same vsAddress, vsName and policy CR  which is specified in extendedConfigMap. 
-In order to migrate to nextGen we first need to create an extended ConfigMap and policy CR then modify the CIS deployment accordingly. Refer `NextGen Route Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details
+In order to migrate to nextGen we first need to create an extended ConfigMap and policy CR then modify the CIS deployment accordingly. Refer [NextGen Route Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes) for more details
 
 ## Migration using defaultRouteGroup
 Currently, RouteGroup are expected to define per namespace or namespace label as follows:
@@ -168,7 +168,7 @@ Sample Route:
 
 #### Step-2 Creating Extended ConfigMap using defaultRouteGroup
 
-Extended ConfigMap is a must-use with the nextGen Route Controller. Refer `Documentation <https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes>`_ for more details          
+Extended ConfigMap is a must-use with the nextGen Route Controller. Refer [Documentation](https://github.com/F5Networks/k8s-bigip-ctlr/tree/master/docs/config_examples/next-gen-routes) for more details          
 
 You can create an extended ConfigMap for given example as follows:
 * You can define the vserverAddr same as "route-vserver-addr" parameter in CIS deployment.

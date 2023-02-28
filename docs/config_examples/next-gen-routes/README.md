@@ -83,6 +83,12 @@ WAF specified in route annotations configures WAF at LTM Policy, whereas WAF in 
 Allow source range can be specified either in route annotations or in policy CR.
 If it's specified in both the places then allow source range in policy CR has more precedence over annotation, however with allowOverride field set to true in the route group in Extended configmap, allow source range in route annotation will have more precedence.
 
+### SSL Profiles precedence
+* SSL can be specified in route as certificate(spec certs), route annotation as bigip reference/secret or as default SSL profiles in global configmap. 
+* If route is defined with both certificate(spec certs) and SSL annotation then route annotation will have more precedence followed by route certificate(spec certs). Default SSL profiles in global configmap will have the least precedence.
+* Route with SSL profiles annotation reference to bigip [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/routes/reencrypt-route-with-bigip-reference-in-ssl-annotaion.yaml)
+* Route with SSL profiles annotation reference to secret [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/routes/reencrypt-route-with-k8s-secret-in-ssl-annotation.yaml)
+* Global configmap with defaultTLS [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml)
 
 ### Support for Health Monitors from pod liveness probe
 CIS uses the liveness probe of the pods to form the health monitors, whenever health annotations not provided in the route annotations. 
@@ -658,7 +664,14 @@ allow, redirect and none termination supported with edge routes, while re-encryp
 ### Do we support bigIP referenced SSL Profiles annotations on routes?
 Yes you can continue the SSL Profiles in route annotations.
 ### Do we support Kubernetes secrets in SSL Profiles annotations on routes?
-Yes you can define the Kubernetes secret in route's SSL annotations.
+Yes you can define the Kubernetes secret in route's SSL annotations. Please refer to [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/routes/reencrypt-route-with-k8s-secret-in-ssl-annotation.yaml).
+### Can we the use legacy default-client-ssl and default-server-ssl CLI parameters?
+No, they are no longer supported as CLI parameters. These CLI parameters are moved to global configmap -> baseRouteSpec -> defaultTLS -> clientSSL and serverSSL.
+Please refer to [Example](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/config_examples/next-gen-routes/configmap/extendedRouteConfigwithBaseConfig.yaml).
+### What is the precedence of client and server SSL profiles? 
+CIS considers following precedence order.  Route annotations have the highest priority( followed by) route certificates(spec certs) have next priority (followed by) global configmap baseRouteSpec default profiles.
+### What is not supported with the SSL profiles?
+Under a single route group or single VIP, a combination of routes having route certificates(spec certs) and routes with SSL profiles annotation with bigip reference are not supported.
 ### Can we configure health monitors using route annotations?
 Yes you can continue using the health monitors in route annotations.
 ### Can we configure waf using route annotations?

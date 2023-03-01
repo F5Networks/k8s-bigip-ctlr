@@ -339,7 +339,7 @@ func (agent *Agent) updateRetryMap(tenant string, resp tenantResponse, tenDecl i
 	} else {
 		agent.retryTenantDeclMap[tenant] = &tenantParams{
 			tenDecl,
-			tenantResponse{resp.agentResponseCode, resp.taskId},
+			tenantResponse{resp.agentResponseCode, resp.taskId, false},
 		}
 	}
 }
@@ -372,15 +372,20 @@ func (agent *Agent) updateTenantResponse(agentWorkerUpdate bool) {
 	*/
 	for tenant, resp := range agent.tenantResponseMap {
 		if resp.agentResponseCode == 200 {
-			// update cachedTenantDeclMap with successfully posted declaration
-			if agentWorkerUpdate {
-				agent.cachedTenantDeclMap[tenant] = agent.incomingTenantDeclMap[tenant]
+			if resp.isDeleted {
+				// Update the cache tenant map if tenant is deleted.
+				delete(agent.cachedTenantDeclMap, tenant)
 			} else {
-				agent.cachedTenantDeclMap[tenant] = agent.retryTenantDeclMap[tenant].as3Decl.(as3Tenant)
-			}
-			// if received the 200 response remove the entry from tenantPriorityMap
-			if _, ok := agent.tenantPriorityMap[tenant]; ok {
-				delete(agent.tenantPriorityMap, tenant)
+				// update cachedTenantDeclMap with successfully posted declaration
+				if agentWorkerUpdate {
+					agent.cachedTenantDeclMap[tenant] = agent.incomingTenantDeclMap[tenant]
+				} else {
+					agent.cachedTenantDeclMap[tenant] = agent.retryTenantDeclMap[tenant].as3Decl.(as3Tenant)
+				}
+				// if received the 200 response remove the entry from tenantPriorityMap
+				if _, ok := agent.tenantPriorityMap[tenant]; ok {
+					delete(agent.tenantPriorityMap, tenant)
+				}
 			}
 		}
 		if agentWorkerUpdate {
@@ -682,6 +687,14 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 
 func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := as3ADC{}
+	for tenant := range agent.cachedTenantDeclMap {
+		if _, ok := config.ltmConfig[tenant]; !ok {
+			// Remove Partition
+			adc[tenant] = as3Tenant{
+				"class": "Tenant",
+			}
+		}
+	}
 	for tenantName, partitionConfig := range config.ltmConfig {
 		// TODO partitionConfig priority can be overridden by another request if agent is unable to process the prioritized request in time
 		if partitionConfig.Priority > 0 {

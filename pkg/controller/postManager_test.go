@@ -133,7 +133,7 @@ var _ = Describe("PostManager Tests", func() {
 			mockPM.setResponses([]responceCtx{{
 				tenant: tnt,
 				status: http.StatusMultiStatus,
-				body:   "",
+				body:   fmt.Sprintf(`{"results":[{"code":%d,"message":"success", "tenant": "%s"}],"declaration": {"%s": {"Shared": {"class": "application"}}}}`, http.StatusOK, tnt, tnt),
 			},
 			}, http.MethodPost)
 			mockPM.publishConfig(agentCfg)
@@ -148,12 +148,12 @@ var _ = Describe("PostManager Tests", func() {
 				{
 					tenant: tnt,
 					status: http.StatusOK,
-					body:   fmt.Sprintf(`{"results":[{"code":%d,"message":"in progress", "tenant": "%s"}]}`, http.StatusOK, tnt),
+					body:   fmt.Sprintf(`{"results":[{"code":%d,"message":"in progress", "tenant": "%s"}],"declaration": {"%s": {"Shared": {"class": "application"}}}}`, http.StatusOK, tnt, tnt),
 				},
 				{
 					tenant: tnt,
 					status: http.StatusOK,
-					body:   fmt.Sprintf(`{"results":[{"code":%d,"message":"none", "tenant": "%s"}]}`, http.StatusOK, tnt),
+					body:   fmt.Sprintf(`{"results":[{"code":%d,"message":"none", "tenant": "%s"}],"declaration": {"%s": {"Shared": {"class": "application"}}}}`, http.StatusOK, tnt, tnt),
 				},
 				{
 					tenant: tnt,

@@ -72,8 +72,8 @@ func (mockPM *mockPostManager) setResponses(responces []responceCtx, method stri
 	for _, resp := range responces {
 		if resp.body == "" {
 			if resp.status == http.StatusOK {
-				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "%s"}]}`,
-					resp.status, resp.tenant)
+				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "%s"}], "declaration": {"%s": {"Shared": {"class": "application"}}}}`,
+					resp.status, resp.tenant, resp.tenant)
 			} else {
 				body = fmt.Sprintf(`{"results":[{"code":%f,"message":"none", "tenant": "%s"}],"error":{"code":%f}}`,
 					resp.status, resp.tenant, resp.status)

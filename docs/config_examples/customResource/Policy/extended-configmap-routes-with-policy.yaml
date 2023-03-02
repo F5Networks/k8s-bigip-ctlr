@@ -11,10 +11,6 @@ data:
       vserverName: nextgenroutes
       allowOverride: true
       policyCR: default/sample-policy
-      tls:
-        clientSSL: /Common/clientssl
-        serverSSL: /Common/serverssl
-        reference: bigip
     - namespace: bar
       vserverAddr: 10.8.3.12
       allowOverride: true

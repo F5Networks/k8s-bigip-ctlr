@@ -421,6 +421,12 @@ var _ = Describe("Backend Tests", func() {
 			Expect(ok).To(BeTrue())
 			Expect(val).NotTo(BeNil())
 		})
+		It("Test Deleted Partition", func() {
+			deletedPartition := getDeletedTenantDeclaration("test", "test")
+			Expect(deletedPartition[as3SharedApplication]).NotTo(BeNil())
+			deletedPartition = getDeletedTenantDeclaration("test", "default")
+			Expect(deletedPartition[as3SharedApplication]).To(BeNil())
+		})
 	})
 
 	Describe("JSON comparision of AS3 declaration", func() {

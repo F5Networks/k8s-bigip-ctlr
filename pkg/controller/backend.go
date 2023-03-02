@@ -689,10 +689,8 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := as3ADC{}
 	for tenant := range agent.cachedTenantDeclMap {
 		if _, ok := config.ltmConfig[tenant]; !ok {
-			// Remove Partition
-			adc[tenant] = as3Tenant{
-				"class": "Tenant",
-			}
+			// Remove partition
+			adc[tenant] = getDeletedTenantDeclaration(agent.Partition, tenant)
 		}
 	}
 	for tenantName, partitionConfig := range config.ltmConfig {
@@ -701,23 +699,8 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 			agent.tenantPriorityMap[tenantName] = partitionConfig.Priority
 		}
 		if len(partitionConfig.ResourceMap) == 0 {
-			if agent.Partition == tenantName {
-				// Flush Partition contents
-				sharedApp := as3Application{}
-				sharedApp["class"] = "Application"
-				sharedApp["template"] = "shared"
-
-				tenantDecl := as3Tenant{
-					"class":              "Tenant",
-					as3SharedApplication: sharedApp,
-				}
-				adc[tenantName] = tenantDecl
-			} else {
-				// Remove Partition
-				adc[tenantName] = as3Tenant{
-					"class": "Tenant",
-				}
-			}
+			// Remove partition
+			adc[tenantName] = getDeletedTenantDeclaration(agent.Partition, tenantName)
 			continue
 		}
 		// Create Shared as3Application object
@@ -747,6 +730,22 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 		adc[tenantName] = tenantDecl
 	}
 	return adc
+}
+
+func getDeletedTenantDeclaration(defaultPartition, tenant string) as3Tenant {
+	if defaultPartition == tenant {
+		// Flush Partition contents
+		sharedApp := as3Application{}
+		sharedApp["class"] = "Application"
+		sharedApp["template"] = "shared"
+		return as3Tenant{
+			"class":              "Tenant",
+			as3SharedApplication: sharedApp,
+		}
+	}
+	return as3Tenant{
+		"class": "Tenant",
+	}
 }
 
 func processIRulesForAS3(rsMap ResourceMap, sharedApp as3Application) {

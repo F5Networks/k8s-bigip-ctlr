@@ -936,8 +936,11 @@ func (ctlr *Controller) handleVirtualServerTLS(
 			pl,
 			vs.Spec.Host,
 		)
-
-		poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
+		if len(tls.Spec.Hosts) > 1 {
+			poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, tls.Spec.Hosts})
+		} else {
+			poolPathRefs = append(poolPathRefs, poolPathRef{pl.Path, poolName, []string{vs.Spec.Host}})
+		}
 	}
 	return ctlr.handleTLS(rsCfg, TLSContext{name: vs.ObjectMeta.Name,
 		namespace:        vs.ObjectMeta.Namespace,

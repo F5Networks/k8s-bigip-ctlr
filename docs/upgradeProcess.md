@@ -248,6 +248,10 @@ Refer Release Notes for [CIS v2.10.1](https://github.com/F5Networks/k8s-bigip-ct
 
 ### **Upgrading from 2.10.1 to 2.11.0:**
 
+**_Functionality Change:_**
+
+* From 2.11, if TLSProfile has multiple domains in hosts parameter then traffic is handled for all those domains on virtualserver it attached to.  
+
 Refer Release Notes for [CIS v2.11.0](https://github.com/F5Networks/k8s-bigip-ctlr/blob/master/docs/RELEASE-NOTES.rst)
 
 ### **Upgrading from 2.11.0 to 2.11.1:**

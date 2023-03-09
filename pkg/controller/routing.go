@@ -493,8 +493,12 @@ func (rules Rules) Less(i, j int) bool {
 		return endCountI > endCountJ
 	}
 
-	// Strategy 4: Lowest Ordinal
-	return ruleI.Ordinal < ruleJ.Ordinal
+	if ruleI.Ordinal != ruleJ.Ordinal {
+		// Strategy 4: Lowest Ordinal
+		return ruleI.Ordinal < ruleJ.Ordinal
+	}
+	// Strategy 5: Lexicographic Order
+	return ruleI.Name < ruleJ.Name
 
 }
 

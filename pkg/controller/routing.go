@@ -91,7 +91,7 @@ func (ctlr *Controller) prepareVirtualServerRules(
 		)
 		ruleName := formatVirtualServerRuleName(vs.Spec.Host, vs.Spec.HostGroup, path, poolName)
 		var err error
-		rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange, wafPolicy)
+		rl, err := createRule(uri, poolName, ruleName, rsCfg.Virtual.AllowSourceRange, wafPolicy, false)
 		if nil != err {
 			log.Errorf("Error configuring rule: %v", err)
 			return nil
@@ -201,7 +201,7 @@ func formatVirtualServerRuleName(hostname, hostGroup, path, pool string) string 
 }
 
 // Create LTM policy rules
-func createRule(uri, poolName, ruleName string, allowSourceRange []string, wafPolicy string) (*Rule, error) {
+func createRule(uri, poolName, ruleName string, allowSourceRange []string, wafPolicy string, skipPool bool) (*Rule, error) {
 	_u := "scheme://" + uri
 	_u = strings.TrimSuffix(_u, "/")
 	u, err := url.Parse(_u)
@@ -210,13 +210,6 @@ func createRule(uri, poolName, ruleName string, allowSourceRange []string, wafPo
 	}
 
 	var actions []*action
-	a := action{
-		Forward: true,
-		Name:    "0",
-		Pool:    poolName,
-		Request: true,
-	}
-
 	var conditions []*condition
 	var cond *condition
 	if true == strings.HasPrefix(uri, "*.") {
@@ -254,7 +247,26 @@ func createRule(uri, poolName, ruleName string, allowSourceRange []string, wafPo
 		conditions = append(conditions, cond)
 	}
 
-	actions = append(actions, &a)
+	// for a/b enabled resource pool will be skipped
+	var a action
+	if !skipPool {
+		a = action{
+			Forward: true,
+			Name:    "0",
+			Pool:    poolName,
+			Request: true,
+		}
+		actions = append(actions, &a)
+	} else if wafPolicy == "" {
+		// add dummy action
+		a = action{
+			Log:     true,
+			Message: "a/b pool",
+			Name:    "0",
+			Request: true,
+		}
+		actions = append(actions, &a)
+	}
 
 	// Add WAF rule
 	if wafPolicy != "" {
@@ -1095,7 +1107,7 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 	dgMap InternalDataGroupMap,
 	port intstr.IntOrString,
 ) {
-	if !IsRouteABDeployment(route) {
+	if !isRouteABDeployment(route) {
 		return
 	}
 
@@ -1152,11 +1164,11 @@ func (ctlr *Controller) updateDataGroupForABRoute(
 	}
 }
 
-func IsRouteABDeployment(route *routeapi.Route) bool {
+func isRouteABDeployment(route *routeapi.Route) bool {
 	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0
 }
 
-func IsRoutePathBasedABDeployment(route *routeapi.Route) bool {
+func isRoutePathBasedABDeployment(route *routeapi.Route) bool {
 	return route.Spec.AlternateBackends != nil && len(route.Spec.AlternateBackends) > 0 && (route.Spec.Path != "" && route.Spec.Path != "/")
 }
 

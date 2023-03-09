@@ -674,8 +674,23 @@ extendedRouteSpec:
 					DestinationCACertificate:      "",
 				},
 			}
+			spec3 := routeapi.RouteSpec{
+				Host: "baz.com",
+				Path: "/baz",
+				To: routeapi.RouteTargetReference{
+					Kind: "Service",
+					Name: "baz",
+				},
+				TLS: &routeapi.TLSConfig{Termination: "edge",
+					Certificate:                   "",
+					Key:                           "",
+					InsecureEdgeTerminationPolicy: "",
+					DestinationCACertificate:      "",
+				},
+			}
 			route1 := test.NewRoute("route1", "1", routeGroup, spec1, nil)
 			route2 := test.NewRoute("route2", "1", routeGroup, spec2, nil)
+			route3 := test.NewRoute("route3", "1", routeGroup, spec3, nil)
 
 			// Resource Config for unsecured virtual server
 			rsCfg := &ResourceConfig{}
@@ -707,6 +722,12 @@ extendedRouteSpec:
 			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(1))
 			Expect(rsCfg.Policies[0].Rules[0].FullURI).To(Equal("foo.com/foo"))
 
+			// HTTP virtual server, secured route, InsecureEdgeTerminationPolicy = ""
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route3, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
+			Expect(rsCfg.Policies).NotTo(BeNil())
+			Expect(len(rsCfg.Policies)).To(Equal(1))
+			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(1))
+
 			// ResourceConfig for secured virtual server
 			rsCfg = &ResourceConfig{}
 			rsCfg.Virtual.Partition = routeGroup
@@ -727,8 +748,14 @@ extendedRouteSpec:
 			Expect(rsCfg.Policies).NotTo(BeNil())
 			Expect(len(rsCfg.Policies)).To(Equal(1))
 			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(2))
-			Expect(rsCfg.Policies[0].Rules[0].FullURI).To(Equal("foo.com/foo"))
-			Expect(rsCfg.Policies[0].Rules[1].FullURI).To(Equal("bar.com/bar"))
+			Expect(mockCtlr.prepareResourceConfigFromRoute(rsCfg, route3, intstr.IntOrString{IntVal: 80}, ps)).To(BeNil())
+			Expect(rsCfg.Policies).NotTo(BeNil())
+			Expect(len(rsCfg.Policies)).To(Equal(1))
+			Expect(len(rsCfg.Policies[0].Rules)).To(Equal(3))
+			// Check Rules are in sorted order
+			Expect(rsCfg.Policies[0].Rules[0].FullURI).To(Equal("bar.com/bar"))
+			Expect(rsCfg.Policies[0].Rules[1].FullURI).To(Equal("baz.com/baz"))
+			Expect(rsCfg.Policies[0].Rules[2].FullURI).To(Equal("foo.com/foo"))
 
 		})
 

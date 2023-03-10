@@ -16,6 +16,7 @@ Added Functionality
 
 Bug Fixes
 ````````````
+* `Issue 2725 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2725>`_: AS3 label not working with AS3 configmap when filter-tenants set to true.
 
 2.12.0
 -------------

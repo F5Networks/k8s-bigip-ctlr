@@ -444,22 +444,86 @@ func (ctlr *Controller) prepareResourceConfigFromRoute(
 				}
 			}
 		}
-
 		rsCfg.Pools = append(rsCfg.Pools, pool)
-		// skip the policy creation for passthrough termination
-		// skip the policy creation for A/B Deployment
-		if !isPassthroughRoute(route) && !IsRouteABDeployment(route) {
-			rules := ctlr.prepareRouteLTMRules(route, pool.Name, allowSourceRange, wafPolicy)
-			if rules == nil {
-				return fmt.Errorf("failed to create LTM Rules")
-			}
-
-			policyName := formatPolicyName(route.Spec.Host, route.Namespace, rsCfg.Virtual.Name)
-
-			rsCfg.AddRuleToPolicy(policyName, rsCfg.Virtual.Partition, rules)
+	}
+	poolName := formatPoolName(
+		route.Namespace,
+		route.Spec.To.Name,
+		servicePort,
+		"",
+		"",
+	)
+	// skip the policy creation for passthrough termination
+	if !isPassthroughRoute(route) {
+		var rules *Rules
+		if isRouteABDeployment(route) {
+			rules = ctlr.prepareABRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
+		} else {
+			rules = ctlr.prepareRouteLTMRules(route, poolName, allowSourceRange, wafPolicy)
 		}
+		if rules == nil {
+			return fmt.Errorf("failed to create LTM Rules")
+		}
+		policyName := formatPolicyName(route.Spec.Host, route.Namespace, rsCfg.Virtual.Name)
+		rsCfg.AddRuleToPolicy(policyName, rsCfg.Virtual.Partition, rules)
 	}
 	return nil
+}
+
+func (ctlr *Controller) prepareABRouteLTMRules(
+	route *routeapi.Route,
+	poolName string,
+	allowSourceRange []string,
+	wafPolicy string,
+) *Rules {
+	rlMap := make(ruleMap)
+	wildcards := make(ruleMap)
+	var redirects []*Rule
+	uri := route.Spec.Host + route.Spec.Path
+	path := route.Spec.Path
+	appRoot := "/"
+	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName)
+	rl, err := createRule(uri, poolName, ruleName, allowSourceRange, wafPolicy, true)
+	if nil != err {
+		log.Errorf("Error configuring rule: %v", err)
+		return nil
+	}
+
+	if route.Spec.Path == appRoot || route.Spec.Path == "" {
+		redirects = append(redirects, rl)
+	} else if strings.HasPrefix(uri, "*.") == true {
+		wildcards[uri] = rl
+	} else {
+		rlMap[uri] = rl
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	sortrules := func(r ruleMap, rls *Rules, ordinal int) {
+		for _, v := range r {
+			*rls = append(*rls, v)
+		}
+		//sort.Sort(sort.Reverse(*rls))
+		for _, v := range *rls {
+			v.Ordinal = ordinal
+			ordinal++
+		}
+		wg.Done()
+	}
+
+	rls := Rules{}
+	go sortrules(rlMap, &rls, 0)
+
+	w := Rules{}
+	go sortrules(wildcards, &w, len(rlMap))
+
+	wg.Wait()
+
+	rls = append(rls, w...)
+	sort.Sort(rls)
+	rls = append(redirects, rls...)
+	return &rls
 }
 
 // prepareRouteLTMRules prepares LTM Policy rules for VirtualServer
@@ -492,7 +556,7 @@ func (ctlr *Controller) prepareRouteLTMRules(
 	}
 
 	ruleName := formatVirtualServerRuleName(route.Spec.Host, route.Namespace, path, poolName)
-	rl, err := createRule(uri, poolName, ruleName, allowSourceRange, wafPolicy)
+	rl, err := createRule(uri, poolName, ruleName, allowSourceRange, wafPolicy, false)
 	if nil != err {
 		log.Errorf("Error configuring rule: %v", err)
 		return nil

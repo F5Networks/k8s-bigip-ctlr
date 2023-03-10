@@ -1194,6 +1194,9 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 		if v.Forward {
 			action.Type = "forward"
 		}
+		if v.Log {
+			action.Type = "log"
+		}
 		if v.Request {
 			action.Event = "request"
 		}
@@ -1208,6 +1211,11 @@ func createRuleAction(rl *Rule, rulesData *as3Rule) {
 		}
 		if v.Location != "" {
 			action.Location = v.Location
+		}
+		if v.Log {
+			action.Write = &as3LogMessage{
+				Message: v.Message,
+			}
 		}
 		// Handle vsHostname rewrite.
 		if v.Replace && v.HTTPHost {

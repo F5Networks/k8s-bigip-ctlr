@@ -164,11 +164,6 @@ func (appMgr *Manager) fetchRoute(rscKey string) *routeapi.Route {
 	ns := strings.Split(rscKey, "/")[0]
 	appInf, haveNamespace := appMgr.getNamespaceInformer(ns)
 	if !haveNamespace {
-		// This shouldn't happen as the namespace is checked for every item before
-		// it is added to the queue, but issue a warning if it does.
-		log.Warningf(
-			"Received an update for an item from an un-watched namespace %v",
-			ns)
 		return nil
 	}
 	obj, exist, err := appInf.routeInformer.GetIndexer().GetByKey(rscKey)

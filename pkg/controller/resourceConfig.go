@@ -997,6 +997,13 @@ func ConvertStringToProfileRef(profileName, context, ns string) ProfileRef {
 	parts := strings.Split(profName, "/")
 	profRef := ProfileRef{Context: context, Namespace: ns, BigIPProfile: true}
 	switch len(parts) {
+	case 3:
+		// refernce to existing profile created using AS3 in Common(non-cis-managed) partition
+		if parts[1] == "Shared" {
+			profRef.Partition = parts[0] + "/" + parts[1]
+			profRef.Name = parts[2]
+		}
+
 	case 2:
 		profRef.Partition = parts[0]
 		profRef.Name = parts[1]

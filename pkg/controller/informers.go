@@ -693,6 +693,10 @@ func (ctlr *Controller) enqueueVirtualServer(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedVirtualServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.VirtualServer)
 	newVS := newObj.(*cisapiv1.VirtualServer)
+	// Skip virtual servers on status updates
+	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
+		return
+	}
 	updateEvent := true
 	oldVSPartition := ctlr.getCRPartition(oldVS.Spec.Partition)
 	newVSPartition := ctlr.getCRPartition(newVS.Spec.Partition)
@@ -781,7 +785,10 @@ func (ctlr *Controller) enqueueTransportServer(obj interface{}) {
 func (ctlr *Controller) enqueueUpdatedTransportServer(oldObj, newObj interface{}) {
 	oldVS := oldObj.(*cisapiv1.TransportServer)
 	newVS := newObj.(*cisapiv1.TransportServer)
-
+	// Skip transport servers on status updates
+	if reflect.DeepEqual(oldVS.Spec, newVS.Spec) && reflect.DeepEqual(oldVS.Labels, newVS.Labels) {
+		return
+	}
 	oldVSPartition := ctlr.getCRPartition(oldVS.Spec.Partition)
 	newVSPartition := ctlr.getCRPartition(newVS.Spec.Partition)
 	if oldVS.Spec.VirtualServerAddress != newVS.Spec.VirtualServerAddress ||

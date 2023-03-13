@@ -163,6 +163,33 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.enqueueVirtualServer(vs)
 			Expect(mockCtlr.processResources()).To(Equal(true))
 
+			// Verify VS status update event is not queued for processing
+			updatedStatusVS := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host:                 "test.com",
+					VirtualServerAddress: "5.6.7.8",
+					SNAT:                 "none",
+				})
+			updatedStatusVS.Status.StatusOk = "OK"
+			mockCtlr.enqueueUpdatedVirtualServer(updatedVS2, updatedStatusVS)
+			Expect(mockCtlr.resourceQueue.Len()).To(Equal(0), "VS status update should be skipped")
+
+			// Verify VS Label update event is queued for processing
+			updatedLabelVS := test.NewVirtualServer(
+				"SampleVS",
+				namespace,
+				cisapiv1.VirtualServerSpec{
+					Host:                 "test.com",
+					VirtualServerAddress: "5.6.7.8",
+					SNAT:                 "none",
+				})
+			labels := make(map[string]string)
+			labels["f5cr"] = "false"
+			updatedLabelVS.Labels = labels
+			mockCtlr.enqueueUpdatedVirtualServer(updatedStatusVS, updatedLabelVS)
+			Expect(mockCtlr.resourceQueue.Len()).To(Equal(1), "VS label update should not be skipped")
 		})
 
 		It("TLS Profile", func() {
@@ -225,6 +252,22 @@ var _ = Describe("Informers Tests", func() {
 			mockCtlr.resources.ltmConfig[mockCtlr.Partition] = &PartitionConfig{}
 			mockCtlr.enqueueUpdatedTransportServer(newTS, tsWithPartition)
 			Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
+
+			// Verify TS status update event is not queued for processing
+			queueLen := mockCtlr.resourceQueue.Len()
+			updatedStatusTS := tsWithPartition.DeepCopy()
+			updatedStatusTS.Status.StatusOk = "Ok"
+			mockCtlr.enqueueUpdatedTransportServer(tsWithPartition, updatedStatusTS)
+			Expect(mockCtlr.resourceQueue.Len()).To(Equal(queueLen), "TS status update should be skipped")
+
+			// Verify TS Label update event is queued for processing
+			updatedLabelTS := updatedStatusTS.DeepCopy()
+			labels := make(map[string]string)
+			labels["f5cr"] = "false"
+			updatedLabelTS.Labels = labels
+			mockCtlr.enqueueUpdatedTransportServer(updatedStatusTS, updatedLabelTS)
+			Expect(mockCtlr.resourceQueue.Len()).To(Equal(queueLen+1), "TS label update should not be skipped")
+
 		})
 
 		It("IngressLink", func() {

@@ -31,4 +31,5 @@ For guides on using CIS with Kubernetes and OpenShift see:
 * [Rancher](https://github.com/f5devcentral/f5-cis-docs/tree/main/user_guides/rancher/simple-install#readme)
 * [OpenShift Routes verse Custom Resource Definitions](https://github.com/f5devcentral/f5-cis-docs/tree/main/user_guides/route-vs-crd#readme)
 * [Kube-Vip and F5 BIG-IP with NGINX Ingress Controller](https://github.com/f5devcentral/f5-cis-docs/blob/main/user_guides/kube-vip/README.md)
+* [AWS multiple az BIGIP-HA](https://github.com/f5devcentral/f5-cis-docs/blob/main/user_guides/bigip-ha-across-az/README.md)
 

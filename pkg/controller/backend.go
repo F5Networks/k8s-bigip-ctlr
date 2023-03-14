@@ -251,12 +251,16 @@ func (agent *Agent) agentWorker() {
 		agent.tenantResponseMap = make(map[string]tenantResponse)
 
 		for tenant := range agent.incomingTenantDeclMap {
-			if _, ok := agent.tenantPriorityMap[tenant]; ok {
-				priorityTenants = append(priorityTenants, tenant)
-			} else {
-				updatedTenants = append(updatedTenants, tenant)
+			// CIS with AS3 doesnt allow write to Common partition.So objects in common partition
+			// should not be updated or deleted by CIS. So removing from tenant map
+			if tenant != "Common" {
+				if _, ok := agent.tenantPriorityMap[tenant]; ok {
+					priorityTenants = append(priorityTenants, tenant)
+				} else {
+					updatedTenants = append(updatedTenants, tenant)
+				}
+				agent.tenantResponseMap[tenant] = tenantResponse{}
 			}
-			agent.tenantResponseMap[tenant] = tenantResponse{}
 		}
 
 		// Update the priority tenants first

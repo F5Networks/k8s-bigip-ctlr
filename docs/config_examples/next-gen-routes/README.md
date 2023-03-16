@@ -179,15 +179,15 @@ Base route configuration can be defined in Global ConfigMap. This cannot be over
 
 ### Route Group Parameters
 
-| Parameter | Required | Description | Default | ConfigMap |
-| --------- | -------- | ----------- | ------- | --------- |
-| allowOverride | Optional | Allow users to override the namespace config | - | Global ConfigMap only |
+| Parameter | Required | Description | Default                                                | ConfigMap |
+| --------- | -------- | ----------- |--------------------------------------------------------| --------- |
+| allowOverride | Optional | Allow users to override the namespace config | false                                                  | Global ConfigMap only |
 | bigIpPartition | Optional | Partition for creating the virtual server | Partition which is defined in CIS deployment parameter | Global ConfigMap only |
-| namespaceLabel | Mandatory | namespace-label to group the routes* | - | Global ConfigMap only |
-| policyCR | Optional | Name of Policy CR to attach profiles/policies defined in it. | - | Local and Global ConfigMap |
-| namespace | Mandatory | namespace to group the routes | - | Local and Global ConfigMap |
-| vsAddress | Mandatory | BigIP Virtual Server IP Address | - | Local and Global ConfigMap |
-| vsName | Optional | Name of BigIP Virtual Server | auto | Local and Global ConfigMap |
+| namespaceLabel | Mandatory | namespace-label to group the routes* | -                                                      | Global ConfigMap only |
+| policyCR | Optional | Name of Policy CR to attach profiles/policies defined in it. | -                                                      | Local and Global ConfigMap |
+| namespace | Mandatory | namespace to group the routes | -                                                      | Local and Global ConfigMap |
+| vsAddress | Mandatory | BigIP Virtual Server IP Address | -                                                      | Local and Global ConfigMap |
+| vsName | Optional | Name of BigIP Virtual Server | auto                                                   | Local and Global ConfigMap |
 
   **Note**: 1. namespaceLabel is mutually exclusive with namespace parameter.
             2. --namespace-label parameter has to be defined in CIS deployment to use the namespaceLabel in extended ConfigMap.

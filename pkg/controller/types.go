@@ -275,8 +275,9 @@ type (
 
 	// PartitionConfig contains ResourceMap and priority of partition
 	PartitionConfig struct {
-		ResourceMap ResourceMap
-		Priority    int
+		ResourceMap   ResourceMap
+		Priority      *int
+		PriorityMutex sync.RWMutex
 	}
 
 	// ResourceMap key is resource name, value is pointer to config. May be shared.

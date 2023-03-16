@@ -958,7 +958,8 @@ var _ = Describe("Worker Tests", func() {
 			Expect(len(gtmConfig["test.com"].Pools[0].Members)).To(Equal(0))
 			Expect(gtmConfig["test.com"].Pools[0].Ratio).To(Equal(4))
 
-			mockCtlr.resources.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			mockCtlr.resources.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			mockCtlr.resources.ltmConfig["default"].ResourceMap["SampleVS"] = &ResourceConfig{
 				MetaData: metaData{
 					hosts: []string{"test.com"},
@@ -1966,6 +1967,10 @@ var _ = Describe("Worker Tests", func() {
 				vs31.Spec.Partition = "dev"
 				mockCtlr.updateVirtualServer(&vs3, &vs31)
 				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				// Simulating partition priority update to zero by response handler on successfully posting the priority
+				// tenant update
+				mockCtlr.resources.updatePartitionPriority("dev3", 0)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
 				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(2), "Invalid VS count")
@@ -1986,6 +1991,10 @@ var _ = Describe("Worker Tests", func() {
 				vs2.Spec.Host = "zya.com"
 				mockCtlr.updateVirtualServer(vs, &vs2)
 				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				// Simulating partition priority update to zero by response handler on successfully posting the priority
+				// tenant update
+				mockCtlr.resources.updatePartitionPriority("dev", 0)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid VS count")
@@ -2259,7 +2268,7 @@ var _ = Describe("Worker Tests", func() {
 				newTS2.Spec.VirtualServerAddress = "10.1.1.3"
 				newTS2.Spec.VirtualServerName = "ts_crd_2"
 				mockCtlr.addTransportServer(&newTS2)
-				// Should not process TS now. Already one TS with same IP is present in different partition
+				// Should process this TS as it has unique IP and vs name
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
 				Expect(len(mockCtlr.resources.ltmConfig["dev2"].ResourceMap)).To(Equal(1), "Invalid TS count")
@@ -2282,6 +2291,10 @@ var _ = Describe("Worker Tests", func() {
 				newTS31.Spec.Partition = "dev2"
 				mockCtlr.updateTransportServer(&newTS3, &newTS31)
 				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(3), "Invalid Partition count")
+				// Simulating partition priority update to zero by response handler on successfully posting the priority
+				// tenant update
+				mockCtlr.resources.updatePartitionPriority("dev3", 0)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
 				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(1), "Invalid TS count")
@@ -2293,6 +2306,10 @@ var _ = Describe("Worker Tests", func() {
 				newTS32.Spec.Partition = ""
 				mockCtlr.updateTransportServer(&newTS31, &newTS32)
 				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				// Simulating partition priority update to zero by response handler on successfully posting the priority
+				// tenant update
+				mockCtlr.resources.updatePartitionPriority("dev2", 0)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(3), "Invalid Partition count")
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(1), "Invalid TS count")
@@ -2303,6 +2320,9 @@ var _ = Describe("Worker Tests", func() {
 				newTS.Spec.VirtualServerAddress = "10.0.0.15"
 				mockCtlr.updateTransportServer(ts, &newTS)
 				mockCtlr.processResources()
+				// Simulating partition priority update to zero by response handler on successfully posting the priority
+				// tenant update
+				mockCtlr.resources.updatePartitionPriority("dev", 0)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid TS count")
@@ -2535,6 +2555,10 @@ var _ = Describe("Worker Tests", func() {
 				ingressLink21.Spec.Partition = "dev"
 				mockCtlr.updateIngressLink(&ingressLink2, &ingressLink21)
 				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				// Simulating partition priority update to zero by response handler on successfully posting the priority
+				// tenant update
+				mockCtlr.resources.updatePartitionPriority("dev1", 0)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
 				Expect(len(mockCtlr.resources.ltmConfig["dev"].ResourceMap)).To(Equal(2), "Invalid IL count")
@@ -2552,6 +2576,10 @@ var _ = Describe("Worker Tests", func() {
 				ingressLink11.Spec.Partition = ""
 				mockCtlr.updateIngressLink(ingressLink1, &ingressLink11)
 				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(2), "Invalid Partition count")
+				// Simulating partition priority update to zero by response handler on successfully posting the priority
+				// tenant update
+				mockCtlr.resources.updatePartitionPriority("dev", 0)
 				mockCtlr.processResources()
 				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Invalid Partition count")
 				Expect(len(mockCtlr.resources.ltmConfig[mockCtlr.Partition].ResourceMap)).To(Equal(2), "Invalid IL count")

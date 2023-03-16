@@ -101,15 +101,7 @@ func (postMgr *PostManager) getAS3TaskIdURL(taskId string) string {
 
 // publishConfig posts incoming configuration to BIG-IP
 func (postMgr *PostManager) publishConfig(cfg agentConfig) {
-	// For the very first post after starting controller, need not wait to post
-	if !postMgr.firstPost && postMgr.AS3PostDelay != 0 {
-		// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
-		log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds", postMgr.AS3PostDelay)
-		_ = <-time.After(time.Duration(postMgr.AS3PostDelay) * time.Second)
-	}
-
 	log.Debug("[AS3] PostManager Accepted the configuration")
-
 	// postConfig updates the tenantResponseMap with response codes
 	postMgr.postConfig(&cfg)
 }

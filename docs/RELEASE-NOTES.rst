@@ -20,6 +20,7 @@ Bug Fixes
 * `Issue 2793 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2793>`_: TLSProfile crd not working when the SSL profile is from Shared location.
 * `Issue 2797 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2797>`_: TLSProfile deletes a referenced SSL Profile when making changes or deleting a VS.
 * `Issue 2799 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2799>`_: VirtualServer deletes a referenced iRule when making changes or deleting a VS.
+* `Issue 2789 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2789>`_: AS3 Post delay - Not working as expected.
 
 2.12.0
 -------------

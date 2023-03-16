@@ -99,12 +99,13 @@ var _ = Describe("Informers Tests", func() {
 					VirtualServerAddress: "1.2.3.5",
 					Partition:            "dev",
 				})
-			mockCtlr.resources.ltmConfig[mockCtlr.Partition] = &PartitionConfig{}
+			zero := 0
+			mockCtlr.resources.ltmConfig[mockCtlr.Partition] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			mockCtlr.enqueueUpdatedVirtualServer(vs, newVS)
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
 			Expect(quit).To(BeFalse(), "Enqueue Updated VS  Failed")
-			Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
+			Expect(*mockCtlr.resources.ltmConfig[mockCtlr.Partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
 			delete(mockCtlr.resources.ltmConfig, mockCtlr.Partition)
 			key, quit = mockCtlr.resourceQueue.Get()
 			Expect(key).ToNot(BeNil(), "Enqueue Updated VS Failed")
@@ -249,9 +250,10 @@ var _ = Describe("Informers Tests", func() {
 			Expect(mockCtlr.processResources()).To(Equal(true))
 			tsWithPartition := newTS.DeepCopy()
 			tsWithPartition.Spec.Partition = "dev"
-			mockCtlr.resources.ltmConfig[mockCtlr.Partition] = &PartitionConfig{}
+			zero := 0
+			mockCtlr.resources.ltmConfig[mockCtlr.Partition] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			mockCtlr.enqueueUpdatedTransportServer(newTS, tsWithPartition)
-			Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
+			Expect(*mockCtlr.resources.ltmConfig[mockCtlr.Partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
 
 			// Verify TS status update event is not queued for processing
 			queueLen := mockCtlr.resourceQueue.Len()
@@ -322,9 +324,10 @@ var _ = Describe("Informers Tests", func() {
 
 			ilWithPartition := newIL.DeepCopy()
 			ilWithPartition.Spec.Partition = "dev"
-			mockCtlr.resources.ltmConfig[mockCtlr.Partition] = &PartitionConfig{}
+			zero := 0
+			mockCtlr.resources.ltmConfig[mockCtlr.Partition] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			mockCtlr.enqueueUpdatedIngressLink(newIL, ilWithPartition)
-			Expect(mockCtlr.resources.ltmConfig[mockCtlr.Partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
+			Expect(*mockCtlr.resources.ltmConfig[mockCtlr.Partition].Priority).To(BeEquivalentTo(1), "Priority Not Updated")
 
 		})
 

@@ -46,6 +46,13 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 
 		rm := ctlr.dequeueReq(rscUpdateMeta.id, len(rscUpdateMeta.failedTenants))
 		for partition, meta := range rm.partitionMap {
+			// Check if it's a priority tenant and not in failedTenants map, if so then update the priority back to zero
+			// Priority tenant doesn't have any meta
+			if _, found := rscUpdateMeta.failedTenants[partition]; !found && len(meta) == 0 {
+				// updating the tenant priority back to zero if it's not in failed tenants
+				ctlr.resources.updatePartitionPriority(partition, 0)
+				continue
+			}
 			for rscKey, kind := range meta {
 				ns := strings.Split(rscKey, "/")[0]
 				switch kind {
@@ -68,8 +75,6 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					virtual := obj.(*cisapiv1.VirtualServer)
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if _, found := rscUpdateMeta.failedTenants[partition]; !found {
-							// updating the tenant priority back to zero if it's not in failed tenants
-							ctlr.resources.updatePartitionPriority(partition, 0)
 							// update the status for virtual server as tenant posting is success
 							ctlr.updateVirtualServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 							// Update Corresponding Service Status of Type LB
@@ -107,8 +112,6 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 					virtual := obj.(*cisapiv1.TransportServer)
 					if virtual.Namespace+"/"+virtual.Name == rscKey {
 						if _, found := rscUpdateMeta.failedTenants[partition]; !found {
-							// updating the tenant priority back to zero if it's not in failed tenants
-							ctlr.resources.updatePartitionPriority(partition, 0)
 							// update the status for transport server as tenant posting is success
 							ctlr.updateTransportServerStatus(virtual, virtual.Status.VSAddress, "Ok")
 						}
@@ -118,15 +121,13 @@ func (ctlr *Controller) responseHandler(respChan chan resourceStatusMeta) {
 						// TODO : distinguish between a 503 and an actual failure
 						go ctlr.updateRouteAdmitStatus(rscKey, "Failure while updating config", "Please check logs for more information", v1.ConditionFalse)
 					} else {
-						// updating the tenant priority back to zero if it's not in failed tenants
-						ctlr.resources.updatePartitionPriority(partition, 0)
 						go ctlr.updateRouteAdmitStatus(rscKey, "", "", v1.ConditionTrue)
 					}
-				case IngressLink:
-					if _, found := rscUpdateMeta.failedTenants[partition]; !found {
-						// updating the tenant priority back to zero if it's not in failed tenants
-						ctlr.resources.updatePartitionPriority(partition, 0)
-					}
+					//case IngressLink:
+					//	if _, found := rscUpdateMeta.failedTenants[partition]; !found {
+					//		// updating the tenant priority back to zero if it's not in failed tenants
+					//		ctlr.resources.updatePartitionPriority(partition, 0)
+					//	}
 				}
 			}
 		}

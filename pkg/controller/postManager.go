@@ -33,9 +33,8 @@ import (
 )
 
 const (
-	timeoutSmall  = 3 * time.Second
 	timeoutMedium = 30 * time.Second
-	timeoutLarge  = 60 * time.Second
+	timeoutLarge  = 180 * time.Second
 )
 
 func NewPostManager(params PostParams) *PostManager {

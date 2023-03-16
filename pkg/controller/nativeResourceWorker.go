@@ -895,8 +895,15 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 	startTime := time.Now()
 	defer func() {
 		endTime := time.Now()
-		log.Debugf("Finished syncing local extended spec configmap: %v/%v (%v)",
-			cm.Namespace, cm.Name, endTime.Sub(startTime))
+		key := cm.Namespace + string('/') + cm.Name
+		if ctlr.routeSpecCMKey == key {
+			log.Debugf("Finished syncing extended Global spec configmap: %v/%v (%v)",
+				cm.Namespace, cm.Name, endTime.Sub(startTime))
+		} else {
+			log.Debugf("Finished syncing extended local spec configmap: %v/%v (%v)",
+				cm.Namespace, cm.Name, endTime.Sub(startTime))
+		}
+
 	}()
 
 	ersData := cm.Data
@@ -937,8 +944,9 @@ func (ctlr *Controller) processConfigMap(cm *v1.ConfigMap, isDelete bool) (error
 			ergc := es.ExtendedRouteGroupConfigs[rg]
 			var allowOverride bool
 
-			if ctlr.namespaceLabelMode {
-				// specifically setting the allow override as false in case of namespaceLabel Mode
+			if ctlr.namespaceLabelMode || len(ergc.AllowOverride) == 0 {
+				// specifically setting allow override as false in case of namespaceLabel Mode
+				// Defaulted to false in case AllowOverride is not set.( in both namespaceLabel and namespace Mode)
 				allowOverride = false
 			} else if allowOverride, err = strconv.ParseBool(ergc.AllowOverride); err != nil {
 				return fmt.Errorf("invalid allowOverride value in configmap: %v/%v error: %v", cm.Namespace, cm.Name, err), false

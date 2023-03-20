@@ -12,7 +12,7 @@ Added Functionality
     * Ingress
         *
     * CRD
-        *
+        * Support for ExternalIP update of associated services of Type LB in TS CR
 
 Bug Fixes
 ````````````
@@ -21,6 +21,8 @@ Bug Fixes
 * `Issue 2797 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2797>`_: TLSProfile deletes a referenced SSL Profile when making changes or deleting a VS.
 * `Issue 2799 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2799>`_: VirtualServer deletes a referenced iRule when making changes or deleting a VS.
 * `Issue 2789 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2789>`_: AS3 Post delay - Not working as expected.
+* `Issue 2816 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2816>`_: Fix Error Not found cis.f5.com/ipamLabel
+
 
 2.12.0
 -------------

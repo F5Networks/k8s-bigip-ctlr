@@ -449,7 +449,8 @@ var _ = Describe("Resource Config Tests", func() {
 			rsCfg3.Virtual.Name = formatCustomVirtualServerName("My_VS3", 80)
 
 			ltmConfig := make(LTMConfig)
-			ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			ltmConfig["default"].ResourceMap[rsCfg.Virtual.Name] = rsCfg
 			ltmConfig["default"].ResourceMap[rsCfg2.Virtual.Name] = rsCfg2
 			ltmConfig["default"].ResourceMap[rsCfg3.Virtual.Name] = rsCfg3
@@ -832,7 +833,8 @@ var _ = Describe("Resource Config Tests", func() {
 			Expect(err).ToNot(BeNil())
 			Expect(rsCfg).To(BeNil())
 
-			rs.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			rs.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 
 			rs.ltmConfig["default"].ResourceMap["virtualServer"] = &ResourceConfig{
 				Virtual: Virtual{
@@ -847,7 +849,8 @@ var _ = Describe("Resource Config Tests", func() {
 		})
 
 		It("Get all Resources", func() {
-			rs.ltmConfig["default"] = &PartitionConfig{make(ResourceMap), 0}
+			zero := 0
+			rs.ltmConfig["default"] = &PartitionConfig{ResourceMap: make(ResourceMap), Priority: &zero}
 			rs.ltmConfig["default"].ResourceMap["virtualServer1"] = &ResourceConfig{
 				Virtual: Virtual{
 					Name: "VirtualServer1",

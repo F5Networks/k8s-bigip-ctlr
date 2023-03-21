@@ -218,6 +218,13 @@ func (agent *Agent) PostConfig(rsConfig ResourceConfigRequest) {
 // whenever it gets unblocked, it creates an as3 declaration for modified tenants and posts the request
 func (agent *Agent) agentWorker() {
 	for rsConfig := range agent.postChan {
+		// For the very first post after starting controller, need not wait to post
+		if !agent.firstPost && agent.AS3PostDelay != 0 {
+			// Time (in seconds) that CIS waits to post the AS3 declaration to BIG-IP.
+			log.Debugf("[AS3] Delaying post to BIG-IP for %v seconds ", agent.AS3PostDelay)
+			_ = <-time.After(time.Duration(agent.AS3PostDelay) * time.Second)
+		}
+
 		// If there are no retries going on in parallel, acquiring lock will be straight forward.
 		// Otherwise, we will wait for retryWorker to complete its current iteration
 		agent.declUpdate.Lock()
@@ -699,9 +706,11 @@ func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	}
 	for tenantName, partitionConfig := range config.ltmConfig {
 		// TODO partitionConfig priority can be overridden by another request if agent is unable to process the prioritized request in time
-		if partitionConfig.Priority > 0 {
-			agent.tenantPriorityMap[tenantName] = partitionConfig.Priority
+		partitionConfig.PriorityMutex.RLock()
+		if *(partitionConfig.Priority) > 0 {
+			agent.tenantPriorityMap[tenantName] = *(partitionConfig.Priority)
 		}
+		partitionConfig.PriorityMutex.RUnlock()
 		if len(partitionConfig.ResourceMap) == 0 {
 			// Remove partition
 			adc[tenantName] = getDeletedTenantDeclaration(agent.Partition, tenantName)

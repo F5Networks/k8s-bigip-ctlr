@@ -326,7 +326,6 @@ func (ctlr *Controller) processResources() bool {
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
-			break
 		}
 		if ctlr.initState {
 			break
@@ -395,7 +394,6 @@ func (ctlr *Controller) processResources() bool {
 				utilruntime.HandleError(fmt.Errorf("Sync %v failed with %v", key, err))
 				isRetryableError = true
 			}
-			break
 		}
 		switch ctlr.mode {
 		case OpenShiftMode:
@@ -1032,7 +1030,6 @@ func (ctlr *Controller) processVirtualServers(
 				log.Debugf("IP address requested for service: %s/%s", virtual.Namespace, virtual.Name)
 				return nil
 			}
-			virtual.Status.VSAddress = ip
 		}
 	} else {
 		if virtual.Spec.HostGroup == "" {
@@ -1055,6 +1052,8 @@ func (ctlr *Controller) processVirtualServers(
 			}
 		}
 	}
+	// Updating the virtual server IP Address status
+	virtual.Status.VSAddress = ip
 	// Depending on the ports defined, TLS type or Unsecured we will populate the resource config.
 	portStructs := ctlr.virtualPorts(virtual)
 
@@ -2039,7 +2038,6 @@ func (ctlr *Controller) processTransportServers(
 				log.Debugf("IP address requested for Transport Server: %s/%s", virtual.Namespace, virtual.Name)
 				return nil
 			}
-			virtual.Status.VSAddress = ip
 		}
 	} else {
 		if virtual.Spec.VirtualServerAddress == "" {
@@ -2047,7 +2045,8 @@ func (ctlr *Controller) processTransportServers(
 		}
 		ip = virtual.Spec.VirtualServerAddress
 	}
-
+	// Updating the virtual server IP Address status
+	virtual.Status.VSAddress = ip
 	var rsName string
 	if virtual.Spec.VirtualServerName != "" {
 		rsName = formatCustomVirtualServerName(
@@ -2246,18 +2245,18 @@ func (ctlr *Controller) processLBServices(
 	svc *v1.Service,
 	isSVCDeleted bool,
 ) error {
-	if ctlr.ipamCli == nil {
-		log.Error("IPAM is not enabled, Unable to process Services of Type LoadBalancer")
-		return nil
-	}
 
 	ipamLabel, ok := svc.Annotations[LBServiceIPAMLabelAnnotation]
 	if !ok {
-		log.Errorf("Not found %v in %v/%v. Unable to process.",
-			LBServiceIPAMLabelAnnotation,
+		log.Debugf("Service %v/%v does not have annotation %v, continuing.",
 			svc.Namespace,
 			svc.Name,
+			LBServiceIPAMLabelAnnotation,
 		)
+		return nil
+	}
+	if ctlr.ipamCli == nil {
+		log.Warningf("IPAM is not enabled, Unable to process Services of Type LoadBalancer")
 		return nil
 	}
 

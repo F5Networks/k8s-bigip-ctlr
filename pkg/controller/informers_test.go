@@ -411,6 +411,13 @@ var _ = Describe("Informers Tests", func() {
 		})
 
 		It("Service", func() {
+			// setting teem data
+			mockCtlr.TeemData = &teem.TeemsData{
+				ResourceType: teem.ResourceTypes{
+					IPAMSvcLB:   make(map[string]int),
+					IngressLink: make(map[string]int),
+				},
+			}
 			svc := test.NewService(
 				"SampleSVC",
 				"1",

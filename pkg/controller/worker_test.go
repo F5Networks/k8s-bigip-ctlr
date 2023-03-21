@@ -189,7 +189,7 @@ var _ = Describe("Worker Tests", func() {
 	})
 
 	Describe("IPAM", func() {
-		DEFAULT_PARTITION = "Test"
+		DEFAULT_PARTITION = "test"
 		BeforeEach(func() {
 			mockCtlr.Agent = &Agent{
 				PostManager: &PostManager{
@@ -2335,6 +2335,7 @@ var _ = Describe("Worker Tests", func() {
 			var fooEndpts *v1.Endpoints
 			var fooPorts []v1.ServicePort
 			var newEDNS *cisapiv1.ExternalDNS
+			var ts *cisapiv1.TransportServer
 
 			BeforeEach(func() {
 				//Add Virtual Server
@@ -2365,12 +2366,37 @@ var _ = Describe("Worker Tests", func() {
 							},
 						},
 					})
+				ts = test.NewTransportServer(
+					"SampleTS",
+					namespace,
+					cisapiv1.TransportServerSpec{
+						VirtualServerAddress: "10.1.1.1",
+						Pool: cisapiv1.Pool{
+							Service:     "svc1",
+							ServicePort: intstr.IntOrString{StrVal: "port-80"},
+							Monitor: cisapiv1.Monitor{
+								Type:     "tcp",
+								Timeout:  10,
+								Interval: 10,
+							},
+						},
+						BotDefense:         "/Common/bot-defense",
+						DOS:                "/Common/dos",
+						IRules:             []string{"/Common/SampleIRule"},
+						PersistenceProfile: "source-address",
+						AllowVLANs:         []string{"/Common/devtraffic"},
+						Profiles: cisapiv1.ProfileSpec{
+							TCP: cisapiv1.ProfileTCP{
+								Client: "/Common/f5-tcp-lan",
+								Server: "/Common/f5-tcp-wan",
+							},
+							ProfileL4: "/Common/security-fastL4",
+						},
+					},
+				)
 			})
 
 			It("EDNS", func() {
-				//Add Service
-				//go mockCtlr.Agent.agentWorker()
-				//go mockCtlr.Agent.retryWorker()
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
 
@@ -2387,6 +2413,55 @@ var _ = Describe("Worker Tests", func() {
 				Expect(len(mockCtlr.resources.gtmConfig["test"].WideIPs)).To(Equal(0), "EDNS  not deleted")
 
 			})
+
+			It("Process Transport server with EDNS", func() {
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				svc := test.NewService("svc1", "1", namespace, "NodePort", fooPorts)
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				mockCtlr.addEDNS(newEDNS)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.gtmConfig)).To(Equal(1),
+					"EDNS not processed")
+
+				mockCtlr.TeemData.ResourceType.IPAMTS = make(map[string]int)
+				ts.Spec.Host = "test.com"
+				mockCtlr.addTransportServer(ts)
+				mockCtlr.processResources()
+
+				ts1 := *ts
+
+				ts1.Name = "ts1"
+				ts1.Spec.Host = "test2.com"
+				ts1.Spec.VirtualServerAddress = "10.1.1.2"
+				mockCtlr.addTransportServer(&ts1)
+				mockCtlr.processResources()
+
+				Expect(len(mockCtlr.resources.ltmConfig)).
+					To(Equal(1), "Invalid Partition Count")
+				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap)).
+					To(Equal(2), "Invalid TS Count")
+				Expect(len(mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs["test.com"].Pools[0].Members)).
+					To(Equal(1), "EDNS not processed with Transport Server")
+				Expect(mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs["test.com"].Pools[0].Members[0]).
+					To(Equal("/test/Shared/crd_10_1_1_1_0"),
+						"Invalid EDNS Pool members")
+
+				mockCtlr.deleteTransportServer(ts)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs["test.com"].Pools[0].Members)).
+					To(Equal(0), "Invalid pool member count")
+
+				mockCtlr.deleteEDNS(newEDNS)
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs)).
+					To(Equal(0), "EDNS  not deleted")
+
+			})
+
 		})
 
 		Describe("Processing Ingress Link", func() {

@@ -22,7 +22,7 @@ Bug Fixes
 * `Issue 2799 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2799>`_: VirtualServer deletes a referenced iRule when making changes or deleting a VS.
 * `Issue 2789 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2789>`_: AS3 Post delay - Not working as expected.
 * `Issue 2816 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2816>`_: Fix Error Not found cis.f5.com/ipamLabel
-
+* `Issue 2796 <https://github.com/F5Networks/k8s-bigip-ctlr/issues/2796>`_: EDNS not working when deployed before TS
 
 2.12.0
 -------------

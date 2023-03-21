@@ -2062,8 +2062,17 @@ func (ctlr *Controller) processTransportServers(
 
 	if isTSDeleted {
 		rsMap := ctlr.resources.getPartitionResourceMap(partition)
+		var hostnames []string
+		if _, ok := rsMap[rsName]; ok {
+			hostnames = rsMap[rsName].MetaData.hosts
+		}
+
 		ctlr.deleteSvcDepResource(rsName, rsMap[rsName])
 		ctlr.deleteVirtualServer(partition, rsName)
+		if len(hostnames) > 0 {
+			ctlr.ProcessAssociatedExternalDNS(hostnames)
+		}
+
 		return nil
 	}
 
@@ -2114,6 +2123,10 @@ func (ctlr *Controller) processTransportServers(
 
 	rsMap := ctlr.resources.getPartitionResourceMap(partition)
 	rsMap[rsName] = rsCfg
+
+	if len(rsCfg.MetaData.hosts) > 0 {
+		ctlr.ProcessAssociatedExternalDNS(rsCfg.MetaData.hosts)
+	}
 
 	return nil
 }

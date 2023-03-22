@@ -326,15 +326,16 @@ var _ = Describe("Backend Tests", func() {
 			agent = newMockAgent(nil)
 			DEFAULT_PARTITION = "default"
 		})
-
-		It("Empty GTM Config", func() {
-			adc := as3ADC{}
-			adc = agent.createAS3GTMConfigADC(ResourceConfigRequest{
-				gtmConfig: GTMConfig{},
-			}, adc)
-
-			Expect(len(adc)).To(BeZero(), "Invalid GTM Config")
-		})
+		// Commenting this test case
+		// with new GTM partition support we will not delete partition, instead we flush contents
+		//It("Empty GTM Config", func() {
+		//	adc := as3ADC{}
+		//	adc = agent.createAS3GTMConfigADC(ResourceConfigRequest{
+		//		gtmConfig: GTMConfig{},
+		//	}, adc)
+		//
+		//	Expect(len(adc)).To(BeZero(), "Invalid GTM Config")
+		//})
 
 		It("Empty GTM Partition Config / Delete Case", func() {
 			adc := as3ADC{}

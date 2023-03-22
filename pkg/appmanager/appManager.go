@@ -1267,6 +1267,12 @@ func isNonPerfResource(resKind string) bool {
 func (appMgr *Manager) processNextVirtualServer() bool {
 	key, quit := appMgr.vsQueue.Get()
 	if !appMgr.steadyState && appMgr.processedItems == 0 {
+		if len(appMgr.oldNodes) == 0 {
+			// update node cache on init
+			nodesList, _ := appMgr.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{LabelSelector: appMgr.nodeLabelSelector})
+			nodes, _ := appMgr.getNodes(nodesList.Items)
+			appMgr.oldNodes = nodes
+		}
 		appMgr.queueLen = appMgr.getQueueLength()
 	}
 	if quit {
@@ -1402,12 +1408,14 @@ func (appMgr *Manager) syncVirtualServer(sKey serviceQueueKey) error {
 		// then it was handled earlier when associated service processed
 		// otherwise just mark it as processed and continue
 		case OprTypeCreate:
-			if _, ok := appMgr.processedResources[resKey]; ok {
-				if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen-1 {
-					appMgr.deployResource()
-					appMgr.steadyState = true
+			if processed, ok := appMgr.processedResources[resKey]; ok {
+				if processed {
+					if !appMgr.steadyState && appMgr.processedItems >= appMgr.queueLen-1 {
+						appMgr.deployResource()
+						appMgr.steadyState = true
+					}
+					return nil
 				}
-				return nil
 			}
 			appMgr.processedResourcesMutex.Lock()
 			appMgr.processedResources[resKey] = true
@@ -1986,12 +1994,6 @@ func (appMgr *Manager) syncRoutes(
 		// Updating the hostPath if route Path is changed
 		appMgr.updateHostPathMap(route.ObjectMeta.CreationTimestamp, key)
 
-		// Mark each resource  as it is already processed during init Time
-		// So that later the create event of the same resource will not processed, unnecessarily
-		appMgr.processedResourcesMutex.Lock()
-		appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = true
-		appMgr.processedResourcesMutex.Unlock()
-
 		//FIXME(kenr): why do we process services that aren't associated
 		//             with a route?
 		svcName := GetRouteCanonicalServiceName(route)
@@ -2132,9 +2134,17 @@ func (appMgr *Manager) syncRoutes(
 				rsCfg.SetPolicy(pol)
 			}
 
-			_, found, updated := appMgr.handleConfigForType(
+			ok, found, updated := appMgr.handleConfigForType(
 				rsCfg, sKey, rsMap, rsName, svcPortMap,
 				svc, appInf, svcNames, nil)
+			if ok {
+				// pool found && service matched we can confirm endpoints are also processed for route
+				// Mark each resource  as it is already processed during init Time
+				// So that later the create event of the same resource will not processed, unnecessarily
+				appMgr.processedResourcesMutex.Lock()
+				appMgr.processedResources[prepareResourceKey(Routes, sKey.Namespace, route.Name)] = true
+				appMgr.processedResourcesMutex.Unlock()
+			}
 			stats.vsFound += found
 			stats.vsUpdated += updated
 		}
@@ -2450,7 +2460,6 @@ func (appMgr *Manager) handleConfigForType(
 	var pool Pool
 	found := false
 	plIdx := 0
-
 	for i, pl := range rsCfg.Pools {
 		if pl.ServiceName == sKey.ServiceName &&
 			poolInNamespace(rsCfg, pl.Name, sKey.Namespace) {
@@ -2577,7 +2586,13 @@ func (appMgr *Manager) handleConfigForType(
 	if !deactivated {
 		bigIPPrometheus.MonitoredServices.WithLabelValues(sKey.Namespace, rsName.Name, "success").Set(1)
 	}
-
+	if len(currResourceSvcs) > 0 {
+		if !serviceMatch(currResourceSvcs, sKey) {
+			//pool found but service not matched with current resource backend. So endpoints are not updated for correct pool
+			//So keep the resource as not processed.
+			return false, vsFound, vsUpdated
+		}
+	}
 	return true, vsFound, vsUpdated
 }
 
@@ -3077,7 +3092,6 @@ func (appMgr *Manager) getNodes(
 			}
 		}
 	}
-
 	return watchedNodes, nil
 }
 

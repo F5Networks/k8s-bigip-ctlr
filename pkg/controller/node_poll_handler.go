@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
 	cisapiv1 "github.com/F5Networks/k8s-bigip-ctlr/v2/config/apis/cis/v1"
 	bigIPPrometheus "github.com/F5Networks/k8s-bigip-ctlr/v2/pkg/prometheus"
@@ -10,6 +11,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 )
 
 func (ctlr *Controller) SetupNodeProcessing() error {
@@ -34,7 +36,9 @@ func (ctlr *Controller) SetupNodeProcessing() error {
 	ctlr.ProcessNodeUpdate(nodeslist)
 	// adding the bigip_monitored_nodes	metrics
 	bigIPPrometheus.MonitoredNodes.WithLabelValues(ctlr.nodeLabelSelector).Set(float64(len(ctlr.oldNodes)))
-	if 0 != len(ctlr.vxlanMode) {
+	if ctlr.StaticRoutingMode {
+		ctlr.processStaticRouteUpdate(nodes)
+	} else if 0 != len(ctlr.vxlanMode) {
 		// If partition is part of vxlanName, extract just the tunnel name
 		tunnelName := ctlr.vxlanName
 		cleanPath := strings.TrimLeft(ctlr.vxlanName, "/")
@@ -253,4 +257,117 @@ func (ctlr *Controller) getNodesWithLabel(
 		}
 	}
 	return nodes
+}
+
+func (ctlr *Controller) processStaticRouteUpdate(
+	nodes []interface{},
+) {
+	//if static-routing-mode process static routes
+	var addrType v1.NodeAddressType
+	if ctlr.UseNodeInternal {
+		addrType = v1.NodeInternalIP
+	} else {
+		addrType = v1.NodeExternalIP
+	}
+
+	routes := routeSection{}
+	for _, obj := range nodes {
+		node := obj.(*v1.Node)
+		// Ignore the Nodes with status NotReady
+		var notExecutable bool
+		for _, t := range node.Spec.Taints {
+			if v1.TaintEffectNoExecute == t.Effect {
+				notExecutable = true
+			}
+		}
+		if notExecutable == true {
+			continue
+		}
+		route := routeConfig{}
+		// For ovn-k8s get pod subnet and node ip from annotation
+		if ctlr.OrchestrationCNI == OVN_K8S {
+			annotations := node.Annotations
+			if nodeSubnetAnn, ok := annotations[OVNK8sNodeSubnetAnnotation]; !ok {
+				log.Warningf("Node subnet annotation %v not found on node %v static route not added", OVNK8sNodeSubnetAnnotation, node.Name)
+				continue
+			} else {
+				nodesubnet, err := parseNodeSubnet(nodeSubnetAnn, node.Name)
+				if err != nil {
+					log.Warningf("Node subnet annotation %v not properly configured for node %v:%v", OVNK8sNodeSubnetAnnotation, node.Name, err)
+					continue
+				}
+				route.Network = nodesubnet
+			}
+			if nodeIPAnn, ok := annotations[OVNK8sNodeIPAnnotation]; !ok {
+				log.Warningf("Node IP annotation %v not found on node %v static route not added", OVNK8sNodeSubnetAnnotation, node.Name)
+				continue
+			} else {
+				nodeIP, err := parseNodeIP(nodeIPAnn, node.Name)
+				if err != nil {
+					log.Warningf("Node IP annotation %v not properly configured for node %v:%v", OVNK8sNodeIPAnnotation, node.Name, err)
+					continue
+				}
+				route.Gateway = nodeIP
+				route.Name = fmt.Sprintf("k8s-route-%v", nodeIP)
+			}
+
+		} else {
+			//For k8s CNI like flannel, antrea etc we can get subnet from node spec
+			podCIDR := node.Spec.PodCIDR
+			if podCIDR != "" {
+				route.Network = podCIDR
+				nodeAddrs := node.Status.Addresses
+				for _, addr := range nodeAddrs {
+					if addr.Type == addrType {
+						route.Gateway = addr.Address
+						route.Name = fmt.Sprintf("k8s-route-%v", addr.Address)
+					}
+				}
+			} else {
+				log.Debugf("podCIDR is not found on node %v so not adding the static route for node", node.Name)
+				continue
+			}
+		}
+		routes.Entries = append(routes.Entries, route)
+	}
+	doneCh, errCh, err := ctlr.Agent.ConfigWriter.SendSection("static-routes", routes)
+
+	if nil != err {
+		log.Warningf("Failed to write static routes config section: %v", err)
+	} else {
+		select {
+		case <-doneCh:
+			log.Debugf("Wrote static route config section: %v", routes)
+		case e := <-errCh:
+			log.Warningf("Failed to write static route config section: %v", e)
+		case <-time.After(time.Second):
+			log.Warningf("Did not receive write response in 1s")
+		}
+	}
+}
+
+func parseNodeSubnet(ann, nodeName string) (string, error) {
+	var subnetDict map[string]interface{}
+	json.Unmarshal([]byte(ann), &subnetDict)
+	if nodeSubnet, ok := subnetDict["default"]; ok {
+		return nodeSubnet.(string), nil
+	}
+	err := fmt.Errorf("%s annotation for "+
+		"node '%s' has invalid format; cannot validate node subnet. "+
+		"Should be of the form: '{\"default\":\"<node-subnet>\"}'", OVNK8sNodeSubnetAnnotation, nodeName)
+	return "", err
+}
+
+func parseNodeIP(ann, nodeName string) (string, error) {
+	var IPDict map[string]interface{}
+	json.Unmarshal([]byte(ann), &IPDict)
+	if IP, ok := IPDict["ipv4"]; ok {
+		ipmask := IP.(string)
+		nodeip := strings.Split(ipmask, "/")[0]
+		return nodeip, nil
+	}
+	err := fmt.Errorf("%s annotation for "+
+		"node '%s' has invalid format; cannot validate node IP. "+
+		"Should be of the form: '{\"ipv4\":\"<node-ip>\"}'", OVNK8sNodeIPAnnotation, nodeName)
+	return "", err
 }

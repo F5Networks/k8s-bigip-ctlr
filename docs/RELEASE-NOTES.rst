@@ -13,6 +13,8 @@ Added Functionality
         *
     * CRD
         * Support for ExternalIP update of associated services of Type LB in TS CR
+        * Support for new GTM partition in as3 mode
+            * CIS will create a new partition for GTM with partition name {defaultpartition_gtm} in as3 mode
 
 Bug Fixes
 ````````````

@@ -926,6 +926,7 @@ var _ = Describe("Worker Tests", func() {
 		It("Processing External DNS", func() {
 			mockCtlr.resources.Init()
 			DEFAULT_PARTITION = "default"
+			DEFAULT_GTM_PARTITION = "default_gtm"
 			mockCtlr.TeemData = &teem.TeemsData{
 				ResourceType: teem.ResourceTypes{
 					ExternalDNS: make(map[string]int),
@@ -952,7 +953,7 @@ var _ = Describe("Worker Tests", func() {
 					},
 				})
 			mockCtlr.processExternalDNS(newEDNS, false)
-			gtmConfig := mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			gtmConfig := mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(1))
 			Expect(len(gtmConfig["test.com"].Pools)).To(Equal(1))
 			Expect(len(gtmConfig["test.com"].Pools[0].Members)).To(Equal(0))
@@ -966,13 +967,13 @@ var _ = Describe("Worker Tests", func() {
 				},
 			}
 			mockCtlr.processExternalDNS(newEDNS, false)
-			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(1))
 			Expect(len(gtmConfig["test.com"].Pools)).To(Equal(1))
 			Expect(len(gtmConfig["test.com"].Pools[0].Members)).To(Equal(1))
 
 			mockCtlr.processExternalDNS(newEDNS, true)
-			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(0))
 		})
 
@@ -2444,20 +2445,20 @@ var _ = Describe("Worker Tests", func() {
 					To(Equal(1), "Invalid Partition Count")
 				Expect(len(mockCtlr.resources.ltmConfig["test"].ResourceMap)).
 					To(Equal(2), "Invalid TS Count")
-				Expect(len(mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs["test.com"].Pools[0].Members)).
+				Expect(len(mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs["test.com"].Pools[0].Members)).
 					To(Equal(1), "EDNS not processed with Transport Server")
-				Expect(mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs["test.com"].Pools[0].Members[0]).
+				Expect(mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs["test.com"].Pools[0].Members[0]).
 					To(Equal("/test/Shared/crd_10_1_1_1_0"),
 						"Invalid EDNS Pool members")
 
 				mockCtlr.deleteTransportServer(ts)
 				mockCtlr.processResources()
-				Expect(len(mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs["test.com"].Pools[0].Members)).
+				Expect(len(mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs["test.com"].Pools[0].Members)).
 					To(Equal(0), "Invalid pool member count")
 
 				mockCtlr.deleteEDNS(newEDNS)
 				mockCtlr.processResources()
-				Expect(len(mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs)).
+				Expect(len(mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs)).
 					To(Equal(0), "EDNS  not deleted")
 
 			})

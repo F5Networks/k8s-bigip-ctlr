@@ -2426,7 +2426,7 @@ func (ctlr *Controller) processService(
 
 func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete bool) {
 
-	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig[DEFAULT_PARTITION]; ok {
+	if gtmPartitionConfig, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; ok {
 		if processedWIP, ok := gtmPartitionConfig.WideIPs[edns.Spec.DomainName]; ok {
 			if processedWIP.UID != string(edns.UID) {
 				log.Errorf("EDNS with same domain name %s present", edns.Spec.DomainName)
@@ -2436,11 +2436,11 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	}
 
 	if isDelete {
-		if _, ok := ctlr.resources.gtmConfig[DEFAULT_PARTITION]; !ok {
+		if _, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
 			return
 		}
 
-		delete(ctlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs, edns.Spec.DomainName)
+		delete(ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs, edns.Spec.DomainName)
 		ctlr.TeemData.Lock()
 		ctlr.TeemData.ResourceType.ExternalDNS[edns.Namespace]--
 		ctlr.TeemData.Unlock()
@@ -2470,7 +2470,7 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 	partitions := ctlr.resources.getLTMPartitions()
 
 	for _, pl := range edns.Spec.Pools {
-		UniquePoolName := edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + ctlr.Partition
+		UniquePoolName := edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + DEFAULT_GTM_PARTITION
 		log.Debugf("Processing WideIP Pool: %v", UniquePoolName)
 		pool := GSLBPool{
 			Name:          UniquePoolName,
@@ -2511,20 +2511,11 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 					if len(pool.Members) > 0 && strings.HasPrefix(vsName, "ingress_link_") {
 						if strings.HasSuffix(vsName, "_443") {
 							pool.Members[0] = fmt.Sprintf("%v/%v/Shared/%v", preGTMServerName, partition, vsName)
-							if partition != ctlr.Partition {
-								// Modify pool name to partition containing VS
-								pool.Name = edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + partition
-							}
 						}
 						continue
 					}
 					log.Debugf("Adding WideIP Pool Member: %v", fmt.Sprintf("/%v/Shared/%v",
 						partition, vsName))
-					// Modify pool name to partition containing VS
-					if partition != ctlr.Partition {
-						// Modify pool name to partition containing VS
-						pool.Name = edns.Spec.DomainName + "_" + AS3NameFormatter(strings.TrimPrefix(ctlr.Agent.BIGIPURL, "https://")) + "_" + partition
-					}
 					pool.Members = append(
 						pool.Members,
 						fmt.Sprintf("%v/%v/Shared/%v", preGTMServerName, partition, vsName),
@@ -2576,13 +2567,13 @@ func (ctlr *Controller) processExternalDNS(edns *cisapiv1.ExternalDNS, isDelete 
 		}
 		wip.Pools = append(wip.Pools, pool)
 	}
-	if _, ok := ctlr.resources.gtmConfig[DEFAULT_PARTITION]; !ok {
-		ctlr.resources.gtmConfig[DEFAULT_PARTITION] = GTMPartitionConfig{
+	if _, ok := ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION]; !ok {
+		ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION] = GTMPartitionConfig{
 			WideIPs: make(map[string]WideIP),
 		}
 	}
 
-	ctlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs[wip.DomainName] = wip
+	ctlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs[wip.DomainName] = wip
 	return
 }
 

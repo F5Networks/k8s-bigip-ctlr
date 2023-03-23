@@ -501,7 +501,8 @@ extendedRouteSpec:
 			//Process ENDS with non-matching domain
 			mockCtlr.addEDNS(newEDNS)
 			mockCtlr.processExternalDNS(newEDNS, false)
-			gtmConfig := mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			gtmConfig := mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
+			DEFAULT_GTM_PARTITION = DEFAULT_GTM_PARTITION + "_gtm"
 			Expect(len(gtmConfig)).To(Equal(1))
 			Expect(len(gtmConfig["test.com"].Pools)).To(Equal(1))
 			// No pool member should be present
@@ -510,14 +511,14 @@ extendedRouteSpec:
 			//delete EDNS
 			mockCtlr.deleteEDNS(newEDNS)
 			mockCtlr.processExternalDNS(newEDNS, true)
-			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(0))
 
 			// Modify EDNS with matching domain and create again
 			mockCtlr.addEDNS(newEDNS)
 			newEDNS.Spec.DomainName = "pytest-foo-1.com"
 			mockCtlr.processExternalDNS(newEDNS, false)
-			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(1))
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
 			// Pool member should be present
@@ -527,7 +528,7 @@ extendedRouteSpec:
 			mockCtlr.deleteRoute(route1)
 			mockCtlr.deleteHostPathMapEntry(route1)
 			mockCtlr.processRoutes(namespace1, false)
-			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(1))
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
 			// No pool member should be present
@@ -582,7 +583,7 @@ extendedRouteSpec:
 			//Test with 2nd route with bigIpPartition
 			mockCtlr.addEDNS(barEDNS)
 			mockCtlr.processExternalDNS(barEDNS, false)
-			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(2))
 			Expect(len(gtmConfig["pytest-bar-1.com"].Pools)).To(Equal(1))
 			Expect(len(gtmConfig["pytest-bar-1.com"].Pools[0].Members)).To(Equal(1))
@@ -590,7 +591,7 @@ extendedRouteSpec:
 
 			mockCtlr.deleteEDNS(barEDNS)
 			mockCtlr.processExternalDNS(barEDNS, true)
-			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(1))
 
 			//Remove route group
@@ -607,7 +608,7 @@ extendedRouteSpec:
 			Expect(err).To(BeNil())
 			Expect(isProcessed).To(BeTrue())
 
-			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_PARTITION].WideIPs
+			gtmConfig = mockCtlr.resources.gtmConfig[DEFAULT_GTM_PARTITION].WideIPs
 			Expect(len(gtmConfig)).To(Equal(1))
 			Expect(len(gtmConfig["pytest-foo-1.com"].Pools)).To(Equal(1))
 			//No pool members should present

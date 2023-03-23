@@ -55,9 +55,11 @@ var baseAS3Config = `{
 `
 
 var DEFAULT_PARTITION string
+var DEFAULT_GTM_PARTITION string
 
 func NewAgent(params AgentParams) *Agent {
 	DEFAULT_PARTITION = params.Partition
+	DEFAULT_GTM_PARTITION = params.Partition + "_gtm"
 	postMgr := NewPostManager(params.PostParams)
 	configWriter, err := writer.NewConfigWriter()
 	if nil != err {
@@ -619,6 +621,16 @@ func (agent *Agent) createAS3LTMAndGTMConfigADC(config ResourceConfigRequest) as
 
 func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3ADC) as3ADC {
 	if len(config.gtmConfig) == 0 {
+		sharedApp := as3Application{}
+		sharedApp["class"] = "Application"
+		sharedApp["template"] = "shared"
+
+		tenantDecl := as3Tenant{
+			"class":              "Tenant",
+			as3SharedApplication: sharedApp,
+		}
+		adc[DEFAULT_GTM_PARTITION] = tenantDecl
+
 		return adc
 	}
 
@@ -699,7 +711,7 @@ func (agent *Agent) createAS3GTMConfigADC(config ResourceConfigRequest, adc as3A
 func (agent *Agent) createAS3LTMConfigADC(config ResourceConfigRequest) as3ADC {
 	adc := as3ADC{}
 	for tenant := range agent.cachedTenantDeclMap {
-		if _, ok := config.ltmConfig[tenant]; !ok {
+		if _, ok := config.ltmConfig[tenant]; !ok && !agent.isGTMTenant(tenant) {
 			// Remove partition
 			adc[tenant] = getDeletedTenantDeclaration(agent.Partition, tenant)
 		}
@@ -1747,4 +1759,8 @@ func (svc *as3Service) addPersistenceMethod(persistenceProfile string) {
 			),
 		}
 	}
+}
+
+func (agent *Agent) isGTMTenant(partition string) bool {
+	return partition == DEFAULT_GTM_PARTITION
 }

@@ -479,12 +479,13 @@ var _ = Describe("Main Tests", func() {
 				"--bigip-username=admin",
 				"--openshift-sdn-name=vxlan500",
 				"--flannel-name=vxlan500",
+				"--cilium-name=vxlan500",
 			}
 
 			flags.Parse(os.Args)
 			err = verifyArgs()
 			Expect(err).ToNot(BeNil())
-			Expect(err.Error()).To(Equal("Cannot have both openshift-sdn-name and flannel-name specified."))
+			Expect(err.Error()).To(Equal("Cannot have openshift-sdn-name, flannel-name, and cilium-name specified."))
 		})
 
 		It("handles empty vxlan flags", func() {

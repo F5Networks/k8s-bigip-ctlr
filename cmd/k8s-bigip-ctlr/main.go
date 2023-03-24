@@ -177,6 +177,7 @@ var (
 	vxlanMode        string
 	openshiftSDNName *string
 	flannelName      *string
+	ciliumName       *string
 
 	routeVserverAddr *string
 	routeLabel       *string
@@ -381,6 +382,9 @@ func _init() {
 	flannelName = vxlanFlags.String("flannel-name", "",
 		"Must be provided for BigIP Flannel integration, "+
 			"full path of BigIP Flannel VxLAN Tunnel")
+	ciliumName = vxlanFlags.String("cilium-name", "",
+		"Must be provided for BigIP SDN integration, "+
+			"full path of BigIP Cilium VxLAN Tunnel")
 
 	vxlanFlags.Usage = func() {
 		fmt.Fprintf(os.Stderr, "  Openshift SDN:\n%s\n", vxlanFlags.FlagUsagesWrapped(width))
@@ -518,8 +522,8 @@ func verifyArgs() error {
 		return fmt.Errorf("'%v' is not a valid Pool Member Type", *poolMemberType)
 	}
 
-	if len(*openshiftSDNName) > 0 && len(*flannelName) > 0 {
-		return fmt.Errorf("Cannot have both openshift-sdn-name and flannel-name specified.")
+	if len(*openshiftSDNName) > 0 && len(*flannelName) > 0 && len(*ciliumName) > 0 {
+		return fmt.Errorf("Cannot have openshift-sdn-name, flannel-name, and cilium-name specified.")
 	}
 
 	if flags.Changed("openshift-sdn-name") {
@@ -542,6 +546,16 @@ func verifyArgs() error {
 		}
 		vxlanMode = "maintain"
 		vxlanName = *flannelName
+	} else if flags.Changed("cilium-name") {
+		if len(*ciliumName) == 0 {
+			return fmt.Errorf("Missing required parameter cilium-name")
+		}
+		if isNodePort {
+			return fmt.Errorf("Cannot run NodePort mode while supplying cilium-name. " +
+				"Must be in Cluster mode if using VXLAN.")
+		}
+		vxlanMode = "maintain"
+		vxlanName = *ciliumName
 	}
 
 	if *hubMode && !(*manageConfigMaps) {
@@ -786,8 +800,10 @@ func initController(
 		CCCLGTMAgent:   *ccclGtmAgent,
 	}
 
-	// When CIS is configured in OCP cluster mode disable ARP in globalSection
+	// When CIS is configured in OCP/Cilium cluster mode disable ARP in globalSection
 	if *openshiftSDNName != "" {
+		agentParams.DisableARP = true
+	} else if *ciliumName != "" {
 		agentParams.DisableARP = true
 	}
 
@@ -969,6 +985,8 @@ func main() {
 	// When CIS configured in OCP cluster mode disable ARP in globalSection
 	disableARP := false
 	if *openshiftSDNName != "" {
+		disableARP = true
+	} else if *ciliumName != "" {
 		disableARP = true
 	}
 
@@ -1317,6 +1335,8 @@ func getSDNType(config *rest.Config) string {
 			sdnType = setSDNTypeForOpenshift(rconfigclient)
 		} else if len(*flannelName) > 0 {
 			sdnType = "flannel"
+		} else if len(*ciliumName) > 0 {
+			sdnType = "cilium"
 		} else {
 			sdnType = "other"
 		}

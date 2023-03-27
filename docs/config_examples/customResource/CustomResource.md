@@ -45,26 +45,35 @@ This page is created to document the behaviour of CIS in CRD Mode.
 
 **VirtualServer Components**
 
-| PARAMETER                        | TYPE                          | REQUIRED | DEFAULT | DESCRIPTION                                                                                                                                                                                           |
-|----------------------------------|-------------------------------| ------ | ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| host                             | String                        | Optional | NA | Virtual Host                                                                                                                                                                                          |
-| pools                            | List of pool                  | Required | NA | List of BIG-IP Pool members                                                                                                                                                                           |
-| virtualServerAddress             | String                        | Optional | NA | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address.                                                                                             |
-| serviceAddress                   | List of service address       | Optional | NA | Service address definition allows you to add a number of properties to your (virtual) server address                                                                                                  |
-| ipamLabel                        | String                        | Optional | NA | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.                                                                                                     |
-| virtualServerName                | String                        | Optional | NA | Custom name of BIG-IP Virtual Server                                                                                                                                                                  |
-| virtualHTTPPort                  | Integer                       | Optional | NA | Specify HTTP port for the Virutal Server                                                                                                                                                              |
-| virtualHTTPSPort                 | Integer                       | Optional | NA | Specify HTTPS port for the Virtual Server                                                                                                                                                             |
-| TLSProfile                       | String                        | Optional | NA | Describes the TLS configuration for BIG-IP Virtual Server                                                                                                                                             |
-| rewriteAppRoot                   | String                        | Optional | NA | Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path                                                                                                           |
-| waf                              | String                        | Optional | NA | Reference to WAF policy on BIG-IP                                                                                                                                                                     |
-| snat                             | String                        | Optional | auto | Reference to SNAT pool on BIG-IP or Other allowed value is: "none"                                                                                                                                    |
-| httpTraffic                      | String                        | Optional | allow | Configure behavior of HTTP Virtual Server. The allowed values are: allow: allow HTTP (default), none: only HTTPs, redirect: redirect HTTP to HTTPS.                                                   |
-| allowVlans                       | List of Vlans                 | Optional | NA | list of Vlan objects to allow traffic from                                                                                                                                                            |  
-| hostGroup                        | String                        | Optional | NA | Label to group virtualservers with different host names into one in BIG-IP.                                                                                                                           |
-| httpMrfRoutingEnabled            | boolean                       |	Optional | false | Specifies whether to use the HTTP message routing framework (MRF) functionality. This property is available on BIGIP 14.1 and above.                                                                  |
-| additionalVirtualServerAddresses | List of virtualserver address | Optional | NA | List of virtual addresses additional to virtualServerAddress where virtual will be listening on.Uses AS3 virtualAddresses param to expose Virtual server which will listen to each IP address in list |
-| partition                        | String                        | Optional | NA | bigip partition                                                                                                                                                                                       |
+| PARAMETER                        | TYPE                          | REQUIRED | DEFAULT | DESCRIPTION                                                                                                                                                                                                      |
+|----------------------------------|-------------------------------| ------ |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| host                             | String                        | Optional | NA      | Virtual Host                                                                                                                                                                                                     |
+| pools                            | List of pool                  | Required | NA      | List of BIG-IP Pool members                                                                                                                                                                                      |
+| virtualServerAddress             | String                        | Optional | NA      | IP4/IP6 Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address.                                                                                                   |
+| serviceAddress                   | List of service address       | Optional | NA      | Service address definition allows you to add a number of properties to your (virtual) server address                                                                                                             |
+| ipamLabel                        | String                        | Optional | NA      | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.                                                                                                                |
+| virtualServerName                | String                        | Optional | NA      | Custom name of BIG-IP Virtual Server                                                                                                                                                                             |
+| virtualHTTPPort                  | Integer                       | Optional | NA      | Specify HTTP port for the Virutal Server                                                                                                                                                                         |
+| virtualHTTPSPort                 | Integer                       | Optional | NA      | Specify HTTPS port for the Virtual Server                                                                                                                                                                        |
+| tlsProfileName                       | String                        | Optional | NA      | Describes the TLS profile Name for BIG-IP Virtual Server                                                                                                                                                         |
+| rewriteAppRoot                   | String                        | Optional | NA      | Rewrites the path in the HTTP Header (and Redirects) from \"/" (root path) to specifed path                                                                                                                      |
+| waf                              | String                        | Optional | NA      | Reference to WAF policy on BIG-IP                                                                                                                                                                                |
+| snat                             | String                        | Optional | auto    | Reference to SNAT pool on BIG-IP or Other allowed value is: "none"                                                                                                                                               |
+| httpTraffic                      | String                        | Optional | allow   | Configure behavior of HTTP Virtual Server. The allowed values are: allow: allow HTTP (default), none: only HTTPs, redirect: redirect HTTP to HTTPS.                                                              |
+| allowVlans                       | List of Vlans                 | Optional | NA      | list of Vlan objects to allow traffic from                                                                                                                                                                       |  
+| hostGroup                        | String                        | Optional | NA      | Label to group virtualservers with different host names into one in BIG-IP.                                                                                                                                      |
+| persistenceProfile               | String                        | Optional | cookie  | CIS uses the AS3 default persistence profile. VirtualServer CRD resource takes precedence over Policy CRD. Allowed values are existing BIG-IP Persistence profiles.                                              |
+| dos                              | String                        | Optional | NA      | Pathname of existing BIG-IP DoS policy.                                                                                                                                                                          |
+| botDefense                       | String                        | Optional | NA      | Pathname of existing BIG-IP botDefense policy.                                                                                                                                                                   |
+| profileMultiplex                 | String                        | Optional | NA      | CIS uses the AS3 default profileMultiplex profile. Allowed values are existing BIG-IP profileMultiplex profiles.                                                                                                 |
+| profiles |  Object           | Optional | NA                           | BIG-IP TCP Profiles.                                                                                                                                                                                             |
+| tcp |  Object           | Optional | NA                           | BIG-IP TCP client and server profiles.                                                                                                                                                                           |
+| policyName                       | String                        | Optional | NA      | Name of Policy CRD to attach profiles/policies defined in it.                                                                                                                                                    |
+| iRules                       | Array of strings                  | Optional | NA      | iRules to be attached to the VirtualServer.                                                                                                                                                                      |
+| allowSourceRange                 | String                  | Optional | NA      | Comma-separated list of CIDR addresses to allow inbound to services corresponding to VirtualServer CRD. Allowed values are comma-separated, CIDR formatted, IP addresses. For example: ``1.2.3.4/32,2.2.2.0/24`` |
+| httpMrfRoutingEnabled            | boolean                       |	Optional | false   | Specifies whether to use the HTTP message routing framework (MRF) functionality. This property is available on BIGIP 14.1 and above.                                                                             |
+| additionalVirtualServerAddresses | List of virtualserver address | Optional | NA      | List of virtual addresses additional to virtualServerAddress where virtual will be listening on.Uses AS3 virtualAddresses param to expose Virtual server which will listen to each IP address in list            |
+| partition                        | String                        | Optional | NA      | bigip partition                                                                                                                                                                                                  |
 
 **Pool Components**
 
@@ -72,8 +81,10 @@ This page is created to document the behaviour of CIS in CRD Mode.
 |------------------|---------| ------ |---------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | path             | String  | Required | NA      | Path to access the service                                                                                                              |
 | service          | String  | Required | NA      | Service deployed in kubernetes cluster                                                                                                  |
+| waf              | String  | Optional | NA      | Reference to WAF policy on BIG-IP                                                                                                                                                                                |
+| loadBalancingMethod | String  | Optional | round-robin      | Allowed values are existing BIG-IP Load Balancing methods for pools.|
 | nodeMemberLabel  | String  | Optional | NA      | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode                     |
-| servicePort      | Integer or String  | Required | NA      | Port to access Service.Could be service port, service port name or targetPort of the service                                 |                                                                                |
+| servicePort      | Integer or String | Required | NA      | Port to access Service.Could be service port, service port name or targetPort of the service                                 |                                                                                |
 | monitor          | monitor | Optional | NA      | Health Monitor to check the health of Pool Members                                                                                      |
 | monitors         | monitor | Optional | NA      | Specifies multiple monitors for VS Pool                                                                                                 |
 | rewrite          | String  | Optional | NA      | Rewrites the path in the HTTP Header while submitting the request to pool members                                                 |
@@ -86,13 +97,13 @@ Note: **monitors** take priority over **monitor** if both are provided in VS spe
 
 **Service_Address Components**
 
-| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION |
-| ------ | ------ | ------ | ------ | ------ |
-| arpEnabled | Boolean | Optional | true |  If true (default), the system services ARP requests on this address |
-| icmpEcho | String | Optional | “enable” | If true (default), the system answers ICMP echo requests on this address. Values: “enable”, “disable”, “selective” |
-| routeAdvertisement | String | Optional | “disable” | If true, the route is advertised. Values: “enable”, “disable”, “selective”, “always”, “any”, “all” |
-| spanningEnabled | Boolean | Optional | false | Enable all BIG-IP systems in device group to listen for and process traffic on the same virtual address |
-| trafficGroup | String | Optional | "default" | Specifies the traffic group which the Service_Address belongs. |
+| PARAMETER | TYPE | REQUIRED | DEFAULT | DESCRIPTION                                                                                                            |
+| ------ | ------ | ------ | ------ |------------------------------------------------------------------------------------------------------------------------|
+| arpEnabled | Boolean | Optional | true | If true (default), the system services ARP requests on this address                                                    |
+| icmpEcho | String | Optional | “enable” | If enabled, the system answers ICMP echo requests on this address. Values: “enable”, “disable”, “selective”            |
+| routeAdvertisement | String | Optional | “disable” | If enabled, the route is advertised. Values: “enable”, “disable”, “selective”, “always”, “any”, “all”                  |
+| spanningEnabled | Boolean | Optional | false | If true, this enables all BIG-IP systems in device group to listen for and process traffic on the same virtual address |
+| trafficGroup | String | Optional | "default" | Specifies the traffic group which the Service_Address belongs.                                                         |
 
 **Health Monitor**
 
@@ -157,20 +168,28 @@ different terminations(for same domain), one with edge and another with re-encry
 
 **TransportServer Components**
 
-| PARAMETER | TYPE                    | REQUIRED | DEFAULT                      | DESCRIPTION                                                                                                                                                                                           |
-| ------ |-------------------------| ------ |------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| pool | pool                    | Required | NA                           | BIG-IP Pool member                                                                                                                                                                                    |
-| virtualServerAddress | String                  | Optional | NA                           | IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address.                                                                                             |
-| ipamLabel | String                  | Optional | NA                           | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.                                                                                                     |
-| hostGroup | String                  | Optional | NA                           | To leverage the IP from VS CR using the same VS HostGroup name and Vice-versa.                                                                                                                        |
-| serviceAddress | List of service address | Optional | NA                           | Service address definition allows you to add a number of properties to your (virtual) server address                                                                                                  |
-| virtualServerPort | String                  | Required | NA                           | Port Address of BIG-IP Virtual Server                                                                                                                                                                 |
-| virtualServerName | String                  | Optional | NA                           | Custom name of BIG-IP Virtual Server                                                                                                                                                                  |
-| type | String                  | Optional | tcp                          | "tcp", "udp" or "sctp" L4 transport server type                                                                                                                                                       |
-| mode | String                  | Required | NA                           | "standard" or "performance". A Standard mode transport server processes connections using the full proxy architecture. A Performance mode transport server uses FastL4 packet-by-packet TCP behavior. |
-| snat | String                  | Optional | auto                         |                                                                                                                                                                                                       |
-| allowVlans | List of Vlans           | Optional | Allow traffic from all VLANS | list of Vlan objects to allow traffic from                                                                                                                                                            |
-| partition | String                  | Optional | NA                            | bigip partition                                                                                                                                                                                       |
+| PARAMETER | TYPE    | REQUIRED | DEFAULT                      | DESCRIPTION                                                                                                                                                                                         |
+| ------ |---------| ------ |------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| pool | pool    | Required | NA                           | BIG-IP Pool member                                                                                                                                                                                  |
+| virtualServerAddress | String  | Optional | NA                           | IPv4/IPv6 IP Address of BIG-IP Virtual Server. IP address can also be replaced by a reference to a Service_Address.                                                                                 |
+| ipamLabel | String  | Optional | NA                           | IPAM label name for IP address management which is map to ip-range in IPAM controller deployment.                                                                                                   |
+| hostGroup | String  | Optional | NA                           | To leverage the IP from VS CR using the same VS HostGroup name and Vice-versa.                                                                                                                      |
+| policyName | String  | Optional | NA      | Name of Policy CRD to attach profiles/policies defined in it.|
+| serviceAddress | List of service address | Optional | NA                           | Service address definition allows you to add a number of properties to your (virtual) server address                                                                                                |
+| virtualServerPort | String  | Required | NA                           | Port Address of BIG-IP Virtual Server                                                                                                                                                               |
+| virtualServerName | String  | Optional | NA                           | Custom name of BIG-IP Virtual Server                                                                                                                                                                |
+| type | String  | Optional | tcp                          | "tcp", "udp" or "sctp" L4 transport server type                                                                                                                                                     |
+| mode | String  | Required | NA                           | "standard" or "performance". A Standard mode transport server processes connections using the full proxy architecture. A Performance mode transport server uses FastL4 packet-by-packet TCP behavior. |
+| snat | String  | Optional | auto                         |                                                                                                                                                                                                     |
+| allowVlans | List of Vlans | Optional | Allow traffic from all VLANS | list of Vlan objects to allow traffic from                                                                                                                                                          |
+| host   | String  | Optional | NA      | HostName of the Virtual Server                                                                                                                                                                                                     |
+| iRules |  List of iRules Optional | Optional | NA                           | List of iRules to attach. Example:["/Common/my-irule"]|
+| persistenceProfile |  String | Optional | source-address               | CIS uses the AS3 default persistence profile. TransportServer CRD resource takes precedence over Policy CRD. Allowed values are existing BIG-IP Persistence profiles.|
+| dos |  String | Optional | NA                           | Pathname of existing BIG-IP DoS policy.|
+| profiles |  Object | Optional | NA                           | BIG-IP TCP Profiles.|
+| tcp |  Object | Optional | NA                           | BIG-IP TCP client and server profiles.|
+| profileL4 |  String | Optional | basic                           | The default value is ``basic`` but it is not configurable if the profileL4 spec is not included in TS or Policy CR. Transport CRD resource takes precedence over Policy CRD resource. Allowed values are existing BIG-IP profileL4 profiles.|
+| partition | String  | Optional | NA                            | bigip partition                                                                                                                                                                                      |
 
 **Pool Components**
 
@@ -180,6 +199,7 @@ different terminations(for same domain), one with edge and another with re-encry
 | servicePort | Integer or String  | Required | NA | Port to access Service.Could be service port, service port name or targetPort of the service|
 | monitor | monitor  | Optional | NA | Health Monitor to check the health of Pool Members |
 | monitors | monitor | Optional | NA | Specifies multiple monitors for TS Pool            |
+| loadBalancingMethod  | String  | Optional | round-robin      | Allowed values are existing BIG-IP Load Balancing methods for pools.|
 | nodeMemberLabel  | String  | Optional | NA      | List of Nodes to consider in NodePort Mode as BIG-IP pool members. This Option is only applicable for NodePort Mode                     |
 | serviceDownAction | String  | Optional | none    | Specifies connection handling when member is non-responsive                                                                             |
 | reselectTries | Integer | Optional | 0       | Maximum number of attempts to find a responsive member for a connection                                                                 |
@@ -235,19 +255,20 @@ Note: **monitors** take priority over **monitor** if both are provided in TS spe
 
 **Pool Components**
 
-| PARAMETER | TYPE            | REQUIRED | DEFAULT     | DESCRIPTION |
-| ------ |-----------------| ------ |-------------| ------ |
-| name | String          | Required | NA          | Name of the GSLB pool |
-| dnsRecordType | String          | Required | NA          | DNS record type |
-| loadBalancerMethod | String          | Optional | round-robin | Load balancing method for DNS traffic |
-| order | Int             | Optional | NA          | Priority order of wideIP pool members (effective when used with Global Availability load balancing method) |
-| dataServerName | String          | Required | NA          | Name of the GSLB server on BIG-IP (i.e. /Common/SiteName) |
-| monitor | Monitor         | Optional | NA          | Monitor for GSLB Pool |
-| monitors | List of Monitor | Optional | NA          | Specifies multiple monitors for GSLB Pool |
-| ratio    | Int             | Optional | 1           | Ratio weight assigned to GSLB pool        |
+| PARAMETER          | TYPE    | REQUIRED | DEFAULT | DESCRIPTION |
+|--------------------|---------| ------ | ------ | ------ |
+| name               | String  | Required | NA | Name of the GSLB pool |
+| dnsRecordType      | String  | Optional | NA | DNS record type |
+| order              | Integer | Optional | NA | Priority order of wideIP pool members (effective when used with Global Availability load balancing method) |
+| loadBalancerMethod | String  | Optional | round-robin | Load balancing method for DNS traffic |
+| dataServerName     | String  | Required | NA | Name of the GSLB server on BIG-IP (i.e. /Common/SiteName) |
+| monitor            | Monitor | Optional | NA | Monitor for GSLB Pool |
+| monitors           | Monitor | Optional | NA | Specifies multiple monitors for GSLB Pool |
+| ratio              | Integer     | Optional | 1  | Ratio weight assigned to GSLB pool        |
 
 
-**Note**: The user needs to mention the same GSLB DataServer Name to dataServerName field, which is create on the BIG-IP common partition.
+
+**Note**: The user needs to mention the same GSLB DataServer Name to dataServerName field, which is created on the BIG-IP common partition.
 
 **GSLB Monitor Components**
 

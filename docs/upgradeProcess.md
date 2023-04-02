@@ -272,3 +272,5 @@ Refer Release Notes for [CIS v2.11.1](https://github.com/F5Networks/k8s-bigip-ct
 * CIS is supporting new partition for GTM in as3 mode for CRDs. In CCCL mode there are no partition changes for GTM, common partition remains same
    * In as3 mode, CIS will clear existing GTM objects in default partition and recreates them in new GTM partition 
    * Format of the new GTM partition name - {defaultpartition_gtm}
+   * With EDNS and VS/TS/IngressLink resource partition change, sometimes CIS might come across 422 error 
+     * The root cause can be VS list is not refreshed in the GSLB server.

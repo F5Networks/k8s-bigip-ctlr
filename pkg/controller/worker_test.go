@@ -3013,6 +3013,78 @@ extendedRouteSpec:
 
 			})
 
+			It("Test Liveness Probe", func() {
+				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
+
+				mockCtlr.addConfigMap(cm)
+				mockCtlr.processResources()
+				mockCtlr.Agent.ccclGTMAgent = true
+				writer := &test.MockWriter{
+					FailStyle: test.Success,
+					Sections:  make(map[string]interface{}),
+				}
+				mockCtlr.Agent.ConfigWriter = writer
+				go mockCtlr.Agent.agentWorker()
+				go mockCtlr.Agent.retryWorker()
+
+				routeGroup := "default"
+				mockCtlr.addPolicy(policy)
+				mockCtlr.processResources()
+
+				labels := make(map[string]string)
+				labels["app"] = "UpdatePoolHealthMonitors"
+				svc.Spec.Selector = labels
+				pod := &v1.Pod{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "pod",
+						Labels:    labels,
+						Namespace: namespace,
+					},
+				}
+				Handler := v1.Handler{
+					Exec: &v1.ExecAction{
+						Command: nil,
+					},
+				}
+				cnt := v1.Container{
+					LivenessProbe: &v1.Probe{
+
+						TimeoutSeconds:   10,
+						PeriodSeconds:    10,
+						SuccessThreshold: 1,
+						Handler:          Handler,
+					},
+					Ports: []v1.ContainerPort{
+						v1.ContainerPort{
+							ContainerPort: 80,
+							Protocol:      v1.ProtocolTCP,
+						},
+					},
+				}
+				pod.Spec.Containers = append(pod.Spec.Containers, cnt)
+
+				mockCtlr.addPod(pod)
+				mockCtlr.processResources()
+
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				mockCtlr.addService(svc)
+				mockCtlr.processResources()
+
+				route1 := test.NewRoute("route1", "1", routeGroup, spec1, annotation1)
+				route1.Spec.TLS.Termination = TLSReencrypt
+				route1.Spec.Host = "test.com"
+				_, ok := route1.Annotations[LegacyHealthMonitorAnnotation]
+				if ok {
+					delete(route1.Annotations, LegacyHealthMonitorAnnotation)
+				}
+				mockCtlr.addRoute(route1)
+				mockCtlr.resources.invertedNamespaceLabelMap[routeGroup] = routeGroup
+				mockCtlr.processResources()
+				Expect(len(mockCtlr.resources.ltmConfig)).To(Equal(1), "Route not processed")
+			})
+
 			It("Process Re-encrypt Route", func() {
 
 				mockCtlr.resources.invertedNamespaceLabelMap[namespace] = routeGroup
@@ -3138,6 +3210,24 @@ extendedRouteSpec:
 				mockCtlr.processResources()
 
 				pod.Spec.Containers[0].LivenessProbe.TimeoutSeconds = 1
+				mockCtlr.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
+				mockCtlr.addEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				mockCtlr.deleteEndpoints(fooEndpts)
+				mockCtlr.processResources()
+
+				pod.Spec.Containers[0].LivenessProbe = &v1.Probe{
+					FailureThreshold: 3,
+					TimeoutSeconds:   10,
+					PeriodSeconds:    10,
+					SuccessThreshold: 1,
+					Handler: v1.Handler{
+						Exec: &v1.ExecAction{
+							Command: nil,
+						},
+					},
+				}
 				mockCtlr.kubeClient.CoreV1().Pods(svc.ObjectMeta.Namespace).Update(context.TODO(), pod, metav1.UpdateOptions{})
 				mockCtlr.addEndpoints(fooEndpts)
 				mockCtlr.processResources()
